@@ -301,6 +301,7 @@ ALTER TABLE "Placas" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "Produtos_Completos" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "Tecnicos" ENABLE ROW LEVEL SECURITY;
 
+
 -- Políticas: acesso total para usuários autenticados
 -- (ajuste conforme necessidade de restrição por função)
 DO $$

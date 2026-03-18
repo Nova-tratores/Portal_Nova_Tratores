@@ -81,6 +81,13 @@ export default function LoginPage() {
         if (dbError) {
           setError('Erro ao salvar perfil: ' + dbError.message)
         } else {
+          // Cria registro de permissões vazio (sem acesso até admin liberar)
+          await supabase.from('portal_permissoes').insert([{
+            user_id: data.user.id,
+            is_admin: false,
+            categoria: '',
+            modulos_permitidos: []
+          }])
           setIsRegistering(false)
           setError('')
           alert('Conta criada com sucesso! Faça login.')
