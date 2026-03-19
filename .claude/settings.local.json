@@ -70,7 +70,19 @@
       "Bash(cat \"/c/projetos/portal/src/app/\\(portal\\)/layout.tsx\")",
       "Bash(cd C:/projetos/portal && npx tsc --noEmit 2>&1 | head -40)",
       "Bash(cd C:/projetos/portal && npx tsc --noEmit 2>&1 | head -20)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(ls -la /c/projetos/portal/src/app/\\\\\\(portal\\\\\\)/financeiro/)",
+      "Bash(ls -la /c/projetos/portal/src/app/\\\\\\(portal\\\\\\)/financeiro/*/)",
+      "Bash(head -100 /c/projetos/portal/src/app/\\\\\\(portal\\\\\\)/financeiro/home-financeiro/page.js)",
+      "Bash(head -150 /c/projetos/portal/src/app/\\\\\\(portal\\\\\\)/financeiro/dashboard/page.js | grep -A 5 \"h1\\\\|h2\\\\|Painel\\\\|Dashboard\\\\|FinanceiroSubNav\")",
+      "Bash(head -150 /c/projetos/portal/src/app/\\\\\\(portal\\\\\\)/financeiro/kanban/page.js | grep -A 3 \"h1\\\\|h2\\\\|titulo\\\\|FinanceiroSubNav\")",
+      "Bash(wc -l \"C:/projetos/portal/src/app/\\(portal\\)/financeiro/home-financeiro/page.js\")",
+      "Bash(wc -l \"C:/projetos/portal/src/app/\\(portal\\)/financeiro/home-posvendas/page.js\")",
+      "Bash(find /c/projetos/portal/src/app/api -name \"*.ts\" | xargs grep -l \"buscar.*produt\\\\|produtos.*busca\" | head -5)",
+      "Bash(find /c/projetos/portal/src -type f -name \"*pos*\" -o -name \"*ops*\" 2>/dev/null | head -20)",
+      "Bash(ls -la /c/projetos/portal/src/app/\\\\\\(portal\\\\\\)/pos/)",
+      "Bash(find /c/projetos/portal/src/app -type f -name \"*.tsx\" -o -name \"*.ts\" -o -name \"*.jsx\" | xargs grep -l \"print\\\\|/pos\" 2>/dev/null | head -20)",
+      "Bash(ls \"C:/projetos/portal/src/app/\\(portal\\)/pos/\")"
     ]
   }
 }

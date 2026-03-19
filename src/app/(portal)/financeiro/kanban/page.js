@@ -10,6 +10,7 @@ import {
   Calendar, CreditCard, Hash, ArrowLeft,
   Eye, Search, RefreshCw, AlertCircle, Clock
 } from 'lucide-react'
+import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
 
 const STATUS_CONFIG = {
  gerar_boleto:          { label: 'GERAR BOLETO',          bg: '#eff6ff', color: '#3b82f6', border: '#bfdbfe' },
@@ -20,44 +21,7 @@ const STATUS_CONFIG = {
  concluido:             { label: 'CONCLUIDO',             bg: '#f0fdf4', color: '#15803d', border: '#bbf7d0' },
 };
 
-// --- SUB-NAVEGAÇÃO FINANCEIRO ---
-function FinanceiroSubNav() {
-  const pathname = usePathname()
-  const links = [
-    { label: 'Painel', href: '/financeiro/home-posvendas' },
-    { label: 'Kanban', href: '/financeiro/kanban' },
-    { label: 'Dashboard', href: '/financeiro/dashboard' },
-    { label: 'Hist. Pagar', href: '/financeiro/historico-pagar' },
-    { label: 'Hist. Receber', href: '/financeiro/historico-receber' },
-    { label: 'Hist. RH', href: '/financeiro/historico-rh' },
-  ]
-  return (
-    <nav style={{ display: 'flex', gap: '0', borderBottom: '1px solid #e5e7eb', background: '#ffffff', padding: '0 40px' }}>
-      {links.map(link => {
-        const isActive = pathname === link.href
-        return (
-          <a
-            key={link.href}
-            href={link.href}
-            style={{
-              padding: '20px 32px',
-              fontSize: '20px',
-              fontFamily: 'Montserrat, sans-serif',
-              fontWeight: isActive ? '700' : '400',
-              color: isActive ? '#dc2626' : '#6b7280',
-              textDecoration: 'none',
-              borderBottom: isActive ? '3px solid #dc2626' : '3px solid transparent',
-              transition: '0.2s',
-              letterSpacing: '0.5px',
-            }}
-          >
-            {link.label}
-          </a>
-        )
-      })}
-    </nav>
-  )
-}
+// FinanceiroSubNav removido — agora usa componente compartilhado FinanceiroNav
 
 // --- COMPONENTE KANBAN PRINCIPAL ---
 export default function Kanban() {
@@ -122,7 +86,10 @@ export default function Kanban() {
     const calcParcelas = (c) => {
       const qtd = parseInt(c.qtd_parcelas || 1);
       const valorUnit = (c.valor_servico || 0) / qtd;
-      const datas = [c.vencimento_boleto, ...(c.datas_parcelas || '').split(/[\s,]+/).filter(d => d.includes('-'))];
+      const rawDatas = (c.datas_parcelas || '').split(/[\s,]+/).filter(d => d.includes('-'));
+      // Corrige registros antigos que salvaram a parcela 1 dentro de datas_parcelas
+      if (rawDatas.length > 0 && rawDatas[0] === c.vencimento_boleto) rawDatas.shift();
+      const datas = [c.vencimento_boleto, ...rawDatas];
       const hoje3 = new Date(hoje); hoje3.setDate(hoje3.getDate() + 3);
       return Array.from({ length: qtd }, (_, i) => {
         const comp = i === 0 ? (c.comprovante_pagamento_p1 || c.comprovante_pagamento) : c[`comprovante_pagamento_p${i + 1}`];
@@ -259,11 +226,10 @@ export default function Kanban() {
 
  return (
   <div style={{ minHeight: 'calc(100vh - 64px)', fontFamily: 'Montserrat, sans-serif' }}>
-   <FinanceiroSubNav />
+   <FinanceiroNav />
 
-   <main style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px - 49px)', overflow: 'hidden' }}>
-    <header style={{ padding: '40px 50px 30px 50px' }}>
-     <h1 style={{ fontWeight: '300', fontSize:'80px', color:'#1e293b', letterSpacing:'-4px', marginBottom: '35px' }}>Fluxo Pos-Vendas</h1>
+   <main style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px - 56px)', overflow: 'hidden' }}>
+    <header style={{ padding: '20px 32px 16px' }}>
 
      <div style={{ display:'flex', gap:'20px', flexWrap:'wrap', justifyContent: 'flex-start' }}>
         <div style={{ position: 'relative', width: '450px' }}>
@@ -412,16 +378,19 @@ export default function Kanban() {
 
                 {Array.from({ length: (tarefaSelecionada.qtd_parcelas || 1) - 1 }).map((_, i) => {
                   const pNum = i + 2;
-                  const currentDates = (tarefaSelecionada.datas_parcelas || "").split(/[\s,]+/);
+                  const rawDates = (tarefaSelecionada.datas_parcelas || "").split(/[\s,]+/).filter(d => d.includes('-'));
+                  // Remove duplicata da parcela 1 se presente (registros antigos)
+                  if (rawDates.length > 0 && rawDates[0] === tarefaSelecionada.vencimento_boleto) rawDates.shift();
                   return (
                     <div key={pNum} style={cascadeRowStyle}>
                       <span style={cascadeLabelStyle}>{pNum}ª PARCELA</span>
                       <input
                         type="date"
                         style={inputCascadeStyle}
-                        defaultValue={currentDates[i] || ""}
+                        defaultValue={rawDates[i] || ""}
                         onBlur={e => {
-                          let arr = [...currentDates];
+                          let arr = [...rawDates];
+                          while (arr.length < (tarefaSelecionada.qtd_parcelas || 1) - 1) arr.push('');
                           arr[i] = e.target.value;
                           handleUpdateField(tarefaSelecionada.id, 'datas_parcelas', arr.filter(d => d).join(', '));
                         }}
@@ -435,68 +404,83 @@ export default function Kanban() {
           </div>
         )}
 
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'30px', background:'#fef2f2', padding:'45px', borderRadius:'24px', border:'1px solid #e5e7eb' }}>
-          <div style={fieldBoxInner}><label style={labelModalStyle}>Nota de Serviço</label><input style={inputStyleModal} defaultValue={tarefaSelecionada.num_nf_servico} onBlur={e => handleUpdateField(tarefaSelecionada.id, 'num_nf_servico', e.target.value)} /></div>
-          <div style={fieldBoxInner}><label style={labelModalStyle}>Nota de Peça</label><input style={inputStyleModal} defaultValue={tarefaSelecionada.num_nf_peca} onBlur={e => handleUpdateField(tarefaSelecionada.id, 'num_nf_peca', e.target.value)} /></div>
-          <div style={{gridColumn:'span 2', ...fieldBoxInner}}><label style={labelModalStyle}>Observações Financeiras</label><textarea style={{...inputStyleModal, height:'130px', resize: 'none'}} defaultValue={tarefaSelecionada.obs} onBlur={e => handleUpdateField(tarefaSelecionada.id, 'obs', e.target.value)} /></div>
-        </div>
+        {/* === INFORMAÇÕES + DOCUMENTOS EM GRID COMPACTO === */}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px' }}>
 
-        {/* === DOCUMENTOS - LAYOUT INTELIGENTE === */}
-        <div style={{marginTop:'40px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'25px'}}>
-            {/* COLUNA: NOTAS FISCAIS */}
-            <div style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:'22px', padding:'30px' }}>
-              <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'20px' }}>
-                <FileText size={20} color="#16a34a"/>
-                <label style={{...labelModalStyle, margin:0}}>NOTAS FISCAIS ENVIADAS</label>
+          {/* NF + ANEXOS */}
+          <div style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:'22px', padding:'24px', display:'flex', flexDirection:'column', gap:'14px' }}>
+            <label style={{...labelModalStyle, margin:0, display:'flex', alignItems:'center', gap:'8px'}}><FileText size={16} color="#16a34a"/> NOTAS FISCAIS</label>
+            {(tarefaSelecionada.num_nf_servico || !tarefaSelecionada.num_nf_peca) && (
+              <div>
+                <label style={{...labelModalStyle, fontSize:'11px', marginBottom:'4px'}}>NF Servico</label>
+                <input style={{...inputStyleModal, padding:'12px'}} defaultValue={tarefaSelecionada.num_nf_servico} onBlur={e => handleUpdateField(tarefaSelecionada.id, 'num_nf_servico', e.target.value)} />
               </div>
-              <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+            )}
+            {(tarefaSelecionada.num_nf_peca || !tarefaSelecionada.num_nf_servico) && (
+              <div>
+                <label style={{...labelModalStyle, fontSize:'11px', marginBottom:'4px'}}>NF Peca</label>
+                <input style={{...inputStyleModal, padding:'12px'}} defaultValue={tarefaSelecionada.num_nf_peca} onBlur={e => handleUpdateField(tarefaSelecionada.id, 'num_nf_peca', e.target.value)} />
+              </div>
+            )}
+            <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+              {(tarefaSelecionada.anexo_nf_servico || (!tarefaSelecionada.num_nf_peca && !tarefaSelecionada.anexo_nf_peca)) && (
                 <AttachmentTag label="NF SERVICO" fileUrl={tarefaSelecionada.anexo_nf_servico} onUpload={(file) => handleUpdateFileDirect(tarefaSelecionada.id, 'anexo_nf_servico', file)} />
+              )}
+              {(tarefaSelecionada.anexo_nf_peca || (!tarefaSelecionada.num_nf_servico && !tarefaSelecionada.anexo_nf_servico)) && (
                 <AttachmentTag label="NF PECA" fileUrl={tarefaSelecionada.anexo_nf_peca} onUpload={(file) => handleUpdateFileDirect(tarefaSelecionada.id, 'anexo_nf_peca', file)} />
-                {tarefaSelecionada.comprovante_pagamento && (
-                  <AttachmentTag label="COMPROVANTE" fileUrl={tarefaSelecionada.comprovante_pagamento} onUpload={(file) => handleUpdateFileDirect(tarefaSelecionada.id, 'comprovante_pagamento', file)} />
-                )}
-              </div>
-            </div>
-
-            {/* COLUNA: BOLETO DO FINANCEIRO */}
-            <div style={{ background: tarefaSelecionada.anexo_boleto ? '#eff6ff' : '#fef2f2', border: `1px solid ${tarefaSelecionada.anexo_boleto ? '#bfdbfe' : '#fecaca'}`, borderRadius:'22px', padding:'30px' }}>
-              <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'20px' }}>
-                {tarefaSelecionada.anexo_boleto ? <CheckCircle size={20} color="#3b82f6"/> : <Calendar size={20} color="#dc2626"/>}
-                <label style={{...labelModalStyle, margin:0, color: tarefaSelecionada.anexo_boleto ? '#3b82f6' : '#dc2626'}}>{tarefaSelecionada.anexo_boleto ? 'BOLETO RECEBIDO' : 'AGUARDANDO BOLETO'}</label>
-              </div>
-              {tarefaSelecionada.anexo_boleto ? (
-                <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
-                  {[
-                    { label: 'Boleto 1', url: tarefaSelecionada.anexo_boleto },
-                    { label: 'Boleto 2', url: tarefaSelecionada.anexo_boleto_2 },
-                    { label: 'Boleto 3', url: tarefaSelecionada.anexo_boleto_3 },
-                  ].filter(b => b.url).map((boleto, i) => (
-                    <div key={i}
-                      onClick={() => window.open(boleto.url, '_blank')}
-                      style={{ display:'flex', alignItems:'center', gap:'15px', background:'#ffffff', border:'1px solid #bfdbfe', borderRadius:'16px', padding:'18px', cursor:'pointer', transition:'0.2s' }}
-                    >
-                      <div style={{ width:'44px', height:'44px', borderRadius:'12px', background:'#dbeafe', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                        <Eye size={20} color="#3b82f6"/>
-                      </div>
-                      <div style={{ flex:1 }}>
-                        <div style={{ fontSize:'15px', color:'#1e293b', fontWeight:'600' }}>{boleto.label}</div>
-                        <div style={{ fontSize:'11px', color:'#6b7280' }}>Clique para abrir</div>
-                      </div>
-                      <Download size={18} color="#3b82f6"/>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'center', padding:'30px', background:'#ffffff', borderRadius:'16px', border:'2px dashed #fecaca' }}>
-                  <div style={{ textAlign:'center' }}>
-                    <Calendar size={32} color="#fca5a5" style={{ marginBottom:'10px' }}/>
-                    <div style={{ fontSize:'14px', color:'#dc2626', fontWeight:'600' }}>Aguardando</div>
-                    <div style={{ fontSize:'12px', color:'#9ca3af', marginTop:'4px' }}>O financeiro ainda nao gerou o boleto</div>
-                  </div>
-                </div>
+              )}
+              {tarefaSelecionada.comprovante_pagamento && (
+                <AttachmentTag label="COMPROVANTE" fileUrl={tarefaSelecionada.comprovante_pagamento} onUpload={(file) => handleUpdateFileDirect(tarefaSelecionada.id, 'comprovante_pagamento', file)} />
               )}
             </div>
+          </div>
+
+          {/* BOLETO DO FINANCEIRO */}
+          <div style={{ background: tarefaSelecionada.anexo_boleto ? '#eff6ff' : '#fef2f2', border: `1px solid ${tarefaSelecionada.anexo_boleto ? '#bfdbfe' : '#fecaca'}`, borderRadius:'22px', padding:'24px', display:'flex', flexDirection:'column', gap:'12px' }}>
+            <label style={{...labelModalStyle, margin:0, color: tarefaSelecionada.anexo_boleto ? '#3b82f6' : '#dc2626', display:'flex', alignItems:'center', gap:'8px'}}>
+              {tarefaSelecionada.anexo_boleto ? <CheckCircle size={16} color="#3b82f6"/> : <Calendar size={16} color="#dc2626"/>}
+              {tarefaSelecionada.anexo_boleto ? 'BOLETO RECEBIDO' : 'AGUARDANDO BOLETO'}
+            </label>
+            {tarefaSelecionada.anexo_boleto ? (
+              <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
+                {[
+                  { label: 'Boleto 1', url: tarefaSelecionada.anexo_boleto },
+                  { label: 'Boleto 2', url: tarefaSelecionada.anexo_boleto_2 },
+                  { label: 'Boleto 3', url: tarefaSelecionada.anexo_boleto_3 },
+                ].filter(b => b.url).map((boleto, i) => (
+                  <div key={i}
+                    onClick={() => window.open(boleto.url, '_blank')}
+                    style={{ display:'flex', alignItems:'center', gap:'12px', background:'#ffffff', border:'1px solid #bfdbfe', borderRadius:'12px', padding:'14px', cursor:'pointer', transition:'0.2s' }}
+                  >
+                    <div style={{ width:'36px', height:'36px', borderRadius:'8px', background:'#dbeafe', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                      <Eye size={16} color="#3b82f6"/>
+                    </div>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontSize:'14px', color:'#1e293b', fontWeight:'600' }}>{boleto.label}</div>
+                    </div>
+                    <Download size={16} color="#3b82f6"/>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'center', padding:'24px', background:'#ffffff', borderRadius:'12px', border:'2px dashed #fecaca' }}>
+                <div style={{ textAlign:'center' }}>
+                  <Calendar size={28} color="#fca5a5" style={{ marginBottom:'8px' }}/>
+                  <div style={{ fontSize:'13px', color:'#dc2626', fontWeight:'600' }}>Aguardando</div>
+                  <div style={{ fontSize:'11px', color:'#9ca3af', marginTop:'2px' }}>O financeiro ainda nao gerou o boleto</div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* OBSERVAÇÕES — só mostra se tiver conteúdo */}
+        {tarefaSelecionada.obs && (
+          <div style={{ marginTop:'20px', background:'#fef2f2', padding:'20px', borderRadius:'16px', border:'1px solid #e5e7eb' }}>
+            <label style={{...labelModalStyle, marginBottom:'8px'}}>Observacoes</label>
+            <textarea style={{...inputStyleModal, height:'80px', resize: 'none', padding:'12px'}} defaultValue={tarefaSelecionada.obs} onBlur={e => handleUpdateField(tarefaSelecionada.id, 'obs', e.target.value)} />
+          </div>
+        )}
 
         <div style={{marginTop:'50px', display:'flex', flexDirection:'column', gap:'20px'}}>
           {tarefaSelecionada.status === 'enviar_cliente' && (

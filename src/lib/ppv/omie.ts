@@ -291,125 +291,129 @@ export async function enviarPPVParaOmie(idPPV: string): Promise<{ sucesso: boole
     return { sucesso: false, erro: "Todos os produtos foram devolvidos, nada para faturar" };
   }
 
-  // 5. Buscar empresa dos produtos que não têm empresa definida
-  const codigosSemEmpresa = produtosFinais.filter(([, p]) => !p.empresa).map(([cod]) => cod);
-  if (codigosSemEmpresa.length > 0) {
-    const empresasProd = await buscarEmpresasProdutos(codigosSemEmpresa);
-    for (const [cod, prod] of produtosFinais) {
-      if (!prod.empresa && empresasProd[cod]) {
-        // Se o produto existe em múltiplas empresas, será resolvido abaixo
-        prod.empresa = empresasProd[cod].length === 1 ? empresasProd[cod][0] : undefined;
+  // 5. Resolver empresa de cada produto
+  // Busca empresa dos que não têm (ou têm múltiplas, ex: "Principal / Secundario")
+  const todosCodigosParaBuscar = produtosFinais
+    .filter(([, p]) => !p.empresa || p.empresa.includes("/"))
+    .map(([cod]) => cod);
+
+  const empresasProdutos = todosCodigosParaBuscar.length > 0
+    ? await buscarEmpresasProdutos(todosCodigosParaBuscar)
+    : {};
+
+  for (const [cod, prod] of produtosFinais) {
+    // Se já tem empresa única definida, mantém
+    if (prod.empresa && !prod.empresa.includes("/")) continue;
+
+    const emps = empresasProdutos[cod];
+    if (emps && emps.length === 1) {
+      prod.empresa = emps[0];
+    } else {
+      // Produto existe em ambas ou não tem empresa → será atribuído abaixo
+      prod.empresa = undefined;
+    }
+  }
+
+  // 6. Agrupar produtos por empresa
+  const porEmpresa: Record<string, Array<[string, { descricao: string; qtde: number; preco: number; empresa?: string }]>> = {};
+
+  for (const entry of produtosFinais) {
+    const emp = entry[1].empresa || "Principal"; // fallback
+    if (!porEmpresa[emp]) porEmpresa[emp] = [];
+    porEmpresa[emp].push(entry);
+  }
+
+  const empresas = Object.keys(porEmpresa);
+  console.log(`[Omie PPV] ${idPPV} → ${empresas.length} empresa(s): ${empresas.join(", ")}, ${produtosFinais.length} produto(s) total`);
+
+  // 7. Criar um pedido por empresa
+  const pedidosCriados: string[] = [];
+  const erros: string[] = [];
+
+  for (const empresaNome of empresas) {
+    const acc = getAccount(empresaNome);
+    const produtos = porEmpresa[empresaNome];
+
+    try {
+      const nCodCli = await buscarNcodCli(cnpjCliente, acc);
+      const nCodVend = await buscarNcodVend(detalhes.tecnico, acc);
+
+      // Monta itens do pedido
+      const det: Array<{
+        ide: { codigo_item_integracao: string };
+        produto: { codigo_produto: number; quantidade: number; valor_unitario: number };
+      }> = [];
+
+      for (let i = 0; i < produtos.length; i++) {
+        const [cod, prod] = produtos[i];
+        const codigoProdutoOmie = await buscarCodigoProdutoOmie(cod, acc);
+        det.push({
+          ide: { codigo_item_integracao: `${idPPV}-${acc.name.substring(0, 3).toUpperCase()}-${i + 1}` },
+          produto: {
+            codigo_produto: codigoProdutoOmie,
+            quantidade: prod.qtde,
+            valor_unitario: prod.preco,
+          },
+        });
       }
-    }
-  }
 
-  // 6. Determinar empresa majoritária (ignora produtos que existem em ambas)
-  const contEmpresa: Record<string, number> = {};
-  for (const [, prod] of produtosFinais) {
-    if (prod.empresa) {
-      contEmpresa[prod.empresa] = (contEmpresa[prod.empresa] || 0) + 1;
-    }
-  }
-  const empresaMajoritaria = Object.entries(contEmpresa).sort((a, b) => b[1] - a[1])[0]?.[0] || "Principal";
+      // Sufixo para diferenciar pedidos quando há múltiplas empresas
+      const sufixo = empresas.length > 1 ? `-${acc.name.substring(0, 3).toUpperCase()}` : "";
 
-  // Verificar se há REALMENTE produtos exclusivos de empresas diferentes
-  // (produtos que existem em ambas empresas NÃO são conflito)
-  const empresasExclusivas = new Set<string>();
-  for (const [, prod] of produtosFinais) {
-    if (prod.empresa) {
-      empresasExclusivas.add(prod.empresa);
-    }
-    // Se não tem empresa definida, é porque existe em ambas — sem conflito
-  }
-
-  if (empresasExclusivas.size > 1) {
-    // Há produtos exclusivos de empresas diferentes — bloqueia
-    const detalhesEmpresas = Array.from(empresasExclusivas).map((e) => {
-      const count = produtosFinais.filter(([, p]) => p.empresa === e).length;
-      return `${e}: ${count} produto(s)`;
-    }).join(", ");
-    return {
-      sucesso: false,
-      erro: `PPV contém produtos de empresas diferentes (${detalhesEmpresas}). Separe os produtos em PPVs distintos por empresa antes de enviar para o Omie.`,
-    };
-  }
-
-  // Atribuir empresa majoritária aos produtos sem empresa definida (duplicatas)
-  for (const [, prod] of produtosFinais) {
-    if (!prod.empresa) prod.empresa = empresaMajoritaria;
-  }
-
-  // 7. Criar pedido na conta correta
-  const empresaNome = empresaMajoritaria;
-  const acc = getAccount(empresaNome);
-  console.log(`[Omie PPV] ${idPPV} → Empresa: ${empresaNome} (${acc.name}), ${produtosFinais.length} produto(s)`);
-  const produtos = produtosFinais;
-
-  try {
-    const nCodCli = await buscarNcodCli(cnpjCliente, acc);
-    const nCodVend = await buscarNcodVend(detalhes.tecnico, acc);
-
-    // Monta itens do pedido
-    const det: Array<{
-      ide: { codigo_item_integracao: string };
-      produto: { codigo_produto: number; quantidade: number; valor_unitario: number };
-    }> = [];
-
-    for (let i = 0; i < produtos.length; i++) {
-      const [cod, prod] = produtos[i];
-      const codigoProdutoOmie = await buscarCodigoProdutoOmie(cod, acc);
-      det.push({
-        ide: { codigo_item_integracao: `${idPPV}-${i + 1}` },
-        produto: {
-          codigo_produto: codigoProdutoOmie,
-          quantidade: prod.qtde,
-          valor_unitario: prod.preco,
+      const payload = {
+        cabecalho: {
+          codigo_pedido_integracao: `PV-${idPPV}${sufixo}`,
+          codigo_cliente: nCodCli,
+          data_previsao: formatarDataOmie(),
+          etapa: "10",
+          quantidade_itens: det.length,
         },
-      });
+        informacoes_adicionais: {
+          codigo_categoria: OMIE_COD_CATEG_VENDA,
+          ...(acc.codCC ? { codigo_conta_corrente: acc.codCC } : {}),
+          codVend: nCodVend || undefined,
+          numero_contrato: idPPV,
+        },
+        det,
+      };
+
+      const resposta = await omieCall<{ numero_pedido?: string; codigo_pedido?: number }>(
+        "/produtos/pedido/",
+        "IncluirPedido",
+        payload as unknown as Record<string, unknown>,
+        acc.key,
+        acc.secret
+      );
+
+      const numPedido = resposta.numero_pedido || String(resposta.codigo_pedido || "");
+      console.log(`[Omie PPV] ${idPPV} → Pedido nº ${numPedido} (${acc.name})`);
+      pedidosCriados.push(`${numPedido} (${acc.name})`);
+
+      await registrarLog(idPPV, `Pedido de Venda Omie nº ${numPedido} criado (${acc.name}) — ${produtos.length} produto(s).`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[Omie PPV] ${idPPV} (${acc.name}): ${msg}`);
+      erros.push(`${acc.name}: ${msg}`);
     }
-
-    // Cria Pedido de Venda
-    const payload = {
-      cabecalho: {
-        codigo_pedido_integracao: `PV-${idPPV}`,
-        codigo_cliente: nCodCli,
-        data_previsao: formatarDataOmie(),
-        etapa: "10",
-        quantidade_itens: det.length,
-      },
-      informacoes_adicionais: {
-        codigo_categoria: OMIE_COD_CATEG_VENDA,
-        ...(acc.codCC ? { codigo_conta_corrente: acc.codCC } : {}),
-        codVend: nCodVend || undefined,
-        numero_contrato: idPPV,
-      },
-      det,
-    };
-
-    const resposta = await omieCall<{ numero_pedido?: string; codigo_pedido?: number }>(
-      "/produtos/pedido/",
-      "IncluirPedido",
-      payload as unknown as Record<string, unknown>,
-      acc.key,
-      acc.secret
-    );
-
-    const numPedido = resposta.numero_pedido || String(resposta.codigo_pedido || "");
-    console.log(`[Omie PPV] ${idPPV} → Pedido nº ${numPedido} (${acc.name})`);
-
-    // Atualiza PPV: salva pedido_omie + muda status para Fechado
-    await supabaseFetch(
-      `${TBL_PEDIDOS}?id_pedido=eq.${idPPV}`,
-      "PATCH",
-      { pedido_omie: numPedido, status: "Fechado" }
-    );
-
-    await registrarLog(idPPV, `Pedido de Venda Omie nº ${numPedido} criado (${acc.name}). PPV fechado.`);
-
-    return { sucesso: true, numeroPedido: numPedido };
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[Omie PPV] ${idPPV}: ${msg}`);
-    return { sucesso: false, erro: msg };
   }
+
+  // Se nenhum pedido foi criado, retorna erro
+  if (pedidosCriados.length === 0) {
+    return { sucesso: false, erro: erros.join("; ") };
+  }
+
+  // Atualiza PPV: salva pedido_omie + muda status para Fechado
+  const todosNumeros = pedidosCriados.join(", ");
+  await supabaseFetch(
+    `${TBL_PEDIDOS}?id_pedido=eq.${idPPV}`,
+    "PATCH",
+    { pedido_omie: todosNumeros, status: "Fechado" }
+  );
+
+  // Se houve erros parciais, retorna com aviso
+  if (erros.length > 0) {
+    return { sucesso: true, numeroPedido: todosNumeros, erro: `Parcial: ${erros.join("; ")}` };
+  }
+
+  return { sucesso: true, numeroPedido: todosNumeros };
 }

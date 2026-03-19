@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import MenuLateral from '@/components/financeiro/MenuLateral'
+import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
 import { formatarMoeda, formatarDataBR } from '@/lib/financeiro/utils'
 import {
   TrendingDown, AlertTriangle,
@@ -48,10 +48,8 @@ function KpiCard({ icon: Icon, label, value, sub, color }) {
 }
 
 export default function RelatorioPagar() {
-  const [userProfile, setUserProfile] = useState(null)
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState(null)
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [kpis, setKpis] = useState(null)
   const [listaRelatorio, setListaRelatorio] = useState([])
   const [dadosCompletos, setDadosCompletos] = useState([])
@@ -61,11 +59,6 @@ export default function RelatorioPagar() {
   const [filtroDataInicio, setFiltroDataInicio] = useState('')
   const [filtroDataFim, setFiltroDataFim] = useState('')
   const router = useRouter()
-  const [path, setPath] = useState('/financeiro/relatorio-pagar')
-
-  useEffect(() => { setPath(window.location.pathname) }, [])
-
-  const handleLogout = async () => { await supabase.auth.signOut(); router.push('/login') }
 
   const handleImprimir = () => { window.print() }
 
@@ -107,9 +100,6 @@ export default function RelatorioPagar() {
       try {
         const { data: { session } } = await supabase.auth.getSession()
         if (!session) return router.push('/login')
-
-        const { data: prof } = await supabase.from('financeiro_usu').select('*').eq('id', session.user.id).single()
-        setUserProfile(prof)
 
         const { data: pagar, error: errPagar } = await supabase
           .from('finan_pagar')
@@ -188,32 +178,19 @@ export default function RelatorioPagar() {
   )
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#f4f4f4', fontFamily: 'Montserrat, sans-serif' }}>
-      <MenuLateral
-        isSidebarOpen={isSidebarOpen}
-        setIsSidebarOpen={setIsSidebarOpen}
-        path={path}
-        router={router}
-        handleLogout={handleLogout}
-        userProfile={userProfile}
-      />
+    <div style={{ minHeight: '100vh', background: '#f4f4f4', fontFamily: 'Montserrat, sans-serif' }}>
+      <FinanceiroNav>
+        <button
+          onClick={handleImprimir}
+          className="no-print"
+          style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#1a1a1a', color: '#fff', border: 'none', borderRadius: '10px', padding: '8px 16px', cursor: 'pointer', fontSize: '11px', letterSpacing: '1px', textTransform: 'uppercase', fontFamily: 'Montserrat, sans-serif' }}
+        >
+          <Printer size={14} />
+          Imprimir
+        </button>
+      </FinanceiroNav>
 
-      <main style={{ marginLeft: isSidebarOpen ? '360px' : '85px', flex: 1, padding: '50px', transition: '0.4s ease' }}>
-
-        <header style={{ marginBottom: '40px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-          <div>
-            <h1 style={{ fontWeight: '400', color: '#333', margin: 0, fontSize: '32px', letterSpacing: '-1px' }}>RELATORIO PAGAR</h1>
-            <div style={{ width: '60px', height: '4px', background: '#9e9e9e', marginTop: '12px', borderRadius: '2px' }} />
-          </div>
-          <button
-            onClick={handleImprimir}
-            className="no-print"
-            style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#1a1a1a', color: '#fff', border: 'none', borderRadius: '12px', padding: '12px 20px', cursor: 'pointer', fontSize: '12px', letterSpacing: '1.5px', textTransform: 'uppercase', fontFamily: 'Montserrat, sans-serif' }}
-          >
-            <Printer size={16} />
-            Imprimir Relatorio
-          </button>
-        </header>
+      <main style={{ padding: '24px 32px' }}>
 
         {/* KPI ROW */}
         <section className="no-print" style={{ marginBottom: '40px' }}>

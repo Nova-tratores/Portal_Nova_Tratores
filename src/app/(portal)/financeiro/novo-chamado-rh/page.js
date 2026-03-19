@@ -2,8 +2,8 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-// IMPORTAÇÃO DO MENU MODULAR
-import MenuLateral from '@/components/financeiro/MenuLateral'
+import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
+import { useAuditLog } from '@/hooks/useAuditLog'
 import { ArrowLeft, Send, User, Bookmark, FileText, Building } from 'lucide-react'
 
 // --- 1. TELA DE CARREGAMENTO (ESTILO ATUALIZADO) ---
@@ -19,14 +19,11 @@ function LoadingScreen() {
 }
 
 export default function NovoChamadoRH() {
+  const { log: auditLog } = useAuditLog()
   const [user, setUser] = useState(null)
-  const [userProfile, setUserProfile] = useState(null) 
   const [form, setForm] = useState({ funcionario: '', titulo: '', descricao: '', setor: '' })
   const [enviando, setEnviando] = useState(false)
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false) 
   const router = useRouter()
-
-  const path = typeof window !== 'undefined' ? window.location.pathname : '/financeiro/novo-chamado-rh';
 
   useEffect(() => {
     const carregarUsuario = async () => {
@@ -38,23 +35,10 @@ export default function NovoChamadoRH() {
       }
       
       setUser(session.user)
-
-      const { data: prof } = await supabase
-        .from('financeiro_usu')
-        .select('*')
-        .eq('id', session.user.id)
-        .single()
-      
-      setUserProfile(prof)
     }
 
     carregarUsuario()
   }, [router])
-
-  const handleLogout = async () => { 
-    await supabase.auth.signOut(); 
-    router.push('/login'); 
-  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -66,6 +50,7 @@ export default function NovoChamadoRH() {
         status: 'aberto'
       }])
       if (error) throw error
+      auditLog({ sistema: 'financeiro', acao: 'criar', entidade: 'finan_rh', entidade_label: `RH - ${form.funcionario} - ${form.titulo}`, detalhes: { funcionario: form.funcionario, titulo: form.titulo, setor: form.setor } })
       alert("Chamado de RH criado com sucesso!")
       router.push('/financeiro')
     } catch (err) {
@@ -104,33 +89,10 @@ export default function NovoChamadoRH() {
   }
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#2a2a2d', fontFamily: 'Montserrat, sans-serif', color: '#f1f5f9' }}>
-      <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400&display=swap" rel="stylesheet" />
+    <div style={{ minHeight: '100vh', background: '#2a2a2d', fontFamily: 'Montserrat, sans-serif', color: '#f1f5f9' }}>
+      <FinanceiroNav />
 
-      <MenuLateral 
-        isSidebarOpen={isSidebarOpen} 
-        setIsSidebarOpen={setIsSidebarOpen} 
-        path={path} 
-        router={router} 
-        handleLogout={handleLogout} 
-        userProfile={userProfile}
-      />
-
-      <div style={{ 
-        flex: 1, 
-        marginLeft: isSidebarOpen ? '360px' : '85px', 
-        transition: '0.4s ease', 
-        padding: '60px 20px',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center'
-      }}>
-        
-        <div style={{ width: '100%', maxWidth: '750px', display: 'flex', justifyContent: 'flex-start' }}>
-            <button onClick={() => router.push('/financeiro')} style={{ background: 'none', border: 'none', color: '#9e9e9e', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '15px', marginBottom: '25px' }}>
-              <ArrowLeft size={18} /> Voltar ao Painel
-            </button>
-        </div>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '30px 20px' }}>
 
         <div style={{ width: '100%', maxWidth: '750px', background: '#3f3f44', padding: '60px', borderRadius: '35px', border: '0.5px solid #55555a', boxShadow: '0 30px 80px rgba(0,0,0,0.3)' }}>
           <h1 style={{ fontWeight: '300', fontSize: '32px', color: '#ffffff', marginBottom: '10px', letterSpacing: '-1px', textAlign: 'center' }}>Novo Chamado de RH</h1>

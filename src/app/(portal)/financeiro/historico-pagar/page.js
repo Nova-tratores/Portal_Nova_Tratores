@@ -2,13 +2,10 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-// IMPORTAÇÃO DO MENU MODULAR
-import MenuLateral from '@/components/financeiro/MenuLateral'
+import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
 import { formatarDataBR, formatarMoeda } from '@/lib/financeiro/utils'
-// ÍCONES
-import { 
-  Bell, ArrowLeft, FileText, CheckCircle, Download, 
-  Search, LayoutDashboard, Calendar, Hash, FilterX, Eye
+import {
+  FileText, Download, Search, Calendar, Hash, FilterX, Eye
 } from 'lucide-react'
 
 // --- TELA DE CARREGAMENTO ---
@@ -27,25 +24,19 @@ function LoadingScreen() {
 
 export default function HistoricoPagar() {
   const [lista, setLista] = useState([])
-  const [userProfile, setUserProfile] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
-  
+
   // ESTADOS PARA FILTROS
   const [filtroForn, setFiltroForn] = useState('')
   const [filtroNota, setFiltroNota] = useState('')
   const [filtroData, setFiltroData] = useState('')
 
   const router = useRouter()
-  const path = typeof window !== 'undefined' ? window.location.pathname : '/financeiro/historico-pagar';
 
   useEffect(() => {
     const fetchData = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) return router.push('/login')
-
-      const { data: prof } = await supabase.from('financeiro_usu').select('*').eq('id', session.user.id).single()
-      setUserProfile(prof)
 
       const { data } = await supabase.from('finan_pagar')
         .select('*')
@@ -57,8 +48,6 @@ export default function HistoricoPagar() {
     }
     fetchData()
   }, [router])
-
-  const handleLogout = async () => { await supabase.auth.signOut(); router.push('/login') }
 
   // LÓGICA DE FILTRAGEM (MOSTRA TUDO SE VAZIO)
   const listaFiltrada = lista.filter(item => {
@@ -75,15 +64,10 @@ export default function HistoricoPagar() {
   if (loading) return <LoadingScreen />
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#f4f4f4', fontFamily: 'Montserrat, sans-serif' }}>
-      <MenuLateral isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} path={path} router={router} handleLogout={handleLogout} userProfile={userProfile} />
+    <div style={{ minHeight: '100vh', background: '#f4f4f4', fontFamily: 'Montserrat, sans-serif' }}>
+      <FinanceiroNav />
 
-      <main style={{ marginLeft: isSidebarOpen ? '360px' : '85px', flex: 1, padding: '50px', transition: '0.4s ease' }}>
-        
-        <header style={{ marginBottom: '40px' }}>
-            <h1 style={{ fontWeight: '400', color: '#333', margin: 0, fontSize:'42px', letterSpacing:'-1.5px' }}>HISTÓRICO A PAGAR</h1>
-            <div style={{ width: '60px', height: '4px', background: '#9e9e9e', marginTop: '12px', borderRadius: '2px' }}></div>
-        </header>
+      <main style={{ padding: '24px 32px' }}>
 
         {/* BARRA DE FILTROS */}
         <div style={{ display: 'flex', gap: '15px', marginBottom: '30px', flexWrap: 'wrap', alignItems: 'flex-end' }}>

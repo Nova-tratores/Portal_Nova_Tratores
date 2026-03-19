@@ -2,8 +2,8 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-// IMPORTAÇÃO DO MENU MODULAR
-import MenuLateral from '@/components/financeiro/MenuLateral'
+import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
+import { useAuditLog } from '@/hooks/useAuditLog'
 // ÍCONES
 import { 
   ArrowLeft, FileText, Calendar, User, Hash, 
@@ -22,10 +22,9 @@ function LoadingScreen() {
 }
 
 export default function NovoPagarReceber() {
+  const { log: auditLog } = useAuditLog()
   const [loading, setLoading] = useState(false)
   const [pageLoading, setPageLoading] = useState(true)
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
-  const [userProfile, setUserProfile] = useState(null)
   const [fornecedores, setFornecedores] = useState([])
 
   const [fileNFServ, setFileNFServ] = useState(null)
@@ -42,22 +41,17 @@ export default function NovoPagarReceber() {
   })
   
   const router = useRouter()
-  const path = typeof window !== 'undefined' ? window.location.pathname : '/financeiro/novo-pagar-receber';
 
   useEffect(() => {
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) return router.push('/login')
-      const { data: prof } = await supabase.from('financeiro_usu').select('*').eq('id', session.user.id).single()
-      setUserProfile(prof)
       const { data: fornData } = await supabase.from('Fornecedores').select('*').order('nome', { ascending: true })
       setFornecedores(fornData || [])
       setPageLoading(false)
     }
     init()
   }, [router])
-
-  const handleLogout = async () => { await supabase.auth.signOut(); router.push('/login'); }
 
   const uploadSingle = async (file, folder) => {
     if (!file) return null
@@ -99,7 +93,8 @@ export default function NovoPagarReceber() {
         status: 'financeiro'
       }])
       if (error) throw error
-      alert("Processo criado com sucesso."); 
+      auditLog({ sistema: 'financeiro', acao: 'criar', entidade: 'finan_pagar', entidade_label: `Pagar - ${formData.entidade} - R$ ${formData.valor}`, detalhes: { fornecedor: formData.entidade, valor: formData.valor, metodo: formData.metodo, nf: formData.numero_NF } })
+      alert("Processo criado com sucesso.");
       router.push('/financeiro')
     } catch (e) { alert(e.message) } finally { setLoading(false) }
   }
@@ -107,16 +102,10 @@ export default function NovoPagarReceber() {
   if (pageLoading) return <LoadingScreen />
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#2a2a2d', fontFamily: 'Montserrat, sans-serif', color: '#f1f5f9' }}>
-      <MenuLateral isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} path={path} router={router} handleLogout={handleLogout} userProfile={userProfile} />
+    <div style={{ minHeight: '100vh', background: '#2a2a2d', fontFamily: 'Montserrat, sans-serif', color: '#f1f5f9' }}>
+      <FinanceiroNav />
 
-      <main style={{ flex: 1, marginLeft: isSidebarOpen ? '360px' : '85px', transition: '0.4s ease', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '60px 20px' }}>
-        
-        <div style={{ width: '100%', maxWidth: '750px', marginBottom: '25px' }}>
-            <button onClick={() => router.push('/financeiro')} style={{ background: 'none', border: 'none', color: '#9e9e9e', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '15px' }}>
-                <ArrowLeft size={18} /> Voltar ao Painel Principal
-            </button>
-        </div>
+      <main style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '30px 20px' }}>
 
         <div style={{ background:'#3f3f44', padding:'60px', borderRadius:'35px', width:'100%', maxWidth:'750px', border: '0.5px solid #55555a', boxShadow: '0 30px 80px rgba(0,0,0,0.3)' }}>
           <h2 style={{ textAlign:'center', color:'#ffffff', fontWeight:'300', fontSize:'32px', marginBottom:'50px', letterSpacing:'-1px' }}>Novo Registro Financeiro</h2>

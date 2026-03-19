@@ -3,6 +3,7 @@ import { useEffect, useState, useRef, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
+import { useAuditLog } from '@/hooks/useAuditLog'
 import { marcarMinhaAcao } from '@/components/financeiro/NotificationSystem'
 import { formatarDataBR, formatarMoeda, getRequisicoes } from '@/lib/financeiro/utils'
 import Link from 'next/link'
@@ -10,41 +11,7 @@ import {
   X, Send, ArrowLeft, RefreshCw, MessageSquare, PlusCircle, CheckCircle,
   FileText, Download, Eye, Calendar, CreditCard, User as UserIcon, Tag, Search, DollarSign, Upload, Barcode, Trash2, Paperclip, AlertCircle
 } from 'lucide-react'
-
-// --- SUB-NAVIGATION ---
-function FinanceiroSubNav() {
-  const pathname = usePathname()
-  const links = [
-    { label: 'Painel', href: '/financeiro/home-posvendas' },
-    { label: 'Kanban', href: '/financeiro/kanban' },
-    { label: 'Dashboard', href: '/financeiro/dashboard' },
-    { label: 'Hist. Pagar', href: '/financeiro/historico-pagar' },
-    { label: 'Hist. Receber', href: '/financeiro/historico-receber' },
-    { label: 'Hist. RH', href: '/financeiro/historico-rh' },
-  ]
-  return (
-    <nav style={{ display: 'flex', gap: '0', borderBottom: '1px solid #e5e7eb', marginBottom: '40px', background: '#ffffff', borderRadius: '12px 12px 0 0', overflow: 'hidden' }}>
-      {links.map(link => {
-        const isActive = pathname === link.href
-        return (
-          <Link key={link.href} href={link.href} style={{
-            padding: '20px 32px',
-            fontSize: '20px',
-            fontWeight: isActive ? '700' : '400',
-            letterSpacing: '0.5px',
-            color: isActive ? '#dc2626' : '#6b7280',
-            borderBottom: isActive ? '3px solid #dc2626' : '3px solid transparent',
-            textDecoration: 'none',
-            transition: '0.2s',
-            fontFamily: 'Montserrat, sans-serif',
-          }}>
-            {link.label}
-          </Link>
-        )
-      })}
-    </nav>
-  )
-}
+import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
 
 function AttachmentTag({ label, fileUrl, onUpload, disabled = false }) {
     const fileInputRef = useRef(null);
@@ -82,6 +49,7 @@ export default function HomePosVendas() {
 
 function HomePosVendasContent() {
   const { userProfile } = useAuth()
+  const { log: auditLog } = useAuditLog()
   const [tarefaSelecionada, setTarefaSelecionada] = useState(null);
   const [listaBoletos, setListaBoletos] = useState([]);
   const [listaPagar, setListaPagar] = useState([]);
@@ -134,9 +102,18 @@ function HomePosVendasContent() {
     carregarDados();
   }, []);
 
+  const getCardLabel = (t) => {
+    if (t.gTipo === 'pagar') return `Pagar #${t.id} - ${t.fornecedor || ''}`;
+    if (t.gTipo === 'receber') return `Receber #${t.id} - ${t.cliente || ''}`;
+    if (t.gTipo === 'rh') return `RH #${t.id} - ${t.funcionario || ''}`;
+    return `NF #${t.id} - ${t.nom_cliente || t.tarefa || ''}`;
+  };
+  const getCardTable = (t) => t.gTipo === 'pagar' ? 'finan_pagar' : t.gTipo === 'receber' ? 'finan_receber' : t.gTipo === 'rh' ? 'finan_rh' : 'Chamado_NF';
+
   const handleUpdateField = async (t, field, value) => {
-    const table = t.gTipo === 'pagar' ? 'finan_pagar' : t.gTipo === 'receber' ? 'finan_receber' : t.gTipo === 'rh' ? 'finan_rh' : 'Chamado_NF';
+    const table = getCardTable(t);
     await supabase.from(table).update({ [field]: value }).eq('id', t.id);
+    auditLog({ sistema: 'financeiro', acao: 'editar', entidade: table, entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { campo: field, valor: value } });
     carregarDados();
     if(tarefaSelecionada) setTarefaSelecionada(prev => ({ ...prev, [field]: value }));
   };
@@ -144,13 +121,14 @@ function HomePosVendasContent() {
   const handleUpdateFileDirect = async (t, field, file) => {
     if(!file) return;
     try {
-      const table = t.gTipo === 'pagar' ? 'finan_pagar' : t.gTipo === 'receber' ? 'finan_receber' : t.gTipo === 'rh' ? 'finan_rh' : 'Chamado_NF';
+      const table = getCardTable(t);
       const path = `anexos/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
       const { error: uploadError } = await supabase.storage.from('anexos').upload(path, file);
       if (uploadError) throw uploadError;
       const { data: linkData } = supabase.storage.from('anexos').getPublicUrl(path);
 
       await supabase.from(table).update({ [field]: linkData.publicUrl }).eq('id', t.id);
+      auditLog({ sistema: 'financeiro', acao: 'upload', entidade: table, entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { campo: field, arquivo: file.name } });
       alert("Arquivo atualizado!");
       carregarDados();
       if(tarefaSelecionada) setTarefaSelecionada(prev => ({ ...prev, [field]: linkData.publicUrl }));
@@ -159,16 +137,19 @@ function HomePosVendasContent() {
 
   const handleConcluirRecobranca = async (t) => {
     await supabase.from('Chamado_NF').update({ status: 'vencido', tarefa: 'Cliente Recobrado (Aguardando Financeiro)' }).eq('id', t.id);
+    auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'vencido', acao_desc: 'Recobrança concluída - aguardando Financeiro' } });
     alert(`Cobranca registrada!`); setTarefaSelecionada(null); carregarDados();
   };
 
   const handleConfirmarEnvioBoleto = async (t) => {
     await supabase.from('Chamado_NF').update({ status: 'aguardando_vencimento', tarefa: 'Aguardando Vencimento' }).eq('id', t.id);
+    auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'aguardando_vencimento', acao_desc: 'Boleto enviado ao cliente' } });
     alert("Boleto enviado!"); setTarefaSelecionada(null); carregarDados();
   };
 
   const handleMoverParaPago = async (t) => {
     await supabase.from('Chamado_NF').update({ status: 'pago', tarefa: 'Pagamento Confirmado' }).eq('id', t.id);
+    auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'pago', acao_desc: 'Pagamento confirmado' } });
     alert("Confirmado!"); setTarefaSelecionada(null); carregarDados();
   };
 
@@ -212,83 +193,49 @@ function HomePosVendasContent() {
   const valorIndividual = tarefaSelecionada ? (tarefaSelecionada.valor_servico / (tarefaSelecionada.qtd_parcelas || 1)) : 0;
 
   return (
-    <div style={{ fontFamily: 'Montserrat, sans-serif', padding: '30px 40px' }}>
-      <FinanceiroSubNav />
-
-      <header style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'40px' }}>
-        <div>
-          <h1 style={{ fontWeight: '300', color: '#1e293b', margin: 0, fontSize:'80px', letterSpacing: '-4px' }}>Painel Pos-Vendas</h1>
-          <div style={{ width: '80px', height: '4px', background: '#dc2626', marginTop: '12px' }}></div>
-        </div>
+    <div style={{ fontFamily: 'Montserrat, sans-serif' }}>
+      <FinanceiroNav>
         <div style={{ position: 'relative' }}>
-          <button onClick={() => setShowNovoMenu(s => !s)} style={btnNovoStyle}>
-            <PlusCircle size={20}/> NOVO CHAMADO
+          <button onClick={() => setShowNovoMenu(s => !s)} style={{
+            background: 'linear-gradient(135deg, #dc2626, #b91c1c)', color:'#fff',
+            border:'none', padding:'8px 16px', borderRadius:'8px', fontWeight:'700',
+            cursor:'pointer', fontSize:'12px', display: 'flex', alignItems: 'center', gap: '6px',
+            boxShadow: '0 2px 6px rgba(220,38,38,0.25)', transition: '0.2s',
+          }}>
+            <PlusCircle size={15}/> NOVO
           </button>
           {showNovoMenu && (
             <>
               <div onClick={() => setShowNovoMenu(false)} style={{ position:'fixed', inset:0, zIndex:1999 }} />
-              <div style={dropdownStyle}>
-                <div style={dropdownItemStyle}
-                  onClick={() => { setShowNovoMenu(false); router.push('/financeiro/novo-chamado-nf') }}
-                  onMouseEnter={e => e.currentTarget.style.background='#fef2f2'}
-                  onMouseLeave={e => e.currentTarget.style.background='transparent'}>
-                  <div style={{ display:'flex', alignItems:'center', gap:'14px' }}>
-                    <div style={{ width:'38px', height:'38px', borderRadius:'10px', background:'rgba(14,165,233,0.15)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                      <FileText size={18} color="#38bdf8"/>
-                    </div>
-                    <div>
-                      <div style={{ fontSize:'14px', color:'#1e293b', fontWeight:'600' }}>Chamado NF</div>
-                      <div style={{ fontSize:'11px', color:'#6b7280' }}>Nota fiscal / faturamento</div>
-                    </div>
+              <div style={{
+                position:'absolute', top:'calc(100% + 6px)', right: 0, background:'#fff', zIndex:2000,
+                width:'220px', borderRadius: '12px', border:'1px solid #f0f0f0',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.12)', overflow: 'hidden',
+              }}>
+                {[
+                  { label: 'Chamado NF', desc: 'Nota fiscal', href: '/financeiro/novo-chamado-nf' },
+                  { label: 'Chamado Pagar', desc: 'Conta a pagar', href: '/financeiro/novo-pagar-receber?tipo=pagar' },
+                  { label: 'Chamado Receber', desc: 'Conta a receber', href: '/financeiro/novo-pagar-receber?tipo=receber' },
+                  { label: 'Chamado RH', desc: 'Solicitacao RH', href: '/financeiro/novo-chamado-rh' },
+                ].map((item, i, arr) => (
+                  <div key={item.href} style={{
+                    padding:'10px 16px', cursor:'pointer', borderBottom: i < arr.length - 1 ? '1px solid #f5f5f5' : 'none',
+                    transition: '0.15s',
+                  }}
+                    onClick={() => { setShowNovoMenu(false); router.push(item.href) }}
+                    onMouseEnter={e => e.currentTarget.style.background='#fef2f2'}
+                    onMouseLeave={e => e.currentTarget.style.background='transparent'}>
+                    <div style={{ fontSize:'13px', color:'#1a1a1a', fontWeight:'600' }}>{item.label}</div>
+                    <div style={{ fontSize:'11px', color:'#a3a3a3' }}>{item.desc}</div>
                   </div>
-                </div>
-                <div style={dropdownItemStyle}
-                  onClick={() => { setShowNovoMenu(false); router.push('/financeiro/novo-pagar-receber?tipo=pagar') }}
-                  onMouseEnter={e => e.currentTarget.style.background='#fef2f2'}
-                  onMouseLeave={e => e.currentTarget.style.background='transparent'}>
-                  <div style={{ display:'flex', alignItems:'center', gap:'14px' }}>
-                    <div style={{ width:'38px', height:'38px', borderRadius:'10px', background:'rgba(239,68,68,0.15)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                      <DollarSign size={18} color="#f87171"/>
-                    </div>
-                    <div>
-                      <div style={{ fontSize:'14px', color:'#1e293b', fontWeight:'600' }}>Chamado Pagar</div>
-                      <div style={{ fontSize:'11px', color:'#6b7280' }}>Lancar conta a pagar</div>
-                    </div>
-                  </div>
-                </div>
-                <div style={dropdownItemStyle}
-                  onClick={() => { setShowNovoMenu(false); router.push('/financeiro/novo-pagar-receber?tipo=receber') }}
-                  onMouseEnter={e => e.currentTarget.style.background='#fef2f2'}
-                  onMouseLeave={e => e.currentTarget.style.background='transparent'}>
-                  <div style={{ display:'flex', alignItems:'center', gap:'14px' }}>
-                    <div style={{ width:'38px', height:'38px', borderRadius:'10px', background:'rgba(59,130,246,0.15)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                      <Download size={18} color="#93c5fd"/>
-                    </div>
-                    <div>
-                      <div style={{ fontSize:'14px', color:'#1e293b', fontWeight:'600' }}>Chamado Receber</div>
-                      <div style={{ fontSize:'11px', color:'#6b7280' }}>Lancar conta a receber</div>
-                    </div>
-                  </div>
-                </div>
-                <div style={{ ...dropdownItemStyle, borderBottom:'none' }}
-                  onClick={() => { setShowNovoMenu(false); router.push('/financeiro/novo-chamado-rh') }}
-                  onMouseEnter={e => e.currentTarget.style.background='#fef2f2'}
-                  onMouseLeave={e => e.currentTarget.style.background='transparent'}>
-                  <div style={{ display:'flex', alignItems:'center', gap:'14px' }}>
-                    <div style={{ width:'38px', height:'38px', borderRadius:'10px', background:'rgba(168,85,247,0.15)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                      <UserIcon size={18} color="#c084fc"/>
-                    </div>
-                    <div>
-                      <div style={{ fontSize:'14px', color:'#1e293b', fontWeight:'600' }}>Chamado RH</div>
-                      <div style={{ fontSize:'11px', color:'#6b7280' }}>Solicitacao interna de RH</div>
-                    </div>
-                  </div>
-                </div>
+                ))}
               </div>
             </>
           )}
         </div>
-      </header>
+      </FinanceiroNav>
+
+      <div style={{ padding: '24px 32px' }}>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '30px' }}>
           {/* COLUNA FATURAMENTO (FILTRADA: SEM PIX, APENAS ENVIAR OU COBRAR) */}
@@ -443,11 +390,12 @@ function HomePosVendasContent() {
                               </div>
                               {Array.from({ length: (tarefaSelecionada.qtd_parcelas || 1) - 1 }).map((_, i) => {
                                   const pNum = i + 2;
-                                  const currentDates = (tarefaSelecionada.datas_parcelas || "").split(/[\s,]+/);
+                                  const rawDates = (tarefaSelecionada.datas_parcelas || "").split(/[\s,]+/).filter(d => d.includes('-'));
+                                  if (rawDates.length > 0 && rawDates[0] === tarefaSelecionada.vencimento_boleto) rawDates.shift();
                                   return (
                                       <div key={pNum} style={cascadeRowStyle}>
                                           <span style={cascadeLabelStyle}>{pNum}a PARCELA</span>
-                                          <input type="date" style={inputCascadeStyle} defaultValue={currentDates[i] || ""} onBlur={e => { let arr = [...currentDates]; arr[i] = e.target.value; handleUpdateField(tarefaSelecionada, 'datas_parcelas', arr.join(', ')); }} />
+                                          <input type="date" style={inputCascadeStyle} defaultValue={rawDates[i] || ""} onBlur={e => { let arr = [...rawDates]; while (arr.length < (tarefaSelecionada.qtd_parcelas || 1) - 1) arr.push(''); arr[i] = e.target.value; handleUpdateField(tarefaSelecionada, 'datas_parcelas', arr.filter(d => d).join(', ')); }} />
                                           <span style={cascadeValueStyle}>{formatarMoeda(valorIndividual)}</span>
                                           <AttachmentTag label={`COMPROVANTE P${pNum}`} fileUrl={tarefaSelecionada[`comprovante_pagamento_p${pNum}`]} onUpload={f => handleUpdateFileDirect(tarefaSelecionada, `comprovante_pagamento_p${pNum}`, f)} />
                                       </div>
@@ -469,14 +417,20 @@ function HomePosVendasContent() {
                         <div style={fieldBoxInner}><label style={labelMStyle}>METODO</label><p style={{fontSize:'15px', fontWeight: '600', color:'#1e293b'}}>{tarefaSelecionada.forma_pagamento || 'N/A'}</p></div>
                         {tarefaSelecionada.gTipo === 'boleto' && (
                           <>
-                              <div style={fieldBoxInner}><label style={labelMStyle}>NF SERVICO</label><input style={inputStyleLight} defaultValue={tarefaSelecionada.num_nf_servico} onBlur={e => handleUpdateField(tarefaSelecionada, 'num_nf_servico', e.target.value)} /></div>
-                              <div style={fieldBoxInner}><label style={labelMStyle}>NF PECA</label><input style={inputStyleLight} defaultValue={tarefaSelecionada.num_nf_peca} onBlur={e => handleUpdateField(tarefaSelecionada, 'num_nf_peca', e.target.value)} /></div>
+                              {(tarefaSelecionada.num_nf_servico || !tarefaSelecionada.num_nf_peca) && (
+                                <div style={fieldBoxInner}><label style={labelMStyle}>NF SERVICO</label><input style={inputStyleLight} defaultValue={tarefaSelecionada.num_nf_servico} onBlur={e => handleUpdateField(tarefaSelecionada, 'num_nf_servico', e.target.value)} /></div>
+                              )}
+                              {(tarefaSelecionada.num_nf_peca || !tarefaSelecionada.num_nf_servico) && (
+                                <div style={fieldBoxInner}><label style={labelMStyle}>NF PECA</label><input style={inputStyleLight} defaultValue={tarefaSelecionada.num_nf_peca} onBlur={e => handleUpdateField(tarefaSelecionada, 'num_nf_peca', e.target.value)} /></div>
+                              )}
                           </>
                         )}
-                        <div style={{gridColumn:'span 2', ...fieldBoxInner}}>
+                        {(tarefaSelecionada.obs || tarefaSelecionada.motivo) && (
+                          <div style={{gridColumn:'span 2', ...fieldBoxInner}}>
                             <label style={labelMStyle}>OBSERVACOES</label>
-                            <textarea style={{...inputStyleLight, height:'80px', resize: 'none'}} defaultValue={tarefaSelecionada.obs || tarefaSelecionada.motivo} onBlur={e => handleUpdateField(tarefaSelecionada, tarefaSelecionada.gTipo === 'boleto' ? 'obs' : 'motivo', e.target.value)} />
-                        </div>
+                            <textarea style={{...inputStyleLight, height:'60px', resize: 'none'}} defaultValue={tarefaSelecionada.obs || tarefaSelecionada.motivo} onBlur={e => handleUpdateField(tarefaSelecionada, tarefaSelecionada.gTipo === 'boleto' ? 'obs' : 'motivo', e.target.value)} />
+                          </div>
+                        )}
                       </>
                     )}
                   </div>
@@ -497,8 +451,12 @@ function HomePosVendasContent() {
                               </div>
                             </div>
                             <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
-                              <AttachmentTag label="NF SERVICO" fileUrl={tarefaSelecionada.anexo_nf_servico} onUpload={f => handleUpdateFileDirect(tarefaSelecionada, 'anexo_nf_servico', f)} />
-                              <AttachmentTag label="NF PECA" fileUrl={tarefaSelecionada.anexo_nf_peca} onUpload={f => handleUpdateFileDirect(tarefaSelecionada, 'anexo_nf_peca', f)} />
+                              {(tarefaSelecionada.anexo_nf_servico || (!tarefaSelecionada.num_nf_peca && !tarefaSelecionada.anexo_nf_peca)) && (
+                                <AttachmentTag label="NF SERVICO" fileUrl={tarefaSelecionada.anexo_nf_servico} onUpload={f => handleUpdateFileDirect(tarefaSelecionada, 'anexo_nf_servico', f)} />
+                              )}
+                              {(tarefaSelecionada.anexo_nf_peca || (!tarefaSelecionada.num_nf_servico && !tarefaSelecionada.anexo_nf_servico)) && (
+                                <AttachmentTag label="NF PECA" fileUrl={tarefaSelecionada.anexo_nf_peca} onUpload={f => handleUpdateFileDirect(tarefaSelecionada, 'anexo_nf_peca', f)} />
+                              )}
                               {tarefaSelecionada.comprovante_pagamento && (
                                 <AttachmentTag label="COMPROVANTE PAGAMENTO" fileUrl={tarefaSelecionada.comprovante_pagamento} onUpload={f => handleUpdateFileDirect(tarefaSelecionada, 'comprovante_pagamento', f)} />
                               )}
@@ -598,6 +556,7 @@ function HomePosVendasContent() {
         </div>
       )}
 
+      </div>{/* fim padding wrapper */}
       <style jsx global>{`
         .task-card { transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; border-radius: 20px; overflow: hidden; border: 1px solid #e5e7eb; margin-bottom: 5px; background: #ffffff; }
         .task-card:hover { transform: translateY(-6px); box-shadow: 0 12px 30px rgba(0,0,0,0.08); border-color: #d1d5db; }

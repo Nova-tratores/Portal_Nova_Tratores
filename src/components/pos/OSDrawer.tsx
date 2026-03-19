@@ -336,7 +336,15 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, onCl
               <div className="os-header-actions">
                 {mode === "edit" && (
                   <>
-                    <button className="os-btn-ghost" onClick={() => window.open(`/pos/print/${osId}`, "_blank")}>
+                    <button className="os-btn-ghost" onClick={() => {
+                      const w = window.open("", "_blank");
+                      if (w) {
+                        fetch(`/api/pos/ordens/${osId}/print`).then(r => r.text()).then(html => {
+                          w.document.write(html);
+                          w.document.close();
+                        });
+                      }
+                    }}>
                       <i className="fas fa-print" /> Imprimir
                     </button>
                     <button className="os-btn-ghost" onClick={() => setShowLogs(!showLogs)}>

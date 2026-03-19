@@ -12,38 +12,7 @@ import {
   Calendar, CreditCard, Hash, ArrowLeft,
   CheckCheck, Eye, ClipboardList, Search, Trash2, RefreshCw, AlertCircle, Lock, DollarSign, Barcode, Check, Clock
 } from 'lucide-react'
-
-// --- SUB-NAVEGAÇÃO FINANCEIRO ---
-function FinanceiroSubNav() {
-  const pathname = usePathname()
-  const links = [
-    { label: 'Painel', href: '/financeiro/home-financeiro' },
-    { label: 'Kanban', href: '/financeiro/kanban-financeiro' },
-    { label: 'Dashboard', href: '/financeiro/dashboard' },
-    { label: 'Hist. Pagar', href: '/financeiro/historico-pagar' },
-    { label: 'Hist. Receber', href: '/financeiro/historico-receber' },
-    { label: 'Hist. RH', href: '/financeiro/historico-rh' },
-  ]
-  return (
-    <nav style={{ display: 'flex', gap: '0', borderBottom: '1px solid #e5e7eb', background: '#ffffff', padding: '0 40px' }}>
-      {links.map(link => {
-        const isActive = pathname === link.href
-        return (
-          <Link key={link.href} href={link.href} style={{
-            padding: '20px 32px', fontSize: '20px', fontFamily: 'Montserrat, sans-serif',
-            fontWeight: isActive ? '700' : '400',
-            color: isActive ? '#dc2626' : '#6b7280',
-            textDecoration: 'none',
-            borderBottom: isActive ? '3px solid #dc2626' : '3px solid transparent',
-            transition: '0.2s', letterSpacing: '0.5px',
-          }}>
-            {link.label}
-          </Link>
-        )
-      })}
-    </nav>
-  )
-}
+import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
 
 // --- COMPONENTE KANBAN PRINCIPAL ---
 export default function KanbanFinanceiro() {
@@ -124,7 +93,10 @@ const carregarDados = async () => {
     const calcParcelas = (c) => {
       const qtd = parseInt(c.qtd_parcelas || 1);
       const valorUnit = (c.valor_servico || 0) / qtd;
-      const datas = [c.vencimento_boleto, ...(c.datas_parcelas || '').split(/[\s,]+/).filter(d => d.includes('-'))];
+      const rawDatas = (c.datas_parcelas || '').split(/[\s,]+/).filter(d => d.includes('-'));
+      // Corrige registros antigos que salvaram a parcela 1 dentro de datas_parcelas
+      if (rawDatas.length > 0 && rawDatas[0] === c.vencimento_boleto) rawDatas.shift();
+      const datas = [c.vencimento_boleto, ...rawDatas];
       const hoje3 = new Date(hoje); hoje3.setDate(hoje3.getDate() + 3);
       return Array.from({ length: qtd }, (_, i) => {
         const comp = i === 0 ? (c.comprovante_pagamento_p1 || c.comprovante_pagamento) : c[`comprovante_pagamento_p${i + 1}`];
@@ -320,27 +292,25 @@ const isCartaoParcelado = tarefaSelecionada?.forma_pagamento === 'Cartão Parcel
 
 return (
     <div style={{ minHeight: 'calc(100vh - 64px)', fontFamily: 'Montserrat, sans-serif', background: '#f8fafc' }}>
-    <FinanceiroSubNav />
+    <FinanceiroNav />
 
-    <main style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px - 49px)', overflow: 'hidden' }}>
-      <header style={{ padding: '60px 50px 30px 50px' }}>
-      <div style={{ display:'flex', gap:'20px', alignItems:'center', justifyContent: 'flex-start', marginBottom: '35px' }}>
-          <div style={{ position: 'relative', width: '450px' }}>
-              <Search size={22} style={iconFilterStyle} title="Pesquisar por nome do cliente" />
-              <input type="text" placeholder="Filtrar por Cliente..." value={filtroCliente} onChange={e => setFiltroCliente(e.target.value)} style={{...inputFilterStyle, fontSize:'20px', padding:'20px 20px 20px 56px'}} />
+    <main style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px - 56px)', overflow: 'hidden' }}>
+      <header style={{ padding: '20px 32px 16px' }}>
+      <div style={{ display:'flex', gap:'12px', alignItems:'center', flexWrap:'wrap' }}>
+          <div style={{ position: 'relative', flex: '1 1 300px', maxWidth: '360px' }}>
+              <Search size={16} style={{ ...iconFilterStyle, left: '12px' }} title="Pesquisar por nome do cliente" />
+              <input type="text" placeholder="Filtrar Cliente..." value={filtroCliente} onChange={e => setFiltroCliente(e.target.value)} style={{...inputFilterStyle, fontSize:'13px', padding:'10px 12px 10px 36px'}} />
           </div>
-          <div style={{ position: 'relative', width: '250px' }}>
-              <Hash size={22} style={iconFilterStyle} title="Filtrar por número da nota" />
-              <input type="text" placeholder="Nº Nota..." value={filtroNF} onChange={e => setFiltroNF(e.target.value)} style={{...inputFilterStyle, fontSize:'20px', padding:'20px 20px 20px 56px'}} />
+          <div style={{ position: 'relative', flex: '0 1 180px' }}>
+              <Hash size={16} style={{ ...iconFilterStyle, left: '12px' }} title="Filtrar por número da nota" />
+              <input type="text" placeholder="Nº Nota..." value={filtroNF} onChange={e => setFiltroNF(e.target.value)} style={{...inputFilterStyle, fontSize:'13px', padding:'10px 12px 10px 36px'}} />
           </div>
-          <div style={{ position: 'relative', width: '280px' }}>
-              <Calendar size={22} style={iconFilterStyle} title="Filtrar por data de vencimento" />
-              <input type="date" value={filtroData} onChange={e => setFiltroData(e.target.value)} style={{...inputFilterStyle, fontSize:'20px', padding:'20px 20px 20px 56px'}} />
-              {filtroData && <X size={18} onClick={() => setFiltroData('')} style={{position:'absolute', right: '12px', top: '50%', transform:'translateY(-50%)', cursor:'pointer', color:'#718093'}} title="Limpar filtro de data" />}
+          <div style={{ position: 'relative', flex: '0 1 200px' }}>
+              <Calendar size={16} style={{ ...iconFilterStyle, left: '12px' }} title="Filtrar por data de vencimento" />
+              <input type="date" value={filtroData} onChange={e => setFiltroData(e.target.value)} style={{...inputFilterStyle, fontSize:'13px', padding:'10px 12px 10px 36px'}} />
+              {filtroData && <X size={14} onClick={() => setFiltroData('')} style={{position:'absolute', right: '10px', top: '50%', transform:'translateY(-50%)', cursor:'pointer', color:'#a3a3a3'}} title="Limpar filtro" />}
           </div>
       </div>
-      <h1 style={{ fontWeight: '300', fontSize:'80px', color:'#2f3640', letterSpacing:'-4px', margin: 0 }}>Fluxo Financeiro</h1>
-      <div style={{ width: '120px', height: '2px', background: '#718093', marginTop: '15px' }}></div>
       </header>
 
       <div style={{ flex: 1, display: 'flex', gap: '30px', overflowX: 'auto', overflowY: 'hidden', padding: '0 50px 40px 50px', boxSizing: 'border-box' }}>
@@ -572,7 +542,9 @@ return (
                             handleUpdateField(tarefaSelecionada.id, 'vencimento_boleto', e.target.value);
                           } else {
                             const arr = (tarefaSelecionada.datas_parcelas || '').split(/[\s,]+/).filter(d => d.includes('-'));
-                            while (arr.length < 4) arr.push('');
+                            // Remove duplicata da parcela 1 se presente (registros antigos)
+                            if (arr.length > 0 && arr[0] === tarefaSelecionada.vencimento_boleto) arr.shift();
+                            while (arr.length < (tarefaSelecionada.qtd_parcelas || 1) - 1) arr.push('');
                             arr[i - 1] = e.target.value;
                             handleUpdateField(tarefaSelecionada.id, 'datas_parcelas', arr.filter(d => d).join(', '));
                           }
@@ -637,62 +609,62 @@ return (
             </div>
           )}
 
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'30px', background:'rgba(245, 246, 250, 0.5)', padding:'50px', borderRadius:'0px', border:'1px solid #dcdde1' }}>
-            <div style={fieldBoxInner}>
-              <label style={labelModalStyle}>Nota de Serviço</label>
-              <input style={inputStyleModal} disabled={tarefaSelecionada.status === 'concluido'} defaultValue={tarefaSelecionada.num_nf_servico} placeholder="N/A" onBlur={e => handleUpdateField(tarefaSelecionada.id, 'num_nf_servico', e.target.value)} />
-            </div>
-            <div style={fieldBoxInner}>
-              <label style={labelModalStyle}>Nota de Peça</label>
-              <input style={inputStyleModal} disabled={tarefaSelecionada.status === 'concluido'} defaultValue={tarefaSelecionada.num_nf_peca} placeholder="N/A" onBlur={e => handleUpdateField(tarefaSelecionada.id, 'num_nf_peca', e.target.value)} />
-            </div>
-            <div style={{gridColumn:'span 2', ...fieldBoxInner}}>
-              <label style={labelModalStyle}>Observações Financeiras</label>
-              <textarea style={{...inputStyleModal, height:'120px', resize: 'none'}} disabled={tarefaSelecionada.status === 'concluido'} defaultValue={tarefaSelecionada.obs} onBlur={e => handleUpdateField(tarefaSelecionada.id, 'obs', e.target.value)} />
-            </div>
-          </div>
+          {/* === INFORMAÇÕES + DOCUMENTOS EM GRID COMPACTO === */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px' }}>
 
-          {/* === DOCUMENTOS - LAYOUT INTELIGENTE === */}
-          <div style={{marginTop:'50px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'25px'}}>
-              {/* COLUNA: NOTAS FISCAIS */}
-              <div style={{ background:'rgba(245, 246, 250, 0.5)', border:'1px solid #dcdde1', padding:'30px' }}>
-                <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'20px' }}>
-                  <FileText size={20} color="#718093"/>
-                  <label style={{...labelModalStyle, margin:0, fontSize:'13px'}}>NOTAS FISCAIS RECEBIDAS</label>
+            {/* NF + OBS */}
+            <div style={{ background:'rgba(245, 246, 250, 0.5)', border:'1px solid #dcdde1', padding:'24px', display:'flex', flexDirection:'column', gap:'16px' }}>
+              <label style={{...labelModalStyle, margin:0, fontSize:'13px', display:'flex', alignItems:'center', gap:'8px'}}><FileText size={16} color="#718093"/> NOTAS FISCAIS</label>
+              {(tarefaSelecionada.num_nf_servico || !tarefaSelecionada.num_nf_peca) && (
+                <div>
+                  <label style={{...labelModalStyle, fontSize:'11px', marginBottom:'6px'}}>NF Servico</label>
+                  <input style={{...inputStyleModal, padding:'14px'}} disabled={tarefaSelecionada.status === 'concluido'} defaultValue={tarefaSelecionada.num_nf_servico} placeholder="N/A" onBlur={e => handleUpdateField(tarefaSelecionada.id, 'num_nf_servico', e.target.value)} />
                 </div>
-                <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+              )}
+              {(tarefaSelecionada.num_nf_peca || !tarefaSelecionada.num_nf_servico) && (
+                <div>
+                  <label style={{...labelModalStyle, fontSize:'11px', marginBottom:'6px'}}>NF Peca</label>
+                  <input style={{...inputStyleModal, padding:'14px'}} disabled={tarefaSelecionada.status === 'concluido'} defaultValue={tarefaSelecionada.num_nf_peca} placeholder="N/A" onBlur={e => handleUpdateField(tarefaSelecionada.id, 'num_nf_peca', e.target.value)} />
+                </div>
+              )}
+              <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+                {(tarefaSelecionada.anexo_nf_servico || (!tarefaSelecionada.num_nf_peca && !tarefaSelecionada.anexo_nf_peca)) && (
                   <AttachmentTag icon={<FileText size={18} />} label="NF SERVICO" fileUrl={tarefaSelecionada.anexo_nf_servico} onUpload={(file) => handleUpdateFileDirect(tarefaSelecionada.id, 'anexo_nf_servico', file)} disabled={tarefaSelecionada.status === 'concluido'} />
+                )}
+                {(tarefaSelecionada.anexo_nf_peca || (!tarefaSelecionada.num_nf_servico && !tarefaSelecionada.anexo_nf_servico)) && (
                   <AttachmentTag icon={<ClipboardList size={18} />} label="NF PECA" fileUrl={tarefaSelecionada.anexo_nf_peca} onUpload={(file) => handleUpdateFileDirect(tarefaSelecionada.id, 'anexo_nf_peca', file)} disabled={tarefaSelecionada.status === 'concluido'} />
-                  {(isPixOuCartaoVista || tarefaSelecionada.status === 'aguardando_vencimento' || tarefaSelecionada.comprovante_pagamento) && (
-                    <AttachmentTag icon={<CheckCircle size={18} />} label="COMPROVANTE PAGAMENTO" fileUrl={tarefaSelecionada.comprovante_pagamento} onUpload={(file) => handleUpdateFileDirect(tarefaSelecionada.id, 'comprovante_pagamento', file)} disabled={tarefaSelecionada.status === 'concluido'} />
-                  )}
-                </div>
+                )}
+                {(isPixOuCartaoVista || tarefaSelecionada.status === 'aguardando_vencimento' || tarefaSelecionada.comprovante_pagamento) && (
+                  <AttachmentTag icon={<CheckCircle size={18} />} label="COMPROVANTE" fileUrl={tarefaSelecionada.comprovante_pagamento} onUpload={(file) => handleUpdateFileDirect(tarefaSelecionada.id, 'comprovante_pagamento', file)} disabled={tarefaSelecionada.status === 'concluido'} />
+                )}
               </div>
+            </div>
 
-              {/* COLUNA: BOLETOS - SISTEMA INTELIGENTE */}
-              <div style={{ background:'rgba(14, 165, 233, 0.03)', border:'1px solid #bfdbfe', padding:'30px' }}>
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'20px' }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
-                    <Barcode size={20} color="#3b82f6"/>
-                    <label style={{...labelModalStyle, margin:0, fontSize:'13px', color:'#3b82f6'}}>BOLETOS GERADOS</label>
-                  </div>
+            {/* BOLETOS */}
+            <div style={{ background:'rgba(14, 165, 233, 0.03)', border:'1px solid #bfdbfe', padding:'24px', display:'flex', flexDirection:'column', gap:'12px' }}>
+              <label style={{...labelModalStyle, margin:0, fontSize:'13px', color:'#3b82f6', display:'flex', alignItems:'center', gap:'8px'}}><Barcode size={16}/> BOLETOS GERADOS</label>
+              <AttachmentTag icon={<Barcode size={18} />} label="BOLETO 1" fileUrl={tarefaSelecionada.anexo_boleto} onUpload={(file) => handleUpdateFileDirect(tarefaSelecionada.id, 'anexo_boleto', file)} disabled={tarefaSelecionada.status === 'concluido'} />
+              {(tarefaSelecionada.anexo_boleto || tarefaSelecionada.anexo_boleto_2) && (
+                <AttachmentTag icon={<Barcode size={18} />} label="BOLETO 2" fileUrl={tarefaSelecionada.anexo_boleto_2} onUpload={(file) => handleUpdateFileDirect(tarefaSelecionada.id, 'anexo_boleto_2', file)} disabled={tarefaSelecionada.status === 'concluido'} />
+              )}
+              {(tarefaSelecionada.anexo_boleto_2 || tarefaSelecionada.anexo_boleto_3) && (
+                <AttachmentTag icon={<Barcode size={18} />} label="BOLETO 3" fileUrl={tarefaSelecionada.anexo_boleto_3} onUpload={(file) => handleUpdateFileDirect(tarefaSelecionada.id, 'anexo_boleto_3', file)} disabled={tarefaSelecionada.status === 'concluido'} />
+              )}
+              {!tarefaSelecionada.anexo_boleto && tarefaSelecionada.status !== 'concluido' && (
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'center', padding:'20px', border:'2px dashed #bfdbfe', color:'#3b82f6', fontSize:'12px', letterSpacing:'1px', textTransform:'uppercase' }}>
+                  Anexe o primeiro boleto acima
                 </div>
-                <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
-                  <AttachmentTag icon={<Barcode size={18} />} label="BOLETO 1" fileUrl={tarefaSelecionada.anexo_boleto} onUpload={(file) => handleUpdateFileDirect(tarefaSelecionada.id, 'anexo_boleto', file)} disabled={tarefaSelecionada.status === 'concluido'} />
-                  {(tarefaSelecionada.anexo_boleto || tarefaSelecionada.anexo_boleto_2) && (
-                    <AttachmentTag icon={<Barcode size={18} />} label="BOLETO 2" fileUrl={tarefaSelecionada.anexo_boleto_2} onUpload={(file) => handleUpdateFileDirect(tarefaSelecionada.id, 'anexo_boleto_2', file)} disabled={tarefaSelecionada.status === 'concluido'} />
-                  )}
-                  {(tarefaSelecionada.anexo_boleto_2 || tarefaSelecionada.anexo_boleto_3) && (
-                    <AttachmentTag icon={<Barcode size={18} />} label="BOLETO 3" fileUrl={tarefaSelecionada.anexo_boleto_3} onUpload={(file) => handleUpdateFileDirect(tarefaSelecionada.id, 'anexo_boleto_3', file)} disabled={tarefaSelecionada.status === 'concluido'} />
-                  )}
-                  {!tarefaSelecionada.anexo_boleto && tarefaSelecionada.status !== 'concluido' && (
-                    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', padding:'25px', border:'2px dashed #bfdbfe', color:'#3b82f6', fontSize:'13px', letterSpacing:'1px', textTransform:'uppercase' }}>
-                      Anexe o primeiro boleto acima
-                    </div>
-                  )}
-                </div>
-              </div>
+              )}
+            </div>
           </div>
+
+          {/* OBSERVAÇÕES — só mostra se tiver conteúdo ou se não for concluido */}
+          {(tarefaSelecionada.obs || tarefaSelecionada.status !== 'concluido') && (
+            <div style={{ marginTop:'20px', background:'rgba(245, 246, 250, 0.5)', border:'1px solid #dcdde1', padding:'24px' }}>
+              <label style={{...labelModalStyle, marginBottom:'10px'}}>Observacoes</label>
+              <textarea style={{...inputStyleModal, height:'80px', resize: 'none', padding:'14px'}} disabled={tarefaSelecionada.status === 'concluido'} defaultValue={tarefaSelecionada.obs} placeholder={tarefaSelecionada.status === 'concluido' ? '' : 'Adicionar observacoes...'} onBlur={e => handleUpdateField(tarefaSelecionada.id, 'obs', e.target.value)} />
+            </div>
+          )}
 
           <div style={{marginTop:'60px', display:'flex', gap:'20px'}}>
               {/* BLOCO DE PROCESSAMENTO */}

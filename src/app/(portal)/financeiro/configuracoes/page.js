@@ -1,78 +1,9 @@
 'use client'
-import { useEffect, useState, useRef, Suspense } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
-// IMPORTAÇÃO DO MENU MODULAR
-import MenuLateral from '@/components/financeiro/MenuLateral'
-// IMPORTAÇÃO DO CHAT FLUTUANTE (Para manter a comunicação global)
-import { 
-  ArrowLeft, User, Volume2, Palette, Camera, Save, Lock, Mail, Settings, Play, CheckCircle2, Moon, Sun,
-  LayoutDashboard, ClipboardList, TrendingDown, TrendingUp, UserCheck, LogOut, Menu, MessageSquare, X, Paperclip, Send, FileText
-} from 'lucide-react'
-
-// --- COMPONENTE DE FUNDO PADRONIZADO COM TEMA ---
-function GeometricBackground() {
-  return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: -1, overflow: 'hidden', background: 'var(--bg-pagina)', pointerEvents: 'none' }}>
-      <img src="https://images.unsplash.com/photo-1633167606207-d840b5070fc2?q=80&w=900" style={{ position: 'absolute', top: '-15%', left: '-10%', width: '900px', opacity: 0.15, transform: 'rotate(-15deg)' }} alt="" />
-      <img src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=800" style={{ position: 'absolute', bottom: '-10%', right: '-10%', width: '800px', opacity: 0.12, transform: 'rotate(10deg)' }} alt="" />
-      <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at center, transparent 0%, rgba(240, 244, 248, 0.4) 100%)' }}></div>
-    </div>
-  )
-}
-
-// --- REPLICANDO O CHAT FLUTUANTE PARA MANTER GLOBALIDADE ---
-function ChatFlutuante({ userProfile }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [mensagens, setMensagens] = useState([]);
-  const [novaMsg, setNovaMsg] = useState('');
-  const scrollRef = useRef();
-
-  const load = async () => {
-    const { data } = await supabase.from('mensagens_chat').select('*').is('chamado_id', null).order('created_at', { ascending: true }).limit(100);
-    setMensagens(data || []);
-  };
-
-  useEffect(() => {
-    if (!userProfile?.id) return;
-    load();
-    const channel = supabase.channel('chat_config').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mensagens_chat' }, () => load()).subscribe();
-    return () => { supabase.removeChannel(channel) };
-  }, [userProfile?.id]);
-
-  const enviar = async (e) => {
-    e.preventDefault(); if (!novaMsg.trim()) return;
-    const t = novaMsg; setNovaMsg('');
-    await supabase.from('mensagens_chat').insert([{ texto: t, usuario_nome: userProfile.nome, usuario_id: userProfile.id, data_hora: new Date().toISOString() }]);
-  };
-
-  return (
-    <div style={{ position: 'fixed', bottom: '30px', right: '30px', zIndex: 3000, fontFamily: 'Montserrat' }}>
-      <button onClick={() => setIsOpen(!isOpen)} style={{ width: '75px', height: '75px', borderRadius: '25px', background: '#0f172a', color: '#fff', border: 'none', cursor: 'pointer', boxShadow: '0 10px 30px rgba(0,0,0,0.3)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-        {isOpen ? <X size={34} /> : <MessageSquare size={34} />}
-      </button>
-      {isOpen && (
-        <div style={{ position: 'absolute', bottom: '95px', right: 0, width: '500px', height: '750px', background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(10px)', borderRadius: '35px', display: 'flex', flexDirection: 'column', boxShadow: '0 30px 70px rgba(0,0,0,0.3)', border:'1px solid #e2e8f0', overflow:'hidden' }}>
-           <div style={{ padding: '25px', background: '#0f172a', color: '#fff', fontSize:'18px' }}>CENTRAL DE COMUNICAÇÃO</div>
-           <div ref={scrollRef} style={{ flex: 1, padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              {mensagens.map(m => (
-                <div key={m.id} style={{ alignSelf: String(m.usuario_id) === String(userProfile.id) ? 'flex-end' : 'flex-start', maxWidth:'80%' }}>
-                  <div style={{ background: String(m.usuario_id) === String(userProfile.id) ? '#0f172a' : '#fff', color: String(m.usuario_id) === String(userProfile.id) ? '#fff' : '#000', padding: '15px', borderRadius: '20px', border:'1px solid #e2e8f0' }}>
-                    <span style={{fontSize:'10px', display:'block', opacity:0.6}}>{m.usuario_nome?.toUpperCase()}</span>
-                    <div style={{fontSize:'16px'}}>{m.texto}</div>
-                  </div>
-                </div>
-              ))}
-           </div>
-           <form onSubmit={enviar} style={{ padding: '25px', display: 'flex', gap: '15px', borderTop:'1px solid #e2e8f0' }}>
-              <input value={novaMsg} onChange={e => setNovaMsg(e.target.value)} placeholder="Escreva..." style={{flex:1, padding:'18px', borderRadius:'15px', border:'1px solid #e2e8f0', outline:'none'}} />
-              <button style={{background:'#0f172a', color:'#fff', border:'none', borderRadius:'15px', width:'60px', height:'60px', cursor:'pointer'}}><Send size={24}/></button>
-           </form>
-        </div>
-      )}
-    </div>
-  );
-}
+import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
+import { User, Volume2, Palette, Camera, Save, Play, CheckCircle2, Moon, Sun } from 'lucide-react'
 
 function ConfiguracoesContent() {
   const searchParams = useSearchParams()
@@ -82,7 +13,6 @@ function ConfiguracoesContent() {
   const [userProfile, setUserProfile] = useState(null)
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false) 
   const router = useRouter()
 
   const [nome, setNome] = useState('')
@@ -92,8 +22,6 @@ function ConfiguracoesContent() {
   const [avatarUrl, setAvatarUrl] = useState('')
   const [somSelecionado, setSomSelecionado] = useState('som-notificacao-1.mp3.mp3')
   const [temaSelecionado, setTemaSelecionado] = useState('claro')
-
-  const path = typeof window !== 'undefined' ? window.location.pathname : '/financeiro/configuracoes';
 
   const sonsDisponiveis = [
     { id: 'som-notificacao-1.mp3.mp3', nome: 'Alerta Clássico 1', desc: 'Som curto e elegante' },
@@ -162,33 +90,10 @@ function ConfiguracoesContent() {
   if (loading) return <div style={{background:'#000', height:'100vh', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontFamily:'Montserrat'}}>CARREGANDO...</div>
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: 'transparent' }}>
-      
-      <MenuLateral 
-        isSidebarOpen={isSidebarOpen} 
-        setIsSidebarOpen={setIsSidebarOpen} 
-        path={path} 
-        router={router} 
-        handleLogout={() => supabase.auth.signOut().then(() => router.push('/login'))} 
-        userProfile={userProfile}
-      />
+    <div style={{ minHeight: '100vh', background: '#f4f4f4', fontFamily: 'Montserrat, sans-serif' }}>
+      <FinanceiroNav />
 
-      <div style={{ 
-        flex: 1, 
-        marginLeft: isSidebarOpen ? '360px' : '85px', 
-        transition: '0.4s ease',
-        padding: '50px',
-        position: 'relative',
-        zIndex: 1
-      }}>
-        <GeometricBackground />
-        
-        <header style={{ maxWidth: '1200px', margin: '0 auto 40px', display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <button onClick={() => router.push(userProfile?.funcao === 'Financeiro' ? '/financeiro/home-financeiro' : '/financeiro/home-posvendas')} style={{ background: '#000', color: '#fff', border: 'none', padding: '12px 25px', borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '900', fontSize: '12px' }}>
-            <ArrowLeft size={16} /> VOLTAR
-          </button>
-          <h1 style={{ fontSize: '32px', fontWeight: '900', margin: 0 }}>Configurações</h1>
-        </header>
+      <div style={{ padding: '24px 32px' }}>
 
         <main style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', gap: '30px' }}>
           <div style={{ width: '300px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -271,8 +176,6 @@ function ConfiguracoesContent() {
           </div>
         </main>
       </div>
-      {/* CHAT FLUTUANTE GLOBAL */}
-      {userProfile && <ChatFlutuante userProfile={userProfile} />}
     </div>
   )
 }

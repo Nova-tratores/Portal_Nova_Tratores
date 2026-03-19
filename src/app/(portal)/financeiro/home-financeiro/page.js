@@ -4,7 +4,9 @@ import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
+import { useAuditLog } from '@/hooks/useAuditLog'
 import { marcarMinhaAcao } from '@/components/financeiro/NotificationSystem'
+import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
 import { formatarDataBR, formatarMoeda, getRequisicoes } from '@/lib/financeiro/utils'
 import {
  X, PlusCircle, FileText, Download,
@@ -15,34 +17,7 @@ import {
 
 const formatarData = formatarDataBR;
 
-function FinanceiroSubNav() {
-  const pathname = usePathname()
-  const links = [
-    { label: 'Painel', href: '/financeiro/home-financeiro' },
-    { label: 'Kanban', href: '/financeiro/kanban-financeiro' },
-    { label: 'Dashboard', href: '/financeiro/dashboard' },
-    { label: 'Hist. Pagar', href: '/financeiro/historico-pagar' },
-    { label: 'Hist. Receber', href: '/financeiro/historico-receber' },
-    { label: 'Hist. RH', href: '/financeiro/historico-rh' },
-  ]
-  return (
-    <nav style={{ display: 'flex', gap: '0', borderBottom: '1px solid #e5e7eb', marginBottom: '40px', background: '#ffffff', overflow: 'hidden' }}>
-      {links.map(link => {
-        const isActive = pathname === link.href
-        return (
-          <Link key={link.href} href={link.href} style={{
-            padding: '20px 32px', fontSize: '20px', fontWeight: isActive ? '700' : '400', letterSpacing: '0.5px',
-            color: isActive ? '#dc2626' : '#6b7280',
-            borderBottom: isActive ? '3px solid #dc2626' : '3px solid transparent',
-            textDecoration: 'none', transition: '0.2s', fontFamily: 'Montserrat, sans-serif',
-          }}>
-            {link.label}
-          </Link>
-        )
-      })}
-    </nav>
-  )
-}
+// FinanceiroSubNav removido — agora usa componente compartilhado FinanceiroNav
 
 // --- COMPONENTE TAG DE ANEXO ---
 function AttachmentTag({ icon, label, fileUrl, onUpload, disabled }) {
@@ -51,8 +26,8 @@ function AttachmentTag({ icon, label, fileUrl, onUpload, disabled }) {
         <div style={{ display: 'flex', alignItems: 'center', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', minWidth:'320px', overflow: 'hidden', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
             <div style={{ padding: '0 18px', color: '#64748b', background: '#f1f5f9' }}>{icon || <Paperclip size={18}/>}</div>
             <div style={{ display: 'flex', flexDirection: 'column', flex: 1, padding: '12px 15px' }}>
-                <span style={{ fontSize: '13px', color: '#1e293b', fontWeight: '700', letterSpacing: '0.5px' }}>{label}</span>
-                <span style={{ fontSize: '11px', color: fileUrl ? '#10b981' : '#f43f5e', fontWeight: '700' }}>{fileUrl ? 'ARQUIVO PRONTO' : 'PENDENTE'}</span>
+                <span style={{ fontSize: '13px', color: '#1e293b', fontWeight: '500', letterSpacing: '0.5px' }}>{label}</span>
+                <span style={{ fontSize: '11px', color: fileUrl ? '#10b981' : '#f43f5e', fontWeight: '500' }}>{fileUrl ? 'ARQUIVO PRONTO' : 'PENDENTE'}</span>
             </div>
             <div style={{ display: 'flex', borderLeft: '1px solid #e2e8f0' }}>
                 {fileUrl && <button onClick={() => window.open(fileUrl, '_blank')} style={miniActionBtn} title="Visualizar"><Eye size={18} color="#1e293b" /></button>}
@@ -69,22 +44,22 @@ function AttachmentTag({ icon, label, fileUrl, onUpload, disabled }) {
 
 // ESTILOS GERAIS
 const cascadeRowStyle = { display: 'grid', gridTemplateColumns: '140px 180px 150px 320px', gap: '25px', alignItems: 'center', background: '#ffffff', padding: '15px', borderBottom: '1px solid #f1f5f9' };
-const cascadeLabelStyle = { fontSize: '11px', color: '#94a3b8', fontWeight: '800', letterSpacing: '1px', textTransform: 'uppercase' };
+const cascadeLabelStyle = { fontSize: '11px', color: '#94a3b8', fontWeight: '600', letterSpacing: '1px', textTransform: 'uppercase' };
 const inputCascadeStyle = { background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', color: '#1e293b', padding: '10px', fontSize: '14px', outline: 'none', transition: '0.2s' };
-const cascadeValueStyle = { fontSize: '18px', color: '#0f172a', fontWeight: '700' };
+const cascadeValueStyle = { fontSize: '18px', color: '#0f172a', fontWeight: '500' };
 const dropItemStyle_Container = { position:'absolute', top:'60px', right: 0, background:'#ffffff', zIndex:2000, width:'250px', border:'0.5px solid #dcdde1', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' };
 const dropItemStyle = { padding:'15px 20px', cursor:'pointer', color:'#1e293b', borderBottom:'0.5px solid #dcdde1', fontSize:'14px', fontWeight: '600' };
 const colWrapperStyle = { padding: '20px', background: 'rgba(255, 255, 255, 0.4)', border: '0.5px solid #dcdde1' };
-const colTitleStyle = { textAlign: 'center', fontSize: '22px', color:'#0f172a', fontWeight:'700', marginBottom:'30px', textTransform:'uppercase' };
+const colTitleStyle = { textAlign: 'center', fontSize: '22px', color:'#0f172a', fontWeight:'500', marginBottom:'30px', textTransform:'uppercase' };
 const miniTagStyle = { background: '#f1f5f9', padding: '4px 10px', color: '#64748b', fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px', border: '0.5px solid #dcdde1', fontWeight: '600' };
-const labelMStyle = { fontSize:'14px', color:'#64748b', textTransform:'uppercase', fontWeight: '700', marginBottom: '8px', display: 'block' };
+const labelMStyle = { fontSize:'14px', color:'#64748b', textTransform:'uppercase', fontWeight: '500', marginBottom: '8px', display: 'block' };
 const pModalStyle = { fontSize:'24px', color:'#0f172a', margin: 0, fontWeight: '400' };
 const fieldBoxModal = { border: '1px solid #e5e7eb', padding: '30px', background: '#ffffff', flex: 1, borderRadius: '15px' };
 const fieldBoxInner = { padding: '15px 10px', borderBottom: '1px solid #f0f0f0' };
 const inputStyleLight = { width: '100%', padding: '15px', border: '1px solid #dcdde1', outline: 'none', background:'#fff', color:'#000', fontSize: '18px', fontFamily: 'Montserrat, sans-serif' };
 const miniActionBtn = { background: 'transparent', border: 'none', padding: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', transition: '0.2s', borderRadius: '8px' };
-const btnPrimaryBeautified = { background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)', color:'#ffffff', border:'none', padding:'18px 40px', borderRadius:'15px', cursor:'pointer', fontSize: '14px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 10px 20px rgba(14, 165, 233, 0.2)', transition: '0.3s' };
-const btnSuccessBeautified = { flex: 1, background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color:'#ffffff', border:'none', padding:'25px', borderRadius:'15px', cursor:'pointer', fontSize: '18px', fontWeight: '800', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px', boxShadow: '0 10px 20px rgba(16, 185, 129, 0.2)', transition: '0.3s' };
+const btnPrimaryBeautified = { background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)', color:'#ffffff', border:'none', padding:'18px 40px', borderRadius:'15px', cursor:'pointer', fontSize: '14px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 10px 20px rgba(14, 165, 233, 0.2)', transition: '0.3s' };
+const btnSuccessBeautified = { flex: 1, background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color:'#ffffff', border:'none', padding:'25px', borderRadius:'15px', cursor:'pointer', fontSize: '18px', fontWeight: '600', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px', boxShadow: '0 10px 20px rgba(16, 185, 129, 0.2)', transition: '0.3s' };
 const zoomBtnStyle = { background: 'transparent', border: 'none', cursor: 'pointer' };
 
 export default function HomeFinanceiro() {
@@ -97,6 +72,7 @@ export default function HomeFinanceiro() {
 
 function HomeFinanceiroContent() {
  const { userProfile } = useAuth();
+ const { log: auditLog } = useAuditLog();
  const [showNovoMenu, setShowNovoMenu] = useState(false);
  const [tarefaSelecionada, setTarefaSelecionada] = useState(null);
  const [listaBoletos, setListaBoletos] = useState([]); const [listaPagar, setListaPagar] = useState([]); const [listaRH, setListaRH] = useState([]);
@@ -132,7 +108,9 @@ function HomeFinanceiroContent() {
       let parcelaVencida = false;
       if (isParceladoLocal && c.status === 'aguardando_vencimento') {
         const qtd = parseInt(c.qtd_parcelas || 1);
-        const datas = [c.vencimento_boleto, ...(c.datas_parcelas || '').split(/[\s,]+/).filter(d => d.includes('-'))];
+        const rawDatasF = (c.datas_parcelas || '').split(/[\s,]+/).filter(d => d.includes('-'));
+        if (rawDatasF.length > 0 && rawDatasF[0] === c.vencimento_boleto) rawDatasF.shift();
+        const datas = [c.vencimento_boleto, ...rawDatasF];
         for (let i = 0; i < qtd; i++) {
           const comp = i === 0 ? (c.comprovante_pagamento || c.comprovante_pagamento_p1) : c[`comprovante_pagamento_p${i + 1}`];
           const dp = datas[i] ? new Date(datas[i]) : null;
@@ -185,9 +163,18 @@ function HomeFinanceiroContent() {
   if (card) setTarefaSelecionada(card);
  }, [searchParams, listaBoletos, listaPagar, listaRH]);
 
+ const getCardLabel = (t) => {
+    if (t.gTipo === 'pagar') return `Pagar #${t.id} - ${t.fornecedor || ''}`;
+    if (t.gTipo === 'receber') return `Receber #${t.id} - ${t.cliente || ''}`;
+    if (t.gTipo === 'rh') return `RH #${t.id} - ${t.funcionario || ''}`;
+    return `NF #${t.id} - ${t.nom_cliente || t.tarefa || ''}`;
+ };
+ const getCardTable = (t) => t.gTipo === 'pagar' ? 'finan_pagar' : t.gTipo === 'receber' ? 'finan_receber' : t.gTipo === 'rh' ? 'finan_rh' : 'Chamado_NF';
+
  const handleUpdateField = async (t, field, value) => {
-    const table = t.gTipo === 'pagar' ? 'finan_pagar' : t.gTipo === 'receber' ? 'finan_receber' : t.gTipo === 'rh' ? 'finan_rh' : 'Chamado_NF';
+    const table = getCardTable(t);
     await supabase.from(table).update({ [field]: value }).eq('id', t.id);
+    auditLog({ sistema: 'financeiro', acao: 'editar', entidade: table, entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { campo: field, valor: value } });
     carregarDados();
     if(tarefaSelecionada) setTarefaSelecionada(prev => ({ ...prev, [field]: value }));
  };
@@ -195,13 +182,14 @@ function HomeFinanceiroContent() {
  const handleUpdateFileDirect = async (t, field, file) => {
     if(!file) return;
     try {
-      const table = t.gTipo === 'pagar' ? 'finan_pagar' : t.gTipo === 'receber' ? 'finan_receber' : t.gTipo === 'rh' ? 'finan_rh' : 'Chamado_NF';
+      const table = getCardTable(t);
       const path = `anexos/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
       const { error: uploadError } = await supabase.storage.from('anexos').upload(path, file);
       if (uploadError) throw uploadError;
       const { data: linkData } = supabase.storage.from('anexos').getPublicUrl(path);
 
       await supabase.from(table).update({ [field]: linkData.publicUrl }).eq('id', t.id);
+      auditLog({ sistema: 'financeiro', acao: 'upload', entidade: table, entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { campo: field, arquivo: file.name } });
       alert("Arquivo atualizado!");
       carregarDados();
       if(tarefaSelecionada) setTarefaSelecionada(prev => ({ ...prev, [field]: linkData.publicUrl }));
@@ -223,6 +211,7 @@ function HomeFinanceiroContent() {
         anexo_boleto: data.publicUrl
     }).eq('id', t.id);
 
+    auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'enviar_cliente', acao_desc: 'Boleto gerado e enviado ao Pós-Vendas' } });
     alert("Tarefa enviada ao Pós-Vendas!"); setTarefaSelecionada(null); carregarDados();
   } catch (err) { alert("Erro: " + err.message); }
  };
@@ -230,13 +219,15 @@ function HomeFinanceiroContent() {
  const handleMoverParaPago = async (t) => {
     marcarMinhaAcao('Chamado_NF', t.id);
     await supabase.from('Chamado_NF').update({ status: 'pago', tarefa: 'Pagamento Confirmado' }).eq('id', t.id);
+    auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'pago', acao_desc: 'Pagamento confirmado' } });
     alert("Pagamento confirmado e processo finalizado!"); setTarefaSelecionada(null); carregarDados();
  };
 
  const handleConcluirGeral = async (t) => {
-    const table = t.gTipo === 'pagar' ? 'finan_pagar' : t.gTipo === 'receber' ? 'finan_receber' : t.gTipo === 'rh' ? 'finan_rh' : 'Chamado_NF';
+    const table = getCardTable(t);
     marcarMinhaAcao(table, t.id);
     await supabase.from(table).update({ status: 'concluido' }).eq('id', t.id);
+    auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: table, entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'concluido', acao_desc: 'Processo concluído' } });
     alert("Processo concluído!"); setTarefaSelecionada(null); carregarDados();
  };
 
@@ -250,12 +241,14 @@ function HomeFinanceiroContent() {
         setor: 'Pós-Vendas',
         recombrancas_qtd: newVal
     }).eq('id', t.id);
+    auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'vencido', acao_desc: `Recobrança #${newVal} solicitada ao Pós-Vendas` } });
     alert("Recobrança solicitada ao Pós-Vendas!"); setTarefaSelecionada(null); carregarDados();
  };
 
  const handleSomenteVencido = async (t) => {
     marcarMinhaAcao('Chamado_NF', t.id);
     await supabase.from('Chamado_NF').update({ status: 'vencido' }).eq('id', t.id);
+    auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'vencido' } });
     alert("Card movido para Vencido!"); setTarefaSelecionada(null); carregarDados();
  };
 
@@ -292,30 +285,41 @@ function HomeFinanceiroContent() {
  const valorIndividual = tarefaSelecionada ? (tarefaSelecionada.valor_servico / (tarefaSelecionada.qtd_parcelas || 1)) : 0;
 
  return (
-  <div style={{ padding: '40px', fontFamily: 'Montserrat, sans-serif' }}>
-   <FinanceiroSubNav />
-
-   <header style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'50px' }}>
-      <div><h1 style={{ fontWeight: '300', color: '#0f172a', margin: 0, fontSize:'80px', letterSpacing:'-4px' }}>Painel Financeiro</h1><div style={{ width: '80px', height: '4px', background: '#0ea5e9', marginTop: '12px' }}></div></div>
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-       <div style={{ display: 'flex', alignItems: 'center', background: '#fff', border: '1px solid #dcdde1', borderRadius: '0px', padding: '5px 15px', gap: '10px' }}>
-          <button onClick={() => setZoom(prev => Math.max(0.5, prev - 0.1))} style={zoomBtnStyle} title="Diminuir zoom"><ZoomOut size={18} /></button>
-          <span style={{ fontSize: '15px', fontWeight: '700', color: '#000', minWidth: '45px', textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
-          <button onClick={() => setZoom(prev => Math.min(1.5, prev + 0.1))} style={zoomBtnStyle} title="Aumentar zoom"><ZoomIn size={18} /></button>
-       </div>
-       <div style={{ position: 'relative' }}>
-        <button title="Novo Chamado" onClick={() => setShowNovoMenu(!showNovoMenu)} style={{ background:'#ffffff', color:'#1e293b', border:'1.5px solid #dcdde1', padding:'12px 24px', borderRadius:'0px', fontWeight:'500', cursor:'pointer', fontSize:'15px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>NOVO LANÇAMENTO</button>
+  <div style={{ fontFamily: 'Montserrat, sans-serif' }}>
+   <FinanceiroNav>
+      <div style={{ display: 'flex', alignItems: 'center', background: '#f5f5f5', borderRadius: '8px', padding: '4px 10px', gap: '6px' }}>
+        <button onClick={() => setZoom(prev => Math.max(0.5, prev - 0.1))} style={zoomBtnStyle} title="Diminuir zoom"><ZoomOut size={15} color="#737373" /></button>
+        <span style={{ fontSize: '12px', fontWeight: '500', color: '#525252', minWidth: '38px', textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
+        <button onClick={() => setZoom(prev => Math.min(1.5, prev + 0.1))} style={zoomBtnStyle} title="Aumentar zoom"><ZoomIn size={15} color="#737373" /></button>
+      </div>
+      <div style={{ position: 'relative' }}>
+        <button title="Novo Chamado" onClick={() => setShowNovoMenu(!showNovoMenu)} style={{
+          background: 'linear-gradient(135deg, #dc2626, #b91c1c)', color:'#fff',
+          border:'none', padding:'8px 16px', borderRadius:'8px', fontWeight:'500',
+          cursor:'pointer', fontSize:'12px', display: 'flex', alignItems: 'center', gap: '6px',
+          boxShadow: '0 2px 6px rgba(220,38,38,0.25)', transition: '0.2s',
+        }}><PlusCircle size={15} /> NOVO</button>
         {showNovoMenu && (
-         <div onMouseLeave={() => setShowNovoMenu(false)} style={dropItemStyle_Container}>
-          <div onClick={() => router.push('/financeiro/novo-chamado-nf')} style={dropItemStyle}>Boleto</div>
-          <div onClick={() => router.push('/financeiro/novo-pagar-receber')} style={dropItemStyle}>Pagar/Receber</div>
-          <div onClick={() => router.push('/financeiro/novo-chamado-rh')} style={{ ...dropItemStyle, borderBottom:'none', color:'#0ea5e9' }}>RH</div>
+         <div onMouseLeave={() => setShowNovoMenu(false)} style={{
+           position:'absolute', top:'calc(100% + 6px)', right: 0, background:'#fff', zIndex:2000,
+           width:'200px', borderRadius: '12px', border:'1px solid #f0f0f0',
+           boxShadow: '0 8px 24px rgba(0,0,0,0.12)', overflow: 'hidden',
+         }}>
+          <div onClick={() => router.push('/financeiro/novo-chamado-nf')} style={{ padding:'12px 16px', cursor:'pointer', color:'#1a1a1a', borderBottom:'1px solid #f5f5f5', fontSize:'13px', fontWeight: '600', transition: '0.15s' }}
+            onMouseEnter={e => e.currentTarget.style.background='#fef2f2'}
+            onMouseLeave={e => e.currentTarget.style.background='transparent'}>Boleto</div>
+          <div onClick={() => router.push('/financeiro/novo-pagar-receber')} style={{ padding:'12px 16px', cursor:'pointer', color:'#1a1a1a', borderBottom:'1px solid #f5f5f5', fontSize:'13px', fontWeight: '600', transition: '0.15s' }}
+            onMouseEnter={e => e.currentTarget.style.background='#fef2f2'}
+            onMouseLeave={e => e.currentTarget.style.background='transparent'}>Pagar/Receber</div>
+          <div onClick={() => router.push('/financeiro/novo-chamado-rh')} style={{ padding:'12px 16px', cursor:'pointer', color:'#dc2626', fontSize:'13px', fontWeight: '600', transition: '0.15s' }}
+            onMouseEnter={e => e.currentTarget.style.background='#fef2f2'}
+            onMouseLeave={e => e.currentTarget.style.background='transparent'}>RH</div>
          </div>
         )}
-       </div>
       </div>
-    </header>
+   </FinanceiroNav>
+
+   <div style={{ padding: '24px 32px' }}>
 
     <div style={{
         display: 'grid',
@@ -331,9 +335,9 @@ function HomeFinanceiroContent() {
         {listaBoletos.filter(c => c.status === 'gerar_boleto' || c.status === 'validar_pix' || (c.status === 'aguardando_vencimento' && (c.isVencidoDisplay || c.isTarefaPagamentoRealizado || c.parcelaVencida))).map((t, idx) => (
          <div key={`bol-${t.id}-${idx}`} onClick={() => setTarefaSelecionada(t)} className="task-card-grid">
           <div style={{ background: '#f1f5f9', padding: '24px', borderBottom: '0.5px solid #dcdde1' }}>
-            <h4 style={{ margin: 0, fontSize: '18px', fontWeight:'700', color: '#1e293b' }}>{t.nom_cliente?.toUpperCase()}</h4>
+            <h4 style={{ margin: 0, fontSize: '18px', fontWeight:'500', color: '#1e293b' }}>{t.nom_cliente?.toUpperCase()}</h4>
             {t.isTarefaPagamentoRealizado && (
-                <div style={{ marginTop: '12px', background: 'linear-gradient(90deg, #3b82f6, #2563eb)', color: '#fff', fontSize: '10px', fontWeight: '900', padding: '6px 12px', borderRadius: '4px', display: 'inline-flex', alignItems: 'center', gap: '6px', boxShadow: '0 4px 10px rgba(37, 99, 235, 0.2)' }}>
+                <div style={{ marginTop: '12px', background: 'linear-gradient(90deg, #3b82f6, #2563eb)', color: '#fff', fontSize: '10px', fontWeight: '600', padding: '6px 12px', borderRadius: '4px', display: 'inline-flex', alignItems: 'center', gap: '6px', boxShadow: '0 4px 10px rgba(37, 99, 235, 0.2)' }}>
                     <CheckCircle size={14}/> PAGAMENTO REALIZADO - CONFERIR
                 </div>
             )}
@@ -343,20 +347,20 @@ function HomeFinanceiroContent() {
             <div style={{fontSize:'26px', color:'#0f172a', margin: '15px 0 5px 0', fontWeight: '600'}}>{formatarMoeda(t.valor_exibicao)}</div>
             <div style={{fontSize:'14px', color: '#64748b', textTransform:'uppercase', letterSpacing:'1px'}}>{t.status === 'validar_pix' ? 'VALIDAÇÃO PIX' : `Venc: ${formatarData(t.vencimento_boleto)}`}</div>
             {t.anexo_boleto && (t.status === 'gerar_boleto' || t.status === 'validar_pix') && (
-                <div style={{marginTop: '12px', display:'flex', alignItems:'center', gap:'8px', color: '#4f46e5', fontSize: '12px', fontWeight: '800'}} title="Boleto já foi anexado">
+                <div style={{marginTop: '12px', display:'flex', alignItems:'center', gap:'8px', color: '#4f46e5', fontSize: '12px', fontWeight: '500'}} title="Boleto já foi anexado">
                   <FileText size={16} /> BOLETO ANEXADO
                 </div>
             )}
             {t.isVencidoDisplay && !t.isTarefaPagamentoRealizado && !t.parcelaVencida && (
              <div style={{marginTop: '20px', background: '#fee2e2', border: '1px solid #ef4444', padding: '15px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                <span style={{color: '#ef4444', fontWeight: '800', fontSize: '14px'}}>VENCIDO</span>
-                <button onClick={(e) => {e.stopPropagation(); alert('Vencimento conferido.')}} style={{background: '#ef4444', color: '#fff', border: 'none', padding: '8px 15px', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', fontWeight: '700'}}>CONFERIDO</button>
+                <span style={{color: '#ef4444', fontWeight: '600', fontSize: '14px'}}>VENCIDO</span>
+                <button onClick={(e) => {e.stopPropagation(); alert('Vencimento conferido.')}} style={{background: '#ef4444', color: '#fff', border: 'none', padding: '8px 15px', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', fontWeight: '500'}}>CONFERIDO</button>
              </div>
             )}
             {t.parcelaVencida && !t.isTarefaPagamentoRealizado && (
              <div style={{marginTop: '20px', background: '#fff7ed', border: '1px solid #f97316', padding: '12px 15px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '8px'}}>
                 <AlertCircle size={16} color="#f97316" />
-                <span style={{color: '#f97316', fontWeight: '800', fontSize: '13px'}}>PARCELA VENCIDA SEM COMPROVANTE</span>
+                <span style={{color: '#f97316', fontWeight: '600', fontSize: '13px'}}>PARCELA VENCIDA SEM COMPROVANTE</span>
              </div>
             )}
           </div>
@@ -371,18 +375,18 @@ function HomeFinanceiroContent() {
         {listaPagar.map((t, idx) => (
          <div key={`pag-${t.id}-${idx}`} onClick={() => setTarefaSelecionada(t)} className="task-card-grid">
           <div style={{padding:'24px', background: '#fef2f2', borderLeft: '6px solid #ef4444', borderBottom: '0.5px solid #dcdde1'}}>
-            <h4 style={{fontSize:'12px', color:'#ef4444', fontWeight:'800', letterSpacing:'1px', marginBottom:'8px'}}>FORNECEDOR</h4>
-            <div style={{fontSize:'20px', color:'#1e293b', fontWeight: '700'}}>{t.fornecedor?.toUpperCase()}</div>
-            <div style={{fontSize:'24px', color:'#0f172a', marginTop:'15px', fontWeight: '700'}}>{formatarMoeda(t.valor)}</div>
+            <h4 style={{fontSize:'12px', color:'#ef4444', fontWeight:'600', letterSpacing:'1px', marginBottom:'8px'}}>FORNECEDOR</h4>
+            <div style={{fontSize:'20px', color:'#1e293b', fontWeight: '500'}}>{t.fornecedor?.toUpperCase()}</div>
+            <div style={{fontSize:'24px', color:'#0f172a', marginTop:'15px', fontWeight: '500'}}>{formatarMoeda(t.valor)}</div>
             <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
               {getRequisicoes(t).filter(r => r.numero).map((req, i) => (
-                <span key={i} style={{ background: '#fef2f2', color: '#ef4444', fontSize: '10px', fontWeight: '800', padding: '4px 8px', border: '1px solid #fca5a5', borderRadius: '4px' }}>#{req.numero}</span>
+                <span key={i} style={{ background: '#fef2f2', color: '#ef4444', fontSize: '10px', fontWeight: '600', padding: '4px 8px', border: '1px solid #fca5a5', borderRadius: '4px' }}>#{req.numero}</span>
               ))}
             </div>
           </div>
           <div style={{padding:'18px 24px', background:'#ffffff', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
             <span style={{color: '#64748b', fontSize:'13px', fontWeight:'600'}}>{t.metodo || 'Despesa'}</span>
-            <span style={{color: '#ef4444', fontSize:'13px', fontWeight:'800'}}>VENC: {formatarData(t.data_vencimento)}</span>
+            <span style={{color: '#ef4444', fontSize:'13px', fontWeight: '600'}}>VENC: {formatarData(t.data_vencimento)}</span>
           </div>
          </div>
         ))}
@@ -395,7 +399,7 @@ function HomeFinanceiroContent() {
         {listaRH.map((t, idx) => (
          <div key={`rh-${t.id}-${idx}`} onClick={() => setTarefaSelecionada(t)} className="task-card-grid">
           <div style={{padding:'24px', background: '#f1f5f9', borderLeft: '6px solid #8b5cf6', borderBottom: '0.5px solid #dcdde1'}}>
-            <h4 style={{fontSize:'18px', color:'#1e293b', fontWeight:'700'}}>{t.funcionario?.toUpperCase()}</h4>
+            <h4 style={{fontSize:'18px', color:'#1e293b', fontWeight:'500'}}>{t.funcionario?.toUpperCase()}</h4>
             <div style={{fontSize:'14px', color:'#0ea5e9', marginTop:'10px', textTransform:'uppercase', letterSpacing:'1px', fontWeight: '500'}}>{t.setor}</div>
           </div>
           <div style={{padding:'24px', background:'#ffffff', borderBottom: '0.5px solid #dcdde1'}}>
@@ -546,13 +550,16 @@ function HomeFinanceiroContent() {
                     </div>
                     {Array.from({ length: (tarefaSelecionada.qtd_parcelas || 1) - 1 }).map((_, i) => {
                         const pNum = i + 2;
-                        const currentDates = (tarefaSelecionada.datas_parcelas || "").split(/[\s,]+/);
+                        const rawDates = (tarefaSelecionada.datas_parcelas || "").split(/[\s,]+/).filter(d => d.includes('-'));
+                        if (rawDates.length > 0 && rawDates[0] === tarefaSelecionada.vencimento_boleto) rawDates.shift();
                         return (
                             <div key={pNum} style={cascadeRowStyle}>
                                 <span style={cascadeLabelStyle}>{pNum}ª PARCELA</span>
-                                <input type="date" style={inputCascadeStyle} defaultValue={currentDates[i] || ""} onBlur={e => {
-                                    let arr = [...currentDates]; arr[i] = e.target.value;
-                                    handleUpdateField(tarefaSelecionada, 'datas_parcelas', arr.join(', '));
+                                <input type="date" style={inputCascadeStyle} defaultValue={rawDates[i] || ""} onBlur={e => {
+                                    let arr = [...rawDates];
+                                    while (arr.length < (tarefaSelecionada.qtd_parcelas || 1) - 1) arr.push('');
+                                    arr[i] = e.target.value;
+                                    handleUpdateField(tarefaSelecionada, 'datas_parcelas', arr.filter(d => d).join(', '));
                                 }} />
                                 <span style={cascadeValueStyle}>{formatarMoeda(valorIndividual)}</span>
                                 <AttachmentTag
@@ -567,15 +574,21 @@ function HomeFinanceiroContent() {
             </div>
         )}
 
-        {/* CAMPOS EXCLUSIVOS DE BOLETO (NF SERVIÇO/PEÇA) */}
+        {/* CAMPOS EXCLUSIVOS DE BOLETO (NF SERVIÇO/PEÇA) — só mostra campo se tiver dado */}
         {tarefaSelecionada.gTipo === 'boleto' && (
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'30px', border:'1px solid #e5e7eb', padding:'45px', background:'#f8fafc', marginBottom:'45px' }}>
-                <div style={fieldBoxInner}><label style={labelMStyle}>NF SERVIÇO</label><input style={inputStyleLight} defaultValue={tarefaSelecionada.num_nf_servico} onBlur={e => handleUpdateField(tarefaSelecionada, 'num_nf_servico', e.target.value)} /></div>
-                <div style={fieldBoxInner}><label style={labelMStyle}>NF PEÇA</label><input style={inputStyleLight} defaultValue={tarefaSelecionada.num_nf_peca} onBlur={e => handleUpdateField(tarefaSelecionada, 'num_nf_peca', e.target.value)} /></div>
-                <div style={{gridColumn:'span 2', ...fieldBoxInner}}>
-                    <label style={labelMStyle}>OBSERVAÇÕES DO BOLETO</label>
-                    <textarea style={{...inputStyleLight, height:'80px', resize: 'none'}} defaultValue={tarefaSelecionada.obs} onBlur={e => handleUpdateField(tarefaSelecionada, 'obs', e.target.value)} />
-                </div>
+            <div style={{ display:'grid', gridTemplateColumns: (tarefaSelecionada.num_nf_servico && tarefaSelecionada.num_nf_peca) ? 'repeat(2, 1fr)' : '1fr', gap:'20px', border:'1px solid #e5e7eb', padding:'30px', background:'#f8fafc', marginBottom:'30px', borderRadius:'12px' }}>
+                {(tarefaSelecionada.num_nf_servico || !tarefaSelecionada.num_nf_peca) && (
+                  <div style={fieldBoxInner}><label style={labelMStyle}>NF SERVICO</label><input style={inputStyleLight} defaultValue={tarefaSelecionada.num_nf_servico} onBlur={e => handleUpdateField(tarefaSelecionada, 'num_nf_servico', e.target.value)} /></div>
+                )}
+                {(tarefaSelecionada.num_nf_peca || !tarefaSelecionada.num_nf_servico) && (
+                  <div style={fieldBoxInner}><label style={labelMStyle}>NF PECA</label><input style={inputStyleLight} defaultValue={tarefaSelecionada.num_nf_peca} onBlur={e => handleUpdateField(tarefaSelecionada, 'num_nf_peca', e.target.value)} /></div>
+                )}
+                {tarefaSelecionada.obs && (
+                  <div style={{gridColumn:'1 / -1', ...fieldBoxInner}}>
+                    <label style={labelMStyle}>OBSERVACOES</label>
+                    <textarea style={{...inputStyleLight, height:'60px', resize: 'none'}} defaultValue={tarefaSelecionada.obs} onBlur={e => handleUpdateField(tarefaSelecionada, 'obs', e.target.value)} />
+                  </div>
+                )}
             </div>
         )}
 
@@ -604,8 +617,12 @@ function HomeFinanceiroContent() {
                     </div>
                   </div>
                   <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
-                    <AttachmentTag icon={<FileText size={18}/>} label="NF SERVICO" fileUrl={tarefaSelecionada.anexo_nf_servico} onUpload={f => handleUpdateFileDirect(tarefaSelecionada, 'anexo_nf_servico', f)} />
-                    <AttachmentTag icon={<Paperclip size={18}/>} label="NF PECA" fileUrl={tarefaSelecionada.anexo_nf_peca} onUpload={f => handleUpdateFileDirect(tarefaSelecionada, 'anexo_nf_peca', f)} />
+                    {(tarefaSelecionada.anexo_nf_servico || (!tarefaSelecionada.num_nf_peca && !tarefaSelecionada.anexo_nf_peca)) && (
+                      <AttachmentTag icon={<FileText size={18}/>} label="NF SERVICO" fileUrl={tarefaSelecionada.anexo_nf_servico} onUpload={f => handleUpdateFileDirect(tarefaSelecionada, 'anexo_nf_servico', f)} />
+                    )}
+                    {(tarefaSelecionada.anexo_nf_peca || (!tarefaSelecionada.num_nf_servico && !tarefaSelecionada.anexo_nf_servico)) && (
+                      <AttachmentTag icon={<Paperclip size={18}/>} label="NF PECA" fileUrl={tarefaSelecionada.anexo_nf_peca} onUpload={f => handleUpdateFileDirect(tarefaSelecionada, 'anexo_nf_peca', f)} />
+                    )}
                     {(isCashOrCardType || tarefaSelecionada.isTarefaPagamentoRealizado) && (
                       <AttachmentTag icon={<CheckCircle size={18}/>} label="COMPROVANTE PAGAMENTO" fileUrl={tarefaSelecionada.comprovante_pagamento} onUpload={f => handleUpdateFileDirect(tarefaSelecionada, 'comprovante_pagamento', f)} />
                     )}
@@ -746,6 +763,7 @@ function HomeFinanceiroContent() {
     </div>
    )}
 
+   </div>{/* fim padding wrapper */}
    <style jsx global>{`
     .task-card-grid { background: #ffffff; border: 0.5px solid #dcdde1; cursor: pointer; transition: 0.3s; overflow: hidden; margin-bottom: 15px; }
     .task-card-grid:hover { transform: translateY(-4px); box-shadow: 0 10px 20px rgba(0,0,0,0.04); border-color: #0ea5e9; }
