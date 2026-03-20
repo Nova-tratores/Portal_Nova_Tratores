@@ -21,7 +21,16 @@ export async function GET(request: NextRequest) {
   const uid = searchParams.get("uid");
   const part = searchParams.get("part");
   const filename = searchParams.get("filename") || "anexo";
-  const contentType = searchParams.get("type") || "application/octet-stream";
+  let contentType = searchParams.get("type") || "application/octet-stream";
+  // Corrigir content-types malformados do IMAP (ex: "application/pdf/octet-stream")
+  if (contentType.split("/").length > 2) {
+    contentType = contentType.split("/").slice(0, 2).join("/");
+  }
+  // Garantir PDF correto pela extensão do arquivo
+  const fname = searchParams.get("filename") || "";
+  if (fname.toLowerCase().endsWith(".pdf")) {
+    contentType = "application/pdf";
+  }
 
   if (!uid || !part) {
     return NextResponse.json(
@@ -38,7 +47,7 @@ export async function GET(request: NextRequest) {
     const headers = new Headers();
     headers.set("Content-Type", contentType);
     headers.set("Content-Length", cached.length.toString());
-    headers.set("Content-Disposition", `inline; filename="${encodeURIComponent(filename)}"`);
+
     headers.set("Cache-Control", "private, max-age=86400, immutable");
     return new Response(cached, { status: 200, headers });
   } catch {
@@ -104,7 +113,7 @@ export async function GET(request: NextRequest) {
       const headers = new Headers();
       headers.set("Content-Type", contentType);
       headers.set("Content-Length", buffer.length.toString());
-      headers.set("Content-Disposition", `inline; filename="${encodeURIComponent(filename)}"`);
+  
       headers.set("Cache-Control", "private, max-age=86400, immutable");
 
       return new Response(buffer, { status: 200, headers });

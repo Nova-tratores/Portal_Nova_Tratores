@@ -99,21 +99,12 @@ async function atualizarMetricasAbertas() {
 }
 
 async function getOrdensParaKanban(): Promise<KanbanCard[]> {
-  const { data: ordens } = await supabase
-    .from(TBL_OS)
-    .select("*")
-    .order("Id_Ordem", { ascending: false });
-
-  const { data: logs } = await supabase
-    .from(TBL_LOGS_PPO)
-    .select("Id_ppo,Data_Acao")
-    .order("id", { ascending: false });
-
-  // Busca métricas abertas (dias de atraso)
-  const { data: metricasAbertas } = await supabase
-    .from(TBL_METRICAS)
-    .select("id_ordem, dias")
-    .is("data_fim", null);
+  // Todas as queries em paralelo
+  const [{ data: ordens }, { data: logs }, { data: metricasAbertas }] = await Promise.all([
+    supabase.from(TBL_OS).select("*").order("Id_Ordem", { ascending: false }),
+    supabase.from(TBL_LOGS_PPO).select("Id_ppo,Data_Acao").order("id", { ascending: false }),
+    supabase.from(TBL_METRICAS).select("id_ordem, dias").is("data_fim", null),
+  ]);
 
   const mapaAtraso: Record<string, number> = {};
   (metricasAbertas || []).forEach((m) => {
@@ -147,9 +138,17 @@ async function getOrdensParaKanban(): Promise<KanbanCard[]> {
   });
 }
 
+// Cache do auto-move — roda no máximo uma vez a cada 5 minutos
+let lastAutoMove = 0;
+const AUTO_MOVE_INTERVAL = 5 * 60 * 1000;
+
 export async function GET() {
-  // Auto-move antes de retornar
-  await autoMoveByDate();
+  const agora = Date.now();
+  // Auto-move roda em background, não bloqueia a resposta
+  if (agora - lastAutoMove > AUTO_MOVE_INTERVAL) {
+    lastAutoMove = agora;
+    autoMoveByDate().catch((e) => console.error("Erro auto-move:", e));
+  }
   const ordens = await getOrdensParaKanban();
   return NextResponse.json(ordens);
 }

@@ -28,18 +28,61 @@ function parseSubject(subject: string): {
   modelo: string | null;
   chassisFinal: string | null;
 } {
-  const regex = /(\d+)\s*HORAS?\s*-\s*(.+?)\s+(\S+)\s*$/i;
-  const match = subject.match(regex);
+  // Limpar prefixos (Fwd:, Re:) e espaços
+  const clean = subject.replace(/^(Fwd?:|Re:)\s*/gi, "").trim();
 
-  if (match) {
-    return {
-      horas: match[1],
-      modelo: match[2].trim(),
-      chassisFinal: match[3].trim(),
-    };
+  // Extrair horas — pegar o PRIMEIRO número após "revisão" / "revisao"
+  const horasMatch = clean.match(/revis[aã]o\s+(?:de\s+)?(?:[-–]\s*)?(\d+)\s*(?:hrs?|horas?)?/i);
+  const horas = horasMatch ? horasMatch[1] : null;
+
+  // Extrair chassis final — último número com 3+ dígitos no subject
+  let chassisFinal: string | null = null;
+  const chassisPatterns = [
+    /CHASSI\s+(?:MDI\w+)?(\d{3,})/i,       // "CHASSI 00610" ou "CHASSI MDI...02454"
+    /FINAL\s+(?:CHASSI\s+)?(\d{3,})/i,       // "FINAL 0443" ou "FINAL CHASSI 001419"
+    /[-,\/]\s*(\d{3,})\s*[.\-]?\s*$/,         // "- 01135" ou "/ 1712" no final
+    /[-,]\s*(\d{3,})\s*$/,                     // ", 02409" no final
+    /\s(\d{4,})\s*[.\-]?\s*$/,                // número longo no final
+  ];
+  for (const pat of chassisPatterns) {
+    const m = clean.match(pat);
+    if (m) { chassisFinal = m[1].replace(/^0+/, "0"); break; }
+  }
+  // Fallback: último grupo de 3+ dígitos no subject
+  if (!chassisFinal) {
+    const allNums = [...clean.matchAll(/(\d{3,})/g)];
+    // Ignorar o número de horas
+    const candidates = allNums.filter(m => m[1] !== horas);
+    if (candidates.length > 0) {
+      chassisFinal = candidates[candidates.length - 1][1];
+    }
   }
 
-  return { horas: null, modelo: null, chassisFinal: null };
+  // Extrair modelo — texto entre horas e chassis
+  let modelo: string | null = null;
+  if (horas) {
+    // Cortar tudo até depois do número de horas + sufixo (hrs/horas/h)
+    const afterHoras = clean.replace(
+      /^.*?revis[aã]o\s+(?:de\s+)?(?:[-–]\s*)?\d+\s*(?:hrs?|horas?)?\s*[-,]?\s*/i,
+      ""
+    );
+    if (afterHoras) {
+      let m = afterHoras
+        .replace(/\bTRATOR\b/gi, "")
+        .replace(/\bMAHINDRA\b/gi, "")
+        .replace(/\bCHASSI\b/gi, "")
+        .replace(/\bFINAL\b/gi, "")
+        .replace(/[-,\/]\s*\d{3,}\s*[.\-]?\s*$/, "")
+        .replace(/\s+\d{3,}\s*$/, "")
+        .replace(/\bMDI\w+/gi, "")
+        .trim()
+        .replace(/^[-,\/\s]+|[-,\/\s]+$/g, "")
+        .trim();
+      if (m && m.length > 1) modelo = m;
+    }
+  }
+
+  return { horas, modelo, chassisFinal };
 }
 
 function findTextPart(node: any): string | null {

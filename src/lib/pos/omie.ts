@@ -414,11 +414,29 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
       },
     };
 
-    const resposta = await omieCall<OmieOSResponse>(
-      "/servicos/os/",
-      "IncluirOS",
-      payload as unknown as Record<string, unknown>
-    );
+    let resposta: OmieOSResponse;
+    try {
+      resposta = await omieCall<OmieOSResponse>(
+        "/servicos/os/",
+        "IncluirOS",
+        payload as unknown as Record<string, unknown>
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      // Se código de integração já existe no Omie (OS antiga), reenvia com código único
+      if (msg.includes("já cadastrado") || msg.includes("Client-103")) {
+        const novoCodigoInt = `${os.Id_Ordem}-${Date.now()}`;
+        console.log(`[Omie] Código ${os.Id_Ordem} já existe, reenviando como ${novoCodigoInt}`);
+        payload.Cabecalho.cCodIntOS = novoCodigoInt;
+        resposta = await omieCall<OmieOSResponse>(
+          "/servicos/os/",
+          "IncluirOS",
+          payload as unknown as Record<string, unknown>
+        );
+      } else {
+        throw err;
+      }
+    }
 
     // Grava número da OS Omie e o código interno (id_omie)
     await supabase

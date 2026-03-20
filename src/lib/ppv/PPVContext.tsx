@@ -80,20 +80,13 @@ export function PPVProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    async function init() {
-      try {
-        const [dados] = await Promise.all([
-          api.getDadosIniciais(),
-          carregarKanban(),
-        ]);
-        setTecnicos(dados.tecnicos);
-        setOpcoesRevisao(dados.opcoesRevisao);
-      } catch (e) {
-        console.error("Erro init:", e);
-      }
-      setGlobalLoading(false);
-    }
-    init();
+    // Kanban primeiro (prioridade) — mostra os cards rápido
+    carregarKanban().then(() => setGlobalLoading(false));
+    // Dados secundários (técnicos, revisão) em background
+    api.getDadosIniciais().then((dados) => {
+      setTecnicos(dados.tecnicos);
+      setOpcoesRevisao(dados.opcoesRevisao);
+    }).catch((e) => console.error("Erro dados iniciais:", e));
     const interval = setInterval(carregarKanban, 60000);
     return () => clearInterval(interval);
   }, [carregarKanban]);

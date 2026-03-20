@@ -17,7 +17,7 @@ function PosPageInner() {
   const [clientes, setClientes] = useState<ClienteOption[]>([]);
   const [tecnicos, setTecnicos] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   // Drawer states
   const [drawerVisible, setDrawerVisible] = useState(false);
@@ -64,14 +64,12 @@ function PosPageInner() {
     }
   }, []);
 
-  // Fetch inicial em paralelo
+  // Fetch inicial — ordens primeiro (prioridade), resto em background
   useEffect(() => {
     const ac = new AbortController();
-    Promise.all([
-      fetchOrders(ac.signal),
-      fetchClientes(ac.signal),
-      fetchTecnicos(ac.signal),
-    ]);
+    fetchOrders(ac.signal);
+    fetchClientes(ac.signal);
+    fetchTecnicos(ac.signal);
     return () => ac.abort();
   }, [fetchOrders, fetchClientes, fetchTecnicos]);
 

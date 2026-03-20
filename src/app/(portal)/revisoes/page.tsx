@@ -287,25 +287,31 @@ function DashboardAgrupadoInner() {
     const emailsDest = Array.from(destinatariosSelecionados);
 
     let emailEnviado = false;
+    let pdfUrl: string | null = null;
     try {
-      for (let i = 0; i < files.length; i++) {
+      // Preparar todos os FormData
+      const requests = Array.from(files).map((file) => {
         const formData = new FormData();
-        formData.append("file", files[i]);
+        formData.append("file", file);
         formData.append("chassis", selecionado.Chassis);
         formData.append("horas", revisaoEnvio.replace("h", ""));
         formData.append("modelo", selecionado.Modelo);
         formData.append("cliente", selecionado.Cliente || "");
         formData.append("nome", nomeRemetente.trim());
         formData.append("destinatarios", JSON.stringify(emailsDest));
-
-        const res = await fetch("/api/revisoes", { method: "POST", body: formData });
+        return fetch("/api/revisoes", { method: "POST", body: formData });
+      });
+      // Enviar todos em paralelo
+      const results = await Promise.all(requests);
+      for (const res of results) {
         if (!res.ok) throw new Error("Erro no envio");
         emailEnviado = true;
+        const resData = await res.json();
+        if (resData.pdfUrl) pdfUrl = resData.pdfUrl;
       }
     } catch {
       if (!emailEnviado) {
         setMsgEnvio("Falha ao enviar email. Tente novamente.");
-        // Notificar admins sobre a falha
         notificarAdminsFalha(
           `Falha ao enviar cheque de revisão ${revisaoEnvio}`,
           `Trator ${selecionado.Modelo} - Chassis ${selecionado.Chassis} (${selecionado.Cliente}). O email não foi enviado.`
@@ -313,18 +319,21 @@ function DashboardAgrupadoInner() {
         setEnviando(false);
         return;
       }
-      // Email enviado mas houve erro parcial — continua para salvar no banco
     }
 
     // Salvar revisão no banco SEMPRE que pelo menos um email foi enviado
     try {
       const hoje = new Date().toLocaleDateString("pt-BR");
+      const updateData: Record<string, string | null> = {
+        [`${revisaoEnvio} Data`]: hoje,
+        [`${revisaoEnvio} Horimetro`]: horimetroEnvio.trim(),
+      };
+      if (pdfUrl) {
+        updateData[`${revisaoEnvio} PDF`] = pdfUrl;
+      }
       const { error: dbError } = await supabase
         .from("tratores")
-        .update({
-          [`${revisaoEnvio} Data`]: hoje,
-          [`${revisaoEnvio} Horimetro`]: horimetroEnvio.trim(),
-        })
+        .update(updateData)
         .eq("ID", selecionado.ID);
 
       if (dbError) {
@@ -334,13 +343,14 @@ function DashboardAgrupadoInner() {
           `Trator ${selecionado.Modelo} - Chassis ${selecionado.Chassis} (${selecionado.Cliente}). Email foi enviado mas o banco não atualizou: ${dbError.message}`
         );
       } else {
-        const updated = {
+        const updated: Record<string, any> = {
           ...selecionado,
           [`${revisaoEnvio} Data`]: hoje,
           [`${revisaoEnvio} Horimetro`]: horimetroEnvio.trim(),
         };
-        setSelecionado(updated);
-        setTratores(prev => prev.map(t => t.ID === selecionado.ID ? updated : t));
+        if (pdfUrl) updated[`${revisaoEnvio} PDF`] = pdfUrl;
+        setSelecionado(updated as Trator);
+        setTratores(prev => prev.map(t => t.ID === selecionado.ID ? updated as Trator : t));
         setMsgEnvio("Email enviado e revisão atualizada!");
         auditLog({ sistema: 'revisoes', acao: 'enviar_email', entidade: 'trator', entidade_id: selecionado.ID, entidade_label: `${selecionado.Modelo} - ${selecionado.Chassis}`, detalhes: { revisao: revisaoEnvio, horimetro: horimetroEnvio.trim(), destinatarios: Array.from(destinatariosSelecionados) } });
       }
@@ -661,6 +671,7 @@ function DashboardAgrupadoInner() {
                         {REVISOES_LISTA.map((rev: string, idx: number) => {
                           const data = selecionado[`${rev} Data`];
                           const horas = selecionado[`${rev} Horimetro`];
+                          const pdfSalvo = selecionado[`${rev} PDF`] as string | undefined;
                           const email = emailsCarregados ? emailDaRevisao(selecionado.Chassis, rev) : null;
                           const isFeita = !!data;
                           const isProxima = !isFeita && (idx === 0 || selecionado[`${REVISOES_LISTA[idx - 1]} Data`]);
@@ -752,7 +763,20 @@ function DashboardAgrupadoInner() {
                                           )}
                                         </div>
                                       </div>
-                                      {email && email.attachments.length > 0 && (
+                                      {/* PDF salvo no banco — prioridade */}
+                                      {pdfSalvo && (
+                                        <div>
+                                          <p className="text-[10px] text-zinc-400 uppercase tracking-wider mb-2">Documento</p>
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); setPdfPreviewUrl(pdfSalvo); }}
+                                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-red-50 hover:bg-red-100 border border-red-200 transition-colors text-xs text-red-700 font-medium"
+                                          >
+                                            <i className="fas fa-file-pdf" /> Ver PDF
+                                          </button>
+                                        </div>
+                                      )}
+                                      {/* Anexos do email — fallback se não tem PDF no banco */}
+                                      {!pdfSalvo && email && email.attachments.length > 0 && (
                                         <div>
                                           <p className="text-[10px] text-zinc-400 uppercase tracking-wider mb-2">Anexos do email</p>
                                           <div className="flex flex-wrap gap-2">
@@ -1205,23 +1229,46 @@ function DashboardAgrupadoInner() {
         </div>
       )}
 
-      {/* PDF Preview Modal */}
-      {pdfPreviewUrl && (
-        <div
-          className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-[60]"
-          onClick={() => setPdfPreviewUrl(null)}
-        >
-          <div className="w-full max-w-4xl h-[85vh] bg-white rounded-2xl overflow-hidden border border-zinc-200 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100">
-              <span className="text-sm text-zinc-500">Visualização do PDF</span>
-              <button onClick={() => setPdfPreviewUrl(null)} className="text-zinc-400 hover:text-zinc-700 transition-colors">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M12 4L4 12M4 4l8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
-              </button>
+      {/* Preview Modal (PDF ou Imagem) */}
+      {pdfPreviewUrl && (() => {
+        const isImage = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(pdfPreviewUrl) || pdfPreviewUrl.includes("type=image");
+        return (
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[60]"
+            onClick={() => setPdfPreviewUrl(null)}
+          >
+            <div
+              className="relative w-full max-w-5xl h-[90vh] bg-white rounded-2xl overflow-hidden border border-zinc-200 shadow-xl flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-100 shrink-0">
+                <span className="text-sm text-zinc-500">{isImage ? "Visualização da Imagem" : "Visualização do PDF"}</span>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={pdfPreviewUrl}
+                    download
+                    className="text-xs text-zinc-400 hover:text-zinc-700 transition-colors px-2 py-1 rounded hover:bg-zinc-100"
+                  >
+                    <i className="fas fa-download" /> Baixar
+                  </a>
+                  <button onClick={() => setPdfPreviewUrl(null)} className="text-zinc-400 hover:text-zinc-700 transition-colors p-1">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M12 4L4 12M4 4l8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-auto bg-zinc-100 flex items-center justify-center">
+                {isImage ? (
+                  <img src={pdfPreviewUrl} alt="Anexo" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+                ) : (
+                  <object data={pdfPreviewUrl} type="application/pdf" className="w-full h-full">
+                    <iframe src={pdfPreviewUrl} className="w-full h-full" title="PDF" />
+                  </object>
+                )}
+              </div>
             </div>
-            <iframe src={pdfPreviewUrl} className="w-full h-full" />
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
