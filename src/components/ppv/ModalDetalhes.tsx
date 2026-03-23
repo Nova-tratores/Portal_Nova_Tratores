@@ -7,7 +7,7 @@ import { normalizarStatus } from "@/lib/ppv/utils";
 import { TIPOS_PEDIDO, MOTIVOS_SAIDA, STATUS_OPTIONS, STATUS_COLORS, type StatusKey } from "@/lib/ppv/constants";
 import { api } from "@/lib/ppv/api";
 import { usePPV } from "@/lib/ppv/PPVContext";
-import ModalDevolucao from "@/components/ppv/ModalDevolucao";
+import ModalDevolucao from "./ModalDevolucao";
 
 interface Props {
   open: boolean;

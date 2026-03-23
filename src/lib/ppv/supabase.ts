@@ -3,14 +3,14 @@
 // =============================================
 
 function getSupabaseUrl(): string {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (!url) throw new Error("NEXT_PUBLIC_SUPABASE_URL não configurada no .env.local");
+  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!url) throw new Error("SUPABASE_URL não configurada no .env.local");
   return url;
 }
 
 function getSupabaseKey(): string {
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!key) throw new Error("NEXT_PUBLIC_SUPABASE_ANON_KEY não configurada no .env.local");
+  const key = process.env.SUPABASE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!key) throw new Error("SUPABASE_KEY não configurada no .env.local");
   return key;
 }
 
@@ -30,7 +30,7 @@ export async function supabaseFetch<T = unknown>(
     Prefer: "return=representation",
   };
 
-  const options: RequestInit = { method, headers };
+  const options: RequestInit = { method, headers, cache: "no-store" };
   if (payload) options.body = JSON.stringify(payload);
 
   const response = await fetch(url, options);

@@ -3,7 +3,7 @@
 import type { KanbanItem } from "@/lib/ppv/types";
 import { normalizarStatus } from "@/lib/ppv/utils";
 import { STATUS_COLORS } from "@/lib/ppv/constants";
-import KanbanColumn from "@/components/ppv/KanbanColumn";
+import KanbanColumn from "./KanbanColumn";
 
 interface KanbanBoardProps {
   items: KanbanItem[];

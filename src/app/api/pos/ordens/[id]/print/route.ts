@@ -69,13 +69,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       produtosHtml = `
         <div class="section">
           <div class="section-title">Peças / Materiais</div>
-          <table>
+          <table class="cost-table">
             <thead><tr><th>Código</th><th>Descrição</th><th style="text-align:center">Qtde</th><th style="text-align:right">Unitário</th><th style="text-align:right">Total</th></tr></thead>
             <tbody>
               ${prods.map(([cod, p]) => `<tr><td>${cod}</td><td>${p.desc}</td><td style="text-align:center">${p.qtde}</td><td style="text-align:right">R$ ${p.preco.toFixed(2)}</td><td style="text-align:right">R$ ${p.total.toFixed(2)}</td></tr>`).join("")}
             </tbody>
           </table>
-        </div>`;
+        </div>
+        <hr class="sep">`;
     }
   }
 
@@ -106,7 +107,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         reqHtml = `
           <div class="section">
             <div class="section-title">Requisições</div>
-            <table>
+            <table class="cost-table">
               <thead><tr><th>ID</th><th>Material/Serviço</th><th style="text-align:center">Status</th><th style="text-align:right">Valor</th></tr></thead>
               <tbody>
                 ${reqs.map((r) => `<tr><td>${r.id}</td><td>${r.material}</td><td style="text-align:center">${r.atualizada ? "Atualizada" : "Pendente"}</td><td style="text-align:right">R$ ${r.valor.toFixed(2)}</td></tr>`).join("")}
@@ -124,111 +125,161 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const totalDescontos = desconto + descontoHora + descontoKm;
 
   const descontoRows = [];
-  if (descontoHora > 0) descontoRows.push(`<tr class="discount"><td>Desconto Horas</td><td style="text-align:right">- R$ ${descontoHora.toFixed(2)}</td></tr>`);
-  if (descontoKm > 0) descontoRows.push(`<tr class="discount"><td>Desconto KM</td><td style="text-align:right">- R$ ${descontoKm.toFixed(2)}</td></tr>`);
-  if (desconto > 0) descontoRows.push(`<tr class="discount"><td>Desconto Geral</td><td style="text-align:right">- R$ ${desconto.toFixed(2)}</td></tr>`);
+  if (descontoHora > 0) descontoRows.push(`<tr class="discount"><td>Desconto Horas</td><td style="text-align:center">—</td><td style="text-align:right">- R$ ${descontoHora.toFixed(2)}</td></tr>`);
+  if (descontoKm > 0) descontoRows.push(`<tr class="discount"><td>Desconto KM</td><td style="text-align:center">—</td><td style="text-align:right">- R$ ${descontoKm.toFixed(2)}</td></tr>`);
+  if (desconto > 0) descontoRows.push(`<tr class="discount"><td>Desconto Geral</td><td style="text-align:center">—</td><td style="text-align:right">- R$ ${desconto.toFixed(2)}</td></tr>`);
 
   const html = `<!DOCTYPE html>
 <html lang="pt-BR"><head><meta charset="UTF-8"><title>OS ${id} - ${cliente}</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
 <style>
-  @page { margin: 1.5cm; size: A4; }
+  @page { margin: 0.8cm; size: A4; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Helvetica', Arial, sans-serif; font-size: 10pt; color: #333; padding: 20px; }
+  body { font-family: 'Montserrat', sans-serif; font-size: 9pt; color: #111; margin: 0; padding: 16px; line-height: 1.4; }
 
-  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #1E3A5F; padding-bottom: 16px; margin-bottom: 20px; }
-  .header-left h1 { font-size: 22pt; color: #1E3A5F; margin-bottom: 2px; }
-  .header-left .subtitle { font-size: 10pt; color: #666; }
-  .header-right { text-align: right; }
-  .header-right .os-number { font-size: 28pt; font-weight: 900; color: #1E3A5F; line-height: 1; }
-  .header-right .os-date { font-size: 10pt; color: #666; margin-top: 4px; }
-  .status-badge { display: inline-block; padding: 4px 14px; border-radius: 6px; font-size: 9pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 12px; border-bottom: 2.5px solid #1E3A5F; margin-bottom: 14px; }
+  .company-name { font-size: 20pt; font-weight: 900; text-transform: uppercase; color: #000; letter-spacing: 1px; }
+  .company-sub { font-size: 8pt; color: #555; margin-top: 2px; line-height: 1.5; }
+  .doc-box { text-align: right; }
+  .doc-label { font-size: 7pt; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: #1E3A5F; }
+  .doc-number { font-size: 28pt; font-weight: 900; color: #000; line-height: 1; }
+  .doc-meta { font-size: 8pt; color: #555; margin-top: 4px; }
+  .doc-status { display: inline-block; font-size: 7pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 10px; border: 1.5px solid #1E3A5F; color: #1E3A5F; margin-top: 5px; }
 
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
-  .field { padding: 10px 14px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; }
-  .field .label { font-size: 8pt; color: #64748B; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 3px; }
-  .field .value { font-size: 11pt; font-weight: 600; color: #1E293B; }
+  .section { margin-bottom: 12px; }
+  .section-title { font-size: 7pt; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; color: #1E3A5F; margin-bottom: 6px; padding-bottom: 3px; border-bottom: 1px solid #93C5FD; }
+
+  .info-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 2px 20px; }
+  .info-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 20px; }
+  .field { padding: 4px 0; }
   .field.full { grid-column: 1 / -1; }
+  .field.span2 { grid-column: span 2; }
+  .lbl { font-size: 6.5pt; color: #999; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; }
+  .val { font-size: 9pt; color: #111; font-weight: 500; }
+  .val-name { font-size: 12pt; font-weight: 800; color: #000; text-transform: uppercase; letter-spacing: 0.3px; }
 
-  .section { margin-bottom: 16px; }
-  .section-title { font-size: 11pt; font-weight: 800; color: #1E3A5F; text-transform: uppercase; letter-spacing: 0.5px; padding-bottom: 6px; border-bottom: 2px solid #E2E8F0; margin-bottom: 10px; }
+  .sep { border: none; border-top: 1px dashed #ddd; margin: 8px 0; }
 
-  .description { white-space: pre-wrap; font-size: 10pt; line-height: 1.6; padding: 14px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; }
+  .obs-box { border: 1px solid #ddd; padding: 8px 10px; font-size: 9pt; white-space: pre-wrap; font-family: 'Montserrat', sans-serif; color: #222; line-height: 1.5; }
 
-  table { width: 100%; border-collapse: collapse; font-size: 9pt; }
-  th { background: #1E3A5F; color: white; padding: 6px 10px; text-align: left; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.5px; }
-  td { padding: 6px 10px; border-bottom: 1px solid #E2E8F0; }
-  tr:nth-child(even) { background: #FAFBFC; }
+  table.cost-table { width: 100%; border-collapse: collapse; }
+  .cost-table th { text-align: left; font-size: 7pt; font-weight: 800; color: #000; text-transform: uppercase; letter-spacing: 0.5px; padding: 6px 8px; border-bottom: 2px solid #000; }
+  .cost-table td { padding: 6px 8px; border-bottom: 1px solid #e5e5e5; font-size: 9pt; color: #222; }
+  .cost-table tr.discount td { color: #C41E2A; }
 
-  .totals { margin-top: 16px; }
-  .totals table { max-width: 380px; margin-left: auto; }
-  .totals td { font-size: 10pt; padding: 6px 12px; }
-  .totals tr.discount td { color: #C41E2A; }
-  .totals tr.total { background: #1E3A5F; }
-  .totals tr.total td { color: white; font-size: 13pt; font-weight: 900; padding: 10px 12px; }
+  .total-row { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 10px; padding-top: 10px; border-top: 2.5px solid #1E3A5F; }
+  .total-sub { font-size: 8pt; color: #888; margin-bottom: 2px; }
+  .total-sub span { margin-right: 12px; }
+  .total-lbl { font-size: 8pt; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #1E3A5F; }
+  .total-val { font-size: 22pt; font-weight: 900; color: #1E3A5F; }
 
-  .cancel-reason { margin-top: 12px; padding: 12px; background: #FEE2E2; border: 1px solid #FECACA; border-radius: 6px; color: #991B1B; }
-  .cancel-reason .label { font-weight: 700; margin-bottom: 4px; }
+  .cancel-reason { margin-top: 8px; padding: 8px 10px; background: #FEE2E2; border: 1px solid #FECACA; color: #991B1B; font-size: 9pt; }
 
-  .footer { margin-top: 40px; padding-top: 12px; border-top: 1px solid #E2E8F0; text-align: center; font-size: 8pt; color: #94A3B8; }
-
-  @media print {
-    body { padding: 0; }
-    .no-print { display: none; }
-  }
+  .footer { margin-top: 24px; text-align: center; font-size: 7pt; color: #ccc; letter-spacing: 0.5px; }
+  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; padding: 0; } }
 </style>
 <script>window.onload = function() { window.print(); }</script>
 </head><body>
 
-<div class="header">
-  <div class="header-left">
-    <h1>Nova Tratores</h1>
-    <div class="subtitle">Ordem de Serviço — Pós-Vendas</div>
-  </div>
-  <div class="header-right">
-    <div class="os-number">OS ${id}</div>
-    <div class="os-date">${data}</div>
-    <div style="margin-top:6px">
-      <span class="status-badge" style="background:${statusBg};color:${statusColor}">${status}</span>
+  <div class="header">
+    <div>
+      <div class="company-name">Nova Tratores</div>
+      <div class="company-sub">Ordem de Serviço &mdash; Pós-Vendas</div>
+    </div>
+    <div class="doc-box">
+      <div class="doc-label">Ordem de Serviço</div>
+      <div class="doc-number">${id}</div>
+      <div class="doc-meta">${data}</div>
+      <div class="doc-status">${status}</div>
     </div>
   </div>
-</div>
 
-<div class="grid">
-  <div class="field"><div class="label">Cliente</div><div class="value">${cliente}</div></div>
-  <div class="field"><div class="label">CPF / CNPJ</div><div class="value">${cpf}</div></div>
-  <div class="field full"><div class="label">Endereço</div><div class="value">${endereco}</div></div>
-  <div class="field"><div class="label">Técnico Responsável</div><div class="value">${tecnico}${tecnico2 ? ` / ${tecnico2}` : ""}</div></div>
-  <div class="field"><div class="label">Tipo de Serviço</div><div class="value">${tipoServico}${revisao ? ` — ${revisao}` : ""}</div></div>
-  <div class="field"><div class="label">Projeto / Equipamento</div><div class="value">${projeto}</div></div>
-  <div class="field"><div class="label">Nº Omie</div><div class="value">${ordemOmie || "-"}</div></div>
-  ${previsaoExec ? `<div class="field"><div class="label">Previsão Execução</div><div class="value">${previsaoExec}</div></div>` : ""}
-  ${previsaoFat ? `<div class="field"><div class="label">Previsão Faturamento</div><div class="value">${previsaoFat}</div></div>` : ""}
-</div>
+  <div class="section">
+    <div class="section-title">Cliente</div>
+    <div class="field">
+      <div class="val-name">${cliente.toUpperCase()}</div>
+    </div>
+    <div class="info-grid">
+      <div class="field">
+        <div class="lbl">CPF / CNPJ</div>
+        <div class="val">${cpf}</div>
+      </div>
+      <div class="field span2">
+        <div class="lbl">Endereço</div>
+        <div class="val">${endereco}</div>
+      </div>
+    </div>
+  </div>
 
-<div class="section">
-  <div class="section-title">Serviço Solicitado</div>
-  <div class="description">${servSolicitado.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>
-</div>
+  <hr class="sep">
 
-${produtosHtml}
-${reqHtml}
+  <div class="section">
+    <div class="section-title">Dados da Ordem</div>
+    <div class="info-grid">
+      <div class="field">
+        <div class="lbl">Técnico Responsável</div>
+        <div class="val">${tecnico}${tecnico2 ? ` / ${tecnico2}` : ""}</div>
+      </div>
+      <div class="field">
+        <div class="lbl">Tipo de Serviço</div>
+        <div class="val">${tipoServico}${revisao ? ` — ${revisao}` : ""}</div>
+      </div>
+      <div class="field">
+        <div class="lbl">Projeto / Equipamento</div>
+        <div class="val">${projeto}</div>
+      </div>
+      ${ordemOmie ? `<div class="field">
+        <div class="lbl">Nº Omie</div>
+        <div class="val">${ordemOmie}</div>
+      </div>` : ""}
+      ${previsaoExec ? `<div class="field">
+        <div class="lbl">Previsão Execução</div>
+        <div class="val">${previsaoExec}</div>
+      </div>` : ""}
+      ${previsaoFat ? `<div class="field">
+        <div class="lbl">Previsão Faturamento</div>
+        <div class="val">${previsaoFat}</div>
+      </div>` : ""}
+    </div>
+  </div>
 
-${motivoCancel ? `<div class="cancel-reason"><div class="label">Motivo do Cancelamento:</div>${motivoCancel}</div>` : ""}
+  <hr class="sep">
 
-<div class="totals">
-  <table>
-    <tr><td>Horas (${qtdHoras}h × R$ ${VALOR_HORA.toFixed(2)})</td><td style="text-align:right">R$ ${vHoras.toFixed(2)}</td></tr>
-    <tr><td>KM (${qtdKm}km × R$ ${VALOR_KM.toFixed(2)})</td><td style="text-align:right">R$ ${vKm.toFixed(2)}</td></tr>
-    ${totalPecas > 0 ? `<tr><td>Peças / Materiais</td><td style="text-align:right">R$ ${totalPecas.toFixed(2)}</td></tr>` : ""}
-    ${totalReq > 0 ? `<tr><td>Requisições</td><td style="text-align:right">R$ ${totalReq.toFixed(2)}</td></tr>` : ""}
-    ${descontoRows.join("")}
-    <tr class="total"><td>TOTAL</td><td style="text-align:right">R$ ${valorTotal.toFixed(2)}</td></tr>
-  </table>
-</div>
+  <div class="section">
+    <div class="section-title">Serviço Solicitado</div>
+    <div class="obs-box">${servSolicitado.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>
+  </div>
 
-<div class="footer">
-  Nova Tratores — Sistema POS &nbsp;|&nbsp; Impresso em ${new Date().toLocaleDateString("pt-BR")} às ${new Date().toLocaleTimeString("pt-BR")}
-</div>
+  <hr class="sep">
+
+  ${produtosHtml}
+  ${reqHtml}
+
+  ${motivoCancel ? `<div class="cancel-reason">Motivo do Cancelamento: ${motivoCancel}</div>` : ""}
+
+  <div class="section">
+    <div class="section-title">Resumo Financeiro</div>
+    <table class="cost-table">
+      <thead><tr><th>Descrição</th><th style="text-align:center">Quantidade</th><th style="text-align:right">Valor</th></tr></thead>
+      <tbody>
+        <tr><td>Horas trabalhadas</td><td style="text-align:center">${qtdHoras}h</td><td style="text-align:right">R$ ${vHoras.toFixed(2)}</td></tr>
+        <tr><td>Deslocamento</td><td style="text-align:center">${qtdKm} km</td><td style="text-align:right">R$ ${vKm.toFixed(2)}</td></tr>
+        ${totalPecas > 0 ? `<tr><td>Peças / Materiais</td><td style="text-align:center">—</td><td style="text-align:right">R$ ${totalPecas.toFixed(2)}</td></tr>` : ""}
+        ${totalReq > 0 ? `<tr><td>Requisições</td><td style="text-align:center">—</td><td style="text-align:right">R$ ${totalReq.toFixed(2)}</td></tr>` : ""}
+        ${descontoRows.join("")}
+      </tbody>
+    </table>
+
+    <div class="total-row">
+      <div>
+        ${totalDescontos > 0 ? `<div class="total-sub"><span>Descontos: - R$ ${totalDescontos.toFixed(2)}</span></div>` : ""}
+        <div class="total-lbl">Total da Ordem</div>
+      </div>
+      <div class="total-val">R$ ${valorTotal.toFixed(2)}</div>
+    </div>
+  </div>
+
+  <div class="footer">Documento gerado pelo Sistema POS &mdash; Nova Tratores</div>
 
 </body></html>`;
 

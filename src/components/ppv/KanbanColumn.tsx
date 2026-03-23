@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { KanbanItem } from "@/lib/ppv/types";
-import KanbanCard from "@/components/ppv/KanbanCard";
+import KanbanCard from "./KanbanCard";
 
 interface KanbanColumnProps {
   title: string;

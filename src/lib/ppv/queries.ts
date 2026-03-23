@@ -79,16 +79,21 @@ export async function buscarPPVPorId(id: string): Promise<PPVDetalhes | null> {
       } catch { /* empresa é informativo, não crítico */ }
     }
 
-    // Cada produto recebe sua empresa real
-    // Se existe em apenas 1 empresa → atribui diretamente
-    // Se existe em múltiplas empresas → retorna todas (separadas por " / ")
+    // Se um produto existe em múltiplas empresas, atribui a empresa da maioria
+    // Primeiro conta qual empresa tem mais produtos exclusivos
+    const contEmpresa: Record<string, number> = {};
+    Object.values(empresaMap).forEach((emps) => {
+      if (emps.length === 1) contEmpresa[emps[0]] = (contEmpresa[emps[0]] || 0) + 1;
+    });
+    const empresaMajoritaria = Object.entries(contEmpresa).sort((a, b) => b[1] - a[1])[0]?.[0] || "Principal";
+
     detalhes.produtos = Object.values(itensMap).map((p) => {
       const emps = empresaMap[p.codigo];
       let empresa: string | undefined;
       if (emps && emps.length === 1) {
-        empresa = emps[0];
+        empresa = emps[0]; // só existe em uma empresa
       } else if (emps && emps.length > 1) {
-        empresa = emps.join(" / "); // ex: "Principal / Secundario"
+        empresa = empresaMajoritaria; // existe em ambas, usa a majoritária
       }
       return { ...p, empresa };
     });

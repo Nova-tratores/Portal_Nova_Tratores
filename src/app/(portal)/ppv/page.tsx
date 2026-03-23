@@ -175,7 +175,7 @@ function PPVApp() {
   const bgPattern = { backgroundImage: "radial-gradient(#E8C4A8 1px, transparent 1px)", backgroundSize: "24px 24px" };
 
   return (
-    <div className="flex flex-col overflow-hidden font-[Poppins] text-[14px] text-slate-800" style={{ height: "calc(100vh - 64px)" }}>
+    <div className="flex flex-col overflow-hidden font-[Poppins] text-[14px] text-slate-800" style={{ height: "calc(100vh - 84px)" }}>
       <GlobalLoader visible={globalLoading} />
       <Toast message={toast.message} type={toast.type} visible={toast.visible} onClose={hideToast} />
 

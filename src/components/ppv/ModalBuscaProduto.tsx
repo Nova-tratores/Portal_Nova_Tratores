@@ -50,11 +50,6 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
     setBuscando(false);
   }, [cacheProduct]);
 
-  // Limpar debounce ao desmontar
-  useEffect(() => {
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, []);
-
   function handleChange(value: string) {
     setTermo(value);
     if (debounceRef.current) clearTimeout(debounceRef.current);

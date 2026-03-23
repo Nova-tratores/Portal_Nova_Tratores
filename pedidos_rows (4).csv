@@ -1,0 +1,134 @@
+id_pedido,Motivo_Saida_Pedido,data,cliente,Tipo_Pedido,valor_total,status,tecnico,observacao,motivo_cancelamento,pedido_omie,email_usuario,Tipo_Remessa,Motivo_Saida_Remessa,Id_Os,status_manual_override
+PPV-0001,Venda Balcão,14/01/2026 09:09,JOSE ADILSO DE LIMA,Pedido,1815,Cancelado,Danilo de Souza,Rev 50 Horas,Foi importada a revisão errada,,posvendas.novatratores@gmail.com,,,,false
+PPV-0002,Orçamento Cliente,14/01/2026 14:00,MARIA BEATRIZ NAVARRO RIBEIRO COSTACURTA,Pedido,1470,Fechado,Danilo de Souza,REVISÃO DE 50H 6075,,6527,arthur.novatratores@gmail.com,,,OS-0002,false
+PPV-0003,Orçamento Cliente,14/01/2026 14:14,MARIA BEATRIZ NAVARRO RIBEIRO COSTACURTA,Pedido,1690,Fechado,Nicolas Dario,REVISÃO DE 50H 6075,,6528,posvendas.novatratores@gmail.com,,,OS-0003,false
+PPV-0004,Orçamento Cliente,14/01/2026 16:33,FELIZARDO &amp; LEAL SERVIÇOS DE MÃO DE OBRA LTDA,Pedido,930,Fechado,Luiz Fernando (Motorista),Técnico usou apenas meio balde o 10W30,,6501,posvendas.novatratores@gmail.com,,,OS-0004,false
+PPV-0005,Saida Tecnico (Com OS),15/01/2026 08:20,CLAUDINEI APARECIDO DA COSTA,Pedido,1172.2064,Fechado,Jose Antonio de Oliveira,,,6517,posvendas.novatratores@gmail.com,,,OS-0007,false
+PPV-0006,Saida Tecnico (Com OS),15/01/2026 13:57,SANDRA AP. MARQUES DE LAZZARI E BENEDITO DE LAZZARI,Pedido,146,Cancelado,Luiz Fernando (Motorista),TROCA DO FILTRO DE COMBUSTÍVEL,Serviço nao foi realizado,,posvendas.novatratores@gmail.com,,,,false
+PPV-0007,Saida Tecnico (Com OS),15/01/2026 16:30,MARIA BEATRIZ NAVARRO RIBEIRO COSTACURTA,Pedido,1440,Fechado,Danilo de Souza,Revisão de 50 Horas do 6075,,6559,posvendas.novatratores@gmail.com,,,OS-0009,false
+PPV-0008,Saida Tecnico (Com OS),16/01/2026 07:53,JOSE ADILSO DE LIMA,Pedido,1199.164,Fechado,Fernando Leonel,Troca do Cabo do JoyStick,,6516,posvendas.novatratores@gmail.com,,,OS-0010,false
+PPV-0009,Saida Tecnico (Com OS),17/01/2026 08:10,MOACIR ROSSETTI,Pedido,4512.419667,Cancelado,Gabriel Moraes,Revisão de 2400 Horas do 6075-,,,posvendas.novatratores@gmail.com,,,OS-0011,false
+PPV-0010,Saida Tecnico (Com OS),17/01/2026 09:14,JOSE ADILSON DE LIMA,Pedido,1440,Fechado,Danilo de Souza,Revisão de 50 Horas,,6484,posvendas.novatratores@gmail.com,,,OS-0012,false
+PPV-0011,Saida Tecnico (Com OS),17/01/2026 11:44,CELSO CAMARGO GUAZZO E OUTRA,Pedido,280,Fechado,Jose Antonio de Oliveira,Vazamento no Cubo do Jivo,,6490,posvendas.novatratores@gmail.com,,,OS-0005,false
+PPV-0012,Saida Tecnico (Com OS),19/01/2026 10:14,MARIA BEATRIZ NAVARRO RIBEIRO COSTACURTA,Remessa,115.05,Fechado,Jose Antonio de Oliveira,TROCA DO SENSOR DE PRESSÃO,,REM 3469,appnovat@novatratores.com,,,OS-0016,false
+PPV-0013,Saida Tecnico (Com OS),19/01/2026 10:17,ANTONIO RUIZ FRAGOSO,Pedido,1155,Fechado,Jose Antonio de Oliveira,REVISÃO DE 2100H,,0,posvendas.novatratores@gmail.com,,,OS-0015,false
+PPV-0014,Orçamento Cliente,19/01/2026 17:46," ANTONIO NICOLAU FERREIRA NETO E OUTRO",Pedido,611,Cancelado,Danilo de Souza,REVISÃO DE 50H JIVO,,,arthur.novatratores@gmail.com,,,,false
+PPV-0015,Saida Tecnico (Com OS),21/01/2026 07:57,RODOLPHO PANZENBOECK DELLAPE BAPTISTA,Pedido,1835,Cancelado,Paulo Motta,Revisão de 300 Horas 6075,Nao foi realizado e sem previsão de retorno,,posvendas.novatratores@gmail.com,,,OS-0019,false
+PPV-0016,Saida Tecnico (Com OS),21/01/2026 08:01,LUIZ FRANCISCO CRUZ ( conchal ),Pedido,0,Cancelado,Jose Antonio de Oliveira,revisão de 900H 86110,Produtos incorretos,,posvendas.novatratores@gmail.com,,,OS-0020,false
+PPV-0017,Saida Tecnico (Com OS),21/01/2026 08:02,LUIZ FRANCISCO CRUZ ( conchal ),Pedido,0,Cancelado,Jose Antonio de Oliveira,REVISÃO DE 900H 86110,Produtos incorretos,,posvendas.novatratores@gmail.com,,,OS-0020,false
+PPV-0018,Saida Tecnico (Com OS),21/01/2026 15:45,MARIA BEATRIZ NAVARRO RIBEIRO COSTACURTA,Pedido,1835,Fechado,Danilo de Souza,Revisão de 1800 Horas Final Chassis: 4634,,6565,posvendas.novatratores@gmail.com,,,OS-0022,false
+PPV-0019,Saida Tecnico (Com OS),21/01/2026 17:25,MARIA BEATRIZ NAVARRO RIBEIRO COSTACURTA,Pedido,2150,Fechado,Danilo de Souza,Revisão de 2100 Horas do 6075 - Cab 4628,,6566,appnovat@novatratores.com,,,OS-0024,false
+PPV-0020,Saida Tecnico (Com OS),22/01/2026 09:18,OLINTO RODRIGUES DE ARRUDA E OUTRO ( FAZ BOM RETIRO ),Pedido,90,Fechado,Paulo Motta,,,00000,posvendas.novatratores@gmail.com,,,OS-0026,false
+PPV-0021,Orçamento Cliente,23/01/2026 08:19,CLAIR SANDRO DOGNANI,Pedido,3520.05,Cancelado,Danilo de Souza,Revisão de 1200 Horas 5347,Esqueci de retirar os oleos,,posvendas.novatratores@gmail.com,,,OS-0027,false
+PPV-0022,Orçamento Cliente,23/01/2026 08:20,CLAIR SANDRO DOGNANI,Pedido,1390.05,Fechado,Danilo de Souza,Revisão de 1200 Horas 5347,,6571,posvendas.novatratores@gmail.com,,,OS-0027,false
+PPV-0023,Saida Tecnico (Com OS),23/01/2026 08:53,RODOLPHO PANZENBOECK DELLAPE BAPTISTA,Pedido,820.2184,Cancelado,Paulo Motta,REVISÃO DE 100H,Nao foi realizado e sem previsão de retorno,,appnovat@novatratores.com,,,OS-0028,false
+PPV-0024,Orçamento Cliente,23/01/2026 13:48,ADRIANO CORCOVIA,Pedido,1745,Fechado,Paulo Motta,Revisão de 600 Horas 6075E 3555,,2,arthur.novatratores@gmail.com,,,OS-0030,false
+PPV-0025,Venda Balcão,27/01/2026 08:19,ROSAN ANTONIO AIELLO,Pedido,1083,Fechado,Paulo Motta,86-110 Falhando,,0,appnovat@novatratores.com,,,OS-0034,false
+PPV-0026,Orçamento Cliente,27/01/2026 10:20,,Pedido,1440,Cancelado,Danilo de Souza,Revisã de 50 Horas Prefeitura Ipaussul,0000,,posvendas.novatratores@gmail.com,,,OS-0035,false
+PPV-0027,Orçamento Cliente,27/01/2026 10:45,DANIEL DIANAS RIBEIRO E OUTRO,Pedido,85,Fechado,Paulo Motta,Vazamento na TDP do 6075 5750,,6582,posvendas.novatratores@gmail.com,,,OS-0036,false
+PPV-0028,Orçamento Cliente,27/01/2026 10:51,JOANNES ADRIANUS STELTENPOOL,Pedido,130,Cancelado,Danilo de Souza,Troca do vidro onde ve o nivel do hidrauico,Cliente vai comprar a peça balcão para ele mesmo trocar,,posvendas.novatratores@gmail.com,,,OS-0037,false
+PPV-0029,Saida Tecnico (Com OS),28/01/2026 08:20,SERGIO MOTTA MELLO,Pedido,120,Fechado,Jose Antonio de Oliveira,Trator perdendo força,,6576,posvendas.novatratores@gmail.com,,,OS-0038,false
+PPV-0030,Saida Tecnico (Com OS),28/01/2026 09:55,SANDRA AP. MARQUES DE LAZZARI E BENEDITO DE LAZZARI,Pedido,0,Cancelado,Danilo de Souza,"Trator esta pegando Ar, não foi necessário troca",não foi necessário troca de peças,,posvendas.novatratores@gmail.com,,,OS-0039,false
+PPV-0031,Saida Tecnico (Com OS),28/01/2026 17:48,,Pedido,270.1392,Fechado,Danilo de Souza,Troca da boia do tanque,,6599,posvendas.novatratores@gmail.com,,,OS-0040,false
+PPV-0032,Venda Balcão,30/01/2026 16:05,CELSO CAMARGO GUAZZO E OUTRA,Pedido,310,Cancelado,PEDRO MOTTA,6060 mahindra,"Pedido ja foi fechado
+",,arthur.novatratores@gmail.com,,,,true
+PPV-0033,Saida Tecnico (Com OS),31/01/2026 08:26,ADRIANO CORCOVIA,Pedido,1595,Fechado,Paulo Motta,Revisão de 1800 Horas,,6598,posvendas.novatratores@gmail.com,,,OS-0045,false
+PPV-0034,Orçamento Cliente,31/01/2026 08:46,HOTEL RESORT OLINTO,Pedido,1789,Fechado,Danilo de Souza,,,6628,arthur.novatratores@gmail.com,,,OS-0046,false
+PPV-0035,Saida Tecnico (Com OS),31/01/2026 09:42,DANIEL DIANAS RIBEIRO E OUTRO,Pedido,1835,Cancelado,Danilo de Souza,Revisão de 600 Horas 5750,Serviço nao foi realizado,,posvendas.novatratores@gmail.com,,,,false
+PPV-0036,Saida Tecnico (Com OS),02/02/2026 08:36,GERALDO DONIZETE ANTONIO E OUTRO,Pedido,761,Fechado,Gabriel Moraes,Revisão 50 Horas Jivo,,6594,posvendas.novatratores@gmail.com,,,OS-0048,false
+PPV-0037,Saida Tecnico (Com OS),02/02/2026 10:41,DANIEL DIANAS RIBEIRO E OUTRO,Pedido,1273.65,Fechado,Jose Antonio de Oliveira,Revisão de 600 Horas 5750,,6606,posvendas.novatratores@gmail.com,,,OS-0050,false
+PPV-0038,Saida Tecnico (Com OS),02/02/2026 10:45,DANIEL DIANAS RIBEIRO E OUTRO,Pedido,1115,Fechado,Jose Antonio de Oliveira,Revisão de 2700 Horas 2728,,6604,posvendas.novatratores@gmail.com,,,OS-0051,false
+PPV-0039,Saida Tecnico (Com OS),03/02/2026 09:58,VINICIUS AUGUSTO MAZETTO ROMANO DA SILVA,Pedido,2260,Cancelado,Jose Antonio de Oliveira,Revisão de 50 Horas,,,posvendas.novatratores@gmail.com,,,OS-0052,false
+PPV-0040,Saida Tecnico (Com OS),03/02/2026 10:19,NOVA TRATORES MAQUINAS AGRICOLAS LTDA,Pedido,497.9486,Cancelado,Gabriel Moraes,Revisão de 20 Horas para o Luiz da Banana,,,posvendas.novatratores@gmail.com,,,OS-0053,false
+PPV-0041,Saida Tecnico (Com OS),04/02/2026 08:23,ANGELO COSSOMATO NETO,Pedido,857,Fechado,Fernando Leonel,Revisão de 600 Hora JIVO,,6629,posvendas.novatratores@gmail.com,,,OS-0057,false
+PPV-0042,Saida Tecnico (Sem OS),04/02/2026 08:44,JOSE VALDIR DA SILVA,Pedido,447.1365,Fechado,Danilo de Souza,Troca do cabo da embreagem,,6615,posvendas.novatratores@gmail.com,,,OS-0058,false
+PPV-0043,Saida Tecnico (Com OS),04/02/2026 13:10,ANTONIO JOSE RIBEIRO,Pedido,3520.05,Fechado,Jose Antonio de Oliveira,Revisão de 1200 Horas,,6610,posvendas.novatratores@gmail.com,,,OS-0059,false
+PPV-0044,Saida Tecnico (Com OS),05/02/2026 08:01,JOAO GABRIEL MATIELLI MANCINE,Pedido,105,Fechado,Jose Antonio de Oliveira,,,0,posvendas.novatratores@gmail.com,,,OS-0047,false
+PPV-0045,Venda Balcão,05/02/2026 16:32,JOAO BATISTA DE OLIVEIRA ROCHA,Pedido,2051,Cancelado,Gabriel Moraes,REVISÃO DE 1200H,,,arthur.novatratores@gmail.com,,,OS-0061,false
+PPV-0046,Orçamento Cliente,05/02/2026 16:50,GILMAR PAZINI DE OLIVEIRA,Pedido,1440,Fechado,Gabriel Moraes,REVISÃO DE 50H 6075,,6656,arthur.novatratores@gmail.com,,,OS-0062,false
+PPV-0047,Saida Tecnico (Com OS),05/02/2026 17:07,JORGE JUSTUS NITZAN,Pedido,1407,Cancelado,Danilo de Souza,,cliente nao quis fazer a revisão,,posvendas.novatratores@gmail.com,,,OS-0063,false
+PPV-0048,Saida Tecnico (Com OS),06/02/2026 07:24,EDMAR JOSE BERNARDES,Pedido,246,Fechado,Danilo de Souza,Jivo,,6632,posvendas.novatratores@gmail.com,,,OS-0064,false
+PPV-0049,Saida Tecnico (Sem OS),06/02/2026 10:00,NOVA TRATORES MAQUINAS AGRICOLAS LTDA,Pedido,146,Fechado,Fernando Leonel,para o tratror que esta fazendo a inspeção pre entrega,,000000000006807,posvendas.novatratores@gmail.com,,,,false
+PPV-0051,Saida Tecnico (Com OS),06/02/2026 17:40,LUCIA HELENA RIOS SEABRA,Pedido,2245,Fechado,Danilo de Souza,Rev 1200 9500,,6674,posvendas.novatratores@gmail.com,,,OS-0066,false
+PPV-0052,Venda Balcão,07/02/2026 08:02,SANDRA AP. MARQUES DE LAZZARI E BENEDITO DE LAZZARI,Remessa,146,Fechado,Jose Antonio de Oliveira,,,3517,posvendas.novatratores@gmail.com,,,OS-0067,false
+PPV-0053,Saida Tecnico (Sem OS),09/02/2026 14:03,ROSAN ANTONIO AIELLO,Pedido,574.262583,Fechado,Fernando Leonel,Revisão no quadri do Rosan,,6657,posvendas.novatratores@gmail.com,,,,false
+PPV-0054,Orçamento Cliente,09/02/2026 16:01,FLORA MARIA GOMES DOS SANTOS E OUTROS,Pedido,1110,Cancelado,Jose Antonio de Oliveira,Peças tração,,,posvendas.novatratores@gmail.com,,,OS-0079,false
+PPV-0055,Orçamento Cliente,09/02/2026 17:18,NEIDE APARECIDA CASADEI VEIGA,Pedido,1595,Fechado,Danilo de Souza,,,6669,posvendas.novatratores@gmail.com,,,OS-0070,false
+PPV-0056,Saida Tecnico (Com OS),10/02/2026 13:27,NOVA TRATORES MAQUINAS AGRICOLAS LTDA,Pedido,100.2,Cancelado,Fernando Leonel,Trator 6075-6263,,,posvendas.novatratores@gmail.com,,,,false
+PPV-0057,Orçamento Cliente,10/02/2026 17:53,ANGELO DELALIBERA TERUEL,Pedido,3495,Cancelado,Danilo de Souza,REVISÃO DE 1200H,aberto errado,,arthur.novatratores@gmail.com,,,OS-0072,false
+PPV-0058,Orçamento Cliente,10/02/2026 17:54,ANGELO DELALIBERA TERUEL,Pedido,3495,Cancelado,Danilo de Souza,REVISÃO DE 1200H,criado de forma errada,,arthur.novatratores@gmail.com,,,OS-0072,false
+PPV-0059,Orçamento Cliente,10/02/2026 17:59,ANGELO DELALIBERA TERUEL,Pedido,1135,Fechado,Danilo de Souza,REVISÃO DE 1200H,,6742,posvendas.novatratores@gmail.com,,,OS-0072,false
+PPV-0060,Saida Tecnico (Com OS),11/02/2026 08:13,OLINTO RODRIGUES DE ARRUDA E OUTRO ( FAZ BOM RETIRO ),Pedido,2405,Fechado,Jose Antonio de Oliveira,Revisão no Trator Olinto Bom Retiro,,6665,posvendas.novatratores@gmail.com,,,OS-0074,false
+PPV-0061,Venda Balcão,11/02/2026 09:41,MENSORI CONSERVAÇÂO INTELIGENTE DE INFRAESTRUTURA,Pedido,3525,Cancelado,Fernando Leonel,Revisão,,,posvendas.novatratores@gmail.com,,,OS-0075,false
+PPV-0062,Saida Tecnico (Com OS),11/02/2026 14:57,PIRAJU GABINETE PREFEITO,Pedido,45,Cancelado,Fernando Leonel,Troca do oleo e do retentor da roçadeira kamaq,,,posvendas.novatratores@gmail.com,,,OS-0077,false
+PPV-0063,Orçamento Cliente,12/02/2026 15:47,ASSOCIACAO DE MORADORES ALDEIA,Pedido,670,Cancelado,Danilo de Souza,REVISÃO DE 50H 6075,,,arthur.novatratores@gmail.com,,,OS-0080,false
+PPV-0064,Saida Tecnico (Com OS),13/02/2026 12:58,SERGIO ALBERTO GARCONI,Pedido,2595,Cancelado,Danilo de Souza,Revisão de 2100 Horas do 6065,00,,posvendas.novatratores@gmail.com,,,OS-0081,false
+PPV-0065,Saida Tecnico (Com OS),13/02/2026 13:46,SERGIO ALBERTO GARCONI,Pedido,4183.0906,Fechado,Danilo de Souza,Revisão de 2100 do 6065,,6675,posvendas.novatratores@gmail.com,,,OS-0081,false
+PPV-0066,Saida Tecnico (Com OS),16/02/2026 08:13,ROSAN ANTONIO AIELLO,Pedido,750,Fechado,Jose Antonio de Oliveira,Troca do cabo do 86-110,,6673,posvendas.novatratores@gmail.com,,,OS-0083,false
+PPV-0067,Saida Tecnico (Com OS),16/02/2026 09:19,GUSTAVO SANCHES ZANFORLIN,Pedido,532.627,Cancelado,Paulo Motta,CVT Patinando,,,posvendas.novatratores@gmail.com,,,OS-0085,false
+PPV-0068,Saida Tecnico (Com OS),16/02/2026 09:58,VALMIR FERNANDES RIBEIRO,Pedido,1090,Fechado,Fernando Leonel,Revisão 50 horas do 7095,,ewq,posvendas.novatratores@gmail.com,,,OS-0086,false
+PPV-0069,Saida Tecnico (Com OS),18/02/2026 17:31,PAULO GARCIA RIBEIRO,Pedido,1525,Cancelado,Danilo de Souza,Revisão de 1200 Horas no 9500,Cliente não quis fazer,,appnovat@novatratores.com,,,OS-0089,false
+PPV-0070,Saida Tecnico (Com OS),18/02/2026 17:40,PAULO GARCIA RIBEIRO,Pedido,2320,Fechado,Danilo de Souza,Revisão de 1200 Hora mais tração,,02,appnovat@novatratores.com,,,OS-0090,false
+PPV-0071,Saida Tecnico (Com OS),19/02/2026 14:47,FELIZARDO &amp; FELIZARDO SERVIÇOS DE MÃO DE OBRA LTDA,Pedido,615,Fechado,Gabriel Moraes,,,,arthur.novatratores@gmail.com,,,,false
+PPV-0072,Orçamento Cliente,19/02/2026 17:11,NOVA TRATORES MAQUINAS AGRICOLAS LTDA,Pedido,1350,Cancelado,Danilo de Souza,6075L FERNANDO,,,arthur.novatratores@gmail.com,,,OS-0092,false
+PPV-0073,Saida Tecnico (Com OS),20/02/2026 08:17,ASSOCIACAO DE MORADORES ALDEIA,Remessa,310,Fechado,Gabriel Moraes,Troca do Filtro combustivel,,4657,appnovat@novatratores.com,,,,false
+PPV-0074,Venda Balcão,21/02/2026 08:06,ADRIANO CORCOVIA,Pedido,980,Cancelado,Jose Antonio de Oliveira,,,,posvendas4novatratores@gmail.com,,,OS-0095,false
+PPV-0075,Venda Balcão,21/02/2026 08:10,PAULO GARCIA RIBEIRO,Pedido,130,Fechado,Paulo Motta,,,4664,posvendas4novatratores@gmail.com,,,,false
+PPV-0076,Saida Tecnico (Com OS),23/02/2026 10:32,GABRIELLA MATTEUCCI MATARAZZO,Pedido,90,Cancelado,Fernando Leonel,Montagem Bomba Metel,,,appnovat@novatratores.com,,,,false
+PPV-0077,Orçamento Cliente,23/02/2026 14:19,DANIEL DIANAS RIBEIRO E OUTRO,Pedido,1115,Fechado,Danilo de Souza,REVISÃO DE 3000H,,6727,posvendas.novatratores@gmail.com,,,OS-0099,false
+PPV-0078,Orçamento Cliente,23/02/2026 17:11,ANTONIO RENATO GIANSANTE E OUTRO ( opção rural ),Pedido,2910,Cancelado,Gabriel Moraes,REVISÃO DE 3300H REFERENTE A 900H 6060,,,arthur.novatratores@gmail.com,,,OS-0100,false
+PPV-0079,Saida Tecnico (Com OS),24/02/2026 10:14,DANIEL DIANAS RIBEIRO E OUTRO,Pedido,1115,Fechado,Danilo de Souza,Revisão de 3100 Horas 6075E 3787,,6728,appnovat@novatratores.com,,,OS-0101,false
+PPV-0080,Saida Tecnico (Com OS),24/02/2026 14:25,CLAIR SANDRO DOGNANI,Pedido,299.007933,Fechado,Paulo Motta,sensor,,6721,posvendas4novatratores@gmail.com,,,,false
+PPV-0081,Orçamento Cliente,24/02/2026 15:12,PEDRO ALCANTARA RIBEIRO NETO E OUTRO,Pedido,1265,Fechado,Danilo de Souza,REVISÃO DE 300H,,6736,arthur.novatratores@gmail.com,,,OS-0102,false
+PPV-0082,Saida Tecnico (Com OS),25/02/2026 12:52,GUILHERME TROVA,Pedido,985,Fechado,Gabriel Moraes,Revisão de 1500 Horas 9500 2490,,6740,appnovat@novatratores.com,,,OS-0104,false
+PPV-0083,Saida Tecnico (Com OS),25/02/2026 14:20,PIRAJU GABINETE PREFEITO,Pedido,1850,Fechado,Paulo Motta,Troca do oleo hidraulico TL piraju,,6519,appnovat@novatratores.com,,,OS-0105,false
+PPV-0084,Saida Tecnico (Com OS),26/02/2026 07:55,VINICIUS AUGUSTO MAZETTO ROMANO DA SILVA,Remessa,885,Fechado,Danilo de Souza,Troca do engate,,4677,appnovat@novatratores.com,,,OS-0106,false
+PPV-0085,Saida Tecnico (Com OS),26/02/2026 08:03,JORGE JUSTUS NITZAN,Pedido,756,Fechado,Nicolas Dario,Rev 300 Jivo Jorge,,6729,appnovat@novatratores.com,,,OS-0107,false
+PPV-0086,Orçamento Cliente,26/02/2026 14:22,JOANNES ADRIANUS STELTENPOOL,Pedido,1595,Cancelado,Gabriel Moraes,REVISÃO DE 300H,,,posvendas.novatratores@gmail.com,,,OS-0109,false
+PPV-0087,Saida Tecnico (Com OS),27/02/2026 16:03,JOSE CARLOS RIBEIRO E OUTROS,Pedido,1685,Cancelado,Gabriel Moraes,Revisão Trator 2679,,,posvendas4novatratores@gmail.com,,,OS-0111,false
+PPV-0088,Saida Tecnico (Com OS),03/03/2026 13:26,LUIZ CARLOS CALDERAN,Pedido,130,Cancelado,Danilo de Souza,,,,posvendas.novatratores@gmail.com,,,OS-0116,false
+PPV-0089,Saida Tecnico (Com OS),03/03/2026 13:29,JEFERSON FAULIM (FAZENDA GRAMONT DO OESTE),Pedido,1933.45805,Cancelado,Gabriel Moraes,,,,posvendas.novatratores@gmail.com,,,OS-0115,false
+PPV-0090,Orçamento Cliente,03/03/2026 16:25,JOSE PASCOAL BORTOTTI E ESPOSA,Pedido,1946,Cancelado,Danilo de Souza,REVISÃO DE 1200H,,,arthur.novatratores@gmail.com,,,OS-0119,false
+PPV-0091,Saida Tecnico (Com OS),03/03/2026 17:46,EDMAR JOSE BERNARDES,Pedido,465,Cancelado,Danilo de Souza,"Revisão de 300 Horas ",,,posvendas.novatratores@gmail.com,,,OS-0121,false
+PPV-0092,Saida Tecnico (Com OS),04/03/2026 08:00,JOSE CARLOS RIBEIRO E OUTROS,Pedido,670,Cancelado,Jose Antonio de Oliveira,,,,posvendas.novatratores@gmail.com,,,OS-0122,false
+PPV-0093,Saida Tecnico (Com OS),04/03/2026 08:13,ROSAN ANTONIO AIELLO,Pedido,1915,Cancelado,Danilo de Souza,,,,posvendas.novatratores@gmail.com,,,OS-0123,false
+PPV-0094,Saida Tecnico (Com OS),04/03/2026 08:35,,Pedido,1995,Cancelado,Gabriel Moraes,Rev 300 6075,,,posvendas.novatratores@gmail.com,,,OS-0125,false
+PPV-0095,Saida Tecnico (Com OS),04/03/2026 16:30,ROSAN ANTONIO AIELLO,Pedido,360,Fechado,Luiz Fernando (Motorista),TROCAR FILTRO QUE ESTÁ VAZANDO,,4714,posvendas4novatratores@gmail.com,,,OS-0127,false
+PPV-0096,Saida Tecnico (Com OS),05/03/2026 08:21,MARCO ANTONIO DA CUNHA,Pedido,250,Cancelado,Jose Antonio de Oliveira,Terminal de direção quebrado,,,posvendas.novatratores@gmail.com,,,OS-0128,false
+PPV-0097,Saida Tecnico (Com OS),05/03/2026 09:04,SANDRA AP. MARQUES DE LAZZARI E BENEDITO DE LAZZARI,Pedido,685,Cancelado,Gabriel Moraes,Revisão de 50 Horas,,,posvendas.novatratores@gmail.com,,,OS-0129,false
+PPV-0098,Saida Tecnico (Com OS),05/03/2026 09:52,FLORA MARIA GOMES DOS SANTOS E OUTROS,Pedido,3605,Cancelado,Jose Antonio de Oliveira,REv 2400 6075 2063,,,posvendas.novatratores@gmail.com,,,OS-0130,false
+PPV-0099,Saida Tecnico (Com OS),05/03/2026 09:55,FLORA MARIA GOMES DOS SANTOS E OUTROS,Pedido,2230,Cancelado,Jose Antonio de Oliveira,Revisao de 3600 horas 6075 2161,,,posvendas.novatratores@gmail.com,,,OS-0131,false
+PPV-0100,Saida Tecnico (Com OS),05/03/2026 17:37,OLINTO RODRIGUES DE ARRUDA E OUTROS,Pedido,540,Aguardando,Danilo de Souza,Troca do filtro Hiudraulico,,,posvendas.novatratores@gmail.com,,,OS-0132,false
+PPV-0101,Saida Tecnico (Com OS),07/03/2026 10:23,GUSTAVO SANCHES ZANFORLIN,Pedido,20,Aguardando Para Faturar,Paulo Motta,,,,posvendas.novatratores@gmail.com,,,OS-0136,false
+PPV-0102,Saida Tecnico (Com OS),09/03/2026 08:30,ROSAN ANTONIO AIELLO,Pedido,1400,Aguardando Para Faturar,Gabriel Moraes,Para tirar o vazamento do conjunto frontal,,,posvendas.novatratores@gmail.com,,,OS-0140,false
+PPV-0103,Saida Tecnico (Com OS),09/03/2026 09:53,ANTONIO RUIZ FRAGOSO,Pedido,1250,Cancelado,Jose Antonio de Oliveira,Trator perdendo força,,,posvendas.novatratores@gmail.com,,,OS-0141,false
+PPV-0104,Saida Tecnico (Com OS),09/03/2026 10:31,MARIA BEATRIZ NAVARRO RIBEIRO COSTACURTA,Pedido,2250,Cancelado,Danilo de Souza,Revisão 300,,,posvendas.novatratores@gmail.com,,,OS-0142,false
+PPV-0105,Saida Tecnico (Com OS),11/03/2026 08:47,NOVA TRATORES MAQUINAS AGRICOLAS LTDA,Pedido,222.9617,Aguardando,Danilo de Souza,Havan Flora,,,posvendas.novatratores@gmail.com,,,OS-0143,false
+PPV-0106,Saida Tecnico (Com OS),11/03/2026 09:17,FELIZARDO &amp; FELIZARDO SERVIÇOS DE MÃO DE OBRA LTDA,Pedido,75,Cancelado,Fernando Leonel,Roçadeira Kamaq,,,posvendas.novatratores@gmail.com,,,OS-0144,false
+PPV-0107,Saida Tecnico (Com OS),11/03/2026 13:34,GUSTAVO SANCHES ZANFORLIN,Pedido,548.10915,Aguardando,Paulo Motta,Revisão de 100 Horas,,,posvendas.novatratores@gmail.com,,,OS-0145,false
+PPV-0108,Saida Tecnico (Com OS),11/03/2026 17:17,FELIZARDO &amp; FELIZARDO SERVIÇOS DE MÃO DE OBRA LTDA,Pedido,90,Cancelado,Fernando Leonel,,,,posvendas.novatratores@gmail.com,,,OS-0147,false
+PPV-0109,Saida Tecnico (Com OS),12/03/2026 13:09,LUIZ ANTONIO BASILE SOBRINHO E OUTRO,Pedido,220,Fechado,Gabriel Moraes,,,,posvendas.novatratores@gmail.com,,,OS-0148,false
+PPV-0110,Orçamento Cliente,12/03/2026 13:44,SEBASTIAO RUIZ,Pedido,931,Aguardando,DANILO DE SOUZA,22,,,sistema@ppv.local,,,OS-0145,false
+PPV-0111,Saida Tecnico (Com OS),13/03/2026 10:58,PAULO GIOVANI DE ALMEIDA,Pedido,20,Fechado,DANILO DE SOUZA,Vazamento no Jivo,,,sistema@ppv.local,,,OS-0151,false
+PPV-0112,Saida Tecnico (Com OS),13/03/2026 11:31,ALTAIR MULLER CORREA,Pedido,10049.7662,Fechado,JOSE ANTONIO DE OLIVEIRA,,,000000000006821,sistema@ppv.local,,,OS-0112,true
+PPV-0113,Saida Tecnico (Com OS),13/03/2026 11:54,FELIZARDO &amp; FELIZARDO SERVIÇOS DE MÃO DE OBRA LTDA,Pedido,90,Fechado,FERNANDO LEONEL,Troca da Caixa de transmissão Trincha,,000000000006809,sistema@ppv.local,,,OS-0154,true
+PPV-0114,Saida Tecnico (Com OS),13/03/2026 16:06,JOSE VALDIR DA SILVA,Pedido,1190,Fechado,DANILO DE SOUZA,Troca do Cabo do freio,,000000000006839,sistema@ppv.local,,,OS-0155,true
+PPV-0115,Orçamento Cliente,14/03/2026 11:30,MARIA INES VIEIRA ANTUNES,Pedido,1702.6644,Em Andamento,GABRIEL MORAES,REV 300H 7095 CAB,,,sistema@ppv.local,,,OS-0161,true
+PPV-0116,Saida Tecnico (Com OS),14/03/2026 11:46,GUILHERME TROVA,Pedido,120,Fechado,DANILO DE SOUZA,Troca do cabo Acelerador de Pé,,000000000006812,sistema@ppv.local,,,OS-0157,true
+PPV-0117,Saida Tecnico (Com OS),16/03/2026 11:44,FELIZARDO &amp; FELIZARDO SERVIÇOS DE MÃO DE OBRA LTDA,Pedido,75,Fechado,FERNANDO LEONEL,Vazamento no retentor da Roçadeira Kamaq 132 Sem plaqueta,,3811,sistema@ppv.local,,,OS-0164,true
+PPV-0118,Saida Tecnico (Com OS),16/03/2026 18:58,JOSE ADILSON DE LIMA,Pedido,1750,Fechado,GABRIEL MORAES,revisão 2100h,,000000000006835,sistema@ppv.local,,,OS-0165,true
+PPV-0119,Saida Tecnico (Com OS),17/03/2026 10:57,JOAO FRANCISCO DIAS DA SILVA,Pedido,260,Fechado,DANILO DE SOUZA,"Entrando ar no sistema hidraulico, não achei o nome do cliente no sistema.",,000000000006828,sistema@ppv.local,,,OS-0168,true
+PPV-0120,Saida Tecnico (Com OS),17/03/2026 20:21,ADEMIR DE GOIS,Pedido,1195,Fechado,DANILO DE SOUZA,Revisão de 3000 Horas,,000000000006830,sistema@ppv.local,,,OS-0171,true
+PPV-0121,Saida Tecnico (Com OS),18/03/2026 20:51,FLORA MARIA GOMES DOS SANTOS E OUTROS,Pedido,637.65,Aguardando,JOSE ANTONIO DE OLIVEIRA,Troca retentor e cabo,,,sistema@ppv.local,,,OS-0173,false
+PPV-0122,Saida Tecnico (Com OS),19/03/2026 13:32,PEDRO ALCANTARA RIBEIRO NETO E OUTRO,Pedido,1945,Em Andamento,DANILO DE SOUZA,Rev 300 Horas,,,sistema@ppv.local,,,OS-0180,true
+PPV-0123,Saida Tecnico (Com OS),19/03/2026 13:45,PIRAJU GABINETE PREFEITO,Pedido,165,Aguardando,FERNANDO LEONEL,Tração não funciona,,,sistema@ppv.local,,,OS-0175,false
+PPV-0124,Saida Tecnico (Com OS),19/03/2026 19:10,MENSORI CONSERVAÇÂO INTELIGENTE DE INFRAESTRUTURA,Pedido,1730,Fechado,PAULO MOTTA,,,000000000006838,sistema@ppv.local,,,OS-0181,true
+PPV-0125,Saida Tecnico (Com OS),19/03/2026 19:15,PAULO GIOVANI DE ALMEIDA,Pedido,1081,Aguardando,JOSE ORTIZ,Revisão 300 Horas,,,sistema@ppv.local,,,OS-0182,false
+PPV-0126,Saida Tecnico (Com OS),19/03/2026 19:16,PAULO GIOVANI DE ALMEIDA,Pedido,1081,Aguardando,DANILO DE SOUZA,Revisão 300 Horas,,,sistema@ppv.local,,,OS-0183,false
+REM-0001,Saida Tecnico (Com OS),22/01/2026 08:05,NOVA TRATORES MAQUINAS AGRICOLAS LTDA,Remessa,2470,Fechado,Fernando Leonel,"Pré revisão no Trator que era do Juca
+Peças que não estão no Omie
+377581 04 Unit
+JB8903 03 Unit",,REM 3477,posvendas.novatratores@gmail.com,,,OS-0025,false
+REM-0002,Saida Tecnico (Com OS),26/01/2026 09:07,DAIAN COSME DE ALMEIDA,Remessa,750,Fechado,Jose Antonio de Oliveira,,,000,posvendas.novatratores@gmail.com,,,OS-0031,false
+REM-0003,Saida Tecnico (Com OS),03/02/2026 16:34,DANIEL DIANAS RIBEIRO E OUTRO,Remessa,182.9,Cancelado,Danilo de Souza,Tirar vazamento da caixinha de tração,,,posvendas.novatratores@gmail.com,,,OS-0054,false
+REM-0004,Saida Tecnico (Com OS),11/02/2026 15:02,NOVA TRATORES MAQUINAS AGRICOLAS LTDA,Remessa,525.67,Cancelado,Fernando Leonel,Troca de peças riscadas em garantia,,,posvendas.novatratores@gmail.com,,,OS-0076,false
