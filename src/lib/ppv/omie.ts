@@ -16,8 +16,8 @@ interface OmieAccount {
 }
 
 const OMIE_ACCOUNTS: OmieAccount[] = [
-  { name: "Principal", key: "2729522270475", secret: "113d785bb86c48d064889d4d73348131", codCC: 1969919780 },   // Nova Tratores - BB
-  { name: "Secundario", key: "2730028269969", secret: "dc270bf5348b40d3ed1398ef70beb628", codCC: 5335855842 }, // Castro Peças - BB
+  { name: "Nova Tratores", key: "2729522270475", secret: "113d785bb86c48d064889d4d73348131", codCC: 1969919780 },
+  { name: "Castro Peças", key: "2730028269969", secret: "dc270bf5348b40d3ed1398ef70beb628", codCC: 5335855842 },
 ];
 
 const OMIE_BASE_URL = "https://app.omie.com.br/api/v1";
@@ -78,7 +78,7 @@ function getAccount(empresa: string): OmieAccount {
   const acc = OMIE_ACCOUNTS.find(
     (a) => a.name.toLowerCase() === (empresa || "").toLowerCase()
   );
-  return acc || OMIE_ACCOUNTS[0]; // fallback para Principal
+  return acc || OMIE_ACCOUNTS[0]; // fallback para Nova Tratores
 }
 
 // --- Lookup de cliente pelo CNPJ (por conta) ---
@@ -309,7 +309,7 @@ export async function enviarPPVParaOmie(idPPV: string): Promise<{ sucesso: boole
       contEmpresa[prod.empresa] = (contEmpresa[prod.empresa] || 0) + 1;
     }
   }
-  const empresaMajoritaria = Object.entries(contEmpresa).sort((a, b) => b[1] - a[1])[0]?.[0] || "Principal";
+  const empresaMajoritaria = Object.entries(contEmpresa).sort((a, b) => b[1] - a[1])[0]?.[0] || "Nova Tratores";
 
   // Verificar se há REALMENTE produtos exclusivos de empresas diferentes
   // (produtos que existem em ambas empresas NÃO são conflito)

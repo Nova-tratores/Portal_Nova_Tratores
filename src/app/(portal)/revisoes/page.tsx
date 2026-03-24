@@ -7,6 +7,7 @@ import SemPermissao from "@/components/SemPermissao";
 import { Trator, REVISOES_LISTA } from "@/lib/revisoes/types";
 import { calcularPrevisao } from "@/lib/revisoes/utils";
 import { useAuditLog } from "@/hooks/useAuditLog";
+import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 
 interface EmailAttachment {
   filename: string;
@@ -112,6 +113,13 @@ function DashboardAgrupadoInner() {
       setLoadingEmails(false);
     }
   };
+
+  // Refresh ao voltar para a aba
+  const refreshRevisoes = useCallback(async () => {
+    const { data } = await supabase.from("tratores").select("*").order("Cliente", { ascending: true });
+    if (data) setTratores(data);
+  }, []);
+  useRefreshOnFocus(refreshRevisoes);
 
   // Carregar tratores do Supabase (rápido) e emails do Gmail (lento) separadamente
   useEffect(() => {

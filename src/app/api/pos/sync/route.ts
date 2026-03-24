@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { syncClientes, syncProjetos } from "@/lib/pos/sync-omie";
+import { syncClientes, syncProjetos, syncProdutos } from "@/lib/pos/sync-omie";
 
 const CRON_SECRET = process.env.CRON_SECRET || "";
 
@@ -21,6 +21,14 @@ async function executarSync() {
     const msg = err instanceof Error ? err.message : String(err);
     erros.push(`Projetos: ${msg}`);
     console.error("Erro sync projetos:", msg);
+  }
+
+  try {
+    resultados.produtos = await syncProdutos();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    erros.push(`Produtos: ${msg}`);
+    console.error("Erro sync produtos:", msg);
   }
 
   return {

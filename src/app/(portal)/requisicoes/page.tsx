@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
 import { useAuditLog } from '@/hooks/useAuditLog';
+import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
 import Kanban from '@/components/requisicoes/Kanban';
 import FormReq from '@/components/requisicoes/FormReq';
 import FormFornecedor from '@/components/requisicoes/FormFornecedor';
@@ -116,6 +117,10 @@ function RequisicoesPageInner() {
       if (resVei.data) setVeiculos(resVei.data);
     } catch (err) { console.error(err); } finally { setLoading(false); }
   }, []);
+
+  // Refresh ao voltar para a aba
+  const refreshSilencioso = useCallback(() => carregarDados(true), [carregarDados]);
+  useRefreshOnFocus(refreshSilencioso);
 
   useEffect(() => {
     carregarDados();

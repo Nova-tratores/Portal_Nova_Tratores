@@ -85,7 +85,7 @@ export async function buscarPPVPorId(id: string): Promise<PPVDetalhes | null> {
     Object.values(empresaMap).forEach((emps) => {
       if (emps.length === 1) contEmpresa[emps[0]] = (contEmpresa[emps[0]] || 0) + 1;
     });
-    const empresaMajoritaria = Object.entries(contEmpresa).sort((a, b) => b[1] - a[1])[0]?.[0] || "Principal";
+    const empresaMajoritaria = Object.entries(contEmpresa).sort((a, b) => b[1] - a[1])[0]?.[0] || "Nova Tratores";
 
     detalhes.produtos = Object.values(itensMap).map((p) => {
       const emps = empresaMap[p.codigo];

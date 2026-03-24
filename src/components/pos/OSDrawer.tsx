@@ -390,37 +390,35 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, onCl
                     </div>
                   )}
 
-                  {/* ── Cliente (create) ── */}
-                  {mode === "create" && (
-                    <div className="os-card">
-                      <div className="os-card-title"><i className="fas fa-user" /> Cliente</div>
-                      <div style={S_RELATIVE}>
-                        <i className="fas fa-search" style={S_SEARCH_ICON} />
-                        <input type="text" placeholder="Buscar por nome, razão social ou CNPJ/CPF..." value={clienteFilter} onChange={(e) => setClienteFilter(e.target.value)} style={S_SEARCH_INPUT} />
-                      </div>
-                      {clienteFilter && (
-                        <div className="client-search-results">
-                          {filteredClientes.length === 0 ? (
-                            <div style={S_EMPTY_RESULT}>Nenhum cliente encontrado</div>
-                          ) : filteredClientes.map((c) => (
-                            <div key={c.chave} className="client-search-item" onClick={() => { selectCliente(c.chave); setClienteFilter(""); }}>
-                              <i className="fas fa-user-circle" style={S_SEARCH_ICON} />
-                              <div style={S_CLIENT_ITEM_WRAP}>
-                                <div style={S_CLIENT_ITEM_NAME}>{c.display.split("[")[0].trim()}</div>
-                                <div style={S_CLIENT_ITEM_SUB}>{c.display.includes("[") ? c.display.substring(c.display.indexOf("[")) : ""}</div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      {clienteInfo && (
-                        <div className="os-client-badge">
-                          <i className="fas fa-check-circle" /> {clienteInfo.nome}
-                          {clienteInfo.cpf && <span style={S_CLIENT_BADGE_CPF}>({clienteInfo.cpf})</span>}
-                        </div>
-                      )}
+                  {/* ── Cliente (create + edit) ── */}
+                  <div className="os-card">
+                    <div className="os-card-title"><i className="fas fa-user" /> {mode === "edit" ? "Alterar Cliente" : "Cliente"}</div>
+                    <div style={S_RELATIVE}>
+                      <i className="fas fa-search" style={S_SEARCH_ICON} />
+                      <input type="text" placeholder="Buscar por nome, razão social ou CNPJ/CPF..." value={clienteFilter} onChange={(e) => setClienteFilter(e.target.value)} style={S_SEARCH_INPUT} />
                     </div>
-                  )}
+                    {clienteFilter && (
+                      <div className="client-search-results">
+                        {filteredClientes.length === 0 ? (
+                          <div style={S_EMPTY_RESULT}>Nenhum cliente encontrado</div>
+                        ) : filteredClientes.map((c) => (
+                          <div key={c.chave} className="client-search-item" onClick={() => { selectCliente(c.chave); setClienteFilter(""); }}>
+                            <i className="fas fa-user-circle" style={S_SEARCH_ICON} />
+                            <div style={S_CLIENT_ITEM_WRAP}>
+                              <div style={S_CLIENT_ITEM_NAME}>{c.display.split("[")[0].trim()}</div>
+                              <div style={S_CLIENT_ITEM_SUB}>{c.display.includes("[") ? c.display.substring(c.display.indexOf("[")) : ""}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {clienteInfo && !clienteFilter && (
+                      <div className="os-client-badge">
+                        <i className="fas fa-check-circle" /> {clienteInfo.nome}
+                        {clienteInfo.cpf && <span style={S_CLIENT_BADGE_CPF}>({clienteInfo.cpf})</span>}
+                      </div>
+                    )}
+                  </div>
 
                   {/* ── Lembretes do Cliente ── */}
                   {lembretes.length > 0 && lembretes.map((l) => (

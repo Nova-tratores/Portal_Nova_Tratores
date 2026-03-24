@@ -10,6 +10,7 @@ import OSDrawer from "@/components/pos/OSDrawer";
 import ClientDrawer from "@/components/pos/ClientDrawer";
 import LembretesDrawer from "@/components/pos/LembretesDrawer";
 import LoadingIndicator from "@/components/pos/LoadingIndicator";
+import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import type { KanbanCard, ClienteOption } from "@/lib/pos/types";
 
 function PosPageInner() {
@@ -78,6 +79,9 @@ function PosPageInner() {
     const interval = setInterval(fetchOrders, 60000);
     return () => clearInterval(interval);
   }, [fetchOrders]);
+
+  // Refresh ao voltar para a aba
+  useRefreshOnFocus(fetchOrders);
 
   const handleNewOS = () => {
     setDrawerMode("create");

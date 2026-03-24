@@ -19,10 +19,14 @@ import ModalBuscaProduto from "@/components/ppv/ModalBuscaProduto";
 import ModalProdutoManual from "@/components/ppv/ModalProdutoManual";
 import CatalogoPecas from "@/components/ppv/CatalogoPecas";
 import RastreioEncomendas from "@/components/ppv/RastreioEncomendas";
+import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 
 function PPVApp() {
   const { kanbanItems, carregarKanban, atualizarKanbanLocal, toast, hideToast, globalLoading, cacheProduct, showToast, tecnicos } = usePPV();
   const searchParams = useSearchParams();
+
+  // Refresh ao voltar para a aba
+  useRefreshOnFocus(carregarKanban);
 
   // Tabs e filtros
   const [activeTab, setActiveTab] = useState("kanbanTab");

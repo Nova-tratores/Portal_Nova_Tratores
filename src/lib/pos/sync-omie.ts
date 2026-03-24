@@ -1,15 +1,27 @@
 import { supabase } from "./supabase";
 import { TBL_CLIENTES, TBL_PROJETOS_DB } from "./constants";
 
-const OMIE_APP_KEY = process.env.OMIE_APP_KEY || "";
-const OMIE_APP_SECRET = process.env.OMIE_APP_SECRET || "";
+const TBL_PRODUTOS = "Produtos_Completos";
+
 const OMIE_BASE_URL = "https://app.omie.com.br/api/v1";
 
-async function omieCall<T>(endpoint: string, call: string, param: Record<string, unknown>): Promise<T> {
+interface OmieAccount {
+  name: string;
+  key: string;
+  secret: string;
+}
+
+const OMIE_ACCOUNTS: OmieAccount[] = [
+  { name: "Nova Tratores", key: process.env.OMIE_APP_KEY || "", secret: process.env.OMIE_APP_SECRET || "" },
+  { name: "Castro Peças", key: "2730028269969", secret: "dc270bf5348b40d3ed1398ef70beb628" },
+];
+
+async function omieCall<T>(endpoint: string, call: string, param: Record<string, unknown>, acc?: OmieAccount): Promise<T> {
+  const account = acc || OMIE_ACCOUNTS[0];
   const payload = {
     call,
-    app_key: OMIE_APP_KEY,
-    app_secret: OMIE_APP_SECRET,
+    app_key: account.key,
+    app_secret: account.secret,
     param: [param],
   };
 
@@ -22,7 +34,7 @@ async function omieCall<T>(endpoint: string, call: string, param: Record<string,
   if (response.status === 429) {
     console.warn("Rate limit Omie — aguardando 60s...");
     await new Promise((r) => setTimeout(r, 60000));
-    return omieCall(endpoint, call, param);
+    return omieCall(endpoint, call, param, acc);
   }
 
   const data = await response.json();
@@ -174,4 +186,92 @@ export async function syncProjetos(): Promise<{ total: number; novos: number }> 
   }
 
   return { total, novos };
+}
+
+// ── Sync Produtos (todas as contas Omie) ──
+interface OmieProdutoResponse {
+  pagina: number;
+  total_de_paginas: number;
+  produto_servico_cadastro: Array<{
+    codigo_produto: number;
+    codigo_produto_integracao: string;
+    codigo: string;
+    descricao: string;
+    valor_unitario: number;
+    preco_venda?: number;
+    cmc?: number;
+  }>;
+}
+
+export async function syncProdutos(): Promise<{ total: number; novos: number; atualizados: number }> {
+  let total = 0;
+  let novos = 0;
+  let atualizados = 0;
+
+  for (const acc of OMIE_ACCOUNTS) {
+    let pagina = 1;
+    let totalPaginas = 1;
+
+    while (pagina <= totalPaginas) {
+      const res = await omieCall<OmieProdutoResponse>(
+        "/geral/produtos/",
+        "ListarProdutos",
+        { pagina, registros_por_pagina: 50, apenas_importado_api: "N", filtrar_apenas_omiepdv: "N" },
+        acc
+      );
+
+      totalPaginas = res.total_de_paginas;
+
+      const registros = (res.produto_servico_cadastro || []).map((p) => ({
+        id_omie: p.codigo_produto,
+        Codigo_Produto: p.codigo || p.codigo_produto_integracao || String(p.codigo_produto),
+        Descricao_Produto: p.descricao || "",
+        Preco_Unit: p.valor_unitario || 0,
+        Preco_Venda: p.preco_venda ?? p.valor_unitario ?? 0,
+        CMC: p.cmc ?? null,
+        Empresa: acc.name,
+      }));
+
+      if (registros.length > 0) {
+        const ids = registros.map((r) => String(r.id_omie));
+        const { data: existentes } = await supabase
+          .from(TBL_PRODUTOS)
+          .select("id_omie")
+          .in("id_omie", ids)
+          .eq("Empresa", acc.name);
+        const existentesSet = new Set((existentes || []).map((e) => String(e.id_omie)));
+
+        const paraInserir = registros.filter((r) => !existentesSet.has(String(r.id_omie)));
+        const paraAtualizar = registros.filter((r) => existentesSet.has(String(r.id_omie)));
+
+        if (paraInserir.length > 0) {
+          await supabase.from(TBL_PRODUTOS).insert(paraInserir);
+          novos += paraInserir.length;
+        }
+
+        if (paraAtualizar.length > 0) {
+          for (const prod of paraAtualizar) {
+            await supabase.from(TBL_PRODUTOS)
+              .update({
+                Codigo_Produto: prod.Codigo_Produto,
+                Descricao_Produto: prod.Descricao_Produto,
+                Preco_Unit: prod.Preco_Unit,
+                Preco_Venda: prod.Preco_Venda,
+                CMC: prod.CMC,
+              })
+              .eq("id_omie", prod.id_omie)
+              .eq("Empresa", acc.name);
+          }
+          atualizados += paraAtualizar.length;
+        }
+
+        total += registros.length;
+      }
+
+      pagina++;
+      await new Promise((r) => setTimeout(r, 400));
+    }
+  }
+
+  return { total, novos, atualizados };
 }

@@ -1,6 +1,7 @@
 'use client'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useAuth } from '@/hooks/useAuth'
+import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import { supabase } from '@/lib/supabase'
 import { useAuditLog } from '@/hooks/useAuditLog'
@@ -136,6 +137,15 @@ export default function DashboardPage() {
   const [currentTime, setCurrentTime] = useState(new Date())
   const [minhasTarefas, setMinhasTarefas] = useState<any[]>([])
   const [tarefasLoading, setTarefasLoading] = useState(true)
+
+  // Refresh ao voltar para a aba
+  const refreshDashboard = useCallback(() => {
+    if (!userProfile) return
+    supabase.from('portal_logs').select('*').eq('user_id', userProfile.id)
+      .order('created_at', { ascending: false }).limit(5)
+      .then(({ data }) => { if (data) setRecentLogs(data) })
+  }, [userProfile])
+  useRefreshOnFocus(refreshDashboard)
 
   // Relógio a cada 30s em vez de 1s — reduz 30x re-renders
   useEffect(() => {

@@ -121,6 +121,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const total = vHoras + vKm + vPecas + vReq - desc - descHora - descKm;
 
   const { error } = await supabase.from(TBL_OS).update({
+    Os_Cliente: dados.nomeCliente, Cnpj_Cliente: dados.cpfCliente, Endereco_Cliente: dados.enderecoCliente,
     Os_Tecnico: dados.tecnicoResponsavel, Os_Tecnico2: dados.tecnico2,
     Tipo_Servico: dados.tipoServico, Revisao: dados.revisao,
     Serv_Solicitado: dados.servicoSolicitado, Serv_Realizado: null,

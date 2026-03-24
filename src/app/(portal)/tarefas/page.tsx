@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/hooks/useAuth'
+import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
 import {
   ClipboardCheck, Plus, Calendar, AlertTriangle, CheckCircle2,
   Clock, X, User, Flag, ChevronDown, Search, Loader2
@@ -104,6 +105,9 @@ export default function TarefasPage() {
   }, [tab, meuVikunjaId])
 
   useEffect(() => { carregarTarefas() }, [carregarTarefas])
+
+  // Refresh ao voltar para a aba
+  useRefreshOnFocus(carregarTarefas);
 
   const marcarConcluida = async (id: number, done: boolean) => {
     try {

@@ -146,12 +146,12 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
                       </td>
                       <td className="px-4 py-3 text-center">
                         {p.empresa ? (() => {
-                          const isPrimario = p.empresa.toLowerCase().includes("primari");
-                          const label = isPrimario ? "CASTRO" : "NOVA";
+                          const isCastro = p.empresa.toLowerCase().includes("castro");
+                          const label = isCastro ? "CASTRO" : "NOVA";
                           return (
                             <span className="rounded-full px-3 py-1.5 text-[13px] font-bold" style={{
-                              background: isPrimario ? "#DBEAFE" : "#FEE2E2",
-                              color: isPrimario ? "#2563EB" : "#DC2626",
+                              background: isCastro ? "#DBEAFE" : "#FEE2E2",
+                              color: isCastro ? "#2563EB" : "#DC2626",
                             }}>
                               {label}
                             </span>
