@@ -76,7 +76,7 @@ export async function syncClientes(): Promise<{ total: number; novos: number; at
     const res = await omieCall<OmieClienteResponse>(
       "/geral/clientes/",
       "ListarClientes",
-      { pagina, registros_por_pagina: 50, apenas_importado_api: "N" }
+      { pagina, registros_por_pagina: 500, apenas_importado_api: "N" }
     );
 
     totalPaginas = res.total_de_paginas;
@@ -156,7 +156,7 @@ export async function syncProjetos(): Promise<{ total: number; novos: number }> 
     const res = await omieCall<OmieProjetoResponse>(
       "/geral/projetos/",
       "ListarProjetos",
-      { pagina, registros_por_pagina: 50 }
+      { pagina, registros_por_pagina: 500 }
     );
 
     totalPaginas = res.total_de_paginas;
@@ -216,7 +216,7 @@ export async function syncProdutos(): Promise<{ total: number; novos: number; at
       const res = await omieCall<OmieProdutoResponse>(
         "/geral/produtos/",
         "ListarProdutos",
-        { pagina, registros_por_pagina: 50, apenas_importado_api: "N", filtrar_apenas_omiepdv: "N" },
+        { pagina, registros_por_pagina: 500, apenas_importado_api: "N", filtrar_apenas_omiepdv: "N" },
         acc
       );
 
