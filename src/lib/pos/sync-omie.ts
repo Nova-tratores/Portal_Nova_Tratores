@@ -233,41 +233,19 @@ export async function syncProdutos(): Promise<{ total: number; novos: number; at
       }));
 
       if (registros.length > 0) {
-        const ids = registros.map((r) => String(r.id_omie));
-        const { data: existentes } = await supabase
+        // Upsert em lote (merge duplicatas por id_omie) — muito mais rápido
+        const { data, error } = await supabase
           .from(TBL_PRODUTOS)
-          .select("id_omie")
-          .in("id_omie", ids)
-          .eq("Empresa", acc.name);
-        const existentesSet = new Set((existentes || []).map((e) => String(e.id_omie)));
+          .upsert(registros, { onConflict: "id_omie" });
 
-        const paraInserir = registros.filter((r) => !existentesSet.has(String(r.id_omie)));
-        const paraAtualizar = registros.filter((r) => existentesSet.has(String(r.id_omie)));
-
-        if (paraInserir.length > 0) {
-          await supabase.from(TBL_PRODUTOS).insert(paraInserir);
-          novos += paraInserir.length;
-        }
-
-        if (paraAtualizar.length > 0) {
-          for (const prod of paraAtualizar) {
-            await supabase.from(TBL_PRODUTOS)
-              .update({
-                Codigo_Produto: prod.Codigo_Produto,
-                Descricao_Produto: prod.Descricao_Produto,
-                Preco_Unit: prod.Preco_Unit,
-                Preco_Venda: prod.Preco_Venda,
-                CMC: prod.CMC,
-              })
-              .eq("id_omie", prod.id_omie)
-              .eq("Empresa", acc.name);
-          }
-          atualizados += paraAtualizar.length;
+        if (error) {
+          console.error(`Erro upsert produtos [${acc.name}] pág ${pagina}:`, error.message);
         }
 
         total += registros.length;
       }
 
+      console.log(`[Sync Produtos ${acc.name}] Pág ${pagina}/${totalPaginas} (${registros.length} registros)`);
       pagina++;
       await new Promise((r) => setTimeout(r, 400));
     }
