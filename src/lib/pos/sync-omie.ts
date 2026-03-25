@@ -12,7 +12,7 @@ interface OmieAccount {
 }
 
 const OMIE_ACCOUNTS: OmieAccount[] = [
-  { name: "Nova Tratores", key: process.env.OMIE_APP_KEY || "", secret: process.env.OMIE_APP_SECRET || "" },
+  { name: "Nova Tratores", key: "2729522270475", secret: "113d785bb86c48d064889d4d73348131" },
   { name: "Castro Peças", key: "2730028269969", secret: "dc270bf5348b40d3ed1398ef70beb628" },
 ];
 
