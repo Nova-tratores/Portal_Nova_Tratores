@@ -32,20 +32,40 @@ interface Destinatario {
   email: string;
 }
 
-const DESTINATARIOS_KEY = "controle-revisao-destinatarios";
+const DESTINATARIOS_FIXOS: Destinatario[] = [
+  { nome: "Marcel", email: "marcel.ochsenhofer@mahindrabrazil.com" },
+  { nome: "Vinicius", email: "ferreira.Vinicius@mahindrabrazil.com" },
+];
 
-function loadDestinatarios(): Destinatario[] {
-  if (typeof window === "undefined") return [];
+// Persistência de destinatários no Supabase (antes era localStorage e sumia)
+async function loadDestinatariosSupabase(): Promise<Destinatario[]> {
   try {
-    const raw = localStorage.getItem(DESTINATARIOS_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const { data } = await supabase
+      .from("revisao_destinatarios")
+      .select("nome, email")
+      .order("nome", { ascending: true });
+    const extras = (data || []) as Destinatario[];
+    // Mescla fixos + extras do banco (sem duplicar)
+    const emailsFixos = new Set(DESTINATARIOS_FIXOS.map(d => d.email.toLowerCase()));
+    return [...DESTINATARIOS_FIXOS, ...extras.filter(d => !emailsFixos.has(d.email.toLowerCase()))];
   } catch {
-    return [];
+    return [...DESTINATARIOS_FIXOS];
   }
 }
 
-function saveDestinatarios(list: Destinatario[]) {
-  localStorage.setItem(DESTINATARIOS_KEY, JSON.stringify(list));
+async function saveDestinatarioSupabase(dest: Destinatario): Promise<boolean> {
+  const { error } = await supabase
+    .from("revisao_destinatarios")
+    .upsert({ nome: dest.nome, email: dest.email }, { onConflict: "email" });
+  return !error;
+}
+
+async function removeDestinatarioSupabase(email: string): Promise<boolean> {
+  const { error } = await supabase
+    .from("revisao_destinatarios")
+    .delete()
+    .eq("email", email);
+  return !error;
 }
 
 function formatarData(valor: string | undefined | null): string {
@@ -75,7 +95,9 @@ function DashboardAgrupadoInner() {
   const [revisaoEnvio, setRevisaoEnvio] = useState("");
   const [nomeRemetente, setNomeRemetente] = useState("");
   const [destinatarios, setDestinatarios] = useState<Destinatario[]>([]);
-  const [destinatariosSelecionados, setDestinatariosSelecionados] = useState<Set<string>>(new Set());
+  const [destinatariosSelecionados, setDestinatariosSelecionados] = useState<Set<string>>(
+    new Set(DESTINATARIOS_FIXOS.map(d => d.email))
+  );
   const [novoDestNome, setNovoDestNome] = useState("");
   const [novoDestEmail, setNovoDestEmail] = useState("");
   const [horimetroEnvio, setHorimetroEnvio] = useState("");
@@ -88,7 +110,7 @@ function DashboardAgrupadoInner() {
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    setDestinatarios(loadDestinatarios());
+    loadDestinatariosSupabase().then(setDestinatarios);
   }, []);
 
   const fetchEmails = async (forceRefresh = false) => {
@@ -190,25 +212,29 @@ function DashboardAgrupadoInner() {
     }, {} as Record<string, Trator[]>);
   }, [tratores, busca, filtroCliente]);
 
-  const adicionarDestinatario = () => {
+  const adicionarDestinatario = async () => {
     if (!novoDestNome.trim() || !novoDestEmail.trim()) return;
     const novo: Destinatario = { nome: novoDestNome.trim(), email: novoDestEmail.trim() };
-    const updated = [...destinatarios, novo];
-    setDestinatarios(updated);
-    saveDestinatarios(updated);
+    // Atualiza UI imediatamente
+    setDestinatarios(prev => [...prev, novo]);
     setNovoDestNome("");
     setNovoDestEmail("");
+    // Salva no Supabase
+    const ok = await saveDestinatarioSupabase(novo);
+    if (!ok) {
+      // Reverte se falhou
+      setDestinatarios(prev => prev.filter(d => d.email !== novo.email));
+    }
   };
 
-  const removerDestinatario = (email: string) => {
-    const updated = destinatarios.filter(d => d.email !== email);
-    setDestinatarios(updated);
-    saveDestinatarios(updated);
+  const removerDestinatario = async (email: string) => {
+    setDestinatarios(prev => prev.filter(d => d.email !== email));
     setDestinatariosSelecionados(prev => {
       const next = new Set(prev);
       next.delete(email);
       return next;
     });
+    await removeDestinatarioSupabase(email);
   };
 
   const toggleDestinatario = (email: string) => {
@@ -1016,12 +1042,14 @@ function DashboardAgrupadoInner() {
                                 <p className="text-base text-zinc-800">{d.nome}</p>
                                 <p className="text-sm text-zinc-400 truncate">{d.email}</p>
                               </div>
-                              <button
-                                onClick={(e) => { e.preventDefault(); removerDestinatario(d.email); }}
-                                className="text-zinc-400 hover:text-red-500 text-sm transition-colors shrink-0"
-                              >
-                                remover
-                              </button>
+                              {!DESTINATARIOS_FIXOS.some(f => f.email.toLowerCase() === d.email.toLowerCase()) && (
+                                <button
+                                  onClick={(e) => { e.preventDefault(); removerDestinatario(d.email); }}
+                                  className="text-zinc-400 hover:text-red-500 text-sm transition-colors shrink-0"
+                                >
+                                  remover
+                                </button>
+                              )}
                             </label>
                           ))}
 

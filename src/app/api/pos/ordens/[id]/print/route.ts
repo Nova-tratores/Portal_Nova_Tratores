@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
-import { TBL_OS, TBL_ITENS, TBL_REQ_SOL, TBL_REQ_ATT, VALOR_HORA, VALOR_KM } from "@/lib/pos/constants";
+import { TBL_OS, TBL_ITENS, TBL_REQ_SOL, TBL_REQ_ATT, TBL_PEDIDOS, VALOR_HORA, VALOR_KM } from "@/lib/pos/constants";
 import { formatarDataBR, safeGet } from "@/lib/pos/utils";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -27,6 +27,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const status = (safeGet(row, "Status") as string) || "-";
   const data = formatarDataBR(safeGet(row, "Data") as string);
   const servSolicitado = (safeGet(row, "Serv_Solicitado") as string) || "-";
+  const servRealizado = (safeGet(row, "Serv_Realizado") as string) || "";
   const ordemOmie = (safeGet(row, "Ordem_Omie") as string) || "";
   const motivoCancel = (safeGet(row, "Motivo_Cancelamento") as string) || "";
   const previsaoExec = safeGet(row, "Previsao_Execucao") ? formatarDataBR(safeGet(row, "Previsao_Execucao") as string) : "";
@@ -75,6 +76,26 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
               ${prods.map(([cod, p]) => `<tr><td>${cod}</td><td>${p.desc}</td><td style="text-align:center">${p.qtde}</td><td style="text-align:right">R$ ${p.preco.toFixed(2)}</td><td style="text-align:right">R$ ${p.total.toFixed(2)}</td></tr>`).join("")}
             </tbody>
           </table>
+        </div>
+        <hr class="sep">`;
+    }
+  }
+
+  // PPVs vinculados
+  let ppvHtml = "";
+  if (listaIds.length > 0) {
+    const { data: ppvs } = await supabase.from(TBL_PEDIDOS).select("id_pedido, status").in("id_pedido", listaIds);
+    if (ppvs && ppvs.length > 0) {
+      ppvHtml = `
+        <div class="section">
+          <div class="section-title">PPV Vinculado</div>
+          <div class="info-grid" style="grid-template-columns: repeat(${Math.min(ppvs.length, 3)}, 1fr);">
+            ${ppvs.map((p) => `<div class="field">
+              <div class="lbl">Nº PPV</div>
+              <div class="val" style="font-weight:700">${p.id_pedido}</div>
+              <div style="margin-top:3px"><span style="display:inline-block;font-size:7pt;font-weight:700;padding:2px 8px;border-radius:4px;background:${p.status === 'Fechado' ? '#D1FAE5' : p.status === 'Cancelado' ? '#FEE2E2' : '#FEF3C7'};color:${p.status === 'Fechado' ? '#065F46' : p.status === 'Cancelado' ? '#991B1B' : '#92400E'};text-transform:uppercase;letter-spacing:0.5px">${p.status || 'Sem status'}</span></div>
+            </div>`).join("")}
+          </div>
         </div>
         <hr class="sep">`;
     }
@@ -250,8 +271,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     <div class="obs-box">${servSolicitado.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>
   </div>
 
+  ${servRealizado ? `<div class="section" style="margin-top:8px">
+    <div class="section-title">Descrição do Serviço Realizado</div>
+    <div class="obs-box">${servRealizado.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>
+  </div>` : ""}
+
   <hr class="sep">
 
+  ${ppvHtml}
   ${produtosHtml}
   ${reqHtml}
 

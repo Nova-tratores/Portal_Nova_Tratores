@@ -122,10 +122,30 @@ function RequisicoesPageInner() {
   const refreshSilencioso = useCallback(() => carregarDados(true), [carregarDados]);
   useRefreshOnFocus(refreshSilencioso);
 
+  // Notificar admins via portal_notificacoes (bell icon)
+  const notificarAdmins = async (tipo: string, titulo: string, descricao?: string, link?: string) => {
+    try {
+      const { data: admins } = await supabase
+        .from('portal_permissoes')
+        .select('user_id')
+        .eq('is_admin', true);
+      if (!admins || admins.length === 0) return;
+      await supabase.from('portal_notificacoes').insert(
+        admins.map((a: { user_id: string }) => ({
+          user_id: a.user_id,
+          tipo,
+          titulo,
+          descricao: descricao || null,
+          link: link || null,
+        }))
+      );
+    } catch (err) { console.error('[Requisições] Erro ao notificar admins:', err); }
+  };
+
   useEffect(() => {
     carregarDados();
 
-    const channel = supabase.channel('main-realtime-stream')
+    const channel = supabase.channel('main-realtime-stream-' + Date.now())
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'Supa-Solicitacao_Req' }, (payload) => {
         tocarAlerta();
         const nova = payload.new;
@@ -140,6 +160,14 @@ function RequisicoesPageInner() {
         setToasts(prev => [info, ...prev]);
         setNotificacoes(prev => [info, ...prev]);
         setContadorNotif(prev => prev + 1);
+
+        // Criar notificação no bell icon para admins
+        notificarAdmins(
+          'requisicao',
+          'Nova Solicitação de Requisição',
+          nova.Material_Serv_Solicitado || 'Solicitação via APP',
+          '/requisicoes'
+        );
 
         carregarDados(true);
         setTimeout(() => carregarDados(true), 2500);
@@ -204,6 +232,14 @@ function RequisicoesPageInner() {
         setNotificacoes(prev => [info, ...prev]);
         setContadorNotif(prev => prev + 1);
 
+        // Criar notificação no bell icon para admins
+        notificarAdmins(
+          'requisicao',
+          'Requisição Atualizada pelo Técnico',
+          `Requisição #${novo.ReqREF} foi atualizada`,
+          '/requisicoes'
+        );
+
         if (novo.ReqFotoNota && novo.ReqREF) {
           await supabase.from('Requisicao')
             .update({ recibo_fornecedor: novo.ReqFotoNota })
@@ -217,7 +253,18 @@ function RequisicoesPageInner() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'Requisicao' }, () => {
         carregarDados(true);
       })
-      .subscribe();
+      .subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('[Requisições] Realtime conectado')
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.error('[Requisições] Erro realtime:', status, err?.message)
+          // Reconectar após 3s
+          setTimeout(() => {
+            supabase.removeChannel(channel)
+            carregarDados(true)
+          }, 3000)
+        }
+      });
 
     return () => { supabase.removeChannel(channel); };
   }, [carregarDados]);

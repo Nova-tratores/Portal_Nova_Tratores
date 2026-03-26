@@ -374,13 +374,20 @@ export function useChat(userId: string | undefined): UseChatReturn {
   }, [userId, carregarChats])
 
   // ==================== REALTIME ====================
+  const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   useEffect(() => {
     if (!userId) return
 
     carregarChats()
     carregarUsuarios()
 
-    const channel = supabase.channel('chat-realtime-' + userId)
+    let currentChannel: ReturnType<typeof supabase.channel> | null = null
+
+    const subscribe = () => {
+      if (currentChannel) supabase.removeChannel(currentChannel)
+
+      currentChannel = supabase.channel('chat-realtime-' + userId + '-' + Date.now())
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
@@ -467,9 +474,37 @@ export function useChat(userId: string | undefined): UseChatReturn {
           setLeituras(prev => ({ ...prev, [row.user_id]: row.ultima_leitura }))
         }
       })
-      .subscribe()
+      .subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('[Chat] Realtime conectado')
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.error('[Chat] Erro realtime:', status, err?.message)
+          retryRef.current = setTimeout(() => {
+            console.log('[Chat] Reconectando...')
+            subscribe()
+          }, 3000)
+        } else if (status === 'CLOSED') {
+          console.warn('[Chat] Canal fechado, reconectando...')
+          retryRef.current = setTimeout(() => subscribe(), 3000)
+        }
+      })
+    }
 
-    return () => { supabase.removeChannel(channel) }
+    subscribe()
+
+    // Recarregar chats quando a aba voltar ao foco
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && userIdRef.current) {
+        carregarChats()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+
+    return () => {
+      if (retryRef.current) clearTimeout(retryRef.current)
+      if (currentChannel) supabase.removeChannel(currentChannel)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
   }, [userId, carregarChats, carregarUsuarios, marcarComoLido])
 
   // Carregar mensagens e leituras quando chat ativo muda

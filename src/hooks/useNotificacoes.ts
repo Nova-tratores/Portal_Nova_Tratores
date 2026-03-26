@@ -73,6 +73,7 @@ export function useNotificacoes(userId: string | undefined) {
   const [loading, setLoading] = useState(true)
   const userIdRef = useRef(userId)
   userIdRef.current = userId
+  const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Pedir permissão na primeira vez
   useEffect(() => { pedirPermissaoNotificacao() }, [])
@@ -88,13 +89,18 @@ export function useNotificacoes(userId: string | undefined) {
 
   const carregar = useCallback(async () => {
     if (!userId) { setNotificacoes([]); setLoading(false); return }
-    const { data } = await supabase
-      .from('portal_notificacoes')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(50)
-    setNotificacoes(data || [])
+    try {
+      const { data, error } = await supabase
+        .from('portal_notificacoes')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(50)
+      if (error) console.error('[Notificações] Erro ao carregar:', error.message)
+      setNotificacoes(data || [])
+    } catch (err) {
+      console.error('[Notificações] Erro ao carregar:', err)
+    }
     setLoading(false)
   }, [userId])
 
@@ -102,30 +108,99 @@ export function useNotificacoes(userId: string | undefined) {
     if (!userId) return
     carregar()
 
-    const channel = supabase.channel('notif-' + userId)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'portal_notificacoes',
-        filter: `user_id=eq.${userId}`
-      }, (payload) => {
-        const nova = payload.new as Notificacao
-        setNotificacoes(prev => {
-          const updated = [nova, ...prev].slice(0, 50)
-          const naoLidasCount = updated.filter(n => !n.lida).length
+    let currentChannel: ReturnType<typeof supabase.channel> | null = null
 
-          // Notificação nativa + título piscante se aba em background
-          enviarNotificacaoNativa(nova.titulo, nova.descricao || undefined, nova.link || undefined)
-          if (document.visibilityState === 'hidden' && naoLidasCount > 0) {
-            iniciarTituloPiscante(naoLidasCount)
-          }
+    const subscribe = () => {
+      // Remove canal anterior se existir
+      if (currentChannel) {
+        supabase.removeChannel(currentChannel)
+      }
 
-          return updated
+      const channelName = 'notif-' + userId + '-' + Date.now()
+      currentChannel = supabase.channel(channelName)
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'portal_notificacoes',
+          filter: `user_id=eq.${userId}`
+        }, (payload) => {
+          const nova = payload.new as Notificacao
+          setNotificacoes(prev => {
+            const updated = [nova, ...prev].slice(0, 50)
+            const naoLidasCount = updated.filter(n => !n.lida).length
+
+            // Notificação nativa + título piscante se aba em background
+            enviarNotificacaoNativa(nova.titulo, nova.descricao || undefined, nova.link || undefined)
+            if (document.visibilityState === 'hidden' && naoLidasCount > 0) {
+              iniciarTituloPiscante(naoLidasCount)
+            }
+
+            return updated
+          })
         })
-      })
-      .subscribe()
+        .subscribe((status, err) => {
+          if (status === 'SUBSCRIBED') {
+            console.log('[Notificações] Realtime conectado')
+          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            console.error('[Notificações] Erro na conexão realtime:', status, err?.message)
+            // Retry após 3 segundos
+            retryRef.current = setTimeout(() => {
+              console.log('[Notificações] Reconectando...')
+              subscribe()
+            }, 3000)
+          } else if (status === 'CLOSED') {
+            console.warn('[Notificações] Canal fechado, reconectando...')
+            retryRef.current = setTimeout(() => subscribe(), 3000)
+          }
+        })
+    }
 
-    return () => { supabase.removeChannel(channel) }
+    subscribe()
+
+    // Polling a cada 30s quando em background (browser throttle mata o WebSocket)
+    const pollInterval = setInterval(async () => {
+      if (document.visibilityState === 'hidden' && userIdRef.current) {
+        try {
+          const { data } = await supabase
+            .from('portal_notificacoes')
+            .select('*')
+            .eq('user_id', userIdRef.current)
+            .eq('lida', false)
+            .order('created_at', { ascending: false })
+            .limit(10)
+          if (data && data.length > 0) {
+            setNotificacoes(prev => {
+              const idsExistentes = new Set(prev.map(n => n.id))
+              const novas = data.filter(n => !idsExistentes.has(n.id))
+              if (novas.length > 0) {
+                // Dispara notificação nativa para cada nova
+                for (const nova of novas) {
+                  enviarNotificacaoNativa(nova.titulo, nova.descricao || undefined, nova.link || undefined)
+                }
+                iniciarTituloPiscante(data.length)
+                return [...novas, ...prev].slice(0, 50)
+              }
+              return prev
+            })
+          }
+        } catch { /* silencioso */ }
+      }
+    }, 30_000)
+
+    // Recarregar quando a aba voltar ao foco (pega o que pode ter perdido)
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && userIdRef.current) {
+        carregar()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+
+    return () => {
+      if (retryRef.current) clearTimeout(retryRef.current)
+      clearInterval(pollInterval)
+      if (currentChannel) supabase.removeChannel(currentChannel)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
   }, [userId, carregar])
 
   const naoLidas = useMemo(() => notificacoes.filter(n => !n.lida).length, [notificacoes])
