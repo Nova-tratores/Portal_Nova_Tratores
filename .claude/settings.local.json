@@ -237,7 +237,14 @@
       "Bash(find /c/projetos/portal -name \"*.ts\" -o -name \"*.tsx\" | xargs grep -l \"Endereco_Cliente\" 2>/dev/null | head -10)",
       "Bash(find /c/projetos/portal -type f -name \"*.ts\" -o -name \"*.tsx\" | head -50 | xargs grep -l \"cidadeCliente\\\\|cidade\" 2>/dev/null | head -20)",
       "Bash(find /c/projetos/portal/src/app/api/pos -type f -name \"*.ts\" 2>/dev/null | head -20)",
-      "Bash(find /c/projetos/portal/src -name \"*ppv*\" -o -name \"*pedido*\" 2>/dev/null | head -20)"
+      "Bash(find /c/projetos/portal/src -name \"*ppv*\" -o -name \"*pedido*\" 2>/dev/null | head -20)",
+      "Bash(find /c/projetos/portal -type f -iname \"*revisao*\" -o -iname \"*cheque*\" -o -iname \"*controle*rev*\" 2>/dev/null | head -20)",
+      "Bash(find /c/projetos/portal/src -type f \\\\\\( -name \"*.js\" -o -name \"*.jsx\" -o -name \"*.ts\" -o -name \"*.tsx\" \\\\\\) 2>/dev/null | head -50)",
+      "Bash(cat /c/projetos/portal/src/app/\\\\\\(portal\\\\\\)/revisoes/page.tsx | head -100)",
+      "Bash(find /c/projetos/portal/src/components -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" -o -name \"*.js\" \\\\\\) | xargs grep -l \"revisao\\\\|revisão\\\\|cheque\" 2>/dev/null | head -20)",
+      "Bash(wc -l /c/projetos/portal/src/app/\\\\\\(portal\\\\\\)/revisoes/page.tsx)",
+      "Bash(find /c/projetos/portal -type f \\\\\\( -name \"*.sql\" -o -name \"*.md\" \\\\\\) | xargs grep -l \"revisao\\\\|controle.*revisao\" 2>/dev/null)",
+      "Bash(grep -r \"revisao_destinatarios\\\\|TBL_REV\\\\|revisoes\" /c/projetos/portal/src/lib --include=\"*.ts\" --include=\"*.js\" 2>/dev/null | head -20)"
     ]
   }
 }
