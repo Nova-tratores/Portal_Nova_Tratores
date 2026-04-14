@@ -8,6 +8,7 @@ interface ItemOrc {
 }
 
 interface BodyOrc {
+  numero?: string;
   cliente: string;
   documento?: string;
   endereco?: string;
@@ -18,6 +19,7 @@ interface BodyOrc {
   maoObra: { valorHora: number; horas: number } | null;
   deslocamento: { valorKm: number; km: number } | null;
   userName?: string;
+  dataEmissao?: string;
 }
 
 function fmt(v: number) {
@@ -25,11 +27,11 @@ function fmt(v: number) {
 }
 
 function gerarHTML(dados: BodyOrc) {
-  const hoje = new Date();
-  const dataEmissao = hoje.toLocaleDateString("pt-BR");
+  const emissaoDate = dados.dataEmissao ? new Date(dados.dataEmissao) : new Date();
+  const dataEmissao = emissaoDate.toLocaleDateString("pt-BR");
   const validade = dados.validade || 15;
-  const dataValidade = new Date(hoje.getTime() + validade * 86400000).toLocaleDateString("pt-BR");
-  const numero = `ORC-${hoje.getFullYear()}${String(hoje.getMonth() + 1).padStart(2, "0")}${String(hoje.getDate()).padStart(2, "0")}${String(hoje.getHours()).padStart(2, "0")}${String(hoje.getMinutes()).padStart(2, "0")}`;
+  const dataValidade = new Date(emissaoDate.getTime() + validade * 86400000).toLocaleDateString("pt-BR");
+  const numero = dados.numero || `ORC-${emissaoDate.getFullYear()}${String(emissaoDate.getMonth() + 1).padStart(2, "0")}${String(emissaoDate.getDate()).padStart(2, "0")}${String(emissaoDate.getHours()).padStart(2, "0")}${String(emissaoDate.getMinutes()).padStart(2, "0")}`;
 
   const totalPecas = dados.itens.reduce((s, i) => s + i.quantidade * i.preco, 0);
   const totalMaoObra = dados.maoObra ? dados.maoObra.valorHora * dados.maoObra.horas : 0;

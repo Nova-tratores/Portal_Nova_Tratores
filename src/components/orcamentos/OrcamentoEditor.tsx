@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
-import { Plus, Trash2, Search, Printer, ToggleLeft, ToggleRight, Package, Wrench, ArrowLeft, Users } from 'lucide-react'
+import { useState, useRef, useCallback, useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
+import { Plus, Trash2, Search, Printer, ToggleLeft, ToggleRight, Package, Wrench, ArrowLeft, Users, Save, List } from 'lucide-react'
 import ModalBuscaProdutoOrc from './ModalBuscaProduto'
 import ModalBuscaClienteOrc from './ModalBuscaCliente'
 
@@ -23,9 +24,11 @@ interface DadosCliente {
 
 interface Props {
   userName: string
+  editarId?: number | null
+  onVoltar?: () => void
 }
 
-export default function OrcamentoEditor({ userName }: Props) {
+export default function OrcamentoEditor({ userName, editarId, onVoltar }: Props) {
   // Etapa: escolha ou editor
   const [tipo, setTipo] = useState<TipoOrcamento | null>(null)
 
@@ -57,8 +60,17 @@ export default function OrcamentoEditor({ userName }: Props) {
   const [modalOpen, setModalOpen] = useState(false)
   const [linhaAlvo, setLinhaAlvo] = useState<number | null>(null)
 
-  // Gerando PDF
+  // Gerando PDF / Salvando
   const [gerando, setGerando] = useState(false)
+  const [salvando, setSalvando] = useState(false)
+
+  // ID e número do orçamento carregado
+  const [orcamentoId, setOrcamentoId] = useState<number | null>(editarId || null)
+  const [orcamentoNumero, setOrcamentoNumero] = useState<string | null>(null)
+  const [carregando, setCarregando] = useState(!!editarId)
+
+  // Status
+  const [status, setStatus] = useState('ativo')
 
   // Toast
   const [toast, setToast] = useState<{ msg: string; type: string } | null>(null)
@@ -69,6 +81,43 @@ export default function OrcamentoEditor({ userName }: Props) {
     setToast({ msg, type })
     toastTimer.current = setTimeout(() => setToast(null), 3000)
   }
+
+  // Carregar orçamento existente
+  useEffect(() => {
+    if (!editarId) return
+    setCarregando(true)
+    supabase.from('orcamentos').select('*').eq('id', editarId).single().then(({ data }) => {
+      if (!data) { setCarregando(false); return }
+      setTipo(data.tipo as TipoOrcamento)
+      setCliente({
+        nome: data.cliente_nome || '',
+        documento: data.cliente_documento || '',
+        endereco: data.cliente_endereco || '',
+        cidade: data.cliente_cidade || '',
+      })
+      setObservacao(data.observacao || '')
+      setValidade(String(data.validade || 15))
+      setItens(data.itens?.length ? data.itens : [{ codigo: '', descricao: '', quantidade: 1, preco: 0 }])
+      if (data.mao_obra) {
+        setIncluirMaoObra(true)
+        setValorHora(data.mao_obra.valorHora || 193)
+        setQuantidadeHoras(data.mao_obra.horas || 1)
+      } else {
+        setIncluirMaoObra(false)
+      }
+      if (data.deslocamento) {
+        setIncluirDeslocamento(true)
+        setValorKm(data.deslocamento.valorKm || 2.8)
+        setQuantidadeKm(data.deslocamento.km || 0)
+      } else {
+        setIncluirDeslocamento(false)
+      }
+      setOrcamentoId(data.id)
+      setOrcamentoNumero(data.numero)
+      setStatus(data.status || 'ativo')
+      setCarregando(false)
+    })
+  }, [editarId])
 
   // Flags baseadas no tipo
   const mostrarPecas = tipo === 'pecas' || tipo === 'completo'
@@ -123,7 +172,64 @@ export default function OrcamentoEditor({ userName }: Props) {
     }
   }
 
-  // Gerar PDF
+  // Montar payload para salvar
+  function montarPayload() {
+    const itensValidos = mostrarPecas ? itens.filter(i => i.descricao.trim()) : []
+    return {
+      tipo: tipo!,
+      cliente_nome: cliente.nome,
+      cliente_documento: cliente.documento || null,
+      cliente_endereco: cliente.endereco || null,
+      cliente_cidade: cliente.cidade || null,
+      observacao: observacao || null,
+      validade: parseInt(validade) || 15,
+      itens: itensValidos,
+      mao_obra: mostrarMaoObra && incluirMaoObra ? { valorHora, horas: quantidadeHoras } : null,
+      deslocamento: mostrarDeslocamento && incluirDeslocamento ? { valorKm, km: quantidadeKm } : null,
+      total: totalGeral,
+      criado_por: userName,
+      status,
+    }
+  }
+
+  // Gerar número sequencial
+  async function gerarNumero(): Promise<string> {
+    const { data } = await supabase
+      .from('orcamentos')
+      .select('id')
+      .order('id', { ascending: false })
+      .limit(1)
+    const prox = (data?.[0]?.id || 0) + 1
+    return `ORC-${String(prox).padStart(4, '0')}`
+  }
+
+  // Salvar (sem gerar PDF)
+  async function salvar() {
+    if (!cliente.nome.trim()) { showToast('Informe o cliente.', 'error'); return }
+    setSalvando(true)
+    try {
+      const payload = montarPayload()
+      if (orcamentoId) {
+        // Update
+        const { error } = await supabase.from('orcamentos').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', orcamentoId)
+        if (error) throw error
+        showToast('Orçamento atualizado!')
+      } else {
+        // Insert
+        const numero = await gerarNumero()
+        const { data, error } = await supabase.from('orcamentos').insert([{ ...payload, numero }]).select('id, numero').single()
+        if (error) throw error
+        setOrcamentoId(data.id)
+        setOrcamentoNumero(data.numero)
+        showToast(`Orçamento ${data.numero} salvo!`)
+      }
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Erro ao salvar', 'error')
+    }
+    setSalvando(false)
+  }
+
+  // Gerar PDF (salva primeiro)
   const gerarPDF = useCallback(async () => {
     if (!cliente.nome.trim()) { showToast('Informe o cliente.', 'error'); return }
     const itensValidos = mostrarPecas ? itens.filter(i => i.descricao.trim()) : []
@@ -134,10 +240,26 @@ export default function OrcamentoEditor({ userName }: Props) {
 
     setGerando(true)
     try {
+      // Salvar primeiro
+      const payload = montarPayload()
+      let numero = orcamentoNumero
+      if (orcamentoId) {
+        await supabase.from('orcamentos').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', orcamentoId)
+      } else {
+        numero = await gerarNumero()
+        const { data, error } = await supabase.from('orcamentos').insert([{ ...payload, numero }]).select('id, numero').single()
+        if (error) throw error
+        setOrcamentoId(data.id)
+        setOrcamentoNumero(data.numero)
+        numero = data.numero
+      }
+
+      // Gerar PDF
       const res = await fetch('/api/orcamentos/pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          numero,
           cliente: cliente.nome,
           documento: cliente.documento,
           endereco: cliente.endereco,
@@ -163,12 +285,12 @@ export default function OrcamentoEditor({ userName }: Props) {
         win.document.write(data.html)
         win.document.close()
       }
-      showToast('Orçamento gerado com sucesso!')
+      showToast(`Orçamento ${numero} gerado!`)
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Erro ao gerar', 'error')
     }
     setGerando(false)
-  }, [cliente, observacao, validade, itens, mostrarPecas, mostrarMaoObra, incluirMaoObra, valorHora, quantidadeHoras, incluirDeslocamento, valorKm, quantidadeKm, userName])
+  }, [cliente, observacao, validade, itens, mostrarPecas, mostrarMaoObra, incluirMaoObra, valorHora, quantidadeHoras, incluirDeslocamento, valorKm, quantidadeKm, userName, orcamentoId, orcamentoNumero])
 
   function limparTudo() {
     setCliente({ nome: '', documento: '', endereco: '', cidade: '' })
@@ -182,9 +304,13 @@ export default function OrcamentoEditor({ userName }: Props) {
     setIncluirDeslocamento(true)
     setValorKm(2.8)
     setQuantidadeKm(0)
+    setOrcamentoId(null)
+    setOrcamentoNumero(null)
+    setStatus('ativo')
   }
 
   function voltar() {
+    if (onVoltar) { onVoltar(); return }
     limparTudo()
     setTipo(null)
   }
@@ -202,12 +328,31 @@ export default function OrcamentoEditor({ userName }: Props) {
 
   const fmt = (v: number) => v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
+  if (carregando) {
+    return (
+      <div style={{ padding: '80px 40px', textAlign: 'center', fontFamily: "'Poppins', sans-serif" }}>
+        <p style={{ color: '#a3a3a3', fontSize: 15, letterSpacing: 2 }}>Carregando orçamento...</p>
+      </div>
+    )
+  }
+
   // ============================
   // TELA DE ESCOLHA
   // ============================
   if (!tipo) {
     return (
       <div style={{ padding: '60px 40px', maxWidth: 900, margin: '0 auto', fontFamily: "'Poppins', sans-serif" }}>
+        {/* Botão voltar para lista */}
+        {onVoltar && (
+          <button onClick={onVoltar} style={{
+            display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px',
+            borderRadius: 10, border: '1px solid #e5e5e5', background: '#fff',
+            cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#737373', marginBottom: 24,
+          }}>
+            <List size={16} /> Voltar para Lista
+          </button>
+        )}
+
         <div style={{ textAlign: 'center', marginBottom: 48 }}>
           <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1a1a1a', margin: 0 }}>
             Novo Orçamento
@@ -328,20 +473,55 @@ export default function OrcamentoEditor({ userName }: Props) {
             <ArrowLeft size={18} color="#737373" />
           </button>
           <div>
-            <h1 style={{ fontSize: 24, fontWeight: 800, color: '#1a1a1a', margin: 0 }}>
-              Orçamento {tipo === 'pecas' ? 'de Peças' : tipo === 'mao-de-obra' ? 'de Mão de Obra' : 'Completo'}
-            </h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <h1 style={{ fontSize: 24, fontWeight: 800, color: '#1a1a1a', margin: 0 }}>
+                {orcamentoNumero ? orcamentoNumero : 'Novo Orçamento'}
+              </h1>
+              {orcamentoNumero && (
+                <span style={{
+                  fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 6,
+                  background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe',
+                }}>
+                  {tipo === 'pecas' ? 'Peças' : tipo === 'mao-de-obra' ? 'Mão de Obra' : 'Completo'}
+                </span>
+              )}
+            </div>
             <p style={{ fontSize: 13, color: '#737373', marginTop: 2 }}>
-              Monte como uma planilha — simples e direto.
+              {orcamentoNumero ? 'Editando orçamento salvo' : 'Monte como uma planilha — simples e direto.'}
             </p>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {/* Status selector */}
+          {orcamentoId && (
+            <select
+              value={status}
+              onChange={e => setStatus(e.target.value)}
+              style={{
+                padding: '10px 14px', borderRadius: 10, border: '1px solid #e5e5e5',
+                fontSize: 12, fontWeight: 600, outline: 'none', fontFamily: "'Poppins', sans-serif",
+                cursor: 'pointer',
+              }}
+            >
+              <option value="ativo">Ativo</option>
+              <option value="aprovado">Aprovado</option>
+              <option value="rejeitado">Rejeitado</option>
+              <option value="expirado">Expirado</option>
+            </select>
+          )}
           <button onClick={limparTudo} style={{
             padding: '10px 20px', borderRadius: 10, border: '1px solid #e5e5e5',
             background: '#fff', color: '#737373', fontSize: 13, fontWeight: 600, cursor: 'pointer',
           }}>
             Limpar
+          </button>
+          <button onClick={salvar} disabled={salvando} style={{
+            padding: '10px 20px', borderRadius: 10, border: '1px solid #e5e5e5',
+            background: '#fff', color: '#1a1a1a', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 8, opacity: salvando ? 0.6 : 1,
+          }}>
+            <Save size={16} />
+            {salvando ? 'Salvando...' : 'Salvar'}
           </button>
           <button onClick={gerarPDF} disabled={gerando} style={{
             padding: '10px 24px', borderRadius: 10, border: 'none',
@@ -350,7 +530,7 @@ export default function OrcamentoEditor({ userName }: Props) {
             opacity: gerando ? 0.6 : 1, display: 'flex', alignItems: 'center', gap: 8,
           }}>
             <Printer size={16} />
-            {gerando ? 'Gerando...' : 'Gerar Orçamento'}
+            {gerando ? 'Gerando...' : 'Gerar PDF'}
           </button>
         </div>
       </div>

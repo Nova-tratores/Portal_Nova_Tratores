@@ -23,7 +23,7 @@ export default function NovoPagarReceber() {
   const fornecedorRef = useRef(null)
 
   const [fileNFServ, setFileNFServ] = useState(null)
-  const [fileBoleto, setFileBoleto] = useState(null)
+  const [filesBoleto, setFilesBoleto] = useState([])
   const [filesReq, setFilesReq] = useState([])
 
   // Requisições do financeiro (carregadas uma vez)
@@ -31,6 +31,9 @@ export default function NovoPagarReceber() {
   const [buscaNota, setBuscaNota] = useState('')
   const [notaSelecionada, setNotaSelecionada] = useState(null)
   const [nfAutoUrl, setNfAutoUrl] = useState(null)
+
+  const [qtdParcelas, setQtdParcelas] = useState(2)
+  const [parcelas, setParcelas] = useState([])
 
   const [formData, setFormData] = useState({
     entidade: '',
@@ -211,7 +214,7 @@ export default function NovoPagarReceber() {
     try {
       // NF: usa a automática ou faz upload da manual
       const nf = nfAutoUrl || await uploadSingle(fileNFServ, 'pagar')
-      const bol = await uploadSingle(fileBoleto, 'pagar')
+      const bol = await uploadMultiple(filesBoleto, 'pagar')
 
       // Requisições: gera PDF de cada requisição + boletos/recibos
       const urlsAuto = []
@@ -227,10 +230,11 @@ export default function NovoPagarReceber() {
       const todasUrls = [...urlsAuto, ...(urlsManuais ? urlsManuais.split(', ') : [])].filter(Boolean)
       const reqs = todasUrls.length > 0 ? todasUrls.join(', ') : null
 
-      const { error } = await supabase.from('finan_pagar').insert([{
+      const isParcelado = formData.metodo === 'Boleto Parcelado' && parcelas.length > 0
+      const registro = {
         fornecedor: formData.entidade,
         valor: formData.valor,
-        data_vencimento: formData.vencimento,
+        data_vencimento: isParcelado ? parcelas[0]?.vencimento : formData.vencimento,
         motivo: formData.motivo,
         numero_NF: formData.numero_NF,
         metodo: formData.metodo,
@@ -239,7 +243,12 @@ export default function NovoPagarReceber() {
         anexo_requisicao: reqs,
         is_requisicao: true,
         status: 'financeiro'
-      }])
+      }
+      if (isParcelado) {
+        registro.qtd_parcelas = parcelas.length
+        registro.parcelas_vencimentos = parcelas.map(p => `${p.vencimento}|${p.valor}`).join(', ')
+      }
+      const { error } = await supabase.from('finan_pagar').insert([registro])
       if (error) throw error
       auditLog({ sistema: 'financeiro', acao: 'criar', entidade: 'finan_pagar', entidade_label: `Pagar - ${formData.entidade} - R$ ${formData.valor}`, detalhes: { fornecedor: formData.entidade, valor: formData.valor, metodo: formData.metodo, nf: formData.numero_NF } })
       notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} criou registro financeiro`, `Fornecedor: ${formData.entidade} — R$ ${formData.valor}`, '/financeiro')
@@ -397,9 +406,10 @@ export default function NovoPagarReceber() {
 
             {/* METODO */}
             <Field label="Metodo de Pagamento" icon={<CreditCard size={18} />}>
-              <select required style={selectStyle} onChange={e => setFormData({...formData, metodo: e.target.value})}>
+              <select required style={selectStyle} onChange={e => { setFormData({...formData, metodo: e.target.value}); if (e.target.value !== 'Boleto Parcelado') setParcelas([]); }}>
                 <option value="">Selecione...</option>
                 <option value="Boleto">Boleto</option>
+                <option value="Boleto Parcelado">Boleto Parcelado</option>
                 <option value="Pix">Pix</option>
                 <option value="Cartão de Crédito">Cartao de Credito</option>
                 <option value="Cartão de Débito">Cartao de Debito</option>
@@ -424,14 +434,93 @@ export default function NovoPagarReceber() {
             )}
 
             {/* VALOR + VENCIMENTO */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              <Field label="Valor do Registro" icon={<Hash size={18} />}>
+            <div style={{ display: 'grid', gridTemplateColumns: formData.metodo === 'Boleto Parcelado' ? '1fr' : '1fr 1fr', gap: '16px' }}>
+              <Field label="Valor Total" icon={<Hash size={18} />}>
                 <input type="number" step="0.01" placeholder="0,00" required style={inputIconStyle} value={formData.valor} onChange={e => setFormData({...formData, valor: e.target.value})} />
               </Field>
-              <Field label="Data de Vencimento" icon={<Calendar size={18} />}>
-                <input type="date" required style={inputIconStyle} onChange={e => setFormData({...formData, vencimento: e.target.value})} />
-              </Field>
+              {formData.metodo !== 'Boleto Parcelado' && (
+                <Field label="Data de Vencimento" icon={<Calendar size={18} />}>
+                  <input type="date" required style={inputIconStyle} onChange={e => setFormData({...formData, vencimento: e.target.value})} />
+                </Field>
+              )}
             </div>
+
+            {/* PARCELAS — só aparece quando Boleto Parcelado */}
+            {formData.metodo === 'Boleto Parcelado' && (
+              <div style={{ padding: '20px', background: '#f0f9ff', borderRadius: '12px', border: '1px solid #bae6fd', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <CreditCard size={16} style={{ color: '#0284c7' }} />
+                  <label style={{ ...labelStyle, marginBottom: 0, color: '#0c4a6e' }}>Parcelamento</label>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <label style={{ fontSize: '13px', color: '#0c4a6e', fontWeight: '500', whiteSpace: 'nowrap' }}>Quantidade de Parcelas</label>
+                  <input
+                    type="number" min="2" max="48" value={qtdParcelas}
+                    onChange={e => {
+                      const qtd = Math.max(2, Math.min(48, parseInt(e.target.value) || 2))
+                      setQtdParcelas(qtd)
+                      const valorTotal = parseFloat(formData.valor) || 0
+                      const valorParcela = valorTotal > 0 ? (valorTotal / qtd).toFixed(2) : ''
+                      const novas = Array.from({ length: qtd }, (_, i) => ({
+                        valor: valorParcela,
+                        vencimento: parcelas[i]?.vencimento || ''
+                      }))
+                      setParcelas(novas)
+                    }}
+                    style={{ ...inputStyle, width: '80px', textAlign: 'center', padding: '10px' }}
+                  />
+                  <button type="button" onClick={() => {
+                    const qtd = qtdParcelas
+                    const valorTotal = parseFloat(formData.valor) || 0
+                    const valorParcela = valorTotal > 0 ? (valorTotal / qtd).toFixed(2) : ''
+                    const novas = Array.from({ length: qtd }, (_, i) => ({
+                      valor: valorParcela,
+                      vencimento: parcelas[i]?.vencimento || ''
+                    }))
+                    setParcelas(novas)
+                  }} style={{ background: '#0284c7', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px 16px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    Gerar Parcelas
+                  </button>
+                </div>
+
+                {formData.valor && parcelas.length > 0 && (
+                  <div style={{ fontSize: '13px', color: '#0c4a6e', background: '#e0f2fe', padding: '10px 14px', borderRadius: '8px' }}>
+                    {parcelas.length}x de R$ {(parseFloat(formData.valor) / parcelas.length).toFixed(2).replace('.', ',')}
+                  </div>
+                )}
+
+                {parcelas.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {parcelas.map((p, i) => (
+                      <div key={i} style={{ display: 'grid', gridTemplateColumns: '80px 1fr 1fr', gap: '10px', alignItems: 'center', background: '#fff', padding: '10px 14px', borderRadius: '8px', border: '1px solid #e0f2fe' }}>
+                        <span style={{ fontSize: '13px', fontWeight: '700', color: '#0c4a6e' }}>Parcela {i + 1}</span>
+                        <input
+                          type="number" step="0.01" placeholder="Valor"
+                          value={p.valor}
+                          onChange={e => {
+                            const novas = [...parcelas]
+                            novas[i] = { ...novas[i], valor: e.target.value }
+                            setParcelas(novas)
+                          }}
+                          style={{ ...inputStyle, padding: '8px 10px', fontSize: '13px' }}
+                        />
+                        <input
+                          type="date" required
+                          value={p.vencimento}
+                          onChange={e => {
+                            const novas = [...parcelas]
+                            novas[i] = { ...novas[i], vencimento: e.target.value }
+                            setParcelas(novas)
+                          }}
+                          style={{ ...inputStyle, padding: '8px 10px', fontSize: '13px' }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* DESCRICAO */}
             <div>
@@ -512,7 +601,19 @@ export default function NovoPagarReceber() {
                 </div>
               )}
 
-              <FileUploadBtn file={fileBoleto} onSelect={setFileBoleto} label="Anexar Boleto (Opcional)" />
+              <FileUploadBtn file={null} onSelect={null} label="Anexar Boletos (Opcional)" isMulti filesReq={filesBoleto} setFilesReq={setFilesBoleto} />
+
+              {filesBoleto.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', padding: '12px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e5e7eb' }}>
+                  {filesBoleto.map((f, i) => (
+                    <div key={i} style={{ fontSize: '12px', background: '#ffffff', color: '#1e293b', padding: '6px 12px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid #e5e7eb' }}>
+                      {f.name.substring(0, 20)}
+                      <X size={14} style={{ cursor: 'pointer', color: '#ef4444' }} onClick={() => setFilesBoleto(filesBoleto.filter((_, idx) => idx !== i))} />
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => setFilesBoleto([])} style={{ fontSize: '11px', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Limpar Tudo</button>
+                </div>
+              )}
             </div>
 
             <button disabled={loading} type="submit" style={{

@@ -27,6 +27,12 @@ export interface OrdemServico {
   Previsao_Faturamento: string | null;
 }
 
+export interface ReqResumo {
+  id: string;
+  titulo: string;
+  valor: number;
+}
+
 export interface KanbanCard {
   id: string;
   cliente: string;
@@ -46,6 +52,8 @@ export interface KanbanCard {
   ultimaAcao: string;
   ultimoUsuario: string;
   ultimaData: string;
+  reqInfo: ReqResumo[];
+  relTecnico: string;
 }
 
 export interface ClienteOption {

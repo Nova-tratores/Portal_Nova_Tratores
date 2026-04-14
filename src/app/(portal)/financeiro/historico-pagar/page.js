@@ -109,6 +109,7 @@ export default function HistoricoPagar() {
                 <th style={thStyle}>FORNECEDOR</th>
                 <th style={thStyle}>VALOR</th>
                 <th style={thStyle}>NOTA FISCAL</th>
+                <th style={thStyle}>METODO</th>
                 <th style={thStyle}>VENCIMENTO</th>
                 <th style={{ ...thStyle, textAlign:'center' }}>DOCUMENTOS</th>
               </tr>
@@ -121,6 +122,10 @@ export default function HistoricoPagar() {
                   <td style={{ fontSize:'15px', color:'#000' }}>R$ {item.valor}</td>
                   <td style={{ fontSize:'15px' }}>
                     <span style={tagNota}>NF {item.numero_NF || 'N/A'}</span>
+                  </td>
+                  <td style={{ fontSize:'14px', color:'#616161' }}>
+                    {item.metodo || '—'}
+                    {item.qtd_parcelas > 1 && <span style={{ display:'block', fontSize:'11px', color:'#0284c7', fontWeight:'600' }}>{item.qtd_parcelas}x parcelas</span>}
                   </td>
                   <td style={{ fontSize:'15px', color:'#757575' }}>{formatarDataBR(item.data_vencimento)}</td>
                   <td style={{ textAlign:'center' }}>
@@ -135,11 +140,11 @@ export default function HistoricoPagar() {
                             <Eye size={18} />
                         </a>
                       )}
-                      {item.anexo_boleto && (
-                        <a href={item.anexo_boleto} target="_blank" title="Ver Boleto" style={actionIcon}>
+                      {item.anexo_boleto && item.anexo_boleto.split(',').map((url, i) => url.trim() && (
+                        <a key={`bol-${i}`} href={url.trim()} target="_blank" title={`Ver Boleto ${i + 1}`} style={actionIcon}>
                             <Download size={18} />
                         </a>
-                      )}
+                      ))}
                     </div>
                   </td>
                 </tr>

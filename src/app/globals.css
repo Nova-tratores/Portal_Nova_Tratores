@@ -2070,6 +2070,42 @@ body {
   display: flex;
   gap: 6px;
   font-size: 13px;
+  position: relative;
+}
+
+/* Icon wrap + CSS hover tooltip */
+.mc-icon-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.mc-tooltip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 12px);
+  right: -10px;
+  background: #1e293b;
+  color: #fff;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 11px;
+  z-index: 9999;
+  min-width: 200px;
+  max-width: 300px;
+  white-space: normal;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+}
+.mc-tooltip-arrow {
+  position: absolute;
+  bottom: -5px;
+  right: 12px;
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid #1e293b;
+}
+.mc-icon-wrap:hover .mc-tooltip {
+  display: block;
 }
 
 .mini-card-phase {

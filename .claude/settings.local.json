@@ -415,7 +415,14 @@
       "Bash(find /c/projetos/portal -name \"*finan*\" -type f 2>/dev/null | grep -v node_modules | grep -v \".next\"])",
       "Bash(find /c/projetos/portal/src -path \"*/financeiro/*\" -name \"*.js\" -o -path \"*/financeiro/*\" -name \"*.jsx\" -o -path \"*/financeiro/*\" -name \"*.ts\" -o -path \"*/financeiro/*\" -name \"*.tsx\" 2>/dev/null | head -30)",
       "Bash(ls \"C:/projetos/portal/src/app/\\(portal\\)/requisicoes/\")",
-      "Bash(find /c/projetos/portal -type f \\\\\\( -name \"*.sql\" -o -name \"schema*\" -o -name \"*types*\" \\\\\\) 2>/dev/null | head -20)"
+      "Bash(find /c/projetos/portal -type f \\\\\\( -name \"*.sql\" -o -name \"schema*\" -o -name \"*types*\" \\\\\\) 2>/dev/null | head -20)",
+      "Bash(find \"C:\\\\projetos\\\\portal\\\\src\\\\app\" -type f -name \"*financeiro*\" -o -name \"*pagar*\" -o -name \"*chamado*\" 2>/dev/null | head -50)",
+      "Bash(find \"C:\\\\projetos\\\\portal\\\\src\\\\app\\\\\\(portal\\)\\\\financeiro\" -name \"page.js\" -o -name \"layout.js\" | sort)",
+      "Bash(find /c/projetos/portal -type f -name \"*orcament*\" -o -name \"*orçament*\" 2>/dev/null | head -20)",
+      "Bash(find \"C:\\\\projetos\\\\portal\" -type d -name \"*pos*\" -o -type d -name \"*ppv*\" 2>/dev/null | head -20)",
+      "Bash(ls -la \"C:\\\\projetos\\\\portal/src/app/\\\\\\(portal\\\\\\)/pos/\")",
+      "Bash(ls -la \"C:/projetos/portal/src/app/\\(portal\\)/pos/\")",
+      "Bash(ls -la \"C:/projetos/portal/src/app/\\(portal\\)/ppv/\")"
     ]
   }
 }

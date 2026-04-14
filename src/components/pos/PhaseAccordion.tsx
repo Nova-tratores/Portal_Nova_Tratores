@@ -55,8 +55,10 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
   const diasFase = diasEntre(o.dataFase);
   const borderStyle = useMemo(() => ({ borderLeftColor: color }), [color]);
 
+  const temReqInfo = o.reqInfo && o.reqInfo.length > 0;
+
   return (
-    <div className="mini-card" style={borderStyle} onClick={onClick}>
+    <div className="mini-card" style={{ ...borderStyle, position: "relative", overflow: "visible" }} onClick={onClick}>
       {onPhaseChange && (
         <div className="mini-card-phase" onClick={(e) => e.stopPropagation()}>
           <select
@@ -96,8 +98,45 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
         <span className="mini-card-dias">{diasFase}d</span>
         <span className="mini-card-icons">
           {o.temPPV && <i className="fas fa-box" style={S_ICON_COLOR} />}
-          {o.temReq && <i className="fas fa-shopping-cart" style={S_ICON_COLOR} />}
-          {o.temRel && <i className="fas fa-file-alt" style={S_ICON_COLOR} />}
+
+          {/* Ícone REQ — tooltip no hover */}
+          <span className="mc-icon-wrap" onClick={(e) => e.stopPropagation()}>
+            <i className="fas fa-shopping-cart" style={{ color: o.temReq ? "#1E3A5F" : "var(--border)" }} />
+            {temReqInfo && (
+              <div className="mc-tooltip">
+                <div className="mc-tooltip-arrow" />
+                <div style={{ fontSize: 9, fontWeight: 700, color: "#fbbf24", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>
+                  Requisições ({o.reqInfo!.length})
+                </div>
+                {o.reqInfo!.map((r) => (
+                  <div key={r.id} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                    <span style={{ fontWeight: 700, color: "#fbbf24" }}>#{r.id}</span>
+                    <span style={{ fontWeight: 700, color: "#34d399" }}>
+                      R$ {r.valor.toFixed(2).replace(".", ",")}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </span>
+
+          {/* Ícone REL — tooltip no hover */}
+          <span className="mc-icon-wrap" onClick={(e) => e.stopPropagation()}>
+            <i className="fas fa-file-alt" style={{ color: o.temRel ? "#1E3A5F" : "var(--border)" }} />
+            {o.temRel && (
+              <div className="mc-tooltip">
+                <div className="mc-tooltip-arrow" />
+                <div style={{ fontSize: 9, fontWeight: 700, color: "#60a5fa", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>
+                  Relatório Técnico
+                </div>
+                <div style={{ color: "#e2e8f0", fontSize: 12 }}>
+                  {o.relTecnico ? (
+                    <>Preenchido por <span style={{ fontWeight: 700, color: "#60a5fa" }}>{o.relTecnico}</span></>
+                  ) : "Relatório anexado"}
+                </div>
+              </div>
+            )}
+          </span>
         </span>
       </div>
     </div>

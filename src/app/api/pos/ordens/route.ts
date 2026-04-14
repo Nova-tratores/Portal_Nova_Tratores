@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
-import { TBL_OS, TBL_LOGS_PPO, TBL_METRICAS, VALOR_HORA, VALOR_KM, TBL_ITENS, TBL_REQ_ATT, TBL_PEDIDOS, FASES_CONTADOR_PARADO } from "@/lib/pos/constants";
+import { TBL_OS, TBL_LOGS_PPO, TBL_METRICAS, VALOR_HORA, VALOR_KM, TBL_ITENS, TBL_REQ_SOL, TBL_REQ_ATT, TBL_PEDIDOS, FASES_CONTADOR_PARADO } from "@/lib/pos/constants";
 import { formatarDataBR, safeGet } from "@/lib/pos/utils";
 import { sincronizarStatusPPV } from "@/lib/pos/sync-ppv";
 import { logAndNotify } from "@/lib/server/audit-notify";
@@ -146,15 +146,45 @@ async function atualizarMetricasAbertas() {
 
 async function getOrdensParaKanban(): Promise<KanbanCard[]> {
   // Todas as queries em paralelo
-  const [{ data: ordens }, { data: logs }, { data: metricasAbertas }] = await Promise.all([
+  const [{ data: ordens }, { data: logs }, { data: metricasAbertas }, { data: reqsNovas }, { data: relatorios }, { data: reqsSol }, { data: reqsAtt }] = await Promise.all([
     supabase.from(TBL_OS).select("*").order("Id_Ordem", { ascending: false }),
     supabase.from(TBL_LOGS_PPO).select("Id_ppo,Data_Acao,Hora_Acao,acao,UsuEmail").order("id", { ascending: false }),
     supabase.from(TBL_METRICAS).select("id_ordem, dias").is("data_fim", null),
+    supabase.from("Requisicao").select("id, titulo, valor_cobrado_cliente, ordem_servico"),
+    supabase.from("Ordem_Servico_Tecnicos").select("Ordem_Servico, NomResp"),
+    supabase.from(TBL_REQ_SOL).select("IdReq, Material_Serv_Solicitado"),
+    supabase.from(TBL_REQ_ATT).select("ReqREF, ReqValor"),
   ]);
 
   const mapaAtraso: Record<string, number> = {};
   (metricasAbertas || []).forEach((m) => {
     mapaAtraso[m.id_ordem] = Math.max(mapaAtraso[m.id_ordem] || 0, m.dias || 0);
+  });
+
+  // Mapa legado: IdReq → { titulo, valor }
+  const mapaReqSol: Record<string, string> = {};
+  (reqsSol || []).forEach((s) => { if (s.IdReq) mapaReqSol[String(s.IdReq)] = s.Material_Serv_Solicitado || ""; });
+  const mapaReqAtt: Record<string, number> = {};
+  (reqsAtt || []).forEach((a) => { if (a.ReqREF) mapaReqAtt[String(a.ReqREF)] = parseFloat(a.ReqValor || 0) || 0; });
+
+  // Mapa: ordem_servico → requisições (novo sistema)
+  const mapaReqs: Record<string, Array<{ id: string; titulo: string; valor: number }>> = {};
+  (reqsNovas || []).forEach((r) => {
+    const osId = String(r.ordem_servico || "");
+    if (!osId) return;
+    if (!mapaReqs[osId]) mapaReqs[osId] = [];
+    mapaReqs[osId].push({
+      id: String(r.id),
+      titulo: r.titulo || "",
+      valor: parseFloat(r.valor_cobrado_cliente || 0) || 0,
+    });
+  });
+
+  // Mapa: ordem_servico → técnico do relatório
+  const mapaRelTecnico: Record<string, string> = {};
+  (relatorios || []).forEach((r) => {
+    const osId = String(r.Ordem_Servico || "");
+    if (osId && r.NomResp) mapaRelTecnico[osId] = r.NomResp;
   });
 
   const mapaDatasFase: Record<string, string> = {};
@@ -173,6 +203,20 @@ async function getOrdensParaKanban(): Promise<KanbanCard[]> {
   return (ordens || []).map((row) => {
     const osId = safeGet(row, "Id_Ordem") as string;
     const ultimoLog = mapaUltimoLog[osId];
+    // Juntar requisições novas + legadas
+    const reqsDoCard: Array<{ id: string; titulo: string; valor: number }> = [...(mapaReqs[osId] || [])];
+    const idsJaNoCard = new Set(reqsDoCard.map((r) => r.id));
+    const idReqStr = String(safeGet(row, "Id_Req") || "");
+    if (idReqStr) {
+      idReqStr.split(",").map((s) => s.trim()).filter(Boolean).forEach((rid) => {
+        if (idsJaNoCard.has(rid)) return;
+        reqsDoCard.push({
+          id: rid,
+          titulo: mapaReqSol[rid] || "Requisição legada",
+          valor: mapaReqAtt[rid] || 0,
+        });
+      });
+    }
     return {
       id: osId,
       cliente: (safeGet(row, "Os_Cliente") as string) || "",
@@ -183,7 +227,7 @@ async function getOrdensParaKanban(): Promise<KanbanCard[]> {
       status: (safeGet(row, "Status") as string) || "Orçamento",
       temPPV: !!safeGet(row, "ID_PPV"),
       ppvId: String(safeGet(row, "ID_PPV") || ""),
-      temReq: !!safeGet(row, "Id_Req"),
+      temReq: reqsDoCard.length > 0,
       temRel: !!safeGet(row, "ID_Relatorio_Final"),
       servSolicitado: (safeGet(row, "Serv_Solicitado") as string) || "-",
       previsaoExecucao: (safeGet(row, "Previsao_Execucao") as string) || "",
@@ -192,6 +236,8 @@ async function getOrdensParaKanban(): Promise<KanbanCard[]> {
       ultimaAcao: ultimoLog?.acao || "",
       ultimoUsuario: ultimoLog?.usuario || "",
       ultimaData: ultimoLog?.data || "",
+      reqInfo: reqsDoCard,
+      relTecnico: mapaRelTecnico[osId] || "",
     };
   });
 }

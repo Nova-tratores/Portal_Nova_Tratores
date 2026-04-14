@@ -566,6 +566,28 @@ function HomeFinanceiroContent() {
                         placeholder="Detalhes do pagamento, observações relevantes..."
                     />
                 </div>
+
+                {/* PARCELAS — só aparece se for Boleto Parcelado */}
+                {tarefaSelecionada.metodo === 'Boleto Parcelado' && tarefaSelecionada.parcelas_vencimentos && (
+                  <div style={{ padding:'20px', background:'#f0f9ff', borderRadius:'12px', border:'1px solid #bae6fd' }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'14px' }}>
+                      <CreditCard size={16} style={{ color:'#0284c7' }} />
+                      <label style={{ ...labelMStyle, marginBottom:0, color:'#0c4a6e' }}>PARCELAS ({tarefaSelecionada.qtd_parcelas || '—'}x)</label>
+                    </div>
+                    <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                      {tarefaSelecionada.parcelas_vencimentos.split(',').map((entry, i) => {
+                        const [data, valor] = entry.trim().split('|')
+                        return (
+                          <div key={i} style={{ display:'grid', gridTemplateColumns:'80px 1fr 1fr', gap:'10px', alignItems:'center', background:'#fff', padding:'10px 14px', borderRadius:'8px', border:'1px solid #e0f2fe' }}>
+                            <span style={{ fontSize:'13px', fontWeight:'700', color:'#0c4a6e' }}>Parcela {i + 1}</span>
+                            <span style={{ fontSize:'14px', color:'#1e293b' }}>R$ {parseFloat(valor || 0).toFixed(2).replace('.', ',')}</span>
+                            <span style={{ fontSize:'14px', color:'#64748b' }}>{data ? new Date(data + 'T00:00:00').toLocaleDateString('pt-BR') : '—'}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
             </div>
         )}
 
@@ -768,7 +790,18 @@ function HomeFinanceiroContent() {
                 </div>
                 <div style={{ display:'flex', gap:'15px', flexWrap:'wrap' }}>
                   <AttachmentTag icon={<FileText size={18}/>} label="Nota Fiscal" fileUrl={tarefaSelecionada.anexo_nf} onUpload={f => handleUpdateFileDirect(tarefaSelecionada, 'anexo_nf', f)} />
-                  <AttachmentTag icon={<Barcode size={18}/>} label="Boleto" fileUrl={tarefaSelecionada.anexo_boleto} onUpload={f => handleUpdateFileDirect(tarefaSelecionada, 'anexo_boleto', f)} />
+                  {tarefaSelecionada.anexo_boleto && tarefaSelecionada.anexo_boleto.split(',').map((url, i) => url.trim() && (
+                    <AttachmentTag key={`bol-${i}`} icon={<Barcode size={18}/>} label={`Boleto ${i + 1}`} fileUrl={url.trim()} onUpload={null} />
+                  ))}
+                  <AttachmentTag icon={<Barcode size={18}/>} label={tarefaSelecionada.anexo_boleto ? 'Adicionar Boleto' : 'Boleto'} fileUrl={null} onUpload={async f => {
+                    const path = `pagar/${Date.now()}-${f.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+                    await supabase.storage.from('anexos').upload(path, f);
+                    const { data: urlData } = supabase.storage.from('anexos').getPublicUrl(path);
+                    const novaUrl = urlData.publicUrl;
+                    const atual = tarefaSelecionada.anexo_boleto;
+                    const atualizado = atual ? `${atual}, ${novaUrl}` : novaUrl;
+                    handleUpdateField(tarefaSelecionada, 'anexo_boleto', atualizado);
+                  }} />
                   {tarefaSelecionada.comprovante_pagamento && <AttachmentTag icon={<CheckCircle size={18}/>} label="Comprovante" fileUrl={tarefaSelecionada.comprovante_pagamento} onUpload={f => handleUpdateFileDirect(tarefaSelecionada, 'comprovante_pagamento', f)} />}
                   {tarefaSelecionada.anexo_requisicao && tarefaSelecionada.anexo_requisicao.split(',').map((url, i) => url.trim() && (
                     <AttachmentTag key={`req-old-${i}`} icon={<Paperclip size={18}/>} label={`Requisicao ${i + 1}`} fileUrl={url.trim()} onUpload={null} />
