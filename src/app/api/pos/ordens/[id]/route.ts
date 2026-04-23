@@ -4,6 +4,7 @@ import { TBL_OS, TBL_LOGS_PPO, TBL_REQ_SOL, TBL_REQ_ATT, TBL_ITENS, VALOR_HORA, 
 import { formatarDataBR, safeGet } from "@/lib/pos/utils";
 import { sincronizarStatusPPV } from "@/lib/pos/sync-ppv";
 import { logAndNotify } from "@/lib/server/audit-notify";
+import { checarIrregularidade } from "@/lib/pos/checarIrregularidade";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: idOs } = await params;
@@ -251,6 +252,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   // Sincroniza status do PPV vinculado
   await sincronizarStatusPPV(idOs, dados.status);
+
+  // Re-checa pendência Mahindra se mudou Tipo_Servico, Revisao ou Projeto
+  try {
+    const pendencia = await checarIrregularidade({
+      Projeto: dados.projeto,
+      Serv_Solicitado: dados.servicoSolicitado,
+      Tipo_Servico: dados.tipoServico,
+      Revisao: dados.revisao,
+    });
+    await supabase.from(TBL_OS).update({ pendencia_mahindra: pendencia }).eq("Id_Ordem", idOs);
+  } catch (e) {
+    console.error('Erro ao re-checar irregularidade Mahindra:', e);
+  }
 
   // Sincronizar agenda_tecnico com período de execução (início → faturamento)
   const tecNome = dados.tecnicoResponsavel || "";

@@ -4,6 +4,7 @@ import { TBL_OS, TBL_LOGS_PPO, TBL_METRICAS, VALOR_HORA, VALOR_KM, TBL_ITENS, TB
 import { formatarDataBR, safeGet } from "@/lib/pos/utils";
 import { sincronizarStatusPPV } from "@/lib/pos/sync-ppv";
 import { logAndNotify } from "@/lib/server/audit-notify";
+import { checarIrregularidade } from "@/lib/pos/checarIrregularidade";
 import type { KanbanCard } from "@/lib/pos/types";
 
 /*
@@ -239,6 +240,7 @@ async function getOrdensParaKanban(): Promise<KanbanCard[]> {
       ultimaData: ultimoLog?.data || "",
       reqInfo: reqsDoCard,
       relTecnico: mapaRelTecnico[osId] || "",
+      pendenciaMahindra: (safeGet(row, "pendencia_mahindra") as any) || null,
     };
   });
 }
@@ -417,6 +419,28 @@ export async function POST(req: NextRequest) {
     notifDescricao: `${userNameLog} criou OS ${newId} para ${dados.nomeCliente}`,
     notifLink: `/pos?id=${newId}`,
   });
+
+  // Checagem de pendência Mahindra (inspeção/revisões anteriores)
+  try {
+    const pendencia = await checarIrregularidade({
+      Projeto: dados.projeto,
+      Serv_Solicitado: dados.servicoSolicitado,
+      Tipo_Servico: dados.tipoServico,
+      Revisao: dados.revisao,
+    });
+    if (pendencia) {
+      await supabase.from(TBL_OS).update({ pendencia_mahindra: pendencia }).eq("Id_Ordem", newId);
+      await logAndNotify({
+        userName: userNameLog, sistema: "pos", acao: "pendencia_detectada",
+        entidade: "ordem_servico", entidadeId: newId, entidadeLabel: `OS ${newId}`,
+        notifTitulo: `⚠️ OS irregular: ${newId}`,
+        notifDescricao: `${newId} — ${pendencia.detalhes.join('; ')}`,
+        notifLink: `/pos?id=${newId}`,
+      });
+    }
+  } catch (e) {
+    console.error('Erro ao checar irregularidade Mahindra:', e);
+  }
 
   // Criar entradas na agenda_tecnico para dias de execução
   if (dados.tecnicoResponsavel) {

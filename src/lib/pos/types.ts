@@ -33,6 +33,12 @@ export interface ReqResumo {
   valor: number;
 }
 
+export interface PendenciaMahindra {
+  motivo: string;
+  detalhes: string[];
+  chassis?: string;
+}
+
 export interface KanbanCard {
   id: string;
   cliente: string;
@@ -54,6 +60,7 @@ export interface KanbanCard {
   ultimaData: string;
   reqInfo: ReqResumo[];
   relTecnico: string;
+  pendenciaMahindra?: PendenciaMahindra | null;
 }
 
 export interface ClienteOption {
