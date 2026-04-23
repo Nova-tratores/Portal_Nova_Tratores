@@ -262,17 +262,21 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       : dados.previsaoExecucao ? [dados.previsaoExecucao] : [];
     if (entries.length > 0) {
       await supabase.from('agenda_tecnico').insert(
-        entries.map((dia: string) => ({
-          tecnico_nome: tecNome,
-          id_ordem: idOs,
-          data_agendada: dia.split(' ')[0],
-          turno: 'integral',
-          cliente: dados.nomeCliente || null,
-          endereco: dados.enderecoCliente || null,
-          status: 'agendado',
-          hora_inicio: dados.horaInicioExec || '08:00',
-          hora_fim: dados.horaFimExec || '',
-        }))
+        entries.map((entry: string) => {
+          const [dia, horas] = entry.split(' ')
+          const [hInicio, hFim] = (horas || '').split('-')
+          return {
+            tecnico_nome: tecNome,
+            id_ordem: idOs,
+            data_agendada: dia,
+            turno: 'integral',
+            cliente: dados.nomeCliente || null,
+            endereco: dados.enderecoCliente || null,
+            status: 'agendado',
+            hora_inicio: hInicio || dados.horaInicioExec || '08:00',
+            hora_fim: hFim || dados.horaFimExec || '',
+          }
+        })
       );
     }
   }

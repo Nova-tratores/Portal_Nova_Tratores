@@ -9,7 +9,7 @@ import {
   LogOut, Settings, ClipboardList, Wrench, FileText,
   DollarSign, Package, Menu, X, User as UserIcon,
   LayoutDashboard, Bell, ChevronRight, Activity, Lock, MessageCircle,
-  CheckCheck, Trash2, ExternalLink, Calendar, Users, Calculator, BarChart3
+  CheckCheck, Trash2, ExternalLink, Calendar, Users, Calculator, BarChart3, Eye
 } from 'lucide-react'
 import Link from 'next/link'
 import ChatPanel from './chat/ChatPanel'
@@ -114,6 +114,15 @@ const navItems: NavItem[] = [
     icon: <BarChart3 size={18} />,
     tag: 'ESTOQUE',
     gradient: 'linear-gradient(135deg, #ef4444, #991b1b)',
+    external: true
+  },
+  {
+    id: 'visual-estoque',
+    name: 'Visual Estoque',
+    href: 'http://localhost:3003',
+    icon: <Eye size={18} />,
+    tag: 'SHOWROOM',
+    gradient: 'linear-gradient(135deg, #b91c1c, #7f1d1d)',
     external: true
   }
 ]
@@ -417,7 +426,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
             onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#f0f0f0'; e.currentTarget.style.color = '#737373' }}
             title="Lembretes"
           >
-            <Bell size={20} />
+            <Calendar size={20} />
           </button>
 
           {/* ===== SINO / CENTRAL DE NOTIFICAÇÕES ===== */}
@@ -454,45 +463,50 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
             {/* Dropdown do sino */}
             {bellOpen && (
               <div style={{
-                position: 'absolute', top: 'calc(100% + 8px)', right: 0,
-                width: '400px', maxWidth: 'calc(100vw - 32px)',
-                maxHeight: '480px',
-                background: '#ffffff', borderRadius: '16px',
-                boxShadow: '0 12px 40px rgba(0,0,0,0.15), 0 2px 8px rgba(0,0,0,0.08)',
+                position: 'fixed', top: '92px', right: '120px',
+                width: '420px', maxWidth: 'calc(100vw - 32px)',
+                maxHeight: '520px', zIndex: 10000,
+                background: '#ffffff', borderRadius: '20px',
+                boxShadow: '0 20px 60px rgba(0,0,0,0.15), 0 4px 16px rgba(0,0,0,0.06)',
                 border: '1px solid #f0f0f0',
                 overflow: 'hidden', display: 'flex', flexDirection: 'column',
                 animation: 'bellDropIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
               }}>
                 {/* Header */}
                 <div style={{
-                  padding: '16px 20px', borderBottom: '1px solid #f0f0f0',
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+                  padding: '20px 24px', borderBottom: '1px solid #f0f0f0',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  background: 'linear-gradient(135deg, #fef2f2, #ffffff)'
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Bell size={18} color="#dc2626" />
-                    <span style={{ fontSize: '15px', fontWeight: '700', color: '#1a1a1a' }}>
-                      Notificações
-                    </span>
-                    {totalBell > 0 && (
-                      <span style={{
-                        fontSize: '11px', fontWeight: '700', color: '#fff',
-                        background: '#dc2626', padding: '2px 8px', borderRadius: '10px'
-                      }}>
-                        {totalBell}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{
+                      width: '36px', height: '36px', borderRadius: '10px',
+                      background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      boxShadow: '0 4px 12px rgba(220,38,38,0.25)'
+                    }}>
+                      <Bell size={16} color="#fff" />
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '15px', fontWeight: '700', color: '#1a1a1a', display: 'block' }}>
+                        Notificações
                       </span>
-                    )}
+                      <span style={{ fontSize: '11px', color: '#a3a3a3' }}>
+                        {totalBell > 0 ? `${totalBell} não ${totalBell === 1 ? 'lida' : 'lidas'}` : 'Tudo em dia'}
+                      </span>
+                    </div>
                   </div>
                   {totalBell > 0 && (
                     <button
                       onClick={() => { notifData.marcarTodasComoLidas() }}
                       style={{
-                        background: 'none', border: 'none', color: '#dc2626',
+                        background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626',
                         fontSize: '11px', fontWeight: '600', cursor: 'pointer',
                         display: 'flex', alignItems: 'center', gap: '4px',
-                        padding: '4px 8px', borderRadius: '6px'
+                        padding: '6px 12px', borderRadius: '8px', transition: 'all 0.2s'
                       }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = '#fef2f2' }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = 'none' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = '#fee2e2' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = '#fef2f2' }}
                     >
                       <CheckCheck size={13} /> Marcar lidas
                     </button>
@@ -502,9 +516,16 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                 {/* Lista */}
                 <div style={{ flex: 1, overflowY: 'auto' }}>
                   {bellItems.length === 0 ? (
-                    <div style={{ padding: '40px 20px', textAlign: 'center' }}>
-                      <Bell size={36} color="#e5e5e5" style={{ margin: '0 auto 12px', display: 'block' }} />
-                      <p style={{ color: '#a3a3a3', fontSize: '13px' }}>Nenhuma notificação</p>
+                    <div style={{ padding: '48px 20px', textAlign: 'center' }}>
+                      <div style={{
+                        width: '56px', height: '56px', borderRadius: '16px',
+                        background: '#f5f5f5', margin: '0 auto 16px',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                      }}>
+                        <Bell size={24} color="#d4d4d4" />
+                      </div>
+                      <p style={{ color: '#a3a3a3', fontSize: '14px', fontWeight: '500' }}>Nenhuma notificação</p>
+                      <p style={{ color: '#d4d4d4', fontSize: '12px', marginTop: '4px' }}>Você está em dia!</p>
                     </div>
                   ) : (
                     bellItems.map(item => (
@@ -521,35 +542,49 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                           setBellOpen(false)
                         }}
                         style={{
-                          display: 'flex', alignItems: 'flex-start', gap: '12px',
-                          padding: '14px 20px', cursor: 'pointer',
-                          background: item.lida ? 'transparent' : '#fffbfb',
+                          display: 'flex', alignItems: 'center', gap: '14px',
+                          padding: '14px 24px', cursor: 'pointer',
+                          background: item.lida ? 'transparent' : '#fefbfb',
                           borderBottom: '1px solid #f5f5f5',
-                          borderLeft: item.lida ? '3px solid transparent' : '3px solid #dc2626',
                           transition: 'background 0.15s'
                         }}
                         onMouseEnter={(e) => { e.currentTarget.style.background = '#fafafa' }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = item.lida ? 'transparent' : '#fffbfb' }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = item.lida ? 'transparent' : '#fefbfb' }}
                       >
                         {/* Ícone */}
                         <div style={{
-                          width: '40px', height: '40px', borderRadius: '12px',
-                          background: item.lida ? '#f5f5f5' : '#fef2f2',
+                          width: '42px', height: '42px', borderRadius: '12px',
+                          background: item.tipo === 'chat'
+                            ? (item.lida ? '#f5f5f5' : 'linear-gradient(135deg, #3b82f6, #2563eb)')
+                            : (item.lida ? '#f5f5f5' : '#fef2f2'),
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: '18px', flexShrink: 0
+                          fontSize: '18px', flexShrink: 0,
+                          boxShadow: !item.lida && item.tipo === 'chat' ? '0 4px 12px rgba(59,130,246,0.25)' : 'none'
                         }}>
-                          {item.icone}
+                          {item.tipo === 'chat' ? (
+                            <MessageCircle size={18} color={item.lida ? '#a3a3a3' : '#fff'} />
+                          ) : (
+                            <span>{item.icone}</span>
+                          )}
                         </div>
 
                         {/* Conteúdo */}
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{
-                            fontSize: '13px', fontWeight: item.lida ? '500' : '700',
-                            color: '#1a1a1a', margin: 0, marginBottom: '2px',
-                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
-                          }}>
-                            {item.titulo}
-                          </p>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
+                            <p style={{
+                              fontSize: '13px', fontWeight: item.lida ? '500' : '600',
+                              color: '#1a1a1a', margin: 0,
+                              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                            }}>
+                              {item.titulo}
+                            </p>
+                            {!item.lida && (
+                              <div style={{
+                                width: '7px', height: '7px', borderRadius: '50%',
+                                background: item.tipo === 'chat' ? '#3b82f6' : '#dc2626', flexShrink: 0
+                              }} />
+                            )}
+                          </div>
                           <p style={{
                             fontSize: '12px', color: '#737373', margin: 0,
                             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
@@ -559,20 +594,12 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                         </div>
 
                         {/* Tempo */}
-                        <div style={{ flexShrink: 0, textAlign: 'right' }}>
-                          <span style={{
-                            fontSize: '10px', color: item.lida ? '#d4d4d4' : '#dc2626',
-                            fontWeight: item.lida ? '400' : '600'
-                          }}>
-                            {timeAgo(item.tempo)}
-                          </span>
-                          {!item.lida && (
-                            <div style={{
-                              width: '8px', height: '8px', borderRadius: '50%',
-                              background: '#dc2626', margin: '4px 0 0 auto'
-                            }} />
-                          )}
-                        </div>
+                        <span style={{
+                          fontSize: '11px', color: item.lida ? '#d4d4d4' : '#a3a3a3',
+                          fontWeight: '500', flexShrink: 0
+                        }}>
+                          {timeAgo(item.tempo)}
+                        </span>
                       </div>
                     ))
                   )}
@@ -801,59 +828,113 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       {userProfile?.id && <LembreteAlerta userId={userProfile.id} />}
 
       {/* ===== TOASTS ===== */}
-      <div style={{
-        position: 'fixed', top: '88px', right: '24px',
-        display: 'flex', flexDirection: 'column', gap: '10px',
-        zIndex: 200, pointerEvents: 'none'
+      <div className="print-hidden" style={{
+        position: 'fixed', top: '92px', right: '24px',
+        display: 'flex', flexDirection: 'column', gap: '12px',
+        zIndex: 9999, pointerEvents: 'none'
       }}>
-        {toasts.map((t, i) => (
-          <div
-            key={t.id}
-            onClick={() => handleToastClick(t)}
-            className="notif-toast"
-            style={{
-              width: '380px', maxWidth: 'calc(100vw - 48px)',
-              background: '#ffffff', borderRadius: '16px',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.1)',
-              border: '1px solid #fecaca', cursor: 'pointer',
-              overflow: 'hidden', pointerEvents: 'auto',
-              animation: 'toastSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
-              opacity: i > 1 ? 0.8 : 1
-            }}
-          >
-            <div style={{ height: '3px', background: 'linear-gradient(90deg, #dc2626, #ef4444, #dc2626)', backgroundSize: '200% 100%', animation: 'toastBarShimmer 2s linear infinite' }} />
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 16px' }}>
-              <div style={{
-                width: '44px', height: '44px', borderRadius: '12px',
-                background: t.tipo === 'chat' ? '#fef2f2' : '#f5f5f5',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '20px', flexShrink: 0, overflow: 'hidden'
-              }}>
-                {t.avatar ? (
-                  <img src={t.avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                ) : (
-                  NOTIF_ICONS[t.tipo] || '🔔'
-                )}
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
-                  <span style={{ fontSize: '14px', fontWeight: '700', color: '#1a1a1a' }}>{t.titulo}</span>
-                  <span style={{ fontSize: '9px', fontWeight: '800', color: '#fff', background: '#dc2626', padding: '2px 7px', borderRadius: '4px' }}>NOVA</span>
+        {toasts.map((t, i) => {
+          const isChat = t.tipo === 'chat'
+          return (
+            <div
+              key={t.id}
+              onClick={() => handleToastClick(t)}
+              className="notif-toast"
+              style={{
+                width: '380px', maxWidth: 'calc(100vw - 48px)',
+                background: '#ffffff',
+                borderRadius: isChat ? '20px' : '16px',
+                boxShadow: isChat
+                  ? '0 8px 32px rgba(59,130,246,0.18), 0 2px 8px rgba(0,0,0,0.06)'
+                  : '0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06)',
+                border: isChat ? '2px solid #bfdbfe' : '1px solid #f0f0f0',
+                cursor: 'pointer',
+                overflow: 'hidden', pointerEvents: 'auto',
+                animation: 'toastSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+                opacity: i > 2 ? 0.7 : 1,
+                position: 'relative'
+              }}
+            >
+              {/* Barra de chat tipo balão */}
+              {isChat && (
+                <div style={{
+                  position: 'absolute', top: 0, left: 0, right: 0, height: '3px',
+                  background: 'linear-gradient(90deg, #3b82f6, #60a5fa, #3b82f6)',
+                  backgroundSize: '200% 100%',
+                  animation: 'toastBarShimmer 2s linear infinite'
+                }} />
+              )}
+              {!isChat && (
+                <div style={{ height: '3px', background: 'linear-gradient(90deg, #dc2626, #ef4444)', animation: 'toastProgress 6s linear forwards' }} />
+              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 18px' }}>
+                {/* Avatar / Ícone */}
+                <div style={{
+                  width: '46px', height: '46px',
+                  borderRadius: isChat ? '50%' : '12px',
+                  background: isChat
+                    ? 'linear-gradient(135deg, #3b82f6, #2563eb)'
+                    : '#f5f5f5',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '20px', flexShrink: 0, overflow: 'hidden',
+                  boxShadow: isChat ? '0 4px 14px rgba(59,130,246,0.3)' : 'none',
+                  border: isChat ? '3px solid #dbeafe' : 'none'
+                }}>
+                  {t.avatar ? (
+                    <img src={t.avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : isChat ? (
+                    <MessageCircle size={20} color="#fff" />
+                  ) : (
+                    <span>{NOTIF_ICONS[t.tipo] || '🔔'}</span>
+                  )}
                 </div>
-                <p style={{ fontSize: '13px', color: '#525252', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.preview}</p>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flexShrink: 0 }}>
-                <div style={{ padding: '7px 14px', borderRadius: '8px', background: 'linear-gradient(135deg, #dc2626, #b91c1c)', color: '#fff', fontSize: '11px', fontWeight: '700', textAlign: 'center' }}>
-                  {t.chatId ? 'Abrir' : 'Ver'}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
+                    <span style={{ fontSize: '14px', fontWeight: '700', color: '#1a1a1a' }}>{t.titulo}</span>
+                    <span style={{
+                      fontSize: '9px', fontWeight: '800', color: '#fff',
+                      background: isChat ? '#3b82f6' : '#dc2626',
+                      padding: '2px 7px', borderRadius: '4px'
+                    }}>
+                      {isChat ? 'CHAT' : 'NOVA'}
+                    </span>
+                  </div>
+                  <p style={{
+                    fontSize: '13px', color: '#525252', margin: 0,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    ...(isChat ? {
+                      background: '#f0f7ff',
+                      padding: '6px 10px',
+                      borderRadius: '0 12px 12px 12px',
+                      border: '1px solid #e0edff',
+                      marginTop: '4px',
+                      fontSize: '12px'
+                    } : {})
+                  }}>{t.preview}</p>
                 </div>
-                <button onClick={(e) => dismissToast(e, t.id)} style={{ background: 'none', border: 'none', color: '#a3a3a3', fontSize: '10px', cursor: 'pointer', padding: '2px' }}>Fechar</button>
+                <button onClick={(e) => dismissToast(e, t.id)} style={{
+                  background: '#f5f5f5', border: 'none', color: '#a3a3a3',
+                  fontSize: '10px', cursor: 'pointer', padding: '6px',
+                  borderRadius: '8px', flexShrink: 0, display: 'flex',
+                  alignItems: 'center', justifyContent: 'center',
+                  width: '28px', height: '28px', transition: 'all 0.2s'
+                }}>
+                  <X size={12} />
+                </button>
               </div>
+              {!isChat && (
+                <div style={{ height: '3px', background: '#f5f5f5' }}>
+                  <div style={{ height: '100%', background: 'linear-gradient(90deg, #dc2626, #ef4444)', animation: 'toastProgress 6s linear forwards' }} />
+                </div>
+              )}
+              {isChat && (
+                <div style={{ height: '3px', background: '#eff6ff' }}>
+                  <div style={{ height: '100%', background: 'linear-gradient(90deg, #3b82f6, #60a5fa)', animation: 'toastProgress 6s linear forwards' }} />
+                </div>
+              )}
             </div>
-            <div style={{ height: '3px', background: '#f5f5f5' }}>
-              <div style={{ height: '100%', background: 'linear-gradient(90deg, #dc2626, #ef4444)', animation: 'toastProgress 6s linear forwards' }} />
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {/* ===== CSS ===== */}
@@ -901,7 +982,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         .notif-toast:hover {
           box-shadow: 0 12px 44px rgba(0,0,0,0.22), 0 4px 12px rgba(0,0,0,0.12) !important;
           transform: translateY(-2px) scale(1.01) !important;
-          border-color: #dc2626 !important;
+        }
+        @media print {
+          .print-hidden { display: none !important; }
         }
       `}</style>
     </div>

@@ -994,7 +994,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                           if (start > end) return
                           const days: string[] = []
                           const cur = new Date(start)
-                          while (cur <= end) { const d = cur.toISOString().slice(0, 10); if (cur.getDay() !== 0) days.push(d); cur.setDate(cur.getDate() + 1) }
+                          while (cur <= end) { const d = cur.toISOString().slice(0, 10); if (cur.getDay() !== 0) days.push(`${d} 08:00-17:00`); cur.setDate(cur.getDate() + 1) }
                           setDiasExecucao(days)
                         }} style={{ padding: '6px 8px', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 13, width: '100%' }} />
                       </div>
@@ -1008,24 +1008,40 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                           if (start > end) return
                           const days: string[] = []
                           const cur = new Date(start)
-                          while (cur <= end) { const d = cur.toISOString().slice(0, 10); if (cur.getDay() !== 0) days.push(d); cur.setDate(cur.getDate() + 1) }
+                          while (cur <= end) { const d = cur.toISOString().slice(0, 10); if (cur.getDay() !== 0) days.push(`${d} 08:00-17:00`); cur.setDate(cur.getDate() + 1) }
                           setDiasExecucao(days)
                         }} style={{ padding: '6px 8px', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 13, width: '100%' }} />
                       </div>
                     </div>
-                    {diasExecucao.length > 0 && (
+                    {diasExecucao.length > 0 && (() => {
+                      const timeOpts = Array.from({ length: 48 }, (_, i) => { const h = Math.floor(i / 2); const m = i % 2 === 0 ? '00' : '30'; return `${String(h).padStart(2, '0')}:${m}` })
+                      const selStyle = { padding: '4px 6px', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 12, background: '#fff', cursor: 'pointer' }
+                      return (
                       <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        <div style={{ fontSize: 11, color: '#6B7280', fontWeight: 600, marginBottom: 2 }}>Confirme os dias de execução:</div>
-                        {diasExecucao.map((dia) => {
+                        <div style={{ fontSize: 11, color: '#6B7280', fontWeight: 600, marginBottom: 2 }}>Confirme os dias e horários:</div>
+                        {diasExecucao.map((entry) => {
+                          const [dia, horas] = entry.split(' ')
+                          const [hInicio, hFim] = (horas || '08:00-17:00').split('-')
                           const diaDate = /^\d{4}-\d{2}-\d{2}$/.test(dia) ? new Date(dia + 'T12:00:00') : null
-                          const diaLabel = diaDate && !isNaN(diaDate.getTime()) ? diaDate.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' }) : dia
+                          const diaLabel = diaDate && !isNaN(diaDate.getTime()) ? diaDate.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' }) : dia
                           return (
-                            <label key={dia} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: '#F1F5F9', borderRadius: 6, border: '1px solid #E2E8F0', cursor: 'pointer', fontSize: 13 }}>
+                            <div key={dia} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: '#F1F5F9', borderRadius: 6, border: '1px solid #E2E8F0', fontSize: 13 }}>
                               <input type="checkbox" checked style={{ accentColor: '#1E3A5F', width: 16, height: 16, cursor: 'pointer' }} onChange={(e) => {
-                                if (!e.target.checked) setDiasExecucao(prev => prev.filter(d => d !== dia))
+                                if (!e.target.checked) setDiasExecucao(prev => prev.filter(d => !d.startsWith(dia)))
                               }} />
-                              <span style={{ fontWeight: 600, color: '#1E3A5F' }}>{diaLabel}</span>
-                            </label>
+                              <span style={{ fontWeight: 600, color: '#1E3A5F', minWidth: 85 }}>{diaLabel}</span>
+                              <select value={hInicio} onChange={(e) => {
+                                setDiasExecucao(prev => prev.map(d => d.startsWith(dia) ? `${dia} ${e.target.value}-${hFim}` : d))
+                              }} style={selStyle}>
+                                {timeOpts.map(t => <option key={t} value={t}>{t}</option>)}
+                              </select>
+                              <span style={{ color: '#9CA3AF' }}>às</span>
+                              <select value={hFim} onChange={(e) => {
+                                setDiasExecucao(prev => prev.map(d => d.startsWith(dia) ? `${dia} ${hInicio}-${e.target.value}` : d))
+                              }} style={selStyle}>
+                                {timeOpts.map(t => <option key={t} value={t}>{t}</option>)}
+                              </select>
+                            </div>
                           )
                         })}
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginTop: 4, padding: '4px 10px', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 6 }}>
@@ -1034,8 +1050,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                             {diasExecucao.length} dia{diasExecucao.length > 1 ? 's' : ''} selecionado{diasExecucao.length > 1 ? 's' : ''}
                           </span>
                         </div>
-                      </div>
-                    )}
+                      </div>)
+                    })()}
                     {/* Deslocamento total */}
                     {estimativa && diasExecucao.length > 0 && (
                       <div style={{ marginTop: 8, padding: '8px 12px', background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 8 }}>

@@ -9,7 +9,7 @@ import {
   Settings, ClipboardList, Wrench, FileText,
   DollarSign, Activity, Clock, ChevronRight, Search,
   BarChart3, Users, Package, ClipboardCheck, AlertTriangle,
-  CheckCircle2, Map, RefreshCw, Database, X, Check, Calculator
+  CheckCircle2, Map, RefreshCw, Database, X, Check, Calculator, Eye
 } from 'lucide-react'
 
 interface SystemCard {
@@ -136,6 +136,17 @@ const systems: SystemCard[] = [
     href: 'http://localhost:3002',
     tag: 'ESTOQUE',
     external: true
+  },
+  {
+    id: 'visual-estoque',
+    name: 'Visual Estoque',
+    description: 'Showroom virtual de estoque com visualização de peças e produtos',
+    icon: <Eye size={28} />,
+    color: '#dc2626',
+    gradient: 'linear-gradient(135deg, #b91c1c, #7f1d1d)',
+    href: 'http://localhost:3003',
+    tag: 'SHOWROOM',
+    external: true
   }
 ]
 
@@ -159,6 +170,7 @@ const systemToModulo: Record<string, string> = {
   'painel-mecanicos': 'painel-mecanicos',
   'mapa-geral': 'mapa',
   'consulta-estoque': 'estoque',
+  'visual-estoque': 'visual-estoque',
 }
 
 export default function DashboardPage() {

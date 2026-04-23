@@ -13,7 +13,7 @@ import {
 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxyIatVqhjdeBeo4PYNWr992vCsPpvEEjOxabWB7mz5JRJ7BroxnvR8CRIcXIgTfLSm/exec';
 const DEPARTAMENTOS = ["Trator-Loja", "Trator-Cliente", "Oficina", "Comercial"];
-const TIPOS_REQ = ["Peças", "Alimentação", "Ferramenta", "Serviço de Terceiros", "Almoxarifado", "Insumo Infra", "Veicular Abastecimento", "Veicular Manutenção", "Trator Abastecimento", "Quadri Abastecimento"];
+const TIPOS_REQ = ["Peças", "Alimentação", "Ferramenta", "Serviço de Terceiros", "Almoxarifado", "Insumo Infra", "Veicular Abastecimento", "Veicular Manutenção", "Trator Abastecimento", "Quadri Abastecimento", "Hospedagem"];
 
 type Aba = 'dados' | 'financeiro' | 'anexos';
 
@@ -130,9 +130,13 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
   }, [req.status, req.enviado_financeiro_data, req.id]);
 
   const persist = useCallback((name: string, value: any) => {
-    setLocalData((prev: any) => ({ ...prev, [name]: value }));
+    setLocalData((prev: any) => {
+      if (prev[name] === value) return prev;
+      return { ...prev, [name]: value };
+    });
+    if (req[name] === value) return;
     onUpdate(req.id, { [name]: value });
-  }, [req.id, onUpdate]);
+  }, [req.id, req, onUpdate]);
 
   const setField = useCallback((name: string, value: any) => {
     setLocalData((prev: any) => ({ ...prev, [name]: value }));

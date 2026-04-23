@@ -20,6 +20,9 @@ const MODULOS = [
   { id: 'atividades', label: 'Atividades', color: '#dc2626' },
   { id: 'mapa', label: 'Mapa Geral', color: '#b91c1c' },
   { id: 'painel-mecanicos', label: 'Painel Mecânicos', color: '#dc2626' },
+  { id: 'orcamentos', label: 'Orçamentos', color: '#ef4444' },
+  { id: 'estoque', label: 'Consulta Estoque', color: '#991b1b' },
+  { id: 'visual-estoque', label: 'Visual Estoque', color: '#7f1d1d' },
 ]
 
 const CATEGORIAS = ['Pós Vendas', 'Peças', 'Comercial', 'Financeiro']

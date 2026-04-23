@@ -14,7 +14,7 @@ import FormUsuario from '@/components/requisicoes/FormUsuario';
 import FormVeiculo from '@/components/requisicoes/FormVeiculo';
 import TemplatePDF from '@/components/requisicoes/TemplatePDF';
 import {
-  LayoutDashboard, Users2, Box, Activity, Trash2, Plus, X, UserPlus, Car, Bell, Info, CheckCheck, UserCircle, Edit3, Phone
+  LayoutDashboard, Users2, Box, Activity, Trash2, Plus, X, UserPlus, Car, Bell, Info, CheckCheck, UserCircle, Edit3, Phone, FileText, Printer
 } from 'lucide-react';
 
 function RequisicoesPageInner() {
@@ -34,8 +34,25 @@ function RequisicoesPageInner() {
   const [showNotifModal, setShowNotifModal] = useState(false);
   const [contadorNotif, setContadorNotif] = useState(0);
   const [idDestaque, setIdDestaque] = useState<any>(null);
+  const [filtroRelTipo, setFiltroRelTipo] = useState('');
+  const [filtroRelSetor, setFiltroRelSetor] = useState('');
+  const [filtroRelSolicitante, setFiltroRelSolicitante] = useState('');
+  const [filtroRelBusca, setFiltroRelBusca] = useState('');
 
   const lixeiraCount = useMemo(() => requisicoes.filter(r => r.status === 'lixeira').length, [requisicoes]);
+
+  const reqAbertas = useMemo(() => {
+    return requisicoes.filter(r => r.status !== 'financeiro' && r.status !== 'lixeira')
+      .filter(r => !filtroRelTipo || (r.tipo || r.ReqTipo) === filtroRelTipo)
+      .filter(r => !filtroRelSetor || r.setor === filtroRelSetor)
+      .filter(r => !filtroRelSolicitante || r.solicitante === filtroRelSolicitante)
+      .filter(r => {
+        if (!filtroRelBusca) return true;
+        const b = filtroRelBusca.toLowerCase();
+        return (r.titulo || '').toLowerCase().includes(b) || String(r.id).includes(b) || (r.cliente || '').toLowerCase().includes(b) || (r.Chassis_Modelo || '').toLowerCase().includes(b);
+      })
+      .sort((a: any, b: any) => (b.id || 0) - (a.id || 0));
+  }, [requisicoes, filtroRelTipo, filtroRelSetor, filtroRelSolicitante, filtroRelBusca]);
 
   const dispararImpressao = (dados: any) => {
     setReqParaImprimir(dados);
@@ -336,6 +353,7 @@ function RequisicoesPageInner() {
     { id: 'usuarios', label: 'Usuários', icon: <UserCircle size={16} /> },
     { id: 'veiculos', label: 'Veículos', icon: <Car size={16} /> },
     { id: 'fornecedores', label: 'Fornecedores', icon: <Users2 size={16} /> },
+    { id: 'relatorio', label: 'Relatório', icon: <FileText size={16} /> },
     { id: 'lixeira', label: `Lixeira${lixeiraCount > 0 ? ` (${lixeiraCount})` : ''}`, icon: <Trash2 size={16} /> },
   ];
 
@@ -344,48 +362,179 @@ function RequisicoesPageInner() {
       {reqParaImprimir && <TemplatePDF req={reqParaImprimir} onUpdate={() => {}} onPrint={() => {}} />}
 
       {/* Toasts */}
-      <div className="fixed top-20 right-6 z-[200] flex flex-col gap-3 max-w-sm w-full pointer-events-none">
+      <div className="fixed top-20 right-6 z-[9999] flex flex-col gap-3 max-w-sm w-full pointer-events-none print:hidden">
         {toasts.map((t: any) => (
           <div
             key={t.id}
             onClick={() => abrirNotificacao(t.idOriginal)}
-            className="pointer-events-auto cursor-pointer bg-white border border-zinc-200 shadow-lg p-4 rounded-2xl flex gap-3 items-center hover:shadow-xl transition-shadow"
-            style={{ borderLeft: '4px solid #dc2626' }}
+            className="pointer-events-auto cursor-pointer rounded-2xl overflow-hidden hover:scale-[1.02] transition-all"
+            style={{
+              background: '#fff',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06)',
+              border: '1px solid #f0f0f0',
+              animation: 'toastSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
           >
-            <div className="w-9 h-9 bg-red-600 rounded-xl flex items-center justify-center text-white shrink-0"><Bell size={18} /></div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-bold text-red-600 uppercase tracking-widest">{t.tipoNotif}</p>
-              <p className="text-sm font-semibold text-zinc-800 truncate">{t.titulo}</p>
+            <div style={{ height: '3px', background: 'linear-gradient(90deg, #dc2626, #ef4444)', animation: 'toastProgress 6s linear forwards' }} />
+            <div className="flex items-center gap-3 p-4">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center text-white shrink-0 shadow-md shadow-red-200">
+                <Bell size={18} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] font-bold text-red-500 uppercase tracking-widest mb-0.5">{t.tipoNotif}</p>
+                <p className="text-[13px] font-semibold text-zinc-800 truncate">{t.titulo}</p>
+              </div>
+              <div className="text-[10px] text-zinc-400 font-medium shrink-0">agora</div>
             </div>
           </div>
         ))}
       </div>
+      <style>{`
+        @keyframes toastSlideIn {
+          from { opacity: 0; transform: translateX(120%); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes toastProgress {
+          from { width: 100%; }
+          to { width: 0%; }
+        }
+      `}</style>
 
-      {/* Notificações Modal */}
+      {/* Notificações — Painel lateral */}
       {showNotifModal && (
-        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[300] flex items-center justify-end p-4" onClick={() => setShowNotifModal(false)}>
-          <div className="bg-white w-full max-w-md h-[85vh] rounded-2xl shadow-xl border border-zinc-200 flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="p-6 border-b border-zinc-100 flex justify-between items-center">
-              <h2 className="text-lg font-bold text-zinc-900">Histórico</h2>
-              <button onClick={() => { setShowNotifModal(false); setContadorNotif(0); }} className="w-8 h-8 bg-zinc-100 rounded-full flex items-center justify-center hover:bg-red-500 hover:text-white transition-all text-zinc-500"><X size={16} /></button>
+        <>
+          {/* Overlay sutil */}
+          <div
+            className="fixed inset-0 z-[10000] print:hidden"
+            style={{ background: 'rgba(0,0,0,0.12)', transition: 'opacity 0.3s' }}
+            onClick={() => { setShowNotifModal(false); setContadorNotif(0); }}
+          />
+          {/* Painel */}
+          <div
+            className="fixed top-0 right-0 bottom-0 z-[10001] print:hidden flex flex-col"
+            style={{
+              width: '400px', maxWidth: '90vw',
+              background: 'linear-gradient(180deg, #ffffff 0%, #fafafa 100%)',
+              boxShadow: '-12px 0 48px rgba(0,0,0,0.08)',
+              animation: 'notifSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{
+              padding: '28px 24px 20px', flexShrink: 0,
+              borderBottom: '1px solid #f0f0f0',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                <div>
+                  <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#1a1a1a', margin: 0, letterSpacing: '-0.3px' }}>Notificações</h2>
+                  <p style={{ fontSize: '12px', color: '#a3a3a3', margin: '4px 0 0', fontWeight: '500' }}>
+                    {notificacoes.length === 0 ? 'Nenhuma atualização' : `${notificacoes.length} ${notificacoes.length === 1 ? 'atualização' : 'atualizações'} recentes`}
+                  </p>
+                </div>
+                <button
+                  onClick={() => { setShowNotifModal(false); setContadorNotif(0); }}
+                  style={{
+                    width: '32px', height: '32px', borderRadius: '10px',
+                    background: '#f5f5f5', border: 'none', color: '#a3a3a3',
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#fee2e2'; e.currentTarget.style.color = '#dc2626' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = '#f5f5f5'; e.currentTarget.style.color = '#a3a3a3' }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              {notificacoes.length > 0 && (
+                <button
+                  onClick={() => setNotificacoes([])}
+                  style={{
+                    width: '100%', padding: '8px', borderRadius: '10px',
+                    background: '#fef2f2', border: '1px solid #fecaca',
+                    color: '#dc2626', fontSize: '11px', fontWeight: '600',
+                    cursor: 'pointer', transition: 'all 0.2s',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#fee2e2' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = '#fef2f2' }}
+                >
+                  <CheckCheck size={13} /> Limpar todas
+                </button>
+              )}
             </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-2">
-              {notificacoes.length === 0 ? <p className="text-center text-zinc-400 text-xs mt-20 uppercase font-semibold tracking-widest">Sem novas notificações</p> : notificacoes.map((n: any) => (
+
+            {/* Lista */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '8px 12px' }}>
+              {notificacoes.length === 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '12px' }}>
+                  <div style={{
+                    width: '64px', height: '64px', borderRadius: '20px',
+                    background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  }}>
+                    <Bell size={28} color="#d4d4d4" />
+                  </div>
+                  <p style={{ fontSize: '14px', color: '#a3a3a3', fontWeight: '500' }}>Tudo em dia!</p>
+                  <p style={{ fontSize: '12px', color: '#d4d4d4' }}>Nenhuma notificação pendente</p>
+                </div>
+              ) : notificacoes.map((n: any, i: number) => (
                 <div
                   key={n.id}
                   onClick={() => abrirNotificacao(n.idOriginal)}
-                  className="bg-zinc-50 p-4 rounded-xl border border-zinc-100 cursor-pointer hover:bg-red-50 hover:border-red-200 transition-colors"
+                  style={{
+                    display: 'flex', alignItems: 'flex-start', gap: '14px',
+                    padding: '16px', borderRadius: '14px', cursor: 'pointer',
+                    marginBottom: '4px', transition: 'all 0.2s',
+                    background: 'transparent',
+                    border: '1px solid transparent',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.border = '1px solid #f0f0f0'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.04)' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.border = '1px solid transparent'; e.currentTarget.style.boxShadow = 'none' }}
                 >
-                  <div className="flex justify-between text-xs font-semibold text-red-600 mb-1"><span>{n.hora}</span> <CheckCheck size={12}/></div>
-                  <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{n.tipoNotif}</p>
-                  <p className="text-sm font-semibold text-zinc-800">{n.titulo}</p>
-                  <p className="text-xs text-zinc-500">{n.solicitante}</p>
+                  <div style={{
+                    width: '40px', height: '40px', borderRadius: '12px',
+                    background: 'linear-gradient(135deg, #fef2f2, #fff1f2)',
+                    border: '1px solid #fecaca',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0
+                  }}>
+                    <Bell size={16} color="#dc2626" />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{
+                      fontSize: '13px', fontWeight: '600', color: '#1a1a1a',
+                      margin: 0, lineHeight: '1.4',
+                      overflow: 'hidden', textOverflow: 'ellipsis',
+                      display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any
+                    }}>{n.titulo}</p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+                      <span style={{
+                        fontSize: '11px', color: '#a3a3a3', fontWeight: '500'
+                      }}>{n.solicitante}</span>
+                      <span style={{ width: '3px', height: '3px', borderRadius: '50%', background: '#d4d4d4' }} />
+                      <span style={{
+                        fontSize: '11px', color: '#dc2626', fontWeight: '600'
+                      }}>{n.hora}</span>
+                    </div>
+                  </div>
+                  <div style={{
+                    width: '28px', height: '28px', borderRadius: '8px',
+                    background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0, marginTop: '4px'
+                  }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#a3a3a3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+                  </div>
                 </div>
               ))}
             </div>
-            <div className="p-4 border-t border-zinc-100"><button onClick={() => setNotificacoes([])} className="w-full py-3 bg-zinc-50 rounded-xl text-xs font-semibold uppercase hover:bg-zinc-100 transition-all text-zinc-600 border border-zinc-200">Limpar Tudo</button></div>
           </div>
-        </div>
+          <style>{`
+            @keyframes notifSlideIn {
+              from { transform: translateX(100%); }
+              to { transform: translateX(0); }
+            }
+          `}</style>
+        </>
       )}
 
       {/* Header */}
@@ -533,6 +682,138 @@ function RequisicoesPageInner() {
               auditLog({ sistema: 'requisicoes', acao: 'criar', entidade: 'fornecedor', entidade_label: String(n.nome || '') });
             }} />
           )}
+
+          {abaAtiva === 'relatorio' && (() => {
+            const tipos = [...new Set(requisicoes.filter(r => r.status !== 'lixeira').map(r => r.tipo || r.ReqTipo).filter(Boolean))].sort();
+            const setores = [...new Set(requisicoes.filter(r => r.status !== 'lixeira').map(r => r.setor).filter(Boolean))].sort();
+            const solicitantes = [...new Set(requisicoes.filter(r => r.status !== 'lixeira').map(r => r.solicitante).filter(Boolean))].sort();
+            const veiculosList = veiculos || [];
+            const usuariosList = usuarios || [];
+            const getNome = (email: string) => { const u = usuariosList.find((x: any) => x.email === email?.trim()); return u?.nome || email || '—'; };
+            const getPlaca = (id: any) => { const v = veiculosList.find((x: any) => String(x.IdPlaca) === String(id)); return v?.NumPlaca || ''; };
+            const fases = [
+              { id: 'pedido', label: 'Pedido Realizado', cor: '#ef4444' },
+              { id: 'completa', label: 'Atualizada por Técnico', cor: '#06b6d4' },
+              { id: 'aguardando', label: 'Aguardando Fornecedor', cor: '#f97316' },
+            ];
+            const getDetalhe = (r: any) => {
+              const tipo = (r.tipo || r.ReqTipo || '').toLowerCase();
+              const setor = (r.setor || '').toLowerCase();
+              if (setor.includes('cliente')) return r.cliente || '';
+              if (['veicular abastecimento', 'veicular manutenção'].includes(tipo)) return getPlaca(r.veiculo) || r.veiculo || '';
+              if (setor.includes('trator') && setor.includes('loja')) return r.Chassis_Modelo || '';
+              if (['trator abastecimento', 'quadri abastecimento'].includes(tipo)) return r.Chassis_Modelo || '';
+              if (tipo === 'ferramenta') return r.quem_ferramenta || '';
+              return '';
+            };
+            const handlePrint = () => {
+              const el = document.getElementById('relatorio-req-print');
+              if (!el) return;
+              const w = window.open('', '_blank');
+              if (!w) return;
+              w.document.write(`<!DOCTYPE html><html><head><title>Relatório Requisições</title><style>
+                @page { size: A4; margin: 10mm; }
+                body { font-family: Arial, sans-serif; font-size: 10pt; color: #1e293b; margin: 0; padding: 10px; }
+                h1 { font-size: 14pt; margin: 0 0 4px; }
+                .info { font-size: 9pt; color: #64748b; margin-bottom: 12px; }
+                .fase-header { display: flex; align-items: center; gap: 8px; margin: 16px 0 6px; padding: 6px 10px; border-radius: 6px; }
+                .fase-header h2 { font-size: 11pt; margin: 0; color: #fff; }
+                .fase-header .count { font-size: 9pt; color: rgba(255,255,255,0.8); }
+                table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+                th { background: #f1f5f9; padding: 5px 8px; text-align: left; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.3px; color: #64748b; border-bottom: 2px solid #e2e8f0; }
+                td { padding: 4px 8px; border-bottom: 1px solid #f1f5f9; font-size: 9pt; }
+                tr:nth-child(even) { background: #fafbfc; }
+                .total { margin-top: 8px; text-align: right; font-size: 10pt; font-weight: 700; }
+              </style></head><body>${el.innerHTML}</body></html>`);
+              w.document.close();
+              w.onload = () => { w.print(); };
+            };
+            return (
+            <div>
+              <div className="flex flex-wrap gap-3 mb-6 items-end no-print">
+                <div>
+                  <label className="text-xs text-zinc-500 font-medium block mb-1">Buscar</label>
+                  <input type="text" placeholder="ID, título, cliente..." value={filtroRelBusca} onChange={e => setFiltroRelBusca(e.target.value)} className="border border-zinc-200 rounded-lg px-3 py-2 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-red-200" />
+                </div>
+                <div>
+                  <label className="text-xs text-zinc-500 font-medium block mb-1">Tipo</label>
+                  <select value={filtroRelTipo} onChange={e => setFiltroRelTipo(e.target.value)} className="border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-200">
+                    <option value="">Todos</option>
+                    {tipos.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-zinc-500 font-medium block mb-1">Setor</label>
+                  <select value={filtroRelSetor} onChange={e => setFiltroRelSetor(e.target.value)} className="border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-200">
+                    <option value="">Todos</option>
+                    {setores.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-zinc-500 font-medium block mb-1">Solicitante</label>
+                  <select value={filtroRelSolicitante} onChange={e => setFiltroRelSolicitante(e.target.value)} className="border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-200">
+                    <option value="">Todos</option>
+                    {solicitantes.map(s => <option key={s} value={s}>{getNome(s)}</option>)}
+                  </select>
+                </div>
+                <button onClick={() => { setFiltroRelBusca(''); setFiltroRelTipo(''); setFiltroRelSetor(''); setFiltroRelSolicitante(''); }} className="text-xs text-zinc-400 hover:text-red-600 underline py-2">Limpar filtros</button>
+                <button onClick={handlePrint} className="ml-auto bg-zinc-100 hover:bg-zinc-200 border border-zinc-200 text-zinc-700 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all">
+                  <Printer size={14} /> Imprimir
+                </button>
+              </div>
+
+              <div className="text-xs text-zinc-500 mb-3 font-medium">{reqAbertas.length} requisição(ões) aberta(s)</div>
+
+              <div id="relatorio-req-print">
+                <h1 style={{ display: 'none' }}>Nova Tratores — Requisições em Aberto</h1>
+                <div className="info" style={{ display: 'none' }}>Gerado em: {new Date().toLocaleDateString('pt-BR')} | {reqAbertas.length} requisições</div>
+
+                {fases.map(fase => {
+                  const items = reqAbertas.filter(r => r.status === fase.id);
+                  if (items.length === 0) return null;
+                  return (
+                    <div key={fase.id} style={{ marginBottom: 20 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderRadius: 8, background: fase.cor, marginBottom: 8 }}>
+                        <h2 style={{ fontSize: 14, fontWeight: 700, color: '#fff', margin: 0 }}>{fase.label}</h2>
+                        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', fontWeight: 600 }}>({items.length})</span>
+                      </div>
+                      <div className="overflow-x-auto rounded-lg border border-zinc-200">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-zinc-50 text-left text-xs text-zinc-500 uppercase tracking-wider">
+                              <th className="px-3 py-2 font-semibold">#</th>
+                              <th className="px-3 py-2 font-semibold">Título</th>
+                              <th className="px-3 py-2 font-semibold">Solicitante</th>
+                              <th className="px-3 py-2 font-semibold">Tipo</th>
+                              <th className="px-3 py-2 font-semibold">Setor</th>
+                              <th className="px-3 py-2 font-semibold">Detalhes</th>
+                              <th className="px-3 py-2 font-semibold text-right">Valor</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {items.map((r: any) => (
+                              <tr key={r.id} className="border-t border-zinc-100 hover:bg-zinc-50 transition-colors">
+                                <td className="px-3 py-2 font-semibold text-zinc-700">{r.id}</td>
+                                <td className="px-3 py-2 text-zinc-800 font-medium" style={{ maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.titulo || r.Material_Serv_Solicitado || '—'}</td>
+                                <td className="px-3 py-2 text-zinc-600">{getNome(r.solicitante)}</td>
+                                <td className="px-3 py-2"><span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-zinc-100 text-zinc-600">{r.tipo || r.ReqTipo || '—'}</span></td>
+                                <td className="px-3 py-2 text-zinc-600 text-xs">{r.setor || '—'}</td>
+                                <td className="px-3 py-2 text-zinc-600 text-xs">{getDetalhe(r)}</td>
+                                <td className="px-3 py-2 text-zinc-700 font-medium text-right whitespace-nowrap">R$ {r.valor_despeza || '0,00'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                })}
+                {reqAbertas.length === 0 && (
+                  <div className="py-16 text-center text-zinc-400 text-sm">Nenhuma requisição aberta encontrada</div>
+                )}
+              </div>
+            </div>)
+          })()}
 
           {abaAtiva === 'lixeira' && (
             <div>

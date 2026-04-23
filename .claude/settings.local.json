@@ -486,7 +486,29 @@
       "Bash(node -e \"const https=require\\('https'\\);https.get\\('https://photon.komoot.io/reverse?lat=-23.4135581&lon=-49.3389423&lang=default',res=>{let d='';res.on\\('data',c=>d+=c\\);res.on\\('end',\\(\\)=>console.log\\(d\\)\\)}\\).on\\('error',e=>console.log\\(e.message\\)\\);\" 2>&1)",
       "Bash(curl -s \"http://localhost:3000/api/pos/geocode?lat=-23.2135906&lng=-49.3784353\" && echo \"\" && curl -s \"http://localhost:3000/api/pos/geocode?lat=-23.3819526&lng=-49.2640061\" && echo \"\" && curl -s \"http://localhost:3000/api/pos/geocode?lat=-23.4135581&lng=-49.3389423\")",
       "Bash(find /c/projetos/portal/src -type d -name \"*pos*\" 2>/dev/null | head -20)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(curl -s \"http://localhost:3000/api/pos/logs?osId=1\" 2>/dev/null | head -200)",
+      "Bash(curl -s \"http://localhost:3000/api/pos/logs?osId=OS-001\" 2>/dev/null | head -200)",
+      "Bash(curl -s \"http://localhost:3000/api/pos/ordens\" 2>/dev/null | python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(f'{o.get\\(\\\\\"id\\\\\",\\\\\"?\\\\\"\\)}: ultimaAcao={o.get\\(\\\\\"ultimaAcao\\\\\",\\\\\"\\\\\"\\)} | ultimaData={o.get\\(\\\\\"ultimaData\\\\\",\\\\\"\\\\\"\\)}'\\) for o in data[:5]]\" 2>/dev/null || curl -s \"http://localhost:3000/api/pos/ordens\" 2>/dev/null | node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const a=JSON.parse\\(d\\);a.slice\\(0,5\\).forEach\\(o=>console.log\\(o.id+': ultimaAcao='+o.ultimaAcao+' | ultimaData='+o.ultimaData\\)\\)}\\)\")",
+      "Bash(curl -s \"http://localhost:3000/api/pos/logs?osId=OS-0282\" 2>/dev/null)",
+      "Bash(node -e \"\nconst { createClient } = require\\('@supabase/supabase-js'\\);\nconst s = createClient\\(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY\\);\ns.from\\('logs_ppo'\\).select\\('Id_ppo,acao,Data_Acao'\\).limit\\(5\\).order\\('id', { ascending: false }\\).then\\(\\({data,error}\\) => {\n  console.log\\('error:', error\\);\n  console.log\\('data:', JSON.stringify\\(data, null, 2\\)\\);\n}\\);\n\" 2>&1)",
+      "Bash(node -e \"\nrequire\\('dotenv'\\).config\\({ path: '.env.local' }\\);\nconst { createClient } = require\\('@supabase/supabase-js'\\);\nconst s = createClient\\(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY\\);\ns.from\\('logs_ppo'\\).select\\('Id_ppo,acao,Data_Acao'\\).limit\\(5\\).order\\('id', { ascending: false }\\).then\\(\\({data,error}\\) => {\n  console.log\\('error:', error\\);\n  console.log\\('data:', JSON.stringify\\(data, null, 2\\)\\);\n}\\);\n\" 2>&1)",
+      "Bash(source .env.local && node -e \"\nconst { createClient } = require\\('@supabase/supabase-js'\\);\nconst s = createClient\\(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY\\);\ns.from\\('logs_ppo'\\).select\\('Id_ppo,acao,Data_Acao'\\).limit\\(5\\).order\\('id', { ascending: false }\\).then\\(\\({data,error}\\) => {\n  console.log\\('error:', error\\);\n  console.log\\('data:', JSON.stringify\\(data, null, 2\\)\\);\n}\\);\n\" 2>&1)",
+      "Bash(find /c/projetos/portal/src/lib -name \"*.ts\" | xargs grep -l \"Requisicao\\\\|requisicao\" 2>/dev/null | head -10])",
+      "Bash(find /c/projetos/portal/src/app/api -name \"*.ts\" | xargs grep -l \"Requisicao\\\\|requisicao\" 2>/dev/null)",
+      "Bash(find /c/projetos/portal -name \"*.sql\" -o -name \"*.md\" | xargs grep -l \"Requisicao\" 2>/dev/null)",
+      "Bash(find /c/projetos/portal/src/app/'\\(portal\\)' -type d -name \"*relatorio*\" -o -name \"*relat*\" -o -name \"*report*\")",
+      "Bash(find /c/projetos/portal/src/app/'\\(portal\\)' -type f -name \"page.tsx\" | head -15)",
+      "Bash(find /c/projetos/portal/src/app/'\\(portal\\)'/financeiro -type f -name \"page.tsx\" | head -2)",
+      "Bash(find /c/projetos/portal -name \"*.md\" -type f | xargs grep -l \"Requisicao\\\\|requisicao\" 2>/dev/null)",
+      "Bash(ls src/app/\\\\\\(portal\\\\\\)/requisicoes/)",
+      "Bash(gh api:*)",
+      "Bash(gh search:*)",
+      "Bash(ls /c/projetos/portal/omie-consulta-estoque/.env* 2>/dev/null && cat /c/projetos/portal/omie-consulta-estoque/.env 2>/dev/null || echo \"sem .env no submodule\")",
+      "Bash(node -r dotenv/config server.js)",
+      "Bash(ls -la /c/projetos/portal/src/app/\\\\\\(portal\\\\\\)/admin/ 2>/dev/null)",
+      "Bash(find /c/projetos/portal/src -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" \\\\\\) | xargs grep -l \"modulos_permitidos\\\\|MODULOS\" 2>/dev/null | head -10)",
+      "Bash(grep -r \"portal_permissoes\" /c/projetos/portal --include=\"*.sql\" --include=\"*.ts\" --include=\"*.tsx\" -B 2 -A 5 2>/dev/null | head -80)"
     ]
   }
 }
