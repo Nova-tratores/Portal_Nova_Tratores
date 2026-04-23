@@ -7,6 +7,9 @@ export interface Trator {
   Cidade: string;
   Cliente: string;
   Entrega: string;
+  "Inspecao Data": string;
+  "Inspecao Horimetro": string;
+  "Inspecao PDF": string;
   "50h Data": string;
   "50h Horimetro": string;
   "300h Data": string;
