@@ -133,7 +133,7 @@ const systems: SystemCard[] = [
     icon: <BarChart3 size={28} />,
     color: '#dc2626',
     gradient: 'linear-gradient(135deg, #ef4444, #991b1b)',
-    href: 'http://localhost:3002',
+    href: 'https://omie-consulta-estoque-production.up.railway.app/dashboard',
     tag: 'ESTOQUE',
     external: true
   },
@@ -144,7 +144,7 @@ const systems: SystemCard[] = [
     icon: <Eye size={28} />,
     color: '#dc2626',
     gradient: 'linear-gradient(135deg, #b91c1c, #7f1d1d)',
-    href: 'http://localhost:3003',
+    href: 'https://visual-estoque-production.up.railway.app',
     tag: 'SHOWROOM',
     external: true
   }
@@ -252,11 +252,19 @@ export default function DashboardPage() {
     }])
   }
 
-  const openSystem = (system: SystemCard) => {
+  const openSystem = async (system: SystemCard) => {
     logAccess(system)
     auditLog({ sistema: system.id.replace('sistema-', ''), acao: 'acesso', entidade_label: system.name })
     if (system.external) {
-      window.open(system.href, '_blank')
+      const appsComAuth = ['consulta-estoque', 'visual-estoque']
+      const { data: { session } } = await supabase.auth.getSession()
+      if (appsComAuth.includes(system.id) && session?.access_token && session?.refresh_token) {
+        const url = new URL(system.href)
+        const authUrl = `${url.origin}/auth/token?access_token=${session.access_token}&refresh_token=${session.refresh_token}&redirect_to=${encodeURIComponent(url.pathname + url.search)}`
+        window.open(authUrl, '_blank')
+      } else {
+        window.open(system.href, '_blank')
+      }
     } else {
       router.push(system.href)
     }

@@ -12,6 +12,7 @@ import {
   CheckCheck, Trash2, ExternalLink, Calendar, Users, Calculator, BarChart3, Eye
 } from 'lucide-react'
 import Link from 'next/link'
+import { supabase } from '@/lib/supabase'
 import ChatPanel from './chat/ChatPanel'
 import LembretesPanel from './lembretes/LembretesPanel'
 import LembreteAlerta from './lembretes/LembreteAlerta'
@@ -110,7 +111,7 @@ const navItems: NavItem[] = [
   {
     id: 'consulta-estoque',
     name: 'Consulta Estoque',
-    href: 'http://localhost:3002',
+    href: 'https://omie-consulta-estoque-production.up.railway.app/dashboard',
     icon: <BarChart3 size={18} />,
     tag: 'ESTOQUE',
     gradient: 'linear-gradient(135deg, #ef4444, #991b1b)',
@@ -119,7 +120,7 @@ const navItems: NavItem[] = [
   {
     id: 'visual-estoque',
     name: 'Visual Estoque',
-    href: 'http://localhost:3003',
+    href: 'https://visual-estoque-production.up.railway.app',
     icon: <Eye size={18} />,
     tag: 'SHOWROOM',
     gradient: 'linear-gradient(135deg, #b91c1c, #7f1d1d)',
@@ -172,6 +173,18 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   setChatAtivoRef.current = chatData.setChatAtivo
   const limparNotifRef = useRef(chatData.limparNotificacao)
   limparNotifRef.current = chatData.limparNotificacao
+
+  // Abrir link externo com token de autenticação
+  const openExternalWithAuth = useCallback(async (href: string) => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session?.access_token && session?.refresh_token) {
+      const url = new URL(href)
+      const authUrl = `${url.origin}/auth/token?access_token=${session.access_token}&refresh_token=${session.refresh_token}&redirect_to=${encodeURIComponent(url.pathname + url.search)}`
+      window.open(authUrl, '_blank')
+    } else {
+      window.open(href, '_blank')
+    }
+  }, [])
 
   // Fechar dropdown do sino ao clicar fora
   useEffect(() => {
@@ -693,10 +706,20 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
             return (
               <Link
                 key={item.id}
-                href={item.href}
-                target={item.external ? '_blank' : undefined}
+                href={item.external ? '#' : item.href}
+                target={item.external ? undefined : undefined}
                 rel={item.external ? 'noopener noreferrer' : undefined}
-                onClick={() => setSidebarOpen(false)}
+                onClick={(e) => {
+                  setSidebarOpen(false)
+                  if (item.external) {
+                    e.preventDefault()
+                    if (['consulta-estoque', 'visual-estoque'].includes(item.id)) {
+                      openExternalWithAuth(item.href)
+                    } else {
+                      window.open(item.href, '_blank')
+                    }
+                  }
+                }}
                 style={{
                   width: '100%', display: 'flex', alignItems: 'center', gap: '10px',
                   padding: '10px 12px', borderRadius: '10px', border: 'none',
