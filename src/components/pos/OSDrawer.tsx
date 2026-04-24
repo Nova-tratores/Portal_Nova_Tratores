@@ -118,6 +118,9 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   const [enderecoEstimativa, setEnderecoEstimativa] = useState("");
   const [enderecosDisponiveis, setEnderecosDisponiveis] = useState<{ label: string; fonte: string; endereco: string }[]>([]);
 
+  // Ref para evitar loop circular entre diasExecucao <-> qtdHoras
+  const horasSyncSource = useRef<'dias' | 'qtd' | null>(null);
+
   // Auto-calcular hora chegada (início + tempo_ida) e hora fim (chegada + qtdHoras)
   useEffect(() => {
     if (!horaInicioExec) return;
@@ -135,6 +138,38 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
       setHoraFimExec(`${String(fh).padStart(2, '0')}:${String(fm).padStart(2, '0')}`);
     }
   }, [horaInicioExec, qtdHoras, estimativa]);
+
+  // Sync: diasExecucao hora início/fim → qtdHoras
+  useEffect(() => {
+    if (horasSyncSource.current === 'qtd') { horasSyncSource.current = null; return; }
+    if (diasExecucao.length === 0) return;
+    let totalMin = 0;
+    for (const entry of diasExecucao) {
+      const horas = entry.split(' ')[1] || '08:00-17:00';
+      const [hIni, hFi] = horas.split('-');
+      const [hi, mi] = hIni.split(':').map(Number);
+      const [hf, mf] = hFi.split(':').map(Number);
+      totalMin += (hf * 60 + mf) - (hi * 60 + mi);
+    }
+    if (totalMin > 0) setQtdHoras(parseFloat((totalMin / 60).toFixed(2)));
+  }, [diasExecucao]);
+
+  // Sync: qtdHoras → ajustar hora fim nos diasExecucao
+  const handleQtdHorasChange = useCallback((novaQtd: number) => {
+    horasSyncSource.current = 'qtd';
+    setQtdHoras(novaQtd);
+    if (diasExecucao.length === 0 || novaQtd <= 0) return;
+    const horasPorDia = novaQtd / diasExecucao.length;
+    setDiasExecucao(prev => prev.map(entry => {
+      const [dia, horas] = entry.split(' ');
+      const hInicio = (horas || '08:00-17:00').split('-')[0];
+      const [hi, mi] = hInicio.split(':').map(Number);
+      const fimMin = hi * 60 + mi + horasPorDia * 60;
+      const fh = Math.floor(fimMin / 60);
+      const fm = Math.round(fimMin % 60);
+      return `${dia} ${hInicio}-${String(fh).padStart(2, '0')}:${String(fm).padStart(2, '0')}`;
+    }));
+  }, [diasExecucao.length]);
 
   // Buscar agenda do técnico quando muda técnico + data de execução
   useEffect(() => {
@@ -1180,7 +1215,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                     <div className="os-financial-grid">
                       <div>
                         <label>Qtd. Horas</label>
-                        <input type="number" value={qtdHoras} onChange={(e) => setQtdHoras(parseFloat(e.target.value || "0"))} style={S_MB0} />
+                        <input type="number" value={qtdHoras} onChange={(e) => handleQtdHorasChange(parseFloat(e.target.value || "0"))} style={S_MB0} />
                         <div className="os-field-hint">x R$ {VALOR_HORA.toFixed(2)} = R$ {subtotalHoras.toFixed(2)}</div>
                       </div>
                       <div>

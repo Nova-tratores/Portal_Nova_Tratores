@@ -67,7 +67,7 @@ export default function ImprimirRequisicao() {
   if (!req) return <div style={{ padding: 40, textAlign: 'center', fontFamily: 'sans-serif', color: '#999' }}>Requisição não encontrada.</div>;
 
   const unidade = (req.tipo === 'Frota-Veiculos' || req.setor?.includes('Fartura')) ? UNIDADES.castro : UNIDADES.nova;
-  const dataFormatada = req.data ? new Date(req.data).toLocaleDateString('pt-BR') : '___/___/_____';
+  const dataFormatada = req.data ? new Date(req.data + 'T12:00:00').toLocaleDateString('pt-BR') : '___/___/_____';
   const dataCriacao = req.created_at ? new Date(req.created_at).toLocaleString('pt-BR') : '---';
   const dataFinanceiro = req.enviado_financeiro_data ? new Date(req.enviado_financeiro_data).toLocaleDateString('pt-BR') : '---';
   const cleanObs = req.obs ? req.obs.replace(/\[APPSHEET_ID:.*?\]/g, '').trim() : '';
