@@ -179,10 +179,13 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     const { data: { session } } = await supabase.auth.getSession()
     if (session) {
       const ts = Date.now().toString()
-      const encoder = new TextEncoder()
-      const key = await crypto.subtle.importKey('raw', encoder.encode('nova-tratores-portal-2024'), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
-      const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(ts))
-      const hash = Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('')
+      // Gerar HMAC via API route (funciona em http e https)
+      const res = await fetch('/api/portal-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ts })
+      })
+      const { hash } = await res.json()
       const sep = href.includes('?') ? '&' : '?'
       window.open(`${href}${sep}portal_token=${hash}&portal_ts=${ts}&portal_user=${encodeURIComponent(session.user.email || '')}`, '_blank')
     } else {
