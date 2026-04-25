@@ -720,11 +720,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                   setSidebarOpen(false)
                   if (item.external) {
                     e.preventDefault()
-                    if (['consulta-estoque', 'visual-estoque'].includes(item.id)) {
-                      openExternalWithAuth(item.href)
-                    } else {
-                      window.open(item.href, '_blank')
-                    }
+                    window.open(item.href, '_blank')
                   }
                 }}
                 style={{
