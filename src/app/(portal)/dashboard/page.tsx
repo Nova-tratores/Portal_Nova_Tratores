@@ -256,6 +256,22 @@ export default function DashboardPage() {
     logAccess(system)
     auditLog({ sistema: system.id.replace('sistema-', ''), acao: 'acesso', entidade_label: system.name })
     if (system.external) {
+      const appsComAuth = ['consulta-estoque', 'visual-estoque']
+      if (appsComAuth.includes(system.id)) {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session) {
+          const ts = Date.now().toString()
+          const res = await fetch('/api/portal-token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ts })
+          })
+          const { hash } = await res.json()
+          const sep = system.href.includes('?') ? '&' : '?'
+          window.open(`${system.href}${sep}portal_token=${hash}&portal_ts=${ts}&portal_user=${encodeURIComponent(session.user.email || '')}`, '_blank')
+          return
+        }
+      }
       window.open(system.href, '_blank')
     } else {
       router.push(system.href)
