@@ -1,18 +1,37 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import {
   Mail, Lock, User, Briefcase, Camera, LogIn, UserPlus, Eye, EyeOff
 } from 'lucide-react'
 
 const DOMINIOS_PERMITIDOS = ['.novatratores.com'];
 
+function getRedirectTo(): string {
+  if (typeof window === 'undefined') return '';
+  const params = new URLSearchParams(window.location.search);
+  return params.get('redirect_to') || '';
+}
+
 function isExternalRedirect(url: string): boolean {
   try {
     const u = new URL(url);
     return DOMINIOS_PERMITIDOS.some(d => u.hostname.endsWith(d)) && u.origin !== window.location.origin;
   } catch { return false; }
+}
+
+async function redirectComToken(redirectUrl: string): Promise<boolean> {
+  if (isExternalRedirect(redirectUrl)) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token && session?.refresh_token) {
+      const u = new URL(redirectUrl);
+      const authUrl = `${u.origin}/auth/token?access_token=${session.access_token}&refresh_token=${session.refresh_token}&redirect_to=${encodeURIComponent(u.pathname + u.search)}`;
+      window.location.href = authUrl;
+      return true;
+    }
+  }
+  return false;
 }
 
 export default function LoginPage() {
@@ -28,33 +47,20 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const redirectTo = searchParams.get('redirect_to') || ''
-
-  const redirectComToken = useCallback(async (redirectUrl: string) => {
-    if (isExternalRedirect(redirectUrl)) {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session?.access_token && session?.refresh_token) {
-        const u = new URL(redirectUrl)
-        const authUrl = `${u.origin}/auth/token?access_token=${session.access_token}&refresh_token=${session.refresh_token}&redirect_to=${encodeURIComponent(u.pathname + u.search)}`
-        window.location.href = authUrl
-        return
-      }
-    }
-    router.push(redirectUrl)
-  }, [router])
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session) {
-        if (redirectTo) {
-          redirectComToken(redirectTo)
+        const redir = getRedirectTo();
+        if (redir) {
+          const handled = await redirectComToken(redir);
+          if (!handled) router.push(redir);
         } else {
-          router.push('/dashboard')
+          router.push('/dashboard');
         }
       }
     })
-  }, [router, redirectTo, redirectComToken])
+  }, [router])
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -131,7 +137,9 @@ export default function LoginPage() {
       if (!authError && loginData?.user) {
         // Atualizar email no perfil (popula usuários antigos)
         await supabase.from('financeiro_usu').update({ email }).eq('id', loginData.user.id)
-        await redirectComToken(redirectTo || '/dashboard')
+        const redir = getRedirectTo() || '/dashboard';
+        const handled = await redirectComToken(redir);
+        if (!handled) router.push(redir);
       } else {
         setError('E-mail ou senha incorretos.')
       }
