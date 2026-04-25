@@ -1,10 +1,19 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Mail, Lock, User, Briefcase, Camera, LogIn, UserPlus, Eye, EyeOff
 } from 'lucide-react'
+
+const DOMINIOS_PERMITIDOS = ['.novatratores.com'];
+
+function isExternalRedirect(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return DOMINIOS_PERMITIDOS.some(d => u.hostname.endsWith(d)) && u.origin !== window.location.origin;
+  } catch { return false; }
+}
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -19,12 +28,33 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const redirectTo = searchParams.get('redirect_to') || ''
+
+  const redirectComToken = useCallback(async (redirectUrl: string) => {
+    if (isExternalRedirect(redirectUrl)) {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.access_token && session?.refresh_token) {
+        const u = new URL(redirectUrl)
+        const authUrl = `${u.origin}/auth/token?access_token=${session.access_token}&refresh_token=${session.refresh_token}&redirect_to=${encodeURIComponent(u.pathname + u.search)}`
+        window.location.href = authUrl
+        return
+      }
+    }
+    router.push(redirectUrl)
+  }, [router])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) router.push('/dashboard')
+      if (session) {
+        if (redirectTo) {
+          redirectComToken(redirectTo)
+        } else {
+          router.push('/dashboard')
+        }
+      }
     })
-  }, [router])
+  }, [router, redirectTo, redirectComToken])
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -101,7 +131,7 @@ export default function LoginPage() {
       if (!authError && loginData?.user) {
         // Atualizar email no perfil (popula usuários antigos)
         await supabase.from('financeiro_usu').update({ email }).eq('id', loginData.user.id)
-        router.push('/dashboard')
+        await redirectComToken(redirectTo || '/dashboard')
       } else {
         setError('E-mail ou senha incorretos.')
       }
