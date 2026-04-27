@@ -9,7 +9,7 @@ import {
   LogOut, Settings, ClipboardList, Wrench, FileText,
   DollarSign, Package, Menu, X, User as UserIcon,
   LayoutDashboard, Bell, ChevronRight, Activity, Lock, MessageCircle,
-  CheckCheck, Trash2, ExternalLink, Calendar, Users, Calculator, BarChart3, Eye
+  CheckCheck, Trash2, ExternalLink, Calendar, Users, Calculator, BarChart3, Eye, Camera
 } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -107,6 +107,14 @@ const navItems: NavItem[] = [
     icon: <Users size={18} />,
     tag: 'CAMPO',
     gradient: 'linear-gradient(135deg, #1E3A5F, #1d4ed8)'
+  },
+  {
+    id: 'fotos-tecnicos',
+    name: 'Fotos Técnicos',
+    href: '/fotos-tecnicos',
+    icon: <Camera size={18} />,
+    tag: 'FOTOS',
+    gradient: 'linear-gradient(135deg, #7C3AED, #5B21B6)'
   },
   {
     id: 'consulta-estoque',

@@ -9,7 +9,7 @@ import {
   Settings, ClipboardList, Wrench, FileText,
   DollarSign, Activity, Clock, ChevronRight, Search,
   BarChart3, Users, Package, ClipboardCheck, AlertTriangle,
-  CheckCircle2, Map, RefreshCw, Database, X, Check, Calculator, Eye
+  CheckCircle2, Map, RefreshCw, Database, X, Check, Calculator, Eye, Camera
 } from 'lucide-react'
 
 interface SystemCard {
@@ -125,6 +125,16 @@ const systems: SystemCard[] = [
     href: 'https://mapa-geral-production.up.railway.app/',
     tag: 'MAPA',
     external: true
+  },
+  {
+    id: 'fotos-tecnicos',
+    name: 'Fotos Técnicos',
+    description: 'Visualize as fotos anexadas pelos técnicos em cada ordem de serviço',
+    icon: <Camera size={28} />,
+    color: '#7C3AED',
+    gradient: 'linear-gradient(135deg, #7C3AED, #5B21B6)',
+    href: '/fotos-tecnicos',
+    tag: 'FOTOS'
   },
   {
     id: 'consulta-estoque',
