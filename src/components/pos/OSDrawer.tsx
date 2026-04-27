@@ -62,7 +62,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   const [revisao, setRevisao] = useState("");
   const [servSolicitado, setServSolicitado] = useState(TEXT_TEMPLATE);
   const [ppv, setPpv] = useState("");
-  const [qtdHoras, setQtdHoras] = useState(0);
+  const [qtdHoras, setQtdHoras] = useState(1);
   const [qtdKm, setQtdKm] = useState(0);
   const [descPorc, setDescPorc] = useState(0);
   const [descValor, setDescValor] = useState(0);
@@ -146,14 +146,17 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
     if (horasSyncSource.current === 'qtd') { horasSyncSource.current = null; return; }
     if (diasExecucao.length === 0) return;
     let totalMin = 0;
+    let temHorario = false;
     for (const entry of diasExecucao) {
-      const horas = entry.split(' ')[1] || '08:00-17:00';
+      const horas = entry.split(' ')[1];
+      if (!horas) continue;
+      temHorario = true;
       const [hIni, hFi] = horas.split('-');
       const [hi, mi] = hIni.split(':').map(Number);
       const [hf, mf] = hFi.split(':').map(Number);
       totalMin += (hf * 60 + mf) - (hi * 60 + mi);
     }
-    if (totalMin > 0) setQtdHoras(parseFloat((totalMin / 60).toFixed(2)));
+    if (temHorario && totalMin > 0) setQtdHoras(parseFloat((totalMin / 60).toFixed(2)));
   }, [diasExecucao]);
 
   // Sync: qtdHoras → ajustar hora fim nos diasExecucao
@@ -980,14 +983,6 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                           {tecnicos.map((t) => <option key={t} value={t}>{t}</option>)}
                         </select>
                       </div>
-                      {tecnico1 && servicoNumero > 0 && (
-                        <div style={{ gridColumn: '1 / -1', padding: '6px 10px', background: servicoNumero > 1 ? '#FEF3C7' : '#F0FDF4', border: `1px solid ${servicoNumero > 1 ? '#FCD34D' : '#BBF7D0'}`, borderRadius: 6, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <i className={`fas ${servicoNumero > 1 ? 'fa-exclamation-triangle' : 'fa-check-circle'}`} style={{ color: servicoNumero > 1 ? '#D97706' : '#15803D' }} />
-                          <span style={{ fontWeight: 600, color: servicoNumero > 1 ? '#92400E' : '#15803D' }}>
-                            {servicoNumero === 1 ? '1º serviço deste técnico' : `${servicoNumero}º serviço deste técnico (${servicoNumero - 1} em execução)`}
-                          </span>
-                        </div>
-                      )}
                       <div style={S_FLEX1}>
                         <label>Segundo Técnico</label>
                         <select value={tecnico2} onChange={(e) => setTecnico2(e.target.value)}>

@@ -133,7 +133,7 @@ const systems: SystemCard[] = [
     icon: <BarChart3 size={28} />,
     color: '#dc2626',
     gradient: 'linear-gradient(135deg, #ef4444, #991b1b)',
-    href: 'https://estoque.novatratores.com/dashboard',
+    href: 'https://estoque.novatratores.com',
     tag: 'ESTOQUE',
     external: true
   },
@@ -256,7 +256,7 @@ export default function DashboardPage() {
     logAccess(system)
     auditLog({ sistema: system.id.replace('sistema-', ''), acao: 'acesso', entidade_label: system.name })
     if (system.external) {
-      const appsComAuth = ['consulta-estoque', 'visual-estoque']
+      const appsComAuth = ['visual-estoque']
       if (appsComAuth.includes(system.id)) {
         const { data: { session } } = await supabase.auth.getSession()
         if (session) {

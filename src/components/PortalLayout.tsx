@@ -111,7 +111,7 @@ const navItems: NavItem[] = [
   {
     id: 'consulta-estoque',
     name: 'Consulta Estoque',
-    href: 'https://estoque.novatratores.com/dashboard',
+    href: 'https://estoque.novatratores.com',
     icon: <BarChart3 size={18} />,
     tag: 'ESTOQUE',
     gradient: 'linear-gradient(135deg, #ef4444, #991b1b)',
@@ -720,7 +720,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                   setSidebarOpen(false)
                   if (item.external) {
                     e.preventDefault()
-                    if (['consulta-estoque', 'visual-estoque'].includes(item.id)) {
+                    if (['visual-estoque'].includes(item.id)) {
                       openExternalWithAuth(item.href)
                     } else {
                       window.open(item.href, '_blank')
