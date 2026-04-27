@@ -607,6 +607,22 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                     <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
                   </button>
 
+                  {/* Checkbox incluir cotação no PDF */}
+                  <label className="flex items-center gap-2 cursor-pointer select-none px-1">
+                    <input
+                      type="checkbox"
+                      checked={cotacaoData.incluir_pdf !== false}
+                      onChange={async (e) => {
+                        const val = e.target.checked;
+                        const novo = { ...cotacaoData, id: req.id, incluir_pdf: val };
+                        setCotacaoData(novo);
+                        await supabase.from('req_cotacao').upsert(novo);
+                      }}
+                      className="w-4 h-4 accent-red-600 cursor-pointer"
+                    />
+                    <span className="text-xs font-medium text-zinc-600">Incluir mapa de cotação no PDF</span>
+                  </label>
+
                   {/* Datas */}
                   {req.enviado_financeiro_data && (
                     <div className="flex items-center gap-2 p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/20">

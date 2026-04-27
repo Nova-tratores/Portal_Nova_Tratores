@@ -29,7 +29,7 @@ export default function ImprimirRequisicao() {
   const [nomeSolicitante, setNomeSolicitante] = useState('---');
   const [placaVeiculo, setPlacaVeiculo] = useState('---');
   const [cotacaoData, setCotacaoData] = useState<any>(null);
-  const [mostrarCotacao, setMostrarCotacao] = useState(true);
+  const [mostrarCotacao, setMostrarCotacao] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -57,7 +57,12 @@ export default function ImprimirRequisicao() {
 
       // Cotação
       const { data: cot } = await supabase.from('req_cotacao').select('*').eq('id', id).maybeSingle();
-      if (cot) setCotacaoData(cot);
+      if (cot) {
+        setCotacaoData(cot);
+        setMostrarCotacao(cot.incluir_pdf === false ? false : true);
+      } else {
+        setMostrarCotacao(true);
+      }
 
       setLoading(false);
     };
@@ -89,17 +94,16 @@ export default function ImprimirRequisicao() {
         <button onClick={() => window.print()} style={{ background: '#1e293b', color: '#fff', border: 'none', padding: '8px 20px', borderRadius: 8, fontWeight: 600, cursor: 'pointer', fontSize: 13 }}>
           Imprimir / Salvar PDF
         </button>
-        {cotacaoData && cotacaoData.fornecedor1 && (
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: '#374151', cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              checked={mostrarCotacao}
-              onChange={(e) => setMostrarCotacao(e.target.checked)}
-              style={{ width: 16, height: 16, cursor: 'pointer' }}
-            />
-            Incluir cotação no PDF
-          </label>
-        )}
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: cotacaoData?.fornecedor1 ? '#374151' : '#9ca3af', cursor: cotacaoData?.fornecedor1 ? 'pointer' : 'default' }}>
+          <input
+            type="checkbox"
+            checked={mostrarCotacao ?? true}
+            onChange={(e) => setMostrarCotacao(e.target.checked)}
+            disabled={!cotacaoData?.fornecedor1}
+            style={{ width: 16, height: 16, cursor: cotacaoData?.fornecedor1 ? 'pointer' : 'default' }}
+          />
+          Incluir cotação no PDF {!cotacaoData?.fornecedor1 && '(sem cotação)'}
+        </label>
         <span style={{ fontSize: 12, color: '#64748b' }}>Requisição #{req.id} — {req.titulo}</span>
       </div>
 
@@ -199,7 +203,7 @@ export default function ImprimirRequisicao() {
         )}
 
         {/* COTAÇÕES */}
-        {mostrarCotacao && cotacaoData && cotacaoData.fornecedor1 && (
+        {mostrarCotacao !== false && cotacaoData && cotacaoData.fornecedor1 && (
           <div style={{ border: '2px solid #000', borderRadius: 16, overflow: 'hidden', marginBottom: 16 }}>
             <div style={{ background: '#f1f5f9', fontSize: 11, fontWeight: 900, textTransform: 'uppercase', padding: '8px 0', borderBottom: '2px solid #000', textAlign: 'center' }}>Mapa de Cotações</div>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>

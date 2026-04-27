@@ -258,6 +258,9 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
   const [resumoTec, setResumoTec] = useState('')
   const [savingResumo, setSavingResumo] = useState(false)
   const resumoLoadedRef = useRef<string | null>(null)
+  const [dataHistorico, setDataHistorico] = useState('')
+  const [agendaHistorico, setAgendaHistorico] = useState<AgendaRow[] | null>(null)
+  const [loadingHistorico, setLoadingHistorico] = useState(false)
 
   const tecs = useMemo(() => tecnicos.filter(t => t.mecanico_role === 'tecnico'), [tecnicos])
   const hoje = useMemo(() => new Date().toISOString().split('T')[0], [])
@@ -763,6 +766,32 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
     return { fora, ofi, totalOS, done }
   }, [cardData])
 
+  // ── Carregar histórico da agenda_visao ──
+  useEffect(() => {
+    if (!dataHistorico || dataHistorico === hoje) { setAgendaHistorico(null); return }
+    setLoadingHistorico(true)
+    fetch(`/api/pos/agenda-visao?data=${dataHistorico}`)
+      .then(r => r.ok ? r.json() : [])
+      .then((rows: AgendaRow[]) => { setAgendaHistorico(rows); setLoadingHistorico(false) })
+      .catch(() => { setAgendaHistorico([]); setLoadingHistorico(false) })
+  }, [dataHistorico, hoje])
+
+  const verHistorico = agendaHistorico !== null
+
+  // Agrupar agenda histórica por técnico
+  const historicoCards = useMemo(() => {
+    if (!agendaHistorico) return []
+    const porTec: Record<string, AgendaRow[]> = {}
+    agendaHistorico.forEach(a => {
+      if (!porTec[a.tecnico_nome]) porTec[a.tecnico_nome] = []
+      porTec[a.tecnico_nome].push(a)
+    })
+    return Object.entries(porTec).sort(([a], [b]) => a.localeCompare(b)).map(([nome, items]) => {
+      const ordenado = [...items].sort((a, b) => (a.ordem_sequencia || 0) - (b.ordem_sequencia || 0))
+      return { tecnico_nome: nome, items: ordenado }
+    })
+  }, [agendaHistorico])
+
   return (
     <>
       <style>{CSS}</style>
@@ -779,13 +808,137 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
             <span style={{ fontSize: 15, fontWeight: 600, color: '#111' }}>/{stats.totalOS} visitas</span>
           </div>
           <div style={{ flex: 1 }} />
-          <button className="vg-btn" onClick={sincronizar} disabled={syncing} style={{ display: 'flex', alignItems: 'center', gap: 5, background: '#111', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-            <RefreshCw size={12} className={syncing ? 'animate-spin' : ''} /> Sync
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              type="date"
+              value={dataHistorico || hoje}
+              max={hoje}
+              onChange={e => setDataHistorico(e.target.value === hoje ? '' : e.target.value)}
+              style={{ padding: '6px 10px', borderRadius: 8, border: '2px solid #E0DDD8', fontSize: 13, fontWeight: 600, background: verHistorico ? '#FEF3C7' : '#fff', color: '#111', cursor: 'pointer' }}
+            />
+            {verHistorico && (
+              <button className="vg-btn" onClick={() => setDataHistorico('')} style={{ background: '#111', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                Hoje
+              </button>
+            )}
+          </div>
+          {!verHistorico && (
+            <button className="vg-btn" onClick={sincronizar} disabled={syncing} style={{ display: 'flex', alignItems: 'center', gap: 5, background: '#111', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+              <RefreshCw size={12} className={syncing ? 'animate-spin' : ''} /> Sync
+            </button>
+          )}
         </div>
 
+        {/* ══ HISTÓRICO ══ */}
+        {verHistorico && (
+          loadingHistorico ? (
+            <div style={{ textAlign: 'center', padding: 60, color: '#999', fontSize: 14 }}>Carregando histórico...</div>
+          ) : historicoCards.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 60, color: '#999', fontSize: 14 }}>Nenhum registro salvo para {new Date(dataHistorico + 'T12:00:00').toLocaleDateString('pt-BR')}</div>
+          ) : (
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#92400E', background: '#FEF3C7', padding: '8px 16px', borderRadius: 8, marginBottom: 16, textAlign: 'center' }}>
+                Histórico de {new Date(dataHistorico + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })}
+              </div>
+              {[0, 1].map(row => {
+                const metade = Math.ceil(historicoCards.length / 2)
+                const slice = row === 0 ? historicoCards.slice(0, metade) : historicoCards.slice(metade)
+                return (
+                  <div key={row} style={{ display: 'flex', gap: 20, marginBottom: row === 0 ? 20 : 0, overflowX: 'auto', paddingBottom: 4 }}>
+                    {slice.map(card => {
+                      const nome = card.tecnico_nome.split(' ')
+                      const primeiroNome = nome[0]
+                      const sobrenome = nome.length > 1 ? nome[1] : ''
+                      const iniciais = nome.length > 1 ? (nome[0][0] + nome[nome.length - 1][0]).toUpperCase() : nome[0].substring(0, 2).toUpperCase()
+                      const hasOS = card.items.length > 0
+                      const temGps = card.items.some(a => (a as any).gps_saida_oficina || (a as any).gps_chegada_cliente)
+                      return (
+                        <div key={card.tecnico_nome} className="vg-figurinha" style={{
+                          borderRadius: 20, flex: '1 1 0', minWidth: 280,
+                          background: '#fff', border: '2px solid #E5E3DD',
+                          boxShadow: '0 4px 16px rgba(0,0,0,.06)',
+                        }}>
+                          {/* TOPO */}
+                          <div style={{
+                            background: hasOS ? 'linear-gradient(135deg, #8B0000 0%, #B22222 100%)' : '#E8E6E1',
+                            padding: '14px 20px 12px', borderRadius: '18px 18px 0 0',
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                              <div style={{
+                                width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
+                                background: hasOS ? 'rgba(255,255,255,.12)' : '#D5D3CE',
+                                border: `2px solid ${hasOS ? 'rgba(255,255,255,.25)' : '#C0BDB7'}`,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              }}>
+                                <span style={{ fontSize: 20, fontWeight: 900, color: hasOS ? '#fff' : '#111' }}>{iniciais}</span>
+                              </div>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: 22, fontWeight: 900, color: hasOS ? '#fff' : '#111', letterSpacing: '-.03em', lineHeight: 1.1, textTransform: 'uppercase' }}>
+                                  {primeiroNome} {sobrenome && <span style={{ fontSize: 15, fontWeight: 700, opacity: .7 }}>{sobrenome}</span>}
+                                </div>
+                              </div>
+                              <div style={{ fontSize: 13, fontWeight: 800, color: '#fff', background: 'rgba(255,255,255,.2)', padding: '4px 12px', borderRadius: 20 }}>
+                                {card.items.length} OS
+                              </div>
+                            </div>
+                          </div>
+                          {/* CONTEÚDO */}
+                          <div style={{ padding: '14px 20px 18px' }}>
+                            {card.items.map((a: any) => (
+                              <div key={a.id_ordem || a.id} style={{
+                                padding: '12px 14px', borderRadius: 10, marginBottom: 8,
+                                background: '#F9F9F7', border: '1px solid #E5E3DD',
+                              }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                                  <span style={{ fontSize: 14, fontWeight: 800, color: '#111' }}>OS {a.id_ordem}</span>
+                                  <span style={{ fontSize: 12, color: '#666' }}>{a.qtd_horas}h</span>
+                                </div>
+                                <div style={{ fontSize: 15, fontWeight: 700, color: '#111', marginBottom: 4 }}>
+                                  {(a.cliente || '').split(' ').slice(0, 5).join(' ')}
+                                </div>
+                                {a.cidade && (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: '#555', marginBottom: 4 }}>
+                                    <MapPin size={12} /> {a.cidade}
+                                  </div>
+                                )}
+                                {a.endereco && (
+                                  <div style={{ fontSize: 12, color: '#888', marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {a.endereco}
+                                  </div>
+                                )}
+                                {/* GPS salvo */}
+                                {(a.gps_saida_oficina || a.gps_chegada_cliente || a.gps_saida_cliente || a.gps_retorno_oficina) && (
+                                  <div style={{ fontSize: 12, color: '#555', lineHeight: 1.8, padding: '6px 10px', background: '#F0EFEB', borderRadius: 6, marginTop: 4 }}>
+                                    {a.gps_saida_oficina && <div><span style={{ fontWeight: 700 }}>Saída oficina:</span> {a.gps_saida_oficina}</div>}
+                                    {a.gps_chegada_cliente && <div><span style={{ fontWeight: 700 }}>Chegada cliente:</span> {a.gps_chegada_cliente}</div>}
+                                    {a.gps_saida_cliente && <div><span style={{ fontWeight: 700 }}>Saiu cliente:</span> {a.gps_saida_cliente}</div>}
+                                    {a.gps_retorno_oficina && <div><span style={{ fontWeight: 700 }}>Retorno:</span> {a.gps_retorno_oficina}</div>}
+                                  </div>
+                                )}
+                                {/* Resumo */}
+                                {a.resumo && (
+                                  <div style={{ fontSize: 12, color: '#333', marginTop: 6, fontStyle: 'italic', lineHeight: 1.4 }}>
+                                    {a.resumo}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                            {!hasOS && (
+                              <div style={{ textAlign: 'center', color: '#ccc', fontSize: 13, padding: 20 }}>Sem ordens neste dia</div>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })}
+            </div>
+          )
+        )}
+
         {/* ══ FIGURINHAS — 2 fileiras ══ */}
-        {[0, 1].map(row => {
+        {!verHistorico && [0, 1].map(row => {
           const metade = Math.ceil(cardData.length / 2)
           const items = row === 0 ? cardData.slice(0, metade) : cardData.slice(metade)
           return (

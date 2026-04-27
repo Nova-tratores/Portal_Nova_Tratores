@@ -201,7 +201,7 @@ export default function TemplatePDF({ req }: { req: any, onUpdate?: any, onPrint
         )}
 
         {/* BLOCO DE COTAÇÕES */}
-        {cotacaoData && cotacaoData.fornecedor1 && (
+        {cotacaoData && cotacaoData.fornecedor1 && cotacaoData.incluir_pdf !== false && (
           <div className="border-2 border-black rounded-2xl overflow-hidden mb-4 shadow-sm">
             <div className="bg-slate-100 text-[11px] font-black uppercase py-2 border-b-2 border-black text-center">Mapa de Cotações Vinculado</div>
             <table className="w-full text-left border-collapse">

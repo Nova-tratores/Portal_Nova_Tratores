@@ -51,6 +51,13 @@ const STATUS_BADGE_STYLE = (status: string) => ({
 
 const BOMBA_HORAS = ["600", "1200", "1800", "2400", "3000"];
 
+function horaAtualBR() {
+  const n = new Date();
+  const brMs = n.getTime() + (n.getTimezoneOffset() * 60000) - (3 * 3600000);
+  const br = new Date(brMs);
+  return `${String(br.getHours()).padStart(2, '0')}:${String(br.getMinutes()).padStart(2, '0')}`;
+}
+
 export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, userName, onClose, onSaved }: OSDrawerProps) {
   const [clienteChave, setClienteChave] = useState("");
   const [clienteInfo, setClienteInfo] = useState<ClienteDados | null>(null);
@@ -81,7 +88,9 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   const [dataFimServico, setDataFimServico] = useState("");
   const [diasExecucao, setDiasExecucao] = useState<string[]>([]);
   const [servicoNumero, setServicoNumero] = useState(0);
-  const [horaInicioExec, setHoraInicioExec] = useState("08:00");
+  const [horaInicioExec, setHoraInicioExec] = useState(() => {
+    return horaAtualBR();
+  });
   const [horaChegada, setHoraChegada] = useState("");
   const [horaFimExec, setHoraFimExec] = useState("");
   const [agendaTecnico, setAgendaTecnico] = useState<Array<{ id_ordem: string; cliente: string; hora_inicio: string; hora_fim: string; qtd_horas: number }>>([]);
@@ -121,7 +130,6 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   const [enderecosDisponiveis, setEnderecosDisponiveis] = useState<{ label: string; fonte: string; endereco: string }[]>([]);
 
   // Ref para evitar loop circular entre diasExecucao <-> qtdHoras
-  const horasSyncSource = useRef<'dias' | 'qtd' | null>(null);
 
   // Auto-calcular hora chegada (início + tempo_ida) e hora fim (chegada + qtdHoras)
   useEffect(() => {
@@ -141,40 +149,12 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
     }
   }, [horaInicioExec, qtdHoras, estimativa]);
 
-  // Sync: diasExecucao hora início/fim → qtdHoras
-  useEffect(() => {
-    if (horasSyncSource.current === 'qtd') { horasSyncSource.current = null; return; }
-    if (diasExecucao.length === 0) return;
-    let totalMin = 0;
-    let temHorario = false;
-    for (const entry of diasExecucao) {
-      const horas = entry.split(' ')[1];
-      if (!horas) continue;
-      temHorario = true;
-      const [hIni, hFi] = horas.split('-');
-      const [hi, mi] = hIni.split(':').map(Number);
-      const [hf, mf] = hFi.split(':').map(Number);
-      totalMin += (hf * 60 + mf) - (hi * 60 + mi);
-    }
-    if (temHorario && totalMin > 0) setQtdHoras(parseFloat((totalMin / 60).toFixed(2)));
-  }, [diasExecucao]);
+  // diasExecucao agora só tem datas, sem horários
 
-  // Sync: qtdHoras → ajustar hora fim nos diasExecucao
+  // Sync: qtdHoras manual
   const handleQtdHorasChange = useCallback((novaQtd: number) => {
-    horasSyncSource.current = 'qtd';
     setQtdHoras(novaQtd);
-    if (diasExecucao.length === 0 || novaQtd <= 0) return;
-    const horasPorDia = novaQtd / diasExecucao.length;
-    setDiasExecucao(prev => prev.map(entry => {
-      const [dia, horas] = entry.split(' ');
-      const hInicio = (horas || '08:00-17:00').split('-')[0];
-      const [hi, mi] = hInicio.split(':').map(Number);
-      const fimMin = hi * 60 + mi + horasPorDia * 60;
-      const fh = Math.floor(fimMin / 60);
-      const fm = Math.round(fimMin % 60);
-      return `${dia} ${hInicio}-${String(fh).padStart(2, '0')}:${String(fm).padStart(2, '0')}`;
-    }));
-  }, [diasExecucao.length]);
+  }, []);
 
   // Buscar agenda do técnico quando muda técnico + data de execução
   useEffect(() => {
@@ -501,7 +481,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
           setPrevisaoFaturamento(d.previsaoFaturamento || "");
           setDataFimServico(d.dataFimServico || "");
           setDiasExecucao(d.diasExecucao ? d.diasExecucao.split(',').filter(Boolean) : []);
-          setHoraInicioExec(d.horaInicioExec || "08:00");
+          setHoraInicioExec(d.horaInicioExec || horaAtualBR());
           setHoraChegada(d.horaChegada || "");
           setHoraFimExec(d.horaFimExec || "");
           setRequisicoes(d.infoRequisicoes || []);
@@ -1048,7 +1028,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                           if (start > end) return
                           const days: string[] = []
                           const cur = new Date(start)
-                          while (cur <= end) { const d = cur.toISOString().slice(0, 10); if (cur.getDay() !== 0) days.push(`${d} 08:00-17:00`); cur.setDate(cur.getDate() + 1) }
+                          while (cur <= end) { const d = cur.toISOString().slice(0, 10); if (cur.getDay() !== 0) days.push(d); cur.setDate(cur.getDate() + 1) }
                           setDiasExecucao(days)
                         }} style={{ padding: '6px 8px', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 13, width: '100%' }} />
                       </div>
@@ -1062,7 +1042,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                           if (start > end) return
                           const days: string[] = []
                           const cur = new Date(start)
-                          while (cur <= end) { const d = cur.toISOString().slice(0, 10); if (cur.getDay() !== 0) days.push(`${d} 08:00-17:00`); cur.setDate(cur.getDate() + 1) }
+                          while (cur <= end) { const d = cur.toISOString().slice(0, 10); if (cur.getDay() !== 0) days.push(d); cur.setDate(cur.getDate() + 1) }
                           setDiasExecucao(days)
                         }} style={{ padding: '6px 8px', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 13, width: '100%' }} />
                       </div>
@@ -1072,14 +1052,11 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                       <input type="date" value={previsaoFaturamento} onChange={(e) => setPrevisaoFaturamento(e.target.value)} style={{ padding: '6px 8px', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 13, width: '100%' }} />
                     </div>
                     {diasExecucao.length > 0 && (() => {
-                      const timeOpts = Array.from({ length: 48 }, (_, i) => { const h = Math.floor(i / 2); const m = i % 2 === 0 ? '00' : '30'; return `${String(h).padStart(2, '0')}:${m}` })
-                      const selStyle = { padding: '4px 6px', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 12, background: '#fff', cursor: 'pointer' }
                       return (
                       <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        <div style={{ fontSize: 11, color: '#6B7280', fontWeight: 600, marginBottom: 2 }}>Confirme os dias e horários:</div>
+                        <div style={{ fontSize: 11, color: '#6B7280', fontWeight: 600, marginBottom: 2 }}>Confirme os dias:</div>
                         {diasExecucao.map((entry) => {
-                          const [dia, horas] = entry.split(' ')
-                          const [hInicio, hFim] = (horas || '08:00-17:00').split('-')
+                          const dia = entry.split(' ')[0]
                           const diaDate = /^\d{4}-\d{2}-\d{2}$/.test(dia) ? new Date(dia + 'T12:00:00') : null
                           const diaLabel = diaDate && !isNaN(diaDate.getTime()) ? diaDate.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' }) : dia
                           return (
@@ -1087,18 +1064,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                               <input type="checkbox" checked style={{ accentColor: '#1E3A5F', width: 16, height: 16, cursor: 'pointer' }} onChange={(e) => {
                                 if (!e.target.checked) setDiasExecucao(prev => prev.filter(d => !d.startsWith(dia)))
                               }} />
-                              <span style={{ fontWeight: 600, color: '#1E3A5F', minWidth: 85 }}>{diaLabel}</span>
-                              <select value={hInicio} onChange={(e) => {
-                                setDiasExecucao(prev => prev.map(d => d.startsWith(dia) ? `${dia} ${e.target.value}-${hFim}` : d))
-                              }} style={selStyle}>
-                                {timeOpts.map(t => <option key={t} value={t}>{t}</option>)}
-                              </select>
-                              <span style={{ color: '#9CA3AF' }}>às</span>
-                              <select value={hFim} onChange={(e) => {
-                                setDiasExecucao(prev => prev.map(d => d.startsWith(dia) ? `${dia} ${hInicio}-${e.target.value}` : d))
-                              }} style={selStyle}>
-                                {timeOpts.map(t => <option key={t} value={t}>{t}</option>)}
-                              </select>
+                              <span style={{ fontWeight: 600, color: '#1E3A5F' }}>{diaLabel}</span>
                             </div>
                           )
                         })}

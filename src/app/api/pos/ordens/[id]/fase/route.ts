@@ -40,6 +40,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   });
 
   // ── Métricas de atraso ──
+  // Volta pra Orçamento ou Aguardando Cliente → fecha métrica aberta (zera atraso)
+  if (["Orçamento", "Aguardando Cliente"].includes(newStatus)) {
+    const { data: abertas } = await supabase.from(TBL_METRICAS).select("id, data_inicio").eq("id_ordem", idOs).is("data_fim", null);
+    if (abertas && abertas.length > 0) {
+      const agr = new Date();
+      for (const m of abertas) {
+        await supabase.from(TBL_METRICAS).update({ data_fim: agr.toISOString(), dias: 0 }).eq("id", m.id);
+      }
+    }
+  }
   // Volta pra Execução → fecha métrica aberta (some os dias em atraso)
   if (newStatus === "Execução") {
     const { data: abertas } = await supabase.from(TBL_METRICAS).select("id, data_inicio").eq("id_ordem", idOs).is("data_fim", null);
