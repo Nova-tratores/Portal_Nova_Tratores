@@ -519,7 +519,8 @@
       "Bash(cd /c/projetos/portal && ./node_modules/.bin/tsc --noEmit 2>&1 | head -20)",
       "Bash(cd /c/projetos/portal && ./node_modules/.bin/tsc --noEmit 2>&1 | head -10)",
       "Bash(git status:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(ls \"C:/projetos/portal/src/app/\\(portal\\)/meu-painel/\" 2>/dev/null && ls \"C:/projetos/portal/src/app/\\(portal\\)/painel-mecanicos/\" 2>/dev/null)"
     ]
   }
 }

@@ -381,7 +381,7 @@ export async function POST(req: NextRequest) {
 
   const c = await calcularTotais({ qtdHoras: parseFloat(dados.qtdHoras || 0), qtdKm: parseFloat(dados.qtdKm || 0), ppv: ppvFinal, descontoValor: parseFloat(dados.descontoValor || 0) });
 
-  const { error } = await supabase.from(TBL_OS).insert({
+  const baseInsert: Record<string, unknown> = {
     Id_Ordem: newId, Status: "Orçamento", Data: new Date().toISOString().split("T")[0],
     Os_Cliente: dados.nomeCliente, Cnpj_Cliente: dados.cpfCliente, Endereco_Cliente: dados.enderecoCliente, Cidade_Cliente: dados.cidadeCliente || '',
     Os_Tecnico: dados.tecnicoResponsavel, Os_Tecnico2: dados.tecnico2,
@@ -398,9 +398,12 @@ export async function POST(req: NextRequest) {
     Hora_Chegada: dados.horaChegada || '',
     Hora_Fim_Exec: dados.horaFimExec || '',
     Dias_Execucao: dados.diasExecucao || '',
-    Data_Fim_Servico: dados.dataFimServico || null,
-    Servico_Numero: dados.servicoNumero || null,
-  });
+    // TODO: reativar quando schema cache do Supabase reconhecer as colunas
+    // Data_Fim_Servico: dados.dataFimServico || null,
+    // Servico_Numero: dados.servicoNumero || null,
+  };
+
+  const { error } = await supabase.from(TBL_OS).insert(baseInsert);
 
   if (error) {
     console.error("Erro Supabase insert:", error);

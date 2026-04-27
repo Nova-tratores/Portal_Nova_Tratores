@@ -223,7 +223,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const descKm = parseFloat(dados.descontoKm || 0);
   const total = vHoras + vKm + vPecas + vReq - desc - descHora - descKm;
 
-  const { error } = await supabase.from(TBL_OS).update({
+  const baseUpdate: Record<string, unknown> = {
     Os_Cliente: dados.nomeCliente, Cnpj_Cliente: dados.cpfCliente, Endereco_Cliente: dados.enderecoCliente,
     Cidade_Cliente: dados.cidadeCliente || '',
     Os_Tecnico: dados.tecnicoResponsavel, Os_Tecnico2: dados.tecnico2,
@@ -246,7 +246,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     Dias_Execucao: dados.diasExecucao || '',
     Data_Fim_Servico: dados.dataFimServico || null,
     Servico_Numero: dados.servicoNumero || null,
-  }).eq("Id_Ordem", idOs);
+  };
+
+  let { error } = await supabase.from(TBL_OS).update(baseUpdate).eq("Id_Ordem", idOs);
+
+  // Fallback: se schema cache não reconhece colunas novas, tenta sem elas
+  if (error?.message?.includes("schema cache")) {
+    delete baseUpdate.Data_Fim_Servico;
+    delete baseUpdate.Servico_Numero;
+    ({ error } = await supabase.from(TBL_OS).update(baseUpdate).eq("Id_Ordem", idOs));
+  }
 
   if (error) {
     console.error("Erro Supabase update:", error);
