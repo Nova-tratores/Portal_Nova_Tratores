@@ -20,14 +20,11 @@ let nCodServDiv: number | null = null;
 async function buscarNcodServDiv(): Promise<number> {
   if (nCodServDiv) return nCodServDiv;
   try {
-    const result = await omieCall<{ nCodServ?: number }>("/servicos/servico/", "ConsultarServico", { cCodServico: "div." });
-    if (result?.nCodServ) { nCodServDiv = result.nCodServ; return nCodServDiv; }
-  } catch {}
-  // Fallback: busca na lista
-  try {
-    const result = await omieCall<{ cadastro?: Array<{ nCodServ: number; cCodServico: string }> }>("/servicos/servico/", "ListarServicos", { pagina: 1, registros_por_pagina: 200 });
-    const serv = (result?.cadastro || []).find(s => s.cCodServico === "div.");
-    if (serv) { nCodServDiv = serv.nCodServ; return nCodServDiv; }
+    const result = await omieCall<{ cadastros?: Array<{ cabecalho: { cCodigo: string }; intListar: { nCodServ: number } }> }>(
+      "/servicos/servico/", "ListarCadastroServico", { nPagina: 1, nRegPorPagina: 200 }
+    );
+    const serv = (result?.cadastros || []).find(s => s.cabecalho.cCodigo === "div.");
+    if (serv) { nCodServDiv = serv.intListar.nCodServ; return nCodServDiv; }
   } catch {}
   console.warn("[Omie] Serviço 'div.' não encontrado no Omie");
   return 0;
