@@ -42,6 +42,7 @@ export const PHASES = [
   "Execução (Realizando Diagnóstico)",
   "Execução aguardando peças (em transporte)",
   "Relatório Atualizado",
+  "Executada",
   "Executada aguardando comercial",
   "Aguardando outros",
   "Aguardando ordem Técnico",

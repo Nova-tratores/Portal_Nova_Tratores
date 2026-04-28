@@ -69,10 +69,11 @@ export async function GET(req: NextRequest) {
   const items = (lista || []).map((row) => {
     let count = 0;
     const campos = ["FotoHorimetro", "FotoChassis", "FotoFrente", "FotoDireita", "FotoEsquerda", "FotoTraseira", "FotoVolante", "FotoFalha1", "FotoFalha2", "FotoFalha3", "FotoFalha4", "FotoPecaNova1", "FotoPecaNova2", "FotoPecaInstalada1", "FotoPecaInstalada2"];
-    for (const c of campos) { if (row[c]) count++; }
+    const r = row as Record<string, any>;
+    for (const c of campos) { if (r[c]) count++; }
     // Thumbnail: primeira foto disponível
     let thumb = "";
-    for (const c of campos) { if (row[c]) { thumb = row[c]; break; } }
+    for (const c of campos) { if (r[c]) { thumb = r[c]; break; } }
     return {
       os: row.Ordem_Servico,
       tecnico: row.NomResp || "",
