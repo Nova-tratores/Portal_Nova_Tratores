@@ -15,7 +15,8 @@ interface Veiculo { id: number; placa: string; descricao: string }
 interface VinculoVeiculo { id: number; tecnico_nome: string; adesao_id: number; placa: string; descricao: string }
 interface EventoGPS { tipo: string; horario: string; lat: number; lng: number; na_loja: boolean; destino_nome?: string; destino_cnpj?: string }
 interface ViagemGPS { adesao_id: number; placa: string; descricao: string; data: string; saida_loja: string | null; chegada_cliente: string | null; saida_cliente: string | null; retorno_loja: string | null; eventos: EventoGPS[]; posicoes_total: number; ultima_posicao: { dt: string; lat: number; lng: number; ignicao: number; velocidade: number } | null }
-interface VisitaGPS { saida: string | null; chegada: string | null; saidaCliente: string | null; retorno: string | null; almoco?: boolean; passagemRapida?: boolean; destino_nome?: string; destino_cnpj?: string }
+interface VisitaGPS { saida: string | null; chegada: string | null; saidaCliente: string | null; retorno: string | null; almoco?: boolean; passagemRapida?: boolean; destino_nome?: string; destino_cnpj?: string; lat?: number; lng?: number; naoConfirmada?: boolean; distanciaCliente?: number; semCoordenadas?: boolean }
+interface DesvioRota { visitaIdx: number; visita: VisitaGPS; permanenciaMin: number }
 interface EstimadoCliente { saida: number; chegada: number; fimServico: number; retorno: number | null }
 
 // ── Helpers ──
@@ -62,13 +63,31 @@ function isHorarioAlmoco(iso: string | null): boolean {
 }
 
 function agruparVisitasGPS(eventos: EventoGPS[]): VisitaGPS[] {
+  // Filtrar retornos falsos: retorno_loja seguido de saida_loja em < 5 min = trânsito, não retorno real
+  const relevantes = eventos.filter(ev => ev.tipo !== 'parada' && ev.tipo !== 'inicio_movimento')
+  const limpos: EventoGPS[] = []
+  for (let i = 0; i < relevantes.length; i++) {
+    const ev = relevantes[i]
+    if (ev.tipo === 'retorno_loja') {
+      const prox = relevantes[i + 1]
+      if (prox && prox.tipo === 'saida_loja') {
+        const diff = isoToMin(prox.horario) - isoToMin(ev.horario)
+        if (diff >= 0 && diff < 5) {
+          // Retorno falso + saída falsa = trânsito entre clientes, pula os dois
+          i++ // pula o saida_loja seguinte
+          continue
+        }
+      }
+    }
+    limpos.push(ev)
+  }
+
   const v: VisitaGPS[] = []; let c: VisitaGPS = { saida: null, chegada: null, saidaCliente: null, retorno: null }; let has = false
-  for (const ev of eventos) {
-    if (ev.tipo === 'parada' || ev.tipo === 'inicio_movimento') continue
+  for (const ev of limpos) {
     if (ev.tipo === 'saida_loja') { if (has) { v.push({ ...c }); c = { saida: null, chegada: null, saidaCliente: null, retorno: null } }; c.saida = ev.horario; has = true }
     else if (ev.tipo === 'chegada_cliente') {
-      if (c.saidaCliente) { v.push({ ...c }); c = { saida: c.saidaCliente, chegada: ev.horario, saidaCliente: null, retorno: null, destino_nome: ev.destino_nome, destino_cnpj: ev.destino_cnpj } }
-      else { c.chegada = ev.horario; c.destino_nome = ev.destino_nome; c.destino_cnpj = ev.destino_cnpj }
+      if (c.saidaCliente) { v.push({ ...c }); c = { saida: c.saidaCliente, chegada: ev.horario, saidaCliente: null, retorno: null, destino_nome: ev.destino_nome, destino_cnpj: ev.destino_cnpj, lat: ev.lat, lng: ev.lng } }
+      else { c.chegada = ev.horario; c.destino_nome = ev.destino_nome; c.destino_cnpj = ev.destino_cnpj; c.lat = ev.lat; c.lng = ev.lng }
       has = true
     }
     else if (ev.tipo === 'saida_cliente') { c.saidaCliente = ev.horario; has = true }
@@ -104,24 +123,40 @@ function estimativasPorCliente(items: AgendaRow[]): EstimadoCliente[] {
   }; return r
 }
 
-// Encontra a visita GPS que corresponde ao item da agenda (por nome do destino ou CNPJ)
-function matchVisitaGPS(reais: VisitaGPS[], item: AgendaRow, ordsTec: OrdemServico[], usados: Set<number>): VisitaGPS | undefined {
-  const clienteAgenda = item.cliente || ''
-  const os = item.id_ordem ? ordsTec.find(o => o.Id_Ordem === item.id_ordem) : null
-  const cnpjOS = os?.Cnpj_Cliente || ''
-  // 1. Match por CNPJ (mais confiável)
-  if (cnpjOS) {
-    const idx = reais.findIndex((v, j) => !usados.has(j) && v.destino_cnpj && v.destino_cnpj === cnpjOS)
-    if (idx >= 0) { usados.add(idx); return reais[idx] }
+// Encontra a visita GPS mais próxima do endereço do cliente (coordenadas da agenda)
+// Sem coordenadas = fallback cronológico (marcado como não confirmado)
+function matchVisitaGPS(reais: VisitaGPS[], item: AgendaRow, _ordsTec: OrdemServico[], usados: Set<number>): VisitaGPS | undefined {
+  const coordAgenda = item.coordenadas
+
+  if (coordAgenda) {
+    let melhorIdx = -1, melhorDist = Infinity
+    for (let j = 0; j < reais.length; j++) {
+      if (usados.has(j)) continue
+      const v = reais[j]
+      if (v.lat != null && v.lng != null) {
+        const dist = distanciaKm(coordAgenda.lat, coordAgenda.lng, v.lat, v.lng)
+        if (dist < melhorDist) { melhorDist = dist; melhorIdx = j }
+      }
+    }
+    if (melhorIdx >= 0 && melhorDist <= 20) {
+      const vis = reais[melhorIdx]
+      vis.distanciaCliente = melhorDist
+      vis.naoConfirmada = melhorDist > 5
+      usados.add(melhorIdx)
+      return vis
+    }
   }
-  // 2. Match por nome do destino vs nome do cliente na agenda
-  if (clienteAgenda) {
-    const idx = reais.findIndex((v, j) => !usados.has(j) && v.destino_nome && match(v.destino_nome, clienteAgenda))
-    if (idx >= 0) { usados.add(idx); return reais[idx] }
+
+  // Fallback cronológico quando não tem coordenadas — pega próxima visita não usada
+  // Marca como não confirmada para o usuário saber que não foi validado por GPS
+  for (let j = 0; j < reais.length; j++) {
+    if (usados.has(j)) continue
+    const vis = reais[j]
+    vis.naoConfirmada = true
+    vis.semCoordenadas = true
+    usados.add(j)
+    return vis
   }
-  // 3. Fallback: próxima visita não usada (ordem cronológica)
-  const idx = reais.findIndex((_, j) => !usados.has(j))
-  if (idx >= 0) { usados.add(idx); return reais[idx] }
   return undefined
 }
 
@@ -261,6 +296,10 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
   const [dataHistorico, setDataHistorico] = useState('')
   const [agendaHistorico, setAgendaHistorico] = useState<AgendaRow[] | null>(null)
   const [loadingHistorico, setLoadingHistorico] = useState(false)
+  const [editOficina, setEditOficina] = useState<{ tecnico: string; texto: string } | null>(null)
+  const [savingOficina, setSavingOficina] = useState(false)
+  const [atividadeOficina, setAtividadeOficina] = useState<Record<string, string>>({})
+  const [desviosConfirmados, setDesviosConfirmados] = useState<Record<string, 'cliente' | 'desvio'>>({})
 
   const tecs = useMemo(() => tecnicos.filter(t => t.mecanico_role === 'tecnico'), [tecnicos])
   const hoje = useMemo(() => new Date().toISOString().split('T')[0], [])
@@ -269,7 +308,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
   const calcRota = useCallback(async (row: AgendaRow) => {
     try { const r = await fetch('/api/pos/agenda-visao', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: row.id, calcular: true }) }); if (r.ok) { const u = await r.json(); setAgenda(p => p.map(a => a.id === row.id ? u : a)) } } catch { }
   }, [])
-  const carregar = useCallback(async () => { const r = await fetch(`/api/pos/agenda-visao?data=${hoje}`); if (r.ok) { const rows = await r.json(); setAgenda(rows); return rows as AgendaRow[] }; return [] }, [hoje])
+  const carregar = useCallback(async () => { const r = await fetch(`/api/pos/agenda-visao?data=${hoje}`); if (r.ok) { const rows = await r.json() as AgendaRow[]; setAgenda(rows); rows.filter(r => r.endereco && !r.coordenadas).forEach(r => calcRota(r)); return rows }; return [] }, [hoje, calcRota])
 
   const tecsRef = useRef(tecs); const ordensRef = useRef(ordens); tecsRef.current = tecs; ordensRef.current = ordens
   const sincronizar = useCallback(async () => {
@@ -284,7 +323,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
         const fim = fimExecucaoReal(ord)
         return hojeStr >= inicio && hojeStr <= fim
       }).map(ord => ({ id: ord.Id_Ordem, cliente: ord.Os_Cliente, cnpj: ord.Cnpj_Cliente, endereco: ord.Endereco_Cliente, cidade: ord.Cidade_Cliente, servico: ord.Serv_Solicitado, qtdHoras: parseFloat(String(ord.Qtd_HR || 0)) || 2, horaInicio: ord.Hora_Inicio_Exec || '', horaFim: ord.Hora_Fim_Exec || '', observacoes: extrairSolicitacao(ord.Serv_Solicitado || '') })) }))
-      if (payload.length > 0) { const r = await fetch('/api/pos/agenda-visao', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: hoje, tecnicos: payload }) }); if (r.ok) { const rows = await r.json() as AgendaRow[]; setAgenda(rows); rows.filter(r => r.tempo_ida_min === 0 && r.endereco).forEach(r => calcRota(r)) } } else { await carregar() }
+      if (payload.length > 0) { const r = await fetch('/api/pos/agenda-visao', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: hoje, tecnicos: payload }) }); if (r.ok) { const rows = await r.json() as AgendaRow[]; setAgenda(rows); rows.filter(r => r.endereco && (r.tempo_ida_min === 0 || !r.coordenadas)).forEach(r => calcRota(r)) } } else { await carregar() }
     } finally { setSyncing(false) }
   }, [hoje, carregar, calcRota])
 
@@ -530,30 +569,26 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
       const reais = visitasReais(visitasGPS)
       const visitaIdx = ordsTec.length > 0 ? osAtualIdx(visitasGPS, estimados, ordsTec.length) : -1
 
-      // Mapeia a visita GPS atual para o OS correto (por destino/CNPJ, não por índice)
+      // Mapeia a visita GPS atual para o OS correto — por coordenadas
       const visitaAtual = visitaIdx >= 0 ? reais[visitaIdx] : null
       let curIdx = visitaIdx
-      if (visitaAtual && ext.length > 1 && ordsTec.length > 1) {
-        // Tenta achar qual OS corresponde à visita GPS atual pelo destino
+      if (visitaAtual && visitaAtual.lat != null && visitaAtual.lng != null && ext.length > 0) {
+        // Acha qual item da agenda está mais perto das coordenadas GPS da visita atual
+        let melhorDist = Infinity, melhorEi = -1
         for (let ei = 0; ei < ext.length; ei++) {
-          const agIt = ext[ei]
-          const osItem = agIt.id_ordem ? ordsTec.find(o => o.Id_Ordem === agIt.id_ordem) : null
-          const cnpjOS = osItem?.Cnpj_Cliente || ''
-          // Match por CNPJ
-          if (cnpjOS && visitaAtual.destino_cnpj && visitaAtual.destino_cnpj === cnpjOS) {
-            const oi = ordsTec.findIndex(o => o.Id_Ordem === agIt.id_ordem)
-            if (oi >= 0) { curIdx = oi; break }
-          }
-          // Match por nome
-          if (visitaAtual.destino_nome && agIt.cliente && match(visitaAtual.destino_nome, agIt.cliente)) {
-            const oi = ordsTec.findIndex(o => o.Id_Ordem === agIt.id_ordem)
-            if (oi >= 0) { curIdx = oi; break }
-          }
+          const coord = ext[ei].coordenadas
+          if (!coord) continue
+          const dist = distanciaKm(visitaAtual.lat!, visitaAtual.lng!, coord.lat, coord.lng)
+          if (dist < melhorDist) { melhorDist = dist; melhorEi = ei }
+        }
+        if (melhorEi >= 0 && melhorDist < 15) {
+          const oi = ordsTec.findIndex(o => o.Id_Ordem === ext[melhorEi].id_ordem)
+          if (oi >= 0) curIdx = oi
         }
       }
 
-      // Se está a caminho e ainda não chegou em nenhum cliente, detecta pelo mais próximo
-      if (pos && foraLoja && ext.length > 1 && reais.filter(v => v.chegada).length === 0) {
+      // Se está a caminho, detecta destino pelo mais próximo da posição atual
+      if (pos && foraLoja && ext.length > 1) {
         let melhorIdx = curIdx, melhorDist = Infinity
         for (let ei = 0; ei < ext.length; ei++) {
           const coord = ext[ei].coordenadas
@@ -613,9 +648,52 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
       else if (lastEst?.retorno && !ultimaVisita?.retorno) { previsaoLabel = 'Retorno'; previsaoHora = fh(lastEst.retorno) }
       else if (ultimaVisita?.retorno) { previsaoLabel = 'Voltou'; previsaoHora = fHora(ultimaVisita.retorno) }
 
-      return { tec, items, ext, ordsTec, vinculo, viagem, visitasGPS, estimados, lastEst, foraLoja, naOfi, completedVisits, pos, curIdx, curOS, curAgItem, curEst, curGPS, status, cardEndereco, previsaoLabel, previsaoHora, multiDia }
+      // Tempo na oficina após retorno (se retornou antes das 18:00)
+      let naOficinaAposRetorno: { de: string; ate: string } | null = null
+      if (ultimaVisita?.retorno) {
+        const retMin = isoToMin(ultimaVisita.retorno)
+        const fimExpediente = 18 * 60 // 18:00
+        if (retMin < fimExpediente) {
+          naOficinaAposRetorno = { de: fHora(ultimaVisita.retorno), ate: '18:00' }
+        }
+      }
+
+      // Detecta OS compartilhada com outro técnico
+      const osCompartilhada: Record<string, string> = {}
+      for (const os of ordsTec) {
+        const parceiro = match(tec.tecnico_nome, os.Os_Tecnico) ? os.Os_Tecnico2 : os.Os_Tecnico
+        if (parceiro) {
+          const tecParceiro = tecs.find(t => match(t.tecnico_nome, parceiro))
+          if (tecParceiro) osCompartilhada[os.Id_Ordem] = tecParceiro.tecnico_nome
+        }
+      }
+
+      // Detecta desvios de rota: visitas GPS que ficaram paradas 30+ min longe de qualquer cliente agendado
+      const desvios: DesvioRota[] = []
+      const todasCoords = ext.map(a => a.coordenadas).filter(Boolean) as { lat: number; lng: number }[]
+      for (let vi = 0; vi < reais.length; vi++) {
+        const vis = reais[vi]
+        if (vis.lat == null || vis.lng == null) continue
+        if (vis.almoco || vis.passagemRapida) continue
+        // Calcula permanência no local
+        const permanencia = vis.chegada && vis.saidaCliente
+          ? isoToMin(vis.saidaCliente) - isoToMin(vis.chegada)
+          : vis.chegada && !vis.saidaCliente
+            ? agora() - isoToMin(vis.chegada)
+            : 0
+        // Verifica distância de todos os clientes agendados
+        const distMin = todasCoords.length > 0
+          ? Math.min(...todasCoords.map(c => distanciaKm(vis.lat!, vis.lng!, c.lat, c.lng)))
+          : 999
+        // Parou 30+ min e está longe (>5km) de qualquer cliente
+        if (permanencia >= 30 && distMin > 5) {
+          desvios.push({ visitaIdx: vi, visita: vis, permanenciaMin: permanencia })
+        }
+      }
+
+      return { tec, items, ext, ordsTec, vinculo, viagem, visitasGPS, estimados, lastEst, foraLoja, naOfi, completedVisits, pos, curIdx, curOS, curAgItem, curEst, curGPS, status, cardEndereco, previsaoLabel, previsaoHora, multiDia, naOficinaAposRetorno, osCompartilhada, desvios }
     })
-  }, [tecsSorted, porTec, camPorTec, ordensPorTec, vinculoPorTec, viagensPorTec, carAddr])
+  }, [tecsSorted, porTec, camPorTec, ordensPorTec, vinculoPorTec, viagensPorTec, carAddr, tecs])
 
   // ── Resumo: carregar do DB quando modal abre, auto-gerar se vazio ──
   function gerarResumoAuto(d: typeof cardData[number]): string {
@@ -670,6 +748,37 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
     }
     setSavingResumo(false)
   }, [modalTec, cardData, resumoTec])
+
+  const salvarAtividadeOficina = useCallback(async (tecNome: string, texto: string) => {
+    setSavingOficina(true)
+    setAtividadeOficina(p => ({ ...p, [tecNome]: texto }))
+    const d = cardData.find(c => c.tec.tecnico_nome === tecNome)
+    if (d && d.items.length > 0) {
+      // Salva no primeiro item do técnico
+      await fetch('/api/pos/agenda-visao', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: d.items[0].id, atividade_oficina: texto }),
+      }).catch(() => {})
+    }
+    setSavingOficina(false)
+    setEditOficina(null)
+  }, [cardData])
+
+  // Carregar atividade_oficina dos items da agenda
+  useEffect(() => {
+    const map: Record<string, string> = {}
+    for (const d of cardData) {
+      const item = d.items.find((a: any) => a.atividade_oficina)
+      if (item) map[d.tec.tecnico_nome] = (item as any).atividade_oficina
+    }
+    setAtividadeOficina(p => {
+      const merged = { ...p }
+      for (const [k, v] of Object.entries(map)) {
+        if (!merged[k]) merged[k] = v
+      }
+      return merged
+    })
+  }, [cardData])
 
   // ── Auto-update endereço / mismatch detection ──
   useEffect(() => {
@@ -1102,6 +1211,16 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                           {tipoServico && (
                             <span style={{ fontSize: 14, fontWeight: 700, color: '#111', background: '#F0EFEB', padding: '3px 10px', borderRadius: 6 }}>{tipoServico}</span>
                           )}
+                          {d.osCompartilhada[curOS.Id_Ordem] && (
+                            <span style={{
+                              fontSize: 12, fontWeight: 800, color: '#7C3AED', background: '#EDE9FE',
+                              padding: '2px 8px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 4,
+                              border: '1.5px solid #C4B5FD',
+                            }}>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2.5" strokeLinecap="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                              {d.osCompartilhada[curOS.Id_Ordem].split(' ')[0]}
+                            </span>
+                          )}
                         </div>
                         <div style={{ fontSize: 17, fontWeight: 700, color: '#111', lineHeight: 1.3 }}>
                           {curOS.Os_Cliente?.split(' ').slice(0, 6).join(' ')}
@@ -1174,6 +1293,74 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                         display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
                       }}>
                         {solicitacao}
+                      </div>
+                    )}
+
+                    {/* Desvios de rota */}
+                    {d.desvios.filter(dv => !desviosConfirmados[`${tec.tecnico_nome}_${dv.visitaIdx}`]).map(dv => (
+                      <div key={dv.visitaIdx} onClick={e => e.stopPropagation()} style={{
+                        padding: '10px 14px', borderRadius: 10, marginBottom: 10,
+                        background: '#FEF2F2', border: '2px solid #FECACA',
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                          <AlertTriangle size={14} color="#DC2626" />
+                          <span style={{ fontSize: 13, fontWeight: 800, color: '#991B1B' }}>Parada fora do cliente — {fm(dv.permanenciaMin)}</span>
+                        </div>
+                        <div style={{ fontSize: 12, color: '#991B1B', marginBottom: 6 }}>
+                          {dv.visita.chegada && <span>{fHora(dv.visita.chegada)}</span>}
+                          {dv.visita.saidaCliente && <span> → {fHora(dv.visita.saidaCliente)}</span>}
+                          {dv.visita.destino_nome && <span> • {dv.visita.destino_nome}</span>}
+                        </div>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button className="vg-btn" onClick={() => setDesviosConfirmados(p => ({ ...p, [`${tec.tecnico_nome}_${dv.visitaIdx}`]: 'cliente' }))}
+                            style={{ background: '#111', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                            É o cliente
+                          </button>
+                          <button className="vg-btn" onClick={async () => {
+                            setDesviosConfirmados(p => ({ ...p, [`${tec.tecnico_nome}_${dv.visitaIdx}`]: 'desvio' }))
+                            // Salvar no resumo
+                            const dd = cardData.find(c => c.tec.tecnico_nome === tec.tecnico_nome)
+                            if (dd && dd.items.length > 0) {
+                              const hora = dv.visita.chegada ? fHora(dv.visita.chegada) : ''
+                              const txt = `Desvio de rota: parou ${fm(dv.permanenciaMin)} às ${hora}${dv.visita.destino_nome ? ` (${dv.visita.destino_nome})` : ''}`
+                              await fetch('/api/pos/agenda-visao', {
+                                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ id: dd.items[0].id, resumo: txt }),
+                              }).catch(() => {})
+                            }
+                          }}
+                            style={{ background: '#DC2626', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                            Desvio de rota
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Na oficina após retorno */}
+                    {d.naOficinaAposRetorno && (
+                      <div
+                        onClick={(e) => { e.stopPropagation(); setEditOficina({ tecnico: tec.tecnico_nome, texto: atividadeOficina[tec.tecnico_nome] || '' }) }}
+                        style={{
+                          padding: '10px 14px', borderRadius: 10, marginBottom: 10,
+                          background: '#F0F4FF', border: '2px solid #BFDBFE',
+                          display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
+                        }}>
+                        <Home size={16} color="#1E3A5F" />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 14, fontWeight: 800, color: '#1E3A5F' }}>Na oficina</div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#3B82F6' }}>{d.naOficinaAposRetorno.de} → {d.naOficinaAposRetorno.ate}</div>
+                          {atividadeOficina[tec.tecnico_nome] && (
+                            <div style={{ fontSize: 13, fontWeight: 600, color: '#1E3A5F', marginTop: 4, lineHeight: 1.4 }}>
+                              {atividadeOficina[tec.tecnico_nome]}
+                            </div>
+                          )}
+                          {!atividadeOficina[tec.tecnico_nome] && (
+                            <div style={{ fontSize: 12, fontWeight: 500, color: '#93C5FD', marginTop: 2, fontStyle: 'italic' }}>
+                              Clique para registrar atividade
+                            </div>
+                          )}
+                        </div>
+                        <Edit3 size={14} color="#93C5FD" />
                       </div>
                     )}
 
@@ -1303,7 +1490,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                 const primeiraSaida = viagem.eventos.find(ev => ev.tipo === 'saida_loja')
                 const saiuTarde = primeiraSaida && isoToMin(primeiraSaida.horario) >= 690 // 11:30
 
-                // Detectar saídas rápidas (saiu e voltou em < 20 min = não foi no cliente)
+                // Detectar saídas rápidas (saiu e voltou em < 20 min SEM passar em nenhum cliente)
                 const evsFiltrados = viagem.eventos.filter(ev => EVENTO_LABEL[ev.tipo])
                 const saidasRapidas = new Set<number>()
                 for (let ei = 0; ei < evsFiltrados.length; ei++) {
@@ -1311,8 +1498,9 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                     const retIdx = evsFiltrados.findIndex((e, j) => j > ei && e.tipo === 'retorno_loja')
                     if (retIdx !== -1) {
                       const diffMin = isoToMin(evsFiltrados[retIdx].horario) - isoToMin(evsFiltrados[ei].horario)
-                      if (diffMin < 20) {
-                        // Marcar todos os eventos desta viagem curta
+                      // Só é saída rápida se não passou em nenhum cliente entre saída e retorno
+                      const teveCliente = evsFiltrados.slice(ei + 1, retIdx).some(e => e.tipo === 'chegada_cliente')
+                      if (diffMin < 20 && !teveCliente) {
                         for (let k = ei; k <= retIdx; k++) saidasRapidas.add(k)
                       }
                     }
@@ -1434,6 +1622,76 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                 )
               })()}
 
+              {/* ── DESVIOS ── */}
+              {d.desvios.length > 0 && (
+                <div style={{ padding: '14px 24px', borderBottom: '1px solid #DDD' }}>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: '#DC2626', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 10 }}>
+                    <AlertTriangle size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />
+                    Paradas fora do cliente
+                  </div>
+                  {d.desvios.map(dv => {
+                    const key = `${modalTec}_${dv.visitaIdx}`
+                    const confirmacao = desviosConfirmados[key]
+                    return (
+                      <div key={dv.visitaIdx} style={{
+                        padding: '12px 16px', borderRadius: 10, marginBottom: 8,
+                        background: confirmacao === 'desvio' ? '#FEE2E2' : confirmacao === 'cliente' ? '#F0FDF4' : '#FEF2F2',
+                        border: `2px solid ${confirmacao === 'desvio' ? '#FECACA' : confirmacao === 'cliente' ? '#BBF7D0' : '#FECACA'}`,
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                          <span style={{ fontSize: 16, fontWeight: 800, color: '#111' }}>
+                            {dv.visita.chegada && fHora(dv.visita.chegada)}
+                            {dv.visita.saidaCliente && ` → ${fHora(dv.visita.saidaCliente)}`}
+                          </span>
+                          <span style={{ fontSize: 14, fontWeight: 800, color: '#DC2626', background: '#FEE2E2', padding: '2px 10px', borderRadius: 6 }}>
+                            {fm(dv.permanenciaMin)} parado
+                          </span>
+                          {confirmacao === 'desvio' && <span style={{ fontSize: 12, fontWeight: 800, color: '#DC2626', background: '#FECACA', padding: '2px 8px', borderRadius: 4 }}>DESVIO</span>}
+                          {confirmacao === 'cliente' && <span style={{ fontSize: 12, fontWeight: 800, color: '#059669', background: '#D1FAE5', padding: '2px 8px', borderRadius: 4 }}>CONFIRMADO</span>}
+                        </div>
+                        {dv.visita.destino_nome && (
+                          <div style={{ fontSize: 14, color: '#555', marginBottom: 6 }}>
+                            <MapPin size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />
+                            {dv.visita.destino_nome}
+                          </div>
+                        )}
+                        {dv.visita.lat != null && (
+                          <div style={{ marginBottom: 8 }}>
+                            <a href={`https://www.google.com/maps?q=${dv.visita.lat},${dv.visita.lng}`} target="_blank" rel="noopener noreferrer"
+                              style={{ fontSize: 13, color: '#2563EB', display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'none', fontWeight: 600 }}
+                              onClick={e => e.stopPropagation()}>
+                              <ExternalLink size={11} /> Ver local no mapa
+                            </a>
+                          </div>
+                        )}
+                        {!confirmacao && (
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button className="vg-btn" onClick={() => setDesviosConfirmados(p => ({ ...p, [key]: 'cliente' }))}
+                              style={{ background: '#111', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                              É o cliente
+                            </button>
+                            <button className="vg-btn" onClick={async () => {
+                              setDesviosConfirmados(p => ({ ...p, [key]: 'desvio' }))
+                              if (d.items.length > 0) {
+                                const hora = dv.visita.chegada ? fHora(dv.visita.chegada) : ''
+                                const txt = `Desvio de rota: parou ${fm(dv.permanenciaMin)} às ${hora}${dv.visita.destino_nome ? ` (${dv.visita.destino_nome})` : ''}`
+                                await fetch('/api/pos/agenda-visao', {
+                                  method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ id: d.items[0].id, resumo: txt }),
+                                }).catch(() => {})
+                              }
+                            }}
+                              style={{ background: '#DC2626', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                              Desvio de rota
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
               {/* ── ORDENS ── */}
               {ordsTec.length > 0 && (
                 <div style={{ padding: '14px 24px 6px' }}>
@@ -1476,7 +1734,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                 const extIdx = d.ext.findIndex(e => e.id_ordem === os.Id_Ordem)
                 const est = extIdx >= 0 ? estimados[extIdx] : null
                 const reaisModal = visitasReais(visitasGPS)
-                const gps = agItem ? matchVisitaGPS(reaisModal, agItem, ordsTec, _usadosModal) || null : reaisModal[osIdx] || null
+                const gps = agItem ? matchVisitaGPS(reaisModal, agItem, ordsTec, _usadosModal) || null : null
                 const prevAdj = prevAjustados[osIdx]
                 const isEditing = editingAddr !== null && editingAddr.id === agItem?.id
                 const temAtraso = est && gps?.saidaCliente && (isoToMin(gps.saidaCliente) - est.fimServico > 30)
@@ -1497,6 +1755,16 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                       <span style={{ fontSize: 18, fontWeight: 800, color: '#111' }}>{os.Os_Cliente?.split(' ').slice(0, 5).join(' ')}</span>
                       {os.Cidade_Cliente && <span style={{ fontSize: 15, fontWeight: 600, color: '#111' }}>{os.Cidade_Cliente}</span>}
                       {os.Qtd_HR && <span style={{ fontSize: 15, fontWeight: 600, color: '#111' }}>{os.Qtd_HR}h</span>}
+                      {d.osCompartilhada[os.Id_Ordem] && (
+                        <span style={{
+                          fontSize: 12, fontWeight: 800, color: '#7C3AED', background: '#EDE9FE',
+                          padding: '3px 10px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 4,
+                          border: '1.5px solid #C4B5FD',
+                        }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2.5" strokeLinecap="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                          {d.osCompartilhada[os.Id_Ordem].split(' ')[0]}
+                        </span>
+                      )}
                       <div style={{ flex: 1 }} />
                       {isDone && <span style={{ fontSize: 13, fontWeight: 800, color: '#111', background: '#E8E8E8', padding: '3px 12px', borderRadius: 4 }}>Concluido</span>}
                       {isCurrent && !isDone && gps?.chegada && <span style={{ fontSize: 13, fontWeight: 800, color: '#111', background: '#E8E8E8', padding: '3px 12px', borderRadius: 4 }}>No cliente</span>}
@@ -1608,8 +1876,20 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                       )}
                       {/* GPS Real */}
                       {gps && (gps.saida || gps.chegada) && (
-                        <div style={{ display: 'flex', alignItems: 'center', fontSize: 16, fontVariantNumeric: 'tabular-nums', marginBottom: 6, background: '#ECFDF5', padding: '6px 10px', borderRadius: 5, border: '2px solid #A7F3D0' }}>
-                          <span style={{ width: 72, fontSize: 12, fontWeight: 800, color: '#065F46' }}>GPS Real</span>
+                        <div style={{ display: 'flex', alignItems: 'center', fontSize: 16, fontVariantNumeric: 'tabular-nums', marginBottom: 6, background: gps.naoConfirmada ? '#FEF2F2' : '#ECFDF5', padding: '6px 10px', borderRadius: 5, border: `2px solid ${gps.naoConfirmada ? '#FECACA' : '#A7F3D0'}` }}>
+                          <span style={{ width: 72, fontSize: 12, fontWeight: 800, color: gps.naoConfirmada ? '#991B1B' : '#065F46' }}>
+                            GPS Real
+                            {gps.semCoordenadas && (
+                              <span style={{ display: 'block', fontSize: 10, fontWeight: 600, color: '#B45309' }}>
+                                sem coord.
+                              </span>
+                            )}
+                            {gps.distanciaCliente != null && (
+                              <span style={{ display: 'block', fontSize: 10, fontWeight: 600, color: gps.distanciaCliente > 5 ? '#DC2626' : '#059669' }}>
+                                {gps.distanciaCliente.toFixed(1)}km
+                              </span>
+                            )}
+                          </span>
                           <span style={{ width: 52, fontWeight: 800, color: '#065F46', textAlign: 'center' }}>{fHora(gps.saida)}</span>
                           <span style={{ width: 20, textAlign: 'center', color: '#065F46' }}>&rarr;</span>
                           <span style={{ width: 52, fontWeight: 800, color: chegouAtrasado ? '#DC2626' : '#065F46', textAlign: 'center' }}>{fHora(gps.chegada)}</span>
@@ -1649,6 +1929,59 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                   <span style={{ fontWeight: 800, color: '#111' }}>Retornou {fHora(viagem.retorno_loja)}</span>
                   {(() => { const diff = isoToMin(viagem.retorno_loja!) - lastEst.retorno!; return diff > 5 ? <span style={{ color: '#DC2626', fontWeight: 800 }}>+{fm(diff)}</span> : diff < -5 ? <span style={{ color: '#059669', fontWeight: 800 }}>{fm(Math.abs(diff))} antes</span> : <span style={{ color: '#111', fontWeight: 600 }}>pontual</span> })()}
                   <span style={{ color: '#111', fontWeight: 500 }}>est. {fh(lastEst.retorno)}</span>
+                </div>
+              )}
+
+              {/* Na oficina após retorno */}
+              {d.naOficinaAposRetorno && (
+                <div style={{ padding: '14px 24px', borderTop: '1px solid #DDD', background: '#F0F4FF' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 16, marginBottom: editOficina?.tecnico === modalTec ? 10 : 0 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#1E3A5F', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Home size={15} color="#fff" />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 800, color: '#1E3A5F' }}>Na oficina</div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: '#3B82F6' }}>{d.naOficinaAposRetorno.de} → {d.naOficinaAposRetorno.ate}</div>
+                    </div>
+                    {editOficina?.tecnico !== modalTec && (
+                      <button onClick={() => setEditOficina({ tecnico: modalTec!, texto: atividadeOficina[modalTec!] || '' })}
+                        style={{ background: '#1E3A5F', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <Edit3 size={13} /> {atividadeOficina[modalTec!] ? 'Editar' : 'Registrar atividade'}
+                      </button>
+                    )}
+                  </div>
+                  {atividadeOficina[modalTec!] && editOficina?.tecnico !== modalTec && (
+                    <div style={{ marginTop: 8, marginLeft: 44, fontSize: 15, fontWeight: 600, color: '#1E3A5F', lineHeight: 1.5, background: '#DBEAFE', padding: '10px 14px', borderRadius: 8 }}>
+                      {atividadeOficina[modalTec!]}
+                    </div>
+                  )}
+                  {editOficina?.tecnico === modalTec && (
+                    <div style={{ marginLeft: 44 }}>
+                      <textarea
+                        autoFocus
+                        value={editOficina.texto}
+                        onChange={e => setEditOficina({ ...editOficina, texto: e.target.value })}
+                        placeholder="O que o técnico está fazendo na oficina? Ex: Organizando ferramentas, limpeza, preparando peças..."
+                        style={{
+                          width: '100%', minHeight: 70, padding: '10px 12px', borderRadius: 8,
+                          border: '2px solid #93C5FD', fontSize: 14, lineHeight: 1.5, color: '#111',
+                          resize: 'vertical', outline: 'none', fontFamily: 'inherit', background: '#fff',
+                        }}
+                      />
+                      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                        <button
+                          onClick={() => salvarAtividadeOficina(modalTec!, editOficina.texto)}
+                          disabled={savingOficina}
+                          style={{ background: '#1E3A5F', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 16px', fontSize: 13, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+                          {savingOficina ? <RefreshCw size={13} className="animate-spin" /> : <Check size={13} />} Salvar
+                        </button>
+                        <button onClick={() => setEditOficina(null)}
+                          style={{ background: '#E8E8E8', color: '#666', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
