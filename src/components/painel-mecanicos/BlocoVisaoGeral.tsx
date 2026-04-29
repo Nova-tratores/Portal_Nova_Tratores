@@ -293,6 +293,9 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
   const [resumoTec, setResumoTec] = useState('')
   const [savingResumo, setSavingResumo] = useState(false)
   const resumoLoadedRef = useRef<string | null>(null)
+  const [horasDirigindo, setHorasDirigindo] = useState(0)
+  const [kmPercorrido, setKmPercorrido] = useState(0)
+  const [horasNoCliente, setHorasNoCliente] = useState(0)
   const [dataHistorico, setDataHistorico] = useState('')
   const [agendaHistorico, setAgendaHistorico] = useState<AgendaRow[] | null>(null)
   const [loadingHistorico, setLoadingHistorico] = useState(false)
@@ -695,6 +698,52 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
     })
   }, [tecsSorted, porTec, camPorTec, ordensPorTec, vinculoPorTec, viagensPorTec, carAddr, tecs])
 
+  // ── Calcular métricas do GPS (horas dirigindo, km, horas no cliente) ──
+  function calcularMetricasGPS(d: typeof cardData[number]): { horasDirigindo: number; kmPercorrido: number; horasNoCliente: number } {
+    const { viagem, visitasGPS } = d
+    let dirigindoMin = 0
+    let clienteMin = 0
+    let km = 0
+
+    // KM e horas dirigindo: calcular a partir dos eventos de viagem
+    if (viagem) {
+      const eventos = viagem.eventos || []
+      // Horas dirigindo: tempo entre saída (loja ou cliente) e próxima chegada
+      for (let i = 0; i < eventos.length; i++) {
+        const ev = eventos[i]
+        if (ev.tipo === 'saida_loja' || ev.tipo === 'saida_cliente') {
+          // Procura próxima chegada
+          const prox = eventos.slice(i + 1).find(e => e.tipo === 'chegada_cliente' || e.tipo === 'retorno_loja')
+          if (prox) {
+            const diff = (new Date(prox.horario).getTime() - new Date(ev.horario).getTime()) / 60000
+            if (diff > 0 && diff < 600) dirigindoMin += diff
+          }
+        }
+      }
+    }
+
+    // Horas no cliente: soma de tempo entre chegada_cliente e saida_cliente
+    const reais = visitasReais(visitasGPS)
+    for (const v of reais) {
+      if (v.chegada && v.saidaCliente) {
+        const diff = (new Date(v.saidaCliente).getTime() - new Date(v.chegada).getTime()) / 60000
+        if (diff > 0 && diff < 600) clienteMin += diff
+      }
+    }
+
+    // KM: usar dados da agenda (distâncias calculadas pela rota)
+    const items = d.items || []
+    for (const item of items) {
+      km += (item.distancia_ida_km || 0) + (item.distancia_volta_km || 0)
+    }
+
+    return {
+      horasDirigindo: Math.round((dirigindoMin / 60) * 100) / 100,
+      kmPercorrido: Math.round(km * 10) / 10,
+      horasNoCliente: Math.round((clienteMin / 60) * 100) / 100,
+    }
+  }
+
   // ── Resumo: carregar do DB quando modal abre, auto-gerar se vazio ──
   function gerarResumoAuto(d: typeof cardData[number]): string {
     const { ordsTec, items, viagem, visitasGPS } = d
@@ -723,14 +772,34 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
     const primeiro = d.items[0]
     if (primeiro && resumoLoadedRef.current !== modalTec) {
       resumoLoadedRef.current = modalTec
-      fetch(`/api/pos/agenda-visao?data=${hoje}&tecnico=${encodeURIComponent(modalTec)}`)
-        .then(r => r.ok ? r.json() : [])
-        .then((rows: any[]) => {
-          const existing = rows.find((r: any) => r.resumo && r.resumo.trim())
-          if (existing) { setResumoTec(existing.resumo); return }
-          setResumoTec(gerarResumoAuto(d))
+
+      // Auto-calcular métricas do GPS
+      const metricas = calcularMetricasGPS(d)
+      setHorasDirigindo(metricas.horasDirigindo)
+      setKmPercorrido(metricas.kmPercorrido)
+      setHorasNoCliente(metricas.horasNoCliente)
+
+      // Carregar do banco (sobrescreve auto-cálculo se já foi salvo antes)
+      fetch(`/api/pos/resumo-diario?data=${hoje}&tecnico=${encodeURIComponent(modalTec)}`)
+        .then(r => r.ok ? r.json() : null)
+        .then((saved: any) => {
+          if (saved) {
+            if (saved.horas_dirigindo > 0) setHorasDirigindo(saved.horas_dirigindo)
+            if (saved.km_percorrido > 0) setKmPercorrido(saved.km_percorrido)
+            if (saved.horas_no_cliente > 0) setHorasNoCliente(saved.horas_no_cliente)
+            if (saved.resumo && saved.resumo.trim()) { setResumoTec(saved.resumo); return }
+          }
+          // Fallback: carregar resumo da agenda_visao ou auto-gerar
+          fetch(`/api/pos/agenda-visao?data=${hoje}&tecnico=${encodeURIComponent(modalTec)}`)
+            .then(r => r.ok ? r.json() : [])
+            .then((rows: any[]) => {
+              const existing = rows.find((r: any) => r.resumo && r.resumo.trim())
+              if (existing) { setResumoTec(existing.resumo); return }
+              setResumoTec(gerarResumoAuto(d))
+            })
+            .catch(() => setResumoTec(gerarResumoAuto(d)))
         })
-        .catch(() => setResumoTec(gerarResumoAuto(d)))
+        .catch(() => {})
     }
   }, [modalTec, cardData, hoje])
 
@@ -739,15 +808,28 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
     setSavingResumo(true)
     const d = cardData.find(c => c.tec.tecnico_nome === modalTec)
     if (d) {
+      // Salvar resumo texto na agenda_visao (legado)
       for (const item of d.items) {
         await fetch('/api/pos/agenda-visao', {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: item.id, resumo: resumoTec }),
         }).catch(() => {})
       }
+      // Salvar métricas + resumo na tabela resumo_diario_tecnico
+      await fetch('/api/pos/resumo-diario', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          data: hoje,
+          tecnico_nome: modalTec,
+          horas_dirigindo: horasDirigindo,
+          km_percorrido: kmPercorrido,
+          horas_no_cliente: horasNoCliente,
+          resumo: resumoTec,
+        }),
+      }).catch(() => {})
     }
     setSavingResumo(false)
-  }, [modalTec, cardData, resumoTec])
+  }, [modalTec, cardData, resumoTec, horasDirigindo, kmPercorrido, horasNoCliente, hoje])
 
   const salvarAtividadeOficina = useCallback(async (tecNome: string, texto: string) => {
     setSavingOficina(true)
@@ -2003,7 +2085,13 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                   <span style={{ fontSize: 16, fontWeight: 800, color: '#111', textTransform: 'uppercase', letterSpacing: '.04em' }}>Resumo do dia</span>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={() => setResumoTec(gerarResumoAuto(d))}
+                    <button onClick={() => {
+                      setResumoTec(gerarResumoAuto(d))
+                      const m = calcularMetricasGPS(d)
+                      setHorasDirigindo(m.horasDirigindo)
+                      setKmPercorrido(m.kmPercorrido)
+                      setHorasNoCliente(m.horasNoCliente)
+                    }}
                       style={{ background: '#E8E8E8', border: 'none', borderRadius: 6, padding: '6px 14px', cursor: 'pointer', fontSize: 14, fontWeight: 700, color: '#111', display: 'flex', alignItems: 'center', gap: 5 }}>
                       <RefreshCw size={13} /> Auto
                     </button>
@@ -2013,6 +2101,35 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                     </button>
                   </div>
                 </div>
+
+                {/* Métricas GPS */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 12 }}>
+                  <div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 8, padding: '10px 12px' }}>
+                    <div style={{ fontSize: 10, color: '#6B7280', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '.5px', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Car size={12} /> Horas dirigindo
+                    </div>
+                    <input type="number" min={0} step={0.25} value={horasDirigindo || ''} onChange={e => setHorasDirigindo(parseFloat(e.target.value) || 0)}
+                      style={{ width: '100%', padding: '6px 8px', border: '1px solid #BAE6FD', borderRadius: 6, fontSize: 18, fontWeight: 800, color: '#0369A1', background: 'transparent', outline: 'none', textAlign: 'center' }} />
+                    <div style={{ fontSize: 10, color: '#9CA3AF', textAlign: 'center', marginTop: 2 }}>horas</div>
+                  </div>
+                  <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: '10px 12px' }}>
+                    <div style={{ fontSize: 10, color: '#6B7280', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '.5px', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Navigation size={12} /> KM percorrido
+                    </div>
+                    <input type="number" min={0} step={1} value={kmPercorrido || ''} onChange={e => setKmPercorrido(parseFloat(e.target.value) || 0)}
+                      style={{ width: '100%', padding: '6px 8px', border: '1px solid #BBF7D0', borderRadius: 6, fontSize: 18, fontWeight: 800, color: '#15803D', background: 'transparent', outline: 'none', textAlign: 'center' }} />
+                    <div style={{ fontSize: 10, color: '#9CA3AF', textAlign: 'center', marginTop: 2 }}>km</div>
+                  </div>
+                  <div style={{ background: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: 8, padding: '10px 12px' }}>
+                    <div style={{ fontSize: 10, color: '#6B7280', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '.5px', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Timer size={12} /> Horas no cliente
+                    </div>
+                    <input type="number" min={0} step={0.25} value={horasNoCliente || ''} onChange={e => setHorasNoCliente(parseFloat(e.target.value) || 0)}
+                      style={{ width: '100%', padding: '6px 8px', border: '1px solid #FCD34D', borderRadius: 6, fontSize: 18, fontWeight: 800, color: '#B45309', background: 'transparent', outline: 'none', textAlign: 'center' }} />
+                    <div style={{ fontSize: 10, color: '#9CA3AF', textAlign: 'center', marginTop: 2 }}>horas</div>
+                  </div>
+                </div>
+
                 <textarea
                   value={resumoTec}
                   onChange={e => setResumoTec(e.target.value)}
