@@ -109,6 +109,9 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   const [clienteFilter, setClienteFilter] = useState("");
   const [gerarPPV, setGerarPPV] = useState(false);
   const [servicoOficina, setServicoOficina] = useState(false);
+  const [alimentacaoTecnico, setAlimentacaoTecnico] = useState(false);
+  const [alimentacaoValor, setAlimentacaoValor] = useState(0);
+  const [alimentacaoNoPdf, setAlimentacaoNoPdf] = useState(false);
   const [enviandoOmie, setEnviandoOmie] = useState(false);
   const [showDescontos, setShowDescontos] = useState(false);
   const [dadosTecnico, setDadosTecnico] = useState<any>(null);
@@ -391,6 +394,9 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
       horaChegada,
       gerarPPV: mode === "create" && tipoServico === "Revisão" && gerarPPV,
       servicoOficina,
+      alimentacaoTecnico,
+      alimentacaoValor: alimentacaoTecnico ? alimentacaoValor : 0,
+      alimentacaoNoPdf: alimentacaoTecnico ? alimentacaoNoPdf : false,
       userName,
     };
     try {
@@ -435,6 +441,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
     setGerarPPV(false); setShowDescontos(false); setLoadingData(false);
     setLembretes([]); setEditingLembreteId(null);
     setServicoOficina(false);
+    setAlimentacaoTecnico(false); setAlimentacaoValor(0); setAlimentacaoNoPdf(false);
   }, []);
 
   // ── Effects ──
@@ -489,6 +496,9 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
           setHoraFimExec(d.horaFimExec || "");
           setRequisicoes(d.infoRequisicoes || []);
           setServicoOficina(!!d.servicoOficina);
+          setAlimentacaoTecnico(!!d.alimentacaoTecnico);
+          setAlimentacaoValor(parseFloat(d.alimentacaoValor || 0));
+          setAlimentacaoNoPdf(!!d.alimentacaoNoPdf);
           setDadosTecnico(d.dadosTecnico || null);
           setShowDescontos(dv > 0 || dh > 0 || dk > 0);
           if (d.ppv) loadPPV(d.ppv);
@@ -1060,6 +1070,33 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                         <input type="date" value={previsaoFaturamento} onChange={(e) => setPrevisaoFaturamento(e.target.value)} style={{ padding: '6px 8px', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 13, width: '100%' }} />
                       </div>
                     </div>
+                    {/* Alimentação do Técnico */}
+                    <div style={{ marginTop: 10, padding: '10px 12px', background: alimentacaoTecnico ? '#FFFBEB' : '#F9FAFB', border: `1px solid ${alimentacaoTecnico ? '#FCD34D' : '#E5E7EB'}`, borderRadius: 8 }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#1E3A5F' }}>
+                        <input type="checkbox" checked={alimentacaoTecnico} onChange={(e) => setAlimentacaoTecnico(e.target.checked)} style={{ accentColor: '#D97706', width: 16, height: 16 }} />
+                        <i className="fas fa-utensils" style={{ color: '#D97706', fontSize: 12 }} />
+                        Alimentação do técnico
+                      </label>
+                      {alimentacaoTecnico && (
+                        <div style={{ marginTop: 8, display: 'flex', gap: 12, alignItems: 'center' }}>
+                          <div style={{ flex: 1 }}>
+                            <label style={{ fontSize: 11, color: '#6B7280', margin: 0 }}>Valor (R$)</label>
+                            <input type="number" min={0} step={0.01} value={alimentacaoValor || ''} onChange={(e) => setAlimentacaoValor(parseFloat(e.target.value) || 0)} placeholder="0,00" style={{ padding: '6px 8px', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 13, width: '100%' }} />
+                          </div>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12, color: alimentacaoNoPdf ? '#DC2626' : '#6B7280', marginTop: 16 }}>
+                            <input type="checkbox" checked={alimentacaoNoPdf} onChange={(e) => setAlimentacaoNoPdf(e.target.checked)} style={{ accentColor: '#DC2626', width: 14, height: 14 }} />
+                            Mostrar no PDF
+                          </label>
+                        </div>
+                      )}
+                      {alimentacaoTecnico && !alimentacaoNoPdf && (
+                        <div style={{ marginTop: 6, fontSize: 10, color: '#9CA3AF', fontStyle: 'italic' }}>
+                          <i className="fas fa-eye-slash" style={{ marginRight: 4 }} />
+                          Valor oculto no PDF do cliente
+                        </div>
+                      )}
+                    </div>
+
                     {diasExecucao.length > 0 && (() => {
                       return (
                       <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>

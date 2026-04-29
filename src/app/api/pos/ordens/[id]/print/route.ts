@@ -43,6 +43,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const vHoras = qtdHoras * VALOR_HORA;
   const vKm = qtdKm * VALOR_KM;
 
+  // Alimentação
+  const alimentacaoTecnico = !!safeGet(row, "Alimentacao_Tecnico");
+  const alimentacaoValor = parseFloat(String(safeGet(row, "Alimentacao_Valor") || 0));
+  const alimentacaoNoPdf = !!safeGet(row, "Alimentacao_No_PDF");
+
   // Produtos (PPV)
   const ppvId = safeGet(row, "ID_PPV") as string;
   const listaIds = String(ppvId || "").split(",").map((s: string) => s.trim()).filter(Boolean);
@@ -294,6 +299,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         <tr><td>Deslocamento</td><td style="text-align:center">${qtdKm} km</td><td style="text-align:right">R$ ${vKm.toFixed(2)}</td></tr>
         ${totalPecas > 0 ? `<tr><td>Peças / Materiais</td><td style="text-align:center">—</td><td style="text-align:right">R$ ${totalPecas.toFixed(2)}</td></tr>` : ""}
         ${totalReq > 0 ? `<tr><td>Requisições</td><td style="text-align:center">—</td><td style="text-align:right">R$ ${totalReq.toFixed(2)}</td></tr>` : ""}
+        ${alimentacaoTecnico && alimentacaoNoPdf && alimentacaoValor > 0 ? `<tr><td>Alimentação Técnico</td><td style="text-align:center">—</td><td style="text-align:right">R$ ${alimentacaoValor.toFixed(2)}</td></tr>` : ""}
         ${descontoRows.join("")}
       </tbody>
     </table>

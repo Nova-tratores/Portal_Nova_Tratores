@@ -401,6 +401,9 @@ export async function POST(req: NextRequest) {
     Data_Fim_Servico: dados.dataFimServico || null,
     Hora_Inicio_Servico: dados.horaInicioServico || '',
     Servico_Numero: dados.servicoNumero || null,
+    Alimentacao_Tecnico: !!dados.alimentacaoTecnico,
+    Alimentacao_Valor: parseFloat(dados.alimentacaoValor || 0),
+    Alimentacao_No_PDF: !!dados.alimentacaoNoPdf,
   };
 
   const { error } = await supabase.from(TBL_OS).insert(baseInsert);

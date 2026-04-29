@@ -1,0 +1,4 @@
+-- Alimentacao do tecnico na OS
+ALTER TABLE "Ordem_Servico" ADD COLUMN IF NOT EXISTS "Alimentacao_Tecnico" BOOLEAN DEFAULT FALSE;
+ALTER TABLE "Ordem_Servico" ADD COLUMN IF NOT EXISTS "Alimentacao_Valor" NUMERIC DEFAULT 0;
+ALTER TABLE "Ordem_Servico" ADD COLUMN IF NOT EXISTS "Alimentacao_No_PDF" BOOLEAN DEFAULT FALSE;

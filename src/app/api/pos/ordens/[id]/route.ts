@@ -87,6 +87,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     horaInicioServico: (safeGet(row, "Hora_Inicio_Servico") as string) || "",
     servicoNumero: safeGet(row, "Servico_Numero") || 0,
     servicoOficina: !!safeGet(row, "Servico_Oficina"),
+    alimentacaoTecnico: !!safeGet(row, "Alimentacao_Tecnico"),
+    alimentacaoValor: parseFloat(String(safeGet(row, "Alimentacao_Valor") || 0)),
+    alimentacaoNoPdf: !!safeGet(row, "Alimentacao_No_PDF"),
     horaInicioExec: safeGet(row, "Hora_Inicio_Exec") || "",
     horaChegada: safeGet(row, "Hora_Chegada") || "",
     horaFimExec: safeGet(row, "Hora_Fim_Exec") || "",
@@ -248,6 +251,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     Data_Fim_Servico: dados.dataFimServico || null,
     Hora_Inicio_Servico: dados.horaInicioServico || '',
     Servico_Numero: dados.servicoNumero || null,
+    Alimentacao_Tecnico: !!dados.alimentacaoTecnico,
+    Alimentacao_Valor: parseFloat(dados.alimentacaoValor || 0),
+    Alimentacao_No_PDF: !!dados.alimentacaoNoPdf,
   };
 
   const { error } = await supabase.from(TBL_OS).update(baseUpdate).eq("Id_Ordem", idOs);
