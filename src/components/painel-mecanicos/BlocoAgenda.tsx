@@ -288,6 +288,8 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
 
   // Ordens compartilhadas entre 2+ técnicos no dia selecionado
   const sharedOrderIds = useMemo(() => {
+    const shared = new Set<string>()
+    // Detectar pela agenda (2+ técnicos com mesma ordem)
     const orderTecCount: Record<string, number> = {}
     tecs.forEach(tec => {
       agendaSemana.filter(a => a.data === diaSel && a.tecnico_nome === tec.tecnico_nome).forEach(item => {
@@ -296,8 +298,17 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
         }
       })
     })
-    return new Set(Object.keys(orderTecCount).filter(k => orderTecCount[k] > 1))
-  }, [tecs, agendaSemana, diaSel])
+    Object.keys(orderTecCount).filter(k => orderTecCount[k] > 1).forEach(k => shared.add(k))
+    // Detectar diretamente pela OS (tem Os_Tecnico e Os_Tecnico2)
+    ordens.forEach(o => {
+      if (o.Os_Tecnico && o.Os_Tecnico2 && o.Status !== 'Cancelada') {
+        const temTec1 = tecs.some(t => matchNome(t.tecnico_nome, o.Os_Tecnico))
+        const temTec2 = tecs.some(t => matchNome(t.tecnico_nome, o.Os_Tecnico2))
+        if (temTec1 && temTec2) shared.add(o.Id_Ordem)
+      }
+    })
+    return shared
+  }, [tecs, agendaSemana, diaSel, ordens])
 
   // Calcular posição das linhas SVG conectando ordens compartilhadas
   useEffect(() => {
@@ -401,7 +412,18 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
 
             const idsNaAgenda = new Set(items.map(a => a.id_ordem).filter(Boolean))
             const ordsDoDiaTec = ordensDoDia[tec.tecnico_nome] || []
-            const ordsTec = ordsDoDiaTec.filter(o => !idsNaAgenda.has(o.Id_Ordem))
+            // Ordens compartilhadas: onde este técnico é Os_Tecnico ou Os_Tecnico2 mas não está na agenda
+            const ordensCompartilhadasFaltando = ordens.filter(o => {
+              if (o.Status === 'Cancelada' || idsNaAgenda.has(o.Id_Ordem)) return false
+              const isTec1 = matchNome(tec.tecnico_nome, o.Os_Tecnico)
+              const isTec2 = matchNome(tec.tecnico_nome, o.Os_Tecnico2)
+              if (!isTec1 && !isTec2) return false
+              // Verificar se cai no dia selecionado
+              if (o.Status === 'Execução' && diaSel === hoje) return true
+              if (!o.Previsao_Execucao) return false
+              return diaSel >= o.Previsao_Execucao && diaSel <= fimExecucaoReal(o)
+            })
+            const ordsTec = [...ordsDoDiaTec, ...ordensCompartilhadasFaltando].filter((o, i, arr) => !idsNaAgenda.has(o.Id_Ordem) && arr.findIndex(x => x.Id_Ordem === o.Id_Ordem) === i)
             const buscaLower = buscaOS.toLowerCase()
             const ordsFiltradas = isAdding && addMode === 'os'
               ? (buscaOS ? ordensExecucao.filter(o => !idsNaAgenda.has(o.Id_Ordem) && (o.Id_Ordem.toLowerCase().includes(buscaLower) || o.Os_Cliente.toLowerCase().includes(buscaLower) || (o.Cidade_Cliente || '').toLowerCase().includes(buscaLower))) : ordsTec)
@@ -414,11 +436,11 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <span style={{ fontSize: 16, fontWeight: 800, color: '#111', textTransform: 'uppercase' }}>{tec.tecnico_nome.split(' ').slice(0, 2).join(' ')}</span>
                   </div>
-                  {items.length > 0 && <span style={{ fontSize: 14, color: '#111', fontWeight: 700 }}>{items.length} OS</span>}
+                  {(items.length + ordensCompartilhadasFaltando.length) > 0 && <span style={{ fontSize: 14, color: '#111', fontWeight: 700 }}>{items.length + ordensCompartilhadasFaltando.length} OS</span>}
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  {items.length === 0 && !isAdding && !isEditingNote && !notaValue && (
+                  {items.length === 0 && ordensCompartilhadasFaltando.length === 0 && !isAdding && !isEditingNote && !notaValue && (
                     <div style={{ textAlign: 'center', padding: '20px 0', color: '#111', fontSize: 14, fontWeight: 500, borderBottom: '1px solid #E8E8E8' }}>Sem servico</div>
                   )}
 
@@ -522,6 +544,37 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
                             <Edit3 size={10} /> Anotação
                           </button>
                         )}
+                      </div>
+                    )
+                  })}
+
+                  {/* Ordens compartilhadas que faltam na agenda */}
+                  {ordensCompartilhadasFaltando.map(os => {
+                    const isPrimario = matchNome(tec.tecnico_nome, os.Os_Tecnico)
+                    const outroTec = isPrimario ? os.Os_Tecnico2 : os.Os_Tecnico
+                    const sol = extrairSolicitacao(os.Serv_Solicitado || '')
+                    const h = parseFloat(String(os.Qtd_HR || 0)) || 0
+                    return (
+                      <div key={`shared-${os.Id_Ordem}`} data-shared-order={os.Id_Ordem} style={{ padding: '12px 16px', background: '#FAF5FF', borderBottom: '1px solid #E8E8E8', borderLeft: '3px solid #7C3AED' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                          <div style={{ flex: 1 }}>
+                            <span style={{ fontSize: 16, fontWeight: 800, color: '#111', lineHeight: 1.3 }}>{os.Os_Cliente || '—'}</span>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: '#111', marginLeft: 8 }}>#{os.Id_Ordem}</span>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 4, fontSize: 13, color: '#111' }}>
+                          {os.Cidade_Cliente && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontWeight: 600 }}><MapPin size={12} /> {os.Cidade_Cliente}</span>}
+                          {h > 0 && <span style={{ fontWeight: 700 }}>{h}h</span>}
+                          <span style={{ fontWeight: 800, color: isPrimario ? '#065F46' : '#92400E', background: isPrimario ? '#D1FAE5' : '#FEF3C7', padding: '1px 6px', borderRadius: 3, fontSize: 11, border: `1px solid ${isPrimario ? '#A7F3D0' : '#FDE68A'}` }}>
+                            {isPrimario ? 'Primário' : 'Auxiliar'}
+                          </span>
+                          {outroTec && (
+                            <span style={{ fontWeight: 700, color: '#6D28D9', background: '#EDE9FE', padding: '1px 6px', borderRadius: 3, fontSize: 11, border: '1px solid #DDD6FE', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                              <Link2 size={10} /> Com {outroTec.split(' ').slice(0, 2).join(' ')}
+                            </span>
+                          )}
+                        </div>
+                        {sol && <div style={{ fontSize: 13, color: '#111', lineHeight: 1.3, fontWeight: 500 }}>{sol.length > 100 ? sol.slice(0, 100) + '...' : sol}</div>}
                       </div>
                     )
                   })}
