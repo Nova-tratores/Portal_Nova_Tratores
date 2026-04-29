@@ -544,7 +544,15 @@
       "Bash(curl -s -X POST \"https://app.omie.com.br/api/v1/servicos/servico/\" -H \"Content-Type: application/json\" -d '{\"call\":\"ListarServicos\",\"app_key\":\"2729522270475\",\"app_secret\":\"113d785bb86c48d064889d4d73348131\",\"param\":[{\"pagina\":1,\"registros_por_pagina\":200}]}' | node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);\\(j.cadastro||[]\\).forEach\\(s=>console.log\\(s.nCodServ+' | '+s.cCodServico+' | '+\\(s.cDescServico||''\\)\\)\\)}\\)\")",
       "Bash(curl -s -X POST \"https://app.omie.com.br/api/v1/servicos/servico/\" -H \"Content-Type: application/json\" -d '{\"call\":\"ListarServicos\",\"app_key\":\"2729522270475\",\"app_secret\":\"113d785bb86c48d064889d4d73348131\",\"param\":[{\"pagina\":1,\"registros_por_pagina\":200}]}')",
       "Bash(curl -s -X POST \"https://app.omie.com.br/api/v1/servicos/servico/\" -H \"Content-Type: application/json\" -d '{\"call\":\"ListarCadastroServico\",\"app_key\":\"2729522270475\",\"app_secret\":\"113d785bb86c48d064889d4d73348131\",\"param\":[{\"nPagina\":1,\"nRegPorPagina\":200}]}')",
-      "Bash(curl -s -X POST \"https://app.omie.com.br/api/v1/servicos/servico/\" -H \"Content-Type: application/json\" -d '{\"call\":\"ConsultarServico\",\"app_key\":\"2729522270475\",\"app_secret\":\"113d785bb86c48d064889d4d73348131\",\"param\":[{\"cCodServico\":\"div.\"}]}')"
+      "Bash(curl -s -X POST \"https://app.omie.com.br/api/v1/servicos/servico/\" -H \"Content-Type: application/json\" -d '{\"call\":\"ConsultarServico\",\"app_key\":\"2729522270475\",\"app_secret\":\"113d785bb86c48d064889d4d73348131\",\"param\":[{\"cCodServico\":\"div.\"}]}')",
+      "Bash(git remote:*)",
+      "Bash(find /c/projetos/portal -type f \\\\\\( -name \"*.sql\" -o -name \"*.ts\" \\\\\\) | xargs grep -l \"agenda_visao\" | head -10)",
+      "Bash(find /c/projetos/portal -type f -name \"*.sql\" | xargs grep -l \"CREATE TABLE.*agenda_visao\")",
+      "Bash(grep -r \"tipo.*veicular\\\\|tipo.*trator\\\\|tipo.*cliente\" /c/projetos/portal/src --include=\"*.ts\" --include=\"*.tsx\" --include=\"*.js\" --include=\"*.jsx\" 2>/dev/null | head -20)",
+      "Bash(find /c/projetos/portal -path \"*/.next\" -prune -o -path \"*/node_modules\" -prune -o -name \"*schema*\" -o -name \"*migration*\" | grep -E \"\\\\.\\(sql|ts|tsx\\)$\" 2>/dev/null | head -20)",
+      "Bash(grep -r \"Requisicao\" /c/projetos/portal/src --include=\"*.ts\" --include=\"*.tsx\" -l 2>/dev/null | head -15)",
+      "Bash(grep -A 5 -B 5 \"struct.*Requisicao\\\\|interface.*Requisicao\\\\|type.*Requisicao\" /c/projetos/portal/src --include=\"*.ts\" --include=\"*.tsx\" -r 2>/dev/null | head -40)",
+      "Bash(grep -r \"select.*veiculo\\\\|select.*Chassis\\\\|select.*hodometro\\\\|select.*placa\" /c/projetos/portal/src --include=\"*.ts\" --include=\"*.tsx\" 2>/dev/null | grep -i \"from\" | head -15)"
     ]
   }
 }
