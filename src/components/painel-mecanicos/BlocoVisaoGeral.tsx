@@ -296,6 +296,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
   const [horasDirigindo, setHorasDirigindo] = useState(0)
   const [kmPercorrido, setKmPercorrido] = useState(0)
   const [horasNoCliente, setHorasNoCliente] = useState(0)
+  const [resumoSalvoEm, setResumoSalvoEm] = useState<string | null>(null)
   const [dataHistorico, setDataHistorico] = useState('')
   const [agendaHistorico, setAgendaHistorico] = useState<AgendaRow[] | null>(null)
   const [loadingHistorico, setLoadingHistorico] = useState(false)
@@ -778,6 +779,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
       setHorasDirigindo(metricas.horasDirigindo)
       setKmPercorrido(metricas.kmPercorrido)
       setHorasNoCliente(metricas.horasNoCliente)
+      setResumoSalvoEm(null)
 
       // Carregar do banco (sobrescreve auto-cálculo se já foi salvo antes)
       fetch(`/api/pos/resumo-diario?data=${hoje}&tecnico=${encodeURIComponent(modalTec)}`)
@@ -787,6 +789,10 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
             if (saved.horas_dirigindo > 0) setHorasDirigindo(saved.horas_dirigindo)
             if (saved.km_percorrido > 0) setKmPercorrido(saved.km_percorrido)
             if (saved.horas_no_cliente > 0) setHorasNoCliente(saved.horas_no_cliente)
+            if (saved.updated_at) {
+              const dt = new Date(saved.updated_at)
+              setResumoSalvoEm(`${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')} às ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`)
+            }
             if (saved.resumo && saved.resumo.trim()) { setResumoTec(saved.resumo); return }
           }
           // Fallback: carregar resumo da agenda_visao ou auto-gerar
@@ -827,6 +833,8 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
           resumo: resumoTec,
         }),
       }).catch(() => {})
+      const agora = new Date()
+      setResumoSalvoEm(`${String(agora.getDate()).padStart(2,'0')}/${String(agora.getMonth()+1).padStart(2,'0')} às ${String(agora.getHours()).padStart(2,'0')}:${String(agora.getMinutes()).padStart(2,'0')}`)
     }
     setSavingResumo(false)
   }, [modalTec, cardData, resumoTec, horasDirigindo, kmPercorrido, horasNoCliente, hoje])
@@ -2083,7 +2091,18 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
               {/* ── RESUMO ── */}
               <div style={{ padding: '16px 24px', borderTop: '2px solid #111' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                  <span style={{ fontSize: 16, fontWeight: 800, color: '#111', textTransform: 'uppercase', letterSpacing: '.04em' }}>Resumo do dia</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 16, fontWeight: 800, color: '#111', textTransform: 'uppercase', letterSpacing: '.04em' }}>Resumo do dia</span>
+                    {resumoSalvoEm ? (
+                      <span style={{ fontSize: 11, color: '#15803D', background: '#F0FDF4', border: '1px solid #BBF7D0', padding: '2px 8px', borderRadius: 4, fontWeight: 600 }}>
+                        Salvo em {resumoSalvoEm}
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: 11, color: '#DC2626', background: '#FEF2F2', border: '1px solid #FECACA', padding: '2px 8px', borderRadius: 4, fontWeight: 600 }}>
+                        Não salvo — clique Salvar após preencher
+                      </span>
+                    )}
+                  </div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button onClick={() => {
                       setResumoTec(gerarResumoAuto(d))
