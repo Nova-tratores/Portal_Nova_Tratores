@@ -147,11 +147,19 @@ export default function TemplatePDF({ req }: { req: any, onUpdate?: any, onPrint
           </div>
         </div>
 
-        {/* BLOCO TÉCNICO CONDICIONAL ATUALIZADO */}
-        {(req.tipo === 'Frota-Veiculos' || ((req.setor === 'Trator-Cliente' || req.setor === 'Trator-Loja' || req.tipo === 'Ferramenta') && req.Chassis_Modelo)) && (
-          <div className="border-2 border-black rounded-2xl overflow-hidden mb-4 shadow-sm">
-            <div className={`grid grid-cols-4 divide-x-2 divide-black uppercase ${req.setor === 'Trator-Cliente' ? 'border-b-2 border-black' : ''}`}>
-                {req.tipo === 'Frota-Veiculos' ? (
+        {/* BLOCO TÉCNICO CONDICIONAL */}
+        {(() => {
+          const isVeicular = ['Veicular Abastecimento', 'Veicular Manutenção', 'Frota-Veiculos'].includes(req.tipo);
+          const isTratorAbast = ['Trator Abastecimento', 'Quadri Abastecimento'].includes(req.tipo);
+          const isTratorLoja = req.setor === 'Trator-Loja';
+          const isTratorCliente = req.setor === 'Trator-Cliente';
+          const isFerramenta = req.tipo === 'Ferramenta';
+          const temInfoVeiculo = isVeicular || isTratorAbast || isTratorLoja || isTratorCliente || isFerramenta;
+          if (!temInfoVeiculo) return null;
+          return (
+            <div className="border-2 border-black rounded-2xl overflow-hidden mb-4 shadow-sm">
+              <div className={`grid grid-cols-4 divide-x-2 divide-black uppercase ${isTratorCliente ? 'border-b-2 border-black' : ''}`}>
+                {isVeicular ? (
                   <>
                     <div className="p-3 col-span-2">
                       <label className="text-[10px] font-black block mb-1">Equipamento / Veículo (Placa)</label>
@@ -161,44 +169,56 @@ export default function TemplatePDF({ req }: { req: any, onUpdate?: any, onPrint
                       <label className="text-[10px] font-black block mb-1">KM / Horas</label>
                       <span className="text-[14px] font-bold">{req.hodometro || '---'}</span>
                     </div>
+                    <div className="p-3">
+                      <label className="text-[10px] font-black block mb-1">Chassis / Modelo</label>
+                      <span className="text-[14px] font-bold">{req.Chassis_Modelo || '---'}</span>
+                    </div>
                   </>
-                ) : (
-                  <div className="p-3 col-span-3">
-                    <label className="text-[10px] font-black block mb-1">Referência Técnica / Modelo / Chassis</label>
-                    <span className="text-[14px] font-bold">{req.Chassis_Modelo || '---'}</span>
-                  </div>
-                )}
-                <div className="p-3">
-                  {(req.setor === 'Trator-Cliente' || req.setor === 'Trator-Loja') && (
-                    <>
-                      <label className="text-[10px] font-black block mb-1">Ordem Serv.</label>
-                      <span className="text-[14px] font-bold">{req.ordem_servico || '---'}</span>
-                    </>
-                  )}
-                  {req.tipo === 'Ferramenta' && (
-                    <>
+                ) : isFerramenta ? (
+                  <>
+                    <div className="p-3 col-span-3">
+                      <label className="text-[10px] font-black block mb-1">Referência Técnica / Modelo / Chassis</label>
+                      <span className="text-[14px] font-bold">{req.Chassis_Modelo || '---'}</span>
+                    </div>
+                    <div className="p-3">
                       <label className="text-[10px] font-black block mb-1">Destinação</label>
                       <span className="text-[14px] font-bold">{req.quem_ferramenta || req.ferramenta_quem || '---'}</span>
-                    </>
-                  )}
-                </div>
-            </div>
-
-            {/* INFORMAÇÕES EXCLUSIVAS TRATOR-CLIENTE NO PDF */}
-            {req.setor === 'Trator-Cliente' && (
-              <div className="grid grid-cols-4 divide-x-2 divide-black uppercase">
-                <div className="p-3 col-span-2">
-                  <label className="text-[10px] font-black block mb-1">Nome do Cliente</label>
-                  <span className="text-[14px] font-bold">{req.cliente || '---'}</span>
-                </div>
-                <div className="p-3 col-span-2 bg-slate-50">
-                  <label className="text-[10px] font-black block mb-1">Valor Cobrado do Cliente</label>
-                  <span className="text-[14px] font-bold">R$ {req.valor_cobrado_cliente || '0,00'}</span>
-                </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="p-3 col-span-2">
+                      <label className="text-[10px] font-black block mb-1">Chassis / Modelo</label>
+                      <span className="text-[14px] font-bold">{req.Chassis_Modelo || '---'}</span>
+                    </div>
+                    <div className="p-3">
+                      <label className="text-[10px] font-black block mb-1">Hodômetro / Horímetro</label>
+                      <span className="text-[14px] font-bold">{req.hodometro || '---'}</span>
+                    </div>
+                    <div className="p-3">
+                      <label className="text-[10px] font-black block mb-1">Ordem Serv.</label>
+                      <span className="text-[14px] font-bold">{req.ordem_servico || '---'}</span>
+                    </div>
+                  </>
+                )}
               </div>
-            )}
-          </div>
-        )}
+
+              {/* INFORMAÇÕES EXCLUSIVAS TRATOR-CLIENTE */}
+              {isTratorCliente && (
+                <div className="grid grid-cols-4 divide-x-2 divide-black uppercase">
+                  <div className="p-3 col-span-2">
+                    <label className="text-[10px] font-black block mb-1">Nome do Cliente</label>
+                    <span className="text-[14px] font-bold">{req.cliente || '---'}</span>
+                  </div>
+                  <div className="p-3 col-span-2 bg-slate-50">
+                    <label className="text-[10px] font-black block mb-1">Valor Cobrado do Cliente</label>
+                    <span className="text-[14px] font-bold">R$ {req.valor_cobrado_cliente || '0,00'}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* BLOCO DE COTAÇÕES */}
         {cotacaoData && cotacaoData.fornecedor1 && cotacaoData.incluir_pdf !== false && (
