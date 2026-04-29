@@ -21,7 +21,7 @@ const formatarData = formatarDataBR;
 // FinanceiroSubNav removido — agora usa componente compartilhado FinanceiroNav
 
 // --- COMPONENTE TAG DE ANEXO ---
-function AttachmentTag({ icon, label, fileUrl, onUpload, disabled }) {
+function AttachmentTag({ icon, label, fileUrl, onUpload, onRemove, disabled }) {
     const fileInputRef = useRef(null);
     return (
         <div style={{ display: 'flex', alignItems: 'center', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', minWidth:'320px', overflow: 'hidden', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
@@ -32,10 +32,15 @@ function AttachmentTag({ icon, label, fileUrl, onUpload, disabled }) {
             </div>
             <div style={{ display: 'flex', borderLeft: '1px solid #e2e8f0' }}>
                 {fileUrl && <button onClick={() => window.open(fileUrl, '_blank')} style={miniActionBtn} title="Visualizar"><Eye size={18} color="#1e293b" /></button>}
-                {!disabled && (
+                {!disabled && onUpload && (
                     <button onClick={() => fileInputRef.current.click()} style={miniActionBtn} title="Substituir ou Anexar">
                         <RefreshCw size={18} color="#1e293b" />
                         <input type="file" ref={fileInputRef} hidden onChange={e => onUpload(e.target.files[0])} />
+                    </button>
+                )}
+                {!disabled && fileUrl && onRemove && (
+                    <button onClick={() => { if (confirm('Remover este anexo?')) onRemove(); }} style={miniActionBtn} title="Remover">
+                        <Trash2 size={18} color="#ef4444" />
                     </button>
                 )}
             </div>
@@ -666,6 +671,14 @@ function HomeFinanceiroContent() {
                             label="COMPROVANTE P1"
                             fileUrl={tarefaSelecionada.comprovante_pagamento || tarefaSelecionada.comprovante_pagamento_p1}
                             onUpload={f => handleUpdateFileDirect(tarefaSelecionada, 'comprovante_pagamento_p1', f)}
+                            onRemove={async () => {
+                                const table = getCardTable(tarefaSelecionada);
+                                const updateData = { comprovante_pagamento_p1: null };
+                                if (tarefaSelecionada.comprovante_pagamento) updateData.comprovante_pagamento = null;
+                                await supabase.from(table).update(updateData).eq('id', tarefaSelecionada.id);
+                                setTarefaSelecionada({ ...tarefaSelecionada, comprovante_pagamento_p1: null, comprovante_pagamento: null });
+                                carregarDados();
+                            }}
                         />
                     </div>
                     {Array.from({ length: (tarefaSelecionada.qtd_parcelas || 1) - 1 }).map((_, i) => {
@@ -686,6 +699,12 @@ function HomeFinanceiroContent() {
                                     label={`COMPROVANTE P${pNum}`}
                                     fileUrl={tarefaSelecionada[`comprovante_pagamento_p${pNum}`]}
                                     onUpload={f => handleUpdateFileDirect(tarefaSelecionada, `comprovante_pagamento_p${pNum}`, f)}
+                                    onRemove={async () => {
+                                        const table = getCardTable(tarefaSelecionada);
+                                        await supabase.from(table).update({ [`comprovante_pagamento_p${pNum}`]: null }).eq('id', tarefaSelecionada.id);
+                                        setTarefaSelecionada({ ...tarefaSelecionada, [`comprovante_pagamento_p${pNum}`]: null });
+                                        carregarDados();
+                                    }}
                                 />
                             </div>
                         )
@@ -744,7 +763,12 @@ function HomeFinanceiroContent() {
                       <AttachmentTag icon={<Paperclip size={18}/>} label="NF PECA" fileUrl={tarefaSelecionada.anexo_nf_peca} onUpload={f => handleUpdateFileDirect(tarefaSelecionada, 'anexo_nf_peca', f)} />
                     )}
                     {(isCashOrCardType || tarefaSelecionada.isTarefaPagamentoRealizado) && (
-                      <AttachmentTag icon={<CheckCircle size={18}/>} label="COMPROVANTE PAGAMENTO" fileUrl={tarefaSelecionada.comprovante_pagamento} onUpload={f => handleUpdateFileDirect(tarefaSelecionada, 'comprovante_pagamento', f)} />
+                      <AttachmentTag icon={<CheckCircle size={18}/>} label="COMPROVANTE PAGAMENTO" fileUrl={tarefaSelecionada.comprovante_pagamento} onUpload={f => handleUpdateFileDirect(tarefaSelecionada, 'comprovante_pagamento', f)} onRemove={async () => {
+                        const table = getCardTable(tarefaSelecionada);
+                        await supabase.from(table).update({ comprovante_pagamento: null }).eq('id', tarefaSelecionada.id);
+                        setTarefaSelecionada({ ...tarefaSelecionada, comprovante_pagamento: null });
+                        carregarDados();
+                      }} />
                     )}
                   </div>
                 </div>
@@ -845,7 +869,7 @@ function HomeFinanceiroContent() {
                     const atualizado = atual ? `${atual}, ${novaUrl}` : novaUrl;
                     handleUpdateField(tarefaSelecionada, 'anexo_boleto', atualizado);
                   }} />
-                  {tarefaSelecionada.comprovante_pagamento && <AttachmentTag icon={<CheckCircle size={18}/>} label="Comprovante" fileUrl={tarefaSelecionada.comprovante_pagamento} onUpload={f => handleUpdateFileDirect(tarefaSelecionada, 'comprovante_pagamento', f)} />}
+                  {tarefaSelecionada.comprovante_pagamento && <AttachmentTag icon={<CheckCircle size={18}/>} label="Comprovante" fileUrl={tarefaSelecionada.comprovante_pagamento} onUpload={f => handleUpdateFileDirect(tarefaSelecionada, 'comprovante_pagamento', f)} onRemove={() => { if(confirm('Remover comprovante de pagamento?')) handleUpdateField(tarefaSelecionada, 'comprovante_pagamento', null); }} />}
                   {tarefaSelecionada.anexo_requisicao && tarefaSelecionada.anexo_requisicao.split(',').map((url, i) => url.trim() && (
                     <AttachmentTag key={`req-old-${i}`} icon={<Paperclip size={18}/>} label={`Requisicao ${i + 1}`} fileUrl={url.trim()} onUpload={null} />
                   ))}
