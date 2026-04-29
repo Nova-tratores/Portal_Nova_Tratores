@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { Loader2, Plus, X, Search, MapPin, Trash2, FileText, Truck, Edit3, StickyNote, ExternalLink } from 'lucide-react'
+import { Loader2, Plus, X, Search, MapPin, Trash2, FileText, Truck, Edit3, StickyNote, ExternalLink, Link2 } from 'lucide-react'
 
 interface Tecnico { user_id: string; tecnico_nome: string; tecnico_email: string; mecanico_role: 'tecnico' | 'observador' }
 interface OrdemServico {
@@ -90,6 +90,8 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
   const [addObs, setAddObs] = useState('')
   const [carregandoCliente, setCarregandoCliente] = useState(false)
   const noteRef = useRef<HTMLTextAreaElement>(null)
+  const gridRef = useRef<HTMLDivElement>(null)
+  const [svgLines, setSvgLines] = useState<Array<{ x1: number; y1: number; x2: number; y2: number; id: string }>>([])
 
   const tecs = useMemo(() => tecnicos.filter(t => t.mecanico_role === 'tecnico'), [tecnicos])
   const dias = useMemo(() => getDiasSemana(semanaOffset), [semanaOffset])
@@ -284,6 +286,58 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
     return m
   }, [dias, agendaSemana])
 
+  // Ordens compartilhadas entre 2+ técnicos no dia selecionado
+  const sharedOrderIds = useMemo(() => {
+    const orderTecCount: Record<string, number> = {}
+    tecs.forEach(tec => {
+      agendaSemana.filter(a => a.data === diaSel && a.tecnico_nome === tec.tecnico_nome).forEach(item => {
+        if (item.id_ordem && !item.id_ordem.startsWith('AG-')) {
+          orderTecCount[item.id_ordem] = (orderTecCount[item.id_ordem] || 0) + 1
+        }
+      })
+    })
+    return new Set(Object.keys(orderTecCount).filter(k => orderTecCount[k] > 1))
+  }, [tecs, agendaSemana, diaSel])
+
+  // Calcular posição das linhas SVG conectando ordens compartilhadas
+  useEffect(() => {
+    const compute = () => {
+      if (!gridRef.current || sharedOrderIds.size === 0) { setSvgLines([]); return }
+      const gridRect = gridRef.current.getBoundingClientRect()
+      const scrollTop = gridRef.current.scrollTop || 0
+      const scrollLeft = gridRef.current.scrollLeft || 0
+      const els = gridRef.current.querySelectorAll<HTMLDivElement>('[data-shared-order]')
+      const byOrder: Record<string, HTMLDivElement[]> = {}
+      els.forEach(el => {
+        const id = el.dataset.sharedOrder!
+        if (!byOrder[id]) byOrder[id] = []
+        byOrder[id].push(el)
+      })
+      const newLines: typeof svgLines = []
+      Object.entries(byOrder).forEach(([orderId, elements]) => {
+        if (elements.length < 2) return
+        const r1 = elements[0].getBoundingClientRect()
+        const r2 = elements[1].getBoundingClientRect()
+        // Conectar borda direita do card esquerdo → borda esquerda do card direito
+        const leftEl = r1.left < r2.left ? r1 : r2
+        const rightEl = r1.left < r2.left ? r2 : r1
+        newLines.push({
+          x1: leftEl.right - gridRect.left + scrollLeft,
+          y1: leftEl.top + leftEl.height / 2 - gridRect.top + scrollTop,
+          x2: rightEl.left - gridRect.left + scrollLeft,
+          y2: rightEl.top + rightEl.height / 2 - gridRect.top + scrollTop,
+          id: orderId,
+        })
+      })
+      setSvgLines(newLines)
+    }
+    requestAnimationFrame(compute)
+    const observer = new ResizeObserver(compute)
+    if (gridRef.current) observer.observe(gridRef.current)
+    window.addEventListener('scroll', compute, true)
+    return () => { observer.disconnect(); window.removeEventListener('scroll', compute, true) }
+  }, [diaSel, agendaSemana, sharedOrderIds])
+
   if (!diaSel) return null
 
   const diaObj = new Date(diaSel + 'T12:00:00')
@@ -320,7 +374,22 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
 
       {/* ── CONTEÚDO DO DIA ── */}
       <div key={diaSel} className="ag-fade-in" style={{ minHeight: 300 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 0, border: '1px solid #D0D0D0', background: '#D0D0D0' }}>
+        <div ref={gridRef} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 0, border: '1px solid #D0D0D0', background: '#D0D0D0', position: 'relative' }}>
+          {/* SVG linhas conectando ordens compartilhadas */}
+          {svgLines.length > 0 && (
+            <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 10 }}>
+              {svgLines.map(l => {
+                const midX = (l.x1 + l.x2) / 2
+                return (
+                  <g key={l.id}>
+                    <path d={`M${l.x1},${l.y1} C${midX},${l.y1} ${midX},${l.y2} ${l.x2},${l.y2}`} stroke="#7C3AED" strokeWidth={2} strokeDasharray="6 3" fill="none" opacity={0.7} />
+                    <circle cx={l.x1} cy={l.y1} r={4} fill="#7C3AED" opacity={0.7} />
+                    <circle cx={l.x2} cy={l.y2} r={4} fill="#7C3AED" opacity={0.7} />
+                  </g>
+                )
+              })}
+            </svg>
+          )}
           {tecs.map((tec) => {
             const items = agendaSemana.filter(a => a.data === diaSel && a.tecnico_nome === tec.tecnico_nome).sort((a, b) => a.ordem_sequencia - b.ordem_sequencia)
             const cellKey = `${tec.tecnico_nome}|${diaSel}`
@@ -365,8 +434,10 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
                     const diaAtualAgenda = multiDia && osOriginal?.Previsao_Execucao ? Math.max(1, Math.min(diasTotal, Math.round((new Date(row.data + 'T00:00:00').getTime() - new Date(osOriginal.Previsao_Execucao + 'T00:00:00').getTime()) / 86400000) + 1)) : 0
                     const temGPS = !!(row.gps_saida_oficina || row.gps_chegada_cliente || row.gps_saida_cliente || row.gps_retorno_oficina)
 
+                    const isShared = !!(row.id_ordem && sharedOrderIds.has(row.id_ordem))
+
                     return (
-                      <div key={row.id} style={{ padding: '12px 16px', background: '#fff', borderBottom: '1px solid #E8E8E8' }}>
+                      <div key={row.id} {...(isShared ? { 'data-shared-order': row.id_ordem } : {})} style={{ padding: '12px 16px', background: isShared ? '#FAF5FF' : '#fff', borderBottom: '1px solid #E8E8E8', borderLeft: isShared ? '3px solid #7C3AED' : 'none' }}>
                         {/* Linha 1: Cliente + OS id + lixeira */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
                           <div style={{ flex: 1 }}>
@@ -403,6 +474,18 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
                               Dia {diaAtualAgenda}/{diasTotal}
                             </span>
                           )}
+                          {osOriginal && (() => {
+                            const outroTec = matchNome(tec.tecnico_nome, osOriginal.Os_Tecnico)
+                              ? osOriginal.Os_Tecnico2
+                              : osOriginal.Os_Tecnico
+                            if (!outroTec) return null
+                            const outroPrimeiro = outroTec.split(' ').slice(0, 2).join(' ')
+                            return (
+                              <span style={{ fontWeight: 700, color: '#6D28D9', background: '#EDE9FE', padding: '1px 6px', borderRadius: 3, fontSize: 11, border: '1px solid #DDD6FE', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                                <Link2 size={10} /> Com {outroPrimeiro}
+                              </span>
+                            )
+                          })()}
                         </div>
 
                         {/* Serviço */}
