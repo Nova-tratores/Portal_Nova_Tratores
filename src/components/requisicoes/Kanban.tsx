@@ -141,7 +141,8 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado }
           {/* Busca por ID */}
           <div className="relative">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-red-500 pointer-events-none"/>
-            <input type="text" placeholder="ID" value={filtroID} onChange={e => setFiltroID(e.target.value)} className={`${inputInline} pl-8 w-[70px] text-center font-semibold`} />
+            <input type="text" inputMode="numeric" placeholder="Nº ID" value={filtroID} onChange={e => setFiltroID(e.target.value.replace(/\D/g, ''))} className={`${inputInline} pl-8 w-[100px] text-center font-semibold`} />
+            {filtroID && <button onClick={() => setFiltroID('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-red-500"><X size={12}/></button>}
           </div>
 
           {/* Busca por título */}
