@@ -10,7 +10,7 @@ import {
 interface OrdemServico { Id_Ordem: string; Status: string; Os_Cliente: string; Cnpj_Cliente: string; Os_Tecnico: string; Os_Tecnico2: string; Previsao_Execucao: string | null; Previsao_Faturamento: string | null; Serv_Solicitado: string; Endereco_Cliente: string; Cidade_Cliente: string; Tipo_Servico: string; Qtd_HR?: string | number | null; Servico_Oficina?: boolean; Hora_Inicio_Exec?: string; Hora_Fim_Exec?: string }
 interface Tecnico { user_id: string; tecnico_nome: string; tecnico_email: string; mecanico_role: 'tecnico' | 'observador' }
 interface Caminho { id: number; tecnico_nome: string; destino: string; cidade: string; motivo: string; data_saida: string; status: string }
-interface AgendaRow { id: number; data: string; tecnico_nome: string; id_ordem: string | null; id_caminho: number | null; cliente: string; servico: string; endereco: string; cidade: string; endereco_opcoes: { label: string; fonte: string; endereco: string }[]; coordenadas: { lat: number; lng: number } | null; tempo_ida_min: number; distancia_ida_km: number; tempo_volta_min: number; distancia_volta_km: number; qtd_horas: number; ordem_sequencia: number; status: string; observacoes: string }
+interface AgendaRow { id: number; data: string; tecnico_nome: string; id_ordem: string | null; id_caminho: number | null; cliente: string; servico: string; endereco: string; cidade: string; endereco_opcoes: { label: string; fonte: string; endereco: string }[]; coordenadas: { lat: number; lng: number } | null; tempo_ida_min: number; distancia_ida_km: number; tempo_volta_min: number; distancia_volta_km: number; qtd_horas: number; ordem_sequencia: number; status: string; observacoes: string; hora_inicio?: string; hora_fim?: string }
 interface Veiculo { id: number; placa: string; descricao: string }
 interface VinculoVeiculo { id: number; tecnico_nome: string; adesao_id: number; placa: string; descricao: string }
 interface EventoGPS { tipo: string; horario: string; lat: number; lng: number; na_loja: boolean; destino_nome?: string; destino_cnpj?: string }
@@ -110,9 +110,24 @@ function agruparVisitasGPS(eventos: EventoGPS[]): VisitaGPS[] {
 
 const S = 510, AI = 660, AD = 90
 function estimativasPorCliente(items: AgendaRow[]): EstimadoCliente[] {
-  const r: EstimadoCliente[] = []; let cur = S; let al = false
+  // Usa hora_inicio da primeira ordem como cursor inicial (se definido)
+  const primeiraHora = items[0]?.hora_inicio
+  let curInicial = S
+  if (primeiraHora && /^\d{2}:\d{2}$/.test(primeiraHora)) {
+    const [h, m] = primeiraHora.split(':').map(Number)
+    const mins = h * 60 + m
+    if (mins > S) curInicial = mins // só ajusta se for depois do padrão (08:30)
+  }
+  const r: EstimadoCliente[] = []; let cur = curInicial; let al = false
   for (let i = 0; i < items.length; i++) {
-    const it = items[i]; const ida = it.tempo_ida_min || 0; const sv = (it.qtd_horas || 2) * 60
+    const it = items[i]
+    // Se este item tem hora_inicio específica e é depois do cursor, pula para ela
+    if (it.hora_inicio && /^\d{2}:\d{2}$/.test(it.hora_inicio)) {
+      const [h, m] = it.hora_inicio.split(':').map(Number)
+      const hiMin = h * 60 + m
+      if (hiMin > cur) cur = hiMin // técnico fica na oficina até essa hora
+    }
+    const ida = it.tempo_ida_min || 0; const sv = (it.qtd_horas || 2) * 60
     const saida = cur; cur += ida; const chegada = cur
     if (!al && cur >= AI && cur < AI + 120) { cur += AD; al = true }
     cur += sv; const fim = cur
@@ -164,11 +179,19 @@ function matchVisitaGPS(reais: VisitaGPS[], item: AgendaRow, _ordsTec: OrdemServ
 function estimativasHibridas(estimados: EstimadoCliente[], reais: VisitaGPS[], items: AgendaRow[], ordsTec?: OrdemServico[]): EstimadoCliente[] {
   if (estimados.length === 0) return estimados
   const aj: EstimadoCliente[] = []
-  let cursor = S
+  // Cursor inicial: usa hora_inicio da primeira ordem se definida
+  let cursorInit = S
+  const ph = items[0]?.hora_inicio
+  if (ph && /^\d{2}:\d{2}$/.test(ph)) { const [hh, mm] = ph.split(':').map(Number); if (hh * 60 + mm > S) cursorInit = hh * 60 + mm }
+  let cursor = cursorInit
   let almocoContado = false
   const usados = new Set<number>()
 
   for (let i = 0; i < estimados.length; i++) {
+    // Se este item tem hora_inicio específica e é depois do cursor, pula
+    const hi = items[i]?.hora_inicio
+    if (hi && /^\d{2}:\d{2}$/.test(hi)) { const [hh, mm] = hi.split(':').map(Number); const hiMin = hh * 60 + mm; if (hiMin > cursor) cursor = hiMin }
+
     // Match inteligente: por destino/CNPJ, não por índice
     const gps = ordsTec ? matchVisitaGPS(reais, items[i], ordsTec, usados) : reais[i]
     const ida = items[i]?.tempo_ida_min || 0
@@ -815,7 +838,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
           body: JSON.stringify({ id: item.id, resumo: resumoTec }),
         }).catch(() => {})
       }
-      // Salvar métricas + resumo na tabela resumo_diario_tecnico
+      // Salvar resumo texto na tabela resumo_diario_tecnico (métricas já são auto-salvas pelo GPS)
       await fetch('/api/pos/resumo-diario', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -863,6 +886,31 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
       return merged
     })
   }, [cardData])
+
+  // ── Auto-save métricas GPS (roda automaticamente quando GPS carrega) ──
+  const autoSavedRef = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    for (const d of cardData) {
+      if (!d.viagem || d.items.length === 0) continue
+      const key = `${hoje}_${d.tec.tecnico_nome}`
+      if (autoSavedRef.current.has(key)) continue
+      autoSavedRef.current.add(key)
+      const metricas = calcularMetricasGPS(d)
+      // Só salva se tem dados reais
+      if (metricas.horasDirigindo > 0 || metricas.kmPercorrido > 0 || metricas.horasNoCliente > 0) {
+        fetch('/api/pos/resumo-diario', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            data: hoje,
+            tecnico_nome: d.tec.tecnico_nome,
+            horas_dirigindo: metricas.horasDirigindo,
+            km_percorrido: metricas.kmPercorrido,
+            horas_no_cliente: metricas.horasNoCliente,
+          }),
+        }).catch(() => {})
+      }
+    }
+  }, [cardData, hoje])
 
   // ── Auto-update endereço / mismatch detection ──
   useEffect(() => {
@@ -1340,14 +1388,27 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                           }
 
                           // 2 dias ou menos → mostra previsão com deslocamento + GPS real
-                          let cursorCard = S
+                          // Usar hora_inicio da primeira ordem como cursor inicial
+                          let cursorCardInit = S
+                          const primeiraAgCard = d.items.find(a => a.id_ordem === ordsTec[0]?.Id_Ordem)
+                          if (primeiraAgCard?.hora_inicio && /^\d{2}:\d{2}$/.test(primeiraAgCard.hora_inicio)) {
+                            const [hh, mm] = primeiraAgCard.hora_inicio.split(':').map(Number)
+                            if (hh * 60 + mm > S) cursorCardInit = hh * 60 + mm
+                          }
+                          let cursorCard = cursorCardInit
                           let almocoCard = false
-                          let horaInicioAdj = fh(S), horaFimAdj = ''
+                          let horaInicioAdj = fh(cursorCardInit), horaFimAdj = ''
                           const reaisCard = visitasReais(d.visitasGPS)
                           const _usadosCard = new Set<number>()
                           for (let oi = 0; oi <= d.curIdx; oi++) {
                             const osI = ordsTec[oi]
                             const agI = d.items.find(a => a.id_ordem === osI?.Id_Ordem)
+                            // Se este item tem hora_inicio específica e é depois do cursor, pula
+                            if (agI?.hora_inicio && /^\d{2}:\d{2}$/.test(agI.hora_inicio)) {
+                              const [hh2, mm2] = agI.hora_inicio.split(':').map(Number)
+                              const hiMin2 = hh2 * 60 + mm2
+                              if (hiMin2 > cursorCard) cursorCard = hiMin2
+                            }
                             const gpsCard = agI ? matchVisitaGPS(reaisCard, agI, ordsTec, _usadosCard) : undefined
                             const idaI = agI?.tempo_ida_min || 0
                             const hrsI = (agI?.qtd_horas || parseFloat(String(osI?.Qtd_HR || 0)) || 2) * 60
@@ -2190,13 +2251,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                     )}
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={() => {
-                      setResumoTec(gerarResumoAuto(d))
-                      const m = calcularMetricasGPS(d)
-                      setHorasDirigindo(m.horasDirigindo)
-                      setKmPercorrido(m.kmPercorrido)
-                      setHorasNoCliente(m.horasNoCliente)
-                    }}
+                    <button onClick={() => setResumoTec(gerarResumoAuto(d))}
                       style={{ background: '#E8E8E8', border: 'none', borderRadius: 6, padding: '6px 14px', cursor: 'pointer', fontSize: 14, fontWeight: 700, color: '#111', display: 'flex', alignItems: 'center', gap: 5 }}>
                       <RefreshCw size={13} /> Auto
                     </button>
@@ -2207,32 +2262,32 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                   </div>
                 </div>
 
-                {/* Métricas GPS */}
+                {/* Métricas GPS (automático, não editável) */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 12 }}>
                   <div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 8, padding: '10px 12px' }}>
                     <div style={{ fontSize: 10, color: '#6B7280', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '.5px', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
                       <Car size={12} /> Horas dirigindo
                     </div>
-                    <input type="number" min={0} step={0.25} value={horasDirigindo || ''} onChange={e => setHorasDirigindo(parseFloat(e.target.value) || 0)}
-                      style={{ width: '100%', padding: '6px 8px', border: '1px solid #BAE6FD', borderRadius: 6, fontSize: 18, fontWeight: 800, color: '#0369A1', background: 'transparent', outline: 'none', textAlign: 'center' }} />
+                    <div style={{ fontSize: 22, fontWeight: 800, color: '#0369A1', textAlign: 'center', padding: '4px 0' }}>{horasDirigindo || '—'}</div>
                     <div style={{ fontSize: 10, color: '#9CA3AF', textAlign: 'center', marginTop: 2 }}>horas</div>
                   </div>
                   <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: '10px 12px' }}>
                     <div style={{ fontSize: 10, color: '#6B7280', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '.5px', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
                       <Navigation size={12} /> KM percorrido
                     </div>
-                    <input type="number" min={0} step={1} value={kmPercorrido || ''} onChange={e => setKmPercorrido(parseFloat(e.target.value) || 0)}
-                      style={{ width: '100%', padding: '6px 8px', border: '1px solid #BBF7D0', borderRadius: 6, fontSize: 18, fontWeight: 800, color: '#15803D', background: 'transparent', outline: 'none', textAlign: 'center' }} />
+                    <div style={{ fontSize: 22, fontWeight: 800, color: '#15803D', textAlign: 'center', padding: '4px 0' }}>{kmPercorrido || '—'}</div>
                     <div style={{ fontSize: 10, color: '#9CA3AF', textAlign: 'center', marginTop: 2 }}>km</div>
                   </div>
                   <div style={{ background: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: 8, padding: '10px 12px' }}>
                     <div style={{ fontSize: 10, color: '#6B7280', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '.5px', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
                       <Timer size={12} /> Horas no cliente
                     </div>
-                    <input type="number" min={0} step={0.25} value={horasNoCliente || ''} onChange={e => setHorasNoCliente(parseFloat(e.target.value) || 0)}
-                      style={{ width: '100%', padding: '6px 8px', border: '1px solid #FCD34D', borderRadius: 6, fontSize: 18, fontWeight: 800, color: '#B45309', background: 'transparent', outline: 'none', textAlign: 'center' }} />
+                    <div style={{ fontSize: 22, fontWeight: 800, color: '#B45309', textAlign: 'center', padding: '4px 0' }}>{horasNoCliente || '—'}</div>
                     <div style={{ fontSize: 10, color: '#9CA3AF', textAlign: 'center', marginTop: 2 }}>horas</div>
                   </div>
+                </div>
+                <div style={{ fontSize: 10, color: '#9CA3AF', textAlign: 'right', marginBottom: 8, fontStyle: 'italic' }}>
+                  Dados gerados automaticamente pelo GPS do veículo
                 </div>
 
                 <textarea
