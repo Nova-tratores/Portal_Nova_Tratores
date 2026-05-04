@@ -22,12 +22,35 @@ export default function OSCard({ order: o, onClick }: OSCardProps) {
 
   const temReqOuRel = (o.temReq && o.reqInfo && o.reqInfo.length > 0) || o.temRel;
   const [hover, setHover] = useState(false);
+  const temPendencia = !!(o.pendenciaMahindra && o.pendenciaMahindra.detalhes?.length);
 
   return (
     <div className="card" style={{ borderLeftColor: borderColor, position: "relative" }} onClick={() => onClick(o.id)}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <b>#{o.id}</b>
+          {temPendencia && (
+            <span
+              title={o.pendenciaMahindra!.detalhes.join('\n')}
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 18,
+                height: 18,
+                borderRadius: "50%",
+                fontSize: 11,
+                fontWeight: 800,
+                color: "#92400e",
+                background: "#fef3c7",
+                border: "1px solid #fcd34d",
+                cursor: "help",
+              }}
+            >
+              !
+            </span>
+          )}
           {/* Indicador piscando quando tem req + ordem */}
           {temReqOuRel && (
             <span
