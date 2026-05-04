@@ -1487,8 +1487,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                 {/* Footer */}
                 <div className="os-footer">
                   <button className="os-btn-cancel" onClick={onClose}>Cancelar</button>
-                  <button className="os-btn-save" onClick={salvar} disabled={saving}>
-                    {saving ? "Salvando..." : mode === "create" ? "Criar Ordem" : "Salvar Alterações"}
+                  <button className="os-btn-save" onClick={salvar} disabled={saving || (mode === "edit" && loadingData)}>
+                    {saving ? "Salvando..." : (mode === "edit" && loadingData) ? "Carregando..." : mode === "create" ? "Criar Ordem" : "Salvar Alterações"}
                   </button>
                 </div>
               </>
