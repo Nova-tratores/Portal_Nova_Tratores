@@ -421,7 +421,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   }, [mode, osId, clienteChave, clienteInfo, tecnico1, tecnico2, tipoServico, revisao, projeto,
       servSolicitado, qtdHoras, qtdKm, ppv, status, ordemOmie, motivoCancel, descValor,
       descHoraValor, descKmValor, relatorioTecnico, previsaoExecucao, previsaoFaturamento, dataFimServico, servicoNumero,
-      gerarPPV, servicoOficina, horaInicioExec, horaChegada, horaFimExec, onClose, onSaved]);
+      gerarPPV, servicoOficina, alimentacaoTecnico, alimentacaoValor, alimentacaoNoPdf, horaInicioExec, horaChegada, horaFimExec, onClose, onSaved]);
 
   // ── Reset form to defaults ──
   const resetForm = useCallback(() => {
