@@ -554,7 +554,16 @@
       "Bash(grep -A 5 -B 5 \"struct.*Requisicao\\\\|interface.*Requisicao\\\\|type.*Requisicao\" /c/projetos/portal/src --include=\"*.ts\" --include=\"*.tsx\" -r 2>/dev/null | head -40)",
       "Bash(grep -r \"select.*veiculo\\\\|select.*Chassis\\\\|select.*hodometro\\\\|select.*placa\" /c/projetos/portal/src --include=\"*.ts\" --include=\"*.tsx\" 2>/dev/null | grep -i \"from\" | head -15)",
       "Bash(find /c/projetos/portal -name \"*.sql\" -o -name \"*migrations*\" 2>/dev/null | head -10)",
-      "Bash(grep -r \"anexo_boleto\\\\|finan_pagar\\\\|finan_receber\" /c/projetos/portal/sql --include=\"*.sql\" 2>/dev/null | head -20)"
+      "Bash(grep -r \"anexo_boleto\\\\|finan_pagar\\\\|finan_receber\" /c/projetos/portal/sql --include=\"*.sql\" 2>/dev/null | head -20)",
+      "Bash(find /c/projetos/portal/src -type f -name \"*.ts\" -o -name \"*.tsx\" | xargs grep -l \"service.worker\\\\|serviceWorker\\\\|offline\\\\|sync\\\\|cache\\\\|indexeddb\\\\|IndexedDB\" 2>/dev/null || true)",
+      "Bash(find /c/projetos/portal/src/app/api -type f -name \"*foto*\" -o -name \"*photo*\" -o -name \"*upload*\" 2>/dev/null | head -20)",
+      "Bash(grep -r \"FormData\\\\|File\\\\|Blob\\\\|readAsDataURL\\\\|canvas\" /c/projetos/portal/src/app/api --include=\"*.ts\" 2>/dev/null | head -15)",
+      "Bash(find /c/projetos/portal/src -type f -name \"*.tsx\" | xargs grep -l \"FileReader\\\\|readAsDataURL\\\\|capture\\\\|camera\" 2>/dev/null | head -10)",
+      "Bash(grep -r \"localStorage\\\\|sessionStorage\\\\|indexeddb\\\\|cache\\\\|offline\\\\|sync\" /c/projetos/portal/src/lib --include=\"*.ts\" --include=\"*.tsx\" 2>/dev/null | head -20)",
+      "Bash(grep -r \"anexa\\\\|foto\\\\|upload\\\\|photo\\\\|image\" /c/projetos/portal/src/components/painel-mecanicos --include=\"*.tsx\" 2>/dev/null | head -10)",
+      "Bash(grep -r \"painel_alertas\" /c/projetos/portal/src/app/api --include=\"*.ts\" 2>/dev/null | head -5)",
+      "Bash(pushd C:/projetos/mecanicos && npx tsc --noEmit --pretty 2>&1 | head -50 && popd)",
+      "Bash(ls C:/projetos/portal/.env* 2>/dev/null)"
     ]
   }
 }

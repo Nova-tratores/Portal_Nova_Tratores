@@ -323,6 +323,10 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
   const [dataHistorico, setDataHistorico] = useState('')
   const [agendaHistorico, setAgendaHistorico] = useState<AgendaRow[] | null>(null)
   const [loadingHistorico, setLoadingHistorico] = useState(false)
+  const [gpsHistorico, setGpsHistorico] = useState<Record<string, ViagemGPS>>({})
+  const [modalHistTec, setModalHistTec] = useState<string | null>(null)
+  const [histResumo, setHistResumo] = useState('')
+  const [histMetricas, setHistMetricas] = useState<{ horasDirigindo: number; kmPercorrido: number; horasNoCliente: number }>({ horasDirigindo: 0, kmPercorrido: 0, horasNoCliente: 0 })
   const [editOficina, setEditOficina] = useState<{ tecnico: string; texto: string } | null>(null)
   const [savingOficina, setSavingOficina] = useState(false)
   const [atividadeOficina, setAtividadeOficina] = useState<Record<string, string>>({})
@@ -361,6 +365,19 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
     const map: Record<string, ViagemGPS> = {}
     for (const v of vincs) { try { const r = await fetch(`/api/pos/rastreamento?acao=viagens&adesao_id=${v.adesao_id}`); if (r.ok) { const viagens: ViagemGPS[] = await r.json(); const h = viagens.find(vi => vi.data === hoje); if (h) map[v.tecnico_nome] = h } } catch { } }
     setViagensPorTec(map); setGpsLoading(false)
+    // Salvar GPS no banco (GPS_Viagens) para histórico
+    for (const [nome, viagem] of Object.entries(map)) {
+      const vinc = vincs.find(v => v.tecnico_nome === nome)
+      if (!vinc) continue
+      supabase.from('GPS_Viagens').upsert({
+        tecnico_nome: nome, data: hoje, adesao_id: vinc.adesao_id,
+        placa: vinc.placa || viagem.placa, descricao: vinc.descricao || viagem.descricao,
+        saida_loja: viagem.saida_loja, chegada_cliente: viagem.chegada_cliente,
+        saida_cliente: viagem.saida_cliente, retorno_loja: viagem.retorno_loja,
+        eventos: viagem.eventos, posicoes_total: viagem.posicoes_total,
+        km_total: viagem.km_total, ultima_posicao: viagem.ultima_posicao,
+      }, { onConflict: 'tecnico_nome,data' }).then(() => {})
+    }
     // Reverse geocode car positions + event locations
     for (const [nome, viagem] of Object.entries(map)) {
       if (viagem.ultima_posicao) {
@@ -826,6 +843,57 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
     }
   }, [modalTec, cardData, hoje])
 
+  // ── Carregar dados do modal histórico ──
+  useEffect(() => {
+    if (!modalHistTec || !dataHistorico) return
+    setHistResumo('')
+    // Calcular métricas do GPS histórico
+    const gpsV = gpsHistorico[modalHistTec]
+    if (gpsV) {
+      let dirigindoMin = 0, clienteMin = 0
+      const eventos = gpsV.eventos || []
+      for (let i = 0; i < eventos.length; i++) {
+        const ev = eventos[i]
+        if (ev.tipo === 'saida_loja' || ev.tipo === 'saida_cliente') {
+          const prox = eventos.slice(i + 1).find(e => e.tipo === 'chegada_cliente' || e.tipo === 'retorno_loja')
+          if (prox) {
+            const diff = (new Date(prox.horario).getTime() - new Date(ev.horario).getTime()) / 60000
+            if (diff > 0 && diff < 600) dirigindoMin += diff
+          }
+        }
+        if (ev.tipo === 'chegada_cliente') {
+          const proxSaida = eventos.slice(i + 1).find(e => e.tipo === 'saida_cliente' || e.tipo === 'retorno_loja')
+          if (proxSaida) {
+            const diff = (new Date(proxSaida.horario).getTime() - new Date(ev.horario).getTime()) / 60000
+            if (diff > 0 && diff < 600) clienteMin += diff
+          }
+        }
+      }
+      setHistMetricas({
+        horasDirigindo: Math.round((dirigindoMin / 60) * 100) / 100,
+        kmPercorrido: Math.round((gpsV.km_total || 0) * 10) / 10,
+        horasNoCliente: Math.round((clienteMin / 60) * 100) / 100,
+      })
+    } else {
+      setHistMetricas({ horasDirigindo: 0, kmPercorrido: 0, horasNoCliente: 0 })
+    }
+    // Carregar resumo salvo
+    fetch(`/api/pos/resumo-diario?data=${dataHistorico}&tecnico=${encodeURIComponent(modalHistTec)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then((saved: any) => {
+        if (saved?.resumo) { setHistResumo(saved.resumo); return }
+        // Fallback: carregar da agenda_visao
+        fetch(`/api/pos/agenda-visao?data=${dataHistorico}&tecnico=${encodeURIComponent(modalHistTec)}`)
+          .then(r => r.ok ? r.json() : [])
+          .then((rows: any[]) => {
+            const existing = rows.find((r: any) => r.resumo && r.resumo.trim())
+            if (existing) setHistResumo(existing.resumo)
+          })
+          .catch(() => {})
+      })
+      .catch(() => {})
+  }, [modalHistTec, dataHistorico, gpsHistorico])
+
   const salvarResumo = useCallback(async () => {
     if (!modalTec) return
     setSavingResumo(true)
@@ -1007,14 +1075,28 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
     return { fora, ofi, totalOS, done }
   }, [cardData])
 
-  // ── Carregar histórico da agenda_visao ──
+  // ── Carregar histórico da agenda_visao + GPS_Viagens ──
   useEffect(() => {
-    if (!dataHistorico || dataHistorico === hoje) { setAgendaHistorico(null); return }
+    if (!dataHistorico || dataHistorico === hoje) { setAgendaHistorico(null); setGpsHistorico({}); return }
     setLoadingHistorico(true)
-    fetch(`/api/pos/agenda-visao?data=${dataHistorico}`)
-      .then(r => r.ok ? r.json() : [])
-      .then((rows: AgendaRow[]) => { setAgendaHistorico(rows); setLoadingHistorico(false) })
-      .catch(() => { setAgendaHistorico([]); setLoadingHistorico(false) })
+    Promise.all([
+      fetch(`/api/pos/agenda-visao?data=${dataHistorico}`).then(r => r.ok ? r.json() : []),
+      supabase.from('GPS_Viagens').select('*').eq('data', dataHistorico).then(({ data }) => data || []),
+    ]).then(([rows, gpsRows]: [AgendaRow[], any[]]) => {
+      setAgendaHistorico(rows)
+      const map: Record<string, ViagemGPS> = {}
+      for (const g of gpsRows) {
+        map[g.tecnico_nome] = {
+          adesao_id: g.adesao_id, placa: g.placa || '', descricao: g.descricao || '', data: g.data,
+          saida_loja: g.saida_loja, chegada_cliente: g.chegada_cliente,
+          saida_cliente: g.saida_cliente, retorno_loja: g.retorno_loja,
+          eventos: g.eventos || [], posicoes_total: g.posicoes_total || 0,
+          km_total: g.km_total || 0, ultima_posicao: g.ultima_posicao || null,
+        }
+      }
+      setGpsHistorico(map)
+      setLoadingHistorico(false)
+    }).catch(() => { setAgendaHistorico([]); setGpsHistorico({}); setLoadingHistorico(false) })
   }, [dataHistorico, hoje])
 
   const verHistorico = agendaHistorico !== null
@@ -1027,11 +1109,15 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
       if (!porTec[a.tecnico_nome]) porTec[a.tecnico_nome] = []
       porTec[a.tecnico_nome].push(a)
     })
+    // Inclui tecnicos que tem GPS mas nao tinham agenda
+    for (const nome of Object.keys(gpsHistorico)) {
+      if (!porTec[nome]) porTec[nome] = []
+    }
     return Object.entries(porTec).sort(([a], [b]) => a.localeCompare(b)).map(([nome, items]) => {
       const ordenado = [...items].sort((a, b) => (a.ordem_sequencia || 0) - (b.ordem_sequencia || 0))
       return { tecnico_nome: nome, items: ordenado }
     })
-  }, [agendaHistorico])
+  }, [agendaHistorico, gpsHistorico])
 
   return (
     <>
@@ -1094,10 +1180,10 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                       const hasOS = card.items.length > 0
                       const temGps = card.items.some(a => (a as any).gps_saida_oficina || (a as any).gps_chegada_cliente)
                       return (
-                        <div key={card.tecnico_nome} className="vg-figurinha" style={{
+                        <div key={card.tecnico_nome} className="vg-figurinha" onClick={() => setModalHistTec(card.tecnico_nome)} style={{
                           borderRadius: 20, flex: '1 1 0', minWidth: 280,
                           background: '#fff', border: '2px solid #E5E3DD',
-                          boxShadow: '0 4px 16px rgba(0,0,0,.06)',
+                          boxShadow: '0 4px 16px rgba(0,0,0,.06)', cursor: 'pointer',
                         }}>
                           {/* TOPO */}
                           <div style={{
@@ -1123,6 +1209,96 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                               </div>
                             </div>
                           </div>
+                          {/* JORNADA GPS COMPLETA */}
+                          {(() => {
+                            const gpsV = gpsHistorico[card.tecnico_nome]
+                            if (!gpsV) return null
+                            const eventos = (gpsV.eventos || []).filter((e: EventoGPS) => EVENTO_LABEL[e.tipo])
+                            if (eventos.length === 0) return null
+
+                            // Detectar saídas rápidas (<20min ida e volta sem cliente)
+                            const saidasRapidas = new Set<number>()
+                            for (let ei = 0; ei < eventos.length; ei++) {
+                              if (eventos[ei].tipo === 'saida_loja') {
+                                const retIdx = eventos.findIndex((e, j) => j > ei && e.tipo === 'retorno_loja')
+                                if (retIdx !== -1) {
+                                  const diffMin = isoToMin(eventos[retIdx].horario) - isoToMin(eventos[ei].horario)
+                                  const teveCliente = eventos.slice(ei + 1, retIdx).some(e => e.tipo === 'chegada_cliente')
+                                  if (diffMin < 20 && !teveCliente) {
+                                    for (let k = ei; k <= retIdx; k++) saidasRapidas.add(k)
+                                  }
+                                }
+                              }
+                            }
+
+                            return (
+                              <div style={{ padding: '12px 20px', background: '#F0F7FF', borderBottom: '1px solid #D6E4F0' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                                  <Car size={13} style={{ color: '#1E3A5F' }} />
+                                  <span style={{ fontSize: 12, fontWeight: 800, color: '#1E3A5F', textTransform: 'uppercase', letterSpacing: '.5px' }}>Jornada GPS - {gpsV.placa || 'Veículo'}</span>
+                                  {(gpsV.km_total || 0) > 0 && <span style={{ fontSize: 11, fontWeight: 700, color: '#1E3A5F', background: '#DBEAFE', padding: '1px 8px', borderRadius: 10, marginLeft: 'auto' }}>{gpsV.km_total} km</span>}
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 1, position: 'relative' }}>
+                                  <div style={{ position: 'absolute', left: 40, top: 8, bottom: 8, width: 2, background: '#D6E4F0' }} />
+                                  {eventos.map((ev, i) => {
+                                    // Saídas rápidas compactas
+                                    if (saidasRapidas.has(i)) {
+                                      if (ev.tipo === 'saida_loja') {
+                                        const retEv = eventos.find((e, j) => j > i && e.tipo === 'retorno_loja' && saidasRapidas.has(j))
+                                        const diffMin = retEv ? isoToMin(retEv.horario) - isoToMin(ev.horario) : 0
+                                        return (
+                                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0', position: 'relative' }}>
+                                            <span style={{ fontSize: 13, fontWeight: 800, color: '#111', fontVariantNumeric: 'tabular-nums', minWidth: 36 }}>{fHora(ev.horario)}</span>
+                                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#9CA3AF', flexShrink: 0, position: 'relative', zIndex: 1 }} />
+                                            <span style={{ fontSize: 13, fontWeight: 600, color: '#6B7280' }}>Saída rápida ({diffMin}min)</span>
+                                          </div>
+                                        )
+                                      }
+                                      return null
+                                    }
+
+                                    const isChegada = ev.tipo === 'chegada_cliente'
+                                    const isSaida = ev.tipo === 'saida_cliente'
+                                    const isLoja = ev.tipo.includes('loja')
+
+                                    // Permanência (chegada → próxima saída)
+                                    let permanencia = ''
+                                    if (isChegada) {
+                                      const proxSaida = eventos.find((e, j) => j > i && (e.tipo === 'saida_cliente' || e.tipo === 'retorno_loja'))
+                                      if (proxSaida) {
+                                        const diff = isoToMin(proxSaida.horario) - isoToMin(ev.horario)
+                                        if (diff > 0) permanencia = fm(diff)
+                                      }
+                                    }
+
+                                    // Label
+                                    let label = EVENTO_LABEL[ev.tipo]
+                                    if (isChegada && ev.destino_nome) label = `Chegou — ${ev.destino_nome}`
+                                    if (isSaida && ev.destino_nome) label = `Saiu — ${ev.destino_nome}`
+
+                                    const dotColor = isLoja ? '#111' : isChegada ? '#16A34A' : isSaida ? '#DC2626' : '#6B7280'
+                                    const labelColor = isChegada ? '#065F46' : isSaida ? '#991B1B' : '#111'
+
+                                    return (
+                                      <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '4px 0', position: 'relative' }}>
+                                        <span style={{ fontSize: 13, fontWeight: 800, color: '#111', fontVariantNumeric: 'tabular-nums', minWidth: 36 }}>{fHora(ev.horario)}</span>
+                                        <div style={{ width: 10, height: 10, borderRadius: '50%', marginTop: 3, flexShrink: 0, position: 'relative', zIndex: 1, background: dotColor, border: '2px solid #F0F7FF' }} />
+                                        <div style={{ flex: 1 }}>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                            <span style={{ fontSize: 13, fontWeight: 700, color: labelColor }}>{label}</span>
+                                            {permanencia && <span style={{ fontSize: 11, fontWeight: 800, color: '#fff', background: '#111', padding: '1px 8px', borderRadius: 4 }}>{permanencia}</span>}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                                {gpsV.posicoes_total > 0 && (
+                                  <div style={{ fontSize: 11, color: '#999', marginTop: 6, textAlign: 'right' }}>{gpsV.posicoes_total} posições rastreadas</div>
+                                )}
+                              </div>
+                            )
+                          })()}
                           {/* CONTEÚDO */}
                           <div style={{ padding: '14px 20px 18px' }}>
                             {card.items.map((a: any) => (
@@ -2303,6 +2479,309 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                   onFocus={e => { e.target.style.borderColor = '#111' }}
                   onBlur={e => { e.target.style.borderColor = '#DDD' }}
                 />
+              </div>
+
+              <div style={{ height: 8 }} />
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* ══════════ MODAL HISTÓRICO ══════════ */}
+      {modalHistTec && dataHistorico && (() => {
+        const histCard = historicoCards.find(c => c.tecnico_nome === modalHistTec)
+        if (!histCard) return null
+        const gpsV = gpsHistorico[modalHistTec]
+        const eventos = gpsV ? (gpsV.eventos || []).filter((e: EventoGPS) => EVENTO_LABEL[e.tipo]) : []
+
+        // Saídas rápidas
+        const saidasRapidas = new Set<number>()
+        for (let ei = 0; ei < eventos.length; ei++) {
+          if (eventos[ei].tipo === 'saida_loja') {
+            const retIdx = eventos.findIndex((e, j) => j > ei && e.tipo === 'retorno_loja')
+            if (retIdx !== -1) {
+              const diffMin = isoToMin(eventos[retIdx].horario) - isoToMin(eventos[ei].horario)
+              const teveCliente = eventos.slice(ei + 1, retIdx).some(e => e.tipo === 'chegada_cliente')
+              if (diffMin < 20 && !teveCliente) {
+                for (let k = ei; k <= retIdx; k++) saidasRapidas.add(k)
+              }
+            }
+          }
+        }
+
+        // Mapear chegadas → ordens por proximidade
+        const CORES_ORDEM = ['#2563EB', '#7C3AED', '#0891B2', '#059669', '#D97706', '#DC2626', '#6366F1', '#0D9488']
+        const chegadasIdx: number[] = []
+        eventos.forEach((ev, i) => { if (ev.tipo === 'chegada_cliente' && !saidasRapidas.has(i)) chegadasIdx.push(i) })
+        const chegadaToOrdem: Record<number, { osId: string; cliente: string; cor: string }> = {}
+        const ordensUsadas = new Set<number>()
+        const histItems = histCard.items.filter(a => a.id_ordem)
+        for (const ci of chegadasIdx) {
+          const ev = eventos[ci]
+          let melhorIdx = -1, melhorDist = Infinity
+          for (let oi = 0; oi < histItems.length; oi++) {
+            if (ordensUsadas.has(oi)) continue
+            const agItem = histItems[oi]
+            if (agItem.coordenadas) {
+              const dist = distanciaKm(ev.lat, ev.lng, agItem.coordenadas.lat, agItem.coordenadas.lng)
+              if (dist < melhorDist) { melhorDist = dist; melhorIdx = oi }
+            }
+          }
+          if (melhorIdx >= 0 && melhorDist <= 30) {
+            ordensUsadas.add(melhorIdx)
+            chegadaToOrdem[ci] = {
+              osId: histItems[melhorIdx].id_ordem || '',
+              cliente: (histItems[melhorIdx].cliente || '').split(' ').slice(0, 3).join(' '),
+              cor: CORES_ORDEM[melhorIdx % CORES_ORDEM.length],
+            }
+          }
+        }
+        // Propagar: saida_cliente herda a ordem da última chegada
+        let ordemAtual: typeof chegadaToOrdem[number] | null = null
+        const eventoOrdem: Record<number, typeof chegadaToOrdem[number]> = {}
+        for (let i = 0; i < eventos.length; i++) {
+          if (chegadaToOrdem[i]) { ordemAtual = chegadaToOrdem[i]; eventoOrdem[i] = ordemAtual }
+          else if (eventos[i].tipo === 'saida_cliente' && ordemAtual && !saidasRapidas.has(i)) { eventoOrdem[i] = ordemAtual }
+          else if (eventos[i].tipo === 'saida_loja' || eventos[i].tipo === 'retorno_loja') { ordemAtual = null }
+        }
+        let ultimaOrdemId: string | null = null
+
+        const dataFormatada = new Date(dataHistorico + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })
+
+        return (
+          <div className="vg-modal-overlay" onClick={() => setModalHistTec(null)}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
+            <div className="vg-modal-body" onClick={e => e.stopPropagation()}
+              style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 780, maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,.2)' }}>
+
+              {/* HEADER */}
+              <div style={{ padding: '24px 32px 18px', background: '#FEF3C7', borderBottom: '2px solid #92400E' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                  <div>
+                    <h2 style={{ fontSize: 28, fontWeight: 900, color: '#111', margin: 0 }}>{modalHistTec}</h2>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8, flexWrap: 'wrap' }}>
+                      {gpsV && <span style={{ fontSize: 16, fontWeight: 700, color: '#92400E', background: '#FDE68A', padding: '3px 10px', borderRadius: 6 }}>{gpsV.placa}</span>}
+                      <span style={{ fontSize: 16, fontWeight: 600, color: '#92400E' }}>{dataFormatada}</span>
+                      <span style={{ fontSize: 16, fontWeight: 600, color: '#92400E' }}>{histCard.items.length} OS</span>
+                    </div>
+                  </div>
+                  <button onClick={() => setModalHistTec(null)}
+                    style={{ background: 'rgba(0,0,0,.06)', border: 'none', borderRadius: 10, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#92400E', flexShrink: 0 }}>
+                    <X size={18} />
+                  </button>
+                </div>
+              </div>
+
+              {/* MÉTRICAS */}
+              <div style={{ padding: '16px 32px', borderBottom: '1px solid #DDD' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                  <div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 8, padding: '10px 12px' }}>
+                    <div style={{ fontSize: 10, color: '#6B7280', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '.5px', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Car size={12} /> Horas dirigindo
+                    </div>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: '#0369A1', textAlign: 'center', padding: '4px 0' }}>{histMetricas.horasDirigindo || '—'}</div>
+                    <div style={{ fontSize: 10, color: '#9CA3AF', textAlign: 'center', marginTop: 2 }}>horas</div>
+                  </div>
+                  <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: '10px 12px' }}>
+                    <div style={{ fontSize: 10, color: '#6B7280', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '.5px', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Navigation size={12} /> KM percorrido
+                    </div>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: '#15803D', textAlign: 'center', padding: '4px 0' }}>{histMetricas.kmPercorrido || '—'}</div>
+                    <div style={{ fontSize: 10, color: '#9CA3AF', textAlign: 'center', marginTop: 2 }}>km</div>
+                  </div>
+                  <div style={{ background: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: 8, padding: '10px 12px' }}>
+                    <div style={{ fontSize: 10, color: '#6B7280', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '.5px', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Timer size={12} /> Horas no cliente
+                    </div>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: '#B45309', textAlign: 'center', padding: '4px 0' }}>{histMetricas.horasNoCliente || '—'}</div>
+                    <div style={{ fontSize: 10, color: '#9CA3AF', textAlign: 'center', marginTop: 2 }}>horas</div>
+                  </div>
+                </div>
+                <div style={{ fontSize: 10, color: '#9CA3AF', textAlign: 'right', marginTop: 6, fontStyle: 'italic' }}>
+                  Dados do GPS do veículo
+                </div>
+              </div>
+
+              {/* JORNADA GPS */}
+              {eventos.length > 0 && (
+                <div style={{ padding: '20px 32px', borderBottom: '1px solid #DDD' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: '#111', textTransform: 'uppercase', letterSpacing: '.05em' }}>Jornada GPS</div>
+                    {gpsV && (gpsV.km_total || 0) > 0 && (
+                      <span style={{ fontSize: 13, fontWeight: 700, color: '#0369A1', background: '#F0F9FF', border: '1px solid #BAE6FD', padding: '3px 10px', borderRadius: 6 }}>
+                        {gpsV.km_total} km total
+                      </span>
+                    )}
+                  </div>
+                  {/* Legenda das ordens */}
+                  {histItems.length > 1 && (
+                    <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+                      {histItems.map((a, oi) => (
+                        <div key={a.id_ordem} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, color: CORES_ORDEM[oi % CORES_ORDEM.length] }}>
+                          <div style={{ width: 10, height: 10, borderRadius: '50%', background: CORES_ORDEM[oi % CORES_ORDEM.length] }} />
+                          {a.id_ordem} — {(a.cliente || '').split(' ').slice(0, 2).join(' ')}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2, position: 'relative' }}>
+                    <div style={{ position: 'absolute', left: 52, top: 10, bottom: 10, width: 2, background: '#EBEBEB' }} />
+                    {eventos.map((ev, i) => {
+                      // Saída rápida
+                      if (saidasRapidas.has(i)) {
+                        if (ev.tipo === 'saida_loja') {
+                          const retEv = eventos.find((e, j) => j > i && e.tipo === 'retorno_loja' && saidasRapidas.has(j))
+                          const diffMin = retEv ? isoToMin(retEv.horario) - isoToMin(ev.horario) : 0
+                          return (
+                            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '6px 0', position: 'relative' }}>
+                              <span style={{ fontSize: 17, fontWeight: 800, color: '#111', fontVariantNumeric: 'tabular-nums', minWidth: 48 }}>{fHora(ev.horario)}</span>
+                              <div style={{ width: 12, height: 12, borderRadius: '50%', marginTop: 4, flexShrink: 0, position: 'relative', zIndex: 1, background: '#9CA3AF', border: '2px solid #fff' }} />
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: 16, fontWeight: 700, color: '#6B7280' }}>Saída rápida ({diffMin} min)</div>
+                                {retEv && <div style={{ fontSize: 14, color: '#6B7280' }}>Voltou às {fHora(retEv.horario)}</div>}
+                              </div>
+                            </div>
+                          )
+                        }
+                        return null
+                      }
+
+                      // Separador de bloco por ordem
+                      const ordemEvento = eventoOrdem[i]
+                      let separador: React.ReactNode = null
+                      if (ordemEvento && ordemEvento.osId !== ultimaOrdemId) {
+                        ultimaOrdemId = ordemEvento.osId
+                        separador = (
+                          <div style={{
+                            display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0 6px',
+                            borderTop: ultimaOrdemId ? '2px dashed ' + ordemEvento.cor : 'none',
+                            marginTop: 6,
+                          }}>
+                            <div style={{ width: 20, height: 20, borderRadius: 4, background: ordemEvento.cor, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                              <Truck size={12} color="#fff" />
+                            </div>
+                            <span style={{ fontSize: 13, fontWeight: 800, color: ordemEvento.cor, textTransform: 'uppercase', letterSpacing: '.5px' }}>
+                              {ordemEvento.osId} — {ordemEvento.cliente}
+                            </span>
+                          </div>
+                        )
+                      }
+                      if (ev.tipo === 'retorno_loja' || ev.tipo === 'saida_loja') { ultimaOrdemId = null }
+
+                      const isChegada = ev.tipo === 'chegada_cliente'
+                      const isSaida = ev.tipo === 'saida_cliente'
+                      const isLoja = ev.tipo.includes('loja')
+
+                      // Permanência
+                      let permanencia = ''
+                      if (isChegada) {
+                        const proxSaida = eventos.find((e, j) => j > i && (e.tipo === 'saida_cliente' || e.tipo === 'retorno_loja'))
+                        if (proxSaida) {
+                          const diff = isoToMin(proxSaida.horario) - isoToMin(ev.horario)
+                          if (diff > 0) permanencia = fm(diff)
+                        }
+                      }
+
+                      // Label
+                      let label = EVENTO_LABEL[ev.tipo]
+                      if (isChegada && ev.destino_nome) label = `Chegou — ${ev.destino_nome}`
+                      else if (isChegada) label = 'Chegou no cliente'
+                      if (isSaida && ev.destino_nome) label = `Saiu — ${ev.destino_nome}`
+                      else if (isSaida) label = 'Saiu do cliente'
+
+                      const dotColor = ordemEvento && (isChegada || isSaida)
+                        ? ordemEvento.cor
+                        : isLoja ? '#111' : isChegada ? '#16A34A' : isSaida ? '#DC2626' : '#6B7280'
+
+                      return (
+                        <div key={i}>
+                          {separador}
+                          <div style={{
+                            display: 'flex', alignItems: 'flex-start', gap: 12, padding: '8px 0', position: 'relative', borderBottom: '1px solid #F0F0F0',
+                            ...(ordemEvento ? { borderLeft: `3px solid ${ordemEvento.cor}`, paddingLeft: 10, marginLeft: -3 } : {}),
+                          }}>
+                            <span style={{ fontSize: 17, fontWeight: 800, color: '#111', fontVariantNumeric: 'tabular-nums', minWidth: 48 }}>{fHora(ev.horario)}</span>
+                            <div style={{
+                              width: 12, height: 12, borderRadius: '50%', marginTop: 4, flexShrink: 0, position: 'relative', zIndex: 1,
+                              background: dotColor, border: '2px solid #fff',
+                            }} />
+                            <div style={{ flex: 1 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: 16, fontWeight: 700, color: isSaida ? '#991B1B' : isChegada ? '#065F46' : '#111' }}>{label}</span>
+                                {permanencia && <span style={{ fontSize: 16, fontWeight: 800, color: '#fff', background: '#111', padding: '4px 14px', borderRadius: 6 }}>Parou {permanencia}</span>}
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 3, flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: 13, color: '#555', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <MapPin size={12} style={{ flexShrink: 0, color: '#888' }} /> {ev.lat.toFixed(4)}, {ev.lng.toFixed(4)}
+                                </span>
+                                <a href={`https://www.google.com/maps?q=${ev.lat},${ev.lng}`} target="_blank" rel="noopener noreferrer"
+                                  style={{ fontSize: 13, color: '#2563EB', display: 'inline-flex', alignItems: 'center', gap: 3, textDecoration: 'none', fontWeight: 600 }}
+                                  onClick={e => e.stopPropagation()}>
+                                  <ExternalLink size={11} style={{ flexShrink: 0 }} /> Ver no mapa
+                                </a>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  {gpsV && gpsV.posicoes_total > 0 && (
+                    <div style={{ fontSize: 11, color: '#999', marginTop: 8, textAlign: 'right' }}>{gpsV.posicoes_total} posições rastreadas</div>
+                  )}
+                </div>
+              )}
+
+              {!gpsV && (
+                <div style={{ padding: '20px 32px', borderBottom: '1px solid #DDD', fontSize: 15, fontWeight: 600, color: '#999', textAlign: 'center' }}>
+                  Sem dados GPS neste dia
+                </div>
+              )}
+
+              {/* ORDENS DE SERVIÇO */}
+              {histCard.items.length > 0 && (
+                <div style={{ padding: '14px 24px 6px' }}>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: '#111', textTransform: 'uppercase', letterSpacing: '.05em' }}>Ordens de serviço</div>
+                </div>
+              )}
+              {histCard.items.map((a: any) => (
+                <div key={a.id_ordem || a.id} style={{
+                  padding: '12px 24px', borderTop: '1px solid #EEE',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: '#111', fontVariantNumeric: 'tabular-nums' }}>{a.id_ordem}</span>
+                    <span style={{ fontSize: 18, fontWeight: 800, color: '#111' }}>{(a.cliente || '').split(' ').slice(0, 5).join(' ')}</span>
+                    {a.cidade && <span style={{ fontSize: 15, fontWeight: 600, color: '#555' }}>{a.cidade}</span>}
+                    {a.qtd_horas > 0 && <span style={{ fontSize: 15, fontWeight: 600, color: '#555' }}>{a.qtd_horas}h</span>}
+                  </div>
+                  {a.endereco && (
+                    <div style={{ fontSize: 13, color: '#888', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <MapPin size={12} /> {a.endereco}
+                    </div>
+                  )}
+                  {(a.gps_saida_oficina || a.gps_chegada_cliente || a.gps_saida_cliente || a.gps_retorno_oficina) && (
+                    <div style={{ fontSize: 13, color: '#555', lineHeight: 1.8, padding: '6px 10px', background: '#F0EFEB', borderRadius: 6, marginTop: 4 }}>
+                      {a.gps_saida_oficina && <div><span style={{ fontWeight: 700 }}>Saída oficina:</span> {a.gps_saida_oficina}</div>}
+                      {a.gps_chegada_cliente && <div><span style={{ fontWeight: 700 }}>Chegada cliente:</span> {a.gps_chegada_cliente}</div>}
+                      {a.gps_saida_cliente && <div><span style={{ fontWeight: 700 }}>Saiu cliente:</span> {a.gps_saida_cliente}</div>}
+                      {a.gps_retorno_oficina && <div><span style={{ fontWeight: 700 }}>Retorno:</span> {a.gps_retorno_oficina}</div>}
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {/* RESUMO DO DIA */}
+              <div style={{ padding: '16px 24px', borderTop: '2px solid #111' }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#111', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 10 }}>Resumo do dia</div>
+                {histResumo ? (
+                  <div style={{ fontSize: 15, color: '#333', lineHeight: 1.7, whiteSpace: 'pre-wrap', padding: '12px 14px', background: '#FAFAFA', borderRadius: 8, border: '1px solid #E5E5E5' }}>
+                    {histResumo}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 14, color: '#999', fontStyle: 'italic', padding: '12px 14px' }}>
+                    Nenhum resumo salvo para este dia
+                  </div>
+                )}
               </div>
 
               <div style={{ height: 8 }} />

@@ -7,9 +7,10 @@ import { supabase } from '@/lib/supabase'
 import BlocoVisaoGeral from '@/components/painel-mecanicos/BlocoVisaoGeral'
 import BlocoAgenda from '@/components/painel-mecanicos/BlocoAgenda'
 import BlocoAlertas, { type Alerta } from '@/components/painel-mecanicos/BlocoAlertas'
+import BlocoRelatorioMensal from '@/components/painel-mecanicos/BlocoRelatorioMensal'
 import {
   AlertTriangle, RefreshCw,
-  AlertOctagon, X, Calendar, Radar,
+  AlertOctagon, X, Calendar, Radar, BarChart3,
   ChevronLeft, ChevronRight
 } from 'lucide-react'
 
@@ -30,7 +31,7 @@ const TIPO_OCORRENCIA: Record<string, { label: string; color: string }> = {
   outros: { label: 'Outros', color: '#71717A' },
 }
 
-type Bloco = 'visao' | 'ordens' | 'alertas'
+type Bloco = 'visao' | 'ordens' | 'alertas' | 'relatorio'
 
 export default function PainelMecanicosWrapper() {
   const { userProfile } = useAuth()
@@ -123,6 +124,7 @@ function PainelMecanicosPage() {
     { id: 'visao', label: 'Monitor', icon: <Radar size={14} /> },
     { id: 'ordens', label: 'Agenda', icon: <Calendar size={14} /> },
     { id: 'alertas', label: 'Alertas', icon: <AlertTriangle size={14} />, count: alertasAbertosCount },
+    { id: 'relatorio', label: 'Relatorio', icon: <BarChart3 size={14} /> },
   ]
 
   const INP: React.CSSProperties = { width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #E4E4E7', fontSize: 13, boxSizing: 'border-box', background: '#FAFAFA', outline: 'none', color: '#18181B' }
@@ -186,6 +188,7 @@ function PainelMecanicosPage() {
         {blocoAtivo === 'visao' && <BlocoVisaoGeral tecnicos={tecnicos} ordens={ordens} caminhos={caminhos} />}
         {blocoAtivo === 'ordens' && <BlocoAgenda tecnicos={tecnicos} ordens={ordens} semanaOffset={semanaOffset} />}
         {blocoAtivo === 'alertas' && <BlocoAlertas tecnicos={tecnicos} alertas={alertas} onRecarregar={carregar} userName={userProfile?.nome || ''} ordens={ordens} reqsMecanico={reqsMecanico} justificativas={justificativas} ocorrencias={ocorrencias} onAprovarRequisicao={aprovarRequisicao} onRecusarRequisicao={recusarRequisicao} onAvaliarJustificativa={avaliarJustificativa} tipoOcorrencia={TIPO_OCORRENCIA} />}
+        {blocoAtivo === 'relatorio' && <BlocoRelatorioMensal tecnicos={tecnicos} />}
       </div>
 
 

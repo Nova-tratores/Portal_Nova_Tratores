@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/pos/cron/gravar-gps",
+      "schedule": "0 */2 * * *"
+    },
+    {
+      "path": "/api/revisoes/lembretes/cron",
+      "schedule": "*/10 * * * *"
+    }
+  ]
+}

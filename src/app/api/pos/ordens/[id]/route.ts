@@ -12,6 +12,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (!res || !res.length) return NextResponse.json(null);
 
   const row = res[0];
+
+  // Buscar Servico_Interno via RPC (bypassa schema cache)
+  const { data: siData } = await supabase.rpc('get_servico_interno', { p_id_ordem: idOs });
+  const servicoInternoVal = siData === true;
+
   // Buscar requisições vinculadas (legado via Id_Req + novo via Requisicao.ordem_servico)
   const requisicoes: Array<{ id: string; atualizada: boolean; valor: number; linkNota: string; material: string; solicitante: string }> = [];
   const idsJaAdicionados = new Set<string>();
@@ -88,6 +93,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     horaInicioServico: (safeGet(row, "Hora_Inicio_Servico") as string) || "",
     servicoNumero: safeGet(row, "Servico_Numero") || 0,
     servicoOficina: !!safeGet(row, "Servico_Oficina"),
+    servicoInterno: servicoInternoVal,
     alimentacaoTecnico: !!safeGet(row, "Alimentacao_Tecnico"),
     alimentacaoValor: parseFloat(String(safeGet(row, "Alimentacao_Valor") || 0)),
     alimentacaoNoPdf: !!safeGet(row, "Alimentacao_No_PDF"),
@@ -262,6 +268,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (error) {
     console.error("Erro Supabase update:", error);
     return NextResponse.json({ success: false, erro: `Erro ao salvar: ${error.message}` }, { status: 500 });
+  }
+
+  // Servico_Interno via RPC (bypassa schema cache do PostgREST)
+  if (dados.servicoInterno !== undefined) {
+    await supabase.rpc('set_servico_interno', { p_id_ordem: idOs, p_valor: !!dados.servicoInterno });
   }
 
   // Sincroniza status do PPV vinculado

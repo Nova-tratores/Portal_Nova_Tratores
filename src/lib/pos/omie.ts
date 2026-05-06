@@ -497,9 +497,10 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
 
     console.log(`[Omie] ✓ ${idOrdem} → OS nº ${resposta.cNumOS} (ID: ${resposta.nCodOS})`);
 
-    // Envia PPVs vinculados como Pedido de Venda no Omie (usa função multi-conta do PPV)
+    // Envia PPVs vinculados como Pedido de Venda (ou Remessa se serviço interno) no Omie
     let pedidoVenda: string | undefined;
     let pedidoVendaErro: string | undefined;
+    const isInterno = !!os.Servico_Interno;
 
     const ppvIds = String(os.ID_PPV || "")
       .split(",")
@@ -511,7 +512,7 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
       const erros: string[] = [];
       for (const ppvId of ppvIds) {
         try {
-          const r = await enviarPPVParaOmie(ppvId);
+          const r = await enviarPPVParaOmie(ppvId, { remessa: isInterno });
           if (r.sucesso && r.numeroPedido) {
             numeros.push(`${ppvId}:${r.numeroPedido}`);
           } else if (r.erro) {

@@ -109,6 +109,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   const [clienteFilter, setClienteFilter] = useState("");
   const [gerarPPV, setGerarPPV] = useState(false);
   const [servicoOficina, setServicoOficina] = useState(false);
+  const [servicoInterno, setServicoInterno] = useState(false);
   const [alimentacaoTecnico, setAlimentacaoTecnico] = useState(false);
   const [alimentacaoValor, setAlimentacaoValor] = useState(0);
   const [alimentacaoNoPdf, setAlimentacaoNoPdf] = useState(false);
@@ -394,6 +395,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
       horaChegada,
       gerarPPV: mode === "create" && tipoServico === "Revisão" && gerarPPV,
       servicoOficina,
+      servicoInterno,
       alimentacaoTecnico,
       alimentacaoValor: alimentacaoTecnico ? alimentacaoValor : 0,
       alimentacaoNoPdf: alimentacaoTecnico ? alimentacaoNoPdf : false,
@@ -421,7 +423,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   }, [mode, osId, clienteChave, clienteInfo, tecnico1, tecnico2, tipoServico, revisao, projeto,
       servSolicitado, qtdHoras, qtdKm, ppv, status, ordemOmie, motivoCancel, descValor,
       descHoraValor, descKmValor, relatorioTecnico, previsaoExecucao, previsaoFaturamento, dataFimServico, servicoNumero,
-      gerarPPV, servicoOficina, alimentacaoTecnico, alimentacaoValor, alimentacaoNoPdf, horaInicioExec, horaChegada, horaFimExec, onClose, onSaved]);
+      gerarPPV, servicoOficina, servicoInterno, alimentacaoTecnico, alimentacaoValor, alimentacaoNoPdf, horaInicioExec, horaChegada, horaFimExec, onClose, onSaved]);
 
   // ── Reset form to defaults ──
   const resetForm = useCallback(() => {
@@ -441,6 +443,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
     setGerarPPV(false); setShowDescontos(false); setLoadingData(false);
     setLembretes([]); setEditingLembreteId(null);
     setServicoOficina(false);
+    setServicoInterno(false);
     setAlimentacaoTecnico(false); setAlimentacaoValor(0); setAlimentacaoNoPdf(false);
   }, []);
 
@@ -496,6 +499,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
           setHoraFimExec(d.horaFimExec || "");
           setRequisicoes(d.infoRequisicoes || []);
           setServicoOficina(!!d.servicoOficina);
+          setServicoInterno(!!d.servicoInterno);
           setAlimentacaoTecnico(!!d.alimentacaoTecnico);
           setAlimentacaoValor(parseFloat(d.alimentacaoValor || 0));
           setAlimentacaoNoPdf(!!d.alimentacaoNoPdf);
@@ -659,6 +663,22 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                           <div style={{ fontSize: 11, color: '#065F46', marginTop: 4, background: '#D1FAE5', padding: '4px 8px', borderRadius: 4 }}>
                             <i className="fas fa-map-marker-alt" style={{ marginRight: 4 }} />
                             Endereço será salvo como: Nova Tratores - Piraju (SP)
+                          </div>
+                        )}
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, color: servicoInterno ? '#1E3A5F' : '#7A6E5D' }}>
+                          <input
+                            type="checkbox"
+                            checked={servicoInterno}
+                            onChange={(e) => setServicoInterno(e.target.checked)}
+                            style={{ width: 16, height: 16, accentColor: '#1E3A5F' }}
+                          />
+                          <i className="fas fa-tools" style={{ fontSize: 14 }} />
+                          Serviço interno
+                        </label>
+                        {servicoInterno && (
+                          <div style={{ fontSize: 11, color: '#1E3A5F', marginTop: 4, background: '#DBEAFE', padding: '4px 8px', borderRadius: 4 }}>
+                            <i className="fas fa-info-circle" style={{ marginRight: 4 }} />
+                            Peças serão enviadas como Remessa no Omie (sem pedido de venda)
                           </div>
                         )}
                       </div>

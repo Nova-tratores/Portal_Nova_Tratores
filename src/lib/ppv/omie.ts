@@ -228,7 +228,8 @@ async function buscarEmpresasProdutos(codigos: string[]): Promise<Record<string,
 // FUNÇÃO PRINCIPAL: Enviar PPV para Omie
 // Agrupa produtos por empresa e cria um pedido por empresa
 // =============================================
-export async function enviarPPVParaOmie(idPPV: string): Promise<{ sucesso: boolean; numeroPedido?: string; erro?: string }> {
+export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: boolean }): Promise<{ sucesso: boolean; numeroPedido?: string; erro?: string }> {
+  const isRemessa = !!opcoes?.remessa;
   // 1. Busca detalhes do PPV
   const detalhes = await buscarPPVPorId(idPPV);
   if (!detalhes) {
@@ -363,10 +364,11 @@ export async function enviarPPVParaOmie(idPPV: string): Promise<{ sucesso: boole
       });
     }
 
-    // Cria Pedido de Venda
+    // Cria Pedido de Venda ou Remessa (serviço interno)
+    const prefixoIntegracao = isRemessa ? `RM-${idPPV}` : `PV-${idPPV}`;
     const payload = {
       cabecalho: {
-        codigo_pedido_integracao: `PV-${idPPV}`,
+        codigo_pedido_integracao: prefixoIntegracao,
         codigo_cliente: nCodCli,
         data_previsao: formatarDataOmie(),
         etapa: "10",
@@ -381,16 +383,20 @@ export async function enviarPPVParaOmie(idPPV: string): Promise<{ sucesso: boole
       det,
     };
 
-    const resposta = await omieCall<{ numero_pedido?: string; codigo_pedido?: number }>(
-      "/produtos/pedido/",
-      "IncluirPedido",
+    const endpoint = isRemessa ? "/produtos/remessa/" : "/produtos/pedido/";
+    const call = isRemessa ? "IncluirRemessa" : "IncluirPedido";
+    const tipoLabel = isRemessa ? "Remessa" : "Pedido de Venda";
+
+    const resposta = await omieCall<{ numero_pedido?: string; codigo_pedido?: number; nCodRemessa?: number; cCodIntRemessa?: string }>(
+      endpoint,
+      call,
       payload as unknown as Record<string, unknown>,
       acc.key,
       acc.secret
     );
 
-    const numPedido = resposta.numero_pedido || String(resposta.codigo_pedido || "");
-    console.log(`[Omie PPV] ${idPPV} → Pedido nº ${numPedido} (${acc.name})`);
+    const numPedido = resposta.numero_pedido || String(resposta.codigo_pedido || resposta.nCodRemessa || "");
+    console.log(`[Omie PPV] ${idPPV} → ${tipoLabel} nº ${numPedido} (${acc.name})`);
 
     // Atualiza PPV: salva pedido_omie + muda status para Fechado
     await supabaseFetch(
@@ -399,7 +405,7 @@ export async function enviarPPVParaOmie(idPPV: string): Promise<{ sucesso: boole
       { pedido_omie: numPedido, status: "Concluída" }
     );
 
-    await registrarLog(idPPV, `Pedido de Venda Omie nº ${numPedido} criado (${acc.name}). PPV fechado.`);
+    await registrarLog(idPPV, `${tipoLabel} Omie nº ${numPedido} criado (${acc.name}). PPV fechado.`);
 
     return { sucesso: true, numeroPedido: numPedido };
   } catch (err) {

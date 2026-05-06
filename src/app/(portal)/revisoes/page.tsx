@@ -80,6 +80,7 @@ function formatarData(valor: string | undefined | null): string {
 }
 
 function DashboardAgrupadoInner() {
+  const { userProfile } = useAuth();
   const { log: auditLog } = useAuditLog();
   const [tratores, setTratores] = useState<Trator[]>([]);
   const [busca, setBusca] = useState("");
@@ -94,7 +95,7 @@ function DashboardAgrupadoInner() {
   const [loadingEmails, setLoadingEmails] = useState(false);
   const [emailsCarregados, setEmailsCarregados] = useState(false);
   const [emailExpandido, setEmailExpandido] = useState<string | null>(null);
-  const [tabModal, setTabModal] = useState<"timeline" | "emails" | "enviar" | "inspecao" | "observacoes">("timeline");
+  const [tabModal, setTabModal] = useState<"timeline" | "emails" | "enviar" | "inspecao" | "observacoes" | "lembretes">("timeline");
   const [inspecaoEmails, setInspecaoEmails] = useState<EmailInspecao[]>([]);
   const [enviandoInsp, setEnviandoInsp] = useState(false);
   const [msgInspecao, setMsgInspecao] = useState("");
@@ -108,6 +109,15 @@ function DashboardAgrupadoInner() {
   const [obsTexto, setObsTexto] = useState("");
   const [obsTipo, setObsTipo] = useState<TipoObservacao>("geral");
   const [salvandoObs, setSalvandoObs] = useState(false);
+
+  // Lembretes
+  interface Lembrete { id: number; trator_id: string; user_id: string; user_nome: string; data_hora: string; mensagem: string | null; notificado: boolean; created_by: string | null }
+  const [lembretes, setLembretes] = useState<Lembrete[]>([]);
+  const [lembreteUsuario, setLembreteUsuario] = useState("");
+  const [lembreteData, setLembreteData] = useState("");
+  const [lembreteMensagem, setLembreteMensagem] = useState("");
+  const [salvandoLembrete, setSalvandoLembrete] = useState(false);
+  const [usuariosPortal, setUsuariosPortal] = useState<{ user_id: string; nome: string }[]>([]);
   const [todasObsAtivas, setTodasObsAtivas] = useState<Observacao[]>([]);
   const [filtroTipoObs, setFiltroTipoObs] = useState<TipoObservacao | "">("");
   const [revisaoEnvio, setRevisaoEnvio] = useState("");
@@ -178,6 +188,55 @@ function DashboardAgrupadoInner() {
       // ignora
     }
   }, []);
+
+  // Lembretes
+  const fetchLembretes = useCallback(async (tratorId: string) => {
+    try {
+      const res = await fetch(`/api/revisoes/lembretes?trator_id=${encodeURIComponent(tratorId)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setLembretes(data.lembretes || []);
+      }
+    } catch { /* ignora */ }
+  }, []);
+
+  const fetchUsuariosPortal = useCallback(async () => {
+    if (usuariosPortal.length > 0) return;
+    const { data } = await supabase.from("portal_permissoes").select("user_id, nome");
+    if (data) setUsuariosPortal(data.filter((u: any) => u.nome));
+  }, [usuariosPortal.length]);
+
+  const criarLembrete = async () => {
+    if (!selecionado || !lembreteUsuario || !lembreteData) return;
+    const usuario = usuariosPortal.find(u => u.user_id === lembreteUsuario);
+    if (!usuario) return;
+    setSalvandoLembrete(true);
+    try {
+      await fetch("/api/revisoes/lembretes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          trator_id: String(selecionado.id),
+          user_id: usuario.user_id,
+          user_nome: usuario.nome,
+          data_hora: new Date(lembreteData).toISOString(),
+          mensagem: lembreteMensagem.trim() || null,
+          created_by: userProfile?.nome || null,
+        }),
+      });
+      setLembreteUsuario("");
+      setLembreteData("");
+      setLembreteMensagem("");
+      fetchLembretes(String(selecionado.id));
+    } catch { /* ignora */ }
+    setSalvandoLembrete(false);
+  };
+
+  const deletarLembrete = async (id: number) => {
+    if (!selecionado) return;
+    await fetch(`/api/revisoes/lembretes?id=${id}`, { method: "DELETE" });
+    fetchLembretes(String(selecionado.id));
+  };
 
   // Refresh ao voltar para a aba
   const refreshRevisoes = useCallback(async () => {
@@ -715,6 +774,7 @@ function DashboardAgrupadoInner() {
                       key={t.ID}
                       onClick={() => {
                         setSelecionado(t); setEmailExpandido(null); setTabModal("timeline");
+                        fetchLembretes(String(t.id));
                         auditLog({ sistema: 'revisoes', acao: 'visualizar', entidade: 'trator', entidade_id: t.ID, entidade_label: `${t.Modelo} - ${t.Chassis}` });
                       }}
                       className="bg-white p-5 rounded-xl border border-zinc-200 hover:border-red-200 transition-all cursor-pointer group"
@@ -890,6 +950,7 @@ function DashboardAgrupadoInner() {
                   { key: "emails" as const, label: `Emails${emailsDoSelecionado.length > 0 ? ` (${emailsDoSelecionado.length})` : ""}` },
                   { key: "enviar" as const, label: "Enviar" },
                   { key: "observacoes" as const, label: `Observações${observacoes.filter(o => o.status === 'ativa').length > 0 ? ` (${observacoes.filter(o => o.status === 'ativa').length})` : ""}` },
+                  { key: "lembretes" as const, label: `Lembretes${lembretes.filter(l => !l.notificado).length > 0 ? ` (${lembretes.filter(l => !l.notificado).length})` : ""}` },
                 ].map(tab => (
                   <button
                     key={tab.key}
@@ -1540,6 +1601,101 @@ function DashboardAgrupadoInner() {
                             </div>
                           </div>
                         ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {tabModal === "lembretes" && selecionado && (
+                <div key="lembretes" className="tab-content-enter max-w-3xl mx-auto space-y-6">
+                  <div>
+                    <h4 className="text-sm font-medium text-zinc-500 uppercase tracking-wider mb-3">Novo lembrete</h4>
+                    <div className="rounded-xl border border-zinc-200 p-4 space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs font-medium text-zinc-500 mb-1 block">Notificar quem?</label>
+                          <select
+                            value={lembreteUsuario}
+                            onChange={(e) => setLembreteUsuario(e.target.value)}
+                            onFocus={fetchUsuariosPortal}
+                            className="w-full px-3 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-800 text-base focus:ring-1 focus:ring-red-300 outline-none"
+                          >
+                            <option value="">Selecione o usuário...</option>
+                            {usuariosPortal.map(u => (
+                              <option key={u.user_id} value={u.user_id}>{u.nome}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-zinc-500 mb-1 block">Data e hora</label>
+                          <input
+                            type="datetime-local"
+                            value={lembreteData}
+                            onChange={(e) => setLembreteData(e.target.value)}
+                            className="w-full px-3 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-800 text-base focus:ring-1 focus:ring-red-300 outline-none"
+                          />
+                        </div>
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Mensagem (opcional, ex: Lembrar de enviar cheque 500h)"
+                        value={lembreteMensagem}
+                        onChange={(e) => setLembreteMensagem(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-800 text-base placeholder-zinc-400 focus:ring-1 focus:ring-red-300 outline-none"
+                      />
+                      <div className="flex justify-end">
+                        <button
+                          onClick={criarLembrete}
+                          disabled={salvandoLembrete || !lembreteUsuario || !lembreteData}
+                          className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-700 transition-colors disabled:opacity-40"
+                        >
+                          {salvandoLembrete ? "Salvando..." : "Criar lembrete"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-sm font-medium text-zinc-500 uppercase tracking-wider mb-3">Lembretes ({lembretes.length})</h4>
+                    {lembretes.length === 0 ? (
+                      <p className="text-center text-zinc-400 text-sm py-8">Nenhum lembrete criado para este trator.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {lembretes.map(l => {
+                          const passado = new Date(l.data_hora) < new Date();
+                          return (
+                            <div
+                              key={l.id}
+                              className={`rounded-xl border p-4 flex items-center justify-between gap-3 ${
+                                l.notificado ? 'bg-zinc-50 border-zinc-200 opacity-60' : passado ? 'bg-amber-50 border-amber-200' : 'bg-white border-zinc-200'
+                              }`}
+                            >
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-sm font-semibold text-zinc-800">{l.user_nome}</span>
+                                  {l.notificado && (
+                                    <span className="text-xs font-medium px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">Enviado</span>
+                                  )}
+                                  {!l.notificado && passado && (
+                                    <span className="text-xs font-medium px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200">Pendente</span>
+                                  )}
+                                </div>
+                                <div className="text-sm text-zinc-600">
+                                  {new Date(l.data_hora).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                </div>
+                                {l.mensagem && <p className="text-sm text-zinc-500 mt-1">{l.mensagem}</p>}
+                                {l.created_by && <span className="text-xs text-zinc-400 mt-1 block">Criado por {l.created_by}</span>}
+                              </div>
+                              <button
+                                onClick={() => deletarLembrete(l.id)}
+                                className="text-xs text-zinc-400 hover:text-red-500 shrink-0"
+                              >
+                                Remover
+                              </button>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
