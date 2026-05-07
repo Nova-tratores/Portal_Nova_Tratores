@@ -341,7 +341,7 @@ function RequisicoesPageInner() {
       if (error) { console.error('Erro ao editar veículo:', error); alert('Erro ao salvar: ' + error.message); return; }
       auditLog({ sistema: 'requisicoes', acao: 'editar', entidade: 'veiculo', entidade_id: veiculoEditando.IdPlaca, entidade_label: dados.NumPlaca });
     } else {
-      const { error } = await supabase.from('SupaPlacas').insert([dados]);
+      const { error } = await supabase.from('SupaPlacas').insert([{ IdPlaca: String(Date.now()), ...dados }]);
       if (error) { console.error('Erro ao criar veículo:', error); alert('Erro ao cadastrar: ' + error.message); return; }
       auditLog({ sistema: 'requisicoes', acao: 'criar', entidade: 'veiculo', entidade_label: dados.NumPlaca });
     }
