@@ -74,6 +74,12 @@ async function removeDestinatarioSupabase(email: string): Promise<boolean> {
 function formatarData(valor: string | undefined | null): string {
   if (!valor) return "—";
   if (/^\d{2}\/\d{2}\/\d{4}$/.test(valor)) return valor;
+  // Data ISO (YYYY-MM-DD): extrair partes direto para evitar problema de timezone
+  const isoMatch = valor.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) {
+    const [, ano, mes, dia] = isoMatch;
+    return `${dia}/${mes}/${ano}`;
+  }
   const d = new Date(valor);
   if (isNaN(d.getTime())) return valor;
   return d.toLocaleDateString("pt-BR");
@@ -201,10 +207,9 @@ function DashboardAgrupadoInner() {
   }, []);
 
   const fetchUsuariosPortal = useCallback(async () => {
-    if (usuariosPortal.length > 0) return;
     const { data } = await supabase.from("portal_permissoes").select("user_id, nome");
     if (data) setUsuariosPortal(data.filter((u: any) => u.nome));
-  }, [usuariosPortal.length]);
+  }, []);
 
   const criarLembrete = async () => {
     if (!selecionado || !lembreteUsuario || !lembreteData) return;
@@ -216,7 +221,7 @@ function DashboardAgrupadoInner() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          trator_id: String(selecionado.id),
+          trator_id: String(selecionado.ID),
           user_id: usuario.user_id,
           user_nome: usuario.nome,
           data_hora: new Date(lembreteData).toISOString(),
@@ -227,7 +232,7 @@ function DashboardAgrupadoInner() {
       setLembreteUsuario("");
       setLembreteData("");
       setLembreteMensagem("");
-      fetchLembretes(String(selecionado.id));
+      fetchLembretes(String(selecionado.ID));
     } catch { /* ignora */ }
     setSalvandoLembrete(false);
   };
@@ -235,7 +240,7 @@ function DashboardAgrupadoInner() {
   const deletarLembrete = async (id: number) => {
     if (!selecionado) return;
     await fetch(`/api/revisoes/lembretes?id=${id}`, { method: "DELETE" });
-    fetchLembretes(String(selecionado.id));
+    fetchLembretes(String(selecionado.ID));
   };
 
   // Refresh ao voltar para a aba
@@ -774,7 +779,8 @@ function DashboardAgrupadoInner() {
                       key={t.ID}
                       onClick={() => {
                         setSelecionado(t); setEmailExpandido(null); setTabModal("timeline");
-                        fetchLembretes(String(t.id));
+                        fetchLembretes(String(t.ID));
+                        fetchUsuariosPortal();
                         auditLog({ sistema: 'revisoes', acao: 'visualizar', entidade: 'trator', entidade_id: t.ID, entidade_label: `${t.Modelo} - ${t.Chassis}` });
                       }}
                       className="bg-white p-5 rounded-xl border border-zinc-200 hover:border-red-200 transition-all cursor-pointer group"
