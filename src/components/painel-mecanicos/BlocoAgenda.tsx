@@ -1,6 +1,6 @@
 'use client'
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { Loader2, Plus, X, Search, MapPin, Trash2, FileText, Truck, Edit3, StickyNote, ExternalLink, Link2 } from 'lucide-react'
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { Loader2, Plus, X, Search, MapPin, Trash2, FileText, Truck, Edit3, StickyNote, ExternalLink, Link2, ArrowDown, Navigation, Clock, ChevronDown } from 'lucide-react'
 
 interface Tecnico { user_id: string; tecnico_nome: string; tecnico_email: string; mecanico_role: 'tecnico' | 'observador' }
 interface OrdemServico {
@@ -59,17 +59,19 @@ function proximosDiasUteis(diaInicial: string, qtd: number, diasDisponiveis: str
 }
 
 const CSS = `
-.ag-tab{padding:10px 0;cursor:pointer;border:none;background:#fff;text-align:center;flex:1;transition:all .15s;position:relative}
-.ag-tab:hover{background:#F8F8F8}
-.ag-tab.active{background:#111;color:#fff !important}
+.ag-tab{padding:12px 0;cursor:pointer;border:none;background:#fff;text-align:center;flex:1;transition:all .18s;position:relative}
+.ag-tab:hover{background:#F5F7FA}
+.ag-tab.active{background:#1E3A5F;color:#fff !important}
 .ag-tab.active *{color:#fff !important}
 .ag-note-btn{display:inline-flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;padding:5px 10px;border-radius:4px;border:1px solid #E0E0E0;background:#fff;color:#111;transition:all .15s;font-weight:600}
 .ag-note-btn:hover{background:#F5F5F5;border-color:#111}
 .ag-add-btn{display:flex;align-items:center;justify-content:center;gap:5px;padding:10px;border-radius:0;border:none;border-top:1px solid #E0E0E0;color:#111;font-size:14px;font-weight:700;cursor:pointer;transition:all .12s;background:#FAFAFA;width:100%}
 .ag-add-btn:hover{background:#F0F0F0}
-.ag-fade-in{animation:agFade .15s ease}
-.ag-card{border:1px solid #D0D0D0;border-radius:0;overflow:hidden;transition:box-shadow .15s}
-.ag-card:hover{box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.ag-fade-in{animation:agFade .18s ease}
+.ag-card{border:none;border-radius:10px;overflow:hidden;transition:box-shadow .18s;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.ag-card:hover{box-shadow:0 4px 16px rgba(0,0,0,.1)}
+.ag-seq{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;font-size:11px;font-weight:800;flex-shrink:0}
+.ag-route-arrow{display:flex;align-items:center;justify-content:center;color:#CBD5E1;padding:2px 0}
 @keyframes agFade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 `
 
@@ -91,7 +93,6 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
   const [carregandoCliente, setCarregandoCliente] = useState(false)
   const noteRef = useRef<HTMLTextAreaElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
-  const [svgLines, setSvgLines] = useState<Array<{ x1: number; y1: number; x2: number; y2: number; id: string }>>([])
 
   const tecs = useMemo(() => tecnicos.filter(t => t.mecanico_role === 'tecnico'), [tecnicos])
   const dias = useMemo(() => getDiasSemana(semanaOffset), [semanaOffset])
@@ -310,44 +311,6 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
     return shared
   }, [tecs, agendaSemana, diaSel, ordens])
 
-  // Calcular posição das linhas SVG conectando ordens compartilhadas
-  useEffect(() => {
-    const compute = () => {
-      if (!gridRef.current || sharedOrderIds.size === 0) { setSvgLines([]); return }
-      const gridRect = gridRef.current.getBoundingClientRect()
-      const scrollTop = gridRef.current.scrollTop || 0
-      const scrollLeft = gridRef.current.scrollLeft || 0
-      const els = gridRef.current.querySelectorAll<HTMLDivElement>('[data-shared-order]')
-      const byOrder: Record<string, HTMLDivElement[]> = {}
-      els.forEach(el => {
-        const id = el.dataset.sharedOrder!
-        if (!byOrder[id]) byOrder[id] = []
-        byOrder[id].push(el)
-      })
-      const newLines: typeof svgLines = []
-      Object.entries(byOrder).forEach(([orderId, elements]) => {
-        if (elements.length < 2) return
-        const r1 = elements[0].getBoundingClientRect()
-        const r2 = elements[1].getBoundingClientRect()
-        // Conectar borda direita do card esquerdo → borda esquerda do card direito
-        const leftEl = r1.left < r2.left ? r1 : r2
-        const rightEl = r1.left < r2.left ? r2 : r1
-        newLines.push({
-          x1: leftEl.right - gridRect.left + scrollLeft,
-          y1: leftEl.top + leftEl.height / 2 - gridRect.top + scrollTop,
-          x2: rightEl.left - gridRect.left + scrollLeft,
-          y2: rightEl.top + rightEl.height / 2 - gridRect.top + scrollTop,
-          id: orderId,
-        })
-      })
-      setSvgLines(newLines)
-    }
-    requestAnimationFrame(compute)
-    const observer = new ResizeObserver(compute)
-    if (gridRef.current) observer.observe(gridRef.current)
-    window.addEventListener('scroll', compute, true)
-    return () => { observer.disconnect(); window.removeEventListener('scroll', compute, true) }
-  }, [diaSel, agendaSemana, sharedOrderIds])
 
   if (!diaSel) return null
 
@@ -360,47 +323,47 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
       <style>{CSS}</style>
 
       {/* ── TABS DOS DIAS ── */}
-      <div style={{ display: 'flex', border: '1px solid #D0D0D0', overflow: 'hidden', marginBottom: 20, background: '#fff' }}>
-        {dias.map((dia, di) => {
+      <div style={{ display: 'flex', gap: 6, marginBottom: 20, background: 'transparent', flexWrap: 'wrap' }}>
+        {dias.map((dia) => {
           const d = new Date(dia + 'T12:00:00')
           const isActive = dia === diaSel
           const isH = dia === hoje
           const cnt = countByDay[dia] || 0
+          const isPast = dia < hoje
           return (
-            <button key={dia} className={`ag-tab${isActive ? ' active' : ''}`} onClick={() => setDiaSel(dia)}
-              style={{ opacity: dia < hoje && !isActive ? 0.5 : 1, borderRight: di < dias.length - 1 ? '1px solid #D0D0D0' : 'none' }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#111', textTransform: 'uppercase', letterSpacing: '.05em' }}>
+            <button key={dia} onClick={() => setDiaSel(dia)}
+              style={{
+                flex: 1, minWidth: 70, padding: '10px 6px', cursor: 'pointer', border: isActive ? '2px solid #1E3A5F' : isH ? '2px solid #3B82F6' : '1px solid #E2E8F0',
+                background: isActive ? '#1E3A5F' : '#fff', borderRadius: 10, textAlign: 'center',
+                opacity: isPast && !isActive ? 0.55 : 1, transition: 'all .18s',
+                boxShadow: isActive ? '0 2px 8px rgba(30,58,95,.25)' : 'none',
+              }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: isActive ? '#93C5FD' : '#64748B', textTransform: 'uppercase', letterSpacing: '.06em' }}>
                 {DIAS_SEMANA[d.getDay()]}
               </div>
-              <div style={{ fontSize: 20, fontWeight: 900, color: '#111', margin: '1px 0' }}>
+              <div style={{ fontSize: 22, fontWeight: 900, color: isActive ? '#fff' : '#111', margin: '2px 0' }}>
                 {d.getDate()}
               </div>
-              {cnt > 0 && <div style={{ fontSize: 12, fontWeight: 700, color: '#111' }}>{cnt} OS</div>}
-              {isH && <div style={{ width: 5, height: 5, borderRadius: '50%', background: isActive ? '#fff' : '#111', margin: '3px auto 0' }} />}
+              {cnt > 0 && (
+                <div style={{
+                  fontSize: 11, fontWeight: 700,
+                  color: isActive ? '#fff' : '#1E3A5F',
+                  background: isActive ? 'rgba(255,255,255,.15)' : '#EFF6FF',
+                  padding: '2px 8px', borderRadius: 6, display: 'inline-block',
+                }}>
+                  {cnt} OS
+                </div>
+              )}
+              {isH && <div style={{ width: 6, height: 6, borderRadius: '50%', background: isActive ? '#60A5FA' : '#3B82F6', margin: '4px auto 0' }} />}
             </button>
           )
         })}
-        {loading && <div style={{ display: 'flex', alignItems: 'center', padding: '0 10px', borderLeft: '1px solid #D0D0D0' }}><Loader2 size={15} color="#111" className="animate-spin" /></div>}
+        {loading && <div style={{ display: 'flex', alignItems: 'center', padding: '0 8px' }}><Loader2 size={15} color="#1E3A5F" className="animate-spin" /></div>}
       </div>
 
       {/* ── CONTEÚDO DO DIA ── */}
       <div key={diaSel} className="ag-fade-in" style={{ minHeight: 300 }}>
-        <div ref={gridRef} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 0, border: '1px solid #D0D0D0', background: '#D0D0D0', position: 'relative' }}>
-          {/* SVG linhas conectando ordens compartilhadas */}
-          {svgLines.length > 0 && (
-            <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 10 }}>
-              {svgLines.map(l => {
-                const midX = (l.x1 + l.x2) / 2
-                return (
-                  <g key={l.id}>
-                    <path d={`M${l.x1},${l.y1} C${midX},${l.y1} ${midX},${l.y2} ${l.x2},${l.y2}`} stroke="#7C3AED" strokeWidth={2} strokeDasharray="6 3" fill="none" opacity={0.7} />
-                    <circle cx={l.x1} cy={l.y1} r={4} fill="#7C3AED" opacity={0.7} />
-                    <circle cx={l.x2} cy={l.y2} r={4} fill="#7C3AED" opacity={0.7} />
-                  </g>
-                )
-              })}
-            </svg>
-          )}
+        <div ref={gridRef} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(370px, 1fr))', gap: 16, position: 'relative' }}>
           {tecs.map((tec) => {
             const items = agendaSemana.filter(a => a.data === diaSel && a.tecnico_nome === tec.tecnico_nome).sort((a, b) => a.ordem_sequencia - b.ordem_sequencia)
             const cellKey = `${tec.tecnico_nome}|${diaSel}`
@@ -430,18 +393,28 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
               : []
 
             return (
-              <div key={tec.user_id} className="ag-card" style={{ background: '#fff' }}>
+              <div key={tec.user_id} className="ag-card" style={{ background: '#fff', border: '1px solid #E2E8F0' }}>
                 {/* Tec header */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1px solid #D0D0D0', background: '#F7F7F7' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid #E2E8F0', background: 'linear-gradient(135deg, #1E3A5F 0%, #2D5A8E 100%)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 16, fontWeight: 800, color: '#111', textTransform: 'uppercase' }}>{tec.tecnico_nome.split(' ').slice(0, 2).join(' ')}</span>
+                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800, color: '#fff' }}>
+                      {tec.tecnico_nome.charAt(0)}
+                    </div>
+                    <span style={{ fontSize: 15, fontWeight: 700, color: '#fff', textTransform: 'uppercase', letterSpacing: '.02em' }}>{tec.tecnico_nome.split(' ').slice(0, 2).join(' ')}</span>
                   </div>
-                  {(items.length + ordensCompartilhadasFaltando.length) > 0 && <span style={{ fontSize: 14, color: '#111', fontWeight: 700 }}>{items.length + ordensCompartilhadasFaltando.length} OS</span>}
+                  {(items.length + ordensCompartilhadasFaltando.length) > 0 && (
+                    <span style={{ fontSize: 12, color: '#fff', fontWeight: 700, background: 'rgba(255,255,255,.2)', padding: '3px 10px', borderRadius: 6 }}>
+                      {items.length + ordensCompartilhadasFaltando.length} OS
+                    </span>
+                  )}
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   {items.length === 0 && ordensCompartilhadasFaltando.length === 0 && !isAdding && !isEditingNote && !notaValue && (
-                    <div style={{ textAlign: 'center', padding: '20px 0', color: '#111', fontSize: 14, fontWeight: 500, borderBottom: '1px solid #E8E8E8' }}>Sem servico</div>
+                    <div style={{ textAlign: 'center', padding: '28px 0', color: '#94A3B8', fontSize: 14, fontWeight: 500, borderBottom: '1px solid #F1F5F9' }}>
+                      <Navigation size={20} style={{ margin: '0 auto 6px', display: 'block', opacity: .4 }} />
+                      Sem servico agendado
+                    </div>
                   )}
 
                   {items.map((row, rowIdx) => {
@@ -457,25 +430,35 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
                     const temGPS = !!(row.gps_saida_oficina || row.gps_chegada_cliente || row.gps_saida_cliente || row.gps_retorno_oficina)
 
                     const isShared = !!(row.id_ordem && sharedOrderIds.has(row.id_ordem))
+                    const seqNum = rowIdx + 1
 
                     return (
-                      <div key={row.id} {...(isShared ? { 'data-shared-order': row.id_ordem } : {})} style={{ padding: '12px 16px', background: isShared ? '#FAF5FF' : '#fff', borderBottom: '1px solid #E8E8E8', borderLeft: isShared ? '3px solid #7C3AED' : 'none' }}>
-                        {/* Linha 1: Cliente + OS id + lixeira */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
-                          <div style={{ flex: 1 }}>
-                            <span style={{ fontSize: 16, fontWeight: 800, color: '#111', lineHeight: 1.3 }}>{row.cliente || '—'}</span>
-                            {row.id_ordem && !row.id_ordem.startsWith('AG-') && (
-                              <span style={{ fontSize: 12, fontWeight: 600, color: '#111', marginLeft: 8 }}>#{row.id_ordem}</span>
-                            )}
+                      <React.Fragment key={row.id}>
+                        {rowIdx > 0 && (
+                          <div className="ag-route-arrow">
+                            <ChevronDown size={16} />
                           </div>
-                          <button onClick={() => remover(row.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#CCC', padding: 2, flexShrink: 0 }}
-                            onMouseEnter={e => (e.currentTarget.style.color = '#EF4444')} onMouseLeave={e => (e.currentTarget.style.color = '#CCC')}>
+                        )}
+                      <div style={{ padding: '12px 16px', background: isShared ? '#FFFBEB' : '#fff', borderBottom: '1px solid #F1F5F9', borderLeft: isShared ? '3px solid #F59E0B' : 'none' }}>
+                        {/* Linha 1: Sequencia + Cliente + OS id + lixeira */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
+                            <span className="ag-seq" style={{ background: isShared ? '#FEF3C7' : '#EFF6FF', color: isShared ? '#B45309' : '#1E3A5F' }}>{seqNum}</span>
+                            <div>
+                              <span style={{ fontSize: 15, fontWeight: 800, color: '#111', lineHeight: 1.3 }}>{row.cliente || '—'}</span>
+                              {row.id_ordem && !row.id_ordem.startsWith('AG-') && (
+                                <span style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginLeft: 6 }}>#{row.id_ordem}</span>
+                              )}
+                            </div>
+                          </div>
+                          <button onClick={() => remover(row.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#CBD5E1', padding: 2, flexShrink: 0 }}
+                            onMouseEnter={e => (e.currentTarget.style.color = '#EF4444')} onMouseLeave={e => (e.currentTarget.style.color = '#CBD5E1')}>
                             <Trash2 size={13} />
                           </button>
                         </div>
 
                         {/* Linha 2: Cidade + distancia + horas — tudo inline */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 4, fontSize: 13, color: '#111' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 6, marginLeft: 30, fontSize: 13, color: '#475569' }}>
                           {row.cidade && row.coordenadas ? (
                             <a href={`https://www.google.com/maps?q=${row.coordenadas.lat},${row.coordenadas.lng}`} target="_blank" rel="noopener noreferrer"
                               style={{ color: '#2563EB', display: 'inline-flex', alignItems: 'center', gap: 3, textDecoration: 'none', fontWeight: 700 }}
@@ -485,12 +468,17 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
                           ) : row.cidade ? (
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontWeight: 600 }}><MapPin size={12} /> {row.cidade}</span>
                           ) : null}
-                          {row.tempo_ida_min > 0 && <span style={{ fontWeight: 600 }}>{Math.round(row.tempo_ida_min)}min · {row.distancia_ida_km}km</span>}
-                          {(row.cidade || row.tempo_ida_min > 0) && (horaInicio || h > 0) && <span style={{ color: '#D0D0D0' }}>|</span>}
+                          {row.tempo_ida_min > 0 && (
+                            <span style={{ fontWeight: 600, background: '#F1F5F9', padding: '1px 6px', borderRadius: 4, fontSize: 12 }}>
+                              <Navigation size={10} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} />{Math.round(row.tempo_ida_min)}min · {row.distancia_ida_km}km
+                            </span>
+                          )}
                           {horaInicio && horaFim ? (
-                            <span style={{ fontWeight: 800, color: '#1E3A5F' }}>{horaInicio}→{horaFim}</span>
+                            <span style={{ fontWeight: 800, color: '#1E3A5F', background: '#EFF6FF', padding: '1px 6px', borderRadius: 4, fontSize: 12 }}>
+                              <Clock size={10} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} />{horaInicio}→{horaFim}
+                            </span>
                           ) : null}
-                          {h > 0 && <span style={{ fontWeight: 700 }}>{h}h</span>}
+                          {h > 0 && <span style={{ fontWeight: 700, fontSize: 12 }}>{h}h</span>}
                           {diaAtualAgenda > 0 && (
                             <span style={{ fontWeight: 800, color: '#B45309', background: '#FEF3C7', padding: '1px 6px', borderRadius: 3, fontSize: 11, border: '1px solid #FDE68A' }}>
                               Dia {diaAtualAgenda}/{diasTotal}
@@ -506,7 +494,7 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
                                 <span style={{ fontWeight: 800, color: isPrimario ? '#065F46' : '#92400E', background: isPrimario ? '#D1FAE5' : '#FEF3C7', padding: '1px 6px', borderRadius: 3, fontSize: 11, border: `1px solid ${isPrimario ? '#A7F3D0' : '#FDE68A'}` }}>
                                   {isPrimario ? 'Primário' : 'Auxiliar'}
                                 </span>
-                                <span style={{ fontWeight: 700, color: '#6D28D9', background: '#EDE9FE', padding: '1px 6px', borderRadius: 3, fontSize: 11, border: '1px solid #DDD6FE', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                                <span style={{ fontWeight: 700, color: '#B45309', background: '#FEF3C7', padding: '1px 6px', borderRadius: 3, fontSize: 11, border: '1px solid #FDE68A', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                                   <Link2 size={10} /> Com {outroPrimeiro}
                                 </span>
                               </>
@@ -515,16 +503,35 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
                         </div>
 
                         {/* Serviço */}
-                        {sol && <div style={{ fontSize: 13, color: '#111', lineHeight: 1.3, marginBottom: 4, fontWeight: 500 }}>{sol.length > 100 ? sol.slice(0, 100) + '...' : sol}</div>}
+                        {sol && <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.3, marginBottom: 4, fontWeight: 500, marginLeft: 30 }}>{sol.length > 100 ? sol.slice(0, 100) + '...' : sol}</div>}
 
-                        {/* GPS inline */}
+                        {/* GPS timeline */}
                         {temGPS && (
-                          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 4, fontSize: 11 }}>
-                            {row.gps_saida_oficina && <span style={{ fontWeight: 700, color: '#111', background: '#F0F0F0', padding: '1px 6px', borderRadius: 3 }}>Saiu {row.gps_saida_oficina}</span>}
-                            {row.gps_chegada_cliente && <span style={{ fontWeight: 700, color: '#065F46', background: '#D1FAE5', padding: '1px 6px', borderRadius: 3 }}>Chegou {row.gps_chegada_cliente}</span>}
-                            {row.gps_saida_cliente && <span style={{ fontWeight: 700, color: '#991B1B', background: '#FEE2E2', padding: '1px 6px', borderRadius: 3 }}>Saiu cli {row.gps_saida_cliente}</span>}
-                            {row.gps_retorno_oficina && <span style={{ fontWeight: 700, color: '#111', background: '#F0F0F0', padding: '1px 6px', borderRadius: 3 }}>Voltou {row.gps_retorno_oficina}</span>}
-                            {row.tempo_excedido && <span style={{ fontWeight: 800, color: '#DC2626', background: '#FEF2F2', padding: '1px 6px', borderRadius: 3 }}>Excedeu</span>}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 4, marginLeft: 30, fontSize: 11, flexWrap: 'wrap' }}>
+                            {row.gps_saida_oficina && (
+                              <span style={{ fontWeight: 700, color: '#1E3A5F', background: '#EFF6FF', padding: '2px 8px', borderRadius: '4px 0 0 4px', border: '1px solid #BFDBFE', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                                <Truck size={10} /> {row.gps_saida_oficina}
+                              </span>
+                            )}
+                            {row.gps_saida_oficina && row.gps_chegada_cliente && <span style={{ color: '#93C5FD', fontSize: 10 }}> → </span>}
+                            {row.gps_chegada_cliente && (
+                              <span style={{ fontWeight: 700, color: '#065F46', background: '#D1FAE5', padding: '2px 8px', border: '1px solid #A7F3D0', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                                <MapPin size={10} /> {row.gps_chegada_cliente}
+                              </span>
+                            )}
+                            {row.gps_chegada_cliente && row.gps_saida_cliente && <span style={{ color: '#93C5FD', fontSize: 10 }}> → </span>}
+                            {row.gps_saida_cliente && (
+                              <span style={{ fontWeight: 700, color: '#B45309', background: '#FEF3C7', padding: '2px 8px', border: '1px solid #FDE68A', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                                <Clock size={10} /> {row.gps_saida_cliente}
+                              </span>
+                            )}
+                            {row.gps_saida_cliente && row.gps_retorno_oficina && <span style={{ color: '#93C5FD', fontSize: 10 }}> → </span>}
+                            {row.gps_retorno_oficina && (
+                              <span style={{ fontWeight: 700, color: '#1E3A5F', background: '#EFF6FF', padding: '2px 8px', borderRadius: '0 4px 4px 0', border: '1px solid #BFDBFE', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                                <Truck size={10} /> {row.gps_retorno_oficina}
+                              </span>
+                            )}
+                            {row.tempo_excedido && <span style={{ fontWeight: 800, color: '#DC2626', background: '#FEF2F2', padding: '2px 8px', borderRadius: 4, marginLeft: 4, border: '1px solid #FECACA' }}>Excedeu</span>}
                           </div>
                         )}
 
@@ -545,6 +552,7 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
                           </button>
                         )}
                       </div>
+                      </React.Fragment>
                     )
                   })}
 
@@ -555,7 +563,7 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
                     const sol = extrairSolicitacao(os.Serv_Solicitado || '')
                     const h = parseFloat(String(os.Qtd_HR || 0)) || 0
                     return (
-                      <div key={`shared-${os.Id_Ordem}`} data-shared-order={os.Id_Ordem} style={{ padding: '12px 16px', background: '#FAF5FF', borderBottom: '1px solid #E8E8E8', borderLeft: '3px solid #7C3AED' }}>
+                      <div key={`shared-${os.Id_Ordem}`} style={{ padding: '12px 16px', background: '#FFFBEB', borderBottom: '1px solid #E8E8E8', borderLeft: '3px solid #F59E0B' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
                           <div style={{ flex: 1 }}>
                             <span style={{ fontSize: 16, fontWeight: 800, color: '#111', lineHeight: 1.3 }}>{os.Os_Cliente || '—'}</span>

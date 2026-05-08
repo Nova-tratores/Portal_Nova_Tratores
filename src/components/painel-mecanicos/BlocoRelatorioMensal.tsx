@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Car, Clock, MapPin } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Car, Clock, MapPin, Route, Timer, CalendarDays, Gauge } from 'lucide-react'
 
 interface Tecnico { user_id: string; tecnico_nome: string; tecnico_email: string; mecanico_role: 'tecnico' | 'observador' }
 
@@ -175,59 +175,106 @@ export default function BlocoRelatorioMensal({ tecnicos }: { tecnicos: Tecnico[]
   const nextMes = () => { const [a, m] = mes.split('-').map(Number); const d = new Date(a, m, 1); setMes(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`) }
   const nomeMes = new Date(mes + '-15').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
 
+  const osConcluidasMes = useMemo(() => osData.filter(o => o.Status === 'Concluída').length, [osData])
+
   return (
-    <div style={{ background: '#F9FAFB', minHeight: '80vh', margin: '-20px', padding: 20, borderRadius: 12 }}>
+    <div style={{ minHeight: '80vh' }}>
       {/* HEADER */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 24, flexWrap: 'wrap' }}>
-        <select
-          value={tecnicoSel}
-          onChange={e => setTecnicoSel(e.target.value)}
-          style={{ padding: '10px 16px', borderRadius: 10, border: '2px solid #E5E7EB', fontSize: 16, fontWeight: 700, background: '#fff' }}
-        >
-          {tecs.map(t => <option key={t.user_id} value={t.tecnico_nome}>{t.tecnico_nome}</option>)}
-        </select>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button onClick={prevMes} style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><ChevronLeft size={18} /></button>
-          <span style={{ fontSize: 20, fontWeight: 800, color: '#111', textTransform: 'capitalize', minWidth: 200, textAlign: 'center' }}>{nomeMes}</span>
-          <button onClick={nextMes} style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><ChevronRight size={18} /></button>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28, flexWrap: 'wrap', gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {/* Avatar */}
+          <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 18, fontWeight: 800 }}>
+            {tecnicoSel.charAt(0)}
+          </div>
+          <select
+            value={tecnicoSel}
+            onChange={e => setTecnicoSel(e.target.value)}
+            style={{ padding: '10px 20px 10px 12px', borderRadius: 10, border: '1px solid #E5E7EB', fontSize: 17, fontWeight: 800, background: '#fff', color: '#111', cursor: 'pointer', appearance: 'none', backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center' }}
+          >
+            {tecs.map(t => <option key={t.user_id} value={t.tecnico_nome}>{t.tecnico_nome}</option>)}
+          </select>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, padding: 4 }}>
+          <button onClick={prevMes} style={{ width: 34, height: 34, borderRadius: 8, border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#555' }}>
+            <ChevronLeft size={18} />
+          </button>
+          <span style={{ fontSize: 16, fontWeight: 800, color: '#111', textTransform: 'capitalize', minWidth: 180, textAlign: 'center', letterSpacing: '-0.02em' }}>{nomeMes}</span>
+          <button onClick={nextMes} style={{ width: 34, height: 34, borderRadius: 8, border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#555' }}>
+            <ChevronRight size={18} />
+          </button>
         </div>
       </div>
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: 60, color: '#999' }}>Carregando...</div>
+        <div style={{ textAlign: 'center', padding: 80, color: '#aaa', fontSize: 14, fontWeight: 500 }}>Carregando dados...</div>
       ) : (
         <>
           {/* RESUMO MENSAL */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginBottom: 28 }}>
-            <div style={{ background: '#fff', borderRadius: 12, padding: 20, border: '1px solid #E5E7EB' }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', marginBottom: 6 }}>Dias Trabalhados</div>
-              <div style={{ fontSize: 34, fontWeight: 900, color: '#111' }}>{totais.diasTrabalhados}</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 24 }}>
+            {/* Dias Trabalhados */}
+            <div style={{ background: '#fff', borderRadius: 14, padding: '20px 22px', border: '1px solid #F0F0F0', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', top: 16, right: 18, opacity: 0.08 }}><CalendarDays size={48} /></div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Dias Trabalhados</div>
+              <div style={{ fontSize: 38, fontWeight: 900, color: '#111', lineHeight: 1 }}>{totais.diasTrabalhados}</div>
+              <div style={{ fontSize: 12, color: '#999', marginTop: 6, fontWeight: 500 }}>{osConcluidasMes} OS concluida(s)</div>
             </div>
-            <div style={{ background: '#fff', borderRadius: 12, padding: 20, border: '1px solid #E5E7EB' }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', marginBottom: 6 }}>KM Total</div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-                <div><div style={{ fontSize: 12, color: '#1E3A5F', fontWeight: 600 }}>GPS</div><div style={{ fontSize: 34, fontWeight: 900, color: '#1E3A5F' }}>{Math.round(totais.gpsKm)}</div></div>
-                <span style={{ fontSize: 20, color: '#D1D5DB' }}>vs</span>
-                <div><div style={{ fontSize: 12, color: '#6B7280', fontWeight: 600 }}>OS</div><div style={{ fontSize: 34, fontWeight: 900, color: '#6B7280' }}>{Math.round(totais.osKm)}</div></div>
+
+            {/* KM Total */}
+            <div style={{ background: '#fff', borderRadius: 14, padding: '20px 22px', border: '1px solid #F0F0F0', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', top: 16, right: 18, opacity: 0.08 }}><Route size={48} /></div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Quilometragem</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 38, fontWeight: 900, color: '#1E40AF', lineHeight: 1 }}>{Math.round(totais.gpsKm)}</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#1E40AF', marginTop: 2 }}>km GPS</div>
+                </div>
+                <div style={{ fontSize: 16, color: '#D1D5DB', fontWeight: 300 }}>/</div>
+                <div>
+                  <div style={{ fontSize: 28, fontWeight: 800, color: '#9CA3AF', lineHeight: 1 }}>{Math.round(totais.osKm)}</div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', marginTop: 2 }}>km OS</div>
+                </div>
               </div>
+              {totais.gpsKm > 0 && totais.osKm > 0 && (
+                <div style={{ marginTop: 8, fontSize: 11, fontWeight: 600, color: Math.abs(totais.gpsKm - totais.osKm) > 50 ? '#DC2626' : '#6B7280' }}>
+                  Diferenca: {Math.round(totais.gpsKm - totais.osKm)} km
+                </div>
+              )}
             </div>
-            <div style={{ background: '#fff', borderRadius: 12, padding: 20, border: '1px solid #E5E7EB' }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', marginBottom: 6 }}>Tempo Dirigindo (GPS)</div>
-              <div style={{ fontSize: 34, fontWeight: 900, color: '#D97706' }}>{fmtMin(totais.gpsDirigindo)}</div>
+
+            {/* Tempo Dirigindo */}
+            <div style={{ background: '#fff', borderRadius: 14, padding: '20px 22px', border: '1px solid #F0F0F0', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', top: 16, right: 18, opacity: 0.08 }}><Gauge size={48} /></div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Tempo Dirigindo</div>
+              <div style={{ fontSize: 38, fontWeight: 900, color: '#D97706', lineHeight: 1 }}>{fmtMin(totais.gpsDirigindo)}</div>
+              <div style={{ fontSize: 12, color: '#999', marginTop: 6, fontWeight: 500 }}>via rastreamento GPS</div>
             </div>
-            <div style={{ background: '#fff', borderRadius: 12, padding: 20, border: '1px solid #E5E7EB' }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', marginBottom: 6 }}>Tempo no Cliente</div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-                <div><div style={{ fontSize: 12, color: '#065F46', fontWeight: 600 }}>GPS</div><div style={{ fontSize: 34, fontWeight: 900, color: '#065F46' }}>{fmtMin(totais.gpsCliente)}</div></div>
-                <span style={{ fontSize: 20, color: '#D1D5DB' }}>vs</span>
-                <div><div style={{ fontSize: 12, color: '#6B7280', fontWeight: 600 }}>OS</div><div style={{ fontSize: 34, fontWeight: 900, color: '#6B7280' }}>{totais.osHoras}h</div></div>
+
+            {/* Tempo no Cliente */}
+            <div style={{ background: '#fff', borderRadius: 14, padding: '20px 22px', border: '1px solid #F0F0F0', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', top: 16, right: 18, opacity: 0.08 }}><Timer size={48} /></div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Tempo no Cliente</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 38, fontWeight: 900, color: '#065F46', lineHeight: 1 }}>{fmtMin(totais.gpsCliente)}</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#065F46', marginTop: 2 }}>GPS</div>
+                </div>
+                <div style={{ fontSize: 16, color: '#D1D5DB', fontWeight: 300 }}>/</div>
+                <div>
+                  <div style={{ fontSize: 28, fontWeight: 800, color: '#9CA3AF', lineHeight: 1 }}>{totais.osHoras}h</div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', marginTop: 2 }}>OS</div>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* TABELA DIÁRIA */}
-          <div style={{ background: '#fff', borderRadius: '12px 12px 0 0', border: '1px solid #E5E7EB', overflow: 'hidden' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 1fr 1fr 1fr 1fr 36px', padding: '12px 16px', background: '#F3F4F6', borderBottom: '1px solid #E5E7EB', fontSize: 13, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase' }}>
+          {/* TABELA DIARIA */}
+          <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #F0F0F0', overflow: 'hidden' }}>
+            {/* Header */}
+            <div style={{
+              display: 'grid', gridTemplateColumns: '100px 1fr 1fr 1fr 1fr 1fr 40px',
+              padding: '14px 20px', background: '#FAFAFA', borderBottom: '1px solid #F0F0F0',
+              fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: '0.06em',
+            }}>
               <span>Dia</span>
               <span>KM GPS</span>
               <span>KM OS</span>
@@ -236,6 +283,7 @@ export default function BlocoRelatorioMensal({ tecnicos }: { tecnicos: Tecnico[]
               <span>Horas OS</span>
               <span></span>
             </div>
+
             {diasDoMes.map(dia => {
               const gps = gpsPorDia[dia]
               const ords = osPorDia[dia] || []
@@ -247,77 +295,134 @@ export default function BlocoRelatorioMensal({ tecnicos }: { tecnicos: Tecnico[]
               const diaNum = dia.split('-')[2]
               const diffKm = gpsCalc.km - osCalc.km
               const diffHoras = gpsCalc.tempoCliente - osCalc.horas * 60
+              const temGPS = gpsCalc.km > 0
 
               return (
                 <div key={dia}>
                   <div
                     onClick={() => toggleDay(dia)}
-                    style={{ display: 'grid', gridTemplateColumns: '110px 1fr 1fr 1fr 1fr 1fr 36px', padding: '11px 16px', borderBottom: '1px solid #F3F4F6', cursor: 'pointer', fontSize: 15, alignItems: 'center', background: expanded ? '#F9FAFB' : '#fff' }}
+                    style={{
+                      display: 'grid', gridTemplateColumns: '100px 1fr 1fr 1fr 1fr 1fr 40px',
+                      padding: '12px 20px', borderBottom: expanded ? 'none' : '1px solid #F5F5F5',
+                      cursor: 'pointer', fontSize: 14, alignItems: 'center',
+                      background: expanded ? '#F9FAFB' : '#fff',
+                      transition: 'background .1s',
+                    }}
+                    onMouseEnter={e => { if (!expanded) (e.currentTarget as HTMLDivElement).style.background = '#FAFBFC' }}
+                    onMouseLeave={e => { if (!expanded) (e.currentTarget as HTMLDivElement).style.background = '#fff' }}
                   >
-                    <span style={{ fontWeight: 700, color: '#111' }}>{diaNum} <span style={{ fontWeight: 400, color: '#999', fontSize: 12 }}>{diaSemana}</span></span>
-                    <span style={{ fontWeight: 600, color: '#1E3A5F' }}>{gpsCalc.km > 0 ? `${gpsCalc.km} km` : '-'}</span>
-                    <span style={{ color: '#555' }}>{osCalc.km > 0 ? `${osCalc.km} km` : '-'}
-                      {diffKm !== 0 && gpsCalc.km > 0 && osCalc.km > 0 && <span style={{ fontSize: 11, marginLeft: 3, color: Math.abs(diffKm) > 20 ? '#DC2626' : '#6B7280' }}>({diffKm > 0 ? '+' : ''}{Math.round(diffKm)})</span>}
+                    <span>
+                      <span style={{ fontWeight: 800, color: '#111', fontSize: 16 }}>{diaNum}</span>
+                      <span style={{ fontWeight: 500, color: '#bbb', fontSize: 11, marginLeft: 4 }}>{diaSemana}</span>
                     </span>
-                    <span style={{ color: '#D97706', fontWeight: 600 }}>{fmtMin(gpsCalc.tempoDirigindo)}</span>
-                    <span style={{ color: '#065F46', fontWeight: 600 }}>{fmtMin(gpsCalc.tempoCliente)}</span>
-                    <span style={{ color: '#555' }}>{osCalc.horas > 0 ? `${osCalc.horas}h` : '-'}
-                      {diffHoras !== 0 && gpsCalc.tempoCliente > 0 && osCalc.horas > 0 && <span style={{ fontSize: 11, marginLeft: 3, color: Math.abs(diffHoras) > 60 ? '#DC2626' : '#6B7280' }}>({diffHoras > 0 ? '+' : ''}{fmtMin(Math.abs(diffHoras))})</span>}
+                    <span style={{ fontWeight: 700, color: temGPS ? '#1E40AF' : '#ddd' }}>
+                      {gpsCalc.km > 0 ? `${gpsCalc.km} km` : '-'}
                     </span>
-                    <span>{expanded ? <ChevronUp size={15} color="#999" /> : <ChevronDown size={15} color="#999" />}</span>
+                    <span style={{ color: '#555', fontWeight: 500 }}>
+                      {osCalc.km > 0 ? `${osCalc.km} km` : '-'}
+                      {diffKm !== 0 && gpsCalc.km > 0 && osCalc.km > 0 && (
+                        <span style={{ fontSize: 10, marginLeft: 4, padding: '1px 5px', borderRadius: 3, fontWeight: 700, background: Math.abs(diffKm) > 20 ? '#FEE2E2' : '#F3F4F6', color: Math.abs(diffKm) > 20 ? '#DC2626' : '#6B7280' }}>
+                          {diffKm > 0 ? '+' : ''}{Math.round(diffKm)}
+                        </span>
+                      )}
+                    </span>
+                    <span style={{ color: '#D97706', fontWeight: 700 }}>{fmtMin(gpsCalc.tempoDirigindo)}</span>
+                    <span style={{ color: '#065F46', fontWeight: 700 }}>{fmtMin(gpsCalc.tempoCliente)}</span>
+                    <span style={{ color: '#555', fontWeight: 500 }}>
+                      {osCalc.horas > 0 ? `${osCalc.horas}h` : '-'}
+                      {diffHoras !== 0 && gpsCalc.tempoCliente > 0 && osCalc.horas > 0 && (
+                        <span style={{ fontSize: 10, marginLeft: 4, padding: '1px 5px', borderRadius: 3, fontWeight: 700, background: Math.abs(diffHoras) > 60 ? '#FEE2E2' : '#F3F4F6', color: Math.abs(diffHoras) > 60 ? '#DC2626' : '#6B7280' }}>
+                          {diffHoras > 0 ? '+' : ''}{fmtMin(Math.abs(diffHoras))}
+                        </span>
+                      )}
+                    </span>
+                    <span style={{ display: 'flex', justifyContent: 'center' }}>
+                      {expanded
+                        ? <ChevronUp size={15} color="#bbb" />
+                        : <ChevronDown size={15} color="#bbb" />}
+                    </span>
                   </div>
+
+                  {/* Detalhe expandido */}
                   {expanded && (
-                    <div style={{ padding: '12px 16px 16px 126px', background: '#FAFAFA', borderBottom: '1px solid #E5E7EB' }}>
-                      {gps && (
-                        <div style={{ marginBottom: 12, padding: '10px 14px', background: '#EFF6FF', borderRadius: 8, fontSize: 14 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                            <Car size={14} style={{ color: '#1E3A5F' }} />
-                            <span style={{ fontWeight: 700, color: '#1E3A5F' }}>GPS - {gps.placa}</span>
-                          </div>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, color: '#333' }}>
-                            <span>Saiu: {fmtHora(gps.saida_loja)}</span>
-                            <span>Chegou: {fmtHora(gps.chegada_cliente)}</span>
-                            <span>Saiu cli: {fmtHora(gps.saida_cliente)}</span>
-                            <span>Voltou: {fmtHora(gps.retorno_loja)}</span>
-                            <span style={{ fontWeight: 700 }}>{gps.km_total} km</span>
-                          </div>
-                          {gps.eventos && gps.eventos.filter((e: any) => e.tipo === 'chegada_cliente' || e.tipo === 'saida_cliente').length > 2 && (
-                            <div style={{ marginTop: 6, fontSize: 12, color: '#555', display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                              {gps.eventos.filter((e: any) => e.tipo === 'chegada_cliente' || e.tipo === 'saida_cliente').map((e: any, i: number) => (
-                                <span key={i} style={{ background: e.tipo === 'chegada_cliente' ? '#D1FAE5' : '#FEE2E2', padding: '2px 8px', borderRadius: 4 }}>
-                                  {e.tipo === 'chegada_cliente' ? 'Chegou' : 'Saiu'} {fmtHora(e.horario)} {e.destino_nome ? `(${e.destino_nome})` : ''}
-                                </span>
-                              ))}
+                    <div style={{ padding: '14px 20px 18px', background: '#FAFBFC', borderBottom: '1px solid #F0F0F0' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: gps ? '1fr 1fr' : '1fr', gap: 14, marginLeft: 100 }}>
+                        {/* GPS Card */}
+                        {gps && (
+                          <div style={{ background: '#EFF6FF', borderRadius: 10, padding: '14px 16px', border: '1px solid #DBEAFE' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                              <Car size={14} style={{ color: '#1E40AF' }} />
+                              <span style={{ fontWeight: 800, color: '#1E40AF', fontSize: 13 }}>GPS</span>
+                              {gps.placa && <span style={{ fontSize: 11, fontWeight: 600, color: '#3B82F6', background: '#DBEAFE', padding: '1px 8px', borderRadius: 4 }}>{gps.placa}</span>}
                             </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px', fontSize: 13 }}>
+                              <div><span style={{ fontSize: 10, fontWeight: 700, color: '#93C5FD', textTransform: 'uppercase' }}>Saiu loja</span><div style={{ fontWeight: 700, color: '#1E3A8A' }}>{fmtHora(gps.saida_loja)}</div></div>
+                              <div><span style={{ fontSize: 10, fontWeight: 700, color: '#93C5FD', textTransform: 'uppercase' }}>Chegou cliente</span><div style={{ fontWeight: 700, color: '#1E3A8A' }}>{fmtHora(gps.chegada_cliente)}</div></div>
+                              <div><span style={{ fontSize: 10, fontWeight: 700, color: '#93C5FD', textTransform: 'uppercase' }}>Saiu cliente</span><div style={{ fontWeight: 700, color: '#1E3A8A' }}>{fmtHora(gps.saida_cliente)}</div></div>
+                              <div><span style={{ fontSize: 10, fontWeight: 700, color: '#93C5FD', textTransform: 'uppercase' }}>Retornou</span><div style={{ fontWeight: 700, color: '#1E3A8A' }}>{fmtHora(gps.retorno_loja)}</div></div>
+                            </div>
+                            <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
+                              <span style={{ fontSize: 12, fontWeight: 800, color: '#1E40AF', background: '#DBEAFE', padding: '3px 10px', borderRadius: 6 }}>{gps.km_total} km</span>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: '#D97706', background: '#FEF3C7', padding: '3px 10px', borderRadius: 6 }}>{fmtMin(gpsCalc.tempoDirigindo)} dirigindo</span>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: '#065F46', background: '#D1FAE5', padding: '3px 10px', borderRadius: 6 }}>{fmtMin(gpsCalc.tempoCliente)} cliente</span>
+                            </div>
+                            {gps.eventos && gps.eventos.filter((e: any) => e.tipo === 'chegada_cliente' || e.tipo === 'saida_cliente').length > 2 && (
+                              <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                                {gps.eventos.filter((e: any) => e.tipo === 'chegada_cliente' || e.tipo === 'saida_cliente').map((e: any, i: number) => (
+                                  <span key={i} style={{ fontSize: 11, fontWeight: 600, background: e.tipo === 'chegada_cliente' ? '#D1FAE5' : '#FEE2E2', color: e.tipo === 'chegada_cliente' ? '#065F46' : '#991B1B', padding: '2px 8px', borderRadius: 4 }}>
+                                    {e.tipo === 'chegada_cliente' ? 'Chegou' : 'Saiu'} {fmtHora(e.horario)} {e.destino_nome ? `(${e.destino_nome})` : ''}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* OS Card */}
+                        <div style={{ background: '#fff', borderRadius: 10, padding: '14px 16px', border: '1px solid #F0F0F0' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                            <Clock size={14} style={{ color: '#555' }} />
+                            <span style={{ fontWeight: 800, color: '#333', fontSize: 13 }}>Ordens de Servico</span>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: '#999', background: '#F3F4F6', padding: '1px 8px', borderRadius: 4 }}>{ords.length}</span>
+                          </div>
+                          {ords.length > 0 ? ords.map(o => (
+                            <div key={o.Id_Ordem} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderBottom: '1px solid #F5F5F5', fontSize: 13 }}>
+                              <span style={{ fontWeight: 800, color: '#111', fontSize: 12, background: '#F3F4F6', padding: '2px 8px', borderRadius: 4, whiteSpace: 'nowrap' }}>
+                                {o.Id_Ordem}
+                              </span>
+                              <span style={{ flex: 1, color: '#555', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>{o.Os_Cliente}</span>
+                              <span style={{ display: 'flex', alignItems: 'center', gap: 3, color: '#D97706', fontWeight: 700, fontSize: 12 }}>{parseFloat(String(o.Qtd_HR || 0)) || 0}h</span>
+                              <span style={{ display: 'flex', alignItems: 'center', gap: 3, color: '#1E40AF', fontWeight: 700, fontSize: 12 }}>{parseFloat(String(o.Qtd_KM || 0)) || 0}km</span>
+                              <span style={{
+                                fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4,
+                                background: o.Status === 'Concluída' ? '#D1FAE5' : o.Status === 'Em Execução' ? '#DBEAFE' : '#FEF3C7',
+                                color: o.Status === 'Concluída' ? '#065F46' : o.Status === 'Em Execução' ? '#1E40AF' : '#92400E',
+                              }}>{o.Status}</span>
+                            </div>
+                          )) : (
+                            <div style={{ fontSize: 13, color: '#ccc', fontWeight: 500, padding: '12px 0', textAlign: 'center' }}>Sem OS neste dia</div>
                           )}
                         </div>
-                      )}
-                      {ords.length > 0 ? ords.map(o => (
-                        <div key={o.Id_Ordem} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '6px 0', borderBottom: '1px solid #F3F4F6', fontSize: 14 }}>
-                          <span style={{ fontWeight: 700, color: '#111', minWidth: 75 }}>OS {o.Id_Ordem}</span>
-                          <span style={{ flex: 1, color: '#555', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.Os_Cliente}</span>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: 3, color: '#D97706' }}><Clock size={12} />{parseFloat(String(o.Qtd_HR || 0)) || 0}h</span>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: 3, color: '#1E3A5F' }}><MapPin size={12} />{parseFloat(String(o.Qtd_KM || 0)) || 0}km</span>
-                          <span style={{ fontSize: 11, color: '#999', padding: '2px 8px', background: o.Status === 'Concluída' ? '#D1FAE5' : '#FEF3C7', borderRadius: 4 }}>{o.Status}</span>
-                        </div>
-                      )) : (
-                        <div style={{ fontSize: 14, color: '#999', fontStyle: 'italic' }}>Sem OS neste dia</div>
-                      )}
+                      </div>
                     </div>
                   )}
                 </div>
               )
             })}
-          </div>
-          {/* TOTAL */}
-          <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 1fr 1fr 1fr 1fr 36px', padding: '14px 16px', background: '#111', borderRadius: '0 0 12px 12px', fontSize: 15, fontWeight: 700, color: '#fff' }}>
-            <span>TOTAL</span>
-            <span>{Math.round(totais.gpsKm)} km</span>
-            <span>{Math.round(totais.osKm)} km</span>
-            <span>{fmtMin(totais.gpsDirigindo)}</span>
-            <span>{fmtMin(totais.gpsCliente)}</span>
-            <span>{totais.osHoras}h</span>
-            <span></span>
+
+            {/* TOTAL */}
+            <div style={{
+              display: 'grid', gridTemplateColumns: '100px 1fr 1fr 1fr 1fr 1fr 40px',
+              padding: '16px 20px', background: '#111', fontSize: 14, fontWeight: 700, color: '#fff',
+            }}>
+              <span style={{ fontWeight: 900, fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Total</span>
+              <span style={{ color: '#93C5FD' }}>{Math.round(totais.gpsKm)} km</span>
+              <span style={{ color: '#9CA3AF' }}>{Math.round(totais.osKm)} km</span>
+              <span style={{ color: '#FCD34D' }}>{fmtMin(totais.gpsDirigindo)}</span>
+              <span style={{ color: '#6EE7B7' }}>{fmtMin(totais.gpsCliente)}</span>
+              <span style={{ color: '#9CA3AF' }}>{totais.osHoras}h</span>
+              <span></span>
+            </div>
           </div>
         </>
       )}

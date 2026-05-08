@@ -8,6 +8,7 @@ import BlocoVisaoGeral from '@/components/painel-mecanicos/BlocoVisaoGeral'
 import BlocoAgenda from '@/components/painel-mecanicos/BlocoAgenda'
 import BlocoAlertas, { type Alerta } from '@/components/painel-mecanicos/BlocoAlertas'
 import BlocoRelatorioMensal from '@/components/painel-mecanicos/BlocoRelatorioMensal'
+import BlocoOcorrencias from '@/components/painel-mecanicos/BlocoOcorrencias'
 import {
   AlertTriangle, RefreshCw,
   AlertOctagon, X, Calendar, Radar, BarChart3,
@@ -31,7 +32,7 @@ const TIPO_OCORRENCIA: Record<string, { label: string; color: string }> = {
   outros: { label: 'Outros', color: '#71717A' },
 }
 
-type Bloco = 'visao' | 'ordens' | 'alertas' | 'relatorio'
+type Bloco = 'visao' | 'ordens' | 'alertas' | 'ocorrencias' | 'relatorio'
 
 export default function PainelMecanicosWrapper() {
   const { userProfile } = useAuth()
@@ -93,6 +94,7 @@ function PainelMecanicosPage() {
       supabase.channel('painel_just').on('postgres_changes', { event: '*', schema: 'public', table: 'tecnico_justificativas' }, () => carregar()).subscribe(),
       supabase.channel('painel_cam').on('postgres_changes', { event: '*', schema: 'public', table: 'tecnico_caminhos' }, () => carregar()).subscribe(),
       supabase.channel('painel_agenda_visao').on('postgres_changes', { event: '*', schema: 'public', table: 'agenda_visao' }, () => carregar()).subscribe(),
+      supabase.channel('painel_ocorr').on('postgres_changes', { event: '*', schema: 'public', table: 'tecnico_ocorrencias' }, () => carregar()).subscribe(),
     ]
     return () => { channels.forEach(c => supabase.removeChannel(c)) }
   }, [carregar])
@@ -110,6 +112,32 @@ function PainelMecanicosPage() {
   const aprovarRequisicao = async (reqId: number) => { await supabase.from('mecanico_requisicoes').update({ status: 'aprovada', data_aprovacao: new Date().toISOString() }).eq('id', reqId); const req = reqsMecanico.find(r => r.id === reqId); if (req) { await supabase.from('mecanico_notificacoes').insert({ tecnico_nome: req.tecnico_nome, tipo: 'requisicao', titulo: 'Requisição aprovada', descricao: `Sua requisição "${req.material_solicitado}" foi aprovada.`, link: '', lida: false }); await notificarAdmins('pos', `Requisição aprovada - ${req.tecnico_nome}`, `Material: ${req.material_solicitado}`) }; carregar() }
   const recusarRequisicao = async (reqId: number) => { if (!confirm('Recusar esta requisição?')) return; const req = reqsMecanico.find(r => r.id === reqId); await supabase.from('mecanico_requisicoes').update({ status: 'recusada' }).eq('id', reqId); if (req) { await supabase.from('mecanico_notificacoes').insert({ tecnico_nome: req.tecnico_nome, tipo: 'requisicao', titulo: 'Requisição recusada', descricao: `Sua requisição "${req.material_solicitado}" foi recusada.`, link: '', lida: false }) }; carregar() }
   const salvarOcorrencia = async () => { if (!novaOcorrencia.tecnico_nome || !novaOcorrencia.descricao) return; await supabase.from('tecnico_ocorrencias').insert({ tecnico_nome: novaOcorrencia.tecnico_nome, id_ordem: novaOcorrencia.id_ordem || null, tipo: novaOcorrencia.tipo, descricao: novaOcorrencia.descricao, pontos_descontados: novaOcorrencia.pontos_descontados }); const tipoLabel = (TIPO_OCORRENCIA[novaOcorrencia.tipo] || TIPO_OCORRENCIA.outros).label; await notificarAdmins('pos', `Nova ocorrência - ${novaOcorrencia.tecnico_nome}`, `${tipoLabel}: ${novaOcorrencia.descricao}${novaOcorrencia.id_ordem ? ` (OS: ${novaOcorrencia.id_ordem})` : ''} | -${novaOcorrencia.pontos_descontados} pts`); await supabase.from('mecanico_notificacoes').insert({ tecnico_nome: novaOcorrencia.tecnico_nome, tipo: 'execucao', titulo: `Ocorrência registrada: ${tipoLabel}`, descricao: `${novaOcorrencia.descricao} (-${novaOcorrencia.pontos_descontados} pts)`, link: '', lida: false }); setNovaOcorrencia({ tecnico_nome: '', id_ordem: '', tipo: 'atraso', descricao: '', pontos_descontados: 0 }); setShowOcorrenciaModal(false); carregar() }
+  const converterAlertaEmOcorrencia = async (alerta: Alerta, tipo: string, pontos: number) => {
+    // 1) Criar ocorrência
+    await supabase.from('tecnico_ocorrencias').insert({
+      tecnico_nome: alerta.tecnico_nome,
+      id_ordem: alerta.referencia_id || null,
+      tipo,
+      descricao: alerta.descricao,
+      pontos_descontados: pontos,
+    })
+    // 2) Fechar o alerta
+    await supabase.from('painel_alertas').update({
+      status: 'fechado', data_fim: new Date().toISOString().split('T')[0],
+      updated_at: new Date().toISOString(),
+    }).eq('id', alerta.id)
+    // 3) Notificações
+    const tipoLabel = (TIPO_OCORRENCIA[tipo] || TIPO_OCORRENCIA.outros).label
+    await notificarAdmins('pos', `Alerta virou ocorrencia - ${alerta.tecnico_nome}`, `${tipoLabel}: ${alerta.descricao} | -${pontos} pts`)
+    await supabase.from('mecanico_notificacoes').insert({
+      tecnico_nome: alerta.tecnico_nome, tipo: 'execucao',
+      titulo: `Ocorrencia registrada: ${tipoLabel}`,
+      descricao: `${alerta.descricao} (-${pontos} pts)`,
+      link: '', lida: false,
+    })
+    carregar()
+  }
+
   const avaliarJustificativa = async (id: number, aprovada: boolean) => { const just = justificativas.find(j => j.id === id); await supabase.from('tecnico_justificativas').update({ status: aprovada ? 'aprovada' : 'recusada', descontar_comissao: !aprovada, data_avaliacao: new Date().toISOString() }).eq('id', id); if (just) { await notificarAdmins('pos', `Justificativa ${aprovada ? 'aceita' : 'recusada'} - ${just.tecnico_nome}`, `${just.justificativa.substring(0, 100)}${aprovada ? ' (sem desconto)' : ' (desconta comissão)'}`); await supabase.from('mecanico_notificacoes').insert({ tecnico_nome: just.tecnico_nome, tipo: 'execucao', titulo: `Justificativa ${aprovada ? 'aceita' : 'recusada'}`, descricao: aprovada ? 'Sua justificativa foi aceita, sem desconto na comissão.' : 'Sua justificativa foi recusada, haverá desconto na comissão.', link: '', lida: false }) }; carregar() }
 
   if (loading) return (
@@ -124,6 +152,7 @@ function PainelMecanicosPage() {
     { id: 'visao', label: 'Monitor', icon: <Radar size={14} /> },
     { id: 'ordens', label: 'Agenda', icon: <Calendar size={14} /> },
     { id: 'alertas', label: 'Alertas', icon: <AlertTriangle size={14} />, count: alertasAbertosCount },
+    { id: 'ocorrencias', label: 'Ocorrencias', icon: <AlertOctagon size={14} />, count: (() => { const ma = `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}`; const c = ocorrencias.filter(o => o.data?.startsWith(ma)).length; return c > 0 ? c : undefined })() },
     { id: 'relatorio', label: 'Relatorio', icon: <BarChart3 size={14} /> },
   ]
 
@@ -187,7 +216,15 @@ function PainelMecanicosPage() {
 
         {blocoAtivo === 'visao' && <BlocoVisaoGeral tecnicos={tecnicos} ordens={ordens} caminhos={caminhos} />}
         {blocoAtivo === 'ordens' && <BlocoAgenda tecnicos={tecnicos} ordens={ordens} semanaOffset={semanaOffset} />}
-        {blocoAtivo === 'alertas' && <BlocoAlertas tecnicos={tecnicos} alertas={alertas} onRecarregar={carregar} userName={userProfile?.nome || ''} ordens={ordens} reqsMecanico={reqsMecanico} justificativas={justificativas} ocorrencias={ocorrencias} onAprovarRequisicao={aprovarRequisicao} onRecusarRequisicao={recusarRequisicao} onAvaliarJustificativa={avaliarJustificativa} tipoOcorrencia={TIPO_OCORRENCIA} />}
+        {blocoAtivo === 'alertas' && <BlocoAlertas tecnicos={tecnicos} alertas={alertas} onRecarregar={carregar} userName={userProfile?.nome || ''} ordens={ordens} reqsMecanico={reqsMecanico} justificativas={justificativas} ocorrencias={ocorrencias} onAprovarRequisicao={aprovarRequisicao} onRecusarRequisicao={recusarRequisicao} onAvaliarJustificativa={avaliarJustificativa} onConverterOcorrencia={converterAlertaEmOcorrencia} tipoOcorrencia={TIPO_OCORRENCIA} />}
+        {blocoAtivo === 'ocorrencias' && <BlocoOcorrencias tecnicos={tecnicos} ocorrencias={ocorrencias} justificativas={justificativas} tipoOcorrencia={TIPO_OCORRENCIA} onSalvarOcorrencia={async (dados) => {
+          if (!dados.tecnico_nome || !dados.descricao) return
+          await supabase.from('tecnico_ocorrencias').insert({ tecnico_nome: dados.tecnico_nome, id_ordem: dados.id_ordem || null, tipo: dados.tipo, descricao: dados.descricao, pontos_descontados: dados.pontos_descontados })
+          const tipoLabel = (TIPO_OCORRENCIA[dados.tipo] || TIPO_OCORRENCIA.outros).label
+          await notificarAdmins('pos', `Nova ocorrencia - ${dados.tecnico_nome}`, `${tipoLabel}: ${dados.descricao}${dados.id_ordem ? ` (OS: ${dados.id_ordem})` : ''} | -${dados.pontos_descontados} pts`)
+          await supabase.from('mecanico_notificacoes').insert({ tecnico_nome: dados.tecnico_nome, tipo: 'execucao', titulo: `Ocorrencia registrada: ${tipoLabel}`, descricao: `${dados.descricao} (-${dados.pontos_descontados} pts)`, link: '', lida: false })
+          carregar()
+        }} />}
         {blocoAtivo === 'relatorio' && <BlocoRelatorioMensal tecnicos={tecnicos} />}
       </div>
 
