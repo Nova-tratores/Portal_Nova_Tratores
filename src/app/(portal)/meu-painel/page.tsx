@@ -5,7 +5,8 @@ import { supabase } from '@/lib/supabase'
 import {
   Calendar, Package, Clock, Navigation, MapPin,
   Plus, X, Send, FileText, AlertTriangle, ChevronRight, ChevronLeft,
-  AlertOctagon, Check, Truck, MessageSquare, Star, ChevronDown, ChevronUp
+  AlertOctagon, Check, Truck, MessageSquare, Star, ChevronDown, ChevronUp,
+  Megaphone, Download
 } from 'lucide-react'
 
 interface AgendaItem {
@@ -133,6 +134,8 @@ export default function MeuPainelPage() {
   const [ordensSemana, setOrdensSemana] = useState<OrdemServico[]>([])
   const [agendaAberta, setAgendaAberta] = useState(false)
   const [secaoAtiva, setSecaoAtiva] = useState<string | null>(null)
+  const [avisosAtivos, setAvisosAtivos] = useState<{ id: string; titulo: string; conteudo: string; prioridade: string; created_at: string; criado_por_nome: string; anexos: { id: string; nome_arquivo: string; url: string }[] }[]>([])
+  const [avisosExpandido, setAvisosExpandido] = useState<string | null>(null)
 
   const hoje = new Date().toISOString().split('T')[0]
   const weekDays = useMemo(() => getWeekDays(semanaRef), [semanaRef])
@@ -200,6 +203,37 @@ export default function MeuPainelPage() {
   }
 
   useEffect(() => { if (tecnicoNome) carregar() }, [tecnicoNome, weekStart, weekEnd])
+
+  // Carregar avisos ativos
+  useEffect(() => {
+    const carregarAvisos = async () => {
+      const { data } = await supabase
+        .from('portal_avisos')
+        .select('id, titulo, conteudo, prioridade, created_at, criado_por_nome')
+        .eq('ativo', true)
+        .order('created_at', { ascending: false })
+        .limit(10)
+      if (!data) return
+      const ids = data.map(a => a.id)
+      const { data: anexos } = ids.length > 0
+        ? await supabase.from('portal_avisos_anexos').select('id, aviso_id, nome_arquivo, url').in('aviso_id', ids)
+        : { data: [] }
+      const anexosMap: Record<string, { id: string; nome_arquivo: string; url: string }[]> = {}
+      ;(anexos || []).forEach((a: any) => {
+        if (!anexosMap[a.aviso_id]) anexosMap[a.aviso_id] = []
+        anexosMap[a.aviso_id].push(a)
+      })
+      setAvisosAtivos(data.map(a => ({ ...a, anexos: anexosMap[a.id] || [] })))
+      // Marcar como lido
+      if (userProfile?.id && ids.length > 0) {
+        const rows = ids.map(aviso_id => ({ aviso_id, user_id: userProfile.id }))
+        await supabase.from('portal_avisos_lidos').upsert(rows, { onConflict: 'aviso_id,user_id' }).select()
+      }
+    }
+    carregarAvisos()
+    const ch = supabase.channel('meu_avisos').on('postgres_changes', { event: '*', schema: 'public', table: 'portal_avisos' }, () => carregarAvisos()).subscribe()
+    return () => { supabase.removeChannel(ch) }
+  }, [userProfile?.id])
 
   // Realtime
   useEffect(() => {
@@ -411,6 +445,75 @@ export default function MeuPainelPage() {
       </div>
 
       <div style={{ padding: '20px 16px 0' }}>
+
+        {/* ════════════ AVISOS ════════════ */}
+        {avisosAtivos.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <Megaphone size={16} color="#DC2626" />
+              <span style={{ fontSize: 14, fontWeight: 700, color: '#1E293B' }}>Avisos</span>
+              <span style={{ fontSize: 11, fontWeight: 700, background: '#FEE2E2', color: '#DC2626', padding: '2px 8px', borderRadius: 8 }}>{avisosAtivos.length}</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {avisosAtivos.map(aviso => {
+                const prioColors: Record<string, string> = { urgente: '#DC2626', alta: '#D97706', normal: '#3B82F6', baixa: '#10B981' }
+                const cor = prioColors[aviso.prioridade] || '#3B82F6'
+                const isOpen = avisosExpandido === aviso.id
+                return (
+                  <div key={aviso.id} onClick={() => setAvisosExpandido(isOpen ? null : aviso.id)} style={{
+                    background: '#fff', borderRadius: 14, padding: '14px 16px',
+                    border: '1px solid #F1F5F9', position: 'relative', overflow: 'hidden', cursor: 'pointer',
+                  }}>
+                    <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: cor }} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: isOpen ? 8 : 0 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: '#1E293B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {aviso.titulo}
+                        </div>
+                        {!isOpen && (
+                          <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 2 }}>
+                            {aviso.criado_por_nome} - {new Date(aviso.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                          </div>
+                        )}
+                      </div>
+                      {aviso.prioridade === 'urgente' && (
+                        <AlertTriangle size={14} color="#DC2626" />
+                      )}
+                      {isOpen ? <ChevronUp size={16} color="#94A3B8" /> : <ChevronDown size={16} color="#94A3B8" />}
+                    </div>
+                    {isOpen && (
+                      <div>
+                        <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.6, whiteSpace: 'pre-wrap', marginBottom: aviso.anexos.length > 0 ? 10 : 0 }}>
+                          {aviso.conteudo}
+                        </div>
+                        {aviso.anexos.length > 0 && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {aviso.anexos.map(anx => (
+                              <a key={anx.id} href={anx.url} target="_blank" rel="noopener noreferrer"
+                                onClick={e => e.stopPropagation()}
+                                style={{
+                                  display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
+                                  borderRadius: 8, background: '#F8FAFC', border: '1px solid #E2E8F0',
+                                  textDecoration: 'none', color: '#334155', fontSize: 12, fontWeight: 600,
+                                }}>
+                                <FileText size={14} color="#DC2626" />
+                                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{anx.nome_arquivo}</span>
+                                <Download size={13} color="#94A3B8" />
+                              </a>
+                            ))}
+                          </div>
+                        )}
+                        <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 8 }}>
+                          {aviso.criado_por_nome} - {new Date(aviso.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {/* ════════════ CAMINHO ATIVO ════════════ */}
         {caminhoAtivo && (

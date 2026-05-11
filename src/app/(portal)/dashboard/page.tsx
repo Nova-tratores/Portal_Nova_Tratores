@@ -9,7 +9,7 @@ import {
   Settings, ClipboardList, Wrench, FileText,
   DollarSign, Activity, Clock, ChevronRight, Search,
   BarChart3, Users, Package, ClipboardCheck, AlertTriangle,
-  CheckCircle2, Map, RefreshCw, Database, X, Check, Calculator, Eye, Camera, Wheat
+  CheckCircle2, Map, RefreshCw, Database, X, Check, Calculator, Eye, Camera, Wheat, Megaphone
 } from 'lucide-react'
 
 interface SystemCard {
@@ -157,6 +157,16 @@ const systems: SystemCard[] = [
     href: 'https://produtos.novatratores.com',
     tag: 'SHOWROOM',
     external: true
+  },
+  {
+    id: 'avisos',
+    name: 'Avisos',
+    description: 'Comunicados e avisos para toda a equipe, com anexos e notificacoes',
+    icon: <Megaphone size={28} />,
+    color: '#dc2626',
+    gradient: 'linear-gradient(135deg, #dc2626, #991b1b)',
+    href: '/avisos',
+    tag: 'COMUNICADOS'
   },
   {
     id: 'dashboard-agro',
