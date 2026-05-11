@@ -142,7 +142,7 @@ export default function AvisosPage() {
       criado_por_nome: userProfile.nome || 'Admin',
     }).select().single()
 
-    if (error || !aviso) { console.error('Erro ao criar aviso:', error); alert('Erro ao criar aviso: ' + (error?.message || 'desconhecido')); setEnviando(false); return }
+    if (error || !aviso) { setEnviando(false); return }
 
     // 2) Upload de anexos
     for (const file of arquivos) {
@@ -185,7 +185,6 @@ export default function AvisosPage() {
       expira_em: null,
       criado_por: userProfile.nome || 'Admin',
     })
-    if (errAvisoGeral) console.error('Erro avisos_gerais:', errAvisoGeral)
 
     // 5) Notificar mecanicos via mecanico_notificacoes (sininho + push)
     const { data: tecs } = await supabase.from('portal_permissoes')
@@ -193,7 +192,7 @@ export default function AvisosPage() {
       .not('mecanico_tecnico_nome', 'is', null)
     if (tecs && tecs.length > 0) {
       const nomes = [...new Set(tecs.map((t: any) => t.mecanico_tecnico_nome).filter(Boolean))]
-      await supabase.from('mecanico_notificacoes').insert(
+      const { error: errNotifMec } = await supabase.from('mecanico_notificacoes').insert(
         nomes.map(nome => ({
           tecnico_nome: nome,
           tipo: 'aviso',

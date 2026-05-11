@@ -9,7 +9,7 @@ import {
   LogOut, Settings, ClipboardList, Wrench, FileText,
   DollarSign, Package, Menu, X, User as UserIcon,
   LayoutDashboard, Bell, ChevronRight, Activity, Lock, MessageCircle,
-  CheckCheck, Trash2, ExternalLink, Calendar, Users, Calculator, BarChart3, Eye, Camera, Wheat
+  CheckCheck, Trash2, ExternalLink, Calendar, Users, Calculator, BarChart3, Eye, Camera, Wheat, Megaphone
 } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -184,6 +184,23 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const lastSysNotifIdRef = useRef<string | null>(null)
   const bellRef = useRef<HTMLDivElement>(null)
   const pathname = usePathname()
+  const [avisoPopup, setAvisoPopup] = useState<{ id: string; titulo: string; conteudo: string; prioridade: string; criado_por_nome: string } | null>(null)
+  const avisoPopupShownRef = useRef<Set<string>>(new Set())
+
+  // Realtime: popup de aviso novo no meio da tela
+  useEffect(() => {
+    const ch = supabase.channel('portal_aviso_popup')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'portal_avisos' }, (payload) => {
+        const novo = payload.new as { id: string; titulo: string; conteudo: string; prioridade: string; criado_por_nome: string; criado_por: string; ativo: boolean }
+        if (!novo.ativo) return
+        if (novo.criado_por === userProfile?.id) return
+        if (avisoPopupShownRef.current.has(novo.id)) return
+        avisoPopupShownRef.current.add(novo.id)
+        setAvisoPopup(novo)
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
+  }, [userProfile?.id])
 
   // Refs estáveis
   const setChatAtivoRef = useRef(chatData.setChatAtivo)
@@ -874,6 +891,62 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
       {userProfile?.id && <LembreteAlerta userId={userProfile.id} />}
 
+      {/* ===== POPUP AVISO ===== */}
+      {avisoPopup && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60000,
+          animation: 'avisoFadeIn 0.3s ease-out',
+        }} onClick={() => setAvisoPopup(null)}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: '#fff', borderRadius: 20, width: '100%', maxWidth: 480,
+            overflow: 'hidden', boxShadow: '0 25px 60px rgba(0,0,0,0.2)',
+            animation: 'avisoScaleIn 0.3s ease-out',
+          }}>
+            <div style={{
+              height: 4,
+              background: avisoPopup.prioridade === 'urgente' ? '#DC2626' : avisoPopup.prioridade === 'alta' ? '#D97706' : '#3B82F6',
+            }} />
+            <div style={{ padding: '28px 32px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
+                <div style={{
+                  width: 48, height: 48, borderRadius: 14,
+                  background: avisoPopup.prioridade === 'urgente' ? '#FEE2E2' : '#DBEAFE',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                }}>
+                  <Megaphone size={24} color={avisoPopup.prioridade === 'urgente' ? '#DC2626' : '#2563EB'} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#a3a3a3', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 2 }}>
+                    Novo Aviso
+                  </div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: '#111' }}>{avisoPopup.titulo}</div>
+                </div>
+              </div>
+              <div style={{
+                fontSize: 15, color: '#333', lineHeight: 1.7, whiteSpace: 'pre-wrap',
+                maxHeight: 300, overflow: 'auto',
+                background: '#FAFAFA', borderRadius: 12, padding: '16px 18px',
+                border: '1px solid #f0f0f0',
+              }}>
+                {avisoPopup.conteudo}
+              </div>
+              <div style={{ fontSize: 12, color: '#a3a3a3', marginTop: 12 }}>
+                Publicado por {avisoPopup.criado_por_nome}
+              </div>
+              <button onClick={() => { setAvisoPopup(null); router.push('/avisos') }} style={{
+                width: '100%', marginTop: 20, padding: 14, borderRadius: 12,
+                background: '#111', color: '#fff', border: 'none',
+                fontSize: 15, fontWeight: 700, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              }}>
+                Ver Avisos
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ===== TOASTS ===== */}
       <div className="print-hidden" style={{
         position: 'fixed', top: '92px', right: '24px',
@@ -1029,6 +1102,14 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         .notif-toast:hover {
           box-shadow: 0 12px 44px rgba(0,0,0,0.22), 0 4px 12px rgba(0,0,0,0.12) !important;
           transform: translateY(-2px) scale(1.01) !important;
+        }
+        @keyframes avisoFadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes avisoScaleIn {
+          from { opacity: 0; transform: scale(0.9) translateY(20px); }
+          to { opacity: 1; transform: scale(1) translateY(0); }
         }
         @media print {
           .print-hidden { display: none !important; }
