@@ -573,7 +573,9 @@
       "Bash(NEXT_PUBLIC_SUPABASE_URL=\"https://citrhumdkfivdzbmayde.supabase.co\" NEXT_PUBLIC_SUPABASE_ANON_KEY=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpdHJodW1ka2ZpdmR6Ym1heWRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxMDgyNzUsImV4cCI6MjA4NDY4NDI3NX0.83x3-NrKoJgtIuSE7Jjsaj0zH-b-XJ3Z8i3XkBkwVoU\" node -e \"\nconst { createClient } = require\\('@supabase/supabase-js'\\);\nconst s = createClient\\(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY\\);\n\\(async \\(\\) => {\n  var { data, error } = await s.from\\('resumo_diario_tecnico'\\).select\\('*'\\).order\\('data', { ascending: false }\\).limit\\(5\\);\n  if \\(error\\) { console.log\\('ERRO:', error.message\\); return; }\n  if \\(data === null || data.length === 0\\) { console.log\\('SEM DADOS'\\); return; }\n  console.log\\('Total rows:', data.length\\);\n  data.forEach\\(function\\(d\\) { console.log\\(JSON.stringify\\(d\\)\\); }\\);\n}\\)\\(\\);\n\" 2>&1)",
       "Bash(find /c/projetos/portal/src/components/painel-mecanicos -type f -name \"*.tsx\" | xargs ls -1)",
       "Bash(ls \"C:/projetos/mecanicos/src/app/\\(tecnico\\)/\")",
-      "Bash(ls C:/projetos/mecanicos/src/app/\\\\\\(tecnico\\\\\\)/page.tsx)"
+      "Bash(ls C:/projetos/mecanicos/src/app/\\\\\\(tecnico\\\\\\)/page.tsx)",
+      "Bash(cd C:/projetos/mecanicos && npx vercel ls 2>&1 | head -15)",
+      "Bash(cd C:/projetos/mecanicos && npx vercel --prod 2>&1)"
     ]
   }
 }
