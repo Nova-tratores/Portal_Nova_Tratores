@@ -9,6 +9,11 @@ import {
   Download, CheckCircle2, Clock, Users, Megaphone
 } from 'lucide-react'
 
+interface ConfirmacaoInfo {
+  nome: string
+  quando: string
+}
+
 interface Aviso {
   id: string
   titulo: string
@@ -22,6 +27,7 @@ interface Aviso {
   anexos?: Anexo[]
   lidos_count?: number
   lido_por_mim?: boolean
+  confirmacoes?: ConfirmacaoInfo[]
 }
 
 interface Anexo {
@@ -74,10 +80,35 @@ export default function AvisosPage() {
       ? await supabase.from('portal_avisos_anexos').select('*').in('aviso_id', ids)
       : { data: [] }
 
-    // Buscar lidos
+    // Buscar confirmações do portal (users)
     const { data: lidosData } = ids.length > 0
-      ? await supabase.from('portal_avisos_lidos').select('aviso_id, user_id').in('aviso_id', ids)
+      ? await supabase.from('portal_avisos_lidos').select('aviso_id, user_id, lido_at').in('aviso_id', ids)
       : { data: [] }
+
+    // Buscar nomes dos usuários
+    const userIds = [...new Set((lidosData || []).map((l: any) => l.user_id))]
+    const { data: usersData } = userIds.length > 0
+      ? await supabase.from('financeiro_usu').select('id, nome').in('id', userIds)
+      : { data: [] }
+    const userNomeMap: Record<string, string> = {}
+    ;(usersData || []).forEach((u: any) => { userNomeMap[u.id] = u.nome })
+
+    // Buscar confirmações dos mecânicos (avisos_gerais)
+    const { data: mecConfData } = await supabase
+      .from('avisos_gerais_confirmados')
+      .select('aviso_id, tecnico_nome, confirmado_at')
+      .order('confirmado_at', { ascending: true })
+
+    // Mapear aviso do portal -> aviso_geral pelo titulo (criados juntos)
+    const { data: avisosGeraisData } = await supabase
+      .from('avisos_gerais')
+      .select('id, titulo')
+      .eq('ativo', true)
+    const tituloToAvisoGeralId: Record<string, number[]> = {}
+    ;(avisosGeraisData || []).forEach((ag: any) => {
+      if (!tituloToAvisoGeralId[ag.titulo]) tituloToAvisoGeralId[ag.titulo] = []
+      tituloToAvisoGeralId[ag.titulo].push(ag.id)
+    })
 
     const anexosMap: Record<string, Anexo[]> = {}
     ;(anexosData || []).forEach((a: any) => {
@@ -85,19 +116,41 @@ export default function AvisosPage() {
       anexosMap[a.aviso_id].push(a)
     })
 
-    const lidosCountMap: Record<string, number> = {}
     const meusLidos = new Set<string>()
     ;(lidosData || []).forEach((l: any) => {
-      lidosCountMap[l.aviso_id] = (lidosCountMap[l.aviso_id] || 0) + 1
       if (l.user_id === userProfile.id) meusLidos.add(l.aviso_id)
     })
 
-    setAvisos(avisosData.map(a => ({
-      ...a,
-      anexos: anexosMap[a.id] || [],
-      lidos_count: lidosCountMap[a.id] || 0,
-      lido_por_mim: meusLidos.has(a.id),
-    })))
+    // Montar confirmações por aviso
+    const confirmMap: Record<string, ConfirmacaoInfo[]> = {}
+    ;(lidosData || []).forEach((l: any) => {
+      const nome = userNomeMap[l.user_id] || 'Usuário'
+      if (!confirmMap[l.aviso_id]) confirmMap[l.aviso_id] = []
+      confirmMap[l.aviso_id].push({ nome, quando: l.lido_at })
+    })
+    // Adicionar confirmações dos mecânicos
+    const mecConfMap: Record<number, ConfirmacaoInfo[]> = {}
+    ;(mecConfData || []).forEach((c: any) => {
+      if (!mecConfMap[c.aviso_id]) mecConfMap[c.aviso_id] = []
+      mecConfMap[c.aviso_id].push({ nome: c.tecnico_nome, quando: c.confirmado_at })
+    })
+
+    setAvisos(avisosData.map(a => {
+      const confs = [...(confirmMap[a.id] || [])]
+      // Encontrar avisos_gerais com mesmo titulo para puxar confirmações dos mecânicos
+      const geralIds = tituloToAvisoGeralId[a.titulo] || []
+      geralIds.forEach(gid => {
+        ;(mecConfMap[gid] || []).forEach(mc => confs.push(mc))
+      })
+      confs.sort((x, y) => new Date(x.quando).getTime() - new Date(y.quando).getTime())
+      return {
+        ...a,
+        anexos: anexosMap[a.id] || [],
+        lidos_count: confs.length,
+        lido_por_mim: meusLidos.has(a.id),
+        confirmacoes: confs,
+      }
+    }))
     setLoading(false)
   }, [userProfile])
 
@@ -111,21 +164,7 @@ export default function AvisosPage() {
     return () => { supabase.removeChannel(ch) }
   }, [carregar])
 
-  const marcarComoLido = async (avisoId: string) => {
-    if (!userProfile) return
-    await supabase.from('portal_avisos_lidos').upsert({
-      aviso_id: avisoId,
-      user_id: userProfile.id,
-    }, { onConflict: 'aviso_id,user_id' })
-    setAvisos(prev => prev.map(a => a.id === avisoId ? { ...a, lido_por_mim: true, lidos_count: (a.lidos_count || 0) + 1 } : a))
-  }
-
   const toggleExpandido = (id: string) => {
-    if (expandido !== id) {
-      // Marcar como lido ao expandir
-      const aviso = avisos.find(a => a.id === id)
-      if (aviso && !aviso.lido_por_mim) marcarComoLido(id)
-    }
     setExpandido(expandido === id ? null : id)
   }
 
@@ -342,7 +381,7 @@ export default function AvisosPage() {
                         </span>
                       )}
                       <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                        <Users size={11} /> {aviso.lidos_count} viram
+                        <CheckCircle2 size={11} /> {aviso.lidos_count} confirmaram
                       </span>
                     </div>
                   </div>
@@ -383,6 +422,36 @@ export default function AvisosPage() {
                             </a>
                           ))}
                         </div>
+                      </div>
+                    )}
+
+                    {/* Confirmações */}
+                    {isAdmin && aviso.confirmacoes && aviso.confirmacoes.length > 0 && (
+                      <div style={{ marginTop: 14 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#555', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <CheckCircle2 size={13} color="#10B981" />
+                          {aviso.confirmacoes.length} pessoa{aviso.confirmacoes.length > 1 ? 's' : ''} confirmaram
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {aviso.confirmacoes.map((c, i) => (
+                            <span key={i} style={{
+                              fontSize: 12, fontWeight: 600, padding: '4px 10px', borderRadius: 8,
+                              background: '#D1FAE5', color: '#065F46', border: '1px solid #A7F3D0',
+                              display: 'flex', alignItems: 'center', gap: 5,
+                            }}>
+                              <CheckCircle2 size={11} />
+                              {c.nome.split(' ').slice(0, 2).join(' ')}
+                              <span style={{ fontSize: 10, color: '#059669', fontWeight: 500 }}>
+                                {new Date(c.quando).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {isAdmin && aviso.confirmacoes && aviso.confirmacoes.length === 0 && (
+                      <div style={{ marginTop: 14, fontSize: 12, color: '#EF4444', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <AlertTriangle size={13} /> Ninguem confirmou ainda
                       </div>
                     )}
 

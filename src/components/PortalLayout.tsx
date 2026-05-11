@@ -184,23 +184,44 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const lastSysNotifIdRef = useRef<string | null>(null)
   const bellRef = useRef<HTMLDivElement>(null)
   const pathname = usePathname()
-  const [avisoPopup, setAvisoPopup] = useState<{ id: string; titulo: string; conteudo: string; prioridade: string; criado_por_nome: string } | null>(null)
-  const avisoPopupShownRef = useRef<Set<string>>(new Set())
+  const [avisosPendentes, setAvisosPendentes] = useState<{ id: string; titulo: string; conteudo: string; prioridade: string; criado_por_nome: string }[]>([])
+  const [confirmando, setConfirmando] = useState(false)
 
-  // Realtime: popup de aviso novo no meio da tela
+  // Carregar avisos não confirmados + realtime
   useEffect(() => {
+    if (!userProfile?.id) return
+    const carregarPendentes = async () => {
+      const { data: avisos } = await supabase
+        .from('portal_avisos')
+        .select('id, titulo, conteudo, prioridade, criado_por_nome')
+        .eq('ativo', true)
+        .order('created_at', { ascending: true })
+      if (!avisos || avisos.length === 0) { setAvisosPendentes([]); return }
+      const { data: lidos } = await supabase
+        .from('portal_avisos_lidos')
+        .select('aviso_id')
+        .eq('user_id', userProfile.id)
+      const lidosSet = new Set((lidos || []).map((l: any) => l.aviso_id))
+      setAvisosPendentes(avisos.filter(a => !lidosSet.has(a.id)))
+    }
+    carregarPendentes()
     const ch = supabase.channel('portal_aviso_popup')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'portal_avisos' }, (payload) => {
-        const novo = payload.new as { id: string; titulo: string; conteudo: string; prioridade: string; criado_por_nome: string; criado_por: string; ativo: boolean }
-        if (!novo.ativo) return
-        if (novo.criado_por === userProfile?.id) return
-        if (avisoPopupShownRef.current.has(novo.id)) return
-        avisoPopupShownRef.current.add(novo.id)
-        setAvisoPopup(novo)
-      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'portal_avisos' }, () => carregarPendentes())
       .subscribe()
     return () => { supabase.removeChannel(ch) }
   }, [userProfile?.id])
+
+  const confirmarAviso = async () => {
+    if (!userProfile?.id || avisosPendentes.length === 0) return
+    setConfirmando(true)
+    const aviso = avisosPendentes[0]
+    await supabase.from('portal_avisos_lidos').upsert({
+      aviso_id: aviso.id,
+      user_id: userProfile.id,
+    }, { onConflict: 'aviso_id,user_id' })
+    setAvisosPendentes(prev => prev.filter(a => a.id !== aviso.id))
+    setConfirmando(false)
+  }
 
   // Refs estáveis
   const setChatAtivoRef = useRef(chatData.setChatAtivo)
@@ -891,58 +912,65 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
       {userProfile?.id && <LembreteAlerta userId={userProfile.id} />}
 
-      {/* ===== POPUP AVISO ===== */}
-      {avisoPopup && (
+      {/* ===== POPUP AVISO BLOQUEANTE ===== */}
+      {avisosPendentes.length > 0 && (
         <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(6px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60000,
           animation: 'avisoFadeIn 0.3s ease-out',
-        }} onClick={() => setAvisoPopup(null)}>
-          <div onClick={e => e.stopPropagation()} style={{
-            background: '#fff', borderRadius: 20, width: '100%', maxWidth: 480,
-            overflow: 'hidden', boxShadow: '0 25px 60px rgba(0,0,0,0.2)',
+        }}>
+          <div style={{
+            background: '#fff', borderRadius: 20, width: '100%', maxWidth: 500,
+            overflow: 'hidden', boxShadow: '0 25px 60px rgba(0,0,0,0.25)',
             animation: 'avisoScaleIn 0.3s ease-out',
           }}>
-            <div style={{
-              height: 4,
-              background: avisoPopup.prioridade === 'urgente' ? '#DC2626' : avisoPopup.prioridade === 'alta' ? '#D97706' : '#3B82F6',
-            }} />
-            <div style={{ padding: '28px 32px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
-                <div style={{
-                  width: 48, height: 48, borderRadius: 14,
-                  background: avisoPopup.prioridade === 'urgente' ? '#FEE2E2' : '#DBEAFE',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                }}>
-                  <Megaphone size={24} color={avisoPopup.prioridade === 'urgente' ? '#DC2626' : '#2563EB'} />
-                </div>
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#a3a3a3', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 2 }}>
-                    Novo Aviso
+            {(() => {
+              const aviso = avisosPendentes[0]
+              const prioColor = aviso.prioridade === 'urgente' ? '#DC2626' : aviso.prioridade === 'alta' ? '#D97706' : '#3B82F6'
+              return (
+                <>
+                  <div style={{ height: 5, background: prioColor }} />
+                  <div style={{ padding: '28px 32px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
+                      <div style={{
+                        width: 52, height: 52, borderRadius: 14,
+                        background: aviso.prioridade === 'urgente' ? '#FEE2E2' : '#DBEAFE',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                      }}>
+                        <Megaphone size={26} color={prioColor} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#a3a3a3', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 2 }}>
+                          Aviso Importante {avisosPendentes.length > 1 ? `(1 de ${avisosPendentes.length})` : ''}
+                        </div>
+                        <div style={{ fontSize: 20, fontWeight: 800, color: '#111' }}>{aviso.titulo}</div>
+                      </div>
+                    </div>
+                    <div style={{
+                      fontSize: 15, color: '#333', lineHeight: 1.7, whiteSpace: 'pre-wrap',
+                      maxHeight: 300, overflow: 'auto',
+                      background: '#FAFAFA', borderRadius: 12, padding: '16px 18px',
+                      border: '1px solid #f0f0f0',
+                    }}>
+                      {aviso.conteudo}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#a3a3a3', marginTop: 12 }}>
+                      Publicado por {aviso.criado_por_nome}
+                    </div>
+                    <button onClick={confirmarAviso} disabled={confirmando} style={{
+                      width: '100%', marginTop: 20, padding: 16, borderRadius: 14,
+                      background: 'linear-gradient(135deg, #dc2626, #b91c1c)', color: '#fff', border: 'none',
+                      fontSize: 16, fontWeight: 800, cursor: confirmando ? 'not-allowed' : 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      opacity: confirmando ? 0.7 : 1,
+                      boxShadow: '0 4px 14px rgba(220,38,38,0.3)',
+                    }}>
+                      {confirmando ? 'Confirmando...' : 'Confirmado'}
+                    </button>
                   </div>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: '#111' }}>{avisoPopup.titulo}</div>
-                </div>
-              </div>
-              <div style={{
-                fontSize: 15, color: '#333', lineHeight: 1.7, whiteSpace: 'pre-wrap',
-                maxHeight: 300, overflow: 'auto',
-                background: '#FAFAFA', borderRadius: 12, padding: '16px 18px',
-                border: '1px solid #f0f0f0',
-              }}>
-                {avisoPopup.conteudo}
-              </div>
-              <div style={{ fontSize: 12, color: '#a3a3a3', marginTop: 12 }}>
-                Publicado por {avisoPopup.criado_por_nome}
-              </div>
-              <button onClick={() => { setAvisoPopup(null); router.push('/avisos') }} style={{
-                width: '100%', marginTop: 20, padding: 14, borderRadius: 12,
-                background: '#111', color: '#fff', border: 'none',
-                fontSize: 15, fontWeight: 700, cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              }}>
-                Ver Avisos
-              </button>
-            </div>
+                </>
+              )
+            })()}
           </div>
         </div>
       )}
