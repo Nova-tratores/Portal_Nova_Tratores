@@ -88,9 +88,17 @@ export default function BlocoAlertas({
     return Array.from(s).sort()
   }, [alertas])
 
-  // Filtrar alertas — só pendentes (aberto/contestado)
+  // Filtrar alertas — só pendentes (aberto/contestado), max 5 dias
   const alertasPendentes = useMemo(() => {
-    let f = alertas.filter(a => a.status === 'aberto' || a.status === 'contestado')
+    const hoje = new Date()
+    let f = alertas.filter(a => {
+      if (a.status !== 'aberto' && a.status !== 'contestado') return false
+      // Esconder alertas com mais de 5 dias
+      const criado = new Date(a.created_at)
+      const diffDias = Math.floor((hoje.getTime() - criado.getTime()) / 86400000)
+      if (diffDias > 5) return false
+      return true
+    })
     if (filtroTecnico !== 'todos') f = f.filter(a => a.tecnico_nome === filtroTecnico || a.alvo === 'todos')
     if (filtroTipo !== 'todos') f = f.filter(a => a.tipo === filtroTipo)
     return f.sort((a, b) => b.created_at.localeCompare(a.created_at))
@@ -264,100 +272,89 @@ export default function BlocoAlertas({
           Nenhum alerta pendente{filtroTecnico !== 'todos' || filtroTipo !== 'todos' ? ' (com os filtros aplicados)' : ''}
         </div>
       ) : (
-        <div style={{ border: '1px solid #D0D0D0', borderRadius: 6, overflow: 'hidden' }}>
-          {/* Header da tabela */}
-          <div style={{
-            display: 'grid', gridTemplateColumns: '140px 130px 1fr 120px 50px 160px',
-            padding: '6px 16px', background: '#F0F0F0', borderBottom: '1px solid #D0D0D0',
-            fontSize: 11, fontWeight: 700, color: '#111', textTransform: 'uppercase', letterSpacing: '.03em',
-          }}>
-            <span>Técnico</span>
-            <span>Tipo</span>
-            <span>Pendência</span>
-            <span>Data/Hora</span>
-            <span>Dias</span>
-            <span></span>
-          </div>
-
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 10 }}>
           {alertasPendentes.map(a => {
             const tipoInfo = TIPO_LABELS[a.tipo] || TIPO_LABELS.manual
             const dias = calcDias(a.data_inicio, a.data_fim)
             const isContestado = a.status === 'contestado'
             const ordem = a.tipo === 'ordem_pendente' && a.referencia_id ? ordensMap[a.referencia_id] : null
-
-            let pendenciaTexto = a.descricao
-            let pendenciaRef = ''
-            if (a.tipo === 'ordem_pendente') {
-              pendenciaTexto = ordem ? ordem.Os_Cliente : a.descricao
-              pendenciaRef = a.referencia_id ? `#${a.referencia_id}` : ''
-            } else if (a.tipo === 'requisicao_pendente') {
-              pendenciaTexto = a.descricao
-              pendenciaRef = a.referencia_id ? `#${a.referencia_id}` : ''
-            }
+            const corDias = dias >= 4 ? '#DC2626' : dias >= 2 ? '#D97706' : '#111'
 
             return (
               <div key={a.id} style={{
-                display: 'grid', gridTemplateColumns: '140px 130px 1fr 120px 50px 160px',
-                padding: '10px 16px', borderBottom: '1px solid #E8E8E8', alignItems: 'center',
-                background: '#fff',
-                borderLeft: `3px solid ${isContestado ? '#F59E0B' : '#EF4444'}`,
+                background: '#fff', borderRadius: 10, border: '1px solid #E5E7EB',
+                borderLeft: `4px solid ${isContestado ? '#F59E0B' : corDias}`,
+                padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10,
               }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#111', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {a.tecnico_nome.split(' ').slice(0, 2).join(' ')}
-                </span>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 3, background: tipoInfo.bg, color: tipoInfo.color, display: 'inline-block', width: 'fit-content' }}>
-                    {tipoInfo.label}
-                  </span>
-                  {isContestado && <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 3, background: '#FEF3C7', color: '#92400E', width: 'fit-content' }}>Contestado</span>}
-                </div>
-
-                <div style={{ overflow: 'hidden', paddingRight: 8 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#111', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {pendenciaTexto}
-                    {pendenciaRef && <span style={{ fontSize: 12, fontWeight: 600, color: '#555', marginLeft: 6 }}>{pendenciaRef}</span>}
+                {/* Topo: técnico + badge dias */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 15, fontWeight: 800, color: '#111' }}>
+                      {a.tecnico_nome.split(' ').slice(0, 2).join(' ')}
+                    </span>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: tipoInfo.bg, color: tipoInfo.color }}>
+                      {tipoInfo.label}
+                    </span>
+                    {isContestado && (
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: '#FEF3C7', color: '#92400E' }}>Contestado</span>
+                    )}
                   </div>
-                  {a.tipo === 'ordem_pendente' && ordem && (
-                    <div style={{ fontSize: 12, color: '#111', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.descricao}</div>
-                  )}
-                  {a.foto_url && (
-                    <img src={a.foto_url} alt="" style={{ maxWidth: 80, maxHeight: 40, borderRadius: 3, objectFit: 'cover', cursor: 'pointer', marginTop: 3 }}
-                      onClick={() => window.open(a.foto_url!, '_blank')} />
-                  )}
-                  {isContestado && a.contestacao_motivo && (
-                    <div style={{ fontSize: 11, color: '#92400E', marginTop: 2, fontWeight: 500 }}>
-                      Contestação: {a.contestacao_motivo}{a.contestado_por ? ` — ${a.contestado_por}` : ''}
-                    </div>
-                  )}
+                  <div style={{
+                    fontSize: 13, fontWeight: 900, color: '#fff', borderRadius: 6,
+                    background: corDias, padding: '3px 10px', minWidth: 36, textAlign: 'center',
+                  }}>
+                    {dias}d
+                  </div>
                 </div>
 
-                <span style={{ fontSize: 12, fontWeight: 500, color: '#111' }}>
-                  {formatDataHora(a.created_at)}
-                </span>
-
-                <span style={{ fontSize: 14, fontWeight: 900, color: dias >= 7 ? '#DC2626' : dias >= 3 ? '#D97706' : '#111' }}>
-                  {dias}d
-                </span>
-
-                <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                  {!isContestado && (
-                    <button onClick={() => setShowContestarModal(a.id)} title="Contestar" style={{
-                      background: '#FEF3C7', color: '#92400E', border: 'none', borderRadius: 3,
-                      padding: '3px 7px', fontSize: 10, fontWeight: 700, cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', gap: 3,
-                    }}><MessageSquare size={10} /> Cont.</button>
+                {/* Descrição */}
+                <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.5 }}>
+                  {a.tipo === 'ordem_pendente' && a.referencia_id && (
+                    <span style={{ fontWeight: 700, color: '#111', marginRight: 6 }}>OS #{a.referencia_id}</span>
                   )}
-                  <button onClick={() => { setConverterDados({ tipo: 'atraso', pontos_descontados: 5 }); setShowConverterModal(a) }} title="Converter em Ocorrência" style={{
-                    background: '#FEE2E2', color: '#DC2626', border: 'none', borderRadius: 3,
-                    padding: '3px 7px', fontSize: 10, fontWeight: 700, cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', gap: 3,
-                  }}><AlertOctagon size={10} /> Ocorr.</button>
-                  <button onClick={() => fecharAlerta(a.id)} title="Dispensar (não gera ocorrência)" style={{
-                    background: '#D1FAE5', color: '#065F46', border: 'none', borderRadius: 3,
-                    padding: '3px 7px', fontSize: 10, fontWeight: 700, cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', gap: 3,
-                  }}><Check size={10} /> Disp.</button>
+                  {a.tipo === 'ordem_pendente' && ordem
+                    ? <>{ordem.Os_Cliente}{ordem.Cidade_Cliente ? ` — ${ordem.Cidade_Cliente}` : ''}</>
+                    : a.descricao
+                  }
+                </div>
+
+                {/* Foto */}
+                {a.foto_url && (
+                  <img src={a.foto_url} alt="" style={{ maxWidth: 120, maxHeight: 60, borderRadius: 6, objectFit: 'cover', cursor: 'pointer' }}
+                    onClick={() => window.open(a.foto_url!, '_blank')} />
+                )}
+
+                {/* Contestação */}
+                {isContestado && a.contestacao_motivo && (
+                  <div style={{ background: '#FFFBEB', padding: '8px 10px', borderRadius: 6, border: '1px solid #FEF3C7', fontSize: 12, color: '#92400E', lineHeight: 1.4 }}>
+                    <strong>Contestação:</strong> {a.contestacao_motivo}{a.contestado_por ? ` — ${a.contestado_por}` : ''}
+                  </div>
+                )}
+
+                {/* Rodapé: data + botões */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 }}>
+                  <span style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 500 }}>
+                    {formatDataHora(a.created_at)}
+                  </span>
+                  <div style={{ display: 'flex', gap: 5 }}>
+                    {!isContestado && (
+                      <button onClick={() => setShowContestarModal(a.id)} style={{
+                        background: '#FEF3C7', color: '#92400E', border: 'none', borderRadius: 5,
+                        padding: '5px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', gap: 4,
+                      }}><MessageSquare size={11} /> Contestar</button>
+                    )}
+                    <button onClick={() => { setConverterDados({ tipo: 'atraso', pontos_descontados: 5 }); setShowConverterModal(a) }} style={{
+                      background: '#FEE2E2', color: '#DC2626', border: 'none', borderRadius: 5,
+                      padding: '5px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', gap: 4,
+                    }}><AlertOctagon size={11} /> Ocorrência</button>
+                    <button onClick={() => fecharAlerta(a.id)} style={{
+                      background: '#D1FAE5', color: '#065F46', border: 'none', borderRadius: 5,
+                      padding: '5px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', gap: 4,
+                    }}><Check size={11} /> Dispensar</button>
+                  </div>
                 </div>
               </div>
             )

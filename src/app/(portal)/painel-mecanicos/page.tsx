@@ -83,7 +83,11 @@ function PainelMecanicosPage() {
     setLoading(false)
   }, [])
 
-  useEffect(() => { carregar() }, [carregar])
+  useEffect(() => {
+    carregar()
+    // Verificar atrasos automaticamente ao abrir o painel
+    fetch('/api/painel-mecanicos/verificar-atrasos', { method: 'POST' }).catch(() => {})
+  }, [carregar])
 
   useEffect(() => {
     const channels = [
@@ -149,7 +153,7 @@ function PainelMecanicosPage() {
   )
 
   const TABS: { id: Bloco; label: string; icon: React.ReactNode; count?: number }[] = [
-    { id: 'visao', label: 'Monitor', icon: <Radar size={14} /> },
+    { id: 'visao', label: 'Dashboard', icon: <Radar size={14} /> },
     { id: 'ordens', label: 'Agenda', icon: <Calendar size={14} /> },
     { id: 'alertas', label: 'Alertas', icon: <AlertTriangle size={14} />, count: alertasAbertosCount },
     { id: 'ocorrencias', label: 'Ocorrencias', icon: <AlertOctagon size={14} />, count: (() => { const ma = `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}`; const c = ocorrencias.filter(o => o.data?.startsWith(ma)).length; return c > 0 ? c : undefined })() },

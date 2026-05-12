@@ -575,7 +575,14 @@
       "Bash(ls \"C:/projetos/mecanicos/src/app/\\(tecnico\\)/\")",
       "Bash(ls C:/projetos/mecanicos/src/app/\\\\\\(tecnico\\\\\\)/page.tsx)",
       "Bash(cd C:/projetos/mecanicos && npx vercel ls 2>&1 | head -15)",
-      "Bash(cd C:/projetos/mecanicos && npx vercel --prod 2>&1)"
+      "Bash(cd C:/projetos/mecanicos && npx vercel --prod 2>&1)",
+      "Bash(cd C:/projetos/portal && curl -s -X POST http://localhost:3000/api/painel-mecanicos/verificar-atrasos 2>&1 | head -5)",
+      "Bash(cd C:/projetos/portal && curl -s -X POST http://localhost:3000/api/painel-mecanicos/verificar-atrasos 2>&1)",
+      "Bash(cd C:/projetos/portal && node -e \"\nconst { createClient } = require\\('@supabase/supabase-js'\\);\nconst s = createClient\\(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY\\);\ns.from\\('painel_alertas'\\).select\\('id, tecnico_nome, tipo, status, descricao'\\).eq\\('status','aberto'\\).limit\\(5\\).then\\(r => console.log\\(JSON.stringify\\(r, null, 2\\)\\)\\);\n\" 2>&1)",
+      "Bash(grep -r \"resumo_diario_tecnico\\\\|GPS_Viagens\" /c/projetos/portal/src --include=\"*.ts\" --include=\"*.tsx\" 2>/dev/null | head -30)",
+      "Bash(grep -r \"tecnico_veiculos\\\\|GPS_Viagens\" /c/projetos/portal --include=\"*.sql\" --include=\"*.md\" 2>/dev/null | head -20)",
+      "Bash(grep -r \"GPS_Viagens\" /c/projetos/portal/src --include=\"*.ts\" --include=\"*.tsx\" 2>/dev/null | grep -v node_modules)",
+      "Bash(grep -rn \"resumo_diario_tecnico\" /c/projetos/portal/src --include=\"*.ts\" --include=\"*.tsx\" 2>/dev/null | head -20)"
     ]
   }
 }

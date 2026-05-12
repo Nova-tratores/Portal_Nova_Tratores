@@ -173,8 +173,12 @@ export async function syncProjetos(): Promise<{ total: number; novos: number }> 
           .map((p) => ({ Nome_Projeto: p.nome }));
 
         if (novosProj.length > 0) {
-          await supabase.from(TBL_PROJETOS_DB).insert(novosProj);
-          novos += novosProj.length;
+          const { error: insertErr } = await supabase.from(TBL_PROJETOS_DB).insert(novosProj);
+          if (insertErr) {
+            console.error(`Erro insert projetos [${acc.name}] pág ${pagina}:`, insertErr.message);
+          } else {
+            novos += novosProj.length;
+          }
         }
         total += projetosPagina.length;
       }
