@@ -39,7 +39,7 @@ export default function TemplatePDF({ req }: { req: any, onUpdate?: any, onPrint
     const buscarNome = async () => {
       if (req?.solicitante && req.solicitante.includes('@')) {
         const { data } = await supabase
-          .from('req_usuarios')
+          .from('financeiro_usu')
           .select('nome')
           .eq('email', req.solicitante.trim())
           .maybeSingle();

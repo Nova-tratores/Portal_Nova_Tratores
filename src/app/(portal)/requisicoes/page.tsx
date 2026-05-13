@@ -14,7 +14,7 @@ import FormUsuario from '@/components/requisicoes/FormUsuario';
 import FormVeiculo from '@/components/requisicoes/FormVeiculo';
 import TemplatePDF from '@/components/requisicoes/TemplatePDF';
 import {
-  LayoutDashboard, Users2, Box, Activity, Trash2, Plus, X, UserPlus, Car, Bell, Info, CheckCheck, UserCircle, Edit3, Phone, FileText, Printer
+  LayoutDashboard, Users2, Box, Activity, Trash2, Plus, X, UserPlus, Car, Bell, Info, CheckCheck, UserCircle, Edit3, Briefcase, FileText, Printer
 } from 'lucide-react';
 
 function RequisicoesPageInner() {
@@ -113,7 +113,7 @@ function RequisicoesPageInner() {
 
       const [allReqs, resUser, resVei] = await Promise.all([
         buscarTodasReqs(),
-        supabase.from('req_usuarios').select('*').order('nome', { ascending: true }),
+        supabase.from('financeiro_usu').select('*').order('nome', { ascending: true }),
         supabase.from('SupaPlacas').select('*').order('NumPlaca', { ascending: true })
       ]);
 
@@ -245,7 +245,7 @@ function RequisicoesPageInner() {
           if (nova.ReqEmail?.includes('@')) {
             const emailLimpo = nova.ReqEmail.trim().toLowerCase();
             const { data: userData } = await supabase
-              .from('req_usuarios')
+              .from('financeiro_usu')
               .select('nome')
               .ilike('email', emailLimpo)
               .maybeSingle();
@@ -324,13 +324,23 @@ function RequisicoesPageInner() {
 
   const salvarUsuario = async (dados: any) => {
     if (usuarioEditando) {
-      const { error } = await supabase.from('req_usuarios').update(dados).eq('id', usuarioEditando.id);
+      const { error } = await supabase.from('financeiro_usu').update(dados).eq('id', usuarioEditando.id);
       if (error) { console.error('Erro ao editar usuário:', error); alert('Erro ao salvar: ' + error.message); return; }
       auditLog({ sistema: 'requisicoes', acao: 'editar', entidade: 'usuario', entidade_id: usuarioEditando.id, entidade_label: dados.nome });
     } else {
-      const { error } = await supabase.from('req_usuarios').insert([dados]);
-      if (error) { console.error('Erro ao criar usuário:', error); alert('Erro ao cadastrar: ' + error.message); return; }
-      auditLog({ sistema: 'requisicoes', acao: 'criar', entidade: 'usuario', entidade_label: dados.nome });
+      try {
+        const res = await fetch('/api/pos/requisicoes/criar-usuario', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(dados),
+        });
+        const result = await res.json();
+        if (!res.ok) { alert('Erro ao cadastrar: ' + result.error); return; }
+        auditLog({ sistema: 'requisicoes', acao: 'criar', entidade: 'usuario', entidade_label: dados.nome });
+      } catch (err: any) {
+        alert('Erro ao cadastrar: ' + err.message);
+        return;
+      }
     }
     setUsuarioEditando(null); setAbaAtiva('usuarios'); await carregarDados(true);
   };
@@ -629,8 +639,8 @@ function RequisicoesPageInner() {
                       <button onClick={() => { setUsuarioEditando(u); setAbaAtiva('form_usuario'); }} className="p-2 text-zinc-400 hover:text-red-600 transition-colors"><Edit3 size={16} /></button>
                     </div>
                     <h3 className="text-base font-semibold text-zinc-800 mb-1">{u.nome}</h3>
-                    <p className="text-xs text-zinc-400 mb-3">{u.email}</p>
-                    <div className="flex items-center gap-2 text-red-600 text-xs font-semibold"><Phone size={12} /> {u.telefone || 'Sem Telefone'}</div>
+                    <p className="text-xs text-zinc-400 mb-3">{u.email || 'Sem e-mail'}</p>
+                    <div className="flex items-center gap-2 text-red-600 text-xs font-semibold"><Briefcase size={12} /> {u.funcao || 'Sem Função'}</div>
                   </div>
                 ))}
               </div>

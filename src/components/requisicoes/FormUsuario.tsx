@@ -1,25 +1,25 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { User, Mail, Phone, Save, X, Loader2 } from 'lucide-react';
+import { User, Mail, Briefcase, Save, X, Loader2, KeyRound } from 'lucide-react';
 
 export default function FormUsuario({ usuarioParaEditar, onSave, onCancel }: any) {
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
-  const [telefone, setTelefone] = useState('');
+  const [funcao, setFuncao] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (usuarioParaEditar) {
       setNome(usuarioParaEditar.nome || '');
       setEmail(usuarioParaEditar.email || '');
-      setTelefone(usuarioParaEditar.telefone || '');
+      setFuncao(usuarioParaEditar.funcao || '');
     }
   }, [usuarioParaEditar]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    await onSave({ nome, email, telefone });
+    await onSave({ nome, email, funcao });
     setLoading(false);
   };
 
@@ -46,19 +46,26 @@ export default function FormUsuario({ usuarioParaEditar, onSave, onCancel }: any
             <label className={labelStyle}><User size={12}/> Nome Completo</label>
             <input required value={nome} onChange={e => setNome(e.target.value)} placeholder="Ex: Danilo de Souza" className={inputStyle} />
           </div>
-          
+
           <div>
             <label className={labelStyle}><Mail size={12}/> E-mail</label>
             <input required type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="tecnico@empresa.com" className={inputStyle} />
           </div>
 
           <div>
-            <label className={labelStyle}><Phone size={12}/> Telefone</label>
-            <input value={telefone} onChange={e => setTelefone(e.target.value)} placeholder="(00) 00000-0000" className={inputStyle} />
+            <label className={labelStyle}><Briefcase size={12}/> Função</label>
+            <input value={funcao} onChange={e => setFuncao(e.target.value)} placeholder="Ex: Mecânico, Vendedor..." className={inputStyle} />
           </div>
         </div>
 
-        <button type="submit" disabled={loading} className="w-full bg-red-600 hover:bg-red-500 disabled:bg-zinc-100 text-zinc-900 py-5 rounded-3xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 shadow-xl shadow-blue-900/20 transition-all mt-6">
+        {!usuarioParaEditar && (
+          <div className="flex items-center gap-3 px-5 py-3 bg-amber-50 border border-amber-200 rounded-xl">
+            <KeyRound size={16} className="text-amber-600 shrink-0" />
+            <p className="text-xs text-amber-700">O usuário será criado com a senha padrão <strong>nova123</strong> e poderá alterá-la depois.</p>
+          </div>
+        )}
+
+        <button type="submit" disabled={loading} className="w-full bg-red-600 hover:bg-red-500 disabled:bg-zinc-100 text-white py-5 rounded-3xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 shadow-xl shadow-red-900/20 transition-all mt-6">
           {loading ? <Loader2 className="animate-spin" /> : <Save size={18} />}
           {usuarioParaEditar ? 'Salvar Alterações' : 'Cadastrar Usuário'}
         </button>

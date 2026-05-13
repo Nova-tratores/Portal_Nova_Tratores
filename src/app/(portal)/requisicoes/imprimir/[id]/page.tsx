@@ -41,7 +41,7 @@ export default function ImprimirRequisicao() {
 
       // Resolver nome solicitante
       if (data.solicitante?.includes('@')) {
-        const { data: u } = await supabase.from('req_usuarios').select('nome').eq('email', data.solicitante.trim()).maybeSingle();
+        const { data: u } = await supabase.from('financeiro_usu').select('nome').eq('email', data.solicitante.trim()).maybeSingle();
         setNomeSolicitante(u?.nome || data.solicitante);
       } else {
         setNomeSolicitante(data.solicitante || '---');

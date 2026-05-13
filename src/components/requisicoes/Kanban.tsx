@@ -14,7 +14,7 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado }
     const fetchDados = async () => {
       const [{ data: f }, { data: u }, { data: v }] = await Promise.all([
         supabase.from('Fornecedores').select('nome').order('nome'),
-        supabase.from('req_usuarios').select('nome, email').order('nome'),
+        supabase.from('financeiro_usu').select('nome, funcao, email').order('nome'),
         supabase.from('SupaPlacas').select('IdPlaca, NumPlaca').order('NumPlaca'),
       ]);
       setDadosCompartilhados({ fornecedores: f || [], usuarios: u || [], veiculos: v || [] });

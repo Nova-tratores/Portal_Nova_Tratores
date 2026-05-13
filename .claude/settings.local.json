@@ -582,7 +582,12 @@
       "Bash(grep -r \"resumo_diario_tecnico\\\\|GPS_Viagens\" /c/projetos/portal/src --include=\"*.ts\" --include=\"*.tsx\" 2>/dev/null | head -30)",
       "Bash(grep -r \"tecnico_veiculos\\\\|GPS_Viagens\" /c/projetos/portal --include=\"*.sql\" --include=\"*.md\" 2>/dev/null | head -20)",
       "Bash(grep -r \"GPS_Viagens\" /c/projetos/portal/src --include=\"*.ts\" --include=\"*.tsx\" 2>/dev/null | grep -v node_modules)",
-      "Bash(grep -rn \"resumo_diario_tecnico\" /c/projetos/portal/src --include=\"*.ts\" --include=\"*.tsx\" 2>/dev/null | head -20)"
+      "Bash(grep -rn \"resumo_diario_tecnico\" /c/projetos/portal/src --include=\"*.ts\" --include=\"*.tsx\" 2>/dev/null | head -20)",
+      "Bash(find /c/projetos/portal/src/app/api -name \"*requisi*\" -o -name \"*requisic*\" 2>/dev/null | head -20)",
+      "Bash(find /c/projetos/portal/sql -type f -name \"*.sql\" 2>/dev/null | head -20)",
+      "Bash(grep -l \"CREATE TABLE.*portal_tarefas\" /c/projetos/portal/sql/*.sql 2>/dev/null)",
+      "Bash(grep -n \"ALTER TABLE.*portal_lembretes\\\\|ADD.*recorrencia\" /c/projetos/portal/sql/*.sql 2>/dev/null)",
+      "Bash(find /c/projetos/portal -name \"*tarefas*\" -o -name \"*tarefa*\" 2>/dev/null | grep -v node_modules | grep -v \".next\")"
     ]
   }
 }
