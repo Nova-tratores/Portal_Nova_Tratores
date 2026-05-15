@@ -142,6 +142,15 @@ const navItems: NavItem[] = [
     tag: 'AGRO',
     gradient: 'linear-gradient(135deg, #22c55e, #15803d)',
     external: true
+  },
+  {
+    id: 'dre',
+    name: 'DRE Financeiro',
+    href: 'https://financeiro-omie-production-ce7e.up.railway.app/dre',
+    icon: <DollarSign size={18} />,
+    tag: 'DRE',
+    gradient: 'linear-gradient(135deg, #0ea5e9, #0369a1)',
+    external: true
   }
 ]
 
