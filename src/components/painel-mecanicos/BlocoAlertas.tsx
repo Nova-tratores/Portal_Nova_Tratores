@@ -2,11 +2,12 @@
 import { useState, useMemo, useRef } from 'react'
 import {
   Plus, X, Camera,
-  MessageSquare, Check, ThumbsUp, ThumbsDown, Filter, AlertOctagon
+  MessageSquare, Check, ThumbsUp, ThumbsDown, Filter, AlertOctagon,
+  ChevronDown, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
-// ─── Types ───────────────────────────────────────────────────────
+// --- Types ---
 export interface Alerta {
   id: number; tecnico_nome: string; tipo: string; descricao: string
   referencia_id: string | null; data_inicio: string; data_fim: string | null
@@ -20,7 +21,7 @@ interface RequisicaoMecanico { id: number; tecnico_nome: string; material_solici
 interface Ocorrencia { id: number; tecnico_nome: string; id_ordem: string | null; tipo: string; descricao: string; pontos_descontados: number; data: string }
 interface Justificativa { id: number; tecnico_nome: string; id_ordem: string | null; id_ocorrencia: number | null; justificativa: string; status: string; descontar_comissao: boolean | null; avaliado_por: string | null; data_avaliacao: string | null; created_at: string }
 
-// ─── Helpers ─────────────────────────────────────────────────────
+// --- Helpers ---
 function getMesAtual() {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
@@ -36,15 +37,32 @@ function formatDataHora(iso: string): string {
     return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
   } catch { return iso }
 }
+function extrairSolicitacao(serv: string): string {
+  if (!serv) return ''
+  const idx = serv.indexOf('Solicitacao do cliente:')
+  if (idx === -1) {
+    const idx2 = serv.indexOf('Solicitação do cliente:')
+    if (idx2 === -1) return serv.substring(0, 120)
+    const after = serv.substring(idx2 + 'Solicitação do cliente:'.length)
+    const fim = after.indexOf('Serviço Realizado')
+    return (fim > -1 ? after.substring(0, fim) : after).replace(/\n/g, ' ').trim().substring(0, 120)
+  }
+  const after = serv.substring(idx + 'Solicitacao do cliente:'.length)
+  const fim = after.indexOf('Servico Realizado')
+  return (fim > -1 ? after.substring(0, fim) : after).replace(/\n/g, ' ').trim().substring(0, 120)
+}
 
 const TIPO_LABELS: Record<string, { label: string; color: string; bg: string }> = {
-  ordem_pendente: { label: 'Ordem de Serviço', color: '#1E40AF', bg: '#DBEAFE' },
-  requisicao_pendente: { label: 'Requisição', color: '#92400E', bg: '#FEF3C7' },
+  ordem_pendente: { label: 'OS Pendente', color: '#1E40AF', bg: '#DBEAFE' },
+  requisicao_pendente: { label: 'Requisicao', color: '#92400E', bg: '#FEF3C7' },
   infraestrutura: { label: 'Infraestrutura', color: '#0E7490', bg: '#CFFAFE' },
   manual: { label: 'Manual', color: '#7C3AED', bg: '#EDE9FE' },
 }
 
-// ─── Component ───────────────────────────────────────────────────
+type SortCol = 'tecnico' | 'tipo' | 'dias' | 'descricao'
+type SortDir = 'asc' | 'desc'
+
+// --- Component ---
 export default function BlocoAlertas({
   tecnicos, alertas, onRecarregar, userName, ordens, reqsMecanico, justificativas, ocorrencias,
   onAprovarRequisicao, onRecusarRequisicao, onAvaliarJustificativa, onConverterOcorrencia, tipoOcorrencia,
@@ -59,6 +77,9 @@ export default function BlocoAlertas({
 }) {
   const [filtroTecnico, setFiltroTecnico] = useState('todos')
   const [filtroTipo, setFiltroTipo] = useState('todos')
+  const [sortCol, setSortCol] = useState<SortCol>('dias')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [expandedId, setExpandedId] = useState<number | null>(null)
   const [showNovoModal, setShowNovoModal] = useState(false)
   const [showContestarModal, setShowContestarModal] = useState<number | null>(null)
   const [contestacaoMotivo, setContestacaoMotivo] = useState('')
@@ -74,40 +95,57 @@ export default function BlocoAlertas({
   const reqPendentes = reqsMecanico.filter(r => r.status === 'pendente')
   const justPendentes = justificativas.filter(j => j.status === 'pendente')
 
-  // Lookup rápido de ordens
   const ordensMap = useMemo(() => {
     const m: Record<string, OrdemServico> = {}
     ordens.forEach(o => { m[o.Id_Ordem] = o })
     return m
   }, [ordens])
 
-  // Tipos existentes nos alertas (para o filtro)
   const tiposExistentes = useMemo(() => {
     const s = new Set<string>()
     alertas.forEach(a => s.add(a.tipo))
     return Array.from(s).sort()
   }, [alertas])
 
-  // Filtrar alertas — só pendentes (aberto/contestado), max 5 dias
-  const alertasPendentes = useMemo(() => {
-    const hoje = new Date()
+  // Filtrar alertas — so pendentes (aberto/contestado), criados a partir de hoje
+  const alertasFiltrados = useMemo(() => {
+    const hojeStr = new Date().toISOString().split('T')[0]
     let f = alertas.filter(a => {
       if (a.status !== 'aberto' && a.status !== 'contestado') return false
-      // Esconder alertas com mais de 5 dias
-      const criado = new Date(a.created_at)
-      const diffDias = Math.floor((hoje.getTime() - criado.getTime()) / 86400000)
-      if (diffDias > 5) return false
+      // So mostrar alertas criados a partir de hoje
+      const criadoStr = a.created_at ? a.created_at.split('T')[0] : a.data_inicio
+      if (criadoStr < hojeStr) return false
       return true
     })
     if (filtroTecnico !== 'todos') f = f.filter(a => a.tecnico_nome === filtroTecnico || a.alvo === 'todos')
     if (filtroTipo !== 'todos') f = f.filter(a => a.tipo === filtroTipo)
-    return f.sort((a, b) => b.created_at.localeCompare(a.created_at))
-  }, [alertas, filtroTecnico, filtroTipo])
 
-  const totalAbertos = useMemo(() => alertasPendentes.filter(a => a.status === 'aberto').length, [alertasPendentes])
-  const totalContestados = useMemo(() => alertasPendentes.filter(a => a.status === 'contestado').length, [alertasPendentes])
+    // Sorting
+    f.sort((a, b) => {
+      let cmp = 0
+      if (sortCol === 'tecnico') cmp = a.tecnico_nome.localeCompare(b.tecnico_nome)
+      else if (sortCol === 'tipo') cmp = a.tipo.localeCompare(b.tipo)
+      else if (sortCol === 'dias') cmp = calcDias(a.data_inicio, a.data_fim) - calcDias(b.data_inicio, b.data_fim)
+      else if (sortCol === 'descricao') cmp = a.descricao.localeCompare(b.descricao)
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+    return f
+  }, [alertas, filtroTecnico, filtroTipo, sortCol, sortDir])
 
-  // ─── Actions ─────────────────────────────────────────────────
+  const totalAbertos = useMemo(() => alertasFiltrados.filter(a => a.status === 'aberto').length, [alertasFiltrados])
+  const totalContestados = useMemo(() => alertasFiltrados.filter(a => a.status === 'contestado').length, [alertasFiltrados])
+
+  const toggleSort = (col: SortCol) => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortCol(col); setSortDir('desc') }
+  }
+
+  const SortIcon = ({ col }: { col: SortCol }) => {
+    if (sortCol !== col) return <ArrowUpDown size={12} style={{ opacity: 0.3 }} />
+    return sortDir === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />
+  }
+
+  // --- Actions ---
   const criarAlertaManual = async () => {
     if (!novoAlerta.descricao) return; setUploading(true)
     let foto_url: string | null = null
@@ -153,18 +191,19 @@ export default function BlocoAlertas({
     onRecarregar()
   }
 
-  // ─── Estilos auxiliares ────────────────────────────────────────
   const SEL: React.CSSProperties = { padding: '7px 10px', borderRadius: 4, border: '1px solid #D0D0D0', fontSize: 13, fontWeight: 600, background: '#fff', color: '#111', cursor: 'pointer' }
 
-  // ─── Render ────────────────────────────────────────────────────
+  const corDias = (dias: number) => dias >= 4 ? '#DC2626' : dias >= 2 ? '#D97706' : '#065F46'
+  const bgDias = (dias: number) => dias >= 4 ? '#FEE2E2' : dias >= 2 ? '#FEF3C7' : '#D1FAE5'
+
   return (
     <div>
-      {/* ══ JUSTIFICATIVAS PENDENTES ══ */}
+      {/* == JUSTIFICATIVAS PENDENTES == */}
       {justPendentes.length > 0 && (
         <div style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 14, fontWeight: 800, color: '#111', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: '#111', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
             Justificativas pendentes
-            <span style={{ fontSize: 12, fontWeight: 700, background: '#FFFBEB', color: '#D97706', padding: '2px 8px', borderRadius: 4 }}>{justPendentes.length}</span>
+            <span style={{ fontSize: 13, fontWeight: 700, background: '#FFFBEB', color: '#D97706', padding: '3px 10px', borderRadius: 4 }}>{justPendentes.length}</span>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 1, border: '1px solid #D0D0D0', background: '#D0D0D0' }}>
             {justPendentes.map(j => {
@@ -172,12 +211,12 @@ export default function BlocoAlertas({
               return (
                 <div key={j.id} style={{ background: '#fff', padding: 14 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: '#111' }}>{j.tecnico_nome}</span>
-                    {j.id_ordem && <span style={{ fontSize: 12, color: '#111', fontWeight: 500 }}>OS: {j.id_ordem}</span>}
+                    <span style={{ fontSize: 15, fontWeight: 700, color: '#111' }}>{j.tecnico_nome}</span>
+                    {j.id_ordem && <span style={{ fontSize: 13, color: '#111', fontWeight: 500 }}>OS: {j.id_ordem}</span>}
                   </div>
                   {oc && (
                     <div style={{ background: '#F7F7F7', padding: '8px 10px', borderRadius: 4, marginBottom: 8, border: '1px solid #E8E8E8' }}>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: '#111', marginBottom: 3 }}>Ocorrência</div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: '#111', marginBottom: 3 }}>Ocorrencia</div>
                       <div style={{ fontSize: 13, color: '#111' }}>
                         <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 6px', borderRadius: 3, background: `${(tipoOcorrencia[oc.tipo] || tipoOcorrencia.outros).color}18`, color: (tipoOcorrencia[oc.tipo] || tipoOcorrencia.outros).color, marginRight: 6 }}>
                           {(tipoOcorrencia[oc.tipo] || tipoOcorrencia.outros).label}
@@ -206,29 +245,29 @@ export default function BlocoAlertas({
         </div>
       )}
 
-      {/* ══ REQUISIÇÕES PENDENTES ══ */}
+      {/* == REQUISICOES PENDENTES == */}
       {reqPendentes.length > 0 && (
         <div style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 14, fontWeight: 800, color: '#111', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-            Requisições de material
-            <span style={{ fontSize: 12, fontWeight: 700, background: '#FFFBEB', color: '#D97706', padding: '2px 8px', borderRadius: 4 }}>{reqPendentes.length}</span>
+          <div style={{ fontSize: 15, fontWeight: 800, color: '#111', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+            Requisicoes de material
+            <span style={{ fontSize: 13, fontWeight: 700, background: '#FFFBEB', color: '#D97706', padding: '3px 10px', borderRadius: 4 }}>{reqPendentes.length}</span>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 1, border: '1px solid #D0D0D0', background: '#D0D0D0' }}>
             {reqPendentes.map(req => (
               <div key={req.id} style={{ background: '#fff', padding: 14 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: '#111' }}>{req.tecnico_nome.split(' ').slice(0, 2).join(' ')}</span>
-                  <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 3, background: req.urgencia === 'alta' ? '#FEE2E2' : '#F0F0F0', color: req.urgencia === 'alta' ? '#DC2626' : '#111' }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: '#111' }}>{req.tecnico_nome.split(' ').slice(0, 2).join(' ')}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, padding: '2px 8px', borderRadius: 3, background: req.urgencia === 'alta' ? '#FEE2E2' : '#F0F0F0', color: req.urgencia === 'alta' ? '#DC2626' : '#111' }}>
                     {req.urgencia === 'alta' ? 'Urgente' : 'Normal'}
                   </span>
                 </div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: '#111' }}>{req.material_solicitado}</div>
-                <div style={{ fontSize: 12, color: '#111', marginTop: 3, fontWeight: 500 }}>
+                <div style={{ fontSize: 15, fontWeight: 600, color: '#111' }}>{req.material_solicitado}</div>
+                <div style={{ fontSize: 13, color: '#111', marginTop: 3, fontWeight: 500 }}>
                   {req.quantidade && `Qtd: ${req.quantidade} · `}{req.id_ordem && `OS: ${req.id_ordem} · `}{formatDataHora(req.created_at)}
                 </div>
                 <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
-                  <button onClick={() => onAprovarRequisicao(req.id)} style={{ flex: 1, padding: '7px 0', fontSize: 12, fontWeight: 700, background: '#111', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Aprovar</button>
-                  <button onClick={() => onRecusarRequisicao(req.id)} style={{ flex: 1, padding: '7px 0', fontSize: 12, fontWeight: 700, background: '#fff', color: '#111', border: '1px solid #D0D0D0', borderRadius: 4, cursor: 'pointer' }}>Recusar</button>
+                  <button onClick={() => onAprovarRequisicao(req.id)} style={{ flex: 1, padding: '7px 0', fontSize: 13, fontWeight: 700, background: '#111', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Aprovar</button>
+                  <button onClick={() => onRecusarRequisicao(req.id)} style={{ flex: 1, padding: '7px 0', fontSize: 13, fontWeight: 700, background: '#fff', color: '#111', border: '1px solid #D0D0D0', borderRadius: 4, cursor: 'pointer' }}>Recusar</button>
                 </div>
               </div>
             ))}
@@ -236,22 +275,22 @@ export default function BlocoAlertas({
         </div>
       )}
 
-      {/* ══ TOOLBAR + FILTROS ══ */}
+      {/* == TOOLBAR + FILTROS == */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 16, alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 16, fontWeight: 800, color: '#111' }}>Alertas</span>
-          <span style={{ fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 4, background: totalAbertos > 0 ? '#FEE2E2' : '#D1FAE5', color: totalAbertos > 0 ? '#DC2626' : '#065F46' }}>
+          <span style={{ fontSize: 18, fontWeight: 800, color: '#111' }}>Alertas</span>
+          <span style={{ fontSize: 13, fontWeight: 700, padding: '4px 12px', borderRadius: 4, background: totalAbertos > 0 ? '#FEE2E2' : '#D1FAE5', color: totalAbertos > 0 ? '#DC2626' : '#065F46' }}>
             {totalAbertos} aberto(s)
           </span>
           {totalContestados > 0 && (
-            <span style={{ fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 4, background: '#FEF3C7', color: '#92400E' }}>
+            <span style={{ fontSize: 13, fontWeight: 700, padding: '4px 12px', borderRadius: 4, background: '#FEF3C7', color: '#92400E' }}>
               {totalContestados} contestado(s)
             </span>
           )}
           <span style={{ width: 1, height: 20, background: '#D0D0D0', margin: '0 4px' }} />
           <Filter size={14} color="#111" />
           <select value={filtroTecnico} onChange={e => setFiltroTecnico(e.target.value)} style={SEL}>
-            <option value="todos">Todos técnicos</option>
+            <option value="todos">Todos tecnicos</option>
             {tecAtivos.map(t => <option key={t.user_id} value={t.tecnico_nome}>{t.tecnico_nome.split(' ').slice(0, 2).join(' ')}</option>)}
           </select>
           <select value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)} style={SEL}>
@@ -260,109 +299,221 @@ export default function BlocoAlertas({
           </select>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
-          <button onClick={() => setShowNovoModal(true)} style={{ display: 'flex', alignItems: 'center', gap: 5, borderRadius: 4, padding: '7px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', background: '#111', color: '#fff', border: 'none' }}>
-            <Plus size={13} /> Novo Alerta
+          <button onClick={() => setShowNovoModal(true)} style={{ display: 'flex', alignItems: 'center', gap: 5, borderRadius: 4, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: '#111', color: '#fff', border: 'none' }}>
+            <Plus size={14} /> Novo Alerta
           </button>
         </div>
       </div>
 
-      {/* ══ LISTA DE ALERTAS PENDENTES ══ */}
-      {alertasPendentes.length === 0 ? (
-        <div style={{ padding: 40, textAlign: 'center', color: '#999', fontSize: 14, fontWeight: 500, border: '1px solid #E8E8E8', borderRadius: 8, background: '#FAFAFA' }}>
+      {/* == TABELA DE ALERTAS == */}
+      {alertasFiltrados.length === 0 ? (
+        <div style={{ padding: 40, textAlign: 'center', color: '#999', fontSize: 15, fontWeight: 500, border: '1px solid #E8E8E8', borderRadius: 8, background: '#FAFAFA' }}>
           Nenhum alerta pendente{filtroTecnico !== 'todos' || filtroTipo !== 'todos' ? ' (com os filtros aplicados)' : ''}
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 10 }}>
-          {alertasPendentes.map(a => {
+        <div style={{ border: '1px solid #D0D0D0', borderRadius: 8, overflow: 'hidden', background: '#fff' }}>
+          {/* Header da tabela */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '180px 130px 1fr 100px',
+            padding: '12px 16px',
+            background: '#111',
+            color: '#fff',
+            fontSize: 13,
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            letterSpacing: '.04em',
+            userSelect: 'none',
+          }}>
+            <div onClick={() => toggleSort('tecnico')} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+              Tecnico <SortIcon col="tecnico" />
+            </div>
+            <div onClick={() => toggleSort('tipo')} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+              Tipo <SortIcon col="tipo" />
+            </div>
+            <div onClick={() => toggleSort('descricao')} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+              Descricao <SortIcon col="descricao" />
+            </div>
+            <div onClick={() => toggleSort('dias')} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
+              Dias Atraso <SortIcon col="dias" />
+            </div>
+          </div>
+
+          {/* Linhas */}
+          {alertasFiltrados.map(a => {
             const tipoInfo = TIPO_LABELS[a.tipo] || TIPO_LABELS.manual
             const dias = calcDias(a.data_inicio, a.data_fim)
             const isContestado = a.status === 'contestado'
             const ordem = a.tipo === 'ordem_pendente' && a.referencia_id ? ordensMap[a.referencia_id] : null
-            const corDias = dias >= 4 ? '#DC2626' : dias >= 2 ? '#D97706' : '#111'
+            const isExpanded = expandedId === a.id
+            const sol = ordem ? extrairSolicitacao(ordem.Serv_Solicitado || '') : ''
 
             return (
-              <div key={a.id} style={{
-                background: '#fff', borderRadius: 10, border: '1px solid #E5E7EB',
-                borderLeft: `4px solid ${isContestado ? '#F59E0B' : corDias}`,
-                padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10,
-              }}>
-                {/* Topo: técnico + badge dias */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div key={a.id}>
+                {/* Linha principal — clique expande */}
+                <div
+                  onClick={() => setExpandedId(isExpanded ? null : a.id)}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '180px 130px 1fr 100px',
+                    padding: '14px 16px',
+                    borderBottom: isExpanded ? 'none' : '1px solid #E8E8E8',
+                    cursor: 'pointer',
+                    background: isExpanded ? '#F8FAFC' : isContestado ? '#FFFBEB' : '#fff',
+                    borderLeft: `4px solid ${isContestado ? '#F59E0B' : corDias(dias)}`,
+                    alignItems: 'center',
+                    transition: 'background .1s',
+                    fontSize: 14,
+                  }}
+                  onMouseEnter={e => { if (!isExpanded) (e.currentTarget as HTMLDivElement).style.background = '#F9FAFB' }}
+                  onMouseLeave={e => { if (!isExpanded) (e.currentTarget as HTMLDivElement).style.background = isContestado ? '#FFFBEB' : '#fff' }}
+                >
+                  {/* Tecnico */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 15, fontWeight: 800, color: '#111' }}>
+                    {isExpanded ? <ChevronDown size={14} color="#555" /> : <ChevronRight size={14} color="#bbb" />}
+                    <span style={{ fontWeight: 700, color: '#111', fontSize: 15 }}>
                       {a.tecnico_nome.split(' ').slice(0, 2).join(' ')}
                     </span>
-                    <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: tipoInfo.bg, color: tipoInfo.color }}>
+                  </div>
+
+                  {/* Tipo */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 4, background: tipoInfo.bg, color: tipoInfo.color }}>
                       {tipoInfo.label}
                     </span>
                     {isContestado && (
-                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: '#FEF3C7', color: '#92400E' }}>Contestado</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: '#FEF3C7', color: '#92400E' }}>Contestado</span>
                     )}
                   </div>
-                  <div style={{
-                    fontSize: 13, fontWeight: 900, color: '#fff', borderRadius: 6,
-                    background: corDias, padding: '3px 10px', minWidth: 36, textAlign: 'center',
-                  }}>
-                    {dias}d
-                  </div>
-                </div>
 
-                {/* Descrição */}
-                <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.5 }}>
-                  {a.tipo === 'ordem_pendente' && a.referencia_id && (
-                    <span style={{ fontWeight: 700, color: '#111', marginRight: 6 }}>OS #{a.referencia_id}</span>
-                  )}
-                  {a.tipo === 'ordem_pendente' && ordem
-                    ? <>{ordem.Os_Cliente}{ordem.Cidade_Cliente ? ` — ${ordem.Cidade_Cliente}` : ''}</>
-                    : a.descricao
-                  }
-                </div>
-
-                {/* Foto */}
-                {a.foto_url && (
-                  <img src={a.foto_url} alt="" style={{ maxWidth: 120, maxHeight: 60, borderRadius: 6, objectFit: 'cover', cursor: 'pointer' }}
-                    onClick={() => window.open(a.foto_url!, '_blank')} />
-                )}
-
-                {/* Contestação */}
-                {isContestado && a.contestacao_motivo && (
-                  <div style={{ background: '#FFFBEB', padding: '8px 10px', borderRadius: 6, border: '1px solid #FEF3C7', fontSize: 12, color: '#92400E', lineHeight: 1.4 }}>
-                    <strong>Contestação:</strong> {a.contestacao_motivo}{a.contestado_por ? ` — ${a.contestado_por}` : ''}
-                  </div>
-                )}
-
-                {/* Rodapé: data + botões */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 }}>
-                  <span style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 500 }}>
-                    {formatDataHora(a.created_at)}
-                  </span>
-                  <div style={{ display: 'flex', gap: 5 }}>
-                    {!isContestado && (
-                      <button onClick={() => setShowContestarModal(a.id)} style={{
-                        background: '#FEF3C7', color: '#92400E', border: 'none', borderRadius: 5,
-                        padding: '5px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', gap: 4,
-                      }}><MessageSquare size={11} /> Contestar</button>
+                  {/* Descricao */}
+                  <div style={{ overflow: 'hidden', paddingRight: 10 }}>
+                    {a.tipo === 'ordem_pendente' && a.referencia_id && (
+                      <span style={{ fontWeight: 800, color: '#1E40AF', marginRight: 6, fontSize: 14 }}>OS #{a.referencia_id}</span>
                     )}
-                    <button onClick={() => { setConverterDados({ tipo: 'atraso', pontos_descontados: 5 }); setShowConverterModal(a) }} style={{
-                      background: '#FEE2E2', color: '#DC2626', border: 'none', borderRadius: 5,
-                      padding: '5px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', gap: 4,
-                    }}><AlertOctagon size={11} /> Ocorrência</button>
-                    <button onClick={() => fecharAlerta(a.id)} style={{
-                      background: '#D1FAE5', color: '#065F46', border: 'none', borderRadius: 5,
-                      padding: '5px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', gap: 4,
-                    }}><Check size={11} /> Dispensar</button>
+                    <span style={{ fontWeight: 500, color: '#374151', fontSize: 14 }}>
+                      {a.tipo === 'ordem_pendente' && ordem
+                        ? `${ordem.Os_Cliente}${ordem.Cidade_Cliente ? ` — ${ordem.Cidade_Cliente}` : ''}`
+                        : a.descricao.length > 100 ? a.descricao.substring(0, 100) + '...' : a.descricao
+                      }
+                    </span>
+                  </div>
+
+                  {/* Dias em atraso */}
+                  <div style={{ display: 'flex', justifyContent: 'center' }}>
+                    <span style={{
+                      fontSize: 20, fontWeight: 900, color: corDias(dias),
+                      background: bgDias(dias), padding: '5px 16px', borderRadius: 8,
+                      minWidth: 50, textAlign: 'center', display: 'inline-block',
+                    }}>
+                      {dias}d
+                    </span>
                   </div>
                 </div>
+
+                {/* Detalhe expandido com acoes */}
+                {isExpanded && (
+                  <div style={{ padding: '16px 24px 16px 40px', background: '#F8FAFC', borderBottom: '1px solid #E8E8E8' }}>
+                    {/* ACOES — agora bem visiveis no topo do expandido */}
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+                      {!isContestado && (
+                        <button onClick={() => setShowContestarModal(a.id)} style={{
+                          background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A', borderRadius: 6,
+                          padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', gap: 6,
+                        }}><MessageSquare size={14} /> Contestar</button>
+                      )}
+                      <button onClick={() => { setConverterDados({ tipo: 'atraso', pontos_descontados: 5 }); setShowConverterModal(a) }} style={{
+                        background: '#FEE2E2', color: '#DC2626', border: '1px solid #FECACA', borderRadius: 6,
+                        padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', gap: 6,
+                      }}><AlertOctagon size={14} /> Converter em Ocorrencia</button>
+                      <button onClick={() => fecharAlerta(a.id)} style={{
+                        background: '#D1FAE5', color: '#065F46', border: '1px solid #A7F3D0', borderRadius: 6,
+                        padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', gap: 6,
+                      }}><Check size={14} /> Dispensar</button>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: ordem ? '1fr 1fr' : '1fr', gap: 16 }}>
+                      {/* Detalhes do alerta */}
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>Detalhes do Alerta</div>
+                        <div style={{ fontSize: 14, color: '#111', lineHeight: 1.6, marginBottom: 8 }}>
+                          {a.descricao}
+                        </div>
+                        <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 4 }}>
+                          Criado em: <strong>{formatDataHora(a.created_at)}</strong>
+                        </div>
+                        <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 4 }}>
+                          Inicio: <strong>{a.data_inicio}</strong> · Dias: <strong style={{ color: corDias(dias), fontSize: 15 }}>{dias}</strong>
+                        </div>
+                        {a.foto_url && (
+                          <img src={a.foto_url} alt="" style={{ maxWidth: 200, maxHeight: 120, borderRadius: 8, objectFit: 'cover', cursor: 'pointer', marginTop: 8, border: '1px solid #E0E0E0' }}
+                            onClick={() => window.open(a.foto_url!, '_blank')} />
+                        )}
+                        {isContestado && a.contestacao_motivo && (
+                          <div style={{ background: '#FFFBEB', padding: '10px 12px', borderRadius: 6, border: '1px solid #FEF3C7', fontSize: 13, color: '#92400E', lineHeight: 1.4, marginTop: 8 }}>
+                            <strong>Contestacao:</strong> {a.contestacao_motivo}{a.contestado_por ? ` — ${a.contestado_por}` : ''}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Detalhes da OS */}
+                      {ordem && (
+                        <div style={{ background: '#fff', borderRadius: 8, padding: 16, border: '1px solid #E0E0E0' }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: '#999', textTransform: 'uppercase', marginBottom: 10 }}>Ordem de Servico #{ordem.Id_Ordem}</div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px', fontSize: 13 }}>
+                            <div>
+                              <span style={{ fontWeight: 600, color: '#999', fontSize: 11 }}>Cliente</span>
+                              <div style={{ fontWeight: 700, color: '#111', fontSize: 15 }}>{ordem.Os_Cliente}</div>
+                            </div>
+                            <div>
+                              <span style={{ fontWeight: 600, color: '#999', fontSize: 11 }}>Cidade</span>
+                              <div style={{ fontWeight: 700, color: '#111' }}>{ordem.Cidade_Cliente || '—'}</div>
+                            </div>
+                            <div>
+                              <span style={{ fontWeight: 600, color: '#999', fontSize: 11 }}>Status</span>
+                              <div style={{ fontWeight: 700, color: ordem.Status === 'Concluida' ? '#065F46' : '#D97706' }}>{ordem.Status}</div>
+                            </div>
+                            <div>
+                              <span style={{ fontWeight: 600, color: '#999', fontSize: 11 }}>Tipo</span>
+                              <div style={{ fontWeight: 700, color: '#111' }}>{ordem.Tipo_Servico || '—'}</div>
+                            </div>
+                            <div>
+                              <span style={{ fontWeight: 600, color: '#999', fontSize: 11 }}>Previsao Exec.</span>
+                              <div style={{ fontWeight: 700, color: '#111' }}>{ordem.Previsao_Execucao || '—'}</div>
+                            </div>
+                            <div>
+                              <span style={{ fontWeight: 600, color: '#999', fontSize: 11 }}>Horas</span>
+                              <div style={{ fontWeight: 700, color: '#111' }}>{ordem.Qtd_HR || '—'}h</div>
+                            </div>
+                            <div style={{ gridColumn: '1 / -1' }}>
+                              <span style={{ fontWeight: 600, color: '#999', fontSize: 11 }}>Tecnico Principal</span>
+                              <div style={{ fontWeight: 700, color: '#111' }}>{ordem.Os_Tecnico}{ordem.Os_Tecnico2 ? ` + ${ordem.Os_Tecnico2}` : ''}</div>
+                            </div>
+                            <div style={{ gridColumn: '1 / -1' }}>
+                              <span style={{ fontWeight: 600, color: '#999', fontSize: 11 }}>Endereco</span>
+                              <div style={{ fontWeight: 600, color: '#555' }}>{ordem.Endereco_Cliente || '—'}</div>
+                            </div>
+                          </div>
+                          {sol && (
+                            <div style={{ marginTop: 10, padding: '8px 10px', background: '#F0F4FF', borderRadius: 6, fontSize: 13, color: '#1E40AF', lineHeight: 1.4, border: '1px solid #DBEAFE' }}>
+                              <strong>Solicitacao:</strong> {sol}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )
           })}
         </div>
       )}
 
-      {/* ══ MODAL NOVO ALERTA ══ */}
+      {/* == MODAL NOVO ALERTA == */}
       {showNovoModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: '#fff', borderRadius: 8, padding: 24, width: '100%', maxWidth: 460, border: '1px solid #D0D0D0' }}>
@@ -370,8 +521,6 @@ export default function BlocoAlertas({
               <h3 style={{ fontSize: 16, fontWeight: 800, color: '#111', margin: 0 }}>Novo Alerta</h3>
               <button onClick={() => setShowNovoModal(false)} style={{ background: '#F0F0F0', border: 'none', cursor: 'pointer', width: 28, height: 28, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} color="#111" /></button>
             </div>
-
-            {/* Destino */}
             <div style={{ marginBottom: 14 }}>
               <label style={{ fontSize: 12, fontWeight: 700, color: '#111', display: 'block', marginBottom: 5 }}>Destino</label>
               <div style={{ display: 'flex', gap: 6 }}>
@@ -381,15 +530,13 @@ export default function BlocoAlertas({
                     border: `1px solid ${novoAlerta.alvo === alvo ? '#111' : '#D0D0D0'}`,
                     background: novoAlerta.alvo === alvo ? '#111' : '#fff',
                     color: novoAlerta.alvo === alvo ? '#fff' : '#111', cursor: 'pointer',
-                  }}>{alvo === 'individual' ? 'Técnico específico' : 'Todos os técnicos'}</button>
+                  }}>{alvo === 'individual' ? 'Tecnico especifico' : 'Todos os tecnicos'}</button>
                 ))}
               </div>
             </div>
-
-            {/* Técnico */}
             {novoAlerta.alvo === 'individual' && (
               <div style={{ marginBottom: 14 }}>
-                <label style={{ fontSize: 12, fontWeight: 700, color: '#111', display: 'block', marginBottom: 5 }}>Técnico</label>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#111', display: 'block', marginBottom: 5 }}>Tecnico</label>
                 <select value={novoAlerta.tecnico_nome} onChange={e => setNovoAlerta(p => ({ ...p, tecnico_nome: e.target.value }))}
                   style={{ width: '100%', padding: '9px 12px', borderRadius: 4, border: '1px solid #D0D0D0', fontSize: 13, background: '#fff', color: '#111' }}>
                   <option value="">Selecione...</option>
@@ -397,8 +544,6 @@ export default function BlocoAlertas({
                 </select>
               </div>
             )}
-
-            {/* Tipo */}
             <div style={{ marginBottom: 14 }}>
               <label style={{ fontSize: 12, fontWeight: 700, color: '#111', display: 'block', marginBottom: 5 }}>Tipo</label>
               <select value={novoAlerta.tipo} onChange={e => setNovoAlerta(p => ({ ...p, tipo: e.target.value }))}
@@ -406,16 +551,12 @@ export default function BlocoAlertas({
                 {Object.entries(TIPO_LABELS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
               </select>
             </div>
-
-            {/* Descrição */}
             <div style={{ marginBottom: 14 }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: '#111', display: 'block', marginBottom: 5 }}>Descrição</label>
+              <label style={{ fontSize: 12, fontWeight: 700, color: '#111', display: 'block', marginBottom: 5 }}>Descricao</label>
               <textarea value={novoAlerta.descricao} onChange={e => setNovoAlerta(p => ({ ...p, descricao: e.target.value }))}
                 placeholder="Descreva o alerta..." rows={3}
                 style={{ width: '100%', padding: '9px 12px', borderRadius: 4, border: '1px solid #D0D0D0', fontSize: 13, resize: 'vertical', color: '#111', boxSizing: 'border-box' }} />
             </div>
-
-            {/* Foto */}
             <div style={{ marginBottom: 18 }}>
               <label style={{ fontSize: 12, fontWeight: 700, color: '#111', display: 'block', marginBottom: 5 }}>Foto (opcional)</label>
               <input ref={fileRef} type="file" accept="image/*" onChange={e => setFotoFile(e.target.files?.[0] || null)} style={{ display: 'none' }} />
@@ -424,7 +565,6 @@ export default function BlocoAlertas({
                 border: '1px dashed #D0D0D0', borderRadius: 4, padding: '9px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', width: '100%', justifyContent: 'center',
               }}><Camera size={14} />{fotoFile ? fotoFile.name : 'Anexar foto'}</button>
             </div>
-
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={() => setShowNovoModal(false)} style={{ flex: 1, padding: 10, borderRadius: 4, fontSize: 13, fontWeight: 700, background: '#F0F0F0', color: '#111', border: 'none', cursor: 'pointer' }}>Cancelar</button>
               <button onClick={criarAlertaManual} disabled={uploading} style={{ flex: 1, padding: 10, borderRadius: 4, fontSize: 13, fontWeight: 700, background: '#111', color: '#fff', border: 'none', cursor: 'pointer', opacity: uploading ? 0.6 : 1 }}>
@@ -435,7 +575,7 @@ export default function BlocoAlertas({
         </div>
       )}
 
-      {/* ══ MODAL CONVERTER EM OCORRÊNCIA ══ */}
+      {/* == MODAL CONVERTER EM OCORRENCIA == */}
       {showConverterModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: '#fff', borderRadius: 8, padding: 24, width: '100%', maxWidth: 420, border: '1px solid #D0D0D0' }}>
@@ -443,13 +583,11 @@ export default function BlocoAlertas({
               <h3 style={{ fontSize: 16, fontWeight: 800, color: '#111', margin: 0 }}>Converter em Ocorrencia</h3>
               <button onClick={() => setShowConverterModal(null)} style={{ background: '#F0F0F0', border: 'none', cursor: 'pointer', width: 28, height: 28, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} color="#111" /></button>
             </div>
-
             <div style={{ background: '#F7F7F7', padding: '10px 12px', borderRadius: 6, marginBottom: 16, border: '1px solid #E8E8E8' }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#555', marginBottom: 4 }}>Alerta original</div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#111' }}>{showConverterModal.tecnico_nome}</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#111' }}>{showConverterModal.tecnico_nome}</div>
               <div style={{ fontSize: 13, color: '#111', marginTop: 2 }}>{showConverterModal.descricao}</div>
             </div>
-
             <div style={{ marginBottom: 14 }}>
               <label style={{ fontSize: 12, fontWeight: 700, color: '#111', display: 'block', marginBottom: 5 }}>Tipo da Ocorrencia</label>
               <select value={converterDados.tipo} onChange={e => setConverterDados(p => ({ ...p, tipo: e.target.value }))}
@@ -457,14 +595,12 @@ export default function BlocoAlertas({
                 {Object.entries(tipoOcorrencia).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
               </select>
             </div>
-
             <div style={{ marginBottom: 18 }}>
               <label style={{ fontSize: 12, fontWeight: 700, color: '#111', display: 'block', marginBottom: 5 }}>Pontos a descontar</label>
               <input type="number" min={0} max={100} value={converterDados.pontos_descontados}
                 onChange={e => setConverterDados(p => ({ ...p, pontos_descontados: Number(e.target.value) }))}
                 style={{ width: '100%', padding: '9px 12px', borderRadius: 4, border: '1px solid #D0D0D0', fontSize: 13, background: '#fff', color: '#111', boxSizing: 'border-box' }} />
             </div>
-
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={() => setShowConverterModal(null)} style={{ flex: 1, padding: 10, borderRadius: 4, fontSize: 13, fontWeight: 700, background: '#F0F0F0', color: '#111', border: 'none', cursor: 'pointer' }}>Cancelar</button>
               <button onClick={async () => {
@@ -478,13 +614,13 @@ export default function BlocoAlertas({
         </div>
       )}
 
-      {/* ══ MODAL CONTESTAR ══ */}
+      {/* == MODAL CONTESTAR == */}
       {showContestarModal !== null && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: '#fff', borderRadius: 8, padding: 24, width: '100%', maxWidth: 400, border: '1px solid #D0D0D0' }}>
             <h3 style={{ fontSize: 16, fontWeight: 800, color: '#111', margin: '0 0 14px' }}>Contestar Alerta</h3>
             <textarea value={contestacaoMotivo} onChange={e => setContestacaoMotivo(e.target.value)}
-              placeholder="Motivo da contestação..." rows={3}
+              placeholder="Motivo da contestacao..." rows={3}
               style={{ width: '100%', padding: '9px 12px', borderRadius: 4, border: '1px solid #D0D0D0', fontSize: 13, resize: 'vertical', marginBottom: 14, color: '#111', boxSizing: 'border-box' }} />
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={() => { setShowContestarModal(null); setContestacaoMotivo('') }} style={{ flex: 1, padding: 10, borderRadius: 4, fontSize: 13, fontWeight: 700, background: '#F0F0F0', color: '#111', border: 'none', cursor: 'pointer' }}>Cancelar</button>

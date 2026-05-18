@@ -5,13 +5,23 @@ import { geocodificar, rotaDaOficina, calcularRota, OFICINA } from "@/lib/pos/or
 
 const TBL = "agenda_visao";
 
-/** GET — busca agenda do dia */
+/** GET — busca agenda do dia ou range de datas */
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const data = searchParams.get("data") || new Date().toISOString().split("T")[0];
+  const data = searchParams.get("data");
+  const de = searchParams.get("de");
+  const ate = searchParams.get("ate");
   const tecnico = searchParams.get("tecnico");
 
-  let query = supabase.from(TBL).select("*").eq("data", data).order("ordem_sequencia");
+  let query = supabase.from(TBL).select("*").order("ordem_sequencia");
+
+  if (de && ate) {
+    // Range de datas (visao mensal)
+    query = query.gte("data", de).lte("data", ate);
+  } else {
+    query = query.eq("data", data || new Date().toISOString().split("T")[0]);
+  }
+
   if (tecnico) query = query.eq("tecnico_nome", tecnico);
 
   const { data: rows, error } = await query;

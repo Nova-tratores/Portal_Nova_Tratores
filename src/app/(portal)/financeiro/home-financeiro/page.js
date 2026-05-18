@@ -238,8 +238,10 @@ function HomeFinanceiroContent() {
  const handleGerarBoletoFinanceiro = async (t) => {
   if (!fileBoleto) return alert("Anexe o arquivo.");
   try {
-    const path = `boletos/${Date.now()}-${fileBoleto.name}`;
-    await supabase.storage.from('anexos').upload(path, fileBoleto);
+    const safeFileName = fileBoleto.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const path = `boletos/${Date.now()}-${safeFileName}`;
+    const { error: uploadError } = await supabase.storage.from('anexos').upload(path, fileBoleto);
+    if (uploadError) throw uploadError;
     const { data } = supabase.storage.from('anexos').getPublicUrl(path);
 
     notificarMovimento('Chamado_NF', t, 'enviar_cliente', `${getCardLabel(t)} — Boleto gerado`);

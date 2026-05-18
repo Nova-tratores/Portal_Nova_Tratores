@@ -587,7 +587,15 @@
       "Bash(find /c/projetos/portal/sql -type f -name \"*.sql\" 2>/dev/null | head -20)",
       "Bash(grep -l \"CREATE TABLE.*portal_tarefas\" /c/projetos/portal/sql/*.sql 2>/dev/null)",
       "Bash(grep -n \"ALTER TABLE.*portal_lembretes\\\\|ADD.*recorrencia\" /c/projetos/portal/sql/*.sql 2>/dev/null)",
-      "Bash(find /c/projetos/portal -name \"*tarefas*\" -o -name \"*tarefa*\" 2>/dev/null | grep -v node_modules | grep -v \".next\")"
+      "Bash(find /c/projetos/portal -name \"*tarefas*\" -o -name \"*tarefa*\" 2>/dev/null | grep -v node_modules | grep -v \".next\")",
+      "Bash(find /c/projetos/portal -type f -name \"*painel*mecanico*\" 2>/dev/null | head -50)",
+      "Bash(grep -r \"anexo_boleto\" C:/projetos/portal/src --include=\"*.ts\" --include=\"*.tsx\" --include=\"*.js\" --include=\"*.jsx\" 2>/dev/null | head -20)",
+      "Bash(find C:/projetos/portal/src -type f \\\\\\( -name \"*.sql\" -o -name \"*schema*\" -o -name \"*database*\" \\\\\\) 2>/dev/null | head -10)",
+      "Bash(grep -r \"Chamado_NF\\\\|anexo_boleto\" C:/projetos/portal/src --include=\"*.ts\" --include=\"*.tsx\" 2>/dev/null | grep -E \"interface|type|schema\" | head -20)",
+      "Bash(find C:/projetos/portal/src -name \"*supabase*\" -o -name \"*storage*\" 2>/dev/null | grep -E \"\\\\.\\(ts|tsx|js|jsx\\)$\" | head -10)",
+      "Bash(curl -sI \"https://citrhumdkfivdzbmayde.supabase.co/storage/v1/object/public/anexos/boletos/1778872521004-BOLETOS%20NF%201998%20NF%207692.pdf\" 2>&1 | head -15)",
+      "Bash(curl -s \"https://citrhumdkfivdzbmayde.supabase.co/storage/v1/object/public/anexos/boletos/1778872521004-BOLETOS%20NF%201998%20NF%207692.pdf\" 2>&1)",
+      "Bash(curl -sI \"https://citrhumdkfivdzbmayde.supabase.co/storage/v1/object/public/anexos/boletos/1778872521004-BOLETOS_NF_1998_NF_7692.pdf\" 2>&1 | head -5)"
     ]
   }
 }
