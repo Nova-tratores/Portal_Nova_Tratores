@@ -10,7 +10,7 @@ import {
   DollarSign, Activity, Clock, ChevronRight, Search,
   BarChart3, Users, Package, ClipboardCheck, AlertTriangle,
   CheckCircle2, Map, RefreshCw, Database, X, Check, Calculator, Eye, Camera, Wheat, Megaphone, TrendingUp, Server,
-  FolderPlus, Pencil, Trash2, FolderOpen
+  FolderPlus, Pencil, Trash2, FolderOpen, MapPin
 } from 'lucide-react'
 
 interface SystemCard {
@@ -106,16 +106,17 @@ const systems: SystemCard[] = [
     href: '/tarefas',
     tag: 'TAREFAS'
   },
-  {
-    id: 'painel-mecanicos',
-    name: 'Painel Mecânicos',
-    description: 'Agenda semanal, caminhos, pontuação e gestão dos técnicos de campo',
-    icon: <Users size={28} />,
-    color: '#dc2626',
-    gradient: 'linear-gradient(135deg, #dc2626, #ef4444)',
-    href: '/painel-mecanicos',
-    tag: 'TÉCNICOS'
-  },
+  // DESATIVADO — será refeito
+  // {
+  //   id: 'painel-mecanicos',
+  //   name: 'Painel Mecânicos',
+  //   description: 'Agenda semanal, caminhos, pontuação e gestão dos técnicos de campo',
+  //   icon: <Users size={28} />,
+  //   color: '#dc2626',
+  //   gradient: 'linear-gradient(135deg, #dc2626, #ef4444)',
+  //   href: '/painel-mecanicos',
+  //   tag: 'TÉCNICOS'
+  // },
   {
     id: 'mapa-geral',
     name: 'Mapa Geral',
@@ -123,9 +124,8 @@ const systems: SystemCard[] = [
     icon: <Map size={28} />,
     color: '#dc2626',
     gradient: 'linear-gradient(135deg, #b91c1c, #991b1b)',
-    href: 'https://mapa-geral-production.up.railway.app/',
-    tag: 'MAPA',
-    external: true
+    href: '/mapa-geral',
+    tag: 'MAPA'
   },
   {
     id: 'fotos-tecnicos',
@@ -251,7 +251,7 @@ interface CardFolder {
 
 const defaultFolders: CardFolder[] = [
   { id: 'financeiro', name: 'Financeiro', cardIds: ['sistema-financeiro', 'dre'] },
-  { id: 'servicos', name: 'Serviços', cardIds: ['pos', 'controle-revisao', 'painel-mecanicos', 'fotos-tecnicos'] },
+  { id: 'servicos', name: 'Serviços', cardIds: ['pos', 'controle-revisao', 'fotos-tecnicos'] },
   { id: 'comercial', name: 'Comercial', cardIds: ['proposta-comercial', 'orcamentos', 'ppv'] },
   { id: 'estoque', name: 'Estoque & Consulta', cardIds: ['consulta-estoque', 'visual-estoque'] },
   { id: 'gestao', name: 'Gestão', cardIds: ['app-requisicoes', 'tarefas', 'avisos'] },
@@ -316,7 +316,7 @@ export default function DashboardPage() {
     if (!userProfile?.id) return
     const key = `portal-folders-${userProfile.id}`
     const versionKey = `portal-folders-version-${userProfile.id}`
-    const CURRENT_VERSION = '3'
+    const CURRENT_VERSION = '5'
     const savedVersion = localStorage.getItem(versionKey)
     if (savedVersion === CURRENT_VERSION) {
       const saved = localStorage.getItem(key)

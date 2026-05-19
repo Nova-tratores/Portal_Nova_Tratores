@@ -10,7 +10,7 @@ import {
   DollarSign, Package, Menu, X, User as UserIcon,
   LayoutDashboard, Bell, ChevronRight, Activity, Lock, MessageCircle,
   CheckCheck, Trash2, ExternalLink, Calendar, Users, Calculator, BarChart3, Eye, Camera, Wheat, Megaphone,
-  Sun, Moon, Volume2, Check
+  Sun, Moon, Volume2, Check, MapPin
 } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -102,13 +102,22 @@ const navItems: NavItem[] = [
     gradient: 'linear-gradient(135deg, #dc2626, #991b1b)'
   },
   {
-    id: 'painel-mecanicos',
-    name: 'Painel Mecânicos',
-    href: '/painel-mecanicos',
-    icon: <Users size={18} />,
-    tag: 'CAMPO',
-    gradient: 'linear-gradient(135deg, #1E3A5F, #1d4ed8)'
+    id: 'mapa-geral',
+    name: 'Mapa Geral',
+    href: '/mapa-geral',
+    icon: <MapPin size={18} />,
+    tag: 'MAPA',
+    gradient: 'linear-gradient(135deg, #b91c1c, #991b1b)'
   },
+  // DESATIVADO — será refeito
+  // {
+  //   id: 'painel-mecanicos',
+  //   name: 'Painel Mecânicos',
+  //   href: '/painel-mecanicos',
+  //   icon: <Users size={18} />,
+  //   tag: 'CAMPO',
+  //   gradient: 'linear-gradient(135deg, #1E3A5F, #1d4ed8)'
+  // },
   {
     id: 'fotos-tecnicos',
     name: 'Fotos Técnicos',
