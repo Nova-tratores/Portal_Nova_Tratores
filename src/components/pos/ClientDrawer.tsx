@@ -39,7 +39,7 @@ export default function ClientDrawer({ visible, onClose, onSaved }: ClientDrawer
     <div className="drawer-overlay active">
       <div className="modal-container">
         <div className="drawer" style={{ width: 600, display: "block" }}>
-          <div style={{ padding: "25px 40px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#fafafa" }}>
+          <div style={{ padding: "25px 40px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--portal-bg-secondary)" }}>
             <div style={{ fontSize: 20, fontWeight: 700 }}>Novo Cliente Manual</div>
             <button style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer" }} onClick={onClose}>&times;</button>
           </div>
@@ -51,7 +51,7 @@ export default function ClientDrawer({ visible, onClose, onSaved }: ClientDrawer
             <label>Endereço</label><input type="text" value={form.endereco} onChange={(e) => setForm({ ...form, endereco: e.target.value })} />
             <label>Cidade</label><input type="text" value={form.cidade} onChange={(e) => setForm({ ...form, cidade: e.target.value })} />
           </div>
-          <div style={{ padding: "20px 40px", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "flex-end", background: "#fafafa" }}>
+          <div style={{ padding: "20px 40px", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "flex-end", background: "var(--portal-bg-secondary)" }}>
             <button onClick={salvar} disabled={saving} style={{ padding: "12px 30px", background: "#10B981", color: "white", border: "none", borderRadius: 6, fontWeight: 600, cursor: "pointer" }}>
               {saving ? "Salvando..." : "Cadastrar Cliente"}
             </button>

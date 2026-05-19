@@ -138,14 +138,14 @@ export default function LembretesPanel({
       }}
     >
       <div style={{
-        width: '440px', height: '100vh', background: '#fff',
+        width: '440px', height: '100vh', background: 'var(--portal-bg-card)',
         boxShadow: '-8px 0 30px rgba(0,0,0,0.1)',
         display: 'flex', flexDirection: 'column',
         animation: 'slideInRight 0.3s ease-out'
       }}>
         {/* Header */}
         <div style={{
-          padding: '20px 24px', borderBottom: '1px solid #f0f0f0',
+          padding: '20px 24px', borderBottom: '1px solid var(--portal-border)',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           flexShrink: 0
         }}>
@@ -157,8 +157,8 @@ export default function LembretesPanel({
               <Bell size={20} color="#dc2626" />
             </div>
             <div>
-              <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#1a1a1a', margin: 0 }}>Lembretes</h3>
-              <p style={{ fontSize: '11px', color: '#a3a3a3', margin: 0 }}>{lembretes.filter(l => l.status === 'pendente').length} pendentes</p>
+              <h3 style={{ fontSize: '16px', fontWeight: '700', color: 'var(--portal-text)', margin: 0 }}>Lembretes</h3>
+              <p style={{ fontSize: '11px', color: 'var(--portal-text-muted)', margin: 0 }}>{lembretes.filter(l => l.status === 'pendente').length} pendentes</p>
             </div>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
@@ -175,9 +175,9 @@ export default function LembretesPanel({
             <button
               onClick={onClose}
               style={{
-                background: '#f5f5f5', border: 'none', borderRadius: '10px',
+                background: 'var(--portal-bg-secondary)', border: 'none', borderRadius: '10px',
                 width: '36px', height: '36px', display: 'flex', alignItems: 'center',
-                justifyContent: 'center', cursor: 'pointer', color: '#737373'
+                justifyContent: 'center', cursor: 'pointer', color: 'var(--portal-text-secondary)'
               }}
             >
               <X size={18} />
@@ -186,7 +186,7 @@ export default function LembretesPanel({
         </div>
 
         {/* Filtro */}
-        <div style={{ padding: '12px 24px', display: 'flex', gap: '8px', borderBottom: '1px solid #f5f5f5', flexShrink: 0 }}>
+        <div style={{ padding: '12px 24px', display: 'flex', gap: '8px', borderBottom: '1px solid var(--portal-bg-secondary)', flexShrink: 0 }}>
           {(['pendentes', 'todos'] as const).map(f => (
             <button
               key={f}
@@ -194,8 +194,8 @@ export default function LembretesPanel({
               style={{
                 padding: '6px 16px', borderRadius: '8px', border: 'none', cursor: 'pointer',
                 fontSize: '12px', fontWeight: '600', transition: 'all 0.2s',
-                background: filtro === f ? '#dc2626' : '#f5f5f5',
-                color: filtro === f ? '#fff' : '#737373'
+                background: filtro === f ? '#dc2626' : 'var(--portal-bg-secondary)',
+                color: filtro === f ? '#fff' : 'var(--portal-text-secondary)'
               }}
             >
               {f === 'pendentes' ? 'Pendentes' : 'Todos'}
@@ -206,12 +206,12 @@ export default function LembretesPanel({
         {/* Form novo lembrete */}
         {showForm && (
           <div style={{
-            padding: '20px 24px', borderBottom: '1px solid #f0f0f0',
-            background: '#fafafa', flexShrink: 0
+            padding: '20px 24px', borderBottom: '1px solid var(--portal-border)',
+            background: 'var(--portal-bg-secondary)', flexShrink: 0
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <span style={{ fontSize: '13px', fontWeight: '700', color: '#1a1a1a', letterSpacing: '0.5px' }}>NOVO LEMBRETE</span>
-              <button onClick={() => setShowForm(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a3a3a3' }}><X size={16} /></button>
+              <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--portal-text)', letterSpacing: '0.5px' }}>NOVO LEMBRETE</span>
+              <button onClick={() => setShowForm(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text-muted)' }}><X size={16} /></button>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -219,8 +219,8 @@ export default function LembretesPanel({
                 value={destId}
                 onChange={e => setDestId(e.target.value)}
                 style={{
-                  padding: '10px 14px', borderRadius: '10px', border: '1px solid #e5e5e5',
-                  fontSize: '13px', color: '#1a1a1a', background: '#fff', outline: 'none',
+                  padding: '10px 14px', borderRadius: '10px', border: '1px solid var(--portal-border)',
+                  fontSize: '13px', color: 'var(--portal-text)', background: 'var(--portal-bg-card)', outline: 'none',
                   cursor: 'pointer'
                 }}
               >
@@ -237,8 +237,8 @@ export default function LembretesPanel({
                 value={titulo}
                 onChange={e => setTitulo(e.target.value)}
                 style={{
-                  padding: '10px 14px', borderRadius: '10px', border: '1px solid #e5e5e5',
-                  fontSize: '13px', color: '#1a1a1a', outline: 'none'
+                  padding: '10px 14px', borderRadius: '10px', border: '1px solid var(--portal-border)',
+                  fontSize: '13px', color: 'var(--portal-text)', outline: 'none'
                 }}
               />
 
@@ -248,8 +248,8 @@ export default function LembretesPanel({
                 onChange={e => setDescricao(e.target.value)}
                 rows={2}
                 style={{
-                  padding: '10px 14px', borderRadius: '10px', border: '1px solid #e5e5e5',
-                  fontSize: '13px', color: '#1a1a1a', outline: 'none', resize: 'none'
+                  padding: '10px 14px', borderRadius: '10px', border: '1px solid var(--portal-border)',
+                  fontSize: '13px', color: 'var(--portal-text)', outline: 'none', resize: 'none'
                 }}
               />
 
@@ -258,8 +258,8 @@ export default function LembretesPanel({
                 value={dataHora}
                 onChange={e => setDataHora(e.target.value)}
                 style={{
-                  padding: '10px 14px', borderRadius: '10px', border: '1px solid #e5e5e5',
-                  fontSize: '13px', color: '#1a1a1a', outline: 'none'
+                  padding: '10px 14px', borderRadius: '10px', border: '1px solid var(--portal-border)',
+                  fontSize: '13px', color: 'var(--portal-text)', outline: 'none'
                 }}
               />
 
@@ -267,8 +267,8 @@ export default function LembretesPanel({
                 value={recorrencia}
                 onChange={e => setRecorrencia(e.target.value)}
                 style={{
-                  padding: '10px 14px', borderRadius: '10px', border: '1px solid #e5e5e5',
-                  fontSize: '13px', color: '#1a1a1a', background: '#fff', outline: 'none',
+                  padding: '10px 14px', borderRadius: '10px', border: '1px solid var(--portal-border)',
+                  fontSize: '13px', color: 'var(--portal-text)', background: 'var(--portal-bg-card)', outline: 'none',
                   cursor: 'pointer'
                 }}
               >
@@ -282,8 +282,8 @@ export default function LembretesPanel({
                 disabled={!destId || !titulo || !dataHora || loading}
                 style={{
                   padding: '12px', borderRadius: '10px', border: 'none',
-                  background: (!destId || !titulo || !dataHora) ? '#e5e5e5' : '#dc2626',
-                  color: (!destId || !titulo || !dataHora) ? '#a3a3a3' : '#fff',
+                  background: (!destId || !titulo || !dataHora) ? 'var(--portal-border)' : '#dc2626',
+                  color: (!destId || !titulo || !dataHora) ? 'var(--portal-text-muted)' : '#fff',
                   fontSize: '13px', fontWeight: '700', cursor: 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
                 }}
@@ -311,7 +311,7 @@ export default function LembretesPanel({
           {/* Futuros */}
           {futuros.length > 0 && (
             <div style={{ marginBottom: '20px' }}>
-              <span style={{ fontSize: '11px', fontWeight: '700', color: '#737373', letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
+              <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--portal-text-secondary)', letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
                 <Clock size={12} /> AGENDADOS ({futuros.length})
               </span>
               {futuros.map(l => (
@@ -333,7 +333,7 @@ export default function LembretesPanel({
           )}
 
           {lembretes.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '60px 20px', color: '#d4d4d4' }}>
+            <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--portal-text-faint)' }}>
               <Bell size={40} style={{ margin: '0 auto 12px', display: 'block', opacity: 0.3 }} />
               <p style={{ fontSize: '14px', margin: 0 }}>Nenhum lembrete</p>
             </div>
@@ -369,14 +369,14 @@ function LembreteCard({
   return (
     <div style={{
       padding: '14px 16px', borderRadius: '14px', marginBottom: '8px',
-      background: tipo === 'vencido' ? '#fef2f2' : tipo === 'concluido' ? '#f0fdf4' : '#fff',
-      border: `1px solid ${tipo === 'vencido' ? '#fecaca' : tipo === 'concluido' ? '#bbf7d0' : '#f0f0f0'}`,
+      background: tipo === 'vencido' ? '#fef2f2' : tipo === 'concluido' ? '#f0fdf4' : 'var(--portal-bg-card)',
+      border: `1px solid ${tipo === 'vencido' ? '#fecaca' : tipo === 'concluido' ? '#bbf7d0' : 'var(--portal-border)'}`,
       transition: 'all 0.2s'
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
         <span style={{
           fontSize: '14px', fontWeight: '600',
-          color: tipo === 'concluido' ? '#a3a3a3' : '#1a1a1a',
+          color: tipo === 'concluido' ? 'var(--portal-text-muted)' : 'var(--portal-text)',
           textDecoration: tipo === 'concluido' ? 'line-through' : 'none'
         }}>
           {l.titulo}
@@ -398,26 +398,26 @@ function LembreteCard({
       </div>
 
       {l.descricao && (
-        <p style={{ fontSize: '12px', color: '#737373', margin: '0 0 8px 0', lineHeight: '1.4' }}>{l.descricao}</p>
+        <p style={{ fontSize: '12px', color: 'var(--portal-text-secondary)', margin: '0 0 8px 0', lineHeight: '1.4' }}>{l.descricao}</p>
       )}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
         <span style={{
           fontSize: '11px', fontWeight: '600',
-          color: tipo === 'vencido' ? '#ef4444' : '#737373',
+          color: tipo === 'vencido' ? '#ef4444' : 'var(--portal-text-secondary)',
           display: 'flex', alignItems: 'center', gap: '4px'
         }}>
           <Calendar size={11} />
           {dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} {dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
         </span>
         {!isMeuProprio && (
-          <span style={{ fontSize: '11px', color: '#a3a3a3', display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <span style={{ fontSize: '11px', color: 'var(--portal-text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
             <User size={11} />
             {isParaMim ? `de ${l.criador_nome}` : `para ${l.destinatario_nome}`}
           </span>
         )}
         {isMeuProprio && (
-          <span style={{ fontSize: '10px', color: '#d4d4d4', fontStyle: 'italic' }}>para mim</span>
+          <span style={{ fontSize: '10px', color: 'var(--portal-text-faint)', fontStyle: 'italic' }}>para mim</span>
         )}
         {l.recorrencia && (
           <span style={{

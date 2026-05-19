@@ -160,7 +160,7 @@ export default function PPVDrawer({
   const totalFinal = tOrig - tDev;
 
   const statusNorm = normalizarStatus(status) as StatusKey;
-  const statusColor = STATUS_COLORS[statusNorm] || { text: "#64748B", bg: "#FFFFFF" };
+  const statusColor = STATUS_COLORS[statusNorm] || { text: "var(--portal-text-secondary)", bg: "var(--portal-bg-card)" };
 
   async function salvar() {
     const erros: string[] = [];
@@ -524,7 +524,7 @@ export default function PPVDrawer({
                                         type="button"
                                         onClick={() => { setEditandoPrecoCod(p.codigo); setEditandoPrecoVal(p.preco.toFixed(2)); }}
                                         title="Editar preço unitário"
-                                        style={{ background: "transparent", border: "none", color: "#64748B", cursor: "pointer", padding: 4, fontSize: 13 }}
+                                        style={{ background: "transparent", border: "none", color: "var(--portal-text-secondary)", cursor: "pointer", padding: 4, fontSize: 13 }}
                                       >
                                         <i className="fas fa-pen" />
                                       </button>

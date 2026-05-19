@@ -9,6 +9,7 @@ interface UserProfile {
   funcao: string
   avatar_url: string
   tema?: string
+  som_notificacao?: string
 }
 
 export function useAuth() {

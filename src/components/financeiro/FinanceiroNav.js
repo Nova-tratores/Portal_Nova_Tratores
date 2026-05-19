@@ -83,8 +83,8 @@ export default function FinanceiroNav({ children }) {
   return (
     <div style={{
       position: 'sticky', top: '84px', zIndex: 30,
-      background: '#fff', borderBottom: '1px solid #f0f0f0',
-      boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+      background: 'var(--portal-header-bg)', borderBottom: '1px solid var(--portal-border)',
+      boxShadow: '0 1px 4px var(--portal-shadow)',
       padding: '0 24px',
     }}>
       <div style={{
@@ -107,8 +107,8 @@ export default function FinanceiroNav({ children }) {
                 display: 'flex', alignItems: 'center', gap: '7px',
                 padding: '9px 18px', borderRadius: '8px',
                 fontSize: '15px', fontWeight: isActive ? '600' : '500',
-                color: isActive ? (isVencidosTab ? '#dc2626' : '#dc2626') : hasVencidos ? '#ef4444' : '#737373',
-                background: isActive ? (isVencidosTab && hasVencidos ? '#fef2f2' : '#fef2f2') : hasVencidos ? 'rgba(239,68,68,0.06)' : 'transparent',
+                color: isActive ? '#dc2626' : hasVencidos ? '#ef4444' : 'var(--portal-text-secondary)',
+                background: isActive ? 'var(--portal-bg-hover)' : hasVencidos ? 'rgba(239,68,68,0.06)' : 'transparent',
                 textDecoration: 'none', transition: 'all 0.15s',
                 whiteSpace: 'nowrap',
                 position: 'relative',

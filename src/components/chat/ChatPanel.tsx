@@ -278,7 +278,7 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
       <div style={{
         position: 'relative',
         width: '900px', maxWidth: '100%',
-        background: '#ffffff',
+        background: 'var(--portal-bg-card)',
         display: 'flex', flexDirection: 'column',
         boxShadow: '-8px 0 30px rgba(0,0,0,0.12)',
         animation: 'chatSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
@@ -328,9 +328,9 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
           {/* ===== LEFT: CHAT LIST ===== */}
           <div style={{
             width: chat.chatAtivo ? '340px' : '100%',
-            borderRight: chat.chatAtivo ? '1px solid #e5e5e5' : 'none',
+            borderRight: chat.chatAtivo ? `1px solid var(--portal-border)` : 'none',
             display: 'flex', flexDirection: 'column',
-            background: '#ffffff', flexShrink: 0,
+            background: 'var(--portal-bg-card)', flexShrink: 0,
             ...(mobileView === 'room' ? { display: 'none' } : {})
           }}
             className="chat-sidebar"
@@ -340,7 +340,7 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
               <div style={{
                 display: 'flex', alignItems: 'center', gap: '8px',
                 padding: '8px 12px', borderRadius: '10px',
-                background: '#f5f5f5', border: '1px solid #e5e5e5'
+                background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)'
               }}>
                 <Search size={15} color="#a3a3a3" />
                 <input
@@ -350,7 +350,7 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
                   onChange={e => setSearch(e.target.value)}
                   style={{
                     flex: 1, border: 'none', background: 'none', outline: 'none',
-                    fontSize: '13px', color: '#1a1a1a', fontFamily: 'Inter'
+                    fontSize: '13px', color: 'var(--portal-text)', fontFamily: 'Inter'
                   }}
                 />
               </div>
@@ -359,13 +359,13 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
             {/* Chat items */}
             <div style={{ flex: 1, overflowY: 'auto' }}>
               {chat.loading ? (
-                <div style={{ padding: '40px', textAlign: 'center', color: '#a3a3a3', fontSize: '13px' }}>
+                <div style={{ padding: '40px', textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: '13px' }}>
                   Carregando conversas...
                 </div>
               ) : filteredChats.length === 0 ? (
                 <div style={{ padding: '40px 20px', textAlign: 'center' }}>
                   <MessageCircle size={40} color="#e5e5e5" style={{ margin: '0 auto 12px' }} />
-                  <p style={{ color: '#a3a3a3', fontSize: '13px' }}>
+                  <p style={{ color: 'var(--portal-text-muted)', fontSize: '13px' }}>
                     {search ? 'Nenhuma conversa encontrada' : 'Nenhuma conversa ainda'}
                   </p>
                   <button
@@ -393,7 +393,7 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
                         borderLeft: isActive ? '3px solid #dc2626' : '3px solid transparent',
                         transition: 'all 0.15s'
                       }}
-                      onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = '#fafafa' }}
+                      onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'var(--portal-bg-secondary)' }}
                       onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent' }}
                     >
                       {/* Avatar */}
@@ -419,12 +419,12 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3px' }}>
                           <span style={{
                             fontSize: '14px', fontWeight: c.nao_lidas > 0 ? '700' : '600',
-                            color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                            color: 'var(--portal-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
                           }}>
                             {getChatName(c)}
                           </span>
                           <span style={{
-                            fontSize: '11px', color: c.nao_lidas > 0 ? '#dc2626' : '#a3a3a3',
+                            fontSize: '11px', color: c.nao_lidas > 0 ? '#dc2626' : 'var(--portal-text-muted)',
                             fontWeight: c.nao_lidas > 0 ? '600' : '400', flexShrink: 0, marginLeft: '8px'
                           }}>
                             {c.ultima_mensagem ? formatTime(c.ultima_mensagem.created_at) : ''}
@@ -432,12 +432,12 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                           <span style={{
-                            fontSize: '12px', color: '#a3a3a3',
+                            fontSize: '12px', color: 'var(--portal-text-muted)',
                             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                             fontWeight: c.nao_lidas > 0 ? '500' : '400'
                           }}>
                             {c.ultima_mensagem && c.ultima_mensagem.user_id === userId && (
-                              <span style={{ color: '#a3a3a3', marginRight: '2px' }}>Você: </span>
+                              <span style={{ color: 'var(--portal-text-muted)', marginRight: '2px' }}>Você: </span>
                             )}
                             {getLastMsgPreview(c.ultima_mensagem)}
                           </span>
@@ -473,13 +473,13 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
               <div style={{
                 display: 'flex', alignItems: 'center', gap: '12px',
                 padding: '12px 20px',
-                background: '#fff', borderBottom: '1px solid #e5e5e5',
+                background: 'var(--portal-bg-card)', borderBottom: '1px solid var(--portal-border)',
                 flexShrink: 0
               }}>
                 <button
                   onClick={handleBack}
                   style={{
-                    background: 'none', border: 'none', color: '#737373',
+                    background: 'none', border: 'none', color: 'var(--portal-text-secondary)',
                     cursor: 'pointer', padding: '4px', display: 'flex',
                     borderRadius: '6px'
                   }}
@@ -504,11 +504,11 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
                   )}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: '14px', fontWeight: '700', color: '#1a1a1a' }}>
+                  <p style={{ fontSize: '14px', fontWeight: '700', color: 'var(--portal-text)' }}>
                     {getChatName(chatAtual)}
                   </p>
                   <p style={{
-                    fontSize: '11px', color: '#a3a3a3',
+                    fontSize: '11px', color: 'var(--portal-text-muted)',
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
                   }}>
                     {getChatSubtitle(chatAtual)}
@@ -527,7 +527,7 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
                     flexDirection: 'column', gap: '8px'
                   }}>
                     <MessageCircle size={48} color="#d4d4d4" />
-                    <p style={{ color: '#a3a3a3', fontSize: '13px' }}>Envie a primeira mensagem!</p>
+                    <p style={{ color: 'var(--portal-text-muted)', fontSize: '13px' }}>Envie a primeira mensagem!</p>
                   </div>
                 ) : (
                   messageGroups.map((group, gi) => (
@@ -539,7 +539,7 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
                       }}>
                         <span style={{
                           padding: '5px 16px', borderRadius: '8px',
-                          background: 'rgba(255,255,255,0.9)', color: '#737373',
+                          background: 'rgba(255,255,255,0.9)', color: 'var(--portal-text-secondary)',
                           fontSize: '11px', fontWeight: '600',
                           boxShadow: '0 1px 4px rgba(0,0,0,0.06)'
                         }}>
@@ -570,8 +570,8 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
                               borderRadius: isMine
                                 ? (sameSender ? '8px 4px 8px 8px' : '8px 0px 8px 8px')
                                 : (sameSender ? '4px 8px 8px 8px' : '0px 8px 8px 8px'),
-                              background: isMine ? '#fef2f2' : '#ffffff',
-                              border: isMine ? '1px solid #fecaca' : '1px solid #e5e5e5',
+                              background: isMine ? '#fef2f2' : 'var(--portal-bg-card)',
+                              border: isMine ? '1px solid #fecaca' : `1px solid var(--portal-border)`,
                               boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
                               position: 'relative'
                             }}>
@@ -588,7 +588,7 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
                               {/* Content by type */}
                               {msg.tipo === 'texto' && (
                                 <p style={{
-                                  fontSize: '13.5px', color: '#1a1a1a',
+                                  fontSize: '13.5px', color: 'var(--portal-text)',
                                   lineHeight: '1.45', wordBreak: 'break-word',
                                   margin: 0, whiteSpace: 'pre-wrap'
                                 }}>
@@ -609,7 +609,7 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
                                   />
                                   {msg.conteudo && msg.conteudo !== msg.arquivo_nome && (
                                     <p style={{
-                                      fontSize: '13px', color: '#1a1a1a', margin: '6px 8px 2px',
+                                      fontSize: '13px', color: 'var(--portal-text)', margin: '6px 8px 2px',
                                       lineHeight: '1.4'
                                     }}>
                                       {msg.conteudo}
@@ -648,12 +648,12 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
                                   rel="noopener noreferrer"
                                   style={{
                                     display: 'flex', alignItems: 'center', gap: '10px',
-                                    padding: '8px 4px', textDecoration: 'none', color: '#1a1a1a'
+                                    padding: '8px 4px', textDecoration: 'none', color: 'var(--portal-text)'
                                   }}
                                 >
                                   <div style={{
                                     width: '40px', height: '40px', borderRadius: '8px',
-                                    background: '#f5f5f5', display: 'flex',
+                                    background: 'var(--portal-bg-secondary)', display: 'flex',
                                     alignItems: 'center', justifyContent: 'center', flexShrink: 0
                                   }}>
                                     <FileText size={20} color="#dc2626" />
@@ -666,7 +666,7 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
                                     }}>
                                       {msg.arquivo_nome || 'Arquivo'}
                                     </p>
-                                    <p style={{ fontSize: '11px', color: '#a3a3a3', margin: 0 }}>
+                                    <p style={{ fontSize: '11px', color: 'var(--portal-text-muted)', margin: 0 }}>
                                       {formatFileSize(msg.arquivo_tamanho)}
                                     </p>
                                   </div>
@@ -681,7 +681,7 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
                                   ? { padding: '0 8px 4px' }
                                   : {})
                               }}>
-                                <span style={{ fontSize: '10px', color: '#a3a3a3' }}>
+                                <span style={{ fontSize: '10px', color: 'var(--portal-text-muted)' }}>
                                   {formatTime(msg.created_at)}
                                 </span>
                                 {isMine && chatAtual.tipo === 'individual' && (
@@ -707,8 +707,8 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
 
               {/* ===== INPUT AREA ===== */}
               <div style={{
-                padding: '12px 16px', background: '#fff',
-                borderTop: '1px solid #e5e5e5', display: 'flex',
+                padding: '12px 16px', background: 'var(--portal-bg-card)',
+                borderTop: '1px solid var(--portal-border)', display: 'flex',
                 alignItems: 'flex-end', gap: '8px', flexShrink: 0
               }}>
                 {gravando ? (
@@ -751,12 +751,12 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
                       onClick={() => fileInputRef.current?.click()}
                       style={{
                         width: '40px', height: '40px', borderRadius: '50%',
-                        background: '#f5f5f5', border: 'none', color: '#737373',
+                        background: 'var(--portal-bg-secondary)', border: 'none', color: 'var(--portal-text-secondary)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         cursor: 'pointer', flexShrink: 0, transition: 'all 0.2s'
                       }}
                       onMouseEnter={e => { e.currentTarget.style.background = '#e5e5e5' }}
-                      onMouseLeave={e => { e.currentTarget.style.background = '#f5f5f5' }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'var(--portal-bg-secondary)' }}
                       title="Anexar arquivo"
                     >
                       <Paperclip size={18} />
@@ -764,8 +764,8 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
 
                     <div style={{
                       flex: 1, display: 'flex', alignItems: 'flex-end',
-                      background: '#f5f5f5', borderRadius: '20px',
-                      border: '1px solid #e5e5e5', padding: '0 14px',
+                      background: 'var(--portal-bg-secondary)', borderRadius: '20px',
+                      border: '1px solid var(--portal-border)', padding: '0 14px',
                       transition: 'border-color 0.2s'
                     }}>
                       <textarea
@@ -777,7 +777,7 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
                         rows={1}
                         style={{
                           flex: 1, border: 'none', background: 'none', outline: 'none',
-                          fontSize: '13.5px', color: '#1a1a1a', fontFamily: 'Inter',
+                          fontSize: '13.5px', color: 'var(--portal-text)', fontFamily: 'Inter',
                           resize: 'none', padding: '10px 0',
                           height: '42px', maxHeight: '120px', lineHeight: '1.4'
                         }}
@@ -806,12 +806,12 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
                         onClick={startRecording}
                         style={{
                           width: '40px', height: '40px', borderRadius: '50%',
-                          background: '#f5f5f5', border: 'none', color: '#737373',
+                          background: 'var(--portal-bg-secondary)', border: 'none', color: 'var(--portal-text-secondary)',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           cursor: 'pointer', flexShrink: 0, transition: 'all 0.2s'
                         }}
                         onMouseEnter={e => { e.currentTarget.style.background = '#e5e5e5' }}
-                        onMouseLeave={e => { e.currentTarget.style.background = '#f5f5f5' }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'var(--portal-bg-secondary)' }}
                         title="Gravar áudio"
                       >
                         <Mic size={18} />
@@ -837,10 +837,10 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
                 }}>
                   <MessageCircle size={36} color="#dc2626" />
                 </div>
-                <p style={{ color: '#737373', fontSize: '15px', fontWeight: '500' }}>
+                <p style={{ color: 'var(--portal-text-secondary)', fontSize: '15px', fontWeight: '500' }}>
                   Selecione uma conversa
                 </p>
-                <p style={{ color: '#a3a3a3', fontSize: '12px' }}>
+                <p style={{ color: 'var(--portal-text-muted)', fontSize: '12px' }}>
                   ou inicie uma nova conversa clicando em +
                 </p>
               </div>
@@ -861,26 +861,26 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
           />
           <div style={{
             position: 'relative', width: '440px', maxWidth: '90%',
-            maxHeight: '80vh', background: '#fff', borderRadius: '20px',
+            maxHeight: '80vh', background: 'var(--portal-bg-card)', borderRadius: '20px',
             boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
             display: 'flex', flexDirection: 'column',
             animation: 'chatFadeIn 0.2s ease'
           }}>
             {/* Modal header */}
             <div style={{
-              padding: '20px 24px 16px', borderBottom: '1px solid #f0f0f0',
+              padding: '20px 24px 16px', borderBottom: '1px solid var(--portal-border)',
               display: 'flex', alignItems: 'center', justifyContent: 'space-between'
             }}>
-              <h3 style={{ fontSize: '17px', fontWeight: '700', color: '#1a1a1a' }}>
+              <h3 style={{ fontSize: '17px', fontWeight: '700', color: 'var(--portal-text)' }}>
                 Nova Conversa
               </h3>
               <button
                 onClick={() => setNovoChat(false)}
                 style={{
-                  background: '#f5f5f5', border: 'none', borderRadius: '8px',
+                  background: 'var(--portal-bg-secondary)', border: 'none', borderRadius: '8px',
                   width: '32px', height: '32px', display: 'flex',
                   alignItems: 'center', justifyContent: 'center',
-                  cursor: 'pointer', color: '#737373'
+                  cursor: 'pointer', color: 'var(--portal-text-secondary)'
                 }}
               >
                 <X size={16} />
@@ -893,9 +893,9 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
                 onClick={() => { setNovoChatTipo('individual'); setSelectedUsers([]) }}
                 style={{
                   flex: 1, padding: '10px', borderRadius: '10px',
-                  border: novoChatTipo === 'individual' ? '2px solid #dc2626' : '2px solid #e5e5e5',
-                  background: novoChatTipo === 'individual' ? '#fef2f2' : '#fff',
-                  color: novoChatTipo === 'individual' ? '#dc2626' : '#737373',
+                  border: novoChatTipo === 'individual' ? '2px solid #dc2626' : `2px solid var(--portal-border)`,
+                  background: novoChatTipo === 'individual' ? '#fef2f2' : 'var(--portal-bg-card)',
+                  color: novoChatTipo === 'individual' ? '#dc2626' : 'var(--portal-text-secondary)',
                   cursor: 'pointer', fontSize: '13px', fontWeight: '600',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
                 }}
@@ -907,9 +907,9 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
                   onClick={() => { setNovoChatTipo('grupo'); setSelectedUsers([]) }}
                   style={{
                     flex: 1, padding: '10px', borderRadius: '10px',
-                    border: novoChatTipo === 'grupo' ? '2px solid #dc2626' : '2px solid #e5e5e5',
-                    background: novoChatTipo === 'grupo' ? '#fef2f2' : '#fff',
-                    color: novoChatTipo === 'grupo' ? '#dc2626' : '#737373',
+                    border: novoChatTipo === 'grupo' ? '2px solid #dc2626' : `2px solid var(--portal-border)`,
+                    background: novoChatTipo === 'grupo' ? '#fef2f2' : 'var(--portal-bg-card)',
+                    color: novoChatTipo === 'grupo' ? '#dc2626' : 'var(--portal-text-secondary)',
                     cursor: 'pointer', fontSize: '13px', fontWeight: '600',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
                   }}
@@ -929,9 +929,9 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
                   onChange={e => setGrupoNome(e.target.value)}
                   style={{
                     width: '100%', padding: '10px 14px', borderRadius: '10px',
-                    border: '1px solid #e5e5e5', background: '#f5f5f5',
+                    border: '1px solid var(--portal-border)', background: 'var(--portal-bg-secondary)',
                     fontSize: '13px', outline: 'none', fontFamily: 'Inter',
-                    color: '#1a1a1a'
+                    color: 'var(--portal-text)'
                   }}
                 />
               </div>
@@ -968,7 +968,7 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
               <div style={{
                 display: 'flex', alignItems: 'center', gap: '8px',
                 padding: '8px 12px', borderRadius: '10px',
-                background: '#f5f5f5', border: '1px solid #e5e5e5'
+                background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)'
               }}>
                 <Search size={14} color="#a3a3a3" />
                 <input
@@ -978,7 +978,7 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
                   onChange={e => setUserSearch(e.target.value)}
                   style={{
                     flex: 1, border: 'none', background: 'none', outline: 'none',
-                    fontSize: '13px', color: '#1a1a1a', fontFamily: 'Inter'
+                    fontSize: '13px', color: 'var(--portal-text)', fontFamily: 'Inter'
                   }}
                 />
               </div>
@@ -1010,7 +1010,7 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
                       border: isSelected ? '1px solid #fecaca' : '1px solid transparent',
                       marginBottom: '2px', transition: 'all 0.15s'
                     }}
-                    onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = '#fafafa' }}
+                    onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'var(--portal-bg-secondary)' }}
                     onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = isSelected ? '#fef2f2' : 'transparent' }}
                   >
                     <div style={{
@@ -1025,10 +1025,10 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
                       )}
                     </div>
                     <div style={{ flex: 1 }}>
-                      <p style={{ fontSize: '13px', fontWeight: '600', color: '#1a1a1a', margin: 0 }}>
+                      <p style={{ fontSize: '13px', fontWeight: '600', color: 'var(--portal-text)', margin: 0 }}>
                         {u.nome}
                       </p>
-                      <p style={{ fontSize: '11px', color: '#a3a3a3', margin: 0 }}>
+                      <p style={{ fontSize: '11px', color: 'var(--portal-text-muted)', margin: 0 }}>
                         {u.funcao || 'Colaborador'}
                       </p>
                     </div>
@@ -1048,7 +1048,7 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
 
             {/* Create button */}
             <div style={{
-              padding: '16px 24px', borderTop: '1px solid #f0f0f0',
+              padding: '16px 24px', borderTop: '1px solid var(--portal-border)',
               display: 'flex', justifyContent: 'flex-end'
             }}>
               <button
@@ -1064,7 +1064,7 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
                     : selectedUsers.length > 0
                       ? 'linear-gradient(135deg, #dc2626, #b91c1c)'
                       : '#e5e5e5',
-                  color: (criandoChat || selectedUsers.length > 0) ? '#fff' : '#a3a3a3',
+                  color: (criandoChat || selectedUsers.length > 0) ? '#fff' : 'var(--portal-text-muted)',
                   border: 'none', fontSize: '13px', fontWeight: '700',
                   cursor: (criandoChat || selectedUsers.length === 0) ? 'default' : 'pointer',
                   transition: 'all 0.2s',

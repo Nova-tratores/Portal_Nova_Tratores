@@ -595,7 +595,11 @@
       "Bash(find C:/projetos/portal/src -name \"*supabase*\" -o -name \"*storage*\" 2>/dev/null | grep -E \"\\\\.\\(ts|tsx|js|jsx\\)$\" | head -10)",
       "Bash(curl -sI \"https://citrhumdkfivdzbmayde.supabase.co/storage/v1/object/public/anexos/boletos/1778872521004-BOLETOS%20NF%201998%20NF%207692.pdf\" 2>&1 | head -15)",
       "Bash(curl -s \"https://citrhumdkfivdzbmayde.supabase.co/storage/v1/object/public/anexos/boletos/1778872521004-BOLETOS%20NF%201998%20NF%207692.pdf\" 2>&1)",
-      "Bash(curl -sI \"https://citrhumdkfivdzbmayde.supabase.co/storage/v1/object/public/anexos/boletos/1778872521004-BOLETOS_NF_1998_NF_7692.pdf\" 2>&1 | head -5)"
+      "Bash(curl -sI \"https://citrhumdkfivdzbmayde.supabase.co/storage/v1/object/public/anexos/boletos/1778872521004-BOLETOS_NF_1998_NF_7692.pdf\" 2>&1 | head -5)",
+      "Bash(grep -n \"FormFornecedor\\\\|abaAtiva === 'fornecedor\" /c/projetos/portal/src/app/\\\\\\(portal\\\\\\)/requisicoes/page.tsx)",
+      "Bash(grep -A 15 \"abaAtiva === 'fornecedores'\" /c/projetos/portal/src/app/\\\\\\(portal\\\\\\)/requisicoes/page.tsx)",
+      "Bash(find /c/projetos/portal -type f -name \"schema*.sql\" -o -name \"*migrations*\" 2>/dev/null | head -10)",
+      "Bash(grep -n \"fornecedor\" /c/projetos/portal/src/app/api/pos/ordens/\\\\[id\\\\]/route.ts)"
     ]
   }
 }
