@@ -191,7 +191,7 @@ export default function BlocoAlertas({
     onRecarregar()
   }
 
-  const SEL: React.CSSProperties = { padding: '7px 10px', borderRadius: 4, border: '1px solid #D0D0D0', fontSize: 13, fontWeight: 600, background: '#fff', color: '#111', cursor: 'pointer' }
+  const SEL: React.CSSProperties = { padding: '7px 10px', borderRadius: 4, border: '1px solid var(--portal-border)', fontSize: 13, fontWeight: 600, background: 'var(--portal-bg-card)', color: 'var(--portal-text)', cursor: 'pointer' }
 
   const corDias = (dias: number) => dias >= 4 ? '#DC2626' : dias >= 2 ? '#D97706' : '#065F46'
   const bgDias = (dias: number) => dias >= 4 ? '#FEE2E2' : dias >= 2 ? '#FEF3C7' : '#D1FAE5'
@@ -201,23 +201,23 @@ export default function BlocoAlertas({
       {/* == JUSTIFICATIVAS PENDENTES == */}
       {justPendentes.length > 0 && (
         <div style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 15, fontWeight: 800, color: '#111', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--portal-text)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
             Justificativas pendentes
             <span style={{ fontSize: 13, fontWeight: 700, background: '#FFFBEB', color: '#D97706', padding: '3px 10px', borderRadius: 4 }}>{justPendentes.length}</span>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 1, border: '1px solid #D0D0D0', background: '#D0D0D0' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 1, border: '1px solid var(--portal-border)', background: 'var(--portal-border)' }}>
             {justPendentes.map(j => {
               const oc = ocorrencias.find(o => o.id === j.id_ocorrencia)
               return (
-                <div key={j.id} style={{ background: '#fff', padding: 14 }}>
+                <div key={j.id} style={{ background: 'var(--portal-bg-card)', padding: 14 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <span style={{ fontSize: 15, fontWeight: 700, color: '#111' }}>{j.tecnico_nome}</span>
-                    {j.id_ordem && <span style={{ fontSize: 13, color: '#111', fontWeight: 500 }}>OS: {j.id_ordem}</span>}
+                    <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--portal-text)' }}>{j.tecnico_nome}</span>
+                    {j.id_ordem && <span style={{ fontSize: 13, color: 'var(--portal-text)', fontWeight: 500 }}>OS: {j.id_ordem}</span>}
                   </div>
                   {oc && (
-                    <div style={{ background: '#F7F7F7', padding: '8px 10px', borderRadius: 4, marginBottom: 8, border: '1px solid #E8E8E8' }}>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: '#111', marginBottom: 3 }}>Ocorrencia</div>
-                      <div style={{ fontSize: 13, color: '#111' }}>
+                    <div style={{ background: 'var(--portal-bg-secondary)', padding: '8px 10px', borderRadius: 4, marginBottom: 8, border: '1px solid var(--portal-border)' }}>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--portal-text)', marginBottom: 3 }}>Ocorrencia</div>
+                      <div style={{ fontSize: 13, color: 'var(--portal-text)' }}>
                         <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 6px', borderRadius: 3, background: `${(tipoOcorrencia[oc.tipo] || tipoOcorrencia.outros).color}18`, color: (tipoOcorrencia[oc.tipo] || tipoOcorrencia.outros).color, marginRight: 6 }}>
                           {(tipoOcorrencia[oc.tipo] || tipoOcorrencia.outros).label}
                         </span>
@@ -226,7 +226,7 @@ export default function BlocoAlertas({
                       </div>
                     </div>
                   )}
-                  <div style={{ background: '#FFFBEB', padding: '8px 10px', borderRadius: 4, marginBottom: 10, border: '1px solid #FEF3C7', fontSize: 13, color: '#111', lineHeight: 1.4 }}>
+                  <div style={{ background: '#FFFBEB', padding: '8px 10px', borderRadius: 4, marginBottom: 10, border: '1px solid #FEF3C7', fontSize: 13, color: 'var(--portal-text)', lineHeight: 1.4 }}>
                     <div style={{ fontSize: 11, fontWeight: 600, color: '#92400E', marginBottom: 3 }}>Justificativa</div>
                     {j.justificativa}
                   </div>
@@ -234,7 +234,7 @@ export default function BlocoAlertas({
                     <button onClick={() => onAvaliarJustificativa(j.id, true)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, background: '#111', color: '#fff', border: 'none', borderRadius: 4, padding: '8px 0', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
                       <ThumbsUp size={13} /> Aceitar
                     </button>
-                    <button onClick={() => onAvaliarJustificativa(j.id, false)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, background: '#fff', color: '#DC2626', border: '1px solid #FECACA', borderRadius: 4, padding: '8px 0', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                    <button onClick={() => onAvaliarJustificativa(j.id, false)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, background: 'var(--portal-bg-card)', color: '#DC2626', border: '1px solid #FECACA', borderRadius: 4, padding: '8px 0', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
                       <ThumbsDown size={13} /> Recusar
                     </button>
                   </div>
@@ -248,26 +248,26 @@ export default function BlocoAlertas({
       {/* == REQUISICOES PENDENTES == */}
       {reqPendentes.length > 0 && (
         <div style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 15, fontWeight: 800, color: '#111', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--portal-text)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
             Requisicoes de material
             <span style={{ fontSize: 13, fontWeight: 700, background: '#FFFBEB', color: '#D97706', padding: '3px 10px', borderRadius: 4 }}>{reqPendentes.length}</span>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 1, border: '1px solid #D0D0D0', background: '#D0D0D0' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 1, border: '1px solid var(--portal-border)', background: 'var(--portal-border)' }}>
             {reqPendentes.map(req => (
-              <div key={req.id} style={{ background: '#fff', padding: 14 }}>
+              <div key={req.id} style={{ background: 'var(--portal-bg-card)', padding: 14 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: '#111' }}>{req.tecnico_nome.split(' ').slice(0, 2).join(' ')}</span>
-                  <span style={{ fontSize: 12, fontWeight: 700, padding: '2px 8px', borderRadius: 3, background: req.urgencia === 'alta' ? '#FEE2E2' : '#F0F0F0', color: req.urgencia === 'alta' ? '#DC2626' : '#111' }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text)' }}>{req.tecnico_nome.split(' ').slice(0, 2).join(' ')}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, padding: '2px 8px', borderRadius: 3, background: req.urgencia === 'alta' ? '#FEE2E2' : 'var(--portal-bg-secondary)', color: req.urgencia === 'alta' ? '#DC2626' : 'var(--portal-text)' }}>
                     {req.urgencia === 'alta' ? 'Urgente' : 'Normal'}
                   </span>
                 </div>
-                <div style={{ fontSize: 15, fontWeight: 600, color: '#111' }}>{req.material_solicitado}</div>
-                <div style={{ fontSize: 13, color: '#111', marginTop: 3, fontWeight: 500 }}>
+                <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--portal-text)' }}>{req.material_solicitado}</div>
+                <div style={{ fontSize: 13, color: 'var(--portal-text)', marginTop: 3, fontWeight: 500 }}>
                   {req.quantidade && `Qtd: ${req.quantidade} · `}{req.id_ordem && `OS: ${req.id_ordem} · `}{formatDataHora(req.created_at)}
                 </div>
                 <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
                   <button onClick={() => onAprovarRequisicao(req.id)} style={{ flex: 1, padding: '7px 0', fontSize: 13, fontWeight: 700, background: '#111', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Aprovar</button>
-                  <button onClick={() => onRecusarRequisicao(req.id)} style={{ flex: 1, padding: '7px 0', fontSize: 13, fontWeight: 700, background: '#fff', color: '#111', border: '1px solid #D0D0D0', borderRadius: 4, cursor: 'pointer' }}>Recusar</button>
+                  <button onClick={() => onRecusarRequisicao(req.id)} style={{ flex: 1, padding: '7px 0', fontSize: 13, fontWeight: 700, background: 'var(--portal-bg-card)', color: 'var(--portal-text)', border: '1px solid var(--portal-border)', borderRadius: 4, cursor: 'pointer' }}>Recusar</button>
                 </div>
               </div>
             ))}
@@ -278,7 +278,7 @@ export default function BlocoAlertas({
       {/* == TOOLBAR + FILTROS == */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 16, alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 18, fontWeight: 800, color: '#111' }}>Alertas</span>
+          <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--portal-text)' }}>Alertas</span>
           <span style={{ fontSize: 13, fontWeight: 700, padding: '4px 12px', borderRadius: 4, background: totalAbertos > 0 ? '#FEE2E2' : '#D1FAE5', color: totalAbertos > 0 ? '#DC2626' : '#065F46' }}>
             {totalAbertos} aberto(s)
           </span>
@@ -287,8 +287,8 @@ export default function BlocoAlertas({
               {totalContestados} contestado(s)
             </span>
           )}
-          <span style={{ width: 1, height: 20, background: '#D0D0D0', margin: '0 4px' }} />
-          <Filter size={14} color="#111" />
+          <span style={{ width: 1, height: 20, background: 'var(--portal-border)', margin: '0 4px' }} />
+          <Filter size={14} color="var(--portal-text-secondary)" />
           <select value={filtroTecnico} onChange={e => setFiltroTecnico(e.target.value)} style={SEL}>
             <option value="todos">Todos tecnicos</option>
             {tecAtivos.map(t => <option key={t.user_id} value={t.tecnico_nome}>{t.tecnico_nome.split(' ').slice(0, 2).join(' ')}</option>)}
@@ -307,11 +307,11 @@ export default function BlocoAlertas({
 
       {/* == TABELA DE ALERTAS == */}
       {alertasFiltrados.length === 0 ? (
-        <div style={{ padding: 40, textAlign: 'center', color: '#999', fontSize: 15, fontWeight: 500, border: '1px solid #E8E8E8', borderRadius: 8, background: '#FAFAFA' }}>
+        <div style={{ padding: 40, textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 15, fontWeight: 500, border: '1px solid var(--portal-border)', borderRadius: 8, background: 'var(--portal-bg-secondary)' }}>
           Nenhum alerta pendente{filtroTecnico !== 'todos' || filtroTipo !== 'todos' ? ' (com os filtros aplicados)' : ''}
         </div>
       ) : (
-        <div style={{ border: '1px solid #D0D0D0', borderRadius: 8, overflow: 'hidden', background: '#fff' }}>
+        <div style={{ border: '1px solid var(--portal-border)', borderRadius: 8, overflow: 'hidden', background: 'var(--portal-bg-card)' }}>
           {/* Header da tabela */}
           <div style={{
             display: 'grid',
@@ -357,21 +357,21 @@ export default function BlocoAlertas({
                     display: 'grid',
                     gridTemplateColumns: '180px 130px 1fr 100px',
                     padding: '14px 16px',
-                    borderBottom: isExpanded ? 'none' : '1px solid #E8E8E8',
+                    borderBottom: isExpanded ? 'none' : '1px solid var(--portal-border)',
                     cursor: 'pointer',
-                    background: isExpanded ? '#F8FAFC' : isContestado ? '#FFFBEB' : '#fff',
+                    background: isExpanded ? 'var(--portal-bg-secondary)' : isContestado ? '#FFFBEB' : 'var(--portal-bg-card)',
                     borderLeft: `4px solid ${isContestado ? '#F59E0B' : corDias(dias)}`,
                     alignItems: 'center',
                     transition: 'background .1s',
                     fontSize: 14,
                   }}
-                  onMouseEnter={e => { if (!isExpanded) (e.currentTarget as HTMLDivElement).style.background = '#F9FAFB' }}
-                  onMouseLeave={e => { if (!isExpanded) (e.currentTarget as HTMLDivElement).style.background = isContestado ? '#FFFBEB' : '#fff' }}
+                  onMouseEnter={e => { if (!isExpanded) (e.currentTarget as HTMLDivElement).style.background = 'var(--portal-bg-secondary)' }}
+                  onMouseLeave={e => { if (!isExpanded) (e.currentTarget as HTMLDivElement).style.background = isContestado ? '#FFFBEB' : 'var(--portal-bg-card)' }}
                 >
                   {/* Tecnico */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    {isExpanded ? <ChevronDown size={14} color="#555" /> : <ChevronRight size={14} color="#bbb" />}
-                    <span style={{ fontWeight: 700, color: '#111', fontSize: 15 }}>
+                    {isExpanded ? <ChevronDown size={14} color="var(--portal-text-secondary)" /> : <ChevronRight size={14} color="var(--portal-text-muted)" />}
+                    <span style={{ fontWeight: 700, color: 'var(--portal-text)', fontSize: 15 }}>
                       {a.tecnico_nome.split(' ').slice(0, 2).join(' ')}
                     </span>
                   </div>
@@ -391,7 +391,7 @@ export default function BlocoAlertas({
                     {a.tipo === 'ordem_pendente' && a.referencia_id && (
                       <span style={{ fontWeight: 800, color: '#1E40AF', marginRight: 6, fontSize: 14 }}>OS #{a.referencia_id}</span>
                     )}
-                    <span style={{ fontWeight: 500, color: '#374151', fontSize: 14 }}>
+                    <span style={{ fontWeight: 500, color: 'var(--portal-text-secondary)', fontSize: 14 }}>
                       {a.tipo === 'ordem_pendente' && ordem
                         ? `${ordem.Os_Cliente}${ordem.Cidade_Cliente ? ` — ${ordem.Cidade_Cliente}` : ''}`
                         : a.descricao.length > 100 ? a.descricao.substring(0, 100) + '...' : a.descricao
@@ -413,7 +413,7 @@ export default function BlocoAlertas({
 
                 {/* Detalhe expandido com acoes */}
                 {isExpanded && (
-                  <div style={{ padding: '16px 24px 16px 40px', background: '#F8FAFC', borderBottom: '1px solid #E8E8E8' }}>
+                  <div style={{ padding: '16px 24px 16px 40px', background: 'var(--portal-bg-secondary)', borderBottom: '1px solid var(--portal-border)' }}>
                     {/* ACOES — agora bem visiveis no topo do expandido */}
                     <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
                       {!isContestado && (
@@ -438,18 +438,18 @@ export default function BlocoAlertas({
                     <div style={{ display: 'grid', gridTemplateColumns: ordem ? '1fr 1fr' : '1fr', gap: 16 }}>
                       {/* Detalhes do alerta */}
                       <div>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>Detalhes do Alerta</div>
-                        <div style={{ fontSize: 14, color: '#111', lineHeight: 1.6, marginBottom: 8 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>Detalhes do Alerta</div>
+                        <div style={{ fontSize: 14, color: 'var(--portal-text)', lineHeight: 1.6, marginBottom: 8 }}>
                           {a.descricao}
                         </div>
-                        <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 4 }}>
+                        <div style={{ fontSize: 13, color: 'var(--portal-text-secondary)', marginBottom: 4 }}>
                           Criado em: <strong>{formatDataHora(a.created_at)}</strong>
                         </div>
-                        <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 4 }}>
+                        <div style={{ fontSize: 13, color: 'var(--portal-text-secondary)', marginBottom: 4 }}>
                           Inicio: <strong>{a.data_inicio}</strong> · Dias: <strong style={{ color: corDias(dias), fontSize: 15 }}>{dias}</strong>
                         </div>
                         {a.foto_url && (
-                          <img src={a.foto_url} alt="" style={{ maxWidth: 200, maxHeight: 120, borderRadius: 8, objectFit: 'cover', cursor: 'pointer', marginTop: 8, border: '1px solid #E0E0E0' }}
+                          <img src={a.foto_url} alt="" style={{ maxWidth: 200, maxHeight: 120, borderRadius: 8, objectFit: 'cover', cursor: 'pointer', marginTop: 8, border: '1px solid var(--portal-border)' }}
                             onClick={() => window.open(a.foto_url!, '_blank')} />
                         )}
                         {isContestado && a.contestacao_motivo && (
@@ -461,40 +461,40 @@ export default function BlocoAlertas({
 
                       {/* Detalhes da OS */}
                       {ordem && (
-                        <div style={{ background: '#fff', borderRadius: 8, padding: 16, border: '1px solid #E0E0E0' }}>
-                          <div style={{ fontSize: 12, fontWeight: 700, color: '#999', textTransform: 'uppercase', marginBottom: 10 }}>Ordem de Servico #{ordem.Id_Ordem}</div>
+                        <div style={{ background: 'var(--portal-bg-card)', borderRadius: 8, padding: 16, border: '1px solid var(--portal-border)' }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase', marginBottom: 10 }}>Ordem de Servico #{ordem.Id_Ordem}</div>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px', fontSize: 13 }}>
                             <div>
-                              <span style={{ fontWeight: 600, color: '#999', fontSize: 11 }}>Cliente</span>
-                              <div style={{ fontWeight: 700, color: '#111', fontSize: 15 }}>{ordem.Os_Cliente}</div>
+                              <span style={{ fontWeight: 600, color: 'var(--portal-text-muted)', fontSize: 11 }}>Cliente</span>
+                              <div style={{ fontWeight: 700, color: 'var(--portal-text)', fontSize: 15 }}>{ordem.Os_Cliente}</div>
                             </div>
                             <div>
-                              <span style={{ fontWeight: 600, color: '#999', fontSize: 11 }}>Cidade</span>
-                              <div style={{ fontWeight: 700, color: '#111' }}>{ordem.Cidade_Cliente || '—'}</div>
+                              <span style={{ fontWeight: 600, color: 'var(--portal-text-muted)', fontSize: 11 }}>Cidade</span>
+                              <div style={{ fontWeight: 700, color: 'var(--portal-text)' }}>{ordem.Cidade_Cliente || '—'}</div>
                             </div>
                             <div>
-                              <span style={{ fontWeight: 600, color: '#999', fontSize: 11 }}>Status</span>
+                              <span style={{ fontWeight: 600, color: 'var(--portal-text-muted)', fontSize: 11 }}>Status</span>
                               <div style={{ fontWeight: 700, color: ordem.Status === 'Concluida' ? '#065F46' : '#D97706' }}>{ordem.Status}</div>
                             </div>
                             <div>
-                              <span style={{ fontWeight: 600, color: '#999', fontSize: 11 }}>Tipo</span>
-                              <div style={{ fontWeight: 700, color: '#111' }}>{ordem.Tipo_Servico || '—'}</div>
+                              <span style={{ fontWeight: 600, color: 'var(--portal-text-muted)', fontSize: 11 }}>Tipo</span>
+                              <div style={{ fontWeight: 700, color: 'var(--portal-text)' }}>{ordem.Tipo_Servico || '—'}</div>
                             </div>
                             <div>
-                              <span style={{ fontWeight: 600, color: '#999', fontSize: 11 }}>Previsao Exec.</span>
-                              <div style={{ fontWeight: 700, color: '#111' }}>{ordem.Previsao_Execucao || '—'}</div>
+                              <span style={{ fontWeight: 600, color: 'var(--portal-text-muted)', fontSize: 11 }}>Previsao Exec.</span>
+                              <div style={{ fontWeight: 700, color: 'var(--portal-text)' }}>{ordem.Previsao_Execucao || '—'}</div>
                             </div>
                             <div>
-                              <span style={{ fontWeight: 600, color: '#999', fontSize: 11 }}>Horas</span>
-                              <div style={{ fontWeight: 700, color: '#111' }}>{ordem.Qtd_HR || '—'}h</div>
+                              <span style={{ fontWeight: 600, color: 'var(--portal-text-muted)', fontSize: 11 }}>Horas</span>
+                              <div style={{ fontWeight: 700, color: 'var(--portal-text)' }}>{ordem.Qtd_HR || '—'}h</div>
                             </div>
                             <div style={{ gridColumn: '1 / -1' }}>
-                              <span style={{ fontWeight: 600, color: '#999', fontSize: 11 }}>Tecnico Principal</span>
-                              <div style={{ fontWeight: 700, color: '#111' }}>{ordem.Os_Tecnico}{ordem.Os_Tecnico2 ? ` + ${ordem.Os_Tecnico2}` : ''}</div>
+                              <span style={{ fontWeight: 600, color: 'var(--portal-text-muted)', fontSize: 11 }}>Tecnico Principal</span>
+                              <div style={{ fontWeight: 700, color: 'var(--portal-text)' }}>{ordem.Os_Tecnico}{ordem.Os_Tecnico2 ? ` + ${ordem.Os_Tecnico2}` : ''}</div>
                             </div>
                             <div style={{ gridColumn: '1 / -1' }}>
-                              <span style={{ fontWeight: 600, color: '#999', fontSize: 11 }}>Endereco</span>
-                              <div style={{ fontWeight: 600, color: '#555' }}>{ordem.Endereco_Cliente || '—'}</div>
+                              <span style={{ fontWeight: 600, color: 'var(--portal-text-muted)', fontSize: 11 }}>Endereco</span>
+                              <div style={{ fontWeight: 600, color: 'var(--portal-text-secondary)' }}>{ordem.Endereco_Cliente || '—'}</div>
                             </div>
                           </div>
                           {sol && (
@@ -516,57 +516,57 @@ export default function BlocoAlertas({
       {/* == MODAL NOVO ALERTA == */}
       {showNovoModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 8, padding: 24, width: '100%', maxWidth: 460, border: '1px solid #D0D0D0' }}>
+          <div style={{ background: 'var(--portal-bg-card)', borderRadius: 8, padding: 24, width: '100%', maxWidth: 460, border: '1px solid var(--portal-border)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h3 style={{ fontSize: 16, fontWeight: 800, color: '#111', margin: 0 }}>Novo Alerta</h3>
-              <button onClick={() => setShowNovoModal(false)} style={{ background: '#F0F0F0', border: 'none', cursor: 'pointer', width: 28, height: 28, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} color="#111" /></button>
+              <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--portal-text)', margin: 0 }}>Novo Alerta</h3>
+              <button onClick={() => setShowNovoModal(false)} style={{ background: 'var(--portal-bg-secondary)', border: 'none', cursor: 'pointer', width: 28, height: 28, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} color="var(--portal-text-muted)" /></button>
             </div>
             <div style={{ marginBottom: 14 }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: '#111', display: 'block', marginBottom: 5 }}>Destino</label>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', display: 'block', marginBottom: 5 }}>Destino</label>
               <div style={{ display: 'flex', gap: 6 }}>
                 {(['individual', 'todos'] as const).map(alvo => (
                   <button key={alvo} onClick={() => setNovoAlerta(p => ({ ...p, alvo }))} style={{
                     flex: 1, padding: 9, borderRadius: 4, fontSize: 13, fontWeight: 700,
-                    border: `1px solid ${novoAlerta.alvo === alvo ? '#111' : '#D0D0D0'}`,
-                    background: novoAlerta.alvo === alvo ? '#111' : '#fff',
-                    color: novoAlerta.alvo === alvo ? '#fff' : '#111', cursor: 'pointer',
+                    border: `1px solid ${novoAlerta.alvo === alvo ? '#111' : 'var(--portal-border)'}`,
+                    background: novoAlerta.alvo === alvo ? '#111' : 'var(--portal-bg-card)',
+                    color: novoAlerta.alvo === alvo ? '#fff' : 'var(--portal-text)', cursor: 'pointer',
                   }}>{alvo === 'individual' ? 'Tecnico especifico' : 'Todos os tecnicos'}</button>
                 ))}
               </div>
             </div>
             {novoAlerta.alvo === 'individual' && (
               <div style={{ marginBottom: 14 }}>
-                <label style={{ fontSize: 12, fontWeight: 700, color: '#111', display: 'block', marginBottom: 5 }}>Tecnico</label>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', display: 'block', marginBottom: 5 }}>Tecnico</label>
                 <select value={novoAlerta.tecnico_nome} onChange={e => setNovoAlerta(p => ({ ...p, tecnico_nome: e.target.value }))}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: 4, border: '1px solid #D0D0D0', fontSize: 13, background: '#fff', color: '#111' }}>
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 4, border: '1px solid var(--portal-border)', fontSize: 13, background: 'var(--portal-bg-card)', color: 'var(--portal-text)' }}>
                   <option value="">Selecione...</option>
                   {tecAtivos.map(t => <option key={t.user_id} value={t.tecnico_nome}>{t.tecnico_nome}</option>)}
                 </select>
               </div>
             )}
             <div style={{ marginBottom: 14 }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: '#111', display: 'block', marginBottom: 5 }}>Tipo</label>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', display: 'block', marginBottom: 5 }}>Tipo</label>
               <select value={novoAlerta.tipo} onChange={e => setNovoAlerta(p => ({ ...p, tipo: e.target.value }))}
-                style={{ width: '100%', padding: '9px 12px', borderRadius: 4, border: '1px solid #D0D0D0', fontSize: 13, background: '#fff', color: '#111' }}>
+                style={{ width: '100%', padding: '9px 12px', borderRadius: 4, border: '1px solid var(--portal-border)', fontSize: 13, background: 'var(--portal-bg-card)', color: 'var(--portal-text)' }}>
                 {Object.entries(TIPO_LABELS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
               </select>
             </div>
             <div style={{ marginBottom: 14 }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: '#111', display: 'block', marginBottom: 5 }}>Descricao</label>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', display: 'block', marginBottom: 5 }}>Descricao</label>
               <textarea value={novoAlerta.descricao} onChange={e => setNovoAlerta(p => ({ ...p, descricao: e.target.value }))}
                 placeholder="Descreva o alerta..." rows={3}
-                style={{ width: '100%', padding: '9px 12px', borderRadius: 4, border: '1px solid #D0D0D0', fontSize: 13, resize: 'vertical', color: '#111', boxSizing: 'border-box' }} />
+                style={{ width: '100%', padding: '9px 12px', borderRadius: 4, border: '1px solid var(--portal-border)', fontSize: 13, resize: 'vertical', color: 'var(--portal-text)', boxSizing: 'border-box', background: 'var(--portal-bg-card)' }} />
             </div>
             <div style={{ marginBottom: 18 }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: '#111', display: 'block', marginBottom: 5 }}>Foto (opcional)</label>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', display: 'block', marginBottom: 5 }}>Foto (opcional)</label>
               <input ref={fileRef} type="file" accept="image/*" onChange={e => setFotoFile(e.target.files?.[0] || null)} style={{ display: 'none' }} />
               <button onClick={() => fileRef.current?.click()} style={{
-                display: 'flex', alignItems: 'center', gap: 6, background: '#fff', color: '#111',
-                border: '1px dashed #D0D0D0', borderRadius: 4, padding: '9px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', width: '100%', justifyContent: 'center',
+                display: 'flex', alignItems: 'center', gap: 6, background: 'var(--portal-bg-card)', color: 'var(--portal-text)',
+                border: '1px dashed var(--portal-border)', borderRadius: 4, padding: '9px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', width: '100%', justifyContent: 'center',
               }}><Camera size={14} />{fotoFile ? fotoFile.name : 'Anexar foto'}</button>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => setShowNovoModal(false)} style={{ flex: 1, padding: 10, borderRadius: 4, fontSize: 13, fontWeight: 700, background: '#F0F0F0', color: '#111', border: 'none', cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={() => setShowNovoModal(false)} style={{ flex: 1, padding: 10, borderRadius: 4, fontSize: 13, fontWeight: 700, background: 'var(--portal-bg-secondary)', color: 'var(--portal-text)', border: 'none', cursor: 'pointer' }}>Cancelar</button>
               <button onClick={criarAlertaManual} disabled={uploading} style={{ flex: 1, padding: 10, borderRadius: 4, fontSize: 13, fontWeight: 700, background: '#111', color: '#fff', border: 'none', cursor: 'pointer', opacity: uploading ? 0.6 : 1 }}>
                 {uploading ? 'Salvando...' : 'Criar Alerta'}
               </button>
@@ -578,31 +578,31 @@ export default function BlocoAlertas({
       {/* == MODAL CONVERTER EM OCORRENCIA == */}
       {showConverterModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 8, padding: 24, width: '100%', maxWidth: 420, border: '1px solid #D0D0D0' }}>
+          <div style={{ background: 'var(--portal-bg-card)', borderRadius: 8, padding: 24, width: '100%', maxWidth: 420, border: '1px solid var(--portal-border)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h3 style={{ fontSize: 16, fontWeight: 800, color: '#111', margin: 0 }}>Converter em Ocorrencia</h3>
-              <button onClick={() => setShowConverterModal(null)} style={{ background: '#F0F0F0', border: 'none', cursor: 'pointer', width: 28, height: 28, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} color="#111" /></button>
+              <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--portal-text)', margin: 0 }}>Converter em Ocorrencia</h3>
+              <button onClick={() => setShowConverterModal(null)} style={{ background: 'var(--portal-bg-secondary)', border: 'none', cursor: 'pointer', width: 28, height: 28, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} color="var(--portal-text-muted)" /></button>
             </div>
-            <div style={{ background: '#F7F7F7', padding: '10px 12px', borderRadius: 6, marginBottom: 16, border: '1px solid #E8E8E8' }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#555', marginBottom: 4 }}>Alerta original</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#111' }}>{showConverterModal.tecnico_nome}</div>
-              <div style={{ fontSize: 13, color: '#111', marginTop: 2 }}>{showConverterModal.descricao}</div>
+            <div style={{ background: 'var(--portal-bg-secondary)', padding: '10px 12px', borderRadius: 6, marginBottom: 16, border: '1px solid var(--portal-border)' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text-secondary)', marginBottom: 4 }}>Alerta original</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text)' }}>{showConverterModal.tecnico_nome}</div>
+              <div style={{ fontSize: 13, color: 'var(--portal-text)', marginTop: 2 }}>{showConverterModal.descricao}</div>
             </div>
             <div style={{ marginBottom: 14 }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: '#111', display: 'block', marginBottom: 5 }}>Tipo da Ocorrencia</label>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', display: 'block', marginBottom: 5 }}>Tipo da Ocorrencia</label>
               <select value={converterDados.tipo} onChange={e => setConverterDados(p => ({ ...p, tipo: e.target.value }))}
-                style={{ width: '100%', padding: '9px 12px', borderRadius: 4, border: '1px solid #D0D0D0', fontSize: 13, background: '#fff', color: '#111' }}>
+                style={{ width: '100%', padding: '9px 12px', borderRadius: 4, border: '1px solid var(--portal-border)', fontSize: 13, background: 'var(--portal-bg-card)', color: 'var(--portal-text)' }}>
                 {Object.entries(tipoOcorrencia).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
               </select>
             </div>
             <div style={{ marginBottom: 18 }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: '#111', display: 'block', marginBottom: 5 }}>Pontos a descontar</label>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', display: 'block', marginBottom: 5 }}>Pontos a descontar</label>
               <input type="number" min={0} max={100} value={converterDados.pontos_descontados}
                 onChange={e => setConverterDados(p => ({ ...p, pontos_descontados: Number(e.target.value) }))}
-                style={{ width: '100%', padding: '9px 12px', borderRadius: 4, border: '1px solid #D0D0D0', fontSize: 13, background: '#fff', color: '#111', boxSizing: 'border-box' }} />
+                style={{ width: '100%', padding: '9px 12px', borderRadius: 4, border: '1px solid var(--portal-border)', fontSize: 13, background: 'var(--portal-bg-card)', color: 'var(--portal-text)', boxSizing: 'border-box' }} />
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => setShowConverterModal(null)} style={{ flex: 1, padding: 10, borderRadius: 4, fontSize: 13, fontWeight: 700, background: '#F0F0F0', color: '#111', border: 'none', cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={() => setShowConverterModal(null)} style={{ flex: 1, padding: 10, borderRadius: 4, fontSize: 13, fontWeight: 700, background: 'var(--portal-bg-secondary)', color: 'var(--portal-text)', border: 'none', cursor: 'pointer' }}>Cancelar</button>
               <button onClick={async () => {
                 await onConverterOcorrencia(showConverterModal, converterDados.tipo, converterDados.pontos_descontados)
                 setShowConverterModal(null)
@@ -617,13 +617,13 @@ export default function BlocoAlertas({
       {/* == MODAL CONTESTAR == */}
       {showContestarModal !== null && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 8, padding: 24, width: '100%', maxWidth: 400, border: '1px solid #D0D0D0' }}>
-            <h3 style={{ fontSize: 16, fontWeight: 800, color: '#111', margin: '0 0 14px' }}>Contestar Alerta</h3>
+          <div style={{ background: 'var(--portal-bg-card)', borderRadius: 8, padding: 24, width: '100%', maxWidth: 400, border: '1px solid var(--portal-border)' }}>
+            <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--portal-text)', margin: '0 0 14px' }}>Contestar Alerta</h3>
             <textarea value={contestacaoMotivo} onChange={e => setContestacaoMotivo(e.target.value)}
               placeholder="Motivo da contestacao..." rows={3}
-              style={{ width: '100%', padding: '9px 12px', borderRadius: 4, border: '1px solid #D0D0D0', fontSize: 13, resize: 'vertical', marginBottom: 14, color: '#111', boxSizing: 'border-box' }} />
+              style={{ width: '100%', padding: '9px 12px', borderRadius: 4, border: '1px solid var(--portal-border)', fontSize: 13, resize: 'vertical', marginBottom: 14, color: 'var(--portal-text)', boxSizing: 'border-box', background: 'var(--portal-bg-card)' }} />
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => { setShowContestarModal(null); setContestacaoMotivo('') }} style={{ flex: 1, padding: 10, borderRadius: 4, fontSize: 13, fontWeight: 700, background: '#F0F0F0', color: '#111', border: 'none', cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={() => { setShowContestarModal(null); setContestacaoMotivo('') }} style={{ flex: 1, padding: 10, borderRadius: 4, fontSize: 13, fontWeight: 700, background: 'var(--portal-bg-secondary)', color: 'var(--portal-text)', border: 'none', cursor: 'pointer' }}>Cancelar</button>
               <button onClick={() => contestarAlerta(showContestarModal)} style={{ flex: 1, padding: 10, borderRadius: 4, fontSize: 13, fontWeight: 700, background: '#F59E0B', color: '#fff', border: 'none', cursor: 'pointer' }}>Contestar</button>
             </div>
           </div>

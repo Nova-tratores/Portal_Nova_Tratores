@@ -87,14 +87,14 @@ export default function BlocoOcorrencias({
   const totalOcorrencias = ocorrenciasMes.length
   const totalPontos = porTecnico.reduce((acc, [, v]) => acc + v.pontos, 0)
 
-  const SEL: React.CSSProperties = { padding: '7px 10px', borderRadius: 4, border: '1px solid #D0D0D0', fontSize: 13, fontWeight: 600, background: '#fff', color: '#111', cursor: 'pointer' }
+  const SEL: React.CSSProperties = { padding: '7px 10px', borderRadius: 4, border: '1px solid var(--portal-border)', fontSize: 13, fontWeight: 600, background: 'var(--portal-bg-card)', color: 'var(--portal-text)', cursor: 'pointer' }
 
   return (
     <div>
       {/* ══ HEADER ══ */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 16, alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 16, fontWeight: 800, color: '#111' }}>Ocorrencias</span>
+          <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--portal-text)' }}>Ocorrencias</span>
           <span style={{ fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 4, background: totalOcorrencias > 0 ? '#FEE2E2' : '#D1FAE5', color: totalOcorrencias > 0 ? '#DC2626' : '#065F46' }}>
             {totalOcorrencias} ocorrencia(s)
           </span>
@@ -103,8 +103,8 @@ export default function BlocoOcorrencias({
               -{totalPontos} pts total
             </span>
           )}
-          <span style={{ width: 1, height: 20, background: '#D0D0D0', margin: '0 4px' }} />
-          <Filter size={14} color="#111" />
+          <span style={{ width: 1, height: 20, background: 'var(--portal-border)', margin: '0 4px' }} />
+          <Filter size={14} color="var(--portal-text)" />
           <select value={mesSelecionado} onChange={e => setMesSelecionado(e.target.value)} style={SEL}>
             {mesesDisponiveis.map(m => (
               <option key={m} value={m}>{formatMes(m)}{m === mesAtual ? ' (atual)' : ''}</option>
@@ -122,11 +122,11 @@ export default function BlocoOcorrencias({
 
       {/* ══ CARDS POR TÉCNICO ══ */}
       {porTecnico.length === 0 ? (
-        <div style={{ padding: 40, textAlign: 'center', color: '#999', fontSize: 14, fontWeight: 500, border: '1px solid #E8E8E8', borderRadius: 8, background: '#FAFAFA' }}>
+        <div style={{ padding: 40, textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 14, fontWeight: 500, border: '1px solid var(--portal-border)', borderRadius: 8, background: 'var(--portal-bg-secondary)' }}>
           Nenhuma ocorrencia em {formatMes(mesSelecionado)}
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, border: '1px solid #D0D0D0', borderRadius: 6, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, border: '1px solid var(--portal-border)', borderRadius: 6, overflow: 'hidden' }}>
           {porTecnico.map(([nome, dados]) => {
             const aberto = tecExpandido === nome
             return (
@@ -137,19 +137,19 @@ export default function BlocoOcorrencias({
                   style={{
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                     padding: '12px 16px', cursor: 'pointer',
-                    background: aberto ? '#F7F7F7' : '#fff',
-                    borderBottom: '1px solid #E8E8E8',
+                    background: aberto ? 'var(--portal-bg-secondary)' : 'var(--portal-bg-card)',
+                    borderBottom: '1px solid var(--portal-border)',
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    {aberto ? <ChevronDown size={16} color="#111" /> : <ChevronRight size={16} color="#111" />}
-                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 13, fontWeight: 700 }}>
+                    {aberto ? <ChevronDown size={16} color="var(--portal-text)" /> : <ChevronRight size={16} color="var(--portal-text)" />}
+                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--portal-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--portal-bg-card)', fontSize: 13, fontWeight: 700 }}>
                       {nome.charAt(0)}
                     </div>
-                    <span style={{ fontSize: 15, fontWeight: 700, color: '#111' }}>{nome}</span>
+                    <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--portal-text)' }}>{nome}</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: '#555' }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--portal-text-secondary)' }}>
                       {dados.ocorrencias.length} ocorrencia(s)
                     </span>
                     <span style={{ fontSize: 13, fontWeight: 800, padding: '4px 12px', borderRadius: 4, background: dados.pontos > 0 ? '#FEE2E2' : '#D1FAE5', color: dados.pontos > 0 ? '#DC2626' : '#065F46' }}>
@@ -160,12 +160,12 @@ export default function BlocoOcorrencias({
 
                 {/* Lista de ocorrências */}
                 {aberto && (
-                  <div style={{ background: '#FAFAFA' }}>
+                  <div style={{ background: 'var(--portal-bg-secondary)' }}>
                     {/* Header tabela */}
                     <div style={{
                       display: 'grid', gridTemplateColumns: '120px 1fr 80px 100px 80px',
-                      padding: '6px 16px', background: '#F0F0F0', borderBottom: '1px solid #D0D0D0',
-                      fontSize: 11, fontWeight: 700, color: '#111', textTransform: 'uppercase', letterSpacing: '.03em',
+                      padding: '6px 16px', background: 'var(--portal-border)', borderBottom: '1px solid var(--portal-border)',
+                      fontSize: 11, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: '.03em',
                     }}>
                       <span>Tipo</span>
                       <span>Descricao</span>
@@ -184,8 +184,8 @@ export default function BlocoOcorrencias({
                         return (
                           <div key={o.id} style={{
                             display: 'grid', gridTemplateColumns: '120px 1fr 80px 100px 80px',
-                            padding: '10px 16px', borderBottom: '1px solid #E8E8E8', alignItems: 'center',
-                            background: '#fff',
+                            padding: '10px 16px', borderBottom: '1px solid var(--portal-border)', alignItems: 'center',
+                            background: 'var(--portal-bg-card)',
                             borderLeft: `3px solid ${ti.color}`,
                             opacity: justAprovada ? 0.5 : 1,
                           }}>
@@ -193,7 +193,7 @@ export default function BlocoOcorrencias({
                               {ti.label}
                             </span>
                             <div style={{ overflow: 'hidden', paddingRight: 8 }}>
-                              <div style={{ fontSize: 13, fontWeight: 600, color: '#111', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--portal-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {o.descricao}
                               </div>
                               {justAprovada && (
@@ -207,10 +207,10 @@ export default function BlocoOcorrencias({
                                 </div>
                               )}
                             </div>
-                            <span style={{ fontSize: 12, fontWeight: 500, color: '#555' }}>
+                            <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--portal-text-secondary)' }}>
                               {o.id_ordem ? `#${o.id_ordem}` : '--'}
                             </span>
-                            <span style={{ fontSize: 12, fontWeight: 500, color: '#111' }}>
+                            <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--portal-text)' }}>
                               {o.data ? formatData(o.data) : '--'}
                             </span>
                             <span style={{ fontSize: 14, fontWeight: 900, color: justAprovada ? '#999' : '#DC2626', textAlign: 'right', textDecoration: justAprovada ? 'line-through' : 'none' }}>
@@ -229,16 +229,16 @@ export default function BlocoOcorrencias({
 
       {/* ══ RESUMO DO MÊS ══ */}
       {porTecnico.length > 0 && (
-        <div style={{ marginTop: 20, padding: 16, background: '#F7F7F7', borderRadius: 8, border: '1px solid #E8E8E8' }}>
-          <div style={{ fontSize: 13, fontWeight: 800, color: '#111', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '.03em' }}>
+        <div style={{ marginTop: 20, padding: 16, background: 'var(--portal-bg-secondary)', borderRadius: 8, border: '1px solid var(--portal-border)' }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--portal-text)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '.03em' }}>
             Resumo {formatMes(mesSelecionado)}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
             {porTecnico.map(([nome, dados]) => (
-              <div key={nome} style={{ background: '#fff', padding: '10px 14px', borderRadius: 6, border: '1px solid #E8E8E8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div key={nome} style={{ background: 'var(--portal-bg-card)', padding: '10px 14px', borderRadius: 6, border: '1px solid var(--portal-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#111' }}>{nome.split(' ').slice(0, 2).join(' ')}</div>
-                  <div style={{ fontSize: 11, color: '#777', fontWeight: 500 }}>{dados.ocorrencias.length} ocorr.</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--portal-text)' }}>{nome.split(' ').slice(0, 2).join(' ')}</div>
+                  <div style={{ fontSize: 11, color: 'var(--portal-text-secondary)', fontWeight: 500 }}>{dados.ocorrencias.length} ocorr.</div>
                 </div>
                 <div style={{ fontSize: 18, fontWeight: 900, color: dados.pontos > 0 ? '#DC2626' : '#065F46' }}>
                   -{dados.pontos}
@@ -252,52 +252,52 @@ export default function BlocoOcorrencias({
       {/* ══ MODAL NOVA OCORRÊNCIA ══ */}
       {showNovaModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setShowNovaModal(false)}>
-          <div style={{ background: '#fff', borderRadius: 8, padding: 24, width: '100%', maxWidth: 440, border: '1px solid #D0D0D0' }} onClick={e => e.stopPropagation()}>
+          <div style={{ background: 'var(--portal-bg-card)', borderRadius: 8, padding: 24, width: '100%', maxWidth: 440, border: '1px solid var(--portal-border)' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h3 style={{ fontSize: 16, fontWeight: 800, color: '#111', margin: 0 }}>Nova Ocorrencia</h3>
-              <button onClick={() => setShowNovaModal(false)} style={{ background: '#F0F0F0', border: 'none', cursor: 'pointer', width: 28, height: 28, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} color="#111" /></button>
+              <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--portal-text)', margin: 0 }}>Nova Ocorrencia</h3>
+              <button onClick={() => setShowNovaModal(false)} style={{ background: 'var(--portal-bg-secondary)', border: 'none', cursor: 'pointer', width: 28, height: 28, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} color="var(--portal-text)" /></button>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: '#111', display: 'block', marginBottom: 5 }}>Tecnico</label>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', display: 'block', marginBottom: 5 }}>Tecnico</label>
                 <select value={nova.tecnico_nome} onChange={e => setNova(p => ({ ...p, tecnico_nome: e.target.value }))}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: 4, border: '1px solid #D0D0D0', fontSize: 13, background: '#fff', color: '#111' }}>
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 4, border: '1px solid var(--portal-border)', fontSize: 13, background: 'var(--portal-bg-card)', color: 'var(--portal-text)' }}>
                   <option value="">Selecione...</option>
                   {tecAtivos.map(t => <option key={t.user_id} value={t.tecnico_nome}>{t.tecnico_nome}</option>)}
                 </select>
               </div>
 
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: '#111', display: 'block', marginBottom: 5 }}>OS (opcional)</label>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', display: 'block', marginBottom: 5 }}>OS (opcional)</label>
                 <input type="text" value={nova.id_ordem} onChange={e => setNova(p => ({ ...p, id_ordem: e.target.value }))}
-                  placeholder="Ex: 1234" style={{ width: '100%', padding: '9px 12px', borderRadius: 4, border: '1px solid #D0D0D0', fontSize: 13, background: '#fff', color: '#111', boxSizing: 'border-box' }} />
+                  placeholder="Ex: 1234" style={{ width: '100%', padding: '9px 12px', borderRadius: 4, border: '1px solid var(--portal-border)', fontSize: 13, background: 'var(--portal-bg-card)', color: 'var(--portal-text)', boxSizing: 'border-box' }} />
               </div>
 
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: '#111', display: 'block', marginBottom: 5 }}>Tipo</label>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', display: 'block', marginBottom: 5 }}>Tipo</label>
                 <select value={nova.tipo} onChange={e => setNova(p => ({ ...p, tipo: e.target.value }))}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: 4, border: '1px solid #D0D0D0', fontSize: 13, background: '#fff', color: '#111' }}>
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 4, border: '1px solid var(--portal-border)', fontSize: 13, background: 'var(--portal-bg-card)', color: 'var(--portal-text)' }}>
                   {Object.entries(tipoOcorrencia).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                 </select>
               </div>
 
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: '#111', display: 'block', marginBottom: 5 }}>Descricao</label>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', display: 'block', marginBottom: 5 }}>Descricao</label>
                 <textarea value={nova.descricao} onChange={e => setNova(p => ({ ...p, descricao: e.target.value }))}
                   placeholder="Descreva a ocorrencia..." rows={3}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: 4, border: '1px solid #D0D0D0', fontSize: 13, resize: 'vertical', color: '#111', boxSizing: 'border-box' }} />
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 4, border: '1px solid var(--portal-border)', fontSize: 13, resize: 'vertical', color: 'var(--portal-text)', boxSizing: 'border-box' }} />
               </div>
 
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: '#111', display: 'block', marginBottom: 5 }}>Pontos a descontar</label>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', display: 'block', marginBottom: 5 }}>Pontos a descontar</label>
                 <input type="number" min={0} max={100} value={nova.pontos_descontados}
                   onChange={e => setNova(p => ({ ...p, pontos_descontados: Number(e.target.value) }))}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: 4, border: '1px solid #D0D0D0', fontSize: 13, background: '#fff', color: '#111', boxSizing: 'border-box' }} />
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 4, border: '1px solid var(--portal-border)', fontSize: 13, background: 'var(--portal-bg-card)', color: 'var(--portal-text)', boxSizing: 'border-box' }} />
               </div>
 
               <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                <button onClick={() => setShowNovaModal(false)} style={{ flex: 1, padding: 10, borderRadius: 4, fontSize: 13, fontWeight: 700, background: '#F0F0F0', color: '#111', border: 'none', cursor: 'pointer' }}>Cancelar</button>
+                <button onClick={() => setShowNovaModal(false)} style={{ flex: 1, padding: 10, borderRadius: 4, fontSize: 13, fontWeight: 700, background: 'var(--portal-bg-secondary)', color: 'var(--portal-text)', border: 'none', cursor: 'pointer' }}>Cancelar</button>
                 <button disabled={salvando || !nova.tecnico_nome || !nova.descricao} onClick={async () => {
                   setSalvando(true)
                   await onSalvarOcorrencia(nova)

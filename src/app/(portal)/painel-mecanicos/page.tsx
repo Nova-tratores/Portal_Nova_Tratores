@@ -146,7 +146,7 @@ function PainelMecanicosPage() {
   const avaliarJustificativa = async (id: number, aprovada: boolean) => { const just = justificativas.find(j => j.id === id); await supabase.from('tecnico_justificativas').update({ status: aprovada ? 'aprovada' : 'recusada', descontar_comissao: !aprovada, data_avaliacao: new Date().toISOString() }).eq('id', id); if (just) { await notificarAdmins('pos', `Justificativa ${aprovada ? 'aceita' : 'recusada'} - ${just.tecnico_nome}`, `${just.justificativa.substring(0, 100)}${aprovada ? ' (sem desconto)' : ' (desconta comissão)'}`); await supabase.from('mecanico_notificacoes').insert({ tecnico_nome: just.tecnico_nome, tipo: 'execucao', titulo: `Justificativa ${aprovada ? 'aceita' : 'recusada'}`, descricao: aprovada ? 'Sua justificativa foi aceita, sem desconto na comissão.' : 'Sua justificativa foi recusada, haverá desconto na comissão.', link: '', lida: false }) }; carregar() }
 
   if (loading) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 80, color: '#9CA3AF', gap: 10 }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 80, color: 'var(--portal-text-muted)', gap: 10 }}>
       <RefreshCw size={16} style={{ animation: 'spin 1s linear infinite' }} />
       <span style={{ fontSize: 14 }}>Carregando...</span>
       <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
@@ -161,8 +161,8 @@ function PainelMecanicosPage() {
     { id: 'relatorio', label: 'Relatorio', icon: <BarChart3 size={14} /> },
   ]
 
-  const INP: React.CSSProperties = { width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #E4E4E7', fontSize: 13, boxSizing: 'border-box', background: '#FAFAFA', outline: 'none', color: '#18181B' }
-  const MLBL: React.CSSProperties = { fontSize: 12, fontWeight: 500, color: '#71717A', display: 'block', marginBottom: 5 }
+  const INP: React.CSSProperties = { width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--portal-border)', fontSize: 13, boxSizing: 'border-box', background: 'var(--portal-bg-secondary)', outline: 'none', color: 'var(--portal-text)' }
+  const MLBL: React.CSSProperties = { fontSize: 12, fontWeight: 500, color: 'var(--portal-text-secondary)', display: 'block', marginBottom: 5 }
 
   return (
     <div style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', minHeight: 'calc(100vh - 84px)', position: 'relative' }}>
@@ -171,7 +171,7 @@ function PainelMecanicosPage() {
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <h1 style={{ fontSize: 20, fontWeight: 800, color: '#111827', margin: 0 }}>Painel Mecanicos</h1>
+            <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--portal-text)', margin: 0 }}>Painel Mecanicos</h1>
             {/* Tabs de navegação */}
             <div style={{ display: 'flex', gap: 2 }}>
               {TABS.map(t => {
@@ -181,13 +181,13 @@ function PainelMecanicosPage() {
                     display: 'flex', alignItems: 'center', gap: 4,
                     padding: '5px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
                     background: active ? '#111827' : 'transparent',
-                    color: active ? '#fff' : '#9CA3AF',
+                    color: active ? '#fff' : 'var(--portal-text-muted)',
                     fontSize: 12, fontWeight: active ? 600 : 500, transition: 'all .15s',
                   }}>
                     {t.icon}
                     {t.label}
                     {(t.count !== undefined && t.count > 0) && (
-                      <span style={{ fontSize: 10, fontWeight: 700, background: active ? 'rgba(255,255,255,.2)' : '#F3F4F6', color: active ? '#fff' : '#999', padding: '0 5px', borderRadius: 4, lineHeight: '16px' }}>{t.count}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, background: active ? 'rgba(255,255,255,.2)' : 'var(--portal-bg-secondary)', color: active ? '#fff' : 'var(--portal-text-muted)', padding: '0 5px', borderRadius: 4, lineHeight: '16px' }}>{t.count}</span>
                     )}
                   </button>
                 )
@@ -196,14 +196,14 @@ function PainelMecanicosPage() {
             {/* Setas semana (só na Agenda) */}
             {blocoAtivo === 'ordens' && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 4 }}>
-                <button onClick={() => setSemanaOffset(p => p - 1)} style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #E0E0E0', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                <button onClick={() => setSemanaOffset(p => p - 1)} style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                   <ChevronLeft size={14} color="#555" />
                 </button>
-                <button onClick={() => setSemanaOffset(p => p + 1)} style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #E0E0E0', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                <button onClick={() => setSemanaOffset(p => p + 1)} style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                   <ChevronRight size={14} color="#555" />
                 </button>
                 {semanaOffset !== 0 && (
-                  <button onClick={() => setSemanaOffset(0)} style={{ fontSize: 11, fontWeight: 600, color: '#111', background: '#F3F4F6', border: '1px solid #E5E7EB', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}>Hoje</button>
+                  <button onClick={() => setSemanaOffset(0)} style={{ fontSize: 11, fontWeight: 600, color: 'var(--portal-text)', background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}>Hoje</button>
                 )}
               </div>
             )}
@@ -212,10 +212,10 @@ function PainelMecanicosPage() {
             <button onClick={() => setShowOcorrenciaModal(true)} style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#111827', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>
               <AlertOctagon size={12} /> Ocorrencia
             </button>
-            <button onClick={carregar} style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#fff', color: '#6B7280', border: '1px solid #E5E7EB', borderRadius: 6, padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}>
+            <button onClick={carregar} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--portal-bg-card)', color: 'var(--portal-text-secondary)', border: '1px solid var(--portal-border)', borderRadius: 6, padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}>
               <RefreshCw size={12} /> Atualizar
             </button>
-            <a href="/tv-painel" target="_blank" rel="noopener" style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#fff', color: '#6B7280', border: '1px solid #E5E7EB', borderRadius: 6, padding: '6px 12px', fontSize: 12, textDecoration: 'none', fontWeight: 500 }}>TV</a>
+            <a href="/tv-painel" target="_blank" rel="noopener" style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--portal-bg-card)', color: 'var(--portal-text-secondary)', border: '1px solid var(--portal-border)', borderRadius: 6, padding: '6px 12px', fontSize: 12, textDecoration: 'none', fontWeight: 500 }}>TV</a>
           </div>
         </div>
 
@@ -237,15 +237,15 @@ function PainelMecanicosPage() {
       {/* ══ MODAL OCORRENCIA ══ */}
       {showOcorrenciaModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setShowOcorrenciaModal(false)}>
-          <div style={{ background: '#fff', borderRadius: 12, padding: 28, width: '100%', maxWidth: 440, border: '1px solid #E4E4E7' }} onClick={e => e.stopPropagation()}>
+          <div style={{ background: 'var(--portal-bg-card)', borderRadius: 12, padding: 28, width: '100%', maxWidth: 440, border: '1px solid var(--portal-border)' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-              <h2 style={{ fontSize: 16, fontWeight: 600, color: '#18181B', margin: 0 }}>Nova Ocorrencia</h2>
-              <button onClick={() => setShowOcorrenciaModal(false)} style={{ background: '#F4F4F5', border: 'none', cursor: 'pointer', color: '#A1A1AA', width: 28, height: 28, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} /></button>
+              <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--portal-text)', margin: 0 }}>Nova Ocorrencia</h2>
+              <button onClick={() => setShowOcorrenciaModal(false)} style={{ background: 'var(--portal-bg-secondary)', border: 'none', cursor: 'pointer', color: 'var(--portal-text-muted)', width: 28, height: 28, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} /></button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div><label style={MLBL}>Tecnico</label><select value={novaOcorrencia.tecnico_nome} onChange={e => setNovaOcorrencia({ ...novaOcorrencia, tecnico_nome: e.target.value })} style={{ ...INP, background: '#fff' }}><option value="">Selecione...</option>{tecnicos.map(t => <option key={t.user_id} value={t.tecnico_nome}>{t.tecnico_nome}</option>)}</select></div>
+              <div><label style={MLBL}>Tecnico</label><select value={novaOcorrencia.tecnico_nome} onChange={e => setNovaOcorrencia({ ...novaOcorrencia, tecnico_nome: e.target.value })} style={{ ...INP, background: 'var(--portal-bg-card)' }}><option value="">Selecione...</option>{tecnicos.map(t => <option key={t.user_id} value={t.tecnico_nome}>{t.tecnico_nome}</option>)}</select></div>
               <div><label style={MLBL}>OS (opcional)</label><input type="text" value={novaOcorrencia.id_ordem} onChange={e => setNovaOcorrencia({ ...novaOcorrencia, id_ordem: e.target.value })} placeholder="Ex: OS-001" style={INP} /></div>
-              <div><label style={MLBL}>Tipo</label><select value={novaOcorrencia.tipo} onChange={e => setNovaOcorrencia({ ...novaOcorrencia, tipo: e.target.value })} style={{ ...INP, background: '#fff' }}>{Object.entries(TIPO_OCORRENCIA).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></div>
+              <div><label style={MLBL}>Tipo</label><select value={novaOcorrencia.tipo} onChange={e => setNovaOcorrencia({ ...novaOcorrencia, tipo: e.target.value })} style={{ ...INP, background: 'var(--portal-bg-card)' }}>{Object.entries(TIPO_OCORRENCIA).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></div>
               <div><label style={MLBL}>Descricao</label><textarea value={novaOcorrencia.descricao} onChange={e => setNovaOcorrencia({ ...novaOcorrencia, descricao: e.target.value })} placeholder="Descreva..." rows={3} style={{ ...INP, resize: 'vertical', fontFamily: 'inherit' }} /></div>
               <div><label style={MLBL}>Pontos a descontar</label><input type="number" min={0} max={100} value={novaOcorrencia.pontos_descontados} onChange={e => setNovaOcorrencia({ ...novaOcorrencia, pontos_descontados: Number(e.target.value) })} style={INP} /></div>
               <button onClick={salvarOcorrencia} style={{ width: '100%', padding: '10px 0', borderRadius: 8, border: 'none', background: '#18181B', color: '#fff', fontSize: 14, fontWeight: 500, cursor: 'pointer', marginTop: 4 }}>Registrar</button>

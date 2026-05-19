@@ -276,18 +276,18 @@ export default function BlocoRelatorioMensal({ tecnicos }: { tecnicos: Tecnico[]
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28, flexWrap: 'wrap', gap: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           {/* Toggle Todos / Individual */}
-          <div style={{ display: 'flex', background: '#F3F4F6', borderRadius: 8, padding: 3 }}>
+          <div style={{ display: 'flex', background: 'var(--portal-bg-secondary)', borderRadius: 8, padding: 3 }}>
             <button onClick={() => setViewMode('todos')} style={{
               padding: '8px 16px', borderRadius: 6, border: 'none', cursor: 'pointer',
               fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5,
               background: viewMode === 'todos' ? '#111' : 'transparent',
-              color: viewMode === 'todos' ? '#fff' : '#6B7280',
+              color: viewMode === 'todos' ? '#fff' : 'var(--portal-text-secondary)',
             }}><Users size={14} /> Todos</button>
             <button onClick={() => setViewMode('individual')} style={{
               padding: '8px 16px', borderRadius: 6, border: 'none', cursor: 'pointer',
               fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5,
               background: viewMode === 'individual' ? '#111' : 'transparent',
-              color: viewMode === 'individual' ? '#fff' : '#6B7280',
+              color: viewMode === 'individual' ? '#fff' : 'var(--portal-text-secondary)',
             }}>Individual</button>
           </div>
 
@@ -303,12 +303,12 @@ export default function BlocoRelatorioMensal({ tecnicos }: { tecnicos: Tecnico[]
             </>
           )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, padding: 4 }}>
-          <button onClick={prevMes} style={{ width: 34, height: 34, borderRadius: 8, border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#555' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 10, padding: 4 }}>
+          <button onClick={prevMes} style={{ width: 34, height: 34, borderRadius: 8, border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--portal-text-secondary)' }}>
             <ChevronLeft size={18} />
           </button>
-          <span style={{ fontSize: 16, fontWeight: 800, color: '#111', textTransform: 'capitalize', minWidth: 180, textAlign: 'center', letterSpacing: '-0.02em' }}>{nomeMes}</span>
-          <button onClick={nextMes} style={{ width: 34, height: 34, borderRadius: 8, border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#555' }}>
+          <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--portal-text)', textTransform: 'capitalize', minWidth: 180, textAlign: 'center', letterSpacing: '-0.02em' }}>{nomeMes}</span>
+          <button onClick={nextMes} style={{ width: 34, height: 34, borderRadius: 8, border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--portal-text-secondary)' }}>
             <ChevronRight size={18} />
           </button>
         </div>
@@ -322,7 +322,7 @@ export default function BlocoRelatorioMensal({ tecnicos }: { tecnicos: Tecnico[]
         /* ======================================= */
         <div>
           {/* TABELA COMPARATIVA */}
-          <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #F0F0F0', overflow: 'auto' }}>
+          <div style={{ background: 'var(--portal-bg-card)', borderRadius: 14, border: '1px solid var(--portal-border)', overflow: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
               <thead>
                 <tr style={{ background: '#111', color: '#fff', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em' }}>
@@ -349,8 +349,8 @@ export default function BlocoRelatorioMensal({ tecnicos }: { tecnicos: Tecnico[]
                   const corMeta = pctMeta >= 90 ? '#065F46' : pctMeta >= 60 ? '#D97706' : '#DC2626'
                   const bgMeta = pctMeta >= 90 ? '#D1FAE5' : pctMeta >= 60 ? '#FEF3C7' : '#FEE2E2'
                   return (
-                    <tr key={tec.nome} style={{ background: idx % 2 === 0 ? '#fff' : '#FAFAFA', borderBottom: '1px solid #F0F0F0' }}>
-                      <td style={{ padding: '12px 16px', fontWeight: 700, color: '#111', fontSize: 14, position: 'sticky', left: 0, background: idx % 2 === 0 ? '#fff' : '#FAFAFA', zIndex: 1, whiteSpace: 'nowrap' }}>
+                    <tr key={tec.nome} style={{ background: idx % 2 === 0 ? 'var(--portal-bg-card)' : 'var(--portal-bg-secondary)', borderBottom: '1px solid var(--portal-border)' }}>
+                      <td style={{ padding: '12px 16px', fontWeight: 700, color: 'var(--portal-text)', fontSize: 14, position: 'sticky', left: 0, background: idx % 2 === 0 ? 'var(--portal-bg-card)' : 'var(--portal-bg-secondary)', zIndex: 1, whiteSpace: 'nowrap' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <div style={{ width: 30, height: 30, borderRadius: '50%', background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 12, fontWeight: 800, flexShrink: 0 }}>
                             {tec.nome.charAt(0)}
@@ -358,13 +358,13 @@ export default function BlocoRelatorioMensal({ tecnicos }: { tecnicos: Tecnico[]
                           {tec.nome.split(' ').slice(0, 2).join(' ')}
                         </div>
                       </td>
-                      <td style={{ padding: '12px', textAlign: 'center', fontWeight: 700, color: '#111', fontSize: 16 }}>{tec.diasGPS}</td>
+                      <td style={{ padding: '12px', textAlign: 'center', fontWeight: 700, color: 'var(--portal-text)', fontSize: 16 }}>{tec.diasGPS}</td>
                       <td style={{ padding: '12px', textAlign: 'center', fontWeight: 700, color: '#1E40AF' }}>{tec.gpsKm}</td>
-                      <td style={{ padding: '12px', textAlign: 'center', fontWeight: 500, color: '#6B7280' }}>{tec.osKm}</td>
+                      <td style={{ padding: '12px', textAlign: 'center', fontWeight: 500, color: 'var(--portal-text-secondary)' }}>{tec.osKm}</td>
                       <td style={{ padding: '12px', textAlign: 'center', fontWeight: 700, color: '#D97706' }}>{fmtMin(tec.gpsDirigindo)}</td>
                       <td style={{ padding: '12px', textAlign: 'center', fontWeight: 700, color: '#065F46' }}>{fmtMin(tec.gpsCliente)}</td>
-                      <td style={{ padding: '12px', textAlign: 'center', fontWeight: 500, color: '#6B7280' }}>{tec.osHoras}h</td>
-                      <td style={{ padding: '12px', textAlign: 'center', fontWeight: 700, color: '#111', fontSize: 16 }}>{tec.osTotal}</td>
+                      <td style={{ padding: '12px', textAlign: 'center', fontWeight: 500, color: 'var(--portal-text-secondary)' }}>{tec.osHoras}h</td>
+                      <td style={{ padding: '12px', textAlign: 'center', fontWeight: 700, color: 'var(--portal-text)', fontSize: 16 }}>{tec.osTotal}</td>
                       <td style={{ padding: '12px', textAlign: 'center' }}>
                         <span style={{ fontWeight: 700, color: '#065F46', background: '#D1FAE5', padding: '3px 10px', borderRadius: 6, fontSize: 13 }}>{tec.osConcluidas}</span>
                       </td>
@@ -378,7 +378,7 @@ export default function BlocoRelatorioMensal({ tecnicos }: { tecnicos: Tecnico[]
                       <td style={{ padding: '12px', textAlign: 'center', background: '#F0FDF4' }}>
                         <span style={{ fontWeight: 800, color: corMeta, fontSize: 16 }}>{tec.periodosAgendados}</span>
                       </td>
-                      <td style={{ padding: '12px', textAlign: 'center', background: '#F0FDF4', fontWeight: 700, color: '#6B7280' }}>{tec.metaPeriodos}</td>
+                      <td style={{ padding: '12px', textAlign: 'center', background: '#F0FDF4', fontWeight: 700, color: 'var(--portal-text-secondary)' }}>{tec.metaPeriodos}</td>
                       <td style={{ padding: '12px', textAlign: 'center', background: '#F0FDF4' }}>
                         <span style={{
                           fontWeight: 800, fontSize: 14, padding: '4px 12px', borderRadius: 6,
@@ -420,15 +420,15 @@ export default function BlocoRelatorioMensal({ tecnicos }: { tecnicos: Tecnico[]
               const pct = tec.metaPeriodos > 0 ? Math.min(100, Math.round((tec.periodosAgendados / tec.metaPeriodos) * 100)) : 0
               const corBarra = pct >= 90 ? '#065F46' : pct >= 60 ? '#D97706' : '#DC2626'
               return (
-                <div key={tec.nome} style={{ background: '#fff', borderRadius: 10, padding: '14px 16px', border: '1px solid #F0F0F0' }}>
+                <div key={tec.nome} style={{ background: 'var(--portal-bg-card)', borderRadius: 10, padding: '14px 16px', border: '1px solid var(--portal-border)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                    <span style={{ fontWeight: 700, color: '#111', fontSize: 14 }}>{tec.nome.split(' ').slice(0, 2).join(' ')}</span>
+                    <span style={{ fontWeight: 700, color: 'var(--portal-text)', fontSize: 14 }}>{tec.nome.split(' ').slice(0, 2).join(' ')}</span>
                     <span style={{ fontWeight: 800, color: corBarra, fontSize: 16 }}>{tec.periodosAgendados}/{tec.metaPeriodos}</span>
                   </div>
-                  <div style={{ height: 8, background: '#F3F4F6', borderRadius: 4, overflow: 'hidden' }}>
+                  <div style={{ height: 8, background: 'var(--portal-bg-secondary)', borderRadius: 4, overflow: 'hidden' }}>
                     <div style={{ height: '100%', width: `${pct}%`, background: corBarra, borderRadius: 4, transition: 'width .3s' }} />
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 12, color: '#6B7280' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 12, color: 'var(--portal-text-secondary)' }}>
                     <span>{tec.osFuturas} OS futuras ({tec.horasFuturas}h)</span>
                     <span style={{ fontWeight: 700, color: corBarra }}>{pct}%</span>
                   </div>
@@ -444,24 +444,24 @@ export default function BlocoRelatorioMensal({ tecnicos }: { tecnicos: Tecnico[]
         <>
           {/* RESUMO MENSAL */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 24 }}>
-            <div style={{ background: '#fff', borderRadius: 14, padding: '20px 22px', border: '1px solid #F0F0F0', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ background: 'var(--portal-bg-card)', borderRadius: 14, padding: '20px 22px', border: '1px solid var(--portal-border)', position: 'relative', overflow: 'hidden' }}>
               <div style={{ position: 'absolute', top: 16, right: 18, opacity: 0.08 }}><CalendarDays size={48} /></div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Dias Trabalhados</div>
-              <div style={{ fontSize: 38, fontWeight: 900, color: '#111', lineHeight: 1 }}>{totais.diasTrabalhados}</div>
-              <div style={{ fontSize: 12, color: '#999', marginTop: 6, fontWeight: 500 }}>{osConcluidasMes} OS concluida(s)</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Dias Trabalhados</div>
+              <div style={{ fontSize: 38, fontWeight: 900, color: 'var(--portal-text)', lineHeight: 1 }}>{totais.diasTrabalhados}</div>
+              <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginTop: 6, fontWeight: 500 }}>{osConcluidasMes} OS concluida(s)</div>
             </div>
-            <div style={{ background: '#fff', borderRadius: 14, padding: '20px 22px', border: '1px solid #F0F0F0', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ background: 'var(--portal-bg-card)', borderRadius: 14, padding: '20px 22px', border: '1px solid var(--portal-border)', position: 'relative', overflow: 'hidden' }}>
               <div style={{ position: 'absolute', top: 16, right: 18, opacity: 0.08 }}><Route size={48} /></div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Quilometragem</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Quilometragem</div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
                 <div>
                   <div style={{ fontSize: 38, fontWeight: 900, color: '#1E40AF', lineHeight: 1 }}>{Math.round(totais.gpsKm)}</div>
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#1E40AF', marginTop: 2 }}>km GPS</div>
                 </div>
-                <div style={{ fontSize: 16, color: '#D1D5DB', fontWeight: 300 }}>/</div>
+                <div style={{ fontSize: 16, color: 'var(--portal-text-faint)', fontWeight: 300 }}>/</div>
                 <div>
-                  <div style={{ fontSize: 28, fontWeight: 800, color: '#9CA3AF', lineHeight: 1 }}>{Math.round(totais.osKm)}</div>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', marginTop: 2 }}>km OS</div>
+                  <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--portal-text-muted)', lineHeight: 1 }}>{Math.round(totais.osKm)}</div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--portal-text-muted)', marginTop: 2 }}>km OS</div>
                 </div>
               </div>
               {totais.gpsKm > 0 && totais.osKm > 0 && (
@@ -470,35 +470,35 @@ export default function BlocoRelatorioMensal({ tecnicos }: { tecnicos: Tecnico[]
                 </div>
               )}
             </div>
-            <div style={{ background: '#fff', borderRadius: 14, padding: '20px 22px', border: '1px solid #F0F0F0', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ background: 'var(--portal-bg-card)', borderRadius: 14, padding: '20px 22px', border: '1px solid var(--portal-border)', position: 'relative', overflow: 'hidden' }}>
               <div style={{ position: 'absolute', top: 16, right: 18, opacity: 0.08 }}><Gauge size={48} /></div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Tempo Dirigindo</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Tempo Dirigindo</div>
               <div style={{ fontSize: 38, fontWeight: 900, color: '#D97706', lineHeight: 1 }}>{fmtMin(totais.gpsDirigindo)}</div>
-              <div style={{ fontSize: 12, color: '#999', marginTop: 6, fontWeight: 500 }}>via rastreamento GPS</div>
+              <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginTop: 6, fontWeight: 500 }}>via rastreamento GPS</div>
             </div>
-            <div style={{ background: '#fff', borderRadius: 14, padding: '20px 22px', border: '1px solid #F0F0F0', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ background: 'var(--portal-bg-card)', borderRadius: 14, padding: '20px 22px', border: '1px solid var(--portal-border)', position: 'relative', overflow: 'hidden' }}>
               <div style={{ position: 'absolute', top: 16, right: 18, opacity: 0.08 }}><Timer size={48} /></div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Tempo no Cliente</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Tempo no Cliente</div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
                 <div>
                   <div style={{ fontSize: 38, fontWeight: 900, color: '#065F46', lineHeight: 1 }}>{fmtMin(totais.gpsCliente)}</div>
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#065F46', marginTop: 2 }}>GPS</div>
                 </div>
-                <div style={{ fontSize: 16, color: '#D1D5DB', fontWeight: 300 }}>/</div>
+                <div style={{ fontSize: 16, color: 'var(--portal-text-faint)', fontWeight: 300 }}>/</div>
                 <div>
-                  <div style={{ fontSize: 28, fontWeight: 800, color: '#9CA3AF', lineHeight: 1 }}>{totais.osHoras}h</div>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', marginTop: 2 }}>OS</div>
+                  <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--portal-text-muted)', lineHeight: 1 }}>{totais.osHoras}h</div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--portal-text-muted)', marginTop: 2 }}>OS</div>
                 </div>
               </div>
             </div>
           </div>
 
           {/* TABELA DIARIA */}
-          <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #F0F0F0', overflow: 'hidden' }}>
+          <div style={{ background: 'var(--portal-bg-card)', borderRadius: 14, border: '1px solid var(--portal-border)', overflow: 'hidden' }}>
             <div style={{
               display: 'grid', gridTemplateColumns: '100px 1fr 1fr 1fr 1fr 1fr 40px',
-              padding: '14px 20px', background: '#FAFAFA', borderBottom: '1px solid #F0F0F0',
-              fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: '0.06em',
+              padding: '14px 20px', background: 'var(--portal-bg-secondary)', borderBottom: '1px solid var(--portal-border)',
+              fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em',
             }}>
               <span>Dia</span>
               <span>KM GPS</span>
@@ -528,35 +528,35 @@ export default function BlocoRelatorioMensal({ tecnicos }: { tecnicos: Tecnico[]
                     onClick={() => toggleDay(dia)}
                     style={{
                       display: 'grid', gridTemplateColumns: '100px 1fr 1fr 1fr 1fr 1fr 40px',
-                      padding: '12px 20px', borderBottom: expanded ? 'none' : '1px solid #F5F5F5',
+                      padding: '12px 20px', borderBottom: expanded ? 'none' : '1px solid var(--portal-border)',
                       cursor: 'pointer', fontSize: 14, alignItems: 'center',
-                      background: expanded ? '#F9FAFB' : '#fff',
+                      background: expanded ? 'var(--portal-bg-secondary)' : 'var(--portal-bg-card)',
                       transition: 'background .1s',
                     }}
-                    onMouseEnter={e => { if (!expanded) (e.currentTarget as HTMLDivElement).style.background = '#FAFBFC' }}
-                    onMouseLeave={e => { if (!expanded) (e.currentTarget as HTMLDivElement).style.background = '#fff' }}
+                    onMouseEnter={e => { if (!expanded) (e.currentTarget as HTMLDivElement).style.background = 'var(--portal-bg-secondary)' }}
+                    onMouseLeave={e => { if (!expanded) (e.currentTarget as HTMLDivElement).style.background = 'var(--portal-bg-card)' }}
                   >
                     <span>
-                      <span style={{ fontWeight: 800, color: '#111', fontSize: 16 }}>{diaNum}</span>
-                      <span style={{ fontWeight: 500, color: '#bbb', fontSize: 11, marginLeft: 4 }}>{diaSemana}</span>
+                      <span style={{ fontWeight: 800, color: 'var(--portal-text)', fontSize: 16 }}>{diaNum}</span>
+                      <span style={{ fontWeight: 500, color: 'var(--portal-text-muted)', fontSize: 11, marginLeft: 4 }}>{diaSemana}</span>
                     </span>
                     <span style={{ fontWeight: 700, color: temGPS ? '#1E40AF' : '#ddd' }}>
                       {gpsCalc.km > 0 ? `${gpsCalc.km} km` : '-'}
                     </span>
-                    <span style={{ color: '#555', fontWeight: 500 }}>
+                    <span style={{ color: 'var(--portal-text-secondary)', fontWeight: 500 }}>
                       {osCalc.km > 0 ? `${osCalc.km} km` : '-'}
                       {diffKm !== 0 && gpsCalc.km > 0 && osCalc.km > 0 && (
-                        <span style={{ fontSize: 10, marginLeft: 4, padding: '1px 5px', borderRadius: 3, fontWeight: 700, background: Math.abs(diffKm) > 20 ? '#FEE2E2' : '#F3F4F6', color: Math.abs(diffKm) > 20 ? '#DC2626' : '#6B7280' }}>
+                        <span style={{ fontSize: 10, marginLeft: 4, padding: '1px 5px', borderRadius: 3, fontWeight: 700, background: Math.abs(diffKm) > 20 ? '#FEE2E2' : 'var(--portal-bg-secondary)', color: Math.abs(diffKm) > 20 ? '#DC2626' : 'var(--portal-text-secondary)' }}>
                           {diffKm > 0 ? '+' : ''}{Math.round(diffKm)}
                         </span>
                       )}
                     </span>
                     <span style={{ color: '#D97706', fontWeight: 700 }}>{fmtMin(gpsCalc.tempoDirigindo)}</span>
                     <span style={{ color: '#065F46', fontWeight: 700 }}>{fmtMin(gpsCalc.tempoCliente)}</span>
-                    <span style={{ color: '#555', fontWeight: 500 }}>
+                    <span style={{ color: 'var(--portal-text-secondary)', fontWeight: 500 }}>
                       {osCalc.horas > 0 ? `${osCalc.horas}h` : '-'}
                       {diffHoras !== 0 && gpsCalc.tempoCliente > 0 && osCalc.horas > 0 && (
-                        <span style={{ fontSize: 10, marginLeft: 4, padding: '1px 5px', borderRadius: 3, fontWeight: 700, background: Math.abs(diffHoras) > 60 ? '#FEE2E2' : '#F3F4F6', color: Math.abs(diffHoras) > 60 ? '#DC2626' : '#6B7280' }}>
+                        <span style={{ fontSize: 10, marginLeft: 4, padding: '1px 5px', borderRadius: 3, fontWeight: 700, background: Math.abs(diffHoras) > 60 ? '#FEE2E2' : 'var(--portal-bg-secondary)', color: Math.abs(diffHoras) > 60 ? '#DC2626' : 'var(--portal-text-secondary)' }}>
                           {diffHoras > 0 ? '+' : ''}{fmtMin(Math.abs(diffHoras))}
                         </span>
                       )}
@@ -567,7 +567,7 @@ export default function BlocoRelatorioMensal({ tecnicos }: { tecnicos: Tecnico[]
                   </div>
 
                   {expanded && (
-                    <div style={{ padding: '14px 20px 18px', background: '#FAFBFC', borderBottom: '1px solid #F0F0F0' }}>
+                    <div style={{ padding: '14px 20px 18px', background: 'var(--portal-bg-secondary)', borderBottom: '1px solid var(--portal-border)' }}>
                       <div style={{ display: 'grid', gridTemplateColumns: gps ? '1fr 1fr' : '1fr', gap: 14, marginLeft: 100 }}>
                         {gps && (
                           <div style={{ background: '#EFF6FF', borderRadius: 10, padding: '14px 16px', border: '1px solid #DBEAFE' }}>
@@ -598,18 +598,18 @@ export default function BlocoRelatorioMensal({ tecnicos }: { tecnicos: Tecnico[]
                             )}
                           </div>
                         )}
-                        <div style={{ background: '#fff', borderRadius: 10, padding: '14px 16px', border: '1px solid #F0F0F0' }}>
+                        <div style={{ background: 'var(--portal-bg-card)', borderRadius: 10, padding: '14px 16px', border: '1px solid var(--portal-border)' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                            <Clock size={14} style={{ color: '#555' }} />
-                            <span style={{ fontWeight: 800, color: '#333', fontSize: 13 }}>Ordens de Servico</span>
-                            <span style={{ fontSize: 11, fontWeight: 700, color: '#999', background: '#F3F4F6', padding: '1px 8px', borderRadius: 4 }}>{ords.length}</span>
+                            <Clock size={14} style={{ color: 'var(--portal-text-secondary)' }} />
+                            <span style={{ fontWeight: 800, color: 'var(--portal-text)', fontSize: 13 }}>Ordens de Servico</span>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)', background: 'var(--portal-bg-secondary)', padding: '1px 8px', borderRadius: 4 }}>{ords.length}</span>
                           </div>
                           {ords.length > 0 ? ords.map(o => (
-                            <div key={o.Id_Ordem} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderBottom: '1px solid #F5F5F5', fontSize: 13 }}>
-                              <span style={{ fontWeight: 800, color: '#111', fontSize: 12, background: '#F3F4F6', padding: '2px 8px', borderRadius: 4, whiteSpace: 'nowrap' }}>
+                            <div key={o.Id_Ordem} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderBottom: '1px solid var(--portal-border)', fontSize: 13 }}>
+                              <span style={{ fontWeight: 800, color: 'var(--portal-text)', fontSize: 12, background: 'var(--portal-bg-secondary)', padding: '2px 8px', borderRadius: 4, whiteSpace: 'nowrap' }}>
                                 {o.Id_Ordem}
                               </span>
-                              <span style={{ flex: 1, color: '#555', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>{o.Os_Cliente}</span>
+                              <span style={{ flex: 1, color: 'var(--portal-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>{o.Os_Cliente}</span>
                               <span style={{ display: 'flex', alignItems: 'center', gap: 3, color: '#D97706', fontWeight: 700, fontSize: 12 }}>{parseFloat(String(o.Qtd_HR || 0)) || 0}h</span>
                               <span style={{ display: 'flex', alignItems: 'center', gap: 3, color: '#1E40AF', fontWeight: 700, fontSize: 12 }}>{parseFloat(String(o.Qtd_KM || 0)) || 0}km</span>
                               <span style={{
@@ -619,7 +619,7 @@ export default function BlocoRelatorioMensal({ tecnicos }: { tecnicos: Tecnico[]
                               }}>{o.Status}</span>
                             </div>
                           )) : (
-                            <div style={{ fontSize: 13, color: '#ccc', fontWeight: 500, padding: '12px 0', textAlign: 'center' }}>Sem OS neste dia</div>
+                            <div style={{ fontSize: 13, color: 'var(--portal-text-muted)', fontWeight: 500, padding: '12px 0', textAlign: 'center' }}>Sem OS neste dia</div>
                           )}
                         </div>
                       </div>
