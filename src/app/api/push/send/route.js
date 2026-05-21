@@ -11,13 +11,16 @@ if (VAPID_PUBLIC && VAPID_PRIVATE) {
   webpush.setVapidDetails(VAPID_EMAIL, VAPID_PUBLIC, VAPID_PRIVATE)
 }
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-)
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  )
+}
 
 // POST /api/push/send — envia push para todos os usuários (exceto o emissor)
 export async function POST(req) {
+  const supabase = getSupabase()
   try {
     // Se VAPID não configurado, retorna sem erro (não quebra o app)
     if (!VAPID_PUBLIC || !VAPID_PRIVATE) {

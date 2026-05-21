@@ -5,16 +5,501 @@
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
+/* ===== Portal Theme Variables ===== */
+:root {
+  --portal-bg: #fafafa;
+  --portal-bg-card: #ffffff;
+  --portal-bg-hover: #fef2f2;
+  --portal-bg-input: #ffffff;
+  --portal-bg-secondary: #f5f5f5;
+  --portal-border: #f0f0f0;
+  --portal-border-hover: #fecaca;
+  --portal-text: #1a1a1a;
+  --portal-text-secondary: #737373;
+  --portal-text-muted: #a3a3a3;
+  --portal-text-faint: #d4d4d4;
+  --portal-shadow: rgba(0,0,0,0.04);
+  --portal-header-bg: #ffffff;
+  --portal-sidebar-bg: #ffffff;
+  --portal-scrollbar-track: #f5f5f5;
+  --portal-scrollbar-thumb: #d4d4d4;
+}
+
+[data-theme="dark"] {
+  --portal-bg: #0f0f0f;
+  --portal-bg-card: #1a1a1a;
+  --portal-bg-hover: #2a1215;
+  --portal-bg-input: #1a1a1a;
+  --portal-bg-secondary: #262626;
+  --portal-border: #2a2a2a;
+  --portal-border-hover: #7f1d1d;
+  --portal-text: #f5f5f5;
+  --portal-text-secondary: #a3a3a3;
+  --portal-text-muted: #737373;
+  --portal-text-faint: #525252;
+  --portal-shadow: rgba(0,0,0,0.3);
+  --portal-header-bg: #141414;
+  --portal-sidebar-bg: #141414;
+  --portal-scrollbar-track: #1a1a1a;
+  --portal-scrollbar-thumb: #404040;
+}
+
 body {
   font-family: 'Inter', sans-serif;
   min-height: 100vh;
   overflow-x: hidden;
+  background: var(--portal-bg);
+  color: var(--portal-text);
+}
+
+/* ===== Dark Theme Overrides — Global ===== */
+
+/* Formulários */
+[data-theme="dark"] input,
+[data-theme="dark"] select,
+[data-theme="dark"] textarea {
+  background: var(--portal-bg-input) !important;
+  color: var(--portal-text) !important;
+  border-color: var(--portal-border) !important;
+}
+[data-theme="dark"] input::placeholder,
+[data-theme="dark"] textarea::placeholder {
+  color: var(--portal-text-muted) !important;
+}
+[data-theme="dark"] option {
+  background: var(--portal-bg-card);
+  color: var(--portal-text);
+}
+
+/* Backgrounds brancos → card */
+[data-theme="dark"] div[style*="background: rgb(255, 255, 255)"],
+[data-theme="dark"] div[style*="background: #ffffff"],
+[data-theme="dark"] div[style*="background: #fff"],
+[data-theme="dark"] div[style*="background: white"] {
+  background: var(--portal-bg-card) !important;
+}
+
+/* Backgrounds cinza claro → secondary */
+[data-theme="dark"] div[style*="background: #fafafa"],
+[data-theme="dark"] div[style*="background: rgb(250, 250, 250)"],
+[data-theme="dark"] div[style*="background: #f5f5f5"],
+[data-theme="dark"] div[style*="background: rgb(245, 245, 245)"] {
+  background: var(--portal-bg-secondary) !important;
+}
+
+/* Borders cinza → dark border */
+[data-theme="dark"] div[style*="border: 1px solid #f0f0f0"],
+[data-theme="dark"] div[style*="border: 1px solid #e5e5e5"],
+[data-theme="dark"] div[style*="border-color: #f0f0f0"],
+[data-theme="dark"] div[style*="border-color: #e5e5e5"],
+[data-theme="dark"] div[style*="border-bottom: 1px solid #f0f0f0"],
+[data-theme="dark"] div[style*="border-bottom: 1px solid #f5f5f5"],
+[data-theme="dark"] div[style*="border-bottom: 1px solid #e5e5e5"],
+[data-theme="dark"] div[style*="border-top: 1px solid #f0f0f0"],
+[data-theme="dark"] div[style*="border-top: 1px solid #e5e5e5"] {
+  border-color: var(--portal-border) !important;
+}
+
+/* Textos escuros → claro */
+[data-theme="dark"] h1, [data-theme="dark"] h2,
+[data-theme="dark"] h3, [data-theme="dark"] h4,
+[data-theme="dark"] h5, [data-theme="dark"] h6 {
+  color: var(--portal-text) !important;
+}
+
+[data-theme="dark"] p {
+  color: var(--portal-text-secondary);
+}
+
+[data-theme="dark"] span[style*="color: #1a1a1a"],
+[data-theme="dark"] p[style*="color: #1a1a1a"],
+[data-theme="dark"] div[style*="color: #1a1a1a"],
+[data-theme="dark"] h2[style*="color: #1a1a1a"],
+[data-theme="dark"] h3[style*="color: #1a1a1a"],
+[data-theme="dark"] h4[style*="color: #1a1a1a"] {
+  color: var(--portal-text) !important;
+}
+
+[data-theme="dark"] span[style*="color: #525252"],
+[data-theme="dark"] p[style*="color: #525252"],
+[data-theme="dark"] div[style*="color: #525252"] {
+  color: var(--portal-text-secondary) !important;
+}
+
+[data-theme="dark"] span[style*="color: #737373"],
+[data-theme="dark"] p[style*="color: #737373"],
+[data-theme="dark"] div[style*="color: #737373"] {
+  color: var(--portal-text-secondary) !important;
+}
+
+[data-theme="dark"] span[style*="color: #a3a3a3"],
+[data-theme="dark"] p[style*="color: #a3a3a3"],
+[data-theme="dark"] div[style*="color: #a3a3a3"] {
+  color: var(--portal-text-muted) !important;
+}
+
+[data-theme="dark"] span[style*="color: #d4d4d4"],
+[data-theme="dark"] p[style*="color: #d4d4d4"] {
+  color: var(--portal-text-faint) !important;
+}
+
+/* Card hover */
+[data-theme="dark"] .card-hover {
+  background: var(--portal-bg-card) !important;
+  border-color: var(--portal-border) !important;
+}
+[data-theme="dark"] .card-hover:hover {
+  border-color: var(--portal-border-hover) !important;
+}
+
+/* Tabelas */
+[data-theme="dark"] table {
+  color: var(--portal-text);
+}
+[data-theme="dark"] th {
+  background: var(--portal-bg-secondary) !important;
+  color: var(--portal-text-muted) !important;
+  border-color: var(--portal-border) !important;
+}
+[data-theme="dark"] td {
+  border-color: var(--portal-border) !important;
+  color: var(--portal-text-secondary);
+}
+[data-theme="dark"] tr:hover td {
+  background: var(--portal-bg-secondary);
+}
+
+/* Buttons cinza */
+[data-theme="dark"] button[style*="background: #f5f5f5"],
+[data-theme="dark"] button[style*="background: rgb(245, 245, 245)"] {
+  background: var(--portal-bg-secondary) !important;
+  color: var(--portal-text-secondary) !important;
+}
+
+/* Links e labels comuns */
+[data-theme="dark"] label {
+  color: var(--portal-text-secondary);
+}
+
+/* Tailwind bg-white overrides */
+[data-theme="dark"] .bg-white {
+  background-color: var(--portal-bg-card) !important;
+}
+[data-theme="dark"] .bg-zinc-50,
+[data-theme="dark"] .bg-gray-50 {
+  background-color: var(--portal-bg-secondary) !important;
+}
+[data-theme="dark"] .bg-zinc-100,
+[data-theme="dark"] .bg-gray-100 {
+  background-color: var(--portal-bg-secondary) !important;
+}
+
+/* Tailwind borders */
+[data-theme="dark"] .border-zinc-200,
+[data-theme="dark"] .border-gray-200,
+[data-theme="dark"] .border-zinc-100,
+[data-theme="dark"] .border-gray-100 {
+  border-color: var(--portal-border) !important;
+}
+
+/* Tailwind text colors */
+[data-theme="dark"] .text-zinc-800,
+[data-theme="dark"] .text-gray-800,
+[data-theme="dark"] .text-zinc-900,
+[data-theme="dark"] .text-gray-900,
+[data-theme="dark"] .text-black {
+  color: var(--portal-text) !important;
+}
+[data-theme="dark"] .text-zinc-700,
+[data-theme="dark"] .text-gray-700,
+[data-theme="dark"] .text-zinc-600,
+[data-theme="dark"] .text-gray-600 {
+  color: var(--portal-text-secondary) !important;
+}
+[data-theme="dark"] .text-zinc-500,
+[data-theme="dark"] .text-gray-500 {
+  color: var(--portal-text-muted) !important;
+}
+[data-theme="dark"] .text-zinc-400,
+[data-theme="dark"] .text-gray-400 {
+  color: var(--portal-text-faint) !important;
+}
+
+/* Shadow overrides */
+[data-theme="dark"] .shadow-sm,
+[data-theme="dark"] .shadow {
+  box-shadow: 0 1px 3px var(--portal-shadow) !important;
+}
+
+/* Modais e popovers */
+[data-theme="dark"] div[style*="background: rgba(0, 0, 0"] {
+  background: rgba(0,0,0,0.7) !important;
+}
+
+/* Divisores */
+[data-theme="dark"] hr,
+[data-theme="dark"] .divide-zinc-200 > * + *,
+[data-theme="dark"] .divide-gray-200 > * + * {
+  border-color: var(--portal-border) !important;
+}
+
+/* ===== PORTAL DARK CLASS — Override global para todos os módulos ===== */
+.portal-dark {
+  color-scheme: dark;
+}
+
+/* Todos os divs com bg branco/claro dentro do portal */
+.portal-dark main div,
+.portal-dark main section,
+.portal-dark main article {
+  --tw-bg-opacity: 1;
+}
+
+/* Força fundo escuro em containers principais das páginas */
+.portal-dark main > div {
+  background-color: var(--portal-bg) !important;
+  color: var(--portal-text) !important;
+}
+
+/* Cards e painéis — qualquer div branco direto */
+.portal-dark main div[style] {
+  color-scheme: dark;
+}
+
+/* Override agressivo de backgrounds inline brancos */
+.portal-dark [style*="background: rgb(255, 255, 255)"],
+.portal-dark [style*="background-color: rgb(255, 255, 255)"] {
+  background-color: var(--portal-bg-card) !important;
+  background: var(--portal-bg-card) !important;
+}
+.portal-dark [style*="background: rgb(250, 250, 250)"],
+.portal-dark [style*="background-color: rgb(250, 250, 250)"],
+.portal-dark [style*="background: rgb(245, 245, 245)"],
+.portal-dark [style*="background-color: rgb(245, 245, 245)"],
+.portal-dark [style*="background: rgb(248, 250, 252)"],
+.portal-dark [style*="background-color: rgb(248, 250, 252)"],
+.portal-dark [style*="background: rgb(241, 245, 249)"],
+.portal-dark [style*="background-color: rgb(241, 245, 249)"] {
+  background-color: var(--portal-bg-secondary) !important;
+  background: var(--portal-bg-secondary) !important;
+}
+
+/* Override de cor de texto inline */
+.portal-dark [style*="color: rgb(26, 26, 26)"],
+.portal-dark [style*="color: rgb(23, 23, 23)"] {
+  color: var(--portal-text) !important;
+}
+.portal-dark [style*="color: rgb(82, 82, 82)"] {
+  color: var(--portal-text-secondary) !important;
+}
+.portal-dark [style*="color: rgb(115, 115, 115)"] {
+  color: var(--portal-text-secondary) !important;
+}
+.portal-dark [style*="color: rgb(163, 163, 163)"] {
+  color: var(--portal-text-muted) !important;
+}
+
+/* Override de borders inline */
+.portal-dark [style*="border: 1px solid rgb(240, 240, 240)"],
+.portal-dark [style*="border: 1px solid rgb(229, 229, 229)"],
+.portal-dark [style*="border-color: rgb(240, 240, 240)"],
+.portal-dark [style*="border-color: rgb(229, 229, 229)"] {
+  border-color: var(--portal-border) !important;
+}
+.portal-dark [style*="border-bottom: 1px solid rgb(245, 245, 245)"],
+.portal-dark [style*="border-bottom: 1px solid rgb(240, 240, 240)"],
+.portal-dark [style*="border-top: 1px solid rgb(240, 240, 240)"],
+.portal-dark [style*="border-top: 1px solid rgb(229, 229, 229)"] {
+  border-color: var(--portal-border) !important;
+}
+
+/* Financeiro — NavMenu e MenuLateral */
+.portal-dark .fin-nav,
+.portal-dark .menu-lateral,
+.portal-dark nav {
+  background: var(--portal-bg-card) !important;
+  border-color: var(--portal-border) !important;
+}
+
+/* Box shadows */
+.portal-dark [style*="box-shadow: 0px 1px 3px"],
+.portal-dark [style*="box-shadow: 0 1px 3px"],
+.portal-dark [style*="box-shadow: 0 2px 8px"] {
+  box-shadow: 0 1px 3px var(--portal-shadow) !important;
+}
+
+/* FinanceiroNav + sub-nav bars */
+[data-theme="dark"] .fin-nav,
+[data-theme="dark"] div[style*="position: sticky"][style*="top: 84px"] {
+  background: var(--portal-header-bg) !important;
+  border-color: var(--portal-border) !important;
+}
+
+/* POS Header */
+[data-theme="dark"] header {
+  color: var(--portal-text);
+}
+[data-theme="dark"] .search-input {
+  background: var(--portal-bg-input) !important;
+  color: var(--portal-text) !important;
+  border-color: var(--portal-border) !important;
+}
+
+/* PPV Header overrides */
+[data-theme="dark"] header[style*="var(--ppv-surface)"] {
+  background: var(--portal-bg-card) !important;
+  border-color: var(--portal-border) !important;
+}
+[data-theme="dark"] header[style*="var(--ppv-surface)"] input {
+  background: var(--portal-bg-input) !important;
+  color: var(--portal-text) !important;
+}
+[data-theme="dark"] header[style*="var(--ppv-surface)"] button[style*="background: white"] {
+  background: var(--portal-bg-card) !important;
+  color: var(--portal-text-secondary) !important;
+}
+[data-theme="dark"] header[style*="var(--ppv-surface)"] select {
+  background: var(--portal-bg-input) !important;
+  color: var(--portal-text) !important;
+}
+
+/* PPV phase tabs & cards */
+[data-theme="dark"] .ppv-phase-tabs {
+  background: var(--portal-bg-card) !important;
+  border-color: var(--portal-border) !important;
+}
+[data-theme="dark"] .ppv-phase-tab {
+  background: var(--portal-bg-secondary) !important;
+  color: var(--portal-text-secondary) !important;
+  border-color: var(--portal-border) !important;
+}
+[data-theme="dark"] .ppv-phase-tab.active {
+  color: white !important;
+}
+[data-theme="dark"] .ppv-mini-card {
+  background: var(--portal-bg-card) !important;
+}
+[data-theme="dark"] .ppv-mini-card-id,
+[data-theme="dark"] .ppv-mini-card-cliente,
+[data-theme="dark"] .ppv-phase-group-name {
+  color: var(--portal-text) !important;
+}
+[data-theme="dark"] .ppv-mini-card-obs,
+[data-theme="dark"] .ppv-mini-card-bottom,
+[data-theme="dark"] .ppv-phase-group-count {
+  color: var(--portal-text-secondary) !important;
+}
+[data-theme="dark"] .ppv-cards-wrapper {
+  background: var(--portal-bg) !important;
+}
+
+/* Client dropdown in PPV */
+[data-theme="dark"] div[style*="background: white"][style*="box-shadow"] {
+  background: var(--portal-bg-card) !important;
+  border-color: var(--portal-border) !important;
+}
+
+/* Glass overrides */
+[data-theme="dark"] .glass,
+[data-theme="dark"] .glass-strong {
+  background: rgba(26, 26, 26, 0.9) !important;
+  border-color: var(--portal-border) !important;
+}
+
+/* Select option in dark */
+[data-theme="dark"] select option {
+  background: var(--portal-bg-card) !important;
+  color: var(--portal-text) !important;
+}
+
+/* Force all inline white bg to dark in portal-dark */
+.portal-dark [style*="background: #fff"],
+.portal-dark [style*="background: #ffffff"],
+.portal-dark [style*="background: white"],
+.portal-dark [style*="background:#fff"],
+.portal-dark [style*="background:#ffffff"] {
+  background: var(--portal-bg-card) !important;
+}
+.portal-dark [style*="background: #f8fafc"],
+.portal-dark [style*="background: #F8FAFC"],
+.portal-dark [style*="background: #f1f5f9"],
+.portal-dark [style*="background: #F1F5F9"],
+.portal-dark [style*="background: #e2e8f0"] {
+  background: var(--portal-bg-secondary) !important;
+}
+
+/* Force text colors in portal-dark */
+.portal-dark [style*="color: #0f172a"],
+.portal-dark [style*="color: #1E293B"],
+.portal-dark [style*="color: #1e293b"],
+.portal-dark [style*="color: #111"],
+.portal-dark [style*="color: #334155"],
+.portal-dark [style*="color: #333"] {
+  color: var(--portal-text) !important;
+}
+.portal-dark [style*="color: #475569"],
+.portal-dark [style*="color: #64748b"],
+.portal-dark [style*="color: #64748B"],
+.portal-dark [style*="color: #94a3b8"],
+.portal-dark [style*="color: #7A6E5D"],
+.portal-dark [style*="color: rgb(71, 85, 105)"],
+.portal-dark [style*="color: rgb(100, 116, 139)"],
+.portal-dark [style*="color: rgb(148, 163, 184)"] {
+  color: var(--portal-text-secondary) !important;
+}
+.portal-dark [style*="color: rgb(30, 41, 59)"],
+.portal-dark [style*="color: rgb(15, 23, 42)"],
+.portal-dark [style*="color: rgb(44, 36, 24)"],
+.portal-dark [style*="color: rgb(51, 51, 51)"] {
+  color: var(--portal-text) !important;
+}
+
+/* Force border colors in portal-dark */
+.portal-dark [style*="border: 1px solid #e2e8f0"],
+.portal-dark [style*="border: 1px solid #E2E8F0"],
+.portal-dark [style*="border: 1.5px solid #f1f5f9"],
+.portal-dark [style*="border-top: 1px solid #f1f5f9"],
+.portal-dark [style*="border-bottom: 1px solid #f1f5f9"],
+.portal-dark [style*="border: 1px solid #f1f5f9"],
+.portal-dark [style*="border: 1px solid rgb(226, 232, 240)"],
+.portal-dark [style*="border: 1px solid rgb(224, 214, 200)"],
+.portal-dark [style*="border-bottom: 1px solid rgb(241, 245, 249)"] {
+  border-color: var(--portal-border) !important;
+}
+
+/* PPV classes — dark override for background: white */
+[data-theme="dark"] .ppv-topbar-nav-btn.active {
+  background: var(--portal-bg-card) !important;
+  color: var(--portal-text) !important;
+  border-color: var(--portal-border) !important;
+}
+[data-theme="dark"] .ppv-phase-tab {
+  background: var(--portal-bg-secondary) !important;
+}
+[data-theme="dark"] .ppv-card,
+[data-theme="dark"] .ppv-value-card,
+[data-theme="dark"] .ppv-item-card,
+[data-theme="dark"] .ppv-log-panel,
+[data-theme="dark"] .ppv-btn-ghost,
+[data-theme="dark"] .ppv-btn-cancel,
+[data-theme="dark"] .ppv-btn-devolver,
+[data-theme="dark"] .ppv-form-back {
+  background: var(--portal-bg-card) !important;
+  color: var(--portal-text) !important;
+}
+
+/* POS classes — dark override for background: white/var(--surface) */
+[data-theme="dark"] .phase-tab {
+  background: var(--portal-bg-secondary) !important;
+}
+[data-theme="dark"] .modal-container {
+  background: var(--portal-bg) !important;
 }
 
 /* Scrollbar custom */
 ::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: #f5f5f5; }
-::-webkit-scrollbar-thumb { background: #d4d4d4; border-radius: 3px; }
+::-webkit-scrollbar-track { background: var(--portal-scrollbar-track); }
+::-webkit-scrollbar-thumb { background: var(--portal-scrollbar-thumb); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #dc2626; }
 
 /* Animations */
@@ -160,8 +645,8 @@ body {
 }
 
 select option {
-  background: #ffffff;
-  color: #1a1a1a;
+  background: var(--portal-bg-card);
+  color: var(--portal-text);
 }
 
 
@@ -178,6 +663,16 @@ select option {
   --ppv-border-light: rgba(253, 186, 116, 0.4);
   --ppv-text: #1E293B;
   --ppv-text-light: #64748B;
+}
+
+[data-theme="dark"] {
+  --ppv-primary-light: #2a1215;
+  --ppv-bg: var(--portal-bg);
+  --ppv-surface: var(--portal-bg-card);
+  --ppv-border: #5a2a0a;
+  --ppv-border-light: rgba(253, 186, 116, 0.15);
+  --ppv-text: var(--portal-text);
+  --ppv-text-light: var(--portal-text-secondary);
 }
 
 body {
@@ -1684,6 +2179,15 @@ body {
   font-size: 15px;
 }
 
+[data-theme="dark"] .pos-container {
+  --primary-light: #1a2332;
+  --bg: var(--portal-bg);
+  --surface: var(--portal-bg-card);
+  --border: var(--portal-border);
+  --text: var(--portal-text);
+  --text-light: var(--portal-text-secondary);
+}
+
 .pos-container input,
 .pos-container select,
 .pos-container textarea {
@@ -1762,7 +2266,7 @@ body {
 }
 
 .search-input:focus {
-  background: white;
+  background: var(--surface);
   border-color: var(--primary);
 }
 
@@ -1830,7 +2334,7 @@ body {
   padding: 8px 16px;
   border: 1px solid var(--border);
   border-radius: 20px;
-  background: white;
+  background: var(--surface);
   font-family: 'Poppins', sans-serif;
   font-size: 13px;
   font-weight: 600;
@@ -2163,6 +2667,15 @@ body {
   --warning: #E65100;
   --danger: #C41E2A;
   font-family: 'Poppins', sans-serif;
+}
+
+[data-theme="dark"] .drawer-overlay {
+  --primary-light: #1a2332;
+  --bg: var(--portal-bg);
+  --surface: var(--portal-bg-card);
+  --border: var(--portal-border);
+  --text: var(--portal-text);
+  --text-light: var(--portal-text-secondary);
 }
 
 @keyframes posOverlayIn {

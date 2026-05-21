@@ -1124,15 +1124,15 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
       <style>{CSS}</style>
       <div style={{ background: '#F4F3EF', minHeight: '100vh', margin: '-20px', padding: '20px', borderRadius: 12 }}>
         {/* ══ TOP BAR ══ */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16, padding: '8px 0', borderBottom: '2px solid #111' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16, padding: '8px 0', borderBottom: '2px solid var(--portal-text)' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-            <span style={{ fontSize: 26, fontWeight: 900, color: '#111' }}>{stats.fora}</span>
-            <span style={{ fontSize: 15, fontWeight: 600, color: '#111' }}>em campo</span>
+            <span style={{ fontSize: 26, fontWeight: 900, color: 'var(--portal-text)' }}>{stats.fora}</span>
+            <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--portal-text)' }}>em campo</span>
           </div>
-          <div style={{ width: 1, height: 22, background: '#111' }} />
+          <div style={{ width: 1, height: 22, background: 'var(--portal-text)' }} />
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
-            <span style={{ fontSize: 26, fontWeight: 900, color: '#111' }}>{stats.done}</span>
-            <span style={{ fontSize: 15, fontWeight: 600, color: '#111' }}>/{stats.totalOS} visitas</span>
+            <span style={{ fontSize: 26, fontWeight: 900, color: 'var(--portal-text)' }}>{stats.done}</span>
+            <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--portal-text)' }}>/{stats.totalOS} visitas</span>
           </div>
           <div style={{ flex: 1 }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1141,7 +1141,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
               value={dataHistorico || hoje}
               max={hoje}
               onChange={e => setDataHistorico(e.target.value === hoje ? '' : e.target.value)}
-              style={{ padding: '6px 10px', borderRadius: 8, border: '2px solid #E0DDD8', fontSize: 13, fontWeight: 600, background: verHistorico ? '#FEF3C7' : '#fff', color: '#111', cursor: 'pointer' }}
+              style={{ padding: '6px 10px', borderRadius: 8, border: '2px solid var(--portal-border)', fontSize: 13, fontWeight: 600, background: verHistorico ? '#FEF3C7' : 'var(--portal-bg-card)', color: 'var(--portal-text)', cursor: 'pointer' }}
             />
             {verHistorico && (
               <button className="vg-btn" onClick={() => setDataHistorico('')} style={{ background: '#111', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
@@ -1159,9 +1159,9 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
         {/* ══ HISTÓRICO ══ */}
         {verHistorico && (
           loadingHistorico ? (
-            <div style={{ textAlign: 'center', padding: 60, color: '#999', fontSize: 14 }}>Carregando histórico...</div>
+            <div style={{ textAlign: 'center', padding: 60, color: 'var(--portal-text-muted)', fontSize: 14 }}>Carregando histórico...</div>
           ) : historicoCards.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 60, color: '#999', fontSize: 14 }}>Nenhum registro salvo para {new Date(dataHistorico + 'T12:00:00').toLocaleDateString('pt-BR')}</div>
+            <div style={{ textAlign: 'center', padding: 60, color: 'var(--portal-text-muted)', fontSize: 14 }}>Nenhum registro salvo para {new Date(dataHistorico + 'T12:00:00').toLocaleDateString('pt-BR')}</div>
           ) : (
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, color: '#92400E', background: '#FEF3C7', padding: '8px 16px', borderRadius: 8, marginBottom: 16, textAlign: 'center' }}>
@@ -1182,7 +1182,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                       return (
                         <div key={card.tecnico_nome} className="vg-figurinha" onClick={() => setModalHistTec(card.tecnico_nome)} style={{
                           borderRadius: 20, flex: '1 1 0', minWidth: 280,
-                          background: '#fff', border: '2px solid #E5E3DD',
+                          background: 'var(--portal-bg-card)', border: '2px solid var(--portal-border)',
                           boxShadow: '0 4px 16px rgba(0,0,0,.06)', cursor: 'pointer',
                         }}>
                           {/* TOPO */}
@@ -1197,10 +1197,10 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                                 border: `2px solid ${hasOS ? 'rgba(255,255,255,.25)' : '#C0BDB7'}`,
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                               }}>
-                                <span style={{ fontSize: 20, fontWeight: 900, color: hasOS ? '#fff' : '#111' }}>{iniciais}</span>
+                                <span style={{ fontSize: 20, fontWeight: 900, color: hasOS ? '#fff' : 'var(--portal-text)' }}>{iniciais}</span>
                               </div>
                               <div style={{ flex: 1 }}>
-                                <div style={{ fontSize: 22, fontWeight: 900, color: hasOS ? '#fff' : '#111', letterSpacing: '-.03em', lineHeight: 1.1, textTransform: 'uppercase' }}>
+                                <div style={{ fontSize: 22, fontWeight: 900, color: hasOS ? '#fff' : 'var(--portal-text)', letterSpacing: '-.03em', lineHeight: 1.1, textTransform: 'uppercase' }}>
                                   {primeiroNome} {sobrenome && <span style={{ fontSize: 15, fontWeight: 700, opacity: .7 }}>{sobrenome}</span>}
                                 </div>
                               </div>
@@ -1248,9 +1248,9 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                                         const diffMin = retEv ? isoToMin(retEv.horario) - isoToMin(ev.horario) : 0
                                         return (
                                           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0', position: 'relative' }}>
-                                            <span style={{ fontSize: 13, fontWeight: 800, color: '#111', fontVariantNumeric: 'tabular-nums', minWidth: 36 }}>{fHora(ev.horario)}</span>
+                                            <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--portal-text)', fontVariantNumeric: 'tabular-nums', minWidth: 36 }}>{fHora(ev.horario)}</span>
                                             <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#9CA3AF', flexShrink: 0, position: 'relative', zIndex: 1 }} />
-                                            <span style={{ fontSize: 13, fontWeight: 600, color: '#6B7280' }}>Saída rápida ({diffMin}min)</span>
+                                            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--portal-text-secondary)' }}>Saída rápida ({diffMin}min)</span>
                                           </div>
                                         )
                                       }
@@ -1281,7 +1281,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
 
                                     return (
                                       <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '4px 0', position: 'relative' }}>
-                                        <span style={{ fontSize: 13, fontWeight: 800, color: '#111', fontVariantNumeric: 'tabular-nums', minWidth: 36 }}>{fHora(ev.horario)}</span>
+                                        <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--portal-text)', fontVariantNumeric: 'tabular-nums', minWidth: 36 }}>{fHora(ev.horario)}</span>
                                         <div style={{ width: 10, height: 10, borderRadius: '50%', marginTop: 3, flexShrink: 0, position: 'relative', zIndex: 1, background: dotColor, border: '2px solid #F0F7FF' }} />
                                         <div style={{ flex: 1 }}>
                                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
@@ -1294,7 +1294,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                                   })}
                                 </div>
                                 {gpsV.posicoes_total > 0 && (
-                                  <div style={{ fontSize: 11, color: '#999', marginTop: 6, textAlign: 'right' }}>{gpsV.posicoes_total} posições rastreadas</div>
+                                  <div style={{ fontSize: 11, color: 'var(--portal-text-muted)', marginTop: 6, textAlign: 'right' }}>{gpsV.posicoes_total} posições rastreadas</div>
                                 )}
                               </div>
                             )
@@ -1304,28 +1304,28 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                             {card.items.map((a: any) => (
                               <div key={a.id_ordem || a.id} style={{
                                 padding: '12px 14px', borderRadius: 10, marginBottom: 8,
-                                background: '#F9F9F7', border: '1px solid #E5E3DD',
+                                background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)',
                               }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                                  <span style={{ fontSize: 14, fontWeight: 800, color: '#111' }}>OS {a.id_ordem}</span>
-                                  <span style={{ fontSize: 12, color: '#666' }}>{a.qtd_horas}h</span>
+                                  <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--portal-text)' }}>OS {a.id_ordem}</span>
+                                  <span style={{ fontSize: 12, color: 'var(--portal-text-secondary)' }}>{a.qtd_horas}h</span>
                                 </div>
-                                <div style={{ fontSize: 15, fontWeight: 700, color: '#111', marginBottom: 4 }}>
+                                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--portal-text)', marginBottom: 4 }}>
                                   {(a.cliente || '').split(' ').slice(0, 5).join(' ')}
                                 </div>
                                 {a.cidade && (
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: '#555', marginBottom: 4 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: 'var(--portal-text-secondary)', marginBottom: 4 }}>
                                     <MapPin size={12} /> {a.cidade}
                                   </div>
                                 )}
                                 {a.endereco && (
-                                  <div style={{ fontSize: 12, color: '#888', marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                     {a.endereco}
                                   </div>
                                 )}
                                 {/* GPS salvo */}
                                 {(a.gps_saida_oficina || a.gps_chegada_cliente || a.gps_saida_cliente || a.gps_retorno_oficina) && (
-                                  <div style={{ fontSize: 12, color: '#555', lineHeight: 1.8, padding: '6px 10px', background: '#F0EFEB', borderRadius: 6, marginTop: 4 }}>
+                                  <div style={{ fontSize: 12, color: 'var(--portal-text-secondary)', lineHeight: 1.8, padding: '6px 10px', background: 'var(--portal-bg-secondary)', borderRadius: 6, marginTop: 4 }}>
                                     {a.gps_saida_oficina && <div><span style={{ fontWeight: 700 }}>Saída oficina:</span> {a.gps_saida_oficina}</div>}
                                     {a.gps_chegada_cliente && <div><span style={{ fontWeight: 700 }}>Chegada cliente:</span> {a.gps_chegada_cliente}</div>}
                                     {a.gps_saida_cliente && <div><span style={{ fontWeight: 700 }}>Saiu cliente:</span> {a.gps_saida_cliente}</div>}
@@ -1334,14 +1334,14 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                                 )}
                                 {/* Resumo */}
                                 {a.resumo && (
-                                  <div style={{ fontSize: 12, color: '#333', marginTop: 6, fontStyle: 'italic', lineHeight: 1.4 }}>
+                                  <div style={{ fontSize: 12, color: 'var(--portal-text)', marginTop: 6, fontStyle: 'italic', lineHeight: 1.4 }}>
                                     {a.resumo}
                                   </div>
                                 )}
                               </div>
                             ))}
                             {!hasOS && (
-                              <div style={{ textAlign: 'center', color: '#ccc', fontSize: 13, padding: 20 }}>Sem ordens neste dia</div>
+                              <div style={{ textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 13, padding: 20 }}>Sem ordens neste dia</div>
                             )}
                           </div>
                         </div>
@@ -1378,7 +1378,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                 onClick={() => setModalTec(tec.tecnico_nome)}
                 style={{
                   borderRadius: 20, flex: '1 1 0', minWidth: 280,
-                  background: '#fff', border: `2px solid ${foraLoja ? '#222' : '#E5E3DD'}`,
+                  background: 'var(--portal-bg-card)', border: `2px solid ${foraLoja ? '#222' : 'var(--portal-border)'}`,
                   boxShadow: '0 4px 16px rgba(0,0,0,.06)',
                   animationDelay: `${(row * Math.ceil(cardData.length / 2) + di) * .08}s`,
                 }}>
@@ -1399,10 +1399,10 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                       border: `2px solid ${hasOS ? 'rgba(255,255,255,.25)' : '#C0BDB7'}`,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>
-                      <span style={{ fontSize: 20, fontWeight: 900, color: hasOS ? '#fff' : '#111' }}>{iniciais}</span>
+                      <span style={{ fontSize: 20, fontWeight: 900, color: hasOS ? '#fff' : 'var(--portal-text)' }}>{iniciais}</span>
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 22, fontWeight: 900, color: hasOS ? '#fff' : '#111', letterSpacing: '-.03em', lineHeight: 1.1, textTransform: 'uppercase' }}>
+                      <div style={{ fontSize: 22, fontWeight: 900, color: hasOS ? '#fff' : 'var(--portal-text)', letterSpacing: '-.03em', lineHeight: 1.1, textTransform: 'uppercase' }}>
                         {primeiroNome} {sobrenome && <span style={{ fontSize: 15, fontWeight: 700, opacity: .7 }}>{sobrenome.split(' ')[0]}</span>}
                       </div>
                     </div>
@@ -1427,13 +1427,13 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                     const cidade = isOficina ? 'PIRAJU (SP) — Oficina' : curOS?.Cidade_Cliente
                     const endereco = isOficina ? ENDERECO_OFICINA : curOS?.Endereco_Cliente
                     return cidade ? (
-                      <div style={{ background: isOficina ? '#FEF2F2' : '#F7F6F3', padding: '10px 20px 12px', borderBottom: '2px solid #E0DDD8' }}>
-                        <div style={{ fontSize: 12, fontWeight: 800, color: '#111', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>Destino</div>
+                      <div style={{ background: isOficina ? '#FEF2F2' : 'var(--portal-bg-secondary)', padding: '10px 20px 12px', borderBottom: '2px solid var(--portal-border)' }}>
+                        <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>Destino</div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <MapPin size={16} color={isOficina ? '#B91C1C' : '#111'} />
-                          <span style={{ fontSize: 17, fontWeight: 800, color: isOficina ? '#B91C1C' : '#111' }}>{cidade}</span>
+                          <MapPin size={16} color={isOficina ? '#B91C1C' : 'var(--portal-text)'} />
+                          <span style={{ fontSize: 17, fontWeight: 800, color: isOficina ? '#B91C1C' : 'var(--portal-text)' }}>{cidade}</span>
                           {endereco && !isOficina && (
-                            <span style={{ fontSize: 13, fontWeight: 500, color: '#111', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{endereco}</span>
+                            <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--portal-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{endereco}</span>
                           )}
                         </div>
                       </div>
@@ -1441,32 +1441,32 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                   })()}
                   {enderecoCarro ? (
                     <div className={pos?.ignicao && pos.velocidade > 0 ? 'vg-car-blink' : ''} style={{
-                      padding: '10px 20px 12px', borderBottom: '2px solid #E0DDD8',
-                      background: pos?.ignicao && pos.velocidade > 0 ? '#F0FDF4' : '#FAFAF8',
+                      padding: '10px 20px 12px', borderBottom: '2px solid var(--portal-border)',
+                      background: pos?.ignicao && pos.velocidade > 0 ? '#F0FDF4' : 'var(--portal-bg-secondary)',
                     }}>
-                      <div style={{ fontSize: 12, fontWeight: 800, color: '#111', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>Localização Atual</div>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>Localização Atual</div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <div className={pos?.ignicao && pos.velocidade > 0 ? 'vg-car-moving' : ''} style={{
                           width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
-                          background: pos?.ignicao && pos.velocidade > 0 ? '#22C55E' : '#DDD',
+                          background: pos?.ignicao && pos.velocidade > 0 ? '#22C55E' : 'var(--portal-border)',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                         }}>
                           <Car size={14} color="#fff" />
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 15, fontWeight: 700, color: '#111', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--portal-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {enderecoCarro}
                           </div>
-                          <div style={{ fontSize: 13, color: '#111', marginTop: 2 }}>
+                          <div style={{ fontSize: 13, color: 'var(--portal-text)', marginTop: 2 }}>
                             {pos?.ignicao ? (
                               <span>
-                                <span style={{ color: pos.velocidade > 0 ? '#16A34A' : '#111', fontWeight: 700 }}>
+                                <span style={{ color: pos.velocidade > 0 ? '#16A34A' : 'var(--portal-text)', fontWeight: 700 }}>
                                   {pos.velocidade > 0 ? `${pos.velocidade} km/h` : 'Parado'}
                                 </span>
                                 <span style={{ marginLeft: 8 }}>às {fHora(pos.dt)}</span>
                               </span>
                             ) : (
-                              <span style={{ color: '#111', fontWeight: 600 }}>Ignição OFF</span>
+                              <span style={{ color: 'var(--portal-text)', fontWeight: 600 }}>Ignição OFF</span>
                             )}
                           </div>
                         </div>
@@ -1497,7 +1497,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                             Atualizar endereço
                           </button>
                           <button className="vg-btn" onClick={() => setAddrMismatch(p => { const n = { ...p }; delete n[tec.tecnico_nome]; return n })}
-                            style={{ background: '#fff', color: '#92400E', border: '1px solid #FDE68A', borderRadius: 8, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                            style={{ background: 'var(--portal-bg-card)', color: '#92400E', border: '1px solid #FDE68A', borderRadius: 8, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                             Está correto
                           </button>
                         </div>
@@ -1514,10 +1514,10 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                     {curOS && (
                       <div style={{ marginBottom: 14 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                          <span style={{ fontSize: 14, fontWeight: 800, color: '#111', letterSpacing: '.05em' }}>OS</span>
-                          <span style={{ fontSize: 22, fontWeight: 900, color: '#111', letterSpacing: '-.02em' }}>{curOS.Id_Ordem}</span>
+                          <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--portal-text)', letterSpacing: '.05em' }}>OS</span>
+                          <span style={{ fontSize: 22, fontWeight: 900, color: 'var(--portal-text)', letterSpacing: '-.02em' }}>{curOS.Id_Ordem}</span>
                           {tipoServico && (
-                            <span style={{ fontSize: 14, fontWeight: 700, color: '#111', background: '#F0EFEB', padding: '3px 10px', borderRadius: 6 }}>{tipoServico}</span>
+                            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text)', background: 'var(--portal-bg-secondary)', padding: '3px 10px', borderRadius: 6 }}>{tipoServico}</span>
                           )}
                           {multiDia && (
                             <span style={{
@@ -1539,7 +1539,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                             </span>
                           )}
                         </div>
-                        <div style={{ fontSize: 17, fontWeight: 700, color: '#111', lineHeight: 1.3 }}>
+                        <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--portal-text)', lineHeight: 1.3 }}>
                           {curOS.Os_Cliente?.split(' ').slice(0, 6).join(' ')}
                         </div>
                         {curOS.Previsao_Execucao && (() => {
@@ -1607,7 +1607,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                               <span style={{ fontWeight: 800, color: '#1E3A5F', background: '#DBEAFE', padding: '3px 10px', borderRadius: 6 }}>
                                 {horaInicioAdj} → {horaFimAdj}
                               </span>
-                              <span style={{ fontSize: 13, fontWeight: 600, color: '#111' }}>{h}h serviço</span>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--portal-text)' }}>{h}h serviço</span>
                             </div>
                           )
                         })()}
@@ -1617,7 +1617,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                     {/* Solicitação */}
                     {solicitacao && (
                       <div style={{
-                        fontSize: 15, fontWeight: 600, color: '#111', lineHeight: 1.5, marginBottom: 14,
+                        fontSize: 15, fontWeight: 600, color: 'var(--portal-text)', lineHeight: 1.5, marginBottom: 14,
                         padding: '12px 16px', background: '#FFFDF5', borderRadius: 10,
                         borderLeft: '4px solid #E8C94A',
                         display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
@@ -1695,11 +1695,11 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                     )}
 
                     {/* Previsão + progress */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, borderTop: '2px solid #E0DDD8', paddingTop: 14 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, borderTop: '2px solid var(--portal-border)', paddingTop: 14 }}>
                       {previsaoHora ? (
                         <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
-                          <span style={{ fontSize: 15, color: '#111', fontWeight: 700 }}>{previsaoLabel}</span>
-                          <span style={{ fontSize: 24, fontWeight: 900, color: '#111', fontVariantNumeric: 'tabular-nums', letterSpacing: '-.02em' }}>{previsaoHora}</span>
+                          <span style={{ fontSize: 15, color: 'var(--portal-text)', fontWeight: 700 }}>{previsaoLabel}</span>
+                          <span style={{ fontSize: 24, fontWeight: 900, color: 'var(--portal-text)', fontVariantNumeric: 'tabular-nums', letterSpacing: '-.02em' }}>{previsaoHora}</span>
                         </div>
                       ) : <div />}
                       <div style={{ flex: 1 }} />
@@ -1708,7 +1708,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                           {ordsTec.map((_, i) => (
                             <div key={i} style={{
                               width: 12, height: 12, borderRadius: '50%',
-                              background: i < completedVisits ? '#111' : i === d.curIdx ? '#999' : '#E0DDD8',
+                              background: i < completedVisits ? 'var(--portal-text)' : i === d.curIdx ? 'var(--portal-text-muted)' : 'var(--portal-border)',
                               transition: 'background .3s',
                             }} />
                           ))}
@@ -1718,7 +1718,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                   </div>
                 ) : (
                   <div style={{ padding: '24px', textAlign: 'center' }}>
-                    <span style={{ fontSize: 16, color: '#111', fontWeight: 600 }}>Na oficina / sem OS</span>
+                    <span style={{ fontSize: 16, color: 'var(--portal-text)', fontWeight: 600 }}>Na oficina / sem OS</span>
                   </div>
                 )}
                 </div>
@@ -1742,30 +1742,30 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
           <div className="vg-modal-overlay" onClick={() => { setModalTec(null); setEditingAddr(null) }}
             style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
             <div className="vg-modal-body" onClick={e => e.stopPropagation()}
-              style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 780, maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,.2)' }}>
+              style={{ background: 'var(--portal-bg-card)', borderRadius: 16, width: '100%', maxWidth: 780, maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,.2)' }}>
 
               {/* ── HEADER ── */}
-              <div style={{ padding: '24px 32px 18px', background: '#FAFAFA', borderBottom: '2px solid #111' }}>
+              <div style={{ padding: '24px 32px 18px', background: 'var(--portal-bg-secondary)', borderBottom: '2px solid var(--portal-text)' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                   <div>
-                    <h2 style={{ fontSize: 28, fontWeight: 900, color: '#111', margin: 0 }}>{modalTec}</h2>
+                    <h2 style={{ fontSize: 28, fontWeight: 900, color: 'var(--portal-text)', margin: 0 }}>{modalTec}</h2>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8, flexWrap: 'wrap' }}>
-                      {vinculo && <span style={{ fontSize: 16, fontWeight: 700, color: '#111', background: '#F0F0F0', padding: '3px 10px', borderRadius: 6 }}>{vinculo.placa}</span>}
-                      <span style={{ fontSize: 16, fontWeight: 600, color: '#111' }}>{ordsTec.length} OS · {d.completedVisits} concluídas</span>
+                      {vinculo && <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--portal-text)', background: 'var(--portal-border)', padding: '3px 10px', borderRadius: 6 }}>{vinculo.placa}</span>}
+                      <span style={{ fontSize: 16, fontWeight: 600, color: 'var(--portal-text)' }}>{ordsTec.length} OS · {d.completedVisits} concluídas</span>
                       {d.previsaoLabel && (
-                        <span style={{ fontSize: 16, fontWeight: 700, color: '#111' }}>{d.previsaoLabel} {d.previsaoHora}</span>
+                        <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--portal-text)' }}>{d.previsaoLabel} {d.previsaoHora}</span>
                       )}
                     </div>
                     {ordsTec.length > 0 && (
                       <div style={{ display: 'flex', gap: 5, marginTop: 10 }}>
                         {ordsTec.map((_, i) => (
-                          <div key={i} style={{ width: 10, height: 10, borderRadius: '50%', background: i < d.completedVisits ? '#111' : i === d.curIdx ? '#999' : '#E0E0E0' }} />
+                          <div key={i} style={{ width: 10, height: 10, borderRadius: '50%', background: i < d.completedVisits ? 'var(--portal-text)' : i === d.curIdx ? 'var(--portal-text-muted)' : 'var(--portal-border)' }} />
                         ))}
                       </div>
                     )}
                   </div>
                   <button onClick={() => { setModalTec(null); setEditingAddr(null) }}
-                    style={{ background: '#F0F0F0', border: 'none', borderRadius: 10, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#999', flexShrink: 0 }}>
+                    style={{ background: 'var(--portal-bg-secondary)', border: 'none', borderRadius: 10, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--portal-text-muted)', flexShrink: 0 }}>
                     <X size={18} />
                   </button>
                 </div>
@@ -1773,18 +1773,18 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
 
               {/* ── POSIÇÃO ATUAL ── */}
               {pos && (
-                <div style={{ padding: '16px 32px', borderBottom: '1px solid #DDD', background: '#FAFAFA' }}>
+                <div style={{ padding: '16px 32px', borderBottom: '1px solid var(--portal-border)', background: 'var(--portal-bg-secondary)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <Navigation size={18} color="#111" style={{ flexShrink: 0 }} />
+                    <Navigation size={18} color="var(--portal-text)" style={{ flexShrink: 0 }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 17, fontWeight: 700, color: '#111' }}>{addr || 'Buscando endereço...'}</div>
-                      <div style={{ fontSize: 15, color: '#111', marginTop: 2 }}>
+                      <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--portal-text)' }}>{addr || 'Buscando endereço...'}</div>
+                      <div style={{ fontSize: 15, color: 'var(--portal-text)', marginTop: 2 }}>
                         {pos.ignicao ? <span style={{ fontWeight: 700 }}>{pos.velocidade} km/h</span> : <span style={{ fontWeight: 600 }}>Ignição OFF</span>}
                         <span style={{ marginLeft: 10 }}>às {fHora(pos.dt)}</span>
                       </div>
                     </div>
                     <a href={`https://www.google.com/maps?q=${pos.lat},${pos.lng}`} target="_blank" rel="noopener noreferrer"
-                      style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 14, fontWeight: 700, color: '#111', textDecoration: 'none', padding: '7px 14px', border: '1px solid #111', borderRadius: 8, background: '#fff', flexShrink: 0 }}>
+                      style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 14, fontWeight: 700, color: 'var(--portal-text)', textDecoration: 'none', padding: '7px 14px', border: '1px solid var(--portal-text)', borderRadius: 8, background: 'var(--portal-bg-card)', flexShrink: 0 }}>
                       <ExternalLink size={13} /> Mapa
                     </a>
                   </div>
@@ -1792,11 +1792,11 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
               )}
 
               {/* ── VEÍCULO ── */}
-              <div style={{ padding: '10px 32px', borderBottom: '1px solid #DDD', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Car size={15} color="#111" />
+              <div style={{ padding: '10px 32px', borderBottom: '1px solid var(--portal-border)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Car size={15} color="var(--portal-text)" />
                 <select value={vinculo?.adesao_id || ''}
                   onChange={e => { const v = Number(e.target.value); if (v) vincularVeiculo(modalTec, v); else desvincularVeiculo(modalTec) }}
-                  style={{ flex: 1, padding: '7px 12px', borderRadius: 8, fontSize: 15, border: '1px solid #111', background: '#fff', color: '#111', outline: 'none', cursor: 'pointer', fontWeight: 600 }}>
+                  style={{ flex: 1, padding: '7px 12px', borderRadius: 8, fontSize: 15, border: '1px solid var(--portal-text)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)', outline: 'none', cursor: 'pointer', fontWeight: 600 }}>
                   <option value="">Vincular veiculo...</option>
                   {veiculos.map(v => <option key={v.id} value={v.id} disabled={veiculosVinculados.has(v.id) && vinculo?.adesao_id !== v.id}>{v.placa} - {v.descricao || 'Sem desc'}</option>)}
                 </select>
@@ -1900,15 +1900,15 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                       </div>
                     )}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 2, position: 'relative' }}>
-                      <div style={{ position: 'absolute', left: 52, top: 10, bottom: 10, width: 2, background: '#EBEBEB' }} />
+                      <div style={{ position: 'absolute', left: 52, top: 10, bottom: 10, width: 2, background: 'var(--portal-border)' }} />
 
                       {saiuTarde && (
                         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '6px 0', position: 'relative' }}>
-                          <span style={{ fontSize: 17, fontWeight: 800, color: '#111', fontVariantNumeric: 'tabular-nums', minWidth: 48 }}>08:00</span>
-                          <div style={{ width: 12, height: 12, borderRadius: '50%', marginTop: 4, flexShrink: 0, position: 'relative', zIndex: 1, background: '#111', border: '2px solid #fff' }} />
+                          <span style={{ fontSize: 17, fontWeight: 800, color: 'var(--portal-text)', fontVariantNumeric: 'tabular-nums', minWidth: 48 }}>08:00</span>
+                          <div style={{ width: 12, height: 12, borderRadius: '50%', marginTop: 4, flexShrink: 0, position: 'relative', zIndex: 1, background: 'var(--portal-text)', border: '2px solid var(--portal-bg-card)' }} />
                           <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: 16, fontWeight: 700, color: '#111' }}>Na oficina (manhã)</div>
-                            <div style={{ fontSize: 14, color: '#111', marginTop: 2 }}>Saiu às {fHora(primeiraSaida!.horario)}</div>
+                            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--portal-text)' }}>Na oficina (manhã)</div>
+                            <div style={{ fontSize: 14, color: 'var(--portal-text)', marginTop: 2 }}>Saiu às {fHora(primeiraSaida!.horario)}</div>
                           </div>
                         </div>
                       )}
@@ -1921,11 +1921,11 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                             const diffMin = retEv ? isoToMin(retEv.horario) - isoToMin(ev.horario) : 0
                             return (
                               <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '6px 0', position: 'relative' }}>
-                                <span style={{ fontSize: 17, fontWeight: 800, color: '#111', fontVariantNumeric: 'tabular-nums', minWidth: 48 }}>{fHora(ev.horario)}</span>
-                                <div style={{ width: 12, height: 12, borderRadius: '50%', marginTop: 4, flexShrink: 0, position: 'relative', zIndex: 1, background: '#111', border: '2px solid #fff' }} />
+                                <span style={{ fontSize: 17, fontWeight: 800, color: 'var(--portal-text)', fontVariantNumeric: 'tabular-nums', minWidth: 48 }}>{fHora(ev.horario)}</span>
+                                <div style={{ width: 12, height: 12, borderRadius: '50%', marginTop: 4, flexShrink: 0, position: 'relative', zIndex: 1, background: 'var(--portal-text)', border: '2px solid var(--portal-bg-card)' }} />
                                 <div style={{ flex: 1 }}>
-                                  <div style={{ fontSize: 16, fontWeight: 700, color: '#111' }}>Saída rápida ({diffMin} min)</div>
-                                  <div style={{ fontSize: 14, color: '#111' }}>Voltou às {retEv ? fHora(retEv.horario) : '?'}</div>
+                                  <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--portal-text)' }}>Saída rápida ({diffMin} min)</div>
+                                  <div style={{ fontSize: 14, color: 'var(--portal-text)' }}>Voltou às {retEv ? fHora(retEv.horario) : '?'}</div>
                                 </div>
                               </div>
                             )
@@ -2009,14 +2009,14 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                         return (
                           <div key={i}>
                             {separador}
-                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '8px 0', position: 'relative', borderBottom: '1px solid #F0F0F0',
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '8px 0', position: 'relative', borderBottom: '1px solid var(--portal-border)',
                               ...(ordemEvento ? { borderLeft: `3px solid ${ordemEvento.cor}`, paddingLeft: 10, marginLeft: -3 } : {}),
                             }}>
-                              <span style={{ fontSize: 17, fontWeight: 800, color: '#111', fontVariantNumeric: 'tabular-nums', minWidth: 48 }}>{fHora(ev.horario)}</span>
+                              <span style={{ fontSize: 17, fontWeight: 800, color: 'var(--portal-text)', fontVariantNumeric: 'tabular-nums', minWidth: 48 }}>{fHora(ev.horario)}</span>
                               <div style={{
                                 width: 12, height: 12, borderRadius: '50%', marginTop: 4, flexShrink: 0, position: 'relative', zIndex: 1,
                                 background: dotColor,
-                                border: '2px solid #fff',
+                                border: '2px solid var(--portal-bg-card)',
                               }} />
                               <div style={{ flex: 1 }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -2025,8 +2025,8 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                                 </div>
                                 {/* Endereço + link mapa em todos os eventos */}
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 3, flexWrap: 'wrap' }}>
-                                  <span style={{ fontSize: isChegada || isParada ? 14 : 13, color: '#555', display: 'flex', alignItems: 'center', gap: 4 }}>
-                                    <MapPin size={12} style={{ flexShrink: 0, color: '#888' }} /> {addrDisplay}
+                                  <span style={{ fontSize: isChegada || isParada ? 14 : 13, color: 'var(--portal-text-secondary)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <MapPin size={12} style={{ flexShrink: 0, color: 'var(--portal-text-muted)' }} /> {addrDisplay}
                                   </span>
                                   <a href={`https://www.google.com/maps?q=${ev.lat},${ev.lng}`} target="_blank" rel="noopener noreferrer"
                                     style={{ fontSize: 13, color: '#2563EB', display: 'inline-flex', alignItems: 'center', gap: 3, textDecoration: 'none', fontWeight: 600 }}
@@ -2046,7 +2046,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
 
               {/* ── DESVIOS ── */}
               {d.desvios.length > 0 && (
-                <div style={{ padding: '14px 24px', borderBottom: '1px solid #DDD' }}>
+                <div style={{ padding: '14px 24px', borderBottom: '1px solid var(--portal-border)' }}>
                   <div style={{ fontSize: 15, fontWeight: 800, color: '#DC2626', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 10 }}>
                     <AlertTriangle size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />
                     Paradas fora do cliente
@@ -2061,7 +2061,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                         border: `2px solid ${confirmacao === 'desvio' ? '#FECACA' : confirmacao === 'cliente' ? '#BBF7D0' : '#FECACA'}`,
                       }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                          <span style={{ fontSize: 16, fontWeight: 800, color: '#111' }}>
+                          <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--portal-text)' }}>
                             {dv.visita.chegada && fHora(dv.visita.chegada)}
                             {dv.visita.saidaCliente && ` → ${fHora(dv.visita.saidaCliente)}`}
                           </span>
@@ -2072,7 +2072,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                           {confirmacao === 'cliente' && <span style={{ fontSize: 12, fontWeight: 800, color: '#059669', background: '#D1FAE5', padding: '2px 8px', borderRadius: 4 }}>CONFIRMADO</span>}
                         </div>
                         {dv.visita.destino_nome && (
-                          <div style={{ fontSize: 14, color: '#555', marginBottom: 6 }}>
+                          <div style={{ fontSize: 14, color: 'var(--portal-text-secondary)', marginBottom: 6 }}>
                             <MapPin size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />
                             {dv.visita.destino_nome}
                           </div>
@@ -2117,7 +2117,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
               {/* ── ORDENS ── */}
               {ordsTec.length > 0 && (
                 <div style={{ padding: '14px 24px 6px' }}>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: '#111', textTransform: 'uppercase', letterSpacing: '.05em' }}>Ordens de serviço</div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Ordens de serviço</div>
                 </div>
               )}
 
@@ -2166,17 +2166,17 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
 
                 return (
                   <div key={os.Id_Ordem} style={{
-                    padding: '12px 24px', borderTop: '1px solid #DDD',
-                    background: isCurrent ? '#F8F8F8' : '#fff',
-                    borderLeft: isCurrent ? '4px solid #111' : '4px solid transparent',
+                    padding: '12px 24px', borderTop: '1px solid var(--portal-border)',
+                    background: isCurrent ? 'var(--portal-bg-secondary)' : 'var(--portal-bg-card)',
+                    borderLeft: isCurrent ? '4px solid var(--portal-text)' : '4px solid transparent',
                   }}>
                     {/* Header */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                      <div style={{ width: 10, height: 10, borderRadius: '50%', background: isDone ? '#111' : isCurrent ? '#555' : '#CCC', flexShrink: 0 }} />
-                      <span style={{ fontSize: 14, fontWeight: 700, color: '#111', fontVariantNumeric: 'tabular-nums' }}>{os.Id_Ordem}</span>
-                      <span style={{ fontSize: 18, fontWeight: 800, color: '#111' }}>{os.Os_Cliente?.split(' ').slice(0, 5).join(' ')}</span>
-                      {os.Cidade_Cliente && <span style={{ fontSize: 15, fontWeight: 600, color: '#111' }}>{os.Cidade_Cliente}</span>}
-                      {os.Qtd_HR && <span style={{ fontSize: 15, fontWeight: 600, color: '#111' }}>{os.Qtd_HR}h</span>}
+                      <div style={{ width: 10, height: 10, borderRadius: '50%', background: isDone ? 'var(--portal-text)' : isCurrent ? 'var(--portal-text-secondary)' : 'var(--portal-border)', flexShrink: 0 }} />
+                      <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text)', fontVariantNumeric: 'tabular-nums' }}>{os.Id_Ordem}</span>
+                      <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--portal-text)' }}>{os.Os_Cliente?.split(' ').slice(0, 5).join(' ')}</span>
+                      {os.Cidade_Cliente && <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--portal-text)' }}>{os.Cidade_Cliente}</span>}
+                      {os.Qtd_HR && <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--portal-text)' }}>{os.Qtd_HR}h</span>}
                       {d.osCompartilhada[os.Id_Ordem] && (
                         <span style={{
                           fontSize: 12, fontWeight: 800, color: '#7C3AED', background: '#EDE9FE',
@@ -2188,32 +2188,32 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                         </span>
                       )}
                       <div style={{ flex: 1 }} />
-                      {isDone && <span style={{ fontSize: 13, fontWeight: 800, color: '#111', background: '#E8E8E8', padding: '3px 12px', borderRadius: 4 }}>Concluido</span>}
-                      {isCurrent && !isDone && gps?.chegada && <span style={{ fontSize: 13, fontWeight: 800, color: '#111', background: '#E8E8E8', padding: '3px 12px', borderRadius: 4 }}>No cliente</span>}
-                      {isCurrent && !isDone && !gps?.chegada && foraLoja && <span style={{ fontSize: 13, fontWeight: 700, color: '#111' }}>A caminho</span>}
+                      {isDone && <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--portal-text)', background: 'var(--portal-border)', padding: '3px 12px', borderRadius: 4 }}>Concluido</span>}
+                      {isCurrent && !isDone && gps?.chegada && <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--portal-text)', background: 'var(--portal-border)', padding: '3px 12px', borderRadius: 4 }}>No cliente</span>}
+                      {isCurrent && !isDone && !gps?.chegada && foraLoja && <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--portal-text)' }}>A caminho</span>}
                       {temAtraso && <span style={{ fontSize: 13, fontWeight: 800, color: '#DC2626', background: '#FEF2F2', padding: '3px 10px', borderRadius: 4 }}>Excedeu</span>}
                       {chegouAtrasado && <span style={{ fontSize: 13, fontWeight: 800, color: '#DC2626', background: '#FEF2F2', padding: '3px 10px', borderRadius: 4 }}>Atrasado</span>}
                     </div>
 
                     {/* Endereço editável */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, marginLeft: 15 }}>
-                      <MapPin size={14} color="#111" />
+                      <MapPin size={14} color="var(--portal-text)" />
                       {isEditing ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1 }}>
                           <input value={editingAddr!.value}
                             onChange={e => setEditingAddr({ id: editingAddr!.id, value: e.target.value })}
                             onKeyDown={e => { if (e.key === 'Enter') salvarEndereco(); if (e.key === 'Escape') setEditingAddr(null) }}
-                            autoFocus style={{ flex: 1, padding: '5px 10px', borderRadius: 5, fontSize: 12, border: '1px solid #DDD', outline: 'none', color: '#111' }} />
+                            autoFocus style={{ flex: 1, padding: '5px 10px', borderRadius: 5, fontSize: 12, border: '1px solid var(--portal-border)', outline: 'none', color: 'var(--portal-text)' }} />
                           <button onClick={salvarEndereco} disabled={savingAddr}
                             style={{ background: '#111', color: '#fff', border: 'none', borderRadius: 5, padding: '4px 10px', cursor: 'pointer', fontSize: 11, fontWeight: 700 }}>
                             {savingAddr ? <RefreshCw size={10} className="animate-spin" /> : 'Salvar'}
                           </button>
                           <button onClick={() => setEditingAddr(null)}
-                            style={{ background: '#F0F0F0', color: '#999', border: 'none', borderRadius: 5, padding: '4px 8px', cursor: 'pointer' }}><X size={11} /></button>
+                            style={{ background: 'var(--portal-bg-secondary)', color: 'var(--portal-text-muted)', border: 'none', borderRadius: 5, padding: '4px 8px', cursor: 'pointer' }}><X size={11} /></button>
                         </div>
                       ) : (
                         <>
-                          <span style={{ fontSize: 15, fontWeight: 500, color: '#111', flex: 1 }}>{agItem?.endereco || os.Endereco_Cliente || 'Sem endereco'}</span>
+                          <span style={{ fontSize: 15, fontWeight: 500, color: 'var(--portal-text)', flex: 1 }}>{agItem?.endereco || os.Endereco_Cliente || 'Sem endereco'}</span>
                           {agItem && (
                             <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
                               <button onClick={async () => {
@@ -2226,7 +2226,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                                 Oficina
                               </button>
                               <button onClick={() => setEditingAddr({ id: agItem.id, value: agItem.endereco || os.Endereco_Cliente || '' })}
-                                style={{ background: '#F0F0F0', border: 'none', cursor: 'pointer', color: '#666', padding: '4px 10px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 600 }}>
+                                style={{ background: 'var(--portal-bg-secondary)', border: 'none', cursor: 'pointer', color: 'var(--portal-text-secondary)', padding: '4px 10px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 600 }}>
                                 <Edit3 size={11} /> Editar
                               </button>
                             </div>
@@ -2236,11 +2236,11 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                     </div>
 
                     {isCurrent && !isDone && gps?.chegada && pos && addr && (
-                      <div style={{ marginLeft: 15, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8, fontSize: 15, color: '#111', background: '#F0F0F0', padding: '8px 12px', borderRadius: 6, border: '1px solid #DDD' }}>
-                        <Navigation size={14} color="#111" style={{ flexShrink: 0 }} />
+                      <div style={{ marginLeft: 15, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8, fontSize: 15, color: 'var(--portal-text)', background: 'var(--portal-bg-secondary)', padding: '8px 12px', borderRadius: 6, border: '1px solid var(--portal-border)' }}>
+                        <Navigation size={14} color="var(--portal-text)" style={{ flexShrink: 0 }} />
                         <span style={{ flex: 1, fontWeight: 500 }}>Veículo: <span style={{ fontWeight: 700 }}>{addr}</span></span>
                         <a href={`https://www.google.com/maps?q=${pos.lat},${pos.lng}`} target="_blank" rel="noopener noreferrer"
-                          style={{ color: '#111', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 3, fontSize: 13, fontWeight: 700 }}>
+                          style={{ color: 'var(--portal-text)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 3, fontSize: 13, fontWeight: 700 }}>
                           <ExternalLink size={11} /> mapa
                         </a>
                       </div>
@@ -2257,18 +2257,18 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                       const clienteNome = os.Os_Cliente?.split(' ').slice(0, 3).join(' ') || 'cliente'
                       const temRetorno = (prevAdj?.retorno != null) || est?.retorno != null || !!gps?.retorno
                       return (
-                    <div style={{ marginLeft: 15, background: '#F5F5F5', borderRadius: 8, padding: '12px 14px', border: '1px solid #DDD' }}>
+                    <div style={{ marginLeft: 15, background: 'var(--portal-bg-secondary)', borderRadius: 8, padding: '12px 14px', border: '1px solid var(--portal-border)' }}>
                       {/* Header colunas */}
-                      <div style={{ display: 'flex', alignItems: 'center', fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 6, paddingBottom: 4, borderBottom: '1px solid #E5E5E5' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', fontSize: 10, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 6, paddingBottom: 4, borderBottom: '1px solid var(--portal-border)' }}>
                         <span style={{ width: 72 }}></span>
-                        <span style={{ width: 52, textAlign: 'center', lineHeight: 1.2 }}>Saída de<br /><span style={{ color: '#555', fontWeight: 800 }}>{origemNome}</span></span>
+                        <span style={{ width: 52, textAlign: 'center', lineHeight: 1.2 }}>Saída de<br /><span style={{ color: 'var(--portal-text-secondary)', fontWeight: 800 }}>{origemNome}</span></span>
                         <span style={{ width: 20 }}></span>
-                        <span style={{ width: 62, textAlign: 'center', lineHeight: 1.2 }}>Chegada em<br /><span style={{ color: '#555', fontWeight: 800 }}>{clienteNome}</span></span>
+                        <span style={{ width: 62, textAlign: 'center', lineHeight: 1.2 }}>Chegada em<br /><span style={{ color: 'var(--portal-text-secondary)', fontWeight: 800 }}>{clienteNome}</span></span>
                         <span style={{ width: 20 }}></span>
-                        <span style={{ width: 52, textAlign: 'center', lineHeight: 1.2 }}>Final do<br /><span style={{ color: '#555', fontWeight: 800 }}>serviço</span></span>
+                        <span style={{ width: 52, textAlign: 'center', lineHeight: 1.2 }}>Final do<br /><span style={{ color: 'var(--portal-text-secondary)', fontWeight: 800 }}>serviço</span></span>
                         {temRetorno && <>
                           <span style={{ width: 20 }}></span>
-                          <span style={{ width: 52, textAlign: 'center', lineHeight: 1.2 }}>Retorno<br /><span style={{ color: '#555', fontWeight: 800 }}>oficina</span></span>
+                          <span style={{ width: 52, textAlign: 'center', lineHeight: 1.2 }}>Retorno<br /><span style={{ color: 'var(--portal-text-secondary)', fontWeight: 800 }}>oficina</span></span>
                         </>}
                       </div>
                       {/* Previsão */}
@@ -2321,7 +2321,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                         </div>
                       )}
                       {agItem && agItem.tempo_ida_min > 0 && !gps && (
-                        <div style={{ fontSize: 15, fontWeight: 600, color: '#111', marginTop: 2 }}>{fm(agItem.tempo_ida_min)} / {agItem.distancia_ida_km}km</div>
+                        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--portal-text)', marginTop: 2 }}>{fm(agItem.tempo_ida_min)} / {agItem.distancia_ida_km}km</div>
                       )}
                       {/* Diferenças prev vs GPS */}
                       {prevAdj && gps && (gps.saida || gps.chegada) && (
@@ -2346,17 +2346,17 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
               }) })()}
 
               {viagem?.retorno_loja && lastEst?.retorno && (
-                <div style={{ padding: '14px 24px', borderTop: '2px solid #111', display: 'flex', alignItems: 'center', gap: 10, fontSize: 17 }}>
-                  <Home size={16} color="#111" />
-                  <span style={{ fontWeight: 800, color: '#111' }}>Retornou {fHora(viagem.retorno_loja)}</span>
-                  {(() => { const diff = isoToMin(viagem.retorno_loja!) - lastEst.retorno!; return diff > 5 ? <span style={{ color: '#DC2626', fontWeight: 800 }}>+{fm(diff)}</span> : diff < -5 ? <span style={{ color: '#059669', fontWeight: 800 }}>{fm(Math.abs(diff))} antes</span> : <span style={{ color: '#111', fontWeight: 600 }}>pontual</span> })()}
-                  <span style={{ color: '#111', fontWeight: 500 }}>est. {fh(lastEst.retorno)}</span>
+                <div style={{ padding: '14px 24px', borderTop: '2px solid var(--portal-text)', display: 'flex', alignItems: 'center', gap: 10, fontSize: 17 }}>
+                  <Home size={16} color="var(--portal-text)" />
+                  <span style={{ fontWeight: 800, color: 'var(--portal-text)' }}>Retornou {fHora(viagem.retorno_loja)}</span>
+                  {(() => { const diff = isoToMin(viagem.retorno_loja!) - lastEst.retorno!; return diff > 5 ? <span style={{ color: '#DC2626', fontWeight: 800 }}>+{fm(diff)}</span> : diff < -5 ? <span style={{ color: '#059669', fontWeight: 800 }}>{fm(Math.abs(diff))} antes</span> : <span style={{ color: 'var(--portal-text)', fontWeight: 600 }}>pontual</span> })()}
+                  <span style={{ color: 'var(--portal-text)', fontWeight: 500 }}>est. {fh(lastEst.retorno)}</span>
                 </div>
               )}
 
               {/* Na oficina após retorno */}
               {d.naOficinaAposRetorno && (
-                <div style={{ padding: '14px 24px', borderTop: '1px solid #DDD', background: '#F0F4FF' }}>
+                <div style={{ padding: '14px 24px', borderTop: '1px solid var(--portal-border)', background: '#F0F4FF' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 16, marginBottom: editOficina?.tecnico === modalTec ? 10 : 0 }}>
                     <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#1E3A5F', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       <Home size={15} color="#fff" />
@@ -2386,8 +2386,8 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                         placeholder="O que o técnico está fazendo na oficina? Ex: Organizando ferramentas, limpeza, preparando peças..."
                         style={{
                           width: '100%', minHeight: 70, padding: '10px 12px', borderRadius: 8,
-                          border: '2px solid #93C5FD', fontSize: 14, lineHeight: 1.5, color: '#111',
-                          resize: 'vertical', outline: 'none', fontFamily: 'inherit', background: '#fff',
+                          border: '2px solid #93C5FD', fontSize: 14, lineHeight: 1.5, color: 'var(--portal-text)',
+                          resize: 'vertical', outline: 'none', fontFamily: 'inherit', background: 'var(--portal-bg-card)',
                         }}
                       />
                       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
@@ -2398,7 +2398,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                           {savingOficina ? <RefreshCw size={13} className="animate-spin" /> : <Check size={13} />} Salvar
                         </button>
                         <button onClick={() => setEditOficina(null)}
-                          style={{ background: '#E8E8E8', color: '#666', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                          style={{ background: 'var(--portal-bg-secondary)', color: 'var(--portal-text-secondary)', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                           Cancelar
                         </button>
                       </div>
@@ -2408,14 +2408,14 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
               )}
 
               {vinculo && !viagem && !gpsLoading && (
-                <div style={{ padding: '12px 24px', borderTop: '1px solid #DDD', fontSize: 15, fontWeight: 600, color: '#111' }}>{vinculo.placa} — Sem dados GPS hoje</div>
+                <div style={{ padding: '12px 24px', borderTop: '1px solid var(--portal-border)', fontSize: 15, fontWeight: 600, color: 'var(--portal-text)' }}>{vinculo.placa} — Sem dados GPS hoje</div>
               )}
 
               {/* ── RESUMO ── */}
-              <div style={{ padding: '16px 24px', borderTop: '2px solid #111' }}>
+              <div style={{ padding: '16px 24px', borderTop: '2px solid var(--portal-text)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 16, fontWeight: 800, color: '#111', textTransform: 'uppercase', letterSpacing: '.04em' }}>Resumo do dia</span>
+                    <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: '.04em' }}>Resumo do dia</span>
                     {resumoSalvoEm ? (
                       <span style={{ fontSize: 11, color: '#15803D', background: '#F0FDF4', border: '1px solid #BBF7D0', padding: '2px 8px', borderRadius: 4, fontWeight: 600 }}>
                         Salvo em {resumoSalvoEm}
@@ -2428,7 +2428,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button onClick={() => setResumoTec(gerarResumoAuto(d))}
-                      style={{ background: '#E8E8E8', border: 'none', borderRadius: 6, padding: '6px 14px', cursor: 'pointer', fontSize: 14, fontWeight: 700, color: '#111', display: 'flex', alignItems: 'center', gap: 5 }}>
+                      style={{ background: 'var(--portal-bg-secondary)', border: 'none', borderRadius: 6, padding: '6px 14px', cursor: 'pointer', fontSize: 14, fontWeight: 700, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 5 }}>
                       <RefreshCw size={13} /> Auto
                     </button>
                     <button onClick={salvarResumo} disabled={savingResumo}
@@ -2462,7 +2462,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                     <div style={{ fontSize: 10, color: '#9CA3AF', textAlign: 'center', marginTop: 2 }}>horas</div>
                   </div>
                 </div>
-                <div style={{ fontSize: 10, color: '#9CA3AF', textAlign: 'right', marginBottom: 8, fontStyle: 'italic' }}>
+                <div style={{ fontSize: 10, color: 'var(--portal-text-muted)', textAlign: 'right', marginBottom: 8, fontStyle: 'italic' }}>
                   Dados gerados automaticamente pelo GPS do veículo
                 </div>
 
@@ -2472,9 +2472,9 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                   placeholder="Ex: Técnico saiu às 08:30, chegou no cliente X às 09:15..."
                   style={{
                     width: '100%', minHeight: 90, padding: '12px 14px', borderRadius: 8,
-                    border: '1px solid #111', fontSize: 16, lineHeight: 1.6, color: '#111',
+                    border: '1px solid var(--portal-text)', fontSize: 16, lineHeight: 1.6, color: 'var(--portal-text)',
                     resize: 'vertical', outline: 'none', fontFamily: 'inherit',
-                    background: '#FAFAFA', fontWeight: 500,
+                    background: 'var(--portal-bg-secondary)', fontWeight: 500,
                   }}
                   onFocus={e => { e.target.style.borderColor = '#111' }}
                   onBlur={e => { e.target.style.borderColor = '#DDD' }}
@@ -2552,13 +2552,13 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
           <div className="vg-modal-overlay" onClick={() => setModalHistTec(null)}
             style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
             <div className="vg-modal-body" onClick={e => e.stopPropagation()}
-              style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 780, maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,.2)' }}>
+              style={{ background: 'var(--portal-bg-card)', borderRadius: 16, width: '100%', maxWidth: 780, maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,.2)' }}>
 
               {/* HEADER */}
               <div style={{ padding: '24px 32px 18px', background: '#FEF3C7', borderBottom: '2px solid #92400E' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                   <div>
-                    <h2 style={{ fontSize: 28, fontWeight: 900, color: '#111', margin: 0 }}>{modalHistTec}</h2>
+                    <h2 style={{ fontSize: 28, fontWeight: 900, color: 'var(--portal-text)', margin: 0 }}>{modalHistTec}</h2>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8, flexWrap: 'wrap' }}>
                       {gpsV && <span style={{ fontSize: 16, fontWeight: 700, color: '#92400E', background: '#FDE68A', padding: '3px 10px', borderRadius: 6 }}>{gpsV.placa}</span>}
                       <span style={{ fontSize: 16, fontWeight: 600, color: '#92400E' }}>{dataFormatada}</span>
@@ -2573,7 +2573,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
               </div>
 
               {/* MÉTRICAS */}
-              <div style={{ padding: '16px 32px', borderBottom: '1px solid #DDD' }}>
+              <div style={{ padding: '16px 32px', borderBottom: '1px solid var(--portal-border)' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                   <div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 8, padding: '10px 12px' }}>
                     <div style={{ fontSize: 10, color: '#6B7280', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '.5px', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -2597,16 +2597,16 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                     <div style={{ fontSize: 10, color: '#9CA3AF', textAlign: 'center', marginTop: 2 }}>horas</div>
                   </div>
                 </div>
-                <div style={{ fontSize: 10, color: '#9CA3AF', textAlign: 'right', marginTop: 6, fontStyle: 'italic' }}>
+                <div style={{ fontSize: 10, color: 'var(--portal-text-muted)', textAlign: 'right', marginTop: 6, fontStyle: 'italic' }}>
                   Dados do GPS do veículo
                 </div>
               </div>
 
               {/* JORNADA GPS */}
               {eventos.length > 0 && (
-                <div style={{ padding: '20px 32px', borderBottom: '1px solid #DDD' }}>
+                <div style={{ padding: '20px 32px', borderBottom: '1px solid var(--portal-border)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                    <div style={{ fontSize: 15, fontWeight: 800, color: '#111', textTransform: 'uppercase', letterSpacing: '.05em' }}>Jornada GPS</div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Jornada GPS</div>
                     {gpsV && (gpsV.km_total || 0) > 0 && (
                       <span style={{ fontSize: 13, fontWeight: 700, color: '#0369A1', background: '#F0F9FF', border: '1px solid #BAE6FD', padding: '3px 10px', borderRadius: 6 }}>
                         {gpsV.km_total} km total
@@ -2625,7 +2625,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                     </div>
                   )}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 2, position: 'relative' }}>
-                    <div style={{ position: 'absolute', left: 52, top: 10, bottom: 10, width: 2, background: '#EBEBEB' }} />
+                    <div style={{ position: 'absolute', left: 52, top: 10, bottom: 10, width: 2, background: 'var(--portal-border)' }} />
                     {eventos.map((ev, i) => {
                       // Saída rápida
                       if (saidasRapidas.has(i)) {
@@ -2634,11 +2634,11 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                           const diffMin = retEv ? isoToMin(retEv.horario) - isoToMin(ev.horario) : 0
                           return (
                             <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '6px 0', position: 'relative' }}>
-                              <span style={{ fontSize: 17, fontWeight: 800, color: '#111', fontVariantNumeric: 'tabular-nums', minWidth: 48 }}>{fHora(ev.horario)}</span>
-                              <div style={{ width: 12, height: 12, borderRadius: '50%', marginTop: 4, flexShrink: 0, position: 'relative', zIndex: 1, background: '#9CA3AF', border: '2px solid #fff' }} />
+                              <span style={{ fontSize: 17, fontWeight: 800, color: 'var(--portal-text)', fontVariantNumeric: 'tabular-nums', minWidth: 48 }}>{fHora(ev.horario)}</span>
+                              <div style={{ width: 12, height: 12, borderRadius: '50%', marginTop: 4, flexShrink: 0, position: 'relative', zIndex: 1, background: '#9CA3AF', border: '2px solid var(--portal-bg-card)' }} />
                               <div style={{ flex: 1 }}>
-                                <div style={{ fontSize: 16, fontWeight: 700, color: '#6B7280' }}>Saída rápida ({diffMin} min)</div>
-                                {retEv && <div style={{ fontSize: 14, color: '#6B7280' }}>Voltou às {fHora(retEv.horario)}</div>}
+                                <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--portal-text-secondary)' }}>Saída rápida ({diffMin} min)</div>
+                                {retEv && <div style={{ fontSize: 14, color: 'var(--portal-text-secondary)' }}>Voltou às {fHora(retEv.horario)}</div>}
                               </div>
                             </div>
                           )
@@ -2697,13 +2697,13 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                         <div key={i}>
                           {separador}
                           <div style={{
-                            display: 'flex', alignItems: 'flex-start', gap: 12, padding: '8px 0', position: 'relative', borderBottom: '1px solid #F0F0F0',
+                            display: 'flex', alignItems: 'flex-start', gap: 12, padding: '8px 0', position: 'relative', borderBottom: '1px solid var(--portal-border)',
                             ...(ordemEvento ? { borderLeft: `3px solid ${ordemEvento.cor}`, paddingLeft: 10, marginLeft: -3 } : {}),
                           }}>
-                            <span style={{ fontSize: 17, fontWeight: 800, color: '#111', fontVariantNumeric: 'tabular-nums', minWidth: 48 }}>{fHora(ev.horario)}</span>
+                            <span style={{ fontSize: 17, fontWeight: 800, color: 'var(--portal-text)', fontVariantNumeric: 'tabular-nums', minWidth: 48 }}>{fHora(ev.horario)}</span>
                             <div style={{
                               width: 12, height: 12, borderRadius: '50%', marginTop: 4, flexShrink: 0, position: 'relative', zIndex: 1,
-                              background: dotColor, border: '2px solid #fff',
+                              background: dotColor, border: '2px solid var(--portal-bg-card)',
                             }} />
                             <div style={{ flex: 1 }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -2711,8 +2711,8 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                                 {permanencia && <span style={{ fontSize: 16, fontWeight: 800, color: '#fff', background: '#111', padding: '4px 14px', borderRadius: 6 }}>Parou {permanencia}</span>}
                               </div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 3, flexWrap: 'wrap' }}>
-                                <span style={{ fontSize: 13, color: '#555', display: 'flex', alignItems: 'center', gap: 4 }}>
-                                  <MapPin size={12} style={{ flexShrink: 0, color: '#888' }} /> {ev.lat.toFixed(4)}, {ev.lng.toFixed(4)}
+                                <span style={{ fontSize: 13, color: 'var(--portal-text-secondary)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <MapPin size={12} style={{ flexShrink: 0, color: 'var(--portal-text-muted)' }} /> {ev.lat.toFixed(4)}, {ev.lng.toFixed(4)}
                                 </span>
                                 <a href={`https://www.google.com/maps?q=${ev.lat},${ev.lng}`} target="_blank" rel="noopener noreferrer"
                                   style={{ fontSize: 13, color: '#2563EB', display: 'inline-flex', alignItems: 'center', gap: 3, textDecoration: 'none', fontWeight: 600 }}
@@ -2727,13 +2727,13 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                     })}
                   </div>
                   {gpsV && gpsV.posicoes_total > 0 && (
-                    <div style={{ fontSize: 11, color: '#999', marginTop: 8, textAlign: 'right' }}>{gpsV.posicoes_total} posições rastreadas</div>
+                    <div style={{ fontSize: 11, color: 'var(--portal-text-muted)', marginTop: 8, textAlign: 'right' }}>{gpsV.posicoes_total} posições rastreadas</div>
                   )}
                 </div>
               )}
 
               {!gpsV && (
-                <div style={{ padding: '20px 32px', borderBottom: '1px solid #DDD', fontSize: 15, fontWeight: 600, color: '#999', textAlign: 'center' }}>
+                <div style={{ padding: '20px 32px', borderBottom: '1px solid var(--portal-border)', fontSize: 15, fontWeight: 600, color: 'var(--portal-text-muted)', textAlign: 'center' }}>
                   Sem dados GPS neste dia
                 </div>
               )}
@@ -2741,26 +2741,26 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
               {/* ORDENS DE SERVIÇO */}
               {histCard.items.length > 0 && (
                 <div style={{ padding: '14px 24px 6px' }}>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: '#111', textTransform: 'uppercase', letterSpacing: '.05em' }}>Ordens de serviço</div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Ordens de serviço</div>
                 </div>
               )}
               {histCard.items.map((a: any) => (
                 <div key={a.id_ordem || a.id} style={{
-                  padding: '12px 24px', borderTop: '1px solid #EEE',
+                  padding: '12px 24px', borderTop: '1px solid var(--portal-border)',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: '#111', fontVariantNumeric: 'tabular-nums' }}>{a.id_ordem}</span>
-                    <span style={{ fontSize: 18, fontWeight: 800, color: '#111' }}>{(a.cliente || '').split(' ').slice(0, 5).join(' ')}</span>
-                    {a.cidade && <span style={{ fontSize: 15, fontWeight: 600, color: '#555' }}>{a.cidade}</span>}
-                    {a.qtd_horas > 0 && <span style={{ fontSize: 15, fontWeight: 600, color: '#555' }}>{a.qtd_horas}h</span>}
+                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text)', fontVariantNumeric: 'tabular-nums' }}>{a.id_ordem}</span>
+                    <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--portal-text)' }}>{(a.cliente || '').split(' ').slice(0, 5).join(' ')}</span>
+                    {a.cidade && <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--portal-text-secondary)' }}>{a.cidade}</span>}
+                    {a.qtd_horas > 0 && <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--portal-text-secondary)' }}>{a.qtd_horas}h</span>}
                   </div>
                   {a.endereco && (
-                    <div style={{ fontSize: 13, color: '#888', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <div style={{ fontSize: 13, color: 'var(--portal-text-muted)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
                       <MapPin size={12} /> {a.endereco}
                     </div>
                   )}
                   {(a.gps_saida_oficina || a.gps_chegada_cliente || a.gps_saida_cliente || a.gps_retorno_oficina) && (
-                    <div style={{ fontSize: 13, color: '#555', lineHeight: 1.8, padding: '6px 10px', background: '#F0EFEB', borderRadius: 6, marginTop: 4 }}>
+                    <div style={{ fontSize: 13, color: 'var(--portal-text-secondary)', lineHeight: 1.8, padding: '6px 10px', background: 'var(--portal-bg-secondary)', borderRadius: 6, marginTop: 4 }}>
                       {a.gps_saida_oficina && <div><span style={{ fontWeight: 700 }}>Saída oficina:</span> {a.gps_saida_oficina}</div>}
                       {a.gps_chegada_cliente && <div><span style={{ fontWeight: 700 }}>Chegada cliente:</span> {a.gps_chegada_cliente}</div>}
                       {a.gps_saida_cliente && <div><span style={{ fontWeight: 700 }}>Saiu cliente:</span> {a.gps_saida_cliente}</div>}
@@ -2771,14 +2771,14 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
               ))}
 
               {/* RESUMO DO DIA */}
-              <div style={{ padding: '16px 24px', borderTop: '2px solid #111' }}>
-                <div style={{ fontSize: 16, fontWeight: 800, color: '#111', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 10 }}>Resumo do dia</div>
+              <div style={{ padding: '16px 24px', borderTop: '2px solid var(--portal-text)' }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 10 }}>Resumo do dia</div>
                 {histResumo ? (
-                  <div style={{ fontSize: 15, color: '#333', lineHeight: 1.7, whiteSpace: 'pre-wrap', padding: '12px 14px', background: '#FAFAFA', borderRadius: 8, border: '1px solid #E5E5E5' }}>
+                  <div style={{ fontSize: 15, color: 'var(--portal-text)', lineHeight: 1.7, whiteSpace: 'pre-wrap', padding: '12px 14px', background: 'var(--portal-bg-secondary)', borderRadius: 8, border: '1px solid var(--portal-border)' }}>
                     {histResumo}
                   </div>
                 ) : (
-                  <div style={{ fontSize: 14, color: '#999', fontStyle: 'italic', padding: '12px 14px' }}>
+                  <div style={{ fontSize: 14, color: 'var(--portal-text-muted)', fontStyle: 'italic', padding: '12px 14px' }}>
                     Nenhum resumo salvo para este dia
                   </div>
                 )}

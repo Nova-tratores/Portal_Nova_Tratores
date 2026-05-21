@@ -185,7 +185,7 @@ export default function LembretesDrawer({ visible, clientes, onClose }: Lembrete
               ) : (
                 <>
                   <div style={{ position: "relative" }}>
-                    <i className="fas fa-search" style={{ position: "absolute", left: 14, top: 13, color: "#7A6E5D" }} />
+                    <i className="fas fa-search" style={{ position: "absolute", left: 14, top: 13, color: "var(--portal-text-secondary)" }} />
                     <input
                       type="text"
                       placeholder="Buscar por nome, razão social ou CNPJ/CPF..."
@@ -198,11 +198,11 @@ export default function LembretesDrawer({ visible, clientes, onClose }: Lembrete
 
                   <div className="lembretes-checkbox-list">
                     {filteredClientes.length === 0 && clienteFilter ? (
-                      <div style={{ padding: 16, textAlign: "center", color: "#7A6E5D", fontSize: 13 }}>
+                      <div style={{ padding: 16, textAlign: "center", color: "var(--portal-text-secondary)", fontSize: 13 }}>
                         Nenhum cliente encontrado
                       </div>
                     ) : !clienteFilter ? (
-                      <div style={{ padding: 16, textAlign: "center", color: "#7A6E5D", fontSize: 13 }}>
+                      <div style={{ padding: 16, textAlign: "center", color: "var(--portal-text-secondary)", fontSize: 13 }}>
                         Digite para buscar clientes...
                       </div>
                     ) : filteredClientes.map((c) => {
@@ -217,7 +217,7 @@ export default function LembretesDrawer({ visible, clientes, onClose }: Lembrete
                           />
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontSize: 13, fontWeight: 600 }}>{c.display.split("[")[0].trim()}</div>
-                            <div style={{ fontSize: 11, color: "#7A6E5D" }}>
+                            <div style={{ fontSize: 11, color: "var(--portal-text-secondary)" }}>
                               {c.display.includes("[") ? c.display.substring(c.display.indexOf("[")) : ""}
                             </div>
                           </div>
@@ -279,9 +279,9 @@ export default function LembretesDrawer({ visible, clientes, onClose }: Lembrete
               <div className="os-card-title"><i className="fas fa-list" /> Lembretes Cadastrados</div>
 
               {loading ? (
-                <div style={{ textAlign: "center", padding: 24, color: "#7A6E5D" }}>Carregando...</div>
+                <div style={{ textAlign: "center", padding: 24, color: "var(--portal-text-secondary)" }}>Carregando...</div>
               ) : lembretes.length === 0 ? (
-                <div style={{ textAlign: "center", padding: 24, color: "#7A6E5D", fontSize: 14 }}>
+                <div style={{ textAlign: "center", padding: 24, color: "var(--portal-text-secondary)", fontSize: 14 }}>
                   Nenhum lembrete cadastrado.
                 </div>
               ) : (

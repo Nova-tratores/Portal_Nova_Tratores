@@ -236,7 +236,7 @@ export default function Kanban() {
 
  if (loading) return (
    <div style={{ minHeight: 'calc(100vh - 64px)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Montserrat, sans-serif' }}>
-     <p style={{ color: '#6b7280', fontSize: '18px', letterSpacing: '2px' }}>Carregando Kanban...</p>
+     <p style={{ color: 'var(--portal-text-secondary)', fontSize: '18px', letterSpacing: '2px' }}>Carregando Kanban...</p>
    </div>
  )
 
@@ -274,7 +274,7 @@ export default function Kanban() {
     <div style={{ flex: 1, display: 'flex', gap: '25px', overflowX: 'auto', overflowY: 'hidden', padding: '0 50px 40px 50px', boxSizing: 'border-box' }}>
      {colunas.map(col => (
       <div key={col.id} style={{ minWidth: '420px', flex: 1, display: 'flex', flexDirection: 'column' }}>
-       <h3 style={{ background: '#ffffff', color: '#6b7280', padding: '20px', borderRadius: '16px', marginBottom: '25px', textAlign: 'center', fontWeight:'500', fontSize:'16px', letterSpacing:'1px', border: '1px solid #e5e7eb', flexShrink: 0 }}>{col.titulo}</h3>
+       <h3 style={{ background: 'var(--portal-bg-card)', color: 'var(--portal-text-secondary)', padding: '20px', borderRadius: '16px', marginBottom: '25px', textAlign: 'center', fontWeight:'500', fontSize:'16px', letterSpacing:'1px', border: '1px solid var(--portal-border)', flexShrink: 0 }}>{col.titulo}</h3>
 
        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto', paddingRight: '5px' }}>
         {chamadosFiltrados.filter(c => {
@@ -282,25 +282,25 @@ export default function Kanban() {
            return c.status === col.id;
         }).map(t => (
          <div key={t.id} className="kanban-card">
-          <div style={{ background: t.status === 'vencido' ? '#fef2f2' : (t.status === 'pago' ? '#f0fdf4' : '#ffffff'), padding: '25px', color: '#1e293b', borderBottom: '1px solid #e5e7eb' }}>
+          <div style={{ background: t.status === 'vencido' ? '#fef2f2' : (t.status === 'pago' ? '#f0fdf4' : 'var(--portal-bg-card)'), padding: '25px', color: 'var(--portal-text)', borderBottom: '1px solid var(--portal-border)' }}>
            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-             <h4 onClick={() => setTarefaSelecionada(t)} style={{ margin: 0, fontSize: '20px', fontWeight: '500', color: t.status === 'vencido' ? '#dc2626' : (t.status === 'pago' ? '#16a34a' : '#1e293b'), cursor: 'pointer', flex: 1 }}>{t.nom_cliente?.toUpperCase()}</h4>
+             <h4 onClick={() => setTarefaSelecionada(t)} style={{ margin: 0, fontSize: '20px', fontWeight: '500', color: t.status === 'vencido' ? '#dc2626' : (t.status === 'pago' ? '#16a34a' : 'var(--portal-text)'), cursor: 'pointer', flex: 1 }}>{t.nom_cliente?.toUpperCase()}</h4>
              {t.status === 'sem_boleto' && (
                <button
                  title="Voltar para Gerar Boleto"
                  onClick={(e) => { e.stopPropagation(); handleVoltarFluxo(t); }}
-                 style={{ background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: '8px', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#6b7280', fontSize: '14px', fontWeight: '700', transition: '0.2s', flexShrink: 0 }}
+                 style={{ background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: '8px', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--portal-text-secondary)', fontSize: '14px', fontWeight: '700', transition: '0.2s', flexShrink: 0 }}
                  onMouseEnter={e => { e.currentTarget.style.background = '#eff6ff'; e.currentTarget.style.color = '#2563eb'; e.currentTarget.style.borderColor = '#93c5fd'; }}
-                 onMouseLeave={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.color = '#6b7280'; e.currentTarget.style.borderColor = '#e5e7eb'; }}
+                 onMouseLeave={e => { e.currentTarget.style.background = 'var(--portal-bg-secondary)'; e.currentTarget.style.color = 'var(--portal-text-secondary)'; e.currentTarget.style.borderColor = 'var(--portal-border)'; }}
                >↩</button>
              )}
              {t.status !== 'sem_boleto' && t.status !== 'pago' && (
                <button
                  title="Mover para Cliente Sem Boleto"
                  onClick={(e) => { e.stopPropagation(); handleMoverSemBoleto(t); }}
-                 style={{ background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: '8px', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#6b7280', fontSize: '14px', fontWeight: '700', transition: '0.2s', flexShrink: 0 }}
+                 style={{ background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: '8px', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--portal-text-secondary)', fontSize: '14px', fontWeight: '700', transition: '0.2s', flexShrink: 0 }}
                  onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#dc2626'; e.currentTarget.style.borderColor = '#fca5a5'; }}
-                 onMouseLeave={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.color = '#6b7280'; e.currentTarget.style.borderColor = '#e5e7eb'; }}
+                 onMouseLeave={e => { e.currentTarget.style.background = 'var(--portal-bg-secondary)'; e.currentTarget.style.color = 'var(--portal-text-secondary)'; e.currentTarget.style.borderColor = 'var(--portal-border)'; }}
                >@</button>
              )}
            </div>
@@ -322,7 +322,7 @@ export default function Kanban() {
                      }}
                    />
                  ))}
-                 <span style={{ fontSize: '11px', color: '#6b7280', marginLeft: '4px' }}>
+                 <span style={{ fontSize: '11px', color: 'var(--portal-text-secondary)', marginLeft: '4px' }}>
                    {t.parcelas_info.filter(p => p.estado === 'pago').length}/{t.parcelas_info.length} pagas
                  </span>
                </div>
@@ -337,13 +337,13 @@ export default function Kanban() {
              </div>
            )}
           </div>
-          <div onClick={() => setTarefaSelecionada(t)} style={{ padding: '25px', background:'#f9fafb', cursor: 'pointer' }}>
+          <div onClick={() => setTarefaSelecionada(t)} style={{ padding: '25px', background:'var(--portal-bg-secondary)', cursor: 'pointer' }}>
            <div style={cardInfoStyle}><CreditCard size={16}/> <span>FORMA:</span> {t.forma_pagamento?.toUpperCase()}</div>
            <div style={cardInfoStyle}><Calendar size={16}/> <span>VENC:</span> {formatarDataBR(t.vencimento_boleto)}</div>
            {(t.num_nf_servico || t.num_nf_peca) && (
              <div style={cardInfoStyle}><FileText size={16}/> <span>NF:</span> {[t.num_nf_servico && `S ${t.num_nf_servico}`, t.num_nf_peca && `P ${t.num_nf_peca}`].filter(Boolean).join(' / ')}</div>
            )}
-           <div style={{fontSize:'32px', fontWeight:'500', margin:'15px 0', color:'#1e293b'}}>{formatarMoeda(t.valor_exibicao)}</div>
+           <div style={{fontSize:'32px', fontWeight:'500', margin:'15px 0', color:'var(--portal-text)'}}>{formatarMoeda(t.valor_exibicao)}</div>
            <div style={miniTagStyle}>ID: {t.id}</div>
           </div>
          </div>
@@ -357,14 +357,14 @@ export default function Kanban() {
    {/* --- MODAL DETALHES --- */}
    {tarefaSelecionada && (
     <div onClick={(e) => { if (e.target === e.currentTarget) setTarefaSelecionada(null); }} style={{ position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(10px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-     <div style={{ background: '#ffffff', width: '1100px', maxWidth: '98%', maxHeight: '95vh', borderRadius: '30px', overflow:'hidden', boxShadow: '0 25px 60px rgba(0,0,0,0.15)', border: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column' }}>
+     <div style={{ background: 'var(--portal-bg-card)', width: '1100px', maxWidth: '98%', maxHeight: '95vh', borderRadius: '30px', overflow:'hidden', boxShadow: '0 25px 60px rgba(0,0,0,0.15)', border: '1px solid var(--portal-border)', display: 'flex', flexDirection: 'column' }}>
 
-      <div style={{ position: 'sticky', top: 0, zIndex: 10, background: '#ffffff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', borderBottom: '1px solid #f0f0f0', flexShrink: 0 }}>
+      <div style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--portal-bg-card)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', borderBottom: '1px solid var(--portal-border)', flexShrink: 0 }}>
         <button onClick={() => setTarefaSelecionada(null)} className="btn-back"><ArrowLeft size={18}/> VOLTAR AO PAINEL</button>
         <button onClick={() => setTarefaSelecionada(null)} style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', cursor:'pointer', padding:'8px 12px', display: 'flex', alignItems: 'center', gap: '6px', color: '#dc2626', fontSize: '13px', fontWeight: '600', transition: '0.2s' }} title="Fechar"><X size={18}/> Fechar</button>
       </div>
       <div style={{ flex: 1, padding: '30px 50px 50px', overflowY: 'auto' }}>
-        <h2 style={{fontSize:'32px', fontWeight:'500', margin:'25px 0', letterSpacing:'-1px', color:'#1e293b', lineHeight: '1'}}>{tarefaSelecionada.nom_cliente?.toUpperCase()}</h2>
+        <h2 style={{fontSize:'32px', fontWeight:'500', margin:'25px 0', letterSpacing:'-1px', color:'var(--portal-text)', lineHeight: '1'}}>{tarefaSelecionada.nom_cliente?.toUpperCase()}</h2>
 
         <div style={{display:'flex', gap:'30px', marginBottom:'45px'}}>
           <div style={fieldBoxModal}><label style={labelModalStyle}>Condição</label><p style={pModalStyle}>{tarefaSelecionada.forma_pagamento?.toUpperCase()}</p></div>
@@ -384,7 +384,7 @@ export default function Kanban() {
               <label style={labelModalStyle}>Vencimento</label>
               <input
                 type="date"
-                style={{ ...inputStyleModal, border: 'none', background: 'transparent', padding: '0', fontSize: '36px', color: tarefaSelecionada.status === 'vencido' ? '#dc2626' : '#1e293b' }}
+                style={{ ...inputStyleModal, border: 'none', background: 'transparent', padding: '0', fontSize: '36px', color: tarefaSelecionada.status === 'vencido' ? '#dc2626' : 'var(--portal-text)' }}
                 defaultValue={tarefaSelecionada.vencimento_boleto}
                 onBlur={e => handleUpdateField(tarefaSelecionada.id, 'vencimento_boleto', e.target.value)}
               />
@@ -394,8 +394,8 @@ export default function Kanban() {
 
         {/* PARCELAMENTO EM CASCATA (ESCONDIDO PARA BOLETO 30 DIAS) */}
         {!isBoleto30 && isParcelamentoOuBoleto30 && (
-          <div style={{ display:'flex', flexDirection:'column', gap:'20px', background:'#fef2f2', padding:'40px', borderRadius:'24px', border:'1px solid #e5e7eb', marginBottom: '45px' }}>
-             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid #e5e7eb', paddingBottom:'20px', marginBottom:'10px' }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:'20px', background:'#fef2f2', padding:'40px', borderRadius:'24px', border:'1px solid var(--portal-border)', marginBottom: '45px' }}>
+             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid var(--portal-border)', paddingBottom:'20px', marginBottom:'10px' }}>
                 <div style={{ display:'flex', gap:'40px' }}>
                   <div>
                     <label style={labelModalStyle}>Quantidade</label>
@@ -499,20 +499,20 @@ export default function Kanban() {
                 })().map((boleto, i) => (
                   <div key={i}
                     onClick={() => window.open(boleto.url, '_blank')}
-                    style={{ display:'flex', alignItems:'center', gap:'12px', background:'#ffffff', border:'1px solid #bfdbfe', borderRadius:'12px', padding:'14px', cursor:'pointer', transition:'0.2s' }}
+                    style={{ display:'flex', alignItems:'center', gap:'12px', background:'var(--portal-bg-card)', border:'1px solid #bfdbfe', borderRadius:'12px', padding:'14px', cursor:'pointer', transition:'0.2s' }}
                   >
                     <div style={{ width:'36px', height:'36px', borderRadius:'8px', background:'#dbeafe', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                       <Eye size={16} color="#3b82f6"/>
                     </div>
                     <div style={{ flex:1 }}>
-                      <div style={{ fontSize:'14px', color:'#1e293b', fontWeight:'600' }}>{boleto.label}</div>
+                      <div style={{ fontSize:'14px', color:'var(--portal-text)', fontWeight:'600' }}>{boleto.label}</div>
                     </div>
                     <Download size={16} color="#3b82f6"/>
                   </div>
                 ))}
               </div>
             ) : (
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'center', padding:'24px', background:'#ffffff', borderRadius:'12px', border:'2px dashed #fecaca' }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'center', padding:'24px', background:'var(--portal-bg-card)', borderRadius:'12px', border:'2px dashed #fecaca' }}>
                 <div style={{ textAlign:'center' }}>
                   <Calendar size={28} color="#fca5a5" style={{ marginBottom:'8px' }}/>
                   <div style={{ fontSize:'13px', color:'#dc2626', fontWeight:'600' }}>Aguardando</div>
@@ -538,7 +538,7 @@ export default function Kanban() {
 
         {/* OBSERVAÇÕES — só mostra se tiver conteúdo */}
         {tarefaSelecionada.obs && (
-          <div style={{ marginTop:'20px', background:'#fef2f2', padding:'20px', borderRadius:'16px', border:'1px solid #e5e7eb' }}>
+          <div style={{ marginTop:'20px', background:'#fef2f2', padding:'20px', borderRadius:'16px', border:'1px solid var(--portal-border)' }}>
             <label style={{...labelModalStyle, marginBottom:'8px'}}>Observacoes</label>
             <textarea style={{...inputStyleModal, height:'80px', resize: 'none', padding:'12px'}} defaultValue={tarefaSelecionada.obs} onBlur={e => handleUpdateField(tarefaSelecionada.id, 'obs', e.target.value)} />
           </div>
@@ -548,7 +548,7 @@ export default function Kanban() {
           {tarefaSelecionada.status === 'enviar_cliente' && (
             <div style={{background:'#f0fdf4', padding:'40px', borderRadius:'24px', border:'1px solid #bbf7d0'}}>
                 <label style={{...labelModalStyle, color:'#16a34a', fontSize: '18px'}}>AÇÃO REQUERIDA</label>
-                <p style={{color: '#6b7280', marginBottom: '25px', fontSize: '14px'}}>Confirme após enviar os documentos ao cliente.</p>
+                <p style={{color: 'var(--portal-text-secondary)', marginBottom: '25px', fontSize: '14px'}}>Confirme após enviar os documentos ao cliente.</p>
                 <button onClick={() => handleConfirmarEnvioPV(tarefaSelecionada)} style={{background:'#22c55e', color:'#fff', padding:'20px 45px', border:'none', borderRadius:'14px', cursor:'pointer', fontSize: '18px', display:'flex', alignItems:'center', gap:'15px', transition:'0.3s'}}>
                     <Send size={22}/> MARCAR COMO ENVIADO AO CLIENTE
                 </button>
@@ -558,20 +558,20 @@ export default function Kanban() {
           {tarefaSelecionada.status === 'aguardando_vencimento' && (
             <div style={{background:'#eff6ff', padding:'40px', borderRadius:'24px', border:'1px solid #bfdbfe'}}>
                 <label style={{...labelModalStyle, color:'#3b82f6', fontSize: '16px'}}>COMPROVANTE DE PAGAMENTO</label>
-                <p style={{color: '#6b7280', marginBottom: '25px', fontSize: '14px'}}>
+                <p style={{color: 'var(--portal-text-secondary)', marginBottom: '25px', fontSize: '14px'}}>
                   Anexe o comprovante quando o cliente efetuar o pagamento. Uma tarefa será criada automaticamente para o Financeiro confirmar.
                 </p>
                 {tarefaSelecionada.comprovante_pagamento && (
                   <div style={{marginBottom:'20px', display:'flex', alignItems:'center', gap:'10px', color:'#16a34a', fontSize:'13px', fontWeight:'700', background:'#f0fdf4', padding:'12px 20px', borderRadius:'12px', border:'1px solid #bbf7d0'}}>
                     <CheckCircle size={16}/> COMPROVANTE JÁ ANEXADO — tarefa enviada ao Financeiro
-                    <button onClick={() => window.open(tarefaSelecionada.comprovante_pagamento, '_blank')} style={{marginLeft:'auto', background:'#f5f5f5', color:'#1e293b', border:'1px solid #e5e7eb', padding:'6px 16px', borderRadius:'8px', cursor:'pointer', fontSize:'12px'}}>VER</button>
+                    <button onClick={() => window.open(tarefaSelecionada.comprovante_pagamento, '_blank')} style={{marginLeft:'auto', background:'var(--portal-bg-secondary)', color:'var(--portal-text)', border:'1px solid var(--portal-border)', padding:'6px 16px', borderRadius:'8px', cursor:'pointer', fontSize:'12px'}}>VER</button>
                   </div>
                 )}
-                <label style={{display:'flex', alignItems:'center', gap:'15px', background:'#ffffff', border:'2px dashed #bfdbfe', borderRadius:'16px', padding:'25px', cursor:'pointer', transition:'0.3s'}}>
+                <label style={{display:'flex', alignItems:'center', gap:'15px', background:'var(--portal-bg-card)', border:'2px dashed #bfdbfe', borderRadius:'16px', padding:'25px', cursor:'pointer', transition:'0.3s'}}>
                   <Upload size={24} color="#3b82f6" />
                   <div>
                     <div style={{color:'#3b82f6', fontWeight:'700', fontSize:'14px'}}>{tarefaSelecionada.comprovante_pagamento ? 'SUBSTITUIR COMPROVANTE' : 'ANEXAR COMPROVANTE'}</div>
-                    <div style={{color:'#6b7280', fontSize:'12px', marginTop:'4px'}}>Clique para escolher o arquivo</div>
+                    <div style={{color:'var(--portal-text-secondary)', fontSize:'12px', marginTop:'4px'}}>Clique para escolher o arquivo</div>
                   </div>
                   <input type="file" hidden onChange={e => handleAnexarComprovantePV(tarefaSelecionada, e.target.files[0])} />
                 </label>
@@ -585,13 +585,13 @@ export default function Kanban() {
    )}
 
    <style jsx global>{`
-    .kanban-card { background: #ffffff; border: 1px solid #e5e7eb; border-radius: 20px; cursor: pointer; transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1); overflow: hidden; margin-bottom: 5px; flex-shrink: 0; }
-    .kanban-card:hover { transform: translateY(-6px); box-shadow: 0 12px 30px rgba(0,0,0,0.08); border-color: #d1d5db; }
-    .btn-back { background: transparent; color: #6b7280; border: 1px solid #e5e7eb; padding: 12px 28px; border-radius: 14px; cursor: pointer; display: flex; align-items: center; gap: 10px; font-size:14px; transition: 0.2s; font-family: Montserrat, sans-serif; }
-    .btn-back:hover { background: #f5f5f5; color: #1e293b; }
+    .kanban-card { background: var(--portal-bg-card); border: 1px solid var(--portal-border); border-radius: 20px; cursor: pointer; transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1); overflow: hidden; margin-bottom: 5px; flex-shrink: 0; }
+    .kanban-card:hover { transform: translateY(-6px); box-shadow: 0 12px 30px rgba(0,0,0,0.08); border-color: var(--portal-border); }
+    .btn-back { background: transparent; color: var(--portal-text-secondary); border: 1px solid var(--portal-border); padding: 12px 28px; border-radius: 14px; cursor: pointer; display: flex; align-items: center; gap: 10px; font-size:14px; transition: 0.2s; font-family: Montserrat, sans-serif; }
+    .btn-back:hover { background: var(--portal-bg-secondary); color: var(--portal-text); }
     ::-webkit-scrollbar { width: 8px; height: 12px; }
-    ::-webkit-scrollbar-track { background: #f5f5f5; }
-    ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; border: 2px solid #f5f5f5; }
+    ::-webkit-scrollbar-track { background: var(--portal-bg-secondary); }
+    ::-webkit-scrollbar-thumb { background: var(--portal-border); border-radius: 10px; border: 2px solid var(--portal-bg-secondary); }
    `}</style>
   </div>
  )
@@ -600,8 +600,8 @@ export default function Kanban() {
 function AttachmentTag({ label, fileUrl, onUpload, disabled = false }) {
     const fileInputRef = useRef(null);
     return (
-        <div style={{ display: 'flex', alignItems: 'center', background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '12px', overflow: 'hidden', minWidth:'260px' }}>
-            <span style={{ padding: '12px 18px', fontSize: '12px', color: fileUrl ? '#16a34a' : '#6b7280', borderRight: '1px solid #e5e7eb', flex: 1, whiteSpace: 'nowrap' }}>{label}</span>
+        <div style={{ display: 'flex', alignItems: 'center', background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: '12px', overflow: 'hidden', minWidth:'260px' }}>
+            <span style={{ padding: '12px 18px', fontSize: '12px', color: fileUrl ? '#16a34a' : 'var(--portal-text-secondary)', borderRight: '1px solid var(--portal-border)', flex: 1, whiteSpace: 'nowrap' }}>{label}</span>
             <div style={{ display: 'flex' }}>
                 {fileUrl && (
                     <button title="Ver" onClick={() => window.open(fileUrl, '_blank')} style={miniActionBtn}><Eye size={18} /></button>
@@ -617,18 +617,18 @@ function AttachmentTag({ label, fileUrl, onUpload, disabled = false }) {
     );
 }
 
-const cascadeRowStyle = { display: 'grid', gridTemplateColumns: '150px 220px 180px 320px', gap: '20px', alignItems: 'center', background: '#ffffff', padding: '15px', borderRadius: '14px', border: '1px solid #e5e7eb' };
-const cascadeLabelStyle = { fontSize: '12px', color: '#6b7280', fontWeight: '600', letterSpacing: '1px' };
-const inputCascadeStyle = { background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '8px', color: '#1e293b', padding: '8px 12px', fontSize: '14px', outline: 'none' };
-const cascadeValueStyle = { fontSize: '18px', color: '#1e293b', fontWeight: '500' };
+const cascadeRowStyle = { display: 'grid', gridTemplateColumns: '150px 220px 180px 320px', gap: '20px', alignItems: 'center', background: 'var(--portal-bg-card)', padding: '15px', borderRadius: '14px', border: '1px solid var(--portal-border)' };
+const cascadeLabelStyle = { fontSize: '12px', color: 'var(--portal-text-secondary)', fontWeight: '600', letterSpacing: '1px' };
+const inputCascadeStyle = { background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: '8px', color: 'var(--portal-text)', padding: '8px 12px', fontSize: '14px', outline: 'none' };
+const cascadeValueStyle = { fontSize: '18px', color: 'var(--portal-text)', fontWeight: '500' };
 
-const inputFilterStyle = { padding: '16px 20px 16px 52px', width: '100%', borderRadius: '14px', border: '1px solid #e5e7eb', outline: 'none', background:'#ffffff', color:'#1e293b', fontSize: '18px', boxSizing: 'border-box', fontFamily: 'Montserrat, sans-serif' };
-const iconFilterStyle = { position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#6b7280', zIndex: 10 };
-const cardInfoStyle = { display:'flex', alignItems:'center', gap:'12px', color:'#6b7280', fontSize:'15px', marginBottom:'10px' };
-const miniTagStyle = { background:'#f5f5f5', padding:'10px 15px', borderRadius:'12px', fontSize:'12px', color:'#374151', display:'inline-flex', alignItems:'center', gap:'8px', border:'1px solid #e5e7eb' };
-const inputStyleModal = { width: '100%', padding: '20px', border: '1px solid #e5e7eb', borderRadius: '15px', outline: 'none', background:'#ffffff', color:'#1e293b', fontSize: '18px', boxSizing: 'border-box', fontFamily: 'Montserrat, sans-serif' };
-const labelModalStyle = { fontSize:'14px', color:'#6b7280', letterSpacing:'1px', textTransform:'uppercase', marginBottom:'10px', display:'block' };
-const pModalStyle = { fontSize:'32px', color:'#1e293b', margin:'0' };
-const fieldBoxModal = { border: '1px solid #e5e7eb', padding: '25px', borderRadius: '22px', background: '#fef2f2', flex: 1 };
+const inputFilterStyle = { padding: '16px 20px 16px 52px', width: '100%', borderRadius: '14px', border: '1px solid var(--portal-border)', outline: 'none', background:'var(--portal-bg-card)', color:'var(--portal-text)', fontSize: '18px', boxSizing: 'border-box', fontFamily: 'Montserrat, sans-serif' };
+const iconFilterStyle = { position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--portal-text-secondary)', zIndex: 10 };
+const cardInfoStyle = { display:'flex', alignItems:'center', gap:'12px', color:'var(--portal-text-secondary)', fontSize:'15px', marginBottom:'10px' };
+const miniTagStyle = { background:'var(--portal-bg-secondary)', padding:'10px 15px', borderRadius:'12px', fontSize:'12px', color:'var(--portal-text-secondary)', display:'inline-flex', alignItems:'center', gap:'8px', border:'1px solid var(--portal-border)' };
+const inputStyleModal = { width: '100%', padding: '20px', border: '1px solid var(--portal-border)', borderRadius: '15px', outline: 'none', background:'var(--portal-bg-card)', color:'var(--portal-text)', fontSize: '18px', boxSizing: 'border-box', fontFamily: 'Montserrat, sans-serif' };
+const labelModalStyle = { fontSize:'14px', color:'var(--portal-text-secondary)', letterSpacing:'1px', textTransform:'uppercase', marginBottom:'10px', display:'block' };
+const pModalStyle = { fontSize:'32px', color:'var(--portal-text)', margin:'0' };
+const fieldBoxModal = { border: '1px solid var(--portal-border)', padding: '25px', borderRadius: '22px', background: '#fef2f2', flex: 1 };
 const fieldBoxInner = { padding: '10px' };
 const miniActionBtn = { background: 'transparent', border: 'none', padding: '12px 15px', color: '#374151', cursor: 'pointer', transition: '0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center' };

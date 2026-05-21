@@ -64,11 +64,12 @@ export default function Header({ searchTerm, onSearch, onNewOS, onNewClient, onG
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              background: "#fff", borderRadius: 16, padding: 32, width: 420, maxWidth: "90vw",
+              background: "var(--portal-bg-card)", borderRadius: 16, padding: 32, width: 420, maxWidth: "90vw",
               boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+              color: "var(--portal-text)",
             }}
           >
-            <h3 style={{ margin: "0 0 24px", fontSize: 18, fontWeight: 700, color: "#1E293B" }}>
+            <h3 style={{ margin: "0 0 24px", fontSize: 18, fontWeight: 700, color: "var(--portal-text)" }}>
               <i className="fas fa-filter" style={{ marginRight: 8, color: "#6366F1" }} />
               Filtros do Relatório
             </h3>

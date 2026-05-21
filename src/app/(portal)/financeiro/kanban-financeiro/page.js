@@ -333,7 +333,7 @@ const isBoletoParcelado = tarefaSelecionada?.forma_pagamento === 'Boleto Parcela
 const isCartaoParcelado = tarefaSelecionada?.forma_pagamento === 'Cartão Parcelado';
 
 return (
-    <div style={{ minHeight: 'calc(100vh - 64px)', fontFamily: 'Montserrat, sans-serif', background: '#f8fafc' }}>
+    <div style={{ minHeight: 'calc(100vh - 64px)', fontFamily: 'Montserrat, sans-serif', background: 'var(--portal-bg-secondary)' }}>
     <FinanceiroNav />
 
     <main style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px - 56px)', overflow: 'hidden' }}>
@@ -350,7 +350,7 @@ return (
           <div style={{ position: 'relative', flex: '0 1 200px' }}>
               <Calendar size={16} style={{ ...iconFilterStyle, left: '12px' }} title="Filtrar por data de vencimento" />
               <input type="date" value={filtroData} onChange={e => setFiltroData(e.target.value)} style={{...inputFilterStyle, fontSize:'13px', padding:'10px 12px 10px 36px'}} />
-              {filtroData && <X size={14} onClick={() => setFiltroData('')} style={{position:'absolute', right: '10px', top: '50%', transform:'translateY(-50%)', cursor:'pointer', color:'#a3a3a3'}} title="Limpar filtro" />}
+              {filtroData && <X size={14} onClick={() => setFiltroData('')} style={{position:'absolute', right: '10px', top: '50%', transform:'translateY(-50%)', cursor:'pointer', color:'var(--portal-text-muted)'}} title="Limpar filtro" />}
           </div>
       </div>
       </header>
@@ -368,10 +368,10 @@ return (
           }).map((t, idx) => (
           <div key={`${t.id}-${idx}`} className="kanban-card" style={{ opacity: t.status === 'concluido' ? 0.6 : 1 }}>
             <div onClick={() => setTarefaSelecionada(t)} style={{
-              background: t.status === 'vencido' ? 'rgba(239, 68, 68, 0.05)' : (t.status === 'pago' || t.status === 'concluido' ? 'rgba(34, 197, 94, 0.05)' : '#ffffff'),
-              padding: '16px', borderBottom: '1px solid #dcdde1', cursor: 'pointer'
+              background: t.status === 'vencido' ? 'rgba(239, 68, 68, 0.05)' : (t.status === 'pago' || t.status === 'concluido' ? 'rgba(34, 197, 94, 0.05)' : 'var(--portal-bg-card)'),
+              padding: '16px', borderBottom: '1px solid var(--portal-border)', cursor: 'pointer'
             }}>
-              <h4 style={{ margin: 0, fontSize: '16px', fontWeight: '500', color: t.status === 'vencido' ? '#c0392b' : (t.status === 'pago' || t.status === 'concluido' ? '#27ae60' : '#2f3640') }}>
+              <h4 style={{ margin: 0, fontSize: '16px', fontWeight: '500', color: t.status === 'vencido' ? '#c0392b' : (t.status === 'pago' || t.status === 'concluido' ? '#27ae60' : 'var(--portal-text)') }}>
               {t.nom_cliente?.toUpperCase()} {t.status === 'concluido' && "\u2713"}
               </h4>
               {t.isPagamentoRealizado && (
@@ -398,7 +398,7 @@ return (
                         }}
                       />
                     ))}
-                    <span style={{ fontSize: '11px', color: '#718093', marginLeft: '4px' }}>
+                    <span style={{ fontSize: '11px', color: 'var(--portal-text-secondary)', marginLeft: '4px' }}>
                       {t.parcelas_info.filter(p => p.estado === 'pago').length}/{t.parcelas_info.length} pagas
                     </span>
                   </div>
@@ -434,12 +434,12 @@ return (
               {(t.num_nf_servico || t.num_nf_peca) && (
                 <div style={cardInfoStyle}><FileText size={14}/> <span>NF:</span> {[t.num_nf_servico && `S ${t.num_nf_servico}`, t.num_nf_peca && `P ${t.num_nf_peca}`].filter(Boolean).join(' / ')}</div>
               )}
-              <div style={{fontSize:'22px', fontWeight:'400', margin:'10px 0', color:'#2f3640'}}>{formatarMoeda(t.valor_exibicao)}</div>
+              <div style={{fontSize:'22px', fontWeight:'400', margin:'10px 0', color:'var(--portal-text)'}}>{formatarMoeda(t.valor_exibicao)}</div>
               <div style={highlightIdStyle}>ID: #{t.id}</div>
               {(t.created_at || t.status_changed_at) && (
                 <div style={{ display: 'flex', gap: '6px', marginTop: '10px', flexWrap: 'wrap' }}>
                   {t.created_at && (
-                    <span style={{ fontSize: '10px', color: '#718093', display: 'flex', alignItems: 'center', gap: '3px', border: '1px solid #dcdde1', padding: '3px 8px' }}>
+                    <span style={{ fontSize: '10px', color: 'var(--portal-text-secondary)', display: 'flex', alignItems: 'center', gap: '3px', border: '1px solid var(--portal-border)', padding: '3px 8px' }}>
                       <Clock size={10} /> {calcTempo(t.created_at)}
                     </span>
                   )}
@@ -461,20 +461,20 @@ return (
 
     {/* --- MODAL DETALHES --- */}
     {tarefaSelecionada && (
-      <div onClick={(e) => { if (e.target === e.currentTarget) setTarefaSelecionada(null); }} style={{ position: 'fixed', inset: 0, background: 'rgba(245, 246, 250, 0.4)', backdropFilter: 'blur(15px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ background: '#ffffff', width: '1100px', maxWidth: '98%', maxHeight: '95vh', borderRadius: '0px', overflow:'hidden', boxShadow: '0 40px 100px rgba(47, 54, 64, 0.1)', border: '1px solid #dcdde1', display: 'flex', flexDirection: 'column' }}>
+      <div onClick={(e) => { if (e.target === e.currentTarget) setTarefaSelecionada(null); }} style={{ position: 'fixed', inset: 0, background: 'var(--portal-bg-card)', backdropFilter: 'blur(15px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ background: 'var(--portal-bg-card)', width: '1100px', maxWidth: '98%', maxHeight: '95vh', borderRadius: '0px', overflow:'hidden', boxShadow: '0 40px 100px rgba(47, 54, 64, 0.1)', border: '1px solid var(--portal-border)', display: 'flex', flexDirection: 'column' }}>
 
-        <div style={{ position: 'sticky', top: 0, zIndex: 10, background: '#ffffff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', borderBottom: '1px solid #f0f0f0', flexShrink: 0 }}>
+        <div style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--portal-bg-card)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', borderBottom: '1px solid var(--portal-border)', flexShrink: 0 }}>
           <button onClick={() => setTarefaSelecionada(null)} className="btn-back" title="Voltar para a visualização do quadro"><ArrowLeft size={18}/> VOLTAR AO PAINEL</button>
           <button onClick={() => setTarefaSelecionada(null)} style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', cursor:'pointer', padding:'8px 12px', display: 'flex', alignItems: 'center', gap: '6px', color: '#dc2626', fontSize: '13px', fontWeight: '600', transition: '0.2s' }} title="Fechar"><X size={18}/> Fechar</button>
         </div>
         <div style={{ flex: 1, padding: '30px 60px 60px', overflowY: 'auto' }}>
 
-          <h2 style={{fontSize:'32px', fontWeight:'400', margin:'30px 0 16px', letterSpacing:'-1px', color:'#2f3640', lineHeight: '1.1'}}>{tarefaSelecionada.nom_cliente?.toUpperCase()}</h2>
+          <h2 style={{fontSize:'32px', fontWeight:'400', margin:'30px 0 16px', letterSpacing:'-1px', color:'var(--portal-text)', lineHeight: '1.1'}}>{tarefaSelecionada.nom_cliente?.toUpperCase()}</h2>
 
           {/* BADGE DE FASE ATUAL + TIMERS */}
           {(() => {
-            const cfg = STATUS_CONFIG[tarefaSelecionada.status] || { label: tarefaSelecionada.status, bg: '#f1f5f9', color: '#64748b', border: '#e2e8f0' };
+            const cfg = STATUS_CONFIG[tarefaSelecionada.status] || { label: tarefaSelecionada.status, bg: 'var(--portal-bg-secondary)', color: 'var(--portal-text-secondary)', border: 'var(--portal-border)' };
             return (
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '36px', flexWrap: 'wrap' }}>
                 <div style={{ padding: '8px 20px', background: cfg.bg, color: cfg.color, border: `1.5px solid ${cfg.border}`, fontSize: '11px', fontWeight: '800', letterSpacing: '3px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -482,7 +482,7 @@ return (
                   FASE: {cfg.label}
                 </div>
                 {tarefaSelecionada.created_at && (
-                  <span style={{ fontSize: '12px', color: '#718093', display: 'flex', alignItems: 'center', gap: '5px', border: '1px solid #dcdde1', padding: '6px 14px' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--portal-text-secondary)', display: 'flex', alignItems: 'center', gap: '5px', border: '1px solid var(--portal-border)', padding: '6px 14px' }}>
                     <Clock size={12} /> Criado ha {calcTempo(tarefaSelecionada.created_at)}
                   </span>
                 )}
@@ -530,7 +530,7 @@ return (
                 <label style={labelModalStyle}>Data de Vencimento</label>
                 <input
                     type="date"
-                    style={{...inputStyleModal, border: 'none', background: 'transparent', padding: '0', fontSize: '32px', fontWeight: '400', color: tarefaSelecionada.status === 'vencido' ? '#c0392b' : '#2f3640'}}
+                    style={{...inputStyleModal, border: 'none', background: 'transparent', padding: '0', fontSize: '32px', fontWeight: '400', color: tarefaSelecionada.status === 'vencido' ? '#c0392b' : 'var(--portal-text)'}}
                     defaultValue={tarefaSelecionada.vencimento_boleto}
                     onBlur={e => handleUpdateField(tarefaSelecionada.id, 'vencimento_boleto', e.target.value)}
                 />
@@ -540,8 +540,8 @@ return (
 
           {/* --- SEÇÃO BOLETO PARCELADO --- */}
           {isBoletoParcelado && (
-            <div style={{ display:'flex', flexDirection:'column', gap:'16px', marginBottom:'50px', background:'rgba(245,246,250,0.5)', padding:'40px', border:'1px solid #dcdde1' }}>
-              <div style={{ display:'flex', gap:'30px', borderBottom:'1px solid #dcdde1', paddingBottom:'20px' }}>
+            <div style={{ display:'flex', flexDirection:'column', gap:'16px', marginBottom:'50px', background:'var(--portal-bg-secondary)', padding:'40px', border:'1px solid var(--portal-border)' }}>
+              <div style={{ display:'flex', gap:'30px', borderBottom:'1px solid var(--portal-border)', paddingBottom:'20px' }}>
                 <div style={{ flex: 1 }}>
                   <label style={labelModalStyle}>Qtd. Parcelas</label>
                   <select
@@ -555,7 +555,7 @@ return (
                 </div>
                 <div style={{ flex: 1 }}>
                   <label style={labelModalStyle}>Valor por Parcela</label>
-                  <div style={{ ...inputStyleModal, background:'#f8fafc', color:'#718093', borderStyle:'dashed', fontSize:'24px' }}>
+                  <div style={{ ...inputStyleModal, background:'var(--portal-bg-secondary)', color:'var(--portal-text-secondary)', borderStyle:'dashed', fontSize:'24px' }}>
                     {formatarMoeda((tarefaSelecionada.valor_servico || 0) / (tarefaSelecionada.qtd_parcelas || 1))}
                   </div>
                 </div>
@@ -568,18 +568,18 @@ return (
                     pago:    { fundo: '#f0fdf4', borda: '#86efac', label: '#27ae60', texto: 'PAGO' },
                     vencido: { fundo: '#fff5f5', borda: '#fca5a5', label: '#e74c3c', texto: 'EM ATRASO!' },
                     proximo: { fundo: '#fffbeb', borda: '#fcd34d', label: '#d97706', texto: 'VENCE EM BREVE' },
-                    futuro:  { fundo: '#ffffff', borda: '#e2e8f0', label: '#718093', texto: 'A VENCER' },
+                    futuro:  { fundo: 'var(--portal-bg-card)', borda: 'var(--portal-border)', label: 'var(--portal-text-secondary)', texto: 'A VENCER' },
                   };
                   const c = cores[p.estado];
                   return (
                     <div key={i} style={{ display:'grid', gridTemplateColumns:'130px 190px 160px 1fr', gap:'16px', alignItems:'center', background: c.fundo, padding:'18px', border:`1.5px solid ${c.borda}`, borderRadius:'8px' }}>
                       <div>
-                        <div style={{ fontSize:'11px', color:'#718093', fontWeight:'700', letterSpacing:'1px', marginBottom:'4px' }}>{p.num}ª PARCELA</div>
+                        <div style={{ fontSize:'11px', color:'var(--portal-text-secondary)', fontWeight:'700', letterSpacing:'1px', marginBottom:'4px' }}>{p.num}ª PARCELA</div>
                         <div style={{ fontSize:'13px', fontWeight:'800', color: c.label }}>{c.texto}</div>
                       </div>
                       <input
                         type="date"
-                        style={{ ...inputStyleModal, fontSize:'15px', padding:'10px', background:'#ffffff' }}
+                        style={{ ...inputStyleModal, fontSize:'15px', padding:'10px', background:'var(--portal-bg-card)' }}
                         defaultValue={p.data || ''}
                         disabled={tarefaSelecionada.status === 'concluido'}
                         onBlur={e => {
@@ -595,7 +595,7 @@ return (
                           }
                         }}
                       />
-                      <div style={{ fontSize:'18px', color:'#2f3640', fontWeight:'600' }}>{formatarMoeda(p.valor)}</div>
+                      <div style={{ fontSize:'18px', color:'var(--portal-text)', fontWeight:'600' }}>{formatarMoeda(p.valor)}</div>
                       <AttachmentTag
                         icon={<CheckCircle size={16} />}
                         label={p.estado === 'pago' ? `COMPROVANTE P${p.num}` : `ANEXAR P${p.num}`}
@@ -619,7 +619,7 @@ return (
                         ? 'Atenção: uma parcela está em atraso!'
                         : `Atenção: ${tarefaSelecionada.parcelas_info.filter(p => p.estado === 'vencido').length} parcelas estão em atraso!`}
                     </div>
-                    <div style={{ color:'#718093', fontSize:'14px' }}>Anexe o comprovante na parcela em atraso ou solicite recobrança ao Pós-Vendas usando o botão abaixo.</div>
+                    <div style={{ color:'var(--portal-text-secondary)', fontSize:'14px' }}>Anexe o comprovante na parcela em atraso ou solicite recobrança ao Pós-Vendas usando o botão abaixo.</div>
                   </div>
                 </div>
               )}
@@ -634,7 +634,7 @@ return (
 
           {/* --- SEÇÃO CARTÃO PARCELADO --- */}
           {isCartaoParcelado && (
-            <div style={{ display:'flex', gap:'30px', marginBottom:'50px', background:'rgba(245,246,250,0.5)', padding:'40px', border:'1px solid #dcdde1' }}>
+            <div style={{ display:'flex', gap:'30px', marginBottom:'50px', background:'var(--portal-bg-secondary)', padding:'40px', border:'1px solid var(--portal-border)' }}>
               <div style={{ flex: 1 }}>
                 <label style={labelModalStyle}>Qtd. Parcelas no Cartão</label>
                 <select
@@ -648,7 +648,7 @@ return (
               </div>
               <div style={{ flex: 1 }}>
                 <label style={labelModalStyle}>Valor por Parcela</label>
-                <div style={{ ...inputStyleModal, background:'#f8fafc', color:'#7c3aed', borderStyle:'dashed', fontSize:'24px', fontWeight:'700' }}>
+                <div style={{ ...inputStyleModal, background:'var(--portal-bg-secondary)', color:'#7c3aed', borderStyle:'dashed', fontSize:'24px', fontWeight:'700' }}>
                   {formatarMoeda((tarefaSelecionada.valor_servico || 0) / (tarefaSelecionada.qtd_parcelas || 1))}
                 </div>
               </div>
@@ -659,8 +659,8 @@ return (
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px' }}>
 
             {/* NF + OBS */}
-            <div style={{ background:'rgba(245, 246, 250, 0.5)', border:'1px solid #dcdde1', padding:'24px', display:'flex', flexDirection:'column', gap:'16px' }}>
-              <label style={{...labelModalStyle, margin:0, fontSize:'13px', display:'flex', alignItems:'center', gap:'8px'}}><FileText size={16} color="#718093"/> NOTAS FISCAIS</label>
+            <div style={{ background:'var(--portal-bg-secondary)', border:'1px solid var(--portal-border)', padding:'24px', display:'flex', flexDirection:'column', gap:'16px' }}>
+              <label style={{...labelModalStyle, margin:0, fontSize:'13px', display:'flex', alignItems:'center', gap:'8px'}}><FileText size={16} color="var(--portal-text-secondary)"/> NOTAS FISCAIS</label>
               {(tarefaSelecionada.num_nf_servico || !tarefaSelecionada.num_nf_peca) && (
                 <div>
                   <label style={{...labelModalStyle, fontSize:'11px', marginBottom:'6px'}}>NF Servico</label>
@@ -744,21 +744,21 @@ return (
 
           {/* OBSERVAÇÕES */}
           {(tarefaSelecionada.obs || tarefaSelecionada.status !== 'concluido') && (
-            <div style={{ marginTop:'20px', background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'16px', padding:'24px' }}>
-              <label style={{...labelModalStyle, marginBottom:'12px', fontSize:'13px', color:'#64748b', display:'flex', alignItems:'center', gap:'8px'}}>
+            <div style={{ marginTop:'20px', background:'var(--portal-bg-secondary)', border:'1px solid var(--portal-border)', borderRadius:'16px', padding:'24px' }}>
+              <label style={{...labelModalStyle, marginBottom:'12px', fontSize:'13px', color:'var(--portal-text-secondary)', display:'flex', alignItems:'center', gap:'8px'}}>
                 <FileText size={15}/> Observações
               </label>
               <textarea
                 style={{
                   width:'100%', minHeight:'120px', padding:'16px 18px',
-                  border:'1px solid #e2e8f0', borderRadius:'12px', outline:'none',
-                  background: tarefaSelecionada.status === 'concluido' ? '#f1f5f9' : '#ffffff',
-                  color:'#334155', fontSize:'15px', lineHeight:'1.6',
+                  border:'1px solid var(--portal-border)', borderRadius:'12px', outline:'none',
+                  background: tarefaSelecionada.status === 'concluido' ? 'var(--portal-bg-secondary)' : 'var(--portal-bg-card)',
+                  color:'var(--portal-text)', fontSize:'15px', lineHeight:'1.6',
                   fontFamily:'Montserrat, sans-serif', resize:'vertical', boxSizing:'border-box',
                   transition:'border-color 0.2s',
                 }}
-                onFocus={e => { if (tarefaSelecionada.status !== 'concluido') e.target.style.borderColor = '#94a3b8' }}
-                onBlur={e => { e.target.style.borderColor = '#e2e8f0'; handleUpdateField(tarefaSelecionada.id, 'obs', e.target.value) }}
+                onFocus={e => { if (tarefaSelecionada.status !== 'concluido') e.target.style.borderColor = 'var(--portal-text-muted)' }}
+                onBlur={e => { e.target.style.borderColor = 'var(--portal-border)'; handleUpdateField(tarefaSelecionada.id, 'obs', e.target.value) }}
                 disabled={tarefaSelecionada.status === 'concluido'}
                 defaultValue={tarefaSelecionada.obs}
                 placeholder={tarefaSelecionada.status === 'concluido' ? '' : 'Adicionar observações...'}
@@ -771,9 +771,9 @@ return (
             <div style={{ marginTop:'20px', background:'#f0fdf4', padding:'20px', borderRadius:'16px', border:'1px solid #bbf7d0', display:'flex', justifyContent:'center', gap:'12px' }}>
               <button
                 onClick={() => { handleActionMoveStatus(tarefaSelecionada, 'gerar_boleto'); setTarefaSelecionada(null); }}
-                style={{ background: '#fff', color: '#2563eb', border: '1px solid #93c5fd', padding: '14px 32px', borderRadius: '12px', cursor: 'pointer', fontSize: '15px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.2s' }}
+                style={{ background: 'var(--portal-bg-card)', color: '#2563eb', border: '1px solid #93c5fd', padding: '14px 32px', borderRadius: '12px', cursor: 'pointer', fontSize: '15px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.2s' }}
                 onMouseEnter={e => { e.currentTarget.style.background = '#eff6ff'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = '#fff'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'var(--portal-bg-card)'; }}
               >↩ Voltar ao Fluxo</button>
               <button
                 onClick={() => { handleActionMoveStatus(tarefaSelecionada, 'pago'); setTarefaSelecionada(null); }}
@@ -803,7 +803,7 @@ return (
                             style={{display:'none'}}
                           />
                           <label htmlFor="file_boleto_input" style={{
-                              display:'flex', alignItems:'center', gap:'10px', background:'#ffffff', border:'1px solid #dcdde1', padding:'15px 20px', borderRadius:'12px', cursor:'pointer', color:'#718093', fontSize:'14px'
+                              display:'flex', alignItems:'center', gap:'10px', background:'var(--portal-bg-card)', border:'1px solid var(--portal-border)', padding:'15px 20px', borderRadius:'12px', cursor:'pointer', color:'var(--portal-text-secondary)', fontSize:'14px'
                           }}>
                              <Upload size={18} /> {fileBoleto ? fileBoleto.name : "Selecionar boleto — tarefa gerada automaticamente"}
                           </label>
@@ -913,15 +913,15 @@ return (
     )}
 
     <style jsx global>{`
-      .kanban-card { background: #ffffff; border: 1px solid #dcdde1; border-radius: 8px; transition: 0.3s ease; overflow: hidden; margin-bottom: 12px; flex-shrink: 0; }
-      .kanban-card:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(47, 54, 64, 0.06); border-color: #718093; }
-      .btn-back { background: transparent; color: #718093; border: 1px solid #dcdde1; padding: 12px 28px; border-radius: 0px; cursor: pointer; display: flex; align-items: center; gap: 10px; font-size:12px; transition: 0.2s; text-transform: uppercase; letter-spacing: 1px; }
-      .btn-back:hover { background: #2f3640; color: #f5f6fa; }
+      .kanban-card { background: var(--portal-bg-card); border: 1px solid var(--portal-border); border-radius: 8px; transition: 0.3s ease; overflow: hidden; margin-bottom: 12px; flex-shrink: 0; }
+      .kanban-card:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(47, 54, 64, 0.06); border-color: var(--portal-text-secondary); }
+      .btn-back { background: transparent; color: var(--portal-text-secondary); border: 1px solid var(--portal-border); padding: 12px 28px; border-radius: 0px; cursor: pointer; display: flex; align-items: center; gap: 10px; font-size:12px; transition: 0.2s; text-transform: uppercase; letter-spacing: 1px; }
+      .btn-back:hover { background: var(--portal-text); color: var(--portal-bg-secondary); }
 
       ::-webkit-scrollbar { width: 6px; height: 10px; }
       ::-webkit-scrollbar-track { background: transparent; }
-      ::-webkit-scrollbar-thumb { background: #dcdde1; border-radius: 10px; }
-      ::-webkit-scrollbar-thumb:hover { background: #718093; }
+      ::-webkit-scrollbar-thumb { background: var(--portal-border); border-radius: 10px; }
+      ::-webkit-scrollbar-thumb:hover { background: var(--portal-text-secondary); }
     `}</style>
     </div>
 )
@@ -930,16 +930,16 @@ return (
 function AttachmentTag({ icon, label, fileUrl, onUpload, disabled = false, onRemove }) {
       const fileInputRef = useRef(null);
       return (
-          <div style={{ display: 'flex', alignItems: 'center', background: '#f5f6fa', border: '1px solid #dcdde1', borderRadius: '0px', overflow: 'hidden', minWidth:'280px', marginBottom: '5px' }}>
-              <div style={{ padding: '0 15px', color: '#000' }}>{icon}</div>
-              <span style={{ padding: '12px 20px', fontSize: '13px', color: fileUrl ? '#27ae60' : '#718093', borderRight: '1px solid #dcdde1', flex: 1, textTransform:'uppercase', letterSpacing:'1px', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
-              <div style={{ display: 'flex', background: '#ffffff' }}>
+          <div style={{ display: 'flex', alignItems: 'center', background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: '0px', overflow: 'hidden', minWidth:'280px', marginBottom: '5px' }}>
+              <div style={{ padding: '0 15px', color: 'var(--portal-text)' }}>{icon}</div>
+              <span style={{ padding: '12px 20px', fontSize: '13px', color: fileUrl ? '#27ae60' : 'var(--portal-text-secondary)', borderRight: '1px solid var(--portal-border)', flex: 1, textTransform:'uppercase', letterSpacing:'1px', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+              <div style={{ display: 'flex', background: 'var(--portal-bg-card)' }}>
                   {fileUrl && (
                       <button title="Visualizar" onClick={() => window.open(fileUrl, '_blank')} style={miniActionBtn}><Eye size={18} color="#4f46e5" /></button>
                   )}
                   {!disabled && (
                       <>
-                          <button title="Substituir" onClick={() => fileInputRef.current.click()} style={miniActionBtn}><RefreshCw size={18} color="#718093" /></button>
+                          <button title="Substituir" onClick={() => fileInputRef.current.click()} style={miniActionBtn}><RefreshCw size={18} color="var(--portal-text-secondary)" /></button>
                           <input type="file" hidden ref={fileInputRef} onChange={(e) => onUpload(e.target.files[0])} />
                       </>
                   )}
@@ -952,17 +952,17 @@ function AttachmentTag({ icon, label, fileUrl, onUpload, disabled = false, onRem
 }
 
 // --- ESTILOS AUXILIARES ---
-const colWrapperStyle = { flex: 1, display: 'flex', flexDirection: 'column', gap: '0px', overflowY: 'auto', padding: '12px', background: 'rgba(255, 255, 255, 0.1)', border: '1px solid #dcdde1', borderRadius: '0px' };
-const colTitleStyle = { textAlign: 'center', fontSize: '13px', color:'#718093', fontWeight:'600', marginBottom:'16px', textTransform:'uppercase', letterSpacing:'1.5px', padding: '12px 8px', borderBottom: '1px solid #dcdde1' };
+const colWrapperStyle = { flex: 1, display: 'flex', flexDirection: 'column', gap: '0px', overflowY: 'auto', padding: '12px', background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: '0px' };
+const colTitleStyle = { textAlign: 'center', fontSize: '13px', color:'var(--portal-text-secondary)', fontWeight:'600', marginBottom:'16px', textTransform:'uppercase', letterSpacing:'1.5px', padding: '12px 8px', borderBottom: '1px solid var(--portal-border)' };
 const btnActionRed = { flex: 1, background: 'transparent', color: '#c0392b', border: '1px solid #c0392b', padding: '22px', borderRadius: '0px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' , gap: '15px', fontSize: '15px', textTransform:'uppercase', letterSpacing:'2px' };
 const btnActionGreen = { flex: 1, background: 'transparent', color: '#27ae60', border: '1px solid #27ae60', padding: '22px', borderRadius: '0px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px', fontSize: '15px', textTransform:'uppercase', letterSpacing:'2px' };
 const btnActionBlue = { flex: 1, background: 'transparent', color: '#2980b9', border: '1px solid #2980b9', padding: '22px', borderRadius: '0px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px', fontSize: '15px', textTransform:'uppercase', letterSpacing:'2px' };
-const inputFilterStyle = { padding: '15px 15px 15px 50px', width: '100%', borderRadius: '0px', border: '1px solid #dcdde1', outline: 'none', background:'#ffffff', color:'#2f3640', fontSize: '15px', boxSizing: 'border-box' };
-const iconFilterStyle = { position: 'absolute', left: '18px', top: '50%', transform: 'translateY(-50%)', color: '#718093', zIndex: 10 };
-const highlightIdStyle = { fontSize: '11px', color: '#718093', border: '1px solid #dcdde1', padding: '3px 10px', borderRadius: '4px', display: 'inline-block', marginTop: '6px', letterSpacing:'0.5px' };
-const cardInfoStyle = { display:'flex', alignItems:'center', gap:'8px', color:'#718093', fontSize:'13px', marginBottom:'6px', letterSpacing: '0.3px' };
-const inputStyleModal = { width: '100%', padding: '22px', border: '1px solid #dcdde1', borderRadius: '0px', outline: 'none', background:'#ffffff', color:'#2f3640', fontSize: '20px', boxSizing: 'border-box' };
-const labelModalStyle = { fontSize:'15px', color:'#718093', letterSpacing:'3px', textTransform:'uppercase', marginBottom:'15px', display:'block' };
-const fieldBoxModal = { border: '1px solid #dcdde1', padding: '30px', borderRadius: '0px', background: 'rgba(245, 246, 250, 0.5)', flex: 1 };
+const inputFilterStyle = { padding: '15px 15px 15px 50px', width: '100%', borderRadius: '0px', border: '1px solid var(--portal-border)', outline: 'none', background:'var(--portal-bg-card)', color:'var(--portal-text)', fontSize: '15px', boxSizing: 'border-box' };
+const iconFilterStyle = { position: 'absolute', left: '18px', top: '50%', transform: 'translateY(-50%)', color: 'var(--portal-text-secondary)', zIndex: 10 };
+const highlightIdStyle = { fontSize: '11px', color: 'var(--portal-text-secondary)', border: '1px solid var(--portal-border)', padding: '3px 10px', borderRadius: '4px', display: 'inline-block', marginTop: '6px', letterSpacing:'0.5px' };
+const cardInfoStyle = { display:'flex', alignItems:'center', gap:'8px', color:'var(--portal-text-secondary)', fontSize:'13px', marginBottom:'6px', letterSpacing: '0.3px' };
+const inputStyleModal = { width: '100%', padding: '22px', border: '1px solid var(--portal-border)', borderRadius: '0px', outline: 'none', background:'var(--portal-bg-card)', color:'var(--portal-text)', fontSize: '20px', boxSizing: 'border-box' };
+const labelModalStyle = { fontSize:'15px', color:'var(--portal-text-secondary)', letterSpacing:'3px', textTransform:'uppercase', marginBottom:'15px', display:'block' };
+const fieldBoxModal = { border: '1px solid var(--portal-border)', padding: '30px', borderRadius: '0px', background: 'var(--portal-bg-secondary)', flex: 1 };
 const fieldBoxInner = { padding: '10px', background: 'transparent' };
-const miniActionBtn = { background: 'transparent', border: 'none', padding: '10px 15px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', hover: { background: '#f1f5f9' } };
+const miniActionBtn = { background: 'transparent', border: 'none', padding: '10px 15px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', hover: { background: 'var(--portal-bg-secondary)' } };

@@ -228,7 +228,7 @@ export default function MenuLateral({ isSidebarOpen, setIsSidebarOpen, path, rou
     const isActive = path === route;
     return {
         background: isActive ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' : 'transparent',
-        color: isActive ? '#fff' : '#475569',
+        color: isActive ? '#fff' : 'var(--portal-text-secondary)',
         border: 'none', 
         padding: '20px 0', 
         cursor: 'pointer', 
@@ -268,7 +268,7 @@ export default function MenuLateral({ isSidebarOpen, setIsSidebarOpen, path, rou
     onMouseEnter={() => setIsSidebarOpen(true)} onMouseLeave={() => setIsSidebarOpen(false)} 
     style={{ 
         width: isSidebarOpen ? '380px' : '100px', 
-        background: 'rgba(255, 255, 255, 0.98)', 
+        background: 'var(--portal-sidebar-bg)',
         backdropFilter: 'blur(15px)',
         height: 'calc(100vh - 40px)', 
         position: 'fixed', 
@@ -283,7 +283,7 @@ export default function MenuLateral({ isSidebarOpen, setIsSidebarOpen, path, rou
         transition: 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s ease', 
         zIndex: 1100, 
         overflow: 'hidden',
-        border: '1px solid rgba(255,255,255,0.5)',
+        border: `1px solid var(--portal-border)`,
         pointerEvents: 'auto'
     }}
    >
@@ -299,8 +299,8 @@ export default function MenuLateral({ isSidebarOpen, setIsSidebarOpen, path, rou
         </div>
         {isSidebarOpen && (
             <div style={{ marginLeft: '18px', animation: 'fadeIn 0.5s ease' }}>
-                <p style={{ margin: 0, fontSize: '26px', fontWeight: '800', color: '#0f172a' }}>{userProfile?.nome}</p>
-                <p style={{ margin: 0, fontSize: '15px', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>{userProfile?.funcao}</p>
+                <p style={{ margin: 0, fontSize: '26px', fontWeight: '800', color: 'var(--portal-text)' }}>{userProfile?.nome}</p>
+                <p style={{ margin: 0, fontSize: '15px', fontWeight: '700', color: 'var(--portal-text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>{userProfile?.funcao}</p>
             </div>
         )}
     </div>
@@ -344,7 +344,7 @@ export default function MenuLateral({ isSidebarOpen, setIsSidebarOpen, path, rou
        <span style={{ opacity: isSidebarOpen ? 1 : 0, whiteSpace: 'nowrap', fontWeight: '700' }}>Historico</span>
       </button>
 
-      <div style={{ height: '2px', background: 'linear-gradient(to right, transparent, #f1f5f9, transparent)', margin: '25px 40px' }}></div>
+      <div style={{ height: '2px', background: `linear-gradient(to right, transparent, var(--portal-border), transparent)`, margin: '25px 40px' }}></div>
 
       <button onClick={() => router.push('/financeiro/historico-pagar')} style={getBtnStyle('/financeiro/historico-pagar')}>
        <div style={iconContainer}><TrendingDown size={28} /></div>
@@ -366,7 +366,7 @@ export default function MenuLateral({ isSidebarOpen, setIsSidebarOpen, path, rou
       <div style={iconContainer}><Settings size={28} /></div>
       <span style={{ opacity: isSidebarOpen ? 1 : 0, fontWeight: '600' }}>Configurações</span>
      </button>
-     <div style={{ margin: '20px 40px', height: '1px', background: '#f1f5f9', display: isSidebarOpen ? 'block' : 'none' }}></div>
+     <div style={{ margin: '20px 40px', height: '1px', background: 'var(--portal-border)', display: isSidebarOpen ? 'block' : 'none' }}></div>
      <button onClick={handleLogout} style={{ ...getBtnStyle('sair'), color: '#ef4444' }}>
       <div style={iconContainer}><LogOut size={28} /></div>
       <span style={{ opacity: isSidebarOpen ? 1 : 0, fontWeight: '800' }}>Sair do Sistema</span>
@@ -382,7 +382,7 @@ export default function MenuLateral({ isSidebarOpen, setIsSidebarOpen, path, rou
     >
      <div 
       onClick={(e) => e.stopPropagation()} 
-      style={{ width: '750px', height: '88vh', background: '#fff', borderRadius: '55px', boxShadow: '0 60px 150px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', border: '1px solid #e2e8f0', overflow: 'hidden', animation: 'zoomIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
+      style={{ width: '750px', height: '88vh', background: 'var(--portal-bg-card)', borderRadius: '55px', boxShadow: '0 60px 150px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', border: `1px solid var(--portal-border)`, overflow: 'hidden', animation: 'zoomIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
      >
       <div style={{ padding: '40px', background: '#0f172a', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
        <div>
@@ -392,7 +392,7 @@ export default function MenuLateral({ isSidebarOpen, setIsSidebarOpen, path, rou
        <button onClick={() => setIsChatOpen(false)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', cursor: 'pointer', padding: '15px', borderRadius: '20px' }}><X size={32} /></button>
       </div>
 
-      <div ref={scrollRef} style={{ flex: 1, padding: '40px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '28px', background: '#f8fafc' }}>
+      <div ref={scrollRef} style={{ flex: 1, padding: '40px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '28px', background: 'var(--portal-bg)' }}>
        {(() => {
         const hoje = new Date(); hoje.setHours(0,0,0,0);
         const ontem = new Date(hoje.getTime() - 86400000);
@@ -419,7 +419,7 @@ export default function MenuLateral({ isSidebarOpen, setIsSidebarOpen, path, rou
             items.push(
               <div key={`day-${dateKey}`} style={{ display: 'flex', alignItems: 'center', gap: '16px', alignSelf: 'stretch', margin: '4px 0' }}>
                 <div style={{ flex: 1, height: '1px', background: 'linear-gradient(to right, transparent, #e2e8f0)' }} />
-                <span style={{ fontSize: '11px', fontWeight: '700', color: '#94a3b8', background: '#fff', padding: '5px 16px', borderRadius: '20px', border: '1px solid #e2e8f0', whiteSpace: 'nowrap', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--portal-text-muted)', background: 'var(--portal-bg-card)', padding: '5px 16px', borderRadius: '20px', border: `1px solid var(--portal-border)`, whiteSpace: 'nowrap', boxShadow: `0 1px 4px var(--portal-shadow)` }}>
                   {getDateLabel(dateKey)}
                 </span>
                 <div style={{ flex: 1, height: '1px', background: 'linear-gradient(to left, transparent, #e2e8f0)' }} />
@@ -449,12 +449,12 @@ export default function MenuLateral({ isSidebarOpen, setIsSidebarOpen, path, rou
               />
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: souEu ? 'flex-end' : 'flex-start' }}>
                 <div style={{
-                  background: souEu ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' : '#fff',
-                  color: souEu ? '#fff' : '#0f172a',
+                  background: souEu ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' : 'var(--portal-bg-card)',
+                  color: souEu ? '#fff' : 'var(--portal-text)',
                   padding: '22px 28px',
                   borderRadius: souEu ? '32px 32px 5px 32px' : '32px 32px 32px 5px',
                   boxShadow: '0 12px 30px rgba(0,0,0,0.06)',
-                  border: souEu ? 'none' : '1px solid #e2e8f0'
+                  border: souEu ? 'none' : `1px solid var(--portal-border)`
                 }}>
                   {!souEu && <small style={{ fontSize: '12px', fontWeight: '900', color: '#3b82f6', display: 'block', marginBottom: '8px' }}>{m.usuario_nome?.toUpperCase()}</small>}
                   {m.midia_url && (
@@ -485,16 +485,16 @@ export default function MenuLateral({ isSidebarOpen, setIsSidebarOpen, path, rou
        })()}
       </div>
 
-      <form onSubmit={enviarMsg} style={{ padding: '40px', display: 'flex', gap: '25px', borderTop: '1px solid #f1f5f9', alignItems: 'center', background: '#fff' }}>
-       <label style={{ cursor: 'pointer', padding: '22px', background: '#f1f5f9', borderRadius: '25px', display: 'flex' }}>
+      <form onSubmit={enviarMsg} style={{ padding: '40px', display: 'flex', gap: '25px', borderTop: `1px solid var(--portal-border)`, alignItems: 'center', background: 'var(--portal-bg-card)' }}>
+       <label style={{ cursor: 'pointer', padding: '22px', background: 'var(--portal-bg-secondary)', borderRadius: '25px', display: 'flex' }}>
          <Paperclip size={30} color="#64748b" />
          <input type="file" hidden onChange={handleUpload} disabled={uploading} />
        </label>
-       <input 
-        value={novaMsg} 
-        onChange={e => setNovaMsg(e.target.value)} 
-        placeholder="Escreva algo..." 
-        style={{ flex: 1, padding: '25px 35px', borderRadius: '35px', border: '1.5px solid #f1f5f9', outline: 'none', fontSize: '18px', background: '#f8fafc' }} 
+       <input
+        value={novaMsg}
+        onChange={e => setNovaMsg(e.target.value)}
+        placeholder="Escreva algo..."
+        style={{ flex: 1, padding: '25px 35px', borderRadius: '35px', border: `1.5px solid var(--portal-border)`, outline: 'none', fontSize: '18px', background: 'var(--portal-bg-secondary)', color: 'var(--portal-text)' }} 
        />
        <button type="submit" disabled={!novaMsg.trim()} style={{ background: '#0f172a', color: '#fff', border: 'none', borderRadius: '30px', width: '75px', height:'75px', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', boxShadow: '0 15px 30px rgba(15,23,42,0.3)' }}>
         <Send size={32} />
@@ -512,7 +512,7 @@ export default function MenuLateral({ isSidebarOpen, setIsSidebarOpen, path, rou
     >
      <div
       onClick={e => e.stopPropagation()}
-      style={{ width: '520px', maxHeight: '85vh', background: '#fff', borderRadius: '32px', boxShadow: '0 60px 150px rgba(0,0,0,0.4)', display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'zoomIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
+      style={{ width: '520px', maxHeight: '85vh', background: 'var(--portal-bg-card)', borderRadius: '32px', boxShadow: '0 60px 150px rgba(0,0,0,0.4)', display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'zoomIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
      >
       {/* Cabeçalho */}
       <div style={{ padding: '30px 35px', background: '#0f172a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -529,26 +529,26 @@ export default function MenuLateral({ isSidebarOpen, setIsSidebarOpen, path, rou
       </div>
 
       {/* Lista */}
-      <div style={{ flex: 1, overflowY: 'auto', background: '#f8fafc' }}>
+      <div style={{ flex: 1, overflowY: 'auto', background: 'var(--portal-bg)' }}>
        {historico.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-         <Bell size={40} color="#e2e8f0" />
-         <p style={{ color: '#94a3b8', fontSize: '14px', margin: '16px 0 0', fontWeight: '500' }}>Nenhuma notificacao no historico</p>
+         <Bell size={40} color="var(--portal-text-faint)" />
+         <p style={{ color: 'var(--portal-text-muted)', fontSize: '14px', margin: '16px 0 0', fontWeight: '500' }}>Nenhuma notificacao no historico</p>
         </div>
        ) : historico.map((n, idx) => (
         <div
          key={n.id || idx}
          style={{
           padding: '16px 24px',
-          borderBottom: '1px solid #f1f5f9',
+          borderBottom: `1px solid var(--portal-border)`,
           display: 'flex',
           gap: '14px',
           alignItems: 'center',
-          background: n.lida ? 'transparent' : '#eff6ff',
+          background: n.lida ? 'transparent' : 'var(--portal-bg-hover)',
           transition: 'background 0.15s',
          }}
-         onMouseEnter={e => e.currentTarget.style.background = '#f1f5f9'}
-         onMouseLeave={e => e.currentTarget.style.background = n.lida ? 'transparent' : '#eff6ff'}
+         onMouseEnter={e => e.currentTarget.style.background = 'var(--portal-bg-secondary)'}
+         onMouseLeave={e => e.currentTarget.style.background = n.lida ? 'transparent' : 'var(--portal-bg-hover)'}
         >
          <div style={{
           width: '42px', height: '42px', borderRadius: '14px', flexShrink: 0,

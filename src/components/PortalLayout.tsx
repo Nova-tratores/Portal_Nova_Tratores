@@ -9,7 +9,8 @@ import {
   LogOut, Settings, ClipboardList, Wrench, FileText,
   DollarSign, Package, Menu, X, User as UserIcon,
   LayoutDashboard, Bell, ChevronRight, Activity, Lock, MessageCircle,
-  CheckCheck, Trash2, ExternalLink, Calendar, Users, Calculator, BarChart3, Eye, Camera, Wheat, Megaphone
+  CheckCheck, Trash2, ExternalLink, Calendar, Users, Calculator, BarChart3, Eye, Camera, Wheat, Megaphone,
+  Sun, Moon, Volume2, Check, MapPin
 } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -101,13 +102,22 @@ const navItems: NavItem[] = [
     gradient: 'linear-gradient(135deg, #dc2626, #991b1b)'
   },
   {
-    id: 'painel-mecanicos',
-    name: 'Painel Mecânicos',
-    href: '/painel-mecanicos',
-    icon: <Users size={18} />,
-    tag: 'CAMPO',
-    gradient: 'linear-gradient(135deg, #1E3A5F, #1d4ed8)'
+    id: 'mapa-geral',
+    name: 'Mapa Geral',
+    href: '/mapa-geral',
+    icon: <MapPin size={18} />,
+    tag: 'MAPA',
+    gradient: 'linear-gradient(135deg, #b91c1c, #991b1b)'
   },
+  // DESATIVADO — será refeito
+  // {
+  //   id: 'painel-mecanicos',
+  //   name: 'Painel Mecânicos',
+  //   href: '/painel-mecanicos',
+  //   icon: <Users size={18} />,
+  //   tag: 'CAMPO',
+  //   gradient: 'linear-gradient(135deg, #1E3A5F, #1d4ed8)'
+  // },
   {
     id: 'fotos-tecnicos',
     name: 'Fotos Técnicos',
@@ -178,6 +188,51 @@ const timeAgo = (date: string) => {
   return `${days}d`
 }
 
+// Sons de notificação gerados via AudioContext
+const SONS_NOTIFICACAO = [
+  { id: 'classico', label: 'Clássico', play: (ctx: AudioContext) => {
+    const o1 = ctx.createOscillator(); const g1 = ctx.createGain()
+    o1.connect(g1); g1.connect(ctx.destination)
+    o1.frequency.value = 880; g1.gain.value = 0.15
+    o1.start(ctx.currentTime); g1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15); o1.stop(ctx.currentTime + 0.15)
+    const o2 = ctx.createOscillator(); const g2 = ctx.createGain()
+    o2.connect(g2); g2.connect(ctx.destination)
+    o2.frequency.value = 1200; g2.gain.value = 0.12
+    o2.start(ctx.currentTime + 0.18); g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35); o2.stop(ctx.currentTime + 0.35)
+  }},
+  { id: 'suave', label: 'Suave', play: (ctx: AudioContext) => {
+    const o = ctx.createOscillator(); const g = ctx.createGain()
+    o.type = 'sine'; o.connect(g); g.connect(ctx.destination)
+    o.frequency.value = 523; g.gain.value = 0.12
+    o.start(ctx.currentTime); o.frequency.linearRampToValueAtTime(659, ctx.currentTime + 0.3)
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5); o.stop(ctx.currentTime + 0.5)
+  }},
+  { id: 'alerta', label: 'Alerta', play: (ctx: AudioContext) => {
+    [0, 0.15, 0.30].forEach(delay => {
+      const o = ctx.createOscillator(); const g = ctx.createGain()
+      o.type = 'square'; o.connect(g); g.connect(ctx.destination)
+      o.frequency.value = 1000; g.gain.value = 0.08
+      o.start(ctx.currentTime + delay); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.1); o.stop(ctx.currentTime + delay + 0.1)
+    })
+  }},
+  { id: 'melodia', label: 'Melodia', play: (ctx: AudioContext) => {
+    const notas = [659, 784, 880]
+    notas.forEach((freq, i) => {
+      const o = ctx.createOscillator(); const g = ctx.createGain()
+      o.type = 'sine'; o.connect(g); g.connect(ctx.destination)
+      o.frequency.value = freq; g.gain.value = 0.1
+      const t = ctx.currentTime + i * 0.15
+      o.start(t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.2); o.stop(t + 0.2)
+    })
+  }},
+  { id: 'ping', label: 'Ping', play: (ctx: AudioContext) => {
+    const o = ctx.createOscillator(); const g = ctx.createGain()
+    o.type = 'sine'; o.connect(g); g.connect(ctx.destination)
+    o.frequency.value = 1400; g.gain.value = 0.15
+    o.start(ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25); o.stop(ctx.currentTime + 0.25)
+  }},
+]
+
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
   const { userProfile, loading, handleLogout } = useAuth()
   const { isAdmin, temAcesso, loading: loadingPerm } = usePermissoes(userProfile?.id)
@@ -195,6 +250,54 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const pathname = usePathname()
   const [avisosPendentes, setAvisosPendentes] = useState<{ id: string; titulo: string; conteudo: string; prioridade: string; criado_por_nome: string }[]>([])
   const [confirmando, setConfirmando] = useState(false)
+  const [configOpen, setConfigOpen] = useState(false)
+  const [tema, setTema] = useState<'light' | 'dark'>('light')
+  const [somId, setSomId] = useState('classico')
+
+  // Aplicar tema ao carregar
+  useEffect(() => {
+    const saved = localStorage.getItem('portal-tema')
+    if (saved === 'dark' || saved === 'light') {
+      setTema(saved)
+      document.documentElement.setAttribute('data-theme', saved)
+    }
+  }, [])
+
+  // Sincronizar tema do banco quando userProfile carrega
+  useEffect(() => {
+    if (!userProfile) return
+    if (userProfile.tema === 'dark' || userProfile.tema === 'light') {
+      setTema(userProfile.tema as 'light' | 'dark')
+      document.documentElement.setAttribute('data-theme', userProfile.tema)
+      localStorage.setItem('portal-tema', userProfile.tema)
+    }
+    if (userProfile.som_notificacao) {
+      setSomId(userProfile.som_notificacao)
+    }
+  }, [userProfile])
+
+  const alterarTema = async (novoTema: 'light' | 'dark') => {
+    setTema(novoTema)
+    document.documentElement.setAttribute('data-theme', novoTema)
+    localStorage.setItem('portal-tema', novoTema)
+    if (userProfile?.id) {
+      await supabase.from('financeiro_usu').update({ tema: novoTema }).eq('id', userProfile.id)
+    }
+  }
+
+  const alterarSom = async (novoSom: string) => {
+    setSomId(novoSom)
+    localStorage.setItem('portal-som', novoSom)
+    // Tocar preview
+    try {
+      const ctx = new AudioContext()
+      SONS_NOTIFICACAO.find(s => s.id === novoSom)?.play(ctx)
+      setTimeout(() => ctx.close(), 1000)
+    } catch { /* */ }
+    if (userProfile?.id) {
+      await supabase.from('financeiro_usu').update({ som_notificacao: novoSom }).eq('id', userProfile.id)
+    }
+  }
 
   // Carregar avisos não confirmados + realtime
   useEffect(() => {
@@ -270,23 +373,11 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const playSound = useCallback(() => {
     try {
       const ctx = new AudioContext()
-      const osc1 = ctx.createOscillator()
-      const gain1 = ctx.createGain()
-      osc1.connect(gain1); gain1.connect(ctx.destination)
-      osc1.frequency.value = 880; gain1.gain.value = 0.15
-      osc1.start(ctx.currentTime)
-      gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15)
-      osc1.stop(ctx.currentTime + 0.15)
-      const osc2 = ctx.createOscillator()
-      const gain2 = ctx.createGain()
-      osc2.connect(gain2); gain2.connect(ctx.destination)
-      osc2.frequency.value = 1200; gain2.gain.value = 0.12
-      osc2.start(ctx.currentTime + 0.18)
-      gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35)
-      osc2.stop(ctx.currentTime + 0.35)
-      setTimeout(() => ctx.close(), 500)
+      const som = SONS_NOTIFICACAO.find(s => s.id === somId) || SONS_NOTIFICACAO[0]
+      som.play(ctx)
+      setTimeout(() => ctx.close(), 1000)
     } catch { /* */ }
-  }, [])
+  }, [somId])
 
   // === PERMISSÃO NAVEGADOR ===
   useEffect(() => {
@@ -410,7 +501,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     return (
       <div style={{
         height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: '#ffffff'
+        background: 'var(--portal-bg)'
       }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{
@@ -418,7 +509,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
             background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
             animation: 'pulse-glow 2s infinite'
           }} />
-          <p style={{ color: '#a3a3a3', fontSize: '13px', letterSpacing: '3px', fontWeight: '500' }}>
+          <p style={{ color: 'var(--portal-text-muted)', fontSize: '13px', letterSpacing: '3px', fontWeight: '500' }}>
             CARREGANDO...
           </p>
         </div>
@@ -427,26 +518,26 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#fafafa', position: 'relative' }}>
+    <div className={tema === 'dark' ? 'portal-dark' : ''} style={{ minHeight: '100vh', background: 'var(--portal-bg)', position: 'relative' }}>
       {/* ===== TOP BAR (maior) ===== */}
       <header style={{
         position: 'sticky', top: 0, zIndex: 50,
         padding: '0 32px', height: '84px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        background: '#ffffff',
-        borderBottom: '1px solid #f0f0f0',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+        background: 'var(--portal-header-bg)',
+        borderBottom: '1px solid var(--portal-border)',
+        boxShadow: `0 1px 3px var(--portal-shadow)`
       }}>
         {/* Left: menu + logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
             style={{
-              background: 'none', border: 'none', color: '#737373',
+              background: 'none', border: 'none', color: 'var(--portal-text-secondary)',
               cursor: 'pointer', display: 'flex', padding: '8px',
               borderRadius: '8px', transition: 'all 0.2s'
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = '#f5f5f5' }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--portal-bg-secondary)' }}
             onMouseLeave={(e) => { e.currentTarget.style.background = 'none' }}
           >
             {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
@@ -500,17 +591,35 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
             onClick={() => setLembretesOpen(true)}
             style={{
               position: 'relative',
-              background: '#fff', border: '1px solid #f0f0f0',
-              color: '#737373', cursor: 'pointer', padding: '10px',
+              background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
+              color: 'var(--portal-text-secondary)', cursor: 'pointer', padding: '10px',
               borderRadius: '12px', transition: 'all 0.2s',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+              boxShadow: `0 1px 3px var(--portal-shadow)`
             }}
             onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#fecaca'; e.currentTarget.style.color = '#dc2626' }}
-            onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#f0f0f0'; e.currentTarget.style.color = '#737373' }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--portal-border)'; e.currentTarget.style.color = 'var(--portal-text-secondary)' }}
             title="Lembretes"
           >
             <Calendar size={20} />
+          </button>
+
+          {/* Config button */}
+          <button
+            onClick={() => setConfigOpen(true)}
+            style={{
+              position: 'relative',
+              background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
+              color: 'var(--portal-text-secondary)', cursor: 'pointer', padding: '10px',
+              borderRadius: '12px', transition: 'all 0.2s',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: `0 1px 3px var(--portal-shadow)`
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#fecaca'; e.currentTarget.style.color = '#dc2626' }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--portal-border)'; e.currentTarget.style.color = 'var(--portal-text-secondary)' }}
+            title="Configurações"
+          >
+            <Settings size={20} />
           </button>
 
           {/* ===== SINO / CENTRAL DE NOTIFICAÇÕES ===== */}
@@ -550,17 +659,17 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                 position: 'fixed', top: '92px', right: '120px',
                 width: '420px', maxWidth: 'calc(100vw - 32px)',
                 maxHeight: '520px', zIndex: 10000,
-                background: '#ffffff', borderRadius: '20px',
+                background: 'var(--portal-bg-card)', borderRadius: '20px',
                 boxShadow: '0 20px 60px rgba(0,0,0,0.15), 0 4px 16px rgba(0,0,0,0.06)',
-                border: '1px solid #f0f0f0',
+                border: `1px solid var(--portal-border)`,
                 overflow: 'hidden', display: 'flex', flexDirection: 'column',
                 animation: 'bellDropIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
               }}>
                 {/* Header */}
                 <div style={{
-                  padding: '20px 24px', borderBottom: '1px solid #f0f0f0',
+                  padding: '20px 24px', borderBottom: `1px solid var(--portal-border)`,
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  background: 'linear-gradient(135deg, #fef2f2, #ffffff)'
+                  background: 'var(--portal-bg-hover)'
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <div style={{
@@ -572,10 +681,10 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                       <Bell size={16} color="#fff" />
                     </div>
                     <div>
-                      <span style={{ fontSize: '15px', fontWeight: '700', color: '#1a1a1a', display: 'block' }}>
+                      <span style={{ fontSize: '15px', fontWeight: '700', color: 'var(--portal-text)', display: 'block' }}>
                         Notificações
                       </span>
-                      <span style={{ fontSize: '11px', color: '#a3a3a3' }}>
+                      <span style={{ fontSize: '11px', color: 'var(--portal-text-muted)' }}>
                         {totalBell > 0 ? `${totalBell} não ${totalBell === 1 ? 'lida' : 'lidas'}` : 'Tudo em dia'}
                       </span>
                     </div>
@@ -584,13 +693,13 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                     <button
                       onClick={() => { notifData.marcarTodasComoLidas() }}
                       style={{
-                        background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626',
+                        background: 'var(--portal-bg-hover)', border: `1px solid var(--portal-border-hover)`, color: '#dc2626',
                         fontSize: '11px', fontWeight: '600', cursor: 'pointer',
                         display: 'flex', alignItems: 'center', gap: '4px',
                         padding: '6px 12px', borderRadius: '8px', transition: 'all 0.2s'
                       }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = '#fee2e2' }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = '#fef2f2' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = tema === 'dark' ? '#3a1518' : '#fee2e2' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--portal-bg-hover)' }}
                     >
                       <CheckCheck size={13} /> Marcar lidas
                     </button>
@@ -603,13 +712,13 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                     <div style={{ padding: '48px 20px', textAlign: 'center' }}>
                       <div style={{
                         width: '56px', height: '56px', borderRadius: '16px',
-                        background: '#f5f5f5', margin: '0 auto 16px',
+                        background: 'var(--portal-bg-secondary)', margin: '0 auto 16px',
                         display: 'flex', alignItems: 'center', justifyContent: 'center'
                       }}>
-                        <Bell size={24} color="#d4d4d4" />
+                        <Bell size={24} color="var(--portal-text-faint)" />
                       </div>
-                      <p style={{ color: '#a3a3a3', fontSize: '14px', fontWeight: '500' }}>Nenhuma notificação</p>
-                      <p style={{ color: '#d4d4d4', fontSize: '12px', marginTop: '4px' }}>Você está em dia!</p>
+                      <p style={{ color: 'var(--portal-text-muted)', fontSize: '14px', fontWeight: '500' }}>Nenhuma notificação</p>
+                      <p style={{ color: 'var(--portal-text-faint)', fontSize: '12px', marginTop: '4px' }}>Você está em dia!</p>
                     </div>
                   ) : (
                     bellItems.map(item => (
@@ -628,25 +737,25 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                         style={{
                           display: 'flex', alignItems: 'center', gap: '14px',
                           padding: '14px 24px', cursor: 'pointer',
-                          background: item.lida ? 'transparent' : '#fefbfb',
-                          borderBottom: '1px solid #f5f5f5',
+                          background: item.lida ? 'transparent' : 'var(--portal-bg-hover)',
+                          borderBottom: `1px solid var(--portal-border)`,
                           transition: 'background 0.15s'
                         }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = '#fafafa' }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = item.lida ? 'transparent' : '#fefbfb' }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--portal-bg-secondary)' }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = item.lida ? 'transparent' : 'var(--portal-bg-hover)' }}
                       >
                         {/* Ícone */}
                         <div style={{
                           width: '42px', height: '42px', borderRadius: '12px',
                           background: item.tipo === 'chat'
-                            ? (item.lida ? '#f5f5f5' : 'linear-gradient(135deg, #3b82f6, #2563eb)')
-                            : (item.lida ? '#f5f5f5' : '#fef2f2'),
+                            ? (item.lida ? 'var(--portal-bg-secondary)' : 'linear-gradient(135deg, #3b82f6, #2563eb)')
+                            : (item.lida ? 'var(--portal-bg-secondary)' : 'var(--portal-bg-hover)'),
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           fontSize: '18px', flexShrink: 0,
                           boxShadow: !item.lida && item.tipo === 'chat' ? '0 4px 12px rgba(59,130,246,0.25)' : 'none'
                         }}>
                           {item.tipo === 'chat' ? (
-                            <MessageCircle size={18} color={item.lida ? '#a3a3a3' : '#fff'} />
+                            <MessageCircle size={18} color={item.lida ? 'var(--portal-text-muted)' : '#fff'} />
                           ) : (
                             <span>{item.icone}</span>
                           )}
@@ -657,7 +766,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
                             <p style={{
                               fontSize: '13px', fontWeight: item.lida ? '500' : '600',
-                              color: '#1a1a1a', margin: 0,
+                              color: 'var(--portal-text)', margin: 0,
                               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
                             }}>
                               {item.titulo}
@@ -670,7 +779,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                             )}
                           </div>
                           <p style={{
-                            fontSize: '12px', color: '#737373', margin: 0,
+                            fontSize: '12px', color: 'var(--portal-text-secondary)', margin: 0,
                             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
                           }}>
                             {item.descricao}
@@ -679,7 +788,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
                         {/* Tempo */}
                         <span style={{
-                          fontSize: '11px', color: item.lida ? '#d4d4d4' : '#a3a3a3',
+                          fontSize: '11px', color: item.lida ? 'var(--portal-text-faint)' : 'var(--portal-text-muted)',
                           fontWeight: '500', flexShrink: 0
                         }}>
                           {timeAgo(item.tempo)}
@@ -728,16 +837,17 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         position: 'fixed', top: '84px', left: 0, bottom: 0,
         width: sidebarOpen ? '260px' : '0px', overflow: 'hidden',
         transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-        zIndex: 40, background: '#ffffff',
-        borderRight: sidebarOpen ? '1px solid #f0f0f0' : 'none',
-        boxShadow: sidebarOpen ? '4px 0 20px rgba(0,0,0,0.04)' : 'none'
+        zIndex: 40, background: 'var(--portal-sidebar-bg)',
+        borderRight: sidebarOpen ? '1px solid var(--portal-border)' : 'none',
+        boxShadow: sidebarOpen ? `4px 0 20px var(--portal-shadow)` : 'none'
       }}>
-        <div style={{ padding: '20px 16px', width: '260px' }}>
+        <div style={{ width: '260px', height: '100%', display: 'flex', flexDirection: 'column' }}>
           {/* User card */}
+          <div style={{ padding: '20px 16px 0 16px', flexShrink: 0 }}>
           <div style={{
             padding: '16px', borderRadius: '14px',
-            background: '#fef2f2',
-            border: '1px solid #fecaca',
+            background: 'var(--portal-bg-hover)',
+            border: '1px solid var(--portal-border-hover)',
             marginBottom: '20px'
           }}>
             <div style={{
@@ -757,15 +867,17 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                 </div>
               )}
             </div>
-            <p style={{ fontSize: '14px', fontWeight: '700', color: '#1a1a1a', marginBottom: '2px' }}>
+            <p style={{ fontSize: '14px', fontWeight: '700', color: 'var(--portal-text)', marginBottom: '2px' }}>
               {userProfile?.nome || 'Usuário'}
             </p>
             <p style={{ fontSize: '11px', color: '#dc2626', fontWeight: '600', letterSpacing: '1px' }}>
               {userProfile?.funcao || 'Colaborador'}
             </p>
           </div>
+          </div>
 
-          {/* Navigation */}
+          {/* Navigation - scrollável */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px', minHeight: 0 }}>
           <p style={{
             fontSize: '10px', fontWeight: '700', color: '#a3a3a3',
             letterSpacing: '2px', marginBottom: '10px', paddingLeft: '4px'
@@ -794,26 +906,26 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                 style={{
                   width: '100%', display: 'flex', alignItems: 'center', gap: '10px',
                   padding: '10px 12px', borderRadius: '10px', border: 'none',
-                  background: isActive ? '#fef2f2' : 'transparent',
-                  color: isActive ? '#dc2626' : '#737373',
+                  background: isActive ? 'var(--portal-bg-hover)' : 'transparent',
+                  color: isActive ? '#dc2626' : 'var(--portal-text-secondary)',
                   cursor: 'pointer', fontSize: '13px', fontWeight: isActive ? '600' : '500',
                   fontFamily: 'Inter', transition: 'all 0.2s', textAlign: 'left' as const,
                   marginBottom: '2px', textDecoration: 'none'
                 }}
                 onMouseEnter={(e) => {
-                  if (!isActive) { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#dc2626' }
+                  if (!isActive) { e.currentTarget.style.background = 'var(--portal-bg-hover)'; e.currentTarget.style.color = '#dc2626' }
                 }}
                 onMouseLeave={(e) => {
-                  if (!isActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#737373' }
+                  if (!isActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--portal-text-secondary)' }
                 }}
               >
                 <div style={{
                   width: '30px', height: '30px', borderRadius: '8px',
-                  background: isActive ? item.gradient : '#f5f5f5',
+                  background: isActive ? item.gradient : 'var(--portal-bg-secondary)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   flexShrink: 0, transition: 'all 0.2s'
                 }}>
-                  <span style={{ color: isActive ? '#fff' : '#a3a3a3', display: 'flex' }}>{item.icon}</span>
+                  <span style={{ color: isActive ? '#fff' : 'var(--portal-text-muted)', display: 'flex' }}>{item.icon}</span>
                 </div>
                 <span style={{ flex: 1 }}>{item.name}</span>
                 {isActive && <ChevronRight size={14} style={{ color: '#dc2626' }} />}
@@ -829,36 +941,39 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', gap: '10px',
                 padding: '10px 12px', borderRadius: '10px', border: 'none',
-                background: pathname === '/admin' ? '#fef2f2' : 'transparent',
-                color: pathname === '/admin' ? '#dc2626' : '#737373',
+                background: pathname === '/admin' ? 'var(--portal-bg-hover)' : 'transparent',
+                color: pathname === '/admin' ? '#dc2626' : 'var(--portal-text-secondary)',
                 cursor: 'pointer', fontSize: '13px', fontWeight: pathname === '/admin' ? '600' : '500',
                 fontFamily: 'Inter', transition: 'all 0.2s', textAlign: 'left' as const,
                 marginBottom: '2px', textDecoration: 'none', marginTop: '8px'
               }}
               onMouseEnter={(e) => {
-                if (pathname !== '/admin') { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#dc2626' }
+                if (pathname !== '/admin') { e.currentTarget.style.background = 'var(--portal-bg-hover)'; e.currentTarget.style.color = '#dc2626' }
               }}
               onMouseLeave={(e) => {
-                if (pathname !== '/admin') { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#737373' }
+                if (pathname !== '/admin') { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--portal-text-secondary)' }
               }}
             >
               <div style={{
                 width: '30px', height: '30px', borderRadius: '8px',
-                background: pathname === '/admin' ? 'linear-gradient(135deg, #dc2626, #b91c1c)' : '#f5f5f5',
+                background: pathname === '/admin' ? 'linear-gradient(135deg, #dc2626, #b91c1c)' : 'var(--portal-bg-secondary)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 flexShrink: 0, transition: 'all 0.2s'
               }}>
-                <Lock size={14} style={{ color: pathname === '/admin' ? '#fff' : '#a3a3a3' }} />
+                <Lock size={14} style={{ color: pathname === '/admin' ? '#fff' : 'var(--portal-text-muted)' }} />
               </div>
               <span style={{ flex: 1 }}>Administração</span>
               {pathname === '/admin' && <ChevronRight size={14} style={{ color: '#dc2626' }} />}
             </Link>
           )}
 
-          {/* Logout */}
+          </div>
+
+          {/* Logout - fixo no fundo */}
           <div style={{
-            borderTop: '1px solid #f0f0f0',
-            marginTop: '16px', paddingTop: '16px'
+            flexShrink: 0, padding: '0 16px 20px 16px',
+            borderTop: '1px solid var(--portal-border)',
+            paddingTop: '16px'
           }}>
             <button
               onClick={handleLogout}
@@ -895,7 +1010,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       <main style={{
         marginLeft: sidebarOpen ? '260px' : '0px',
         transition: 'margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-        minHeight: 'calc(100vh - 84px)'
+        minHeight: 'calc(100vh - 84px)',
+        background: 'var(--portal-bg)'
       }}>
         {children}
       </main>
@@ -919,6 +1035,149 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         />
       )}
 
+      {/* ===== MODAL CONFIGURAÇÕES ===== */}
+      {configOpen && (
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget) setConfigOpen(false) }}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+            backdropFilter: 'blur(8px)', zIndex: 55000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center'
+          }}
+        >
+          <div style={{
+            background: 'var(--portal-bg-card)', borderRadius: '24px', width: '480px',
+            padding: '40px', boxShadow: '0 25px 60px rgba(0,0,0,0.15)'
+          }}>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  width: '44px', height: '44px', borderRadius: '12px',
+                  background: 'linear-gradient(135deg, #525252, #1a1a1a)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}>
+                  <Settings size={22} color="#fff" />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--portal-text)', margin: 0 }}>Configurações</h3>
+                  <p style={{ fontSize: '12px', color: 'var(--portal-text-muted)', margin: 0 }}>Personalize sua experiência</p>
+                </div>
+              </div>
+              <button onClick={() => setConfigOpen(false)} style={{
+                background: 'var(--portal-bg-secondary)', border: 'none', borderRadius: '10px',
+                width: '36px', height: '36px', display: 'flex', alignItems: 'center',
+                justifyContent: 'center', cursor: 'pointer', color: 'var(--portal-text-secondary)'
+              }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Tema */}
+            <div style={{ marginBottom: '28px' }}>
+              <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--portal-text-secondary)', letterSpacing: '1px', display: 'block', marginBottom: '12px' }}>
+                TEMA DO PORTAL
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <button
+                  onClick={() => alterarTema('light')}
+                  style={{
+                    padding: '16px', borderRadius: '14px', border: tema === 'light' ? '2px solid #dc2626' : '2px solid var(--portal-border)',
+                    background: '#ffffff', cursor: 'pointer', transition: 'all 0.2s',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px',
+                    position: 'relative'
+                  }}
+                >
+                  {tema === 'light' && (
+                    <div style={{ position: 'absolute', top: '8px', right: '8px', width: '20px', height: '20px', borderRadius: '10px', background: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Check size={12} color="#fff" strokeWidth={3} />
+                    </div>
+                  )}
+                  <Sun size={28} color="#f59e0b" />
+                  <span style={{ fontSize: '14px', fontWeight: '700', color: '#1a1a1a' }}>Claro</span>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <div style={{ width: '20px', height: '14px', borderRadius: '3px', background: '#fafafa', border: '1px solid #e5e5e5' }} />
+                    <div style={{ width: '20px', height: '14px', borderRadius: '3px', background: '#ffffff', border: '1px solid #e5e5e5' }} />
+                    <div style={{ width: '20px', height: '14px', borderRadius: '3px', background: '#f5f5f5', border: '1px solid #e5e5e5' }} />
+                  </div>
+                </button>
+                <button
+                  onClick={() => alterarTema('dark')}
+                  style={{
+                    padding: '16px', borderRadius: '14px', border: tema === 'dark' ? '2px solid #dc2626' : '2px solid var(--portal-border)',
+                    background: '#1a1a1a', cursor: 'pointer', transition: 'all 0.2s',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px',
+                    position: 'relative'
+                  }}
+                >
+                  {tema === 'dark' && (
+                    <div style={{ position: 'absolute', top: '8px', right: '8px', width: '20px', height: '20px', borderRadius: '10px', background: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Check size={12} color="#fff" strokeWidth={3} />
+                    </div>
+                  )}
+                  <Moon size={28} color="#818cf8" />
+                  <span style={{ fontSize: '14px', fontWeight: '700', color: '#f5f5f5' }}>Escuro</span>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <div style={{ width: '20px', height: '14px', borderRadius: '3px', background: '#0f0f0f', border: '1px solid #333' }} />
+                    <div style={{ width: '20px', height: '14px', borderRadius: '3px', background: '#1a1a1a', border: '1px solid #333' }} />
+                    <div style={{ width: '20px', height: '14px', borderRadius: '3px', background: '#262626', border: '1px solid #333' }} />
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* Sons */}
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--portal-text-secondary)', letterSpacing: '1px', display: 'block', marginBottom: '12px' }}>
+                SOM DE NOTIFICAÇÃO
+              </label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {SONS_NOTIFICACAO.map(som => {
+                  const isActive = somId === som.id
+                  return (
+                    <button
+                      key={som.id}
+                      onClick={() => alterarSom(som.id)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '14px',
+                        padding: '14px 18px', borderRadius: '12px',
+                        border: isActive ? '2px solid #dc2626' : '2px solid var(--portal-border)',
+                        background: isActive ? 'var(--portal-bg-hover)' : 'var(--portal-bg-card)',
+                        cursor: 'pointer', transition: 'all 0.2s', width: '100%'
+                      }}
+                    >
+                      <div style={{
+                        width: '36px', height: '36px', borderRadius: '10px',
+                        background: isActive ? '#dc2626' : 'var(--portal-bg-secondary)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        transition: 'all 0.2s', flexShrink: 0
+                      }}>
+                        <Volume2 size={18} color={isActive ? '#fff' : 'var(--portal-text-muted)'} />
+                      </div>
+                      <span style={{
+                        fontSize: '14px', fontWeight: isActive ? '700' : '500',
+                        color: isActive ? '#dc2626' : 'var(--portal-text)',
+                        flex: 1, textAlign: 'left'
+                      }}>
+                        {som.label}
+                      </span>
+                      {isActive && (
+                        <div style={{
+                          width: '22px', height: '22px', borderRadius: '11px',
+                          background: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        }}>
+                          <Check size={13} color="#fff" strokeWidth={3} />
+                        </div>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {userProfile?.id && <LembreteAlerta userId={userProfile.id} />}
 
       {/* ===== POPUP AVISO BLOQUEANTE ===== */}
@@ -929,7 +1188,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
           animation: 'avisoFadeIn 0.3s ease-out',
         }}>
           <div style={{
-            background: '#fff', borderRadius: 20, width: '100%', maxWidth: 500,
+            background: 'var(--portal-bg-card)', borderRadius: 20, width: '100%', maxWidth: 500,
             overflow: 'hidden', boxShadow: '0 25px 60px rgba(0,0,0,0.25)',
             animation: 'avisoScaleIn 0.3s ease-out',
           }}>
@@ -952,18 +1211,18 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                         <div style={{ fontSize: 11, fontWeight: 700, color: '#a3a3a3', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 2 }}>
                           Aviso Importante {avisosPendentes.length > 1 ? `(1 de ${avisosPendentes.length})` : ''}
                         </div>
-                        <div style={{ fontSize: 20, fontWeight: 800, color: '#111' }}>{aviso.titulo}</div>
+                        <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--portal-text)' }}>{aviso.titulo}</div>
                       </div>
                     </div>
                     <div style={{
-                      fontSize: 15, color: '#333', lineHeight: 1.7, whiteSpace: 'pre-wrap',
+                      fontSize: 15, color: 'var(--portal-text-secondary)', lineHeight: 1.7, whiteSpace: 'pre-wrap',
                       maxHeight: 300, overflow: 'auto',
-                      background: '#FAFAFA', borderRadius: 12, padding: '16px 18px',
-                      border: '1px solid #f0f0f0',
+                      background: 'var(--portal-bg-secondary)', borderRadius: 12, padding: '16px 18px',
+                      border: `1px solid var(--portal-border)`,
                     }}>
                       {aviso.conteudo}
                     </div>
-                    <div style={{ fontSize: 12, color: '#a3a3a3', marginTop: 12 }}>
+                    <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginTop: 12 }}>
                       Publicado por {aviso.criado_por_nome}
                     </div>
                     <button onClick={confirmarAviso} disabled={confirmando} style={{
@@ -999,12 +1258,12 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               className="notif-toast"
               style={{
                 width: '380px', maxWidth: 'calc(100vw - 48px)',
-                background: '#ffffff',
+                background: 'var(--portal-bg-card)',
                 borderRadius: isChat ? '20px' : '16px',
                 boxShadow: isChat
                   ? '0 8px 32px rgba(59,130,246,0.18), 0 2px 8px rgba(0,0,0,0.06)'
-                  : '0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06)',
-                border: isChat ? '2px solid #bfdbfe' : '1px solid #f0f0f0',
+                  : `0 8px 32px var(--portal-shadow), 0 2px 8px rgba(0,0,0,0.06)`,
+                border: isChat ? '2px solid #bfdbfe' : `1px solid var(--portal-border)`,
                 cursor: 'pointer',
                 overflow: 'hidden', pointerEvents: 'auto',
                 animation: 'toastSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
@@ -1031,7 +1290,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                   borderRadius: isChat ? '50%' : '12px',
                   background: isChat
                     ? 'linear-gradient(135deg, #3b82f6, #2563eb)'
-                    : '#f5f5f5',
+                    : 'var(--portal-bg-secondary)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: '20px', flexShrink: 0, overflow: 'hidden',
                   boxShadow: isChat ? '0 4px 14px rgba(59,130,246,0.3)' : 'none',
@@ -1047,7 +1306,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
-                    <span style={{ fontSize: '14px', fontWeight: '700', color: '#1a1a1a' }}>{t.titulo}</span>
+                    <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--portal-text)' }}>{t.titulo}</span>
                     <span style={{
                       fontSize: '9px', fontWeight: '800', color: '#fff',
                       background: isChat ? '#3b82f6' : '#dc2626',
@@ -1057,20 +1316,20 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                     </span>
                   </div>
                   <p style={{
-                    fontSize: '13px', color: '#525252', margin: 0,
+                    fontSize: '13px', color: 'var(--portal-text-secondary)', margin: 0,
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     ...(isChat ? {
-                      background: '#f0f7ff',
+                      background: tema === 'dark' ? '#1a2332' : '#f0f7ff',
                       padding: '6px 10px',
                       borderRadius: '0 12px 12px 12px',
-                      border: '1px solid #e0edff',
+                      border: tema === 'dark' ? '1px solid #1e3a5f' : '1px solid #e0edff',
                       marginTop: '4px',
                       fontSize: '12px'
                     } : {})
                   }}>{t.preview}</p>
                 </div>
                 <button onClick={(e) => dismissToast(e, t.id)} style={{
-                  background: '#f5f5f5', border: 'none', color: '#a3a3a3',
+                  background: 'var(--portal-bg-secondary)', border: 'none', color: 'var(--portal-text-muted)',
                   fontSize: '10px', cursor: 'pointer', padding: '6px',
                   borderRadius: '8px', flexShrink: 0, display: 'flex',
                   alignItems: 'center', justifyContent: 'center',
@@ -1080,12 +1339,12 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                 </button>
               </div>
               {!isChat && (
-                <div style={{ height: '3px', background: '#f5f5f5' }}>
+                <div style={{ height: '3px', background: 'var(--portal-bg-secondary)' }}>
                   <div style={{ height: '100%', background: 'linear-gradient(90deg, #dc2626, #ef4444)', animation: 'toastProgress 6s linear forwards' }} />
                 </div>
               )}
               {isChat && (
-                <div style={{ height: '3px', background: '#eff6ff' }}>
+                <div style={{ height: '3px', background: tema === 'dark' ? '#1a2332' : '#eff6ff' }}>
                   <div style={{ height: '100%', background: 'linear-gradient(90deg, #3b82f6, #60a5fa)', animation: 'toastProgress 6s linear forwards' }} />
                 </div>
               )}

@@ -22,21 +22,21 @@ const S_FLEX1 = { flex: 1 } as const;
 const S_FLEX2 = { flex: 2 } as const;
 const S_MB0 = { marginBottom: 0 } as const;
 const S_MT12 = { marginTop: 12 } as const;
-const S_SEARCH_ICON = { position: "absolute" as const, left: 14, top: 13, color: "#7A6E5D" };
+const S_SEARCH_ICON = { position: "absolute" as const, left: 14, top: 13, color: "var(--portal-text-secondary)" };
 const S_SEARCH_INPUT = { paddingLeft: 40, marginBottom: 0 };
 const S_SELECT_BOLD = { fontWeight: 600, marginBottom: 0 };
 const S_POINTER_BOLD = { cursor: "pointer" as const, fontWeight: 600 };
 const S_POINTER_BOLD_MB0 = { cursor: "pointer" as const, fontWeight: 600, marginBottom: 0 };
 const S_MONO_MB0 = { fontFamily: "monospace", marginBottom: 0 };
 const S_RELATIVE = { position: "relative" as const };
-const S_EMPTY_RESULT = { padding: 16, textAlign: "center" as const, color: "#7A6E5D", fontSize: 13 };
+const S_EMPTY_RESULT = { padding: 16, textAlign: "center" as const, color: "var(--portal-text-secondary)", fontSize: 13 };
 const S_CLIENT_ITEM_WRAP = { flex: 1, minWidth: 0 };
 const S_CLIENT_ITEM_NAME = { fontSize: 13, fontWeight: 600 };
-const S_CLIENT_ITEM_SUB = { fontSize: 11, color: "#7A6E5D" };
-const S_CLIENT_BADGE_CPF = { color: "#7A6E5D", marginLeft: 8 };
-const S_REQ_MATERIAL = { color: "#7A6E5D", flex: 1, textAlign: "right" as const, fontSize: 12 };
+const S_CLIENT_ITEM_SUB = { fontSize: 11, color: "var(--portal-text-secondary)" };
+const S_CLIENT_BADGE_CPF = { color: "var(--portal-text-secondary)", marginLeft: 8 };
+const S_REQ_MATERIAL = { color: "var(--portal-text-secondary)", flex: 1, textAlign: "right" as const, fontSize: 12 };
 const S_PRODUTO_VALOR = { fontWeight: 600 };
-const S_SPINNER_LOADING = { width: 28, height: 28, borderColor: "#E0D6C8", borderTopColor: "#7A6E5D" };
+const S_SPINNER_LOADING = { width: 28, height: 28, borderColor: "var(--portal-border)", borderTopColor: "var(--portal-text-secondary)" };
 const S_SPINNER_OMIE = { width: 14, height: 14, borderColor: "rgba(255,255,255,0.3)", borderTopColor: "#fff", display: "inline-block" as const, verticalAlign: "middle" as const, marginRight: 8 };
 const S_MR6 = { marginRight: 6 };
 const S_DISC_BADGE = { fontSize: 11, color: "#C41E2A", fontWeight: 700, marginLeft: "auto" };
@@ -629,27 +629,27 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                         {clienteInfo.cpf && <span style={S_CLIENT_BADGE_CPF}>({clienteInfo.cpf})</span>}</div>
                         <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <i className="fas fa-map-marker-alt" style={{ color: '#7A6E5D', fontSize: 12, flexShrink: 0 }} />
+                            <i className="fas fa-map-marker-alt" style={{ color: 'var(--portal-text-secondary)', fontSize: 12, flexShrink: 0 }} />
                             <input
                               type="text"
                               value={clienteInfo.endereco || ''}
                               onChange={(e) => setClienteInfo(prev => prev ? { ...prev, endereco: e.target.value } : prev)}
                               placeholder="Endereço do cliente..."
-                              style={{ flex: 1, fontSize: 12, padding: '5px 8px', border: '1px solid #E0D6C8', borderRadius: 6, background: '#FAFAF5', color: '#333', outline: 'none' }}
+                              style={{ flex: 1, fontSize: 12, padding: '5px 8px', border: '1px solid var(--portal-border)', borderRadius: 6, background: 'var(--portal-bg-secondary)', color: 'var(--portal-text)', outline: 'none' }}
                             />
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <i className="fas fa-city" style={{ color: '#7A6E5D', fontSize: 12, flexShrink: 0 }} />
+                            <i className="fas fa-city" style={{ color: 'var(--portal-text-secondary)', fontSize: 12, flexShrink: 0 }} />
                             <input
                               type="text"
                               value={clienteInfo.cidade || ''}
                               onChange={(e) => setClienteInfo(prev => prev ? { ...prev, cidade: e.target.value } : prev)}
                               placeholder="Cidade..."
-                              style={{ flex: 1, fontSize: 12, padding: '5px 8px', border: '1px solid #E0D6C8', borderRadius: 6, background: '#FAFAF5', color: '#333', outline: 'none' }}
+                              style={{ flex: 1, fontSize: 12, padding: '5px 8px', border: '1px solid var(--portal-border)', borderRadius: 6, background: 'var(--portal-bg-secondary)', color: 'var(--portal-text)', outline: 'none' }}
                             />
                           </div>
                         </div>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, color: servicoOficina ? '#065F46' : '#7A6E5D' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, color: servicoOficina ? '#065F46' : 'var(--portal-text-secondary)' }}>
                           <input
                             type="checkbox"
                             checked={servicoOficina}
@@ -665,7 +665,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                             Endereço será salvo como: Nova Tratores - Piraju (SP)
                           </div>
                         )}
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, color: servicoInterno ? '#1E3A5F' : '#7A6E5D' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, color: servicoInterno ? '#1E3A5F' : 'var(--portal-text-secondary)' }}>
                           <input
                             type="checkbox"
                             checked={servicoInterno}
@@ -820,44 +820,44 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                       {/* Info resumida */}
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
                         {dadosTecnico.diagnostico && (
-                          <div style={{ gridColumn: "1 / -1", background: "#F9FAFB", borderRadius: 8, padding: "8px 12px" }}>
-                            <div style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Diagnóstico</div>
+                          <div style={{ gridColumn: "1 / -1", background: "var(--portal-bg-secondary)", borderRadius: 8, padding: "8px 12px" }}>
+                            <div style={{ fontSize: 10, color: "var(--portal-text-muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Diagnóstico</div>
                             <div style={{ fontSize: 12, color: "#374151" }}>{dadosTecnico.diagnostico}</div>
                           </div>
                         )}
                         {dadosTecnico.servicoRealizado && (
-                          <div style={{ gridColumn: "1 / -1", background: "#F9FAFB", borderRadius: 8, padding: "8px 12px" }}>
-                            <div style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Serviço Realizado</div>
+                          <div style={{ gridColumn: "1 / -1", background: "var(--portal-bg-secondary)", borderRadius: 8, padding: "8px 12px" }}>
+                            <div style={{ fontSize: 10, color: "var(--portal-text-muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Serviço Realizado</div>
                             <div style={{ fontSize: 12, color: "#374151" }}>{dadosTecnico.servicoRealizado}</div>
                           </div>
                         )}
                         {dadosTecnico.chassis && (
-                          <div style={{ background: "#F9FAFB", borderRadius: 8, padding: "8px 12px" }}>
-                            <div style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Chassis</div>
+                          <div style={{ background: "var(--portal-bg-secondary)", borderRadius: 8, padding: "8px 12px" }}>
+                            <div style={{ fontSize: 10, color: "var(--portal-text-muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Chassis</div>
                             <div style={{ fontSize: 13, color: "#374151", fontWeight: 600 }}>{dadosTecnico.chassis}</div>
                           </div>
                         )}
                         {dadosTecnico.horimetro && (
-                          <div style={{ background: "#F9FAFB", borderRadius: 8, padding: "8px 12px" }}>
-                            <div style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Horímetro</div>
+                          <div style={{ background: "var(--portal-bg-secondary)", borderRadius: 8, padding: "8px 12px" }}>
+                            <div style={{ fontSize: 10, color: "var(--portal-text-muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Horímetro</div>
                             <div style={{ fontSize: 13, color: "#374151", fontWeight: 600 }}>{dadosTecnico.horimetro}</div>
                           </div>
                         )}
                         {dadosTecnico.totalHora && (
-                          <div style={{ background: "#F9FAFB", borderRadius: 8, padding: "8px 12px" }}>
-                            <div style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Horas Técnico</div>
+                          <div style={{ background: "var(--portal-bg-secondary)", borderRadius: 8, padding: "8px 12px" }}>
+                            <div style={{ fontSize: 10, color: "var(--portal-text-muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Horas Técnico</div>
                             <div style={{ fontSize: 13, color: "#374151", fontWeight: 600 }}>{dadosTecnico.totalHora}</div>
                           </div>
                         )}
                         {dadosTecnico.totalKm && (
-                          <div style={{ background: "#F9FAFB", borderRadius: 8, padding: "8px 12px" }}>
-                            <div style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>KM Técnico</div>
+                          <div style={{ background: "var(--portal-bg-secondary)", borderRadius: 8, padding: "8px 12px" }}>
+                            <div style={{ fontSize: 10, color: "var(--portal-text-muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>KM Técnico</div>
                             <div style={{ fontSize: 13, color: "#374151", fontWeight: 600 }}>{dadosTecnico.totalKm} km</div>
                           </div>
                         )}
                         {dadosTecnico.nomResponsavel && (
-                          <div style={{ gridColumn: "1 / -1", background: "#F9FAFB", borderRadius: 8, padding: "8px 12px" }}>
-                            <div style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Responsável (cliente)</div>
+                          <div style={{ gridColumn: "1 / -1", background: "var(--portal-bg-secondary)", borderRadius: 8, padding: "8px 12px" }}>
+                            <div style={{ fontSize: 10, color: "var(--portal-text-muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Responsável (cliente)</div>
                             <div style={{ fontSize: 12, color: "#374151" }}>{dadosTecnico.nomResponsavel}</div>
                           </div>
                         )}
@@ -932,9 +932,9 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                                     <img
                                       src={f.url}
                                       alt={f.label}
-                                      style={{ width: "100%", height: 70, objectFit: "cover", borderRadius: 8, border: "1.5px solid #E5E7EB" }}
+                                      style={{ width: "100%", height: 70, objectFit: "cover", borderRadius: 8, border: "1.5px solid var(--portal-border)" }}
                                     />
-                                    <div style={{ fontSize: 9, color: "#6B7280", textAlign: "center", marginTop: 2, fontWeight: 600 }}>{f.label}</div>
+                                    <div style={{ fontSize: 9, color: "var(--portal-text-secondary)", textAlign: "center", marginTop: 2, fontWeight: 600 }}>{f.label}</div>
                                   </div>
                                 ))}
                               </div>
@@ -953,15 +953,15 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                             {dadosTecnico.assinaturas.cliente && (
                               <div style={{ cursor: "pointer" }} onClick={() => setFotoExpandida(dadosTecnico.assinaturas.cliente)}>
                                 <img src={dadosTecnico.assinaturas.cliente} alt="Assinatura Cliente"
-                                  style={{ width: "100%", height: 60, objectFit: "contain", borderRadius: 8, border: "1.5px solid #E5E7EB", background: "#fff" }} />
-                                <div style={{ fontSize: 9, color: "#6B7280", textAlign: "center", marginTop: 2, fontWeight: 600 }}>Cliente</div>
+                                  style={{ width: "100%", height: 60, objectFit: "contain", borderRadius: 8, border: "1.5px solid var(--portal-border)", background: "var(--portal-bg-card)" }} />
+                                <div style={{ fontSize: 9, color: "var(--portal-text-secondary)", textAlign: "center", marginTop: 2, fontWeight: 600 }}>Cliente</div>
                               </div>
                             )}
                             {dadosTecnico.assinaturas.tecnico && (
                               <div style={{ cursor: "pointer" }} onClick={() => setFotoExpandida(dadosTecnico.assinaturas.tecnico)}>
                                 <img src={dadosTecnico.assinaturas.tecnico} alt="Assinatura Técnico"
-                                  style={{ width: "100%", height: 60, objectFit: "contain", borderRadius: 8, border: "1.5px solid #E5E7EB", background: "#fff" }} />
-                                <div style={{ fontSize: 9, color: "#6B7280", textAlign: "center", marginTop: 2, fontWeight: 600 }}>Técnico</div>
+                                  style={{ width: "100%", height: 60, objectFit: "contain", borderRadius: 8, border: "1.5px solid var(--portal-border)", background: "var(--portal-bg-card)" }} />
+                                <div style={{ fontSize: 9, color: "var(--portal-text-secondary)", textAlign: "center", marginTop: 2, fontWeight: 600 }}>Técnico</div>
                               </div>
                             )}
                           </div>
@@ -1052,7 +1052,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                     <div className="os-card-title"><i className="fas fa-calendar-alt" /> Datas do Serviço</div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                       <div>
-                        <label style={{ fontSize: 11, color: '#6B7280', margin: 0 }}>Data Início Serviço</label>
+                        <label style={{ fontSize: 11, color: 'var(--portal-text-secondary)', margin: 0 }}>Data Início Serviço</label>
                         <input type="date" value={previsaoExecucao} onChange={(e) => {
                           setPrevisaoExecucao(e.target.value)
                           if (!e.target.value || !dataFimServico) return
@@ -1066,7 +1066,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                         }} style={{ padding: '6px 8px', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 13, width: '100%' }} />
                       </div>
                       <div>
-                        <label style={{ fontSize: 11, color: '#6B7280', margin: 0 }}>Data Fim Serviço</label>
+                        <label style={{ fontSize: 11, color: 'var(--portal-text-secondary)', margin: 0 }}>Data Fim Serviço</label>
                         <input type="date" value={dataFimServico} onChange={(e) => {
                           setDataFimServico(e.target.value)
                           if (!e.target.value || !previsaoExecucao) return
@@ -1082,16 +1082,16 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
                       <div>
-                        <label style={{ fontSize: 11, color: '#6B7280', margin: 0 }}>Hora Início Serviço</label>
+                        <label style={{ fontSize: 11, color: 'var(--portal-text-secondary)', margin: 0 }}>Hora Início Serviço</label>
                         <input type="time" value={horaInicioServico} onChange={(e) => setHoraInicioServico(e.target.value)} style={{ padding: '6px 8px', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 13, width: '100%' }} />
                       </div>
                       <div>
-                        <label style={{ fontSize: 11, color: '#6B7280', margin: 0 }}>Previsão de Faturamento</label>
+                        <label style={{ fontSize: 11, color: 'var(--portal-text-secondary)', margin: 0 }}>Previsão de Faturamento</label>
                         <input type="date" value={previsaoFaturamento} onChange={(e) => setPrevisaoFaturamento(e.target.value)} style={{ padding: '6px 8px', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 13, width: '100%' }} />
                       </div>
                     </div>
                     {/* Alimentação do Técnico */}
-                    <div style={{ marginTop: 10, padding: '10px 12px', background: alimentacaoTecnico ? '#FFFBEB' : '#F9FAFB', border: `1px solid ${alimentacaoTecnico ? '#FCD34D' : '#E5E7EB'}`, borderRadius: 8 }}>
+                    <div style={{ marginTop: 10, padding: '10px 12px', background: alimentacaoTecnico ? '#FFFBEB' : 'var(--portal-bg-secondary)', border: `1px solid ${alimentacaoTecnico ? '#FCD34D' : 'var(--portal-border)'}`, borderRadius: 8 }}>
                       <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#1E3A5F' }}>
                         <input type="checkbox" checked={alimentacaoTecnico} onChange={(e) => setAlimentacaoTecnico(e.target.checked)} style={{ accentColor: '#D97706', width: 16, height: 16 }} />
                         <i className="fas fa-utensils" style={{ color: '#D97706', fontSize: 12 }} />
@@ -1100,17 +1100,17 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                       {alimentacaoTecnico && (
                         <div style={{ marginTop: 8, display: 'flex', gap: 12, alignItems: 'center' }}>
                           <div style={{ flex: 1 }}>
-                            <label style={{ fontSize: 11, color: '#6B7280', margin: 0 }}>Valor (R$)</label>
+                            <label style={{ fontSize: 11, color: 'var(--portal-text-secondary)', margin: 0 }}>Valor (R$)</label>
                             <input type="number" min={0} step={0.01} value={alimentacaoValor || ''} onChange={(e) => setAlimentacaoValor(parseFloat(e.target.value) || 0)} placeholder="0,00" style={{ padding: '6px 8px', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 13, width: '100%' }} />
                           </div>
-                          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12, color: alimentacaoNoPdf ? '#DC2626' : '#6B7280', marginTop: 16 }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12, color: alimentacaoNoPdf ? '#DC2626' : 'var(--portal-text-secondary)', marginTop: 16 }}>
                             <input type="checkbox" checked={alimentacaoNoPdf} onChange={(e) => setAlimentacaoNoPdf(e.target.checked)} style={{ accentColor: '#DC2626', width: 14, height: 14 }} />
                             Mostrar no PDF
                           </label>
                         </div>
                       )}
                       {alimentacaoTecnico && !alimentacaoNoPdf && (
-                        <div style={{ marginTop: 6, fontSize: 10, color: '#9CA3AF', fontStyle: 'italic' }}>
+                        <div style={{ marginTop: 6, fontSize: 10, color: 'var(--portal-text-muted)', fontStyle: 'italic' }}>
                           <i className="fas fa-eye-slash" style={{ marginRight: 4 }} />
                           Valor oculto no PDF do cliente
                         </div>
@@ -1120,13 +1120,13 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                     {diasExecucao.length > 0 && (() => {
                       return (
                       <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        <div style={{ fontSize: 11, color: '#6B7280', fontWeight: 600, marginBottom: 2 }}>Confirme os dias:</div>
+                        <div style={{ fontSize: 11, color: 'var(--portal-text-secondary)', fontWeight: 600, marginBottom: 2 }}>Confirme os dias:</div>
                         {diasExecucao.map((entry) => {
                           const dia = entry.split(' ')[0]
                           const diaDate = /^\d{4}-\d{2}-\d{2}$/.test(dia) ? new Date(dia + 'T12:00:00') : null
                           const diaLabel = diaDate && !isNaN(diaDate.getTime()) ? diaDate.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' }) : dia
                           return (
-                            <div key={dia} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: '#F1F5F9', borderRadius: 6, border: '1px solid #E2E8F0', fontSize: 13 }}>
+                            <div key={dia} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'var(--portal-bg-secondary)', borderRadius: 6, border: '1px solid var(--portal-border)', fontSize: 13 }}>
                               <input type="checkbox" checked style={{ accentColor: '#1E3A5F', width: 16, height: 16, cursor: 'pointer' }} onChange={(e) => {
                                 if (!e.target.checked) setDiasExecucao(prev => prev.filter(d => !d.startsWith(dia)))
                               }} />
@@ -1145,24 +1145,24 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                     {/* Deslocamento total */}
                     {estimativa && diasExecucao.length > 0 && (
                       <div style={{ marginTop: 8, padding: '8px 12px', background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 8 }}>
-                        <div style={{ fontSize: 10, color: '#6B7280', textTransform: 'uppercase' as const, fontWeight: 600, letterSpacing: '0.5px', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <div style={{ fontSize: 10, color: 'var(--portal-text-secondary)', textTransform: 'uppercase' as const, fontWeight: 600, letterSpacing: '0.5px', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
                           <i className="fas fa-route" /> Deslocamento total ({diasExecucao.length} dia{diasExecucao.length > 1 ? 's' : ''})
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
                           <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: 10, color: '#6B7280' }}>Ida/dia</div>
+                            <div style={{ fontSize: 10, color: 'var(--portal-text-secondary)' }}>Ida/dia</div>
                             <div style={{ fontSize: 14, fontWeight: 700, color: '#1E3A5F' }}>{estimativa.ida.tempo_min} min</div>
-                            <div style={{ fontSize: 10, color: '#9CA3AF' }}>{estimativa.ida.distancia_km} km</div>
+                            <div style={{ fontSize: 10, color: 'var(--portal-text-muted)' }}>{estimativa.ida.distancia_km} km</div>
                           </div>
                           <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: 10, color: '#6B7280' }}>Volta/dia</div>
+                            <div style={{ fontSize: 10, color: 'var(--portal-text-secondary)' }}>Volta/dia</div>
                             <div style={{ fontSize: 14, fontWeight: 700, color: '#1E3A5F' }}>{estimativa.volta.tempo_min} min</div>
-                            <div style={{ fontSize: 10, color: '#9CA3AF' }}>{estimativa.volta.distancia_km} km</div>
+                            <div style={{ fontSize: 10, color: 'var(--portal-text-muted)' }}>{estimativa.volta.distancia_km} km</div>
                           </div>
                           <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: 10, color: '#6B7280' }}>KM Total</div>
+                            <div style={{ fontSize: 10, color: 'var(--portal-text-secondary)' }}>KM Total</div>
                             <div style={{ fontSize: 14, fontWeight: 700, color: '#1E3A5F' }}>{(estimativa.total.distancia_total_km * diasExecucao.length).toFixed(0)} km</div>
-                            <div style={{ fontSize: 10, color: '#9CA3AF' }}>{estimativa.total.distancia_total_km} km/dia</div>
+                            <div style={{ fontSize: 10, color: 'var(--portal-text-muted)' }}>{estimativa.total.distancia_total_km} km/dia</div>
                           </div>
                           <div style={{ textAlign: 'center', background: '#1E3A5F', borderRadius: 6, padding: '6px 4px', color: '#fff' }}>
                             <div style={{ fontSize: 10, opacity: 0.8 }}>Tempo Fora</div>
@@ -1207,7 +1207,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                                 <span className={`os-req-badge ${r.atualizada ? "ok" : ""}`}>{r.atualizada ? "OK" : "Pendente"}</span>
                                 <span style={S_REQ_MATERIAL}>{r.material}</span>
                                 {r.valor > 0 && <span style={{ fontSize: 12, fontWeight: 700, color: "#059669" }}>R$ {r.valor.toFixed(2)}</span>}
-                                {r.solicitante && r.solicitante !== "N/A" && <span style={{ fontSize: 11, color: "#9CA3AF" }}>({r.solicitante})</span>}
+                                {r.solicitante && r.solicitante !== "N/A" && <span style={{ fontSize: 11, color: "var(--portal-text-muted)" }}>({r.solicitante})</span>}
                                 {/* Desvincular */}
                                 {desvinculandoReq === r.id ? (
                                   <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
@@ -1216,7 +1216,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                                       placeholder="Justificativa obrigatória..."
                                       value={justificativaDesvinc}
                                       onChange={(e) => setJustificativaDesvinc(e.target.value)}
-                                      style={{ padding: "6px 10px", fontSize: 12, borderRadius: 6, border: "1px solid #E5E7EB", width: "100%" }}
+                                      style={{ padding: "6px 10px", fontSize: 12, borderRadius: 6, border: "1px solid var(--portal-border)", width: "100%" }}
                                     />
                                     <div style={{ display: "flex", gap: 6 }}>
                                       <button
@@ -1237,7 +1237,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                                       </button>
                                       <button
                                         onClick={() => { setDesvinculandoReq(null); setJustificativaDesvinc(""); }}
-                                        style={{ fontSize: 11, fontWeight: 700, padding: "5px 12px", borderRadius: 6, border: "1px solid #E5E7EB", background: "#fff", color: "#6B7280", cursor: "pointer" }}
+                                        style={{ fontSize: 11, fontWeight: 700, padding: "5px 12px", borderRadius: 6, border: "1px solid var(--portal-border)", background: "var(--portal-bg-card)", color: "var(--portal-text-secondary)", cursor: "pointer" }}
                                       >
                                         Cancelar
                                       </button>
@@ -1282,18 +1282,18 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
 
                     {/* Estimativa de tempo (automática) */}
                     {loadingEstimativa && (
-                      <div style={{ fontSize: 12, color: '#6B7280', padding: '8px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{ fontSize: 12, color: 'var(--portal-text-secondary)', padding: '8px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
                         <i className="fas fa-spinner fa-spin" style={{ fontSize: 11 }} /> Calculando estimativa...
                       </div>
                     )}
                     {(estimativa || erroEstimativa || enderecoEstimativa) && !loadingEstimativa && (
                       <div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 8, padding: 12, marginTop: 8 }}>
-                        <div style={{ fontSize: 10, color: '#6B7280', marginBottom: 6, textTransform: 'uppercase' as const, fontWeight: 600, letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ fontSize: 10, color: 'var(--portal-text-secondary)', marginBottom: 6, textTransform: 'uppercase' as const, fontWeight: 600, letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: 6 }}>
                           <i className="fas fa-route" style={{ marginRight: 2 }} /> Estimativa de Tempo
                           {estimativa?.fonte && (
                             <span style={{
                               fontSize: 9, padding: '2px 6px', borderRadius: 4, fontWeight: 700,
-                              background: estimativa.fonte === 'Omie' ? '#DBEAFE' : estimativa.fonte === 'Manual' ? '#FEF3C7' : '#E5E7EB',
+                              background: estimativa.fonte === 'Omie' ? '#DBEAFE' : estimativa.fonte === 'Manual' ? '#FEF3C7' : 'var(--portal-border)',
                               color: estimativa.fonte === 'Omie' ? '#1E40AF' : estimativa.fonte === 'Manual' ? '#92400E' : '#374151',
                             }}>
                               {estimativa.fonte === 'Omie' ? 'ENDEREÇO OMIE' : estimativa.fonte === 'Manual' ? 'CLIENTE MANUAL' : 'ENDEREÇO DA OS'}
@@ -1319,7 +1319,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                                   setLoadingEstimativa(false);
                                 }).catch(() => { setErroEstimativa("Erro de conexão"); setLoadingEstimativa(false); });
                               }}
-                              style={{ width: '100%', fontSize: 11, padding: '5px 8px', border: '1px solid #BAE6FD', borderRadius: 6, background: '#fff', marginBottom: 0, cursor: 'pointer' }}
+                              style={{ width: '100%', fontSize: 11, padding: '5px 8px', border: '1px solid #BAE6FD', borderRadius: 6, background: 'var(--portal-bg-card)', marginBottom: 0, cursor: 'pointer' }}
                             >
                               {enderecosDisponiveis.map((e, i) => (
                                 <option key={i} value={e.endereco}>
@@ -1331,13 +1331,13 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                         )}
                         {/* Endereço editável */}
                         <div style={{ display: 'flex', gap: 6, marginBottom: 8, alignItems: 'center' }}>
-                          <i className="fas fa-map-marker-alt" style={{ color: '#6B7280', fontSize: 11, flexShrink: 0 }} />
+                          <i className="fas fa-map-marker-alt" style={{ color: 'var(--portal-text-secondary)', fontSize: 11, flexShrink: 0 }} />
                           <input
                             type="text"
                             value={enderecoEstimativa}
                             onChange={(e) => setEnderecoEstimativa(e.target.value)}
                             placeholder="Endereço para cálculo..."
-                            style={{ flex: 1, fontSize: 11, padding: '5px 8px', border: '1px solid #BAE6FD', borderRadius: 6, background: '#fff', marginBottom: 0 }}
+                            style={{ flex: 1, fontSize: 11, padding: '5px 8px', border: '1px solid #BAE6FD', borderRadius: 6, background: 'var(--portal-bg-card)', marginBottom: 0 }}
                           />
                           <button
                             type="button"
@@ -1375,19 +1375,19 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                         {estimativa && (
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
                           <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: 10, color: '#6B7280' }}>Ida</div>
+                            <div style={{ fontSize: 10, color: 'var(--portal-text-secondary)' }}>Ida</div>
                             <div style={{ fontSize: 15, fontWeight: 700, color: '#1E3A5F' }}>{estimativa.ida.tempo_min} min</div>
-                            <div style={{ fontSize: 10, color: '#9CA3AF' }}>{estimativa.ida.distancia_km} km</div>
+                            <div style={{ fontSize: 10, color: 'var(--portal-text-muted)' }}>{estimativa.ida.distancia_km} km</div>
                           </div>
                           <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: 10, color: '#6B7280' }}>Serviço</div>
+                            <div style={{ fontSize: 10, color: 'var(--portal-text-secondary)' }}>Serviço</div>
                             <div style={{ fontSize: 15, fontWeight: 700, color: '#F59E0B' }}>{estimativa.servico.horas}h</div>
-                            <div style={{ fontSize: 10, color: '#9CA3AF' }}>{estimativa.servico.tempo_min} min</div>
+                            <div style={{ fontSize: 10, color: 'var(--portal-text-muted)' }}>{estimativa.servico.tempo_min} min</div>
                           </div>
                           <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: 10, color: '#6B7280' }}>Volta</div>
+                            <div style={{ fontSize: 10, color: 'var(--portal-text-secondary)' }}>Volta</div>
                             <div style={{ fontSize: 15, fontWeight: 700, color: '#1E3A5F' }}>{estimativa.volta.tempo_min} min</div>
-                            <div style={{ fontSize: 10, color: '#9CA3AF' }}>{estimativa.volta.distancia_km} km</div>
+                            <div style={{ fontSize: 10, color: 'var(--portal-text-muted)' }}>{estimativa.volta.distancia_km} km</div>
                           </div>
                           <div style={{ textAlign: 'center', background: '#1E3A5F', borderRadius: 6, padding: '6px 4px', color: '#fff' }}>
                             <div style={{ fontSize: 10, opacity: 0.8 }}>Total Fora</div>

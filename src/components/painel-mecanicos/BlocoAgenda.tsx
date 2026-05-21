@@ -1,6 +1,6 @@
 'use client'
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { Loader2, Plus, X, Search, MapPin, Trash2, FileText, Truck, Edit3, StickyNote, ExternalLink, Link2, ArrowDown, Navigation, Clock, ChevronDown } from 'lucide-react'
+import { Loader2, Plus, X, Search, MapPin, Trash2, FileText, Truck, Edit3, StickyNote, ExternalLink, Link2, ArrowDown, Navigation, Clock, ChevronDown, ChevronLeft, ChevronRight, CalendarDays, LayoutGrid, Building2, MapPinned, Coffee } from 'lucide-react'
 
 interface Tecnico { user_id: string; tecnico_nome: string; tecnico_email: string; mecanico_role: 'tecnico' | 'observador' }
 interface OrdemServico {
@@ -75,7 +75,19 @@ const CSS = `
 @keyframes agFade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 `
 
+type ViewMode = 'dia' | 'mes'
+
+function getMesStr(offset: number = 0): string {
+  const d = new Date()
+  d.setMonth(d.getMonth() + offset)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
 export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { tecnicos: Tecnico[]; ordens: OrdemServico[]; semanaOffset?: number }) {
+  const [viewMode, setViewMode] = useState<ViewMode>('dia')
+  const [mesOffset, setMesOffset] = useState(0)
+  const [agendaMes, setAgendaMes] = useState<AgendaRow[]>([])
+  const [loadingMes, setLoadingMes] = useState(false)
   const [agendaSemana, setAgendaSemana] = useState<AgendaRow[]>([])
   const [loading, setLoading] = useState(false)
   const [notas, setNotas] = useState<Record<string, string>>({})
@@ -280,6 +292,99 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
   const abrirAdd = (tecNome: string, dia: string) => { setAddKey(`${tecNome}|${dia}`); setAddMode('os'); setBuscaOS(''); setClienteFilter(''); setClienteSelecionado(null); setAddHoras(2); setAddObs('') }
   const fecharAdd = () => { setAddKey(null); setBuscaOS(''); setClienteFilter(''); setClienteSelecionado(null); setAddHoras(2); setAddObs('') }
 
+  // === VISAO MENSAL ===
+  const mesStr = useMemo(() => getMesStr(mesOffset), [mesOffset])
+  const [anoMes, mesNumMes] = useMemo(() => mesStr.split('-').map(Number), [mesStr])
+  const diasDoMes = useMemo(() => {
+    const totalDias = new Date(anoMes, mesNumMes, 0).getDate()
+    const d: string[] = []
+    for (let i = 1; i <= totalDias; i++) d.push(`${mesStr}-${String(i).padStart(2, '0')}`)
+    return d
+  }, [mesStr, anoMes, mesNumMes])
+
+  const carregarMes = useCallback(async () => {
+    setLoadingMes(true)
+    try {
+      const primeiroDia = `${mesStr}-01`
+      const ultimoDia = `${mesStr}-${new Date(anoMes, mesNumMes, 0).getDate()}`
+      const r = await fetch(`/api/pos/agenda-visao?de=${primeiroDia}&ate=${ultimoDia}`)
+      if (r.ok) setAgendaMes(await r.json())
+    } catch { }
+    setLoadingMes(false)
+  }, [mesStr, anoMes, mesNumMes])
+
+  useEffect(() => { if (viewMode === 'mes') carregarMes() }, [viewMode, carregarMes])
+
+  // Ordens do mes agrupadas por tecnico+dia
+  const mesGrid = useMemo(() => {
+    const m: Record<string, Record<string, { manha: AgendaRow[]; tarde: AgendaRow[] }>> = {}
+    tecs.forEach(tec => {
+      m[tec.tecnico_nome] = {}
+      diasDoMes.forEach(dia => {
+        m[tec.tecnico_nome][dia] = { manha: [], tarde: [] }
+      })
+    })
+    // Preencher com dados da agenda
+    agendaMes.forEach(row => {
+      if (m[row.tecnico_nome] && m[row.tecnico_nome][row.data]) {
+        // Ordenar por sequencia e dividir em manha/tarde
+        if (row.ordem_sequencia <= 1) m[row.tecnico_nome][row.data].manha.push(row)
+        else m[row.tecnico_nome][row.data].tarde.push(row)
+      }
+    })
+    // Adicionar ordens que deveriam estar no mes mas nao estao na agenda
+    tecs.forEach(tec => {
+      const tecOrdens = ordensPorTec[tec.tecnico_nome] || []
+      tecOrdens.forEach(os => {
+        if (!os.Previsao_Execucao) return
+        const inicio = os.Previsao_Execucao
+        const fim = fimExecucaoReal(os)
+        diasDoMes.forEach(dia => {
+          if (dia >= inicio && dia <= fim && m[tec.tecnico_nome][dia]) {
+            const jaExiste = [...m[tec.tecnico_nome][dia].manha, ...m[tec.tecnico_nome][dia].tarde].some(r => r.id_ordem === os.Id_Ordem)
+            if (!jaExiste) {
+              const fakeRow: AgendaRow = {
+                id: -parseInt(os.Id_Ordem.replace(/\D/g, '') || '0') - diasDoMes.indexOf(dia),
+                data: dia, tecnico_nome: tec.tecnico_nome, id_ordem: os.Id_Ordem,
+                cliente: os.Os_Cliente, servico: os.Serv_Solicitado, endereco: os.Endereco_Cliente,
+                cidade: os.Cidade_Cliente, coordenadas: null, tempo_ida_min: 0, distancia_ida_km: 0,
+                qtd_horas: parseFloat(String(os.Qtd_HR || 0)) || 0, ordem_sequencia: 0,
+                status: os.Status, observacoes: '',
+              }
+              if (m[tec.tecnico_nome][dia].manha.length <= m[tec.tecnico_nome][dia].tarde.length) {
+                m[tec.tecnico_nome][dia].manha.push(fakeRow)
+              } else {
+                m[tec.tecnico_nome][dia].tarde.push(fakeRow)
+              }
+            }
+          }
+        })
+      })
+    })
+    return m
+  }, [tecs, diasDoMes, agendaMes, ordensPorTec])
+
+  // Contagem de periodos por tecnico no mes (meta: 44)
+  const periodosDoMes = useMemo(() => {
+    const m: Record<string, { agendados: number; realizados: number }> = {}
+    tecs.forEach(tec => {
+      let agendados = 0, realizados = 0
+      diasDoMes.forEach(dia => {
+        const cell = mesGrid[tec.tecnico_nome]?.[dia]
+        if (!cell) return
+        if (cell.manha.length > 0) agendados++
+        if (cell.tarde.length > 0) agendados++
+        // Realizado = status concluida
+        if (cell.manha.some(r => r.status === 'Concluída' || r.status === 'concluida')) realizados++
+        if (cell.tarde.some(r => r.status === 'Concluída' || r.status === 'concluida')) realizados++
+      })
+      m[tec.tecnico_nome] = { agendados, realizados }
+    })
+    return m
+  }, [tecs, diasDoMes, mesGrid])
+
+  const nomeMes = new Date(mesStr + '-15').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+
   // Contadores por dia
   const countByDay = useMemo(() => {
     const m: Record<string, number> = {}
@@ -318,9 +423,219 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
   const isHoje = diaSel === hoje
   const diaPassado = diaSel < hoje
 
+  // Helper para cor de tipo de servico
+  const tipoServicoLabel = (tipo: string | undefined) => {
+    if (!tipo) return null
+    const t = tipo.toLowerCase()
+    if (t.includes('intern') || t.includes('oficina')) return { label: 'INT', color: '#7C3AED', bg: '#EDE9FE' }
+    if (t.includes('extern') || t.includes('campo') || t.includes('client')) return { label: 'EXT', color: '#0E7490', bg: '#CFFAFE' }
+    return { label: tipo.substring(0, 3).toUpperCase(), color: 'var(--portal-text-secondary)', bg: 'var(--portal-bg-secondary)' }
+  }
+
   return (
     <div>
       <style>{CSS}</style>
+
+      {/* == TOGGLE VISAO == */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+        <div style={{ display: 'flex', background: 'var(--portal-bg-secondary)', borderRadius: 8, padding: 3 }}>
+          <button onClick={() => setViewMode('dia')} style={{
+            padding: '7px 16px', borderRadius: 6, border: 'none', cursor: 'pointer',
+            fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5,
+            background: viewMode === 'dia' ? '#1E3A5F' : 'transparent',
+            color: viewMode === 'dia' ? '#fff' : 'var(--portal-text-secondary)',
+          }}><LayoutGrid size={14} /> Semanal</button>
+          <button onClick={() => setViewMode('mes')} style={{
+            padding: '7px 16px', borderRadius: 6, border: 'none', cursor: 'pointer',
+            fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5,
+            background: viewMode === 'mes' ? '#1E3A5F' : 'transparent',
+            color: viewMode === 'mes' ? '#fff' : 'var(--portal-text-secondary)',
+          }}><CalendarDays size={14} /> Mensal</button>
+        </div>
+
+        {viewMode === 'mes' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 8, padding: 3 }}>
+            <button onClick={() => setMesOffset(p => p - 1)} style={{ width: 30, height: 30, borderRadius: 6, border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--portal-text-secondary)' }}>
+              <ChevronLeft size={16} />
+            </button>
+            <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--portal-text)', textTransform: 'capitalize', minWidth: 160, textAlign: 'center' }}>{nomeMes}</span>
+            <button onClick={() => setMesOffset(p => p + 1)} style={{ width: 30, height: 30, borderRadius: 6, border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--portal-text-secondary)' }}>
+              <ChevronRight size={16} />
+            </button>
+            {mesOffset !== 0 && (
+              <button onClick={() => setMesOffset(0)} style={{ fontSize: 11, fontWeight: 600, color: 'var(--portal-text)', background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}>Atual</button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ============================== */}
+      {/* === VISAO MENSAL PANORAMICA === */}
+      {/* ============================== */}
+      {viewMode === 'mes' && (
+        <div>
+          {loadingMes ? (
+            <div style={{ textAlign: 'center', padding: 60, color: 'var(--portal-text-muted)', fontSize: 14, fontWeight: 500 }}>Carregando mes...</div>
+          ) : (
+            <div style={{ overflowX: 'auto', border: '1px solid var(--portal-border)', borderRadius: 8, background: 'var(--portal-bg-card)' }}>
+              <table style={{ borderCollapse: 'collapse', fontSize: 11, minWidth: diasDoMes.length * 56 + 200 }}>
+                <thead>
+                  {/* Linha dos dias */}
+                  <tr style={{ background: '#111', color: '#fff' }}>
+                    <th style={{ padding: '8px 10px', textAlign: 'left', position: 'sticky', left: 0, background: '#111', zIndex: 3, minWidth: 160, borderRight: '2px solid #333', fontSize: 12 }}>
+                      Tecnico
+                    </th>
+                    <th style={{ padding: '4px 6px', textAlign: 'center', position: 'sticky', left: 160, background: '#111', zIndex: 3, borderRight: '2px solid #333', fontSize: 10, minWidth: 60 }}>
+                      Periodos<br /><span style={{ color: '#6EE7B7' }}>/ 44</span>
+                    </th>
+                    {diasDoMes.map(dia => {
+                      const d = new Date(dia + 'T12:00:00')
+                      const dow = d.getDay()
+                      const isDom = dow === 0
+                      const isSab = dow === 6
+                      const isH = dia === hoje
+                      return (
+                        <th key={dia} colSpan={2} style={{
+                          padding: '4px 2px', textAlign: 'center', fontSize: 10, fontWeight: 700,
+                          borderRight: '1px solid #333', minWidth: 54,
+                          background: isH ? '#1E3A5F' : isDom ? '#374151' : '#111',
+                          color: isDom ? '#6B7280' : '#fff',
+                          opacity: isDom ? 0.5 : 1,
+                        }}>
+                          <div style={{ fontSize: 9, textTransform: 'uppercase' }}>{DIAS_SEMANA[dow]}</div>
+                          <div style={{ fontSize: 14, fontWeight: 900 }}>{d.getDate()}</div>
+                        </th>
+                      )
+                    })}
+                  </tr>
+                  {/* Linha Manhã/Tarde */}
+                  <tr style={{ background: '#1E3A5F', color: '#93C5FD', fontSize: 9, fontWeight: 700, textTransform: 'uppercase' }}>
+                    <th style={{ position: 'sticky', left: 0, background: '#1E3A5F', zIndex: 3, borderRight: '2px solid #2D5A8E' }}></th>
+                    <th style={{ position: 'sticky', left: 160, background: '#1E3A5F', zIndex: 3, borderRight: '2px solid #2D5A8E' }}></th>
+                    {diasDoMes.map(dia => (
+                      <React.Fragment key={dia}>
+                        <th style={{ padding: '2px 4px', textAlign: 'center', borderRight: '1px solid #2D5A8E', width: 27 }}>M</th>
+                        <th style={{ padding: '2px 4px', textAlign: 'center', borderRight: '1px solid #333', width: 27 }}>T</th>
+                      </React.Fragment>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {tecs.map((tec, tecIdx) => {
+                    const periodos = periodosDoMes[tec.tecnico_nome] || { agendados: 0, realizados: 0 }
+                    const pct = Math.round((periodos.agendados / 44) * 100)
+                    const corPct = pct >= 90 ? '#065F46' : pct >= 60 ? '#D97706' : '#DC2626'
+                    return (
+                      <tr key={tec.user_id} style={{ borderBottom: '1px solid var(--portal-border)', background: tecIdx % 2 === 0 ? 'var(--portal-bg-card)' : 'var(--portal-bg-secondary)' }}>
+                        <td style={{
+                          padding: '6px 10px', fontWeight: 700, color: 'var(--portal-text)', fontSize: 13,
+                          position: 'sticky', left: 0, background: tecIdx % 2 === 0 ? 'var(--portal-bg-card)' : 'var(--portal-bg-secondary)',
+                          zIndex: 2, borderRight: '2px solid var(--portal-border)', whiteSpace: 'nowrap',
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#1E3A5F', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 11, fontWeight: 800, flexShrink: 0 }}>
+                              {tec.tecnico_nome.charAt(0)}
+                            </div>
+                            <span>{tec.tecnico_nome.split(' ').slice(0, 2).join(' ')}</span>
+                          </div>
+                        </td>
+                        <td style={{
+                          padding: '4px 6px', textAlign: 'center', position: 'sticky', left: 160,
+                          background: tecIdx % 2 === 0 ? 'var(--portal-bg-card)' : 'var(--portal-bg-secondary)', zIndex: 2,
+                          borderRight: '2px solid var(--portal-border)',
+                        }}>
+                          <div style={{ fontWeight: 900, fontSize: 16, color: corPct }}>{periodos.agendados}</div>
+                          <div style={{ fontSize: 9, color: 'var(--portal-text-muted)', fontWeight: 600 }}>{periodos.realizados} OK</div>
+                        </td>
+                        {diasDoMes.map(dia => {
+                          const cell = mesGrid[tec.tecnico_nome]?.[dia]
+                          const dow = new Date(dia + 'T12:00:00').getDay()
+                          const isDom = dow === 0
+                          const isH = dia === hoje
+
+                          const renderCell = (items: AgendaRow[], periodo: 'M' | 'T') => {
+                            if (isDom) return <td key={`${dia}-${periodo}`} style={{ background: 'var(--portal-bg-secondary)', borderRight: periodo === 'T' ? '1px solid var(--portal-border)' : '1px solid var(--portal-border)', padding: 0, height: 36 }} />
+                            if (!items || items.length === 0) return (
+                              <td key={`${dia}-${periodo}`} style={{
+                                background: isH ? '#F0F4FF' : 'transparent',
+                                borderRight: periodo === 'T' ? '1px solid var(--portal-border)' : '1px solid var(--portal-border)',
+                                padding: 0, height: 36,
+                              }} />
+                            )
+                            const item = items[0]
+                            const os = item.id_ordem && !item.id_ordem.startsWith('AG-') ? ordens.find(o => o.Id_Ordem === item.id_ordem) : null
+                            const isPrimario = os ? matchNome(tec.tecnico_nome, os.Os_Tecnico) : true
+                            const isInterno = os?.Tipo_Servico?.toLowerCase().includes('intern') || os?.Tipo_Servico?.toLowerCase().includes('oficina')
+                            const isConcluida = item.status === 'Concluída' || item.status === 'concluida'
+                            const isExecucao = item.status === 'Execução' || item.status === 'execucao'
+                            const isOcioso = !item.id_ordem && !item.cliente
+
+                            let bg = isH ? '#DBEAFE' : '#D1FAE5'
+                            let cor = '#065F46'
+                            if (isConcluida) { bg = '#D1FAE5'; cor = '#065F46' }
+                            else if (isExecucao) { bg = '#DBEAFE'; cor = '#1E40AF' }
+                            else if (isInterno) { bg = '#EDE9FE'; cor = '#7C3AED' }
+                            else if (isOcioso) { bg = '#FEE2E2'; cor = '#DC2626' }
+                            else { bg = '#FEF3C7'; cor = '#92400E' }
+
+                            if (!isPrimario) { bg = '#FEF3C7'; cor = '#B45309' }
+
+                            return (
+                              <td key={`${dia}-${periodo}`}
+                                title={`${item.cliente || 'Sem cliente'} — ${os?.Id_Ordem || ''} ${isInterno ? '(INT)' : '(EXT)'} ${!isPrimario ? '(AUX)' : ''} ${isOcioso ? 'OCIOSO' : ''}`}
+                                style={{
+                                  background: bg, borderRight: periodo === 'T' ? '1px solid var(--portal-border)' : '1px solid var(--portal-border)',
+                                  padding: '1px 2px', height: 36, cursor: 'default', position: 'relative',
+                                }}>
+                                <div style={{ fontSize: 8, fontWeight: 800, color: cor, lineHeight: 1.1, overflow: 'hidden', maxHeight: 34, textAlign: 'center' }}>
+                                  {isOcioso ? (
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 32 }}>
+                                      <Coffee size={10} />
+                                      <span style={{ fontSize: 7 }}>OCIOSO</span>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      {!isPrimario && <div style={{ fontSize: 7, fontWeight: 900, color: '#B45309' }}>AUX</div>}
+                                      <div>{(item.cliente || '').split(' ')[0]}</div>
+                                      {os && <div style={{ fontSize: 7, color: isInterno ? '#7C3AED' : '#0E7490' }}>{isInterno ? 'INT' : 'EXT'}</div>}
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            )
+                          }
+
+                          return (
+                            <React.Fragment key={dia}>
+                              {renderCell(cell?.manha || [], 'M')}
+                              {renderCell(cell?.tarde || [], 'T')}
+                            </React.Fragment>
+                          )
+                        })}
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Legenda */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 12, padding: '10px 14px', background: 'var(--portal-bg-secondary)', borderRadius: 8, fontSize: 12, fontWeight: 600, color: 'var(--portal-text-secondary)' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 14, height: 14, borderRadius: 3, background: '#D1FAE5' }} /> Concluida</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 14, height: 14, borderRadius: 3, background: '#DBEAFE' }} /> Execucao</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 14, height: 14, borderRadius: 3, background: '#EDE9FE' }} /> Interno (oficina)</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 14, height: 14, borderRadius: 3, background: '#FEF3C7' }} /> Externo / Auxiliar</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 14, height: 14, borderRadius: 3, background: '#FEE2E2' }} /> Ocioso</span>
+            <span style={{ fontWeight: 700, marginLeft: 8 }}>M = Manha | T = Tarde | Meta: 44 periodos/mes</span>
+          </div>
+        </div>
+      )}
+
+      {/* ============================== */}
+      {/* === VISAO SEMANAL (DIARIA) ==== */}
+      {/* ============================== */}
+      {viewMode === 'dia' && (<>
 
       {/* ── TABS DOS DIAS ── */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 20, background: 'transparent', flexWrap: 'wrap' }}>
@@ -333,15 +648,15 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
           return (
             <button key={dia} onClick={() => setDiaSel(dia)}
               style={{
-                flex: 1, minWidth: 70, padding: '10px 6px', cursor: 'pointer', border: isActive ? '2px solid #1E3A5F' : isH ? '2px solid #3B82F6' : '1px solid #E2E8F0',
-                background: isActive ? '#1E3A5F' : '#fff', borderRadius: 10, textAlign: 'center',
+                flex: 1, minWidth: 70, padding: '10px 6px', cursor: 'pointer', border: isActive ? '2px solid #1E3A5F' : isH ? '2px solid #3B82F6' : '1px solid var(--portal-border)',
+                background: isActive ? '#1E3A5F' : 'var(--portal-bg-card)', borderRadius: 10, textAlign: 'center',
                 opacity: isPast && !isActive ? 0.55 : 1, transition: 'all .18s',
                 boxShadow: isActive ? '0 2px 8px rgba(30,58,95,.25)' : 'none',
               }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: isActive ? '#93C5FD' : '#64748B', textTransform: 'uppercase', letterSpacing: '.06em' }}>
                 {DIAS_SEMANA[d.getDay()]}
               </div>
-              <div style={{ fontSize: 22, fontWeight: 900, color: isActive ? '#fff' : '#111', margin: '2px 0' }}>
+              <div style={{ fontSize: 22, fontWeight: 900, color: isActive ? '#fff' : 'var(--portal-text)', margin: '2px 0' }}>
                 {d.getDate()}
               </div>
               {cnt > 0 && (
@@ -393,9 +708,9 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
               : []
 
             return (
-              <div key={tec.user_id} className="ag-card" style={{ background: '#fff', border: '1px solid #E2E8F0' }}>
+              <div key={tec.user_id} className="ag-card" style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)' }}>
                 {/* Tec header */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid #E2E8F0', background: 'linear-gradient(135deg, #1E3A5F 0%, #2D5A8E 100%)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid var(--portal-border)', background: 'linear-gradient(135deg, #1E3A5F 0%, #2D5A8E 100%)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800, color: '#fff' }}>
                       {tec.tecnico_nome.charAt(0)}
@@ -411,7 +726,7 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
 
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   {items.length === 0 && ordensCompartilhadasFaltando.length === 0 && !isAdding && !isEditingNote && !notaValue && (
-                    <div style={{ textAlign: 'center', padding: '28px 0', color: '#94A3B8', fontSize: 14, fontWeight: 500, borderBottom: '1px solid #F1F5F9' }}>
+                    <div style={{ textAlign: 'center', padding: '28px 0', color: 'var(--portal-text-muted)', fontSize: 14, fontWeight: 500, borderBottom: '1px solid var(--portal-border)' }}>
                       <Navigation size={20} style={{ margin: '0 auto 6px', display: 'block', opacity: .4 }} />
                       Sem servico agendado
                     </div>
@@ -439,15 +754,15 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
                             <ChevronDown size={16} />
                           </div>
                         )}
-                      <div style={{ padding: '12px 16px', background: isShared ? '#FFFBEB' : '#fff', borderBottom: '1px solid #F1F5F9', borderLeft: isShared ? '3px solid #F59E0B' : 'none' }}>
+                      <div style={{ padding: '12px 16px', background: isShared ? '#FFFBEB' : 'var(--portal-bg-card)', borderBottom: '1px solid var(--portal-border)', borderLeft: isShared ? '3px solid #F59E0B' : 'none' }}>
                         {/* Linha 1: Sequencia + Cliente + OS id + lixeira */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
                             <span className="ag-seq" style={{ background: isShared ? '#FEF3C7' : '#EFF6FF', color: isShared ? '#B45309' : '#1E3A5F' }}>{seqNum}</span>
                             <div>
-                              <span style={{ fontSize: 15, fontWeight: 800, color: '#111', lineHeight: 1.3 }}>{row.cliente || '—'}</span>
+                              <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--portal-text)', lineHeight: 1.3 }}>{row.cliente || '—'}</span>
                               {row.id_ordem && !row.id_ordem.startsWith('AG-') && (
-                                <span style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginLeft: 6 }}>#{row.id_ordem}</span>
+                                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--portal-text-secondary)', marginLeft: 6 }}>#{row.id_ordem}</span>
                               )}
                             </div>
                           </div>
@@ -458,7 +773,7 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
                         </div>
 
                         {/* Linha 2: Cidade + distancia + horas — tudo inline */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 6, marginLeft: 30, fontSize: 13, color: '#475569' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 6, marginLeft: 30, fontSize: 13, color: 'var(--portal-text-secondary)' }}>
                           {row.cidade && row.coordenadas ? (
                             <a href={`https://www.google.com/maps?q=${row.coordenadas.lat},${row.coordenadas.lng}`} target="_blank" rel="noopener noreferrer"
                               style={{ color: '#2563EB', display: 'inline-flex', alignItems: 'center', gap: 3, textDecoration: 'none', fontWeight: 700 }}
@@ -469,7 +784,7 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontWeight: 600 }}><MapPin size={12} /> {row.cidade}</span>
                           ) : null}
                           {row.tempo_ida_min > 0 && (
-                            <span style={{ fontWeight: 600, background: '#F1F5F9', padding: '1px 6px', borderRadius: 4, fontSize: 12 }}>
+                            <span style={{ fontWeight: 600, background: 'var(--portal-bg-secondary)', padding: '1px 6px', borderRadius: 4, fontSize: 12 }}>
                               <Navigation size={10} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} />{Math.round(row.tempo_ida_min)}min · {row.distancia_ida_km}km
                             </span>
                           )}
@@ -487,23 +802,31 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
                           {osOriginal && (() => {
                             const isPrimario = matchNome(tec.tecnico_nome, osOriginal.Os_Tecnico)
                             const outroTec = isPrimario ? osOriginal.Os_Tecnico2 : osOriginal.Os_Tecnico
-                            if (!outroTec) return null
-                            const outroPrimeiro = outroTec.split(' ').slice(0, 2).join(' ')
+                            const tipoSvc = tipoServicoLabel(osOriginal.Tipo_Servico)
                             return (
                               <>
-                                <span style={{ fontWeight: 800, color: isPrimario ? '#065F46' : '#92400E', background: isPrimario ? '#D1FAE5' : '#FEF3C7', padding: '1px 6px', borderRadius: 3, fontSize: 11, border: `1px solid ${isPrimario ? '#A7F3D0' : '#FDE68A'}` }}>
-                                  {isPrimario ? 'Primário' : 'Auxiliar'}
-                                </span>
-                                <span style={{ fontWeight: 700, color: '#B45309', background: '#FEF3C7', padding: '1px 6px', borderRadius: 3, fontSize: 11, border: '1px solid #FDE68A', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                                  <Link2 size={10} /> Com {outroPrimeiro}
-                                </span>
+                                {tipoSvc && (
+                                  <span style={{ fontWeight: 800, color: tipoSvc.color, background: tipoSvc.bg, padding: '1px 6px', borderRadius: 3, fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                                    {tipoSvc.label === 'INT' ? <Building2 size={10} /> : <MapPinned size={10} />} {tipoSvc.label}
+                                  </span>
+                                )}
+                                {outroTec && (
+                                  <>
+                                    <span style={{ fontWeight: 800, color: isPrimario ? '#065F46' : '#92400E', background: isPrimario ? '#D1FAE5' : '#FEF3C7', padding: '1px 6px', borderRadius: 3, fontSize: 11, border: `1px solid ${isPrimario ? '#A7F3D0' : '#FDE68A'}` }}>
+                                      {isPrimario ? 'Primario' : 'Auxiliar'}
+                                    </span>
+                                    <span style={{ fontWeight: 700, color: '#B45309', background: '#FEF3C7', padding: '1px 6px', borderRadius: 3, fontSize: 11, border: '1px solid #FDE68A', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                                      <Link2 size={10} /> Com {outroTec.split(' ').slice(0, 2).join(' ')}
+                                    </span>
+                                  </>
+                                )}
                               </>
                             )
                           })()}
                         </div>
 
                         {/* Serviço */}
-                        {sol && <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.3, marginBottom: 4, fontWeight: 500, marginLeft: 30 }}>{sol.length > 100 ? sol.slice(0, 100) + '...' : sol}</div>}
+                        {sol && <div style={{ fontSize: 13, color: 'var(--portal-text-secondary)', lineHeight: 1.3, marginBottom: 4, fontWeight: 500, marginLeft: 30 }}>{sol.length > 100 ? sol.slice(0, 100) + '...' : sol}</div>}
 
                         {/* GPS timeline */}
                         {temGPS && (
@@ -540,10 +863,10 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
                           <textarea ref={noteRef} autoFocus defaultValue={row.observacoes || ''} placeholder="Anotação..."
                             onBlur={e => salvarObs(row.id, e.target.value.trim())}
                             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); salvarObs(row.id, (e.target as HTMLTextAreaElement).value.trim()) } if (e.key === 'Escape') setEditingNote(null) }}
-                            style={{ width: '100%', fontSize: 13, padding: '6px 10px', borderRadius: 4, border: '1px solid #D0D0D0', background: '#FAFAFA', outline: 'none', resize: 'vertical', minHeight: 36, boxSizing: 'border-box', color: '#111', lineHeight: 1.4, fontWeight: 500 }}
+                            style={{ width: '100%', fontSize: 13, padding: '6px 10px', borderRadius: 4, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-secondary)', outline: 'none', resize: 'vertical', minHeight: 36, boxSizing: 'border-box', color: 'var(--portal-text)', lineHeight: 1.4, fontWeight: 500 }}
                           />
                         ) : row.observacoes ? (
-                          <div onClick={() => setEditingNote(`obs-${row.id}`)} style={{ cursor: 'pointer', fontSize: 13, color: '#111', lineHeight: 1.3, fontWeight: 500, display: 'flex', alignItems: 'flex-start', gap: 4 }}>
+                          <div onClick={() => setEditingNote(`obs-${row.id}`)} style={{ cursor: 'pointer', fontSize: 13, color: 'var(--portal-text)', lineHeight: 1.3, fontWeight: 500, display: 'flex', alignItems: 'flex-start', gap: 4 }}>
                             <Edit3 size={11} style={{ flexShrink: 0, marginTop: 2 }} />{row.observacoes}
                           </div>
                         ) : (
@@ -563,14 +886,14 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
                     const sol = extrairSolicitacao(os.Serv_Solicitado || '')
                     const h = parseFloat(String(os.Qtd_HR || 0)) || 0
                     return (
-                      <div key={`shared-${os.Id_Ordem}`} style={{ padding: '12px 16px', background: '#FFFBEB', borderBottom: '1px solid #E8E8E8', borderLeft: '3px solid #F59E0B' }}>
+                      <div key={`shared-${os.Id_Ordem}`} style={{ padding: '12px 16px', background: '#FFFBEB', borderBottom: '1px solid var(--portal-border)', borderLeft: '3px solid #F59E0B' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
                           <div style={{ flex: 1 }}>
-                            <span style={{ fontSize: 16, fontWeight: 800, color: '#111', lineHeight: 1.3 }}>{os.Os_Cliente || '—'}</span>
-                            <span style={{ fontSize: 12, fontWeight: 600, color: '#111', marginLeft: 8 }}>#{os.Id_Ordem}</span>
+                            <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--portal-text)', lineHeight: 1.3 }}>{os.Os_Cliente || '—'}</span>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--portal-text)', marginLeft: 8 }}>#{os.Id_Ordem}</span>
                           </div>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 4, fontSize: 13, color: '#111' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 4, fontSize: 13, color: 'var(--portal-text)' }}>
                           {os.Cidade_Cliente && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontWeight: 600 }}><MapPin size={12} /> {os.Cidade_Cliente}</span>}
                           {h > 0 && <span style={{ fontWeight: 700 }}>{h}h</span>}
                           <span style={{ fontWeight: 800, color: isPrimario ? '#065F46' : '#92400E', background: isPrimario ? '#D1FAE5' : '#FEF3C7', padding: '1px 6px', borderRadius: 3, fontSize: 11, border: `1px solid ${isPrimario ? '#A7F3D0' : '#FDE68A'}` }}>
@@ -582,22 +905,22 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
                             </span>
                           )}
                         </div>
-                        {sol && <div style={{ fontSize: 13, color: '#111', lineHeight: 1.3, fontWeight: 500 }}>{sol.length > 100 ? sol.slice(0, 100) + '...' : sol}</div>}
+                        {sol && <div style={{ fontSize: 13, color: 'var(--portal-text)', lineHeight: 1.3, fontWeight: 500 }}>{sol.length > 100 ? sol.slice(0, 100) + '...' : sol}</div>}
                       </div>
                     )
                   })}
 
                   {/* Nota do dia */}
                   {(isEditingNote || notaValue) && (
-                    <div style={{ padding: '8px 16px', borderBottom: '1px solid #E8E8E8' }}>
+                    <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--portal-border)' }}>
                       {isEditingNote ? (
                         <textarea ref={noteRef} autoFocus defaultValue={notaValue} placeholder={`Nota para ${primeiroNome}...`}
                           onBlur={e => { const v = e.target.value.trim(); if (v !== notaValue) salvarNota(tec.tecnico_nome, diaSel, v); else setEditingNote(null) }}
                           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); const v = (e.target as HTMLTextAreaElement).value.trim(); salvarNota(tec.tecnico_nome, diaSel, v) } if (e.key === 'Escape') setEditingNote(null) }}
-                          style={{ width: '100%', fontSize: 13, padding: '6px 10px', borderRadius: 4, border: '1px solid #D0D0D0', background: '#FAFAFA', outline: 'none', resize: 'vertical', minHeight: 36, boxSizing: 'border-box', color: '#111', lineHeight: 1.4, fontWeight: 500, opacity: notaSalvando === notaKey ? 0.5 : 1 }}
+                          style={{ width: '100%', fontSize: 13, padding: '6px 10px', borderRadius: 4, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-secondary)', outline: 'none', resize: 'vertical', minHeight: 36, boxSizing: 'border-box', color: 'var(--portal-text)', lineHeight: 1.4, fontWeight: 500, opacity: notaSalvando === notaKey ? 0.5 : 1 }}
                         />
                       ) : (
-                        <div onClick={() => setEditingNote(notaKey)} style={{ cursor: 'pointer', fontSize: 13, color: '#111', lineHeight: 1.3, display: 'flex', alignItems: 'flex-start', gap: 5, fontWeight: 500 }}>
+                        <div onClick={() => setEditingNote(notaKey)} style={{ cursor: 'pointer', fontSize: 13, color: 'var(--portal-text)', lineHeight: 1.3, display: 'flex', alignItems: 'flex-start', gap: 5, fontWeight: 500 }}>
                           <StickyNote size={12} style={{ flexShrink: 0, marginTop: 1 }} />
                           <span>{notaValue}</span>
                         </div>
@@ -608,7 +931,7 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
                   {/* Rodapé: Nota + Adicionar */}
                   <div style={{ display: 'flex', borderTop: 'none' }}>
                     {!notaValue && !isEditingNote && (
-                      <button className="ag-note-btn" onClick={() => setEditingNote(notaKey)} style={{ flex: 1, justifyContent: 'center', borderRadius: 0, border: 'none', borderRight: '1px solid #E8E8E8', background: '#FAFAFA', padding: '8px', fontSize: 12 }}>
+                      <button className="ag-note-btn" onClick={() => setEditingNote(notaKey)} style={{ flex: 1, justifyContent: 'center', borderRadius: 0, border: 'none', borderRight: '1px solid var(--portal-border)', background: 'var(--portal-bg-secondary)', padding: '8px', fontSize: 12 }}>
                         <StickyNote size={12} /> Nota
                       </button>
                     )}
@@ -621,17 +944,17 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
 
                   {/* ── POPUP ADICIONAR ── */}
                   {isAdding && (
-                    <div className="ag-fade-in" style={{ background: '#fff', borderTop: '1px solid #D0D0D0' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid #E8E8E8' }}>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: '#111' }}>Adicionar para {primeiroNome}</span>
-                        <button onClick={fecharAdd} style={{ background: '#F0F0F0', border: 'none', borderRadius: 4, cursor: 'pointer', width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={13} color="#111" /></button>
+                    <div className="ag-fade-in" style={{ background: 'var(--portal-bg-card)', borderTop: '1px solid var(--portal-border)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid var(--portal-border)' }}>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text)' }}>Adicionar para {primeiroNome}</span>
+                        <button onClick={fecharAdd} style={{ background: 'var(--portal-bg-secondary)', border: 'none', borderRadius: 4, cursor: 'pointer', width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={13} color="var(--portal-text-muted)" /></button>
                       </div>
-                      <div style={{ display: 'flex', borderBottom: '1px solid #E8E8E8' }}>
+                      <div style={{ display: 'flex', borderBottom: '1px solid var(--portal-border)' }}>
                         {(['os', 'manual'] as const).map(mode => (
                           <button key={mode} onClick={() => setAddMode(mode)} style={{
                             flex: 1, padding: '8px 0', fontSize: 13, fontWeight: addMode === mode ? 700 : 500,
-                            border: 'none', cursor: 'pointer', background: addMode === mode ? '#111' : '#fff',
-                            color: addMode === mode ? '#fff' : '#111',
+                            border: 'none', cursor: 'pointer', background: addMode === mode ? '#111' : 'var(--portal-bg-card)',
+                            color: addMode === mode ? '#fff' : 'var(--portal-text)',
                             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
                           }}>
                             {mode === 'os' ? <><FileText size={12} /> Ordens {ordsTec.length > 0 && <span style={{ fontSize: 11, fontWeight: 700, background: addMode === mode ? '#fff' : '#111', color: addMode === mode ? '#111' : '#fff', padding: '1px 6px', borderRadius: 4 }}>{ordsTec.length}</span>}</> : <><Plus size={12} /> Cliente</>}
@@ -642,17 +965,17 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
                       {addMode === 'os' && (
                         <div style={{ padding: '10px 14px' }}>
                           <div style={{ position: 'relative', marginBottom: 8 }}>
-                            <Search size={13} color="#111" style={{ position: 'absolute', left: 10, top: 9 }} />
-                            <input value={buscaOS} onChange={e => setBuscaOS(e.target.value)} placeholder="Buscar OS, cliente..." style={{ fontSize: 13, padding: '8px 10px 8px 30px', border: '1px solid #D0D0D0', borderRadius: 4, outline: 'none', width: '100%', background: '#fff', boxSizing: 'border-box', color: '#111', fontWeight: 500 }} />
+                            <Search size={13} color="var(--portal-text-muted)" style={{ position: 'absolute', left: 10, top: 9 }} />
+                            <input value={buscaOS} onChange={e => setBuscaOS(e.target.value)} placeholder="Buscar OS, cliente..." style={{ fontSize: 13, padding: '8px 10px 8px 30px', border: '1px solid var(--portal-border)', borderRadius: 4, outline: 'none', width: '100%', background: 'var(--portal-bg-card)', boxSizing: 'border-box', color: 'var(--portal-text)', fontWeight: 500 }} />
                           </div>
                           <div style={{ maxHeight: 220, overflowY: 'auto' }}>
                             {ordsFiltradas.length === 0 ? (
-                              <div style={{ textAlign: 'center', padding: '16px 0', color: '#111', fontSize: 13, fontWeight: 500 }}>{buscaOS ? 'Nenhuma OS' : 'Todas ja na agenda'}</div>
+                              <div style={{ textAlign: 'center', padding: '16px 0', color: 'var(--portal-text)', fontSize: 13, fontWeight: 500 }}>{buscaOS ? 'Nenhuma OS' : 'Todas ja na agenda'}</div>
                             ) : ordsFiltradas.map((os, oi) => (
-                              <div key={os.Id_Ordem} style={{ padding: '8px 10px', borderBottom: '1px solid #F0F0F0', display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <div key={os.Id_Ordem} style={{ padding: '8px 10px', borderBottom: '1px solid var(--portal-border)', display: 'flex', alignItems: 'center', gap: 10 }}>
                                 <div style={{ flex: 1 }}>
-                                  <div style={{ fontSize: 14, fontWeight: 700, color: '#111' }}>{os.Os_Cliente}</div>
-                                  <div style={{ fontSize: 12, color: '#111', fontWeight: 500 }}>
+                                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text)' }}>{os.Os_Cliente}</div>
+                                  <div style={{ fontSize: 12, color: 'var(--portal-text-secondary)', fontWeight: 500 }}>
                                     #{os.Id_Ordem} {os.Cidade_Cliente && `· ${os.Cidade_Cliente}`} · {parseFloat(String(os.Qtd_HR || 0)) || 2}h
                                   </div>
                                 </div>
@@ -669,48 +992,48 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
                       {addMode === 'manual' && (
                         <div style={{ padding: '10px 14px' }}>
                           <div style={{ marginBottom: 8, position: 'relative' }}>
-                            <label style={{ fontSize: 12, fontWeight: 700, color: '#111', marginBottom: 3, display: 'block' }}>Cliente</label>
+                            <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', marginBottom: 3, display: 'block' }}>Cliente</label>
                             <div style={{ position: 'relative' }}>
-                              <Search size={13} color="#111" style={{ position: 'absolute', left: 10, top: 9 }} />
+                              <Search size={13} color="var(--portal-text-muted)" style={{ position: 'absolute', left: 10, top: 9 }} />
                               <input value={clienteFilter} onChange={e => { setClienteFilter(e.target.value); setClienteSelecionado(null) }} placeholder="Buscar cliente..."
-                                style={{ fontSize: 13, padding: '8px 10px 8px 30px', border: '1px solid #D0D0D0', borderRadius: 4, outline: 'none', width: '100%', background: '#fff', boxSizing: 'border-box', color: '#111', fontWeight: 500 }} />
+                                style={{ fontSize: 13, padding: '8px 10px 8px 30px', border: '1px solid var(--portal-border)', borderRadius: 4, outline: 'none', width: '100%', background: 'var(--portal-bg-card)', boxSizing: 'border-box', color: 'var(--portal-text)', fontWeight: 500 }} />
                             </div>
                             {clienteFilter && !clienteSelecionado && clientesFiltrados.length > 0 && (
-                              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 110, background: '#fff', border: '1px solid #D0D0D0', borderRadius: 4, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', maxHeight: 180, overflowY: 'auto', marginTop: 2 }}>
+                              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 110, background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 4, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', maxHeight: 180, overflowY: 'auto', marginTop: 2 }}>
                                 {clientesFiltrados.map(c => (
-                                  <div key={c.chave} onClick={() => selecionarCliente(c)} style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid #F0F0F0' }}
-                                    onMouseEnter={e => (e.currentTarget.style.background = '#F5F5F5')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                                    <div style={{ fontWeight: 700, color: '#111' }}>{c.display.split('[')[0].trim()}</div>
+                                  <div key={c.chave} onClick={() => selecionarCliente(c)} style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid var(--portal-border)' }}
+                                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--portal-bg-secondary)')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                                    <div style={{ fontWeight: 700, color: 'var(--portal-text)' }}>{c.display.split('[')[0].trim()}</div>
                                   </div>
                                 ))}
                               </div>
                             )}
                           </div>
-                          {carregandoCliente && <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#111', fontSize: 13, marginBottom: 8, fontWeight: 500 }}><Loader2 size={13} className="animate-spin" /> Carregando...</div>}
+                          {carregandoCliente && <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--portal-text)', fontSize: 13, marginBottom: 8, fontWeight: 500 }}><Loader2 size={13} className="animate-spin" /> Carregando...</div>}
                           {clienteSelecionado && (
-                            <div style={{ marginBottom: 8, padding: '8px 10px', background: '#F7F7F7', borderRadius: 4, border: '1px solid #E0E0E0' }}>
-                              <div style={{ fontSize: 14, color: '#111', fontWeight: 700 }}>{clienteSelecionado.endereco || 'Sem endereco'}</div>
-                              {clienteSelecionado.cidade && <div style={{ fontSize: 13, color: '#111', marginTop: 1, fontWeight: 500 }}>{clienteSelecionado.cidade}</div>}
+                            <div style={{ marginBottom: 8, padding: '8px 10px', background: 'var(--portal-bg-secondary)', borderRadius: 4, border: '1px solid var(--portal-border)' }}>
+                              <div style={{ fontSize: 14, color: 'var(--portal-text)', fontWeight: 700 }}>{clienteSelecionado.endereco || 'Sem endereco'}</div>
+                              {clienteSelecionado.cidade && <div style={{ fontSize: 13, color: 'var(--portal-text)', marginTop: 1, fontWeight: 500 }}>{clienteSelecionado.cidade}</div>}
                             </div>
                           )}
                           <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 8, marginBottom: 8 }}>
                             <div>
-                              <label style={{ fontSize: 12, fontWeight: 700, color: '#111', marginBottom: 3, display: 'block' }}>Horas</label>
+                              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', marginBottom: 3, display: 'block' }}>Horas</label>
                               <input type="number" step="0.5" min="0.5" value={addHoras} onChange={e => setAddHoras(parseFloat(e.target.value) || 1)}
-                                style={{ fontSize: 13, padding: '8px 10px', border: '1px solid #D0D0D0', borderRadius: 4, outline: 'none', width: '100%', background: '#fff', boxSizing: 'border-box', color: '#111', fontWeight: 600 }} />
+                                style={{ fontSize: 13, padding: '8px 10px', border: '1px solid var(--portal-border)', borderRadius: 4, outline: 'none', width: '100%', background: 'var(--portal-bg-card)', boxSizing: 'border-box', color: 'var(--portal-text)', fontWeight: 600 }} />
                             </div>
                             <div>
-                              <label style={{ fontSize: 12, fontWeight: 700, color: '#111', marginBottom: 3, display: 'block' }}>Observação</label>
+                              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', marginBottom: 3, display: 'block' }}>Observação</label>
                               <input value={addObs} onChange={e => setAddObs(e.target.value)} placeholder="Ex: Levar pecas..."
-                                style={{ fontSize: 13, padding: '8px 10px', border: '1px solid #D0D0D0', borderRadius: 4, outline: 'none', width: '100%', background: '#fff', boxSizing: 'border-box', color: '#111', fontWeight: 500 }} />
+                                style={{ fontSize: 13, padding: '8px 10px', border: '1px solid var(--portal-border)', borderRadius: 4, outline: 'none', width: '100%', background: 'var(--portal-bg-card)', boxSizing: 'border-box', color: 'var(--portal-text)', fontWeight: 500 }} />
                             </div>
                           </div>
                           <div style={{ display: 'flex', gap: 6 }}>
                             <button onClick={() => adicionarManual(tec.tecnico_nome, diaSel)} disabled={!clienteSelecionado || addSalvando}
-                              style={{ flex: 1, padding: '8px 0', fontSize: 14, fontWeight: 700, borderRadius: 4, border: 'none', cursor: 'pointer', background: clienteSelecionado ? '#111' : '#E5E5E5', color: clienteSelecionado ? '#fff' : '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                              style={{ flex: 1, padding: '8px 0', fontSize: 14, fontWeight: 700, borderRadius: 4, border: 'none', cursor: 'pointer', background: clienteSelecionado ? '#111' : 'var(--portal-bg-secondary)', color: clienteSelecionado ? '#fff' : 'var(--portal-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
                               {addSalvando ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} Adicionar
                             </button>
-                            <button onClick={fecharAdd} style={{ padding: '8px 14px', borderRadius: 4, border: '1px solid #D0D0D0', background: '#fff', cursor: 'pointer', color: '#111', fontSize: 13, fontWeight: 600 }}>Cancelar</button>
+                            <button onClick={fecharAdd} style={{ padding: '8px 14px', borderRadius: 4, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', cursor: 'pointer', color: 'var(--portal-text)', fontSize: 13, fontWeight: 600 }}>Cancelar</button>
                           </div>
                         </div>
                       )}
@@ -722,6 +1045,7 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
           })}
         </div>
       </div>
+      </>)}
     </div>
   )
 }

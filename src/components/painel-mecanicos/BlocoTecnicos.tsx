@@ -119,7 +119,7 @@ export default function BlocoTecnicos({
       {justPendentes.length > 0 && (
         <div style={{ marginBottom: 32 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <h3 style={{ fontSize: 14, fontWeight: 600, color: '#18181B', margin: 0 }}>Justificativas pendentes</h3>
+            <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--portal-text)', margin: 0 }}>Justificativas pendentes</h3>
             <span style={{ fontSize: 11, fontWeight: 500, color: '#D97706', background: '#FFFBEB', padding: '2px 8px', borderRadius: 10 }}>
               {justPendentes.length}
             </span>
@@ -129,22 +129,22 @@ export default function BlocoTecnicos({
               const oc = ocorrencias.find(o => o.id === j.id_ocorrencia)
               return (
                 <div key={j.id} style={{
-                  background: '#fff', borderRadius: 10, padding: 18,
-                  border: '1px solid #E4E4E7', borderLeft: '3px solid #D97706',
+                  background: 'var(--portal-bg-card)', borderRadius: 10, padding: 18,
+                  border: '1px solid var(--portal-border)', borderLeft: '3px solid #D97706',
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
                     <div>
-                      <span style={{ fontSize: 14, fontWeight: 600, color: '#18181B' }}>{j.tecnico_nome}</span>
-                      {j.id_ordem && <span style={{ fontSize: 12, color: '#A1A1AA', marginLeft: 8 }}>OS: {j.id_ordem}</span>}
+                      <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--portal-text)' }}>{j.tecnico_nome}</span>
+                      {j.id_ordem && <span style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginLeft: 8 }}>OS: {j.id_ordem}</span>}
                     </div>
                     <span style={{ fontSize: 11, fontWeight: 500, padding: '2px 8px', borderRadius: 6, background: '#FFFBEB', color: '#D97706' }}>
                       Pendente
                     </span>
                   </div>
                   {oc && (
-                    <div style={{ background: '#FAFAFA', borderRadius: 8, padding: 12, marginBottom: 12, border: '1px solid #F4F4F5' }}>
-                      <div style={{ fontSize: 11, fontWeight: 500, color: '#A1A1AA', marginBottom: 4 }}>Ocorrência</div>
-                      <div style={{ fontSize: 13, color: '#3F3F46' }}>
+                    <div style={{ background: 'var(--portal-bg-secondary)', borderRadius: 8, padding: 12, marginBottom: 12, border: '1px solid var(--portal-border)' }}>
+                      <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--portal-text-muted)', marginBottom: 4 }}>Ocorrência</div>
+                      <div style={{ fontSize: 13, color: 'var(--portal-text)' }}>
                         <span style={{
                           fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4,
                           background: `${(tipoOcorrencia[oc.tipo] || tipoOcorrencia.outros).color}12`,
@@ -159,7 +159,7 @@ export default function BlocoTecnicos({
                     </div>
                   )}
                   <div style={{
-                    fontSize: 13, color: '#3F3F46', marginBottom: 14, background: '#FFFBEB',
+                    fontSize: 13, color: 'var(--portal-text)', marginBottom: 14, background: '#FFFBEB',
                     padding: 12, borderRadius: 8, border: '1px solid #FEF3C7', lineHeight: 1.5,
                   }}>
                     <div style={{ fontSize: 11, fontWeight: 500, color: '#92400E', marginBottom: 4 }}>Justificativa</div>
@@ -175,7 +175,7 @@ export default function BlocoTecnicos({
                     </button>
                     <button onClick={() => onAvaliarJustificativa(j.id, false)} style={{
                       flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                      background: '#fff', color: '#DC2626', border: '1px solid #FECACA', borderRadius: 8,
+                      background: 'var(--portal-bg-card)', color: '#DC2626', border: '1px solid #FECACA', borderRadius: 8,
                       padding: '9px 0', fontSize: 13, fontWeight: 500, cursor: 'pointer',
                     }}>
                       <ThumbsDown size={14} /> Recusar
@@ -192,7 +192,7 @@ export default function BlocoTecnicos({
       {reqPendentes.length > 0 && (
         <div style={{ marginBottom: 32 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <h3 style={{ fontSize: 14, fontWeight: 600, color: '#18181B', margin: 0 }}>Requisições de material</h3>
+            <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--portal-text)', margin: 0 }}>Requisições de material</h3>
             <span style={{ fontSize: 11, fontWeight: 500, color: '#D97706', background: '#FFFBEB', padding: '2px 8px', borderRadius: 10 }}>
               {reqPendentes.length}
             </span>
@@ -200,20 +200,20 @@ export default function BlocoTecnicos({
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 12 }}>
             {reqPendentes.map(req => (
               <div key={req.id} style={{
-                background: '#fff', borderRadius: 10, padding: 16, border: '1px solid #E4E4E7',
+                background: 'var(--portal-bg-card)', borderRadius: 10, padding: 16, border: '1px solid var(--portal-border)',
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: '#18181B' }}>{req.tecnico_nome.split(' ').slice(0, 2).join(' ')}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--portal-text)' }}>{req.tecnico_nome.split(' ').slice(0, 2).join(' ')}</span>
                   <span style={{
                     fontSize: 11, fontWeight: 500, padding: '2px 8px', borderRadius: 6,
-                    background: req.urgencia === 'alta' ? '#FEF2F2' : '#F4F4F5',
-                    color: req.urgencia === 'alta' ? '#DC2626' : '#71717A',
+                    background: req.urgencia === 'alta' ? '#FEF2F2' : 'var(--portal-bg-secondary)',
+                    color: req.urgencia === 'alta' ? '#DC2626' : 'var(--portal-text-secondary)',
                   }}>
                     {req.urgencia === 'alta' ? 'Urgente' : 'Normal'}
                   </span>
                 </div>
-                <div style={{ fontSize: 14, fontWeight: 500, color: '#3F3F46' }}>{req.material_solicitado}</div>
-                <div style={{ fontSize: 12, color: '#A1A1AA', marginTop: 4 }}>
+                <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--portal-text)' }}>{req.material_solicitado}</div>
+                <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginTop: 4 }}>
                   {req.quantidade && `Qtd: ${req.quantidade} · `}
                   {req.id_ordem && `OS: ${req.id_ordem} · `}
                   {new Date(req.created_at).toLocaleDateString('pt-BR')}
@@ -225,7 +225,7 @@ export default function BlocoTecnicos({
                   }}>Aprovar</button>
                   <button onClick={() => onRecusarRequisicao(req.id)} style={{
                     flex: 1, padding: '7px 0', fontSize: 12, fontWeight: 500,
-                    background: '#fff', color: '#71717A', border: '1px solid #E4E4E7', borderRadius: 6, cursor: 'pointer',
+                    background: 'var(--portal-bg-card)', color: 'var(--portal-text-secondary)', border: '1px solid var(--portal-border)', borderRadius: 6, cursor: 'pointer',
                   }}>Recusar</button>
                 </div>
               </div>
@@ -236,8 +236,8 @@ export default function BlocoTecnicos({
 
       {/* Busca + Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-        <h3 style={{ fontSize: 14, fontWeight: 600, color: '#18181B', margin: 0 }}>Equipe</h3>
-        <span style={{ fontSize: 11, fontWeight: 500, color: '#71717A', background: '#F4F4F5', padding: '2px 8px', borderRadius: 10 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--portal-text)', margin: 0 }}>Equipe</h3>
+        <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--portal-text-secondary)', background: 'var(--portal-bg-secondary)', padding: '2px 8px', borderRadius: 10 }}>
           {tecnicosAtivos.length}
         </span>
         <div style={{ flex: 1 }} />
@@ -249,8 +249,8 @@ export default function BlocoTecnicos({
             placeholder="Buscar técnico..."
             style={{
               width: '100%', padding: '7px 12px 7px 30px', borderRadius: 8,
-              border: '1px solid #E4E4E7', fontSize: 12, outline: 'none',
-              background: '#FAFAFA', color: '#18181B', boxSizing: 'border-box',
+              border: '1px solid var(--portal-border)', fontSize: 12, outline: 'none',
+              background: 'var(--portal-bg-secondary)', color: 'var(--portal-text)', boxSizing: 'border-box',
             }}
           />
         </div>
@@ -271,7 +271,7 @@ export default function BlocoTecnicos({
 
           return (
             <div key={tec.user_id} style={{
-              background: '#fff', borderRadius: 10, border: '1px solid #E4E4E7', overflow: 'hidden',
+              background: 'var(--portal-bg-card)', borderRadius: 10, border: '1px solid var(--portal-border)', overflow: 'hidden',
             }}>
               <div
                 style={{
@@ -282,25 +282,25 @@ export default function BlocoTecnicos({
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                   <div style={{
-                    width: 36, height: 36, borderRadius: 10, background: '#F4F4F5',
-                    color: '#3F3F46', display: 'flex', alignItems: 'center',
+                    width: 36, height: 36, borderRadius: 10, background: 'var(--portal-bg-secondary)',
+                    color: 'var(--portal-text)', display: 'flex', alignItems: 'center',
                     justifyContent: 'center', fontSize: 14, fontWeight: 700,
                   }}>
                     {tec.tecnico_nome.charAt(0)}
                   </div>
                   <div>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: '#18181B' }}>{tec.tecnico_nome}</div>
-                    <div style={{ fontSize: 12, color: '#A1A1AA', display: 'flex', alignItems: 'center', gap: 6, marginTop: 1 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--portal-text)' }}>{tec.tecnico_nome}</div>
+                    <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', display: 'flex', alignItems: 'center', gap: 6, marginTop: 1 }}>
                       <span>{ordsTec.length} ordens ativas</span>
-                      <span style={{ color: '#D4D4D8' }}>·</span>
+                      <span style={{ color: 'var(--portal-text-faint)' }}>·</span>
                       <span>{clientesTec.length} clientes</span>
-                      <span style={{ color: '#D4D4D8' }}>·</span>
+                      <span style={{ color: 'var(--portal-text-faint)' }}>·</span>
                       <span>{totalExecs} execuções</span>
-                      <span style={{ color: '#D4D4D8' }}>·</span>
+                      <span style={{ color: 'var(--portal-text-faint)' }}>·</span>
                       <span style={{
                         fontSize: 11, fontWeight: 500, padding: '0px 6px', borderRadius: 4,
-                        background: isTecnico ? '#F4F4F5' : '#FAF5FF',
-                        color: isTecnico ? '#71717A' : '#7C3AED',
+                        background: isTecnico ? 'var(--portal-bg-secondary)' : '#FAF5FF',
+                        color: isTecnico ? 'var(--portal-text-secondary)' : '#7C3AED',
                       }}>
                         {isTecnico ? 'Técnico' : 'Observador'}
                       </span>
@@ -328,8 +328,8 @@ export default function BlocoTecnicos({
               </div>
 
               {isExpanded && (
-                <div style={{ borderTop: '1px solid #F4F4F5' }}>
-                  <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid #F4F4F5' }}>
+                <div style={{ borderTop: '1px solid var(--portal-border)' }}>
+                  <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--portal-border)' }}>
                     {([
                       { id: 'clientes' as const, label: `Clientes (${clientesTec.length})`, icon: <Building2 size={13} /> },
                       { id: 'atrasos' as const, label: `Atrasos (${atrasosDoTec.length})`, icon: <Clock size={13} /> },
@@ -341,8 +341,8 @@ export default function BlocoTecnicos({
                           padding: '10px 20px', fontSize: 12, fontWeight: active ? 600 : 400, border: 'none', cursor: 'pointer',
                           display: 'flex', alignItems: 'center', gap: 5,
                           background: 'transparent',
-                          color: active ? '#18181B' : '#A1A1AA',
-                          borderBottom: active ? '2px solid #18181B' : '2px solid transparent',
+                          color: active ? 'var(--portal-text)' : 'var(--portal-text-muted)',
+                          borderBottom: active ? '2px solid var(--portal-text)' : '2px solid transparent',
                           marginBottom: -1,
                         }}>
                           {st.icon} {st.label}
@@ -362,29 +362,29 @@ export default function BlocoTecnicos({
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                           {clientesTec.map(grupo => (
                             <div key={grupo.cnpj} style={{
-                              background: '#FAFAFA', borderRadius: 10, border: '1px solid #F0F0F2',
+                              background: 'var(--portal-bg-secondary)', borderRadius: 10, border: '1px solid var(--portal-border)',
                               overflow: 'hidden',
                             }}>
                               {/* Header do cliente */}
                               <div style={{
-                                padding: '14px 18px', borderBottom: '1px solid #F0F0F2',
+                                padding: '14px 18px', borderBottom: '1px solid var(--portal-border)',
                                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                                background: '#fff',
+                                background: 'var(--portal-bg-card)',
                               }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                   <Building2 size={15} color="#71717A" />
                                   <div>
-                                    <div style={{ fontSize: 14, fontWeight: 600, color: '#18181B' }}>
+                                    <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--portal-text)' }}>
                                       {grupo.nome}
                                     </div>
-                                    <div style={{ fontSize: 11, color: '#A1A1AA', marginTop: 2 }}>
+                                    <div style={{ fontSize: 11, color: 'var(--portal-text-muted)', marginTop: 2 }}>
                                       {grupo.cnpj !== 'SEM_CNPJ' ? `CNPJ: ${grupo.cnpj}` : 'Sem CNPJ'}
                                       {grupo.cidade && ` · ${grupo.cidade}`}
                                     </div>
                                   </div>
                                 </div>
                                 <span style={{
-                                  fontSize: 11, fontWeight: 600, color: '#52525B', background: '#F4F4F5',
+                                  fontSize: 11, fontWeight: 600, color: 'var(--portal-text-secondary)', background: 'var(--portal-bg-secondary)',
                                   padding: '3px 10px', borderRadius: 6,
                                 }}>
                                   {grupo.ordens.length} {grupo.ordens.length === 1 ? 'ordem' : 'ordens'}
@@ -406,11 +406,11 @@ export default function BlocoTecnicos({
                                   return (
                                     <div key={ordem.Id_Ordem} style={{
                                       padding: '12px 14px', margin: '4px 0', borderRadius: 8,
-                                      background: '#fff', border: '1px solid #F0F0F2',
+                                      background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
                                     }}>
                                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                          <span style={{ fontSize: 13, fontWeight: 600, color: '#18181B' }}>{ordem.Id_Ordem}</span>
+                                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--portal-text)' }}>{ordem.Id_Ordem}</span>
                                           <span style={{
                                             fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 4,
                                             background: statusBg, color: statusColor,
@@ -418,26 +418,26 @@ export default function BlocoTecnicos({
                                             {ordem.Status}
                                           </span>
                                         </div>
-                                        <span style={{ fontSize: 11, color: '#A1A1AA' }}>
+                                        <span style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>
                                           {ordem.Tipo_Servico}
                                           {ordem.Qtd_HR ? ` · ${ordem.Qtd_HR}h` : ''}
                                         </span>
                                       </div>
                                       {ordem.Cidade_Cliente && (
-                                        <div style={{ fontSize: 12, color: '#71717A', marginBottom: 4 }}>
+                                        <div style={{ fontSize: 12, color: 'var(--portal-text-secondary)', marginBottom: 4 }}>
                                           {ordem.Cidade_Cliente}
                                           {ordem.Previsao_Execucao && ` · Prev: ${new Date(ordem.Previsao_Execucao + 'T12:00:00').toLocaleDateString('pt-BR')}`}
                                         </div>
                                       )}
                                       {execsOrdem.length > 0 && (
-                                        <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #F4F4F5' }}>
-                                          <div style={{ fontSize: 11, fontWeight: 600, color: '#71717A', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                        <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--portal-border)' }}>
+                                          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--portal-text-secondary)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
                                             <Wrench size={11} /> Execuções ({execsOrdem.length})
                                           </div>
                                           {execsOrdem.map(ex => (
                                             <div key={ex.id} style={{
-                                              fontSize: 12, color: '#52525B', padding: '6px 8px', marginBottom: 4,
-                                              background: '#FAFAFA', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                              fontSize: 12, color: 'var(--portal-text-secondary)', padding: '6px 8px', marginBottom: 4,
+                                              background: 'var(--portal-bg-secondary)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                                             }}>
                                               <span>
                                                 {ex.servico_realizado
@@ -452,7 +452,7 @@ export default function BlocoTecnicos({
                                                 }}>
                                                   {ex.status === 'enviado' ? 'Enviado' : 'Rascunho'}
                                                 </span>
-                                                <span style={{ fontSize: 11, color: '#D4D4D8' }}>
+                                                <span style={{ fontSize: 11, color: 'var(--portal-text-faint)' }}>
                                                   {new Date(ex.data_execucao + 'T12:00:00').toLocaleDateString('pt-BR')}
                                                 </span>
                                               </div>
@@ -482,17 +482,17 @@ export default function BlocoTecnicos({
                             const diasAtraso = Math.ceil((Date.now() - new Date(o.Previsao_Execucao + 'T23:59:59').getTime()) / (1000 * 60 * 60 * 24))
                             return (
                               <div key={o.Id_Ordem} style={{
-                                padding: 14, background: '#FAFAFA', borderRadius: 8,
-                                border: '1px solid #F4F4F5', borderLeft: '3px solid #DC2626',
+                                padding: 14, background: 'var(--portal-bg-secondary)', borderRadius: 8,
+                                border: '1px solid var(--portal-border)', borderLeft: '3px solid #DC2626',
                               }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                                  <span style={{ fontSize: 13, fontWeight: 600, color: '#18181B' }}>{o.Id_Ordem}</span>
+                                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--portal-text)' }}>{o.Id_Ordem}</span>
                                   <span style={{ fontSize: 12, fontWeight: 500, color: '#DC2626' }}>
                                     {diasAtraso} dia{diasAtraso !== 1 ? 's' : ''} de atraso
                                   </span>
                                 </div>
-                                <div style={{ fontSize: 13, color: '#3F3F46' }}>{o.Os_Cliente}</div>
-                                <div style={{ fontSize: 12, color: '#A1A1AA', marginTop: 4 }}>
+                                <div style={{ fontSize: 13, color: 'var(--portal-text)' }}>{o.Os_Cliente}</div>
+                                <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginTop: 4 }}>
                                   {o.Tipo_Servico} · Previsão: {o.Previsao_Execucao ? new Date(o.Previsao_Execucao + 'T12:00:00').toLocaleDateString('pt-BR') : '-'}
                                 </div>
                               </div>
@@ -515,8 +515,8 @@ export default function BlocoTecnicos({
                             const justDoOc = justificativas.find(j => j.id_ocorrencia === oc.id)
                             return (
                               <div key={oc.id} style={{
-                                padding: 14, background: '#FAFAFA', borderRadius: 8,
-                                border: '1px solid #F4F4F5', borderLeft: `3px solid ${tipoInfo.color}`,
+                                padding: 14, background: 'var(--portal-bg-secondary)', borderRadius: 8,
+                                border: '1px solid var(--portal-border)', borderLeft: `3px solid ${tipoInfo.color}`,
                               }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -526,7 +526,7 @@ export default function BlocoTecnicos({
                                     }}>
                                       {tipoInfo.label}
                                     </span>
-                                    {oc.id_ordem && <span style={{ fontSize: 12, color: '#A1A1AA' }}>OS: {oc.id_ordem}</span>}
+                                    {oc.id_ordem && <span style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>OS: {oc.id_ordem}</span>}
                                   </div>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                     <span style={{ fontSize: 12, fontWeight: 600, color: '#DC2626' }}>-{oc.pontos_descontados}pts</span>
@@ -541,8 +541,8 @@ export default function BlocoTecnicos({
                                     )}
                                   </div>
                                 </div>
-                                <div style={{ fontSize: 13, color: '#3F3F46', lineHeight: 1.5 }}>{oc.descricao}</div>
-                                <div style={{ fontSize: 12, color: '#D4D4D8', marginTop: 6 }}>
+                                <div style={{ fontSize: 13, color: 'var(--portal-text)', lineHeight: 1.5 }}>{oc.descricao}</div>
+                                <div style={{ fontSize: 12, color: 'var(--portal-text-faint)', marginTop: 6 }}>
                                   {new Date(oc.data).toLocaleDateString('pt-BR')}
                                 </div>
                               </div>

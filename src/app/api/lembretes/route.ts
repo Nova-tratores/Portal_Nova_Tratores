@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+}
 
 const TBL = "portal_lembretes";
 
 /** GET — busca lembretes do usuário */
 export async function GET(req: NextRequest) {
+  const supabase = getSupabase();
   const { searchParams } = new URL(req.url);
   const userId = searchParams.get("userId");
   const tipo = searchParams.get("tipo"); // "pendentes" | "todos" | "vencidos"
@@ -35,6 +38,7 @@ export async function GET(req: NextRequest) {
 
 /** POST — criar lembrete */
 export async function POST(req: NextRequest) {
+  const supabase = getSupabase();
   const body = await req.json();
   const { criador_id, criador_nome, destinatario_id, destinatario_nome, titulo, descricao, data_hora, recorrencia } = body;
 
@@ -80,6 +84,7 @@ function proximaData(dataAtual: string, recorrencia: string): string {
 
 /** PATCH — atualizar lembrete (concluir ou adiar) */
 export async function PATCH(req: NextRequest) {
+  const supabase = getSupabase();
   const body = await req.json();
   const { id, status, data_hora } = body;
 

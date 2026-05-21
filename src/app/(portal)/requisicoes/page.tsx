@@ -11,11 +11,10 @@ import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
 import Kanban from '@/components/requisicoes/Kanban';
 import FormReq from '@/components/requisicoes/FormReq';
 import FormFornecedor from '@/components/requisicoes/FormFornecedor';
-import FormUsuario from '@/components/requisicoes/FormUsuario';
 import FormVeiculo from '@/components/requisicoes/FormVeiculo';
 import TemplatePDF from '@/components/requisicoes/TemplatePDF';
 import {
-  LayoutDashboard, Users2, Box, Activity, Trash2, Plus, X, UserPlus, Car, Bell, Info, CheckCheck, UserCircle, Edit3, Briefcase, FileText, Printer
+  LayoutDashboard, Users2, Box, Activity, Trash2, Plus, X, Car, Bell, Info, CheckCheck, Edit3, FileText, Printer
 } from 'lucide-react';
 
 const ABAS_VALIDAS = new Set(['kanban', 'usuarios', 'veiculos', 'fornecedores', 'relatorio', 'lixeira', 'form_usuario', 'form_veiculo']);
@@ -35,7 +34,6 @@ function RequisicoesPageInner() {
   const [usuarios, setUsuarios] = useState<any[]>([]);
   const [veiculos, setVeiculos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [usuarioEditando, setUsuarioEditando] = useState<any>(null);
   const [veiculoEditando, setVeiculoEditando] = useState<any>(null);
   const [reqParaImprimir, setReqParaImprimir] = useState<any>(null);
   const [notificacoes, setNotificacoes] = useState<any[]>([]);
@@ -331,29 +329,6 @@ function RequisicoesPageInner() {
     return () => { supabase.removeChannel(channel); };
   }, [carregarDados]);
 
-  const salvarUsuario = async (dados: any) => {
-    if (usuarioEditando) {
-      const { error } = await supabase.from('financeiro_usu').update(dados).eq('id', usuarioEditando.id);
-      if (error) { console.error('Erro ao editar usuário:', error); alert('Erro ao salvar: ' + error.message); return; }
-      auditLog({ sistema: 'requisicoes', acao: 'editar', entidade: 'usuario', entidade_id: usuarioEditando.id, entidade_label: dados.nome });
-    } else {
-      try {
-        const res = await fetch('/api/pos/requisicoes/criar-usuario', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(dados),
-        });
-        const result = await res.json();
-        if (!res.ok) { alert('Erro ao cadastrar: ' + result.error); return; }
-        auditLog({ sistema: 'requisicoes', acao: 'criar', entidade: 'usuario', entidade_label: dados.nome });
-      } catch (err: any) {
-        alert('Erro ao cadastrar: ' + err.message);
-        return;
-      }
-    }
-    setUsuarioEditando(null); setAbaAtiva('usuarios'); await carregarDados(true);
-  };
-
   const salvarVeiculo = async (dados: any) => {
     if (veiculoEditando) {
       const { error } = await supabase.from('SupaPlacas').update(dados).eq('IdPlaca', veiculoEditando.IdPlaca);
@@ -369,7 +344,6 @@ function RequisicoesPageInner() {
 
   const tabs = [
     { id: 'kanban', label: 'Kanban', icon: <LayoutDashboard size={16} /> },
-    { id: 'usuarios', label: 'Usuários', icon: <UserCircle size={16} /> },
     { id: 'veiculos', label: 'Veículos', icon: <Car size={16} /> },
     { id: 'fornecedores', label: 'Fornecedores', icon: <Users2 size={16} /> },
     { id: 'relatorio', label: 'Relatório', icon: <FileText size={16} /> },
@@ -388,9 +362,9 @@ function RequisicoesPageInner() {
             onClick={() => abrirNotificacao(t.idOriginal)}
             className="pointer-events-auto cursor-pointer rounded-2xl overflow-hidden hover:scale-[1.02] transition-all"
             style={{
-              background: '#fff',
+              background: 'var(--portal-bg-card)',
               boxShadow: '0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06)',
-              border: '1px solid #f0f0f0',
+              border: '1px solid var(--portal-border)',
               animation: 'toastSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
             }}
           >
@@ -433,7 +407,7 @@ function RequisicoesPageInner() {
             className="fixed top-0 right-0 bottom-0 z-[10001] print:hidden flex flex-col"
             style={{
               width: '400px', maxWidth: '90vw',
-              background: 'linear-gradient(180deg, #ffffff 0%, #fafafa 100%)',
+              background: 'linear-gradient(180deg, var(--portal-bg-card) 0%, var(--portal-bg-secondary) 100%)',
               boxShadow: '-12px 0 48px rgba(0,0,0,0.08)',
               animation: 'notifSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
             }}
@@ -442,12 +416,12 @@ function RequisicoesPageInner() {
             {/* Header */}
             <div style={{
               padding: '28px 24px 20px', flexShrink: 0,
-              borderBottom: '1px solid #f0f0f0',
+              borderBottom: '1px solid var(--portal-border)',
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
                 <div>
-                  <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#1a1a1a', margin: 0, letterSpacing: '-0.3px' }}>Notificações</h2>
-                  <p style={{ fontSize: '12px', color: '#a3a3a3', margin: '4px 0 0', fontWeight: '500' }}>
+                  <h2 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--portal-text)', margin: 0, letterSpacing: '-0.3px' }}>Notificações</h2>
+                  <p style={{ fontSize: '12px', color: 'var(--portal-text-muted)', margin: '4px 0 0', fontWeight: '500' }}>
                     {notificacoes.length === 0 ? 'Nenhuma atualização' : `${notificacoes.length} ${notificacoes.length === 1 ? 'atualização' : 'atualizações'} recentes`}
                   </p>
                 </div>
@@ -455,12 +429,12 @@ function RequisicoesPageInner() {
                   onClick={() => { setShowNotifModal(false); setContadorNotif(0); }}
                   style={{
                     width: '32px', height: '32px', borderRadius: '10px',
-                    background: '#f5f5f5', border: 'none', color: '#a3a3a3',
+                    background: 'var(--portal-bg-secondary)', border: 'none', color: 'var(--portal-text-muted)',
                     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
                     transition: 'all 0.2s'
                   }}
                   onMouseEnter={e => { e.currentTarget.style.background = '#fee2e2'; e.currentTarget.style.color = '#dc2626' }}
-                  onMouseLeave={e => { e.currentTarget.style.background = '#f5f5f5'; e.currentTarget.style.color = '#a3a3a3' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'var(--portal-bg-secondary)'; e.currentTarget.style.color = 'var(--portal-text-muted)' }}
                 >
                   <X size={16} />
                 </button>
@@ -489,12 +463,12 @@ function RequisicoesPageInner() {
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '12px' }}>
                   <div style={{
                     width: '64px', height: '64px', borderRadius: '20px',
-                    background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    background: 'var(--portal-bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center'
                   }}>
-                    <Bell size={28} color="#d4d4d4" />
+                    <Bell size={28} color="var(--portal-text-faint)" />
                   </div>
-                  <p style={{ fontSize: '14px', color: '#a3a3a3', fontWeight: '500' }}>Tudo em dia!</p>
-                  <p style={{ fontSize: '12px', color: '#d4d4d4' }}>Nenhuma notificação pendente</p>
+                  <p style={{ fontSize: '14px', color: 'var(--portal-text-muted)', fontWeight: '500' }}>Tudo em dia!</p>
+                  <p style={{ fontSize: '12px', color: 'var(--portal-text-faint)' }}>Nenhuma notificação pendente</p>
                 </div>
               ) : notificacoes.map((n: any, i: number) => (
                 <div
@@ -507,7 +481,7 @@ function RequisicoesPageInner() {
                     background: 'transparent',
                     border: '1px solid transparent',
                   }}
-                  onMouseEnter={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.border = '1px solid #f0f0f0'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.04)' }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'var(--portal-bg-card)'; e.currentTarget.style.border = '1px solid var(--portal-border)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.04)' }}
                   onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.border = '1px solid transparent'; e.currentTarget.style.boxShadow = 'none' }}
                 >
                   <div style={{
@@ -521,16 +495,16 @@ function RequisicoesPageInner() {
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{
-                      fontSize: '13px', fontWeight: '600', color: '#1a1a1a',
+                      fontSize: '13px', fontWeight: '600', color: 'var(--portal-text)',
                       margin: 0, lineHeight: '1.4',
                       overflow: 'hidden', textOverflow: 'ellipsis',
                       display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any
                     }}>{n.titulo}</p>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
                       <span style={{
-                        fontSize: '11px', color: '#a3a3a3', fontWeight: '500'
+                        fontSize: '11px', color: 'var(--portal-text-muted)', fontWeight: '500'
                       }}>{n.solicitante}</span>
-                      <span style={{ width: '3px', height: '3px', borderRadius: '50%', background: '#d4d4d4' }} />
+                      <span style={{ width: '3px', height: '3px', borderRadius: '50%', background: 'var(--portal-text-faint)' }} />
                       <span style={{
                         fontSize: '11px', color: '#dc2626', fontWeight: '600'
                       }}>{n.hora}</span>
@@ -538,10 +512,10 @@ function RequisicoesPageInner() {
                   </div>
                   <div style={{
                     width: '28px', height: '28px', borderRadius: '8px',
-                    background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: 'var(--portal-bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center',
                     flexShrink: 0, marginTop: '4px'
                   }}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#a3a3a3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--portal-text-muted)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
                   </div>
                 </div>
               ))}
@@ -560,10 +534,10 @@ function RequisicoesPageInner() {
       <div style={{ marginBottom: '24px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
           <div>
-            <h2 style={{ fontSize: '28px', fontWeight: '800', color: '#1a1a1a', marginBottom: '6px' }}>
+            <h2 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--portal-text)', marginBottom: '6px' }}>
               Requisições
             </h2>
-            <p style={{ color: '#a3a3a3', fontSize: '14px' }}>
+            <p style={{ color: 'var(--portal-text-muted)', fontSize: '14px' }}>
               Kanban de requisições de materiais e serviços
             </p>
           </div>
@@ -572,8 +546,8 @@ function RequisicoesPageInner() {
               onClick={() => { setShowNotifModal(true); setContadorNotif(0); }}
               style={{
                 position: 'relative', padding: '8px 14px', borderRadius: '10px',
-                background: '#fff', border: '1px solid #e5e5e5',
-                color: '#737373', fontSize: '13px', cursor: 'pointer',
+                background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
+                color: 'var(--portal-text-secondary)', fontSize: '13px', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', gap: '6px', fontFamily: 'Inter'
               }}
             >
@@ -592,7 +566,7 @@ function RequisicoesPageInner() {
         </div>
 
         {/* Tabs */}
-        <div style={{ display: 'flex', gap: '4px', background: '#f5f5f5', padding: '4px', borderRadius: '12px', width: 'fit-content' }}>
+        <div style={{ display: 'flex', gap: '4px', background: 'var(--portal-bg-secondary)', padding: '4px', borderRadius: '12px', width: 'fit-content' }}>
           {tabs.map(tab => (
             <button
               key={tab.id}
@@ -600,10 +574,10 @@ function RequisicoesPageInner() {
               style={{
                 display: 'flex', alignItems: 'center', gap: '6px',
                 padding: '8px 16px', borderRadius: '8px',
-                background: abaAtiva === tab.id ? '#fff' : 'transparent',
-                border: abaAtiva === tab.id ? '1px solid #e5e5e5' : '1px solid transparent',
+                background: abaAtiva === tab.id ? 'var(--portal-bg-card)' : 'transparent',
+                border: abaAtiva === tab.id ? '1px solid var(--portal-border)' : '1px solid transparent',
                 boxShadow: abaAtiva === tab.id ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
-                color: abaAtiva === tab.id ? '#dc2626' : '#737373',
+                color: abaAtiva === tab.id ? '#dc2626' : 'var(--portal-text-secondary)',
                 fontSize: '13px', fontWeight: abaAtiva === tab.id ? '600' : '500',
                 cursor: 'pointer', fontFamily: 'Inter', transition: 'all 0.2s'
               }}
@@ -632,30 +606,6 @@ function RequisicoesPageInner() {
             />
           )}
 
-          {abaAtiva === 'usuarios' && (
-            <div>
-              <div className="flex justify-between items-center mb-8">
-                <span className="text-sm text-zinc-500">{usuarios.length} colaboradores cadastrados</span>
-                <button onClick={() => { setUsuarioEditando(null); setAbaAtiva('form_usuario'); }} className="bg-red-600 hover:bg-red-700 text-white px-6 py-2.5 rounded-xl font-semibold flex items-center gap-2 text-sm transition-all">
-                  <UserPlus size={16} /> Novo Colaborador
-                </button>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {usuarios.map(u => (
-                  <div key={u.id} className="bg-white border border-zinc-200 p-6 rounded-2xl hover:border-red-200 transition-all group">
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center text-red-600"><UserCircle size={20} /></div>
-                      <button onClick={() => { setUsuarioEditando(u); setAbaAtiva('form_usuario'); }} className="p-2 text-zinc-400 hover:text-red-600 transition-colors"><Edit3 size={16} /></button>
-                    </div>
-                    <h3 className="text-base font-semibold text-zinc-800 mb-1">{u.nome}</h3>
-                    <p className="text-xs text-zinc-400 mb-3">{u.email || 'Sem e-mail'}</p>
-                    <div className="flex items-center gap-2 text-red-600 text-xs font-semibold"><Briefcase size={12} /> {u.funcao || 'Sem Função'}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           {abaAtiva === 'veiculos' && (
             <div>
               <div className="flex justify-between items-center mb-8">
@@ -674,14 +624,6 @@ function RequisicoesPageInner() {
                     <button onClick={() => { setVeiculoEditando(v); setAbaAtiva('form_veiculo'); }} className="p-2 text-zinc-400 hover:text-red-600 transition-colors"><Edit3 size={16} /></button>
                   </div>
                 ))}
-              </div>
-            </div>
-          )}
-
-          {abaAtiva === 'form_usuario' && (
-            <div className="max-w-3xl mx-auto">
-              <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden">
-                <FormUsuario usuarioParaEditar={usuarioEditando} onSave={salvarUsuario} onCancel={() => setAbaAtiva('usuarios')} />
               </div>
             </div>
           )}

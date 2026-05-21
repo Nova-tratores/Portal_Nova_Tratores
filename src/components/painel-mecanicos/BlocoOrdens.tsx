@@ -111,7 +111,7 @@ export default function BlocoOrdens({
 
           return (
             <div key={tec.user_id} style={{
-              background: '#fff', borderRadius: 14,
+              background: 'var(--portal-bg-card)', borderRadius: 14,
               boxShadow: '0 1px 6px rgba(0,0,0,0.06)',
               borderLeft: `5px solid ${ords.length === 0 ? '#10B981' : temAtraso ? '#EF4444' : '#3B82F6'}`,
               overflow: 'hidden',
@@ -138,7 +138,7 @@ export default function BlocoOrdens({
                     <div style={{ fontSize: 17, fontWeight: 800, color: '#1E3A5F' }}>
                       {tec.tecnico_nome.split(' ').slice(0, 2).join(' ')}
                     </div>
-                    <div style={{ fontSize: 13, color: '#6B7280', fontWeight: 600 }}>
+                    <div style={{ fontSize: 13, color: 'var(--portal-text-secondary)', fontWeight: 600 }}>
                       {ords.length === 0 ? 'Nenhuma ordem pendente' : `${ords.length} ordem(s) ativa(s)`}
                     </div>
                   </div>
@@ -175,7 +175,7 @@ export default function BlocoOrdens({
 
                     return (
                       <div key={o.Id_Ordem} style={{
-                        background: atrasado ? '#FEF2F2' : '#F9FAFB', borderRadius: 10,
+                        background: atrasado ? '#FEF2F2' : 'var(--portal-bg-secondary)', borderRadius: 10,
                         padding: '10px 14px',
                         borderLeft: `3px solid ${atrasado ? '#EF4444' : cores.color}`,
                       }}>
@@ -200,11 +200,11 @@ export default function BlocoOrdens({
                             </span>
                           </div>
                         </div>
-                        <div style={{ fontSize: 14, fontWeight: 600, color: '#374151' }}>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--portal-text)' }}>
                           {clienteNome}{cidade ? ` - ${cidade}` : ''}
                         </div>
                         {o.Previsao_Execucao && (
-                          <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>
+                          <div style={{ fontSize: 11, color: 'var(--portal-text-muted)', marginTop: 2 }}>
                             Previsão: {new Date(o.Previsao_Execucao + 'T12:00:00').toLocaleDateString('pt-BR')}
                           </div>
                         )}

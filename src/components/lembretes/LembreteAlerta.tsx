@@ -88,7 +88,7 @@ export default function LembreteAlerta({ userId }: { userId: string }) {
       animation: 'fadeIn 0.3s ease-out'
     }}>
       <div style={{
-        background: '#fff', borderRadius: '28px', width: '420px',
+        background: 'var(--portal-bg-card)', borderRadius: '28px', width: '420px',
         padding: '0', boxShadow: '0 30px 80px rgba(0,0,0,0.2)',
         overflow: 'hidden', animation: 'scaleIn 0.3s ease-out'
       }}>
@@ -114,11 +114,11 @@ export default function LembreteAlerta({ userId }: { userId: string }) {
 
         {/* Content */}
         <div style={{ padding: '28px 32px' }}>
-          <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#1a1a1a', margin: '0 0 8px' }}>
+          <h3 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--portal-text)', margin: '0 0 8px' }}>
             {alerta.titulo}
           </h3>
           {alerta.descricao && (
-            <p style={{ fontSize: '14px', color: '#737373', margin: '0 0 24px', lineHeight: '1.5' }}>
+            <p style={{ fontSize: '14px', color: 'var(--portal-text-secondary)', margin: '0 0 24px', lineHeight: '1.5' }}>
               {alerta.descricao}
             </p>
           )}
@@ -126,10 +126,10 @@ export default function LembreteAlerta({ userId }: { userId: string }) {
           {/* Adiar form */}
           {showAdiar && (
             <div style={{
-              background: '#fafafa', borderRadius: '14px', padding: '16px',
-              marginBottom: '20px', border: '1px solid #f0f0f0'
+              background: 'var(--portal-bg-secondary)', borderRadius: '14px', padding: '16px',
+              marginBottom: '20px', border: '1px solid var(--portal-border)'
             }}>
-              <span style={{ fontSize: '12px', fontWeight: '700', color: '#737373', letterSpacing: '0.5px', display: 'block', marginBottom: '10px' }}>
+              <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--portal-text-secondary)', letterSpacing: '0.5px', display: 'block', marginBottom: '10px' }}>
                 ADIAR PARA:
               </span>
               <div style={{ display: 'flex', gap: '10px' }}>
@@ -139,7 +139,7 @@ export default function LembreteAlerta({ userId }: { userId: string }) {
                   onChange={e => setNovaData(e.target.value)}
                   style={{
                     flex: 1, padding: '10px 12px', borderRadius: '10px',
-                    border: '1px solid #e5e5e5', fontSize: '13px', outline: 'none'
+                    border: '1px solid var(--portal-border)', fontSize: '13px', outline: 'none'
                   }}
                 />
                 <input
@@ -148,7 +148,7 @@ export default function LembreteAlerta({ userId }: { userId: string }) {
                   onChange={e => setNovaHora(e.target.value)}
                   style={{
                     width: '120px', padding: '10px 12px', borderRadius: '10px',
-                    border: '1px solid #e5e5e5', fontSize: '13px', outline: 'none'
+                    border: '1px solid var(--portal-border)', fontSize: '13px', outline: 'none'
                   }}
                 />
               </div>
@@ -158,8 +158,8 @@ export default function LembreteAlerta({ userId }: { userId: string }) {
                 style={{
                   marginTop: '10px', width: '100%', padding: '10px',
                   borderRadius: '10px', border: 'none',
-                  background: (!novaData || !novaHora) ? '#e5e5e5' : '#f59e0b',
-                  color: (!novaData || !novaHora) ? '#a3a3a3' : '#fff',
+                  background: (!novaData || !novaHora) ? 'var(--portal-border)' : '#f59e0b',
+                  color: (!novaData || !novaHora) ? 'var(--portal-text-muted)' : '#fff',
                   fontSize: '13px', fontWeight: '700', cursor: 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
                 }}
@@ -187,8 +187,8 @@ export default function LembreteAlerta({ userId }: { userId: string }) {
               onClick={() => setShowAdiar(!showAdiar)}
               style={{
                 flex: 1, padding: '14px', borderRadius: '14px',
-                border: '1px solid #e5e5e5', background: '#fff',
-                color: '#737373', fontSize: '14px', fontWeight: '700',
+                border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)',
+                color: 'var(--portal-text-secondary)', fontSize: '14px', fontWeight: '700',
                 cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
               }}
@@ -201,7 +201,7 @@ export default function LembreteAlerta({ userId }: { userId: string }) {
             onClick={dispensar}
             style={{
               marginTop: '10px', width: '100%', padding: '10px',
-              background: 'none', border: 'none', color: '#d4d4d4',
+              background: 'none', border: 'none', color: 'var(--portal-text-faint)',
               fontSize: '12px', cursor: 'pointer', fontWeight: '500'
             }}
           >

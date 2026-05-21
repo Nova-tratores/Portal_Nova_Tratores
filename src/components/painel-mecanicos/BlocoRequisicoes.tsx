@@ -95,7 +95,7 @@ export default function BlocoRequisicoes({
 
           return (
             <div key={tec.user_id} style={{
-              background: '#fff', borderRadius: 14,
+              background: 'var(--portal-bg-card)', borderRadius: 14,
               boxShadow: '0 1px 6px rgba(0,0,0,0.06)',
               borderLeft: `5px solid ${reqs.length === 0 ? '#10B981' : '#F59E0B'}`,
               overflow: 'hidden',
@@ -122,7 +122,7 @@ export default function BlocoRequisicoes({
                     <div style={{ fontSize: 17, fontWeight: 800, color: '#1E3A5F' }}>
                       {tec.tecnico_nome.split(' ').slice(0, 2).join(' ')}
                     </div>
-                    <div style={{ fontSize: 13, color: '#6B7280', fontWeight: 600 }}>
+                    <div style={{ fontSize: 13, color: 'var(--portal-text-secondary)', fontWeight: 600 }}>
                       {reqs.length === 0 ? 'Nenhuma requisição pendente' : `${reqs.length} requisição(ões) em pedido`}
                     </div>
                   </div>
@@ -152,7 +152,7 @@ export default function BlocoRequisicoes({
                     )
                     return (
                       <div key={r.id} style={{
-                        background: '#FFFBEB', borderRadius: 10,
+                        background: 'var(--portal-bg-secondary)', borderRadius: 10,
                         padding: '10px 14px',
                         borderLeft: `3px solid ${diasPedido > 3 ? '#EF4444' : '#F59E0B'}`,
                       }}>
@@ -169,15 +169,15 @@ export default function BlocoRequisicoes({
                             {diasPedido}d aguardando
                           </span>
                         </div>
-                        <div style={{ fontSize: 13, color: '#374151', fontWeight: 600 }}>
+                        <div style={{ fontSize: 13, color: 'var(--portal-text)', fontWeight: 600 }}>
                           Tipo: {r.tipo} {r.setor ? `| Setor: ${r.setor}` : ''}
                         </div>
                         {r.ordem_servico && (
-                          <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
+                          <div style={{ fontSize: 12, color: 'var(--portal-text-secondary)', marginTop: 2 }}>
                             OS vinculada: {r.ordem_servico}
                           </div>
                         )}
-                        <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>
+                        <div style={{ fontSize: 11, color: 'var(--portal-text-muted)', marginTop: 2 }}>
                           Criada: {new Date(r.created_at).toLocaleDateString('pt-BR')}
                         </div>
                       </div>
