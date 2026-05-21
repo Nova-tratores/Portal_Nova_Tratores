@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useAuditLog } from '@/hooks/useAuditLog'
 import { notificarAdminsClient } from '@/hooks/useNotificarAdmins'
 import { marcarMinhaAcao } from '@/components/financeiro/NotificationSystem'
+import { EnviarParaOmieBox } from '@/components/financeiro/OmieContaPagar'
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
 import { formatarDataBR, formatarMoeda, getRequisicoes } from '@/lib/financeiro/utils'
 import {
@@ -426,21 +427,41 @@ function HomeFinanceiroContent() {
        <div style={{ display: 'flex', flexDirection: 'column', gap: '0px', borderTop: '0.5px solid var(--portal-border)' }}>
         {listaPagar.map((t, idx) => (
          <div key={`pag-${t.id}-${idx}`} onClick={() => setTarefaSelecionada(t)} className="task-card-grid">
-          <div style={{ background: 'var(--portal-bg-secondary)', padding: '24px', borderBottom: '0.5px solid var(--portal-border)' }}>
-            <h4 style={{ margin: 0, fontSize: '18px', fontWeight:'500', color: 'var(--portal-text)' }}>{t.fornecedor?.toUpperCase()}</h4>
-            {(getRequisicoes(t).filter(r => r.numero).length > 0 || t.anexo_requisicao) && (
-              <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                {getRequisicoes(t).filter(r => r.numero).map((req, i) => (
-                  <span key={i} style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '10px', fontWeight: '600', padding: '4px 8px', border: '1px solid #7dd3fc', borderRadius: '4px' }}>#{req.numero}</span>
-                ))}
-                {t.anexo_requisicao && t.anexo_requisicao.split(',').filter(u => u.trim()).map((_, i) => (
-                  <span key={`old-${i}`} style={{ background: '#fef3c7', color: '#92400e', fontSize: '10px', fontWeight: '600', padding: '4px 8px', border: '1px solid #fcd34d', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}><Paperclip size={10}/> Req {i + 1}</span>
-                ))}
-              </div>
-            )}
+          <div style={{ background: 'var(--portal-bg-secondary)', padding: '24px', borderBottom: '0.5px solid var(--portal-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <h4 style={{ margin: 0, fontSize: '18px', fontWeight:'500', color: 'var(--portal-text)' }}>{t.fornecedor?.toUpperCase()}</h4>
+              {(getRequisicoes(t).filter(r => r.numero).length > 0 || t.anexo_requisicao) && (
+                <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                  {getRequisicoes(t).filter(r => r.numero).map((req, i) => (
+                    <span key={i} style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '10px', fontWeight: '600', padding: '4px 8px', border: '1px solid #7dd3fc', borderRadius: '4px' }}>#{req.numero}</span>
+                  ))}
+                  {t.anexo_requisicao && t.anexo_requisicao.split(',').filter(u => u.trim()).map((_, i) => (
+                    <span key={`old-${i}`} style={{ background: '#fef3c7', color: '#92400e', fontSize: '10px', fontWeight: '600', padding: '4px 8px', border: '1px solid #fcd34d', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}><Paperclip size={10}/> Req {i + 1}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div
+              title={t.omie_cod_lancamento ? `Lançado no Omie nº ${t.omie_cod_lancamento}` : 'Clique no card para validar e enviar ao Omie'}
+              style={{
+                flexShrink: 0,
+                display: 'flex', alignItems: 'center', gap: '5px',
+                background: t.omie_cod_lancamento ? '#dcfce7' : '#eff6ff',
+                border: `1px solid ${t.omie_cod_lancamento ? '#86efac' : '#bfdbfe'}`,
+                color: t.omie_cod_lancamento ? '#15803d' : '#2563eb',
+                fontSize: '10px', fontWeight: 700, letterSpacing: '0.5px',
+                padding: '6px 10px', borderRadius: '8px', whiteSpace: 'nowrap',
+              }}
+            >
+              {t.omie_cod_lancamento ? <CheckCircle size={11} /> : <Send size={11} />}
+              OMIE
+            </div>
           </div>
           <div style={{ padding: '24px', background: 'var(--portal-bg-card)' }}>
-            <div style={miniTagStyle}><CreditCard size={14}/> {t.metodo?.toUpperCase() || 'DESPESA'}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <div style={miniTagStyle}><CreditCard size={14}/> {t.metodo?.toUpperCase() || 'DESPESA'}</div>
+              <StatusEnvioBadge row={t} />
+            </div>
             {t.metodo === 'Carnê ISS' && (
               <div style={{ marginTop: '8px', display: 'inline-block', background: '#fef3c7', color: '#92400e', fontSize: '11px', fontWeight: '700', padding: '4px 10px', borderRadius: '6px', border: '1px solid #fcd34d', letterSpacing: '0.5px' }}>CARNÊ ISS</div>
             )}
@@ -514,6 +535,14 @@ function HomeFinanceiroContent() {
                 {tarefaSelecionada.nom_cliente || tarefaSelecionada.fornecedor || tarefaSelecionada.funcionario}
             </h2>
         </div>
+
+        {/* INTEGRACAO OMIE — posicionada logo após o título pra ficar imediatamente visível */}
+        {tarefaSelecionada.gTipo === 'pagar' && (
+          <EnviarParaOmieBox
+            finanPagar={tarefaSelecionada}
+            onSynced={(patch) => { setTarefaSelecionada(prev => ({ ...prev, ...patch })); carregarDados(); }}
+          />
+        )}
 
         {/* ÁREA DE VALORES E VENCIMENTO (TOP MODAL) */}
         <div style={{display:'flex', gap:'30px', marginBottom:'45px'}}>
@@ -988,5 +1017,26 @@ function HomeFinanceiroContent() {
     ::-webkit-scrollbar-thumb { background: var(--portal-border); border-radius: 10px; }
    `}</style>
   </div>
+ )
+}
+
+// ---------------------------------------------------------------------
+// Badge visual do status_envio Omie (rascunho / validado / enviado / erro)
+// ---------------------------------------------------------------------
+function StatusEnvioBadge({ row }) {
+ const status = row?.omie_cod_lancamento
+  ? 'enviado'
+  : (row?.status_envio || 'rascunho')
+ const config = {
+  rascunho: { bg: '#f1f5f9', fg: '#475569', borda: '#cbd5e1', label: 'RASCUNHO' },
+  validado: { bg: '#dbeafe', fg: '#1d4ed8', borda: '#93c5fd', label: 'VALIDADO' },
+  enviado:  { bg: '#dcfce7', fg: '#15803d', borda: '#86efac', label: 'ENVIADO AO OMIE' },
+  erro:     { bg: '#fee2e2', fg: '#b91c1c', borda: '#fca5a5', label: 'ERRO' },
+ }[status] || { bg: '#f1f5f9', fg: '#475569', borda: '#cbd5e1', label: String(status).toUpperCase() }
+ const titulo = status === 'erro' && row?.omie_ultimo_erro ? row.omie_ultimo_erro : ''
+ return (
+  <span title={titulo} style={{ display: 'inline-block', background: config.bg, color: config.fg, border: `1px solid ${config.borda}`, fontSize: '10px', fontWeight: 700, padding: '3px 8px', borderRadius: '4px', letterSpacing: '0.5px' }}>
+   {config.label}
+  </span>
  )
 }

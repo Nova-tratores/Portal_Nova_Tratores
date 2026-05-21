@@ -6,9 +6,12 @@ import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
 import { useAuditLog } from '@/hooks/useAuditLog'
 import { useAuth } from '@/hooks/useAuth'
 import { notificarAdminsClient } from '@/hooks/useNotificarAdmins'
+import { CamposOmieContaPagar } from '@/components/financeiro/OmieContaPagar'
+import UploadNFeXml from '@/components/financeiro/UploadNFeXml'
+import UploadDANFE from '@/components/financeiro/UploadDANFE'
 import {
   FileText, Calendar, User, Hash,
-  CheckCircle, Upload, Paperclip, X, CreditCard, Package, ExternalLink, Search
+  CheckCircle, Upload, Paperclip, X, CreditCard, Package, ExternalLink, Search, Send
 } from 'lucide-react'
 
 export default function NovoPagarReceber() {
@@ -34,6 +37,24 @@ export default function NovoPagarReceber() {
 
   const [qtdParcelas, setQtdParcelas] = useState(2)
   const [parcelas, setParcelas] = useState([])
+
+  // Integração Omie (Contas a Pagar) — apenas como pré-preenchimento.
+  // O envio real ao Omie acontece pelo painel após validação manual.
+  const [omieCampos, setOmieCampos] = useState({
+    empresa: 'Nova Tratores',
+    codigoCategoria: '',
+    idContaCorrente: '',
+    codigoProjeto: '',
+    codigoVendedor: '',
+    codigoTipoDocumento: '',
+    codigoDepartamento: '',
+  })
+  // Origens do auto-preenchimento (vindo de /resolver-req ao importar requisição)
+  const [autoOrigem, setAutoOrigem] = useState({})
+
+  // Dados extraídos do XML da NF-e (quando o usuário fizer upload)
+  const [nfeData, setNfeData] = useState(null)
+  const [fileNFXml, setFileNFXml] = useState(null)
 
   const [formData, setFormData] = useState({
     entidade: '',
@@ -99,7 +120,7 @@ export default function NovoPagarReceber() {
   })()
 
   // Selecionar uma nota encontrada — preenche tudo automaticamente
-  const selecionarNotaEncontrada = (grupo) => {
+  const selecionarNotaEncontrada = async (grupo) => {
     setNotaSelecionada(grupo)
     setBuscaNota(grupo.nota)
 
@@ -118,6 +139,55 @@ export default function NovoPagarReceber() {
     const reqComNF = grupo.reqs.find(r => r.foto_nf)
     setNfAutoUrl(reqComNF ? resolverUrlAnexo(reqComNF.foto_nf) : null)
     if (reqComNF?.foto_nf) setFileNFServ(null)
+
+    // Resolver vendedor (do solicitante) e projeto (da OS/placa/chassi) no Omie
+    // Usa a requisição "majoritária" — primeira da lista.
+    try {
+      const reqMajor = grupo.reqs[0]
+      if (reqMajor) {
+        // Buscar dados completos da Requisicao para pegar ordem_servico/veiculo/Chassis_Modelo
+        const { data: reqCompleta } = await supabase
+          .from('Requisicao')
+          .select('solicitante, ordem_servico, veiculo, Chassis_Modelo')
+          .eq('id', reqMajor.id)
+          .maybeSingle()
+
+        if (reqCompleta) {
+          const res = await fetch('/api/financeiro/contas-pagar/omie/resolver-req', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              empresa: omieCampos.empresa,
+              solicitante: reqCompleta.solicitante,
+              ordemServicoId: reqCompleta.ordem_servico,
+              veiculoId: reqCompleta.veiculo,
+              chassisModelo: reqCompleta.Chassis_Modelo,
+            }),
+          })
+          const data = await res.json()
+          if (data?.ok) {
+            const patch = {}
+            const novaOrigem = {}
+            if (data.codigoVendedor) {
+              patch.codigoVendedor = String(data.codigoVendedor)
+              novaOrigem.vendedor = 'solicitante'
+              novaOrigem.vendedorAproximado = !!data.vendedorAproximado
+            }
+            if (data.codigoProjeto) {
+              patch.codigoProjeto = String(data.codigoProjeto)
+              novaOrigem.projeto = data.fonteProjeto || 'os'
+              novaOrigem.projetoAproximado = !!data.projetoAproximado
+            }
+            if (Object.keys(patch).length > 0) {
+              setOmieCampos(prev => ({ ...prev, ...patch }))
+              setAutoOrigem(novaOrigem)
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[resolver-req] falhou (ignorado):', err?.message || err)
+    }
   }
 
   // Limpar importação
@@ -230,6 +300,12 @@ export default function NovoPagarReceber() {
       const todasUrls = [...urlsAuto, ...(urlsManuais ? urlsManuais.split(', ') : [])].filter(Boolean)
       const reqs = todasUrls.length > 0 ? todasUrls.join(', ') : null
 
+      // Se XML da NF-e foi importado, faz upload do XML para o bucket 'anexos'
+      let nfeXmlUrl = null
+      if (fileNFXml) {
+        nfeXmlUrl = await uploadSingle(fileNFXml, 'pagar/nfe-xml')
+      }
+
       const isParcelado = formData.metodo === 'Boleto Parcelado' && parcelas.length > 0
       const registro = {
         fornecedor: formData.entidade,
@@ -242,18 +318,44 @@ export default function NovoPagarReceber() {
         anexo_boleto: bol,
         anexo_requisicao: reqs,
         is_requisicao: true,
-        status: 'financeiro'
+        status: 'financeiro',
+        // Rascunho sempre — o envio ao Omie acontece pelo painel após validação
+        status_envio: 'rascunho',
+        // Pré-preenchimento Omie (sugestões salvas para o painel já abrir prontas)
+        omie_empresa: omieCampos.empresa || null,
+        omie_categoria: omieCampos.codigoCategoria || null,
+        omie_conta_corrente: omieCampos.idContaCorrente ? Number(omieCampos.idContaCorrente) : null,
+        omie_projeto: omieCampos.codigoProjeto ? Number(omieCampos.codigoProjeto) : null,
+        omie_vendedor: omieCampos.codigoVendedor ? Number(omieCampos.codigoVendedor) : null,
+        omie_tipo_documento: omieCampos.codigoTipoDocumento || null,
+        omie_departamento: omieCampos.codigoDepartamento || null,
+      }
+      // Dados extraídos do XML da NF-e (auto-preencheram parte do formulário)
+      if (nfeData) {
+        registro.nfe_chave = nfeData.chave || null
+        registro.nfe_serie = nfeData.serie || null
+        registro.nfe_data_emissao = nfeData.dataEmissao || null
+        registro.nfe_cnpj_emitente = nfeData.cnpjEmitente || null
+        registro.nfe_xml_url = nfeXmlUrl
       }
       if (isParcelado) {
         registro.qtd_parcelas = parcelas.length
         registro.parcelas_vencimentos = parcelas.map(p => `${p.vencimento}|${p.valor}`).join(', ')
       }
-      const { error } = await supabase.from('finan_pagar').insert([registro])
+      const { data: inserido, error } = await supabase.from('finan_pagar').insert([registro]).select().single()
       if (error) throw error
       auditLog({ sistema: 'financeiro', acao: 'criar', entidade: 'finan_pagar', entidade_label: `Pagar - ${formData.entidade} - R$ ${formData.valor}`, detalhes: { fornecedor: formData.entidade, valor: formData.valor, metodo: formData.metodo, nf: formData.numero_NF } })
       notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} criou registro financeiro`, `Fornecedor: ${formData.entidade} — R$ ${formData.valor}`, '/financeiro')
-      alert("Processo criado com sucesso.");
-      router.push('/financeiro')
+
+      // Redireciona para o painel já abrindo o modal do registro recém-criado.
+      // Lá o usuário valida o checklist e dispara o envio ao Omie.
+      alert("Rascunho criado. Abrindo o painel para você validar e enviar ao Omie.");
+      const novoId = inserido?.id
+      if (novoId) {
+        router.push(`/financeiro/home-financeiro?id=${novoId}`)
+      } else {
+        router.push('/financeiro')
+      }
     } catch (e) { alert(e.message) } finally { setLoading(false) }
   }
 
@@ -369,6 +471,72 @@ export default function NovoPagarReceber() {
                       </div>
                     )}
                   </div>
+                </div>
+              )}
+            </div>
+
+            {/* IMPORTAR NF-e — XML completo ou código de barras da DANFE */}
+            <div style={{ padding: '20px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <FileText size={16} style={{ color: '#0284c7' }} />
+                <label style={{ ...labelStyle, marginBottom: 0, color: '#0c4a6e' }}>Importar NF-e (opcional)</label>
+              </div>
+              <div style={{ fontSize: '11px', color: '#64748b' }}>
+                Se você tiver o <strong>XML</strong>, prefira — traz tudo (inclusive valor). Se só tem o papel/foto/PDF da <strong>DANFE</strong>, o leitor de código de barras pega número, série e CNPJ.
+              </div>
+
+              <UploadNFeXml onParsed={(dados, file) => {
+                setNfeData(dados)
+                setFileNFXml(file)
+                setFormData(prev => ({
+                  ...prev,
+                  numero_NF: prev.numero_NF || dados.numero,
+                  valor: prev.valor || dados.valorTotal.toFixed(2),
+                }))
+                if (dados.cnpjEmitente) {
+                  const match = fornecedores.find(f => {
+                    const doc = String(f['cpf/cnpj'] || '').replace(/\D/g, '')
+                    return doc && doc === dados.cnpjEmitente
+                  })
+                  if (match) {
+                    setBuscaFornecedor(match.nome)
+                    setFormData(prev => ({ ...prev, entidade: match.nome }))
+                  } else {
+                    setBuscaFornecedor(dados.nomeEmitente)
+                  }
+                }
+              }} />
+
+              <UploadDANFE onParsed={(dados) => {
+                // Só dados parciais — sem valor, sem nome do emitente
+                setNfeData(prev => ({
+                  ...(prev || {}),
+                  chave: dados.chave,
+                  numero: dados.numero,
+                  serie: dados.serie,
+                  cnpjEmitente: dados.cnpjEmitente,
+                  dataEmissao: dados.dataEmissaoAprox,
+                  // valorTotal/nomeEmitente ausentes — não sobrescreve se já tinha
+                  valorTotal: prev?.valorTotal ?? 0,
+                  nomeEmitente: prev?.nomeEmitente ?? '',
+                }))
+                setFormData(prev => ({
+                  ...prev,
+                  numero_NF: prev.numero_NF || dados.numero,
+                }))
+                const match = fornecedores.find(f => {
+                  const doc = String(f['cpf/cnpj'] || '').replace(/\D/g, '')
+                  return doc && doc === dados.cnpjEmitente
+                })
+                if (match) {
+                  setBuscaFornecedor(match.nome)
+                  setFormData(prev => ({ ...prev, entidade: match.nome }))
+                }
+              }} />
+
+              {nfeData?.cnpjEmitente && !fornecedores.some(f => String(f['cpf/cnpj'] || '').replace(/\D/g, '') === nfeData.cnpjEmitente) && (
+                <div style={{ fontSize: '12px', color: '#b45309', background: '#fef3c7', border: '1px solid #fcd34d', padding: '8px 12px', borderRadius: '8px' }}>
+                  CNPJ <strong>{nfeData.cnpjEmitente}</strong>{nfeData.nomeEmitente ? ` (${nfeData.nomeEmitente})` : ''} não está em Fornecedores. Cadastre antes de enviar ao Omie.
                 </div>
               )}
             </div>
@@ -616,6 +784,18 @@ export default function NovoPagarReceber() {
               )}
             </div>
 
+            {/* DADOS OMIE (RASCUNHO) — pré-preenchimento; o envio acontece no Painel */}
+            <div style={{ padding: '20px', background: '#eff6ff', borderRadius: '12px', border: '1px solid #bfdbfe', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Send size={16} style={{ color: '#2563eb' }} />
+                <span style={{ ...labelStyle, marginBottom: 0, color: '#1e40af' }}>Dados Omie (rascunho)</span>
+              </div>
+              <div style={{ fontSize: '12px', color: '#1e40af', lineHeight: '1.5' }}>
+                Pré-preencha empresa, categoria, conta corrente, vendedor e projeto. O <strong>envio ao Omie acontece no Painel</strong>, depois que você revisar e o checklist estiver completo.
+              </div>
+              <CamposOmieContaPagar value={omieCampos} onChange={setOmieCampos} tema="form" autoOrigem={autoOrigem} contextoTexto={formData.motivo} />
+            </div>
+
             <button disabled={loading} type="submit" style={{
               background: loading ? '#e5e7eb' : '#1e293b',
               color: loading ? '#6b7280' : '#ffffff',
@@ -632,7 +812,7 @@ export default function NovoPagarReceber() {
               transition: '0.2s',
               fontFamily: 'Montserrat, sans-serif'
             }}>
-              {loading ? 'Processando...' : <><CheckCircle size={18} /> Finalizar e Criar Registro</>}
+              {loading ? 'Processando...' : <><CheckCircle size={18} /> Salvar Rascunho e Abrir no Painel</>}
             </button>
           </form>
         </div>

@@ -1,6 +1,7 @@
 'use client';
 export const dynamic = 'force-dynamic';
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
@@ -16,11 +17,19 @@ import {
   LayoutDashboard, Users2, Box, Activity, Trash2, Plus, X, Car, Bell, Info, CheckCheck, Edit3, FileText, Printer
 } from 'lucide-react';
 
+const ABAS_VALIDAS = new Set(['kanban', 'usuarios', 'veiculos', 'fornecedores', 'relatorio', 'lixeira', 'form_usuario', 'form_veiculo']);
+
 function RequisicoesPageInner() {
   const { userProfile } = useAuth();
   const { log: auditLog } = useAuditLog();
   const userName = userProfile?.nome || 'Alguém';
-  const [abaAtiva, setAbaAtiva] = useState('kanban');
+  const searchParams = useSearchParams();
+  const abaInicial = (() => {
+    const a = searchParams.get('aba');
+    return a && ABAS_VALIDAS.has(a) ? a : 'kanban';
+  })();
+  const editarFornecedorId = searchParams.get('editar');
+  const [abaAtiva, setAbaAtiva] = useState(abaInicial);
   const [requisicoes, setRequisicoes] = useState<any[]>([]);
   const [usuarios, setUsuarios] = useState<any[]>([]);
   const [veiculos, setVeiculos] = useState<any[]>([]);
@@ -628,11 +637,14 @@ function RequisicoesPageInner() {
           )}
 
           {abaAtiva === 'fornecedores' && (
-            <FormFornecedor onSave={async (n: Record<string, unknown>) => {
-              const { error } = await supabase.from('Fornecedores').insert([n]);
-              if (error) { console.error('Erro ao criar fornecedor:', error); alert('Erro ao cadastrar: ' + error.message); return; }
-              auditLog({ sistema: 'requisicoes', acao: 'criar', entidade: 'fornecedor', entidade_label: String(n.nome || '') });
-            }} />
+            <FormFornecedor
+              editarId={editarFornecedorId}
+              onSave={async (n: Record<string, unknown>) => {
+                const { error } = await supabase.from('Fornecedores').insert([n]);
+                if (error) { console.error('Erro ao criar fornecedor:', error); alert('Erro ao cadastrar: ' + error.message); return; }
+                auditLog({ sistema: 'requisicoes', acao: 'criar', entidade: 'fornecedor', entidade_label: String(n.nome || '') });
+              }}
+            />
           )}
 
           {abaAtiva === 'relatorio' && (() => {
@@ -895,5 +907,9 @@ export default function RequisicoesPage() {
   const { userProfile } = useAuth();
   const { temAcesso, loading: loadingPerm } = usePermissoes(userProfile?.id);
   if (!loadingPerm && userProfile && !temAcesso('requisicoes')) return <SemPermissao />;
-  return <RequisicoesPageInner />;
+  return (
+    <Suspense fallback={<div style={{ padding: '60px', textAlign: 'center', color: '#6b7280' }}>Carregando...</div>}>
+      <RequisicoesPageInner />
+    </Suspense>
+  );
 }

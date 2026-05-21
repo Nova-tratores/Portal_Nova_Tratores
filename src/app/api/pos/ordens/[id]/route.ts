@@ -270,6 +270,21 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ success: false, erro: `Erro ao salvar: ${error.message}` }, { status: 500 });
   }
 
+  // Se a OS acabou de ser concluída, registra a despesa de alimentação como Requisicao (fluxo padrão)
+  if (dados.status === "Concluída") {
+    try {
+      const { registrarAlimentacaoOS } = await import("@/lib/pos/alimentacao-os");
+      const alim = await registrarAlimentacaoOS(idOs);
+      if (alim.criada) {
+        console.log(`[alimentacao-os] OS ${idOs} → Requisicao #${alim.requisicaoId} criada (financeiro)`);
+      } else if (alim.motivoPulado) {
+        console.log(`[alimentacao-os] OS ${idOs} pulado: ${alim.motivoPulado}`);
+      }
+    } catch (e) {
+      console.error(`[alimentacao-os] OS ${idOs} falhou (ignorado):`, e instanceof Error ? e.message : e);
+    }
+  }
+
   // Servico_Interno via RPC (bypassa schema cache do PostgREST)
   if (dados.servicoInterno !== undefined) {
     await supabase.rpc('set_servico_interno', { p_id_ordem: idOs, p_valor: !!dados.servicoInterno });

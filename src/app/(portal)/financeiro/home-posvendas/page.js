@@ -13,6 +13,7 @@ import {
   FileText, Download, Eye, Calendar, CreditCard, User as UserIcon, Tag, Search, DollarSign, Upload, Barcode, Trash2, Paperclip, AlertCircle
 } from 'lucide-react'
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
+import { EnviarParaOmieBox } from '@/components/financeiro/OmieContaPagar'
 
 function AttachmentTag({ label, fileUrl, onUpload, disabled = false }) {
     const fileInputRef = useRef(null);
@@ -323,19 +324,36 @@ function HomePosVendasContent() {
               <div style={colHeaderStyle}>REQUISICOES</div>
               {listaPagar.map((t) => (
                 <div key={`pag-${t.id}`} onClick={() => setTarefaSelecionada(t)} className="task-card">
-                  <div style={{ background: 'var(--portal-bg-card)', padding: '25px', borderBottom: '1px solid var(--portal-border)' }}>
-                    <div style={{fontSize: '10px', color: 'var(--portal-text-secondary)', letterSpacing:'1px', marginBottom: '8px', textTransform:'uppercase'}}>{t.metodo || 'Despesa'}</div>
-                    <span style={{fontSize:'18px', color:'var(--portal-text)', display:'block', lineHeight: '1.2'}}>{t.fornecedor?.toUpperCase()}</span>
-                    {(getRequisicoes(t).filter(r => r.numero).length > 0 || t.anexo_requisicao) && (
-                      <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                        {t.anexo_requisicao && t.anexo_requisicao.split(',').filter(u => u.trim()).map((_, i) => (
-                          <span key={`old-${i}`} style={{ background: '#fef3c7', color: '#92400e', fontSize: '10px', fontWeight: '600', padding: '4px 8px', border: '1px solid #fcd34d', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}><Paperclip size={10}/> Req {i + 1}</span>
-                        ))}
-                        {getRequisicoes(t).filter(r => r.numero).map((req, i) => (
-                          <span key={i} style={{ background: '#fef2f2', color: '#dc2626', fontSize: '10px', fontWeight: '600', padding: '4px 8px', border: '1px solid #fca5a5', borderRadius: '4px' }}>#{req.numero}</span>
-                        ))}
-                      </div>
-                    )}
+                  <div style={{ background: 'var(--portal-bg-card)', padding: '25px', borderBottom: '1px solid var(--portal-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{fontSize: '10px', color: 'var(--portal-text-secondary)', letterSpacing:'1px', marginBottom: '8px', textTransform:'uppercase'}}>{t.metodo || 'Despesa'}</div>
+                      <span style={{fontSize:'18px', color:'var(--portal-text)', display:'block', lineHeight: '1.2'}}>{t.fornecedor?.toUpperCase()}</span>
+                      {(getRequisicoes(t).filter(r => r.numero).length > 0 || t.anexo_requisicao) && (
+                        <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                          {t.anexo_requisicao && t.anexo_requisicao.split(',').filter(u => u.trim()).map((_, i) => (
+                            <span key={`old-${i}`} style={{ background: '#fef3c7', color: '#92400e', fontSize: '10px', fontWeight: '600', padding: '4px 8px', border: '1px solid #fcd34d', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}><Paperclip size={10}/> Req {i + 1}</span>
+                          ))}
+                          {getRequisicoes(t).filter(r => r.numero).map((req, i) => (
+                            <span key={i} style={{ background: '#fef2f2', color: '#dc2626', fontSize: '10px', fontWeight: '600', padding: '4px 8px', border: '1px solid #fca5a5', borderRadius: '4px' }}>#{req.numero}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div
+                      title={t.omie_cod_lancamento ? `Lançado no Omie nº ${t.omie_cod_lancamento}` : 'Clique no card para validar e enviar ao Omie'}
+                      style={{
+                        flexShrink: 0,
+                        display: 'flex', alignItems: 'center', gap: '5px',
+                        background: t.omie_cod_lancamento ? '#dcfce7' : '#eff6ff',
+                        border: `1px solid ${t.omie_cod_lancamento ? '#86efac' : '#bfdbfe'}`,
+                        color: t.omie_cod_lancamento ? '#15803d' : '#2563eb',
+                        fontSize: '10px', fontWeight: 700, letterSpacing: '0.5px',
+                        padding: '6px 10px', borderRadius: '8px', whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {t.omie_cod_lancamento ? <CheckCircle size={11} /> : <Send size={11} />}
+                      OMIE
+                    </div>
                   </div>
                   <div style={{ padding: '25px', background: 'var(--portal-bg-secondary)' }}>
                     <div style={{display:'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom:'15px'}}>
@@ -407,6 +425,14 @@ function HomePosVendasContent() {
 
               <div style={{marginTop: '35px'}}>
                   <h2 style={{fontSize:'32px', fontWeight:'400', margin:0, letterSpacing: '-1px', color:'var(--portal-text)', lineHeight: '1.1'}}>{tarefaSelecionada.nom_cliente || tarefaSelecionada.fornecedor || tarefaSelecionada.funcionario || tarefaSelecionada.cliente}</h2>
+
+                  {/* INTEGRACAO OMIE — posicionada logo após o título pra ficar imediatamente visível */}
+                  {tarefaSelecionada.gTipo === 'pagar' && (
+                    <EnviarParaOmieBox
+                      finanPagar={tarefaSelecionada}
+                      onSynced={(patch) => { setTarefaSelecionada(prev => ({ ...prev, ...patch })); carregarDados(); }}
+                    />
+                  )}
 
                   <div style={{display:'flex', gap:'30px', marginTop:'40px', marginBottom:'45px'}}>
                       <div style={fieldBoxModal}>
