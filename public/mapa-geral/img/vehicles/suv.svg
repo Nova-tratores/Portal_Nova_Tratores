@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 130 65" fill="none">
+  <path d="M12 42 L18 42 L22 18 C23 13 28 9 34 9 L88 9 C94 9 99 13 100 18 L104 42 L118 42 C121 42 123 44 123 47 L123 52 C123 55 121 57 118 57 L108 57 C106 57 104 55 104 52 L26 52 C26 55 24 57 22 57 L12 57 C9 57 7 55 7 52 L7 47 C7 44 9 42 12 42Z" fill="white" opacity="0.9"/>
+  <circle cx="28" cy="55" r="8" fill="white" opacity="0.6" stroke="white" stroke-opacity="0.9" stroke-width="2"/>
+  <circle cx="102" cy="55" r="8" fill="white" opacity="0.6" stroke="white" stroke-opacity="0.9" stroke-width="2"/>
+  <path d="M26 18 L30 10 C32 8 36 7 40 7 L82 7 C86 7 90 8 92 10 L96 18 Z" fill="white" opacity="0.5"/>
+  <line x1="55" y1="7" x2="55" y2="18" stroke="white" stroke-opacity="0.4" stroke-width="1"/>
+  <line x1="72" y1="7" x2="72" y2="18" stroke="white" stroke-opacity="0.4" stroke-width="1"/>
+  <rect x="14" y="38" width="12" height="4" rx="2" fill="white" opacity="0.5"/>
+  <rect x="104" y="38" width="12" height="4" rx="2" fill="white" opacity="0.5"/>
+</svg>

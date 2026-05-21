@@ -186,6 +186,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
       .catch(() => setServicoNumero(0));
   }, [tecnico1, osId]);
 
+
   // Carregar listas para dropdown de substituto
   useEffect(() => {
     if (!temSubstituto) return;
