@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { 
   Store, Phone, Hash, FileText, CheckCircle2, 
@@ -7,11 +7,12 @@ import {
   Fingerprint 
 } from 'lucide-react';
 
-export default function FormFornecedor({ onSave }: { onSave: any }) {
+export default function FormFornecedor({ onSave, editarId }: { onSave: any; editarId?: string | null }) {
   const [fornecedores, setFornecedores] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [editando, setEditando] = useState<any>(null);
   const [filtro, setFiltro] = useState('');
+  const autoEditConsumidoRef = useRef(false);
 
   const [formData, setFormData] = useState({
     nome: '',
@@ -27,7 +28,7 @@ export default function FormFornecedor({ onSave }: { onSave: any }) {
       .from('Fornecedores')
       .select('*')
       .order('nome', { ascending: true });
-    
+
     if (!error && data) setFornecedores(data);
     setLoading(false);
   };
@@ -47,6 +48,17 @@ export default function FormFornecedor({ onSave }: { onSave: any }) {
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  // Auto-edição via query param (?editar=<id>) — consome só uma vez.
+  useEffect(() => {
+    if (autoEditConsumidoRef.current) return;
+    if (!editarId || fornecedores.length === 0) return;
+    const alvo = fornecedores.find(f => String(f.id) === String(editarId));
+    if (alvo) {
+      iniciarEdicao(alvo);
+      autoEditConsumidoRef.current = true;
+    }
+  }, [editarId, fornecedores]);
 
   const cancelarEdicao = () => {
     setEditando(null);

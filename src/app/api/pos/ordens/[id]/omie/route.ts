@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
 import { TBL_OS, TBL_LOGS_PPO } from "@/lib/pos/constants";
 import { criarOSNoOmie } from "@/lib/pos/omie";
+import { registrarAlimentacaoOS } from "@/lib/pos/alimentacao-os";
 import { logAndNotify } from "@/lib/server/audit-notify";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -21,6 +22,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     // Move para Concluída automaticamente
     await supabase.from(TBL_OS).update({ Status: "Concluída" }).eq("Id_Ordem", idOs);
+
+    // Registra despesa de alimentação automaticamente como Requisicao (fluxo padrão)
+    try {
+      const alim = await registrarAlimentacaoOS(idOs);
+      if (alim.criada) {
+        console.log(`[alimentacao-os] OS ${idOs} → Requisicao #${alim.requisicaoId} criada (financeiro)`);
+      } else if (alim.motivoPulado) {
+        console.log(`[alimentacao-os] OS ${idOs} pulado: ${alim.motivoPulado}`);
+      }
+    } catch (e) {
+      console.error(`[alimentacao-os] OS ${idOs} falhou (ignorado):`, e instanceof Error ? e.message : e);
+    }
 
     await supabase.from(TBL_LOGS_PPO).insert({
       Id_ppo: idOs, Data_Acao: dataFmt, Hora_Acao: horaFmt,
