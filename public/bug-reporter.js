@@ -841,6 +841,17 @@
   // Eventos globais
   // ============================================================
   function onContextMenu(e) {
+    // mantem o menu nativo do navegador quando o clique direito for em
+    // cima de uma imagem (permite "salvar imagem como") ou de qualquer
+    // elemento marcado com o atributo data-bug-reporter-ignore.
+    var alvo = e.target;
+    if (
+      alvo &&
+      alvo.closest &&
+      alvo.closest("img, [data-bug-reporter-ignore]")
+    ) {
+      return;
+    }
     e.preventDefault();
     if (phase !== "idle") return;
     openMenu(e.clientX, e.clientY);
