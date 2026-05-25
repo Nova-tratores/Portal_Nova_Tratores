@@ -10,7 +10,7 @@ import {
   DollarSign, Package, Menu, X, User as UserIcon,
   LayoutDashboard, Bell, ChevronRight, Activity, Lock, MessageCircle,
   CheckCheck, Trash2, ExternalLink, Calendar, Users, Calculator, BarChart3, Eye, Camera, Wheat, Megaphone,
-  Sun, Moon, Volume2, Check, MapPin
+  Sun, Moon, Volume2, Check, MapPin, ShieldCheck
 } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -76,6 +76,14 @@ const navItems: NavItem[] = [
     icon: <Package size={18} />,
     tag: 'PEÇAS',
     gradient: 'linear-gradient(135deg, #ef4444, #b91c1c)'
+  },
+  {
+    id: 'garantias',
+    name: 'Garantias',
+    href: '/garantias',
+    icon: <ShieldCheck size={18} />,
+    tag: 'GARANTIAS',
+    gradient: 'linear-gradient(135deg, #dc2626, #7f1d1d)'
   },
   {
     id: 'propostas',
@@ -172,6 +180,7 @@ const NOTIF_ICONS: Record<string, string> = {
   revisao: '🔧',
   pos: '⚙️',
   ppv: '🛡️',
+  garantia: '🛡️',
   proposta: '📄',
   admin: '🔒',
   sistema: '🔔',

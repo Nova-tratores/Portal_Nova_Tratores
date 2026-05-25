@@ -15,6 +15,7 @@ const MODULOS = [
   { id: 'revisoes', label: 'Revisões', color: '#b91c1c' },
   { id: 'pos', label: 'Pós-Vendas', color: '#dc2626' },
   { id: 'ppv', label: 'Peças (PPV)', color: '#ef4444' },
+  { id: 'garantias', label: 'Garantias', color: '#0ea5e9' },
   { id: 'propostas', label: 'Propostas', color: '#991b1b' },
   { id: 'orcamentos', label: 'Orçamentos', color: '#ef4444' },
   { id: 'tarefas', label: 'Tarefas', color: '#dc2626' },

@@ -5,6 +5,7 @@ import { VALOR_HORA, VALOR_KM, TEXT_TEMPLATE, PHASES } from "@/lib/pos/constants
 import type { ClienteOption, ClienteDados, Produto } from "@/lib/pos/types";
 import SearchModal from "./SearchModal";
 import LogPanel from "./LogPanel";
+import OSGarantiaInfo from "@/components/garantias/OSGarantiaInfo";
 
 interface OSDrawerProps {
   visible: boolean;
@@ -773,6 +774,14 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                           <i className="fas fa-check-circle" /> Enviado para Omie (ID: {ordemOmie})
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {/* ── Garantia vinculada ── */}
+                  {mode === "edit" && osId && (
+                    <div className="os-card">
+                      <div className="os-card-title"><i className="fas fa-shield-halved" /> Garantia</div>
+                      <OSGarantiaInfo osId={osId} />
                     </div>
                   )}
 
