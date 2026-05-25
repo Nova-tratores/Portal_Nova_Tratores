@@ -11,13 +11,20 @@ interface HeaderProps {
   onSync?: () => Promise<void>;
   onLembretes?: () => void;
   tecnicos?: string[];
+  valorHora: number;
+  valorKm: number;
+  onConfigSaved?: (valorHora: number, valorKm: number) => void;
 }
 
-export default function Header({ searchTerm, onSearch, onNewOS, onNewClient, onGenerateReport, onSync, onLembretes, tecnicos = [] }: HeaderProps) {
+export default function Header({ searchTerm, onSearch, onNewOS, onNewClient, onGenerateReport, onSync, onLembretes, tecnicos = [], valorHora, valorKm, onConfigSaved }: HeaderProps) {
   const [syncing, setSyncing] = useState(false);
   const [showFiltroRelatorio, setShowFiltroRelatorio] = useState(false);
   const [filtroTecnico, setFiltroTecnico] = useState("todos");
   const [filtroTipo, setFiltroTipo] = useState("todas");
+  const [showConfig, setShowConfig] = useState(false);
+  const [cfgHora, setCfgHora] = useState(valorHora);
+  const [cfgKm, setCfgKm] = useState(valorKm);
+  const [salvando, setSalvando] = useState(false);
 
   const handleSync = async () => {
     if (!onSync || syncing) return;
@@ -32,6 +39,34 @@ export default function Header({ searchTerm, onSearch, onNewOS, onNewClient, onG
   const handleGerar = () => {
     setShowFiltroRelatorio(false);
     onGenerateReport({ tecnico: filtroTecnico, tipo: filtroTipo });
+  };
+
+  const handleOpenConfig = () => {
+    setCfgHora(valorHora);
+    setCfgKm(valorKm);
+    setShowConfig(true);
+  };
+
+  const handleSalvarConfig = async () => {
+    setSalvando(true);
+    try {
+      const res = await fetch("/api/pos/configuracoes", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ valor_hora: cfgHora, valor_km: cfgKm }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.erro || "Erro ao salvar");
+        return;
+      }
+      onConfigSaved?.(cfgHora, cfgKm);
+      setShowConfig(false);
+    } catch {
+      alert("Erro ao salvar configurações");
+    } finally {
+      setSalvando(false);
+    }
   };
 
   return (
@@ -53,6 +88,7 @@ export default function Header({ searchTerm, onSearch, onNewOS, onNewClient, onG
           <button className="btn-top btn-report" onClick={() => setShowFiltroRelatorio(true)}><i className="fas fa-file-invoice" /> GERAR RELATÓRIO</button>
           <button className="btn-top btn-cli" onClick={onNewClient}><i className="fas fa-user-plus" /> CRIAR CLIENTE</button>
           <button className="btn-top btn-new" onClick={onNewOS}><i className="fas fa-plus" /> NOVA ORDEM</button>
+          <button className="btn-top btn-report" onClick={handleOpenConfig} title="Configurações de valores"><i className="fas fa-cog" /></button>
         </div>
       </header>
 
@@ -146,6 +182,84 @@ export default function Header({ searchTerm, onSearch, onNewOS, onNewClient, onG
               >
                 <i className="fas fa-file-invoice" style={{ marginRight: 6 }} />
                 Gerar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showConfig && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}
+          onClick={() => setShowConfig(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "var(--portal-bg-card)", borderRadius: 16, padding: 32, width: 420, maxWidth: "90vw",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+              color: "var(--portal-text)",
+            }}
+          >
+            <h3 style={{ margin: "0 0 24px", fontSize: 18, fontWeight: 700, color: "var(--portal-text)" }}>
+              <i className="fas fa-cog" style={{ marginRight: 8, color: "#6366F1" }} />
+              Configurações de Valores
+            </h3>
+
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#64748B", textTransform: "uppercase", marginBottom: 8 }}>
+                Valor da Hora (R$)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={cfgHora}
+                onChange={(e) => setCfgHora(parseFloat(e.target.value) || 0)}
+                style={{
+                  width: "100%", padding: "10px 14px", borderRadius: 8, border: "1px solid #E2E8F0",
+                  fontSize: 14, color: "#1E293B", background: "#F8FAFC", boxSizing: "border-box",
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: 28 }}>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#64748B", textTransform: "uppercase", marginBottom: 8 }}>
+                Valor do KM (R$)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={cfgKm}
+                onChange={(e) => setCfgKm(parseFloat(e.target.value) || 0)}
+                style={{
+                  width: "100%", padding: "10px 14px", borderRadius: 8, border: "1px solid #E2E8F0",
+                  fontSize: 14, color: "#1E293B", background: "#F8FAFC", boxSizing: "border-box",
+                }}
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                onClick={() => setShowConfig(false)}
+                style={{
+                  flex: 1, padding: "12px", borderRadius: 10, border: "1px solid #E2E8F0",
+                  background: "#fff", color: "#64748B", fontWeight: 600, fontSize: 14, cursor: "pointer",
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSalvarConfig}
+                disabled={salvando}
+                style={{
+                  flex: 1, padding: "12px", borderRadius: 10, border: "none",
+                  background: "#1E293B", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer",
+                  opacity: salvando ? 0.6 : 1,
+                }}
+              >
+                <i className="fas fa-save" style={{ marginRight: 6 }} />
+                {salvando ? "Salvando..." : "Salvar"}
               </button>
             </div>
           </div>

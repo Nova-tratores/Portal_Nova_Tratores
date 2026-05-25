@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
-import { TBL_OS, TBL_LOGS_PPO, TBL_METRICAS, VALOR_HORA, VALOR_KM, TBL_ITENS, TBL_REQ_SOL, TBL_REQ_ATT, TBL_PEDIDOS, FASES_CONTADOR_PARADO } from "@/lib/pos/constants";
+import { TBL_OS, TBL_LOGS_PPO, TBL_METRICAS, TBL_ITENS, TBL_REQ_SOL, TBL_REQ_ATT, TBL_PEDIDOS, FASES_CONTADOR_PARADO } from "@/lib/pos/constants";
+import { getConfigPOS } from "@/lib/pos/config";
 import { formatarDataBR, safeGet } from "@/lib/pos/utils";
 import { sincronizarStatusPPV } from "@/lib/pos/sync-ppv";
 import { logAndNotify } from "@/lib/server/audit-notify";
@@ -283,11 +284,12 @@ async function buscarProdutosPorPPV(idPPVInput: string) {
 }
 
 async function calcularTotais(dados: { qtdHoras: number; qtdKm: number; ppv: string; descontoValor: number }) {
+  const config = await getConfigPOS();
   const produtos = await buscarProdutosPorPPV(dados.ppv);
   let vPecas = 0;
   produtos.forEach((p) => { vPecas += p.valor * p.qtde; });
-  const vHoras = (dados.qtdHoras || 0) * VALOR_HORA;
-  const vKm = (dados.qtdKm || 0) * VALOR_KM;
+  const vHoras = (dados.qtdHoras || 0) * config.valor_hora;
+  const vKm = (dados.qtdKm || 0) * config.valor_km;
   let vReq = 0;
   if (dados.ppv) {
     const ids = String(dados.ppv).split(",").map((s) => s.trim()).filter(Boolean);
@@ -382,6 +384,7 @@ export async function POST(req: NextRequest) {
   }
 
   const c = await calcularTotais({ qtdHoras: parseFloat(dados.qtdHoras || 0), qtdKm: parseFloat(dados.qtdKm || 0), ppv: ppvFinal, descontoValor: parseFloat(dados.descontoValor || 0) });
+  const configPost = await getConfigPOS();
 
   const baseInsert: Record<string, unknown> = {
     Id_Ordem: newId, Status: "Orçamento", Data: new Date().toISOString().split("T")[0],
@@ -389,7 +392,7 @@ export async function POST(req: NextRequest) {
     Os_Tecnico: dados.tecnicoResponsavel, Os_Tecnico2: dados.tecnico2,
     Tipo_Servico: dados.tipoServico, Revisao: dados.revisao, Projeto: dados.projeto,
     Serv_Solicitado: dados.servicoSolicitado, Qtd_HR: parseFloat(dados.qtdHoras || 0),
-    Valor_HR: VALOR_HORA, Qtd_KM: parseFloat(dados.qtdKm || 0), Valor_KM: VALOR_KM,
+    Valor_HR: configPost.valor_hora, Qtd_KM: parseFloat(dados.qtdKm || 0), Valor_KM: configPost.valor_km,
     Valor_Total: c.total, ID_PPV: ppvFinal, Desconto: parseFloat(dados.descontoValor || 0),
     Desconto_Hora: parseFloat(dados.descontoHora || 0),
     Desconto_KM: parseFloat(dados.descontoKm || 0),

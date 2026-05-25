@@ -15,6 +15,8 @@ interface OSDrawerProps {
   userName?: string;
   onClose: () => void;
   onSaved: () => void;
+  valorHora?: number;
+  valorKm?: number;
 }
 
 /* ── Inline style constants (avoid new refs each render) ── */
@@ -58,7 +60,9 @@ function horaAtualBR() {
   return `${String(br.getHours()).padStart(2, '0')}:${String(br.getMinutes()).padStart(2, '0')}`;
 }
 
-export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, userName, onClose, onSaved }: OSDrawerProps) {
+export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, userName, onClose, onSaved, valorHora: propValorHora, valorKm: propValorKm }: OSDrawerProps) {
+  const VH = propValorHora ?? VALOR_HORA;
+  const VK = propValorKm ?? VALOR_KM;
   const [clienteChave, setClienteChave] = useState("");
   const [clienteInfo, setClienteInfo] = useState<ClienteDados | null>(null);
   const [status, setStatus] = useState("Orçamento");
@@ -203,8 +207,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   }, [temSubstituto, substitutoTipo]);
 
   // ── Derived values (useMemo) ──
-  const subtotalHoras = qtdHoras * VALOR_HORA;
-  const subtotalKm = qtdKm * VALOR_KM;
+  const subtotalHoras = qtdHoras * VH;
+  const subtotalKm = qtdKm * VK;
   const subtotalBruto = subtotalHoras + subtotalKm + totalPecas;
 
   const totalRequisicoes = useMemo(() => requisicoes.reduce((s, r) => s + (r.valor || 0), 0), [requisicoes]);
@@ -483,7 +487,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
           setDescValor(dv);
           setDescHoraValor(dh);
           setDescKmValor(dk);
-          const sub = (d.qtdHoras || 0) * VALOR_HORA + (d.qtdKm || 0) * VALOR_KM;
+          const sub = (d.qtdHoras || 0) * VH + (d.qtdKm || 0) * VK;
           setDescPorc(sub > 0 ? parseFloat(((dv / sub) * 100).toFixed(2)) : 0);
           setOrdemOmie(d.ordemOmie || ""); setMotivoCancel(d.motivoCancelamento || "");
           setTemSubstituto(!!(d.substitutoTipo && d.substitutoId));
@@ -1272,12 +1276,12 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                       <div>
                         <label>Qtd. Horas</label>
                         <input type="number" value={qtdHoras} onChange={(e) => handleQtdHorasChange(parseFloat(e.target.value || "0"))} style={S_MB0} />
-                        <div className="os-field-hint">x R$ {VALOR_HORA.toFixed(2)} = R$ {subtotalHoras.toFixed(2)}</div>
+                        <div className="os-field-hint">x R$ {VH.toFixed(2)} = R$ {subtotalHoras.toFixed(2)}</div>
                       </div>
                       <div>
                         <label>Qtd. KM</label>
                         <input type="number" value={qtdKm} onChange={(e) => setQtdKm(parseFloat(e.target.value || "0"))} style={S_MB0} />
-                        <div className="os-field-hint">x R$ {VALOR_KM.toFixed(2)} = R$ {subtotalKm.toFixed(2)}</div>
+                        <div className="os-field-hint">x R$ {VK.toFixed(2)} = R$ {subtotalKm.toFixed(2)}</div>
                       </div>
                     </div>
 

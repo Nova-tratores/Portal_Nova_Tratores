@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
-import { TBL_OS, TBL_LOGS_PPO, TBL_REQ_SOL, TBL_REQ_ATT, TBL_ITENS, VALOR_HORA, VALOR_KM } from "@/lib/pos/constants";
+import { TBL_OS, TBL_LOGS_PPO, TBL_REQ_SOL, TBL_REQ_ATT, TBL_ITENS } from "@/lib/pos/constants";
+import { getConfigPOS } from "@/lib/pos/config";
 import { formatarDataBR, safeGet } from "@/lib/pos/utils";
 import { sincronizarStatusPPV } from "@/lib/pos/sync-ppv";
 import { logAndNotify } from "@/lib/server/audit-notify";
@@ -227,8 +228,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
   }
 
-  const vHoras = parseFloat(dados.qtdHoras || 0) * VALOR_HORA;
-  const vKm = parseFloat(dados.qtdKm || 0) * VALOR_KM;
+  const configPatch = await getConfigPOS();
+  const vHoras = parseFloat(dados.qtdHoras || 0) * configPatch.valor_hora;
+  const vKm = parseFloat(dados.qtdKm || 0) * configPatch.valor_km;
   const desc = parseFloat(dados.descontoValor || 0);
   const descHora = parseFloat(dados.descontoHora || 0);
   const descKm = parseFloat(dados.descontoKm || 0);

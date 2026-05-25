@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
-import { TBL_OS, TBL_ITENS, TBL_REQ_SOL, TBL_REQ_ATT, TBL_PEDIDOS, VALOR_HORA, VALOR_KM } from "@/lib/pos/constants";
+import { TBL_OS, TBL_ITENS, TBL_REQ_SOL, TBL_REQ_ATT, TBL_PEDIDOS } from "@/lib/pos/constants";
+import { getConfigPOS } from "@/lib/pos/config";
 import { formatarDataBR, safeGet } from "@/lib/pos/utils";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -40,8 +41,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const descontoKm = parseFloat(String(safeGet(row, "Desconto_KM") || 0));
   const valorTotal = parseFloat(String(safeGet(row, "Valor_Total") || 0));
 
-  const vHoras = qtdHoras * VALOR_HORA;
-  const vKm = qtdKm * VALOR_KM;
+  const configPrint = await getConfigPOS();
+  const vHoras = qtdHoras * configPrint.valor_hora;
+  const vKm = qtdKm * configPrint.valor_km;
 
   // Alimentação
   const alimentacaoTecnico = !!safeGet(row, "Alimentacao_Tecnico");

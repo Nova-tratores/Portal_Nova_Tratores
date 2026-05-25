@@ -20,6 +20,8 @@ function PosPageInner() {
   const [tecnicos, setTecnicos] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
+  const [valorHora, setValorHora] = useState(193);
+  const [valorKm, setValorKm] = useState(2.8);
 
   // Drawer states
   const [drawerVisible, setDrawerVisible] = useState(false);
@@ -66,14 +68,27 @@ function PosPageInner() {
     }
   }, []);
 
+  const fetchConfig = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const res = await fetch("/api/pos/configuracoes", { signal });
+      if (!res.ok) return;
+      const data = await res.json();
+      setValorHora(data.valor_hora);
+      setValorKm(data.valor_km);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+    }
+  }, []);
+
   // Fetch inicial — ordens primeiro (prioridade), resto em background
   useEffect(() => {
     const ac = new AbortController();
     fetchOrders(ac.signal);
     fetchClientes(ac.signal);
     fetchTecnicos(ac.signal);
+    fetchConfig(ac.signal);
     return () => ac.abort();
-  }, [fetchOrders, fetchClientes, fetchTecnicos]);
+  }, [fetchOrders, fetchClientes, fetchTecnicos, fetchConfig]);
 
   // Auto-sync every 60 seconds
   useEffect(() => {
@@ -181,6 +196,9 @@ function PosPageInner() {
         onSync={handleSync}
         onLembretes={() => setLembretesVisible(true)}
         tecnicos={tecnicos}
+        valorHora={valorHora}
+        valorKm={valorKm}
+        onConfigSaved={(h, k) => { setValorHora(h); setValorKm(k); }}
       />
       <PhaseAccordion
         orders={orders}
@@ -199,6 +217,8 @@ function PosPageInner() {
           userName={userProfile?.nome || ""}
           onClose={handleDrawerClose}
           onSaved={handleSaved}
+          valorHora={valorHora}
+          valorKm={valorKm}
         />
       )}
 
