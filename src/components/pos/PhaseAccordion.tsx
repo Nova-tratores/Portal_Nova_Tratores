@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useMemo, memo, useCallback } from "react";
+import { useState, useMemo, memo, useCallback, useEffect } from "react";
 import { PHASES } from "@/lib/pos/constants";
 import { diasEntre } from "@/lib/pos/utils";
 import type { KanbanCard } from "@/lib/pos/types";
+import { STATUS_COR, STATUS_LABEL } from "@/lib/garantias/constants";
+import type { GarantiaStatus } from "@/lib/garantias/types";
 
 interface PhaseViewProps {
   orders: KanbanCard[];
@@ -53,7 +55,7 @@ function formatDateBR(dateStr: string): string {
   return dateStr;
 }
 
-const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChange }: { order: KanbanCard; color: string; onClick: () => void; onPhaseChange?: (orderId: string, newPhase: string) => void }) {
+const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChange, garantiaStatus }: { order: KanbanCard; color: string; onClick: () => void; onPhaseChange?: (orderId: string, newPhase: string) => void; garantiaStatus?: GarantiaStatus }) {
   const diasFase = diasEntre(o.dataFase);
   const borderStyle = useMemo(() => ({ borderLeftColor: color }), [color]);
 
@@ -139,6 +141,20 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
               </div>
             )}
           </span>
+
+          {/* Ícone GARANTIA — tooltip no hover */}
+          <span className="mc-icon-wrap" onClick={(e) => e.stopPropagation()}>
+            <i className="fas fa-shield-halved" style={{ color: garantiaStatus ? (STATUS_COR[garantiaStatus] || "#1E3A5F") : "var(--border)" }} />
+            {garantiaStatus && (
+              <div className="mc-tooltip">
+                <div className="mc-tooltip-arrow" />
+                <div style={{ fontSize: 9, fontWeight: 700, color: "#38bdf8", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>
+                  Garantia
+                </div>
+                <div style={{ color: "#e2e8f0", fontSize: 12 }}>{STATUS_LABEL[garantiaStatus]}</div>
+              </div>
+            )}
+          </span>
         </span>
       </div>
     </div>
@@ -150,6 +166,21 @@ const COLLAPSED_DEFAULT = new Set(["Concluída", "Cancelada"]);
 export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChange }: PhaseViewProps) {
   const [activePhase, setActivePhase] = useState<string>("");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set(COLLAPSED_DEFAULT));
+  const [garantiaMap, setGarantiaMap] = useState<Record<string, GarantiaStatus>>({});
+
+  // Carrega quais OS têm garantia (para o ícone de escudo no card)
+  useEffect(() => {
+    fetch("/api/garantias")
+      .then((r) => r.json())
+      .then((d) => {
+        const m: Record<string, GarantiaStatus> = {};
+        for (const g of d.garantias || []) {
+          if (g.id_ordem && !m[g.id_ordem]) m[g.id_ordem] = g.status;
+        }
+        setGarantiaMap(m);
+      })
+      .catch(() => {});
+  }, []);
 
   const toggleCollapse = useCallback((phase: string) => {
     setCollapsed((prev) => {
@@ -236,6 +267,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
                 color={PHASE_COLORS[o.status] || "#64748B"}
                 onClick={() => handleCardClick(o)}
                 onPhaseChange={onPhaseChange}
+                garantiaStatus={garantiaMap[o.id]}
               />
             ))}
             {filtered.length === 0 && (
@@ -264,6 +296,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
                       color={PHASE_COLORS[phase] || "#64748B"}
                       onClick={() => handleCardClick(o)}
                       onPhaseChange={onPhaseChange}
+                      garantiaStatus={garantiaMap[o.id]}
                     />
                   ))}
                 </div>

@@ -8,6 +8,7 @@ import {
   AlertOctagon, Check, Truck, MessageSquare, Star, ChevronDown, ChevronUp,
   Megaphone, Download
 } from 'lucide-react'
+import MinhasGarantias from '@/components/meu-painel/MinhasGarantias'
 
 interface AgendaItem {
   id: number
@@ -947,6 +948,9 @@ export default function MeuPainelPage() {
             <p style={{ fontSize: 14, color: '#94A3B8', fontWeight: 500, margin: 0 }}>Tudo em dia! Nenhuma pendência.</p>
           </div>
         )}
+
+        {/* ════════════ MINHAS GARANTIAS ════════════ */}
+        {tecnicoNome && <MinhasGarantias tecnicoNome={tecnicoNome} />}
 
       </div>
     </div>

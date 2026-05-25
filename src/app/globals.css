@@ -5,6 +5,10 @@
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
+/* Utilitário global de rotação (usado pelo módulo de Garantias) */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 1s linear infinite; }
+
 /* ===== Portal Theme Variables ===== */
 :root {
   --portal-bg: #fafafa;
