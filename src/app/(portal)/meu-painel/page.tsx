@@ -44,6 +44,8 @@ interface Caminho {
   motivo: string
   data_saida: string
   status: string
+  adesao_id: number | null
+  placa: string | null
 }
 
 interface Execucao {
@@ -127,7 +129,9 @@ export default function MeuPainelPage() {
   const [justificativas, setJustificativas] = useState<Justificativa[]>([])
   const [loading, setLoading] = useState(true)
   const [showCaminhoForm, setShowCaminhoForm] = useState(false)
-  const [novoCaminho, setNovoCaminho] = useState({ destino: '', cidade: '', motivo: '' })
+  const [novoCaminho, setNovoCaminho] = useState({ destino: '', cidade: '', motivo: '', adesao_id: '', placa: '' })
+  const [veiculosDisponiveis, setVeiculosDisponiveis] = useState<{ id: number; placa: string; descricao: string }[]>([])
+  const [loadingVeiculos, setLoadingVeiculos] = useState(false)
   const [showJustForm, setShowJustForm] = useState<number | null>(null)
   const [justTexto, setJustTexto] = useState('')
   const [semanaRef, setSemanaRef] = useState(new Date())
@@ -263,6 +267,19 @@ export default function MeuPainelPage() {
   }
 
   // ─── Actions ──────────────────────────────────────────────────
+  const carregarVeiculos = async () => {
+    if (veiculosDisponiveis.length > 0) return
+    setLoadingVeiculos(true)
+    try {
+      const res = await fetch('/api/pos/rastreamento?acao=veiculos')
+      if (res.ok) {
+        const data = await res.json()
+        setVeiculosDisponiveis(data)
+      }
+    } catch (e) { console.error('Erro ao carregar veículos:', e) }
+    setLoadingVeiculos(false)
+  }
+
   const salvarCaminho = async () => {
     if (!tecnicoNome || !novoCaminho.destino || !novoCaminho.cidade) return
     await supabase.from('tecnico_caminhos').insert({
@@ -270,14 +287,16 @@ export default function MeuPainelPage() {
       destino: novoCaminho.destino,
       cidade: novoCaminho.cidade,
       motivo: novoCaminho.motivo,
+      adesao_id: novoCaminho.adesao_id ? Number(novoCaminho.adesao_id) : null,
+      placa: novoCaminho.placa || null,
       status: 'em_transito',
     })
     await notificarAdmins(
       'pos',
       `${tecnicoNome} - Novo caminho`,
-      `Indo para ${novoCaminho.destino} (${novoCaminho.cidade})${novoCaminho.motivo ? ` - ${novoCaminho.motivo}` : ''}`
+      `Indo para ${novoCaminho.destino} (${novoCaminho.cidade})${novoCaminho.placa ? ` | ${novoCaminho.placa}` : ''}${novoCaminho.motivo ? ` - ${novoCaminho.motivo}` : ''}`
     )
-    setNovoCaminho({ destino: '', cidade: '', motivo: '' })
+    setNovoCaminho({ destino: '', cidade: '', motivo: '', adesao_id: '', placa: '' })
     setShowCaminhoForm(false)
     carregar()
   }
@@ -539,6 +558,11 @@ export default function MeuPainelPage() {
             <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4, position: 'relative', zIndex: 1 }}>
               <MapPin size={12} /> {caminhoAtivo.cidade}
             </div>
+            {caminhoAtivo.placa && (
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.9)', display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4, position: 'relative', zIndex: 1, background: 'rgba(255,255,255,0.15)', padding: '3px 10px', borderRadius: 6, width: 'fit-content' }}>
+                <Truck size={11} /> {caminhoAtivo.placa}
+              </div>
+            )}
             {caminhoAtivo.motivo && (
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 12, position: 'relative', zIndex: 1 }}>{caminhoAtivo.motivo}</div>
             )}
@@ -631,7 +655,7 @@ export default function MeuPainelPage() {
 
         {/* ════════════ REGISTRAR CAMINHO ════════════ */}
         {!showCaminhoForm ? (
-          <button onClick={() => setShowCaminhoForm(true)} style={{
+          <button onClick={() => { setShowCaminhoForm(true); carregarVeiculos() }} style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             width: '100%', padding: '14px 0', borderRadius: 14, border: 'none',
             background: 'linear-gradient(135deg, #7C3AED, #6D28D9)', color: '#fff',
@@ -682,6 +706,24 @@ export default function MeuPainelPage() {
                   fontSize: 14, boxSizing: 'border-box', background: '#F8FAFC', outline: 'none',
                 }}
               />
+              <select
+                value={novoCaminho.adesao_id}
+                onChange={e => {
+                  const vei = veiculosDisponiveis.find(v => String(v.id) === e.target.value)
+                  setNovoCaminho({ ...novoCaminho, adesao_id: e.target.value, placa: vei?.placa || '' })
+                }}
+                style={{
+                  width: '100%', padding: '12px 14px', borderRadius: 10, border: '1px solid #E2E8F0',
+                  fontSize: 14, boxSizing: 'border-box', background: '#F8FAFC', outline: 'none',
+                  color: novoCaminho.adesao_id ? '#1E293B' : '#94A3B8',
+                }}
+              >
+                <option value="">Qual carro vai usar?</option>
+                {loadingVeiculos && <option disabled>Carregando...</option>}
+                {veiculosDisponiveis.map(v => (
+                  <option key={v.id} value={v.id}>{v.placa} - {v.descricao || 'Sem descrição'}</option>
+                ))}
+              </select>
               <button onClick={salvarCaminho} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                 width: '100%', padding: '13px 0', borderRadius: 12, border: 'none',

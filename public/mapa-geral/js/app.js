@@ -113,6 +113,7 @@ const App = {
             ]);
 
             this.state.clientes = clientes;
+            await this._aplicarTecnicosVeiculos(veiculos);
             this.state.veiculos = veiculos;
             this.state.vendedores = vendedores;
 
@@ -219,6 +220,7 @@ const App = {
     async refreshVehicles() {
         try {
             const veiculos = await Utils.fetchJson('/api/veiculos');
+            await this._aplicarTecnicosVeiculos(veiculos);
             this.state.veiculos = veiculos;
             Markers.renderVehicles(veiculos);
             Markers.renderParadas(veiculos);
@@ -228,6 +230,61 @@ const App = {
             const filtered = Markers.filterClients(this.state.clientes);
             Markers.renderClients(filtered);
         } catch (e) { /* silent */ }
+    },
+
+    // Cruza tecnico_caminhos do dia + tecnico_veiculos com veiculos para mostrar nome do tecnico
+    _getSupabase() {
+        if (typeof _supabase !== 'undefined') return _supabase;
+        if (window.supabase) {
+            return window.supabase.createClient(
+                'https://citrhumdkfivdzbmayde.supabase.co',
+                'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpdHJodW1ka2ZpdmR6Ym1heWRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxMDgyNzUsImV4cCI6MjA4NDY4NDI3NX0.83x3-NrKoJgtIuSE7Jjsaj0zH-b-XJ3Z8i3XkBkwVoU'
+            );
+        }
+        return null;
+    },
+
+    async _aplicarTecnicosVeiculos(veiculos) {
+        try {
+            const sb = this._getSupabase();
+            if (!sb) return;
+
+            const hoje = new Date().toISOString().split('T')[0];
+            const placaTecnico = {};
+
+            // 1. Vinculos fixos (tecnico_veiculos) como base
+            const { data: vinculos } = await sb
+                .from('tecnico_veiculos')
+                .select('tecnico_nome, placa');
+            if (vinculos) {
+                for (const v of vinculos) {
+                    if (v.placa) placaTecnico[v.placa.replace(/[^A-Z0-9]/g, '').toUpperCase()] = v.tecnico_nome;
+                }
+            }
+
+            // 2. Caminhos do dia sobrescrevem (tecnico escolheu o carro hoje)
+            const { data: caminhos } = await sb
+                .from('tecnico_caminhos')
+                .select('tecnico_nome, placa')
+                .not('placa', 'is', null)
+                .gte('data_saida', `${hoje}T00:00:00`)
+                .lte('data_saida', `${hoje}T23:59:59`);
+            if (caminhos) {
+                for (const c of caminhos) {
+                    if (c.placa) placaTecnico[c.placa.replace(/[^A-Z0-9]/g, '').toUpperCase()] = c.tecnico_nome;
+                }
+            }
+
+            console.log('[Mapa] Vinculos tecnico-placa:', placaTecnico);
+
+            // Sobrescrever motorista nos veiculos que tem tecnico vinculado
+            for (const v of veiculos) {
+                const placaNorm = (v.placa || '').replace(/[^A-Z0-9]/g, '').toUpperCase();
+                if (placaTecnico[placaNorm]) {
+                    v.motorista = placaTecnico[placaNorm];
+                }
+            }
+        } catch (e) { console.error('[App] Erro ao aplicar tecnicos:', e); }
     },
 
     // =========================================================

@@ -92,11 +92,39 @@ export async function GET(req: NextRequest) {
   try {
     const hoje = new Date().toISOString().split('T')[0]
 
-    // 1. Busca todos os vinculos tecnico <-> veiculo
-    const { data: vinculos } = await supabase
+    // 1. Busca vinculos: primeiro dos caminhos do dia (app mecanico), depois fixos
+    const { data: caminhosHoje } = await supabase
+      .from('tecnico_caminhos')
+      .select('tecnico_nome, adesao_id, placa')
+      .not('adesao_id', 'is', null)
+      .gte('data_saida', `${hoje}T00:00:00`)
+      .lte('data_saida', `${hoje}T23:59:59`)
+
+    const { data: vinculosFixos } = await supabase
       .from('tecnico_veiculos')
       .select('tecnico_nome, adesao_id, placa, descricao')
-    if (!vinculos || vinculos.length === 0) {
+
+    // Monta lista unificada: caminhos do dia tem prioridade sobre vinculos fixos
+    const tecnicosUsados = new Set<string>()
+    const vinculos: { tecnico_nome: string; adesao_id: number; placa: string; descricao: string }[] = []
+
+    if (caminhosHoje && caminhosHoje.length > 0) {
+      for (const c of caminhosHoje) {
+        if (!c.adesao_id || tecnicosUsados.has(c.tecnico_nome)) continue
+        tecnicosUsados.add(c.tecnico_nome)
+        vinculos.push({ tecnico_nome: c.tecnico_nome, adesao_id: c.adesao_id, placa: c.placa || '', descricao: '' })
+      }
+    }
+
+    if (vinculosFixos && vinculosFixos.length > 0) {
+      for (const v of vinculosFixos) {
+        if (tecnicosUsados.has(v.tecnico_nome)) continue
+        tecnicosUsados.add(v.tecnico_nome)
+        vinculos.push(v)
+      }
+    }
+
+    if (vinculos.length === 0) {
       return NextResponse.json({ msg: 'Nenhum vinculo tecnico-veiculo encontrado', data: hoje })
     }
 

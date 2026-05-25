@@ -49,13 +49,38 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // 1. Busca vinculos tecnico <-> veiculo
-    const { data: vinculos } = await supabase
+    // 1. Busca vinculos fixos tecnico <-> veiculo
+    const { data: vinculosFixos } = await supabase
       .from('tecnico_veiculos')
       .select('tecnico_nome, adesao_id, placa, descricao')
-    if (!vinculos || vinculos.length === 0) {
+
+    // Busca todos os caminhos do periodo (escolha diaria no app dos mecanicos)
+    const { data: caminhosPeriodo } = await supabase
+      .from('tecnico_caminhos')
+      .select('tecnico_nome, adesao_id, placa, data_saida')
+      .not('adesao_id', 'is', null)
+      .gte('data_saida', `${de}T00:00:00`)
+      .lte('data_saida', `${ate}T23:59:59`)
+
+    if ((!vinculosFixos || vinculosFixos.length === 0) && (!caminhosPeriodo || caminhosPeriodo.length === 0)) {
       return NextResponse.json({ error: 'Nenhum vinculo tecnico-veiculo encontrado' }, { status: 404 })
     }
+
+    // Indexar caminhos por tecnico+dia para lookup rapido
+    const caminhosMap: Record<string, { adesao_id: number; placa: string }> = {}
+    if (caminhosPeriodo) {
+      for (const c of caminhosPeriodo) {
+        if (!c.adesao_id) continue
+        const dia = c.data_saida?.split('T')[0] || ''
+        if (dia) caminhosMap[`${c.tecnico_nome}|${dia}`] = { adesao_id: c.adesao_id, placa: c.placa || '' }
+      }
+    }
+
+    // Lista de tecnicos unicos (dos vinculos fixos + caminhos)
+    const tecnicosSet = new Set<string>()
+    if (vinculosFixos) vinculosFixos.forEach(v => tecnicosSet.add(v.tecnico_nome))
+    if (caminhosPeriodo) caminhosPeriodo.forEach(c => tecnicosSet.add(c.tecnico_nome))
+    const tecnicos = [...tecnicosSet]
 
     // 2. Busca destinos
     const destinos = await getDestinos()
@@ -70,27 +95,37 @@ export async function POST(req: NextRequest) {
       if (d.getDay() !== 0) datas.push(dia)
     }
 
-    console.log(`[Backfill GPS] ${datas.length} dias x ${vinculos.length} tecnicos = ${datas.length * vinculos.length} consultas`)
+    console.log(`[Backfill GPS] ${datas.length} dias x ${tecnicos.length} tecnicos = ${datas.length * tecnicos.length} consultas`)
 
     let totalSalvos = 0
     let totalErros = 0
     const erros: string[] = []
 
-    for (const v of vinculos) {
+    for (const tecNome of tecnicos) {
+      const vinculoFixo = vinculosFixos?.find(v => v.tecnico_nome === tecNome)
+
       for (const dia of datas) {
         try {
+          // Prioridade: caminho do dia (app mecanico) > vinculo fixo
+          const caminhoDia = caminhosMap[`${tecNome}|${dia}`]
+          const adesaoId = caminhoDia?.adesao_id || vinculoFixo?.adesao_id
+          const placa = caminhoDia?.placa || vinculoFixo?.placa || ''
+          const descricao = vinculoFixo?.descricao || ''
+
+          if (!adesaoId) continue // sem veiculo pra esse tecnico nesse dia
+
           // Verifica se ja tem dado pra esse dia (nao sobrescreve)
           const { data: existe } = await supabase
             .from('GPS_Viagens')
             .select('tecnico_nome')
-            .eq('tecnico_nome', v.tecnico_nome)
+            .eq('tecnico_nome', tecNome)
             .eq('data', dia)
             .maybeSingle()
 
           if (existe) continue // ja tem, pula
 
           const where = JSON.stringify({
-            adesao_id: v.adesao_id,
+            adesao_id: adesaoId,
             dt_posicao: { $gte: `${dia}T00:00:00.000-03:00`, $lte: `${dia}T23:59:59.999-03:00` }
           })
           const posData = await fetchRotaExata('/posicoes', { where, limit: '5000', page: '0' })
@@ -104,11 +139,11 @@ export async function POST(req: NextRequest) {
 
           // Upsert GPS_Viagens
           await supabase.from('GPS_Viagens').upsert({
-            tecnico_nome: v.tecnico_nome,
+            tecnico_nome: tecNome,
             data: dia,
-            adesao_id: v.adesao_id,
-            placa: v.placa || viagemDia.placa,
-            descricao: v.descricao || viagemDia.descricao,
+            adesao_id: adesaoId,
+            placa: placa || viagemDia.placa,
+            descricao: descricao || viagemDia.descricao,
             saida_loja: viagemDia.saida_loja,
             chegada_cliente: viagemDia.chegada_cliente,
             saida_cliente: viagemDia.saida_cliente,
@@ -123,7 +158,7 @@ export async function POST(req: NextRequest) {
           const metricas = calcularMetricas(viagemDia)
           await supabase.from('resumo_diario_tecnico').upsert({
             data: dia,
-            tecnico_nome: v.tecnico_nome,
+            tecnico_nome: tecNome,
             horas_dirigindo: metricas.horas_dirigindo,
             km_percorrido: metricas.km_percorrido,
             horas_no_cliente: metricas.horas_no_cliente,
@@ -134,7 +169,7 @@ export async function POST(req: NextRequest) {
           totalSalvos++
         } catch (e) {
           totalErros++
-          const msg = `${v.tecnico_nome} ${dia}: ${e instanceof Error ? e.message : String(e)}`
+          const msg = `${tecNome} ${dia}: ${e instanceof Error ? e.message : String(e)}`
           if (erros.length < 20) erros.push(msg)
         }
 
