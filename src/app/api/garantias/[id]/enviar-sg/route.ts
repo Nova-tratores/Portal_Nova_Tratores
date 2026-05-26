@@ -88,6 +88,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     );
   }
 
+  // Atribui numero_externo na primeira geração (numeração própria da montadora)
+  if (!garantia.numero_externo && garantia.montadora?.id) {
+    try {
+      const { data: prox } = await supabase.rpc('proximo_numero_sg_montadora', {
+        p_montadora_id: garantia.montadora.id,
+      });
+      const num = typeof prox === 'number' ? prox : Number(prox);
+      if (num && num > 0) {
+        const ano = new Date(garantia.created_at).getFullYear();
+        const numeroExt = `${ano}-${String(num).padStart(3, '0')}`;
+        await supabase
+          .from(TBL_GARANTIAS)
+          .update({ numero_externo: numeroExt, updated_at: new Date().toISOString() })
+          .eq('id', id);
+        garantia.numero_externo = numeroExt;
+      }
+    } catch (err) {
+      console.warn('Falha ao gerar numero_externo da SG (usando numero interno):', err);
+    }
+  }
+
   // 2. Carrega peças, OS, relatório técnico e anexos existentes
   const [pecasRes, osRes, tecRes, anexosRes] = await Promise.all([
     supabase.from('garantia_pecas').select('*').eq('garantia_id', id).order('created_at'),
