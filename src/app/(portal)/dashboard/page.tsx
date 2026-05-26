@@ -10,7 +10,7 @@ import {
   DollarSign, Activity, Clock, ChevronRight, Search,
   BarChart3, Users, Package, ClipboardCheck, AlertTriangle,
   CheckCircle2, Map, RefreshCw, Database, X, Check, Calculator, Eye, Camera, Wheat, Megaphone, TrendingUp, Server,
-  FolderPlus, Pencil, Trash2, FolderOpen, MapPin
+  FolderPlus, Pencil, Trash2, FolderOpen, MapPin, ShieldCheck
 } from 'lucide-react'
 
 interface SystemCard {
@@ -65,6 +65,16 @@ const systems: SystemCard[] = [
     gradient: 'linear-gradient(135deg, #dc2626, #991b1b)',
     href: '/pos',
     tag: 'SERVIÇOS'
+  },
+  {
+    id: 'garantias',
+    name: 'Garantias',
+    description: 'Solicitações de garantia, envio à fábrica, cobrança ao cliente e relatórios por montadora',
+    icon: <ShieldCheck size={28} />,
+    color: '#dc2626',
+    gradient: 'linear-gradient(135deg, #dc2626, #991b1b)',
+    href: '/garantias',
+    tag: 'GARANTIAS'
   },
   {
     id: 'ppv',
@@ -227,6 +237,7 @@ const systemToModulo: Record<string, string> = {
   'app-requisicoes': 'requisicoes',
   'controle-revisao': 'revisoes',
   'pos': 'pos',
+  'garantias': 'garantias',
   'ppv': 'ppv',
   'proposta-comercial': 'propostas',
   'orcamentos': 'orcamentos',
