@@ -104,12 +104,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   ]);
   garantia.pecas = pecasRes.data || [];
 
-  // 3. Gera o xlsx
-  const buffer = await gerarSGMahindra({
-    garantia,
-    os: osRes.data as DadosOS | null,
-    tecnico: tecRes.data as DadosTec | null,
-  });
+  // 3. Gera o xlsx (passa origin pra carregar o template via fetch em produção)
+  const buffer = await gerarSGMahindra(
+    {
+      garantia,
+      os: osRes.data as DadosOS | null,
+      tecnico: tecRes.data as DadosTec | null,
+    },
+    req.nextUrl.origin,
+  );
 
   // 4. Define caminho do arquivo no Storage (upload acontece em paralelo com o email)
   const nomeArquivo = nomeArquivoSG(garantia);

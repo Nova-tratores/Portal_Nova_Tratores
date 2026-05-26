@@ -1,13 +1,16 @@
 // Gerador da Solicitação de Garantia (SG) no formato Mahindra.
 // Lê o template em public/templates/sg-mahindra.xlsx, preenche as células
 // com os dados da garantia e devolve um Buffer pronto para anexar/baixar.
+//
+// Em produção (Vercel), arquivos da pasta public/ não são empacotados no bundle
+// serverless. Carregamos via fetch da URL pública; em dev, fallback pelo fs.
 
 import * as XLSX from 'xlsx';
 import path from 'path';
 import { promises as fs } from 'fs';
 import type { GarantiaDetalhe } from './types';
 
-const TEMPLATE_PATH = path.join(process.cwd(), 'public', 'templates', 'sg-mahindra.xlsx');
+const TEMPLATE_PUBLIC_PATH = '/templates/sg-mahindra.xlsx';
 
 // Formata "GAR-0034" + ano → "2026-034" (padrão SG Mahindra)
 export function formatarNumeroSG(garantia: { numero: string; created_at: string }): string {
@@ -59,8 +62,28 @@ interface DadosSG {
   } | null;
 }
 
-export async function gerarSGMahindra({ garantia, os, tecnico }: DadosSG): Promise<Buffer> {
-  const buf = await fs.readFile(TEMPLATE_PATH);
+async function carregarTemplate(baseUrl?: string): Promise<Buffer> {
+  // 1) Em runtime serverless (Vercel), pega via fetch da URL pública
+  if (baseUrl) {
+    try {
+      const res = await fetch(`${baseUrl}${TEMPLATE_PUBLIC_PATH}`);
+      if (res.ok) {
+        return Buffer.from(await res.arrayBuffer());
+      }
+    } catch {
+      /* cai pro fallback abaixo */
+    }
+  }
+  // 2) Fallback dev: lê do disco direto
+  const diskPath = path.join(process.cwd(), 'public', 'templates', 'sg-mahindra.xlsx');
+  return fs.readFile(diskPath);
+}
+
+export async function gerarSGMahindra(
+  { garantia, os, tecnico }: DadosSG,
+  baseUrl?: string,
+): Promise<Buffer> {
+  const buf = await carregarTemplate(baseUrl);
   const wb = XLSX.read(buf, { type: 'buffer', cellStyles: true });
   const sheet = wb.Sheets[wb.SheetNames[0]];
   if (!sheet) throw new Error('Template SG sem planilha principal.');
