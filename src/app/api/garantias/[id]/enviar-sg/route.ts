@@ -88,8 +88,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     );
   }
 
-  // 2. Carrega peças, OS e relatório técnico
-  const [pecasRes, osRes, tecRes] = await Promise.all([
+  // 2. Carrega peças, OS, relatório técnico e anexos existentes
+  const [pecasRes, osRes, tecRes, anexosRes] = await Promise.all([
     supabase.from('garantia_pecas').select('*').eq('garantia_id', id).order('created_at'),
     supabase
       .from('Ordem_Servico')
@@ -101,25 +101,57 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .select('Chassis, Horimetro, Motivo, ServicoRealizado, DataInicio, FotoHorimetro, FotoChassis, FotoFrente, FotoDireita, FotoEsquerda, FotoTraseira, FotoVolante, FotoFalha1, FotoFalha2, FotoFalha3, FotoFalha4, FotoPecaNova1, FotoPecaNova2, FotoPecaInstalada1, FotoPecaInstalada2')
       .eq('Ordem_Servico', garantia.id_ordem)
       .maybeSingle(),
+    supabase
+      .from(TBL_GAR_ANEXOS)
+      .select('id, url, nome_arquivo, created_at')
+      .eq('garantia_id', id)
+      .eq('categoria', 'envio_fabrica')
+      .order('created_at', { ascending: false })
+      .limit(1),
   ]);
   garantia.pecas = pecasRes.data || [];
+  const anexoExistente = (anexosRes.data || [])[0] as
+    | { id: string; url: string; nome_arquivo: string | null; created_at: string }
+    | undefined;
 
-  // 3. Gera o xlsx (passa origin pra carregar o template via fetch em produção)
-  const buffer = await gerarSGMahindra(
-    {
-      garantia,
-      os: osRes.data as DadosOS | null,
-      tecnico: tecRes.data as DadosTec | null,
-    },
-    req.nextUrl.origin,
-  );
-
-  // 4. Define caminho do arquivo no Storage (upload acontece em paralelo com o email)
-  const nomeArquivo = nomeArquivoSG(garantia);
+  // 3. Define caminho/nome
+  const nomeArquivoBase = nomeArquivoSG(garantia);
   const numeroSG = formatarNumeroSG(garantia);
-  const storagePath = `${id}/envio_fabrica/${Date.now()}_${sanitizeFileName(nomeArquivo)}`;
   const xlsxMime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
+  // 4. Decide entre USAR o anexo existente (versão revisada pelo garantista)
+  // ou GERAR um novo. Regra:
+  // - apenasGerar = true → sempre gera novo (substitui o que tiver).
+  // - apenasGerar = false (envio de e-mail) → se já existe um envio_fabrica,
+  //   usa ele (provavelmente já foi revisado); senão, gera novo.
+  let buffer: Buffer
+  let nomeArquivo = nomeArquivoBase
+  let storagePath = `${id}/envio_fabrica/${Date.now()}_${sanitizeFileName(nomeArquivoBase)}`
+  let precisaUpload = true
+
+  if (!apenasGerar && anexoExistente) {
+    try {
+      const r = await fetch(anexoExistente.url)
+      if (r.ok) {
+        buffer = Buffer.from(await r.arrayBuffer())
+        nomeArquivo = anexoExistente.nome_arquivo || nomeArquivoBase
+        precisaUpload = false
+      } else {
+        throw new Error(`http ${r.status}`)
+      }
+    } catch (err) {
+      console.warn('Falha ao buscar SG existente, gerando uma nova:', err)
+      buffer = await gerarSGMahindra(
+        { garantia, os: osRes.data as DadosOS | null, tecnico: tecRes.data as DadosTec | null },
+        req.nextUrl.origin,
+      )
+    }
+  } else {
+    buffer = await gerarSGMahindra(
+      { garantia, os: osRes.data as DadosOS | null, tecnico: tecRes.data as DadosTec | null },
+      req.nextUrl.origin,
+    )
+  }
   // Modo "apenas gerar" — só faz upload e retorna URL (não dispara e-mail)
   if (apenasGerar) {
     const { error: upErr } = await supabase.storage
@@ -197,49 +229,76 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     : `${saudacao()}, segue em anexo a Solicitação de Garantia ${varsSan.numero} referente à OS ${varsSan.os} do cliente ${varsSan.cliente}${varsSan.chassis ? ` (chassi ${varsSan.chassis})` : ''}.\n\nQualquer dúvida estamos à disposição.\n\nAtt,\nPós-Vendas Nova Tratores`;
   const html = `<p>${corpoBase.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</p>`;
 
-  // 7. Upload + envio do e-mail em paralelo (padrão do envio de revisões)
+  // 7. Envia o e-mail. Se usamos um anexo existente, NÃO faz upload novo
+  // (o arquivo já está no Storage e o anexo já está registrado).
+  // Se geramos um novo (não havia anexo), faz upload em paralelo.
   try {
-    const [info, uploadResult] = await Promise.all([
-      transporter.sendMail({
-        from: `"Pós-Vendas Nova Tratores" <${process.env.GMAIL_USER}>`,
-        to: destinatarios.join(', '),
-        subject: assunto,
-        html,
-        attachments: [
-          { filename: nomeArquivo, content: buffer, contentType: xlsxMime },
-          ...fotos,
-        ],
-      }),
-      supabase.storage
-        .from(BUCKET_GARANTIAS)
-        .upload(storagePath, buffer, { contentType: xlsxMime, upsert: true })
-        .then(({ error }) => {
-          if (error) {
-            console.error('Falha upload SG (e-mail seguiu mesmo assim):', error.message);
-            return null;
-          }
-          const { data } = supabase.storage.from(BUCKET_GARANTIAS).getPublicUrl(storagePath);
-          return data.publicUrl;
-        })
-        .catch(() => null),
-    ]);
+    const sendMailPromise = transporter.sendMail({
+      from: `"Pós-Vendas Nova Tratores" <${process.env.GMAIL_USER}>`,
+      to: destinatarios.join(', '),
+      subject: assunto,
+      html,
+      attachments: [
+        { filename: nomeArquivo, content: buffer, contentType: xlsxMime },
+        ...fotos,
+      ],
+    });
 
-    // Registra o anexo se o upload funcionou
-    if (uploadResult) {
-      await supabase.from(TBL_GAR_ANEXOS).insert({
-        garantia_id: id,
-        categoria: 'envio_fabrica',
-        url: uploadResult,
-        nome_arquivo: nomeArquivo,
-        content_type: xlsxMime,
-        enviado_por: ator,
+    let uploadResult: string | null = anexoExistente?.url || null;
+
+    if (precisaUpload) {
+      const [info, up] = await Promise.all([
+        sendMailPromise,
+        supabase.storage
+          .from(BUCKET_GARANTIAS)
+          .upload(storagePath, buffer, { contentType: xlsxMime, upsert: true })
+          .then(({ error }) => {
+            if (error) {
+              console.error('Falha upload SG (e-mail seguiu mesmo assim):', error.message);
+              return null;
+            }
+            const { data } = supabase.storage.from(BUCKET_GARANTIAS).getPublicUrl(storagePath);
+            return data.publicUrl;
+          })
+          .catch(() => null),
+      ]);
+      uploadResult = up;
+
+      // Registra o anexo do arquivo gerado
+      if (up) {
+        await supabase.from(TBL_GAR_ANEXOS).insert({
+          garantia_id: id,
+          categoria: 'envio_fabrica',
+          url: up,
+          nome_arquivo: nomeArquivo,
+          content_type: xlsxMime,
+          enviado_por: ator,
+        });
+      }
+
+      await registrarEvento(id, {
+        tipo: 'sg_enviado',
+        ator,
+        detalhe: `SG enviada para ${destinatarios.join(', ')} (${fotos.length} foto(s) anexada(s))${up ? '' : ' — arquivo não foi armazenado'}`,
+      });
+
+      return NextResponse.json({
+        ok: true,
+        url: up,
+        nome: nomeArquivo,
+        destinatarios,
+        messageId: info.messageId,
+        fotosAnexadas: fotos.length,
+        origem: 'gerada',
       });
     }
 
+    // Caso: usou anexo existente (versão revisada). Só envia o e-mail.
+    const info = await sendMailPromise;
     await registrarEvento(id, {
       tipo: 'sg_enviado',
       ator,
-      detalhe: `SG enviada para ${destinatarios.join(', ')} (${fotos.length} foto(s) anexada(s))${uploadResult ? '' : ' — arquivo não foi armazenado'}`,
+      detalhe: `SG revisada enviada para ${destinatarios.join(', ')} (${fotos.length} foto(s) anexada(s))`,
     });
 
     return NextResponse.json({
@@ -249,6 +308,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       destinatarios,
       messageId: info.messageId,
       fotosAnexadas: fotos.length,
+      origem: 'revisada',
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'erro desconhecido';

@@ -480,44 +480,59 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                     Enviada à fábrica em {fmtDataHora(g.enviada_fabrica_em)} · {diasEntre(g.enviada_fabrica_em)} dia(s) em análise
                   </div>
 
-                  {/* Reenvio do SG por e-mail (se a montadora tem template/destinatários) */}
-                  {g.montadora?.tipo_template === 'mahindra' && (g.montadora?.email_destinatarios?.length || 0) > 0 && (
+                  {/* Solicitação de Garantia (SG) — disponível pra download, revisão e envio manual */}
+                  {g.montadora?.tipo_template === 'mahindra' && (
                     <Secao titulo="Solicitação de Garantia (SG)" icone={<Send size={14} />}>
-                      {g.anexos.filter((a) => a.categoria === 'envio_fabrica').length > 0 && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          {g.anexos
-                            .filter((a) => a.categoria === 'envio_fabrica')
-                            .slice(0, 3)
-                            .map((a) => (
-                              <a
-                                key={a.id}
-                                href={a.url}
-                                target="_blank"
-                                rel="noreferrer"
-                                style={{ fontSize: 12, color: '#0ea5e9', fontWeight: 600 }}
-                              >
-                                {a.nome_arquivo || 'SG.xlsx'}
-                              </a>
-                            ))}
-                        </div>
-                      )}
-                      <span style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>
-                        Destinatários: {g.montadora.email_destinatarios.join(', ')}
-                      </span>
-                      <button
-                        onClick={() =>
-                          chamar('enviar_sg', `/api/garantias/${garantiaId}/enviar-sg`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ ator: userName }),
-                          })
-                        }
-                        disabled={!!busy}
-                        style={btn('linear-gradient(135deg,#dc2626,#7f1d1d)', !!busy)}
-                      >
-                        {busy === 'enviar_sg' ? <Loader2 size={15} className="spin" /> : <Send size={15} />}
-                        Reenviar SG por e-mail
-                      </button>
+                      {(() => {
+                        const sgAnexos = g.anexos
+                          .filter((a) => a.categoria === 'envio_fabrica')
+                          .sort((a, b) => (a.created_at > b.created_at ? -1 : 1));
+                        const maisRecente = sgAnexos[0];
+                        const temEmails = (g.montadora?.email_destinatarios?.length || 0) > 0;
+                        return (
+                          <>
+                            <p style={{ fontSize: 12, color: 'var(--portal-text-secondary)', margin: 0 }}>
+                              Baixe a SG abaixo, revise/edite no Excel se precisar e anexe a versão revisada.
+                              Ao clicar em <strong>Enviar por e-mail</strong>, a versão mais recente é que vai pra fábrica.
+                            </p>
+
+                            <GarantiaAnexos
+                              garantiaId={g.id}
+                              anexos={sgAnexos}
+                              uploadCategoria="envio_fabrica"
+                              enviadoPor={userName}
+                              onChange={carregar}
+                              vazioTexto="Nenhuma SG gerada ainda."
+                            />
+
+                            {temEmails ? (
+                              <>
+                                <span style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>
+                                  Destinatários: {g.montadora.email_destinatarios.join(', ')}
+                                </span>
+                                <button
+                                  onClick={() =>
+                                    chamar('enviar_sg', `/api/garantias/${garantiaId}/enviar-sg`, {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ ator: userName }),
+                                    })
+                                  }
+                                  disabled={!!busy || !maisRecente}
+                                  style={btn('linear-gradient(135deg,#dc2626,#7f1d1d)', !!busy || !maisRecente)}
+                                >
+                                  {busy === 'enviar_sg' ? <Loader2 size={15} className="spin" /> : <Send size={15} />}
+                                  {maisRecente ? 'Enviar SG por e-mail à fábrica' : 'Gere a SG antes de enviar'}
+                                </button>
+                              </>
+                            ) : (
+                              <span style={{ fontSize: 11, color: '#dc2626' }}>
+                                Cadastre os e-mails da fábrica em Montadoras → Mahindra para liberar o envio.
+                              </span>
+                            )}
+                          </>
+                        );
+                      })()}
                     </Secao>
                   )}
 

@@ -65,24 +65,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     descricao: `A garantia da OS ${g.id_ordem} está em análise da fábrica.`,
   });
 
-  // Auto-envia o SG por e-mail se a montadora está configurada para isso (best-effort)
+  // Se a montadora tem template Mahindra, GERA a SG automaticamente para o garantista
+  // poder revisar/editar antes de enviar. O e-mail só é disparado automaticamente se
+  // auto_enviar_email estiver marcado — caso contrário, fica como rascunho pra revisão.
   type MontadoraEnvio = { tipo_template?: string; auto_enviar_email?: boolean; email_destinatarios?: string[] };
   const mont = (g as unknown as { montadora?: MontadoraEnvio | MontadoraEnvio[] }).montadora;
   const m = Array.isArray(mont) ? mont[0] : mont;
-  let sgEnvio: { ok?: boolean; erro?: string } | undefined;
-  if (m?.auto_enviar_email && m.tipo_template === 'mahindra' && (m.email_destinatarios || []).length > 0) {
+  let sgEnvio: { ok?: boolean; erro?: string; modo?: 'gerada' | 'enviada' } | undefined;
+  if (m?.tipo_template === 'mahindra') {
     try {
       const origin = req.nextUrl.origin;
+      const enviarEmail = !!m.auto_enviar_email && (m.email_destinatarios || []).length > 0;
       const sgRes = await fetch(`${origin}/api/garantias/${id}/enviar-sg`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ator: body.garantista_nome || 'Garantista' }),
+        body: JSON.stringify({
+          ator: body.garantista_nome || 'Garantista',
+          apenasGerar: !enviarEmail,
+        }),
       });
       const sgData = await sgRes.json().catch(() => ({}));
-      sgEnvio = sgRes.ok ? { ok: true } : { erro: sgData.error || 'Falha no envio do SG' };
+      sgEnvio = sgRes.ok
+        ? { ok: true, modo: enviarEmail ? 'enviada' : 'gerada' }
+        : { erro: sgData.error || 'Falha ao gerar SG' };
     } catch (err) {
-      sgEnvio = { erro: err instanceof Error ? err.message : 'Falha no envio do SG' };
-      console.error('Falha no envio automático do SG:', err);
+      sgEnvio = { erro: err instanceof Error ? err.message : 'Falha ao gerar SG' };
+      console.error('Falha ao gerar SG:', err);
     }
   }
 
