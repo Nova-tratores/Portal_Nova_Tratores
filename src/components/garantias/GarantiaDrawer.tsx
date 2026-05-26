@@ -500,12 +500,55 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                       );
                     }
 
+                    const tipoGarantiaAtual = (respostas['tipo_garantia_sg'] as string) || 'produto_garantia';
+
+                    const trocarTipoGarantia = async (novo: string) => {
+                      const novasRespostas = { ...respostas, tipo_garantia_sg: novo };
+                      setRespostas(novasRespostas);
+                      await chamar('tipo_garantia', `/api/garantias/${garantiaId}/checklist`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          checklist_respostas: novasRespostas,
+                          garantista_nome: userName,
+                        }),
+                      });
+                    };
+
                     return (
                       <>
                         <p style={{ fontSize: 12, color: 'var(--portal-text-secondary)', margin: 0 }}>
                           Baixe a SG abaixo, revise/edite no Excel se precisar e anexe a versão revisada.
                           Ao enviar por e-mail, a versão mais recente é que vai pra fábrica.
                         </p>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--portal-text-muted)', textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                            Tipo de Garantia
+                          </label>
+                          <select
+                            value={tipoGarantiaAtual}
+                            onChange={(e) => trocarTipoGarantia(e.target.value)}
+                            disabled={!!busy}
+                            style={{
+                              padding: '8px 10px',
+                              borderRadius: 8,
+                              border: '1px solid var(--portal-border)',
+                              background: 'var(--portal-bg-input)',
+                              color: 'var(--portal-text)',
+                              fontSize: 13,
+                              outline: 'none',
+                            }}
+                          >
+                            <option value="produto_garantia">Produto em Garantia</option>
+                            <option value="pre_venda">Solicitação de Pré-venda</option>
+                            <option value="garantia_especial">Garantia Especial (Cortesia)</option>
+                            <option value="garantia_pecas">Garantia de Peças</option>
+                          </select>
+                          <span style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>
+                            Define qual quadradinho será marcado na SG. Alterar aqui regera o arquivo na próxima geração.
+                          </span>
+                        </div>
 
                         <GarantiaAnexos
                           garantiaId={g.id}

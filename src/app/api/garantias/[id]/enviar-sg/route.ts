@@ -2,7 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
 import { supabase } from '@/lib/pos/supabase';
 import { TBL_GARANTIAS, TBL_GAR_ANEXOS, BUCKET_GARANTIAS } from '@/lib/garantias/constants';
-import { gerarSGMahindra, nomeArquivoSG, formatarNumeroSG } from '@/lib/garantias/sg-mahindra';
+import {
+  gerarSGMahindra,
+  nomeArquivoSG,
+  formatarNumeroSG,
+  MAPA_FOTOS_SG,
+} from '@/lib/garantias/sg-mahindra';
+import type {
+  TratorDB,
+  RequisicaoSG,
+  FotoBuffer,
+  TipoGarantiaSG,
+} from '@/lib/garantias/sg-mahindra';
 import { registrarEvento } from '@/lib/garantias/server';
 import type { GarantiaDetalhe } from '@/lib/garantias/types';
 
@@ -50,6 +61,34 @@ async function baixarUrl(url: string): Promise<Buffer | null> {
 
 function sanitizeFileName(name: string) {
   return name.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[\\\/:*?"<>|]/g, '').replace(/\s+/g, '-');
+}
+
+function detectarExt(url: string): 'jpeg' | 'png' {
+  const ext = (url.split('?')[0].match(/\.([a-zA-Z0-9]{3,4})$/)?.[1] || 'jpg').toLowerCase();
+  return ext === 'png' ? 'png' : 'jpeg';
+}
+
+// Busca o CEP via ViaCEP a partir de cidade + parte do endereço (logradouro).
+// Best-effort: erros viram `null`.
+async function buscarCepViaCEP(uf: string, cidade: string, logradouro: string): Promise<string | null> {
+  if (!uf || !cidade || !logradouro) return null;
+  // ViaCEP exige logradouro com >= 3 caracteres
+  const lograLimpo = logradouro
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-zA-Z0-9 ]/g, ' ')
+    .trim();
+  if (lograLimpo.length < 3) return null;
+  try {
+    const url = `https://viacep.com.br/ws/${encodeURIComponent(uf)}/${encodeURIComponent(cidade)}/${encodeURIComponent(lograLimpo)}/json/`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
+    if (!res.ok) return null;
+    const arr = await res.json();
+    if (!Array.isArray(arr) || arr.length === 0) return null;
+    return arr[0]?.cep || null;
+  } catch {
+    return null;
+  }
 }
 
 // POST /api/garantias/[id]/enviar-sg
@@ -140,38 +179,188 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const numeroSG = formatarNumeroSG(garantia);
   const xlsxMime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
-  // 4. Decide entre USAR o anexo existente (versão revisada pelo garantista)
+  // 4. Carrega dados extras necessários para o gerador
+  //    (trator pela tabela tratores, TODAS as requisições da OS, CEP, fotos)
+  const chassis = garantia.chassis || tecRes.data?.Chassis || '';
+
+  const tipoGarantia: TipoGarantiaSG =
+    ((garantia.checklist_respostas as Record<string, unknown> | null)?.[
+      'tipo_garantia_sg'
+    ] as TipoGarantiaSG) || 'produto_garantia';
+
+  const [tratorRes, requisicoesOsRes] = await Promise.all([
+    chassis
+      ? supabase
+          .from('tratores')
+          .select(
+            'Modelo, Chassis, Numero_Motor, Entrega, "50h Data", "300h Data", "600h Data", "900h Data", "1200h Data", "1500h Data", "1800h Data", "2100h Data"',
+          )
+          .ilike('Chassis', `%${chassis}%`)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    supabase
+      .from('Requisicao')
+      .select('id, titulo, obs, recibo_fornecedor, fornecedor, valor_cobrado_cliente, Motivo')
+      .eq('ordem_servico', garantia.id_ordem)
+      .not('status', 'in', '("lixeira","cancelada")'),
+  ]);
+  const trator = (tratorRes.data || null) as TratorDB | null;
+  type ReqRow = {
+    id: number;
+    titulo: string | null;
+    obs: string | null;
+    Motivo: string | null;
+    recibo_fornecedor: string | null;
+    fornecedor: string | null;
+    valor_cobrado_cliente: number | null;
+  };
+  const reqsOs = (requisicoesOsRes.data || []) as ReqRow[];
+  const reqsPorId = new Map<number, ReqRow>();
+  reqsOs.forEach((r) => reqsPorId.set(r.id, r));
+
+  // Normaliza para match fuzzy de descrição
+  const norm = (s: string | null | undefined) =>
+    String(s || '')
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .toLowerCase()
+      .trim();
+
+  // Decide se uma peça veio de Requisição:
+  //   1) cod_produto começa com REQ-X → busca por id
+  //   2) descrição da peça bate (igual OU contida) com titulo/obs/Motivo de
+  //      alguma Requisição da OS → cross-reference pra garantias antigas
+  const pecasUtilizadas: typeof garantia.pecas = [];
+  const requisicoesParaSG: RequisicaoSG[] = [];
+  const reqsUsadas = new Set<number>();
+
+  for (const p of garantia.pecas || []) {
+    const mReq = String(p.cod_produto || '').match(/^REQ-(\d+)/i);
+    let reqMatch: ReqRow | undefined;
+    if (mReq) {
+      reqMatch = reqsPorId.get(Number(mReq[1]));
+    } else {
+      const descPeca = norm(p.descricao);
+      if (descPeca.length >= 3) {
+        reqMatch = reqsOs.find((r) => {
+          const t = norm(r.titulo);
+          const o = norm(r.obs || r.Motivo);
+          return (
+            (t && (t === descPeca || t.includes(descPeca) || descPeca.includes(t))) ||
+            (o && (o === descPeca || o.includes(descPeca) || descPeca.includes(o)))
+          );
+        });
+      }
+    }
+    if (reqMatch) {
+      reqsUsadas.add(reqMatch.id);
+      requisicoesParaSG.push({
+        cod_produto: p.cod_produto || `REQ-${reqMatch.id}`,
+        titulo: reqMatch.titulo || p.descricao,
+        obs: reqMatch.obs || reqMatch.Motivo || null,
+        recibo_fornecedor: reqMatch.recibo_fornecedor || null,
+        fornecedor: reqMatch.fornecedor || null,
+        valor_cobrado_cliente:
+          reqMatch.valor_cobrado_cliente != null
+            ? Number(reqMatch.valor_cobrado_cliente)
+            : Number(p.preco_unitario || 0) || null,
+      });
+    } else {
+      pecasUtilizadas.push(p);
+    }
+  }
+
+  // Baixa as fotos do relatório técnico em paralelo (uma vez só) — reaproveita
+  // os bufferes tanto pra inserir na planilha quanto pra anexar no e-mail.
+  const fotosBuffer: Record<string, FotoBuffer> = {};
+  const fotosEmail: FotoAnexo[] = [];
+  if (tecRes.data) {
+    const tec = tecRes.data as Record<string, string | null>;
+    const camposParaBaixar = new Set<string>([
+      ...MAPA_FOTOS_SG.map((m) => m.campo),
+      // Alguns campos só anexados no e-mail (não vão pra planilha)
+      'FotoDireita',
+      'FotoEsquerda',
+      'FotoVolante',
+    ]);
+    const downloads = Array.from(camposParaBaixar).map(async (campo) => {
+      const url = tec[campo];
+      if (!url) return;
+      const buf = await baixarUrl(url);
+      if (!buf) return;
+      const ext = detectarExt(url);
+      fotosBuffer[campo] = { buffer: buf, ext };
+      const rotulo = campo.replace(/^Foto/, '').toLowerCase();
+      fotosEmail.push({
+        filename: `${rotulo}.${ext === 'png' ? 'png' : 'jpg'}`,
+        content: buf,
+        contentType: ext === 'png' ? 'image/png' : 'image/jpeg',
+      });
+    });
+    await Promise.all(downloads);
+  }
+
+  // CEP via ViaCEP (best-effort)
+  const cidade = osRes.data?.Cidade_Cliente || '';
+  const enderecoFull = osRes.data?.Endereco_Cliente || '';
+  const enderecoPart1 = enderecoFull.split(',')[0]?.trim() || '';
+  // Detecta UF do endereço (default SP)
+  const ufMatch = enderecoFull.match(/\(([A-Z]{2})\)|\b([A-Z]{2})\b\s*$/);
+  const ufDetectado = ufMatch ? (ufMatch[1] || ufMatch[2] || 'SP') : 'SP';
+  const cep = await buscarCepViaCEP(ufDetectado, cidade, enderecoPart1);
+
+  // 5. Decide entre USAR o anexo existente (versão revisada pelo garantista)
   // ou GERAR um novo. Regra:
   // - apenasGerar = true → sempre gera novo (substitui o que tiver).
   // - apenasGerar = false (envio de e-mail) → se já existe um envio_fabrica,
   //   usa ele (provavelmente já foi revisado); senão, gera novo.
-  let buffer: Buffer
-  let nomeArquivo = nomeArquivoBase
-  let storagePath = `${id}/envio_fabrica/${Date.now()}_${sanitizeFileName(nomeArquivoBase)}`
-  let precisaUpload = true
+  let buffer: Buffer;
+  let nomeArquivo = nomeArquivoBase;
+  const storagePath = `${id}/envio_fabrica/${Date.now()}_${sanitizeFileName(nomeArquivoBase)}`;
+  let precisaUpload = true;
 
   if (!apenasGerar && anexoExistente) {
     try {
-      const r = await fetch(anexoExistente.url)
+      const r = await fetch(anexoExistente.url);
       if (r.ok) {
-        buffer = Buffer.from(await r.arrayBuffer())
-        nomeArquivo = anexoExistente.nome_arquivo || nomeArquivoBase
-        precisaUpload = false
+        buffer = Buffer.from(await r.arrayBuffer());
+        nomeArquivo = anexoExistente.nome_arquivo || nomeArquivoBase;
+        precisaUpload = false;
       } else {
-        throw new Error(`http ${r.status}`)
+        throw new Error(`http ${r.status}`);
       }
     } catch (err) {
-      console.warn('Falha ao buscar SG existente, gerando uma nova:', err)
+      console.warn('Falha ao buscar SG existente, gerando uma nova:', err);
       buffer = await gerarSGMahindra(
-        { garantia, os: osRes.data as DadosOS | null, tecnico: tecRes.data as DadosTec | null },
+        {
+          garantia,
+          os: osRes.data as DadosOS | null,
+          tecnico: tecRes.data as DadosTec | null,
+          trator,
+          cep,
+          pecasUtilizadas,
+          requisicoes: requisicoesParaSG,
+          tipoGarantia,
+          fotos: fotosBuffer,
+        },
         req.nextUrl.origin,
-      )
+      );
     }
   } else {
     buffer = await gerarSGMahindra(
-      { garantia, os: osRes.data as DadosOS | null, tecnico: tecRes.data as DadosTec | null },
+      {
+        garantia,
+        os: osRes.data as DadosOS | null,
+        tecnico: tecRes.data as DadosTec | null,
+        trator,
+        cep,
+        pecasUtilizadas,
+        requisicoes: requisicoesParaSG,
+        tipoGarantia,
+        fotos: fotosBuffer,
+      },
       req.nextUrl.origin,
-    )
+    );
   }
   // Modo "apenas gerar" — só faz upload e retorna URL (não dispara e-mail)
   if (apenasGerar) {
@@ -192,42 +381,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       enviado_por: ator,
     });
     return NextResponse.json({ ok: true, url: pub.publicUrl, nome: nomeArquivo });
-  }
-
-  // 5. Coleta fotos da OS como anexos do e-mail (best-effort)
-  const fotos: FotoAnexo[] = [];
-  if (tecRes.data) {
-    const tec = tecRes.data as Record<string, string | null>;
-    const map: [string, string][] = [
-      ['FotoHorimetro', 'horimetro'],
-      ['FotoChassis', 'chassis'],
-      ['FotoFrente', 'frente'],
-      ['FotoDireita', 'direita'],
-      ['FotoEsquerda', 'esquerda'],
-      ['FotoTraseira', 'traseira'],
-      ['FotoVolante', 'volante'],
-      ['FotoFalha1', 'falha-1'],
-      ['FotoFalha2', 'falha-2'],
-      ['FotoFalha3', 'falha-3'],
-      ['FotoFalha4', 'falha-4'],
-      ['FotoPecaNova1', 'peca-nova-1'],
-      ['FotoPecaNova2', 'peca-nova-2'],
-      ['FotoPecaInstalada1', 'peca-instalada-1'],
-      ['FotoPecaInstalada2', 'peca-instalada-2'],
-    ];
-    for (const [campo, rotulo] of map) {
-      const url = tec[campo];
-      if (!url) continue;
-      const data = await baixarUrl(url);
-      if (data) {
-        const ext = (url.split('?')[0].match(/\.([a-zA-Z0-9]{3,4})$/)?.[1] || 'jpg').toLowerCase();
-        fotos.push({
-          filename: `${rotulo}.${ext}`,
-          content: data,
-          contentType: ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : `image/${ext}`,
-        });
-      }
-    }
   }
 
   // 6. Monta assunto e corpo (sanitiza variáveis pra evitar injeção HTML)
@@ -261,7 +414,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       html,
       attachments: [
         { filename: nomeArquivo, content: buffer, contentType: xlsxMime },
-        ...fotos,
+        ...fotosEmail,
       ],
     });
 
@@ -300,7 +453,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       await registrarEvento(id, {
         tipo: 'sg_enviado',
         ator,
-        detalhe: `SG enviada para ${destinatarios.join(', ')} (${fotos.length} foto(s) anexada(s))${up ? '' : ' — arquivo não foi armazenado'}`,
+        detalhe: `SG enviada para ${destinatarios.join(', ')} (${fotosEmail.length} foto(s) anexada(s))${up ? '' : ' — arquivo não foi armazenado'}`,
       });
 
       return NextResponse.json({
@@ -309,7 +462,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         nome: nomeArquivo,
         destinatarios,
         messageId: info.messageId,
-        fotosAnexadas: fotos.length,
+        fotosAnexadas: fotosEmail.length,
         origem: 'gerada',
       });
     }
@@ -319,7 +472,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await registrarEvento(id, {
       tipo: 'sg_enviado',
       ator,
-      detalhe: `SG revisada enviada para ${destinatarios.join(', ')} (${fotos.length} foto(s) anexada(s))`,
+      detalhe: `SG revisada enviada para ${destinatarios.join(', ')} (${fotosEmail.length} foto(s) anexada(s))`,
     });
 
     return NextResponse.json({
@@ -328,7 +481,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       nome: nomeArquivo,
       destinatarios,
       messageId: info.messageId,
-      fotosAnexadas: fotos.length,
+      fotosAnexadas: fotosEmail.length,
       origem: 'revisada',
     });
   } catch (err) {
