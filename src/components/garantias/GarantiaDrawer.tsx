@@ -474,14 +474,32 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
               )}
 
               {/* Solicitação de Garantia (SG) — disponível em qualquer fase após assumir */}
-              {g.status !== 'aberta' && g.montadora?.tipo_template === 'mahindra' && (
+              {g.status !== 'aberta' && g.montadora && (
                 <Secao titulo="Solicitação de Garantia (SG)" icone={<Send size={14} />}>
                   {(() => {
+                    const eMahindra = g.montadora?.tipo_template === 'mahindra';
                     const sgAnexos = g.anexos
                       .filter((a) => a.categoria === 'envio_fabrica')
                       .sort((a, b) => (a.created_at > b.created_at ? -1 : 1));
                     const maisRecente = sgAnexos[0];
                     const temEmails = (g.montadora?.email_destinatarios?.length || 0) > 0;
+
+                    // Caso: montadora ainda sem template configurado
+                    if (!eMahindra) {
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          <span style={{ fontSize: 12, color: '#dc2626' }}>
+                            A montadora <strong>{g.montadora.nome}</strong> ainda não tem template SG configurado.
+                          </span>
+                          <span style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>
+                            Vá em <strong>/garantias → aba Montadoras → editar {g.montadora.nome}</strong> e defina
+                            o campo <strong>&quot;Formato do arquivo&quot; = Mahindra (SG xlsx)</strong>. Depois cadastre os
+                            e-mails da fábrica.
+                          </span>
+                        </div>
+                      );
+                    }
+
                     return (
                       <>
                         <p style={{ fontSize: 12, color: 'var(--portal-text-secondary)', margin: 0 }}>
@@ -538,7 +556,7 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                         )}
                         {naFabrica && !temEmails && (
                           <span style={{ fontSize: 11, color: '#dc2626' }}>
-                            Cadastre os e-mails da fábrica em Montadoras → Mahindra para liberar o envio.
+                            Cadastre os e-mails da fábrica em Montadoras → {g.montadora.nome} para liberar o envio.
                           </span>
                         )}
                         {!naFabrica && (

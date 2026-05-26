@@ -74,7 +74,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
   }
 
-  // 2) Preços das peças manuais (PecasInfo no relatório técnico)
+  // 2) Requisições vinculadas à OS (valor_cobrado_cliente)
+  const { data: reqs } = await supabase
+    .from('Requisicao')
+    .select('titulo, valor_cobrado_cliente')
+    .eq('ordem_servico', g.id_ordem)
+    .not('status', 'in', '("lixeira","cancelada")');
+  if (reqs && reqs.length > 0) {
+    for (const r of reqs as { titulo?: string; valor_cobrado_cliente?: string }[]) {
+      const titulo = String(r.titulo || '').trim();
+      const valor = parseFloat(r.valor_cobrado_cliente || '0');
+      if (!titulo || !(valor > 0)) continue;
+      const key = `__desc:${titulo.toLowerCase()}`;
+      if (!precosPorCod[key]) {
+        precosPorCod[key] = { preco: valor, descricao: titulo };
+      }
+    }
+  }
+
+  // 3) Preços das peças manuais (PecasInfo no relatório técnico)
   const { data: tec } = await supabase
     .from('Ordem_Servico_Tecnicos')
     .select('PecasInfo')
@@ -105,14 +123,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
   }
 
-  // 3) Atualiza preço de cada peça da garantia
+  // 4) Atualiza preço de cada peça da garantia (cruzamento: cod -> descricao exata -> descricao contida)
   let atualizadas = 0;
   for (const p of pecas) {
     const cod = String(p.cod_produto || '').trim();
     const desc = String(p.descricao || '').trim();
+    const descLower = desc.toLowerCase();
     let novo: number | null = null;
-    if (cod && precosPorCod[cod]) novo = precosPorCod[cod].preco;
-    else if (desc && precosPorCod[`__desc:${desc.toLowerCase()}`]) novo = precosPorCod[`__desc:${desc.toLowerCase()}`].preco;
+
+    if (cod && precosPorCod[cod]) {
+      novo = precosPorCod[cod].preco;
+    } else if (desc && precosPorCod[`__desc:${descLower}`]) {
+      novo = precosPorCod[`__desc:${descLower}`].preco;
+    } else if (desc) {
+      // fallback: descricao contida (ex.: peça "Mangueira" cruza com requisição "Mangueira intercooler")
+      const chave = Object.keys(precosPorCod).find((k) => {
+        if (!k.startsWith('__desc:')) return false;
+        const candidato = k.slice('__desc:'.length);
+        return candidato.includes(descLower) || descLower.includes(candidato);
+      });
+      if (chave) novo = precosPorCod[chave].preco;
+    }
 
     if (novo != null && novo !== Number(p.preco_unitario)) {
       const { error: upErr } = await supabase
