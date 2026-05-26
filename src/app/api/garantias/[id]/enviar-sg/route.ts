@@ -270,32 +270,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
   }
 
-  // Baixa as fotos do relatório técnico em paralelo (uma vez só) — reaproveita
-  // os bufferes tanto pra inserir na planilha quanto pra anexar no e-mail.
+  // Baixa as fotos do relatório técnico em paralelo (uma vez só) — entram na
+  // planilha xlsx (não como anexos avulsos do e-mail, pra evitar redundância).
   const fotosBuffer: Record<string, FotoBuffer> = {};
-  const fotosEmail: FotoAnexo[] = [];
   if (tecRes.data) {
     const tec = tecRes.data as Record<string, string | null>;
-    const camposParaBaixar = new Set<string>([
-      ...MAPA_FOTOS_SG.map((m) => m.campo),
-      // Alguns campos só anexados no e-mail (não vão pra planilha)
-      'FotoDireita',
-      'FotoEsquerda',
-      'FotoVolante',
-    ]);
-    const downloads = Array.from(camposParaBaixar).map(async (campo) => {
+    const downloads = MAPA_FOTOS_SG.map(async ({ campo }) => {
       const url = tec[campo];
       if (!url) return;
       const buf = await baixarUrl(url);
       if (!buf) return;
-      const ext = detectarExt(url);
-      fotosBuffer[campo] = { buffer: buf, ext };
-      const rotulo = campo.replace(/^Foto/, '').toLowerCase();
-      fotosEmail.push({
-        filename: `${rotulo}.${ext === 'png' ? 'png' : 'jpg'}`,
-        content: buf,
-        contentType: ext === 'png' ? 'image/png' : 'image/jpeg',
-      });
+      fotosBuffer[campo] = { buffer: buf, ext: detectarExt(url) };
     });
     await Promise.all(downloads);
   }
@@ -384,12 +369,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   // 6. Monta assunto e corpo (sanitiza variáveis pra evitar injeção HTML)
+  // Fallback para garantias antigas onde chassi/modelo não foram salvos no
+  // registro `garantias`: pega de `Ordem_Servico_Tecnicos` e da tabela `tratores`.
+  const chassisFinal =
+    garantia.chassis || tecRes.data?.Chassis || trator?.Chassis || '';
+  const modeloFinal = garantia.modelo || trator?.Modelo || '';
   const varsSan = {
     numero: sanitizeHtml(numeroSG),
     cliente: sanitizeHtml(garantia.cliente || osRes.data?.Os_Cliente || ''),
     os: sanitizeHtml(garantia.id_ordem || ''),
-    chassis: sanitizeHtml(garantia.chassis || ''),
-    modelo: sanitizeHtml(garantia.modelo || ''),
+    chassis: sanitizeHtml(chassisFinal),
+    modelo: sanitizeHtml(modeloFinal),
   };
   const assunto = (garantia.montadora.email_assunto
     ? aplicarTemplate(garantia.montadora.email_assunto, varsSan)
@@ -414,7 +404,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       html,
       attachments: [
         { filename: nomeArquivo, content: buffer, contentType: xlsxMime },
-        ...fotosEmail,
       ],
     });
 
@@ -453,7 +442,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       await registrarEvento(id, {
         tipo: 'sg_enviado',
         ator,
-        detalhe: `SG enviada para ${destinatarios.join(', ')} (${fotosEmail.length} foto(s) anexada(s))${up ? '' : ' — arquivo não foi armazenado'}`,
+        detalhe: `SG enviada para ${destinatarios.join(', ')}${up ? '' : ' — arquivo não foi armazenado'}`,
       });
 
       return NextResponse.json({
@@ -462,7 +451,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         nome: nomeArquivo,
         destinatarios,
         messageId: info.messageId,
-        fotosAnexadas: fotosEmail.length,
         origem: 'gerada',
       });
     }
@@ -472,7 +460,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await registrarEvento(id, {
       tipo: 'sg_enviado',
       ator,
-      detalhe: `SG revisada enviada para ${destinatarios.join(', ')} (${fotosEmail.length} foto(s) anexada(s))`,
+      detalhe: `SG revisada enviada para ${destinatarios.join(', ')}`,
     });
 
     return NextResponse.json({
@@ -481,7 +469,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       nome: nomeArquivo,
       destinatarios,
       messageId: info.messageId,
-      fotosAnexadas: fotosEmail.length,
       origem: 'revisada',
     });
   } catch (err) {

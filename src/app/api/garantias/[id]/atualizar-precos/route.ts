@@ -50,7 +50,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   // 1) Preços do PPV via movimentacoes
-  const precosPorCod: Record<string, { preco: number; descricao: string }> = {};
+  // `reqId` opcional: se a entrada veio de uma Requisicao, guardamos o id
+  // pra atualizar o cod_produto da peça da garantia para "REQ-{id}"
+  // (retroativamente — garantias antigas perdiam essa correlação).
+  type Entrada = { preco: number; descricao: string; reqId?: number };
+  const precosPorCod: Record<string, Entrada> = {};
   if (idsPPV.length > 0) {
     const { data: itens } = await supabase.from(TBL_ITENS).select('*').in('Id_PPV', idsPPV);
     const resumo: Record<string, { descricao: string; qtde: number; totalFin: number }> = {};
@@ -75,20 +79,48 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   // 2) Requisições vinculadas à OS (valor_cobrado_cliente)
+  // Indexa por TÍTULO e por OBSERVAÇÃO/MOTIVO — peças escritas só com palavra-
+  // chave ("Mangueira") cruzam com requisições mais descritivas
+  // ("PRENSAR MANGUEIRA PARA TRATOR DE CLIENTE").
+  // Parser BR-aware: respeita o sentido do ponto/vírgula.
+  //   "86,70" → 86.70   |   "1.234,56" → 1234.56   |   "86.70" → 86.70
+  const parseValorBR = (v: unknown): number => {
+    if (v == null) return 0;
+    if (typeof v === 'number') return isFinite(v) ? v : 0;
+    const s = String(v).trim();
+    if (!s) return 0;
+    // Se tem vírgula, vírgula é decimal (formato BR). Ponto vira separador
+    // de milhar e é removido. Caso contrário, mantém como veio (formato US).
+    const normalizado = s.includes(',')
+      ? s.replace(/\./g, '').replace(',', '.')
+      : s;
+    const n = parseFloat(normalizado);
+    return isNaN(n) ? 0 : n;
+  };
   const { data: reqs } = await supabase
     .from('Requisicao')
-    .select('titulo, valor_cobrado_cliente')
+    .select('id, titulo, obs, Motivo, valor_cobrado_cliente')
     .eq('ordem_servico', g.id_ordem)
     .not('status', 'in', '("lixeira","cancelada")');
   if (reqs && reqs.length > 0) {
-    for (const r of reqs as { titulo?: string; valor_cobrado_cliente?: string }[]) {
-      const titulo = String(r.titulo || '').trim();
-      const valor = parseFloat(r.valor_cobrado_cliente || '0');
-      if (!titulo || !(valor > 0)) continue;
-      const key = `__desc:${titulo.toLowerCase()}`;
-      if (!precosPorCod[key]) {
-        precosPorCod[key] = { preco: valor, descricao: titulo };
+    for (const r of reqs as { id: number; titulo?: string; obs?: string; Motivo?: string; valor_cobrado_cliente?: string | number }[]) {
+      const valor = parseValorBR(r.valor_cobrado_cliente);
+      if (!(valor > 0)) continue;
+      const candidatos = [r.titulo, r.obs, r.Motivo]
+        .map((s) => String(s || '').trim())
+        .filter(Boolean);
+      for (const desc of candidatos) {
+        const key = `__desc:${desc.toLowerCase()}`;
+        if (!precosPorCod[key]) {
+          precosPorCod[key] = { preco: valor, descricao: desc, reqId: r.id };
+        }
       }
+      // Também indexa por REQ-{id} pra peças que já têm o cod_produto correto
+      precosPorCod[`REQ-${r.id}`] = {
+        preco: valor,
+        descricao: candidatos[0] || `REQ-${r.id}`,
+        reqId: r.id,
+      };
     }
   }
 
@@ -124,17 +156,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   // 4) Atualiza preço de cada peça da garantia (cruzamento: cod -> descricao exata -> descricao contida)
+  // Quando o match veio de uma Requisicao, também atualiza o cod_produto pra
+  // "REQ-{id}" — assim a próxima geração de SG já joga essa peça pra
+  // "Serviços de Terceiros" automaticamente.
   let atualizadas = 0;
   for (const p of pecas) {
     const cod = String(p.cod_produto || '').trim();
     const desc = String(p.descricao || '').trim();
     const descLower = desc.toLowerCase();
-    let novo: number | null = null;
+    let entrada: Entrada | null = null;
 
     if (cod && precosPorCod[cod]) {
-      novo = precosPorCod[cod].preco;
+      entrada = precosPorCod[cod];
     } else if (desc && precosPorCod[`__desc:${descLower}`]) {
-      novo = precosPorCod[`__desc:${descLower}`].preco;
+      entrada = precosPorCod[`__desc:${descLower}`];
     } else if (desc) {
       // fallback: descricao contida (ex.: peça "Mangueira" cruza com requisição "Mangueira intercooler")
       const chave = Object.keys(precosPorCod).find((k) => {
@@ -142,16 +177,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         const candidato = k.slice('__desc:'.length);
         return candidato.includes(descLower) || descLower.includes(candidato);
       });
-      if (chave) novo = precosPorCod[chave].preco;
+      if (chave) entrada = precosPorCod[chave];
     }
 
-    if (novo != null && novo !== Number(p.preco_unitario)) {
-      const { error: upErr } = await supabase
-        .from(TBL_GAR_PECAS)
-        .update({ preco_unitario: novo })
-        .eq('id', p.id);
-      if (!upErr) atualizadas++;
+    if (!entrada) continue;
+    const update: Record<string, unknown> = {};
+    if (entrada.preco !== Number(p.preco_unitario)) {
+      update.preco_unitario = entrada.preco;
     }
+    if (entrada.reqId && cod !== `REQ-${entrada.reqId}`) {
+      update.cod_produto = `REQ-${entrada.reqId}`;
+    }
+    if (Object.keys(update).length === 0) continue;
+
+    const { error: upErr } = await supabase
+      .from(TBL_GAR_PECAS)
+      .update(update)
+      .eq('id', p.id);
+    if (!upErr) atualizadas++;
   }
 
   await registrarEvento(id, {

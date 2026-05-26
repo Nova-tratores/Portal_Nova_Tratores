@@ -666,31 +666,29 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text-secondary)' }}>
                             Peças pagas pela fábrica
                           </div>
-                          {g.pecas.some((p) => !Number(p.preco_unitario)) && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                chamar('atualizar_precos', `/api/garantias/${garantiaId}/atualizar-precos`, {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ ator: userName }),
-                                })
-                              }
-                              disabled={!!busy}
-                              style={{
-                                display: 'flex', alignItems: 'center', gap: 4,
-                                padding: '4px 10px', borderRadius: 6,
-                                border: '1px solid var(--portal-border)',
-                                background: 'var(--portal-bg-input)',
-                                color: 'var(--portal-text-secondary)',
-                                fontSize: 11, fontWeight: 600,
-                                cursor: busy ? 'default' : 'pointer',
-                              }}
-                            >
-                              {busy === 'atualizar_precos' ? <Loader2 size={11} className="spin" /> : <Save size={11} />}
-                              Atualizar preços do PPV
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              chamar('atualizar_precos', `/api/garantias/${garantiaId}/atualizar-precos`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ ator: userName }),
+                              })
+                            }
+                            disabled={!!busy}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 4,
+                              padding: '4px 10px', borderRadius: 6,
+                              border: '1px solid var(--portal-border)',
+                              background: 'var(--portal-bg-input)',
+                              color: 'var(--portal-text-secondary)',
+                              fontSize: 11, fontWeight: 600,
+                              cursor: busy ? 'default' : 'pointer',
+                            }}
+                          >
+                            {busy === 'atualizar_precos' ? <Loader2 size={11} className="spin" /> : <Save size={11} />}
+                            Atualizar preços do PPV
+                          </button>
                         </div>
                         {g.pecas.map((p) => {
                           const sel = pecasAprovadas.has(p.id);
