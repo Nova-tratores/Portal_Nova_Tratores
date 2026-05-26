@@ -43,6 +43,7 @@ export async function POST(req: NextRequest) {
       auto_enviar_email: !!body.auto_enviar_email,
       email_assunto: body.email_assunto || null,
       email_corpo: body.email_corpo || null,
+      proximo_numero_sg: Math.max(1, parseInt(body.proximo_numero_sg, 10) || 1),
     })
     .select()
     .single();

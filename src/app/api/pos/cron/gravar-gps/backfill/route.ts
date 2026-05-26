@@ -184,7 +184,7 @@ export async function POST(req: NextRequest) {
       sucesso: true,
       periodo: { de, ate },
       dias: datas.length,
-      tecnicos: vinculos.length,
+      tecnicos: tecnicos.length,
       totalSalvos,
       totalErros,
       erros: erros.length > 0 ? erros : undefined,

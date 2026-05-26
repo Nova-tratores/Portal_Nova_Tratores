@@ -57,6 +57,7 @@ export interface Montadora {
   auto_enviar_email: boolean;
   email_assunto: string | null;
   email_corpo: string | null;
+  proximo_numero_sg: number;
   created_at: string;
   updated_at: string;
 }
@@ -115,6 +116,7 @@ export interface GarantiaEvento {
 export interface Garantia {
   id: string;
   numero: string;
+  numero_externo: string | null;
   id_ordem: string;
   chassis: string | null;
   modelo: string | null;

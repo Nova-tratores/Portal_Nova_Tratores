@@ -16,9 +16,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .maybeSingle();
   if (!garantia) return NextResponse.json({ error: 'Garantia não encontrada.' }, { status: 404 });
 
-  if (!['em_analise', 'bo_tecnico'].includes(garantia.status)) {
+  if (!['em_analise', 'bo_tecnico', 'enviada', 'info_pendente'].includes(garantia.status)) {
     return NextResponse.json(
-      { error: 'O checklist só pode ser editado durante a análise da garantia.' },
+      { error: 'O checklist só pode ser editado durante a análise ou aguardando fábrica.' },
       { status: 400 }
     );
   }

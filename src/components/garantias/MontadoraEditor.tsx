@@ -40,6 +40,9 @@ export default function MontadoraEditor({ montadora, criadoPor, onClose, onSaved
   const [autoEnviar, setAutoEnviar] = useState(montadora?.auto_enviar_email ?? false);
   const [emailAssunto, setEmailAssunto] = useState(montadora?.email_assunto || '');
   const [emailCorpo, setEmailCorpo] = useState(montadora?.email_corpo || '');
+  const [proximoNumeroSG, setProximoNumeroSG] = useState(
+    String(montadora?.proximo_numero_sg ?? 1),
+  );
   const [saving, setSaving] = useState(false);
   const [erro, setErro] = useState('');
 
@@ -97,6 +100,7 @@ export default function MontadoraEditor({ montadora, criadoPor, onClose, onSaved
         auto_enviar_email: autoEnviar,
         email_assunto: emailAssunto.trim() || null,
         email_corpo: emailCorpo.trim() || null,
+        proximo_numero_sg: Math.max(1, parseInt(proximoNumeroSG, 10) || 1),
       };
       const url = montadora
         ? `/api/garantias/montadoras/${montadora.id}`
@@ -222,6 +226,24 @@ export default function MontadoraEditor({ montadora, criadoPor, onClose, onSaved
                   <option value="sem_template">Sem template (envio manual)</option>
                   <option value="mahindra">Mahindra (SG xlsx)</option>
                 </select>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--portal-text-secondary)' }}>
+                  Próximo número SG
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={proximoNumeroSG}
+                  onChange={(e) => setProximoNumeroSG(e.target.value)}
+                  placeholder="Ex.: 35"
+                  style={inputStyle}
+                />
+                <span style={{ fontSize: 11, color: 'var(--portal-text-faint)' }}>
+                  Próxima SG sai como <strong>{new Date().getFullYear()}-{String(Math.max(1, parseInt(proximoNumeroSG, 10) || 1)).padStart(3, '0')}</strong>. Incrementa
+                  automaticamente a cada SG nova dessa montadora.
+                </span>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>

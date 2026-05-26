@@ -50,7 +50,28 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // 2) Peças manuais do relatório técnico (PecasInfo)
+  // 2) Requisições vinculadas à OS (tabela Requisicao com ordem_servico = osId)
+  const { data: reqs } = await supabase
+    .from('Requisicao')
+    .select('id, titulo, valor_cobrado_cliente, quantidade')
+    .eq('ordem_servico', osId)
+    .not('status', 'in', '("lixeira","cancelada")');
+  for (const r of (reqs || []) as { id: number; titulo?: string; valor_cobrado_cliente?: string; quantidade?: string }[]) {
+    const titulo = String(r.titulo || '').trim();
+    if (!titulo) continue;
+    const valor = parseFloat(r.valor_cobrado_cliente || '0');
+    const qtd = parseFloat(r.quantidade || '1') || 1;
+    pecas.push({
+      cod_produto: `REQ-${r.id}`,
+      descricao: titulo,
+      quantidade: qtd,
+      preco_unitario: qtd > 0 ? valor / qtd : valor,
+      origem: 'pecasinfo_manual',
+      fonte_ppv_id: null,
+    });
+  }
+
+  // 3) Peças manuais do relatório técnico (PecasInfo)
   const { data: tec } = await supabase
     .from('Ordem_Servico_Tecnicos')
     .select('PecasInfo')
