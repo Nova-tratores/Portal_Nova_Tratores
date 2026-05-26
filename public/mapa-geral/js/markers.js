@@ -137,60 +137,87 @@ const Markers = {
         MapCore.veiculosComercialLayer.clearLayers();
         this.vehicleMarkers = [];
 
+        // Agrupar por tecnico para evitar duplicatas na oficina
+        const tecnicosNaLoja = {};
+
         for (const v of veiculos) {
             if (!v.lat || !v.lng) continue;
 
             const on = v.ignicao;
-            const motorista = Utils.truncate((v.motorista || 'N/D'), 22);
+            const tecnico = v._tecnico || v.motorista || '';
+            const nome = Utils.truncate(tecnico || 'N/D', 22);
             const oficina = this.isOficina(v.placa);
             const tipo = oficina ? 'oficina' : 'comercial';
+            const semGPS = v._semGPS;
 
             // Detectar se esta parado em cliente (ignicao off, fora da loja)
             const naLoja = Utils.calcularDistancia(v.lat, v.lng, -23.208410, -49.370770) < 0.8;
-            const paradoCliente = !on && !naLoja && oficina;
+            const paradoCliente = !on && !naLoja && oficina && !semGPS;
             const clienteProximo = paradoCliente ? this._findNearestClient(v.lat, v.lng) : null;
 
+            // Tecnicos na loja: agrupar para nao sobrepor
+            if ((naLoja && !on) || semGPS) {
+                const nKey = (tecnico || v.placa).toLowerCase();
+                if (tecnicosNaLoja[nKey]) continue; // ja tem marker desse tecnico na loja
+                tecnicosNaLoja[nKey] = true;
+            }
+
             const iconUrl = Utils.getVehicleIconUrl(v.modelo);
+            const primeiroNome = tecnico ? tecnico.split(/\s+/)[0] : '';
             let markerHtml;
 
             if (paradoCliente) {
-                // Marker especial: parado no cliente - destaque com nome do cliente
+                // Marker: tecnico parado no cliente
                 const nomeCliente = clienteProximo ? Utils.truncate(clienteProximo.nome || clienteProximo.nome_fantasia || '', 28) : 'Cliente';
                 markerHtml = `
-                    <div class="vehicle-marker-wrap vehicle-at-client" title="${motorista} parado em ${nomeCliente}">
+                    <div class="vehicle-marker-wrap vehicle-at-client" title="${nome} parado em ${nomeCliente}">
                         <div class="vehicle-marker-icon off ${tipo}" style="position:relative">
                             <img src="${iconUrl}" alt="" class="vehicle-marker-svg"/>
                             <div style="position:absolute;bottom:-3px;right:-3px;width:10px;height:10px;background:#f59e0b;border-radius:50%;border:2px solid rgba(15,23,42,0.9)"></div>
                         </div>
                         <div class="vehicle-marker-text">
-                            <div style="font-size:12px;font-weight:700;color:#f59e0b;line-height:1.2;text-shadow:0 1px 3px rgba(0,0,0,0.9)">${motorista}</div>
+                            <div style="font-size:13px;font-weight:800;color:#f59e0b;line-height:1.2;text-shadow:0 1px 3px rgba(0,0,0,0.9)">${primeiroNome || nome}</div>
                             <div style="font-size:10px;color:rgba(255,255,255,0.9);font-weight:600;line-height:1.2;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${nomeCliente}</div>
-                            <div style="font-size:9px;color:rgba(255,255,255,0.5)">${v.placa}</div>
+                            <div style="font-size:9px;color:rgba(255,255,255,0.4)">${v.placa}</div>
                         </div>
                     </div>
                 `;
-            } else if (!on && naLoja) {
-                // Na loja, parado - marker discreto
+            } else if (semGPS || (naLoja && !on)) {
+                // Marker: tecnico na oficina (com ou sem GPS)
+                const label = semGPS ? 'na oficina (sem carro)' : 'na oficina';
                 markerHtml = `
-                    <div class="vehicle-marker-wrap vehicle-at-loja" title="${v.placa} - ${motorista} (na loja)">
-                        <div class="vehicle-marker-icon off ${tipo}" style="opacity:0.6">
-                            <img src="${iconUrl}" alt="" class="vehicle-marker-svg"/>
+                    <div class="vehicle-marker-wrap vehicle-at-loja" title="${nome} - ${label}">
+                        <div style="width:28px;height:28px;border-radius:50%;background:rgba(100,116,139,0.5);display:flex;align-items:center;justify-content:center;border:2px solid rgba(100,116,139,0.3)">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                         </div>
                         <div class="vehicle-marker-text" style="opacity:0.6">
-                            <div class="vehicle-marker-placa">${v.placa}</div>
-                            <div class="vehicle-marker-sub">${motorista}</div>
+                            <div style="font-size:12px;font-weight:700;color:rgba(255,255,255,0.7)">${primeiroNome || nome}</div>
+                            <div class="vehicle-marker-sub">${semGPS ? 'oficina' : v.placa}</div>
+                        </div>
+                    </div>
+                `;
+            } else if (on && oficina) {
+                // Marker: tecnico em movimento (veiculo oficina)
+                markerHtml = `
+                    <div class="vehicle-marker-wrap" title="${nome} em movimento - ${v.placa}">
+                        <div class="vehicle-marker-icon on ${tipo}">
+                            <img src="${iconUrl}" alt="" class="vehicle-marker-svg"/>
+                        </div>
+                        <div class="vehicle-marker-text">
+                            <div style="font-size:13px;font-weight:800;color:#22c55e;text-shadow:0 1px 2px rgba(0,0,0,0.7)">${primeiroNome || nome}</div>
+                            <div class="vehicle-marker-sub">${v.placa} · em movimento</div>
                         </div>
                     </div>
                 `;
             } else {
-                // Em movimento ou comercial
+                // Marker: veiculo comercial ou sem tecnico
                 markerHtml = `
-                    <div class="vehicle-marker-wrap" title="${v.placa} - ${motorista}">
+                    <div class="vehicle-marker-wrap" title="${v.placa} - ${nome}">
                         <div class="vehicle-marker-icon ${on ? 'on' : 'off'} ${tipo}">
                             <img src="${iconUrl}" alt="" class="vehicle-marker-svg"/>
                         </div>
                         <div class="vehicle-marker-text">
-                            <div style="font-size:12px;font-weight:700;color:white;text-shadow:0 1px 2px rgba(0,0,0,0.7)">${motorista}</div>
+                            <div style="font-size:12px;font-weight:700;color:white;text-shadow:0 1px 2px rgba(0,0,0,0.7)">${nome}</div>
                             <div class="vehicle-marker-sub">${v.placa}${on ? ' · em movimento' : ''}</div>
                         </div>
                     </div>
@@ -205,10 +232,12 @@ const Markers = {
             });
 
             const marker = L.marker([v.lat, v.lng], { icon, zIndexOffset: paradoCliente ? 1000 : (on ? 500 : 0) });
-            marker.bindTooltip(`${motorista} · ${v.placa}${clienteProximo ? ` · ${clienteProximo.nome}` : ''}`, { direction: 'top', offset: [0, -14], className: 'client-tooltip' });
-            marker.on('click', function() {
-                App.selectVehicle(this.vehicleData.placa);
-            });
+            marker.bindTooltip(`${nome}${v.placa ? ' · ' + v.placa : ''}${clienteProximo ? ' · ' + clienteProximo.nome : ''}`, { direction: 'top', offset: [0, -14], className: 'client-tooltip' });
+            if (!semGPS) {
+                marker.on('click', function() {
+                    App.selectVehicle(this.vehicleData.placa);
+                });
+            }
             marker.vehicleData = v;
             this.vehicleMarkers.push(marker);
 

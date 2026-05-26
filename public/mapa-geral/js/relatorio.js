@@ -14,6 +14,8 @@ const Relatorio = {
     _resumoData: [],   // resumo_diario_tecnico do mes
     _gpsMap: {},        // tecnico_nome_norm -> { kmTotal, horasDirigindo, tempoParado, horasServico, dias }
     _gpsByTecData: {},  // normNome|data -> { km, horasFora, horasDirigindo, horasParado, placa }
+    _gpsByPlacaData: {}, // PLACA|data -> { km, horasFora, horasDirigindo, horasParado, placa }
+    _placaPorPOS: {},   // cod_int (POS) -> placa extraida do relatorio do tecnico
     _clienteMap: {},    // cod_int (POS) -> Os_Cliente
     _tecnicos: [],
     _tecnicoSel: null,
@@ -21,6 +23,9 @@ const Relatorio = {
     _loaded: false,
     _syncing: false,
     _filtro: 'todas',
+    _kmView: false,
+    _kmData: [],        // dados da tabela km_mensal_veiculos para o mes
+    _kmVeiculos: [],    // lista de veiculos do tecnico_veiculos
 
     // Coordenadas da Nova Tratores (base/loja)
     _BASE_LAT: -23.208410,
@@ -46,6 +51,13 @@ const Relatorio = {
 
     _normNome(s) {
         return (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    },
+
+    // "MONTANA - FHY8D25" -> "FHY8D25"
+    _extractPlaca(numPlaca) {
+        if (!numPlaca) return '';
+        const parts = numPlaca.split(' - ');
+        return (parts[parts.length - 1] || '').trim().toUpperCase();
     },
 
     _mesLabel() {
@@ -131,6 +143,7 @@ const Relatorio = {
     _processarGPS() {
         this._gpsMap = {};
         this._gpsByTecData = {}; // normNome|data -> { km, horasFora, horasDirigindo, horasParado, placa }
+        this._gpsByPlacaData = {}; // PLACA|data -> mesmo formato
 
         // Montar mapa de horas_dirigindo do resumo_diario_tecnico por tecnico+data
         const resumoMap = {};
@@ -162,23 +175,35 @@ const Relatorio = {
 
             // Indexar por tecnico+data para lookup per-OS
             const tdKey = `${nk}|${g.data}`;
-            this._gpsByTecData[tdKey] = {
+            const gpsDayData = {
                 km: this._toNum(g.km_total),
                 horasFora: horasForaDia,
                 horasDirigindo: dirigindoDia,
                 horasParado: paradoDia,
                 placa: g.placa || ''
             };
+            this._gpsByTecData[tdKey] = gpsDayData;
+
+            // Indexar por placa+data (para cruzar com placa do relatorio do tecnico)
+            if (g.placa) {
+                this._gpsByPlacaData[`${g.placa.toUpperCase()}|${g.data}`] = gpsDayData;
+            }
         }
     },
 
-    // Busca GPS de um dia especifico por tecnico+data
-    _getGPSDia(nomeTecnico, data) {
-        if (!nomeTecnico || !data) return null;
+    // Busca GPS de um dia especifico - prioriza placa do relatorio do tecnico
+    _getGPSDia(nomeTecnico, data, codInt) {
+        if (!data) return null;
+        // Prioridade 1: placa informada no relatorio do tecnico (Ordem_Servico_Tecnicos.NumPlaca)
+        if (codInt && this._placaPorPOS[codInt]) {
+            const placa = this._placaPorPOS[codInt];
+            const key = `${placa}|${data}`;
+            if (this._gpsByPlacaData[key]) return this._gpsByPlacaData[key];
+        }
+        // Prioridade 2: match por nome do tecnico
+        if (!nomeTecnico) return null;
         const n = this._normNome(nomeTecnico);
-        // Match exato
         if (this._gpsByTecData[`${n}|${data}`]) return this._gpsByTecData[`${n}|${data}`];
-        // Match pelo primeiro nome
         const primeiro = n.split(/\s+/)[0];
         for (const [k, v] of Object.entries(this._gpsByTecData)) {
             if (k.endsWith(`|${data}`) && k.split('|')[0].split(/\s+/)[0] === primeiro) return v;
@@ -209,7 +234,7 @@ const Relatorio = {
             const ultimo = `${y}-${String(m).padStart(2, '0')}-${new Date(y, m, 0).getDate()}`;
 
             // Carregar ordens, GPS, resumo diario e clientes em paralelo
-            const [ordensRes, gpsRes, resumoRes, clientesRes] = await Promise.all([
+            const [ordensRes, gpsRes, resumoRes, clientesRes, placaRes] = await Promise.all([
                 _supabase
                     .from('Ordens_Omie')
                     .select('*')
@@ -229,7 +254,10 @@ const Relatorio = {
                     .lte('data', ultimo),
                 _supabase
                     .from('Ordem_Servico')
-                    .select('Id_Ordem, Os_Cliente')
+                    .select('Id_Ordem, Os_Cliente'),
+                _supabase
+                    .from('Ordem_Servico_Tecnicos')
+                    .select('Ordem_Servico, NumPlaca')
             ]);
 
             if (ordensRes.error) throw ordensRes.error;
@@ -240,6 +268,16 @@ const Relatorio = {
             if (clientesRes.data) {
                 for (const c of clientesRes.data) {
                     if (c.Id_Ordem) this._clienteMap[c.Id_Ordem] = c.Os_Cliente || '';
+                }
+            }
+
+            // Mapear POS -> placa do relatorio do tecnico
+            this._placaPorPOS = {};
+            if (placaRes.data) {
+                for (const p of placaRes.data) {
+                    if (p.Ordem_Servico && p.NumPlaca) {
+                        this._placaPorPOS[p.Ordem_Servico] = this._extractPlaca(p.NumPlaca);
+                    }
                 }
             }
 
@@ -344,6 +382,10 @@ const Relatorio = {
                 <button onclick="Relatorio._mudarMes(1)" style="width:32px;height:32px;border-radius:8px;border:1px solid #E2E8F0;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#64748B">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
                 </button>
+                <button onclick="Relatorio._toggleKmView()" style="padding:6px 14px;border-radius:8px;border:1px solid #f59e0b;background:#FFFBEB;color:#B45309;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:4px" title="Registrar KM do odometro dos veiculos">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    KM Veiculos
+                </button>
                 <div style="margin-left:auto;display:flex;gap:6px">
                     ${this._renderFiltro()}
                 </div>
@@ -419,7 +461,7 @@ const Relatorio = {
         let gpsSomaKm = 0, gpsSomaDirigindo = 0, gpsSomaParado = 0, gpsSomaFora = 0;
         const ordsComGPS = ords.map(o => {
             const tecOS = (o.tecnicos || [])[0] || '';
-            const gpsDia = this._getGPSDia(tecOS, o.data);
+            const gpsDia = this._getGPSDia(tecOS, o.data, o.cod_int);
             const dayKey = tecOS && o.data ? `${this._normNome(tecOS)}|${o.data}` : null;
             if (gpsDia && dayKey && !gpsDiasUsados.has(dayKey)) {
                 gpsDiasUsados.add(dayKey);
@@ -431,9 +473,10 @@ const Relatorio = {
             return { ...o, gpsDia };
         });
 
-        // Divergencia
-        const divKm = gps ? (stats.km - gps.kmTotal) : 0;
-        const divHoras = gps ? (stats.horas - (gps.horasDirigindo + gps.tempoParado)) : 0;
+        // Divergencia (usa dados GPS corrigidos por placa do relatorio)
+        const hasGPSData = gpsDiasUsados.size > 0;
+        const divKm = hasGPSData ? (stats.km - gpsSomaKm) : 0;
+        const divHoras = hasGPSData ? (stats.horas - gpsSomaFora) : 0;
 
         let html = `
             <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
@@ -490,7 +533,7 @@ const Relatorio = {
                         <td style="font-size:16px;padding:12px 14px;border-bottom:1px solid #F1F5F9;text-align:right;font-weight:700;font-family:monospace;color:#047857" title="Horas que o tecnico registrou na OS">${this._toNum(o.horas).toFixed(1)}</td>
                         <td style="font-size:16px;padding:12px 14px;border-bottom:1px solid #F1F5F9;text-align:right;font-weight:700;font-family:monospace;color:#B45309" title="KM que o tecnico registrou na OS">${this._toNum(o.km).toFixed(0)}</td>
                         <td style="font-size:16px;padding:12px 14px;border-bottom:1px solid #F1F5F9;text-align:right;font-weight:700;font-family:monospace;color:#7C3AED" title="Valor cobrado">${this._toNum(o.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td style="font-size:14px;padding:12px 14px;border-bottom:1px solid #F1F5F9;color:#475569;font-weight:600" title="Placa do veiculo rastreado por GPS">${gd && gd.placa ? gd.placa : '-'}</td>
+                        <td style="font-size:14px;padding:12px 14px;border-bottom:1px solid #F1F5F9;color:#475569;font-weight:600" title="Placa do veiculo">${(o.cod_int && this._placaPorPOS[o.cod_int]) || (gd && gd.placa ? gd.placa : '-')}</td>
                     </tr>
                 `;
 
@@ -580,21 +623,21 @@ const Relatorio = {
                         </tr>
             `;
 
-            // Total GPS
-            if (gps) {
+            // Total GPS (usando dados corrigidos por placa do relatorio)
+            if (hasGPSData) {
                 html += `
                         <tr style="background:#ECFEFF">
-                            <td style="font-size:16px;padding:14px;font-weight:700;color:#0E7490" colspan="5" title="Dados reais do GPS do veiculo no mes">Total GPS (${gps.dias} dias)</td>
-                            <td style="font-size:16px;padding:14px;text-align:right;font-weight:800;font-family:monospace;color:#0891B2" title="Total de horas dirigindo (veiculo em movimento)">${gps.horasDirigindo.toFixed(1)}h</td>
-                            <td style="font-size:16px;padding:14px;text-align:right;font-weight:800;font-family:monospace;color:#EA580C" title="Total de KM percorrido pelo GPS">${gps.kmTotal.toFixed(0)}</td>
-                            <td style="font-size:16px;padding:14px;text-align:right;font-weight:800;font-family:monospace;color:#9333EA" title="Total de horas parado no cliente">${gps.tempoParado.toFixed(1)}h par</td>
+                            <td style="font-size:16px;padding:14px;font-weight:700;color:#0E7490" colspan="5" title="Dados reais do GPS do veiculo no mes">Total GPS (${gpsDiasUsados.size} dias)</td>
+                            <td style="font-size:16px;padding:14px;text-align:right;font-weight:800;font-family:monospace;color:#0891B2" title="Total de horas dirigindo (veiculo em movimento)">${gpsSomaDirigindo.toFixed(1)}h</td>
+                            <td style="font-size:16px;padding:14px;text-align:right;font-weight:800;font-family:monospace;color:#EA580C" title="Total de KM percorrido pelo GPS">${gpsSomaKm.toFixed(0)}</td>
+                            <td style="font-size:16px;padding:14px;text-align:right;font-weight:800;font-family:monospace;color:#9333EA" title="Total de horas parado no cliente">${gpsSomaParado.toFixed(1)}h par</td>
                             <td style="padding:14px"></td>
                         </tr>
                 `;
             }
 
             // Divergencia total do mes
-            if (gps) {
+            if (hasGPSData) {
                 const corDivKm = Math.abs(divKm) > 50 ? '#B91C1C' : '#166534';
                 const corDivH = Math.abs(divHoras) > 5 ? '#B91C1C' : '#166534';
                 const temDivMes = Math.abs(divKm) > 50 || Math.abs(divHoras) > 5;
@@ -638,5 +681,153 @@ const Relatorio = {
     _toggleOrdem(id) {
         this._ordemAberta = this._ordemAberta === id ? null : id;
         this._renderDetalhe();
+    },
+
+    // ===== KM VEICULOS =====
+
+    async _toggleKmView() {
+        this._kmView = !this._kmView;
+        if (this._kmView) {
+            await this._carregarKm();
+            this._renderKmVeiculos();
+        } else {
+            const container = document.getElementById('relatorio-content');
+            if (this._tecnicoSel) this._renderDetalhe();
+            else this._renderCards(container);
+        }
+    },
+
+    async _carregarKm() {
+        // Carregar veiculos e km do mes em paralelo
+        const [veicRes, kmRes] = await Promise.all([
+            _supabase.from('tecnico_veiculos').select('placa, veiculo, tecnico_nome').order('placa'),
+            _supabase.from('km_mensal_veiculos').select('*').eq('mes', this._mes)
+        ]);
+        // Deduplica veiculos por placa
+        const placaMap = {};
+        for (const v of (veicRes.data || [])) {
+            if (v.placa && !placaMap[v.placa]) {
+                placaMap[v.placa] = { placa: v.placa, descricao: v.veiculo || '', tecnico: v.tecnico_nome || '' };
+            }
+        }
+        this._kmVeiculos = Object.values(placaMap);
+        // Indexar km existente por placa
+        this._kmData = {};
+        for (const k of (kmRes.data || [])) {
+            this._kmData[k.placa] = k;
+        }
+    },
+
+    async _salvarKm() {
+        const rows = [];
+        for (const v of this._kmVeiculos) {
+            const elInicio = document.getElementById(`km-inicio-${v.placa}`);
+            const elFim = document.getElementById(`km-fim-${v.placa}`);
+            if (!elInicio || !elFim) continue;
+            const kmInicio = parseFloat(elInicio.value) || 0;
+            const kmFim = parseFloat(elFim.value) || 0;
+            rows.push({
+                mes: this._mes,
+                placa: v.placa,
+                descricao: v.descricao,
+                km_inicio: kmInicio,
+                km_fim: kmFim,
+                atualizado_por: 'portal',
+                updated_at: new Date().toISOString()
+            });
+        }
+        if (rows.length === 0) return;
+
+        const { error } = await _supabase
+            .from('km_mensal_veiculos')
+            .upsert(rows, { onConflict: 'mes,placa' });
+
+        if (error) {
+            Utils.toast('Erro ao salvar KM: ' + error.message, 'error');
+            console.error('Erro salvar KM:', error);
+        } else {
+            Utils.toast('KM salvo com sucesso!', 'success');
+            await this._carregarKm();
+            this._renderKmVeiculos();
+        }
+    },
+
+    _renderKmVeiculos() {
+        const container = document.getElementById('relatorio-content');
+        let html = `
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+                <button onclick="Relatorio._toggleKmView()" style="width:32px;height:32px;border-radius:8px;border:1px solid #E2E8F0;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#64748B">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+                </button>
+                <div style="flex:1">
+                    <div style="font-size:18px;font-weight:700;color:#1E293B">KM Veiculos - Odometro</div>
+                    <div style="font-size:12px;color:#94A3B8">${this._mesLabel()} - Registre o KM no 1o e ultimo dia do mes</div>
+                </div>
+                <button onclick="Relatorio._salvarKm()" style="padding:8px 20px;border-radius:8px;border:none;background:#3b82f6;color:#fff;font-size:13px;font-weight:700;cursor:pointer">Salvar</button>
+            </div>
+        `;
+
+        if (this._kmVeiculos.length === 0) {
+            html += `<div style="text-align:center;padding:40px;color:#94A3B8;font-size:13px">Nenhum veiculo cadastrado em tecnico_veiculos</div>`;
+            container.innerHTML = html;
+            return;
+        }
+
+        html += `
+            <div style="background:#fff;border:1px solid #E2E8F0;border-radius:10px;overflow:hidden">
+                <table style="width:100%;border-collapse:collapse">
+                    <thead>
+                        <tr style="background:#F1F5F9">
+                            <th style="font-size:13px;font-weight:600;color:#475569;text-align:left;padding:12px 14px;border-bottom:1px solid #E2E8F0">Placa</th>
+                            <th style="font-size:13px;font-weight:600;color:#475569;text-align:left;padding:12px 14px;border-bottom:1px solid #E2E8F0">Veiculo</th>
+                            <th style="font-size:13px;font-weight:600;color:#475569;text-align:left;padding:12px 14px;border-bottom:1px solid #E2E8F0">Tecnico</th>
+                            <th style="font-size:13px;font-weight:600;color:#475569;text-align:center;padding:12px 14px;border-bottom:1px solid #E2E8F0">KM Inicio</th>
+                            <th style="font-size:13px;font-weight:600;color:#475569;text-align:center;padding:12px 14px;border-bottom:1px solid #E2E8F0">KM Fim</th>
+                            <th style="font-size:13px;font-weight:600;color:#475569;text-align:center;padding:12px 14px;border-bottom:1px solid #E2E8F0">KM Percorrido</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+        for (const v of this._kmVeiculos) {
+            const saved = this._kmData[v.placa];
+            const kmInicio = saved ? saved.km_inicio : '';
+            const kmFim = saved ? saved.km_fim : '';
+            const percorrido = (kmInicio && kmFim && parseFloat(kmFim) > parseFloat(kmInicio))
+                ? (parseFloat(kmFim) - parseFloat(kmInicio)).toFixed(0)
+                : '-';
+
+            html += `
+                <tr>
+                    <td style="font-size:14px;padding:10px 14px;border-bottom:1px solid #F1F5F9;font-weight:700;color:#1E293B">${v.placa}</td>
+                    <td style="font-size:14px;padding:10px 14px;border-bottom:1px solid #F1F5F9;color:#475569">${v.descricao}</td>
+                    <td style="font-size:14px;padding:10px 14px;border-bottom:1px solid #F1F5F9;color:#475569">${v.tecnico}</td>
+                    <td style="padding:10px 14px;border-bottom:1px solid #F1F5F9;text-align:center">
+                        <input id="km-inicio-${v.placa}" type="number" value="${kmInicio}" placeholder="0"
+                            onchange="Relatorio._calcKmPerc('${v.placa}')"
+                            style="width:100px;padding:6px 10px;border:1px solid #E2E8F0;border-radius:6px;font-size:14px;font-weight:600;text-align:right;color:#047857" />
+                    </td>
+                    <td style="padding:10px 14px;border-bottom:1px solid #F1F5F9;text-align:center">
+                        <input id="km-fim-${v.placa}" type="number" value="${kmFim}" placeholder="0"
+                            onchange="Relatorio._calcKmPerc('${v.placa}')"
+                            style="width:100px;padding:6px 10px;border:1px solid #E2E8F0;border-radius:6px;font-size:14px;font-weight:600;text-align:right;color:#B45309" />
+                    </td>
+                    <td id="km-perc-${v.placa}" style="font-size:16px;padding:10px 14px;border-bottom:1px solid #F1F5F9;text-align:center;font-weight:800;color:#3b82f6">${percorrido}</td>
+                </tr>
+            `;
+        }
+
+        html += `</tbody></table></div>`;
+        container.innerHTML = html;
+    },
+
+    _calcKmPerc(placa) {
+        const elInicio = document.getElementById(`km-inicio-${placa}`);
+        const elFim = document.getElementById(`km-fim-${placa}`);
+        const elPerc = document.getElementById(`km-perc-${placa}`);
+        if (!elInicio || !elFim || !elPerc) return;
+        const ini = parseFloat(elInicio.value) || 0;
+        const fim = parseFloat(elFim.value) || 0;
+        elPerc.textContent = (fim > ini && ini > 0) ? (fim - ini).toFixed(0) : '-';
     }
 };

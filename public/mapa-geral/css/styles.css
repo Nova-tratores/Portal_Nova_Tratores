@@ -897,6 +897,45 @@ body.sidebar-resizing * { cursor: col-resize !important; }
 }
 
 /* =========================================================
+   TOOLS MENU (gear icon bottom-right)
+   ========================================================= */
+.map-tools-menu {
+    position: absolute;
+    bottom: 24px;
+    right: 200px;
+    z-index: 800;
+}
+.map-tools-toggle {
+    width: 40px; height: 40px;
+    border-radius: var(--radius-md);
+    background: var(--bg-panel);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--glass-border);
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: var(--shadow-md);
+    transition: all var(--transition-fast);
+}
+.map-tools-toggle:hover { background: var(--bg-sidebar-hover); color: var(--text-primary); border-color: var(--accent-primary); }
+.map-tools-dropdown {
+    display: none;
+    position: absolute; bottom: 48px; right: 0;
+    background: var(--bg-panel); backdrop-filter: blur(16px);
+    border: 1px solid var(--glass-border); border-radius: var(--radius-md);
+    min-width: 250px; padding: 6px 0;
+    box-shadow: 0 8px 24px rgba(0,0,0,.25);
+}
+.map-tools-dropdown.open { display: block; }
+.map-tools-item {
+    width: 100%; padding: 10px 16px; background: none; border: none;
+    color: var(--text-secondary); font-size: 13px; font-weight: 500;
+    cursor: pointer; display: flex; align-items: center; gap: 10px; text-align: left;
+    font-family: 'Inter', sans-serif;
+}
+.map-tools-item:hover { background: var(--bg-sidebar-hover); color: var(--text-primary); }
+
+/* =========================================================
    KMZ IMPORT / EXPORT
    ========================================================= */
 .kmz-actions {
@@ -904,7 +943,7 @@ body.sidebar-resizing * { cursor: col-resize !important; }
     bottom: 24px;
     right: 200px;
     z-index: 800;
-    display: flex;
+    display: none;
     gap: 8px;
 }
 .kmz-btn {

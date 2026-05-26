@@ -255,7 +255,8 @@ const App = {
             // 1. Vinculos fixos (tecnico_veiculos) como base
             const { data: vinculos } = await sb
                 .from('tecnico_veiculos')
-                .select('tecnico_nome, placa');
+                .select('tecnico_nome, placa, adesao_id');
+            this.state.tecnicoVinculos = vinculos || [];
             if (vinculos) {
                 for (const v of vinculos) {
                     if (v.placa) placaTecnico[v.placa.replace(/[^A-Z0-9]/g, '').toUpperCase()] = v.tecnico_nome;
@@ -278,10 +279,33 @@ const App = {
             console.log('[Mapa] Vinculos tecnico-placa:', placaTecnico);
 
             // Sobrescrever motorista nos veiculos que tem tecnico vinculado
+            const tecnicosComCarro = new Set();
             for (const v of veiculos) {
                 const placaNorm = (v.placa || '').replace(/[^A-Z0-9]/g, '').toUpperCase();
                 if (placaTecnico[placaNorm]) {
                     v.motorista = placaTecnico[placaNorm];
+                    v._tecnico = placaTecnico[placaNorm];
+                    tecnicosComCarro.add(placaTecnico[placaNorm]);
+                }
+            }
+
+            // Tecnicos vinculados que nao apareceram em nenhum veiculo com GPS
+            // (provavelmente na oficina, sem carro ou carro sem rastreamento)
+            if (vinculos) {
+                for (const vinc of vinculos) {
+                    if (!tecnicosComCarro.has(vinc.tecnico_nome)) {
+                        veiculos.push({
+                            placa: vinc.placa || '',
+                            lat: -23.208410,
+                            lng: -49.370770,
+                            ignicao: 0,
+                            motorista: vinc.tecnico_nome,
+                            _tecnico: vinc.tecnico_nome,
+                            _semGPS: true,
+                            modelo: '',
+                            descricao: ''
+                        });
+                    }
                 }
             }
         } catch (e) { console.error('[App] Erro ao aplicar tecnicos:', e); }
@@ -308,6 +332,7 @@ const App = {
         if (tab === 'veiculos') {
             const veiculos = this.state.veiculos
                 .filter(v => {
+                    if (v._semGPS) return false; // nao listar tecnicos fantasma na lista de veiculos
                     if (!search) return true;
                     return (v.placa || '').toLowerCase().includes(search) ||
                            (v.modelo || '').toLowerCase().includes(search) ||
@@ -316,20 +341,24 @@ const App = {
 
             container.innerHTML = veiculos.length === 0
                 ? '<div style="padding:12px;text-align:center;color:var(--text-muted);font-size:12px;">Nenhum veiculo encontrado</div>'
-                : veiculos.map(v => `
+                : veiculos.map(v => {
+                    const tecnico = v._tecnico || v.motorista || '';
+                    const primeiroNome = tecnico ? tecnico.split(/\s+/)[0] : '';
+                    return `
                     <div class="cadastro-item${App._selectedPlaca === v.placa ? ' selected' : ''}" onclick="App.selectVehicle('${v.placa}')">
                         <div class="cadastro-item-icon ${Markers.isOficina(v.placa) ? 'oficina' : 'comercial'} ${v.ignicao ? 'on' : 'off'}">
                             <img src="${Utils.getVehicleIconUrl(v.modelo)}" alt="" style="width:100%;height:100%;object-fit:contain;"/>
                         </div>
                         <div class="cadastro-item-info">
-                            <div class="cadastro-item-name">${v.placa}</div>
-                            <div class="cadastro-item-detail">${v.modelo || 'Veiculo'}${v.ano ? ' ' + v.ano : ''} | ${v.motorista || 'N/D'}</div>
+                            <div class="cadastro-item-name">${primeiroNome || v.placa}</div>
+                            <div class="cadastro-item-detail">${v.placa} | ${v.modelo || 'Veiculo'}${v.ano ? ' ' + v.ano : ''}</div>
                         </div>
                         <button class="cadastro-item-delete" onclick="event.stopPropagation(); App.deleteCadastroItem('veiculo','${v.placa}')" title="Excluir">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                         </button>
                     </div>
-                `).join('');
+                    `;
+                }).join('');
         } else {
             const clientes = this.state.clientes
                 .filter(c => {
@@ -633,3 +662,10 @@ const App = {
 // INIT ON DOM READY
 // =========================================================
 document.addEventListener('DOMContentLoaded', () => App.init());
+
+// Close tools dropdown when clicking outside
+document.addEventListener('click', (e) => {
+    const menu = document.getElementById('map-tools-menu');
+    const dd = document.getElementById('map-tools-dropdown');
+    if (menu && dd && !menu.contains(e.target)) dd.classList.remove('open');
+});

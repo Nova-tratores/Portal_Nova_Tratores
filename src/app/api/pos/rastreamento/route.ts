@@ -277,6 +277,28 @@ export async function GET(req: NextRequest) {
         return NextResponse.json(veiculos)
       }
 
+      case 'motoristas': {
+        const data = await fetchRotaExata('/motoristas', { limit: '200', page: '0' })
+        const motoristas = (data.data || []).map((m: any) => ({
+          _id: m._id,
+          adesao_id: m.adesao_id,
+          motorista_id: m.motorista_id || m.motorista?.id,
+          nome: m.motorista?.nome || '',
+          modo: m.modo || '',
+          dt_inicio: m.dt_inicio,
+          final: m.final,
+        }))
+        return NextResponse.json(motoristas)
+      }
+
+      case 'usuarios_motoristas': {
+        const data = await fetchRotaExata('/usuarios', { limit: '200', page: '0' })
+        const motoristas = (data.data || []).filter((u: any) => u.motorista === 1).map((u: any) => ({
+          id: u.id, nome: u.nome || '', cargo: u.cargo || '', cpf: u.cpf || '',
+        }))
+        return NextResponse.json(motoristas)
+      }
+
       case 'posicoes': {
         const adesaoId = searchParams.get('adesao_id')
         if (!adesaoId) return NextResponse.json({ error: 'adesao_id obrigatório' }, { status: 400 })
@@ -378,6 +400,66 @@ export async function GET(req: NextRequest) {
     }
   } catch (err: any) {
     console.error('[Rastreamento]', err)
+    return NextResponse.json({ error: err.message }, { status: 500 })
+  }
+}
+
+/**
+ * POST /api/pos/rastreamento
+ * acao: 'vincular_motorista'
+ * body: { adesao_id, motorista_id }
+ */
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json()
+    const acao = body.acao
+
+    if (acao === 'vincular_motorista') {
+      const { adesao_id, motorista_id } = body
+      if (!adesao_id || !motorista_id) {
+        return NextResponse.json({ error: 'adesao_id e motorista_id obrigatórios' }, { status: 400 })
+      }
+
+      const token = await getToken()
+      const res = await fetch(`${API_URL}/motoristas`, {
+        method: 'POST',
+        headers: { Authorization: token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adesao_id, motorista_id }),
+      })
+
+      if (!res.ok) {
+        const text = await res.text()
+        return NextResponse.json({ error: `Rota Exata: ${res.status} - ${text}` }, { status: res.status })
+      }
+
+      const data = await res.json()
+      return NextResponse.json(data)
+    }
+
+    if (acao === 'desvincular_motorista') {
+      const { vinculo_id } = body
+      if (!vinculo_id) {
+        return NextResponse.json({ error: 'vinculo_id obrigatório' }, { status: 400 })
+      }
+
+      const token = await getToken()
+      const res = await fetch(`${API_URL}/motoristas/${vinculo_id}`, {
+        method: 'DELETE',
+        headers: { Authorization: token },
+      })
+
+      if (!res.ok) {
+        const text = await res.text()
+        return NextResponse.json({ error: `Rota Exata: ${res.status} - ${text}` }, { status: res.status })
+      }
+
+      const data = await res.json()
+      return NextResponse.json(data)
+    }
+
+    return NextResponse.json({ error: `Ação desconhecida: ${acao}` }, { status: 400 })
+  } catch (err: any) {
+    console.error('[Rastreamento POST]', err)
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }

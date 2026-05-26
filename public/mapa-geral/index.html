@@ -72,12 +72,12 @@
                 <label class="layer-toggle">
                     <input type="checkbox" id="layer-veiculos" checked>
                     <span class="layer-dot" style="background: var(--accent-green);"></span>
-                    <span class="layer-label">Veiculos GPS</span>
+                    <span class="layer-label">Tecnicos / Veiculos</span>
                 </label>
                 <label class="layer-toggle layer-sub">
                     <input type="checkbox" id="layer-veiculos-oficina" checked>
                     <span class="layer-dot" style="background: var(--accent-orange);"></span>
-                    <span class="layer-label">Oficina</span>
+                    <span class="layer-label">Oficina (tecnicos)</span>
                 </label>
                 <label class="layer-toggle layer-sub">
                     <input type="checkbox" id="layer-veiculos-comercial">
@@ -205,16 +205,25 @@
             Editar Posicoes
         </button>
 
-        <!-- KMZ Import/Export -->
-        <div class="kmz-actions">
-            <button class="kmz-btn" onclick="KmzManager.importFile()" title="Importar arquivo KMZ/KML">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                Importar KMZ
+        <!-- Ferramentas (menu) -->
+        <div class="map-tools-menu" id="map-tools-menu">
+            <button class="map-tools-toggle" onclick="document.getElementById('map-tools-dropdown').classList.toggle('open')" title="Ferramentas">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
             </button>
-            <button class="kmz-btn" onclick="KmzManager.exportKmz()" title="Exportar localizacoes como KMZ">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                Exportar KMZ
-            </button>
+            <div class="map-tools-dropdown" id="map-tools-dropdown">
+                <button class="map-tools-item" onclick="VeiculosTecnicos.open(); document.getElementById('map-tools-dropdown').classList.remove('open')">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+                    Vincular Tecnicos a Veiculos
+                </button>
+                <button class="map-tools-item" onclick="KmzManager.importFile(); document.getElementById('map-tools-dropdown').classList.remove('open')">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Importar KMZ
+                </button>
+                <button class="map-tools-item" onclick="KmzManager.exportKmz(); document.getElementById('map-tools-dropdown').classList.remove('open')">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    Exportar KMZ
+                </button>
+            </div>
         </div>
 
         <!-- Route Replay -->
@@ -376,6 +385,18 @@
         </div>
     </div>
 
+    <!-- ============ VINCULAR TECNICOS A VEICULOS MODAL ============ -->
+    <div id="veiculos-tec-modal" class="crud-modal-overlay" style="display:none">
+        <div class="crud-modal-card" style="max-width:650px; max-height:85vh;">
+            <div class="crud-modal-header">
+                <h3 id="veiculos-tec-title">Vincular Tecnicos a Veiculos</h3>
+                <button class="crud-modal-close" onclick="VeiculosTecnicos.close()">&#10005;</button>
+            </div>
+            <div class="crud-modal-body" id="veiculos-tec-body" style="padding:0"></div>
+            <div class="crud-modal-footer" id="veiculos-tec-footer"></div>
+        </div>
+    </div>
+
     <!-- ============ KMZ IMPORT MODAL ============ -->
     <div id="kmz-modal" class="crud-modal-overlay" style="display:none">
         <div class="crud-modal-card" style="max-width:600px; max-height:80vh;">
@@ -437,6 +458,7 @@
     <script src="js/vehiclePanel.js"></script>
     <script src="js/equipTipos.js"></script>
     <script src="js/relatorio.js"></script>
+    <script src="js/veiculosTecnicos.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>

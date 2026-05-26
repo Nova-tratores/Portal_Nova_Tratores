@@ -75,6 +75,13 @@ function proximaData(dataAtual: string, recorrencia: string): string {
     case "semanal": d.setDate(d.getDate() + 7); break;
     case "quinzenal": d.setDate(d.getDate() + 14); break;
     case "mensal": d.setMonth(d.getMonth() + 1); break;
+    case "mensal_ultimo_dia": {
+      // Último dia do próximo mês, mantendo o horário
+      const hora = d.getHours(), min = d.getMinutes(), seg = d.getSeconds();
+      d.setMonth(d.getMonth() + 2, 0); // dia 0 do mês+2 = último dia do mês+1
+      d.setHours(hora, min, seg);
+      break;
+    }
     case "bimestral": d.setMonth(d.getMonth() + 2); break;
     case "semestral": d.setMonth(d.getMonth() + 6); break;
     case "anual": d.setFullYear(d.getFullYear() + 1); break;

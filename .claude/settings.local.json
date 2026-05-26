@@ -697,7 +697,23 @@
       "Bash(curl -s -X POST \"https://portal-nova-tratores.vercel.app/api/pos/cron/gravar-gps/backfill?de=2026-05-01&ate=2026-05-25\" 2>&1 | head -100)",
       "Bash(curl -s -X POST \"https://portal-nova-tratores-git-main-nova-tratores.vercel.app/api/pos/cron/gravar-gps/backfill?de=2026-05-01&ate=2026-05-25\" -H \"Content-Type: application/json\" 2>&1 | head -50)",
       "Bash(curl -s -X POST \"https://mecanicos-nine.vercel.app/api/pos/cron/gravar-gps/backfill?de=2026-05-01&ate=2026-05-25\" -H \"Content-Type: application/json\" 2>&1 | head -100)",
-      "Bash(curl -s -X POST \"https://portalnovatratores-production.up.railway.app/api/pos/cron/gravar-gps/backfill?de=2026-05-01&ate=2026-05-25\" -H \"Content-Type: application/json\" 2>&1 | head -200)"
+      "Bash(curl -s -X POST \"https://portalnovatratores-production.up.railway.app/api/pos/cron/gravar-gps/backfill?de=2026-05-01&ate=2026-05-25\" -H \"Content-Type: application/json\" 2>&1 | head -200)",
+      "Bash(grep -r \"Veiculo_Usado\\\\|veiculo_usado\\\\|placa\" /c/projetos/portal/sql/*.sql | head -50)",
+      "Bash(grep -r \"Ordem_Servico\\\\|Ordens_Omie\" /c/projetos/portal/sql/*.sql | grep -i \"create\\\\|alter\" | head -30)",
+      "Bash(grep -n \"CREATE TABLE.*GPS_Viagens\\\\|Ordem_Servico\" /c/projetos/portal/sql/*.sql | head -20)",
+      "Bash(grep -n \"CREATE TABLE.*GPS_Viagens\" /c/projetos/portal/sql/*.sql)",
+      "Bash(grep -r \"CREATE TABLE\" /c/projetos/portal/sql/*.sql | grep -i \"gps\\\\|viagem\")",
+      "Bash(grep -r \"CREATE TABLE.*Ordens_Omie\\\\|ALTER TABLE.*Ordens_Omie\" /c/projetos/portal/sql/*.sql)",
+      "Bash(node -e \"\nconst { createClient } = require\\('@supabase/supabase-js'\\);\nconst sb = createClient\\('https://citrhumdkfivdzbmayde.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpdHJodW1ka2ZpdmR6Ym1heWRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxMDgyNzUsImV4cCI6MjA4NDY4NDI3NX0.83x3-NrKoJgtIuSE7Jjsaj0zH-b-XJ3Z8i3XkBkwVoU'\\);\n\\(async \\(\\) => {\n  // Pegar 1 row pra ver todas as colunas\n  const { data, error } = await sb.from\\('Ordem_Servico_Tecnicos'\\).select\\('*'\\).limit\\(1\\);\n  if \\(error\\) { console.log\\('ERRO:', error.message\\); return; }\n  if \\(data && data.length > 0\\) {\n    console.log\\('COLUNAS:', Object.keys\\(data[0]\\).join\\(', '\\)\\);\n  } else {\n    console.log\\('Tabela vazia'\\);\n  }\n}\\)\\(\\);\n\" 2>&1)",
+      "Bash(node check-danilo.js 2>&1)",
+      "Bash(node -c \"C:/projetos/portal/public/mapa-geral/js/relatorio.js\" 2>&1 || node --check \"C:/projetos/portal/public/mapa-geral/js/relatorio.js\" 2>&1 || node -e \"try { require\\('fs'\\).readFileSync\\('C:/projetos/portal/public/mapa-geral/js/relatorio.js','utf8'\\); new Function\\(require\\('fs'\\).readFileSync\\('C:/projetos/portal/public/mapa-geral/js/relatorio.js','utf8'\\)\\); console.log\\('SYNTAX OK'\\); } catch\\(e\\) { console.log\\('SYNTAX ERROR:', e.message\\); }\")",
+      "Bash(node -e \"try { new Function\\(require\\('fs'\\).readFileSync\\('C:/projetos/portal/public/mapa-geral/js/relatorio.js','utf8'\\)\\); console.log\\('SYNTAX OK'\\); } catch\\(e\\) { console.log\\('SYNTAX ERROR:', e.message\\); }\")",
+      "Bash(node test-placa.js && rm test-placa.js)",
+      "Bash(node check-placa.js 2>&1)",
+      "Bash(node check-user.js 2>&1)",
+      "Bash(node setup-km.js 2>&1)",
+      "WebFetch(domain:api.rotaexata.com.br)",
+      "WebFetch(domain:rotaexata.com.br)"
     ]
   }
 }
