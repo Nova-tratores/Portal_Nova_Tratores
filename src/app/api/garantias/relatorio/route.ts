@@ -20,7 +20,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Falha ao gerar relatório.' }, { status: 500 });
   }
 
-  type Acc = RelatorioMontadora & { _somaResolucao: number; _qtdResolucao: number; _somaAberto: number; _qtdAberto: number };
+  type Acc = RelatorioMontadora & {
+    _somaResolucao: number;
+    _qtdResolucao: number;
+    _somaAberto: number;
+    _qtdAberto: number;
+  };
   const grupos: Record<string, Acc> = {};
 
   const novo = (id: string | null, nome: string, cor: string | null): Acc => ({
@@ -40,6 +45,13 @@ export async function GET(req: NextRequest) {
     total_garantista_km: 0,
     tempo_medio_resolucao_dias: null,
     tempo_medio_aberto_dias: null,
+    recuperado_cliente: 0,
+    a_receber: 0,
+    vencido: 0,
+    prejuizo_liquido: 0,
+    qtd_cobrancas_pagas: 0,
+    qtd_cobrancas_pendentes: 0,
+    qtd_cobrancas_vencidas: 0,
     _somaResolucao: 0,
     _qtdResolucao: 0,
     _somaAberto: 0,
@@ -47,7 +59,17 @@ export async function GET(req: NextRequest) {
   });
 
   const agora = Date.now();
-  const totais = { lucro: 0, prejuizo: 0, saldo: 0, qtd_finalizadas: 0 };
+  const hojeIso = new Date().toISOString().slice(0, 10);
+  const totais = {
+    lucro: 0,
+    prejuizo: 0,
+    saldo: 0,
+    qtd_finalizadas: 0,
+    recuperado_cliente: 0,
+    a_receber: 0,
+    vencido: 0,
+    prejuizo_liquido: 0,
+  };
 
   for (const g of data || []) {
     const mont = g.montadora as { id: string; nome: string; cor: string | null } | null;
@@ -71,6 +93,30 @@ export async function GET(req: NextRequest) {
       const k = g.garantista_km != null ? Number(g.garantista_km) : Number(g.tecnico_km) || 0;
       acc.prejuizo += h * VALOR_HORA + k * VALOR_KM;
       totais.qtd_finalizadas++;
+
+      // Cobrança ao cliente — só faz sentido em rejeitadas
+      const valor = Number(g.cobranca_valor_total) || 0;
+      switch (g.cobranca_status) {
+        case 'paga':
+          acc.recuperado_cliente += valor;
+          acc.qtd_cobrancas_pagas++;
+          break;
+        case 'cobrada': {
+          const vencida = g.cobranca_vencimento && String(g.cobranca_vencimento) < hojeIso;
+          if (vencida) {
+            acc.vencido += valor;
+            acc.qtd_cobrancas_vencidas++;
+          } else {
+            acc.a_receber += valor;
+            acc.qtd_cobrancas_pendentes++;
+          }
+          break;
+        }
+        case 'pendente':
+          acc.qtd_cobrancas_pendentes++;
+          break;
+        // 'nao_cobrar' e 'baixada_prejuizo' não somam em lugar nenhum
+      }
     } else {
       acc.qtd_abertas++;
     }
@@ -94,16 +140,21 @@ export async function GET(req: NextRequest) {
   }
 
   const porMontadora = Object.values(grupos).map((acc) => {
-    acc.saldo = acc.lucro - acc.prejuizo;
+    acc.prejuizo_liquido = Math.max(0, acc.prejuizo - acc.recuperado_cliente);
+    acc.saldo = acc.lucro - acc.prejuizo_liquido;
     acc.tempo_medio_resolucao_dias = acc._qtdResolucao > 0 ? Math.round((acc._somaResolucao / acc._qtdResolucao) * 10) / 10 : null;
     acc.tempo_medio_aberto_dias = acc._qtdAberto > 0 ? Math.round((acc._somaAberto / acc._qtdAberto) * 10) / 10 : null;
     totais.lucro += acc.lucro;
     totais.prejuizo += acc.prejuizo;
+    totais.recuperado_cliente += acc.recuperado_cliente;
+    totais.a_receber += acc.a_receber;
+    totais.vencido += acc.vencido;
     const { _somaResolucao, _qtdResolucao, _somaAberto, _qtdAberto, ...limpo } = acc;
     void _somaResolucao; void _qtdResolucao; void _somaAberto; void _qtdAberto;
     return limpo as RelatorioMontadora;
   });
-  totais.saldo = totais.lucro - totais.prejuizo;
+  totais.prejuizo_liquido = Math.max(0, totais.prejuizo - totais.recuperado_cliente);
+  totais.saldo = totais.lucro - totais.prejuizo_liquido;
 
   porMontadora.sort((a, b) => b.saldo - a.saldo);
 

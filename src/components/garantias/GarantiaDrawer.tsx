@@ -14,6 +14,7 @@ import GarantiaFotosOS from './GarantiaFotosOS';
 import GarantiaAnexos from './GarantiaAnexos';
 import ValoresComparativo from './ValoresComparativo';
 import GarantiaTimeline from './GarantiaTimeline';
+import CobrancaCliente from './CobrancaCliente';
 
 interface Props {
   garantiaId: string;
@@ -217,6 +218,13 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
         garantista_nome: userName,
         pecas_aprovadas: resultado === 'aprovada' ? [...pecasAprovadas] : [],
       }),
+    });
+
+  const acaoCobranca = (acao: string, payload?: Record<string, unknown>) =>
+    chamar(`cobranca_${acao}`, `/api/garantias/${garantiaId}/cobranca`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ acao, ator: userName, ...payload }),
     });
 
   // ---- Render ----
@@ -813,6 +821,11 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                     Finalizada em {fmtDataHora(g.finalizada_em)}
                   </div>
                 </Secao>
+              )}
+
+              {/* Cobrança ao cliente (só em garantias recusadas) */}
+              {g.status === 'rejeitada' && (
+                <CobrancaCliente garantia={g} busy={busy} onAcao={acaoCobranca} />
               )}
 
               {/* Anexos gerais + retorno da fábrica (visível também em finalizada) */}

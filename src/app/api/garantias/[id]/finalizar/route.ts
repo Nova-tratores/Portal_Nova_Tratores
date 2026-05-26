@@ -97,6 +97,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     update.valor_pago_km = 0;
     update.valor_pago_pecas = 0;
     update.valor_pago_total = 0;
+    // Rejeitada → libera o fluxo de cobrança ao cliente
+    update.cobranca_status = 'pendente';
   }
 
   // Atualiza o resultado de cada peça
