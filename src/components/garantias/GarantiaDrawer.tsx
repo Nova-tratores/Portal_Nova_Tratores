@@ -473,68 +473,91 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                 </>
               )}
 
+              {/* Solicitação de Garantia (SG) — disponível em qualquer fase após assumir */}
+              {g.status !== 'aberta' && g.montadora?.tipo_template === 'mahindra' && (
+                <Secao titulo="Solicitação de Garantia (SG)" icone={<Send size={14} />}>
+                  {(() => {
+                    const sgAnexos = g.anexos
+                      .filter((a) => a.categoria === 'envio_fabrica')
+                      .sort((a, b) => (a.created_at > b.created_at ? -1 : 1));
+                    const maisRecente = sgAnexos[0];
+                    const temEmails = (g.montadora?.email_destinatarios?.length || 0) > 0;
+                    return (
+                      <>
+                        <p style={{ fontSize: 12, color: 'var(--portal-text-secondary)', margin: 0 }}>
+                          Baixe a SG abaixo, revise/edite no Excel se precisar e anexe a versão revisada.
+                          Ao enviar por e-mail, a versão mais recente é que vai pra fábrica.
+                        </p>
+
+                        <GarantiaAnexos
+                          garantiaId={g.id}
+                          anexos={sgAnexos}
+                          uploadCategoria="envio_fabrica"
+                          enviadoPor={userName}
+                          onChange={carregar}
+                          vazioTexto="Nenhuma SG gerada ainda."
+                        />
+
+                        {!maisRecente && (
+                          <button
+                            onClick={() =>
+                              chamar('gerar_sg', `/api/garantias/${garantiaId}/enviar-sg`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ ator: userName, apenasGerar: true }),
+                              })
+                            }
+                            disabled={!!busy}
+                            style={btn('#475569', !!busy)}
+                          >
+                            {busy === 'gerar_sg' ? <Loader2 size={15} className="spin" /> : <Save size={15} />}
+                            Gerar SG (xlsx)
+                          </button>
+                        )}
+
+                        {naFabrica && temEmails && (
+                          <>
+                            <span style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>
+                              Destinatários: {g.montadora.email_destinatarios.join(', ')}
+                            </span>
+                            <button
+                              onClick={() =>
+                                chamar('enviar_sg', `/api/garantias/${garantiaId}/enviar-sg`, {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ ator: userName }),
+                                })
+                              }
+                              disabled={!!busy || !maisRecente}
+                              style={btn('linear-gradient(135deg,#dc2626,#7f1d1d)', !!busy || !maisRecente)}
+                            >
+                              {busy === 'enviar_sg' ? <Loader2 size={15} className="spin" /> : <Send size={15} />}
+                              Enviar SG por e-mail à fábrica
+                            </button>
+                          </>
+                        )}
+                        {naFabrica && !temEmails && (
+                          <span style={{ fontSize: 11, color: '#dc2626' }}>
+                            Cadastre os e-mails da fábrica em Montadoras → Mahindra para liberar o envio.
+                          </span>
+                        )}
+                        {!naFabrica && (
+                          <span style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>
+                            O envio por e-mail fica disponível quando a garantia for enviada à fábrica.
+                          </span>
+                        )}
+                      </>
+                    );
+                  })()}
+                </Secao>
+              )}
+
               {/* Em análise da fábrica */}
               {naFabrica && (
                 <>
                   <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', textAlign: 'center' }}>
                     Enviada à fábrica em {fmtDataHora(g.enviada_fabrica_em)} · {diasEntre(g.enviada_fabrica_em)} dia(s) em análise
                   </div>
-
-                  {/* Solicitação de Garantia (SG) — disponível pra download, revisão e envio manual */}
-                  {g.montadora?.tipo_template === 'mahindra' && (
-                    <Secao titulo="Solicitação de Garantia (SG)" icone={<Send size={14} />}>
-                      {(() => {
-                        const sgAnexos = g.anexos
-                          .filter((a) => a.categoria === 'envio_fabrica')
-                          .sort((a, b) => (a.created_at > b.created_at ? -1 : 1));
-                        const maisRecente = sgAnexos[0];
-                        const temEmails = (g.montadora?.email_destinatarios?.length || 0) > 0;
-                        return (
-                          <>
-                            <p style={{ fontSize: 12, color: 'var(--portal-text-secondary)', margin: 0 }}>
-                              Baixe a SG abaixo, revise/edite no Excel se precisar e anexe a versão revisada.
-                              Ao clicar em <strong>Enviar por e-mail</strong>, a versão mais recente é que vai pra fábrica.
-                            </p>
-
-                            <GarantiaAnexos
-                              garantiaId={g.id}
-                              anexos={sgAnexos}
-                              uploadCategoria="envio_fabrica"
-                              enviadoPor={userName}
-                              onChange={carregar}
-                              vazioTexto="Nenhuma SG gerada ainda."
-                            />
-
-                            {temEmails ? (
-                              <>
-                                <span style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>
-                                  Destinatários: {g.montadora.email_destinatarios.join(', ')}
-                                </span>
-                                <button
-                                  onClick={() =>
-                                    chamar('enviar_sg', `/api/garantias/${garantiaId}/enviar-sg`, {
-                                      method: 'POST',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({ ator: userName }),
-                                    })
-                                  }
-                                  disabled={!!busy || !maisRecente}
-                                  style={btn('linear-gradient(135deg,#dc2626,#7f1d1d)', !!busy || !maisRecente)}
-                                >
-                                  {busy === 'enviar_sg' ? <Loader2 size={15} className="spin" /> : <Send size={15} />}
-                                  {maisRecente ? 'Enviar SG por e-mail à fábrica' : 'Gere a SG antes de enviar'}
-                                </button>
-                              </>
-                            ) : (
-                              <span style={{ fontSize: 11, color: '#dc2626' }}>
-                                Cadastre os e-mails da fábrica em Montadoras → Mahindra para liberar o envio.
-                              </span>
-                            )}
-                          </>
-                        );
-                      })()}
-                    </Secao>
-                  )}
 
                   <Secao titulo="Informação pendente para a fábrica" icone={<FileWarning size={14} />}>
                     <textarea
@@ -578,8 +601,35 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                     {/* Peças pagas pela fábrica (marca o que foi aprovado) */}
                     {g.pecas.length > 0 && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text-secondary)' }}>
-                          Peças pagas pela fábrica
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text-secondary)' }}>
+                            Peças pagas pela fábrica
+                          </div>
+                          {g.pecas.some((p) => !Number(p.preco_unitario)) && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                chamar('atualizar_precos', `/api/garantias/${garantiaId}/atualizar-precos`, {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ ator: userName }),
+                                })
+                              }
+                              disabled={!!busy}
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: 4,
+                                padding: '4px 10px', borderRadius: 6,
+                                border: '1px solid var(--portal-border)',
+                                background: 'var(--portal-bg-input)',
+                                color: 'var(--portal-text-secondary)',
+                                fontSize: 11, fontWeight: 600,
+                                cursor: busy ? 'default' : 'pointer',
+                              }}
+                            >
+                              {busy === 'atualizar_precos' ? <Loader2 size={11} className="spin" /> : <Save size={11} />}
+                              Atualizar preços do PPV
+                            </button>
+                          )}
                         </div>
                         {g.pecas.map((p) => {
                           const sel = pecasAprovadas.has(p.id);
