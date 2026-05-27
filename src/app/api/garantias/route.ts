@@ -46,10 +46,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'OS e técnico são obrigatórios.' }, { status: 400 });
   }
 
+  // Peças opcionais: a garantia pode ser só de mão de obra/deslocamento.
   const pecas = Array.isArray(body.pecas) ? body.pecas : [];
-  if (pecas.length === 0) {
-    return NextResponse.json({ error: 'Selecione ao menos uma peça para a garantia.' }, { status: 400 });
-  }
 
   // Garante uma única garantia ativa por OS
   const { data: existente } = await supabase
@@ -102,18 +100,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Falha ao criar garantia.' }, { status: 500 });
   }
 
-  // Peças selecionadas
-  await supabase.from(TBL_GAR_PECAS).insert(
-    pecas.map((p: Record<string, unknown>) => ({
-      garantia_id: garantia.id,
-      cod_produto: p.cod_produto || null,
-      descricao: p.descricao || 'Peça',
-      quantidade: Number(p.quantidade) || 1,
-      preco_unitario: Number(p.preco_unitario) || 0,
-      origem: p.origem || null,
-      fonte_ppv_id: p.fonte_ppv_id || null,
-    }))
-  );
+  // Peças selecionadas (opcional)
+  if (pecas.length > 0) {
+    await supabase.from(TBL_GAR_PECAS).insert(
+      pecas.map((p: Record<string, unknown>) => ({
+        garantia_id: garantia.id,
+        cod_produto: p.cod_produto || null,
+        descricao: p.descricao || 'Peça',
+        quantidade: Number(p.quantidade) || 1,
+        preco_unitario: Number(p.preco_unitario) || 0,
+        origem: p.origem || null,
+        fonte_ppv_id: p.fonte_ppv_id || null,
+      }))
+    );
+  }
 
   await registrarEvento(garantia.id, {
     tipo: 'criada',
