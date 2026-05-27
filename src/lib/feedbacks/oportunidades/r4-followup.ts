@@ -6,6 +6,7 @@
 
 import { supabase } from "@/lib/supabase";
 import type { FeedbackRegistro } from "@/lib/feedbacks/types";
+import { lerTudo } from "./_paginar";
 
 interface ParametrosR4 {
   dias_aniversario?: number;  // default 30
@@ -31,14 +32,14 @@ export async function computarR4(parametros: ParametrosR4 = {}): Promise<Oportun
   const janela = parametros.janela_dias ?? 7;
   const hojeMs = Date.now();
 
-  const { data, error } = await supabase
-    .from("feedback_registros")
-    .select("id, tipo, nome, telefone, trator, tecnico, codigo_omie, data_contato, ultimo_servico, data_servico");
-  if (error) throw new Error(`R4 — falha ao ler feedback_registros: ${error.message}`);
-
-  const registros = (data || []) as Array<Pick<FeedbackRegistro,
+  const registros = await lerTudo<Pick<FeedbackRegistro,
     "id" | "tipo" | "nome" | "telefone" | "trator" | "tecnico" | "codigo_omie" |
-    "data_contato" | "ultimo_servico" | "data_servico">>;
+    "data_contato" | "ultimo_servico" | "data_servico">>((from, to) =>
+    supabase
+      .from("feedback_registros")
+      .select("id, tipo, nome, telefone, trator, tecnico, codigo_omie, data_contato, ultimo_servico, data_servico")
+      .range(from, to)
+  );
 
   // Agrupar por cliente (nome normalizado), pegar a última data de referência
   interface UltimoContato {

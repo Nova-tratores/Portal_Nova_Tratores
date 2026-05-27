@@ -50,20 +50,26 @@ export async function recomputar(
   for (const { regra, fn } of tarefas) {
     if (regraFiltro && regraFiltro !== regra) continue;
     try {
+      console.log(`[ORQ ${regra}] computando...`);
       const oportunidades = await fn();
+      console.log(`[ORQ ${regra}] computadas=${oportunidades.length} — fazendo upsert...`);
       const upsertResult = await aplicarUpsert(regra, oportunidades);
+      console.log(`[ORQ ${regra}] upsert ok=${upsertResult} — expirando ausentes...`);
       const expiradas = await expirarAusentes(regra, oportunidades);
+      console.log(`[ORQ ${regra}] expiradas=${expiradas} — fim.`);
       resumo[regra] = {
         computadas: oportunidades.length,
         inseridas_ou_atualizadas: upsertResult,
         expiradas,
       };
     } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error(`[ORQ ${regra}] ERRO:`, msg, e);
       resumo[regra] = {
         computadas: 0,
         inseridas_ou_atualizadas: 0,
         expiradas: 0,
-        erro: e instanceof Error ? e.message : String(e),
+        erro: msg,
       };
     }
   }
@@ -103,14 +109,26 @@ async function aplicarUpsert(
   // gera ON CONFLICT DO UPDATE SET col=EXCLUDED.col em todas as colunas do
   // payload. Por isso NÃO incluímos 'status' no payload, mantendo o valor
   // existente no banco.
+  // Deduplica no payload: se duas oportunidades cair na mesma chave única
+  // (regra, codigo_omie_norm, chassis_norm, cliente_nome_norm), mantém só
+  // a primeira. Sem isso o PostgreSQL rejeita o lote inteiro com
+  // "ON CONFLICT DO UPDATE command cannot affect row a second time".
+  const vistas = new Set<string>();
+  const sem_duplicatas = linhas.filter((l) => {
+    const chave = `${l.regra}|${l.codigo_omie || ""}|${l.chassis || ""}|${(l.cliente_nome || "").trim().toUpperCase()}`;
+    if (vistas.has(chave)) return false;
+    vistas.add(chave);
+    return true;
+  });
+
   const { error } = await supabase
     .from("feedback_oportunidades")
-    .upsert(linhas, {
-      onConflict: "regra,codigo_omie_norm,chassis_norm",
+    .upsert(sem_duplicatas, {
+      onConflict: "regra,codigo_omie_norm,chassis_norm,cliente_nome_norm",
       ignoreDuplicates: false,
     });
   if (error) throw error;
-  return linhas.length;
+  return sem_duplicatas.length;
 }
 
 // Marca como 'expirada' as oportunidades 'aberta' desta regra que não vieram
@@ -120,20 +138,27 @@ async function expirarAusentes(
   oportunidadesAtuais: OportunidadeInput[]
 ): Promise<number> {
   const chavesAtuais = new Set(
-    oportunidadesAtuais.map((o) => `${o.regra}|${o.codigo_omie || ""}|${o.chassis || ""}`)
+    oportunidadesAtuais.map(
+      (o) => `${o.regra}|${o.codigo_omie || ""}|${o.chassis || ""}|${(o.cliente_nome || "").trim().toUpperCase()}`
+    )
   );
 
   // Buscar todas as oportunidades 'aberta' da regra
   const { data, error } = await supabase
     .from("feedback_oportunidades")
-    .select("id, codigo_omie, chassis")
+    .select("id, codigo_omie, chassis, cliente_nome")
     .eq("regra", regra)
     .eq("status", "aberta");
   if (error) throw error;
 
   const expirar: number[] = [];
-  for (const r of (data || []) as Array<{ id: number; codigo_omie: string | null; chassis: string | null }>) {
-    const k = `${regra}|${r.codigo_omie || ""}|${r.chassis || ""}`;
+  for (const r of (data || []) as Array<{
+    id: number;
+    codigo_omie: string | null;
+    chassis: string | null;
+    cliente_nome: string;
+  }>) {
+    const k = `${regra}|${r.codigo_omie || ""}|${r.chassis || ""}|${(r.cliente_nome || "").trim().toUpperCase()}`;
     if (!chavesAtuais.has(k)) expirar.push(r.id);
   }
   if (!expirar.length) return 0;

@@ -24,7 +24,7 @@ const COLUNAS: ColunaDef[] = [
     titulo: "Sem OS recente",
     emoji: "🏗️",
     cor: "#f59e0b",
-    explicacao: "Clientes nossos que não passam pela oficina há um tempão. Provável manutenção atrasada ou problema não relatado.",
+    explicacao: "Clientes nossos parados há 3+ meses — sem nenhuma OS na oficina e sem registro de contato em feedback. Hora de ligar.",
   },
   {
     regra: "R3_upsell",

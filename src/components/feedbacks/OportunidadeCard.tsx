@@ -125,12 +125,12 @@ function renderizarDetalhes(op: Oportunidade): string {
     }
     case "R2_sem_os": {
       const total = d.total_equipamentos as number | undefined;
-      const dias = d.dias_sem_os as number | null | undefined;
-      const ultima = d.ultima_os as string | null | undefined;
+      const dias = (d.dias_sem_atividade ?? d.dias_sem_os) as number | null | undefined;
+      const ultima = (d.ultima_atividade ?? d.ultima_os) as string | null | undefined;
       if (ultima) {
-        return `${total} equipamentos. Última OS há ${dias} dias (${new Date(ultima).toLocaleDateString("pt-BR")}).`;
+        return `${total} equipamento(s). Último contato há ${dias} dias (${new Date(ultima).toLocaleDateString("pt-BR")}).`;
       }
-      return `${total} equipamentos. Sem OS nos últimos 2 anos.`;
+      return `${total} equipamento(s). Sem qualquer contato nos últimos 2 anos.`;
     }
     case "R3_upsell": {
       const meses = d.meses_desde_compra as number | undefined;

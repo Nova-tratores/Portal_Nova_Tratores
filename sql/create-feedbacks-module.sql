@@ -118,9 +118,12 @@ CREATE TABLE IF NOT EXISTS feedback_oportunidades (
   feedback_id          BIGINT REFERENCES feedback_registros(id) ON DELETE SET NULL,
   dispensada_motivo    TEXT,
   computado_em         TIMESTAMPTZ NOT NULL DEFAULT now(),
-  -- chaves normalizadas (geradas) para constraint UNIQUE sem ambiguidade
+  -- chaves normalizadas (geradas) para constraint UNIQUE sem ambiguidade.
+  -- Inclui cliente_nome para evitar colisão quando codigo_omie e chassis
+  -- são ambos null (caso comum em R2 — oportunidade por cliente, não trator).
   codigo_omie_norm     TEXT GENERATED ALWAYS AS (COALESCE(codigo_omie, '')) STORED,
-  chassis_norm         TEXT GENERATED ALWAYS AS (COALESCE(chassis, '')) STORED
+  chassis_norm         TEXT GENERATED ALWAYS AS (COALESCE(chassis, '')) STORED,
+  cliente_nome_norm    TEXT GENERATED ALWAYS AS (upper(trim(cliente_nome))) STORED
 );
 
 ALTER TABLE feedback_oportunidades
@@ -142,7 +145,7 @@ ALTER TABLE feedback_oportunidades
   CHECK (prioridade IN ('Urgente','Normal','Baixa'));
 
 CREATE UNIQUE INDEX IF NOT EXISTS uniq_feedback_oportunidades_regra_chave
-  ON feedback_oportunidades (regra, codigo_omie_norm, chassis_norm);
+  ON feedback_oportunidades (regra, codigo_omie_norm, chassis_norm, cliente_nome_norm);
 
 CREATE INDEX IF NOT EXISTS idx_feedback_oportunidades_status
   ON feedback_oportunidades (status, prioridade);
@@ -167,7 +170,7 @@ ALTER TABLE feedback_config_regras
 
 INSERT INTO feedback_config_regras (regra, parametros) VALUES
   ('R1_revisao',  '{"revisoes_alvo":[50,300,600],"dias_anteced":15}'::jsonb),
-  ('R2_sem_os',   '{"min_dias_sem_os":30,"urgente_a_partir_de":5}'::jsonb),
+  ('R2_sem_os',   '{"min_dias_sem_os":90,"urgente_a_partir_de":5}'::jsonb),
   ('R3_upsell',   '{"meses_minimo":12}'::jsonb),
   ('R4_followup', '{"dias_aniversario":30,"janela_dias":7}'::jsonb)
 ON CONFLICT (regra) DO NOTHING;

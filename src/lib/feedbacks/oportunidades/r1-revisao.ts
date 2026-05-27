@@ -14,6 +14,7 @@
 import { supabase } from "@/lib/supabase";
 import { calcularPrevisao } from "@/lib/revisoes/utils";
 import { REVISOES_LISTA, type Trator } from "@/lib/revisoes/types";
+import { lerTudo } from "./_paginar";
 
 // Reproduz a lógica interna de calcularPrevisao para extrair a data da última
 // revisão registrada (a função original não expõe esse campo).
@@ -47,56 +48,63 @@ function norm(s: string | null | undefined): string {
   return (s || "").trim().toUpperCase();
 }
 
-// Carrega OSs com Tipo_Servico relacionado a revisão/garantia dos últimos 2 anos
-// e indexa por cliente normalizado + chassi (Projeto). Usado para detectar quando
-// uma revisão foi feita sem que `tratores.*h Data` tenha sido atualizado.
+// Carrega TODAS as OSs (qualquer Tipo_Servico) dos últimos 2 anos.
+//
+// Usa `Data` (abertura) como filtro principal — muitas OSs no banco têm
+// `Data_Fim_Servico` NULL (oficina não preenche sempre). Considera abertura
+// como evidência suficiente de atividade.
+//
+// Match com Chassis é por substring: `Ordem_Servico.Projeto` vem como
+// "6075 CBU MBNYHBKYVNNJ02213" enquanto `tratores.Chassis` é só
+// "MBNYHBKYVNNJ02213" — então igualdade direta nunca bate.
 interface IndiceOS {
-  porChassi: Map<string, string>;        // chassi → última data ISO de OS de revisão
-  porCliente: Map<string, string>;       // cliente_norm → última data ISO
+  projetosOS: Array<{ projeto: string; data: string }>;  // todas OSs com projeto
+  porCliente: Map<string, string>;                        // cliente_norm → última data ISO
 }
 
-async function carregarIndiceOSRevisao(): Promise<IndiceOS> {
+async function carregarIndiceOS(): Promise<IndiceOS> {
   const limite2anos = new Date(Date.now() - 2 * 365 * 86400000).toISOString();
-  const { data, error } = await supabase
-    .from("Ordem_Servico")
-    .select("Os_Cliente, Data, Data_Fim_Servico, Tipo_Servico, Projeto")
-    .not("Data_Fim_Servico", "is", null)
-    .gte("Data_Fim_Servico", limite2anos);
-  if (error) throw new Error(`R1 — falha ao ler Ordem_Servico: ${error.message}`);
-
-  const porChassi = new Map<string, string>();
-  const porCliente = new Map<string, string>();
-
-  for (const o of (data || []) as Array<{
+  const ordens = await lerTudo<{
     Os_Cliente: string | null;
     Data: string | null;
     Data_Fim_Servico: string | null;
-    Tipo_Servico: string | null;
     Projeto: string | null;
-  }>) {
-    const tipo = (o.Tipo_Servico || "").toLowerCase();
-    // Heurística: contar OS de revisão/garantia/manutenção preventiva.
-    // Manutenção corretiva fica de fora — não substitui a revisão obrigatória.
-    const ehRevisao =
-      tipo.includes("revis") || tipo.includes("garant") || tipo.includes("preventiv");
-    if (!ehRevisao) continue;
+  }>((from, to) =>
+    supabase
+      .from("Ordem_Servico")
+      .select("Os_Cliente, Data, Data_Fim_Servico, Projeto")
+      .gte("Data", limite2anos)
+      .range(from, to)
+  );
 
-    const data = o.Data_Fim_Servico || o.Data;
-    if (!data) continue;
+  const projetosOS: Array<{ projeto: string; data: string }> = [];
+  const porCliente = new Map<string, string>();
 
-    const chassi = (o.Projeto || "").trim();
-    if (chassi) {
-      const atual = porChassi.get(chassi);
-      if (!atual || data > atual) porChassi.set(chassi, data);
-    }
+  for (const o of ordens) {
+    const dataEfetiva = o.Data_Fim_Servico || o.Data;
+    if (!dataEfetiva) continue;
+
+    const projeto = (o.Projeto || "").trim();
+    if (projeto) projetosOS.push({ projeto, data: dataEfetiva });
+
     const cli = norm(o.Os_Cliente);
     if (cli) {
       const atual = porCliente.get(cli);
-      if (!atual || data > atual) porCliente.set(cli, data);
+      if (!atual || dataEfetiva > atual) porCliente.set(cli, dataEfetiva);
     }
   }
 
-  return { porChassi, porCliente };
+  return { projetosOS, porCliente };
+}
+
+function ultimaOSPorChassi(indice: IndiceOS, chassi: string): string | undefined {
+  if (!chassi) return undefined;
+  let maior: string | undefined;
+  for (const { projeto, data } of indice.projetosOS) {
+    if (!projeto.includes(chassi)) continue;
+    if (!maior || data > maior) maior = data;
+  }
+  return maior;
 }
 
 export async function computarR1(parametros: ParametrosR1 = {}): Promise<OportunidadeR1[]> {
@@ -105,14 +113,15 @@ export async function computarR1(parametros: ParametrosR1 = {}): Promise<Oportun
   const hoje = new Date();
   const limiteFuturo = new Date(hoje.getTime() + diasAnteced * 86400000);
 
-  const { data: tratores, error } = await supabase.from("tratores").select("*");
-  if (error) throw new Error(`R1 — falha ao ler tratores: ${error.message}`);
+  const tratores = await lerTudo<Trator>((from, to) =>
+    supabase.from("tratores").select("*").range(from, to)
+  );
 
   const mapClienteOmie = await carregarMapaClientes();
-  const indiceOS = await carregarIndiceOSRevisao();
+  const indiceOS = await carregarIndiceOS();
 
   const out: OportunidadeR1[] = [];
-  for (const t of (tratores || []) as Trator[]) {
+  for (const t of tratores) {
     if (!t.Entrega || !t.Cliente) continue;
 
     let prev;
@@ -130,13 +139,13 @@ export async function computarR1(parametros: ParametrosR1 = {}): Promise<Oportun
 
     const chassi = (t.Chassis || "").trim();
     const cliNorm = norm(t.Cliente);
-    const osPorChassi = chassi ? indiceOS.porChassi.get(chassi) : undefined;
+    const osPorChassi = ultimaOSPorChassi(indiceOS, chassi);
     const osPorCliente = indiceOS.porCliente.get(cliNorm);
     // Match por chassi é mais confiável; cliente é fallback (best-effort)
-    const ultimaOSRevisao = osPorChassi || osPorCliente;
+    const ultimaOSAtividade = osPorChassi || osPorCliente;
 
-    if (ultimaOSRevisao && ultimaOSRevisao > ultimaRevDataReal) {
-      // Já houve OS de revisão depois da última registrada — pular
+    if (ultimaOSAtividade && ultimaOSAtividade > ultimaRevDataReal) {
+      // Já houve OS depois da última revisão registrada — pular
       continue;
     }
 
@@ -166,10 +175,17 @@ export async function computarR1(parametros: ParametrosR1 = {}): Promise<Oportun
 
 async function carregarMapaClientes(): Promise<Map<string, string>> {
   const m = new Map<string, string>();
-  const { data } = await supabase
-    .from("Clientes")
-    .select("id_omie, nome_fantasia, razao_social");
-  for (const c of (data || []) as Array<{ id_omie: string; nome_fantasia: string | null; razao_social: string | null }>) {
+  const clientes = await lerTudo<{
+    id_omie: string;
+    nome_fantasia: string | null;
+    razao_social: string | null;
+  }>((from, to) =>
+    supabase
+      .from("Clientes")
+      .select("id_omie, nome_fantasia, razao_social")
+      .range(from, to)
+  );
+  for (const c of clientes) {
     if (c.nome_fantasia) m.set(c.nome_fantasia.trim().toUpperCase(), c.id_omie);
     if (c.razao_social)  m.set(c.razao_social.trim().toUpperCase(),  c.id_omie);
   }

@@ -5,6 +5,7 @@
 // pulverizador, etc).
 
 import { supabase } from "@/lib/supabase";
+import { lerTudo } from "./_paginar";
 
 interface ParametrosR3 {
   meses_minimo?: number;  // default 12
@@ -38,12 +39,12 @@ export async function computarR3(parametros: ParametrosR3 = {}): Promise<Oportun
   const limiteData = new Date();
   limiteData.setMonth(limiteData.getMonth() - mesesMin);
 
-  const { data, error } = await supabase
-    .from("tratores")
-    .select("Cliente, Modelo, Chassis, Entrega, Cidade, Vendedor");
-  if (error) throw new Error(`R3 — falha ao ler tratores: ${error.message}`);
-
-  const tratores = (data || []) as TratorRow[];
+  const tratores = await lerTudo<TratorRow>((from, to) =>
+    supabase
+      .from("tratores")
+      .select("Cliente, Modelo, Chassis, Entrega, Cidade, Vendedor")
+      .range(from, to)
+  );
 
   // agrupar por cliente
   const porCliente = new Map<string, TratorRow[]>();
@@ -90,10 +91,17 @@ export async function computarR3(parametros: ParametrosR3 = {}): Promise<Oportun
 
 async function carregarMapaClientes(): Promise<Map<string, string>> {
   const m = new Map<string, string>();
-  const { data } = await supabase
-    .from("Clientes")
-    .select("id_omie, nome_fantasia, razao_social");
-  for (const c of (data || []) as Array<{ id_omie: string; nome_fantasia: string | null; razao_social: string | null }>) {
+  const clientes = await lerTudo<{
+    id_omie: string;
+    nome_fantasia: string | null;
+    razao_social: string | null;
+  }>((from, to) =>
+    supabase
+      .from("Clientes")
+      .select("id_omie, nome_fantasia, razao_social")
+      .range(from, to)
+  );
+  for (const c of clientes) {
     if (c.nome_fantasia) m.set(c.nome_fantasia.trim().toUpperCase(), c.id_omie);
     if (c.razao_social)  m.set(c.razao_social.trim().toUpperCase(),  c.id_omie);
   }

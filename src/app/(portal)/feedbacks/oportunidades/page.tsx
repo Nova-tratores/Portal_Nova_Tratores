@@ -25,10 +25,11 @@ export default function OportunidadesPage() {
 
   const carregar = useCallback(async () => {
     setLoading(true);
-    setErro(null);
     try {
       const data = await listarOportunidades(statusFiltro);
       setOps(data);
+      // Não limpa erro aqui — recomputar() pode ter setado mensagem de erro
+      // das regras que precisa permanecer visível mesmo depois do reload da lista.
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
     } finally {
@@ -48,15 +49,27 @@ export default function OportunidadesPage() {
         headers: { "x-sync-manual": "true" },
       });
       const json = await res.json();
+      console.log("[recomputar] response completo:", json);
       if (!res.ok || !json.sucesso) {
         throw new Error(json.erro || "Falha ao recomputar");
       }
-      const total = Object.values(json.resumo || {}).reduce(
-        (s: number, r) => s + ((r as { computadas?: number })?.computadas || 0),
-        0
-      );
-      setMsg(`Recomputado em ${json.ms}ms — ${total} oportunidades geradas. Atualizando lista…`);
+      const resumo = (json.resumo || {}) as Record<string, { computadas?: number; inseridas_ou_atualizadas?: number; expiradas?: number; erro?: string }>;
+      const linhas: string[] = [];
+      const erros: string[] = [];
+      for (const [regra, r] of Object.entries(resumo)) {
+        if (r?.erro) {
+          linhas.push(`${regra}=ERRO`);
+          erros.push(`${regra}: ${r.erro}`);
+        } else {
+          const c = r?.computadas ?? 0;
+          const i = r?.inseridas_ou_atualizadas ?? 0;
+          linhas.push(`${regra}=${c}${c !== i ? ` (inseridas ${i})` : ""}`);
+        }
+      }
       await carregar();
+      setMsg(`Recomputado em ${json.ms}ms — ${linhas.join(" · ")}`);
+      if (erros.length) setErro("Erros nas regras: " + erros.join(" | "));
+      else setErro(null);
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
     } finally {
@@ -188,7 +201,7 @@ export default function OportunidadesPage() {
               Trator próximo de uma <strong>revisão obrigatória</strong> (50h, 300h ou 600h). Se passar do prazo, o cliente perde a garantia de fábrica. Quem está atrasado vira <em>URGENTE</em>.
             </ComoBlock>
             <ComoBlock cor="#f59e0b" emoji="🏗️" titulo="Sem OS recente">
-              Cliente nosso que <strong>não passa pela oficina</strong> há mais de 30 dias. Independente de ter 1 ou 30 tratores — todo cliente parado vira oportunidade.
+              Cliente parado há <strong>3 meses ou mais</strong> — sem nenhuma OS na oficina e sem nenhum registro de contato (feedback CRM/RFM) nesse período. Hora de ligar pra ver como está.
             </ComoBlock>
             <ComoBlock cor="#10b981" emoji="📈" titulo="Up-sell potencial">
               Cliente comprou <strong>um único trator</strong> há mais de um ano e <strong>não voltou</strong>. Bom momento pra oferecer implemento (pulverizador, plantadeira, etc).
