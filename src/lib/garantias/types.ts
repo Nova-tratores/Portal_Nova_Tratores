@@ -10,6 +10,30 @@ export type GarantiaStatus =
   | 'rejeitada';
 
 export type GarantiaResultado = 'aprovada' | 'rejeitada';
+
+// Cobrança ao cliente quando a garantia é rejeitada.
+export type CobrancaStatus =
+  | 'nao_aplicavel'    // garantia não rejeitada
+  | 'nao_cobrar'       // garantista decidiu cortesia
+  | 'pendente'         // rejeitada, sem cobrança definida ainda
+  | 'cobrada'          // cobrança lançada, aguardando pagamento
+  | 'paga'             // cliente pagou
+  | 'baixada_prejuizo';// cobrança não recebida — assumida como prejuízo
+
+// Itens marcados pelo garantista no checklist da cobrança.
+// Horas/KM ligam/desligam o pagamento de serviço; peças trazem a lista de
+// `garantia_pecas.id` que entrarão na cobrança.
+export interface CobrancaItens {
+  horas?: boolean;
+  km?: boolean;
+  pecas?: string[]; // ids de garantia_pecas
+}
+
+// Linhas livres ("outros") — taxa de visita, deslocamento extra, etc.
+export interface CobrancaOutro {
+  descricao: string;
+  valor: number;
+}
 export type PendenciaTipo = 'bo' | 'info_fabrica';
 export type PendenciaStatus = 'aberta' | 'respondida';
 export type PecaOrigem = 'ppv' | 'pecasinfo_manual';
@@ -144,6 +168,16 @@ export interface Garantia {
   valor_pago_total: number | null;
   enviada_fabrica_em: string | null;
   finalizada_em: string | null;
+  // Cobrança ao cliente (rejeitadas)
+  cobranca_status: CobrancaStatus;
+  cobranca_itens: CobrancaItens;
+  cobranca_valor_total: number | null;
+  cobranca_outros: CobrancaOutro[];
+  cobranca_vencimento: string | null;     // DATE (YYYY-MM-DD)
+  cobranca_cobrada_em: string | null;
+  cobranca_pago_em: string | null;
+  cobranca_baixada_em: string | null;
+  cobranca_obs: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -221,6 +255,14 @@ export interface RelatorioMontadora {
   total_garantista_km: number;
   tempo_medio_resolucao_dias: number | null; // finalizadas
   tempo_medio_aberto_dias: number | null;    // em aberto na fábrica (aging)
+  // Cobrança ao cliente (rejeitadas) ─────────────────────────────────────
+  recuperado_cliente: number; // soma das cobrancas com status 'paga'
+  a_receber: number;          // soma das cobrancas 'cobrada' não vencidas
+  vencido: number;            // soma das cobrancas 'cobrada' vencidas
+  prejuizo_liquido: number;   // prejuizo - recuperado_cliente
+  qtd_cobrancas_pagas: number;
+  qtd_cobrancas_pendentes: number;
+  qtd_cobrancas_vencidas: number;
 }
 
 export interface RelatorioGarantias {
@@ -230,5 +272,10 @@ export interface RelatorioGarantias {
     prejuizo: number;
     saldo: number;
     qtd_finalizadas: number;
+    // Cobrança ao cliente
+    recuperado_cliente: number;
+    a_receber: number;
+    vencido: number;
+    prejuizo_liquido: number;
   };
 }

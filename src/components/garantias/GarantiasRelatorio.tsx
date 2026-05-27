@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, TrendingUp, TrendingDown, Scale, ClipboardCheck, Printer, Clock } from 'lucide-react';
+import { Loader2, TrendingUp, TrendingDown, Scale, ClipboardCheck, Printer, Clock, DollarSign, AlertTriangle, Wallet } from 'lucide-react';
 import type { RelatorioGarantias } from '@/lib/garantias/types';
 import { fmtMoeda } from '@/lib/garantias/format';
 
@@ -55,7 +55,7 @@ export default function GarantiasRelatorio({ refreshKey }: { refreshKey: number 
 
   const maxValor = Math.max(
     1,
-    ...(rel?.por_montadora || []).flatMap((m) => [m.lucro, m.prejuizo])
+    ...(rel?.por_montadora || []).flatMap((m) => [m.lucro, m.prejuizo, m.recuperado_cliente, m.prejuizo_liquido])
   );
 
   const dateInput: React.CSSProperties = {
@@ -98,13 +98,23 @@ export default function GarantiasRelatorio({ refreshKey }: { refreshKey: number 
         </div>
       ) : (
         <>
-          {/* KPIs */}
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
+          {/* KPIs principais */}
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
             <Kpi icone={<TrendingUp size={16} color="#16a34a" />} label="Lucro (aprovadas)" valor={fmtMoeda(rel.totais.lucro)} cor="#16a34a" />
-            <Kpi icone={<TrendingDown size={16} color="#dc2626" />} label="Prejuízo (recusadas)" valor={fmtMoeda(rel.totais.prejuizo)} cor="#dc2626" />
+            <Kpi icone={<TrendingDown size={16} color="#dc2626" />} label="Prejuízo bruto (recusadas)" valor={fmtMoeda(rel.totais.prejuizo)} cor="#dc2626" />
+            <Kpi icone={<DollarSign size={16} color="#f59e0b" />} label="Recuperado do cliente" valor={fmtMoeda(rel.totais.recuperado_cliente)} cor="#f59e0b" />
+            <Kpi icone={<TrendingDown size={16} color="#b91c1c" />} label="Prejuízo líquido" valor={fmtMoeda(rel.totais.prejuizo_liquido)} cor="#b91c1c" />
             <Kpi icone={<Scale size={16} color="#0ea5e9" />} label="Saldo" valor={fmtMoeda(rel.totais.saldo)} cor="#0ea5e9" />
             <Kpi icone={<ClipboardCheck size={16} color="#6366f1" />} label="Finalizadas" valor={String(rel.totais.qtd_finalizadas)} cor="#6366f1" />
           </div>
+
+          {/* KPIs de cobrança ao cliente */}
+          {(rel.totais.a_receber > 0 || rel.totais.vencido > 0) && (
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
+              <Kpi icone={<Wallet size={16} color="#0369a1" />} label="A receber do cliente" valor={fmtMoeda(rel.totais.a_receber)} cor="#0369a1" />
+              <Kpi icone={<AlertTriangle size={16} color="#b91c1c" />} label="Vencido (cobrar)" valor={fmtMoeda(rel.totais.vencido)} cor="#b91c1c" />
+            </div>
+          )}
 
           {/* Por montadora */}
           <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text)', margin: '0 0 10px' }}>
@@ -134,10 +144,16 @@ export default function GarantiasRelatorio({ refreshKey }: { refreshKey: number 
                     </span>
                   </div>
 
-                  {/* Barras lucro / prejuízo */}
+                  {/* Barras lucro / prejuízo / recuperado */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
                     <Barra label="Lucro" valor={m.lucro} max={maxValor} cor="#16a34a" />
-                    <Barra label="Prejuízo" valor={m.prejuizo} max={maxValor} cor="#dc2626" />
+                    <Barra label="Prejuízo bruto" valor={m.prejuizo} max={maxValor} cor="#dc2626" />
+                    {m.recuperado_cliente > 0 && (
+                      <Barra label="Recuperado" valor={m.recuperado_cliente} max={maxValor} cor="#f59e0b" />
+                    )}
+                    {m.prejuizo_liquido > 0 && m.prejuizo_liquido !== m.prejuizo && (
+                      <Barra label="Prej. líquido" valor={m.prejuizo_liquido} max={maxValor} cor="#b91c1c" />
+                    )}
                   </div>
 
                   {/* Tempos + comparativo */}
@@ -154,6 +170,14 @@ export default function GarantiasRelatorio({ refreshKey }: { refreshKey: number 
                       Saldo: <strong style={{ color: m.saldo >= 0 ? '#16a34a' : '#dc2626' }}>{fmtMoeda(m.saldo)}</strong>
                     </span>
                   </div>
+                  {(m.qtd_cobrancas_pagas > 0 || m.qtd_cobrancas_pendentes > 0 || m.qtd_cobrancas_vencidas > 0) && (
+                    <div style={{ fontSize: 11, color: 'var(--portal-text-muted)', marginTop: 4 }}>
+                      Cobranças: {m.qtd_cobrancas_pagas} paga(s)
+                      {m.qtd_cobrancas_pendentes > 0 ? ` · ${m.qtd_cobrancas_pendentes} pendente(s)` : ''}
+                      {m.qtd_cobrancas_vencidas > 0 ? ` · ${m.qtd_cobrancas_vencidas} vencida(s)` : ''}
+                      {m.a_receber > 0 ? ` · a receber ${fmtMoeda(m.a_receber)}` : ''}
+                    </div>
+                  )}
                   <div style={{ fontSize: 11, color: 'var(--portal-text-muted)', marginTop: 4 }}>
                     Técnico: {m.total_tecnico_horas}h / {m.total_tecnico_km}km · Garantista: {m.total_garantista_horas}h / {m.total_garantista_km}km
                   </div>
