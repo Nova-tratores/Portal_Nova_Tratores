@@ -553,7 +553,7 @@ const KmzManager = {
             if (q.length < 2) { list.innerHTML = '<div style="font-size:11px;color:var(--text-muted);padding:6px">Digite ao menos 2 caracteres</div>'; return; }
             list.innerHTML = '<div style="font-size:11px;color:var(--text-muted);padding:6px">Buscando...</div>';
             try {
-                const r = await fetch('/api/clientes/buscar-omie?q=' + encodeURIComponent(q));
+                const r = await _originalFetch('/api/mapa/clientes?busca=' + encodeURIComponent(q));
                 const data = await r.json();
                 if (data.length === 0) {
                     list.innerHTML = '<div style="font-size:11px;color:var(--text-muted);padding:6px">Nenhum cliente Omie encontrado</div>';
@@ -712,21 +712,21 @@ const KmzManager = {
                 });
 
                 if (newClientes.length > 0) {
-                    const resp = await fetch('/api/clientes/batch', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ clientes: newClientes })
-                    });
-                    const data = await resp.json();
-                    if (!resp.ok) throw new Error(data.error || 'Erro ao criar manuais');
-                    createdCount = data.created;
+                    for (const nc of newClientes) {
+                        const resp = await _originalFetch('/api/mapa/clientes', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(nc)
+                        });
+                        if (resp.ok) createdCount++;
+                    }
                 }
 
                 for (const upd of linkUpdates) {
-                    const resp = await fetch(`/api/clientes/${upd.id}`, {
+                    const resp = await _originalFetch('/api/mapa/clientes', {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(upd.patch)
+                        body: JSON.stringify({ id: upd.id, ...upd.patch })
                     });
                     if (resp.ok) linkedCount++;
                 }

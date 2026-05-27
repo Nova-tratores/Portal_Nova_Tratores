@@ -6,14 +6,60 @@ const Markers = {
     clientMarkers: [],
     vehicleMarkers: [],
 
+    // Marcador fixo da Nova Tratores
+    _lojaRendered: false,
+    renderLoja() {
+        if (this._lojaRendered) return;
+        this._lojaRendered = true;
+        const lojaIcon = L.divIcon({
+            className: '',
+            html: `<div style="width:60px;height:60px;border-radius:50%;background:#fff;border:3px solid #dc2626;box-shadow:0 4px 12px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;overflow:hidden">
+                <img src="/Logo_Nova.png" style="width:50px;height:50px;object-fit:contain" alt="Nova Tratores"/>
+            </div>`,
+            iconSize: [60, 60],
+            iconAnchor: [30, 30]
+        });
+        const marker = L.marker([-23.208410, -49.370770], { icon: lojaIcon, zIndexOffset: 9999 });
+        marker.bindPopup('<div style="text-align:center;font-weight:700;font-size:14px">Nova Tratores</div><div style="text-align:center;font-size:11px;color:#666">Piraju - SP</div>');
+        marker.addTo(MapCore.map);
+    },
+
+    // Detecta tecnicos (veiculos oficina) dentro da propriedade do cliente (raio 500m)
+    // So mostra se o cliente NAO foi visitado recentemente (>30 dias ou nunca)
+    _buildTecnicoProximoMap() {
+        const veiculos = (App.state.veiculos || []).filter(v => v.lat && v.lng && this.isOficina(v.placa));
+        const map = new Map(); // clienteId -> { tecnico, placa, distancia }
+        for (const c of (App.state.clientes || [])) {
+            if (!c.lat || !c.lng) continue;
+            // Ignorar clientes visitados nos ultimos 30 dias
+            if (c.ultima_visita && Utils.diasDesde(c.ultima_visita) <= 30) continue;
+            for (const v of veiculos) {
+                const dist = Utils.calcularDistancia(c.lat, c.lng, v.lat, v.lng);
+                if (dist <= 0.5) {
+                    const nome = v._tecnico || v.motorista || v.placa;
+                    const existing = map.get(String(c.id));
+                    if (!existing || dist < existing.distancia) {
+                        map.set(String(c.id), { tecnico: nome, placa: v.placa, distancia: dist, vLat: v.lat, vLng: v.lng });
+                    }
+                }
+            }
+        }
+        return map;
+    },
+
     renderClients(clientes) {
+        this.renderLoja();
         MapCore.clientesLayer.clearLayers();
         MapCore.clusterGroup.clearLayers();
+        MapCore.tecnicoNoClienteLayer.clearLayers();
         this.clientMarkers = [];
 
         const clEl = document.getElementById('layer-clusters'); const useClusters = clEl ? clEl.checked : false;
         const heatPoints = [];
         const markers = [];
+
+        // Detectar tecnicos proximos de clientes
+        const tecnicoProximo = this._buildTecnicoProximoMap();
 
         // Group clients by position to detect overlaps
         const posMap = {};
@@ -38,6 +84,9 @@ const Markers = {
             if (isStacked && rendered.has(key)) continue;
             rendered.add(key);
 
+            // Tecnico proximo?
+            const tp = tecnicoProximo.get(String(c.id));
+
             const color = c.equipamentos_count > 0 ? Utils.getVisitColor(c.ultima_visita) : 'gray';
             const size = isStacked ? 24 : Utils.getMarkerSize(c.equipamentos_count);
 
@@ -57,10 +106,8 @@ const Markers = {
             const marker = L.marker([c.lat, c.lng], { icon, draggable: false });
 
             if (isStacked) {
-                // Tooltip shows count
                 marker.bindTooltip(`${group.length} clientes`, { direction: 'top', offset: [0, -10], className: 'client-tooltip' });
 
-                // Popup lists all clients at this position
                 marker.on('click', function() {
                     if (!this.getPopup()) {
                         const items = group.map(d => `
@@ -78,21 +125,79 @@ const Markers = {
                     }
                 });
 
-                // Store first client data for dragging
                 marker.clientData = c;
             } else {
-                marker.bindTooltip(c.nome || c.nome_fantasia || '', { direction: 'top', offset: [0, -10], className: 'client-tooltip' });
+                const nomeDisplay = c.nome || c.nome_fantasia || c.razao_social || 'Cliente';
+                marker.bindTooltip(nomeDisplay, { direction: 'top', offset: [0, -10], className: 'client-tooltip' });
 
-                marker.on('click', function() {
-                    const d = this.clientData;
-                    if (d && d.id) Panels.open(d.id);
-                });
+                // Popup com info basica + botao para painel completo
+                marker.bindPopup(`
+                    <div class="popup-title">${Utils.truncate(nomeDisplay, 35)}</div>
+                    ${c.razao_social && c.razao_social !== nomeDisplay ? `<div class="popup-detail" style="font-size:11px;color:var(--text-muted)">${Utils.truncate(c.razao_social, 40)}</div>` : ''}
+                    <div class="popup-detail">📍 ${c.cidade || 'Sem cidade'} ${c.estado ? '- ' + c.estado : ''}</div>
+                    ${c.cnpj_cpf ? `<div class="popup-detail">📋 ${c.cnpj_cpf}</div>` : ''}
+                    ${c.telefone ? `<div class="popup-detail">📞 ${c.telefone}</div>` : ''}
+                    ${c.email ? `<div class="popup-detail">📧 ${c.email}</div>` : ''}
+                    ${c.equipamentos_count > 0 ? `<div class="popup-detail">🔧 ${c.equipamentos_count} equipamentos</div>` : ''}
+                    <button class="popup-btn" style="margin-top:8px;width:100%" onclick="Panels.open('${c.id}')">Ver detalhes / Editar coordenadas</button>
+                `, { maxWidth: 280 });
 
                 marker.clientData = c;
             }
 
             markers.push(marker);
             heatPoints.push([c.lat, c.lng, Math.max(1, c.equipamentos_count)]);
+
+            // Circulo destacado: tecnico proximo deste cliente
+            if (tp) {
+                const primeiroNome = tp.tecnico.split(/\s+/)[0];
+                const distLabel = tp.distancia < 1 ? `${Math.round(tp.distancia * 1000)}m` : `${tp.distancia.toFixed(1)}km`;
+                const nomeCliente = Utils.truncate(c.nome || c.nome_fantasia || '', 25);
+
+                // Circulo pulsante ao redor do cliente (interactive:false para nao roubar cliques)
+                const circle = L.circle([c.lat, c.lng], {
+                    radius: 500,
+                    color: '#22c55e',
+                    weight: 3,
+                    opacity: 0.8,
+                    fillColor: '#22c55e',
+                    fillOpacity: 0.12,
+                    dashArray: '8, 6',
+                    interactive: false,
+                    className: 'tecnico-proximo-circle'
+                });
+
+                // Badge flutuante com nome do tecnico
+                const badgeIcon = L.divIcon({
+                    className: '',
+                    html: `<div style="
+                        background: linear-gradient(135deg, #16a34a, #22c55e);
+                        color: white;
+                        padding: 6px 12px;
+                        border-radius: 20px;
+                        font-size: 12px;
+                        font-weight: 700;
+                        white-space: nowrap;
+                        box-shadow: 0 4px 12px rgba(34,197,94,0.5), 0 0 0 3px rgba(34,197,94,0.2);
+                        border: 2px solid rgba(255,255,255,0.9);
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                        animation: tecnicoPulse 2s ease-in-out infinite;
+                    ">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                        ${primeiroNome} - ${distLabel}
+                    </div>`,
+                    iconSize: [0, 0],
+                    iconAnchor: [-15, 40]
+                });
+                const badge = L.marker([c.lat, c.lng], { icon: badgeIcon, interactive: false, zIndexOffset: 2000 });
+
+                badge.bindTooltip(`${tp.tecnico} (${tp.placa}) a ${distLabel} de ${nomeCliente}`, { direction: 'top', offset: [60, -10], className: 'client-tooltip' });
+
+                MapCore.tecnicoNoClienteLayer.addLayer(circle);
+                MapCore.tecnicoNoClienteLayer.addLayer(badge);
+            }
         }
 
         this.clientMarkers = markers;
@@ -388,10 +493,10 @@ const Markers = {
         }
 
         try {
-            const resp = await fetch(`/api/clientes/${data.id}`, {
+            const resp = await _originalFetch('/api/mapa/clientes', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ lat: pos.lat, lng: pos.lng })
+                body: JSON.stringify({ id: data.id, lat: pos.lat, lng: pos.lng })
             });
             if (!resp.ok) throw new Error('Erro ao salvar');
 

@@ -103,69 +103,101 @@ const App = {
     // =========================================================
     async loadAllData() {
         try {
-            // Load in parallel
-            const [clientes, veiculos, vendedores, syncStatus, resumo] = await Promise.all([
-                Utils.fetchJson('/api/clientes-mapa/leve'),
-                Utils.fetchJson('/api/veiculos'),
-                Utils.fetchJson('/api/vendedores'),
-                Utils.fetchJson('/api/sync-status'),
-                Utils.fetchJson('/api/stats/resumo')
-            ]);
+            const t0 = Date.now();
+
+            // Fase 1: Carrega veiculos e clientes em paralelo
+            // Tenta Supabase + Rota Exata local, com fallback pro Railway
+            let clientes = [];
+            let veiculos = [];
+
+            // Clientes: Supabase como fonte principal, Railway so complementa coordenadas
+            try {
+                const [supaClientes, railClientes] = await Promise.all([
+                    _originalFetch('/api/mapa/clientes').then(r => r.json()).catch(() => []),
+                    Utils.fetchJson('/api/clientes-mapa/leve').catch(() => [])
+                ]);
+
+                // Mapa de coordenadas do Railway (indexado por nome lowercase)
+                // Ignora coords dentro de Piraju (geocoding errado pra cidade da loja)
+                const LOJA_LAT = -23.208410, LOJA_LNG = -49.370770;
+                const railCoords = new Map();
+                for (const c of railClientes) {
+                    if (c.nome && c.lat && c.lng) {
+                        const distLoja = Utils.calcularDistancia(c.lat, c.lng, LOJA_LAT, LOJA_LNG);
+                        if (distLoja > 15) { // ignora tudo dentro de ~15km de Piraju
+                            railCoords.set(c.nome.toLowerCase().trim(), { lat: c.lat, lng: c.lng });
+                        }
+                    }
+                }
+
+                // Supabase eh a fonte unica - so complementa coords do Railway se nao tiver
+                clientes = supaClientes.map(c => {
+                    if (!c.lat && !c.lng) {
+                        const key = (c.nome || '').toLowerCase().trim();
+                        const coords = railCoords.get(key);
+                        if (coords) {
+                            return { ...c, lat: coords.lat, lng: coords.lng };
+                        }
+                    }
+                    return c;
+                });
+
+                const comCoords = clientes.filter(c => c.lat && c.lng).length;
+                console.log(`[Mapa] ${clientes.length} clientes (Supabase), ${comCoords} com coordenadas (${railCoords.size} do Railway)`);
+            } catch (e) {
+                console.warn('[Mapa] Erro ao carregar clientes:', e);
+            }
+
+            // Veiculos: tenta Rota Exata local, fallback Railway
+            try {
+                veiculos = await _originalFetch('/api/pos/rastreamento?acao=veiculos_mapa').then(r => r.json());
+                if (!veiculos || veiculos.length === 0) throw new Error('Vazio');
+                console.log(`[Mapa] ${veiculos.length} veiculos do Rota Exata local`);
+            } catch (e) {
+                console.log('[Mapa] Usando Railway para veiculos...', e.message || '');
+                try { veiculos = await Utils.fetchJson('/api/veiculos'); } catch(e2) { console.warn('[Mapa] Railway veiculos falhou:', e2); }
+            }
+
+            console.log(`[Mapa] Fase 1: ${clientes.length} clientes + ${veiculos.length} veiculos em ${Date.now() - t0}ms`);
 
             this.state.clientes = clientes;
             await this._aplicarTecnicosVeiculos(veiculos);
             this.state.veiculos = veiculos;
-            this.state.vendedores = vendedores;
 
-            // Render markers
+            // Renderiza marcadores imediatamente
             const filtered = Markers.filterClients(clientes);
             Markers.renderClients(filtered);
             Markers.renderVehicles(veiculos);
-
-            // Render paradas from vehicles
             Markers.renderParadas(veiculos);
 
-            // Populate city filter
+            // Populate city filter e lista
             this.populateCityFilter(clientes);
-
-            // Populate vendedor select
-            this.populateVendedorSelect(vendedores);
-
-            // Update stats
-            this.updateStats(resumo);
-
-            // Update sync status
-            this.updateSyncStatus(syncStatus);
-
-            // Render cadastro list
             this.renderCadastroList();
-
-            // Load oportunidades
-            try {
-                const oportunidades = await Utils.fetchJson('/api/oportunidades');
-                Markers.renderOportunidades(oportunidades);
-            } catch (e) { /* ok */ }
-
-            // Load regioes salvas
-            try {
-                const regioes = await Utils.fetchJson('/api/regioes');
-                if (regioes && regioes.length > 0) {
-                    KmzManager.loadSavedRegions(regioes);
-                    // Ativar layer e checkbox automaticamente se ha regioes
-                    const cb = document.getElementById('layer-regioes');
-                    if (cb && !cb.checked) {
-                        cb.checked = true;
-                        MapCore.map.addLayer(MapCore.regioesLayer);
-                        RegionEditor.onLayerToggle(true);
-                    }
-                }
-            } catch (e) { /* ok */ }
 
             // Fit to client bounds
             const withGeo = clientes.filter(c => c.lat && c.lng);
             if (withGeo.length > 0) {
                 MapCore.fitBounds(withGeo);
             }
+
+            // Fase 2: Carrega dados secundarios sem bloquear (vendedores, stats, regioes)
+            Promise.all([
+                Utils.fetchJson('/api/vendedores').then(v => { this.state.vendedores = v; this.populateVendedorSelect(v); }).catch(() => {}),
+                Utils.fetchJson('/api/stats/resumo').then(r => this.updateStats(r)).catch(() => {}),
+                Utils.fetchJson('/api/sync-status').then(s => this.updateSyncStatus(s)).catch(() => {}),
+                Utils.fetchJson('/api/oportunidades').then(o => Markers.renderOportunidades(o)).catch(() => {}),
+                Utils.fetchJson('/api/regioes').then(regioes => {
+                    if (regioes && regioes.length > 0) {
+                        KmzManager.loadSavedRegions(regioes);
+                        const cb = document.getElementById('layer-regioes');
+                        if (cb && !cb.checked) {
+                            cb.checked = true;
+                            MapCore.map.addLayer(MapCore.regioesLayer);
+                            RegionEditor.onLayerToggle(true);
+                        }
+                    }
+                }).catch(() => {})
+            ]).then(() => console.log(`[Mapa] Fase 2 completa em ${Date.now() - t0}ms`));
 
         } catch (e) {
             console.error('Erro ao carregar dados:', e);
@@ -219,7 +251,11 @@ const App = {
 
     async refreshVehicles() {
         try {
-            const veiculos = await Utils.fetchJson('/api/veiculos');
+            let veiculos;
+            try {
+                veiculos = await _originalFetch('/api/pos/rastreamento?acao=veiculos_mapa').then(r => r.json());
+                if (!veiculos || veiculos.length === 0) throw new Error('vazio');
+            } catch { veiculos = await Utils.fetchJson('/api/veiculos'); }
             await this._aplicarTecnicosVeiculos(veiculos);
             this.state.veiculos = veiculos;
             Markers.renderVehicles(veiculos);
@@ -263,7 +299,23 @@ const App = {
                 }
             }
 
-            // 2. Caminhos do dia sobrescrevem (tecnico escolheu o carro hoje)
+            // 2. Checkin diario do app mecanicos sobrescreve (tecnico escolheu carro hoje)
+            const { data: checkins } = await sb
+                .from('checkin_diario')
+                .select('tecnico_nome, placa')
+                .eq('data', hoje);
+            if (checkins) {
+                for (const c of checkins) {
+                    if (c.placa) {
+                        // Placa pode vir como "MONTANA - FHY8D25", extrair a placa limpa
+                        const parts = c.placa.split(' - ');
+                        const placaLimpa = (parts[parts.length - 1] || '').replace(/[^A-Z0-9]/g, '').toUpperCase();
+                        if (placaLimpa) placaTecnico[placaLimpa] = c.tecnico_nome;
+                    }
+                }
+            }
+
+            // 3. Caminhos do dia sobrescrevem (tecnico escolheu o carro no portal)
             const { data: caminhos } = await sb
                 .from('tecnico_caminhos')
                 .select('tecnico_nome, placa')
@@ -371,7 +423,7 @@ const App = {
             container.innerHTML = clientes.length === 0
                 ? '<div style="padding:12px;text-align:center;color:var(--text-muted);font-size:12px;">Nenhum cliente encontrado</div>'
                 : clientes.map(c => `
-                    <div class="cadastro-item" onclick="if(${c.lat && c.lng ? 'true' : 'false'}) { MapCore.map.setView([${c.lat},${c.lng}], 15); Panels.open('${c.id}'); }">
+                    <div class="cadastro-item" onclick="if(${c.lat && c.lng ? 'true' : 'false'}) { MapCore.map.setView([${c.lat},${c.lng}], 15); } Panels.open('${c.id}')">
                         <div class="cadastro-item-info">
                             <div class="cadastro-item-name">${Utils.truncate(c.nome, 30)}</div>
                             <div class="cadastro-item-detail">${c.cidade || ''} | ${c.equipamentos_count || 0} equip.</div>
@@ -431,8 +483,12 @@ const App = {
         if (!confirm(`Tem certeza que deseja excluir o ${label}?`)) return;
 
         try {
-            const url = type === 'veiculo' ? `/api/veiculos/${id}` : `/api/clientes/${id}`;
-            const res = await fetch(url, { method: 'DELETE' });
+            let res;
+            if (type === 'veiculo') {
+                res = await fetch(`/api/veiculos/${id}`, { method: 'DELETE' });
+            } else {
+                res = await _originalFetch(`/api/mapa/clientes?id=${id}`, { method: 'DELETE' });
+            }
             if (!res.ok) throw new Error('Erro ao excluir');
 
             Utils.toast(`${type === 'veiculo' ? 'Veiculo' : 'Cliente'} excluido!`, 'success');
@@ -624,18 +680,41 @@ const App = {
         if (type === 'geocode') this.startGeocodePolling();
 
         try {
-            const url = type === 'all' ? '/api/sync/all' : `/api/sync/${type}`;
-            const res = await fetch(url);
-            const data = await res.json();
+            let res, data;
 
-            log.innerHTML += `✅ ${type}: ${JSON.stringify(data).substring(0, 100)}\n`;
+            if (type === 'clientes') {
+                // Sync Omie via endpoint local (Next.js) com geocoding
+                res = await _originalFetch('/api/mapa/sync-omie', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ geocodificar: true, maxGeocode: 100 })
+                });
+                data = await res.json();
+                log.innerHTML += `✅ Omie: ${data.sincronizados || 0} clientes, ${data.geocodificados || 0} geocodificados\n`;
+                await this.loadAllData();
+            } else if (type === 'geocode') {
+                // Geocodificar via endpoint local (sem sync do Omie)
+                res = await _originalFetch('/api/mapa/sync-omie', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ geocodificar: true, maxGeocode: 200 })
+                });
+                data = await res.json();
+                log.innerHTML += `✅ Geocode: ${data.geocodificados || 0} enderecos geocodificados\n`;
+                await this.loadAllData();
+            } else {
+                const url = type === 'all' ? '/api/sync/all' : `/api/sync/${type}`;
+                res = await fetch(url);
+                data = await res.json();
+                log.innerHTML += `✅ ${type}: ${JSON.stringify(data).substring(0, 100)}\n`;
+            }
+
             log.scrollTop = log.scrollHeight;
 
             if (type === 'all') {
                 Utils.toast('Sync completo iniciado em background!', 'success');
             } else {
                 Utils.toast(`${type} sincronizado!`, 'success');
-                // Reload data after individual sync
                 if (['processar', 'geocode'].includes(type)) {
                     await this.loadAllData();
                 }
@@ -645,8 +724,10 @@ const App = {
             }
 
             // Refresh sync status
-            const status = await Utils.fetchJson('/api/sync-status');
-            this.updateSyncStatus(status);
+            try {
+                const status = await Utils.fetchJson('/api/sync-status');
+                this.updateSyncStatus(status);
+            } catch (e) { /* ok */ }
 
         } catch (e) {
             log.innerHTML += `❌ ${type}: ${e.message}\n`;

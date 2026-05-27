@@ -28,20 +28,36 @@ const VeiculosTecnicos = {
         }
     },
 
+    // Chama API local (portal Next.js) - nao usa fetch overridden que vai pro Railway
+    async _fetchLocal(path) {
+        const res = await _originalFetch(path);
+        if (!res.ok) {
+            const txt = await res.text().catch(() => '');
+            // Se retornou HTML (endpoint nao existe), erro claro
+            if (txt.startsWith('<!') || txt.includes('Cannot GET')) {
+                throw new Error(`Endpoint ${path} nao encontrado no servidor. Verifique se o Next.js esta rodando.`);
+            }
+            throw new Error(`HTTP ${res.status}: ${txt.substring(0, 100)}`);
+        }
+        return res.json();
+    },
+
     async _carregar() {
         try {
             const [veicRes, motRes, usrRes, vincRes] = await Promise.all([
-                Utils.fetchJson('/api/pos/rastreamento?acao=veiculos'),
-                Utils.fetchJson('/api/pos/rastreamento?acao=motoristas'),
-                Utils.fetchJson('/api/pos/rastreamento?acao=usuarios_motoristas'),
+                this._fetchLocal('/api/pos/rastreamento?acao=veiculos'),
+                this._fetchLocal('/api/pos/rastreamento?acao=motoristas'),
+                this._fetchLocal('/api/pos/rastreamento?acao=usuarios_motoristas'),
                 _supabase.from('tecnico_veiculos').select('*').order('tecnico_nome')
             ]);
             this._veiculosRota = Array.isArray(veicRes) ? veicRes : [];
             this._motoristasRota = Array.isArray(motRes) ? motRes : [];
             this._usuariosRota = Array.isArray(usrRes) ? usrRes : [];
             this._vinculos = vincRes.data || [];
+            console.log('[VeiculosTecnicos] Carregado:', this._veiculosRota.length, 'veiculos,', this._motoristasRota.length, 'motoristas,', this._usuariosRota.length, 'usuarios');
         } catch (e) {
-            console.error('Erro ao carregar:', e);
+            console.error('Erro ao carregar veiculos/tecnicos:', e);
+            Utils.toast('Erro ao carregar: ' + (e.message || e), 'error');
             this._veiculosRota = [];
             this._motoristasRota = [];
             this._usuariosRota = [];
@@ -73,9 +89,10 @@ const VeiculosTecnicos = {
         for (const v of this._vinculos) vinculoPorAdesao[v.adesao_id] = v;
 
         // Opções do select de motoristas
-        const optMotoristas = this._usuariosRota.map(u =>
-            `<option value="${u.id}">${this._esc(u.nome)}${u.cargo ? ' (' + this._esc(u.cargo) + ')' : ''}</option>`
-        ).join('');
+        const optMotoristas = `<option value="__NONE__" style="color:#ef4444">Sem motorista (desvincular)</option>` +
+            this._usuariosRota.map(u =>
+                `<option value="${u.id}">${this._esc(u.nome)}${u.cargo ? ' (' + this._esc(u.cargo) + ')' : ''}</option>`
+            ).join('');
 
         let html = `
             <div style="padding:14px 18px 8px;font-size:12px;color:var(--text-muted);border-bottom:1px solid var(--glass-border)">
@@ -155,11 +172,22 @@ const VeiculosTecnicos = {
                 const sel = document.getElementById(`vt-sel-${veiculo.id}`);
                 if (!sel || !sel.value) continue;
 
+                const motAtual = this._motoristaAtualRota(veiculo.id);
+
+                // Opcao "Sem motorista" -> apenas desvincular
+                if (sel.value === '__NONE__') {
+                    if (motAtual && motAtual._id) {
+                        await this._apiPost({ acao: 'desvincular_motorista', vinculo_id: motAtual._id });
+                        await _supabase.from('tecnico_veiculos').delete().eq('adesao_id', veiculo.id);
+                        countRota++;
+                    }
+                    continue;
+                }
+
                 const motoristaId = parseInt(sel.value);
                 if (!motoristaId) continue;
 
                 // Desvincular motorista atual primeiro (se houver)
-                const motAtual = this._motoristaAtualRota(veiculo.id);
                 if (motAtual && motAtual._id) {
                     await this._apiPost({ acao: 'desvincular_motorista', vinculo_id: motAtual._id });
                 }

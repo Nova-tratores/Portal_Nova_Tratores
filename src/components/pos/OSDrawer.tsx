@@ -601,7 +601,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                       </div>
                       <div className="os-summary-details">
                         {projeto && <span><i className="fas fa-cog" /> {projeto}</span>}
-                        {tecnico1 && <span><i className="fas fa-user-cog" /> {tecnico1}</span>}
+                        {tecnico1 && <span style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' }} onClick={(e) => { e.stopPropagation(); window.open(`/mecanicos?tecnico=${encodeURIComponent(tecnico1)}`, '_blank') }} title="Abrir Janela Mecanico"><i className="fas fa-user-cog" /> {tecnico1}</span>}
                         <span><i className="fas fa-tag" /> {tipoServico}</span>
                       </div>
                     </div>

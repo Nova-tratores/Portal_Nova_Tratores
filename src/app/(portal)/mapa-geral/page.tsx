@@ -11,7 +11,7 @@ export default function MapaGeralPage() {
           border: 'none',
         }}
         allow="geolocation"
-        title="Mapa Geral"
+        title="Mapeamento Técnico"
       />
     </div>
   )

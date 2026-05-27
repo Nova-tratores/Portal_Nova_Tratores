@@ -15,7 +15,14 @@ const Search = {
             }
 
             try {
-                const results = await Utils.fetchJson(`/api/buscar-clientes?q=${encodeURIComponent(q)}`);
+                // Busca local nos clientes ja carregados
+                const qLower = q.toLowerCase();
+                const results = (App.state.clientes || [])
+                    .filter(c => (c.nome || '').toLowerCase().includes(qLower)
+                        || (c.razao_social || '').toLowerCase().includes(qLower)
+                        || (c.cnpj_cpf || '').includes(q)
+                        || (c.cidade || '').toLowerCase().includes(qLower))
+                    .slice(0, 20);
                 this.renderResults(results);
             } catch (e) {
                 dropdown.classList.remove('show');
@@ -47,15 +54,18 @@ const Search = {
             return;
         }
 
-        dropdown.innerHTML = results.map(c => `
-            <div class="search-item" onclick="Search.selectClient('${c.id}', ${c.lat}, ${c.lng})">
+        dropdown.innerHTML = results.map(c => {
+            const nome = c.nome || c.nome_fantasia || c.razao_social || 'Cliente';
+            const cid = String(c.id);
+            return `
+            <div class="search-item" onclick="Search.selectClient('${cid}', ${c.lat || 'null'}, ${c.lng || 'null'})">
                 <div>
-                    <div class="search-item-name">${c.nome}</div>
-                    <div class="search-item-city">📍 ${c.cidade} - ${c.estado} ${c.ultima_visita ? '| 👁️ ' + Utils.formatDate(c.ultima_visita) : ''}</div>
+                    <div class="search-item-name">${nome}</div>
+                    <div class="search-item-city">📍 ${c.cidade || ''} - ${c.estado || ''} ${c.ultima_visita ? '| ' + Utils.formatDate(c.ultima_visita) : ''}</div>
                 </div>
-                ${c.equipamentos_count > 0 ? `<span class="search-item-badge equip">🔧 ${c.equipamentos_count}</span>` : ''}
-            </div>
-        `).join('');
+                ${c.equipamentos_count > 0 ? `<span class="search-item-badge equip">${c.equipamentos_count}</span>` : ''}
+            </div>`;
+        }).join('');
 
         dropdown.classList.add('show');
     },

@@ -299,6 +299,26 @@ export async function GET(req: NextRequest) {
         return NextResponse.json(motoristas)
       }
 
+      case 'odometros': {
+        // Retorna o ultimo odometro de cada veiculo
+        const data = await fetchRotaExata('/odometro', { limit: '500', page: '0' })
+        const items = data.data || []
+        // Agrupar por adesao_id, pegar o mais recente
+        const porAdesao: Record<number, any> = {}
+        for (const od of items) {
+          if (!porAdesao[od.adesao_id] || od.created > porAdesao[od.adesao_id].created) {
+            porAdesao[od.adesao_id] = od
+          }
+        }
+        const result = Object.values(porAdesao).map((od: any) => ({
+          adesao_id: od.adesao_id,
+          km: Math.round(od.odometro_adesao / 1000), // converte metros pra km
+          km_rastreador: Math.round((od.odometro_rastreador || 0) / 1000),
+          data: od.created ? od.created.split('T')[0] : '',
+        }))
+        return NextResponse.json(result)
+      }
+
       case 'posicoes': {
         const adesaoId = searchParams.get('adesao_id')
         if (!adesaoId) return NextResponse.json({ error: 'adesao_id obrigatório' }, { status: 400 })
@@ -347,6 +367,60 @@ export async function GET(req: NextRequest) {
       case 'destinos': {
         const destinos = await getDestinos()
         return NextResponse.json(destinos)
+      }
+
+      case 'veiculos_mapa': {
+        // Retorna veiculos com ultima posicao para o mapa
+        const vData = await fetchRotaExata('/adesoes', { limit: '200', page: '0' })
+        const adesoesList = vData.data || []
+
+        // Janela: ultimos 60 minutos (pega posicao mais recente)
+        const agora = new Date()
+        const atras = new Date(agora.getTime() - 60 * 60 * 1000)
+
+        const BATCH = 10
+        const veiculosMapa: any[] = []
+
+        for (let i = 0; i < adesoesList.length; i += BATCH) {
+          const batch = adesoesList.slice(i, i + BATCH)
+          const results = await Promise.all(batch.map(async (ad: any) => {
+            const veiculo: any = {
+              id: ad.id,
+              placa: (ad.vei_placa || '').replace(/[-\s]/g, '').toUpperCase(),
+              modelo: ad.vei_modelo || ad.vei_descricao || '',
+              cor: ad.vei_cor || '',
+              ano: ad.vei_ano || '',
+              motorista: '',
+              lat: null, lng: null, ignicao: false, velocidade: 0,
+              dt_posicao: null,
+              paradas: [],
+            }
+            try {
+              // Busca posicoes da ultima hora
+              const w = JSON.stringify({
+                adesao_id: ad.id,
+                dt_posicao: { $gte: atras.toISOString(), $lte: agora.toISOString() }
+              })
+              const posData = await fetchRotaExata('/posicoes', { where: w, limit: '50', page: '0' })
+              const posicoes = Array.isArray(posData.data) ? posData.data : []
+              if (posicoes.length > 0) {
+                // Pega a mais recente (maior timestamp)
+                const last = posicoes.reduce((a: any, b: any) =>
+                  new Date(b.dt_posicao).getTime() > new Date(a.dt_posicao).getTime() ? b : a
+                )
+                veiculo.lat = last.latitude
+                veiculo.lng = last.longitude
+                veiculo.ignicao = last.ignicao === 1
+                veiculo.velocidade = last.velocidade || 0
+                veiculo.dt_posicao = last.dt_posicao
+              }
+            } catch { /* sem posicao */ }
+            return veiculo
+          }))
+          veiculosMapa.push(...results)
+        }
+
+        return NextResponse.json(veiculosMapa)
       }
 
       case 'explorar': {
@@ -446,6 +520,28 @@ export async function POST(req: NextRequest) {
       const res = await fetch(`${API_URL}/motoristas/${vinculo_id}`, {
         method: 'DELETE',
         headers: { Authorization: token },
+      })
+
+      if (!res.ok) {
+        const text = await res.text()
+        return NextResponse.json({ error: `Rota Exata: ${res.status} - ${text}` }, { status: res.status })
+      }
+
+      const data = await res.json()
+      return NextResponse.json(data)
+    }
+
+    if (acao === 'atualizar_odometro') {
+      const { adesao_id, km } = body
+      if (!adesao_id || km == null) {
+        return NextResponse.json({ error: 'adesao_id e km obrigatórios' }, { status: 400 })
+      }
+
+      const token = await getToken()
+      const res = await fetch(`${API_URL}/odometro`, {
+        method: 'POST',
+        headers: { Authorization: token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adesao_id, odometro_adesao: km }), // API espera km, converte pra metros internamente
       })
 
       if (!res.ok) {

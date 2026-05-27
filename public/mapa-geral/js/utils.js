@@ -86,8 +86,8 @@ const Utils = {
     },
 
     getMarkerSize(equipCount) {
-        if (equipCount <= 0) return 8;
-        if (equipCount <= 2) return 12;
+        if (equipCount <= 0) return 14;
+        if (equipCount <= 2) return 16;
         if (equipCount <= 5) return 16;
         if (equipCount <= 9) return 22;
         return 28;

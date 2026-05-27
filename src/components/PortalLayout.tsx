@@ -111,21 +111,20 @@ const navItems: NavItem[] = [
   },
   {
     id: 'mapa-geral',
-    name: 'Mapa Geral',
+    name: 'Mapeamento Tecnico',
     href: '/mapa-geral',
     icon: <MapPin size={18} />,
     tag: 'MAPA',
     gradient: 'linear-gradient(135deg, #b91c1c, #991b1b)'
   },
-  // DESATIVADO — será refeito
-  // {
-  //   id: 'painel-mecanicos',
-  //   name: 'Painel Mecânicos',
-  //   href: '/painel-mecanicos',
-  //   icon: <Users size={18} />,
-  //   tag: 'CAMPO',
-  //   gradient: 'linear-gradient(135deg, #1E3A5F, #1d4ed8)'
-  // },
+  {
+    id: 'mecanicos',
+    name: 'Janela Mecanico',
+    href: '/mecanicos',
+    icon: <Users size={18} />,
+    tag: 'TECNICOS',
+    gradient: 'linear-gradient(135deg, #1d4ed8, #3b82f6)'
+  },
   {
     id: 'fotos-tecnicos',
     name: 'Fotos Técnicos',

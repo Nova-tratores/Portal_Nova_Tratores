@@ -14,6 +14,7 @@ const MapCore = {
     oportunidadesLayer: null,
     paradasLayer: null,
     regioesLayer: null,
+    tecnicoNoClienteLayer: null,
 
     init() {
         this.map = L.map('map', {
@@ -40,6 +41,7 @@ const MapCore = {
         this.oportunidadesLayer = L.layerGroup();
         this.paradasLayer = L.layerGroup();
         this.regioesLayer = L.layerGroup();
+        this.tecnicoNoClienteLayer = L.layerGroup().addTo(this.map);
         this.clusterGroup = L.markerClusterGroup({
             maxClusterRadius: 50,
             spiderfyOnMaxZoom: true,

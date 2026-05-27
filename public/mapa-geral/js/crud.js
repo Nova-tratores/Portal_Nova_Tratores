@@ -16,8 +16,8 @@ const CrudModal = {
         this._prefillCoords = coords;
 
         if (id) {
-            // Editar: buscar dados do cliente
-            Utils.fetchJson(`/api/cliente/${id}`).then(c => {
+            // Editar: buscar dados do cliente via endpoint local
+            _originalFetch(`/api/mapa/clientes?id=${id}`).then(r => r.json()).then(c => {
                 this.editData = c;
                 this._render();
             }).catch(() => Utils.toast('Erro ao carregar cliente', 'error'));
@@ -51,7 +51,7 @@ const CrudModal = {
             body.innerHTML = `
                 <div class="crud-form-group">
                     <label>Nome fantasia *</label>
-                    <input type="text" id="crud-nome" value="${c.nome || ''}" placeholder="Nome do cliente">
+                    <input type="text" id="crud-nome" value="${c.nome || c.nome_fantasia || ''}" placeholder="Nome do cliente">
                 </div>
                 <div class="crud-form-group">
                     <label>Razao social</label>
@@ -187,20 +187,37 @@ const CrudModal = {
                     data.lng = parseFloat(lngVal);
                 }
 
-                let url, method;
-                if (this.editId) {
-                    url = `/api/clientes/${this.editId}`;
-                    method = 'PUT';
-                } else {
-                    url = '/api/clientes';
-                    method = 'POST';
-                }
+                // Salvar no Supabase via endpoint local
+                const supaData = {
+                    nome_fantasia: data.nome,
+                    razao_social: data.razao_social || data.nome,
+                    cnpj_cpf: data.cnpj_cpf,
+                    telefone: data.telefone,
+                    email: data.email,
+                    endereco: data.endereco,
+                    bairro: data.bairro,
+                    cep: data.cep,
+                    cidade: data.cidade,
+                    estado: data.estado,
+                    lat: data.lat || null,
+                    lng: data.lng || null,
+                };
 
-                const resp = await fetch(url, {
-                    method,
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
+                let resp;
+                if (this.editId) {
+                    supaData.id = this.editId;
+                    resp = await _originalFetch('/api/mapa/clientes', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(supaData)
+                    });
+                } else {
+                    resp = await _originalFetch('/api/mapa/clientes', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(supaData)
+                    });
+                }
                 const result = await resp.json();
                 if (!resp.ok) throw new Error(result.error || 'Erro ao salvar');
 
@@ -252,14 +269,12 @@ const CrudModal = {
         if (!confirm(confirmMsg)) return;
 
         try {
-            let url;
+            let resp;
             if (this.type === 'client') {
-                url = `/api/clientes/${this.editId}`;
+                resp = await _originalFetch(`/api/mapa/clientes?id=${this.editId}`, { method: 'DELETE' });
             } else {
-                url = `/api/veiculos/${this.editId}`;
+                resp = await fetch(`/api/veiculos/${this.editId}`, { method: 'DELETE' });
             }
-
-            const resp = await fetch(url, { method: 'DELETE' });
             if (!resp.ok) throw new Error('Erro ao excluir');
 
             Utils.toast('Excluido com sucesso!', 'success');

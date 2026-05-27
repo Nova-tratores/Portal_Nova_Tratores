@@ -5,38 +5,46 @@
 const Panels = {
     currentClientId: null,
 
-    async open(clienteId) {
+    open(clienteId) {
         this.currentClientId = clienteId;
 
-        // Fechar painel do veiculo se estiver aberto e limpar selecao
-        if (VehiclePanel.currentPlaca) {
-            App.clearVehicleSelection();
-        }
+        // Fechar painel do veiculo se estiver aberto
+        try { if (VehiclePanel.currentPlaca) App.clearVehicleSelection(); } catch(e) {}
 
         const panel = document.getElementById('detail-panel');
+        if (!panel) return;
+
         const header = document.getElementById('panel-header');
         const body = document.getElementById('panel-body');
 
-        header.innerHTML = '<div style="padding:20px;color:var(--text-muted)"><div class="spinner"></div> Carregando...</div>';
-        body.innerHTML = '';
+        // 1) Abre o painel imediatamente
         panel.classList.add('open');
 
-        try {
-            // Tenta buscar da API completa primeiro
-            const c = await Utils.fetchJson(`/api/cliente/${clienteId}`);
-            if (!c || c.error) throw new Error(c?.error || 'Cliente nao encontrado');
-            this._currentClient = c;
-            this.renderPanel(c);
-        } catch (e) {
-            // Fallback: usar dados do state local
-            const local = (App.state.clientes || []).find(cl => cl.id === clienteId);
-            if (local) {
-                this._currentClient = local;
-                this.renderPanel(local);
-            } else {
-                header.innerHTML = '<div style="padding:20px;color:var(--accent-red)">Erro ao carregar cliente</div>';
-            }
+        // 2) Busca no state local (instantaneo)
+        const local = (App.state.clientes || []).find(cl => String(cl.id) === String(clienteId));
+        if (local) {
+            this._currentClient = local;
+            this.renderPanel(local);
+        } else {
+            header.innerHTML = '<div style="padding:20px;color:var(--text-muted)"><div class="spinner"></div> Carregando...</div>';
+            body.innerHTML = '';
         }
+
+        // 3) Tenta buscar dados completos da API (em background, sem bloquear)
+        _originalFetch('/api/mapa/clientes?id=' + clienteId)
+            .then(r => r.ok ? r.json() : null)
+            .then(c => {
+                if (c && !c.error && this.currentClientId === clienteId) {
+                    this._currentClient = c;
+                    this.renderPanel(c);
+                }
+            })
+            .catch(() => {
+                // Se a API falhou e nao tinha dados locais, mostra erro
+                if (!local && this.currentClientId === clienteId) {
+                    header.innerHTML = '<div style="padding:20px;color:var(--accent-red)">Cliente nao encontrado</div>';
+                }
+            });
     },
 
     close() {
@@ -123,15 +131,15 @@ const Panels = {
         }
 
         try {
-            const resp = await fetch(`/api/clientes/${this.currentClientId}`, {
+            const resp = await _originalFetch('/api/mapa/clientes', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ lat, lng })
+                body: JSON.stringify({ id: this.currentClientId, lat, lng })
             });
             if (!resp.ok) throw new Error('Erro ao salvar');
 
             // Update local state
-            const stateClient = App.state.clientes.find(c => c.id === this.currentClientId);
+            const stateClient = App.state.clientes.find(c => String(c.id) === String(this.currentClientId));
             if (stateClient) {
                 stateClient.lat = lat;
                 stateClient.lng = lng;

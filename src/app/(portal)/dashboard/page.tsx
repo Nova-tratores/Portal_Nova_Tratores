@@ -106,21 +106,20 @@ const systems: SystemCard[] = [
     href: '/tarefas',
     tag: 'TAREFAS'
   },
-  // DESATIVADO — será refeito
-  // {
-  //   id: 'painel-mecanicos',
-  //   name: 'Painel Mecânicos',
-  //   description: 'Agenda semanal, caminhos, pontuação e gestão dos técnicos de campo',
-  //   icon: <Users size={28} />,
-  //   color: '#dc2626',
-  //   gradient: 'linear-gradient(135deg, #dc2626, #ef4444)',
-  //   href: '/painel-mecanicos',
-  //   tag: 'TÉCNICOS'
-  // },
+  {
+    id: 'mecanicos',
+    name: 'Janela Mecânicos',
+    description: 'Jornada, agenda e acompanhamento dos mecânicos de campo',
+    icon: <Users size={28} />,
+    color: '#dc2626',
+    gradient: 'linear-gradient(135deg, #dc2626, #ef4444)',
+    href: '/mecanicos',
+    tag: 'TÉCNICOS'
+  },
   {
     id: 'mapa-geral',
-    name: 'Mapa Geral',
-    description: 'Visualização geográfica de clientes, máquinas e operações',
+    name: 'Mapeamento Técnico',
+    description: 'Visualização geográfica de clientes, técnicos e operações',
     icon: <Map size={28} />,
     color: '#dc2626',
     gradient: 'linear-gradient(135deg, #b91c1c, #991b1b)',
@@ -231,7 +230,7 @@ const systemToModulo: Record<string, string> = {
   'proposta-comercial': 'propostas',
   'orcamentos': 'orcamentos',
   'tarefas': 'tarefas',
-  'painel-mecanicos': 'painel-mecanicos',
+  'mecanicos': 'mecanicos',
   'mapa-geral': 'mapa',
   'fotos-tecnicos': 'fotos-tecnicos',
   'consulta-estoque': 'estoque',
@@ -251,7 +250,7 @@ interface CardFolder {
 
 const defaultFolders: CardFolder[] = [
   { id: 'financeiro', name: 'Financeiro', cardIds: ['sistema-financeiro', 'dre'] },
-  { id: 'servicos', name: 'Serviços', cardIds: ['pos', 'controle-revisao', 'fotos-tecnicos'] },
+  { id: 'servicos', name: 'Serviços', cardIds: ['pos', 'controle-revisao', 'fotos-tecnicos', 'mecanicos'] },
   { id: 'comercial', name: 'Comercial', cardIds: ['proposta-comercial', 'orcamentos', 'ppv'] },
   { id: 'estoque', name: 'Estoque & Consulta', cardIds: ['consulta-estoque', 'visual-estoque'] },
   { id: 'gestao', name: 'Gestão', cardIds: ['app-requisicoes', 'tarefas', 'avisos'] },

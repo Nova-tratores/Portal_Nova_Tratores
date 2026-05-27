@@ -18,17 +18,13 @@ const VehiclePanel = {
         // Fechar painel de cliente se estiver aberto
         Panels.close();
 
-        try {
-            const veiculos = await Utils.fetchJson('/api/veiculos');
-            const v = veiculos.find(v => v.placa === placa);
-            if (!v) {
-                header.innerHTML = '<div style="padding:20px;color:var(--accent-red)">Veiculo nao encontrado</div>';
-                return;
-            }
-            this._render(v);
-        } catch (e) {
-            header.innerHTML = '<div style="padding:20px;color:var(--accent-red)">Erro ao carregar veiculo</div>';
+        // Usa dados ja carregados no state (evita nova chamada de rede)
+        const v = (App.state.veiculos || []).find(v => v.placa === placa);
+        if (!v) {
+            header.innerHTML = '<div style="padding:20px;color:var(--accent-red)">Veiculo nao encontrado</div>';
+            return;
         }
+        this._render(v);
     },
 
     close() {
