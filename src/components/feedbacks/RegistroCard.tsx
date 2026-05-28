@@ -72,18 +72,21 @@ export default function RegistroCard({ registro: r, onEditar, onExcluir }: Props
       )}
       <header style={cardHeader}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <h3 style={tituloStyle}>{r.nome}</h3>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <h3 style={tituloStyle}>{r.nome}</h3>
+            {r.origem_dados && <span style={origemBadgeStyle(r.origem_dados)}>{r.origem_dados}</span>}
+          </div>
           <div style={subtituloStyle}>
             {r.telefone ? (
               <a href={`tel:${r.telefone}`} style={contatoLinkStyle} title="Ligar">
-                📞 {r.telefone}
+                {r.telefone}
               </a>
             ) : null}
             {r.email ? (
               <>
                 {r.telefone ? " · " : null}
                 <a href={`mailto:${r.email}`} style={contatoLinkStyle} title="Enviar e-mail">
-                  ✉ {r.email}
+                  {r.email}
                 </a>
               </>
             ) : null}
@@ -209,6 +212,30 @@ const contatoLinkStyle: React.CSSProperties = {
   textDecoration: "none",
   fontWeight: 600,
 };
+function origemBadgeStyle(origem: string): React.CSSProperties {
+  // Cores por origem: NOVA vermelho, CASTRO laranja, Portal cinza
+  const up = origem.toUpperCase();
+  let bg = "#f3f4f6";
+  let fg = "#525252";
+  if (up.includes("NOVA")) {
+    bg = "#fee2e2"; fg = "#991b1b";
+  } else if (up.includes("CASTRO")) {
+    bg = "#fed7aa"; fg = "#9a3412";
+  } else if (up.includes("OMIE")) {
+    bg = "#dbeafe"; fg = "#1e40af";
+  }
+  return {
+    fontSize: 9,
+    fontWeight: 700,
+    padding: "2px 7px",
+    borderRadius: 5,
+    background: bg,
+    color: fg,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+    whiteSpace: "nowrap",
+  };
+}
 const detalhesGrid: React.CSSProperties = {
   display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
   gap: 10, paddingTop: 4,

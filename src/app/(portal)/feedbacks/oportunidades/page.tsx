@@ -19,6 +19,20 @@ const TIPO_PADRAO_POR_REGRA: Record<RegraOportunidade, TipoFeedback> = {
   R5_pecas:    "rfm",
 };
 
+// Identifica a origem dos dados baseado nos detalhes que a regra coletou.
+// R3/R5 trazem `ultimo_pedido_empresa` (NOVA/CASTRO). R2 trazem `ultima_os_empresa`
+// quando vem do Omie. Sem isso, cai no fallback Omie ou Portal.
+function determinarOrigem(op: Oportunidade): string {
+  const d = op.detalhes || {};
+  const empresa = (d.ultimo_pedido_empresa || d.ultima_os_empresa) as string | null | undefined;
+  if (empresa) return `Omie ${String(empresa).toUpperCase()}`;
+  // R2 com origem OS Portal interno
+  if (d.ultima_os_fonte === "portal") return "Portal";
+  // Tem codigo Omie mas regra nao identificou empresa
+  if (op.codigo_omie) return "Omie";
+  return "Portal";
+}
+
 function prefillDoOportunidade(op: Oportunidade): Partial<FeedbackRegistro> {
   const tipo = TIPO_PADRAO_POR_REGRA[op.regra];
   const d = op.detalhes || {};
@@ -169,6 +183,7 @@ export default function OportunidadesPage() {
         atendente_nome: userProfile.nome,
         aberto_em: agora,
         status_atendimento: "aberto",
+        origem_dados: determinarOrigem(op),
       });
       await patch(op.id, {
         status: "atendida",

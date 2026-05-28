@@ -53,6 +53,7 @@ export interface FeedbackRegistro {
   aberto_em: string | null;
   concluido_em: string | null;
   status_atendimento: StatusAtendimento;
+  origem_dados: string | null;  // "Omie NOVA" | "Omie CASTRO" | "Omie" | "Portal"
 
   criado_em: string;
   atualizado_em: string;

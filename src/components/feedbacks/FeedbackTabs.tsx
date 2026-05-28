@@ -5,16 +5,15 @@ import { usePathname } from "next/navigation";
 interface Tab {
   href: string;
   label: string;
-  emoji: string;
 }
 
 const TABS: Tab[] = [
-  { href: "/feedbacks/crm",            label: "CRM",            emoji: "🔴" },
-  { href: "/feedbacks/rfm",            label: "RFM",            emoji: "🟡" },
-  { href: "/feedbacks/clientes",       label: "Clientes",       emoji: "👥" },
-  { href: "/feedbacks/relatorios",     label: "Relatórios",     emoji: "📊" },
-  { href: "/feedbacks/agenda",         label: "Agenda",         emoji: "📞" },
-  { href: "/feedbacks/oportunidades",  label: "Oportunidades",  emoji: "🎯" },
+  { href: "/feedbacks/crm",            label: "CRM" },
+  { href: "/feedbacks/rfm",            label: "RFM" },
+  { href: "/feedbacks/clientes",       label: "Clientes" },
+  { href: "/feedbacks/relatorios",     label: "Relatórios" },
+  { href: "/feedbacks/agenda",         label: "Agenda" },
+  { href: "/feedbacks/oportunidades",  label: "Oportunidades" },
 ];
 
 export default function FeedbackTabs() {
@@ -49,13 +48,9 @@ export default function FeedbackTabs() {
               textDecoration: "none",
               transition: "all 0.15s",
               whiteSpace: "nowrap",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
             }}
           >
-            <span>{tab.emoji}</span>
-            <span>{tab.label}</span>
+            {tab.label}
           </Link>
         );
       })}

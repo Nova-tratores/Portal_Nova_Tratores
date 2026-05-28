@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS feedback_registros (
   concluido_em        TIMESTAMPTZ,
   status_atendimento  TEXT NOT NULL DEFAULT 'concluido'
     CHECK (status_atendimento IN ('aberto','em_andamento','concluido','sem_resposta')),
+  origem_dados        TEXT,  -- 'Omie NOVA' | 'Omie CASTRO' | 'Omie' | 'Portal'
 
   criado_em       TIMESTAMPTZ NOT NULL DEFAULT now(),
   atualizado_em   TIMESTAMPTZ NOT NULL DEFAULT now()
