@@ -1,7 +1,22 @@
 "use client";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import OportunidadeCard from "./OportunidadeCard";
 import type { Oportunidade, RegraOportunidade } from "@/lib/feedbacks/types";
+
+// Quantos cards mostrar por coluna inicialmente, e o passo de "Ver mais".
+const PAGE_SIZE = 10;
+
+// Urgentes primeiro, depois Normal, depois Baixa. Dentro do mesmo grupo,
+// ordena por computado_em mais recente.
+function ordenarCards(cards: Oportunidade[]): Oportunidade[] {
+  const peso = { Urgente: 0, Normal: 1, Baixa: 2 } as const;
+  return [...cards].sort((a, b) => {
+    const pa = peso[a.prioridade] ?? 9;
+    const pb = peso[b.prioridade] ?? 9;
+    if (pa !== pb) return pa - pb;
+    return b.computado_em.localeCompare(a.computado_em);
+  });
+}
 
 interface ColunaDef {
   regra: RegraOportunidade;
@@ -63,8 +78,31 @@ export default function KanbanOportunidades({ oportunidades, onAtender, onDispen
     for (const op of oportunidades) {
       if (m[op.regra]) m[op.regra].push(op);
     }
+    // Ordena cada coluna: Urgente primeiro
+    for (const k of Object.keys(m) as RegraOportunidade[]) {
+      m[k] = ordenarCards(m[k]);
+    }
     return m;
   }, [oportunidades]);
+
+  // Quantos cards mostrar por coluna (cresce ao clicar "Ver mais")
+  const [mostrar, setMostrar] = useState<Record<RegraOportunidade, number>>({
+    R1_revisao: PAGE_SIZE,
+    R2_sem_os: PAGE_SIZE,
+    R3_upsell: PAGE_SIZE,
+    R4_followup: PAGE_SIZE,
+    R5_pecas: PAGE_SIZE,
+  });
+
+  function verMais(regra: RegraOportunidade) {
+    setMostrar((m) => ({ ...m, [regra]: m[regra] + PAGE_SIZE }));
+  }
+  function verTodas(regra: RegraOportunidade, total: number) {
+    setMostrar((m) => ({ ...m, [regra]: total }));
+  }
+  function reduzirColuna(regra: RegraOportunidade) {
+    setMostrar((m) => ({ ...m, [regra]: PAGE_SIZE }));
+  }
 
   return (
     <div
@@ -120,21 +158,83 @@ export default function KanbanOportunidades({ oportunidades, onAtender, onDispen
               <div style={{ padding: 24, textAlign: "center", color: "var(--portal-text-muted)", fontSize: 12, fontStyle: "italic" }}>
                 Nenhuma oportunidade aqui ✨
               </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {cards.map((op) => (
-                  <OportunidadeCard
-                    key={op.id}
-                    op={op}
-                    onAtender={onAtender}
-                    onDispensar={onDispensar}
-                  />
-                ))}
-              </div>
-            )}
+            ) : (() => {
+              const limite = mostrar[c.regra];
+              const visiveis = cards.slice(0, limite);
+              const restantes = cards.length - visiveis.length;
+              return (
+                <>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {visiveis.map((op) => (
+                      <OportunidadeCard
+                        key={op.id}
+                        op={op}
+                        onAtender={onAtender}
+                        onDispensar={onDispensar}
+                      />
+                    ))}
+                  </div>
+                  {(restantes > 0 || visiveis.length > PAGE_SIZE) && (
+                    <div style={paginacaoStyle}>
+                      {restantes > 0 && (
+                        <>
+                          <button onClick={() => verMais(c.regra)} style={btnPag(c.cor)}>
+                            Ver mais {Math.min(PAGE_SIZE, restantes)}
+                          </button>
+                          {restantes > PAGE_SIZE && (
+                            <button onClick={() => verTodas(c.regra, cards.length)} style={btnPagSec}>
+                              Ver todas ({cards.length})
+                            </button>
+                          )}
+                        </>
+                      )}
+                      {restantes === 0 && visiveis.length > PAGE_SIZE && (
+                        <button onClick={() => reduzirColuna(c.regra)} style={btnPagSec}>
+                          Reduzir
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </section>
         );
       })}
     </div>
   );
 }
+
+const paginacaoStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 6,
+  flexWrap: "wrap",
+  marginTop: 4,
+};
+
+function btnPag(cor: string): React.CSSProperties {
+  return {
+    flex: 1,
+    padding: "8px 10px",
+    background: cor,
+    color: "#fff",
+    border: "none",
+    borderRadius: 8,
+    fontSize: 12,
+    fontWeight: 700,
+    cursor: "pointer",
+    fontFamily: "Inter, sans-serif",
+  };
+}
+
+const btnPagSec: React.CSSProperties = {
+  padding: "8px 12px",
+  background: "#fff",
+  color: "var(--portal-text-secondary)",
+  border: "1px solid var(--portal-border)",
+  borderRadius: 8,
+  fontSize: 11,
+  fontWeight: 600,
+  cursor: "pointer",
+  fontFamily: "Inter, sans-serif",
+};
