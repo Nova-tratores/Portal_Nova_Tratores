@@ -97,6 +97,16 @@ const systems: SystemCard[] = [
     tag: 'VENDAS'
   },
   {
+    id: 'feedbacks',
+    name: 'Feedbacks & CRM',
+    description: 'CRM/RFM, oportunidades automáticas de revisão, peças, up-sell e follow-up',
+    icon: <Megaphone size={28} />,
+    color: '#dc2626',
+    gradient: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+    href: '/feedbacks',
+    tag: 'CRM'
+  },
+  {
     id: 'orcamentos',
     name: 'Orçamentos',
     description: 'Orçamentos personalizados com peças, mão de obra e deslocamento',
