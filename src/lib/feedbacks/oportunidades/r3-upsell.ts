@@ -95,9 +95,14 @@ export async function computarR3(parametros: ParametrosR3 = {}): Promise<Oportun
     // Trator MAIS recente entregue — referência de "última interação" quando não tem PV
     const tMaisRecente = tratoresOrdenados[tratoresOrdenados.length - 1];
 
+    // Politica: descarta cliente que nao bate com Clientes do Omie.
+    // Cadastros em tratores estao inconsistentes (chassi errado, nome divergente).
+    const codigoOmie = mapOmie.get(keyNorm);
+    if (!codigoOmie) continue;
+
     out.push({
       regra: "R3_upsell",
-      codigo_omie: mapOmie.get(keyNorm) ?? null,
+      codigo_omie: codigoOmie,
       cliente_nome: nomeOriginal.get(keyNorm) || keyNorm,
       trator: tratoresCliente.length === 1 ? `${tMaisAntigo.Modelo || ""} — ${tMaisAntigo.Chassis || ""}`.trim() : null,
       chassis: tratoresCliente.length === 1 ? (tMaisAntigo.Chassis || null) : null,

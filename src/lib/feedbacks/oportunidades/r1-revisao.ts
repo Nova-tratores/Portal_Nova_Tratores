@@ -105,6 +105,9 @@ export async function computarR1(parametros: ParametrosR1 = {}): Promise<Oportun
     }
 
     const codigoOmie = mapClienteOmie.get(cliNorm) ?? null;
+    // Politica: descarta cliente que nao bate com Clientes do Omie.
+    // Cadastros em tratores estao inconsistentes (chassi errado, nome divergente).
+    if (!codigoOmie) continue;
 
     out.push({
       regra: "R1_revisao",

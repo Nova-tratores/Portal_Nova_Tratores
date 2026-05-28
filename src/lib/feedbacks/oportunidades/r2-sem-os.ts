@@ -173,6 +173,11 @@ export async function computarR2(parametros: ParametrosR2 = {}): Promise<Oportun
       semAtividadeCount++;
     }
 
+    // Politica: descarta cliente que nao bate com Clientes do Omie.
+    // Cadastros em tratores estao inconsistentes (chassi errado, nome divergente).
+    const codigoOmie = mapOmie.get(keyNorm);
+    if (!codigoOmie) continue;
+
     const semAtividade = !ultimaAtividade;
     const prioridade: "Urgente" | "Normal" =
       semAtividade || count >= urgenteAt ? "Urgente" : "Normal";
@@ -181,7 +186,7 @@ export async function computarR2(parametros: ParametrosR2 = {}): Promise<Oportun
 
     out.push({
       regra: "R2_sem_os",
-      codigo_omie: mapOmie.get(keyNorm) ?? null,
+      codigo_omie: codigoOmie,
       cliente_nome: nomeOriginal.get(keyNorm) || keyNorm,
       trator: null,
       chassis: null,
