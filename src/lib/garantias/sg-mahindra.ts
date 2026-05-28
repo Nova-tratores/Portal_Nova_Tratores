@@ -110,6 +110,16 @@ export interface TratorDB {
   '2100h Data'?: string | null;
 }
 
+export interface ClienteOmie {
+  cnpj_cpf?: string | null;
+  telefone?: string | null;
+  email?: string | null;
+  inscricao_estadual?: string | null;
+  bairro?: string | null;
+  endereco?: string | null;
+  cep?: string | null;
+}
+
 export interface RequisicaoSG {
   cod_produto: string; // ex: "REQ-123" (ou descrição quando match por título)
   titulo: string | null;
@@ -166,6 +176,7 @@ interface DadosSG {
     DataInicio?: string | null;
   } | null;
   trator: TratorDB | null;
+  cliente: ClienteOmie | null;
   cep: string | null;
   pecasUtilizadas: GarantiaPeca[];
   requisicoes: RequisicaoSG[];
@@ -249,6 +260,7 @@ export async function gerarSGMahindra(
     os,
     tecnico,
     trator,
+    cliente,
     cep,
     pecasUtilizadas,
     requisicoes,
@@ -269,17 +281,44 @@ export async function gerarSGMahindra(
   // ── Cliente ─────────────────────────────────────────────────────────
   set(sheet.getCell('B11'), garantia.cliente || os?.Os_Cliente);
   set(sheet.getCell('B13'), os?.Cnpj_Cliente);
+  // J13:L13 — Inscrição Estadual (vem da tabela Clientes/Omie)
+  set(sheet.getCell('J13'), cliente?.inscricao_estadual || '');
   const end = parseEndereco(os?.Endereco_Cliente);
   set(sheet.getCell('B15'), end.endereco);
-  set(sheet.getCell('J15'), end.bairro);
+  // K15:N15 — Bairro (não J15). Prefere bairro do cliente (Omie) sobre parse do endereço.
+  set(sheet.getCell('K15'), cliente?.bairro || end.bairro);
   set(sheet.getCell('B17'), os?.Cidade_Cliente);
   set(sheet.getCell('I17'), end.uf);
-  set(sheet.getCell('L17'), cep || '');
+  set(sheet.getCell('L17'), cliente?.cep || cep || '');
+  // Linha 19: DDD/Telefone/E-mail do cliente
+  // Telefone do Omie vem como "(14) 99999-9999" ou "1499999999" — separa DDD se possível
+  const telBruto = String(cliente?.telefone || '').trim();
+  const matchDdd = telBruto.match(/^\(?(\d{2})\)?\s*[-\s]?(.+)$/);
+  if (matchDdd) {
+    set(sheet.getCell('B19'), matchDdd[1]);
+    set(sheet.getCell('E19'), matchDdd[2].trim());
+  } else if (telBruto) {
+    set(sheet.getCell('E19'), telBruto);
+  }
+  set(sheet.getCell('J19'), cliente?.email || '');
 
   // ── Trator (preferência: `tratores`, fallback: garantia/tecnico) ────
+  // Garantia antiga pode ter `modelo` com chassi colado dentro
+  // (ex.: "6075 MDI07502LN0001737") — limpa antes de usar.
+  const sep = (() => {
+    const m = String(garantia.modelo || '').trim();
+    if (!m) return { modelo: '', chassi: '' };
+    const match = m.match(/\b([A-Z]{2,}[A-Z0-9]{10,})\b/);
+    if (!match) return { modelo: m, chassi: '' };
+    const chassiExtraido = match[1];
+    return {
+      modelo: m.replace(chassiExtraido, '').replace(/\s+/g, ' ').trim(),
+      chassi: chassiExtraido,
+    };
+  })();
   const chassiCompleto =
-    trator?.Chassis || tecnico?.Chassis || garantia.chassis || '';
-  const modeloFull = trator?.Modelo || garantia.modelo || '';
+    trator?.Chassis || tecnico?.Chassis || garantia.chassis || sep.chassi || '';
+  const modeloFull = trator?.Modelo || sep.modelo || '';
   set(sheet.getCell('C22'), chassiCompleto);
   set(sheet.getCell('K22'), modeloFull);
   set(sheet.getCell('C24'), trator?.Numero_Motor || '');
