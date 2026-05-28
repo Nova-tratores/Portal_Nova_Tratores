@@ -203,8 +203,11 @@ export default function OportunidadesPage() {
             <ComoBlock cor="#f59e0b" emoji="🏗️" titulo="Sem OS recente">
               Cliente parado há <strong>3 meses ou mais</strong> — sem nenhuma OS na oficina e sem nenhum registro de contato (feedback CRM/RFM) nesse período. Hora de ligar pra ver como está.
             </ComoBlock>
+            <ComoBlock cor="#8b5cf6" emoji="🔩" titulo="Venda de peças">
+              Cliente que <strong>já comprou peça</strong> da gente mas não faz pedido há <strong>6 meses ou mais</strong>. Hora de oferecer reposição, kit de manutenção, ou peça preventiva.
+            </ComoBlock>
             <ComoBlock cor="#10b981" emoji="📈" titulo="Up-sell potencial">
-              Cliente comprou <strong>um único trator</strong> há mais de um ano e <strong>não voltou</strong>. Bom momento pra oferecer implemento (pulverizador, plantadeira, etc).
+              Cliente com trator nosso que está <strong>parado há 12+ meses</strong> sem nenhum pedido. Cliente frio — bom momento pra oferecer implemento (pulverizador, plantadeira) ou trator novo pra puxar mais ferramenta.
             </ComoBlock>
             <ComoBlock cor="#3b82f6" emoji="📞" titulo="Follow-up feedback">
               Já faz cerca de <strong>30 dias</strong> que pegamos o último feedback desse cliente. Hora de retornar e perguntar como está o serviço, se travou algo, se precisa de peça.

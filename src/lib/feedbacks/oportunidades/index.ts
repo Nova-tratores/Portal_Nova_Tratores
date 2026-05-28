@@ -10,6 +10,7 @@ import { computarR1 } from "./r1-revisao";
 import { computarR2 } from "./r2-sem-os";
 import { computarR3 } from "./r3-upsell";
 import { computarR4 } from "./r4-followup";
+import { computarR5 } from "./r5-pecas";
 import type { PrioridadeOportunidade, RegraOportunidade } from "../types";
 
 // Shape comum produzido por todas as regras. Não inclui `status` para que o
@@ -45,6 +46,7 @@ export async function recomputar(
     { regra: "R2_sem_os",   fn: async () => (await computarR2((params.R2_sem_os   as Params) || {})) as unknown as OportunidadeInput[] },
     { regra: "R3_upsell",   fn: async () => (await computarR3((params.R3_upsell   as Params) || {})) as unknown as OportunidadeInput[] },
     { regra: "R4_followup", fn: async () => (await computarR4((params.R4_followup as Params) || {})) as unknown as OportunidadeInput[] },
+    { regra: "R5_pecas",    fn: async () => (await computarR5((params.R5_pecas    as Params) || {})) as unknown as OportunidadeInput[] },
   ];
 
   for (const { regra, fn } of tarefas) {

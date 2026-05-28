@@ -27,11 +27,18 @@ const COLUNAS: ColunaDef[] = [
     explicacao: "Clientes nossos parados há 3+ meses — sem nenhuma OS na oficina e sem registro de contato em feedback. Hora de ligar.",
   },
   {
+    regra: "R5_pecas",
+    titulo: "Venda de peças",
+    emoji: "🔩",
+    cor: "#8b5cf6",
+    explicacao: "Cliente que já comprou peça da gente mas não faz pedido há 6+ meses. Hora de oferecer reposição ou kit de manutenção.",
+  },
+  {
     regra: "R3_upsell",
     titulo: "Up-sell potencial",
     emoji: "📈",
     cor: "#10b981",
-    explicacao: "Comprou um único trator há mais de um ano e nunca voltou. Bom momento para oferecer implementos.",
+    explicacao: "Cliente com trator nosso parado há 12+ meses sem qualquer pedido. Cliente frio — bom momento para oferecer implemento ou trator novo.",
   },
   {
     regra: "R4_followup",
@@ -51,7 +58,7 @@ interface Props {
 export default function KanbanOportunidades({ oportunidades, onAtender, onDispensar }: Props) {
   const porRegra = useMemo(() => {
     const m: Record<RegraOportunidade, Oportunidade[]> = {
-      R1_revisao: [], R2_sem_os: [], R3_upsell: [], R4_followup: [],
+      R1_revisao: [], R2_sem_os: [], R3_upsell: [], R4_followup: [], R5_pecas: [],
     };
     for (const op of oportunidades) {
       if (m[op.regra]) m[op.regra].push(op);

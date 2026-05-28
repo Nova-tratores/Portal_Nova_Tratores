@@ -57,54 +57,62 @@ function norm(s: string | null | undefined): string {
 // Match com Chassis é por substring: `Ordem_Servico.Projeto` vem como
 // "6075 CBU MBNYHBKYVNNJ02213" enquanto `tratores.Chassis` é só
 // "MBNYHBKYVNNJ02213" — então igualdade direta nunca bate.
+interface OSResumo {
+  data: string;
+  id_ordem: string | null;
+  tipo_servico: string | null;
+}
 interface IndiceOS {
-  projetosOS: Array<{ projeto: string; data: string }>;  // todas OSs com projeto
-  porCliente: Map<string, string>;                        // cliente_norm → última data ISO
+  projetosOS: Array<{ projeto: string; os: OSResumo }>;   // todas OSs com projeto
+  porCliente: Map<string, OSResumo>;                      // cliente_norm → última OS
 }
 
 async function carregarIndiceOS(): Promise<IndiceOS> {
   const limite2anos = new Date(Date.now() - 2 * 365 * 86400000).toISOString();
   const ordens = await lerTudo<{
+    Id_Ordem: string | null;
     Os_Cliente: string | null;
     Data: string | null;
     Data_Fim_Servico: string | null;
     Projeto: string | null;
+    Tipo_Servico: string | null;
   }>((from, to) =>
     supabase
       .from("Ordem_Servico")
-      .select("Os_Cliente, Data, Data_Fim_Servico, Projeto")
+      .select("Id_Ordem, Os_Cliente, Data, Data_Fim_Servico, Projeto, Tipo_Servico")
       .gte("Data", limite2anos)
       .range(from, to)
   );
 
-  const projetosOS: Array<{ projeto: string; data: string }> = [];
-  const porCliente = new Map<string, string>();
+  const projetosOS: Array<{ projeto: string; os: OSResumo }> = [];
+  const porCliente = new Map<string, OSResumo>();
 
   for (const o of ordens) {
     const dataEfetiva = o.Data_Fim_Servico || o.Data;
     if (!dataEfetiva) continue;
+    const resumo: OSResumo = { data: dataEfetiva, id_ordem: o.Id_Ordem, tipo_servico: o.Tipo_Servico };
 
     const projeto = (o.Projeto || "").trim();
-    if (projeto) projetosOS.push({ projeto, data: dataEfetiva });
+    if (projeto) projetosOS.push({ projeto, os: resumo });
 
     const cli = norm(o.Os_Cliente);
     if (cli) {
       const atual = porCliente.get(cli);
-      if (!atual || dataEfetiva > atual) porCliente.set(cli, dataEfetiva);
+      if (!atual || dataEfetiva > atual.data) porCliente.set(cli, resumo);
     }
   }
 
   return { projetosOS, porCliente };
 }
 
-function ultimaOSPorChassi(indice: IndiceOS, chassi: string): string | undefined {
+function ultimaOSPorChassi(indice: IndiceOS, chassi: string): OSResumo | undefined {
   if (!chassi) return undefined;
-  let maior: string | undefined;
-  for (const { projeto, data } of indice.projetosOS) {
+  let melhor: OSResumo | undefined;
+  for (const { projeto, os } of indice.projetosOS) {
     if (!projeto.includes(chassi)) continue;
-    if (!maior || data > maior) maior = data;
+    if (!melhor || os.data > melhor.data) melhor = os;
   }
-  return maior;
+  return melhor;
 }
 
 export async function computarR1(parametros: ParametrosR1 = {}): Promise<OportunidadeR1[]> {
@@ -142,9 +150,9 @@ export async function computarR1(parametros: ParametrosR1 = {}): Promise<Oportun
     const osPorChassi = ultimaOSPorChassi(indiceOS, chassi);
     const osPorCliente = indiceOS.porCliente.get(cliNorm);
     // Match por chassi é mais confiável; cliente é fallback (best-effort)
-    const ultimaOSAtividade = osPorChassi || osPorCliente;
+    const ultimaOS = osPorChassi || osPorCliente;
 
-    if (ultimaOSAtividade && ultimaOSAtividade > ultimaRevDataReal) {
+    if (ultimaOS && ultimaOS.data > ultimaRevDataReal) {
       // Já houve OS depois da última revisão registrada — pular
       continue;
     }
@@ -167,6 +175,9 @@ export async function computarR1(parametros: ParametrosR1 = {}): Promise<Oportun
         cidade: t.Cidade,
         vendedor: t.Vendedor,
         atrasada: prev.atrasada,
+        ultima_os_id: ultimaOS?.id_ordem ?? null,
+        ultima_os_data: ultimaOS?.data ?? null,
+        ultima_os_tipo: ultimaOS?.tipo_servico ?? null,
       },
     });
   }

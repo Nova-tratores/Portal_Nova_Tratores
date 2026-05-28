@@ -39,19 +39,39 @@ export async function computarR2(parametros: ParametrosR2 = {}): Promise<Oportun
   const hoje = Date.now();
   console.log(`[R2] start — minDias=${minDias} urgenteAt=${urgenteAt} hoje=${new Date(hoje).toISOString()}`);
 
-  // 1) tratores por cliente (todo cliente com pelo menos 1 trator entra)
-  const tratores = await lerTudo<{ Cliente: string }>((from, to) =>
-    supabase.from("tratores").select("Cliente").range(from, to)
+  // 1) tratores por cliente (todo cliente com pelo menos 1 trator entra).
+  // Trazemos Modelo/Chassis/Entrega tambem pra usar como referencia de
+  // "ultima interacao" quando o cliente nao tem OS nem feedback registrado.
+  const tratores = await lerTudo<{
+    Cliente: string;
+    Modelo: string | null;
+    Chassis: string | null;
+    Entrega: string | null;
+  }>((from, to) =>
+    supabase.from("tratores").select("Cliente, Modelo, Chassis, Entrega").range(from, to)
   );
   console.log(`[R2] tratores carregados: ${tratores.length}`);
 
+  interface TratorMaisRecente {
+    modelo: string | null;
+    chassis: string | null;
+    entrega: string | null;
+  }
   const countByCliente = new Map<string, number>();
   const nomeOriginal = new Map<string, string>();
+  const tratorMaisRecente = new Map<string, TratorMaisRecente>();
   for (const t of tratores) {
     const key = norm(t.Cliente);
     if (!key) continue;
     countByCliente.set(key, (countByCliente.get(key) || 0) + 1);
     if (!nomeOriginal.has(key)) nomeOriginal.set(key, t.Cliente);
+
+    const atual = tratorMaisRecente.get(key);
+    const entregaAtual = atual?.entrega || "";
+    const entregaNovo = t.Entrega || "";
+    if (!atual || entregaNovo > entregaAtual) {
+      tratorMaisRecente.set(key, { modelo: t.Modelo, chassis: t.Chassis, entrega: t.Entrega });
+    }
   }
   console.log(`[R2] clientes unicos em tratores: ${countByCliente.size}`);
 
@@ -61,27 +81,36 @@ export async function computarR2(parametros: ParametrosR2 = {}): Promise<Oportun
   // têm `Data_Fim_Servico` NULL (oficina não preenche sempre).
   const limite2anos = new Date(hoje - 2 * 365 * 86400000).toISOString();
   const ordens = await lerTudo<{
+    Id_Ordem: string | null;
     Os_Cliente: string | null;
     Data: string | null;
     Data_Fim_Servico: string | null;
+    Tipo_Servico: string | null;
   }>((from, to) =>
     supabase
       .from("Ordem_Servico")
-      .select("Os_Cliente, Data, Data_Fim_Servico")
+      .select("Id_Ordem, Os_Cliente, Data, Data_Fim_Servico, Tipo_Servico")
       .gte("Data", limite2anos)
       .range(from, to)
   );
 
   console.log(`[R2] OSs carregadas (Data >= 2 anos): ${ordens.length}`);
 
-  const ultimaOSByCliente = new Map<string, string>();
+  interface UltimaOSInfo {
+    data: string;
+    id_ordem: string | null;
+    tipo_servico: string | null;
+  }
+  const ultimaOSByCliente = new Map<string, UltimaOSInfo>();
   for (const o of ordens) {
     const key = norm(o.Os_Cliente);
     if (!key) continue;
     const dataEfetiva = o.Data_Fim_Servico || o.Data;
     if (!dataEfetiva) continue;
     const atual = ultimaOSByCliente.get(key);
-    if (!atual || dataEfetiva > atual) ultimaOSByCliente.set(key, dataEfetiva);
+    if (!atual || dataEfetiva > atual.data) {
+      ultimaOSByCliente.set(key, { data: dataEfetiva, id_ordem: o.Id_Ordem, tipo_servico: o.Tipo_Servico });
+    }
   }
   console.log(`[R2] clientes unicos com OS: ${ultimaOSByCliente.size}`);
 
@@ -125,12 +154,21 @@ export async function computarR2(parametros: ParametrosR2 = {}): Promise<Oportun
 
     // Última atividade = a mais recente entre OS e feedback (comparação explícita)
     let ultimaAtividade: string | undefined;
+    let ultimaAtividadeOrigem: "os" | "feedback" | undefined;
     if (ultimaOS && ultimoFeedback) {
-      ultimaAtividade = ultimaOS > ultimoFeedback ? ultimaOS : ultimoFeedback;
+      if (ultimaOS.data > ultimoFeedback) {
+        ultimaAtividade = ultimaOS.data;
+        ultimaAtividadeOrigem = "os";
+      } else {
+        ultimaAtividade = ultimoFeedback;
+        ultimaAtividadeOrigem = "feedback";
+      }
     } else if (ultimaOS) {
-      ultimaAtividade = ultimaOS;
+      ultimaAtividade = ultimaOS.data;
+      ultimaAtividadeOrigem = "os";
     } else if (ultimoFeedback) {
       ultimaAtividade = ultimoFeedback;
+      ultimaAtividadeOrigem = "feedback";
     }
 
     let diasDesde: number | null = null;
@@ -149,6 +187,8 @@ export async function computarR2(parametros: ParametrosR2 = {}): Promise<Oportun
     const prioridade: "Urgente" | "Normal" =
       semAtividade || count >= urgenteAt ? "Urgente" : "Normal";
 
+    const trec = tratorMaisRecente.get(keyNorm);
+
     out.push({
       regra: "R2_sem_os",
       codigo_omie: mapOmie.get(keyNorm) ?? null,
@@ -158,12 +198,18 @@ export async function computarR2(parametros: ParametrosR2 = {}): Promise<Oportun
       prioridade,
       detalhes: {
         total_equipamentos: count,
-        ultima_os: ultimaOS ?? null,
+        ultima_os_data: ultimaOS?.data ?? null,
+        ultima_os_id: ultimaOS?.id_ordem ?? null,
+        ultima_os_tipo: ultimaOS?.tipo_servico ?? null,
         ultimo_feedback: ultimoFeedback ?? null,
         ultima_atividade: ultimaAtividade ?? null,
+        ultima_atividade_origem: ultimaAtividadeOrigem ?? null,
         dias_sem_atividade: diasDesde,
+        // Fallback quando nao ha OS nem feedback — usar trator mais recente entregue
+        entrega_data: trec?.entrega ?? null,
+        entrega_trator: trec ? `${trec.modelo || ""} — ${trec.chassis || ""}`.trim() : null,
         sugestao: semAtividade
-          ? `Cliente com ${count} equipamento(s) e SEM atividade nos últimos 2 anos`
+          ? `Cliente com ${count} equipamento(s) e SEM OS/feedback nos últimos 2 anos`
           : `${count} equipamento(s) · ${diasDesde} dias sem qualquer contato (OS ou feedback)`,
       },
     });

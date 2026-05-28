@@ -66,6 +66,26 @@ export default function OportunidadeCard({ op, onAtender, onDispensar }: Props) 
         {detalhes}
       </div>
 
+      {(() => {
+        const ui = renderizarUltimaInteracao(op);
+        if (!ui) return null;
+        return (
+          <div
+            style={{
+              fontSize: 11,
+              padding: "6px 8px",
+              borderRadius: 6,
+              background: "#f9fafb",
+              border: "1px solid #e5e5e5",
+              color: "var(--portal-text-secondary)",
+              fontFamily: "Inter, sans-serif",
+            }}
+          >
+            <strong style={{ color: "var(--portal-text)" }}>Última interação:</strong> {ui}
+          </div>
+        );
+      })()}
+
       {op.status === "aberta" && (
         <footer style={{ display: "flex", gap: 6, marginTop: 4 }}>
           <button
@@ -111,6 +131,76 @@ function btnStyle(bg: string, fg: string): React.CSSProperties {
   };
 }
 
+function fmtData(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  try { return new Date(iso).toLocaleDateString("pt-BR"); } catch { return iso; }
+}
+
+// Retorna texto curto com a referência concreta da última interação:
+// "OS-1234 (Manutenção · 12/03/2025)" ou "PV-5678 NOVA (12/03/2025)".
+// Quando não há nenhuma interação histórica, retorna mensagem informativa
+// pra deixar claro que é cliente sem histórico (não bug).
+function renderizarUltimaInteracao(op: Oportunidade): string | null {
+  const d = op.detalhes || {};
+
+  function pvFormatado(): string | null {
+    const numero = d.ultimo_pedido_numero as string | null | undefined;
+    if (!numero) return null;
+    const empresa = d.ultimo_pedido_empresa as string | null | undefined;
+    const etapa = d.ultimo_pedido_etapa as string | null | undefined;
+    const data = fmtData(d.ultimo_pedido as string | null);
+    return `PV-${numero}${empresa ? ` ${empresa}` : ""} (${data}${etapa ? ` · ${etapa}` : ""})`;
+  }
+
+  function osFormatado(idKey: string, dataKey: string, tipoKey: string): string | null {
+    const idOrdem = d[idKey] as string | null | undefined;
+    if (!idOrdem) return null;
+    const data = fmtData(d[dataKey] as string | null);
+    const tipo = d[tipoKey] as string | null | undefined;
+    return `${idOrdem}${tipo ? ` (${tipo} · ${data})` : ` (${data})`}`;
+  }
+
+  // Fallback: trator entregue (a "compra original" que justifica o cliente existir
+  // em tratores). Útil quando não há OS, feedback ou PV mais recente.
+  function entregaFormatado(): string | null {
+    const entrega = d.entrega_data as string | null | undefined;
+    const trator = d.entrega_trator as string | null | undefined;
+    if (!entrega && !trator) return null;
+    const data = fmtData(entrega);
+    return `Entrega do trator${trator ? ` ${trator}` : ""} em ${data}`;
+  }
+
+  switch (op.regra) {
+    case "R1_revisao": {
+      const os = osFormatado("ultima_os_id", "ultima_os_data", "ultima_os_tipo");
+      if (os) return os;
+      return "Sem OS registrada no chassi/cliente desde a entrega";
+    }
+    case "R2_sem_os": {
+      const origem = d.ultima_atividade_origem as string | null | undefined;
+      if (origem === "os") {
+        const os = osFormatado("ultima_os_id", "ultima_os_data", "ultima_os_tipo");
+        if (os) return os;
+      }
+      if (origem === "feedback") {
+        const data = fmtData(d.ultimo_feedback as string | null);
+        return `Feedback CRM/RFM em ${data}`;
+      }
+      return entregaFormatado() ?? "Sem registro anterior";
+    }
+    case "R3_upsell": {
+      const pv = pvFormatado();
+      if (pv) return pv;
+      return entregaFormatado() ?? "Sem registro anterior";
+    }
+    case "R5_pecas": {
+      return pvFormatado();
+    }
+    default:
+      return null;
+  }
+}
+
 function renderizarDetalhes(op: Oportunidade): string {
   const d = op.detalhes || {};
   switch (op.regra) {
@@ -133,9 +223,17 @@ function renderizarDetalhes(op: Oportunidade): string {
       return `${total} equipamento(s). Sem qualquer contato nos últimos 2 anos.`;
     }
     case "R3_upsell": {
-      const meses = d.meses_desde_compra as number | undefined;
-      const modelo = d.modelo as string | undefined;
-      return `Comprou ${modelo} há ${meses} meses. Possível up-sell de implemento.`;
+      const total = d.total_equipamentos as number | undefined;
+      const meses = d.meses_sem_pedido as number | null | undefined;
+      const semHistorico = d.sem_pedido_historico as boolean | undefined;
+      if (semHistorico) {
+        return `${total} trator(es). Sem nenhum pedido no histórico — cliente frio total.`;
+      }
+      return `${total} trator(es). Último pedido há ${meses} meses — esfriou.`;
+    }
+    case "R5_pecas": {
+      const meses = d.meses_sem_pedido as number | undefined;
+      return `Última compra de peça há ${meses} meses. Oferecer reposição ou kit de manutenção.`;
     }
     case "R4_followup": {
       const dias = d.dias_desde_ultimo as number | undefined;

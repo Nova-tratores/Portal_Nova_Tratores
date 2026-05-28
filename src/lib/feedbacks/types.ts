@@ -4,7 +4,7 @@
 export type TipoFeedback = "crm" | "rfm";
 export type PrioridadeOportunidade = "Urgente" | "Normal" | "Baixa";
 export type StatusOportunidade = "aberta" | "atendida" | "dispensada" | "expirada";
-export type RegraOportunidade = "R1_revisao" | "R2_sem_os" | "R3_upsell" | "R4_followup";
+export type RegraOportunidade = "R1_revisao" | "R2_sem_os" | "R3_upsell" | "R4_followup" | "R5_pecas";
 
 export type StatusCliente = "Satisfeito" | "Neutro" | "Insatisfeito" | "Aguardando";
 export type NPS = "Sim" | "Talvez" | "Não";
