@@ -52,6 +52,14 @@ CREATE TABLE IF NOT EXISTS feedback_registros (
   tentativas           JSONB NOT NULL DEFAULT '[]'::jsonb,
   -- formato: [{ data: ISO, canal: 'wpp'|'telefone'|'email', observacao: text }]
 
+  -- Workflow de atendimento (registro criado a partir de oportunidade)
+  atendente_id        TEXT,
+  atendente_nome      TEXT,
+  aberto_em           TIMESTAMPTZ,
+  concluido_em        TIMESTAMPTZ,
+  status_atendimento  TEXT NOT NULL DEFAULT 'concluido'
+    CHECK (status_atendimento IN ('aberto','em_andamento','concluido','sem_resposta')),
+
   criado_em       TIMESTAMPTZ NOT NULL DEFAULT now(),
   atualizado_em   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -65,6 +73,16 @@ CREATE INDEX IF NOT EXISTS idx_feedback_registros_nome_trgm
 CREATE INDEX IF NOT EXISTS idx_feedback_registros_codigo_omie
   ON feedback_registros (codigo_omie)
   WHERE codigo_omie IS NOT NULL;
+
+-- Indice pra consultas "meus atendimentos abertos"
+CREATE INDEX IF NOT EXISTS idx_feedback_atendente_status
+  ON feedback_registros (atendente_id, status_atendimento)
+  WHERE status_atendimento IN ('aberto','em_andamento');
+
+-- Indice pra alertar atendimentos parados ha +24h
+CREATE INDEX IF NOT EXISTS idx_feedback_aberto_em
+  ON feedback_registros (aberto_em)
+  WHERE status_atendimento = 'aberto';
 
 -- -----------------------------------------------------------------------------
 -- 2) feedback_clientes_info — perfil estendido (funcionários, fazendas)

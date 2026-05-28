@@ -11,6 +11,9 @@ export type NPS = "Sim" | "Talvez" | "Não";
 export type Melhoria = "Prazo" | "Atendimento" | "Preço" | "Qualidade Técnica";
 export type PrioridadeRFM = "Urgente" | "Normal" | "Inativo";
 
+// Estado do registro quando criado a partir de oportunidade
+export type StatusAtendimento = "aberto" | "em_andamento" | "concluido" | "sem_resposta";
+
 export interface Tentativa {
   data: string;          // ISO
   canal: "wpp" | "telefone" | "email" | "outro";
@@ -42,6 +45,13 @@ export interface FeedbackRegistro {
   sem_resposta: boolean;
   revisao_confirmada: string | null;
   tentativas: Tentativa[];
+
+  // Workflow de atendimento
+  atendente_id: string | null;
+  atendente_nome: string | null;
+  aberto_em: string | null;
+  concluido_em: string | null;
+  status_atendimento: StatusAtendimento;
 
   criado_em: string;
   atualizado_em: string;

@@ -2,8 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import KanbanOportunidades from "@/components/feedbacks/KanbanOportunidades";
-import ModalFeedback from "@/components/feedbacks/ModalFeedback";
-import { listarOportunidades } from "@/lib/feedbacks/api";
+import { inserirRegistro, listarOportunidades } from "@/lib/feedbacks/api";
 import type { FeedbackRegistro, Oportunidade, RegraOportunidade, StatusOportunidade, TipoFeedback } from "@/lib/feedbacks/types";
 
 // Cada regra de oportunidade pre-seleciona um tipo de feedback ao atender:
@@ -65,10 +64,6 @@ export default function OportunidadesPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [comoFuncionaAberto, setComoFuncionaAberto] = useState(false);
-  // Modal de atendimento: ao clicar "Atender" abre um ModalFeedback pre-preenchido.
-  // Quando o usuario salva, criamos um feedback_registros e marcamos a oportunidade
-  // como atendida com feedback_id vinculado.
-  const [modalAtender, setModalAtender] = useState<{ op: Oportunidade; tipo: TipoFeedback } | null>(null);
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -137,28 +132,34 @@ export default function OportunidadesPage() {
     return res.json() as Promise<Oportunidade>;
   }, []);
 
-  // Abrir modal de atendimento pre-preenchido (CRM ou RFM conforme a regra)
-  const handleAtender = useCallback((op: Oportunidade) => {
+  // Atender quick: cria registro CRM/RFM minimo com atendente atribuido + marca
+  // oportunidade como atendida. Sem modal — pessoa pula direto pro proximo card.
+  // O registro fica em status_atendimento='aberto' pra preenchimento posterior.
+  const handleAtender = useCallback(async (op: Oportunidade) => {
     if (!userProfile) return;
     const tipo = TIPO_PADRAO_POR_REGRA[op.regra];
-    setModalAtender({ op, tipo });
-  }, [userProfile]);
-
-  // Apos salvar o feedback no modal, vinculamos com a oportunidade
-  const handleFeedbackSalvo = useCallback(async (feedbackSalvo: FeedbackRegistro) => {
-    if (!modalAtender || !userProfile) return;
+    const prefill = prefillDoOportunidade(op);
+    const agora = new Date().toISOString();
     try {
-      await patch(modalAtender.op.id, {
+      const novo = await inserirRegistro({
+        ...prefill,
+        tipo,
+        atendente_id: userProfile.id,
+        atendente_nome: userProfile.nome,
+        aberto_em: agora,
+        status_atendimento: "aberto",
+      });
+      await patch(op.id, {
         status: "atendida",
         atendida_por: userProfile.id,
-        feedback_id: feedbackSalvo.id,
+        feedback_id: novo.id,
       });
       await carregar();
-      setMsg(`Oportunidade de "${modalAtender.op.cliente_nome}" atendida e ${feedbackSalvo.tipo.toUpperCase()} #${feedbackSalvo.id} criado.`);
+      setMsg(`✓ "${op.cliente_nome}" em atendimento por ${userProfile.nome}. ${tipo.toUpperCase()} #${novo.id} aberto — atualize com detalhes em /feedbacks/${tipo}.`);
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
     }
-  }, [modalAtender, userProfile, patch, carregar]);
+  }, [userProfile, patch, carregar]);
 
   const handleDispensar = useCallback(async (op: Oportunidade) => {
     const motivo = prompt(`Motivo para dispensar oportunidade de "${op.cliente_nome}":`);
@@ -302,15 +303,6 @@ export default function OportunidadesPage() {
         />
       )}
 
-      {modalAtender && (
-        <ModalFeedback
-          tipo={modalAtender.tipo}
-          aberto={true}
-          prefill={prefillDoOportunidade(modalAtender.op)}
-          onFechar={() => setModalAtender(null)}
-          onSalvo={handleFeedbackSalvo}
-        />
-      )}
     </div>
   );
 }

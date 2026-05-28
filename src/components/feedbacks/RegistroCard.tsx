@@ -7,6 +7,21 @@ interface Props {
   onExcluir?: (r: FeedbackRegistro) => void;
 }
 
+// Horas decorridas desde aberto_em (negativo se aberto_em for futuro)
+function horasDesde(iso: string | null): number | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  return Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60));
+}
+
+function fmtTempoDecorrido(horas: number): string {
+  if (horas < 1) return "agora";
+  if (horas < 24) return `${horas}h`;
+  const dias = Math.floor(horas / 24);
+  return `${dias}d`;
+}
+
 function fmtData(iso: string | null): string {
   if (!iso) return "—";
   const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -36,9 +51,25 @@ function corPrioridade(p: string | null): { bg: string; fg: string } {
 export default function RegistroCard({ registro: r, onEditar, onExcluir }: Props) {
   const isCrm = r.tipo === "crm";
   const corStatusObj = isCrm ? corStatus(r.status_cliente) : corPrioridade(r.prioridade);
+  const emAtendimento = r.status_atendimento === "aberto" || r.status_atendimento === "em_andamento";
+  const horasAberto = horasDesde(r.aberto_em);
+  const atrasado = emAtendimento && horasAberto !== null && horasAberto >= 24;
 
   return (
-    <article style={cardStyle}>
+    <article style={{ ...cardStyle, ...(atrasado ? { borderColor: "#dc2626", borderWidth: 2 } : {}) }}>
+      {emAtendimento && (
+        <div style={atendimentoBannerStyle(atrasado)}>
+          <span>
+            {atrasado ? "⚠️" : "🟢"} Em atendimento por <strong>{r.atendente_nome || "—"}</strong>
+            {horasAberto !== null && ` · há ${fmtTempoDecorrido(horasAberto)}`}
+          </span>
+          {atrasado && (
+            <span style={{ fontSize: 10, fontWeight: 700, color: "#991b1b" }}>
+              ATUALIZE COM DETALHES
+            </span>
+          )}
+        </div>
+      )}
       <header style={cardHeader}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <h3 style={tituloStyle}>{r.nome}</h3>
@@ -62,6 +93,11 @@ export default function RegistroCard({ registro: r, onEditar, onExcluir }: Props
           {!isCrm && r.sem_resposta && (
             <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 9px", borderRadius: 8, background: "#fee2e2", color: "#991b1b" }}>
               SEM RESPOSTA
+            </span>
+          )}
+          {r.status_atendimento === "sem_resposta" && (
+            <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 9px", borderRadius: 8, background: "#fee2e2", color: "#991b1b" }}>
+              NÃO RESPONDEU
             </span>
           )}
         </div>
@@ -130,6 +166,22 @@ const cardStyle: React.CSSProperties = {
   fontFamily: "Inter, sans-serif",
   display: "flex", flexDirection: "column", gap: 10,
 };
+function atendimentoBannerStyle(atrasado: boolean): React.CSSProperties {
+  return {
+    margin: "-16px -16px 0",
+    padding: "8px 14px",
+    background: atrasado ? "#fee2e2" : "#d1fae5",
+    color: atrasado ? "#991b1b" : "#065f46",
+    fontSize: 11,
+    fontWeight: 600,
+    borderRadius: "12px 12px 0 0",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  };
+}
 const cardHeader: React.CSSProperties = {
   display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8,
 };

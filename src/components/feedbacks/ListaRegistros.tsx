@@ -14,6 +14,8 @@ interface Filtros {
   tecnico: string;
   dataDe: string;
   dataAte: string;
+  // Atendimento
+  statusAtendimento: "todos" | "aberto" | "em_andamento" | "concluido" | "sem_resposta" | "atrasados";
   // CRM-only
   notaMin: number;
   statusCrm: string;
@@ -24,6 +26,7 @@ interface Filtros {
 
 const FILTROS_VAZIO: Filtros = {
   busca: "", tecnico: "", dataDe: "", dataAte: "",
+  statusAtendimento: "todos",
   notaMin: 0, statusCrm: "",
   prioridade: "", semResposta: "todos",
 };
@@ -43,6 +46,16 @@ function aplicarFiltros(rows: FeedbackRegistro[], f: Filtros, tipo: TipoFeedback
     const dRef = dataReferencia(r);
     if (f.dataDe && dRef && dRef < f.dataDe) return false;
     if (f.dataAte && dRef && dRef > f.dataAte) return false;
+    // Filtro de status de atendimento
+    if (f.statusAtendimento === "atrasados") {
+      // aberto há mais de 24h
+      if (r.status_atendimento !== "aberto" && r.status_atendimento !== "em_andamento") return false;
+      if (!r.aberto_em) return false;
+      const horas = (Date.now() - new Date(r.aberto_em).getTime()) / (1000 * 60 * 60);
+      if (horas < 24) return false;
+    } else if (f.statusAtendimento !== "todos") {
+      if (r.status_atendimento !== f.statusAtendimento) return false;
+    }
     if (tipo === "crm") {
       if (f.statusCrm && r.status_cliente !== f.statusCrm) return false;
       if (f.notaMin > 0 && (r.nota ?? 0) < f.notaMin) return false;
@@ -154,6 +167,19 @@ export default function ListaRegistros({ tipo }: Props) {
             <select value={filtros.tecnico} onChange={(e) => setFiltros((f) => ({ ...f, tecnico: e.target.value }))} style={filtroInput}>
               <option value="">Todos</option>
               {tecnicosUnicos.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </FiltroCampo>
+          <FiltroCampo label="Atendimento">
+            <select
+              value={filtros.statusAtendimento}
+              onChange={(e) => setFiltros((f) => ({ ...f, statusAtendimento: e.target.value as Filtros["statusAtendimento"] }))}
+              style={filtroInput}
+            >
+              <option value="todos">Todos</option>
+              <option value="aberto">🟢 Em atendimento</option>
+              <option value="atrasados">⚠️ Atrasados (+24h)</option>
+              <option value="concluido">✓ Concluídos</option>
+              <option value="sem_resposta">🔴 Sem resposta</option>
             </select>
           </FiltroCampo>
           <FiltroCampo label="Data de">

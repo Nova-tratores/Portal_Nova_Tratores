@@ -139,7 +139,17 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
     setSalvando(true);
     setErro(null);
     try {
-      const payload = formParaPayload(tipo, form);
+      const payload = formParaPayload(tipo, form) as Partial<FeedbackRegistro>;
+      // Se está editando um atendimento aberto e o usuário marcou sem_resposta,
+      // marca o status_atendimento como sem_resposta. Senão, fecha como concluido.
+      if (registro?.status_atendimento === "aberto" || registro?.status_atendimento === "em_andamento") {
+        if (tipo === "rfm" && form.sem_resposta) {
+          payload.status_atendimento = "sem_resposta";
+        } else {
+          payload.status_atendimento = "concluido";
+          payload.concluido_em = new Date().toISOString();
+        }
+      }
       const r = editando
         ? await atualizarRegistro(registro!.id, payload)
         : await inserirRegistro(payload);
@@ -295,10 +305,38 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
                   <input type="text" value={form.revisao_confirmada} onChange={(e) => upd("revisao_confirmada", e.target.value)} placeholder="ex: 50h, 300h" style={inputStyle} />
                 </Field>
                 <Field label="Sem resposta?">
-                  <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 13, color: "var(--portal-text)" }}>
-                    <input type="checkbox" checked={form.sem_resposta} onChange={(e) => upd("sem_resposta", e.target.checked)} />
-                    Cliente não respondeu
-                  </label>
+                  {(() => {
+                    // Bloqueia marcar "sem resposta" antes de 24h do atendimento aberto.
+                    // Se o registro nem foi aberto via fluxo de atendimento (legado), libera.
+                    const aberto = registro?.aberto_em;
+                    let horasDesdeAberto: number | null = null;
+                    if (aberto) {
+                      const d = new Date(aberto);
+                      if (!isNaN(d.getTime())) {
+                        horasDesdeAberto = (Date.now() - d.getTime()) / (1000 * 60 * 60);
+                      }
+                    }
+                    const bloqueado = horasDesdeAberto !== null && horasDesdeAberto < 24;
+                    const restantes = bloqueado ? Math.ceil(24 - (horasDesdeAberto || 0)) : 0;
+                    return (
+                      <>
+                        <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 13, color: bloqueado ? "var(--portal-text-muted)" : "var(--portal-text)" }}>
+                          <input
+                            type="checkbox"
+                            checked={form.sem_resposta}
+                            disabled={bloqueado}
+                            onChange={(e) => upd("sem_resposta", e.target.checked)}
+                          />
+                          Cliente não respondeu
+                        </label>
+                        {bloqueado && (
+                          <div style={{ fontSize: 11, color: "#92400e", marginTop: 4, fontStyle: "italic" }}>
+                            Disponível em {restantes}h (após 24h do início do atendimento)
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </Field>
               </Row>
             </>
