@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import KanbanOportunidades from "@/components/feedbacks/KanbanOportunidades";
-import { buscarClientePorOmieId, inserirRegistro, listarOportunidades } from "@/lib/feedbacks/api";
+import { buscarClientePorOmieId, buscarClientesOmie, inserirRegistro, listarOportunidades } from "@/lib/feedbacks/api";
 import type { FeedbackRegistro, Oportunidade, RegraOportunidade, StatusOportunidade, TipoFeedback } from "@/lib/feedbacks/types";
 
 // Cada regra de oportunidade pre-seleciona um tipo de feedback ao atender:
@@ -158,19 +158,35 @@ export default function OportunidadesPage() {
     const prefill = prefillDoOportunidade(op);
     const agora = new Date().toISOString();
 
-    // Busca contatos no Omie em paralelo (best-effort, nao bloqueia se falhar)
+    // Busca contatos do cliente: tenta primeiro pelo codigo_omie da oportunidade
+    // (mais preciso) e cai pra busca por nome se nao tiver codigo. Best-effort:
+    // qualquer falha aqui nao bloqueia o atendimento.
     let telefone: string | null = prefill.telefone || null;
     let email: string | null = null;
+    let codigoOmieAchado: string | null = op.codigo_omie;
+    let origem = determinarOrigem(op);
+
     if (op.codigo_omie) {
       try {
-        const cliente = await buscarClientePorOmieId(op.codigo_omie);
-        if (cliente) {
-          telefone = telefone || cliente.telefone;
-          email = cliente.email;
+        const c = await buscarClientePorOmieId(op.codigo_omie);
+        if (c) {
+          telefone = telefone || c.telefone;
+          email = c.email;
         }
-      } catch {
-        // erro no lookup nao bloqueia o atendimento
-      }
+      } catch {}
+    } else {
+      // Fallback: busca por nome do cliente — pega o melhor match
+      try {
+        const lista = await buscarClientesOmie(op.cliente_nome);
+        if (lista.length > 0) {
+          const c = lista[0];
+          telefone = telefone || c.telefone;
+          email = c.email;
+          codigoOmieAchado = c.id_omie;
+          // Achou via nome: agora sabemos que esta no Omie tambem
+          if (origem === "Portal") origem = "Omie";
+        }
+      } catch {}
     }
 
     try {
@@ -179,11 +195,12 @@ export default function OportunidadesPage() {
         tipo,
         telefone,
         email,
+        codigo_omie: codigoOmieAchado,
         atendente_id: userProfile.id,
         atendente_nome: userProfile.nome,
         aberto_em: agora,
         status_atendimento: "aberto",
-        origem_dados: determinarOrigem(op),
+        origem_dados: origem,
       });
       await patch(op.id, {
         status: "atendida",
