@@ -11,7 +11,21 @@ import { computarR2 } from "./r2-sem-os";
 import { computarR3 } from "./r3-upsell";
 import { computarR4 } from "./r4-followup";
 import { computarR5 } from "./r5-pecas";
-import type { PrioridadeOportunidade, RegraOportunidade } from "../types";
+import { origemDaOportunidade } from "../origem";
+import type { Oportunidade, PrioridadeOportunidade, RegraOportunidade } from "../types";
+
+// Regras cujo card so e gerado quando conseguimos identificar a empresa
+// (NOVA ou CASTRO) na origem. Pra evitar cards "Omie" genericos que sao
+// cadastros antigos pre-Omie e "Portal (interno)" que sao OSs locais sem
+// sync. R4 e R5 mantem todos os cards: R5 sempre tem empresa por definicao,
+// R4 vem de feedback_registros (manuais, ja confiaveis).
+const REGRAS_QUE_FILTRAM_ORIGEM: RegraOportunidade[] = ["R1_revisao", "R2_sem_os", "R3_upsell"];
+
+function origemEhEmpresaValida(input: OportunidadeInput): boolean {
+  // Cast pra Oportunidade — origemDaOportunidade so usa campos presentes em ambos
+  const origem = origemDaOportunidade(input as unknown as Oportunidade);
+  return origem.includes("NOVA") || origem.includes("CASTRO");
+}
 
 // Shape comum produzido por todas as regras. Não inclui `status` para que o
 // upsert preserve o status existente quando a oportunidade já estava em
@@ -53,8 +67,16 @@ export async function recomputar(
     if (regraFiltro && regraFiltro !== regra) continue;
     try {
       console.log(`[ORQ ${regra}] computando...`);
-      const oportunidades = await fn();
-      console.log(`[ORQ ${regra}] computadas=${oportunidades.length} — fazendo upsert...`);
+      const oportunidadesRaw = await fn();
+      // Filtra origem sem empresa identificada nas regras configuradas.
+      // Mantem so Omie NOVA / Omie CASTRO; descarta Omie generico, Portal,
+      // Tratores Portal etc.
+      const deveFiltrarOrigem = REGRAS_QUE_FILTRAM_ORIGEM.includes(regra);
+      const oportunidades = deveFiltrarOrigem
+        ? oportunidadesRaw.filter(origemEhEmpresaValida)
+        : oportunidadesRaw;
+      const descartadas = oportunidadesRaw.length - oportunidades.length;
+      console.log(`[ORQ ${regra}] computadas=${oportunidades.length}${descartadas > 0 ? ` (descartadas ${descartadas} por origem)` : ""} — fazendo upsert...`);
       const upsertResult = await aplicarUpsert(regra, oportunidades);
       console.log(`[ORQ ${regra}] upsert ok=${upsertResult} — expirando ausentes...`);
       const expiradas = await expirarAusentes(regra, oportunidades);
