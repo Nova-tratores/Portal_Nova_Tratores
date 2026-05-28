@@ -150,12 +150,25 @@ export async function salvarConfigRegra(
 // -----------------------------------------------------------------------------
 // Lookups nas tabelas existentes do Portal (Clientes, Projeto, Tecnicos)
 // -----------------------------------------------------------------------------
+// Lookup direto por id_omie — usado quando atendemos uma oportunidade pra
+// puxar telefone, email e outros contatos.
+export async function buscarClientePorOmieId(idOmie: string): Promise<ClienteOmie | null> {
+  if (!idOmie) return null;
+  const { data, error } = await supabase
+    .from("Clientes")
+    .select("id_omie, razao_social, nome_fantasia, cnpj_cpf, telefone, email")
+    .eq("id_omie", idOmie)
+    .maybeSingle();
+  if (error) throw wrapErr(error);
+  return (data as ClienteOmie | null) ?? null;
+}
+
 export async function buscarClientesOmie(q: string): Promise<ClienteOmie[]> {
   if (!q || q.trim().length < 2) return [];
   const termo = q.trim();
   const { data, error } = await supabase
     .from("Clientes")
-    .select("id_omie, razao_social, nome_fantasia, cnpj_cpf, telefone")
+    .select("id_omie, razao_social, nome_fantasia, cnpj_cpf, telefone, email")
     .or(
       `razao_social.ilike.%${termo}%,nome_fantasia.ilike.%${termo}%,cnpj_cpf.ilike.%${termo}%`
     )

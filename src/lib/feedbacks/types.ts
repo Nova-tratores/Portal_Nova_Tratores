@@ -25,6 +25,7 @@ export interface FeedbackRegistro {
   tipo: TipoFeedback;
   nome: string;
   telefone: string | null;
+  email: string | null;
   trator: string | null;
   tecnico: string | null;
   codigo_omie: string | null;
@@ -112,6 +113,7 @@ export interface ClienteOmie {
   nome_fantasia: string | null;
   cnpj_cpf: string | null;
   telefone: string | null;
+  email: string | null;
 }
 
 // Projeto/Equipamento — pode vir de duas fontes:

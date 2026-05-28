@@ -74,7 +74,19 @@ export default function RegistroCard({ registro: r, onEditar, onExcluir }: Props
         <div style={{ flex: 1, minWidth: 0 }}>
           <h3 style={tituloStyle}>{r.nome}</h3>
           <div style={subtituloStyle}>
-            {r.telefone && <span>📞 {r.telefone}</span>}
+            {r.telefone ? (
+              <a href={`tel:${r.telefone}`} style={contatoLinkStyle} title="Ligar">
+                📞 {r.telefone}
+              </a>
+            ) : null}
+            {r.email ? (
+              <>
+                {r.telefone ? " · " : null}
+                <a href={`mailto:${r.email}`} style={contatoLinkStyle} title="Enviar e-mail">
+                  ✉ {r.email}
+                </a>
+              </>
+            ) : null}
             {r.codigo_omie && <span> · Omie #{r.codigo_omie}</span>}
           </div>
         </div>
@@ -191,6 +203,11 @@ const tituloStyle: React.CSSProperties = {
 };
 const subtituloStyle: React.CSSProperties = {
   fontSize: 11, color: "var(--portal-text-secondary)", marginTop: 2,
+};
+const contatoLinkStyle: React.CSSProperties = {
+  color: "#b91c1c",
+  textDecoration: "none",
+  fontWeight: 600,
 };
 const detalhesGrid: React.CSSProperties = {
   display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",

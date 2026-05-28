@@ -26,6 +26,7 @@ const PRIORIDADE_RFM_OPCOES: PrioridadeRFM[] = ["Urgente", "Normal", "Inativo"];
 interface FormState {
   nome: string;
   telefone: string;
+  email: string;
   trator: string;
   tecnico: string;
   codigo_omie: string;
@@ -48,7 +49,7 @@ interface FormState {
 }
 
 const STATE_VAZIO: FormState = {
-  nome: "", telefone: "", trator: "", tecnico: "", codigo_omie: "", data_contato: "",
+  nome: "", telefone: "", email: "", trator: "", tecnico: "", codigo_omie: "", data_contato: "",
   servico: "", data_servico: "", status_cliente: "", nota: null, feedback: "", nps: "", melhoria: "",
   ultimo_servico: "", motivo: "", prioridade: "", acao: "", sem_resposta: false, revisao_confirmada: "",
 };
@@ -58,6 +59,7 @@ function paraForm(r?: FeedbackRegistro | null, prefill?: Partial<FeedbackRegistr
   return {
     nome: (src.nome as string) || "",
     telefone: (src.telefone as string) || "",
+    email: (src.email as string) || "",
     trator: (src.trator as string) || "",
     tecnico: (src.tecnico as string) || "",
     codigo_omie: (src.codigo_omie as string) || "",
@@ -83,6 +85,7 @@ function formParaPayload(tipo: TipoFeedback, form: FormState): Partial<FeedbackR
     tipo,
     nome: form.nome.trim(),
     telefone: form.telefone.trim() || null,
+    email: form.email.trim() || null,
     trator: form.trator.trim() || null,
     tecnico: form.tecnico || null,
     codigo_omie: form.codigo_omie || null,
@@ -205,6 +208,7 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
                   ...f,
                   nome: c.razao_social || c.nome_fantasia || "",
                   telefone: c.telefone || f.telefone,
+                  email: c.email || f.email,
                   codigo_omie: c.id_omie,
                 }));
               }}
@@ -214,6 +218,9 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
           <Row>
             <Field label="Telefone">
               <input type="text" value={form.telefone} onChange={(e) => upd("telefone", e.target.value)} style={inputStyle} />
+            </Field>
+            <Field label="E-mail">
+              <input type="email" value={form.email} onChange={(e) => upd("email", e.target.value)} style={inputStyle} />
             </Field>
             <Field label="Código Omie">
               <input type="text" value={form.codigo_omie} readOnly style={{ ...inputStyle, background: "#fafafa", color: "var(--portal-text-muted)" }} />

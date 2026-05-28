@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS feedback_registros (
   -- comuns
   nome            TEXT NOT NULL,
   telefone        TEXT,
+  email           TEXT,
   trator          TEXT,
   tecnico         TEXT,
   codigo_omie     TEXT,

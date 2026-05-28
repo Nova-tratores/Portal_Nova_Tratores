@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import KanbanOportunidades from "@/components/feedbacks/KanbanOportunidades";
-import { inserirRegistro, listarOportunidades } from "@/lib/feedbacks/api";
+import { buscarClientePorOmieId, inserirRegistro, listarOportunidades } from "@/lib/feedbacks/api";
 import type { FeedbackRegistro, Oportunidade, RegraOportunidade, StatusOportunidade, TipoFeedback } from "@/lib/feedbacks/types";
 
 // Cada regra de oportunidade pre-seleciona um tipo de feedback ao atender:
@@ -135,15 +135,36 @@ export default function OportunidadesPage() {
   // Atender quick: cria registro CRM/RFM minimo com atendente atribuido + marca
   // oportunidade como atendida. Sem modal — pessoa pula direto pro proximo card.
   // O registro fica em status_atendimento='aberto' pra preenchimento posterior.
+  //
+  // Tambem busca telefone e email do cliente em Clientes (Omie) pra atendente
+  // ja ver os contatos no card sem precisar abrir o Omie pra ligar.
   const handleAtender = useCallback(async (op: Oportunidade) => {
     if (!userProfile) return;
     const tipo = TIPO_PADRAO_POR_REGRA[op.regra];
     const prefill = prefillDoOportunidade(op);
     const agora = new Date().toISOString();
+
+    // Busca contatos no Omie em paralelo (best-effort, nao bloqueia se falhar)
+    let telefone: string | null = prefill.telefone || null;
+    let email: string | null = null;
+    if (op.codigo_omie) {
+      try {
+        const cliente = await buscarClientePorOmieId(op.codigo_omie);
+        if (cliente) {
+          telefone = telefone || cliente.telefone;
+          email = cliente.email;
+        }
+      } catch {
+        // erro no lookup nao bloqueia o atendimento
+      }
+    }
+
     try {
       const novo = await inserirRegistro({
         ...prefill,
         tipo,
+        telefone,
+        email,
         atendente_id: userProfile.id,
         atendente_nome: userProfile.nome,
         aberto_em: agora,
