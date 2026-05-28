@@ -164,15 +164,60 @@ export async function buscarClientesOmie(q: string): Promise<ClienteOmie[]> {
   return (data || []) as ClienteOmie[];
 }
 
+// Busca em DUAS fontes em paralelo e mescla:
+//   1. `Projeto` — sync Omie de projetos (id_omie real)
+//   2. `tratores` — controle interno do Portal (tratores que nem sempre estão
+//      cadastrados como projeto no Omie, mas existem no banco)
+// Deduplica por chassi quando aparece em ambos.
 export async function buscarProjetosOmie(q: string): Promise<ProjetoOmie[]> {
   if (!q || q.trim().length < 2) return [];
-  const { data, error } = await supabase
-    .from("Projeto")
-    .select("id_omie, Nome_Projeto, Nome_Cliente, Codigo_Cliente")
-    .ilike("Nome_Projeto", `%${q.trim()}%`)
-    .limit(20);
-  if (error) throw wrapErr(error);
-  return (data || []) as ProjetoOmie[];
+  const termo = q.trim();
+
+  const [omieRes, tratoresRes] = await Promise.all([
+    supabase
+      .from("Projeto")
+      .select("id_omie, Nome_Projeto, Nome_Cliente, Codigo_Cliente")
+      .ilike("Nome_Projeto", `%${termo}%`)
+      .limit(10),
+    supabase
+      .from("tratores")
+      .select(`"ID", "Modelo", "Chassis", "Cliente"`)
+      .or(`Chassis.ilike.%${termo}%,Modelo.ilike.%${termo}%`)
+      .limit(10),
+  ]);
+
+  if (omieRes.error) throw wrapErr(omieRes.error);
+  // erro em tratores é tolerado (best-effort) — não bloqueia a busca
+
+  const omieList: ProjetoOmie[] = ((omieRes.data || []) as Array<{
+    id_omie: string;
+    Nome_Projeto: string;
+    Nome_Cliente?: string | null;
+    Codigo_Cliente?: string | null;
+  }>).map((p) => ({ ...p, fonte: "omie" as const }));
+
+  const tratoresList: ProjetoOmie[] = ((tratoresRes.data || []) as Array<{
+    ID: string | number | null;
+    Modelo: string | null;
+    Chassis: string | null;
+    Cliente: string | null;
+  }>).map((t) => ({
+    id_omie: `tratores-${String(t.ID ?? "")}`,
+    Nome_Projeto: `${t.Modelo || ""} ${t.Chassis || ""}`.trim(),
+    Nome_Cliente: t.Cliente,
+    fonte: "portal" as const,
+  }));
+
+  // Deduplica: se o chassi do trator já aparece em algum Nome_Projeto Omie, pula.
+  const projetosUpper = omieList.map((p) => p.Nome_Projeto.toUpperCase());
+  const merged: ProjetoOmie[] = [...omieList];
+  for (const p of tratoresList) {
+    const chassi = (p.Nome_Projeto.split(/\s+/).pop() || "").toUpperCase();
+    const jaTem = chassi && projetosUpper.some((v) => v.includes(chassi));
+    if (!jaTem) merged.push(p);
+  }
+
+  return merged.slice(0, 20);
 }
 
 export async function listarTecnicos(): Promise<string[]> {

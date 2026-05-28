@@ -68,11 +68,20 @@ export default function ProjetoAutocomplete({ valor, onChange, onSelecionar }: P
               onMouseEnter={(e) => (e.currentTarget.style.background = "#fef2f2")}
               onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
             >
-              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--portal-text)" }}>
-                {p.Nome_Projeto}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--portal-text)" }}>
+                  {p.Nome_Projeto}
+                </div>
+                {p.fonte === "portal" && (
+                  <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: "#fef3c7", color: "#92400e", textTransform: "uppercase", letterSpacing: 0.3, whiteSpace: "nowrap" }}>
+                    Portal
+                  </span>
+                )}
               </div>
               <div style={{ fontSize: 11, color: "var(--portal-text-secondary)", marginTop: 2 }}>
-                Omie #{p.id_omie}
+                {p.fonte === "portal"
+                  ? (p.Nome_Cliente ? `Cliente: ${p.Nome_Cliente}` : "Trator interno")
+                  : `Omie #${p.id_omie}`}
               </div>
             </button>
           ))}

@@ -104,12 +104,16 @@ export interface ClienteOmie {
   telefone: string | null;
 }
 
-// Projeto da tabela `Projeto` (do Portal, sync Omie)
+// Projeto/Equipamento — pode vir de duas fontes:
+//   - `Projeto` (sync Omie de projetos)
+//   - `tratores` (controle interno do Portal, tem tratores nem sempre presentes no Omie)
+// Campo `fonte` distingue pra UI poder indicar origem.
 export interface ProjetoOmie {
   id_omie: string;
   Nome_Projeto: string;
-  Nome_Cliente?: string;
-  Codigo_Cliente?: string;
+  Nome_Cliente?: string | null;
+  Codigo_Cliente?: string | null;
+  fonte?: "omie" | "portal";
 }
 
 // Chave canônica para identificar um cliente em feedback_clientes_info.
