@@ -1,5 +1,6 @@
 "use client";
 import type { Oportunidade, PrioridadeOportunidade } from "@/lib/feedbacks/types";
+import { origemDaOportunidade } from "@/lib/feedbacks/origem";
 
 const CORES_PRIORIDADE: Record<PrioridadeOportunidade, { bg: string; fg: string }> = {
   Urgente: { bg: "#fef2f2", fg: "#b91c1c" },
@@ -16,6 +17,7 @@ interface Props {
 export default function OportunidadeCard({ op, onAtender, onDispensar }: Props) {
   const cor = CORES_PRIORIDADE[op.prioridade];
   const detalhes = renderizarDetalhes(op);
+  const origem = origemDaOportunidade(op);
 
   const disabled = op.status !== "aberta";
 
@@ -36,8 +38,13 @@ export default function OportunidadeCard({ op, onAtender, onDispensar }: Props) 
       }}
     >
       <header style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: "var(--portal-text)", lineHeight: 1.3, flex: 1 }}>
-          {op.cliente_nome}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--portal-text)", lineHeight: 1.3 }}>
+            {op.cliente_nome}
+          </div>
+          <div style={{ marginTop: 4 }}>
+            <span style={origemBadgeStyle(origem)}>{origem}</span>
+          </div>
         </div>
         <span
           style={{
@@ -113,6 +120,20 @@ export default function OportunidadeCard({ op, onAtender, onDispensar }: Props) 
       )}
     </article>
   );
+}
+
+function origemBadgeStyle(origem: string): React.CSSProperties {
+  const up = origem.toUpperCase();
+  let bg = "#f3f4f6";
+  let fg = "#525252";
+  if (up.includes("NOVA")) { bg = "#fee2e2"; fg = "#991b1b"; }
+  else if (up.includes("CASTRO")) { bg = "#fed7aa"; fg = "#9a3412"; }
+  else if (up.includes("OMIE")) { bg = "#dbeafe"; fg = "#1e40af"; }
+  else if (up.includes("TRATORES")) { bg = "#fef3c7"; fg = "#92400e"; }
+  return {
+    fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 5,
+    background: bg, color: fg, textTransform: "uppercase", letterSpacing: 0.3,
+  };
 }
 
 function btnStyle(bg: string, fg: string): React.CSSProperties {

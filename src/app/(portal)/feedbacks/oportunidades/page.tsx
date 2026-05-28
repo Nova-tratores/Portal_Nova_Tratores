@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import KanbanOportunidades from "@/components/feedbacks/KanbanOportunidades";
 import { buscarClientePorOmieId, buscarClientesOmie, inserirRegistro, listarOportunidades } from "@/lib/feedbacks/api";
+import { origemDaOportunidade } from "@/lib/feedbacks/origem";
 import type { FeedbackRegistro, Oportunidade, RegraOportunidade, StatusOportunidade, TipoFeedback } from "@/lib/feedbacks/types";
 
 // Cada regra de oportunidade pre-seleciona um tipo de feedback ao atender:
@@ -18,20 +19,6 @@ const TIPO_PADRAO_POR_REGRA: Record<RegraOportunidade, TipoFeedback> = {
   R4_followup: "crm",
   R5_pecas:    "rfm",
 };
-
-// Identifica a origem dos dados baseado nos detalhes que a regra coletou.
-// R3/R5 trazem `ultimo_pedido_empresa` (NOVA/CASTRO). R2 trazem `ultima_os_empresa`
-// quando vem do Omie. Sem isso, cai no fallback Omie ou Portal.
-function determinarOrigem(op: Oportunidade): string {
-  const d = op.detalhes || {};
-  const empresa = (d.ultimo_pedido_empresa || d.ultima_os_empresa) as string | null | undefined;
-  if (empresa) return `Omie ${String(empresa).toUpperCase()}`;
-  // R2 com origem OS Portal interno
-  if (d.ultima_os_fonte === "portal") return "Portal";
-  // Tem codigo Omie mas regra nao identificou empresa
-  if (op.codigo_omie) return "Omie";
-  return "Portal";
-}
 
 function prefillDoOportunidade(op: Oportunidade): Partial<FeedbackRegistro> {
   const tipo = TIPO_PADRAO_POR_REGRA[op.regra];
@@ -164,7 +151,7 @@ export default function OportunidadesPage() {
     let telefone: string | null = prefill.telefone || null;
     let email: string | null = null;
     let codigoOmieAchado: string | null = op.codigo_omie;
-    let origem = determinarOrigem(op);
+    let origem = origemDaOportunidade(op);
 
     if (op.codigo_omie) {
       try {
@@ -183,8 +170,9 @@ export default function OportunidadesPage() {
           telefone = telefone || c.telefone;
           email = c.email;
           codigoOmieAchado = c.id_omie;
-          // Achou via nome: agora sabemos que esta no Omie tambem
-          if (origem === "Portal") origem = "Omie";
+          // Achou via nome: o cliente esta sim cadastrado no Omie, so estava
+          // com nome divergente em tratores. Atualiza a rotulagem.
+          if (origem === "Tratores (Portal)") origem = "Omie";
         }
       } catch {}
     }
