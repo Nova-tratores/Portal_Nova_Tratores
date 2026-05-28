@@ -10,7 +10,7 @@
 //   );
 
 export async function lerTudo<T>(
-  executar: (from: number, to: number) => Promise<{ data: T[] | null; error: unknown }>,
+  executar: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
   batchSize = 1000
 ): Promise<T[]> {
   const out: T[] = [];

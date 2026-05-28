@@ -37,7 +37,7 @@ async function fetchAll(select: string) {
       break;
     }
     if (!data || data.length === 0) break;
-    rows.push(...data);
+    rows.push(...(data as unknown as Record<string, unknown>[]));
     if (data.length < PAGE) break;
     from += PAGE;
   }

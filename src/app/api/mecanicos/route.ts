@@ -221,7 +221,7 @@ export async function GET(req: NextRequest) {
       const alertasDetectados: { tipo: string; descricao: string; id_ordem: string; data_referencia: string; detalhes: string }[] = [];
 
       // 1. OS sem relatorio do tecnico (atraso)
-      for (const o of ordensComPpv) {
+      for (const o of ordensComPpv as Array<Record<string, unknown>>) {
         const codInt = String(o.cod_int);
         if (!relatorioTecPorOs[codInt] || !relatorioTecPorOs[codInt].servico_realizado) {
           alertasDetectados.push({
@@ -239,7 +239,7 @@ export async function GET(req: NextRequest) {
       for (const g of gpsRes.data || []) {
         gpsKmPorData[String(g.data)] = (gpsKmPorData[String(g.data)] || 0) + (parseFloat(g.km_total) || 0);
       }
-      for (const o of ordensComPpv) {
+      for (const o of ordensComPpv as Array<Record<string, unknown>>) {
         const kmOs = parseFloat(String(o.km)) || 0;
         const dataOs = String(o.data || "");
         const kmGps = gpsKmPorData[dataOs] || 0;
