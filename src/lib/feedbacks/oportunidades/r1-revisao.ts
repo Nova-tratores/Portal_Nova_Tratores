@@ -15,6 +15,7 @@ import { supabase } from "@/lib/supabase";
 import { calcularPrevisao } from "@/lib/revisoes/utils";
 import { REVISOES_LISTA, type Trator } from "@/lib/revisoes/types";
 import { lerTudo } from "./_paginar";
+import { carregarIndiceOSCompleto } from "./_os";
 
 // Reproduz a lógica interna de calcularPrevisao para extrair a data da última
 // revisão registrada (a função original não expõe esse campo).
@@ -57,63 +58,7 @@ function norm(s: string | null | undefined): string {
 // Match com Chassis é por substring: `Ordem_Servico.Projeto` vem como
 // "6075 CBU MBNYHBKYVNNJ02213" enquanto `tratores.Chassis` é só
 // "MBNYHBKYVNNJ02213" — então igualdade direta nunca bate.
-interface OSResumo {
-  data: string;
-  id_ordem: string | null;
-  tipo_servico: string | null;
-}
-interface IndiceOS {
-  projetosOS: Array<{ projeto: string; os: OSResumo }>;   // todas OSs com projeto
-  porCliente: Map<string, OSResumo>;                      // cliente_norm → última OS
-}
-
-async function carregarIndiceOS(): Promise<IndiceOS> {
-  const limite2anos = new Date(Date.now() - 2 * 365 * 86400000).toISOString();
-  const ordens = await lerTudo<{
-    Id_Ordem: string | null;
-    Os_Cliente: string | null;
-    Data: string | null;
-    Data_Fim_Servico: string | null;
-    Projeto: string | null;
-    Tipo_Servico: string | null;
-  }>((from, to) =>
-    supabase
-      .from("Ordem_Servico")
-      .select("Id_Ordem, Os_Cliente, Data, Data_Fim_Servico, Projeto, Tipo_Servico")
-      .gte("Data", limite2anos)
-      .range(from, to)
-  );
-
-  const projetosOS: Array<{ projeto: string; os: OSResumo }> = [];
-  const porCliente = new Map<string, OSResumo>();
-
-  for (const o of ordens) {
-    const dataEfetiva = o.Data_Fim_Servico || o.Data;
-    if (!dataEfetiva) continue;
-    const resumo: OSResumo = { data: dataEfetiva, id_ordem: o.Id_Ordem, tipo_servico: o.Tipo_Servico };
-
-    const projeto = (o.Projeto || "").trim();
-    if (projeto) projetosOS.push({ projeto, os: resumo });
-
-    const cli = norm(o.Os_Cliente);
-    if (cli) {
-      const atual = porCliente.get(cli);
-      if (!atual || dataEfetiva > atual.data) porCliente.set(cli, resumo);
-    }
-  }
-
-  return { projetosOS, porCliente };
-}
-
-function ultimaOSPorChassi(indice: IndiceOS, chassi: string): OSResumo | undefined {
-  if (!chassi) return undefined;
-  let melhor: OSResumo | undefined;
-  for (const { projeto, os } of indice.projetosOS) {
-    if (!projeto.includes(chassi)) continue;
-    if (!melhor || os.data > melhor.data) melhor = os;
-  }
-  return melhor;
-}
+// Indice unificado de OSs (Portal interno + sync Omie) vem de _os.ts
 
 export async function computarR1(parametros: ParametrosR1 = {}): Promise<OportunidadeR1[]> {
   const revisoesAlvo = parametros.revisoes_alvo ?? [50, 300, 600];
@@ -126,7 +71,9 @@ export async function computarR1(parametros: ParametrosR1 = {}): Promise<Oportun
   );
 
   const mapClienteOmie = await carregarMapaClientes();
-  const indiceOS = await carregarIndiceOS();
+  // Indice unificado: Ordem_Servico (Portal) + ordens_servico_relatorio (Omie)
+  const chassisDosCandidatos = tratores.map((t) => t.Chassis || "").filter(Boolean);
+  const indiceOS = await carregarIndiceOSCompleto(chassisDosCandidatos);
 
   const out: OportunidadeR1[] = [];
   for (const t of tratores) {
@@ -145,14 +92,14 @@ export async function computarR1(parametros: ParametrosR1 = {}): Promise<Oportun
     // (mesmo que tratores.{rev} Data não tenha sido preenchido).
     const ultimaRevDataReal = extrairUltimaRevData(t).toISOString();
 
-    const chassi = (t.Chassis || "").trim();
+    const chassi = (t.Chassis || "").trim().toUpperCase();
     const cliNorm = norm(t.Cliente);
-    const osPorChassi = ultimaOSPorChassi(indiceOS, chassi);
+    const osPorChassi = chassi ? indiceOS.porChassi.get(chassi) : undefined;
     const osPorCliente = indiceOS.porCliente.get(cliNorm);
     // Match por chassi é mais confiável; cliente é fallback (best-effort)
     const ultimaOS = osPorChassi || osPorCliente;
 
-    if (ultimaOS && ultimaOS.data > ultimaRevDataReal) {
+    if (ultimaOS && ultimaOS.data.toISOString() > ultimaRevDataReal) {
       // Já houve OS depois da última revisão registrada — pular
       continue;
     }
@@ -176,8 +123,10 @@ export async function computarR1(parametros: ParametrosR1 = {}): Promise<Oportun
         vendedor: t.Vendedor,
         atrasada: prev.atrasada,
         ultima_os_id: ultimaOS?.id_ordem ?? null,
-        ultima_os_data: ultimaOS?.data ?? null,
+        ultima_os_data: ultimaOS?.data.toISOString() ?? null,
         ultima_os_tipo: ultimaOS?.tipo_servico ?? null,
+        ultima_os_fonte: ultimaOS?.fonte ?? null,
+        ultima_os_empresa: ultimaOS?.empresa ?? null,
       },
     });
   }

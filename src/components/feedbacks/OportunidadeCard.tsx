@@ -157,7 +157,10 @@ function renderizarUltimaInteracao(op: Oportunidade): string | null {
     if (!idOrdem) return null;
     const data = fmtData(d[dataKey] as string | null);
     const tipo = d[tipoKey] as string | null | undefined;
-    return `${idOrdem}${tipo ? ` (${tipo} · ${data})` : ` (${data})`}`;
+    const fonte = d.ultima_os_fonte as string | null | undefined;
+    const empresa = d.ultima_os_empresa as string | null | undefined;
+    const prefixo = fonte === "omie" ? `OS Omie #${idOrdem}${empresa ? ` ${empresa}` : ""}` : `${idOrdem}`;
+    return `${prefixo}${tipo ? ` (${tipo} · ${data})` : ` (${data})`}`;
   }
 
   // Fallback: trator entregue (a "compra original" que justifica o cliente existir

@@ -13,6 +13,7 @@
 
 import { supabase } from "@/lib/supabase";
 import { lerTudo } from "./_paginar";
+import { carregarIndiceOSCompleto } from "./_os";
 
 interface ParametrosR2 {
   min_dias_sem_os?: number;      // default 90 (3 meses)
@@ -75,44 +76,11 @@ export async function computarR2(parametros: ParametrosR2 = {}): Promise<Oportun
   }
   console.log(`[R2] clientes unicos em tratores: ${countByCliente.size}`);
 
-  // 2) última OS por cliente (qualquer Tipo_Servico, qualquer Status)
-  //
-  // Usa `Data` (abertura) como filtro principal porque muitas OSs no banco
-  // têm `Data_Fim_Servico` NULL (oficina não preenche sempre).
-  const limite2anos = new Date(hoje - 2 * 365 * 86400000).toISOString();
-  const ordens = await lerTudo<{
-    Id_Ordem: string | null;
-    Os_Cliente: string | null;
-    Data: string | null;
-    Data_Fim_Servico: string | null;
-    Tipo_Servico: string | null;
-  }>((from, to) =>
-    supabase
-      .from("Ordem_Servico")
-      .select("Id_Ordem, Os_Cliente, Data, Data_Fim_Servico, Tipo_Servico")
-      .gte("Data", limite2anos)
-      .range(from, to)
-  );
-
-  console.log(`[R2] OSs carregadas (Data >= 2 anos): ${ordens.length}`);
-
-  interface UltimaOSInfo {
-    data: string;
-    id_ordem: string | null;
-    tipo_servico: string | null;
-  }
-  const ultimaOSByCliente = new Map<string, UltimaOSInfo>();
-  for (const o of ordens) {
-    const key = norm(o.Os_Cliente);
-    if (!key) continue;
-    const dataEfetiva = o.Data_Fim_Servico || o.Data;
-    if (!dataEfetiva) continue;
-    const atual = ultimaOSByCliente.get(key);
-    if (!atual || dataEfetiva > atual.data) {
-      ultimaOSByCliente.set(key, { data: dataEfetiva, id_ordem: o.Id_Ordem, tipo_servico: o.Tipo_Servico });
-    }
-  }
-  console.log(`[R2] clientes unicos com OS: ${ultimaOSByCliente.size}`);
+  // 2) última OS por cliente — usa índice unificado (Portal + Omie)
+  const chassisDoSPortfolio = tratores.map((t) => t.Chassis || "").filter(Boolean);
+  const indiceOS = await carregarIndiceOSCompleto(chassisDoSPortfolio);
+  const ultimaOSByCliente = indiceOS.porCliente;
+  console.log(`[R2] clientes unicos com OS (Portal+Omie): ${ultimaOSByCliente.size}`);
 
   // 3) último feedback (CRM ou RFM) por cliente — também conta como contato
   const feedbacks = await lerTudo<{
@@ -149,22 +117,23 @@ export async function computarR2(parametros: ParametrosR2 = {}): Promise<Oportun
 
   const out: OportunidadeR2[] = [];
   for (const [keyNorm, count] of countByCliente.entries()) {
-    const ultimaOS = ultimaOSByCliente.get(keyNorm);
-    const ultimoFeedback = ultimoContatoByCliente.get(keyNorm);
+    const ultimaOS = ultimaOSByCliente.get(keyNorm);  // OSInfo (Date) ou undefined
+    const ultimoFeedback = ultimoContatoByCliente.get(keyNorm);  // string YYYY-MM-DD ou undefined
+    const ultimaOSIso = ultimaOS ? ultimaOS.data.toISOString() : undefined;
 
     // Última atividade = a mais recente entre OS e feedback (comparação explícita)
     let ultimaAtividade: string | undefined;
     let ultimaAtividadeOrigem: "os" | "feedback" | undefined;
-    if (ultimaOS && ultimoFeedback) {
-      if (ultimaOS.data > ultimoFeedback) {
-        ultimaAtividade = ultimaOS.data;
+    if (ultimaOSIso && ultimoFeedback) {
+      if (ultimaOSIso > ultimoFeedback) {
+        ultimaAtividade = ultimaOSIso;
         ultimaAtividadeOrigem = "os";
       } else {
         ultimaAtividade = ultimoFeedback;
         ultimaAtividadeOrigem = "feedback";
       }
-    } else if (ultimaOS) {
-      ultimaAtividade = ultimaOS.data;
+    } else if (ultimaOSIso) {
+      ultimaAtividade = ultimaOSIso;
       ultimaAtividadeOrigem = "os";
     } else if (ultimoFeedback) {
       ultimaAtividade = ultimoFeedback;
@@ -198,9 +167,11 @@ export async function computarR2(parametros: ParametrosR2 = {}): Promise<Oportun
       prioridade,
       detalhes: {
         total_equipamentos: count,
-        ultima_os_data: ultimaOS?.data ?? null,
+        ultima_os_data: ultimaOSIso ?? null,
         ultima_os_id: ultimaOS?.id_ordem ?? null,
         ultima_os_tipo: ultimaOS?.tipo_servico ?? null,
+        ultima_os_fonte: ultimaOS?.fonte ?? null,
+        ultima_os_empresa: ultimaOS?.empresa ?? null,
         ultimo_feedback: ultimoFeedback ?? null,
         ultima_atividade: ultimaAtividade ?? null,
         ultima_atividade_origem: ultimaAtividadeOrigem ?? null,
