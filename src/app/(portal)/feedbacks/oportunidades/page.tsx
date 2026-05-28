@@ -2,8 +2,51 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import KanbanOportunidades from "@/components/feedbacks/KanbanOportunidades";
+import ModalFeedback from "@/components/feedbacks/ModalFeedback";
 import { listarOportunidades } from "@/lib/feedbacks/api";
-import type { Oportunidade, StatusOportunidade } from "@/lib/feedbacks/types";
+import type { FeedbackRegistro, Oportunidade, RegraOportunidade, StatusOportunidade, TipoFeedback } from "@/lib/feedbacks/types";
+
+// Cada regra de oportunidade pre-seleciona um tipo de feedback ao atender:
+// - R1 revisao garantia → CRM (registramos a confirmacao da revisao)
+// - R2 sem OS recente   → RFM (reativacao de cliente parado)
+// - R3 up-sell          → RFM (cliente esfriado, motivar venda)
+// - R4 follow-up        → CRM (confirmar satisfacao do servico anterior)
+// - R5 venda de pecas   → RFM (cliente sem comprar peca ha tempo)
+const TIPO_PADRAO_POR_REGRA: Record<RegraOportunidade, TipoFeedback> = {
+  R1_revisao:  "crm",
+  R2_sem_os:   "rfm",
+  R3_upsell:   "rfm",
+  R4_followup: "crm",
+  R5_pecas:    "rfm",
+};
+
+function prefillDoOportunidade(op: Oportunidade): Partial<FeedbackRegistro> {
+  const tipo = TIPO_PADRAO_POR_REGRA[op.regra];
+  const d = op.detalhes || {};
+  const hoje = new Date().toISOString().slice(0, 10);
+  const base: Partial<FeedbackRegistro> = {
+    tipo,
+    nome: op.cliente_nome,
+    codigo_omie: op.codigo_omie,
+    trator: op.trator,
+    data_contato: hoje,
+  };
+  // Sugestao automatica como ponto de partida
+  const sugestao = (d.sugestao as string | undefined) || "";
+  if (tipo === "crm") {
+    if (op.regra === "R1_revisao") {
+      const alvo = (d.revisao_alvo as string | undefined) || "";
+      base.servico = `Confirmacao revisao ${alvo}`.trim();
+    } else if (op.regra === "R4_followup") {
+      base.servico = "Follow-up apos feedback";
+    }
+    base.feedback = sugestao;
+  } else {
+    base.motivo = sugestao;
+    base.prioridade = op.prioridade === "Urgente" ? "Urgente" : "Normal";
+  }
+  return base;
+}
 
 const STATUS_FILTROS: Array<{ value: StatusOportunidade | "todas"; label: string }> = [
   { value: "aberta",      label: "Abertas" },
@@ -22,6 +65,10 @@ export default function OportunidadesPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [comoFuncionaAberto, setComoFuncionaAberto] = useState(false);
+  // Modal de atendimento: ao clicar "Atender" abre um ModalFeedback pre-preenchido.
+  // Quando o usuario salva, criamos um feedback_registros e marcamos a oportunidade
+  // como atendida com feedback_id vinculado.
+  const [modalAtender, setModalAtender] = useState<{ op: Oportunidade; tipo: TipoFeedback } | null>(null);
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -90,18 +137,28 @@ export default function OportunidadesPage() {
     return res.json() as Promise<Oportunidade>;
   }, []);
 
-  // TODO Fase 4: substituir por modal CRM/RFM pré-preenchido que CRIA um
-  // feedback_registros e vincula feedback_id. Por enquanto só marca atendida.
-  const handleAtender = useCallback(async (op: Oportunidade) => {
+  // Abrir modal de atendimento pre-preenchido (CRM ou RFM conforme a regra)
+  const handleAtender = useCallback((op: Oportunidade) => {
     if (!userProfile) return;
-    if (!confirm(`Marcar "${op.cliente_nome}" como atendida?\n\n(Fase 4 vai abrir um modal CRM/RFM pré-preenchido aqui.)`)) return;
+    const tipo = TIPO_PADRAO_POR_REGRA[op.regra];
+    setModalAtender({ op, tipo });
+  }, [userProfile]);
+
+  // Apos salvar o feedback no modal, vinculamos com a oportunidade
+  const handleFeedbackSalvo = useCallback(async (feedbackSalvo: FeedbackRegistro) => {
+    if (!modalAtender || !userProfile) return;
     try {
-      await patch(op.id, { status: "atendida", atendida_por: userProfile.id });
+      await patch(modalAtender.op.id, {
+        status: "atendida",
+        atendida_por: userProfile.id,
+        feedback_id: feedbackSalvo.id,
+      });
       await carregar();
+      setMsg(`Oportunidade de "${modalAtender.op.cliente_nome}" atendida e ${feedbackSalvo.tipo.toUpperCase()} #${feedbackSalvo.id} criado.`);
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
     }
-  }, [userProfile, patch, carregar]);
+  }, [modalAtender, userProfile, patch, carregar]);
 
   const handleDispensar = useCallback(async (op: Oportunidade) => {
     const motivo = prompt(`Motivo para dispensar oportunidade de "${op.cliente_nome}":`);
@@ -242,6 +299,16 @@ export default function OportunidadesPage() {
           oportunidades={ops}
           onAtender={handleAtender}
           onDispensar={handleDispensar}
+        />
+      )}
+
+      {modalAtender && (
+        <ModalFeedback
+          tipo={modalAtender.tipo}
+          aberto={true}
+          prefill={prefillDoOportunidade(modalAtender.op)}
+          onFechar={() => setModalAtender(null)}
+          onSalvo={handleFeedbackSalvo}
         />
       )}
     </div>
