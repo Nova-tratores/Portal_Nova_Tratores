@@ -131,9 +131,22 @@ function btnStyle(bg: string, fg: string): React.CSSProperties {
   };
 }
 
-function fmtData(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  try { return new Date(iso).toLocaleDateString("pt-BR"); } catch { return iso; }
+function fmtData(s: string | null | undefined): string {
+  if (!s) return "—";
+  // Aceita ISO (YYYY-MM-DD ou completo) E formato BR (DD/MM/YYYY)
+  if (/^\d{2}\/\d{2}\/\d{4}/.test(s)) {
+    // já está no formato BR, só pega DD/MM/YYYY
+    return s.slice(0, 10);
+  }
+  // ISO: pega yyyy-mm-dd e inverte sem usar Date (evita problema de fuso)
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+  // fallback: tenta Date mesmo
+  try {
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) return d.toLocaleDateString("pt-BR");
+  } catch {}
+  return s;
 }
 
 // Retorna texto curto com a referência concreta da última interação:

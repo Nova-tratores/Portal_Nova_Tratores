@@ -61,6 +61,10 @@ export async function computarR2(parametros: ParametrosR2 = {}): Promise<Oportun
   const countByCliente = new Map<string, number>();
   const nomeOriginal = new Map<string, string>();
   const tratorMaisRecente = new Map<string, TratorMaisRecente>();
+  // Mapa cliente_norm → todos os chassis dele. Usado pra checar OS via chassi
+  // quando o match por nome falha (nome em tratores diverge de Os_Cliente/nome_cliente).
+  const chassisDoCliente = new Map<string, string[]>();
+
   for (const t of tratores) {
     const key = norm(t.Cliente);
     if (!key) continue;
@@ -72,6 +76,13 @@ export async function computarR2(parametros: ParametrosR2 = {}): Promise<Oportun
     const entregaNovo = t.Entrega || "";
     if (!atual || entregaNovo > entregaAtual) {
       tratorMaisRecente.set(key, { modelo: t.Modelo, chassis: t.Chassis, entrega: t.Entrega });
+    }
+
+    const chassiUp = (t.Chassis || "").trim().toUpperCase();
+    if (chassiUp) {
+      const lista = chassisDoCliente.get(key) || [];
+      if (!lista.includes(chassiUp)) lista.push(chassiUp);
+      chassisDoCliente.set(key, lista);
     }
   }
   console.log(`[R2] clientes unicos em tratores: ${countByCliente.size}`);
@@ -117,7 +128,17 @@ export async function computarR2(parametros: ParametrosR2 = {}): Promise<Oportun
 
   const out: OportunidadeR2[] = [];
   for (const [keyNorm, count] of countByCliente.entries()) {
-    const ultimaOS = ultimaOSByCliente.get(keyNorm);  // OSInfo (Date) ou undefined
+    // 1ª tentativa: match por nome do cliente
+    let ultimaOS = ultimaOSByCliente.get(keyNorm);
+    // 2ª tentativa: se não achou por nome (ou achou OS mais antiga), olhar
+    // todos os chassis desse cliente. Pega a OS mais recente entre todas.
+    const chassisCliente = chassisDoCliente.get(keyNorm) || [];
+    for (const ch of chassisCliente) {
+      const osPorChassi = indiceOS.porChassi.get(ch);
+      if (osPorChassi && (!ultimaOS || osPorChassi.data > ultimaOS.data)) {
+        ultimaOS = osPorChassi;
+      }
+    }
     const ultimoFeedback = ultimoContatoByCliente.get(keyNorm);  // string YYYY-MM-DD ou undefined
     const ultimaOSIso = ultimaOS ? ultimaOS.data.toISOString() : undefined;
 
