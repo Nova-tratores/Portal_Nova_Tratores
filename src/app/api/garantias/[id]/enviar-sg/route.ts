@@ -189,16 +189,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .maybeSingle(),
     supabase
       .from(TBL_GAR_ANEXOS)
-      .select('id, url, nome_arquivo, created_at')
+      .select('id, url, nome_arquivo, content_type, created_at')
       .eq('garantia_id', id)
       .eq('categoria', 'envio_fabrica')
-      .order('created_at', { ascending: false })
-      .limit(1),
+      .order('created_at', { ascending: false }),
   ]);
   garantia.pecas = pecasRes.data || [];
-  const anexoExistente = (anexosRes.data || [])[0] as
-    | { id: string; url: string; nome_arquivo: string | null; created_at: string }
-    | undefined;
+  // Todos os arquivos da seção "envio_fabrica" entram como anexos do e-mail.
+  // O .xlsx mais recente é a SG principal (substitui o gerado se houver versão
+  // revisada). Os demais (PDFs de NF, recibos, etc.) vão como anexos extras.
+  type AnexoLinha = { id: string; url: string; nome_arquivo: string | null; content_type: string | null; created_at: string };
+  const anexosEnvio = (anexosRes.data || []) as AnexoLinha[];
+  const xlsxRegex = /\.xlsx?$/i;
+  const anexoExistente = anexosEnvio.find((a) => xlsxRegex.test(a.nome_arquivo || '')) || undefined;
+  const anexosExtras = anexosEnvio.filter((a) => a !== anexoExistente);
 
   // 3. Define caminho/nome
   const nomeArquivoBase = nomeArquivoSG(garantia);
@@ -445,6 +449,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // 7. Envia o e-mail. Se usamos um anexo existente, NÃO faz upload novo
   // (o arquivo já está no Storage e o anexo já está registrado).
   // Se geramos um novo (não havia anexo), faz upload em paralelo.
+  // Baixa anexos extras (NF, recibos, etc.) que o garantista anexou na seção
+  // de envio à fábrica além da própria SG xlsx.
+  const anexosExtrasBaixados: { filename: string; content: Buffer; contentType?: string }[] = [];
+  for (const a of anexosExtras) {
+    const buf = await baixarUrl(a.url);
+    if (!buf) {
+      console.warn(`Não foi possível baixar anexo extra: ${a.nome_arquivo}`);
+      continue;
+    }
+    anexosExtrasBaixados.push({
+      filename: a.nome_arquivo || `anexo-${a.id}`,
+      content: buf,
+      contentType: a.content_type || undefined,
+    });
+  }
+
   try {
     const sendMailPromise = transporter.sendMail({
       from: `"Pós-Vendas Nova Tratores" <${process.env.GMAIL_USER}>`,
@@ -453,6 +473,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       html,
       attachments: [
         { filename: nomeArquivo, content: buffer, contentType: xlsxMime },
+        ...anexosExtrasBaixados,
       ],
     });
 
@@ -491,7 +512,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       await registrarEvento(id, {
         tipo: 'sg_enviado',
         ator,
-        detalhe: `SG enviada para ${destinatarios.join(', ')}${up ? '' : ' — arquivo não foi armazenado'}`,
+        detalhe: `SG enviada para ${destinatarios.join(', ')}${anexosExtrasBaixados.length ? ` (+${anexosExtrasBaixados.length} anexo(s) extra(s))` : ''}${up ? '' : ' — arquivo não foi armazenado'}`,
       });
 
       return NextResponse.json({
@@ -509,7 +530,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await registrarEvento(id, {
       tipo: 'sg_enviado',
       ator,
-      detalhe: `SG revisada enviada para ${destinatarios.join(', ')}`,
+      detalhe: `SG revisada enviada para ${destinatarios.join(', ')}${anexosExtrasBaixados.length ? ` (+${anexosExtrasBaixados.length} anexo(s) extra(s))` : ''}`,
     });
 
     return NextResponse.json({
