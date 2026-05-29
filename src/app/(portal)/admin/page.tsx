@@ -629,7 +629,7 @@ export default function AdminPage() {
       }}>
         {/* Table Header */}
         <div style={{
-          display: 'grid', gridTemplateColumns: '260px 120px 150px 1fr 200px 80px',
+          display: 'grid', gridTemplateColumns: '260px 120px 150px 1fr 200px 80px 100px',
           padding: '16px 24px', background: 'var(--portal-bg-secondary)', borderBottom: '1px solid var(--portal-border)',
           fontSize: '11px', fontWeight: '700', color: '#a3a3a3', letterSpacing: '1px'
         }}>
@@ -639,6 +639,7 @@ export default function AdminPage() {
           <span>MÓDULOS PERMITIDOS</span>
           <span>APP MECÂNICOS</span>
           <span style={{ textAlign: 'center' }}>TODOS</span>
+          <span style={{ textAlign: 'center' }}>AÇÕES</span>
         </div>
 
         {/* Table Rows */}
@@ -652,7 +653,7 @@ export default function AdminPage() {
             <div
               key={user.id}
               style={{
-                display: 'grid', gridTemplateColumns: '260px 120px 150px 1fr 200px 80px',
+                display: 'grid', gridTemplateColumns: '260px 120px 150px 1fr 200px 80px 100px',
                 padding: '16px 24px', borderBottom: '1px solid #f5f5f5',
                 alignItems: 'center', transition: '0.15s',
                 opacity: isSaving ? 0.6 : 1,
@@ -788,6 +789,28 @@ export default function AdminPage() {
                   }}
                 >
                   {modulos.length === MODULOS.length ? <Check size={18} /> : <X size={18} />}
+                </button>
+              </div>
+
+              {/* Resetar Senha */}
+              <div style={{ textAlign: 'center' }}>
+                <button
+                  onClick={() => {
+                    if (!user.email) { alert('Usuário sem email cadastrado'); return }
+                    if (confirm(`Enviar email de redefinição de senha para ${user.email}?`)) {
+                      resetarSenha(user.email)
+                    }
+                  }}
+                  title={user.email ? `Resetar senha de ${user.email}` : 'Sem email'}
+                  style={{
+                    padding: '6px 12px', borderRadius: '8px',
+                    border: '1px solid #e5e5e5', background: 'var(--portal-bg-secondary)',
+                    color: '#525252', fontSize: '11px', fontWeight: '600',
+                    cursor: 'pointer', transition: '0.15s',
+                    display: 'inline-flex', alignItems: 'center', gap: '4px'
+                  }}
+                >
+                  <Mail size={13} /> Resetar
                 </button>
               </div>
             </div>
