@@ -867,7 +867,8 @@
       "Bash(curl -s \"http://localhost:3000/api/clientes?checkSync=1\")",
       "Bash(curl -s \"http://localhost:3000/api/clientes/test-pdf\")",
       "PowerShell(Stop-Process -Name \"node\" -Force -ErrorAction SilentlyContinue)",
-      "Bash(curl -s \"http://localhost:3000/api/clientes/print?tipo=pv&cod=2485291155&empresa=Nova+Tratores\")"
+      "Bash(curl -s \"http://localhost:3000/api/clientes/print?tipo=pv&cod=2485291155&empresa=Nova+Tratores\")",
+      "Bash(curl -s -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpdHJodW1ka2ZpdmR6Ym1heWRlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTEwODI3NSwiZXhwIjoyMDg0Njg0Mjc1fQ.fCq8RVCcwKd9rgJj1cYFtNvKUrQmFeujCvwccZIBuSY\" -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpdHJodW1ka2ZpdmR6Ym1heWRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxMDgyNzUsImV4cCI6MjA4NDY4NDI3NX0.83x3-NrKoJgtIuSE7Jjsaj0zH-b-XJ3Z8i3XkBkwVoU\" \"https://citrhumdkfivdzbmayde.supabase.co/auth/v1/settings\" 2>/dev/null | python -m json.tool 2>/dev/null || echo \"python not found, trying raw output\" && curl -s -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpdHJodW1ka2ZpdmR6Ym1heWRlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTEwODI3NSwiZXhwIjoyMDg0Njg0Mjc1fQ.fCq8RVCcwKd9rgJj1cYFtNvKUrQmFeujCvwccZIBuSY\" -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpdHJodW1ka2ZpdmR6Ym1heWRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxMDgyNzUsImV4cCI6MjA4NDY4NDI3NX0.83x3-NrKoJgtIuSE7Jjsaj0zH-b-XJ3Z8i3XkBkwVoU\" \"https://citrhumdkfivdzbmayde.supabase.co/auth/v1/settings\")"
     ]
   }
 }

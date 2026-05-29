@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
 
     // Envia email de redefinição de senha via Supabase Auth
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || "https://portal.novatratores.com"}/login`,
+      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || "https://portalnovatratores-production.up.railway.app"}/resetar-senha`,
     });
 
     if (error) {
