@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
+import { normName, cleanName, namesMatch, splitTecnicos as splitTecsUtil, nomesBatem } from "@/lib/tecnico-utils";
 
 /**
  * GET /api/mecanicos
@@ -13,8 +14,8 @@ export async function GET(req: NextRequest) {
     // Buscar usuarios com role de mecanico
     const { data: perms, error: permErr } = await supabase
       .from("portal_permissoes")
-      .select("user_id, mecanico_role, mecanico_tecnico_nome, is_admin, modulos_permitidos")
-      .not("mecanico_role", "is", null);
+      .select("user_id, mecanico_role, mecanico_tecnico_nome, is_admin, modulos_permitidos, created_at")
+      .eq("mecanico_role", "tecnico");
 
     if (permErr) throw permErr;
     if (!perms || perms.length === 0) {
@@ -47,10 +48,8 @@ export async function GET(req: NextRequest) {
 
     // Se pediu por nome especifico
     if (nome) {
-      const normNome = nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
       const found = mecanicos.find((m) => {
-        const n = (m.tecnico_nome || m.nome).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
-        return n === normNome || n.split(/\s+/)[0] === normNome.split(/\s+/)[0];
+        return nomesBatem(m.tecnico_nome || m.nome, nome);
       });
       if (!found) return NextResponse.json(null);
 
@@ -62,11 +61,10 @@ export async function GET(req: NextRequest) {
       const ultimo = `${mesAtual}-${new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()}`;
 
       // Ordens do tecnico no mes, ocorrencias, GPS
-      const normTecNome = tecNome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
       const [allOrdensRes, ocorrenciasRes, gpsRes, reqRes] = await Promise.all([
         supabase
           .from("Ordens_Omie")
-          .select("os_num, cod_int, data, horas, km, valor, status, faturada, interno, cidade, empresa, descricao, obs, tecnicos")
+          .select("os_num, cod_int, data, horas, km, valor, status, faturada, interno, cidade, empresa, descricao, obs, tecnicos, vendedor_nome")
           .neq("status", "Cancelada")
           .gte("data", primeiro)
           .lte("data", ultimo)
@@ -86,14 +84,13 @@ export async function GET(req: NextRequest) {
         supabase
           .from("pedidos")
           .select("id_pedido, Id_Os, status, data, pedido_omie, valor_total, Tipo_Pedido")
-          .ilike("tecnico", tecNome)
-          .order("data", { ascending: false }),
+          .ilike("tecnico", tecNome),
       ]);
 
       // Filtrar ordens do tecnico no JS (mais confiavel que filtro Supabase em array)
       const ordens = (allOrdensRes.data || []).filter((o: Record<string, unknown>) => {
         const tecs = (o.tecnicos as string[]) || [];
-        return tecs.some(t => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim() === normTecNome);
+        return tecs.some(t => nomesBatem(t, tecNome));
       }).map((o: Record<string, unknown>) => {
         // Extrair servico_solicitado e relatorio do campo descricao
         const desc = String(o.descricao || "");
@@ -203,7 +200,7 @@ export async function GET(req: NextRequest) {
       }
 
       // Montar ordens com dados complementares
-      const ordensComPpv = ordens.map((o: Record<string, unknown>) => {
+      const ordensComPpv: any[] = ordens.map((o: Record<string, unknown>) => {
         const codInt = String(o.cod_int);
         const cli = clientePorOs[codInt];
         const relTec = relatorioTecPorOs[codInt];
@@ -293,14 +290,57 @@ export async function GET(req: NextRequest) {
         .lte("data_referencia", ultimo)
         .order("data_referencia", { ascending: false });
 
+      // Filtrar requisicoes do mes (data formato DD/MM/YYYY HH:MM)
+      const mesNum = now.getMonth() + 1;
+      const anoNum = now.getFullYear();
+      const reqDoMes = (reqRes.data || []).filter((r: Record<string, unknown>) => {
+        const d = String(r.data || "");
+        const parts = d.split("/");
+        if (parts.length < 3) return false;
+        const mes = parseInt(parts[1]);
+        const ano = parseInt(parts[2].split(" ")[0]);
+        return mes === mesNum && ano === anoNum;
+      });
+
+      // Buscar veiculo vinculado do tecnico (mesmo que o mapeamento tecnico)
+      const { data: vinculos } = await supabase
+        .from("tecnico_veiculos")
+        .select("placa, tecnico_nome, adesao_id")
+        .eq("tecnico_nome", tecNome);
+
+      let veiculoInfo: { placa: string; descricao: string } | null = null;
+      if (vinculos && vinculos.length > 0) {
+        const vinc = vinculos[0];
+        try {
+          const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000';
+          const veicRes = await fetch(`${baseUrl}/api/pos/rastreamento?acao=veiculos`);
+          if (veicRes.ok) {
+            const veicList = await veicRes.json();
+            const placaNorm = (vinc.placa || '').replace(/[^A-Z0-9]/g, '').toUpperCase();
+            const found_v = veicList.find((v: any) => (v.placa || '').replace(/[^A-Z0-9]/g, '').toUpperCase() === placaNorm);
+            veiculoInfo = { placa: vinc.placa, descricao: found_v?.descricao || found_v?.modelo || '' };
+          } else {
+            veiculoInfo = { placa: vinc.placa, descricao: '' };
+          }
+        } catch {
+          veiculoInfo = { placa: vinc.placa, descricao: '' };
+        }
+      }
+
+      // Buscar permissao (data de entrada)
+      const perm = perms.find((p) => p.user_id === found.id);
+
+
       return NextResponse.json({
         ...found,
         mes: mesAtual,
         ordens: ordensComPpv,
         ocorrencias: ocorrenciasRes.data || [],
-        requisicoes: reqRes.data || [],
+        requisicoes: reqDoMes,
         alertas: alertasFinal || [],
         gps: { kmMes: Math.round(gpsKmMes), dias: gpsDias },
+        veiculo: veiculoInfo,
+        data_entrada: perm?.created_at || null,
       });
     }
 
@@ -322,7 +362,7 @@ export async function GET(req: NextRequest) {
     const statsPorTec: Record<string, { total: number; horas: number; km: number; valor: number }> = {};
     for (const o of ordens || []) {
       for (const t of o.tecnicos || []) {
-        const n = t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+        const n = normName(t);
         if (!statsPorTec[n]) statsPorTec[n] = { total: 0, horas: 0, km: 0, valor: 0 };
         statsPorTec[n].total++;
         statsPorTec[n].horas += parseFloat(o.horas) || 0;
@@ -331,25 +371,45 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Buscar ocorrencias e alertas pendentes
-    const [ocPendentesRes, alertasPendentesRes] = await Promise.all([
+    // Buscar ocorrencias, alertas pendentes e dados do relatorio geral
+    const mesP = mesAtual.split("-")[1];
+    const anoP = mesAtual.split("-")[0];
+    const patBR = `%/${mesP}/${anoP}`;
+    const patISO = `${mesAtual}-%`;
+
+    const [ocPendentesRes, alertasPendentesRes, osRelRes, pvRelRes, despRelRes, configRelRes] = await Promise.all([
       supabase.from("mecanico_ocorrencias").select("tecnico_nome, id").eq("status", "pendente"),
       supabase.from("mecanico_alertas").select("tecnico_nome, id").eq("status", "pendente"),
+      supabase.from("ordens_servico_relatorio")
+        .select("numero_os, nome_vendedor, valor_total, data_emissao, data_abertura, nome_etapa, status_cancelada, nome_cliente, numero_contrato")
+        .or(`data_emissao.like.${patBR},data_emissao.like.${patISO},data_abertura.like.${patBR},data_abertura.like.${patISO}`)
+        .limit(5000),
+      supabase.from("pedidos_venda_relatorio")
+        .select("numero_venda, vendedor, valor_total, data_emissao, data_abertura, etapa, cancelada, devolvido, cliente")
+        .or(`data_emissao.like.${patBR},data_emissao.like.${patISO},data_abertura.like.${patBR},data_abertura.like.${patISO}`)
+        .limit(5000),
+      supabase.from("despesas_relatorio")
+        .select("id, vendedor, valor, tipo, subtipo, setor, fase")
+        .gte("data_iso", primeiro)
+        .lte("data_iso", ultimo)
+        .limit(5000),
+      supabase.from("config_vendedores_relatorio")
+        .select("nome, salario, encargos, cargo"),
     ]);
 
     const ocPorTec: Record<string, number> = {};
     for (const oc of ocPendentesRes.data || []) {
-      const n = (oc.tecnico_nome || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+      const n = normName(oc.tecnico_nome || "");
       ocPorTec[n] = (ocPorTec[n] || 0) + 1;
     }
     const alertasPorTec: Record<string, number> = {};
     for (const al of alertasPendentesRes.data || []) {
-      const n = (al.tecnico_nome || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+      const n = normName(al.tecnico_nome || "");
       alertasPorTec[n] = (alertasPorTec[n] || 0) + 1;
     }
 
     const resultado = mecanicos.map((m) => {
-      const n = (m.tecnico_nome || m.nome).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+      const n = normName(m.tecnico_nome || m.nome);
       return {
         ...m,
         stats: statsPorTec[n] || { total: 0, horas: 0, km: 0, valor: 0 },
@@ -358,7 +418,98 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    return NextResponse.json(resultado);
+    // ── RESUMO GERAL DA OFICINA ──
+    const cleanNL = cleanName;
+    const canonBateL = namesMatch;
+    const splitTecsL = (raw: string | null) => {
+      if (!raw) return [];
+      return splitTecsUtil(raw).map(p => cleanName(p)).filter(Boolean) as string[];
+    };
+
+    const configRowsL = ((configRelRes.data || []) as any[]);
+    const vendedoresL: string[] = [];
+    const tecnicosL: string[] = [];
+    for (const c of configRowsL) {
+      const can = cleanNL(c.nome);
+      if (!can) continue;
+      const cargoU = String(c.cargo || "").toUpperCase();
+      if (cargoU === "VENDEDOR") { if (!vendedoresL.includes(can)) vendedoresL.push(can); }
+      else { if (!tecnicosL.includes(can)) tecnicosL.push(can); }
+    }
+    const algumBateL = (can: string, lista: string[]) => lista.some(c => canonBateL(can, c));
+    const temTecL = (raw: string | null) => {
+      const tecs = splitTecsL(raw);
+      return tecs.some(t => !algumBateL(t, vendedoresL));
+    };
+
+    const RE_OS_FAT_L = /FATURAD|FINALIZAD|ENTREGUE|CONCLU|ENCERRADO/i;
+    const RE_OS_INT_L = /INTERNO|CORTESIA/i;
+    const RE_PV_FAT_L = /FATURAD|FINALIZAD|ENTREGUE|CONCLU|\b60\b|\b70\b/i;
+    const RE_PV_CANC_L = /CANCELAD|\b80\b/i;
+    const isCancL = (f: string | null) => { const v = String(f || "").trim().toUpperCase(); return v === "SIM" || v.startsWith("S"); };
+    const ehVIL = (c: string | null) => { const u = String(c || "").toUpperCase(); return u.includes("NOVA TRATORES") || u.includes("CASTRO MAQUINAS") || u.includes("CASTRO MÁQUINAS"); };
+
+    const osAprovL = ((osRelRes.data || []) as any[]).filter(o => {
+      const et = String(o.nome_etapa || "").toUpperCase();
+      if (et.includes("CANCELAD") || isCancL(o.status_cancelada)) return false;
+      return RE_OS_FAT_L.test(et);
+    });
+    const osProdsL = osAprovL.filter(o => !RE_OS_INT_L.test(String(o.numero_contrato || "").toUpperCase()) && !ehVIL(o.nome_cliente));
+    const osTecL = osProdsL.filter(o => temTecL(o.nome_vendedor));
+
+    const pvAprovL = ((pvRelRes.data || []) as any[]).filter(p => {
+      const et = String(p.etapa || "").toUpperCase();
+      if (RE_PV_CANC_L.test(et) || isCancL(p.cancelada) || isCancL(p.devolvido)) return false;
+      if (!RE_PV_FAT_L.test(et) || ehVIL(p.cliente)) return false;
+      return true;
+    });
+    const pvTecL = pvAprovL.filter(p => temTecL(p.vendedor));
+
+    const despTecL = ((despRelRes.data || []) as any[]).filter(d => {
+      const setor = String(d.setor || "").toUpperCase().replace(/[\s\-_]/g, "");
+      if (setor.includes("TRATORLOJA")) return false;
+      const fase = String(d.fase || "").toUpperCase();
+      if (["AGUARDANDO", "COTACAO", "COTAÇÃO", "APROVACAO", "APROVAÇÃO"].some(x => fase.includes(x))) return false;
+      return true;
+    });
+
+    const receitaOS = osTecL.reduce((a: number, o: any) => a + Number(o.valor_total || 0), 0);
+    const receitaPV = pvTecL.reduce((a: number, p: any) => a + Number(p.valor_total || 0), 0);
+    const despOp = despTecL.reduce((a: number, d: any) => a + Number(d.valor || 0), 0);
+    const custoRHTot = configRowsL.reduce((a: number, c: any) => {
+      const cu = String(c.cargo || "PADRAO").toUpperCase();
+      if (!(cu === "PADRAO" || cu.includes("TECNICO") || cu.includes("MECANICO"))) return a;
+      return a + Number(c.salario || 0) + Number(c.encargos || 0);
+    }, 0);
+
+    // Ranking
+    const rankMapL = new Map<string, { valor: number; qtd: number }>();
+    for (const o of osProdsL) {
+      const tecs = splitTecsL(o.nome_vendedor).filter(t => !algumBateL(t, vendedoresL));
+      if (tecs.length === 0) continue;
+      const vpt = Number(o.valor_total || 0) / tecs.length;
+      for (const t of tecs) {
+        const at = rankMapL.get(t) || { valor: 0, qtd: 0 };
+        at.valor += vpt; at.qtd++;
+        rankMapL.set(t, at);
+      }
+    }
+    const rankingL = Array.from(rankMapL.entries())
+      .map(([can, agg]) => ({ nome: can.toLowerCase().replace(/(^|\s)\S/g, c => c.toUpperCase()), valor: agg.valor, qtd: agg.qtd }))
+      .sort((a, b) => b.valor - a.valor)
+      .slice(0, 10);
+
+    const resumoGeral = {
+      receitaTotal: receitaOS + receitaPV,
+      despesaTotal: despOp + custoRHTot,
+      despesaOperacional: despOp,
+      custoRH: custoRHTot,
+      qtdOS: osTecL.length,
+      qtdPV: pvTecL.length,
+      ranking: rankingL,
+    };
+
+    return NextResponse.json({ mecanicos: resultado, resumo: resumoGeral });
   } catch (e: any) {
     console.error("[mecanicos]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });

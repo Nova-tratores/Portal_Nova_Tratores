@@ -50,11 +50,13 @@ async function omieCall<T>(
 }
 
 // =====================================================================
-// HELPERS DE NORMALIZAÇÃO
+// HELPERS DE NORMALIZAÇÃO (delegados para lib centralizada)
 // =====================================================================
 
+import { normName } from "@/lib/tecnico-utils";
+
 function norm(s: string): string {
-  return (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+  return normName(s || "");
 }
 
 /** Dice coefficient (bigramas). Retorna [0..1]; >=0.7 ~ "muito similar". */

@@ -10,7 +10,7 @@ import {
   DollarSign, Activity, Clock, ChevronRight, Search,
   BarChart3, Users, Package, ClipboardCheck, AlertTriangle,
   CheckCircle2, Map, RefreshCw, Database, X, Check, Calculator, Eye, Camera, Wheat, Megaphone, TrendingUp, Server,
-  FolderPlus, Pencil, Trash2, FolderOpen, MapPin, ShieldCheck
+  FolderPlus, Pencil, Trash2, FolderOpen, MapPin, ShieldCheck, Building
 } from 'lucide-react'
 
 interface SystemCard {
@@ -125,6 +125,16 @@ const systems: SystemCard[] = [
     gradient: 'linear-gradient(135deg, #dc2626, #ef4444)',
     href: '/mecanicos',
     tag: 'TÉCNICOS'
+  },
+  {
+    id: 'clientes',
+    name: 'Pastas Clientes',
+    description: 'Ranking de clientes por volume de serviços, OS, PV e NF integrados ao Omie',
+    icon: <Building size={28} />,
+    color: '#dc2626',
+    gradient: 'linear-gradient(135deg, #dc2626, #991b1b)',
+    href: '/clientes',
+    tag: 'CLIENTES'
   },
   {
     id: 'mapa-geral',
@@ -242,6 +252,7 @@ const systemToModulo: Record<string, string> = {
   'orcamentos': 'orcamentos',
   'tarefas': 'tarefas',
   'mecanicos': 'mecanicos',
+  'clientes': 'clientes',
   'mapa-geral': 'mapa',
   'fotos-tecnicos': 'fotos-tecnicos',
   'consulta-estoque': 'estoque',
@@ -261,7 +272,7 @@ interface CardFolder {
 
 const defaultFolders: CardFolder[] = [
   { id: 'financeiro', name: 'Financeiro', cardIds: ['sistema-financeiro', 'dre'] },
-  { id: 'servicos', name: 'Serviços', cardIds: ['pos', 'controle-revisao', 'fotos-tecnicos', 'mecanicos'] },
+  { id: 'servicos', name: 'Serviços', cardIds: ['pos', 'controle-revisao', 'fotos-tecnicos', 'mecanicos', 'clientes'] },
   { id: 'comercial', name: 'Comercial', cardIds: ['proposta-comercial', 'orcamentos', 'ppv'] },
   { id: 'estoque', name: 'Estoque & Consulta', cardIds: ['consulta-estoque', 'visual-estoque'] },
   { id: 'gestao', name: 'Gestão', cardIds: ['app-requisicoes', 'tarefas', 'avisos'] },

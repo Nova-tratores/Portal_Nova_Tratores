@@ -35,15 +35,7 @@ function parseDataOmie(d: string): string | null {
   return `${ano}-${mes}-${dia}`;
 }
 
-function limparNomeVendedor(nome: string): string[] {
-  const semPrefixo = nome.replace(/^(T[eé]cnicos?(\s+Externo)?|Vendedor|Motorista)\s*:\s*/i, "").trim();
-  return semPrefixo.split(/\s*\/\/\s*/).map(n => n.trim()).filter(Boolean);
-}
-
-// Normaliza nome removendo acentos e lowercase para comparacao
-function normNome(s: string): string {
-  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
-}
+import { limparNomeVendedor, normName as normNome } from "@/lib/tecnico-utils";
 
 // Constroi mapa de nomes canonicos a partir dos vendedores "solo" (1 tecnico)
 // Depois mapeia variantes (combo) para o nome canonico mais proximo

@@ -1,23 +1,12 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { nomesBatem } from '@/lib/tecnico-utils'
 
 function getSupabase() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
-}
-
-function normalizarNome(nome: string): string[] {
-  return nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(p => p.length > 2)
-}
-function nomesBatem(a: string, b: string): boolean {
-  if (!a || !b) return false
-  const pA = normalizarNome(a), pB = normalizarNome(b)
-  if (!pA.length || !pB.length || pA[0] !== pB[0]) return false
-  if (pA.length === 1 || pB.length === 1) return true
-  const s = new Set(pA.slice(1))
-  return pB.slice(1).some(p => s.has(p))
 }
 
 export async function POST() {

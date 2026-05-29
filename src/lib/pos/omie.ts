@@ -1,6 +1,7 @@
 import { supabase } from "./supabase";
 import { TBL_OS, TBL_CLIENTES, TBL_PEDIDOS, TBL_LOGS_PPV, VALOR_HORA, VALOR_KM } from "./constants";
 import { enviarPPVParaOmie } from "@/lib/ppv/omie";
+import { normName } from "@/lib/tecnico-utils";
 
 // --- Credenciais ---
 const OMIE_APP_KEY = process.env.OMIE_APP_KEY || "";
@@ -270,13 +271,12 @@ async function buscarNcodVend(tecnico1: string, tecnico2: string): Promise<numbe
 
   const vendedores = await carregarVendedores();
 
-  // Normaliza para comparação
-  const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-  const n1 = norm(t1);
-  const n2 = t2 ? norm(t2) : "";
+  // Normaliza para comparação (usa lib centralizada)
+  const n1 = normName(t1);
+  const n2 = t2 ? normName(t2) : "";
 
   for (const v of vendedores) {
-    const nv = norm(v.nome);
+    const nv = normName(v.nome);
     if (t2) {
       // Dois técnicos: busca combinação que contenha ambos os nomes
       if (nv.includes(n1) && nv.includes(n2)) {
@@ -295,7 +295,7 @@ async function buscarNcodVend(tecnico1: string, tecnico2: string): Promise<numbe
   // Fallback: busca parcial para um técnico (aceita combinação também)
   if (!t2) {
     for (const v of vendedores) {
-      if (norm(v.nome).includes(n1)) {
+      if (normName(v.nome).includes(n1)) {
         cacheVendedores.set(chave, v.codigo);
         return v.codigo;
       }

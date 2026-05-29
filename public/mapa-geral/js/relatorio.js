@@ -238,7 +238,7 @@ const Relatorio = {
                 _supabase
                     .from('Ordens_Omie')
                     .select('*')
-                    .eq('faturada', true)
+                    .neq('status', 'Cancelada')
                     .gte('data', primeiro)
                     .lte('data', ultimo)
                     .order('data', { ascending: false }),
@@ -452,7 +452,7 @@ const Relatorio = {
         if (!this._loaded) { container.innerHTML = html; return; }
 
         if (this._tecnicos.length === 0) {
-            html += `<div style="text-align:center;padding:40px;color:#94A3B8;font-size:13px">Nenhuma OS faturada neste mes${this._filtro !== 'todas' ? ` (filtro: ${this._filtro})` : ''}</div>`;
+            html += `<div style="text-align:center;padding:40px;color:#94A3B8;font-size:13px">Nenhuma OS neste mes${this._filtro !== 'todas' ? ` (filtro: ${this._filtro})` : ''}</div>`;
             container.innerHTML = html;
             return;
         }

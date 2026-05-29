@@ -4,9 +4,10 @@ import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import {
-  Users, ArrowLeft, Wrench, MapPin, Clock,
-  AlertTriangle, CheckCircle, XCircle, Plus, ChevronRight,
-  ChevronDown, Package, FileText, ShoppingCart, AlertOctagon
+  Users, ArrowLeft, Wrench,
+  AlertTriangle, CheckCircle, XCircle, Plus,
+  ChevronDown, Package, FileText, ShoppingCart, AlertOctagon,
+  Trophy
 } from 'lucide-react'
 
 interface Mecanico {
@@ -105,6 +106,8 @@ interface MecanicoDetalhe extends Mecanico {
   requisicoes: Requisicao[]
   alertas: Alerta[]
   gps: { kmMes: number; dias: number }
+  veiculo: { placa: string; descricao: string } | null
+  data_entrada: string | null
 }
 
 const TIPO_CORES: Record<string, { bg: string; text: string; label: string }> = {
@@ -130,6 +133,7 @@ export default function MecanicosPage() {
   const tecnicoParam = searchParams.get('tecnico')
 
   const [mecanicos, setMecanicos] = useState<Mecanico[]>([])
+  const [resumoGeral, setResumoGeral] = useState<{ receitaTotal: number; despesaTotal: number; despesaOperacional: number; custoRH: number; qtdOS: number; qtdPV: number; ranking: { nome: string; valor: number; qtd: number }[] } | null>(null)
   const [detalhe, setDetalhe] = useState<MecanicoDetalhe | null>(null)
   const [loading, setLoading] = useState(true)
   const [secao, setSecao] = useState<'servicos' | 'requisicoes' | 'alertas' | 'ocorrencias'>('servicos')
@@ -137,6 +141,7 @@ export default function MecanicosPage() {
   const [showNovaOcorrencia, setShowNovaOcorrencia] = useState(false)
   const [novaOc, setNovaOc] = useState({ tipo: 'geral', titulo: '', descricao: '' })
   const [salvando, setSalvando] = useState(false)
+  const [expandedAlerta, setExpandedAlerta] = useState<number | null>(null)
 
   const carregarLista = useCallback(async () => {
     setLoading(true)
@@ -144,7 +149,12 @@ export default function MecanicosPage() {
       const res = await fetch('/api/mecanicos')
       if (!res.ok) throw new Error('Erro ao carregar')
       const data = await res.json()
-      setMecanicos(Array.isArray(data) ? data : [])
+      if (data && data.mecanicos) {
+        setMecanicos(data.mecanicos)
+        setResumoGeral(data.resumo || null)
+      } else {
+        setMecanicos(Array.isArray(data) ? data : [])
+      }
     } catch (e) {
       console.error(e)
     }
@@ -286,6 +296,20 @@ export default function MecanicosPage() {
           </div>
         </div>
 
+        {/* Perfil do tecnico */}
+        <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '16px 20px', marginBottom: 20, display: 'flex', flexWrap: 'wrap', gap: 20 }}>
+          {detalhe.data_entrada && (
+            <div><span style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Entrada</span><div style={{ fontSize: 13, color: '#1E293B', fontWeight: 600, marginTop: 2 }}>{new Date(detalhe.data_entrada).toLocaleDateString('pt-BR')}</div></div>
+          )}
+          {detalhe.funcao && (
+            <div><span style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Funcao</span><div style={{ fontSize: 13, color: '#1E293B', fontWeight: 600, marginTop: 2 }}>{detalhe.funcao}</div></div>
+          )}
+          {detalhe.email && (
+            <div><span style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Email</span><div style={{ fontSize: 13, color: '#1E293B', fontWeight: 600, marginTop: 2 }}>{detalhe.email}</div></div>
+          )}
+<div><span style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>GPS Mes</span><div style={{ fontSize: 13, color: '#1E293B', fontWeight: 600, marginTop: 2 }}>{detalhe.gps.kmMes} km | {detalhe.gps.dias} dias</div></div>
+        </div>
+
         {/* Circle navigation */}
         <div style={{ display: 'flex', justifyContent: 'center', gap: 28, marginBottom: 28 }}>
           {secoes.map(s => {
@@ -318,7 +342,7 @@ export default function MecanicosPage() {
         {secao === 'servicos' && (
           <div>
             {detalhe.ordens.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: 40, color: '#94A3B8', fontSize: 14, background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10 }}>Nenhuma OS faturada no mes</div>
+              <div style={{ textAlign: 'center', padding: 40, color: '#94A3B8', fontSize: 14, background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10 }}>Nenhuma OS no mes</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {detalhe.ordens.map(o => {
@@ -468,12 +492,15 @@ export default function MecanicosPage() {
                 {detalhe.alertas.map(a => {
                   const isAtraso = a.tipo === 'atraso_relatorio'
                   const isPendente = a.status === 'pendente'
+                  const isExpanded = expandedAlerta === a.id
                   const statusLabel = a.status === 'justificada' ? 'Justificada' : a.status === 'ocorrencia' ? 'Virou Ocorrencia' : 'Pendente'
                   const statusBg = a.status === 'justificada' ? '#D1FAE5' : a.status === 'ocorrencia' ? '#DBEAFE' : '#FEF3C7'
                   const statusColor = a.status === 'justificada' ? '#065F46' : a.status === 'ocorrencia' ? '#1E40AF' : '#92400E'
                   return (
-                    <div key={a.id} style={{ background: '#fff', border: `1px solid ${isPendente ? (isAtraso ? '#FED7AA' : '#FECACA') : '#E2E8F0'}`, borderRadius: 10, padding: 16, opacity: isPendente ? 1 : 0.75 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+                    <div key={a.id} style={{ background: '#fff', border: `1px solid ${isPendente ? (isAtraso ? '#FED7AA' : '#FECACA') : '#E2E8F0'}`, borderRadius: 10, overflow: 'hidden', opacity: isPendente ? 1 : 0.75, transition: 'all .2s' }}>
+                      {/* Header clicavel */}
+                      <div onClick={() => setExpandedAlerta(isExpanded ? null : a.id)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 16, cursor: 'pointer', flexWrap: 'wrap', userSelect: 'none' }}>
+                        <ChevronDown size={14} color="#64748B" style={{ transition: 'transform .2s', transform: isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)', flexShrink: 0 }} />
                         <span style={{
                           padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700,
                           background: isAtraso ? '#FFF7ED' : '#FEF2F2',
@@ -483,26 +510,77 @@ export default function MecanicosPage() {
                         </span>
                         <span style={{ padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, background: statusBg, color: statusColor }}>{statusLabel}</span>
                         {a.id_ordem && <span style={{ fontSize: 11, color: '#2563EB', fontWeight: 600 }}>{a.id_ordem}</span>}
-                        <span style={{ fontSize: 12, color: '#94A3B8', marginLeft: 'auto' }}>{a.data_referencia ? a.data_referencia.split('-').reverse().join('/') : ''}</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: '#1E293B', flex: 1 }}>{a.descricao}</span>
+                        <span style={{ fontSize: 12, color: '#94A3B8' }}>{a.data_referencia ? a.data_referencia.split('-').reverse().join('/') : ''}</span>
                       </div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: '#1E293B', marginBottom: 2 }}>{a.descricao}</div>
-                      {a.detalhes && <div style={{ fontSize: 13, color: '#64748B', marginBottom: 8 }}>{a.detalhes}</div>}
-                      {a.admin_comentario && (
-                        <div style={{ fontSize: 12, color: '#047857', background: '#F0FDF4', borderRadius: 6, padding: '6px 10px', marginBottom: 8 }}>
-                          <strong>{a.admin_nome || 'Admin'}:</strong> {a.admin_comentario}
-                        </div>
-                      )}
-                      {isPendente && (
-                        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                          <button onClick={() => {
-                            const motivo = prompt('Motivo da justificativa:')
-                            if (motivo !== null) justificarAlerta(a.id, motivo)
-                          }} style={{ padding: '5px 14px', borderRadius: 6, border: '1px solid #10b981', background: '#ECFDF5', color: '#065F46', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <CheckCircle size={12} /> Justificar
-                          </button>
-                          <button onClick={() => alertaParaOcorrencia(a.id)} style={{ padding: '5px 14px', borderRadius: 6, border: '1px solid #DC2626', background: '#FEF2F2', color: '#DC2626', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <AlertTriangle size={12} /> Virar Ocorrencia
-                          </button>
+
+                      {/* Detalhes expandidos */}
+                      {isExpanded && (
+                        <div style={{ borderTop: '1px solid #E2E8F0', padding: 16 }}>
+                          {/* O que aconteceu */}
+                          <div style={{ marginBottom: 14 }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', marginBottom: 4 }}>O que aconteceu</div>
+                            <div style={{ fontSize: 14, color: '#1E293B', lineHeight: 1.5 }}>{a.descricao}</div>
+                          </div>
+
+                          {/* Detalhes extras */}
+                          {a.detalhes && (
+                            <div style={{ marginBottom: 14 }}>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', marginBottom: 4 }}>Detalhes</div>
+                              <div style={{ fontSize: 13, color: '#334155', lineHeight: 1.5, background: '#F8FAFC', borderRadius: 8, padding: 10, border: '1px solid #E2E8F0', whiteSpace: 'pre-wrap' }}>{a.detalhes}</div>
+                            </div>
+                          )}
+
+                          {/* Quando */}
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginBottom: 14 }}>
+                            {a.data_referencia && (
+                              <div>
+                                <div style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Data da OS</div>
+                                <div style={{ fontSize: 13, color: '#1E293B', fontWeight: 600, marginTop: 2 }}>{a.data_referencia.split('-').reverse().join('/')}</div>
+                              </div>
+                            )}
+                            {a.id_ordem && (
+                              <div>
+                                <div style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Ordem</div>
+                                <div style={{ fontSize: 13, color: '#2563EB', fontWeight: 600, marginTop: 2 }}>{a.id_ordem}</div>
+                              </div>
+                            )}
+                            {a.created_at && (
+                              <div>
+                                <div style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Detectado em</div>
+                                <div style={{ fontSize: 13, color: '#1E293B', fontWeight: 600, marginTop: 2 }}>{new Date(a.created_at).toLocaleString('pt-BR')}</div>
+                              </div>
+                            )}
+                            {a.severidade && (
+                              <div>
+                                <div style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Severidade</div>
+                                <div style={{ fontSize: 13, color: a.severidade === 'alta' ? '#DC2626' : a.severidade === 'media' ? '#B45309' : '#64748B', fontWeight: 700, marginTop: 2, textTransform: 'capitalize' }}>{a.severidade}</div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Resolucao */}
+                          {a.admin_comentario && (
+                            <div style={{ marginBottom: 14 }}>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', marginBottom: 4 }}>Resolucao</div>
+                              <div style={{ fontSize: 13, color: '#047857', background: '#F0FDF4', borderRadius: 8, padding: 10, border: '1px solid #BBF7D0' }}>
+                                <strong>{a.admin_nome || 'Admin'}:</strong> {a.admin_comentario}
+                                {a.resolvido_em && <span style={{ display: 'block', fontSize: 11, color: '#94A3B8', marginTop: 4 }}>Resolvido em {new Date(a.resolvido_em).toLocaleString('pt-BR')}</span>}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Acoes */}
+                          {isPendente && (
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <button onClick={(e) => { e.stopPropagation(); const motivo = prompt('Motivo da justificativa:'); if (motivo !== null) justificarAlerta(a.id, motivo) }} style={{ padding: '6px 16px', borderRadius: 6, border: '1px solid #10b981', background: '#ECFDF5', color: '#065F46', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <CheckCircle size={12} /> Justificar
+                              </button>
+                              <button onClick={(e) => { e.stopPropagation(); alertaParaOcorrencia(a.id) }} style={{ padding: '6px 16px', borderRadius: 6, border: '1px solid #DC2626', background: '#FEF2F2', color: '#DC2626', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <AlertTriangle size={12} /> Virar Ocorrencia
+                              </button>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -576,6 +654,7 @@ export default function MecanicosPage() {
             )}
           </div>
         )}
+
       </div>
     )
   }
@@ -593,6 +672,64 @@ export default function MecanicosPage() {
         </div>
       </div>
 
+      {/* Resumo Geral da Oficina */}
+      {!loading && resumoGeral && (() => {
+        const r = resumoGeral
+        const fmtBRL = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 })
+        const saldo = r.receitaTotal - r.despesaTotal
+        return (
+          <div style={{ marginBottom: 24 }}>
+            {/* Cards resumo */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10, marginBottom: 16 }}>
+              <div style={{ background: 'linear-gradient(135deg, #059669, #047857)', borderRadius: 10, padding: 14, color: '#fff' }}>
+                <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.8 }}>Receita Oficina</div>
+                <div style={{ fontSize: 22, fontWeight: 800 }}>{fmtBRL(r.receitaTotal)}</div>
+                <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>{r.qtdOS} OS + {r.qtdPV} PV</div>
+              </div>
+              <div style={{ background: 'linear-gradient(135deg, #DC2626, #B91C1C)', borderRadius: 10, padding: 14, color: '#fff' }}>
+                <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.8 }}>Despesa Total</div>
+                <div style={{ fontSize: 22, fontWeight: 800 }}>{fmtBRL(r.despesaTotal)}</div>
+                <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>Operacional + RH</div>
+              </div>
+              <div style={{ background: saldo >= 0 ? 'linear-gradient(135deg, #0891B2, #0E7490)' : 'linear-gradient(135deg, #B45309, #92400E)', borderRadius: 10, padding: 14, color: '#fff' }}>
+                <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.8 }}>Saldo Oficina</div>
+                <div style={{ fontSize: 22, fontWeight: 800 }}>{fmtBRL(saldo)}</div>
+                <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>Receita - Despesa</div>
+              </div>
+            </div>
+
+            {/* Ranking */}
+            {r.ranking.length > 0 && (
+              <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, overflow: 'hidden' }}>
+                <div style={{ padding: '10px 14px', background: '#F8FAFC', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Trophy size={16} color="#B45309" />
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#475569' }}>Ranking Faturamento OS - Mes</span>
+                </div>
+                {r.ranking.map((rk, i) => {
+                  const maxVal = r.ranking[0]?.valor || 1
+                  const pct = (rk.valor / maxVal) * 100
+                  return (
+                    <div key={i} style={{ padding: '8px 14px', borderTop: '1px solid #F1F5F9', display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: i < 3 ? '#B45309' : '#94A3B8', minWidth: 22 }}>{i + 1}o</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: '#1E293B' }}>{rk.nome}</span>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: '#1E293B' }}>{fmtBRL(rk.valor)}</span>
+                        </div>
+                        <div style={{ height: 5, borderRadius: 3, background: '#F1F5F9', overflow: 'hidden' }}>
+                          <div style={{ height: '100%', borderRadius: 3, background: i < 3 ? '#3b82f6' : '#CBD5E1', width: `${pct}%` }} />
+                        </div>
+                      </div>
+                      <span style={{ fontSize: 11, color: '#94A3B8', minWidth: 36, textAlign: 'right' }}>{rk.qtd} OS</span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )
+      })()}
+
       {loading ? (
         <div style={{ textAlign: 'center', padding: 60, color: '#94A3B8' }}>Carregando...</div>
       ) : mecanicos.length === 0 ? (
@@ -601,44 +738,43 @@ export default function MecanicosPage() {
           <p style={{ fontSize: 13 }}>Configure os mecanicos em Admin {'->'} Permissoes com role &quot;tecnico&quot;</p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
-          {mecanicos.map(m => (
-            <div key={m.id} onClick={() => abrirMecanico(m.tecnico_nome)} style={{
-              background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: 18, cursor: 'pointer',
-              transition: 'all .15s', display: 'flex', gap: 14, alignItems: 'center'
-            }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = '#3b82f6'; e.currentTarget.style.boxShadow = '0 2px 12px rgba(59,130,246,0.1)' }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = '#E2E8F0'; e.currentTarget.style.boxShadow = 'none' }}
-            >
-              <div style={{ width: 44, height: 44, borderRadius: 12, background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
-                {m.avatar_url ? (
-                  <img src={m.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                ) : (
-                  <Users size={20} color="#fff" />
-                )}
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: '#1E293B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.nome}</div>
-                <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 2 }}>{m.tecnico_nome}</div>
-                <div style={{ display: 'flex', gap: 12, marginTop: 6, fontSize: 12 }}>
-                  <span style={{ color: '#3b82f6', fontWeight: 700 }}>{m.stats.total} OS</span>
-                  <span style={{ color: '#047857', fontWeight: 600 }}>{m.stats.horas.toFixed(0)}h</span>
-                  <span style={{ color: '#B45309', fontWeight: 600 }}>{m.stats.km.toFixed(0)} km</span>
-                  {m.alertas_pendentes > 0 && (
-                    <span style={{ padding: '1px 8px', borderRadius: 4, background: '#FEE2E2', color: '#DC2626', fontWeight: 700 }}>
-                      {m.alertas_pendentes} alerta{m.alertas_pendentes > 1 ? 's' : ''}
-                    </span>
-                  )}
-                  {m.ocorrencias_pendentes > 0 && (
-                    <span style={{ padding: '1px 8px', borderRadius: 4, background: '#FEF3C7', color: '#92400E', fontWeight: 700 }}>
-                      {m.ocorrencias_pendentes} oc.
-                    </span>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, justifyContent: 'center' }}>
+          {mecanicos.map(m => {
+            const initials = m.nome.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+            return (
+              <div key={m.id} onClick={() => abrirMecanico(m.tecnico_nome)} style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, cursor: 'pointer',
+                width: 120, textAlign: 'center', position: 'relative'
+              }}>
+                <div style={{
+                  width: 72, height: 72, borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  overflow: 'hidden', transition: 'all .2s', border: '3px solid #E2E8F0',
+                  boxShadow: '0 2px 8px rgba(59,130,246,0.15)'
+                }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#3b82f6'; e.currentTarget.style.transform = 'scale(1.08)' }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = '#E2E8F0'; e.currentTarget.style.transform = 'scale(1)' }}
+                >
+                  {m.avatar_url ? (
+                    <img src={m.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <span style={{ color: '#fff', fontWeight: 800, fontSize: 20 }}>{initials}</span>
                   )}
                 </div>
+                {(m.alertas_pendentes > 0 || m.ocorrencias_pendentes > 0) && (
+                  <div style={{ position: 'absolute', top: -2, right: 10, width: 22, height: 22, borderRadius: '50%', background: '#EF4444', color: '#fff', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff' }}>
+                    {m.alertas_pendentes + m.ocorrencias_pendentes}
+                  </div>
+                )}
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#1E293B', lineHeight: 1.2, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.nome.split(' ').slice(0, 2).join(' ')}</div>
+                <div style={{ display: 'flex', gap: 8, fontSize: 11, fontWeight: 700 }}>
+                  <span style={{ color: '#3b82f6' }}>{m.stats.total} OS</span>
+                  <span style={{ color: '#047857' }}>{m.stats.horas.toFixed(0)}h</span>
+                </div>
               </div>
-              <ChevronRight size={18} color="#CBD5E1" />
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

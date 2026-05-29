@@ -10,7 +10,7 @@ import {
   DollarSign, Package, Menu, X, User as UserIcon,
   LayoutDashboard, Bell, ChevronRight, Activity, Lock, MessageCircle,
   CheckCheck, Trash2, ExternalLink, Calendar, Users, Calculator, BarChart3, Eye, Camera, Wheat, Megaphone,
-  Sun, Moon, Volume2, Check, MapPin, ShieldCheck
+  Sun, Moon, Volume2, Check, MapPin, ShieldCheck, Building
 } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -107,6 +107,14 @@ const navItems: NavItem[] = [
     href: '/atividades',
     icon: <Activity size={18} />,
     tag: 'LOGS',
+    gradient: 'linear-gradient(135deg, #dc2626, #991b1b)'
+  },
+  {
+    id: 'clientes',
+    name: 'Clientes',
+    href: '/clientes',
+    icon: <Building size={18} />,
+    tag: 'CLIENTES',
     gradient: 'linear-gradient(135deg, #dc2626, #991b1b)'
   },
   {
