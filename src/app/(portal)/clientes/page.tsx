@@ -54,8 +54,9 @@ function ClientesPageInner() {
   const [pedidos, setPedidos] = useState<PedidoVenda[]>([])
   const [loadingDetalhe, setLoadingDetalhe] = useState(false)
   const [expandedOS, setExpandedOS] = useState<string | null>(null)
-  const [tab, setTab] = useState<'ordens' | 'projetos'>('ordens')
-  const [projetosData, setProjetosData] = useState<Record<string, any>>({})
+  const [modalProjeto, setModalProjeto] = useState<string | null>(null)
+  const [modalProjetoData, setModalProjetoData] = useState<any>(null)
+  const [modalProjetoLoading, setModalProjetoLoading] = useState(false)
   const [emailsData, setEmailsData] = useState<Record<string, any[]>>({})
   const [loadingEmails, setLoadingEmails] = useState<string | null>(null)
 
@@ -96,15 +97,27 @@ function ClientesPageInner() {
       try { const res = await fetch('/api/clientes?checkSync=1'); const data = await res.json(); if (data.lastSync) { const diffH = (Date.now() - new Date(data.lastSync).getTime()) / 3600000; if (diffH > 6) syncBackground() } else syncBackground() } catch { syncBackground() }
       syncNFs()
     })()
+
+    // Auto-sync a cada 30 minutos: busca OS/PV do dia e NFs pendentes
+    const interval = setInterval(async () => {
+      try {
+        await fetch('/api/clientes/sync-recente')
+        await carregarLista()
+      } catch {}
+    }, 30 * 60 * 1000)
+    return () => clearInterval(interval)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  const carregarProjeto = async (nome: string, empresa: string) => {
-    if (projetosData[nome]) return
+  const abrirModalProjeto = async (nome: string, empresa: string) => {
+    setModalProjeto(nome)
+    setModalProjetoLoading(true)
+    setModalProjetoData(null)
     try {
       const res = await fetch(`/api/clientes/projeto?nome=${encodeURIComponent(nome)}&empresa=${encodeURIComponent(empresa)}`)
       const data = await res.json()
-      setProjetosData(prev => ({ ...prev, [nome]: data }))
+      setModalProjetoData(data)
     } catch {}
+    setModalProjetoLoading(false)
   }
   const carregarEmails = async (chassis: string) => {
     if (emailsData[chassis]) return
@@ -173,179 +186,17 @@ function ClientesPageInner() {
             <div style={{ padding: '10px 20px', display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
               <span style={{ fontSize: '9px', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.5px', marginRight: '4px' }}>Projetos:</span>
               {cli.projetos.map(p => (
-                <a key={p} href={`/clientes/projeto?nome=${encodeURIComponent(p)}&empresa=${encodeURIComponent(cli.empresa)}`}
-                  target="_blank" rel="noopener noreferrer" onClick={(ev) => ev.stopPropagation()}
-                  style={{ fontSize: '11px', color: '#555', padding: '2px 8px', border: `1px solid ${ln}`, borderRadius: '3px', textDecoration: 'none' }}>
+                <button key={p} onClick={() => abrirModalProjeto(p, cli.empresa)}
+                  style={{ fontSize: '11px', color: '#555', padding: '2px 8px', border: `1px solid ${ln}`, borderRadius: '3px', background: '#fff', cursor: 'pointer' }}>
                   {p}
-                </a>
+                </button>
               ))}
             </div>
           )}
         </div>
 
-        {/* ABAS */}
-        {!loadingDetalhe && (
-          <div style={{ display: 'flex', gap: '0', borderBottom: `1px solid ${ln}`, marginBottom: '16px' }}>
-            {[
-              { id: 'ordens' as const, label: `Ordens de Servico (${ordens.length})` },
-              { id: 'projetos' as const, label: `Projetos (${cli.projetos?.length || 0})` },
-            ].map(t => (
-              <button key={t.id} onClick={() => setTab(t.id)}
-                style={{
-                  padding: '8px 20px', border: 'none', cursor: 'pointer', fontSize: '12px',
-                  background: 'transparent', color: tab === t.id ? '#333' : '#999',
-                  borderBottom: tab === t.id ? '2px solid #333' : '2px solid transparent',
-                  marginBottom: '-1px'
-                }}>
-                {t.label}
-              </button>
-            ))}
-          </div>
-        )}
-
         {loadingDetalhe ? (
           <p style={{ color: '#999', fontSize: '13px', padding: '40px 0', textAlign: 'center' }}>Carregando...</p>
-        ) : tab === 'projetos' ? (
-          /* ============ ABA PROJETOS ============ */
-          <div>
-            {(!cli.projetos || cli.projetos.length === 0) ? (
-              <p style={{ color: '#999', fontSize: '13px', padding: '40px 0', textAlign: 'center' }}>Nenhum projeto vinculado</p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {cli.projetos.map(projNome => {
-                  const isExp = expandedOS === `proj-${projNome}`
-                  const projData = projetosData[projNome]
-                  const chassis: any[] = projData?.chassis || []
-
-                  return (
-                    <div key={projNome} style={{ border: `1px solid ${ln}`, borderRadius: '4px', overflow: 'hidden' }}>
-                      <div
-                        onClick={() => {
-                          setExpandedOS(isExp ? null : `proj-${projNome}`)
-                          if (!isExp) carregarProjeto(projNome, cli.empresa)
-                        }}
-                        style={{
-                          display: 'grid', gridTemplateColumns: '1fr 100px 100px 24px',
-                          padding: '10px 14px', cursor: 'pointer',
-                          background: isExp ? '#f8f8f8' : 'transparent', alignItems: 'center',
-                          fontSize: '12px', color: '#333'
-                        }}
-                        onMouseEnter={ev => { if (!isExp) ev.currentTarget.style.background = '#fcfcfc' }}
-                        onMouseLeave={ev => { if (!isExp) ev.currentTarget.style.background = 'transparent' }}>
-                        <span style={{ fontWeight: 500 }}>{projNome}</span>
-                        <span style={{ fontSize: '11px', color: '#888' }}>{projData ? `${projData.resumo?.total_os || 0} ordens` : ''}</span>
-                        <span style={{ fontSize: '11px', color: '#888', textAlign: 'right' }}>{projData ? formatCurrency(projData.resumo?.valor_total_os || 0) : ''}</span>
-                        {isExp ? <ChevronUp size={12} color="#bbb" /> : <ChevronDown size={12} color="#bbb" />}
-                      </div>
-
-                      {isExp && (
-                        <div style={{ borderTop: `1px solid ${ln}`, padding: '14px' }}>
-                          {!projData ? (
-                            <p style={{ color: '#999', fontSize: '12px' }}>Carregando...</p>
-                          ) : (
-                            <div>
-                              {/* Link para pagina completa do projeto */}
-                              <div style={{ marginBottom: '12px' }}>
-                                <a href={`/clientes/projeto?nome=${encodeURIComponent(projNome)}&empresa=${encodeURIComponent(cli.empresa)}`}
-                                  target="_blank" rel="noopener noreferrer"
-                                  style={{ fontSize: '11px', color: '#555', padding: '4px 10px', border: `1px solid ${ln}`, borderRadius: '3px', textDecoration: 'none' }}>
-                                  Ver detalhes completos do projeto
-                                </a>
-                              </div>
-
-                              {/* Chassis */}
-                              {chassis.length > 0 && (
-                                <div>
-                                  <div style={{ fontSize: '9px', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
-                                    Chassis ({chassis.length})
-                                  </div>
-                                  {chassis.map((ch: any) => {
-                                    const chEmails = emailsData[ch.chassis] || null
-                                    const isChExp = expandedOS === `ch-${ch.chassis}`
-
-                                    return (
-                                      <div key={ch.chassis} style={{ border: `1px solid ${ln}`, borderRadius: '4px', marginBottom: '6px', overflow: 'hidden' }}>
-                                        <div
-                                          onClick={(ev) => {
-                                            ev.stopPropagation()
-                                            setExpandedOS(isChExp ? `proj-${projNome}` : `ch-${ch.chassis}`)
-                                            if (!isChExp) carregarEmails(ch.chassis)
-                                          }}
-                                          style={{
-                                            display: 'grid', gridTemplateColumns: '1fr 1fr 24px',
-                                            padding: '8px 12px', cursor: 'pointer', fontSize: '12px', color: '#333',
-                                            background: isChExp ? '#f8f8f8' : 'transparent'
-                                          }}>
-                                          <span>
-                                            <span style={{ fontFamily: 'monospace', fontSize: '11px' }}>{ch.chassis}</span>
-                                            {ch.modelo && <span style={{ color: '#888', marginLeft: '8px', fontSize: '11px' }}>{ch.modelo}</span>}
-                                          </span>
-                                          <span style={{ fontSize: '11px', color: '#888' }}>
-                                            {chEmails ? `${chEmails.length} documento${chEmails.length !== 1 ? 's' : ''}` : loadingEmails === ch.chassis ? 'Buscando...' : 'Clique para buscar'}
-                                          </span>
-                                          {isChExp ? <ChevronUp size={12} color="#bbb" /> : <ChevronDown size={12} color="#bbb" />}
-                                        </div>
-
-                                        {isChExp && (
-                                          <div style={{ borderTop: `1px solid ${ln}`, padding: '10px 12px' }}>
-                                            {loadingEmails === ch.chassis ? (
-                                              <p style={{ color: '#999', fontSize: '11px' }}>Buscando documentos no email...</p>
-                                            ) : chEmails && chEmails.length === 0 ? (
-                                              <p style={{ color: '#999', fontSize: '11px' }}>Nenhum documento encontrado para este chassis</p>
-                                            ) : chEmails ? (
-                                              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                                {chEmails.map((email: any, ei: number) => {
-                                                  const anexos = email.anexos || []
-                                                  return (
-                                                    <div key={ei} style={{ border: `1px solid ${ln}`, borderRadius: '4px', overflow: 'hidden' }}>
-                                                      <div style={{ padding: '8px 12px', background: '#fafafa', borderBottom: anexos.length > 0 ? `1px solid ${ln}` : 'none' }}>
-                                                        <div style={{ fontSize: '12px', color: '#333', marginBottom: '3px' }}>{email.assunto || '-'}</div>
-                                                        <div style={{ display: 'flex', gap: '16px', fontSize: '10px', color: '#999' }}>
-                                                          <span>{email.de}</span>
-                                                          <span>{email.data ? new Date(email.data).toLocaleDateString('pt-BR') : '-'}</span>
-                                                          <span>{email.pasta}</span>
-                                                        </div>
-                                                      </div>
-                                                      {anexos.length > 0 && (
-                                                        <div style={{ padding: '6px 12px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                                                          {anexos.map((anx: any, ai: number) => (
-                                                            <a key={ai} href={anx.url} target="_blank" rel="noopener noreferrer"
-                                                              style={{
-                                                                display: 'inline-flex', alignItems: 'center', gap: '4px',
-                                                                padding: '4px 8px', border: `1px solid ${ln}`, borderRadius: '3px',
-                                                                background: '#fff', color: '#444', fontSize: '10px', textDecoration: 'none'
-                                                              }}>
-                                                              <Download size={10} /> {anx.nome}
-                                                            </a>
-                                                          ))}
-                                                        </div>
-                                                      )}
-                                                    </div>
-                                                  )
-                                                })}
-                                              </div>
-                                            ) : null}
-                                          </div>
-                                        )}
-                                      </div>
-                                    )
-                                  })}
-                                </div>
-                              )}
-
-                              {chassis.length === 0 && (
-                                <p style={{ color: '#999', fontSize: '11px' }}>Nenhum chassis encontrado neste projeto</p>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
         ) : ordens.length === 0 ? (
           <p style={{ color: '#999', fontSize: '13px', padding: '40px 0', textAlign: 'center' }}>Nenhuma ordem de servico encontrada</p>
         ) : (
@@ -480,6 +331,152 @@ function ClientesPageInner() {
                 </div>
               )
             })()}
+          </div>
+        )}
+
+        {/* MODAL PROJETO */}
+        {modalProjeto && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            onClick={() => setModalProjeto(null)}>
+            <div style={{ background: '#fff', borderRadius: '6px', width: '90%', maxWidth: '900px', maxHeight: '85vh', overflow: 'auto', border: `1px solid ${ln}` }}
+              onClick={ev => ev.stopPropagation()}>
+
+              {/* Header modal */}
+              <div style={{ padding: '16px 20px', borderBottom: `1px solid ${ln}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: '#fff', zIndex: 1 }}>
+                <div>
+                  <div style={{ fontSize: '16px', color: '#111' }}>{modalProjeto}</div>
+                  <div style={{ fontSize: '11px', color: '#999' }}>{cli.empresa}</div>
+                </div>
+                <button onClick={() => setModalProjeto(null)}
+                  style={{ background: 'none', border: 'none', fontSize: '20px', color: '#999', cursor: 'pointer', padding: '4px 8px' }}>
+                  x
+                </button>
+              </div>
+
+              {modalProjetoLoading ? (
+                <div style={{ padding: '40px', textAlign: 'center', color: '#999', fontSize: '13px' }}>Carregando projeto...</div>
+              ) : !modalProjetoData ? (
+                <div style={{ padding: '40px', textAlign: 'center', color: '#999', fontSize: '13px' }}>Erro ao carregar projeto</div>
+              ) : (() => {
+                const d = modalProjetoData
+                const chassis: any[] = d.chassis || []
+                const nfs: any[] = d.notas_fiscais || []
+                const osProj: any[] = d.ordens || []
+                const pvsProj: any[] = d.pedidos_venda || []
+                const resumo = d.resumo || {}
+
+                return (
+                  <div style={{ padding: '16px 20px' }}>
+
+                    {/* Resumo */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px', marginBottom: '16px' }}>
+                      {[
+                        { l: 'Ordens de Servico', v: String(resumo.total_os || 0) },
+                        { l: 'Valor Servicos', v: formatCurrency(resumo.valor_total_os || 0) },
+                        { l: 'Pedidos de Venda', v: String(resumo.total_pv || 0) },
+                        { l: 'Valor Pecas', v: formatCurrency(resumo.valor_total_pv || 0) },
+                      ].map((f, i) => (
+                        <div key={i} style={{ padding: '8px 14px', border: `1px solid ${ln}`, borderRadius: '4px' }}>
+                          <div style={{ fontSize: '9px', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>{f.l}</div>
+                          <div style={{ fontSize: '14px', color: '#222' }}>{f.v}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Chassis */}
+                    {chassis.length > 0 && (
+                      <div style={{ marginBottom: '16px' }}>
+                        <div style={{ fontSize: '9px', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
+                          Chassis ({chassis.length})
+                        </div>
+                        <div style={{ border: `1px solid ${ln}`, borderRadius: '4px', overflow: 'hidden' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', padding: '6px 12px', background: '#fafafa', borderBottom: `1px solid ${ln}`, fontSize: '9px', color: '#999', textTransform: 'uppercase' }}>
+                            <span>Chassis</span><span>Modelo</span><span>Cliente</span>
+                          </div>
+                          {chassis.map((ch: any, ci: number) => (
+                            <div key={ci} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', padding: '7px 12px', borderBottom: `1px solid ${ln2}`, fontSize: '12px', color: '#333' }}>
+                              <span style={{ fontFamily: 'monospace', fontSize: '11px' }}>{ch.chassis}</span>
+                              <span>{ch.modelo || '-'}</span>
+                              <span style={{ color: '#666', fontSize: '11px' }}>{ch.cliente_nome || '-'}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Notas Fiscais */}
+                    {nfs.length > 0 && (
+                      <div style={{ marginBottom: '16px' }}>
+                        <div style={{ fontSize: '9px', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
+                          Notas Fiscais ({nfs.length})
+                        </div>
+                        <div style={{ border: `1px solid ${ln}`, borderRadius: '4px', overflow: 'hidden' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '60px 1fr 80px 90px 80px 60px', padding: '6px 12px', background: '#fafafa', borderBottom: `1px solid ${ln}`, fontSize: '9px', color: '#999', textTransform: 'uppercase' }}>
+                            <span>Tipo</span><span>Origem</span><span>Numero</span><span style={{ textAlign: 'right' }}>Valor</span><span>Data</span><span></span>
+                          </div>
+                          {nfs.map((nf: any, ni: number) => (
+                            <div key={ni} style={{ display: 'grid', gridTemplateColumns: '60px 1fr 80px 90px 80px 60px', padding: '7px 12px', borderBottom: `1px solid ${ln2}`, fontSize: '11px', color: '#333', alignItems: 'center' }}>
+                              <span style={{ color: '#888' }}>{nf.tipo}</span>
+                              <span>{nf.origem}</span>
+                              <span style={{ fontFamily: 'monospace' }}>{nf.numero || '-'}</span>
+                              <span style={{ textAlign: 'right' }}>{formatCurrency(nf.valor || 0)}</span>
+                              <span style={{ color: '#888' }}>{nf.data ? (nf.data.includes('/') ? nf.data : new Date(nf.data + 'T00:00:00').toLocaleDateString('pt-BR')) : '-'}</span>
+                              <span>{nf.link && <a href={nf.link} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '2px 6px', border: `1px solid ${ln}`, borderRadius: '3px', background: '#fff', color: '#444', fontSize: '10px', textDecoration: 'none' }}><Download size={9} /> PDF</a>}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Ordens */}
+                    {osProj.length > 0 && (
+                      <div style={{ marginBottom: '16px' }}>
+                        <div style={{ fontSize: '9px', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
+                          Ordens de Servico ({osProj.length})
+                        </div>
+                        <div style={{ border: `1px solid ${ln}`, borderRadius: '4px', overflow: 'hidden' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '60px 1fr 80px 90px 80px', padding: '6px 12px', background: '#fafafa', borderBottom: `1px solid ${ln}`, fontSize: '9px', color: '#999', textTransform: 'uppercase' }}>
+                            <span>Numero</span><span>Cliente</span><span>Status</span><span style={{ textAlign: 'right' }}>Valor</span><span>Data</span>
+                          </div>
+                          {osProj.map((os: any, oi: number) => (
+                            <div key={oi} style={{ display: 'grid', gridTemplateColumns: '60px 1fr 80px 90px 80px', padding: '7px 12px', borderBottom: `1px solid ${ln2}`, fontSize: '11px', color: '#333' }}>
+                              <span style={{ fontWeight: 500 }}>{os.num_os}</span>
+                              <span style={{ color: '#666' }}>{os.cliente_nome || '-'}</span>
+                              <span style={{ color: '#888' }}>{os.status}</span>
+                              <span style={{ textAlign: 'right' }}>{formatCurrency(os.valor_total || 0)}</span>
+                              <span style={{ color: '#888' }}>{formatDate(os.data_previsao)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* PVs */}
+                    {pvsProj.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: '9px', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
+                          Pedidos de Venda ({pvsProj.length})
+                        </div>
+                        <div style={{ border: `1px solid ${ln}`, borderRadius: '4px', overflow: 'hidden' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '60px 1fr 80px 90px 80px', padding: '6px 12px', background: '#fafafa', borderBottom: `1px solid ${ln}`, fontSize: '9px', color: '#999', textTransform: 'uppercase' }}>
+                            <span>Numero</span><span>Cliente</span><span>Etapa</span><span style={{ textAlign: 'right' }}>Valor</span><span>Data</span>
+                          </div>
+                          {pvsProj.map((pv: any, pi: number) => (
+                            <div key={pi} style={{ display: 'grid', gridTemplateColumns: '60px 1fr 80px 90px 80px', padding: '7px 12px', borderBottom: `1px solid ${ln2}`, fontSize: '11px', color: '#333' }}>
+                              <span style={{ fontWeight: 500 }}>{pv.num_pedido}</span>
+                              <span style={{ color: '#666' }}>{pv.cliente_nome || '-'}</span>
+                              <span style={{ color: '#888' }}>{pv.etapa || '-'}</span>
+                              <span style={{ textAlign: 'right' }}>{formatCurrency(pv.valor_total || 0)}</span>
+                              <span style={{ color: '#888' }}>{formatDate(pv.data_previsao || pv.data_inclusao)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+            </div>
           </div>
         )}
       </div>
