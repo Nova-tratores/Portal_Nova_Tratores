@@ -131,7 +131,7 @@ function ClientesPageInner() {
   }
 
   const abrirDetalhe = async (cliente: Cliente) => {
-    setSelectedCliente(cliente); setExpandedOS(null); setTab('ordens'); setProjetosData({}); setEmailsData({}); setLoadingDetalhe(true)
+    setSelectedCliente(cliente); setExpandedOS(null); setModalProjeto(null); setEmailsData({}); setLoadingDetalhe(true)
     try { const res = await fetch(`/api/clientes?codCli=${cliente.cod_cli}&empresa=${encodeURIComponent(cliente.empresa)}`); const data = await res.json(); setOrdens(data.ordens || [])
       setPedidos((data.pedidos || []).map((pv: any) => ({ ...pv, itens: typeof pv.itens === 'string' ? JSON.parse(pv.itens) : (pv.itens || []) })))
     } catch {} setLoadingDetalhe(false)
