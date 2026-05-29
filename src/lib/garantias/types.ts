@@ -81,6 +81,7 @@ export interface Montadora {
   auto_enviar_email: boolean;
   email_assunto: string | null;
   email_corpo: string | null;
+  email_assinatura: string | null;
   proximo_numero_sg: number;
   created_at: string;
   updated_at: string;

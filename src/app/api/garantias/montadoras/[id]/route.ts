@@ -25,6 +25,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.auto_enviar_email !== undefined) update.auto_enviar_email = !!body.auto_enviar_email;
   if (body.email_assunto !== undefined) update.email_assunto = body.email_assunto || null;
   if (body.email_corpo !== undefined) update.email_corpo = body.email_corpo || null;
+  if (body.email_assinatura !== undefined) update.email_assinatura = body.email_assinatura || null;
   if (body.proximo_numero_sg !== undefined) {
     update.proximo_numero_sg = Math.max(1, parseInt(body.proximo_numero_sg, 10) || 1);
   }

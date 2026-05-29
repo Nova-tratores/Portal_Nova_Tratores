@@ -62,6 +62,7 @@ interface OmieClienteResponse {
     cidade: string;
     estado: string;
     cep: string;
+    inscricao_estadual?: string;
   }>;
 }
 
@@ -94,9 +95,11 @@ export async function syncClientes(): Promise<{ total: number; novos: number; at
           email: c.email || "",
           telefone: c.telefone1_numero || "",
           endereco,
+          bairro: c.bairro || "",
           cidade: c.cidade || "",
           estado: c.estado || "",
           cep: c.cep || "",
+          inscricao_estadual: c.inscricao_estadual || "",
         };
       });
 

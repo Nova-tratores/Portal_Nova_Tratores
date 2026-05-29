@@ -10,6 +10,7 @@ import {
 } from '@/lib/garantias/sg-mahindra';
 import type {
   TratorDB,
+  ClienteOmie,
   RequisicaoSG,
   FotoBuffer,
   TipoGarantiaSG,
@@ -91,6 +92,31 @@ async function buscarCepViaCEP(uf: string, cidade: string, logradouro: string): 
   }
 }
 
+// Detecta um chassi tipo Mahindra dentro de uma string e separa o modelo.
+// Ex.: "6075 MDI07502LN0001737" → { modelo: "6075", chassi: "MDI07502LN0001737" }
+// Se a string já é só modelo (ex.: "6075E CAB"), o chassi sai vazio.
+// chassiInformado prevalece quando vier preenchido.
+function separarModeloChassi(
+  modeloRaw: string | null | undefined,
+  chassiInformado: string | null | undefined,
+): { modelo: string; chassi: string } {
+  const modeloStr = String(modeloRaw || '').trim();
+  const chassiStr = String(chassiInformado || '').trim();
+  if (!modeloStr) return { modelo: '', chassi: chassiStr };
+  // Padrão: bloco alfanumérico longo (>=12 chars) começando com 2+ letras
+  // → tipicamente chassi Mahindra (MDI07510CS005275 etc.).
+  const match = modeloStr.match(/\b([A-Z]{2,}[A-Z0-9]{10,})\b/);
+  if (match) {
+    const chassiExtraido = match[1];
+    const modeloLimpo = modeloStr
+      .replace(chassiExtraido, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return { modelo: modeloLimpo, chassi: chassiStr || chassiExtraido };
+  }
+  return { modelo: modeloStr, chassi: chassiStr };
+}
+
 // POST /api/garantias/[id]/enviar-sg
 // Gera a SG xlsx no formato da montadora, anexa fotos da OS e envia por e-mail.
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -163,16 +189,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .maybeSingle(),
     supabase
       .from(TBL_GAR_ANEXOS)
-      .select('id, url, nome_arquivo, created_at')
+      .select('id, url, nome_arquivo, content_type, created_at')
       .eq('garantia_id', id)
       .eq('categoria', 'envio_fabrica')
-      .order('created_at', { ascending: false })
-      .limit(1),
+      .order('created_at', { ascending: false }),
   ]);
   garantia.pecas = pecasRes.data || [];
-  const anexoExistente = (anexosRes.data || [])[0] as
-    | { id: string; url: string; nome_arquivo: string | null; created_at: string }
-    | undefined;
+  // Todos os arquivos da seção "envio_fabrica" entram como anexos do e-mail.
+  // O .xlsx mais recente é a SG principal (substitui o gerado se houver versão
+  // revisada). Os demais (PDFs de NF, recibos, etc.) vão como anexos extras.
+  type AnexoLinha = { id: string; url: string; nome_arquivo: string | null; content_type: string | null; created_at: string };
+  const anexosEnvio = (anexosRes.data || []) as AnexoLinha[];
+  const xlsxRegex = /\.xlsx?$/i;
+  const anexoExistente = anexosEnvio.find((a) => xlsxRegex.test(a.nome_arquivo || '')) || undefined;
+  const anexosExtras = anexosEnvio.filter((a) => a !== anexoExistente);
 
   // 3. Define caminho/nome
   const nomeArquivoBase = nomeArquivoSG(garantia);
@@ -188,7 +218,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       'tipo_garantia_sg'
     ] as TipoGarantiaSG) || 'produto_garantia';
 
-  const [tratorRes, requisicoesOsRes] = await Promise.all([
+  const cnpjCliente = String(osRes.data?.Cnpj_Cliente || '').replace(/\D/g, '');
+  const [tratorRes, requisicoesOsRes, clienteRes] = await Promise.all([
     chassis
       ? supabase
           .from('tratores')
@@ -203,8 +234,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .select('id, titulo, obs, recibo_fornecedor, fornecedor, valor_cobrado_cliente, Motivo')
       .eq('ordem_servico', garantia.id_ordem)
       .not('status', 'in', '("lixeira","cancelada")'),
+    // Busca cliente Omie por CNPJ (best-effort) — telefone, e-mail, bairro,
+    // inscrição estadual. Match por CNPJ só com dígitos pra evitar erros de máscara.
+    cnpjCliente
+      ? supabase
+          .from('Clientes')
+          .select('cnpj_cpf, telefone, email, endereco, cep, bairro, inscricao_estadual')
+          .or(`cnpj_cpf.eq.${cnpjCliente},cnpj_cpf.eq.${osRes.data?.Cnpj_Cliente}`)
+          .limit(1)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
   const trator = (tratorRes.data || null) as TratorDB | null;
+  const cliente = (clienteRes.data || null) as ClienteOmie | null;
   type ReqRow = {
     id: number;
     titulo: string | null;
@@ -322,6 +364,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           os: osRes.data as DadosOS | null,
           tecnico: tecRes.data as DadosTec | null,
           trator,
+          cliente,
           cep,
           pecasUtilizadas,
           requisicoes: requisicoesParaSG,
@@ -338,6 +381,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         os: osRes.data as DadosOS | null,
         tecnico: tecRes.data as DadosTec | null,
         trator,
+        cliente,
         cep,
         pecasUtilizadas,
         requisicoes: requisicoesParaSG,
@@ -369,11 +413,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   // 6. Monta assunto e corpo (sanitiza variáveis pra evitar injeção HTML)
-  // Fallback para garantias antigas onde chassi/modelo não foram salvos no
-  // registro `garantias`: pega de `Ordem_Servico_Tecnicos` e da tabela `tratores`.
+  // Prioriza dados da tabela `tratores` (limpos via integração) sobre o que
+  // foi salvo na garantia (técnico pode ter digitado modelo+chassi colado).
+  // Se nada na `tratores` bater, faz fallback em garantia/Ordem_Servico_Tecnicos
+  // e roda separarModeloChassi() pra extrair o chassi de dentro do modelo
+  // quando o técnico digitou "6075 MDI07502LN0001737" no campo Modelo.
+  const sepGarantia = separarModeloChassi(garantia.modelo, garantia.chassis);
+  const sepTec = separarModeloChassi(null, tecRes.data?.Chassis);
   const chassisFinal =
-    garantia.chassis || tecRes.data?.Chassis || trator?.Chassis || '';
-  const modeloFinal = garantia.modelo || trator?.Modelo || '';
+    trator?.Chassis || sepTec.chassi || sepGarantia.chassi || '';
+  const modeloFinal = trator?.Modelo || sepGarantia.modelo || '';
   const varsSan = {
     numero: sanitizeHtml(numeroSG),
     cliente: sanitizeHtml(garantia.cliente || osRes.data?.Os_Cliente || ''),
@@ -391,11 +440,31 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const corpoBase = garantia.montadora.email_corpo
     ? aplicarTemplate(garantia.montadora.email_corpo, varsSan)
     : `${saudacao()}, segue em anexo a Solicitação de Garantia ${varsSan.numero} referente à OS ${varsSan.os} do cliente ${varsSan.cliente}${varsSan.chassis ? ` (chassi ${varsSan.chassis})` : ''}.\n\nQualquer dúvida estamos à disposição.\n\nAtt,\nPós-Vendas Nova Tratores`;
-  const html = `<p>${corpoBase.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</p>`;
+  const corpoHtml = `<p>${corpoBase.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</p>`;
+  // Assinatura HTML configurada por montadora (logos, nome, telefone).
+  // Vai como HTML puro — o admin já valida visualmente no preview do editor.
+  const assinaturaHtml = garantia.montadora.email_assinatura || '';
+  const html = assinaturaHtml ? `${corpoHtml}\n${assinaturaHtml}` : corpoHtml;
 
   // 7. Envia o e-mail. Se usamos um anexo existente, NÃO faz upload novo
   // (o arquivo já está no Storage e o anexo já está registrado).
   // Se geramos um novo (não havia anexo), faz upload em paralelo.
+  // Baixa anexos extras (NF, recibos, etc.) que o garantista anexou na seção
+  // de envio à fábrica além da própria SG xlsx.
+  const anexosExtrasBaixados: { filename: string; content: Buffer; contentType?: string }[] = [];
+  for (const a of anexosExtras) {
+    const buf = await baixarUrl(a.url);
+    if (!buf) {
+      console.warn(`Não foi possível baixar anexo extra: ${a.nome_arquivo}`);
+      continue;
+    }
+    anexosExtrasBaixados.push({
+      filename: a.nome_arquivo || `anexo-${a.id}`,
+      content: buf,
+      contentType: a.content_type || undefined,
+    });
+  }
+
   try {
     const sendMailPromise = transporter.sendMail({
       from: `"Pós-Vendas Nova Tratores" <${process.env.GMAIL_USER}>`,
@@ -404,6 +473,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       html,
       attachments: [
         { filename: nomeArquivo, content: buffer, contentType: xlsxMime },
+        ...anexosExtrasBaixados,
       ],
     });
 
@@ -442,7 +512,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       await registrarEvento(id, {
         tipo: 'sg_enviado',
         ator,
-        detalhe: `SG enviada para ${destinatarios.join(', ')}${up ? '' : ' — arquivo não foi armazenado'}`,
+        detalhe: `SG enviada para ${destinatarios.join(', ')}${anexosExtrasBaixados.length ? ` (+${anexosExtrasBaixados.length} anexo(s) extra(s))` : ''}${up ? '' : ' — arquivo não foi armazenado'}`,
       });
 
       return NextResponse.json({
@@ -460,7 +530,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await registrarEvento(id, {
       tipo: 'sg_enviado',
       ator,
-      detalhe: `SG revisada enviada para ${destinatarios.join(', ')}`,
+      detalhe: `SG revisada enviada para ${destinatarios.join(', ')}${anexosExtrasBaixados.length ? ` (+${anexosExtrasBaixados.length} anexo(s) extra(s))` : ''}`,
     });
 
     return NextResponse.json({

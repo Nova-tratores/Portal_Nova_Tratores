@@ -94,6 +94,14 @@ const navItems: NavItem[] = [
     gradient: 'linear-gradient(135deg, #991b1b, #7f1d1d)'
   },
   {
+    id: 'feedbacks',
+    name: 'Feedbacks & CRM',
+    href: '/feedbacks',
+    icon: <Megaphone size={18} />,
+    tag: 'CRM',
+    gradient: 'linear-gradient(135deg, #dc2626, #b91c1c)'
+  },
+  {
     id: 'orcamentos',
     name: 'Orçamentos',
     href: '/orcamentos',

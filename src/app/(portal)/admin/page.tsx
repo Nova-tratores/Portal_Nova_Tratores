@@ -18,6 +18,7 @@ const MODULOS = [
   { id: 'ppv', label: 'Peças (PPV)', color: '#ef4444' },
   { id: 'garantias', label: 'Garantias', color: '#0ea5e9' },
   { id: 'propostas', label: 'Propostas', color: '#991b1b' },
+  { id: 'feedbacks', label: 'Feedbacks & CRM', color: '#dc2626' },
   { id: 'orcamentos', label: 'Orçamentos', color: '#ef4444' },
   { id: 'tarefas', label: 'Tarefas', color: '#dc2626' },
   { id: 'atividades', label: 'Atividades', color: '#dc2626' },

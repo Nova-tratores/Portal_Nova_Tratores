@@ -40,6 +40,7 @@ export default function MontadoraEditor({ montadora, criadoPor, onClose, onSaved
   const [autoEnviar, setAutoEnviar] = useState(montadora?.auto_enviar_email ?? false);
   const [emailAssunto, setEmailAssunto] = useState(montadora?.email_assunto || '');
   const [emailCorpo, setEmailCorpo] = useState(montadora?.email_corpo || '');
+  const [emailAssinatura, setEmailAssinatura] = useState(montadora?.email_assinatura || '');
   const [proximoNumeroSG, setProximoNumeroSG] = useState(
     String(montadora?.proximo_numero_sg ?? 1),
   );
@@ -100,6 +101,7 @@ export default function MontadoraEditor({ montadora, criadoPor, onClose, onSaved
         auto_enviar_email: autoEnviar,
         email_assunto: emailAssunto.trim() || null,
         email_corpo: emailCorpo.trim() || null,
+        email_assinatura: emailAssinatura.trim() || null,
         proximo_numero_sg: Math.max(1, parseInt(proximoNumeroSG, 10) || 1),
       };
       const url = montadora
@@ -304,6 +306,40 @@ export default function MontadoraEditor({ montadora, criadoPor, onClose, onSaved
                   Variáveis: <code>{'{{numero}}'}</code>, <code>{'{{cliente}}'}</code>, <code>{'{{os}}'}</code>,
                   <code>{'{{chassis}}'}</code>, <code>{'{{modelo}}'}</code>
                 </span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--portal-text-secondary)' }}>
+                  Assinatura do e-mail (HTML, opcional)
+                </label>
+                <textarea
+                  value={emailAssinatura}
+                  onChange={(e) => setEmailAssinatura(e.target.value)}
+                  placeholder={`<p style="color:#7c3aed;font-style:italic"><b>Vinícius Corrêa</b><br>Pós-Vendas</p>\n<img src="https://.../logo-nova.png" height="40">`}
+                  rows={6}
+                  style={{ ...inputStyle, resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }}
+                />
+                <span style={{ fontSize: 11, color: 'var(--portal-text-faint)' }}>
+                  Cole o HTML da sua assinatura. Suporta <code>&lt;img&gt;</code> com URL pública, cores e formatação.
+                  É colado no fim de todo e-mail SG enviado por essa montadora.
+                </span>
+                {emailAssinatura && (
+                  <div
+                    style={{
+                      marginTop: 4,
+                      padding: 10,
+                      border: '1px dashed var(--portal-border)',
+                      borderRadius: 8,
+                      background: 'var(--portal-bg-secondary)',
+                      fontSize: 11,
+                    }}
+                  >
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--portal-text-muted)', marginBottom: 6, textTransform: 'uppercase' }}>
+                      Pré-visualização
+                    </div>
+                    <div dangerouslySetInnerHTML={{ __html: emailAssinatura }} />
+                  </div>
+                )}
               </div>
             </div>
 
