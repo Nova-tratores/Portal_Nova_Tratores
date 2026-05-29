@@ -17,7 +17,7 @@ export default function ClientModal({ onClose }) {
   const handleSave = async (e) => {
     e.preventDefault()
     setLoading(true)
-    const { error } = await supabase.from('Clientes').insert([formData])
+    const { error } = await supabase.from('Cliente_Manual').insert([formData])
     if (error) { alert("Erro ao cadastrar: " + error.message) }
     else { alert("CLIENTE CADASTRADO COM SUCESSO!"); onClose() }
     setLoading(false)

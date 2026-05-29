@@ -196,7 +196,7 @@ export default function EditModal({ proposal, onClose }) {
     doc.setFont("helvetica", "normal")
     doc.text(`${formData['Cpf/Cpnj'] || ''}`, midPointL, y + 9, { align: "center" })
     doc.text(`${formData.End_Entrega || ''}`, midPointL, y + 13, { align: "center" })
-    doc.text(`${formData.Bairro || ''}`, midPointL, y + 17, { align: "center" })
+    doc.text(`${formData.Cidade || ''}`, midPointL, y + 17, { align: "center" })
 
     doc.line(directorLineX, y, pageWidth - margin, y)
     if (assinaturaDiretor) {
