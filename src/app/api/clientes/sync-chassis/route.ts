@@ -133,7 +133,8 @@ export async function POST(req: NextRequest) {
               if (!uids || uids.length === 0) { lock.release(); continue; }
 
               for await (const msg of client.fetch(uids.slice(-30), { envelope: true, bodyStructure: true })) {
-                const env = msg.envelope;
+                const env = msg.envelope as any;
+                if (!env) continue;
                 const anexos: { nome: string; tipo: string; part: string; size: number }[] = [];
 
                 function findAttachments(node: any) {
