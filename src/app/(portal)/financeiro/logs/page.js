@@ -12,13 +12,15 @@ import {
 const PAGE_SIZE = 30
 
 const ACAO_COLORS = {
-  criar:        { bg: '#f0fdf4', text: '#16a34a', border: '#bbf7d0' },
-  editar:       { bg: '#eff6ff', text: '#3b82f6', border: '#bfdbfe' },
-  deletar:      { bg: '#fef2f2', text: '#dc2626', border: '#fecaca' },
-  mover_status: { bg: '#fffbeb', text: '#d97706', border: '#fde68a' },
-  upload:       { bg: '#ecfeff', text: '#0891b2', border: '#a5f3fc' },
-  enviar_email: { bg: '#faf5ff', text: '#7c3aed', border: '#ddd6fe' },
-  visualizar:   { bg: '#f5f5f5', text: '#737373', border: '#e5e5e5' },
+  criar:            { bg: '#f0fdf4', text: '#16a34a', border: '#bbf7d0' },
+  editar:           { bg: '#eff6ff', text: '#3b82f6', border: '#bfdbfe' },
+  deletar:          { bg: '#fef2f2', text: '#dc2626', border: '#fecaca' },
+  mover_status:     { bg: '#fffbeb', text: '#d97706', border: '#fde68a' },
+  upload:           { bg: '#ecfeff', text: '#0891b2', border: '#a5f3fc' },
+  enviar_email:     { bg: '#faf5ff', text: '#7c3aed', border: '#ddd6fe' },
+  enviar_omie:      { bg: '#ecfdf5', text: '#047857', border: '#a7f3d0' },
+  erro_envio_omie:  { bg: '#fef2f2', text: '#b91c1c', border: '#fca5a5' },
+  visualizar:       { bg: '#f5f5f5', text: '#737373', border: '#e5e5e5' },
 }
 
 const ACAO_LABELS = {
@@ -28,6 +30,8 @@ const ACAO_LABELS = {
   mover_status: 'Moveu status',
   upload: 'Upload',
   enviar_email: 'Enviou email',
+  enviar_omie: 'Enviou ao Omie',
+  erro_envio_omie: 'Erro envio Omie',
   visualizar: 'Visualizou',
 }
 

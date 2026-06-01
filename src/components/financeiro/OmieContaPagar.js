@@ -6,6 +6,7 @@ import { Building2, FolderOpen, Landmark, Tag, Send, CheckCircle, RefreshCw, Use
 import ChecklistValidacao from './ChecklistValidacao'
 import { lerChaveNFeDeUrl } from '@/lib/financeiro/leitor-anexos'
 import { supabase } from '@/lib/supabase'
+import { useAuditLog } from '@/hooks/useAuditLog'
 
 const EMPRESAS = ['Nova Tratores', 'Castro Peças']
 
@@ -419,6 +420,7 @@ export function EnviarParaOmieBox({ finanPagar, onSynced, autoOrigem = {} }) {
   const [valido, setValido] = useState(false)
   const [anexando, setAnexando] = useState(false)
   const [anexosMsg, setAnexosMsg] = useState(null)
+  const { log: auditLog } = useAuditLog()
 
   // Autosave: persiste os campos no finan_pagar (debounced) para não perder o
   // que foi preenchido caso o modal seja fechado e reaberto antes do envio.
@@ -472,6 +474,19 @@ export function EnviarParaOmieBox({ finanPagar, onSynced, autoOrigem = {} }) {
         } else {
           setMsg(data.erro || 'Falha ao enviar para o Omie.')
         }
+        // Loga a falha pra ficar rastreável no /financeiro/logs
+        auditLog({
+          sistema: 'financeiro',
+          acao: 'erro_envio_omie',
+          entidade: 'finan_pagar',
+          entidade_id: String(finanPagar.id),
+          entidade_label: `Pagar #${finanPagar.id} - ${finanPagar.fornecedor || ''}`,
+          detalhes: {
+            erro: data.erro || 'Falha desconhecida',
+            issues: issues || undefined,
+            empresa: campos.empresa,
+          },
+        })
         return
       }
       const cods = (data.codigos || []).join(', ')
@@ -484,6 +499,20 @@ export function EnviarParaOmieBox({ finanPagar, onSynced, autoOrigem = {} }) {
           `Você pode anexar esses arquivos manualmente no Omie.`
         )
       }
+      // Loga o envio bem-sucedido com o(s) código(s) Omie pra rastreio
+      auditLog({
+        sistema: 'financeiro',
+        acao: 'enviar_omie',
+        entidade: 'finan_pagar',
+        entidade_id: String(finanPagar.id),
+        entidade_label: `Pagar #${finanPagar.id} - ${finanPagar.fornecedor || ''}`,
+        detalhes: {
+          empresa: data.empresa || campos.empresa,
+          codigos: data.codigos || [],
+          jaExistia: !!data.jaExistia,
+          anexos: data.anexos || undefined,
+        },
+      })
       onSynced?.({
         omie_cod_lancamento: cods,
         omie_empresa: data.empresa || campos.empresa,
@@ -498,7 +527,16 @@ export function EnviarParaOmieBox({ finanPagar, onSynced, autoOrigem = {} }) {
         status_envio: 'enviado',
       }, data)
     } catch (e) {
-      setMsg('Erro de conexão: ' + (e.message || String(e)))
+      const erro = e.message || String(e)
+      setMsg('Erro de conexão: ' + erro)
+      auditLog({
+        sistema: 'financeiro',
+        acao: 'erro_envio_omie',
+        entidade: 'finan_pagar',
+        entidade_id: String(finanPagar.id),
+        entidade_label: `Pagar #${finanPagar.id} - ${finanPagar.fornecedor || ''}`,
+        detalhes: { erro: `Erro de conexão: ${erro}`, empresa: campos.empresa },
+      })
     } finally {
       setEnviando(false)
     }

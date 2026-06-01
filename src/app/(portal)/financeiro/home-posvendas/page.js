@@ -92,7 +92,15 @@ function HomePosVendasContent() {
         }));
       setListaSemBoleto(semBoleto);
 
-      const { data: pag } = await supabase.from('finan_pagar').select('*').eq('status', 'financeiro').order('id', { ascending: false });
+      // Inclui também 'aguardando_omie' — fase intermediária entre 'financeiro'
+      // e 'concluido' criada pra evitar que conta a pagar seja dada como
+      // concluída sem ter sido efetivamente lançada no Omie. Pós-Vendas é
+      // quem precisa enviar pro Omie depois que o financeiro encerra o ciclo.
+      const { data: pag } = await supabase
+        .from('finan_pagar')
+        .select('*')
+        .in('status', ['financeiro', 'aguardando_omie'])
+        .order('id', { ascending: false });
       const { data: rh } = await supabase.from('finan_rh').select('*').neq('status', 'concluido');
 
       setListaPagar((pag || []).map(p => ({ ...p, gTipo: 'pagar' })));
@@ -280,6 +288,38 @@ function HomePosVendasContent() {
 
       <div style={{ padding: '24px 32px' }}>
 
+      {/* Alerta global: contas em 'aguardando_omie' há mais de 30 dias */}
+      {(() => {
+        const HOJE = Date.now()
+        const vencidos = listaPagar.filter(t => {
+          if (t.status !== 'aguardando_omie') return false
+          const ref = t.aguardando_omie_desde || t.criado_em
+          if (!ref) return false
+          const dias = (HOJE - new Date(ref).getTime()) / 86400000
+          return dias >= 30
+        })
+        if (vencidos.length === 0) return null
+        return (
+          <div style={{
+            background: '#fef2f2', border: '1px solid #fca5a5', color: '#7f1d1d',
+            borderLeft: '4px solid #dc2626', borderRadius: '12px',
+            padding: '14px 18px', marginBottom: '20px',
+            display: 'flex', alignItems: 'flex-start', gap: '10px',
+          }}>
+            <AlertCircle size={18} style={{ marginTop: 2, flexShrink: 0, color: '#dc2626' }} />
+            <div style={{ fontSize: '13px', lineHeight: 1.5 }}>
+              <div style={{ fontWeight: 700, marginBottom: '4px' }}>
+                {vencidos.length} conta(s) aguardando envio pro Omie há mais de 30 dias.
+              </div>
+              <div style={{ fontSize: '12px', color: '#991b1b' }}>
+                Verifique se existe um boleto pra enviar pro financeiro sobre {vencidos.length === 1 ? 'esse fornecedor' : 'esses fornecedores'}:{' '}
+                <strong>{vencidos.map(v => v.fornecedor?.trim() || `Pagar #${v.id}`).join(', ')}</strong>.
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '30px' }}>
           {/* COLUNA FATURAMENTO (FILTRADA: SEM PIX, APENAS ENVIAR OU COBRAR) */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -322,8 +362,36 @@ function HomePosVendasContent() {
           {/* COLUNA REQUISICOES / A PAGAR */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <div style={colHeaderStyle}>REQUISICOES</div>
-              {listaPagar.map((t) => (
-                <div key={`pag-${t.id}`} onClick={() => setTarefaSelecionada(t)} className="task-card">
+              {listaPagar.map((t) => {
+                const aguardando = t.status === 'aguardando_omie'
+                const refData = t.aguardando_omie_desde || t.criado_em
+                const diasParado = aguardando && refData
+                  ? Math.floor((Date.now() - new Date(refData).getTime()) / 86400000)
+                  : 0
+                const vencido = aguardando && diasParado >= 30
+                return (
+                <div
+                  key={`pag-${t.id}`}
+                  onClick={() => setTarefaSelecionada(t)}
+                  className="task-card"
+                  style={aguardando ? { border: `2px solid ${vencido ? '#dc2626' : '#f59e0b'}`, borderRadius: '12px' } : undefined}
+                >
+                  {aguardando && (
+                    <div style={{
+                      background: vencido ? '#fef2f2' : '#fef3c7',
+                      color: vencido ? '#b91c1c' : '#92400e',
+                      borderBottom: `1px solid ${vencido ? '#fca5a5' : '#fcd34d'}`,
+                      padding: '6px 12px', fontSize: '11px', fontWeight: 700,
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px',
+                      letterSpacing: '0.4px', textTransform: 'uppercase',
+                    }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        {vencido ? <AlertCircle size={12} /> : <Send size={12} />}
+                        Aguardando envio Omie
+                      </span>
+                      <span>{diasParado}d parado</span>
+                    </div>
+                  )}
                   <div style={{ background: 'var(--portal-bg-card)', padding: '25px', borderBottom: '1px solid var(--portal-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{fontSize: '10px', color: 'var(--portal-text-secondary)', letterSpacing:'1px', marginBottom: '8px', textTransform:'uppercase'}}>{t.metodo || 'Despesa'}</div>
@@ -366,7 +434,8 @@ function HomePosVendasContent() {
                     <div style={{fontSize:'26px', color: 'var(--portal-text)'}}>{formatarMoeda(t.valor)}</div>
                   </div>
                 </div>
-              ))}
+                )
+              })}
           </div>
 
           {/* COLUNA RH */}
@@ -430,7 +499,29 @@ function HomePosVendasContent() {
                   {tarefaSelecionada.gTipo === 'pagar' && (
                     <EnviarParaOmieBox
                       finanPagar={tarefaSelecionada}
-                      onSynced={(patch) => { setTarefaSelecionada(prev => ({ ...prev, ...patch })); carregarDados(); }}
+                      onSynced={async (patch, data) => {
+                        // Envio bem-sucedido: move automaticamente pra 'concluido'.
+                        // (Antes ficava em 'aguardando_omie' até alguém arrastar.)
+                        if (data?.ok && patch?.omie_cod_lancamento) {
+                          await supabase
+                            .from('finan_pagar')
+                            .update({ status: 'concluido', aguardando_omie_desde: null })
+                            .eq('id', tarefaSelecionada.id);
+                          auditLog({
+                            sistema: 'financeiro',
+                            acao: 'mover_status',
+                            entidade: 'finan_pagar',
+                            entidade_id: String(tarefaSelecionada.id),
+                            entidade_label: `Pagar #${tarefaSelecionada.id} - ${tarefaSelecionada.fornecedor || ''}`,
+                            detalhes: { de: tarefaSelecionada.status, para: 'concluido', acao_desc: 'Conta enviada pro Omie e concluída automaticamente' },
+                          });
+                          setTarefaSelecionada(null);
+                          alert('Conta enviada pro Omie e concluída!');
+                        } else {
+                          setTarefaSelecionada(prev => ({ ...prev, ...patch }));
+                        }
+                        carregarDados();
+                      }}
                     />
                   )}
 
