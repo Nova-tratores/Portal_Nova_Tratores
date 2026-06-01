@@ -885,6 +885,7 @@ function RequisicoesPageInner() {
         <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[100] flex items-center justify-center p-4 print:hidden">
           <div className="w-full max-w-5xl bg-white rounded-2xl border border-zinc-200 overflow-y-auto max-h-[90vh] shadow-xl">
             <FormReq onSave={async (nova: Record<string, unknown>) => {
+              nova.criado_por = userName;
               const { error } = await supabase.from('Requisicao').insert([nova]);
               if (error) {
                 console.error('[Requisições] Erro ao criar:', error);

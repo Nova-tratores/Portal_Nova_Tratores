@@ -93,13 +93,13 @@ export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhado
           </div>
         </div>
 
+        {/* Criado por */}
+        <div className="flex items-center gap-1.5 mb-4 -mt-1">
+          <BadgeCheck size={12} className="text-red-400 flex-shrink-0" />
+          <span className="text-[11px] font-semibold text-red-500 truncate">Criado por: {req.criado_por || nomeExibicao}</span>
+        </div>
+
         <div className="space-y-3 border-t border-zinc-200 pt-5 text-zinc-500">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-normal uppercase tracking-widest flex items-center gap-2">
-              <UserCircle size={12} className="text-zinc-400" /> Solicitante:
-            </span>
-            <span className="text-xs font-medium text-zinc-600 truncate max-w-[180px]">{nomeExibicao}</span>
-          </div>
           <div className="flex items-center justify-between">
             <span className="text-xs font-normal uppercase tracking-widest flex items-center gap-2">
               <Calendar size={12} className="text-zinc-400" /> Data:

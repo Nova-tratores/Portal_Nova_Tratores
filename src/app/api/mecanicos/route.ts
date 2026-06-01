@@ -55,10 +55,12 @@ export async function GET(req: NextRequest) {
 
       // Buscar dados extras para perfil individual
       const tecNome = found.tecnico_nome || found.nome;
+      const mesParam = req.nextUrl.searchParams.get("mes");
       const now = new Date();
-      const mesAtual = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      const mesAtual = mesParam || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      const [anoMes, mesMes] = mesAtual.split("-").map(Number);
       const primeiro = `${mesAtual}-01`;
-      const ultimo = `${mesAtual}-${new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()}`;
+      const ultimo = `${mesAtual}-${new Date(anoMes, mesMes, 0).getDate()}`;
 
       // Ordens do tecnico no mes, ocorrencias, GPS
       const [allOrdensRes, ocorrenciasRes, gpsRes, reqRes] = await Promise.all([
@@ -378,7 +380,7 @@ export async function GET(req: NextRequest) {
     const patISO = `${mesAtual}-%`;
 
     const [ocPendentesRes, alertasPendentesRes, osRelRes, pvRelRes, despRelRes, configRelRes] = await Promise.all([
-      supabase.from("mecanico_ocorrencias").select("tecnico_nome, id").eq("status", "pendente"),
+      supabase.from("mecanico_ocorrencias").select("tecnico_nome, id").eq("pontos", 0),
       supabase.from("mecanico_alertas").select("tecnico_nome, id").eq("status", "pendente"),
       supabase.from("ordens_servico_relatorio")
         .select("numero_os, nome_vendedor, valor_total, data_emissao, data_abertura, nome_etapa, status_cancelada, nome_cliente, numero_contrato")
@@ -531,14 +533,14 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "tecnico_nome, tipo e titulo obrigatorios" }, { status: 400 });
       }
 
+      const textoDescricao = titulo + (descricao ? ` - ${descricao}` : "");
+
       const { data, error } = await supabase.from("mecanico_ocorrencias").insert({
         tecnico_nome,
         tipo,
-        titulo,
-        descricao: descricao || "",
-        status: "pendente",
-        criado_por: criado_por || "portal",
-        created_at: new Date().toISOString(),
+        descricao: textoDescricao,
+        data_referencia: new Date().toISOString().slice(0, 10),
+        admin_nome: criado_por || "portal",
       }).select().single();
 
       if (error) throw error;
@@ -546,12 +548,14 @@ export async function POST(req: NextRequest) {
     }
 
     if (acao === "atualizar_ocorrencia") {
-      const { id, status, resposta } = body;
+      const { id, status, resposta, admin_nome } = body;
       if (!id) return NextResponse.json({ error: "id obrigatorio" }, { status: 400 });
 
-      const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
-      if (status) update.status = status;
-      if (resposta !== undefined) update.resposta = resposta;
+      const update: Record<string, unknown> = {};
+      if (admin_nome) update.admin_nome = admin_nome;
+      // Usar pontos como flag de status: 0=pendente, 1=resolvida, -1=cancelada
+      if (status === "resolvida") update.pontos = 1;
+      else if (status === "cancelada") update.pontos = -1;
 
       const { error } = await supabase.from("mecanico_ocorrencias").update(update).eq("id", id);
       if (error) throw error;
@@ -589,11 +593,10 @@ export async function POST(req: NextRequest) {
       await supabase.from("mecanico_ocorrencias").insert({
         tecnico_nome: alerta.tecnico_nome,
         tipo: tipoOc,
-        titulo: alerta.descricao,
-        descricao: alerta.detalhes || "",
-        status: "pendente",
-        criado_por: admin_nome || "portal",
-        created_at: new Date().toISOString(),
+        descricao: alerta.descricao + (alerta.detalhes ? ` - ${alerta.detalhes}` : ""),
+        data_referencia: alerta.data_referencia || new Date().toISOString().slice(0, 10),
+        admin_nome: admin_nome || "portal",
+        id_alerta: String(alerta.id),
       });
 
       // Atualizar alerta como virou ocorrencia

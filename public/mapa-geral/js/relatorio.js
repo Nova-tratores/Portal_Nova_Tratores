@@ -92,11 +92,26 @@ const Relatorio = {
     },
 
     _extrairTecnicos() {
-        const nomes = new Set();
+        const nomesRaw = new Set();
         this._ordensFiltradas().forEach(o => {
-            (o.tecnicos || []).forEach(t => { if (t) nomes.add(t); });
+            (o.tecnicos || []).forEach(t => { if (t) nomesRaw.add(t); });
         });
-        this._tecnicos = [...nomes].sort();
+        // Agrupar variações do mesmo nome (ex: "Luiz Fernando", "Luiz Fernando De Souza", "Luiz Fernando Sanches")
+        const grupos = {};
+        for (const nome of nomesRaw) {
+            const partes = this._normNome(nome).split(/\s+/).filter(p => p.length > 1);
+            const chave = partes.slice(0, 2).join(' ');
+            if (!grupos[chave]) grupos[chave] = [];
+            grupos[chave].push(nome);
+        }
+        // Usar o nome mais curto como representante do grupo
+        this._tecnicos = Object.values(grupos).map(g => g.sort((a, b) => a.length - b.length)[0]).sort();
+        // Guardar mapa de alias pra somar dados depois
+        this._tecAliases = {};
+        for (const [chave, lista] of Object.entries(grupos)) {
+            const principal = lista.sort((a, b) => a.length - b.length)[0];
+            for (const n of lista) this._tecAliases[this._normNome(n)] = this._normNome(principal);
+        }
     },
 
     // Verifica se ponto esta perto da base
@@ -153,7 +168,7 @@ const Relatorio = {
         }
 
         for (const g of this._gpsData) {
-            const nk = this._normNome(g.tecnico_nome);
+            const nk = this._resolveAlias(g.tecnico_nome);
             if (!this._gpsMap[nk]) {
                 this._gpsMap[nk] = { kmTotal: 0, horasDirigindo: 0, tempoParado: 0, horasServico: 0, dias: 0, nome: g.tecnico_nome };
             }
@@ -163,7 +178,7 @@ const Relatorio = {
             this._gpsMap[nk].horasServico += horasForaDia;
 
             // horas_dirigindo do resumo diario
-            const rKey = `${nk}|${g.data}`;
+            const rKey = `${this._normNome(g.tecnico_nome)}|${g.data}`;
             const dirigindoDia = resumoMap[rKey] || 0;
             this._gpsMap[nk].horasDirigindo += dirigindoDia;
 
@@ -213,10 +228,8 @@ const Relatorio = {
 
     // Encontra dados GPS para um tecnico (match fuzzy pelo primeiro nome)
     _getGPSTecnico(nome) {
-        const n = this._normNome(nome);
-        // Match exato
+        const n = this._resolveAlias(nome);
         if (this._gpsMap[n]) return this._gpsMap[n];
-        // Match pelo primeiro nome
         const primeiro = n.split(/\s+/)[0];
         for (const [k, v] of Object.entries(this._gpsMap)) {
             if (k.split(/\s+/)[0] === primeiro) return v;
@@ -366,10 +379,15 @@ const Relatorio = {
         }
     },
 
+    _resolveAlias(nome) {
+        const n = this._normNome(nome);
+        return (this._tecAliases && this._tecAliases[n]) || n;
+    },
+
     _getOrdensTecnico(nome) {
-        const nNome = this._normNome(nome);
+        const nNome = this._resolveAlias(nome);
         return this._ordensFiltradas().filter(o =>
-            (o.tecnicos || []).some(t => this._normNome(t) === nNome)
+            (o.tecnicos || []).some(t => this._resolveAlias(t) === nNome)
         );
     },
 
@@ -416,9 +434,9 @@ const Relatorio = {
                 <button onclick="Relatorio._mudarMes(1)" style="width:32px;height:32px;border-radius:8px;border:1px solid #E2E8F0;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#64748B">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
                 </button>
-                <button onclick="Relatorio._toggleKmView()" style="padding:6px 14px;border-radius:8px;border:1px solid #f59e0b;background:#FFFBEB;color:#B45309;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:4px" title="Registrar KM do odometro dos veiculos">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                    KM Veiculos
+                <button onclick="Relatorio._toggleKmView()" style="padding:6px 14px;border-radius:8px;border:1px solid #3b82f6;background:#EFF6FF;color:#1D4ED8;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px" title="Veiculos da frota">
+                    <span style="width:22px;height:22px;border-radius:50%;background:#3b82f6;display:flex;align-items:center;justify-content:center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9L18 10l-3-5H7L4 10 1.5 11.1C.7 11.3 0 12.1 0 13v3c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg></span>
+                    Veiculos Frota
                 </button>
                 <div style="margin-left:auto;display:flex;gap:6px">
                     ${this._renderFiltro()}
@@ -753,8 +771,7 @@ const Relatorio = {
     },
 
     async _carregarKm() {
-        // Carregar veiculos do Rota Exata (oficina), odometros, vinculos, KM salvo e GPS do mes
-        const OFICINA_PLACAS = ['TKY6E68', 'FXM4G90', 'TKC5D99', 'FHY8D25', 'ATJ6211', 'DLZ1967', 'EPX5475'];
+        // Carregar todos os veiculos do Rota Exata, odometros, vinculos, KM salvo e GPS do mes
         const [y, m] = this._mes.split('-').map(Number);
         const primeiro = `${this._mes}-01`;
         const ultimo = `${y}-${String(m).padStart(2, '0')}-${new Date(y, m, 0).getDate()}`;
@@ -787,11 +804,8 @@ const Relatorio = {
             if (pn) gpsKmMap[pn] = (gpsKmMap[pn] || 0) + (parseFloat(g.km_total) || 0);
         }
 
-        // Filtrar so veiculos de oficina
-        const veiculos = (Array.isArray(veicRes) ? veicRes : []).filter(v => {
-            const pn = (v.placa || '').replace(/[^A-Z0-9]/g, '').toUpperCase();
-            return OFICINA_PLACAS.includes(pn);
-        });
+        // Todos os veiculos da frota
+        const veiculos = (Array.isArray(veicRes) ? veicRes : []);
 
         this._kmVeiculos = veiculos.map(v => {
             const pn = (v.placa || '').replace(/[^A-Z0-9]/g, '').toUpperCase();
@@ -889,15 +903,15 @@ const Relatorio = {
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
                 </button>
                 <div style="flex:1">
-                    <div style="font-size:18px;font-weight:700;color:#1E293B">KM Veiculos - Odometro</div>
-                    <div style="font-size:12px;color:#94A3B8">${this._mesLabel()} - Registre o KM no 1o e ultimo dia do mes</div>
+                    <div style="font-size:18px;font-weight:700;color:#1E293B">Veiculos Frota</div>
+                    <div style="font-size:12px;color:#94A3B8">${this._mesLabel()} - Clique no veiculo para ver o historico</div>
                 </div>
                 <button onclick="Relatorio._salvarKm()" style="padding:8px 20px;border-radius:8px;border:none;background:#3b82f6;color:#fff;font-size:13px;font-weight:700;cursor:pointer">Salvar</button>
             </div>
         `;
 
         if (this._kmVeiculos.length === 0) {
-            html += `<div style="text-align:center;padding:40px;color:#94A3B8;font-size:13px">Nenhum veiculo de oficina encontrado no Rota Exata</div>`;
+            html += `<div style="text-align:center;padding:40px;color:#94A3B8;font-size:13px">Nenhum veiculo encontrado no Rota Exata</div>`;
             container.innerHTML = html;
             return;
         }
@@ -934,8 +948,8 @@ const Relatorio = {
 
             html += `
                 <tr>
-                    <td style="padding:10px 12px;border-bottom:1px solid #F1F5F9">
-                        <div style="font-size:13px;font-weight:700;color:#1E293B">${v.placa}</div>
+                    <td style="padding:10px 12px;border-bottom:1px solid #F1F5F9;cursor:pointer" onclick="Relatorio._abrirHistoricoVeiculo('${v.placa}','${v.descricao.replace(/'/g, "\\'")}','${v.placaNorm}',${v.adesao_id || 0})">
+                        <div style="font-size:13px;font-weight:700;color:#3b82f6;text-decoration:underline">${v.placa}</div>
                         <div style="font-size:11px;color:#94A3B8">${v.descricao}</div>
                     </td>
                     <td style="font-size:13px;padding:10px 12px;border-bottom:1px solid #F1F5F9;color:#475569;font-weight:500">${v.tecnico || '-'}</td>
@@ -958,6 +972,118 @@ const Relatorio = {
         }
 
         html += `</tbody></table></div>`;
+        container.innerHTML = html;
+    },
+
+    async _abrirHistoricoVeiculo(placa, descricao, placaNorm, adesaoId) {
+        const container = document.getElementById('relatorio-content');
+        const [y, m] = this._mes.split('-').map(Number);
+        const primeiro = `${this._mes}-01`;
+        const ultimo = `${y}-${String(m).padStart(2, '0')}-${new Date(y, m, 0).getDate()}`;
+
+        container.innerHTML = `<div style="text-align:center;padding:60px;color:#94A3B8;font-size:13px">Carregando historico de ${placa}...</div>`;
+
+        // Buscar OS, requisicoes e GPS do veiculo no mes
+        const [gpsRes, reqRes, osRes] = await Promise.all([
+            _supabase.from('GPS_Viagens').select('*').eq('placa', placa).gte('data', primeiro).lte('data', ultimo).order('data', { ascending: false }),
+            _supabase.from('Requisicao').select('id, titulo, tipo, data, valor_despeza, status, solicitante, fornecedor').or(`veiculo.eq.${placaNorm},titulo.ilike.%${placa}%`).gte('data', primeiro).lte('data', ultimo).order('data', { ascending: false }),
+            _supabase.from('Ordem_Servico').select('Id_Ordem, Os_Cliente, Os_Tecnico, Qtd_HR, Qtd_KM, Previsao_Execucao, Status, Tipo_Servico').or(`Os_Tecnico.ilike.%${placa}%,Os_Tecnico2.ilike.%${placa}%`).gte('Previsao_Execucao', primeiro).lte('Previsao_Execucao', ultimo)
+        ]);
+
+        // Tambem buscar requisicoes pelo IdPlaca numerico (campo veiculo no banco)
+        const { data: reqByPlacaId } = await _supabase.from('Requisicao').select('id, titulo, tipo, data, valor_despeza, status, solicitante, fornecedor').gte('data', primeiro).lte('data', ultimo);
+        const { data: supPlacas } = await _supabase.from('SupaPlacas').select('IdPlaca, NumPlaca').ilike('NumPlaca', `%${placaNorm.slice(-5)}%`);
+        const placaIds = (supPlacas || []).map(p => String(p.IdPlaca));
+        const reqsPlaca = (reqByPlacaId || []).filter(r => placaIds.includes(String(r.veiculo)));
+
+        // Merge requisicoes sem duplicar
+        const reqMap = new Map();
+        for (const r of [...(reqRes.data || []), ...reqsPlaca]) reqMap.set(r.id, r);
+        const requisicoes = Array.from(reqMap.values());
+
+        const viagens = gpsRes.data || [];
+        const ordens = osRes.data || [];
+        const totalKmGps = viagens.reduce((s, g) => s + (parseFloat(g.km_total) || 0), 0);
+
+        let html = `
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+                <button onclick="Relatorio._renderKmVeiculos()" style="width:32px;height:32px;border-radius:8px;border:1px solid #E2E8F0;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#64748B" title="Voltar">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+                </button>
+                <div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#1d4ed8);display:flex;align-items:center;justify-content:center">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9L18 10l-3-5H7L4 10 1.5 11.1C.7 11.3 0 12.1 0 13v3c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>
+                </div>
+                <div style="flex:1">
+                    <div style="font-size:18px;font-weight:700;color:#1E293B">${placa} <span style="font-weight:400;color:#94A3B8;font-size:14px">${descricao}</span></div>
+                    <div style="font-size:12px;color:#94A3B8">${this._mesLabel()}</div>
+                </div>
+            </div>
+        `;
+
+        // Cards resumo
+        html += `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">`;
+        html += `<div style="background:#EFF6FF;border:1px solid #DBEAFE;border-radius:10px;padding:14px"><div style="font-size:10px;font-weight:700;color:#93C5FD;text-transform:uppercase">KM GPS</div><div style="font-size:22px;font-weight:800;color:#1D4ED8">${Math.round(totalKmGps)}</div></div>`;
+        html += `<div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:10px;padding:14px"><div style="font-size:10px;font-weight:700;color:#86EFAC;text-transform:uppercase">Viagens</div><div style="font-size:22px;font-weight:800;color:#047857">${viagens.length}</div></div>`;
+        html += `<div style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:10px;padding:14px"><div style="font-size:10px;font-weight:700;color:#FDBA74;text-transform:uppercase">Requisicoes</div><div style="font-size:22px;font-weight:800;color:#C2410C">${requisicoes.length}</div></div>`;
+        html += `<div style="background:#F5F3FF;border:1px solid #DDD6FE;border-radius:10px;padding:14px"><div style="font-size:10px;font-weight:700;color:#C4B5FD;text-transform:uppercase">Ordens</div><div style="font-size:22px;font-weight:800;color:#6D28D9">${ordens.length}</div></div>`;
+        html += `</div>`;
+
+        // Requisicoes
+        if (requisicoes.length > 0) {
+            html += `<div style="margin-bottom:20px"><div style="font-size:13px;font-weight:700;color:#C2410C;margin-bottom:8px;display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Requisicoes (${requisicoes.length})</div>`;
+            html += `<div style="background:#fff;border:1px solid #E2E8F0;border-radius:10px;overflow:hidden">`;
+            for (const r of requisicoes) {
+                const statusColor = r.status === 'financeiro' ? '#4F46E5' : r.status === 'aguardando' ? '#B45309' : r.status === 'pedido' ? '#DC2626' : '#047857';
+                const statusBg = r.status === 'financeiro' ? '#EEF2FF' : r.status === 'aguardando' ? '#FFFBEB' : r.status === 'pedido' ? '#FEF2F2' : '#F0FDF4';
+                html += `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #F1F5F9;flex-wrap:wrap">`;
+                html += `<span style="font-weight:700;color:#3b82f6;font-size:13px">#${r.id}</span>`;
+                html += `<span style="font-size:12px;color:#1E293B;flex:1">${r.titulo || ''}</span>`;
+                html += `<span style="font-size:11px;padding:2px 8px;border-radius:4px;background:${statusBg};color:${statusColor};font-weight:700">${r.status}</span>`;
+                html += `<span style="font-size:12px;font-weight:700;color:#1E293B">R$ ${r.valor_despeza || '0,00'}</span>`;
+                html += `<span style="font-size:11px;color:#94A3B8">${r.data || ''}</span>`;
+                html += `</div>`;
+            }
+            html += `</div></div>`;
+        }
+
+        // Viagens GPS
+        if (viagens.length > 0) {
+            html += `<div style="margin-bottom:20px"><div style="font-size:13px;font-weight:700;color:#1D4ED8;margin-bottom:8px;display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Viagens GPS (${viagens.length})</div>`;
+            html += `<div style="background:#fff;border:1px solid #E2E8F0;border-radius:10px;overflow:hidden">`;
+            for (const g of viagens) {
+                const km = parseFloat(g.km_total) || 0;
+                const fmtH = (iso) => { if (!iso) return '-'; try { const d = new Date(iso); return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0') } catch { return '-' } };
+                html += `<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid #F1F5F9">`;
+                html += `<span style="font-size:13px;font-weight:700;color:#1E293B;min-width:75px">${g.data ? g.data.split('-').reverse().join('/') : '-'}</span>`;
+                html += `<span style="font-size:12px;color:#64748B">Saiu ${fmtH(g.saida_loja)}</span>`;
+                html += `<span style="font-size:12px;color:#64748B">Chegou ${fmtH(g.chegada_cliente)}</span>`;
+                html += `<span style="font-size:12px;color:#64748B">Retornou ${fmtH(g.retorno_loja)}</span>`;
+                html += `<span style="margin-left:auto;font-size:13px;font-weight:800;color:#1D4ED8">${km.toFixed(0)} km</span>`;
+                html += `</div>`;
+            }
+            html += `</div></div>`;
+        }
+
+        // Ordens
+        if (ordens.length > 0) {
+            html += `<div style="margin-bottom:20px"><div style="font-size:13px;font-weight:700;color:#6D28D9;margin-bottom:8px;display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> Ordens de Servico (${ordens.length})</div>`;
+            html += `<div style="background:#fff;border:1px solid #E2E8F0;border-radius:10px;overflow:hidden">`;
+            for (const o of ordens) {
+                html += `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #F1F5F9;flex-wrap:wrap">`;
+                html += `<span style="font-weight:700;color:#6D28D9;font-size:13px">${o.Id_Ordem}</span>`;
+                html += `<span style="font-size:12px;color:#1E293B;flex:1">${o.Os_Cliente || ''}</span>`;
+                html += `<span style="font-size:11px;color:#64748B">${o.Os_Tecnico || ''}</span>`;
+                html += `<span style="font-size:11px;padding:2px 8px;border-radius:4px;background:#F1F5F9;color:#475569;font-weight:600">${o.Status || ''}</span>`;
+                html += `<span style="font-size:12px;color:#94A3B8">${o.Previsao_Execucao || ''}</span>`;
+                html += `</div>`;
+            }
+            html += `</div></div>`;
+        }
+
+        if (viagens.length === 0 && requisicoes.length === 0 && ordens.length === 0) {
+            html += `<div style="text-align:center;padding:40px;color:#94A3B8;font-size:14px">Nenhum historico encontrado para este veiculo em ${this._mesLabel()}</div>`;
+        }
+
         container.innerHTML = html;
     },
 

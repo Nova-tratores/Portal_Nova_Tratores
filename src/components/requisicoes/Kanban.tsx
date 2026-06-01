@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import CardCapaReq from './CardCapaReq';
 import { supabase } from '@/lib/supabase';
-import { Search, Calendar, Building2, X, Layout, UserCircle, Layers, SlidersHorizontal, Receipt } from 'lucide-react';
+import { Search, Calendar, Building2, X, Layout, UserCircle, Layers, SlidersHorizontal, Receipt, FileDown } from 'lucide-react';
 
 const LISTA_FORNECEDORES_CADASTRADOS = ["Rodrigo Torneiro (Panda)"];
 
@@ -50,7 +50,11 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado }
     e.preventDefault();
     const idRequisicao = e.dataTransfer.getData("idRequisicao");
     if (idRequisicao) {
-      onUpdate(Number(idRequisicao), { status: novoStatus });
+      const updates: any = { status: novoStatus };
+      if (novoStatus === 'financeiro') {
+        updates.enviado_financeiro_data = new Date().toISOString().slice(0, 10);
+      }
+      onUpdate(Number(idRequisicao), updates);
     }
     setColunaArrastando(null);
   };
@@ -124,6 +128,113 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado }
   const temFiltroAtivo = filtroID || filtroTitulo || filtroFornecedor || filtroMes || filtroSolicitante || filtroTipo || filtroNota;
   const limparFiltros = () => { setFiltroID(''); setFiltroTitulo(''); setFiltroFornecedor(''); setFiltroMes(''); setFiltroSolicitante(''); setFiltroTipo(''); setFiltroNota(''); setFiltroFornAguardando(''); setFiltroTecnicoPedido(''); };
   const resultCount = filtradas.filter((r: any) => r.status !== 'lixeira').length;
+
+  const gerarPdfCobranca = async (fornecedor?: string) => {
+    const { default: jsPDF } = await import('jspdf');
+    const doc = new jsPDF();
+    const margin = 20;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    // Filtrar requisições da coluna aguardando
+    let aguardando = filtradas.filter((r: any) => r.status === 'aguardando');
+    if (fornecedor) aguardando = aguardando.filter((r: any) => r.fornecedor === fornecedor);
+
+    // Agrupar por fornecedor
+    const porFornecedor: Record<string, any[]> = {};
+    for (const r of aguardando) {
+      const f = r.fornecedor || 'Sem fornecedor';
+      if (!porFornecedor[f]) porFornecedor[f] = [];
+      porFornecedor[f].push(r);
+    }
+
+    const hora = new Date().getHours();
+    const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite';
+    const dataHoje = new Date().toLocaleDateString('pt-BR');
+    let firstPage = true;
+
+    for (const [nomeForn, reqs] of Object.entries(porFornecedor)) {
+      if (!firstPage) doc.addPage();
+      firstPage = false;
+
+      let y = margin;
+
+      // Header
+      doc.setFillColor(220, 38, 38);
+      doc.rect(0, 0, pageWidth, 22, 'F');
+      doc.setTextColor(255);
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('NOVA TRATORES MAQUINAS AGRICOLAS LTDA', margin, 14);
+
+      y = 32;
+      doc.setTextColor(0);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Data: ${dataHoje}`, margin, y);
+      doc.text(`Fornecedor: ${nomeForn}`, margin, y + 5);
+      y += 16;
+
+      // Saudação
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'normal');
+      const texto = `${saudacao},`;
+      doc.text(texto, margin, y);
+      y += 8;
+
+      const intro = `Gostaríamos de solicitar o envio das Notas Fiscais e respectivos boletos referentes às requisições abaixo listadas. Pedimos a gentileza de providenciar o mais breve possível para que possamos dar andamento ao processo financeiro.`;
+      const splitIntro = doc.splitTextToSize(intro, pageWidth - margin * 2);
+      doc.setFontSize(10);
+      doc.text(splitIntro, margin, y);
+      y += splitIntro.length * 5 + 8;
+
+      // Tabela de requisições
+      doc.setFillColor(245, 245, 245);
+      doc.rect(margin, y, pageWidth - margin * 2, 8, 'F');
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(80);
+      doc.text('ID', margin + 3, y + 5.5);
+      doc.text('TITULO', margin + 25, y + 5.5);
+      doc.text('VALOR', pageWidth - margin - 3, y + 5.5, { align: 'right' });
+      y += 10;
+
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(30);
+      for (const r of reqs) {
+        if (y > 260) { doc.addPage(); y = margin; }
+        doc.setFontSize(9);
+        doc.text(`#${r.id}`, margin + 3, y + 4);
+        const tituloTrunc = (r.titulo || '').substring(0, 60) + ((r.titulo || '').length > 60 ? '...' : '');
+        doc.text(tituloTrunc, margin + 25, y + 4);
+        doc.text(`R$ ${r.valor_despeza || '0,00'}`, pageWidth - margin - 3, y + 4, { align: 'right' });
+        doc.setDrawColor(230);
+        doc.line(margin, y + 7, pageWidth - margin, y + 7);
+        y += 9;
+      }
+
+      y += 10;
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      const encerramento = 'Desde já agradecemos a atenção e ficamos no aguardo do retorno.';
+      doc.text(encerramento, margin, y);
+      y += 12;
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('Atenciosamente,', margin, y);
+      y += 6;
+      doc.setFont('helvetica', 'normal');
+      doc.text('Nova Tratores Máquinas Agrícolas Ltda.', margin, y);
+      y += 5;
+      doc.setFontSize(9);
+      doc.setTextColor(120);
+      doc.text('Departamento de Compras / Pós-Vendas', margin, y);
+    }
+
+    const nomeArquivo = fornecedor
+      ? `Cobranca_NF_${fornecedor.replace(/\s/g, '_')}_${dataHoje.replace(/\//g, '-')}.pdf`
+      : `Cobranca_NF_Fornecedores_${dataHoje.replace(/\//g, '-')}.pdf`;
+    doc.save(nomeArquivo);
+  };
 
   const pillBase = "px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap";
   const pillActive = "bg-red-600 text-white border-red-600";
@@ -215,8 +326,15 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado }
             let items = filtradas.filter((r: any) => r.status === col.id);
             if (col.id === 'financeiro') {
               items = [...items].sort((a: any, b: any) => {
-                const da = a.enviado_financeiro_data || '';
-                const db = b.enviado_financeiro_data || '';
+                const da = a.enviado_financeiro_data || a.data || '';
+                const db = b.enviado_financeiro_data || b.data || '';
+                return db.localeCompare(da);
+              });
+            }
+            if (col.id === 'aguardando') {
+              items = [...items].sort((a: any, b: any) => {
+                const da = a.data || '';
+                const db = b.data || '';
                 return db.localeCompare(da);
               });
             }
@@ -278,31 +396,41 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado }
                     </div>
                   )}
                   {col.id === 'aguardando' && fornecedoresAguardando.length > 0 && (
-                    <div className="mt-3 relative">
-                      <Building2 size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-orange-500 pointer-events-none"/>
-                      <select
-                        value={filtroFornAguardando}
-                        onChange={e => setFiltroFornAguardando(e.target.value)}
-                        className={`w-full text-[12px] rounded-full pl-7 pr-7 py-1.5 outline-none border transition-all appearance-none cursor-pointer ${
-                          filtroFornAguardando
-                            ? 'border-orange-400 bg-orange-50 text-orange-700 font-semibold'
-                            : 'border-zinc-200 bg-white text-zinc-600 hover:border-orange-300'
-                        }`}
-                      >
-                        <option value="">Todos os fornecedores ({fornecedoresAguardando.length})</option>
-                        {fornecedoresAguardando.map((f) => (
-                          <option key={f.nome} value={f.nome}>{f.nome} ({f.qtd})</option>
-                        ))}
-                      </select>
-                      {filtroFornAguardando && (
-                        <button
-                          onClick={() => setFiltroFornAguardando('')}
-                          className="absolute right-7 top-1/2 -translate-y-1/2 text-orange-500 hover:text-orange-700"
-                          title="Limpar"
+                    <div className="mt-3 flex flex-col gap-2">
+                      <div className="relative">
+                        <Building2 size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-orange-500 pointer-events-none"/>
+                        <select
+                          value={filtroFornAguardando}
+                          onChange={e => setFiltroFornAguardando(e.target.value)}
+                          className={`w-full text-[12px] rounded-full pl-7 pr-7 py-1.5 outline-none border transition-all appearance-none cursor-pointer ${
+                            filtroFornAguardando
+                              ? 'border-orange-400 bg-orange-50 text-orange-700 font-semibold'
+                              : 'border-zinc-200 bg-white text-zinc-600 hover:border-orange-300'
+                          }`}
                         >
-                          <X size={12} />
-                        </button>
-                      )}
+                          <option value="">Todos os fornecedores ({fornecedoresAguardando.length})</option>
+                          {fornecedoresAguardando.map((f) => (
+                            <option key={f.nome} value={f.nome}>{f.nome} ({f.qtd})</option>
+                          ))}
+                        </select>
+                        {filtroFornAguardando && (
+                          <button
+                            onClick={() => setFiltroFornAguardando('')}
+                            className="absolute right-7 top-1/2 -translate-y-1/2 text-orange-500 hover:text-orange-700"
+                            title="Limpar"
+                          >
+                            <X size={12} />
+                          </button>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => gerarPdfCobranca(filtroFornAguardando || undefined)}
+                        className="flex items-center justify-center gap-1.5 text-[11px] font-semibold text-orange-600 bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded-full py-1.5 px-3 transition-all cursor-pointer"
+                        title={filtroFornAguardando ? `Gerar cobrança para ${filtroFornAguardando}` : 'Gerar cobrança para todos os fornecedores'}
+                      >
+                        <FileDown size={12} />
+                        Cobrar NF/Boleto {filtroFornAguardando ? `(${filtroFornAguardando})` : '(todos)'}
+                      </button>
                     </div>
                   )}
                 </div>
