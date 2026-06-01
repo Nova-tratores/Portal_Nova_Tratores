@@ -269,6 +269,29 @@ function HomeFinanceiroContent() {
 
  const handleConcluirGeral = async (t) => {
     const table = getCardTable(t);
+    // Conta a pagar sem código Omie → vai pra fase intermediária 'aguardando_omie'
+    // pra Pós-Vendas finalizar o envio antes do ciclo ser dado como concluído.
+    const precisaEnviarOmie = table === 'finan_pagar' && !t.omie_cod_lancamento;
+    if (precisaEnviarOmie) {
+      const ok = window.confirm(
+        'Essa conta a pagar ainda não foi lançada no Omie.\n\n' +
+        'Ela vai pra "Aguardando envio Omie" do Pós-Vendas, ' +
+        'e só conclui depois que eles enviarem.\n\n' +
+        'Deseja continuar?'
+      );
+      if (!ok) return;
+      notificarMovimento(table, t, 'aguardando_omie', `${getCardLabel(t)} — Pendente envio Omie`);
+      await supabase
+        .from('finan_pagar')
+        .update({ status: 'aguardando_omie', aguardando_omie_desde: new Date().toISOString() })
+        .eq('id', t.id);
+      auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: table, entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'aguardando_omie', acao_desc: 'Aguardando envio Omie pelo Pós-Vendas' } });
+      notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} encaminhou pro Pós-Vendas enviar ao Omie — ${getCardLabel(t)}`, null, `/financeiro/home-posvendas`)
+      alert('Encaminhado pra Pós-Vendas finalizar o envio ao Omie.');
+      setTarefaSelecionada(null);
+      carregarDados();
+      return;
+    }
     notificarMovimento(table, t, 'concluido', `${getCardLabel(t)} — Processo concluído`);
     await supabase.from(table).update({ status: 'concluido' }).eq('id', t.id);
     auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: table, entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'concluido', acao_desc: 'Processo concluído' } });
