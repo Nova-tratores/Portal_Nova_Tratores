@@ -90,15 +90,27 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado }
 
   // Técnicos (solicitantes) que têm requisições na coluna "Pedido Realizado"
   const tecnicosPedido = useMemo(() => {
+    const usuarios = dadosCompartilhados?.usuarios || [];
+    const traduzir = (s: string) => {
+      if (s && s.includes('@')) {
+        const u = usuarios.find((u: any) => u.email === s.trim());
+        return u?.nome || s;
+      }
+      return s;
+    };
     const lista = requisicoes
       .filter((r: any) => r.status === 'pedido' && r.solicitante)
-      .map((r: any) => r.solicitante);
-    const contagem: Record<string, number> = {};
-    lista.forEach((s: string) => { contagem[s] = (contagem[s] || 0) + 1; });
+      .map((r: any) => ({ original: r.solicitante, nome: traduzir(r.solicitante) }));
+    const contagem: Record<string, { qtd: number; originais: Set<string> }> = {};
+    lista.forEach((s: any) => {
+      if (!contagem[s.nome]) contagem[s.nome] = { qtd: 0, originais: new Set() };
+      contagem[s.nome].qtd++;
+      contagem[s.nome].originais.add(s.original);
+    });
     return Object.entries(contagem)
       .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([nome, qtd]) => ({ nome, qtd }));
-  }, [requisicoes]);
+      .map(([nome, v]) => ({ nome, qtd: v.qtd, originais: [...v.originais] }));
+  }, [requisicoes, dadosCompartilhados?.usuarios]);
 
   const mesesDisponiveis = useMemo(() => {
     const lista = requisicoes.map((r: any) => {
@@ -342,7 +354,9 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado }
               items = items.filter((r: any) => r.fornecedor === filtroFornAguardando);
             }
             if (col.id === 'pedido' && filtroTecnicoPedido) {
-              items = items.filter((r: any) => r.solicitante === filtroTecnicoPedido);
+              const tec = tecnicosPedido.find((t: any) => t.nome === filtroTecnicoPedido);
+              const originais = tec ? tec.originais : [filtroTecnicoPedido];
+              items = items.filter((r: any) => originais.includes(r.solicitante) || r.solicitante === filtroTecnicoPedido);
             }
             const isOver = colunaArrastando === col.id;
 
