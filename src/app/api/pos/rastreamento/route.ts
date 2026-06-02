@@ -370,13 +370,13 @@ export async function GET(req: NextRequest) {
       }
 
       case 'veiculos_mapa': {
-        // Retorna veiculos com ultima posicao para o mapa
         const vData = await fetchRotaExata('/adesoes', { limit: '200', page: '0' })
         const adesoesList = vData.data || []
 
-        // Janela: ultimos 60 minutos (pega posicao mais recente)
         const agora = new Date()
-        const atras = new Date(agora.getTime() - 60 * 60 * 1000)
+        // Posicoes do dia inteiro pra detectar paradas
+        const inicioDia = new Date(agora)
+        inicioDia.setHours(0, 0, 0, 0)
 
         const BATCH = 10
         const veiculosMapa: any[] = []
@@ -393,26 +393,82 @@ export async function GET(req: NextRequest) {
               motorista: '',
               lat: null, lng: null, ignicao: false, velocidade: 0,
               dt_posicao: null,
-              paradas: [],
+              paradas_hoje: [],
             }
             try {
-              // Busca posicoes da ultima hora
               const w = JSON.stringify({
                 adesao_id: ad.id,
-                dt_posicao: { $gte: atras.toISOString(), $lte: agora.toISOString() }
+                dt_posicao: { $gte: inicioDia.toISOString(), $lte: agora.toISOString() }
               })
-              const posData = await fetchRotaExata('/posicoes', { where: w, limit: '50', page: '0' })
-              const posicoes = Array.isArray(posData.data) ? posData.data : []
+              const posData = await fetchRotaExata('/posicoes', { where: w, limit: '500', page: '0' })
+              const posicoes = (Array.isArray(posData.data) ? posData.data : [])
+                .sort((a: any, b: any) => new Date(a.dt_posicao).getTime() - new Date(b.dt_posicao).getTime())
+
+              veiculo.pontos_hoje = posicoes.length
+
               if (posicoes.length > 0) {
-                // Pega a mais recente (maior timestamp)
-                const last = posicoes.reduce((a: any, b: any) =>
-                  new Date(b.dt_posicao).getTime() > new Date(a.dt_posicao).getTime() ? b : a
-                )
+                const last = posicoes[posicoes.length - 1]
                 veiculo.lat = last.latitude
                 veiculo.lng = last.longitude
                 veiculo.ignicao = last.ignicao === 1
                 veiculo.velocidade = last.velocidade || 0
                 veiculo.dt_posicao = last.dt_posicao
+
+                // Status GPS
+                const minDesdeUltima = Math.round((agora.getTime() - new Date(last.dt_posicao).getTime()) / 60000)
+                if (minDesdeUltima < 5) veiculo.status = 'Online'
+                else if (minDesdeUltima < 30) veiculo.status = `${minDesdeUltima}min atrás`
+                else veiculo.status = 'Offline'
+
+                // Tempo ligado hoje (somar intervalos com ignição = 1)
+                let tempoLigado = 0
+                for (let p = 1; p < posicoes.length; p++) {
+                  if (posicoes[p - 1].ignicao === 1) {
+                    const diff = new Date(posicoes[p].dt_posicao).getTime() - new Date(posicoes[p - 1].dt_posicao).getTime()
+                    if (diff > 0 && diff < 30 * 60 * 1000) {
+                      tempoLigado += diff
+                    }
+                  }
+                }
+                veiculo.tempo_ligado_min = Math.round(tempoLigado / 60000)
+              } else {
+                veiculo.status = 'Sem sinal'
+                veiculo.tempo_ligado_min = 0
+              }
+
+              // Detectar paradas: ignição desligada por >5min no mesmo ponto
+              let paradaInicio: any = null
+              for (const pos of posicoes) {
+                if (pos.ignicao === 0 && pos.velocidade === 0) {
+                  if (!paradaInicio) paradaInicio = pos
+                } else {
+                  if (paradaInicio) {
+                    const durMin = Math.round((new Date(pos.dt_posicao).getTime() - new Date(paradaInicio.dt_posicao).getTime()) / 60000)
+                    if (durMin >= 5) {
+                      veiculo.paradas_hoje.push({
+                        lat: paradaInicio.latitude,
+                        lng: paradaInicio.longitude,
+                        inicio: paradaInicio.dt_posicao,
+                        fim: pos.dt_posicao,
+                        duracao_min: durMin,
+                      })
+                    }
+                    paradaInicio = null
+                  }
+                }
+              }
+              // Parada ainda em andamento
+              if (paradaInicio) {
+                const durMin = Math.round((agora.getTime() - new Date(paradaInicio.dt_posicao).getTime()) / 60000)
+                if (durMin >= 5) {
+                  veiculo.paradas_hoje.push({
+                    lat: paradaInicio.latitude,
+                    lng: paradaInicio.longitude,
+                    inicio: paradaInicio.dt_posicao,
+                    fim: null,
+                    duracao_min: durMin,
+                  })
+                }
               }
             } catch { /* sem posicao */ }
             return veiculo

@@ -32,8 +32,8 @@ const App = {
         // Setup filter listeners
         this.setupFilters();
 
-        // Auto-refresh vehicles every 60s
-        setInterval(() => this.refreshVehicles(), 60000);
+        // Auto-refresh vehicles every 15s (tempo real)
+        setInterval(() => this.refreshVehicles(), 15000);
 
         // Set default dates
         const hoje = new Date();

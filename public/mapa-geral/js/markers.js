@@ -363,17 +363,36 @@ const Markers = {
 
             for (const parada of v.paradas_hoje) {
                 if (!parada.lat || !parada.lng) continue;
-                const stopM = L.circleMarker([parada.lat, parada.lng], {
-                    radius: 8, fillColor: '#f59e0b', color: 'white', weight: 2,
-                    fillOpacity: 0.9
+
+                const durMin = parada.duracao_min || 0;
+                const emAndamento = !parada.fim;
+                const corParada = durMin > 60 ? '#DC2626' : durMin > 30 ? '#EA580C' : '#F59E0B';
+                const tamanho = Math.min(18, 10 + Math.floor(durMin / 15));
+
+                // Formatar tempo
+                const horas = Math.floor(durMin / 60);
+                const mins = durMin % 60;
+                const tempoLabel = horas > 0 ? `${horas}h${mins > 0 ? mins + 'min' : ''}` : `${mins}min`;
+
+                // Marcador com balão de tempo sempre visível
+                const icon = L.divIcon({
+                    className: '',
+                    html: `<div style="position:relative;display:flex;align-items:center;justify-content:center">
+                        <div style="width:${tamanho * 2}px;height:${tamanho * 2}px;border-radius:50%;background:${corParada};border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.3);opacity:0.9;${emAndamento ? 'animation:pulse-parada 1.5s infinite' : ''}"></div>
+                        <div style="position:absolute;top:${-14}px;left:50%;transform:translateX(-50%);background:${corParada};color:#fff;font-size:10px;font-weight:800;padding:2px 6px;border-radius:4px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,0.2)">${tempoLabel}${emAndamento ? '...' : ''}</div>
+                    </div>`,
+                    iconSize: [tamanho * 2, tamanho * 2 + 14],
+                    iconAnchor: [tamanho, tamanho],
                 });
+
+                const stopM = L.marker([parada.lat, parada.lng], { icon });
                 stopM.bindPopup(`
-                    <div class="popup-title">⏸️ Parada ${parada.duracao_min} min</div>
-                    <div class="popup-detail">🚗 ${v.placa} (${v.motorista || 'N/D'})</div>
-                    <div class="popup-detail">Chegada: ${Utils.formatTime(parada.inicio)}</div>
-                    <div class="popup-detail">Saida: ${Utils.formatTime(parada.fim)}</div>
-                    ${parada.endereco ? `<div class="popup-detail">📍 ${parada.endereco}</div>` : ''}
-                `, { maxWidth: 260 });
+                    <div class="popup-title" style="font-size:14px;font-weight:700">⏸️ Parada — ${tempoLabel}${emAndamento ? ' (em andamento)' : ''}</div>
+                    <div class="popup-detail" style="font-size:12px;margin-top:4px">🚗 <strong>${v.placa}</strong> ${v.modelo || ''} ${v.motorista ? '(' + v.motorista + ')' : ''}</div>
+                    <div class="popup-detail" style="font-size:12px">Chegou: <strong>${Utils.formatTime(parada.inicio)}</strong></div>
+                    ${parada.fim ? `<div class="popup-detail" style="font-size:12px">Saiu: <strong>${Utils.formatTime(parada.fim)}</strong></div>` : '<div class="popup-detail" style="font-size:12px;color:#DC2626;font-weight:700">Ainda parado</div>'}
+                    ${parada.endereco ? `<div class="popup-detail" style="font-size:12px;margin-top:4px">📍 ${parada.endereco}</div>` : ''}
+                `, { maxWidth: 280 });
                 stopM.on('contextmenu', (e) => {
                     e.originalEvent.preventDefault();
                     e.originalEvent.stopPropagation();
