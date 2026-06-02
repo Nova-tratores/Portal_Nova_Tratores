@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
           .limit(50),
         supabase
           .from("GPS_Viagens")
-          .select("data, km_total, placa")
+          .select("data, km_total, placa, saida_loja, chegada_cliente, saida_cliente, retorno_loja, eventos")
           .eq("tecnico_nome", tecNome)
           .gte("data", primeiro)
           .lte("data", ultimo),
@@ -196,10 +196,68 @@ export async function GET(req: NextRequest) {
       // Resumo GPS
       let gpsKmMes = 0;
       let gpsDias = 0;
+      let gpsDirigindoMin = 0;
+      let gpsParadoForaMin = 0;
+
+      const diffMinutos = (a: string | null, b: string | null) => {
+        if (!a || !b) return 0;
+        try { return Math.max(0, Math.round((new Date(b).getTime() - new Date(a).getTime()) / 60000)); } catch { return 0; }
+      };
+
       for (const g of gpsRes.data || []) {
         gpsKmMes += parseFloat(g.km_total) || 0;
         gpsDias++;
+
+        const eventos = g.eventos || [];
+        let ultimaSaida: string | null = null;
+
+        for (const ev of eventos) {
+          if (ev.tipo === "saida_loja" || ev.tipo === "saida_cliente") {
+            ultimaSaida = ev.horario;
+          } else if ((ev.tipo === "chegada_cliente" || ev.tipo === "retorno_loja") && ultimaSaida) {
+            gpsDirigindoMin += diffMinutos(ultimaSaida, ev.horario);
+            ultimaSaida = null;
+          }
+        }
+
+        // Tempo parado fora da empresa (entre chegada_cliente e saida_cliente)
+        if (g.chegada_cliente && g.saida_cliente) {
+          gpsParadoForaMin += diffMinutos(g.chegada_cliente, g.saida_cliente);
+        } else if (g.chegada_cliente && !g.retorno_loja) {
+          // Ainda no cliente
+          gpsParadoForaMin += diffMinutos(g.chegada_cliente, new Date().toISOString());
+        }
+
+        // Paradas múltiplas via eventos
+        for (let i = 0; i < eventos.length; i++) {
+          if (eventos[i].tipo === "chegada_cliente") {
+            const saida = eventos.slice(i + 1).find((e: any) => e.tipo === "saida_cliente" || e.tipo === "retorno_loja");
+            if (saida) {
+              gpsParadoForaMin += diffMinutos(eventos[i].horario, saida.horario);
+            }
+          }
+        }
       }
+
+      // Evitar contar dobrado (eventos vs campos diretos) — usar o maior
+      // Se tiver eventos detalhados, zera o cálculo simples pra não somar dobrado
+      // Recalcular parado fora apenas dos eventos
+      let paradoForaFinal = 0;
+      for (const g of gpsRes.data || []) {
+        const eventos = g.eventos || [];
+        let temEventos = eventos.some((e: any) => e.tipo === "chegada_cliente");
+        if (temEventos) {
+          for (let i = 0; i < eventos.length; i++) {
+            if (eventos[i].tipo === "chegada_cliente") {
+              const saida = eventos.slice(i + 1).find((e: any) => e.tipo === "saida_cliente" || e.tipo === "retorno_loja");
+              if (saida) paradoForaFinal += diffMinutos(eventos[i].horario, saida.horario);
+            }
+          }
+        } else if (g.chegada_cliente && g.saida_cliente) {
+          paradoForaFinal += diffMinutos(g.chegada_cliente, g.saida_cliente);
+        }
+      }
+      gpsParadoForaMin = paradoForaFinal;
 
       // Montar ordens com dados complementares
       const ordensComPpv: any[] = ordens.map((o: Record<string, unknown>) => {
@@ -329,9 +387,22 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      // Buscar permissao (data de entrada)
-      const perm = perms.find((p) => p.user_id === found.id);
+      // Data de entrada: primeira OS do tecnico no Omie
+      const { data: todasOsOrdenadas } = await supabase
+        .from("Ordens_Omie")
+        .select("data, tecnicos")
+        .order("data", { ascending: true })
+        .limit(2000);
 
+      let dataEntrada: string | null = null;
+      if (todasOsOrdenadas) {
+        for (const o of todasOsOrdenadas) {
+          if (((o as any).tecnicos || []).some((t: string) => nomesBatem(t, tecNome))) {
+            dataEntrada = (o as any).data;
+            break;
+          }
+        }
+      }
 
       return NextResponse.json({
         ...found,
@@ -340,9 +411,9 @@ export async function GET(req: NextRequest) {
         ocorrencias: ocorrenciasRes.data || [],
         requisicoes: reqDoMes,
         alertas: alertasFinal || [],
-        gps: { kmMes: Math.round(gpsKmMes), dias: gpsDias },
+        gps: { kmMes: Math.round(gpsKmMes), dias: gpsDias, dirigindoMin: gpsDirigindoMin, paradoForaMin: gpsParadoForaMin },
         veiculo: veiculoInfo,
-        data_entrada: perm?.created_at || null,
+        data_entrada: dataEntrada,
       });
     }
 
@@ -553,9 +624,10 @@ export async function POST(req: NextRequest) {
 
       const update: Record<string, unknown> = {};
       if (admin_nome) update.admin_nome = admin_nome;
-      // Usar pontos como flag de status: 0=pendente, 1=resolvida, -1=cancelada
+      // Usar pontos como flag de status: 0=pendente, 1=resolvida, -1=cancelada, 2=justificada
       if (status === "resolvida") update.pontos = 1;
       else if (status === "cancelada") update.pontos = -1;
+      else if (status === "justificada") update.pontos = 2;
 
       const { error } = await supabase.from("mecanico_ocorrencias").update(update).eq("id", id);
       if (error) throw error;

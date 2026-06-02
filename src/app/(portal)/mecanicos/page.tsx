@@ -105,7 +105,7 @@ interface MecanicoDetalhe extends Mecanico {
   ocorrencias: Ocorrencia[]
   requisicoes: Requisicao[]
   alertas: Alerta[]
-  gps: { kmMes: number; dias: number }
+  gps: { kmMes: number; dias: number; dirigindoMin: number; paradoForaMin: number }
   veiculo: { placa: string; descricao: string } | null
   data_entrada: string | null
 }
@@ -286,6 +286,40 @@ export default function MecanicosPage() {
     }
   }
 
+  const justificarAlertaMesAnterior = async (id: number, comentario: string, mes: string) => {
+    try {
+      await fetch('/api/mecanicos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ acao: 'justificar_alerta', id, admin_comentario: comentario, admin_nome: userProfile?.nome || 'portal' }),
+      })
+      if (detalhe) {
+        const res = await fetch(`/api/mecanicos?nome=${encodeURIComponent(detalhe.tecnico_nome)}&mes=${mes}`)
+        if (res.ok) {
+          const data = await res.json()
+          setMesesAnteriores(prev => ({ ...prev, [mes]: data }))
+        }
+      }
+    } catch (e) { console.error(e) }
+  }
+
+  const alertaParaOcorrenciaMesAnterior = async (id: number, mes: string) => {
+    try {
+      await fetch('/api/mecanicos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ acao: 'alerta_para_ocorrencia', id, admin_nome: userProfile?.nome || 'portal' }),
+      })
+      if (detalhe) {
+        const res = await fetch(`/api/mecanicos?nome=${encodeURIComponent(detalhe.tecnico_nome)}&mes=${mes}`)
+        if (res.ok) {
+          const data = await res.json()
+          setMesesAnteriores(prev => ({ ...prev, [mes]: data }))
+        }
+      }
+    } catch (e) { console.error(e) }
+  }
+
   const atualizarOcorrencia = async (id: number, status: string) => {
     try {
       await fetch('/api/mecanicos', {
@@ -311,7 +345,7 @@ export default function MecanicosPage() {
   // ── DETALHE DO MECANICO ──
   if (detalhe) {
     const totalPecas = detalhe.ordens.reduce((acc, o) => acc + o.ppvs.reduce((a, p) => a + p.produtos.length, 0), 0)
-    const ocPendentes = detalhe.ocorrencias.filter(o => o.pontos === 0).length
+    const ocPendentes = detalhe.ocorrencias.filter(o => o.pontos === 0 || o.pontos === 1).length
 
     const secoes = [
       { id: 'servicos' as const, icon: <Wrench size={22} />, label: 'Servicos', count: detalhe.ordens.length, color: '#3b82f6', gradient: 'linear-gradient(135deg, #3b82f6, #1d4ed8)' },
@@ -336,7 +370,7 @@ export default function MecanicosPage() {
           </div>
           <div style={{ flex: 1 }}>
             <h1 style={{ fontSize: 20, fontWeight: 800, color: '#1E293B', margin: 0 }}>{detalhe.nome}</h1>
-            <p style={{ fontSize: 13, color: '#64748B', margin: 0 }}>{detalhe.tecnico_nome} - {detalhe.funcao || detalhe.mecanico_role} | GPS: {detalhe.gps.kmMes} km em {detalhe.gps.dias} dias</p>
+            <p style={{ fontSize: 13, color: '#64748B', margin: 0 }}>{detalhe.tecnico_nome} - {detalhe.funcao || detalhe.mecanico_role} | {detalhe.gps.kmMes} km · {detalhe.gps.dirigindoMin >= 60 ? `${Math.floor(detalhe.gps.dirigindoMin / 60)}h dirigindo` : `${detalhe.gps.dirigindoMin || 0}min dirigindo`} · {detalhe.gps.paradoForaMin >= 60 ? `${Math.floor(detalhe.gps.paradoForaMin / 60)}h parado fora` : `${detalhe.gps.paradoForaMin || 0}min parado fora`}</p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#EFF6FF', borderRadius: 8, padding: '6px 14px' }}>
             <Calendar size={14} color="#3b82f6" />
@@ -355,7 +389,10 @@ export default function MecanicosPage() {
           {detalhe.email && (
             <div><span style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Email</span><div style={{ fontSize: 13, color: '#1E293B', fontWeight: 600, marginTop: 2 }}>{detalhe.email}</div></div>
           )}
-<div><span style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>GPS Mes</span><div style={{ fontSize: 13, color: '#1E293B', fontWeight: 600, marginTop: 2 }}>{detalhe.gps.kmMes} km | {detalhe.gps.dias} dias</div></div>
+<div><span style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>KM Rodado</span><div style={{ fontSize: 13, color: '#1E293B', fontWeight: 600, marginTop: 2 }}>{detalhe.gps.kmMes} km</div></div>
+          <div><span style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Dirigindo</span><div style={{ fontSize: 13, color: '#047857', fontWeight: 600, marginTop: 2 }}>{detalhe.gps.dirigindoMin >= 60 ? `${Math.floor(detalhe.gps.dirigindoMin / 60)}h${detalhe.gps.dirigindoMin % 60 > 0 ? String(detalhe.gps.dirigindoMin % 60).padStart(2, '0') + 'min' : ''}` : `${detalhe.gps.dirigindoMin || 0}min`}</div></div>
+          <div><span style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Parado Fora</span><div style={{ fontSize: 13, color: '#B45309', fontWeight: 600, marginTop: 2 }}>{detalhe.gps.paradoForaMin >= 60 ? `${Math.floor(detalhe.gps.paradoForaMin / 60)}h${detalhe.gps.paradoForaMin % 60 > 0 ? String(detalhe.gps.paradoForaMin % 60).padStart(2, '0') + 'min' : ''}` : `${detalhe.gps.paradoForaMin || 0}min`}</div></div>
+          <div><span style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Dias GPS</span><div style={{ fontSize: 13, color: '#1E293B', fontWeight: 600, marginTop: 2 }}>{detalhe.gps.dias} dias</div></div>
         </div>
 
         {/* Navegação por seções */}
@@ -681,23 +718,39 @@ export default function MecanicosPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {detalhe.ocorrencias.map(oc => {
                   const tipo = TIPO_CORES[oc.tipo] || TIPO_CORES.geral
-                  const statusLabel = oc.pontos === 1 ? 'resolvida' : oc.pontos === -1 ? 'cancelada' : 'pendente'
-                  const st = STATUS_CORES[statusLabel] || STATUS_CORES.pendente
+                  const statusLabel = oc.pontos === 2 ? 'justificada' : oc.pontos === 1 ? 'resolvida' : oc.pontos === -1 ? 'cancelada' : 'pendente'
+                  const stColors: Record<string, { bg: string; text: string }> = {
+                    pendente: { bg: '#FEF3C7', text: '#92400E' },
+                    resolvida: { bg: '#D1FAE5', text: '#065F46' },
+                    cancelada: { bg: '#F1F5F9', text: '#64748B' },
+                    justificada: { bg: '#DBEAFE', text: '#1E40AF' },
+                  }
+                  const st = stColors[statusLabel] || stColors.pendente
                   return (
-                    <div key={oc.id} style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: 16 }}>
+                    <div key={oc.id} style={{ background: statusLabel === 'justificada' ? '#F8FAFC' : '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: 16, opacity: statusLabel === 'justificada' ? 0.7 : 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                         <span style={{ padding: '3px 10px', borderRadius: 6, background: tipo.bg, color: tipo.text, fontSize: 11, fontWeight: 700 }}>{tipo.label}</span>
-                        <span style={{ padding: '3px 10px', borderRadius: 6, background: st.bg, color: st.text, fontSize: 11, fontWeight: 700 }}>{statusLabel}</span>
-                        <span style={{ fontSize: 12, color: '#94A3B8', marginLeft: 'auto' }}>{new Date(oc.created_at).toLocaleDateString('pt-BR')}{oc.admin_nome ? ` - ${oc.admin_nome}` : ''}</span>
+                        <span style={{ padding: '3px 10px', borderRadius: 6, background: st.bg, color: st.text, fontSize: 11, fontWeight: 700 }}>{statusLabel === 'justificada' ? 'justificada (fora da ficha)' : statusLabel}</span>
+                        <span style={{ fontSize: 12, color: '#94A3B8', marginLeft: 'auto' }}>{new Date(oc.created_at).toLocaleDateString('pt-BR')}</span>
                       </div>
                       <div style={{ fontSize: 14, fontWeight: 600, color: '#1E293B', marginBottom: 4 }}>{oc.descricao}</div>
                       {statusLabel === 'pendente' && (
-                        <div style={{ display: 'flex', gap: 8 }}>
+                        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                           <button onClick={() => atualizarOcorrencia(oc.id, 'resolvida')} style={{ padding: '4px 12px', borderRadius: 6, border: '1px solid #10b981', background: '#ECFDF5', color: '#065F46', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
                             <CheckCircle size={12} /> Resolver
                           </button>
+                          <button onClick={() => { const motivo = prompt('Justificativa (sai da ficha do tecnico):'); if (motivo !== null) atualizarOcorrencia(oc.id, 'justificada') }} style={{ padding: '4px 12px', borderRadius: 6, border: '1px solid #3b82f6', background: '#EFF6FF', color: '#1D4ED8', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <FileText size={12} /> Justificar
+                          </button>
                           <button onClick={() => atualizarOcorrencia(oc.id, 'cancelada')} style={{ padding: '4px 12px', borderRadius: 6, border: '1px solid #E2E8F0', background: '#fff', color: '#64748B', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
                             <XCircle size={12} /> Cancelar
+                          </button>
+                        </div>
+                      )}
+                      {statusLabel === 'resolvida' && (
+                        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                          <button onClick={() => { const motivo = prompt('Justificativa (sai da ficha do tecnico):'); if (motivo !== null) atualizarOcorrencia(oc.id, 'justificada') }} style={{ padding: '4px 12px', borderRadius: 6, border: '1px solid #3b82f6', background: '#EFF6FF', color: '#1D4ED8', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <FileText size={12} /> Justificar (tirar da ficha)
                           </button>
                         </div>
                       )}
@@ -763,18 +816,20 @@ export default function MecanicosPage() {
                       </div>
 
                       {/* GPS resumo */}
-                      <div style={{ display: 'flex', gap: 16, marginBottom: 16, fontSize: 13 }}>
-                        <span style={{ fontWeight: 700, color: '#1D4ED8' }}>GPS: {mesData.gps.kmMes} km</span>
-                        <span style={{ color: '#64748B' }}>{mesData.gps.dias} dias rastreados</span>
+                      <div style={{ display: 'flex', gap: 16, marginBottom: 16, fontSize: 13, flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: 700, color: '#1D4ED8' }}>{mesData.gps.kmMes} km</span>
+                        <span style={{ fontWeight: 700, color: '#047857' }}>{mesData.gps.dirigindoMin >= 60 ? `${Math.floor(mesData.gps.dirigindoMin / 60)}h dirigindo` : `${mesData.gps.dirigindoMin || 0}min dirigindo`}</span>
+                        <span style={{ fontWeight: 700, color: '#B45309' }}>{mesData.gps.paradoForaMin >= 60 ? `${Math.floor(mesData.gps.paradoForaMin / 60)}h parado fora` : `${mesData.gps.paradoForaMin || 0}min parado fora`}</span>
+                        <span style={{ color: '#64748B' }}>{mesData.gps.dias} dias</span>
                       </div>
 
-                      {/* Lista de OS compacta */}
+                      {/* Ordens */}
                       {mesData.ordens.length > 0 && (
-                        <div>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', marginBottom: 6, textTransform: 'uppercase' }}>Ordens de Servico</div>
+                        <div style={{ marginBottom: 14 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: '#3b82f6', marginBottom: 6, textTransform: 'uppercase' }}>Ordens de Servico ({mesData.ordens.length})</div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                            {mesData.ordens.slice(0, 10).map(o => (
-                              <div key={o.os_num} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: '#F8FAFC', borderRadius: 8, fontSize: 12 }}>
+                            {mesData.ordens.map(o => (
+                              <div key={o.os_num} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: '#F8FAFC', borderRadius: 8, fontSize: 12, flexWrap: 'wrap' }}>
                                 <span style={{ fontWeight: 700, color: '#2563EB', minWidth: 60 }}>OS {o.os_num}</span>
                                 <span style={{ color: '#1E293B', flex: 1 }}>{o.cliente || o.cidade || '-'}</span>
                                 <span style={{ color: '#047857', fontWeight: 700 }}>{(parseFloat(o.horas) || 0).toFixed(1)}h</span>
@@ -782,14 +837,77 @@ export default function MecanicosPage() {
                                 <span style={{ color: '#7C3AED', fontWeight: 700 }}>R$ {(parseFloat(o.valor) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                               </div>
                             ))}
-                            {mesData.ordens.length > 10 && (
-                              <div style={{ fontSize: 12, color: '#94A3B8', textAlign: 'center', padding: 8 }}>+ {mesData.ordens.length - 10} ordens</div>
-                            )}
                           </div>
                         </div>
                       )}
 
-                      {mesData.ordens.length === 0 && mesData.requisicoes.length === 0 && mesData.alertas.length === 0 && (
+                      {/* Alertas */}
+                      {mesData.alertas.length > 0 && (
+                        <div style={{ marginBottom: 14 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: '#DC2626', marginBottom: 6, textTransform: 'uppercase' }}>Alertas ({mesData.alertas.length}) {mesData.alertas.filter((a: any) => a.status === 'pendente').length > 0 && <span style={{ color: '#B45309' }}>· {mesData.alertas.filter((a: any) => a.status === 'pendente').length} pendentes</span>}</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {mesData.alertas.map((a: any) => (
+                              <div key={a.id} style={{ background: a.status === 'pendente' ? '#FEF2F2' : '#F8FAFC', border: `1px solid ${a.status === 'pendente' ? '#FECACA' : '#E2E8F0'}`, borderRadius: 10, padding: '10px 14px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: a.status === 'pendente' ? 8 : 0 }}>
+                                  <span style={{ padding: '2px 8px', borderRadius: 4, background: a.tipo === 'atraso_relatorio' ? '#FFF7ED' : '#FEF2F2', color: a.tipo === 'atraso_relatorio' ? '#C2410C' : '#DC2626', fontSize: 10, fontWeight: 700 }}>{a.tipo === 'atraso_relatorio' ? 'Atraso' : 'Divergencia KM'}</span>
+                                  <span style={{ color: '#1E293B', flex: 1, fontSize: 12 }}>{a.descricao}</span>
+                                  <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700, background: a.status === 'justificada' ? '#D1FAE5' : a.status === 'ocorrencia' ? '#DBEAFE' : '#FEF3C7', color: a.status === 'justificada' ? '#065F46' : a.status === 'ocorrencia' ? '#1E40AF' : '#92400E' }}>{a.status}</span>
+                                </div>
+                                {a.admin_comentario && (
+                                  <div style={{ fontSize: 11, color: '#047857', background: '#F0FDF4', borderRadius: 6, padding: '6px 10px', marginBottom: 6 }}>
+                                    <strong>{a.admin_nome || 'Admin'}:</strong> {a.admin_comentario}
+                                  </div>
+                                )}
+                                {a.status === 'pendente' && (
+                                  <div style={{ display: 'flex', gap: 8 }}>
+                                    <button onClick={() => { const motivo = prompt('Motivo da justificativa:'); if (motivo !== null) justificarAlertaMesAnterior(a.id, motivo, mes) }} style={{ padding: '5px 14px', borderRadius: 6, border: '1px solid #10b981', background: '#ECFDF5', color: '#065F46', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                      <CheckCircle size={12} /> Justificar
+                                    </button>
+                                    <button onClick={() => alertaParaOcorrenciaMesAnterior(a.id, mes)} style={{ padding: '5px 14px', borderRadius: 6, border: '1px solid #DC2626', background: '#FEF2F2', color: '#DC2626', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                      <AlertTriangle size={12} /> Virar Ocorrencia
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Ocorrencias */}
+                      {mesData.ocorrencias.length > 0 && (
+                        <div style={{ marginBottom: 14 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: '#B45309', marginBottom: 6, textTransform: 'uppercase' }}>Ocorrencias ({mesData.ocorrencias.length})</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            {mesData.ocorrencias.map((oc: any) => (
+                              <div key={oc.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#FFF7ED', borderRadius: 8, fontSize: 12, flexWrap: 'wrap' }}>
+                                <span style={{ padding: '2px 8px', borderRadius: 4, background: '#FEF3C7', color: '#92400E', fontSize: 10, fontWeight: 700 }}>{oc.tipo}</span>
+                                <span style={{ color: '#1E293B', flex: 1 }}>{oc.descricao}</span>
+                                <span style={{ fontSize: 11, color: '#94A3B8' }}>{oc.data_referencia ? oc.data_referencia.split('-').reverse().join('/') : ''}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Requisicoes */}
+                      {mesData.requisicoes.length > 0 && (
+                        <div style={{ marginBottom: 14 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: '#7C3AED', marginBottom: 6, textTransform: 'uppercase' }}>Requisicoes ({mesData.requisicoes.length})</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            {mesData.requisicoes.map((r: any) => (
+                              <div key={r.id_pedido} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#F5F3FF', borderRadius: 8, fontSize: 12, flexWrap: 'wrap' }}>
+                                <span style={{ fontWeight: 700, color: '#7C3AED' }}>{r.id_pedido}</span>
+                                {r.Id_Os && <span style={{ fontSize: 11, color: '#2563EB' }}>{r.Id_Os}</span>}
+                                <span style={{ flex: 1 }} />
+                                <span style={{ fontWeight: 700, color: '#1E293B' }}>R$ {(r.valor_total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {mesData.ordens.length === 0 && mesData.requisicoes.length === 0 && mesData.alertas.length === 0 && mesData.ocorrencias.length === 0 && (
                         <div style={{ textAlign: 'center', padding: 20, color: '#94A3B8', fontSize: 13 }}>Nenhum registro neste mes</div>
                       )}
                     </div>

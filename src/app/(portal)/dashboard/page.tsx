@@ -10,7 +10,8 @@ import {
   DollarSign, Activity, Clock, ChevronRight, Search,
   BarChart3, Users, Package, ClipboardCheck, AlertTriangle,
   CheckCircle2, Map, RefreshCw, Database, X, Check, Calculator, Eye, Camera, Wheat, Megaphone, TrendingUp, Server,
-  FolderPlus, Pencil, Trash2, FolderOpen, MapPin, ShieldCheck, Building
+  FolderPlus, Pencil, Trash2, FolderOpen, MapPin, ShieldCheck, Building,
+  Star, LayoutGrid, List, CircleDot
 } from 'lucide-react'
 
 interface SystemCard {
@@ -280,14 +281,9 @@ interface CardFolder {
   cardIds: string[]
 }
 
-const defaultFolders: CardFolder[] = [
-  { id: 'financeiro', name: 'Financeiro', cardIds: ['sistema-financeiro', 'dre'] },
-  { id: 'servicos', name: 'Serviços', cardIds: ['pos', 'controle-revisao', 'fotos-tecnicos', 'mecanicos', 'clientes'] },
-  { id: 'comercial', name: 'Comercial', cardIds: ['proposta-comercial', 'orcamentos', 'ppv'] },
-  { id: 'estoque', name: 'Estoque & Consulta', cardIds: ['consulta-estoque', 'visual-estoque'] },
-  { id: 'gestao', name: 'Gestão', cardIds: ['app-requisicoes', 'tarefas', 'avisos'] },
-  { id: 'externo', name: 'Externos', cardIds: ['mapa-geral', 'dashboard-agro', 'back-nova'] },
-]
+type ViewMode = 'grade' | 'lista' | 'circular'
+
+const defaultFolders: CardFolder[] = []
 
 export default function DashboardPage() {
   const { userProfile, router } = useAuth()
@@ -312,6 +308,9 @@ export default function DashboardPage() {
   const [activeFolder, setActiveFolder] = useState<string>('todos')
   const [editingFolder, setEditingFolder] = useState<string | null>(null)
   const [foldersLoaded, setFoldersLoaded] = useState(false)
+  const [favoritos, setFavoritos] = useState<string[]>([])
+  const [viewMode, setViewMode] = useState<ViewMode>('grade')
+  const [showFavoritosOnly, setShowFavoritosOnly] = useState(false)
 
   // Refresh ao voltar para a aba
   const refreshDashboard = useCallback(() => {
@@ -342,12 +341,12 @@ export default function DashboardPage() {
     loadLogs()
   }, [userProfile])
 
-  // Carregar pastas do localStorage
+  // Carregar pastas, favoritos, viewMode do localStorage
   useEffect(() => {
     if (!userProfile?.id) return
     const key = `portal-folders-${userProfile.id}`
     const versionKey = `portal-folders-version-${userProfile.id}`
-    const CURRENT_VERSION = '5'
+    const CURRENT_VERSION = '6'
     const savedVersion = localStorage.getItem(versionKey)
     if (savedVersion === CURRENT_VERSION) {
       const saved = localStorage.getItem(key)
@@ -357,10 +356,17 @@ export default function DashboardPage() {
         setFolders(defaultFolders)
       }
     } else {
-      // Reset para defaults na nova versão
       setFolders(defaultFolders)
       localStorage.setItem(versionKey, CURRENT_VERSION)
     }
+    // Favoritos
+    const favKey = `portal-favoritos-${userProfile.id}`
+    const savedFav = localStorage.getItem(favKey)
+    if (savedFav) { try { setFavoritos(JSON.parse(savedFav)) } catch { /* */ } }
+    // View mode
+    const vmKey = `portal-viewmode-${userProfile.id}`
+    const savedVm = localStorage.getItem(vmKey) as ViewMode | null
+    if (savedVm) setViewMode(savedVm)
     setFoldersLoaded(true)
   }, [userProfile?.id])
 
@@ -369,6 +375,18 @@ export default function DashboardPage() {
     if (!userProfile?.id || !foldersLoaded) return
     localStorage.setItem(`portal-folders-${userProfile.id}`, JSON.stringify(folders))
   }, [folders, userProfile?.id, foldersLoaded])
+
+  // Salvar favoritos
+  useEffect(() => {
+    if (!userProfile?.id || !foldersLoaded) return
+    localStorage.setItem(`portal-favoritos-${userProfile.id}`, JSON.stringify(favoritos))
+  }, [favoritos, userProfile?.id, foldersLoaded])
+
+  // Salvar view mode
+  useEffect(() => {
+    if (!userProfile?.id || !foldersLoaded) return
+    localStorage.setItem(`portal-viewmode-${userProfile.id}`, viewMode)
+  }, [viewMode, userProfile?.id, foldersLoaded])
 
   // Carregar tarefas
   useEffect(() => {
@@ -438,13 +456,26 @@ export default function DashboardPage() {
     s.tag.toLowerCase().includes(searchLower)
   ), [allowedSystems, searchLower])
 
-  // Pastas: sistemas filtrados por pasta ativa
+  const toggleFavorito = (id: string) => {
+    setFavoritos(prev => prev.includes(id) ? prev.filter(f => f !== id) : [...prev, id])
+  }
+
+  // Sistemas filtrados por pasta/favoritos
   const displayedSystems = useMemo(() => {
-    if (activeFolder === 'todos' || editingFolder) return filteredSystems
-    const folder = folders.find(f => f.id === activeFolder)
-    if (!folder) return filteredSystems
-    return filteredSystems.filter(s => folder.cardIds.includes(s.id))
-  }, [filteredSystems, activeFolder, folders, editingFolder])
+    let result = filteredSystems
+    if (showFavoritosOnly) {
+      result = result.filter(s => favoritos.includes(s.id))
+    } else if (activeFolder !== 'todos' && !editingFolder) {
+      const folder = folders.find(f => f.id === activeFolder)
+      if (folder) result = result.filter(s => folder.cardIds.includes(s.id))
+    }
+    // Favoritos primeiro
+    return [...result].sort((a, b) => {
+      const aFav = favoritos.includes(a.id) ? 0 : 1
+      const bFav = favoritos.includes(b.id) ? 0 : 1
+      return aFav - bFav
+    })
+  }, [filteredSystems, activeFolder, folders, editingFolder, showFavoritosOnly, favoritos])
 
   const createFolder = () => {
     const name = prompt('Nome da pasta:')
@@ -730,30 +761,72 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Search + Section title */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px' }}>
+      {/* Search + Filtros + View modes */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px', flexWrap: 'wrap' }}>
         <div style={{
           width: '4px', height: '24px', borderRadius: '2px',
           background: 'linear-gradient(180deg, #dc2626, #b91c1c)'
         }} />
         <h3 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--portal-text)' }}>
-          Sistemas Disponíveis
+          {showFavoritosOnly ? 'Favoritos' : 'Sistemas'}
         </h3>
         <span style={{
           fontSize: '12px', fontWeight: '600', color: '#a3a3a3',
           background: 'var(--portal-bg-secondary)', padding: '4px 12px',
           borderRadius: '20px'
         }}>
-          {displayedSystems.length} sistemas
+          {displayedSystems.length}
         </span>
+
+        {/* Botão favoritos */}
+        <button
+          onClick={() => setShowFavoritosOnly(!showFavoritosOnly)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '6px',
+            padding: '6px 14px', borderRadius: '10px', border: 'none',
+            background: showFavoritosOnly ? '#FEF3C7' : 'var(--portal-bg-secondary)',
+            color: showFavoritosOnly ? '#B45309' : '#a3a3a3',
+            fontSize: '13px', fontWeight: '600', cursor: 'pointer', transition: 'all .2s'
+          }}
+        >
+          <Star size={14} fill={showFavoritosOnly ? '#F59E0B' : 'none'} />
+          Favoritos{favoritos.length > 0 ? ` (${favoritos.length})` : ''}
+        </button>
+
         <div style={{ flex: 1 }} />
-        <div style={{ position: 'relative', width: '280px' }}>
+
+        {/* View mode buttons */}
+        <div style={{ display: 'flex', gap: '4px', background: 'var(--portal-bg-secondary)', borderRadius: '10px', padding: '3px' }}>
+          {([
+            { mode: 'grade' as ViewMode, icon: <LayoutGrid size={15} />, title: 'Grade' },
+            { mode: 'lista' as ViewMode, icon: <List size={15} />, title: 'Lista' },
+            { mode: 'circular' as ViewMode, icon: <CircleDot size={15} />, title: 'Circular' },
+          ]).map(v => (
+            <button
+              key={v.mode}
+              onClick={() => setViewMode(v.mode)}
+              title={v.title}
+              style={{
+                width: 32, height: 32, borderRadius: 8, border: 'none',
+                background: viewMode === v.mode ? '#dc2626' : 'transparent',
+                color: viewMode === v.mode ? '#fff' : '#a3a3a3',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', transition: 'all .15s'
+              }}
+            >
+              {v.icon}
+            </button>
+          ))}
+        </div>
+
+        {/* Search */}
+        <div style={{ position: 'relative', width: '240px' }}>
           <Search size={14} style={{
             position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#a3a3a3'
           }} />
           <input
             type="text"
-            placeholder="Buscar sistema..."
+            placeholder="Buscar..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             style={{
@@ -772,277 +845,247 @@ export default function DashboardPage() {
           background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
           boxShadow: '0 1px 3px rgba(0,0,0,0.04)', marginBottom: '20px'
         }}>
-          <div style={{
-            width: '64px', height: '64px', borderRadius: '16px', margin: '0 auto 20px',
-            background: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center'
-          }}>
-            <Package size={28} color="#dc2626" />
-          </div>
-          <h3 style={{ fontSize: '20px', fontWeight: '700', color: 'var(--portal-text)', marginBottom: '8px' }}>
-            Aguardando liberação
-          </h3>
-          <p style={{ fontSize: '14px', color: '#a3a3a3', maxWidth: '400px', margin: '0 auto' }}>
-            Seu acesso ainda não foi configurado. Entre em contato com o administrador do sistema para liberar os módulos.
-          </p>
+          <Package size={28} color="#dc2626" style={{ margin: '0 auto 12px' }} />
+          <h3 style={{ fontSize: '20px', fontWeight: '700', color: 'var(--portal-text)', marginBottom: '8px' }}>Aguardando liberação</h3>
+          <p style={{ fontSize: '14px', color: '#a3a3a3' }}>Entre em contato com o administrador para liberar os módulos.</p>
         </div>
       )}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
-        gap: '20px'
-      }}>
-        {/* Folder Cards */}
-        {activeFolder === 'todos' && !editingFolder && folders.map((folder, fi) => {
-          const count = folder.cardIds.filter(id => allowedSystems.some(s => s.id === id)).length
-          const folderSystems = systems.filter(s => folder.cardIds.includes(s.id)).slice(0, 4)
-          return (
-            <div
-              key={`folder-${folder.id}`}
-              className="card-hover"
-              onClick={() => setActiveFolder(folder.id)}
-              onMouseEnter={() => setHoveredCard(`folder-${folder.id}`)}
-              onMouseLeave={() => setHoveredCard(null)}
-              style={{
-                borderRadius: '20px', overflow: 'hidden', cursor: 'pointer',
-                background: 'var(--portal-bg-card)',
-                border: hoveredCard === `folder-${folder.id}`
-                  ? '1px solid #fecaca'
-                  : '1px solid #f0f0f0',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-                animation: `fadeIn 0.6s ease-out ${fi * 0.08}s both`,
-                position: 'relative'
+
+      {/* ══ MODO GRADE ══ */}
+      {viewMode === 'grade' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
+          {/* Pastas do usuario */}
+          {activeFolder === 'todos' && !editingFolder && !showFavoritosOnly && folders.map((folder) => {
+            const count = folder.cardIds.filter(id => allowedSystems.some(s => s.id === id)).length
+            return (
+              <div key={`f-${folder.id}`} onClick={() => setActiveFolder(folder.id)} style={{
+                borderRadius: '16px', padding: '20px', cursor: 'pointer',
+                background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
+                transition: 'all .2s', display: 'flex', alignItems: 'center', gap: '14px'
               }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = '#fde68a' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = '' }}
+              >
+                <div style={{ width: 44, height: 44, borderRadius: 12, background: 'linear-gradient(135deg, #f59e0b, #d97706)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0 }}>
+                  <FolderOpen size={22} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--portal-text)' }}>{folder.name}</div>
+                  <div style={{ fontSize: 12, color: '#a3a3a3' }}>{count} sistemas</div>
+                </div>
+                <ChevronRight size={16} color="#d4d4d4" />
+              </div>
+            )
+          })}
+          {activeFolder === 'todos' && !editingFolder && !showFavoritosOnly && (
+            <div onClick={createFolder} style={{
+              borderRadius: '16px', padding: '20px', cursor: 'pointer',
+              border: '1px dashed #e5e5e5', transition: 'all .2s',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+              color: '#a3a3a3', fontSize: 13, fontWeight: 600
+            }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = '#fecaca'; e.currentTarget.style.color = '#dc2626' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = '#e5e5e5'; e.currentTarget.style.color = '#a3a3a3' }}
             >
-              <div style={{
-                position: 'absolute', top: 0, left: 0, right: 0, height: '3px',
-                background: hoveredCard === `folder-${folder.id}` ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'transparent',
-                transition: 'all 0.4s ease'
-              }} />
+              <FolderPlus size={18} /> Nova Pasta
+            </div>
+          )}
 
-              <div style={{ padding: '28px' }}>
-                <div style={{
-                  display: 'flex', alignItems: 'flex-start',
-                  justifyContent: 'space-between', marginBottom: '20px'
-                }}>
-                  <div style={{
-                    width: '52px', height: '52px', borderRadius: '14px',
-                    background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    color: '#fff', boxShadow: '0 8px 24px rgba(245,158,11,0.25)',
-                    transition: 'all 0.3s',
-                    transform: hoveredCard === `folder-${folder.id}` ? 'scale(1.08)' : 'scale(1)'
-                  }}>
-                    <FolderOpen size={28} />
-                  </div>
-                  <span style={{
-                    fontSize: '10px', fontWeight: '700', letterSpacing: '1.5px',
-                    color: '#d97706', background: '#fffbeb',
-                    padding: '5px 12px', borderRadius: '8px',
-                    border: '1px solid #fde68a'
-                  }}>
-                    {count} {count === 1 ? 'SISTEMA' : 'SISTEMAS'}
-                  </span>
-                </div>
+          {displayedSystems.map((system, i) => {
+            const isFav = favoritos.includes(system.id)
+            return (
+              <div key={system.id} style={{
+                borderRadius: '16px', overflow: 'hidden', cursor: 'pointer', position: 'relative',
+                background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.04)', transition: 'all .2s',
+                animation: `fadeIn 0.4s ease-out ${i * 0.05}s both`
+              }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = '#fecaca'; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = ''; e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)' }}
+              >
+                {/* Favorito */}
+                <button onClick={(e) => { e.stopPropagation(); toggleFavorito(system.id) }} style={{
+                  position: 'absolute', top: 12, right: 12, zIndex: 2,
+                  width: 30, height: 30, borderRadius: 8, border: 'none',
+                  background: isFav ? '#FEF3C7' : 'transparent', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  opacity: isFav ? 1 : 0, transition: 'opacity .2s'
+                }}
+                  className="fav-btn"
+                >
+                  <Star size={16} fill={isFav ? '#F59E0B' : 'none'} color={isFav ? '#F59E0B' : '#d4d4d4'} />
+                </button>
 
-                <h4 style={{
-                  fontSize: '18px', fontWeight: '700', color: 'var(--portal-text)',
-                  marginBottom: '8px'
-                }}>
-                  {folder.name}
-                </h4>
-
-                {/* Preview dos sistemas na pasta */}
-                <div style={{
-                  display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap'
-                }}>
-                  {folderSystems.map(s => (
-                    <span key={s.id} style={{
-                      fontSize: '13px', color: '#737373', background: '#f5f5f5',
-                      padding: '5px 12px', borderRadius: '8px', fontWeight: '500'
+                <div onClick={() => editingFolder ? toggleCardInFolder(editingFolder, system.id) : openSystem(system)} style={{ padding: '24px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '14px' }}>
+                    <div style={{
+                      width: 46, height: 46, borderRadius: 12,
+                      background: system.gradient, display: 'flex',
+                      alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0
                     }}>
-                      {s.name}
-                    </span>
-                  ))}
-                  {count > 4 && (
-                    <span style={{
-                      fontSize: '13px', color: '#737373', background: '#f5f5f5',
-                      padding: '5px 12px', borderRadius: '8px', fontWeight: '500'
-                    }}>
-                      +{count - 4}
-                    </span>
-                  )}
-                </div>
-
-                <div style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  paddingTop: '16px', borderTop: '1px solid #f5f5f5'
-                }}>
-                  <span style={{
-                    fontSize: '11px', color: '#d4d4d4', fontWeight: '500',
-                    display: 'flex', alignItems: 'center', gap: '6px'
-                  }}>
-                    <FolderOpen size={12} />
-                    Pasta
-                  </span>
-                  <div style={{
-                    display: 'flex', alignItems: 'center', gap: '6px',
-                    color: hoveredCard === `folder-${folder.id}` ? '#d97706' : '#d4d4d4',
-                    fontSize: '12px', fontWeight: '600', transition: 'all 0.3s'
-                  }}>
-                    Abrir
-                    <ChevronRight size={14} style={{
-                      transition: 'transform 0.3s',
-                      transform: hoveredCard === `folder-${folder.id}` ? 'translateX(4px)' : 'translateX(0)'
-                    }} />
+                      {system.icon}
+                    </div>
+                    <div>
+                      <h4 style={{ fontSize: 16, fontWeight: 700, color: 'var(--portal-text)', margin: 0 }}>{system.name}</h4>
+                      <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1, color: '#dc2626' }}>{system.tag}</span>
+                    </div>
                   </div>
+                  <p style={{ fontSize: 13, color: 'var(--portal-text-secondary)', lineHeight: 1.6, margin: 0 }}>{system.description}</p>
                 </div>
               </div>
-            </div>
-          )
-        })}
+            )
+          })}
+        </div>
+      )}
 
-        {/* Card para criar nova pasta */}
-        {activeFolder === 'todos' && !editingFolder && (
-          <div
-            className="card-hover"
-            onClick={createFolder}
-            onMouseEnter={() => setHoveredCard('new-folder')}
-            onMouseLeave={() => setHoveredCard(null)}
-            style={{
-              borderRadius: '20px', overflow: 'hidden', cursor: 'pointer',
-              background: 'var(--portal-bg-card)',
-              border: hoveredCard === 'new-folder'
-                ? '1px dashed #fecaca'
-                : '1px dashed #e5e5e5',
-              boxShadow: 'none',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              minHeight: '200px', transition: 'all 0.2s'
+      {/* ══ MODO LISTA ══ */}
+      {viewMode === 'lista' && (
+        <div style={{ borderRadius: 16, overflow: 'hidden', background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)' }}>
+          {/* Pastas na lista */}
+          {activeFolder === 'todos' && !editingFolder && !showFavoritosOnly && folders.map((folder) => {
+            const count = folder.cardIds.filter(id => allowedSystems.some(s => s.id === id)).length
+            return (
+              <div key={`f-${folder.id}`} onClick={() => setActiveFolder(folder.id)} style={{
+                display: 'flex', alignItems: 'center', gap: '16px', padding: '14px 20px',
+                borderBottom: '1px solid #f5f5f5', cursor: 'pointer', transition: 'background .15s'
+              }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#FFFBEB' }}
+                onMouseLeave={e => { e.currentTarget.style.background = '' }}
+              >
+                <div style={{ width: 38, height: 38, borderRadius: 10, background: 'linear-gradient(135deg, #f59e0b, #d97706)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0 }}>
+                  <FolderOpen size={18} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--portal-text)' }}>{folder.name}</div>
+                  <div style={{ fontSize: 12, color: '#a3a3a3' }}>{count} sistemas</div>
+                </div>
+                <ChevronRight size={16} color="#d97706" />
+              </div>
+            )
+          })}
+          {activeFolder === 'todos' && !editingFolder && !showFavoritosOnly && (
+            <div onClick={createFolder} style={{
+              display: 'flex', alignItems: 'center', gap: '16px', padding: '14px 20px',
+              borderBottom: '1px solid #f5f5f5', cursor: 'pointer', color: '#a3a3a3', transition: 'all .15s'
             }}
-          >
-            <div style={{ textAlign: 'center' }}>
-              <FolderPlus size={32} color={hoveredCard === 'new-folder' ? '#dc2626' : '#d4d4d4'}
-                style={{ margin: '0 auto 12px', display: 'block', transition: 'color 0.2s' }} />
-              <p style={{
-                fontSize: '14px', fontWeight: '600',
-                color: hoveredCard === 'new-folder' ? '#dc2626' : '#a3a3a3',
-                margin: 0, transition: 'color 0.2s'
-              }}>
-                Nova Pasta
-              </p>
+              onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#dc2626' }}
+              onMouseLeave={e => { e.currentTarget.style.background = ''; e.currentTarget.style.color = '#a3a3a3' }}
+            >
+              <div style={{ width: 38, height: 38, borderRadius: 10, border: '1px dashed currentColor', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <FolderPlus size={18} />
+              </div>
+              <span style={{ fontSize: 14, fontWeight: 600 }}>Nova Pasta</span>
             </div>
-          </div>
-        )}
-
-        {displayedSystems.map((system, index) => {
-          const isInEditFolder = editingFolder ? folders.find(f => f.id === editingFolder)?.cardIds.includes(system.id) : false
-          return (
-          <div
-            key={system.id}
-            className="card-hover"
-            onClick={() => editingFolder ? toggleCardInFolder(editingFolder, system.id) : openSystem(system)}
-            onMouseEnter={() => setHoveredCard(system.id)}
-            onMouseLeave={() => setHoveredCard(null)}
-            style={{
-              borderRadius: '20px', overflow: 'hidden', cursor: 'pointer',
-              background: editingFolder ? (isInEditFolder ? 'var(--portal-bg-hover)' : 'var(--portal-bg-card)') : 'var(--portal-bg-card)',
-              border: editingFolder
-                ? (isInEditFolder ? '2px solid #dc2626' : '2px dashed #d4d4d4')
-                : hoveredCard === system.id
-                  ? '1px solid #fecaca'
-                  : '1px solid #f0f0f0',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-              animation: `fadeIn 0.6s ease-out ${index * 0.08}s both`,
-              position: 'relative',
-              opacity: editingFolder && !isInEditFolder ? 0.7 : 1,
-              transition: 'all 0.2s'
-            }}
-          >
-            <div style={{
-              position: 'absolute', top: 0, left: 0, right: 0, height: '3px',
-              background: hoveredCard === system.id ? system.gradient : 'transparent',
-              transition: 'all 0.4s ease'
-            }} />
-
-            <div style={{ padding: '28px' }}>
-              <div style={{
-                display: 'flex', alignItems: 'flex-start',
-                justifyContent: 'space-between', marginBottom: '20px'
-              }}>
+          )}
+          {displayedSystems.map((system, i) => {
+            const isFav = favoritos.includes(system.id)
+            return (
+              <div key={system.id} onClick={() => openSystem(system)} style={{
+                display: 'flex', alignItems: 'center', gap: '16px', padding: '14px 20px',
+                borderBottom: i < displayedSystems.length - 1 ? '1px solid #f5f5f5' : 'none',
+                cursor: 'pointer', transition: 'background .15s'
+              }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'var(--portal-bg-hover, #fafafa)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = '' }}
+              >
                 <div style={{
-                  width: '52px', height: '52px', borderRadius: '14px',
+                  width: 38, height: 38, borderRadius: 10,
                   background: system.gradient, display: 'flex',
-                  alignItems: 'center', justifyContent: 'center',
-                  color: '#fff', boxShadow: '0 8px 24px rgba(220,38,38,0.2)',
-                  transition: 'all 0.3s',
-                  transform: hoveredCard === system.id ? 'scale(1.08)' : 'scale(1)'
+                  alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0
                 }}>
                   {system.icon}
                 </div>
-                <span style={{
-                  fontSize: '10px', fontWeight: '700', letterSpacing: '1.5px',
-                  color: '#dc2626', background: '#fef2f2',
-                  padding: '5px 12px', borderRadius: '8px',
-                  border: '1px solid #fecaca'
-                }}>
-                  {system.tag}
-                </span>
-              </div>
-
-              <h4 style={{
-                fontSize: '18px', fontWeight: '700', color: 'var(--portal-text)',
-                marginBottom: '8px'
-              }}>
-                {system.name}
-              </h4>
-              <p style={{
-                fontSize: '14px', color: 'var(--portal-text-secondary)', lineHeight: '1.7',
-                marginBottom: '20px'
-              }}>
-                {system.description}
-              </p>
-
-              <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                paddingTop: '16px', borderTop: '1px solid #f5f5f5'
-              }}>
-                <span style={{
-                  fontSize: '11px', color: '#d4d4d4', fontWeight: '500',
-                  display: 'flex', alignItems: 'center', gap: '6px'
-                }}>
-                  <div style={{
-                    width: '6px', height: '6px', borderRadius: '50%',
-                    background: '#22c55e'
-                  }} />
-                  {system.external ? 'Externo' : 'Integrado'}
-                </span>
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: '6px',
-                  color: hoveredCard === system.id ? '#dc2626' : '#d4d4d4',
-                  fontSize: '12px', fontWeight: '600', transition: 'all 0.3s'
-                }}>
-                  {system.external ? 'Abrir' : 'Acessar'}
-                  <ChevronRight size={14} style={{
-                    transition: 'transform 0.3s',
-                    transform: hoveredCard === system.id ? 'translateX(4px)' : 'translateX(0)'
-                  }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--portal-text)' }}>{system.name}</div>
+                  <div style={{ fontSize: 12, color: '#a3a3a3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{system.description}</div>
                 </div>
+                <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1, color: '#dc2626', background: '#fef2f2', padding: '3px 10px', borderRadius: 6, flexShrink: 0 }}>{system.tag}</span>
+                <button onClick={(e) => { e.stopPropagation(); toggleFavorito(system.id) }} style={{
+                  width: 28, height: 28, borderRadius: 6, border: 'none',
+                  background: isFav ? '#FEF3C7' : 'transparent', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                }}>
+                  <Star size={14} fill={isFav ? '#F59E0B' : 'none'} color={isFav ? '#F59E0B' : '#e5e5e5'} />
+                </button>
+                <ChevronRight size={16} color="#d4d4d4" style={{ flexShrink: 0 }} />
               </div>
-            </div>
-            {editingFolder && (
+            )
+          })}
+        </div>
+      )}
+
+      {/* ══ MODO CIRCULAR ══ */}
+      {viewMode === 'circular' && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '28px', justifyContent: 'center', padding: '20px 0' }}>
+          {/* Pastas circular */}
+          {activeFolder === 'todos' && !editingFolder && !showFavoritosOnly && folders.map((folder) => (
+            <div key={`f-${folder.id}`} onClick={() => setActiveFolder(folder.id)} style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+              cursor: 'pointer', width: 100, textAlign: 'center'
+            }}>
               <div style={{
-                position: 'absolute', top: '14px', right: '14px',
-                width: '26px', height: '26px', borderRadius: '8px',
-                background: isInEditFolder ? '#dc2626' : '#e5e5e5',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                transition: 'all 0.2s', zIndex: 2
-              }}>
-                {isInEditFolder && <Check size={15} color="#fff" strokeWidth={3} />}
+                width: 64, height: 64, borderRadius: '50%',
+                background: 'linear-gradient(135deg, #f59e0b, #d97706)', display: 'flex',
+                alignItems: 'center', justifyContent: 'center', color: '#fff',
+                boxShadow: '0 4px 16px rgba(245,158,11,0.25)',
+                transition: 'all .2s', border: '3px solid #fff'
+              }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.12)' }}
+                onMouseLeave={e => { e.currentTarget.style.transform = '' }}
+              >
+                <FolderOpen size={26} />
               </div>
-            )}
-          </div>
-          )
-        })}
-      </div>
+              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--portal-text)', lineHeight: 1.2 }}>{folder.name}</span>
+            </div>
+          ))}
+          {activeFolder === 'todos' && !editingFolder && !showFavoritosOnly && (
+            <div onClick={createFolder} style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+              cursor: 'pointer', width: 100, textAlign: 'center'
+            }}>
+              <div style={{
+                width: 64, height: 64, borderRadius: '50%',
+                border: '2px dashed #d4d4d4', display: 'flex',
+                alignItems: 'center', justifyContent: 'center', color: '#d4d4d4',
+                transition: 'all .2s'
+              }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = '#dc2626'; e.currentTarget.style.color = '#dc2626' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = '#d4d4d4'; e.currentTarget.style.color = '#d4d4d4' }}
+              >
+                <FolderPlus size={24} />
+              </div>
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#a3a3a3', lineHeight: 1.2 }}>Nova Pasta</span>
+            </div>
+          )}
+          {displayedSystems.map((system) => {
+            const isFav = favoritos.includes(system.id)
+            return (
+              <div key={system.id} onClick={() => openSystem(system)} style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+                cursor: 'pointer', width: 100, textAlign: 'center', position: 'relative'
+              }}>
+                {isFav && <Star size={12} fill="#F59E0B" color="#F59E0B" style={{ position: 'absolute', top: -4, right: 8, zIndex: 2 }} />}
+                <div style={{
+                  width: 64, height: 64, borderRadius: '50%',
+                  background: system.gradient, display: 'flex',
+                  alignItems: 'center', justifyContent: 'center', color: '#fff',
+                  boxShadow: '0 4px 16px rgba(220,38,38,0.2)',
+                  transition: 'all .2s', border: '3px solid #fff'
+                }}
+                  onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.12)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(220,38,38,0.3)' }}
+                  onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 4px 16px rgba(220,38,38,0.2)' }}
+                  onContextMenu={(e) => { e.preventDefault(); toggleFavorito(system.id) }}
+                >
+                  {system.icon}
+                </div>
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--portal-text)', lineHeight: 1.2 }}>{system.name}</span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      <style>{`.fav-btn { opacity: 0 !important; } div:hover > .fav-btn { opacity: 1 !important; }`}</style>
 
       {/* Minhas Tarefas */}
       <div style={{ marginTop: '48px' }}>
