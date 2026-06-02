@@ -35,8 +35,18 @@ export async function computarR5(parametros: ParametrosR5 = {}): Promise<Oportun
 
   const mapOmie = await carregarMapaClientes();
 
+  // Fornecedores (de quem a Nova/Castro compra peças) às vezes aparecem como
+  // "cliente" em pedidos de venda (devoluções, vendas pontuais). Não devem
+  // virar oportunidade de venda de peças — filtramos pelo cadastro manual de
+  // Fornecedores.
+  const fornecedores = await carregarFornecedores();
+  console.log(`[R5] fornecedores a excluir: ${fornecedores.size}`);
+
+  let descartadosForn = 0;
   const out: OportunidadeR5[] = [];
   for (const [keyNorm, ultimo] of ultimoPedido.entries()) {
+    if (fornecedores.has(keyNorm)) { descartadosForn++; continue; }
+
     const mesesDesde = mesesEntre(ultimo.data, hoje);
     if (mesesDesde < minMeses) continue;
 
@@ -60,8 +70,24 @@ export async function computarR5(parametros: ParametrosR5 = {}): Promise<Oportun
       },
     });
   }
-  console.log(`[R5] oportunidades geradas: ${out.length}`);
+  console.log(`[R5] oportunidades geradas: ${out.length} (descartados ${descartadosForn} fornecedores)`);
   return out;
+}
+
+// Carrega nomes de fornecedores (cadastro manual em `Fornecedores`) já
+// normalizados (trim + upper) para casar com a chave de `pedidos_venda_relatorio`.
+async function carregarFornecedores(): Promise<Set<string>> {
+  const set = new Set<string>();
+  const fornecedores = await lerTudo<{ nome: string | null }>((from, to) =>
+    supabase
+      .from("Fornecedores")
+      .select("nome")
+      .range(from, to)
+  );
+  for (const f of fornecedores) {
+    if (f.nome) set.add(f.nome.trim().toUpperCase());
+  }
+  return set;
 }
 
 async function carregarMapaClientes(): Promise<Map<string, string>> {
