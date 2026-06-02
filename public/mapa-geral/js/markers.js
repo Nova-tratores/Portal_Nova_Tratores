@@ -27,15 +27,22 @@ const Markers = {
     // Detecta tecnicos (veiculos oficina) dentro da propriedade do cliente (raio 500m)
     // So mostra se o cliente NAO foi visitado recentemente (>30 dias ou nunca)
     _buildTecnicoProximoMap() {
-        const veiculos = (App.state.veiculos || []).filter(v => v.lat && v.lng && this.isOficina(v.placa));
-        const map = new Map(); // clienteId -> { tecnico, placa, distancia }
+        const LOJA_LAT = -23.208410, LOJA_LNG = -49.370770;
+        // Veículos de oficina com GPS, que estão fora da loja e com ignição OFF (parados no cliente)
+        const veiculos = (App.state.veiculos || []).filter(v => {
+            if (!v.lat || !v.lng) return false;
+            if (!this.isOficina(v.placa)) return false;
+            if (v._semGPS) return false;
+            const naLoja = Utils.calcularDistancia(v.lat, v.lng, LOJA_LAT, LOJA_LNG) < 1;
+            if (naLoja) return false;
+            return true;
+        });
+        const map = new Map();
         for (const c of (App.state.clientes || [])) {
             if (!c.lat || !c.lng) continue;
-            // Ignorar clientes visitados nos ultimos 30 dias
-            if (c.ultima_visita && Utils.diasDesde(c.ultima_visita) <= 30) continue;
             for (const v of veiculos) {
                 const dist = Utils.calcularDistancia(c.lat, c.lng, v.lat, v.lng);
-                if (dist <= 0.5) {
+                if (dist <= 1.5) {
                     const nome = v._tecnico || v.motorista || v.placa;
                     const existing = map.get(String(c.id));
                     if (!existing || dist < existing.distancia) {
@@ -90,24 +97,26 @@ const Markers = {
             const color = c.equipamentos_count > 0 ? Utils.getVisitColor(c.ultima_visita) : 'gray';
             const size = isStacked ? 24 : Utils.getMarkerSize(c.equipamentos_count);
 
-            const nomePin = Utils.truncate(c.nome || c.nome_fantasia || 'Cliente', 20);
+            const nomeCompleto = c.nome || c.nome_fantasia || 'Cliente';
+            const endereco = c.cidade ? `${c.cidade}${c.estado ? ' - ' + c.estado : ''}` : '';
             const pinColor = color === 'green' ? '#16a34a' : color === 'yellow' ? '#ca8a04' : color === 'red' ? '#dc2626' : '#6b7280';
 
             const icon = L.divIcon({
                 className: '',
                 html: isStacked
                     ? `<div style="display:flex;flex-direction:column;align-items:center">
-                        <div style="background:#1E293B;color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,0.3);margin-bottom:2px">${group.length} clientes</div>
-                        <div style="width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:5px solid #1E293B"></div>
-                        <div style="width:12px;height:12px;border-radius:50%;background:#1E293B;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3);margin-top:-1px"></div>
+                        <div style="background:#1E293B;color:#fff;font-size:13px;font-weight:800;padding:4px 10px;border-radius:6px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.4)">${group.length} clientes</div>
+                        <svg width="30" height="40" viewBox="0 0 30 40" style="filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3))"><path d="M15 38C15 38 28 22 28 14C28 6.82 22.18 1 15 1C7.82 1 2 6.82 2 14C2 22 15 38 15 38Z" fill="#1E293B" stroke="#fff" stroke-width="2"/><circle cx="15" cy="14" r="5" fill="#fff"/></svg>
                     </div>`
                     : `<div style="display:flex;flex-direction:column;align-items:center">
-                        <div style="background:${pinColor};color:#fff;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,0.25);max-width:140px;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px">${nomePin}${c.feedbacks_count > 0 ? ' ⭐' : ''}</div>
-                        <div style="width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:4px solid ${pinColor}"></div>
-                        <div style="width:10px;height:10px;border-radius:50%;background:${pinColor};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.25);margin-top:-1px"></div>
+                        <div style="background:${pinColor};color:#fff;padding:5px 10px;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,0.3);text-align:center">
+                            <div style="font-size:13px;font-weight:800;white-space:nowrap">${nomeCompleto}${c.feedbacks_count > 0 ? ' ⭐' : ''}</div>
+                            ${endereco ? `<div style="font-size:10px;font-weight:500;opacity:0.85;white-space:nowrap">${endereco}</div>` : ''}
+                        </div>
+                        <svg width="30" height="40" viewBox="0 0 30 40" style="filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3))"><path d="M15 38C15 38 28 22 28 14C28 6.82 22.18 1 15 1C7.82 1 2 6.82 2 14C2 22 15 38 15 38Z" fill="${pinColor}" stroke="#fff" stroke-width="2"/><circle cx="15" cy="14" r="5" fill="#fff"/></svg>
                     </div>`,
-                iconSize: [140, 36],
-                iconAnchor: [70, 36]
+                iconSize: [300, 80],
+                iconAnchor: [150, 80]
             });
 
             const marker = L.marker([c.lat, c.lng], { icon, draggable: false });
@@ -178,21 +187,19 @@ const Markers = {
                 const badgeIcon = L.divIcon({
                     className: '',
                     html: `<div style="
-                        background: linear-gradient(135deg, #16a34a, #22c55e);
-                        color: white;
-                        padding: 6px 12px;
-                        border-radius: 20px;
-                        font-size: 12px;
+                        background: rgba(22,163,106,0.15);
+                        color: #16a34a;
+                        padding: 3px 8px;
+                        border-radius: 6px;
+                        font-size: 11px;
                         font-weight: 700;
                         white-space: nowrap;
-                        box-shadow: 0 4px 12px rgba(34,197,94,0.5), 0 0 0 3px rgba(34,197,94,0.2);
-                        border: 2px solid rgba(255,255,255,0.9);
+                        border: 1px solid rgba(22,163,106,0.3);
                         display: flex;
                         align-items: center;
-                        gap: 6px;
-                        animation: tecnicoPulse 2s ease-in-out infinite;
+                        gap: 4px;
                     ">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                         ${primeiroNome} - ${distLabel}
                     </div>`,
                     iconSize: [0, 0],
@@ -225,20 +232,20 @@ const Markers = {
         }
     },
 
-    // Placas dos veiculos da oficina (tecnicos)
-    OFICINA_PLACAS: ['TKY6E68', 'FXM4G90', 'TKC5D99', 'FHY8D25', 'ATJ6211', 'DLZ1967'],
-
+    // Veículo é da oficina se tem técnico vinculado (_tecnico preenchido)
     isOficina(placa) {
-        return this.OFICINA_PLACAS.includes((placa || '').replace(/[^A-Z0-9]/g, '').toUpperCase());
+        const veiculos = App.state.veiculos || [];
+        const pn = (placa || '').replace(/[^A-Z0-9]/g, '').toUpperCase();
+        const v = veiculos.find(v => (v.placa || '').replace(/[^A-Z0-9]/g, '').toUpperCase() === pn);
+        return !!(v && (v._tecnico || v.motorista));
     },
 
-    // Encontra o cliente mais proximo do veiculo (dentro de 500m)
     _findNearestClient(lat, lng) {
         let melhor = null, melhorDist = Infinity;
         for (const c of (App.state.clientes || [])) {
             if (!c.lat || !c.lng) continue;
             const d = Utils.calcularDistancia(lat, lng, c.lat, c.lng);
-            if (d < 0.5 && d < melhorDist) { melhor = c; melhorDist = d; }
+            if (d < 1.5 && d < melhorDist) { melhor = c; melhorDist = d; }
         }
         return melhor;
     },
@@ -281,14 +288,16 @@ const Markers = {
             if (paradoCliente) {
                 // Marker: tecnico parado no cliente
                 const nomeCliente = clienteProximo ? Utils.truncate(clienteProximo.nome || clienteProximo.nome_fantasia || '', 28) : 'Cliente';
+                const ordemParado = v._ordem ? `<div style="font-size:10px;font-weight:700;color:#22c55e;line-height:1.2;text-shadow:0 1px 2px rgba(0,0,0,0.9)">${v._ordem}</div>` : '';
                 markerHtml = `
-                    <div class="vehicle-marker-wrap vehicle-at-client" title="${nome} parado em ${nomeCliente}">
+                    <div class="vehicle-marker-wrap vehicle-at-client" title="${nome} parado em ${nomeCliente}${v._ordem ? ' - ' + v._ordem : ''}">
                         <div class="vehicle-marker-icon off ${tipo}" style="position:relative">
                             <img src="${iconUrl}" alt="" class="vehicle-marker-svg"/>
                             <div style="position:absolute;bottom:-3px;right:-3px;width:10px;height:10px;background:#f59e0b;border-radius:50%;border:2px solid rgba(15,23,42,0.9)"></div>
                         </div>
                         <div class="vehicle-marker-text">
                             <div style="font-size:13px;font-weight:800;color:#f59e0b;line-height:1.2;text-shadow:0 1px 3px rgba(0,0,0,0.9)">${primeiroNome || nome}</div>
+                            ${ordemParado}
                             <div style="font-size:10px;color:rgba(255,255,255,0.9);font-weight:600;line-height:1.2;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${nomeCliente}</div>
                             <div style="font-size:9px;color:rgba(255,255,255,0.4)">${v.placa}</div>
                         </div>
@@ -310,13 +319,15 @@ const Markers = {
                 `;
             } else if (on && oficina) {
                 // Marker: tecnico em movimento (veiculo oficina)
+                const ordemLabel = v._ordem ? `<div style="font-size:10px;font-weight:700;color:#f59e0b;line-height:1.2;text-shadow:0 1px 2px rgba(0,0,0,0.9)">${v._ordem}${v._clienteOrdem ? ' · ' + Utils.truncate(v._clienteOrdem, 20) : ''}</div>` : '';
                 markerHtml = `
-                    <div class="vehicle-marker-wrap" title="${nome} em movimento - ${v.placa}">
+                    <div class="vehicle-marker-wrap" title="${nome} em movimento - ${v.placa}${v._ordem ? ' - ' + v._ordem : ''}">
                         <div class="vehicle-marker-icon on ${tipo}">
                             <img src="${iconUrl}" alt="" class="vehicle-marker-svg"/>
                         </div>
                         <div class="vehicle-marker-text">
                             <div style="font-size:13px;font-weight:800;color:#22c55e;text-shadow:0 1px 2px rgba(0,0,0,0.7)">${primeiroNome || nome}</div>
+                            ${ordemLabel}
                             <div class="vehicle-marker-sub">${v.placa} · em movimento</div>
                         </div>
                     </div>
@@ -418,7 +429,9 @@ const Markers = {
 
             const icon = L.divIcon({
                 className: '',
-                html: `<div class="marker-client pulse" style="width:22px;height:22px;background:linear-gradient(135deg, #8b5cf6, #f59e0b);"></div>`,
+                html: `<div style="display:flex;flex-direction:column;align-items:center">
+                    <svg width="24" height="32" viewBox="0 0 30 40" style="filter:drop-shadow(0 2px 4px rgba(139,92,246,0.5))"><path d="M15 38C15 38 28 22 28 14C28 6.82 22.18 1 15 1C7.82 1 2 6.82 2 14C2 22 15 38 15 38Z" fill="#8b5cf6" stroke="#fff" stroke-width="2"/><circle cx="15" cy="14" r="5" fill="#fff"/></svg>
+                </div>`,
                 iconSize: [22, 22],
                 iconAnchor: [11, 11]
             });
@@ -459,8 +472,8 @@ const Markers = {
             // Visual feedback - add edit border
             const el = marker.getElement();
             if (el) {
-                const dot = el.querySelector('.marker-client');
-                if (dot) dot.style.boxShadow = '0 0 0 3px rgba(59,130,246,0.6), 0 2px 6px rgba(0,0,0,0.4)';
+                const dot = el.querySelector('svg') || el.querySelector('.marker-client');
+                if (dot) dot.style.filter = 'drop-shadow(0 0 4px rgba(59,130,246,0.8))';
             }
         }
     },
@@ -480,8 +493,8 @@ const Markers = {
             // Remove edit border
             const el = marker.getElement();
             if (el) {
-                const dot = el.querySelector('.marker-client');
-                if (dot) dot.style.boxShadow = '0 2px 6px rgba(0,0,0,0.4)';
+                const dot = el.querySelector('svg') || el.querySelector('.marker-client');
+                if (dot) dot.style.filter = 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))';
             }
 
             // Remove from map if we'll re-add to cluster
@@ -543,8 +556,20 @@ const Markers = {
     },
 
     filterNearVehicles(clientes, veiculos) {
-        const veiculosGeo = (veiculos || []).filter(v => v.lat && v.lng);
-        if (veiculosGeo.length === 0) return clientes;
+        const agora = Date.now();
+        const LOJA_LAT = -23.208410, LOJA_LNG = -49.370770;
+        const veiculosGeo = (veiculos || []).filter(v => {
+            if (!v.lat || !v.lng || !v.dt_posicao) return false;
+            // Ignora veículos na loja
+            if (Utils.calcularDistancia(v.lat, v.lng, LOJA_LAT, LOJA_LNG) < 1) return false;
+            const idade = agora - new Date(v.dt_posicao).getTime();
+            // Ignição OFF = parado no cliente, posição válida até 2h
+            if (!v.ignicao && idade < 2 * 60 * 60 * 1000) return true;
+            // Ignição ON = em movimento, posição válida até 5 min
+            if (v.ignicao && idade < 5 * 60 * 1000) return true;
+            return false;
+        });
+        if (veiculosGeo.length === 0) return [];
         return clientes.filter(c => {
             if (!c.lat || !c.lng) return false;
             return veiculosGeo.some(v => Utils.calcularDistancia(c.lat, c.lng, v.lat, v.lng) < 5);

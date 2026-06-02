@@ -98,7 +98,7 @@ export async function GET(req: NextRequest) {
 
     // Retorna todos os clientes (com e sem coordenadas)
     // Os sem lat/lng aparecem na lista/busca mas nao no mapa
-    const clientes = rows.map((c) => ({
+    const todos = rows.map((c) => ({
       id: c.id,
       nome: ((c.nome_fantasia || c.razao_social || "Sem nome") as string),
       cnpj_cpf: ((c.cnpj_cpf || "") as string),
@@ -110,6 +110,19 @@ export async function GET(req: NextRequest) {
       ultima_visita: null,
       feedbacks_count: 0,
     }));
+
+    // Deduplicar: mesmo nome normalizado + mesma cidade = duplicata (prioriza o que tem coordenada)
+    const seen = new Map<string, typeof todos[0]>();
+    for (const c of todos) {
+      const key = (c.nome + "|" + c.cidade).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
+      const existing = seen.get(key);
+      if (!existing) {
+        seen.set(key, c);
+      } else if (!existing.lat && c.lat) {
+        seen.set(key, c);
+      }
+    }
+    const clientes = Array.from(seen.values());
 
     cache = { data: clientes, ts: Date.now() };
 

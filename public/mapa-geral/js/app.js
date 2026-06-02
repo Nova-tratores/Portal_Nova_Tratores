@@ -302,15 +302,18 @@ const App = {
             // 2. Checkin diario do app mecanicos sobrescreve (tecnico escolheu carro hoje)
             const { data: checkins } = await sb
                 .from('checkin_diario')
-                .select('tecnico_nome, placa')
+                .select('tecnico_nome, placa, id_ordem, cliente, destino')
                 .eq('data', hoje);
+            const checkinMap = {};
             if (checkins) {
                 for (const c of checkins) {
                     if (c.placa) {
-                        // Placa pode vir como "MONTANA - FHY8D25", extrair a placa limpa
                         const parts = c.placa.split(' - ');
                         const placaLimpa = (parts[parts.length - 1] || '').replace(/[^A-Z0-9]/g, '').toUpperCase();
-                        if (placaLimpa) placaTecnico[placaLimpa] = c.tecnico_nome;
+                        if (placaLimpa) {
+                            placaTecnico[placaLimpa] = c.tecnico_nome;
+                            checkinMap[placaLimpa] = { id_ordem: c.id_ordem || '', cliente: c.cliente || '', destino: c.destino || '' };
+                        }
                     }
                 }
             }
@@ -338,6 +341,13 @@ const App = {
                     v.motorista = placaTecnico[placaNorm];
                     v._tecnico = placaTecnico[placaNorm];
                     tecnicosComCarro.add(placaTecnico[placaNorm]);
+                    // Dados do checkin (ordem, cliente, destino)
+                    const ck = checkinMap[placaNorm];
+                    if (ck) {
+                        v._ordem = ck.id_ordem;
+                        v._clienteOrdem = ck.cliente;
+                        v._destino = ck.destino;
+                    }
                 }
             }
 
