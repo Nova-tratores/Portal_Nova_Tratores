@@ -90,17 +90,24 @@ const Markers = {
             const color = c.equipamentos_count > 0 ? Utils.getVisitColor(c.ultima_visita) : 'gray';
             const size = isStacked ? 24 : Utils.getMarkerSize(c.equipamentos_count);
 
+            const nomePin = Utils.truncate(c.nome || c.nome_fantasia || 'Cliente', 20);
+            const pinColor = color === 'green' ? '#16a34a' : color === 'yellow' ? '#ca8a04' : color === 'red' ? '#dc2626' : '#6b7280';
+
             const icon = L.divIcon({
                 className: '',
                 html: isStacked
-                    ? `<div class="marker-client stacked" style="width:${size}px;height:${size}px;" title="${group.length} clientes nesta posicao">
-                        <span class="marker-stack-count">${group.length}</span>
+                    ? `<div style="display:flex;flex-direction:column;align-items:center">
+                        <div style="background:#1E293B;color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,0.3);margin-bottom:2px">${group.length} clientes</div>
+                        <div style="width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:5px solid #1E293B"></div>
+                        <div style="width:12px;height:12px;border-radius:50%;background:#1E293B;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3);margin-top:-1px"></div>
                     </div>`
-                    : `<div class="marker-client ${color}" style="width:${size}px;height:${size}px;" title="${c.nome}">
-                        ${c.feedbacks_count > 0 ? '<div style="position:absolute;top:-4px;right:-4px;width:8px;height:8px;background:#f59e0b;border-radius:50%;border:1px solid white;"></div>' : ''}
+                    : `<div style="display:flex;flex-direction:column;align-items:center">
+                        <div style="background:${pinColor};color:#fff;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,0.25);max-width:140px;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px">${nomePin}${c.feedbacks_count > 0 ? ' ⭐' : ''}</div>
+                        <div style="width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:4px solid ${pinColor}"></div>
+                        <div style="width:10px;height:10px;border-radius:50%;background:${pinColor};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.25);margin-top:-1px"></div>
                     </div>`,
-                iconSize: [size, size],
-                iconAnchor: [size / 2, size / 2]
+                iconSize: [140, 36],
+                iconAnchor: [70, 36]
             });
 
             const marker = L.marker([c.lat, c.lng], { icon, draggable: false });
