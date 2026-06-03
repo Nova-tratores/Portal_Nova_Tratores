@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import RegistroCard from "./RegistroCard";
 import ModalFeedback from "./ModalFeedback";
 import { atualizarRegistro, deletarRegistro, listarRegistros } from "@/lib/feedbacks/api";
-import type { FeedbackRegistro, TipoFeedback } from "@/lib/feedbacks/types";
+import type { FeedbackRegistro, StatusAtendimento, TipoFeedback } from "@/lib/feedbacks/types";
 
 interface Props {
   tipo: TipoFeedback;
@@ -129,24 +129,16 @@ export default function ListaRegistros({ tipo }: Props) {
       return novo;
     });
   }
-  // Conclui o atendimento direto no card (sem abrir o modal).
-  async function handleConcluir(r: FeedbackRegistro) {
+  // Muda o status de atendimento direto no card (concluir, reabrir, sem-resposta).
+  // - concluido: registra concluido_em; outros status limpam.
+  // - sem_resposta: liga a flag sem_resposta (badge/filtro); demais desligam.
+  async function handleMudarAtendimento(r: FeedbackRegistro, novo: StatusAtendimento) {
     try {
-      const salvo = await atualizarRegistro(r.id, {
-        status_atendimento: "concluido",
-        concluido_em: new Date().toISOString(),
-      });
-      handleSalvo(salvo);
-    } catch (e) {
-      setErro(e instanceof Error ? e.message : String(e));
-    }
-  }
-  // Marca "cliente não respondeu" direto no card. Em RFM também seta a flag
-  // sem_resposta (usada no badge/filtro específico do RFM).
-  async function handleSemResposta(r: FeedbackRegistro) {
-    try {
-      const payload: Partial<FeedbackRegistro> = { status_atendimento: "sem_resposta" };
-      if (tipo === "rfm") payload.sem_resposta = true;
+      const payload: Partial<FeedbackRegistro> = {
+        status_atendimento: novo,
+        concluido_em: novo === "concluido" ? new Date().toISOString() : null,
+        sem_resposta: novo === "sem_resposta",
+      };
       const salvo = await atualizarRegistro(r.id, payload);
       handleSalvo(salvo);
     } catch (e) {
@@ -276,8 +268,7 @@ export default function ListaRegistros({ tipo }: Props) {
               registro={r}
               onEditar={abrirEdit}
               onExcluir={handleExcluir}
-              onConcluir={handleConcluir}
-              onSemResposta={handleSemResposta}
+              onMudarAtendimento={handleMudarAtendimento}
             />
           ))}
         </div>
