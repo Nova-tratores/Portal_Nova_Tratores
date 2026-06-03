@@ -162,6 +162,7 @@ export interface Garantia {
   checklist_respostas: Record<string, unknown>;
   resultado: GarantiaResultado | null;
   motivo_recusa: string | null;
+  recusado_por: 'garantista' | 'fabrica' | null;
   retorno_fabrica_url: string | null;
   valor_pago_horas: number | null;
   valor_pago_km: number | null;
@@ -246,6 +247,8 @@ export interface RelatorioMontadora {
   qtd_total: number;
   qtd_aprovadas: number;
   qtd_rejeitadas: number;
+  qtd_rejeitadas_fabrica: number;
+  qtd_rejeitadas_garantista: number;
   qtd_abertas: number;
   lucro: number;        // soma valor_pago_total das aprovadas
   prejuizo: number;     // soma do valor pleiteado das rejeitadas

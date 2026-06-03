@@ -140,7 +140,15 @@ export default function GarantiasRelatorio({ refreshKey }: { refreshKey: number 
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
                     <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--portal-text)' }}>{m.nome}</span>
                     <span style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>
-                      {m.qtd_total} garantia(s) · {m.qtd_aprovadas} aprovada(s) · {m.qtd_rejeitadas} recusada(s) · {m.qtd_abertas} aberta(s)
+                      {m.qtd_total} garantia(s) · {m.qtd_aprovadas} aprovada(s) ·{' '}
+                      {m.qtd_rejeitadas} recusada(s)
+                      {(m.qtd_rejeitadas_fabrica > 0 || m.qtd_rejeitadas_garantista > 0) && (
+                        <span style={{ color: 'var(--portal-text-faint)' }}>
+                          {' '}({m.qtd_rejeitadas_fabrica} fábrica
+                          {m.qtd_rejeitadas_garantista > 0 ? ` · ${m.qtd_rejeitadas_garantista} garantista` : ''})
+                        </span>
+                      )}
+                      {' '}· {m.qtd_abertas} aberta(s)
                     </span>
                   </div>
 
