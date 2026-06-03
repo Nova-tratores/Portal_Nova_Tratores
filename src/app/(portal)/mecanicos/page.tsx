@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
+import { usePermissoes } from '@/hooks/usePermissoes'
+import SemPermissao from '@/components/SemPermissao'
 import {
   Users, ArrowLeft, Wrench,
   AlertTriangle, CheckCircle, XCircle, Plus,
@@ -127,8 +129,11 @@ const STATUS_CORES: Record<string, { bg: string; text: string }> = {
 
 export default function MecanicosPage() {
   const { userProfile } = useAuth()
+  const { temAcesso, loading: loadingPerm } = usePermissoes(userProfile?.id)
   const searchParams = useSearchParams()
   const router = useRouter()
+
+  if (!loadingPerm && userProfile && !temAcesso('mecanicos')) return <SemPermissao />
 
   const tecnicoParam = searchParams.get('tecnico')
 

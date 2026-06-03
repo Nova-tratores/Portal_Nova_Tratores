@@ -47,6 +47,7 @@ const systems: SystemCard[] = [
   { id: 'proposta-comercial', name: 'Proposta Comercial', description: 'Geração de propostas com PDF e QR Code para clientes', icon: <FileText size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #991b1b, #7f1d1d)', href: '/propostas', tag: 'VENDAS' },
   { id: 'app-requisicoes', name: 'Requisições', description: 'Kanban de requisições de materiais e serviços das unidades', icon: <ClipboardList size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #ef4444, #dc2626)', href: '/requisicoes', tag: 'COMPRAS' },
   { id: 'tarefas', name: 'Tarefas', description: 'Gestão de tarefas entre usuários', icon: <ClipboardCheck size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #dc2626, #b91c1c)', href: '/tarefas', tag: 'TAREFAS' },
+  { id: 'supervisor-vendas', name: 'Supervisor Vendas', description: 'Painel do supervisor: vendedores, visitas, catálogo, mapa e alertas', icon: <TrendingUp size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #dc2626, #991b1b)', href: '/supervisor-vendas', tag: 'VENDAS' },
   { id: 'consulta-estoque', name: 'Visual Estoque', description: 'Showroom virtual de estoque com visualização de peças e produtos', icon: <BarChart3 size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #ef4444, #991b1b)', href: '/visual-estoque', tag: 'ESTOQUE' },
 ]
 
@@ -78,6 +79,7 @@ const systemToModulo: Record<string, string> = {
   'dashboard-agro': 'dashboard-agro',
   'dre': 'dre',
   'back-nova': 'back-nova',
+  'supervisor-vendas': 'supervisor-vendas',
   'configuracoes': 'admin',
 }
 

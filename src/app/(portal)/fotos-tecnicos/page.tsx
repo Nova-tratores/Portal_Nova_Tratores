@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Search, Image, X, ChevronLeft, ChevronRight, Camera, Wrench, User } from 'lucide-react'
+import { useAuth } from '@/hooks/useAuth'
+import { usePermissoes } from '@/hooks/usePermissoes'
+import SemPermissao from '@/components/SemPermissao'
 
 interface FotoItem {
   label: string
@@ -36,6 +39,8 @@ interface OSListItem {
 }
 
 export default function FotosTecnicosPage() {
+  const { userProfile } = useAuth()
+  const { temAcesso, loading: loadingPerm } = usePermissoes(userProfile?.id)
   const [busca, setBusca] = useState('')
   const [lista, setLista] = useState<OSListItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -83,6 +88,8 @@ export default function FotosTecnicosPage() {
       item.tecnico.toLowerCase().includes(busca.toLowerCase())
     )
     : lista
+
+  if (!loadingPerm && userProfile && !temAcesso('fotos-tecnicos')) return <SemPermissao />
 
   return (
     <div style={{ padding: '24px 28px', maxWidth: 1400, margin: '0 auto' }}>

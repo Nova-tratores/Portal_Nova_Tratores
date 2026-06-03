@@ -123,6 +123,52 @@ const VehiclePanel = {
             </div>
         `;
 
+        // Paradas no mapa (mostra todas as paradas do dia com tempo)
+        if (v.paradas_hoje && v.paradas_hoje.length > 0) {
+            const totalParadoMin = v.paradas_hoje.reduce((s, p) => s + (p.duracao_min || 0), 0);
+            const dirigindoMin = v.tempo_ligado_min || 0;
+            const fmtTempo = (min) => min >= 60 ? Math.floor(min/60) + 'h' + (min%60 > 0 ? String(min%60).padStart(2,'0') + 'min' : '') : min + 'min';
+
+            body.innerHTML += `
+                <div class="vp-section">
+                    <div class="vp-section-title">Resumo do Dia</div>
+                    <div class="vp-info-grid" style="margin-bottom:12px">
+                        <div class="vp-info-item">
+                            <div class="vp-info-label">Dirigindo</div>
+                            <div class="vp-info-value" style="color:var(--accent-green)">${fmtTempo(dirigindoMin)}</div>
+                        </div>
+                        <div class="vp-info-item">
+                            <div class="vp-info-label">Parado</div>
+                            <div class="vp-info-value" style="color:var(--accent-red)">${fmtTempo(totalParadoMin)}</div>
+                        </div>
+                        <div class="vp-info-item">
+                            <div class="vp-info-label">Paradas</div>
+                            <div class="vp-info-value" style="color:var(--accent-yellow)">${v.paradas_hoje.length}</div>
+                        </div>
+                        <div class="vp-info-item">
+                            <div class="vp-info-label">Pontos GPS</div>
+                            <div class="vp-info-value">${v.pontos_hoje || 0}</div>
+                        </div>
+                    </div>
+                    <button class="vp-btn primary" style="width:100%;margin-bottom:8px" onclick="VehiclePanel.mostrarParadasNoMapa('${v.placa}')">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="10" r="3"/><path d="M12 21.7C17.3 17 20 13 20 10a8 8 0 0 0-16 0c0 3 2.7 7 8 11.7z"/></svg>
+                        Ver paradas no mapa
+                    </button>
+                    <div style="display:flex;flex-direction:column;gap:4px">
+                        ${v.paradas_hoje.map((p, i) => {
+                            const fmtH = (iso) => { if (!iso) return '--:--'; try { const d = new Date(iso); return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0') } catch { return '--:--' } };
+                            const corP = p.duracao_min > 60 ? '#DC2626' : p.duracao_min > 30 ? '#EA580C' : '#F59E0B';
+                            return `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:rgba(255,255,255,0.06);border-radius:8px;border-left:3px solid ${corP}">
+                                <span style="font-size:11px;font-weight:700;color:var(--text-primary);min-width:20px">${i+1}</span>
+                                <span style="font-size:12px;color:var(--text-secondary)">${fmtH(p.inicio)} - ${p.fim ? fmtH(p.fim) : 'agora'}</span>
+                                <span style="font-size:12px;font-weight:800;color:${corP};margin-left:auto">${fmtTempo(p.duracao_min)}</span>
+                            </div>`;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
         // Rota de hoje
         body.innerHTML += `
             <div class="vp-section">
@@ -332,5 +378,93 @@ const VehiclePanel = {
         } catch (e) {
             container.innerHTML = '<div style="font-size:12px;color:var(--accent-red);padding:8px 0">Erro ao carregar historico</div>';
         }
+    },
+
+    _paradasLayer: null,
+
+    mostrarParadasNoMapa(placa) {
+        const v = (App.state.veiculos || []).find(v => v.placa === placa);
+        if (!v || !v.paradas_hoje || v.paradas_hoje.length === 0) {
+            Utils.toast('Nenhuma parada registrada hoje', 'error');
+            return;
+        }
+
+        // Limpar camada anterior
+        if (this._paradasLayer) {
+            MapCore.map.removeLayer(this._paradasLayer);
+        }
+        this._paradasLayer = L.layerGroup().addTo(MapCore.map);
+
+        const bounds = [];
+        const fmtH = (iso) => { if (!iso) return '--:--'; try { const d = new Date(iso); return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0') } catch { return '--:--' } };
+        const fmtTempo = (min) => min >= 60 ? Math.floor(min/60) + 'h' + (min%60 > 0 ? String(min%60).padStart(2,'0') + 'min' : '') : min + 'min';
+
+        // Posição atual do veículo
+        if (v.lat && v.lng) {
+            const iconUrl = Utils.getVehicleIconUrl(v.modelo);
+            const carIcon = L.divIcon({
+                className: '',
+                html: `<div style="display:flex;flex-direction:column;align-items:center">
+                    <div style="background:rgba(15,23,42,0.95);padding:4px 10px;border-radius:6px;display:flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(0,0,0,0.3)">
+                        <img src="${iconUrl}" style="width:20px;height:20px;filter:brightness(10)" />
+                        <span style="color:#fff;font-size:12px;font-weight:700">${v.placa}</span>
+                        <span style="color:${v.ignicao ? '#22c55e' : '#ef4444'};font-size:10px;font-weight:700">${v.ignicao ? 'ON' : 'OFF'}</span>
+                    </div>
+                </div>`,
+                iconSize: [160, 30],
+                iconAnchor: [80, 15]
+            });
+            L.marker([v.lat, v.lng], { icon: carIcon, zIndexOffset: 3000 }).addTo(this._paradasLayer);
+            bounds.push([v.lat, v.lng]);
+        }
+
+        // Paradas numeradas
+        v.paradas_hoje.forEach((p, i) => {
+            if (!p.lat || !p.lng) return;
+            bounds.push([p.lat, p.lng]);
+
+            const corP = p.duracao_min > 60 ? '#DC2626' : p.duracao_min > 30 ? '#EA580C' : '#F59E0B';
+            const emAndamento = !p.fim;
+            const tamanho = Math.min(22, 12 + Math.floor(p.duracao_min / 10));
+
+            const icon = L.divIcon({
+                className: '',
+                html: `<div style="display:flex;flex-direction:column;align-items:center">
+                    <div style="background:${corP};color:#fff;font-size:11px;font-weight:800;padding:3px 8px;border-radius:6px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;gap:4px">
+                        <span style="background:rgba(255,255,255,0.3);width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px">${i+1}</span>
+                        ${fmtTempo(p.duracao_min)}${emAndamento ? '...' : ''}
+                    </div>
+                    <div style="font-size:9px;color:${corP};font-weight:700;margin-top:1px">${fmtH(p.inicio)} - ${p.fim ? fmtH(p.fim) : 'agora'}</div>
+                    <svg width="${tamanho}" height="${Math.round(tamanho*1.3)}" viewBox="0 0 30 40" style="filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3))">
+                        <path d="M15 38C15 38 28 22 28 14C28 6.82 22.18 1 15 1C7.82 1 2 6.82 2 14C2 22 15 38 15 38Z" fill="${corP}" stroke="#fff" stroke-width="2"/>
+                        <text x="15" y="17" text-anchor="middle" fill="#fff" font-size="12" font-weight="800">${i+1}</text>
+                    </svg>
+                </div>`,
+                iconSize: [140, 70],
+                iconAnchor: [70, 70]
+            });
+
+            const marker = L.marker([p.lat, p.lng], { icon, zIndexOffset: 2000 + i });
+            marker.bindPopup(`
+                <div style="font-size:14px;font-weight:700;margin-bottom:4px">Parada ${i+1} — ${fmtTempo(p.duracao_min)}${emAndamento ? ' (em andamento)' : ''}</div>
+                <div style="font-size:12px;color:#64748B">Veículo: <strong>${v.placa}</strong> ${v.modelo || ''}</div>
+                <div style="font-size:12px;color:#64748B">Motorista: <strong>${v.motorista || v._tecnico || 'N/D'}</strong></div>
+                <div style="font-size:12px;color:#64748B">Chegou: <strong>${fmtH(p.inicio)}</strong></div>
+                ${p.fim ? `<div style="font-size:12px;color:#64748B">Saiu: <strong>${fmtH(p.fim)}</strong></div>` : '<div style="font-size:12px;color:#DC2626;font-weight:700">Ainda parado</div>'}
+            `, { maxWidth: 280 });
+            marker.addTo(this._paradasLayer);
+        });
+
+        // Conectar paradas com linha
+        if (bounds.length > 1) {
+            L.polyline(bounds, { color: '#3b82f6', weight: 2, opacity: 0.5, dashArray: '8, 6' }).addTo(this._paradasLayer);
+        }
+
+        // Zoom no mapa pra mostrar todas as paradas
+        if (bounds.length > 0) {
+            MapCore.map.fitBounds(bounds, { padding: [60, 60], maxZoom: 14 });
+        }
+
+        Utils.toast(`${v.paradas_hoje.length} paradas de ${v.placa} no mapa`, 'success');
     }
 };
