@@ -1,12 +1,12 @@
 "use client";
-import type { FeedbackRegistro } from "@/lib/feedbacks/types";
+import type { FeedbackRegistro, StatusAtendimento } from "@/lib/feedbacks/types";
 
 interface Props {
   registro: FeedbackRegistro;
   onEditar?: (r: FeedbackRegistro) => void;
   onExcluir?: (r: FeedbackRegistro) => void;
-  onConcluir?: (r: FeedbackRegistro) => void;
-  onSemResposta?: (r: FeedbackRegistro) => void;
+  // Muda o status de atendimento do registro (concluir, reabrir, sem-resposta…).
+  onMudarAtendimento?: (r: FeedbackRegistro, novo: StatusAtendimento) => void;
 }
 
 // Horas decorridas desde aberto_em (negativo se aberto_em for futuro)
@@ -50,7 +50,7 @@ function corPrioridade(p: string | null): { bg: string; fg: string } {
   }
 }
 
-export default function RegistroCard({ registro: r, onEditar, onExcluir, onConcluir, onSemResposta }: Props) {
+export default function RegistroCard({ registro: r, onEditar, onExcluir, onMudarAtendimento }: Props) {
   const isCrm = r.tipo === "crm";
   const corStatusObj = isCrm ? corStatus(r.status_cliente) : corPrioridade(r.prioridade);
   const emAtendimento = r.status_atendimento === "aberto" || r.status_atendimento === "em_andamento";
@@ -147,23 +147,33 @@ export default function RegistroCard({ registro: r, onEditar, onExcluir, onConcl
         </div>
       )}
 
-      {emAtendimento && (onConcluir || onSemResposta) && (
+      {onMudarAtendimento && (
         <div style={acoesAtendimentoStyle}>
-          {onConcluir && (
-            <button onClick={() => onConcluir(r)} style={btnAcao("#d1fae5", "#065f46")} type="button">
-              ✅ Concluir atendimento
+          {/* Concluir / Reabrir */}
+          {r.status_atendimento === "concluido" ? (
+            <button onClick={() => onMudarAtendimento(r, "em_andamento")} style={btnAcao("#f3f4f6", "#525252")} type="button">
+              ↩️ Reabrir
+            </button>
+          ) : (
+            <button onClick={() => onMudarAtendimento(r, "concluido")} style={btnAcao("#d1fae5", "#065f46")} type="button">
+              ✅ Concluir
             </button>
           )}
-          {onSemResposta && (
+          {/* Sem resposta / Respondeu */}
+          {r.status_atendimento === "sem_resposta" ? (
+            <button onClick={() => onMudarAtendimento(r, "em_andamento")} style={btnAcao("#d1fae5", "#065f46")} type="button">
+              🔔 Respondeu
+            </button>
+          ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
               <button
-                onClick={() => onSemResposta(r)}
+                onClick={() => onMudarAtendimento(r, "sem_resposta")}
                 disabled={bloqueadoSemResposta}
                 title={bloqueadoSemResposta ? `Disponível em ${restantesSemResp}h (após 24h do início do atendimento)` : "Marcar que o cliente não respondeu"}
                 style={{ ...btnAcao("#fee2e2", "#991b1b"), opacity: bloqueadoSemResposta ? 0.5 : 1, cursor: bloqueadoSemResposta ? "not-allowed" : "pointer" }}
                 type="button"
               >
-                📵 Cliente sem resposta
+                📵 Sem resposta
               </button>
               {bloqueadoSemResposta && (
                 <span style={{ fontSize: 10, color: "#92400e", fontStyle: "italic" }}>
