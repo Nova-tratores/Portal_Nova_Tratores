@@ -425,8 +425,13 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                   <MontadoraPicker
                     montadoraId={g.montadora_id}
                     onSelect={selecionarMontadora}
-                    disabled={!emAnalise || !!busy}
+                    disabled={!!busy}
                   />
+                  {finalizada && (
+                    <span style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>
+                      Garantia já finalizada — você pode ajustar só a montadora; checklist e valores ficam intactos.
+                    </span>
+                  )}
                   {g.montadora_id && (
                     <ChecklistRenderer
                       campos={campos}

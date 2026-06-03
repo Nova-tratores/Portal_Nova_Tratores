@@ -16,7 +16,21 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .maybeSingle();
   if (!garantia) return NextResponse.json({ error: 'Garantia não encontrada.' }, { status: 404 });
 
-  if (!['em_analise', 'bo_tecnico', 'enviada', 'info_pendente'].includes(garantia.status)) {
+  // Garantias finalizadas (aprovada/rejeitada) só permitem AJUSTAR a montadora,
+  // pra corrigir caso o garantista tenha esquecido — relatórios atualizam,
+  // mas o resto do snapshot/respostas/valores fica intacto.
+  const finalizada = garantia.status === 'aprovada' || garantia.status === 'rejeitada';
+  if (finalizada) {
+    const camposPermitidos = ['montadora_id', 'garantista_nome'];
+    const camposEnviados = Object.keys(body).filter(k => k !== undefined && body[k] !== undefined);
+    const bloqueados = camposEnviados.filter(k => !camposPermitidos.includes(k));
+    if (bloqueados.length > 0) {
+      return NextResponse.json(
+        { error: `Garantia já finalizada. Só dá pra ajustar a montadora aqui. Bloqueado: ${bloqueados.join(', ')}.` },
+        { status: 400 }
+      );
+    }
+  } else if (!['em_analise', 'bo_tecnico', 'enviada', 'info_pendente'].includes(garantia.status)) {
     return NextResponse.json(
       { error: 'O checklist só pode ser editado durante a análise ou aguardando fábrica.' },
       { status: 400 }
@@ -35,8 +49,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         .eq('id', body.montadora_id)
         .maybeSingle();
       update.checklist_snapshot = mont?.checklist_def || [];
-      // Ao trocar de montadora, zera respostas antigas
-      update.checklist_respostas = {};
+      // Ao trocar de montadora, zera respostas antigas — exceto em finalizadas,
+      // onde preservamos o histórico (garantista só quer corrigir a montadora).
+      if (!finalizada) update.checklist_respostas = {};
     } else {
       update.checklist_snapshot = null;
     }
