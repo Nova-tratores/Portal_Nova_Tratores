@@ -14,8 +14,9 @@ import FormFornecedor from '@/components/requisicoes/FormFornecedor';
 import FormVeiculo from '@/components/requisicoes/FormVeiculo';
 import TemplatePDF from '@/components/requisicoes/TemplatePDF';
 import {
-  LayoutDashboard, Users2, Box, Activity, Trash2, Plus, X, Car, Bell, Info, CheckCheck, Edit3, FileText, Printer
+  LayoutDashboard, Users2, Box, Activity, Trash2, Plus, X, Car, Bell, Info, CheckCheck, Edit3, FileText, Printer, Tag
 } from 'lucide-react';
+import ModalTags from '@/components/requisicoes/ModalTags';
 
 const ABAS_VALIDAS = new Set(['kanban', 'usuarios', 'veiculos', 'fornecedores', 'relatorio', 'lixeira', 'form_usuario', 'form_veiculo']);
 
@@ -39,6 +40,7 @@ function RequisicoesPageInner() {
   const [notificacoes, setNotificacoes] = useState<any[]>([]);
   const [toasts, setToasts] = useState<any[]>([]);
   const [showNotifModal, setShowNotifModal] = useState(false);
+  const [showTagsModal, setShowTagsModal] = useState(false);
   const [contadorNotif, setContadorNotif] = useState(0);
   const [idDestaque, setIdDestaque] = useState<any>(null);
   const [filtroRelTipo, setFiltroRelTipo] = useState('');
@@ -353,6 +355,7 @@ function RequisicoesPageInner() {
   return (
     <div style={{ padding: '24px 32px' }}>
       {reqParaImprimir && <TemplatePDF req={reqParaImprimir} onUpdate={() => {}} onPrint={() => {}} />}
+      <ModalTags open={showTagsModal} onClose={() => setShowTagsModal(false)} />
 
       {/* Toasts */}
       <div className="fixed top-20 right-6 z-[9999] flex flex-col gap-3 max-w-sm w-full pointer-events-none print:hidden">
@@ -542,6 +545,18 @@ function RequisicoesPageInner() {
             </p>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={() => setShowTagsModal(true)}
+              style={{
+                padding: '8px 14px', borderRadius: '10px',
+                background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
+                color: 'var(--portal-text-secondary)', fontSize: '13px', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: '6px', fontFamily: 'Inter'
+              }}
+            >
+              <Tag size={16} />
+              Tags
+            </button>
             <button
               onClick={() => { setShowNotifModal(true); setContadorNotif(0); }}
               style={{

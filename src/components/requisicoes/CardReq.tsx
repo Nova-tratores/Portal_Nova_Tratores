@@ -235,10 +235,10 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
     onFechar?.();
   };
 
-  const inputBase = "w-full text-sm text-zinc-900 bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-2 outline-none focus:border-red-500 focus:bg-white transition-all placeholder:text-zinc-300";
+  const inputBase = "w-full text-[15px] text-zinc-900 bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 outline-none focus:border-red-500 focus:bg-white transition-all placeholder:text-zinc-300";
   const selectBase = `${inputBase} [&>option]:text-black [&>option]:bg-white cursor-pointer`;
-  const labelBase = "text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-1 flex items-center gap-1.5";
-  const sectionTitle = "text-[11px] font-bold uppercase tracking-wider mb-3 flex items-center gap-2";
+  const labelBase = "text-[13px] font-semibold text-zinc-400 uppercase tracking-wider mb-2 flex items-center gap-2";
+  const sectionTitle = "text-[13px] font-bold uppercase tracking-wider mb-4 flex items-center gap-2";
 
   const statusColors: Record<string, string> = {
     pedido: 'bg-red-500',
@@ -259,7 +259,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
         <div className={`w-7 h-7 rounded flex items-center justify-center shrink-0 ${hasFile ? 'text-emerald-600' : 'text-zinc-400'}`}>
           {icon}
         </div>
-        <span className={`text-xs font-medium flex-1 min-w-0 truncate ${hasFile ? 'text-emerald-700' : 'text-zinc-500'}`}>
+        <span className={`text-sm font-medium flex-1 min-w-0 truncate ${hasFile ? 'text-emerald-700' : 'text-zinc-500'}`}>
           {isUploading ? 'Enviando...' : justUploaded ? 'Enviado!' : label}
         </span>
         {hasFile && (
@@ -288,7 +288,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
       {/* MODAL COTAÇÃO */}
       {modalCotacaoAberto && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-3xl max-h-[85vh] overflow-y-auto rounded-2xl shadow-lg border border-zinc-200">
+          <div className="bg-white w-full max-w-5xl max-h-[92vh] overflow-y-auto rounded-2xl shadow-xl border border-zinc-200">
             <div className="sticky top-0 bg-white/95 backdrop-blur-sm px-6 py-4 border-b border-zinc-200 flex justify-between items-center z-10">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-lg bg-red-600 text-white flex items-center justify-center"><ClipboardList size={18}/></div>
@@ -310,7 +310,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                       <span className="text-xs font-semibold text-zinc-600">Fornecedor {idx}</span>
                       <button onClick={() => removerCotacao(idx)} className="ml-auto p-1.5 rounded-lg bg-zinc-50 text-zinc-400 hover:bg-red-500/20 hover:text-red-400 transition-all"><X size={12}/></button>
                     </div>
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-3 gap-4">
                       <div>
                         <label className={labelBase}><Store size={11}/> Empresa</label>
                         <input value={cotacaoData[`fornecedor${idx}`] || ''} onChange={e => setCotacaoData({...cotacaoData, [`fornecedor${idx}`]: e.target.value.toUpperCase()})} className={inputBase} />
@@ -330,9 +330,9 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
 
               <div className="flex gap-3 pt-2">
                 {fornecedoresVisiveis < 5 && (
-                  <button onClick={() => setFornecedoresVisiveis(prev => prev + 1)} className="flex-1 border-2 border-dashed border-zinc-200 text-zinc-500 py-3 rounded-xl text-xs font-semibold uppercase tracking-wider hover:border-red-200 hover:text-red-600 transition-all flex items-center justify-center gap-2"><Plus size={14}/> Adicionar</button>
+                  <button onClick={() => setFornecedoresVisiveis(prev => prev + 1)} className="flex-1 border-2 border-dashed border-zinc-200 text-zinc-500 py-3 rounded-xl text-sm font-semibold uppercase tracking-wider hover:border-red-200 hover:text-red-600 transition-all flex items-center justify-center gap-2"><Plus size={16}/> Adicionar</button>
                 )}
-                <button onClick={salvarCotacao} className="flex-1 bg-red-600 text-white py-3 rounded-xl text-xs font-semibold uppercase tracking-wider hover:bg-red-500 transition-all flex items-center justify-center gap-2"><CheckCheck size={14}/> Salvar</button>
+                <button onClick={salvarCotacao} className="flex-1 bg-red-600 text-white py-3 rounded-xl text-sm font-semibold uppercase tracking-wider hover:bg-red-500 transition-all flex items-center justify-center gap-2"><CheckCheck size={16}/> Salvar</button>
               </div>
             </div>
           </div>
@@ -342,33 +342,33 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
       {/* MODAL PRINCIPAL — Página única */}
       {modalAberto && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 print:hidden">
-          <div className="bg-white w-full max-w-2xl max-h-[90vh] rounded-2xl shadow-lg border border-zinc-200 flex flex-col overflow-hidden">
+          <div className="bg-white w-full max-w-5xl max-h-[95vh] rounded-2xl shadow-xl border border-zinc-200 flex flex-col overflow-hidden">
 
             {/* HEADER */}
-            <div className="px-6 py-3 border-b border-zinc-200 flex items-center gap-4 shrink-0">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-base font-semibold ${veioDoApp ? 'bg-red-500/15 text-red-600' : 'bg-zinc-50 text-zinc-600'}`}>
+            <div className="px-8 py-5 border-b border-zinc-200 flex items-center gap-5 shrink-0 bg-zinc-50/50">
+              <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-lg font-bold ${veioDoApp ? 'bg-red-500/15 text-red-600' : 'bg-zinc-100 text-zinc-600'}`}>
                 {req.id}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-semibold text-zinc-900 truncate">{localData.titulo || 'Sem título'}</h2>
-                  {veioDoApp && <span className="bg-red-600 text-white text-[10px] px-2 py-0.5 rounded font-bold shrink-0">APP</span>}
+                <div className="flex items-center gap-3">
+                  <h2 className="text-lg font-bold text-zinc-900 truncate">{localData.titulo || 'Sem título'}</h2>
+                  {veioDoApp && <span className="bg-red-600 text-white text-[10px] px-2.5 py-0.5 rounded-md font-bold shrink-0">APP</span>}
                 </div>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <div className={`w-2 h-2 rounded-full ${statusColors[req.status] || 'bg-slate-500'}`}></div>
-                  <span className="text-[11px] text-zinc-400 uppercase tracking-wider">{req.status}</span>
-                  {nomeExibicao && <span className="text-[11px] text-zinc-400">· {nomeExibicao}</span>}
+                <div className="flex items-center gap-3 mt-1">
+                  <div className={`w-2.5 h-2.5 rounded-full ${statusColors[req.status] || 'bg-slate-500'}`}></div>
+                  <span className="text-xs text-zinc-400 uppercase tracking-wider font-semibold">{req.status}</span>
+                  {nomeExibicao && <span className="text-xs text-zinc-400">· {nomeExibicao}</span>}
                 </div>
               </div>
-              <button onClick={handlePrint} className="w-8 h-8 flex items-center justify-center rounded-lg bg-zinc-50 text-zinc-500 hover:bg-red-600 hover:text-white transition-all shrink-0" title="Imprimir"><Printer size={14}/></button>
-              <button onClick={fecharModal} className="w-8 h-8 flex items-center justify-center rounded-lg bg-zinc-50 text-zinc-500 hover:bg-red-500 hover:text-white transition-all shrink-0"><X size={16}/></button>
+              <button onClick={handlePrint} className="w-10 h-10 flex items-center justify-center rounded-lg bg-white border border-zinc-200 text-zinc-500 hover:bg-red-600 hover:text-white hover:border-red-600 transition-all shrink-0" title="Imprimir"><Printer size={16}/></button>
+              <button onClick={fecharModal} className="w-10 h-10 flex items-center justify-center rounded-lg bg-white border border-zinc-200 text-zinc-500 hover:bg-red-500 hover:text-white hover:border-red-500 transition-all shrink-0"><X size={18}/></button>
             </div>
 
             {/* CONTEÚDO — Scroll único */}
-            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
+            <div className="flex-1 overflow-y-auto px-8 py-6 space-y-6">
 
               {/* ── DADOS ── */}
-              <div className="grid grid-cols-[1fr_140px] gap-3">
+              <div className="grid grid-cols-[1fr_180px] gap-4">
                 <div>
                   <label className={labelBase}><Tag size={11}/> Título</label>
                   <input value={localData.titulo || ""} onChange={e => setField('titulo', e.target.value)} onBlur={e => persist('titulo', e.target.value.toUpperCase())} className={inputBase} />
@@ -379,7 +379,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label className={labelBase}><Layers size={11}/> Tipo</label>
                   <select value={localData.tipo || ""} onChange={e => persist('tipo', e.target.value)} className={selectBase}>
@@ -407,7 +407,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
               {localData.setor === "Trator-Cliente" && (
                 <div className="border border-amber-200 bg-amber-50/50 rounded-xl p-4 space-y-3">
                   <span className={`${sectionTitle} text-amber-600`}><Truck size={12}/> Cliente / Trator</span>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className={labelBase}><User size={11}/> Cliente</label>
                       <input value={localData.cliente || ''} onChange={e => setField('cliente', e.target.value)} onBlur={e => persist('cliente', e.target.value.toUpperCase())} className={inputBase} />
@@ -418,7 +418,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                         className={`${inputBase} cursor-pointer flex items-center justify-between`}
                         onClick={() => setOsDropdownOpen(!osDropdownOpen)}
                       >
-                        <span className={localData.ordem_servico ? 'text-zinc-900 text-xs' : 'text-zinc-400 text-xs'}>
+                        <span className={localData.ordem_servico ? 'text-zinc-900 text-sm' : 'text-zinc-400 text-sm'}>
                           {localData.ordem_servico
                             ? `OS ${localData.ordem_servico} - ${ordensAbertas.find(o => String(o.Id_Ordem) === String(localData.ordem_servico))?.Os_Cliente || ''}`
                             : 'Selecione a O.S...'}
@@ -433,7 +433,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                               placeholder="Buscar OS, cliente ou técnico..."
                               value={osBusca}
                               onChange={e => setOsBusca(e.target.value)}
-                              className="w-full px-3 py-2 rounded-lg border border-zinc-200 text-xs outline-none focus:border-red-400"
+                              className="w-full px-4 py-3 rounded-xl border border-zinc-200 text-sm outline-none focus:border-red-400"
                             />
                           </div>
                           {localData.ordem_servico && (
@@ -463,9 +463,9 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                                 }}
                                 className={`w-full px-4 py-2 text-left hover:bg-zinc-50 border-b border-zinc-50 ${String(localData.ordem_servico) === String(o.Id_Ordem) ? 'bg-red-50' : ''}`}
                               >
-                                <span className="font-bold text-xs text-zinc-800">OS {o.Id_Ordem}</span>
-                                <span className="text-[11px] text-zinc-500 ml-2">{o.Os_Cliente}</span>
-                                <span className="text-[11px] text-zinc-400 ml-1">({o.Os_Tecnico})</span>
+                                <span className="font-bold text-sm text-zinc-800">OS {o.Id_Ordem}</span>
+                                <span className="text-sm text-zinc-500 ml-2">{o.Os_Cliente}</span>
+                                <span className="text-xs text-zinc-400 ml-1">({o.Os_Tecnico})</span>
                               </button>
                             ))
                           }
@@ -480,7 +480,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                       )}
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className={labelBase}><Cpu size={11}/> Chassis / Modelo</label>
                       <input value={localData.Chassis_Modelo || ''} onChange={e => setField('Chassis_Modelo', e.target.value)} onBlur={e => persist('Chassis_Modelo', e.target.value.toUpperCase())} className={inputBase} />
@@ -528,7 +528,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
               {['Veicular Abastecimento', 'Veicular Manutenção'].includes(localData.tipo) && (
                 <div className="border border-red-200 bg-red-50/50 rounded-xl p-4">
                   <span className={`${sectionTitle} text-red-600`}><Car size={12}/> Veículo</span>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className={labelBase}><Car size={11}/> Placa</label>
                       <select value={String(localData.veiculo || '')} onChange={e => persist('veiculo', e.target.value)} className={selectBase}>
@@ -555,7 +555,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
               {/* Observações */}
               <div>
                 <label className={labelBase}><FileText size={11}/> Observações</label>
-                <textarea value={localData.obs || ""} onChange={e => setField('obs', e.target.value)} onBlur={e => persist('obs', e.target.value)} className={`${inputBase} h-20 resize-none`} placeholder="Descrição, justificativa..." />
+                <textarea value={localData.obs || ""} onChange={e => { setField('obs', e.target.value); e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }} onBlur={e => persist('obs', e.target.value)} onFocus={e => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }} className={`${inputBase} min-h-[80px] resize-none overflow-hidden`} placeholder="Descrição, justificativa..." style={{ height: 'auto' }} ref={el => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }} />
               </div>
 
               {/* ── DIVISOR ── */}
@@ -607,7 +607,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
 
                 {/* Valor da despesa */}
                 <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-3">
-                  <label className="text-[11px] font-bold text-red-600 uppercase tracking-wider block mb-1.5">Custo Real</label>
+                  <label className="text-[13px] font-bold text-red-600 uppercase tracking-wider block mb-2">Custo Real</label>
                   <div className="flex items-center gap-2">
                     <span className="text-red-600 text-lg font-bold select-none">R$</span>
                     <input
@@ -625,7 +625,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                 <div className="flex items-center gap-3 mb-2">
                   <button
                     onClick={() => setModalCotacaoAberto(true)}
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 transition-all text-xs font-semibold"
+                    className="flex items-center gap-2 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 transition-all text-sm font-semibold"
                   >
                     <ClipboardList size={14} />
                     Cotações ({fornecedoresVisiveis})
@@ -642,14 +642,14 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                       }}
                       className="w-3.5 h-3.5 accent-red-600 cursor-pointer"
                     />
-                    <span className="text-[11px] text-zinc-500">No PDF</span>
+                    <span className="text-xs text-zinc-500">No PDF</span>
                   </label>
                 </div>
 
                 {req.enviado_financeiro_data && (
                   <div className="flex items-center gap-2 p-2.5 rounded-lg bg-indigo-50 border border-indigo-200 mt-2">
                     <Calendar size={13} className="text-indigo-500" />
-                    <span className="text-[11px] text-indigo-600">Enviado ao financeiro: <strong>{new Date(req.enviado_financeiro_data.length > 10 ? req.enviado_financeiro_data : req.enviado_financeiro_data + 'T12:00:00').toLocaleDateString('pt-BR')}</strong></span>
+                    <span className="text-sm text-indigo-600">Enviado ao financeiro: <strong>{new Date(req.enviado_financeiro_data.length > 10 ? req.enviado_financeiro_data : req.enviado_financeiro_data + 'T12:00:00').toLocaleDateString('pt-BR')}</strong></span>
                   </div>
                 )}
               </div>

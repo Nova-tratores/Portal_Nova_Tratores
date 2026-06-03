@@ -19,6 +19,7 @@ import ModalBuscaProduto from "@/components/ppv/ModalBuscaProduto";
 import ModalProdutoManual from "@/components/ppv/ModalProdutoManual";
 import CatalogoPecas from "@/components/ppv/CatalogoPecas";
 import RastreioEncomendas from "@/components/ppv/RastreioEncomendas";
+import ModalRevisoes from "@/components/ppv/ModalRevisoes";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 
 function PPVApp() {
@@ -92,6 +93,7 @@ function PPVApp() {
 
   // Sync produtos
   const [syncingProdutos, setSyncingProdutos] = useState(false);
+  const [showGerenciarKits, setShowGerenciarKits] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
 
   // Form fields
@@ -249,6 +251,12 @@ function PPVApp() {
           </button>
           <button
             className="ppv-topbar-action-btn secondary"
+            onClick={() => setShowGerenciarKits(true)}
+          >
+            <i className="fas fa-tools" /> Gerenciar Kits
+          </button>
+          <button
+            className="ppv-topbar-action-btn secondary"
             disabled={syncingProdutos}
             onClick={async () => {
               setSyncingProdutos(true);
@@ -355,6 +363,7 @@ function PPVApp() {
       <ModalBuscaOS open={buscaOSOpen} onClose={() => setBuscaOSOpen(false)} onSelect={handleSelectOS} />
       <ModalBuscaProduto open={buscaProdutoOpen} mode={buscaProdutoMode} onClose={() => setBuscaProdutoOpen(false)} onSelect={handleSelectProduto} onEditManual={handleEditManual} />
       <ModalProdutoManual open={produtoManualOpen} onClose={() => setProdutoManualOpen(false)} onSaved={() => {}} editData={produtoManualEdit} />
+      <ModalRevisoes open={showGerenciarKits} onClose={() => setShowGerenciarKits(false)} />
     </div>
   );
 }

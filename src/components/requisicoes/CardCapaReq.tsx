@@ -130,7 +130,16 @@ export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhado
           )}
         </div>
 
-        <div className="mt-5 flex justify-start items-center gap-3">
+        {/* Tags */}
+        {req.tags && Array.isArray(req.tags) && req.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-3">
+            {req.tags.map((tag: string, i: number) => (
+              <span key={i} className="text-[10px] font-bold px-2 py-0.5 rounded-md" style={{ background: '#F5F3FF', color: '#7C3AED' }}>{tag}</span>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-4 flex justify-start items-center gap-3">
           <div className="text-[18px] font-bold text-zinc-900 tracking-tighter"><span className="text-xs text-zinc-400 mr-1 italic font-normal">R$</span>{req.valor_despeza || '0,00'}</div>
           {(req.foto_nf || req.recibo_fornecedor) && <div className="flex gap-1 ml-auto">{req.foto_nf && <Receipt size={14} className="text-red-600" />}{req.recibo_fornecedor && <Paperclip size={14} className="text-zinc-400" />}</div>}
         </div>

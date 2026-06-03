@@ -27,221 +27,27 @@ interface SystemCard {
 }
 
 const systems: SystemCard[] = [
-  {
-    id: 'sistema-financeiro',
-    name: 'Financeiro',
-    description: 'Gestão de NF, boletos, contas a pagar e receber, chamados RH',
-    icon: <DollarSign size={28} />,
-    color: '#dc2626',
-    gradient: 'linear-gradient(135deg, #dc2626, #b91c1c)',
-    href: '/financeiro',
-    tag: 'FINANÇAS'
-  },
-  {
-    id: 'app-requisicoes',
-    name: 'Requisições',
-    description: 'Kanban de requisições de materiais e serviços das unidades',
-    icon: <ClipboardList size={28} />,
-    color: '#dc2626',
-    gradient: 'linear-gradient(135deg, #ef4444, #dc2626)',
-    href: '/requisicoes',
-    tag: 'COMPRAS'
-  },
-  {
-    id: 'controle-revisao',
-    name: 'Controle de Revisões',
-    description: 'Acompanhamento de revisões periódicas de tratores com integração Gmail',
-    icon: <Wrench size={28} />,
-    color: '#dc2626',
-    gradient: 'linear-gradient(135deg, #b91c1c, #991b1b)',
-    href: '/revisoes',
-    tag: 'MANUTENÇÃO'
-  },
-  {
-    id: 'pos',
-    name: 'Pós-Vendas (OS)',
-    description: 'Ordens de serviço, integração Omie ERP, geração de PDF',
-    icon: <Settings size={28} />,
-    color: '#dc2626',
-    gradient: 'linear-gradient(135deg, #dc2626, #991b1b)',
-    href: '/pos',
-    tag: 'SERVIÇOS'
-  },
-  {
-    id: 'garantias',
-    name: 'Garantias',
-    description: 'Solicitações de garantia, envio à fábrica, cobrança ao cliente e relatórios por montadora',
-    icon: <ShieldCheck size={28} />,
-    color: '#dc2626',
-    gradient: 'linear-gradient(135deg, #dc2626, #991b1b)',
-    href: '/garantias',
-    tag: 'GARANTIAS'
-  },
-  {
-    id: 'ppv',
-    name: 'Peças (Pedido de Venda)',
-    description: 'Pedidos de venda de peças, rastreamento e gestão',
-    icon: <Package size={28} />,
-    color: '#dc2626',
-    gradient: 'linear-gradient(135deg, #ef4444, #b91c1c)',
-    href: '/ppv',
-    tag: 'PEÇAS'
-  },
-  {
-    id: 'proposta-comercial',
-    name: 'Proposta Comercial',
-    description: 'Geração de propostas com PDF e QR Code para clientes',
-    icon: <FileText size={28} />,
-    color: '#dc2626',
-    gradient: 'linear-gradient(135deg, #991b1b, #7f1d1d)',
-    href: '/propostas',
-    tag: 'VENDAS'
-  },
-  {
-    id: 'feedbacks',
-    name: 'Feedbacks & CRM',
-    description: 'CRM/RFM, oportunidades automáticas de revisão, peças, up-sell e follow-up',
-    icon: <Megaphone size={28} />,
-    color: '#dc2626',
-    gradient: 'linear-gradient(135deg, #dc2626, #b91c1c)',
-    href: '/feedbacks',
-    tag: 'CRM'
-  },
-  {
-    id: 'orcamentos',
-    name: 'Orçamentos',
-    description: 'Orçamentos personalizados com peças, mão de obra e deslocamento',
-    icon: <Calculator size={28} />,
-    color: '#dc2626',
-    gradient: 'linear-gradient(135deg, #dc2626, #ef4444)',
-    href: '/orcamentos',
-    tag: 'ORÇAMENTOS'
-  },
-  {
-    id: 'tarefas',
-    name: 'Tarefas',
-    description: 'Gestão de tarefas entre usuários',
-    icon: <ClipboardCheck size={28} />,
-    color: '#dc2626',
-    gradient: 'linear-gradient(135deg, #dc2626, #b91c1c)',
-    href: '/tarefas',
-    tag: 'TAREFAS'
-  },
-  {
-    id: 'mecanicos',
-    name: 'Janela Mecânicos',
-    description: 'Jornada, agenda e acompanhamento dos mecânicos de campo',
-    icon: <Users size={28} />,
-    color: '#dc2626',
-    gradient: 'linear-gradient(135deg, #dc2626, #ef4444)',
-    href: '/mecanicos',
-    tag: 'TÉCNICOS'
-  },
-  {
-    id: 'clientes',
-    name: 'Pastas Clientes',
-    description: 'Ranking de clientes por volume de serviços, OS, PV e NF integrados ao Omie',
-    icon: <Building size={28} />,
-    color: '#dc2626',
-    gradient: 'linear-gradient(135deg, #dc2626, #991b1b)',
-    href: '/clientes',
-    tag: 'CLIENTES'
-  },
-  {
-    id: 'mapa-geral',
-    name: 'Mapeamento Técnico',
-    description: 'Visualização geográfica de clientes, técnicos e operações',
-    icon: <Map size={28} />,
-    color: '#dc2626',
-    gradient: 'linear-gradient(135deg, #b91c1c, #991b1b)',
-    href: '/mapa-geral',
-    tag: 'MAPA'
-  },
-  {
-    id: 'fotos-tecnicos',
-    name: 'Fotos Técnicos',
-    description: 'Visualize as fotos anexadas pelos técnicos em cada ordem de serviço',
-    icon: <Camera size={28} />,
-    color: '#dc2626',
-    gradient: 'linear-gradient(135deg, #dc2626, #b91c1c)',
-    href: '/fotos-tecnicos',
-    tag: 'FOTOS'
-  },
-  {
-    id: 'consulta-estoque',
-    name: 'Visual Estoque',
-    description: 'Showroom virtual de estoque com visualização de peças e produtos',
-    icon: <BarChart3 size={28} />,
-    color: '#dc2626',
-    gradient: 'linear-gradient(135deg, #ef4444, #991b1b)',
-    href: 'https://estoque.novatratores.com',
-    tag: 'ESTOQUE',
-    external: true
-  },
-  {
-    id: 'visual-estoque',
-    name: 'Consulta Omie',
-    description: 'Estoque Omie, CMC, curva ABC, dashboard de vendas e comissões',
-    icon: <Eye size={28} />,
-    color: '#dc2626',
-    gradient: 'linear-gradient(135deg, #b91c1c, #7f1d1d)',
-    href: 'https://produtos.novatratores.com',
-    tag: 'SHOWROOM',
-    external: true
-  },
-  {
-    id: 'avisos',
-    name: 'Avisos',
-    description: 'Comunicados e avisos para toda a equipe, com anexos e notificacoes',
-    icon: <Megaphone size={28} />,
-    color: '#dc2626',
-    gradient: 'linear-gradient(135deg, #dc2626, #991b1b)',
-    href: '/avisos',
-    tag: 'COMUNICADOS'
-  },
-  {
-    id: 'dashboard-agro',
-    name: 'Dashboard Agro',
-    description: 'Dashboard de acompanhamento do segmento agrícola',
-    icon: <Wheat size={28} />,
-    color: '#16a34a',
-    gradient: 'linear-gradient(135deg, #22c55e, #15803d)',
-    href: 'https://dashboard-agro-sp-production.up.railway.app/',
-    tag: 'AGRO',
-    external: true
-  },
-  {
-    id: 'dre',
-    name: 'DRE Financeiro',
-    description: 'Demonstração do Resultado do Exercício com dados integrados do Omie',
-    icon: <TrendingUp size={28} />,
-    color: '#dc2626',
-    gradient: 'linear-gradient(135deg, #dc2626, #991b1b)',
-    href: 'https://financeiro-omie-production-ce7e.up.railway.app/dre',
-    tag: 'FINANÇAS',
-    external: true
-  },
-  {
-    id: 'back-nova',
-    name: 'Back Nova',
-    description: 'Sistema backend Nova Tratores',
-    icon: <Server size={28} />,
-    color: '#dc2626',
-    gradient: 'linear-gradient(135deg, #dc2626, #b91c1c)',
-    href: 'https://back.novatratores.com',
-    tag: 'BACKEND',
-    external: true
-  },
-  {
-    id: 'configuracoes',
-    name: 'Configurações',
-    description: 'Gestão de usuários, permissões, módulos e configurações gerais do portal',
-    icon: <Settings size={28} />,
-    color: '#dc2626',
-    gradient: 'linear-gradient(135deg, #525252, #1a1a1a)',
-    href: '/admin',
-    tag: 'ADMIN'
-  }
+  { id: 'avisos', name: 'Avisos', description: 'Comunicados e avisos para toda a equipe, com anexos e notificacoes', icon: <Megaphone size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #dc2626, #991b1b)', href: '/avisos', tag: 'COMUNICADOS' },
+  { id: 'back-nova', name: 'Back Nova', description: 'Sistema backend Nova Tratores', icon: <Server size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #dc2626, #b91c1c)', href: 'https://back.novatratores.com', tag: 'BACKEND', external: true },
+  { id: 'configuracoes', name: 'Configurações', description: 'Gestão de usuários, permissões, módulos e configurações gerais do portal', icon: <Settings size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #525252, #1a1a1a)', href: '/admin', tag: 'ADMIN' },
+  { id: 'visual-estoque', name: 'Consulta Omie', description: 'Estoque Omie, CMC, curva ABC, dashboard de vendas e comissões', icon: <Eye size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #b91c1c, #7f1d1d)', href: '/consulta-omie', tag: 'SHOWROOM' },
+  { id: 'controle-revisao', name: 'Controle de Revisões', description: 'Acompanhamento de revisões periódicas de tratores com integração Gmail', icon: <Wrench size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #b91c1c, #991b1b)', href: '/revisoes', tag: 'MANUTENÇÃO' },
+  { id: 'dashboard-agro', name: 'Dashboard Agro', description: 'Dashboard de acompanhamento do segmento agrícola', icon: <Wheat size={28} />, color: '#16a34a', gradient: 'linear-gradient(135deg, #22c55e, #15803d)', href: '/dashboard-agro', tag: 'AGRO' },
+  { id: 'dre', name: 'DRE Financeiro', description: 'Demonstração do Resultado do Exercício com dados integrados do Omie', icon: <TrendingUp size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #dc2626, #991b1b)', href: 'https://financeiro-omie-production-ce7e.up.railway.app/dre', tag: 'FINANÇAS', external: true },
+  { id: 'feedbacks', name: 'Feedbacks & CRM', description: 'CRM/RFM, oportunidades automáticas de revisão, peças, up-sell e follow-up', icon: <Megaphone size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #dc2626, #b91c1c)', href: '/feedbacks', tag: 'CRM' },
+  { id: 'sistema-financeiro', name: 'Financeiro', description: 'Gestão de NF, boletos, contas a pagar e receber, chamados RH', icon: <DollarSign size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #dc2626, #b91c1c)', href: '/financeiro', tag: 'FINANÇAS' },
+  { id: 'fotos-tecnicos', name: 'Fotos Técnicos', description: 'Visualize as fotos anexadas pelos técnicos em cada ordem de serviço', icon: <Camera size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #dc2626, #b91c1c)', href: '/fotos-tecnicos', tag: 'FOTOS' },
+  { id: 'garantias', name: 'Garantias', description: 'Solicitações de garantia, envio à fábrica, cobrança ao cliente e relatórios por montadora', icon: <ShieldCheck size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #dc2626, #991b1b)', href: '/garantias', tag: 'GARANTIAS' },
+  { id: 'mecanicos', name: 'Janela Mecânicos', description: 'Jornada, agenda e acompanhamento dos mecânicos de campo', icon: <Users size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #dc2626, #ef4444)', href: '/mecanicos', tag: 'TÉCNICOS' },
+  { id: 'mapa-geral', name: 'Mapeamento Técnico', description: 'Visualização geográfica de clientes, técnicos e operações', icon: <Map size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #b91c1c, #991b1b)', href: '/mapa-geral', tag: 'MAPA' },
+  { id: 'orcamentos', name: 'Orçamentos', description: 'Orçamentos personalizados com peças, mão de obra e deslocamento', icon: <Calculator size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #dc2626, #ef4444)', href: '/orcamentos', tag: 'ORÇAMENTOS' },
+  { id: 'clientes', name: 'Pastas Clientes', description: 'Ranking de clientes por volume de serviços, OS, PV e NF integrados ao Omie', icon: <Building size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #dc2626, #991b1b)', href: '/clientes', tag: 'CLIENTES' },
+  { id: 'ppv', name: 'Peças (Pedido de Venda)', description: 'Pedidos de venda de peças, rastreamento e gestão', icon: <Package size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #ef4444, #b91c1c)', href: '/ppv', tag: 'PEÇAS' },
+  { id: 'pos', name: 'Pós-Vendas (OS)', description: 'Ordens de serviço, integração Omie ERP, geração de PDF', icon: <Settings size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #dc2626, #991b1b)', href: '/pos', tag: 'SERVIÇOS' },
+  { id: 'proposta-comercial', name: 'Proposta Comercial', description: 'Geração de propostas com PDF e QR Code para clientes', icon: <FileText size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #991b1b, #7f1d1d)', href: '/propostas', tag: 'VENDAS' },
+  { id: 'app-requisicoes', name: 'Requisições', description: 'Kanban de requisições de materiais e serviços das unidades', icon: <ClipboardList size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #ef4444, #dc2626)', href: '/requisicoes', tag: 'COMPRAS' },
+  { id: 'tarefas', name: 'Tarefas', description: 'Gestão de tarefas entre usuários', icon: <ClipboardCheck size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #dc2626, #b91c1c)', href: '/tarefas', tag: 'TAREFAS' },
+  { id: 'consulta-estoque', name: 'Visual Estoque', description: 'Showroom virtual de estoque com visualização de peças e produtos', icon: <BarChart3 size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #ef4444, #991b1b)', href: '/visual-estoque', tag: 'ESTOQUE' },
 ]
 
 interface LogEntry {

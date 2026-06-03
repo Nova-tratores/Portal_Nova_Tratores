@@ -20,6 +20,9 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
   const [solBusca, setSolBusca] = useState('');
   const solRef = useRef<HTMLDivElement>(null);
 
+  const [tagsDisponiveis, setTagsDisponiveis] = useState<{ id: number; nome: string; cor: string }[]>([]);
+  const [tagsSelecionadas, setTagsSelecionadas] = useState<string[]>([]);
+
   const [formData, setFormData] = useState({
     titulo: '', tipo: '', solicitante: '', setor: '',
     data: new Date().toISOString().split('T')[0],
@@ -37,6 +40,8 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
       ]);
       if (users) setUsuarios(users);
       if (veic) setVeiculos(veic);
+      const { data: tags } = await supabase.from('requisicao_tags').select('*').order('nome');
+      if (tags) setTagsDisponiveis(tags);
       if (ordens) setOrdensAbertas(ordens);
     };
     fetchData();
@@ -63,6 +68,7 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
         dados[key] = val;
       }
     }
+    if (tagsSelecionadas.length > 0) dados.tags = tagsSelecionadas;
     onSave(dados);
   };
 
@@ -323,6 +329,31 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
             <label className={labelStyle}>Observações Técnicas</label>
             <textarea rows={4} onChange={e => setFormData({...formData, obs: e.target.value})} className={`${inputStyle} resize-none italic`} placeholder="Descreva os itens ou serviços necessários..." />
           </div>
+
+          {/* Tags */}
+          {tagsDisponiveis.length > 0 && (
+            <div>
+              <label className={labelStyle}>Tags</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {tagsDisponiveis.map(tag => {
+                  const selected = tagsSelecionadas.includes(tag.nome);
+                  return (
+                    <button key={tag.id} type="button"
+                      onClick={() => setTagsSelecionadas(prev => selected ? prev.filter(t => t !== tag.nome) : [...prev, tag.nome])}
+                      style={{
+                        padding: '6px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                        border: selected ? `2px solid ${tag.cor}` : '2px solid rgba(255,255,255,0.2)',
+                        background: selected ? tag.cor : 'rgba(255,255,255,0.1)',
+                        color: selected ? '#fff' : 'rgba(255,255,255,0.6)',
+                        transition: 'all .15s',
+                      }}>
+                      {tag.nome}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <button type="submit" className="w-full bg-white text-slate-900 font-black py-6 rounded-xl shadow-lg hover:bg-red-500 hover:text-white transition-all uppercase text-sm tracking-[0.4em]">
             Confirmar e Enviar Pedido

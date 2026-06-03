@@ -5,9 +5,10 @@ interface SidebarProps {
   onTabChange: (tab: string) => void;
   onCriarProduto: () => void;
   onEditarProduto: () => void;
+  onGerenciarKits?: () => void;
 }
 
-export default function Sidebar({ activeTab, onTabChange, onCriarProduto, onEditarProduto }: SidebarProps) {
+export default function Sidebar({ activeTab, onTabChange, onCriarProduto, onEditarProduto, onGerenciarKits }: SidebarProps) {
   return (
     <aside className="z-20 flex w-[280px] shrink-0 flex-col bg-red-900 p-6 text-white shadow-[5px_0_15px_rgba(0,0,0,0.1)]">
       <div className="mb-10 flex items-center gap-3">
@@ -39,6 +40,15 @@ export default function Sidebar({ activeTab, onTabChange, onCriarProduto, onEdit
       >
         <i className="fas fa-edit text-lg" /> EDITAR PRODUTO
       </button>
+
+      {onGerenciarKits && (
+        <button
+          onClick={onGerenciarKits}
+          className="mb-5 flex w-full cursor-pointer items-center justify-center gap-3 rounded-xl border-none bg-gradient-to-br from-amber-600 to-yellow-600 px-5 py-4 text-base font-semibold text-white transition-transform hover:-translate-y-0.5"
+        >
+          <i className="fas fa-tools text-lg" /> GERENCIAR KITS
+        </button>
+      )}
 
       <div className="mt-4 mb-2 px-2 text-[10px] font-bold uppercase tracking-widest text-red-300/60">
         Navegação
