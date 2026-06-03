@@ -2,8 +2,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import RegistroCard from "./RegistroCard";
 import ModalFeedback from "./ModalFeedback";
-import { deletarRegistro, listarRegistros } from "@/lib/feedbacks/api";
-import type { FeedbackRegistro, TipoFeedback } from "@/lib/feedbacks/types";
+import { atualizarRegistro, deletarRegistro, listarRegistros } from "@/lib/feedbacks/api";
+import type { FeedbackRegistro, StatusAtendimento, TipoFeedback } from "@/lib/feedbacks/types";
 
 interface Props {
   tipo: TipoFeedback;
@@ -129,6 +129,22 @@ export default function ListaRegistros({ tipo }: Props) {
       return novo;
     });
   }
+  // Muda o status de atendimento direto no card (concluir, reabrir, sem-resposta).
+  // - concluido: registra concluido_em; outros status limpam.
+  // - sem_resposta: liga a flag sem_resposta (badge/filtro); demais desligam.
+  async function handleMudarAtendimento(r: FeedbackRegistro, novo: StatusAtendimento) {
+    try {
+      const payload: Partial<FeedbackRegistro> = {
+        status_atendimento: novo,
+        concluido_em: novo === "concluido" ? new Date().toISOString() : null,
+        sem_resposta: novo === "sem_resposta",
+      };
+      const salvo = await atualizarRegistro(r.id, payload);
+      handleSalvo(salvo);
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : String(e));
+    }
+  }
 
   return (
     <div style={{ paddingTop: 20, fontFamily: "Inter, sans-serif" }}>
@@ -252,6 +268,7 @@ export default function ListaRegistros({ tipo }: Props) {
               registro={r}
               onEditar={abrirEdit}
               onExcluir={handleExcluir}
+              onMudarAtendimento={handleMudarAtendimento}
             />
           ))}
         </div>

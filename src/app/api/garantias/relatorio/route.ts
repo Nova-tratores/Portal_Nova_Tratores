@@ -35,6 +35,8 @@ export async function GET(req: NextRequest) {
     qtd_total: 0,
     qtd_aprovadas: 0,
     qtd_rejeitadas: 0,
+    qtd_rejeitadas_fabrica: 0,
+    qtd_rejeitadas_garantista: 0,
     qtd_abertas: 0,
     lucro: 0,
     prejuizo: 0,
@@ -89,6 +91,8 @@ export async function GET(req: NextRequest) {
       totais.qtd_finalizadas++;
     } else if (g.status === 'rejeitada') {
       acc.qtd_rejeitadas++;
+      if (g.recusado_por === 'garantista') acc.qtd_rejeitadas_garantista++;
+      else acc.qtd_rejeitadas_fabrica++;
       const h = g.garantista_horas != null ? Number(g.garantista_horas) : Number(g.tecnico_horas) || 0;
       const k = g.garantista_km != null ? Number(g.garantista_km) : Number(g.tecnico_km) || 0;
       acc.prejuizo += h * VALOR_HORA + k * VALOR_KM;

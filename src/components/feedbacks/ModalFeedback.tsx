@@ -101,6 +101,7 @@ function formParaPayload(tipo: TipoFeedback, form: FormState): Partial<FeedbackR
       feedback: form.feedback.trim() || null,
       nps: form.nps || null,
       melhoria: form.melhoria || null,
+      sem_resposta: form.sem_resposta,
     };
   }
   return {
@@ -145,8 +146,9 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
       const payload = formParaPayload(tipo, form) as Partial<FeedbackRegistro>;
       // Se está editando um atendimento aberto e o usuário marcou sem_resposta,
       // marca o status_atendimento como sem_resposta. Senão, fecha como concluido.
+      // Vale para CRM e RFM (ambos têm o campo "Cliente não respondeu").
       if (registro?.status_atendimento === "aberto" || registro?.status_atendimento === "em_andamento") {
-        if (tipo === "rfm" && form.sem_resposta) {
+        if (form.sem_resposta) {
           payload.status_atendimento = "sem_resposta";
         } else {
           payload.status_atendimento = "concluido";
@@ -284,6 +286,10 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
                   </select>
                 </Field>
               </Row>
+
+              <Field label="Sem resposta?">
+                <CampoSemResposta abertoEm={registro?.aberto_em} checked={form.sem_resposta} onChange={(v) => upd("sem_resposta", v)} />
+              </Field>
             </>
           ) : (
             <>
@@ -312,38 +318,7 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
                   <input type="text" value={form.revisao_confirmada} onChange={(e) => upd("revisao_confirmada", e.target.value)} placeholder="ex: 50h, 300h" style={inputStyle} />
                 </Field>
                 <Field label="Sem resposta?">
-                  {(() => {
-                    // Bloqueia marcar "sem resposta" antes de 24h do atendimento aberto.
-                    // Se o registro nem foi aberto via fluxo de atendimento (legado), libera.
-                    const aberto = registro?.aberto_em;
-                    let horasDesdeAberto: number | null = null;
-                    if (aberto) {
-                      const d = new Date(aberto);
-                      if (!isNaN(d.getTime())) {
-                        horasDesdeAberto = (Date.now() - d.getTime()) / (1000 * 60 * 60);
-                      }
-                    }
-                    const bloqueado = horasDesdeAberto !== null && horasDesdeAberto < 24;
-                    const restantes = bloqueado ? Math.ceil(24 - (horasDesdeAberto || 0)) : 0;
-                    return (
-                      <>
-                        <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 13, color: bloqueado ? "var(--portal-text-muted)" : "var(--portal-text)" }}>
-                          <input
-                            type="checkbox"
-                            checked={form.sem_resposta}
-                            disabled={bloqueado}
-                            onChange={(e) => upd("sem_resposta", e.target.checked)}
-                          />
-                          Cliente não respondeu
-                        </label>
-                        {bloqueado && (
-                          <div style={{ fontSize: 11, color: "#92400e", marginTop: 4, fontStyle: "italic" }}>
-                            Disponível em {restantes}h (após 24h do início do atendimento)
-                          </div>
-                        )}
-                      </>
-                    );
-                  })()}
+                  <CampoSemResposta abertoEm={registro?.aberto_em} checked={form.sem_resposta} onChange={(v) => upd("sem_resposta", v)} />
                 </Field>
               </Row>
             </>
@@ -359,6 +334,36 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
         </footer>
       </div>
     </div>
+  );
+}
+
+// Checkbox "Cliente não respondeu" com a regra das 24h: só libera marcar
+// depois de 24h do início do atendimento (aberto_em). Se o registro não foi
+// aberto via fluxo de atendimento (aberto_em nulo), libera direto.
+function CampoSemResposta({
+  abertoEm, checked, onChange,
+}: { abertoEm: string | null | undefined; checked: boolean; onChange: (v: boolean) => void }) {
+  let horasDesdeAberto: number | null = null;
+  if (abertoEm) {
+    const d = new Date(abertoEm);
+    if (!isNaN(d.getTime())) {
+      horasDesdeAberto = (Date.now() - d.getTime()) / (1000 * 60 * 60);
+    }
+  }
+  const bloqueado = horasDesdeAberto !== null && horasDesdeAberto < 24;
+  const restantes = bloqueado ? Math.ceil(24 - (horasDesdeAberto || 0)) : 0;
+  return (
+    <>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 13, color: bloqueado ? "var(--portal-text-muted)" : "var(--portal-text)" }}>
+        <input type="checkbox" checked={checked} disabled={bloqueado} onChange={(e) => onChange(e.target.checked)} />
+        Cliente não respondeu
+      </label>
+      {bloqueado && (
+        <div style={{ fontSize: 11, color: "#92400e", marginTop: 4, fontStyle: "italic" }}>
+          Disponível em {restantes}h (após 24h do início do atendimento)
+        </div>
+      )}
+    </>
   );
 }
 

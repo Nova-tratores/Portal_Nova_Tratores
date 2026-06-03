@@ -96,6 +96,10 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
   const [motivoRecusa, setMotivoRecusa] = useState('');
   const [pecasAprovadas, setPecasAprovadas] = useState<Set<string>>(new Set());
 
+  // Recusa interna (em_analise)
+  const [recusaTexto, setRecusaTexto] = useState('');
+  const [mostrarRecusa, setMostrarRecusa] = useState(false);
+
   const carregar = useCallback(async () => {
     try {
       const res = await fetch(`/api/garantias/${garantiaId}`);
@@ -218,6 +222,29 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
         garantista_nome: userName,
         pecas_aprovadas: resultado === 'aprovada' ? [...pecasAprovadas] : [],
       }),
+    });
+
+  // Recusa interna (em_analise → rejeitada, sem enviar pra fábrica)
+  const recusarInterno = () =>
+    chamar('recusar_interno', `/api/garantias/${garantiaId}/finalizar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        resultado: 'rejeitada',
+        recusa_garantista: true,
+        motivo_recusa: recusaTexto,
+        garantista_horas: gHoras,
+        garantista_km: gKm,
+        garantista_obs: gObs,
+        garantista_nome: userName,
+      }),
+    });
+
+  const reabrirRecusa = (motivo: string) =>
+    chamar('reabrir_recusa', `/api/garantias/${garantiaId}/reabrir-recusa`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ator: userName, motivo }),
     });
 
   const acaoCobranca = (acao: string, payload?: Record<string, unknown>) =>
@@ -463,15 +490,66 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                     </button>
                   </Secao>
 
-                  <button
-                    onClick={enviarFabrica}
-                    disabled={!!busy || !g.montadora_id || faltando.length > 0}
-                    style={btn('linear-gradient(135deg,#8b5cf6,#6d28d9)', !!busy || !g.montadora_id || faltando.length > 0)}
-                  >
-                    {busy === 'enviar' ? <Loader2 size={15} className="spin" /> : <Send size={15} />}
-                    Enviar à fábrica
-                  </button>
-                  {(!g.montadora_id || faltando.length > 0) && (
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <button
+                      onClick={enviarFabrica}
+                      disabled={!!busy || !g.montadora_id || faltando.length > 0}
+                      style={{ ...btn('linear-gradient(135deg,#8b5cf6,#6d28d9)', !!busy || !g.montadora_id || faltando.length > 0), flex: 1 }}
+                    >
+                      {busy === 'enviar' ? <Loader2 size={15} className="spin" /> : <Send size={15} />}
+                      Enviar à fábrica
+                    </button>
+                    <button
+                      onClick={() => setMostrarRecusa(true)}
+                      disabled={!!busy}
+                      style={{ ...btn('linear-gradient(135deg,#dc2626,#991b1b)', !!busy), flex: 1 }}
+                      title="Recusar a garantia sem mandar pra fábrica (quando já se sabe que não cabe)"
+                    >
+                      <XCircle size={15} /> Recusar garantia
+                    </button>
+                  </div>
+                  {mostrarRecusa && (
+                    <div style={{
+                      background: '#fef2f2', border: '1px solid #fca5a5',
+                      borderLeft: '4px solid #dc2626', borderRadius: 12,
+                      padding: 14, display: 'flex', flexDirection: 'column', gap: 10,
+                    }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#b91c1c', textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                        Recusar sem enviar à fábrica
+                      </div>
+                      <span style={{ fontSize: 12, color: '#7f1d1d' }}>
+                        A garantia será encerrada como recusada pelo garantista. A cobrança ao cliente fica liberada na seção abaixo.
+                      </span>
+                      <textarea
+                        value={recusaTexto}
+                        onChange={(e) => setRecusaTexto(e.target.value)}
+                        placeholder="Motivo da recusa (obrigatório). Ex: peça danificada por mau uso, fora do prazo de garantia, etc."
+                        rows={3}
+                        style={taStyle}
+                      />
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          onClick={async () => {
+                            const ok = await recusarInterno();
+                            if (ok) { setMostrarRecusa(false); setRecusaTexto(''); }
+                          }}
+                          disabled={!!busy || !recusaTexto.trim()}
+                          style={{ ...btn('linear-gradient(135deg,#dc2626,#7f1d1d)', !!busy || !recusaTexto.trim()), flex: 1 }}
+                        >
+                          {busy === 'recusar_interno' ? <Loader2 size={15} className="spin" /> : <XCircle size={15} />}
+                          Confirmar recusa
+                        </button>
+                        <button
+                          onClick={() => { setMostrarRecusa(false); setRecusaTexto(''); }}
+                          disabled={!!busy}
+                          style={{ ...btn('#f3f4f6', !!busy), color: '#525252', flex: 1 }}
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {(!g.montadora_id || faltando.length > 0) && !mostrarRecusa && (
                     <span style={{ fontSize: 11, color: 'var(--portal-text-muted)', textAlign: 'center' }}>
                       {!g.montadora_id
                         ? 'Defina a montadora para enviar à fábrica.'
@@ -813,8 +891,36 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                       )}
                     </div>
                   ) : (
-                    <div style={{ fontSize: 13, color: 'var(--portal-text)' }}>
-                      <strong>Motivo:</strong> {g.motivo_recusa || '—'}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <div style={{ fontSize: 13, color: 'var(--portal-text)' }}>
+                        <strong>Motivo:</strong> {g.motivo_recusa || '—'}
+                      </div>
+                      <span
+                        style={{
+                          alignSelf: 'flex-start',
+                          fontSize: 11, fontWeight: 700,
+                          padding: '3px 8px', borderRadius: 8,
+                          background: g.recusado_por === 'garantista' ? '#fef3c7' : '#fee2e2',
+                          color:      g.recusado_por === 'garantista' ? '#92400e' : '#991b1b',
+                          textTransform: 'uppercase', letterSpacing: 0.3,
+                        }}
+                      >
+                        {g.recusado_por === 'garantista'
+                          ? 'Recusada pelo garantista (sem ir à fábrica)'
+                          : 'Recusada pela fábrica'}
+                      </span>
+                      {g.recusado_por === 'garantista' && (
+                        <button
+                          onClick={() => {
+                            const m = prompt('Motivo pra reabrir a recusa (opcional):') || '';
+                            reabrirRecusa(m);
+                          }}
+                          disabled={!!busy}
+                          style={{ ...btn('transparent', !!busy), color: 'var(--portal-text-secondary)', border: '1px solid var(--portal-border)', alignSelf: 'flex-start', padding: '6px 12px', fontSize: 12 }}
+                        >
+                          <History size={13} /> Reabrir recusa
+                        </button>
+                      )}
                     </div>
                   )}
                   <div style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>

@@ -21,13 +21,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .maybeSingle();
   if (!g) return NextResponse.json({ error: 'Garantia não encontrada.' }, { status: 404 });
 
-  if (g.status !== 'enviada') {
+  // Recusa interna do garantista: aceita finalizar em 'em_analise' (e
+  // 'bo_tecnico' quando o garantista decide encerrar mesmo com B.O. pendente).
+  // Aprovar continua exigindo que tenha passado pela fábrica (status='enviada').
+  const recusaInterna = resultado === 'rejeitada' && body.recusa_garantista === true;
+  if (recusaInterna) {
+    if (g.status !== 'em_analise' && g.status !== 'bo_tecnico') {
+      return NextResponse.json(
+        { error: 'A recusa interna só vale antes de enviar à fábrica.' },
+        { status: 400 }
+      );
+    }
+  } else if (g.status !== 'enviada') {
     return NextResponse.json(
       { error: 'Só é possível finalizar uma garantia que está na fábrica.' },
       { status: 400 }
     );
   }
-  if (!g.retorno_fabrica_url) {
+  // Retorno da fábrica só é exigido quando a recusa vem da fábrica.
+  if (!recusaInterna && !g.retorno_fabrica_url) {
     return NextResponse.json(
       { error: 'Anexe o arquivo de retorno da fábrica antes de finalizar a garantia.' },
       { status: 400 }
@@ -75,6 +87,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     garantista_km: gKm,
     garantista_obs: body.garantista_obs || null,
     motivo_recusa: resultado === 'rejeitada' ? String(body.motivo_recusa).trim() : null,
+    recusado_por: resultado === 'rejeitada' ? (recusaInterna ? 'garantista' : 'fabrica') : null,
   };
   if (body.garantista_nome) update.garantista_nome = body.garantista_nome;
 
@@ -132,15 +145,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Falha ao finalizar garantia.' }, { status: 500 });
   }
 
+  const motivoCurto = String(body.motivo_recusa || '').slice(0, 140);
   await registrarEvento(id, {
-    tipo: resultado,
-    statusAnterior: 'enviada',
+    tipo: recusaInterna ? 'recusada_garantista' : resultado,
+    statusAnterior: g.status,
     statusNovo: resultado,
     ator: body.garantista_nome || 'Garantista',
     detalhe:
       resultado === 'aprovada'
         ? `Garantia aprovada — pago em garantia`
-        : `Garantia recusada — ${String(body.motivo_recusa || '').slice(0, 140)}`,
+        : recusaInterna
+          ? `Garantia recusada pelo garantista (sem enviar à fábrica) — ${motivoCurto}`
+          : `Garantia recusada pela fábrica — ${motivoCurto}`,
   });
   await notificarTecnico(g.tecnico_nome, {
     titulo:
@@ -150,7 +166,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     descricao:
       resultado === 'aprovada'
         ? `A OS ${g.id_ordem} foi paga em garantia.`
-        : `A garantia da OS ${g.id_ordem} foi recusada pela fábrica.`,
+        : recusaInterna
+          ? `O garantista entendeu que a OS ${g.id_ordem} não cabe garantia. Motivo: ${motivoCurto}`
+          : `A garantia da OS ${g.id_ordem} foi recusada pela fábrica.`,
   });
   await notificarGarantistas({
     titulo: `Garantia ${g.numero} finalizada (${resultado === 'aprovada' ? 'aprovada' : 'recusada'})`,

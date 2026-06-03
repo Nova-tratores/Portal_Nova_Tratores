@@ -35,8 +35,19 @@ export async function computarR5(parametros: ParametrosR5 = {}): Promise<Oportun
 
   const mapOmie = await carregarMapaClientes();
 
+  // Fornecedores (oficinas, fornecedores de peças, prestadores — de quem a
+  // Nova/Castro COMPRA) às vezes aparecem como "cliente" em pedidos de venda
+  // (devolução, venda pontual) e não devem virar oportunidade de venda de
+  // peças. Identificamos pela tag "Fornecedor" do cadastro Omie (clientes_omie)
+  // e também pelo cadastro manual de Fornecedores (financeiro/requisições).
+  const fornecedores = await carregarFornecedores();
+  console.log(`[R5] fornecedores a excluir: ${fornecedores.size}`);
+
+  let descartadosForn = 0;
   const out: OportunidadeR5[] = [];
   for (const [keyNorm, ultimo] of ultimoPedido.entries()) {
+    if (fornecedores.has(keyNorm)) { descartadosForn++; continue; }
+
     const mesesDesde = mesesEntre(ultimo.data, hoje);
     if (mesesDesde < minMeses) continue;
 
@@ -60,8 +71,42 @@ export async function computarR5(parametros: ParametrosR5 = {}): Promise<Oportun
       },
     });
   }
-  console.log(`[R5] oportunidades geradas: ${out.length}`);
+  console.log(`[R5] oportunidades geradas: ${out.length} (descartados ${descartadosForn} fornecedores)`);
   return out;
+}
+
+// Carrega nomes de fornecedores normalizados (trim + upper) para casar com a
+// chave de `pedidos_venda_relatorio`. Duas fontes:
+//   1) cadastro Omie com tag "Fornecedor" (clientes_omie.tags) — fonte principal
+//   2) cadastro manual em `Fornecedores` (financeiro/requisições) — reforço
+async function carregarFornecedores(): Promise<Set<string>> {
+  const set = new Set<string>();
+
+  // 1) Omie: qualquer cadastro marcado com a tag "Fornecedor".
+  //    `tags` é texto JSON, ex.: [{"tag":"Cliente"},{"tag":"Fornecedor"}].
+  const omie = await lerTudo<{ razao_social: string | null; nome_fantasia: string | null }>((from, to) =>
+    supabase
+      .from("clientes_omie")
+      .select("razao_social, nome_fantasia")
+      .ilike("tags", "%ornecedor%")
+      .range(from, to)
+  );
+  for (const c of omie) {
+    if (c.razao_social) set.add(c.razao_social.trim().toUpperCase());
+    if (c.nome_fantasia) set.add(c.nome_fantasia.trim().toUpperCase());
+  }
+
+  // 2) Cadastro manual de Fornecedores.
+  const fornecedores = await lerTudo<{ nome: string | null }>((from, to) =>
+    supabase
+      .from("Fornecedores")
+      .select("nome")
+      .range(from, to)
+  );
+  for (const f of fornecedores) {
+    if (f.nome) set.add(f.nome.trim().toUpperCase());
+  }
+  return set;
 }
 
 async function carregarMapaClientes(): Promise<Map<string, string>> {
