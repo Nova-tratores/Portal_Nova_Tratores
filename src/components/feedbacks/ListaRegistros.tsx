@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import RegistroCard from "./RegistroCard";
 import ModalFeedback from "./ModalFeedback";
-import { deletarRegistro, listarRegistros } from "@/lib/feedbacks/api";
+import { atualizarRegistro, deletarRegistro, listarRegistros } from "@/lib/feedbacks/api";
 import type { FeedbackRegistro, TipoFeedback } from "@/lib/feedbacks/types";
 
 interface Props {
@@ -129,6 +129,30 @@ export default function ListaRegistros({ tipo }: Props) {
       return novo;
     });
   }
+  // Conclui o atendimento direto no card (sem abrir o modal).
+  async function handleConcluir(r: FeedbackRegistro) {
+    try {
+      const salvo = await atualizarRegistro(r.id, {
+        status_atendimento: "concluido",
+        concluido_em: new Date().toISOString(),
+      });
+      handleSalvo(salvo);
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : String(e));
+    }
+  }
+  // Marca "cliente não respondeu" direto no card. Em RFM também seta a flag
+  // sem_resposta (usada no badge/filtro específico do RFM).
+  async function handleSemResposta(r: FeedbackRegistro) {
+    try {
+      const payload: Partial<FeedbackRegistro> = { status_atendimento: "sem_resposta" };
+      if (tipo === "rfm") payload.sem_resposta = true;
+      const salvo = await atualizarRegistro(r.id, payload);
+      handleSalvo(salvo);
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : String(e));
+    }
+  }
 
   return (
     <div style={{ paddingTop: 20, fontFamily: "Inter, sans-serif" }}>
@@ -252,6 +276,8 @@ export default function ListaRegistros({ tipo }: Props) {
               registro={r}
               onEditar={abrirEdit}
               onExcluir={handleExcluir}
+              onConcluir={handleConcluir}
+              onSemResposta={handleSemResposta}
             />
           ))}
         </div>

@@ -5,6 +5,8 @@ interface Props {
   registro: FeedbackRegistro;
   onEditar?: (r: FeedbackRegistro) => void;
   onExcluir?: (r: FeedbackRegistro) => void;
+  onConcluir?: (r: FeedbackRegistro) => void;
+  onSemResposta?: (r: FeedbackRegistro) => void;
 }
 
 // Horas decorridas desde aberto_em (negativo se aberto_em for futuro)
@@ -48,12 +50,15 @@ function corPrioridade(p: string | null): { bg: string; fg: string } {
   }
 }
 
-export default function RegistroCard({ registro: r, onEditar, onExcluir }: Props) {
+export default function RegistroCard({ registro: r, onEditar, onExcluir, onConcluir, onSemResposta }: Props) {
   const isCrm = r.tipo === "crm";
   const corStatusObj = isCrm ? corStatus(r.status_cliente) : corPrioridade(r.prioridade);
   const emAtendimento = r.status_atendimento === "aberto" || r.status_atendimento === "em_andamento";
   const horasAberto = horasDesde(r.aberto_em);
   const atrasado = emAtendimento && horasAberto !== null && horasAberto >= 24;
+  // "Sem resposta" só libera 24h após o início do atendimento (mesma regra do modal).
+  const bloqueadoSemResposta = horasAberto !== null && horasAberto < 24;
+  const restantesSemResp = bloqueadoSemResposta ? Math.ceil(24 - (horasAberto || 0)) : 0;
 
   return (
     <article style={{ ...cardStyle, ...(atrasado ? { borderColor: "#dc2626", borderWidth: 2 } : {}) }}>
@@ -139,6 +144,34 @@ export default function RegistroCard({ registro: r, onEditar, onExcluir }: Props
       {!isCrm && r.acao && (
         <div style={{ fontSize: 12, color: "var(--portal-text-secondary)", marginTop: 6 }}>
           <strong style={{ fontWeight: 700 }}>Ação:</strong> {r.acao}
+        </div>
+      )}
+
+      {emAtendimento && (onConcluir || onSemResposta) && (
+        <div style={acoesAtendimentoStyle}>
+          {onConcluir && (
+            <button onClick={() => onConcluir(r)} style={btnAcao("#d1fae5", "#065f46")} type="button">
+              ✅ Concluir atendimento
+            </button>
+          )}
+          {onSemResposta && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <button
+                onClick={() => onSemResposta(r)}
+                disabled={bloqueadoSemResposta}
+                title={bloqueadoSemResposta ? `Disponível em ${restantesSemResp}h (após 24h do início do atendimento)` : "Marcar que o cliente não respondeu"}
+                style={{ ...btnAcao("#fee2e2", "#991b1b"), opacity: bloqueadoSemResposta ? 0.5 : 1, cursor: bloqueadoSemResposta ? "not-allowed" : "pointer" }}
+                type="button"
+              >
+                📵 Cliente sem resposta
+              </button>
+              {bloqueadoSemResposta && (
+                <span style={{ fontSize: 10, color: "#92400e", fontStyle: "italic" }}>
+                  disponível em {restantesSemResp}h
+                </span>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -248,6 +281,10 @@ const citaStyle: React.CSSProperties = {
 };
 const footerStyle: React.CSSProperties = {
   display: "flex", gap: 6, paddingTop: 8, borderTop: "1px solid #f5f5f5",
+};
+const acoesAtendimentoStyle: React.CSSProperties = {
+  display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "wrap",
+  paddingTop: 8, borderTop: "1px solid #f5f5f5",
 };
 function btnAcao(bg: string, fg: string): React.CSSProperties {
   return {
