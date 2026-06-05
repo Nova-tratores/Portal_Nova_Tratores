@@ -71,6 +71,7 @@ export default function PPVDrawer({
   const [editandoPrecoCod, setEditandoPrecoCod] = useState<string | null>(null);
   const [editandoPrecoVal, setEditandoPrecoVal] = useState("");
   const [salvandoPreco, setSalvandoPreco] = useState(false);
+  const [desconto, setDesconto] = useState(0);
 
   // Carregar listas para dropdown de substituto
   useEffect(() => {
@@ -115,6 +116,7 @@ export default function PPVDrawer({
       setSubstitutoTipo((d.substitutoTipo === "POS" || d.substitutoTipo === "PPV") ? d.substitutoTipo : "POS");
       setSubstitutoId(d.substitutoId || "");
       setPedidoOmie(d.pedidoOmie || "");
+      setDesconto(d.desconto || 0);
       onSetModalOS(d.osId || "", d.osId ? `OS #${d.osId} (Vinculada)` : "");
       carregarDadosCliente(d.cliente || "");
     } catch {
@@ -157,7 +159,9 @@ export default function PPVDrawer({
     tDev += qtdDev * p.preco;
     return { ...p, saldo, qtdDev };
   });
-  const totalFinal = tOrig - tDev;
+  const totalSemDesconto = tOrig - tDev;
+  const valorDesconto = totalSemDesconto * (desconto / 100);
+  const totalFinal = totalSemDesconto - valorDesconto;
 
   const statusNorm = normalizarStatus(status) as StatusKey;
   const statusColor = STATUS_COLORS[statusNorm] || { text: "var(--portal-text-secondary)", bg: "var(--portal-bg-card)" };
@@ -177,6 +181,7 @@ export default function PPVDrawer({
         id: ppvId!, status, observacao, tecnico, cliente, motivoCancelamento, pedidoOmie, osId: modalOSId, tipoPedido, motivoSaida, userName: userProfile?.nome || "",
         substitutoTipo: temSubstituto ? substitutoTipo : null,
         substitutoId: temSubstituto ? substitutoId : null,
+        desconto,
       });
       showToast("success", "Atualizado com sucesso!");
       onDirty?.();
@@ -551,11 +556,38 @@ export default function PPVDrawer({
                     )}
                   </div>
 
+                  {/* ── Desconto ── */}
+                  <div className="ppv-card">
+                    <div className="ppv-card-title"><i className="fas fa-percent" /> Desconto</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <input
+                        type="number"
+                        value={desconto || ""}
+                        onChange={(e) => {
+                          const v = parseFloat(e.target.value);
+                          setDesconto(isNaN(v) ? 0 : Math.min(100, Math.max(0, v)));
+                        }}
+                        min={0}
+                        max={100}
+                        step={0.5}
+                        placeholder="0"
+                        style={{ width: 90, textAlign: "center", fontWeight: 700, marginBottom: 0 }}
+                      />
+                      <span style={{ fontWeight: 700, color: "var(--ppv-text-light)" }}>%</span>
+                      {desconto > 0 && (
+                        <span style={{ fontSize: 13, color: "#10B981", fontWeight: 700 }}>
+                          -{formatarMoeda(valorDesconto)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
                   {/* ── Total bar ── */}
                   <div className="ppv-total-bar">
                     <div className="ppv-total-breakdown">
                       <span>Saídas: {formatarMoeda(tOrig)}</span>
                       {tDev > 0 && <span>Devoluções: -{formatarMoeda(tDev)}</span>}
+                      {desconto > 0 && <span style={{ color: "#10B981" }}>Desconto ({desconto}%): -{formatarMoeda(valorDesconto)}</span>}
                     </div>
                     <div className="ppv-total-value">
                       {formatarMoeda(totalFinal)}

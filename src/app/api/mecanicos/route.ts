@@ -70,7 +70,8 @@ export async function GET(req: NextRequest) {
           .neq("status", "Cancelada")
           .gte("data", primeiro)
           .lte("data", ultimo)
-          .order("data", { ascending: false }),
+          .order("data", { ascending: false })
+          .limit(5000),
         supabase
           .from("mecanico_ocorrencias")
           .select("*")
@@ -86,7 +87,7 @@ export async function GET(req: NextRequest) {
         supabase
           .from("pedidos")
           .select("id_pedido, Id_Os, status, data, pedido_omie, valor_total, Tipo_Pedido")
-          .ilike("tecnico", tecNome),
+          .ilike("tecnico", `%${tecNome}%`),
       ]);
 
       // Filtrar ordens do tecnico no JS (mais confiavel que filtro Supabase em array)
@@ -341,18 +342,114 @@ export async function GET(req: NextRequest) {
         );
       }
 
-      // Rebuscar todos alertas do mes (inclui novos + existentes com status)
-      const { data: alertasFinal } = await supabase
-        .from("mecanico_alertas")
-        .select("*")
-        .eq("tecnico_nome", tecNome)
-        .gte("data_referencia", primeiro)
-        .lte("data_referencia", ultimo)
-        .order("data_referencia", { ascending: false });
+      // Rebuscar alertas do mes + pendentes de meses anteriores (carryover)
+      const [alertasMesRes, alertasCarryoverRes] = await Promise.all([
+        supabase
+          .from("mecanico_alertas")
+          .select("*")
+          .eq("tecnico_nome", tecNome)
+          .gte("data_referencia", primeiro)
+          .lte("data_referencia", ultimo)
+          .order("data_referencia", { ascending: false }),
+        supabase
+          .from("mecanico_alertas")
+          .select("*")
+          .eq("tecnico_nome", tecNome)
+          .eq("status", "pendente")
+          .lt("data_referencia", primeiro)
+          .order("data_referencia", { ascending: false }),
+      ]);
 
-      // Filtrar requisicoes do mes (data formato DD/MM/YYYY HH:MM)
-      const mesNum = now.getMonth() + 1;
-      const anoNum = now.getFullYear();
+      // Montar mapa de ordens do mes atual
+      const ordensMap = new Map<string, any>();
+      for (const o of ordensComPpv) {
+        ordensMap.set(String((o as any).cod_int), o);
+      }
+
+      // Buscar dados de OS para alertas de carryover (meses anteriores)
+      const carryoverOrdemIds = (alertasCarryoverRes.data || [])
+        .map((a: any) => String(a.id_ordem))
+        .filter((id: string) => id && !ordensMap.has(id));
+
+      if (carryoverOrdemIds.length > 0) {
+        const uniqueIds = [...new Set(carryoverOrdemIds)];
+        const [carryOsRes, carryCliRes, carryTecRes] = await Promise.all([
+          supabase.from("Ordens_Omie")
+            .select("os_num, cod_int, data, horas, km, valor, status, faturada, interno, cidade, empresa, descricao, obs, tecnicos")
+            .in("cod_int", uniqueIds),
+          supabase.from("Ordem_Servico")
+            .select("Id_Ordem, Os_Cliente, Cidade_Cliente")
+            .in("Id_Ordem", uniqueIds),
+          supabase.from("Ordem_Servico_Tecnicos")
+            .select("Ordem_Servico, Motivo, ServicoRealizado, Status")
+            .in("Ordem_Servico", uniqueIds),
+        ]);
+
+        const carryCliMap: Record<string, { cliente: string; cidade_cliente: string }> = {};
+        for (const os of carryCliRes.data || []) {
+          carryCliMap[String(os.Id_Ordem)] = { cliente: String(os.Os_Cliente || ""), cidade_cliente: String(os.Cidade_Cliente || "") };
+        }
+        const carryTecMap: Record<string, { motivo: string; servico_realizado: string }> = {};
+        for (const rt of carryTecRes.data || []) {
+          const osId = String(rt.Ordem_Servico);
+          if (!carryTecMap[osId] || rt.Status === "enviado") {
+            carryTecMap[osId] = { motivo: String(rt.Motivo || ""), servico_realizado: String(rt.ServicoRealizado || "") };
+          }
+        }
+
+        for (const os of carryOsRes.data || []) {
+          const codInt = String(os.cod_int);
+          const cli = carryCliMap[codInt];
+          const relTec = carryTecMap[codInt];
+          const desc = String(os.descricao || "");
+          let servico_solicitado = "";
+          const solMatch = desc.match(/Solicit[aã][çc][aã]o\s+(?:d[oe]\s+)?cliente:\s*([\s\S]*?)(?=\|*Diagn|\|*Servi|$)/i);
+          if (solMatch) servico_solicitado = solMatch[1].replace(/\|/g, " ").trim();
+          ordensMap.set(codInt, {
+            os_num: os.os_num, cod_int: codInt, data: os.data, horas: os.horas,
+            km: os.km, valor: os.valor, status: os.status, faturada: os.faturada,
+            interno: os.interno, cidade: os.cidade, empresa: os.empresa,
+            cliente: cli?.cliente || "", cidade_cliente: cli?.cidade_cliente || "",
+            relatorio_tecnico: relTec?.servico_realizado || "",
+            diagnostico_tecnico: relTec?.motivo || "",
+            servico_solicitado,
+            ppvs: [],
+          });
+        }
+      }
+
+      // Enriquecer cada alerta com dados da OS vinculada
+      const enriquecerAlerta = (a: any, isCarryover: boolean) => {
+        const ordem = ordensMap.get(String(a.id_ordem));
+        return {
+          ...a,
+          carryover: isCarryover,
+          ordem: ordem ? {
+            os_num: ordem.os_num,
+            data: ordem.data,
+            status: ordem.status,
+            faturada: ordem.faturada,
+            cliente: ordem.cliente || "",
+            cidade_cliente: ordem.cidade_cliente || "",
+            horas: String(ordem.horas || ""),
+            km: String(ordem.km || ""),
+            valor: String(ordem.valor || ""),
+            relatorio_tecnico: ordem.relatorio_tecnico || "",
+            diagnostico_tecnico: ordem.diagnostico_tecnico || "",
+            servico_solicitado: ordem.servico_solicitado || "",
+            ppvs: ordem.ppvs || [],
+          } : null,
+        };
+      };
+
+      const alertasEnriquecidos = [
+        ...(alertasMesRes.data || []).map((a: any) => enriquecerAlerta(a, false)),
+        ...(alertasCarryoverRes.data || []).map((a: any) => enriquecerAlerta(a, true)),
+      ];
+
+      // Filtrar requisicoes do mes selecionado (data formato DD/MM/YYYY HH:MM)
+      const mesNum = mesMes;
+      const anoNum = anoMes;
       const reqDoMes = (reqRes.data || []).filter((r: Record<string, unknown>) => {
         const d = String(r.data || "");
         const parts = d.split("/");
@@ -410,7 +507,7 @@ export async function GET(req: NextRequest) {
         ordens: ordensComPpv,
         ocorrencias: ocorrenciasRes.data || [],
         requisicoes: reqDoMes,
-        alertas: alertasFinal || [],
+        alertas: alertasEnriquecidos,
         gps: { kmMes: Math.round(gpsKmMes), dias: gpsDias, dirigindoMin: gpsDirigindoMin, paradoForaMin: gpsParadoForaMin },
         veiculo: veiculoInfo,
         data_entrada: dataEntrada,
@@ -429,20 +526,8 @@ export async function GET(req: NextRequest) {
       .select("os_num, tecnicos, horas, km, valor, interno")
       .neq("status", "Cancelada")
       .gte("data", primeiro)
-      .lte("data", ultimo);
-
-    // Contar ordens por tecnico
-    const statsPorTec: Record<string, { total: number; horas: number; km: number; valor: number }> = {};
-    for (const o of ordens || []) {
-      for (const t of o.tecnicos || []) {
-        const n = normName(t);
-        if (!statsPorTec[n]) statsPorTec[n] = { total: 0, horas: 0, km: 0, valor: 0 };
-        statsPorTec[n].total++;
-        statsPorTec[n].horas += parseFloat(o.horas) || 0;
-        statsPorTec[n].km += parseFloat(o.km) || 0;
-        statsPorTec[n].valor += parseFloat(o.valor) || 0;
-      }
-    }
+      .lte("data", ultimo)
+      .limit(5000);
 
     // Buscar ocorrencias, alertas pendentes e dados do relatorio geral
     const mesP = mesAtual.split("-")[1];
@@ -470,24 +555,25 @@ export async function GET(req: NextRequest) {
         .select("nome, salario, encargos, cargo"),
     ]);
 
-    const ocPorTec: Record<string, number> = {};
-    for (const oc of ocPendentesRes.data || []) {
-      const n = normName(oc.tecnico_nome || "");
-      ocPorTec[n] = (ocPorTec[n] || 0) + 1;
-    }
-    const alertasPorTec: Record<string, number> = {};
-    for (const al of alertasPendentesRes.data || []) {
-      const n = normName(al.tecnico_nome || "");
-      alertasPorTec[n] = (alertasPorTec[n] || 0) + 1;
-    }
-
     const resultado = mecanicos.map((m) => {
-      const n = normName(m.tecnico_nome || m.nome);
+      const tecNome = m.tecnico_nome || m.nome;
+      let total = 0, horas = 0, km = 0, valor = 0;
+      for (const o of ordens || []) {
+        const tecs = (o.tecnicos || []) as string[];
+        if (tecs.some((t: string) => nomesBatem(t, tecNome))) {
+          total++;
+          horas += parseFloat(o.horas) || 0;
+          km += parseFloat(o.km) || 0;
+          valor += parseFloat(o.valor) || 0;
+        }
+      }
+      const ocPendentes = (ocPendentesRes.data || []).filter((oc: any) => nomesBatem(oc.tecnico_nome || "", tecNome)).length;
+      const alertasPendentes = (alertasPendentesRes.data || []).filter((al: any) => nomesBatem(al.tecnico_nome || "", tecNome)).length;
       return {
         ...m,
-        stats: statsPorTec[n] || { total: 0, horas: 0, km: 0, valor: 0 },
-        ocorrencias_pendentes: ocPorTec[n] || 0,
-        alertas_pendentes: alertasPorTec[n] || 0,
+        stats: { total, horas, km, valor },
+        ocorrencias_pendentes: ocPendentes,
+        alertas_pendentes: alertasPendentes,
       };
     });
 

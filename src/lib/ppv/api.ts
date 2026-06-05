@@ -62,6 +62,7 @@ export const api = {
     motivoCancelamento: string; pedidoOmie: string; osId: string;
     tipoPedido: string; motivoSaida: string; userName?: string;
     substitutoTipo?: string | null; substitutoId?: string | null;
+    desconto?: number;
   }) => patch<{ success: boolean }>("/api/ppv/pedidos", dados),
 
   // --- Movimentações ---

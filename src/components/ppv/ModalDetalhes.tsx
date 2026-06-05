@@ -71,6 +71,7 @@ export default function ModalDetalhes({
   const [devolucaoProd, setDevolucaoProd] = useState<{ codigo: string; descricao: string; preco: number; max: number } | null>(null);
   const [confirmandoDev, setConfirmandoDev] = useState(false);
   const [visible, setVisible] = useState(false);
+  const [desconto, setDesconto] = useState(0);
 
   // Buscar dados do cliente (documento, endereço, cidade) pela API
   const carregarDadosCliente = useCallback(async (nome: string) => {
@@ -98,8 +99,8 @@ export default function ModalDetalhes({
       setObservacao(d.observacao || "");
       setMotivoCancelamento(d.motivoCancelamento || "");
       setPedidoOmie(d.pedidoOmie || "");
+      setDesconto(d.desconto || 0);
       onSetModalOS(d.osId || "", d.osId ? `OS #${d.osId} (Vinculada)` : "");
-      // Buscar dados do cliente
       carregarDadosCliente(d.cliente || "");
     } catch {
       showToast("error", "Erro ao carregar detalhes");
@@ -151,7 +152,9 @@ export default function ModalDetalhes({
     tDev += qtdDev * p.preco;
     return { ...p, saldo, qtdDev };
   });
-  const totalFinal = tOrig - tDev;
+  const totalSemDesconto = tOrig - tDev;
+  const valorDesconto = totalSemDesconto * (desconto / 100);
+  const totalFinal = totalSemDesconto - valorDesconto;
 
   const statusNorm = normalizarStatus(status) as StatusKey;
   const statusColor = STATUS_COLORS[statusNorm] || { text: "#64748B", bg: "#FFFFFF" };
@@ -174,6 +177,7 @@ export default function ModalDetalhes({
         id: ppvId!, status, observacao, tecnico, cliente,
         motivoCancelamento, pedidoOmie, osId: modalOSId, tipoPedido, motivoSaida,
         userName: userProfile?.nome || "",
+        desconto,
       });
       showToast("success", "Atualizado com sucesso!");
       handleClose();
@@ -508,8 +512,39 @@ export default function ModalDetalhes({
                 />
               </div>
 
+              {/* Desconto */}
+              <div className="rounded-2xl bg-[#FFFAF5] p-6 shadow-sm">
+                <label className="mb-3 block text-sm font-bold uppercase tracking-wider text-slate-500">
+                  <i className="fas fa-percent mr-2 text-emerald-500" />
+                  Desconto
+                </label>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      value={desconto || ""}
+                      onChange={(e) => {
+                        const v = parseFloat(e.target.value);
+                        setDesconto(isNaN(v) ? 0 : Math.min(100, Math.max(0, v)));
+                      }}
+                      min={0}
+                      max={100}
+                      step={0.5}
+                      placeholder="0"
+                      className="w-24 rounded-xl border-2 border-orange-200/60 bg-[#FFFAF5] px-4 py-3 text-center text-lg font-bold text-slate-700 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/20"
+                    />
+                    <span className="text-lg font-bold text-slate-400">%</span>
+                  </div>
+                  {desconto > 0 && (
+                    <span className="rounded-xl bg-emerald-100 px-4 py-2 text-base font-bold text-emerald-700">
+                      -{formatarMoeda(valorDesconto)}
+                    </span>
+                  )}
+                </div>
+              </div>
+
               {/* Resumo de valores */}
-              <div className="grid grid-cols-3 gap-4">
+              <div className={`grid gap-4 ${desconto > 0 ? "grid-cols-4" : "grid-cols-3"}`}>
                 <div className="rounded-2xl bg-[#FFFAF5] p-5 text-center shadow-sm">
                   <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Saídas</div>
                   <div className="mt-1 text-xl font-extrabold text-slate-700">{formatarMoeda(tOrig)}</div>
@@ -518,6 +553,12 @@ export default function ModalDetalhes({
                   <div className="text-xs font-bold uppercase tracking-wider text-red-400">Devoluções</div>
                   <div className="mt-1 text-xl font-extrabold text-red-500">-{formatarMoeda(tDev)}</div>
                 </div>
+                {desconto > 0 && (
+                  <div className="rounded-2xl bg-emerald-50 p-5 text-center shadow-sm">
+                    <div className="text-xs font-bold uppercase tracking-wider text-emerald-600">Desconto ({desconto}%)</div>
+                    <div className="mt-1 text-xl font-extrabold text-emerald-600">-{formatarMoeda(valorDesconto)}</div>
+                  </div>
+                )}
                 <div className="rounded-2xl border-2 border-red-300 bg-red-50 p-5 text-center shadow-sm">
                   <div className="text-xs font-bold uppercase tracking-wider text-red-600">Total Final</div>
                   <div className="mt-1 text-2xl font-extrabold text-red-600">{formatarMoeda(totalFinal)}</div>

@@ -29,6 +29,7 @@ export async function buscarPPVPorId(id: string): Promise<PPVDetalhes | null> {
     status: String(getValorInsensivel(d, "status") || ""),
     data: String(getValorInsensivel(d, "data") || getValorInsensivel(d, "created_at") || ""),
     valor: parseFloat(String(getValorInsensivel(d, "valor_total") || 0)),
+    desconto: parseFloat(String(getValorInsensivel(d, "desconto_percentual") || 0)),
     observacao: String(getValorInsensivel(d, "observacao") || ""),
     motivoCancelamento: String(getValorInsensivel(d, "motivo_cancelamento") || ""),
     substitutoTipo: String(getValorInsensivel(d, "substituto_tipo") || "") || null,
@@ -338,7 +339,7 @@ export async function sincronizarStatusComOS(): Promise<void> {
 export function montarDadosParaImpressao(detalhes: PPVDetalhes) {
   const fmt = (v: number) => v.toLocaleString("pt-BR", { minimumFractionDigits: 2 });
   let totalDev = 0;
-  let totalFinal = 0;
+  let totalBruto = 0;
 
   const itensMap: Record<string, { codigo: string; descricao: string; saida: number; dev: number; preco: number }> = {};
   detalhes.produtos.forEach((p) => {
@@ -352,7 +353,7 @@ export function montarDadosParaImpressao(detalhes: PPVDetalhes) {
     const ficou = item.saida - item.dev;
     const total = ficou * item.preco;
     totalDev += item.dev * item.preco;
-    totalFinal += total;
+    totalBruto += total;
     return {
       codigo: item.codigo,
       descricao: item.descricao,
@@ -363,6 +364,10 @@ export function montarDadosParaImpressao(detalhes: PPVDetalhes) {
       total: fmt(total),
     };
   });
+
+  const desconto = detalhes.desconto || 0;
+  const valorDesconto = totalBruto * (desconto / 100);
+  const totalFinal = totalBruto - valorDesconto;
 
   return {
     id: detalhes.id,
@@ -379,6 +384,9 @@ export function montarDadosParaImpressao(detalhes: PPVDetalhes) {
     obs: detalhes.observacao || "",
     itens,
     totalDev: fmt(totalDev),
+    totalBruto: fmt(totalBruto),
+    desconto,
+    valorDesconto: fmt(valorDesconto),
     totalFinal: fmt(totalFinal),
   };
 }

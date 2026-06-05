@@ -151,10 +151,11 @@ function gerarHTML(dado: ReturnType<typeof montarDadosParaImpressao>) {
     <!-- Total -->
     <div class="total-row">
       <div>
-        ${dado.totalDev !== "0,00" ? `
         <div class="total-sub">
-          <span>Devoluções: - R$ ${dado.totalDev}</span>
-        </div>` : ""}
+          ${dado.totalDev !== "0,00" ? `<span>Devoluções: - R$ ${dado.totalDev}</span>` : ""}
+          ${dado.desconto > 0 ? `<span style="color:#059669;font-weight:700;">Desconto (${dado.desconto}%): - R$ ${dado.valorDesconto}</span>` : ""}
+          ${dado.desconto > 0 ? `<span>Subtotal: R$ ${dado.totalBruto}</span>` : ""}
+        </div>
         <div class="total-lbl">Total do Pedido</div>
       </div>
       <div class="total-val">R$ ${dado.totalFinal}</div>

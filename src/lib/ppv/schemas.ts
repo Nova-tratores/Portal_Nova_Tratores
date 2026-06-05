@@ -43,6 +43,7 @@ export const editarPedidoSchema = z.object({
   userName: z.string().optional().default(""),
   substitutoTipo: z.string().nullable().optional().default(null),
   substitutoId: z.string().nullable().optional().default(null),
+  desconto: z.number().min(0).max(100).optional(),
 });
 
 export const movimentacaoSchema = z.object({

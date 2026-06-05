@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
 
   const [dados, logsData] = await Promise.all([
     supabaseFetch<Record<string, unknown>[]>(
-      `${TBL_PEDIDOS}?select=id_pedido,cliente,tecnico,Tipo_Pedido,status,valor_total,data,observacao&order=data.desc`
+      `${TBL_PEDIDOS}?select=id_pedido,cliente,tecnico,Tipo_Pedido,status,valor_total,desconto_percentual,data,observacao&order=data.desc`
     ),
     supabaseFetch<Record<string, unknown>[]>(
       `${TBL_LOGS}?select=id_ppv,acao,usuario_email,data_hora&order=id.desc`
@@ -50,6 +50,7 @@ export async function GET(req: NextRequest) {
       tipo: getValorInsensivel(r, "Tipo_Pedido"),
       status: getValorInsensivel(r, "status"),
       valor: getValorInsensivel(r, "valor_total"),
+      desconto: parseFloat(String(getValorInsensivel(r, "desconto_percentual") || 0)),
       data: getValorInsensivel(r, "data"),
       observacao: getValorInsensivel(r, "observacao"),
       ultimaAcao: ultimoLog?.acao || "",
@@ -159,6 +160,7 @@ export async function PATCH(req: NextRequest) {
     if (dados.motivoSaida) payload.Motivo_Saida_Pedido = dados.motivoSaida;
     payload.substituto_tipo = dados.substitutoTipo || null;
     payload.substituto_id = dados.substitutoId || null;
+    if (dados.desconto !== undefined) payload.desconto_percentual = dados.desconto;
 
     // Buscar estado atual para comparar mudanças
     const estadoAtual = await buscarPPVPorId(dados.id);
@@ -198,6 +200,10 @@ export async function PATCH(req: NextRequest) {
       }
       if (dados.substitutoId && !estadoAtual.substitutoId) {
         await registrarLog(dados.id, `Substituto definido: ${dados.substitutoTipo} ${dados.substitutoId}`, userName);
+        temMudanca = true;
+      }
+      if (dados.desconto !== undefined && (estadoAtual.desconto || 0) !== dados.desconto) {
+        await registrarLog(dados.id, `Desconto alterado: ${estadoAtual.desconto || 0}% → ${dados.desconto}%`, userName);
         temMudanca = true;
       }
       if (!temMudanca) {

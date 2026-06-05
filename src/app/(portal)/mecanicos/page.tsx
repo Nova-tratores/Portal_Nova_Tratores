@@ -85,6 +85,22 @@ interface Requisicao {
   Tipo_Pedido: string
 }
 
+interface AlertaOrdem {
+  os_num: string
+  data: string
+  status: string
+  faturada: boolean
+  cliente: string
+  cidade_cliente: string
+  horas: string
+  km: string
+  valor: string
+  relatorio_tecnico: string
+  diagnostico_tecnico: string
+  servico_solicitado: string
+  ppvs: PPV[]
+}
+
 interface Alerta {
   id: number
   tecnico_nome: string
@@ -99,6 +115,8 @@ interface Alerta {
   admin_comentario: string
   resolvido_em: string
   created_at: string
+  carryover?: boolean
+  ordem?: AlertaOrdem | null
 }
 
 interface MecanicoDetalhe extends Mecanico {
@@ -592,6 +610,7 @@ export default function MecanicosPage() {
                   const statusLabel = a.status === 'justificada' ? 'Justificada' : a.status === 'ocorrencia' ? 'Virou Ocorrencia' : 'Pendente'
                   const statusBg = a.status === 'justificada' ? '#D1FAE5' : a.status === 'ocorrencia' ? '#DBEAFE' : '#FEF3C7'
                   const statusColor = a.status === 'justificada' ? '#065F46' : a.status === 'ocorrencia' ? '#1E40AF' : '#92400E'
+                  const ord = a.ordem
                   return (
                     <div key={a.id} style={{ background: '#fff', border: `1px solid ${isPendente ? (isAtraso ? '#FED7AA' : '#FECACA') : '#E2E8F0'}`, borderRadius: 10, overflow: 'hidden', opacity: isPendente ? 1 : 0.75, transition: 'all .2s' }}>
                       {/* Header clicavel */}
@@ -605,52 +624,135 @@ export default function MecanicosPage() {
                           {isAtraso ? 'Atraso Relatorio' : 'Divergencia KM'}
                         </span>
                         <span style={{ padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, background: statusBg, color: statusColor }}>{statusLabel}</span>
-                        {a.id_ordem && <span style={{ fontSize: 11, color: '#2563EB', fontWeight: 600 }}>{a.id_ordem}</span>}
-                        <span style={{ fontSize: 13, fontWeight: 600, color: '#1E293B', flex: 1 }}>{a.descricao}</span>
-                        <span style={{ fontSize: 12, color: '#94A3B8' }}>{a.data_referencia ? a.data_referencia.split('-').reverse().join('/') : ''}</span>
+                        {a.carryover && (
+                          <span style={{ padding: '3px 10px', borderRadius: 6, fontSize: 10, fontWeight: 800, background: '#7C3AED', color: '#fff', letterSpacing: 0.3 }}>MES ANTERIOR</span>
+                        )}
+                        {ord && <span style={{ fontSize: 11, color: '#2563EB', fontWeight: 700 }}>OS {ord.os_num}</span>}
+                        {ord?.cliente && <span style={{ fontSize: 12, color: '#1E293B', fontWeight: 600 }}>{ord.cliente}</span>}
+                        <span style={{ fontSize: 13, fontWeight: 600, color: '#64748B', flex: 1, textAlign: 'right' }}>{a.data_referencia ? a.data_referencia.split('-').reverse().join('/') : ''}</span>
                       </div>
 
                       {/* Detalhes expandidos */}
                       {isExpanded && (
                         <div style={{ borderTop: '1px solid #E2E8F0', padding: 16 }}>
-                          {/* O que aconteceu */}
-                          <div style={{ marginBottom: 14 }}>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', marginBottom: 4 }}>O que aconteceu</div>
-                            <div style={{ fontSize: 14, color: '#1E293B', lineHeight: 1.5 }}>{a.descricao}</div>
+                          {/* Descricao do alerta */}
+                          <div style={{ marginBottom: 16, padding: '12px 14px', borderRadius: 8, background: isAtraso ? '#FFF7ED' : '#FEF2F2', border: `1px solid ${isAtraso ? '#FED7AA' : '#FECACA'}` }}>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: '#1E293B', marginBottom: 4 }}>{a.descricao}</div>
+                            {a.detalhes && <div style={{ fontSize: 13, color: '#64748B' }}>{a.detalhes}</div>}
                           </div>
 
-                          {/* Detalhes extras */}
-                          {a.detalhes && (
-                            <div style={{ marginBottom: 14 }}>
-                              <div style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', marginBottom: 4 }}>Detalhes</div>
-                              <div style={{ fontSize: 13, color: '#334155', lineHeight: 1.5, background: '#F8FAFC', borderRadius: 8, padding: 10, border: '1px solid #E2E8F0', whiteSpace: 'pre-wrap' }}>{a.detalhes}</div>
+                          {/* Card da OS vinculada */}
+                          {ord && (
+                            <div style={{ marginBottom: 16, border: '1px solid #E2E8F0', borderRadius: 10, overflow: 'hidden' }}>
+                              <div style={{ padding: '10px 14px', background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <Wrench size={14} color="#3b82f6" />
+                                <span style={{ fontSize: 13, fontWeight: 800, color: '#1D4ED8' }}>OS {ord.os_num}</span>
+                                <span style={{ fontSize: 12, color: '#64748B' }}>{ord.data ? ord.data.split('-').reverse().join('/') : '-'}</span>
+                                <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700, background: ord.faturada ? '#D1FAE5' : ord.status === 'Executada' ? '#FEF3C7' : '#F1F5F9', color: ord.faturada ? '#065F46' : ord.status === 'Executada' ? '#92400E' : '#64748B' }}>
+                                  {ord.faturada ? 'Faturada' : ord.status}
+                                </span>
+                              </div>
+                              <div style={{ padding: 14 }}>
+                                {/* Info grid */}
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12, marginBottom: ord.cliente ? 14 : 0 }}>
+                                  {ord.cliente && (
+                                    <div style={{ gridColumn: 'span 2' }}>
+                                      <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Cliente</div>
+                                      <div style={{ fontSize: 13, color: '#1E293B', fontWeight: 700, marginTop: 2 }}>{ord.cliente}</div>
+                                    </div>
+                                  )}
+                                  {ord.cidade_cliente && (
+                                    <div>
+                                      <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Cidade</div>
+                                      <div style={{ fontSize: 13, color: '#334155', fontWeight: 600, marginTop: 2 }}>{ord.cidade_cliente}</div>
+                                    </div>
+                                  )}
+                                  <div>
+                                    <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Horas</div>
+                                    <div style={{ fontSize: 13, color: '#047857', fontWeight: 700, marginTop: 2 }}>{(parseFloat(ord.horas) || 0).toFixed(1)}h</div>
+                                  </div>
+                                  <div>
+                                    <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>KM</div>
+                                    <div style={{ fontSize: 13, color: '#B45309', fontWeight: 700, marginTop: 2 }}>{(parseFloat(ord.km) || 0).toFixed(0)} km</div>
+                                  </div>
+                                  <div>
+                                    <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Valor</div>
+                                    <div style={{ fontSize: 13, color: '#7C3AED', fontWeight: 700, marginTop: 2 }}>R$ {(parseFloat(ord.valor) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                                  </div>
+                                </div>
+
+                                {/* Servico solicitado */}
+                                {ord.servico_solicitado?.trim() && (
+                                  <div style={{ marginTop: 14 }}>
+                                    <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', marginBottom: 4 }}>Servico Solicitado</div>
+                                    <div style={{ fontSize: 13, color: '#334155', lineHeight: 1.5 }}>{ord.servico_solicitado}</div>
+                                  </div>
+                                )}
+
+                                {/* Diagnostico do tecnico */}
+                                {ord.diagnostico_tecnico?.trim() && (
+                                  <div style={{ marginTop: 14 }}>
+                                    <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', marginBottom: 4 }}>Diagnostico do Tecnico</div>
+                                    <div style={{ fontSize: 13, color: '#334155', lineHeight: 1.5, background: '#FFF7ED', borderRadius: 8, padding: 10, border: '1px solid #FED7AA' }}>{ord.diagnostico_tecnico}</div>
+                                  </div>
+                                )}
+
+                                {/* Relatorio do tecnico */}
+                                {ord.relatorio_tecnico?.trim() && (
+                                  <div style={{ marginTop: 14 }}>
+                                    <div style={{ fontSize: 10, fontWeight: 700, color: '#047857', textTransform: 'uppercase', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                      <FileText size={11} /> Relatorio do Tecnico
+                                    </div>
+                                    <div style={{ fontSize: 13, color: '#334155', lineHeight: 1.6, background: '#F0FDF4', borderRadius: 8, padding: 10, border: '1px solid #BBF7D0', whiteSpace: 'pre-wrap' }}>{ord.relatorio_tecnico}</div>
+                                  </div>
+                                )}
+
+                                {/* PPV / Pecas */}
+                                {ord.ppvs?.some(p => p.produtos.length > 0) && (
+                                  <div style={{ marginTop: 14 }}>
+                                    {ord.ppvs.filter(p => p.produtos.length > 0).map(ppv => (
+                                      <div key={ppv.id}>
+                                        <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                          <Package size={11} /> PPV {ppv.id}
+                                          {ppv.pedido_omie && <span style={{ color: '#2563EB' }}>| Omie: {ppv.pedido_omie}</span>}
+                                          <span style={{ padding: '1px 6px', borderRadius: 4, background: ppv.status === 'Concluída' ? '#D1FAE5' : '#FEF3C7', color: ppv.status === 'Concluída' ? '#065F46' : '#92400E', fontSize: 9 }}>{ppv.status}</span>
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                          {ppv.produtos.map((prod, i) => (
+                                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 8px', background: '#FAFBFC', borderRadius: 6, fontSize: 12 }}>
+                                              <span style={{ fontFamily: 'monospace', color: '#64748B', minWidth: 70 }}>{prod.codigo}</span>
+                                              <span style={{ flex: 1, color: '#334155' }}>{prod.descricao}</span>
+                                              <span style={{ fontWeight: 600, color: '#1E293B' }}>{prod.qtd - prod.devolvido}x</span>
+                                              <span style={{ color: '#64748B' }}>R$ {prod.preco.toFixed(2)}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           )}
 
-                          {/* Quando */}
+                          {/* Metadados do alerta */}
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginBottom: 14 }}>
                             {a.data_referencia && (
                               <div>
-                                <div style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Data da OS</div>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Data Referencia</div>
                                 <div style={{ fontSize: 13, color: '#1E293B', fontWeight: 600, marginTop: 2 }}>{a.data_referencia.split('-').reverse().join('/')}</div>
-                              </div>
-                            )}
-                            {a.id_ordem && (
-                              <div>
-                                <div style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Ordem</div>
-                                <div style={{ fontSize: 13, color: '#2563EB', fontWeight: 600, marginTop: 2 }}>{a.id_ordem}</div>
                               </div>
                             )}
                             {a.created_at && (
                               <div>
-                                <div style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Detectado em</div>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Detectado em</div>
                                 <div style={{ fontSize: 13, color: '#1E293B', fontWeight: 600, marginTop: 2 }}>{new Date(a.created_at).toLocaleString('pt-BR')}</div>
                               </div>
                             )}
-                            {a.severidade && (
+                            {a.carryover && (
                               <div>
-                                <div style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Severidade</div>
-                                <div style={{ fontSize: 13, color: a.severidade === 'alta' ? '#DC2626' : a.severidade === 'media' ? '#B45309' : '#64748B', fontWeight: 700, marginTop: 2, textTransform: 'capitalize' }}>{a.severidade}</div>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>Origem</div>
+                                <div style={{ fontSize: 13, color: '#7C3AED', fontWeight: 700, marginTop: 2 }}>Arrastado de mes anterior</div>
                               </div>
                             )}
                           </div>
@@ -658,7 +760,7 @@ export default function MecanicosPage() {
                           {/* Resolucao */}
                           {a.admin_comentario && (
                             <div style={{ marginBottom: 14 }}>
-                              <div style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', marginBottom: 4 }}>Resolucao</div>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', marginBottom: 4 }}>Resolucao</div>
                               <div style={{ fontSize: 13, color: '#047857', background: '#F0FDF4', borderRadius: 8, padding: 10, border: '1px solid #BBF7D0' }}>
                                 <strong>{a.admin_nome || 'Admin'}:</strong> {a.admin_comentario}
                                 {a.resolvido_em && <span style={{ display: 'block', fontSize: 11, color: '#94A3B8', marginTop: 4 }}>Resolvido em {new Date(a.resolvido_em).toLocaleString('pt-BR')}</span>}
@@ -853,11 +955,24 @@ export default function MecanicosPage() {
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                             {mesData.alertas.map((a: any) => (
                               <div key={a.id} style={{ background: a.status === 'pendente' ? '#FEF2F2' : '#F8FAFC', border: `1px solid ${a.status === 'pendente' ? '#FECACA' : '#E2E8F0'}`, borderRadius: 10, padding: '10px 14px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: a.status === 'pendente' ? 8 : 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
                                   <span style={{ padding: '2px 8px', borderRadius: 4, background: a.tipo === 'atraso_relatorio' ? '#FFF7ED' : '#FEF2F2', color: a.tipo === 'atraso_relatorio' ? '#C2410C' : '#DC2626', fontSize: 10, fontWeight: 700 }}>{a.tipo === 'atraso_relatorio' ? 'Atraso' : 'Divergencia KM'}</span>
-                                  <span style={{ color: '#1E293B', flex: 1, fontSize: 12 }}>{a.descricao}</span>
+                                  {a.ordem && <span style={{ fontSize: 11, color: '#2563EB', fontWeight: 700 }}>OS {a.ordem.os_num}</span>}
+                                  {a.ordem?.cliente && <span style={{ fontSize: 11, color: '#1E293B', fontWeight: 600 }}>{a.ordem.cliente}</span>}
+                                  <span style={{ color: '#64748B', flex: 1, fontSize: 12 }}>{a.descricao}</span>
                                   <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700, background: a.status === 'justificada' ? '#D1FAE5' : a.status === 'ocorrencia' ? '#DBEAFE' : '#FEF3C7', color: a.status === 'justificada' ? '#065F46' : a.status === 'ocorrencia' ? '#1E40AF' : '#92400E' }}>{a.status}</span>
                                 </div>
+                                {/* Info da OS compacta */}
+                                {a.ordem && (
+                                  <div style={{ display: 'flex', gap: 12, fontSize: 11, marginBottom: 8, padding: '6px 10px', background: '#fff', borderRadius: 6, border: '1px solid #E2E8F0' }}>
+                                    {a.ordem.cidade_cliente && <span style={{ color: '#334155' }}>{a.ordem.cidade_cliente}</span>}
+                                    <span style={{ color: '#047857', fontWeight: 700 }}>{(parseFloat(a.ordem.horas) || 0).toFixed(1)}h</span>
+                                    <span style={{ color: '#B45309', fontWeight: 700 }}>{(parseFloat(a.ordem.km) || 0).toFixed(0)} km</span>
+                                    <span style={{ color: '#7C3AED', fontWeight: 700 }}>R$ {(parseFloat(a.ordem.valor) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                    <span style={{ padding: '1px 6px', borderRadius: 4, background: a.ordem.faturada ? '#D1FAE5' : '#FEF3C7', color: a.ordem.faturada ? '#065F46' : '#92400E', fontSize: 10, fontWeight: 700 }}>{a.ordem.faturada ? 'Faturada' : a.ordem.status}</span>
+                                    {a.ordem.relatorio_tecnico ? <span style={{ color: '#047857', fontWeight: 600 }}>Com relatorio</span> : <span style={{ color: '#DC2626', fontWeight: 600 }}>Sem relatorio</span>}
+                                  </div>
+                                )}
                                 {a.admin_comentario && (
                                   <div style={{ fontSize: 11, color: '#047857', background: '#F0FDF4', borderRadius: 6, padding: '6px 10px', marginBottom: 6 }}>
                                     <strong>{a.admin_nome || 'Admin'}:</strong> {a.admin_comentario}

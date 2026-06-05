@@ -9,6 +9,7 @@ export interface KanbanItem {
   tipo: string;
   status: string;
   valor: number;
+  desconto: number;
   data: string;
   observacao: string;
   ultimaAcao: string;
@@ -71,6 +72,7 @@ export interface PPVDetalhes {
   status: string;
   data: string;
   valor: number;
+  desconto: number;
   observacao: string;
   motivoCancelamento: string;
   substitutoTipo: string | null;

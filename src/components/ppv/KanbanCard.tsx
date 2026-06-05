@@ -14,7 +14,10 @@ interface KanbanCardProps {
 export default function KanbanCard({ item, onClick, onStatusChange }: KanbanCardProps) {
   const statusNorm = normalizarStatus(item.status) as StatusKey;
   const colors = STATUS_COLORS[statusNorm] || { text: "#64748B", bg: "#FFFFFF" };
-  const valorFmt = item.valor ? formatarMoeda(parseFloat(String(item.valor))) : "R$ 0,00";
+  const valorBruto = item.valor ? parseFloat(String(item.valor)) : 0;
+  const desconto = item.desconto || 0;
+  const valorFinal = desconto > 0 ? valorBruto * (1 - desconto / 100) : valorBruto;
+  const valorFmt = formatarMoeda(valorFinal);
   const dataFmt = formatarDataFrontend(item.data);
 
   const bgCard = statusNorm === "Concluída" ? "#ecfdf5" : statusNorm === "Cancelada" ? "#fef2f2" : "#FFFAF5";
@@ -117,8 +120,13 @@ export default function KanbanCard({ item, onClick, onStatusChange }: KanbanCard
         </div>
       )}
 
-      <div className="mt-2.5 text-right text-sm font-bold text-slate-800">
-        {valorFmt}
+      <div className="mt-2.5 flex items-center justify-end gap-2">
+        {desconto > 0 && (
+          <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">
+            -{desconto}%
+          </span>
+        )}
+        <span className="text-sm font-bold text-slate-800">{valorFmt}</span>
       </div>
     </div>
   );

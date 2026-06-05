@@ -161,11 +161,10 @@ const navItems: NavItem[] = [
   {
     id: 'visual-estoque',
     name: 'Consulta Omie',
-    href: 'https://produtos.novatratores.com',
+    href: '/consulta-omie',
     icon: <Eye size={18} />,
     tag: 'SHOWROOM',
     gradient: 'linear-gradient(135deg, #b91c1c, #7f1d1d)',
-    external: true
   },
   {
     id: 'dashboard-agro',
@@ -351,11 +350,14 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     if (!userProfile?.id || avisosPendentes.length === 0) return
     setConfirmando(true)
     const aviso = avisosPendentes[0]
-    await supabase.from('portal_avisos_lidos').upsert({
+    const { error } = await supabase.from('portal_avisos_lidos').upsert({
       aviso_id: aviso.id,
       user_id: userProfile.id,
+      lido_at: new Date().toISOString(),
     }, { onConflict: 'aviso_id,user_id' })
-    setAvisosPendentes(prev => prev.filter(a => a.id !== aviso.id))
+    if (!error) {
+      setAvisosPendentes(prev => prev.filter(a => a.id !== aviso.id))
+    }
     setConfirmando(false)
   }
 

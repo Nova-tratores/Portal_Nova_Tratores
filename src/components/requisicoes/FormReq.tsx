@@ -20,7 +20,7 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
   const [solBusca, setSolBusca] = useState('');
   const solRef = useRef<HTMLDivElement>(null);
 
-  const [tagsDisponiveis, setTagsDisponiveis] = useState<{ id: number; nome: string; cor: string }[]>([]);
+  const [tagsDisponiveis, setTagsDisponiveis] = useState<{ id: number; nome: string; cor: string; grupo: string | null }[]>([]);
   const [tagsSelecionadas, setTagsSelecionadas] = useState<string[]>([]);
 
   const [formData, setFormData] = useState({
@@ -97,31 +97,49 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
             </div>
           </div>
 
-          {/* Tags */}
-          {tagsDisponiveis.length > 0 && (
-            <div>
-              <label className={labelStyle}>Tags</label>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {tagsDisponiveis.map(tag => {
-                  const selected = tagsSelecionadas.includes(tag.nome);
-                  return (
-                    <button key={tag.id} type="button"
-                      onClick={() => setTagsSelecionadas(prev => selected ? prev.filter(t => t !== tag.nome) : [...prev, tag.nome])}
-                      style={{
-                        padding: '8px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                        border: selected ? `2px solid ${tag.cor}` : '2px solid #E2E8F0',
-                        background: selected ? tag.cor : '#fff',
-                        color: selected ? '#fff' : '#64748B',
-                        transition: 'all .15s',
-                        boxShadow: selected ? `0 2px 8px ${tag.cor}40` : 'none',
-                      }}>
-                      {tag.nome}
-                    </button>
-                  );
-                })}
+          {/* Tags agrupadas */}
+          {tagsDisponiveis.length > 0 && (() => {
+            const GRUPOS_INFO: Record<string, { label: string; icon: string }> = {
+              categoria: { label: 'Categoria de Peça', icon: '🔩' },
+              sistema: { label: 'Sistema', icon: '⚙️' },
+              geral: { label: 'Geral', icon: '📋' },
+            };
+            const grupos = ['categoria', 'sistema', 'geral'];
+            const tagsPorGrupo = grupos.map(g => ({
+              key: g,
+              ...GRUPOS_INFO[g],
+              tags: tagsDisponiveis.filter(t => (t.grupo || 'geral') === g),
+            })).filter(g => g.tags.length > 0);
+
+            return (
+              <div className="space-y-4">
+                {tagsPorGrupo.map(grupo => (
+                  <div key={grupo.key}>
+                    <label className={labelStyle}>{grupo.icon} {grupo.label}</label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {grupo.tags.map(tag => {
+                        const selected = tagsSelecionadas.includes(tag.nome);
+                        return (
+                          <button key={tag.id} type="button"
+                            onClick={() => setTagsSelecionadas(prev => selected ? prev.filter(t => t !== tag.nome) : [...prev, tag.nome])}
+                            style={{
+                              padding: '8px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                              border: selected ? `2px solid ${tag.cor}` : '2px solid #E2E8F0',
+                              background: selected ? tag.cor : '#fff',
+                              color: selected ? '#fff' : '#64748B',
+                              transition: 'all .15s',
+                              boxShadow: selected ? `0 2px 8px ${tag.cor}40` : 'none',
+                            }}>
+                            {tag.nome}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
