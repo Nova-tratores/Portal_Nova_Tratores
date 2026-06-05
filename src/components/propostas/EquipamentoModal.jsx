@@ -1,6 +1,5 @@
 'use client'
 import { useState } from 'react'
-import { supabase } from '@/lib/supabase'
 
 export default function EquipamentoModal({ onClose }) {
   const [loading, setLoading] = useState(false)
@@ -18,25 +17,16 @@ export default function EquipamentoModal({ onClose }) {
     setFormData(prev => ({ ...prev, [name]: value }))
   }
 
-  const sanitizeFileName = (name) => {
-    return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '-').replace(/[^a-zA-Z0-9.\-_]/g, '')
-  }
-
   const handleSave = async (e) => {
     e.preventDefault()
     setLoading(true)
     try {
-      let imageUrl = ''
-      if (file) {
-        const cleanName = sanitizeFileName(file.name)
-        const filePath = `equipamentos/${Math.random()}-${cleanName}`
-        const { error: uploadError } = await supabase.storage.from('equipamentos').upload(filePath, file)
-        if (uploadError) throw uploadError
-        const { data } = supabase.storage.from('equipamentos').getPublicUrl(filePath)
-        imageUrl = data.publicUrl
-      }
-      const { error } = await supabase.from('Equipamentos').insert([{ ...formData, imagem: imageUrl }])
-      if (error) throw error
+      const fd = new FormData()
+      Object.entries(formData).forEach(([k, v]) => fd.append(k, v))
+      if (file) fd.append('file', file)
+      const res = await fetch('/api/propostas/equipamento', { method: 'POST', body: fd })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error || 'Erro ao salvar')
       alert("EQUIPAMENTO CADASTRADO COM SUCESSO!"); onClose()
     } catch (err) { alert("Erro ao salvar equipamento: " + err.message) }
     finally { setLoading(false) }

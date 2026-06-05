@@ -24,10 +24,6 @@ export default function EquipamentoEditModal({ onClose }) {
     return () => clearTimeout(timer)
   }, [searchTerm])
 
-  const sanitizeFileName = (name) => {
-    return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '-').replace(/[^a-zA-Z0-9.\-_]/g, '')
-  }
-
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0]
     if (selectedFile) { setFile(selectedFile); setLocalPreview(URL.createObjectURL(selectedFile)) }
@@ -37,20 +33,19 @@ export default function EquipamentoEditModal({ onClose }) {
     e.preventDefault()
     setLoading(true)
     try {
-      let imageUrl = selectedItem.imagem
-      if (file) {
-        const cleanName = sanitizeFileName(file.name)
-        const filePath = `equipamentos/${Math.random()}-${cleanName}`
-        const { error: uploadError } = await supabase.storage.from('equipamentos').upload(filePath, file)
-        if (uploadError) throw uploadError
-        const { data } = supabase.storage.from('equipamentos').getPublicUrl(filePath)
-        imageUrl = data.publicUrl
-      }
-      const { error } = await supabase.from('Equipamentos').update({
-        marca: selectedItem.marca, modelo: selectedItem.modelo, descricao: selectedItem.descricao,
-        finame: selectedItem.finame, configuracao: selectedItem.configuracao, ano: selectedItem.ano, imagem: imageUrl
-      }).eq('id', selectedItem.id)
-      if (error) throw error
+      const fd = new FormData()
+      fd.append('id', selectedItem.id)
+      fd.append('marca', selectedItem.marca || '')
+      fd.append('modelo', selectedItem.modelo || '')
+      fd.append('descricao', selectedItem.descricao || '')
+      fd.append('finame', selectedItem.finame || '')
+      fd.append('configuracao', selectedItem.configuracao || '')
+      fd.append('ano', selectedItem.ano || '')
+      fd.append('imagem', selectedItem.imagem || '')
+      if (file) fd.append('file', file)
+      const res = await fetch('/api/propostas/equipamento', { method: 'PATCH', body: fd })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error || 'Erro ao salvar')
       alert("EQUIPAMENTO ATUALIZADO COM SUCESSO!"); onClose()
     } catch (err) { alert("Erro ao salvar: " + err.message) }
     finally { setLoading(false) }
