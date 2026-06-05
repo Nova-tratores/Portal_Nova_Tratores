@@ -10,13 +10,14 @@ import {
   DollarSign, Package, Menu, X, User as UserIcon,
   LayoutDashboard, Bell, ChevronRight, Activity, Lock, MessageCircle,
   CheckCheck, Trash2, ExternalLink, Calendar, Users, Calculator, BarChart3, Eye, Camera, Wheat, Megaphone,
-  Sun, Moon, Volume2, Check, MapPin, ShieldCheck, Building
+  Sun, Moon, Volume2, Check, MapPin, ShieldCheck, Building, SlidersHorizontal
 } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import ChatPanel from './chat/ChatPanel'
 import LembretesPanel from './lembretes/LembretesPanel'
 import LembreteAlerta from './lembretes/LembreteAlerta'
+import NotifPrefsModal from './notif/NotifPrefsModal'
 
 interface NavItem {
   id: string
@@ -267,6 +268,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const [chatOpen, setChatOpen] = useState(false)
   const [lembretesOpen, setLembretesOpen] = useState(false)
   const [bellOpen, setBellOpen] = useState(false)
+  const [notifPrefsOpen, setNotifPrefsOpen] = useState(false)
   const [toasts, setToasts] = useState<{ id: string; chatId?: string; titulo: string; avatar: string | null; preview: string; tipo: string; link?: string; timestamp: number }[]>([])
   const lastChatNotifIdRef = useRef<string | null>(null)
   const lastSysNotifIdRef = useRef<string | null>(null)
@@ -713,21 +715,36 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                       </span>
                     </div>
                   </div>
-                  {totalBell > 0 && (
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                     <button
-                      onClick={() => { notifData.marcarTodasComoLidas() }}
+                      onClick={() => { setBellOpen(false); setNotifPrefsOpen(true) }}
+                      title="Preferências de notificação — escolha o que receber"
                       style={{
-                        background: 'var(--portal-bg-hover)', border: `1px solid var(--portal-border-hover)`, color: '#dc2626',
+                        background: 'var(--portal-bg-hover)', border: `1px solid var(--portal-border-hover)`,
+                        color: 'var(--portal-text-secondary)',
                         fontSize: '11px', fontWeight: '600', cursor: 'pointer',
                         display: 'flex', alignItems: 'center', gap: '4px',
-                        padding: '6px 12px', borderRadius: '8px', transition: 'all 0.2s'
+                        padding: '6px 10px', borderRadius: '8px', transition: 'all 0.2s'
                       }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = tema === 'dark' ? '#3a1518' : '#fee2e2' }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--portal-bg-hover)' }}
                     >
-                      <CheckCheck size={13} /> Marcar lidas
+                      <SlidersHorizontal size={13} /> Preferências
                     </button>
-                  )}
+                    {totalBell > 0 && (
+                      <button
+                        onClick={() => { notifData.marcarTodasComoLidas() }}
+                        style={{
+                          background: 'var(--portal-bg-hover)', border: `1px solid var(--portal-border-hover)`, color: '#dc2626',
+                          fontSize: '11px', fontWeight: '600', cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', gap: '4px',
+                          padding: '6px 12px', borderRadius: '8px', transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = tema === 'dark' ? '#3a1518' : '#fee2e2' }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--portal-bg-hover)' }}
+                      >
+                        <CheckCheck size={13} /> Marcar lidas
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Lista */}
@@ -1435,6 +1452,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
           .print-hidden { display: none !important; }
         }
       `}</style>
+      {notifPrefsOpen && userProfile?.id && (
+        <NotifPrefsModal userId={userProfile.id} onClose={() => setNotifPrefsOpen(false)} />
+      )}
     </div>
   )
 }
