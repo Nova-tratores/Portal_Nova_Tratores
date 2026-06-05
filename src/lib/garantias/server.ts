@@ -47,7 +47,9 @@ export async function notificarTecnico(
   }
 }
 
-// Notifica garantistas (usuários com o módulo 'garantias') e admins
+// Notifica garantistas (usuários com o módulo 'garantias') e admins.
+// Filtra quem silenciou notificações de 'garantias' nas preferências
+// (mas Pós Vendas continua recebendo — obrigatório pra essa categoria).
 export async function notificarGarantistas(params: {
   titulo: string;
   descricao?: string;
@@ -56,10 +58,18 @@ export async function notificarGarantistas(params: {
   try {
     const { data: users } = await supabase
       .from('portal_permissoes')
-      .select('user_id')
+      .select('user_id, categoria, notif_silenciado')
       .or('is_admin.eq.true,modulos_permitidos.cs.{garantias}');
     if (!users || users.length === 0) return;
-    const ids = [...new Set(users.map((u) => u.user_id).filter(Boolean))];
+    const { podeNotificar } = await import('@/lib/notif/prefs');
+    const ids = [
+      ...new Set(
+        (users as Array<{ user_id: string; categoria: string | null; notif_silenciado: string[] | null }>)
+          .filter((u) => podeNotificar('garantias', u.notif_silenciado, u.categoria))
+          .map((u) => u.user_id)
+          .filter(Boolean),
+      ),
+    ];
     if (ids.length === 0) return;
     await supabase.from('portal_notificacoes').insert(
       ids.map((user_id) => ({
