@@ -436,6 +436,39 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
     const nCodProj = await buscarNcodProj(String(os.Projeto || ""));
     const nCodVend = await buscarNcodVend(String(os.Os_Tecnico || ""), String(os.Os_Tecnico2 || ""));
 
+    // Modo Garantia: OS com Tipo_Servico='Garantia' vira lançamento sem conta
+    // a receber, categoria #Serv Prest Garantia, conta INTERNO. nCodProj fica
+    // pendente até o garantista escolher a montadora em /garantias (depois
+    // disso, /api/garantias/[id]/sync-omie-projeto atualiza só esse campo).
+    const ehGarantia = String(os.Tipo_Servico || '').toLowerCase().trim() === 'garantia';
+    let payloadGarantia: {
+      codCategGarantia: string;
+      nCodCC_Interno: number;
+      produtos: Array<{ cCodProd?: string; cDescr?: string; nQtde?: number; nValUnit?: number }>;
+    } | null = null;
+    if (ehGarantia) {
+      try {
+        const { buscarCodigosGarantia, montarListaProdutosPPV } = await import('@/lib/garantias/omie-faturamento');
+        const codigos = await buscarCodigosGarantia(undefined, null);
+        const ppvIds = String(os.ID_PPV || '').split(',').map((s: string) => s.trim()).filter(Boolean);
+        const produtos = await montarListaProdutosPPV(ppvIds);
+        payloadGarantia = {
+          codCategGarantia: codigos.codCategGarantia,
+          nCodCC_Interno: codigos.nCodCC_Interno,
+          produtos,
+        };
+      } catch (err) {
+        console.warn('[Omie] Falha ao resolver dados de garantia, seguindo com OS padrão:', err);
+        payloadGarantia = null;
+      }
+    }
+
+    // Serviços: em garantia cada linha recebe cCodCateg + cNaoGerarReceber='S'
+    const servicosBase = await montarServicosComReqs(os, idOrdem);
+    const servicosFinal = payloadGarantia
+      ? servicosBase.map((s) => ({ ...s, cCodCateg: payloadGarantia!.codCategGarantia, cNaoGerarReceber: 'S' as const }))
+      : servicosBase;
+
     const payload = {
       Cabecalho: {
         cCodIntOS: os.Id_Ordem,
@@ -446,20 +479,28 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
         nQtdeParc: 1,
       },
       InformacoesAdicionais: {
-        cCodCateg: OMIE_COD_CATEG,
-        nCodCC: OMIE_COD_CC,
+        cCodCateg: payloadGarantia ? payloadGarantia.codCategGarantia : OMIE_COD_CATEG,
+        nCodCC: payloadGarantia ? payloadGarantia.nCodCC_Interno : OMIE_COD_CC,
         nCodProj: nCodProj || undefined,
         cDadosAdicNF: montarDadosAdic(os) || undefined,
       },
       Observacoes: {
         cObsOS: montarObsOS(os) || undefined,
       },
-      ServicosPrestados: await montarServicosComReqs(os, idOrdem),
-      Email: {
-        cEnvBoleto: "N",
-        cEnvLink: "N",
-        cEnviarPara: emailCliente,
-      },
+      ServicosPrestados: servicosFinal,
+      ...(payloadGarantia && payloadGarantia.produtos.length > 0 ? { Produtos: payloadGarantia.produtos } : {}),
+      Email: payloadGarantia
+        ? {
+            cEnvBoleto: 'N',
+            cEnvLink: 'N',
+            cEnvRecibo: 'S',
+            cEnviarPara: 'posvendas.novatratores@gmail.com',
+          }
+        : {
+            cEnvBoleto: 'N',
+            cEnvLink: 'N',
+            cEnviarPara: emailCliente,
+          },
     };
 
     let resposta: OmieOSResponse;
