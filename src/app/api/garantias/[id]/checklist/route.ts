@@ -87,5 +87,32 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     detalhe: 'Checklist atualizado',
   });
 
+  // Quando a montadora muda (ou é definida pela primeira vez), sincroniza
+  // o nCodProj da OS no Omie pra "{Montadora}-pgo". Best-effort — só
+  // dispara se a OS já estiver no Omie e houver projeto correspondente.
+  if (
+    body.montadora_id !== undefined &&
+    body.montadora_id !== garantia.montadora_id &&
+    body.montadora_id
+  ) {
+    try {
+      const { sincronizarProjetoMontadoraNoOmie } = await import('@/lib/garantias/omie-faturamento');
+      const montadora = (data as { id_ordem?: string; montadora?: { nome?: string } }).montadora;
+      const idOrdem = (data as { id_ordem?: string }).id_ordem || '';
+      if (montadora?.nome && idOrdem) {
+        const resp = await sincronizarProjetoMontadoraNoOmie({ idOrdem, montadoraNome: montadora.nome });
+        await registrarEvento(id, {
+          tipo: resp.ok ? 'omie_projeto_sincronizado' : 'omie_projeto_erro',
+          ator: body.garantista_nome || 'Garantista',
+          detalhe: resp.ok
+            ? `Projeto da OS no Omie atualizado pra ${montadora.nome}-pgo.`
+            : `Falha ao atualizar projeto no Omie: ${resp.motivo}`,
+        });
+      }
+    } catch (err) {
+      console.warn('[garantias] sincronizar projeto Omie falhou:', err);
+    }
+  }
+
   return NextResponse.json({ garantia: data });
 }
