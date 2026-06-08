@@ -57,25 +57,6 @@ function fmtData(iso: string | null | undefined): string {
   return d.toLocaleDateString('pt-BR');
 }
 
-// Mesma lógica usada em revisoes/page.tsx
-function fmtDataCurta(valor: string | null | undefined): string {
-  if (!valor) return '';
-  if (/^\d{2}\/\d{2}\/\d{4}$/.test(valor)) {
-    const [d, m] = valor.split('/');
-    return `${d}/${m}`;
-  }
-  const isoMatch = valor.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (isoMatch) {
-    const [, , mes, dia] = isoMatch;
-    return `${dia}/${mes}`;
-  }
-  const d = new Date(valor);
-  if (isNaN(d.getTime())) return '';
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  return `${dd}/${mm}`;
-}
-
 async function carregarTemplate(baseUrl?: string): Promise<Buffer> {
   if (baseUrl) {
     try {
@@ -223,14 +204,6 @@ export function parseEndereco(endereco: string | null | undefined): {
   return { endereco: enderecoStr, bairro: bairroStr, uf };
 }
 
-// Concatena datas curtas em uma string única ("07/04 / 04/05 / 11/05")
-function concatenarDatas(...valores: (string | null | undefined)[]): string {
-  return valores
-    .map(fmtDataCurta)
-    .filter(Boolean)
-    .join(' / ');
-}
-
 // Strip "OS-" do id_ordem, devolve só o número ("OS-0383" → "383")
 function soNumeroOS(idOrdem: string | null | undefined): string {
   if (!idOrdem) return '';
@@ -326,20 +299,20 @@ export async function gerarSGMahindra(
   const horimetro = tecnico?.Horimetro ? Number(tecnico.Horimetro) : null;
   if (horimetro && !isNaN(horimetro)) set(sheet.getCell('K24'), horimetro);
 
-  // Datas de revisão concatenadas
-  set(
-    sheet.getCell('C26'),
-    concatenarDatas(trator?.['50h Data'], trator?.['300h Data'], trator?.['600h Data']),
-  );
+  // Datas de revisão — uma por célula, formato dd/mm/yyyy.
+  // Mapping confirmado pelos merges do template:
+  //   C26:D26=50h | E26:G26=300h | H26:I26=600h | K26:N26=Entrega
+  //   C28:D28=900h | E28:G28=1200h | H28:I28=1500h
+  //   K28:M28=1800h | N28=2100h
+  set(sheet.getCell('C26'), fmtData(trator?.['50h Data']));
+  set(sheet.getCell('E26'), fmtData(trator?.['300h Data']));
+  set(sheet.getCell('H26'), fmtData(trator?.['600h Data']));
   set(sheet.getCell('K26'), fmtData(trator?.Entrega));
-  set(
-    sheet.getCell('C28'),
-    concatenarDatas(trator?.['900h Data'], trator?.['1200h Data'], trator?.['1500h Data']),
-  );
-  set(
-    sheet.getCell('K28'),
-    concatenarDatas(trator?.['1800h Data'], trator?.['2100h Data']),
-  );
+  set(sheet.getCell('C28'), fmtData(trator?.['900h Data']));
+  set(sheet.getCell('E28'), fmtData(trator?.['1200h Data']));
+  set(sheet.getCell('H28'), fmtData(trator?.['1500h Data']));
+  set(sheet.getCell('K28'), fmtData(trator?.['1800h Data']));
+  set(sheet.getCell('N28'), fmtData(trator?.['2100h Data']));
 
   // ── Tipo de Garantia ────────────────────────────────────────────────
   set(sheet.getCell(celulaTipoGarantia(tipoGarantia)), 'X');
