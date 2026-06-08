@@ -951,16 +951,67 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                 <Secao titulo="Devoluções respondidas" icone={<History size={14} />}>
                   {g.pendencias
                     .filter((p) => p.status === 'respondida')
-                    .map((p) => (
-                      <div key={p.id} style={{ fontSize: 12, borderLeft: '3px solid var(--portal-border)', paddingLeft: 8 }}>
-                        <div style={{ color: 'var(--portal-text-muted)' }}>
-                          {p.tipo === 'bo' ? 'B.O.' : 'Fábrica'}: {p.descricao}
+                    .map((p) => {
+                      const anexosResposta = g.anexos.filter(
+                        (a) => a.pendencia_id === p.id && a.categoria === 'pendencia_resposta',
+                      );
+                      return (
+                        <div key={p.id} style={{ fontSize: 12, borderLeft: '3px solid var(--portal-border)', paddingLeft: 10, paddingBottom: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          <div style={{ color: 'var(--portal-text-muted)' }}>
+                            <strong>{p.tipo === 'bo' ? 'B.O.' : 'Pendência fábrica'}:</strong> {p.descricao}
+                          </div>
+                          <div style={{ color: 'var(--portal-text)' }}>
+                            <strong>Resposta do técnico:</strong> {p.resposta_texto || <em style={{ color: 'var(--portal-text-muted)' }}>(somente anexos)</em>}
+                          </div>
+                          {p.respondido_por && (
+                            <div style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>
+                              {p.respondido_por}
+                              {p.respondido_em ? ` · ${fmtDataHora(p.respondido_em)}` : ''}
+                            </div>
+                          )}
+                          {anexosResposta.length > 0 && (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                              {anexosResposta.map((a) => {
+                                const ehImagem = (a.content_type || '').startsWith('image/') || /\.(jpe?g|png|gif|webp|heic|bmp)$/i.test(a.nome_arquivo || a.url);
+                                return ehImagem ? (
+                                  <a
+                                    key={a.id}
+                                    href={a.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    title={a.nome_arquivo || 'Anexo'}
+                                    style={{
+                                      width: 80, height: 80, borderRadius: 8,
+                                      overflow: 'hidden', border: '1px solid var(--portal-border)',
+                                      background: 'var(--portal-bg-secondary)', display: 'block',
+                                    }}
+                                  >
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={a.url} alt={a.nome_arquivo || ''} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                  </a>
+                                ) : (
+                                  <a
+                                    key={a.id}
+                                    href={a.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    style={{
+                                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                                      padding: '6px 10px', borderRadius: 8,
+                                      border: '1px solid var(--portal-border)',
+                                      fontSize: 11, color: 'var(--portal-text)',
+                                      textDecoration: 'none', background: 'var(--portal-bg-secondary)',
+                                    }}
+                                  >
+                                    <FileWarning size={12} /> {a.nome_arquivo || 'Anexo'}
+                                  </a>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
-                        <div style={{ color: 'var(--portal-text)', marginTop: 2 }}>
-                          <strong>Resposta:</strong> {p.resposta_texto || '(somente anexos)'}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                 </Secao>
               )}
             </div>
