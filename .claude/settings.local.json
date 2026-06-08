@@ -876,7 +876,22 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"https://citrhumdkfivdzbmayde.supabase.co/auth/v1/settings\" -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpdHJodW1ka2ZpdmR6Ym1heWRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxMDgyNzUsImV4cCI6MjA4NDY4NDI3NX0.83x3-NrKoJgtIuSE7Jjsaj0zH-b-XJ3Z8i3XkBkwVoU\" --max-time 15)",
       "Bash(curl -s \"https://citrhumdkfivdzbmayde.supabase.co/rest/v1/Clientes?select=id&limit=3\" -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpdHJodW1ka2ZpdmR6Ym1heWRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxMDgyNzUsImV4cCI6MjA4NDY4NDI3NX0.83x3-NrKoJgtIuSE7Jjsaj0zH-b-XJ3Z8i3XkBkwVoU\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpdHJodW1ka2ZpdmR6Ym1heWRlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTEwODI3NSwiZXhwIjoyMDg0Njg0Mjc1fQ.fCq8RVCcwKd9rgJj1cYFtNvKUrQmFeujCvwccZIBuSY\" --max-time 10)",
       "Bash(curl -s \"https://citrhumdkfivdzbmayde.supabase.co/rest/v1/Cliente_Manual?select=id,nome&limit=3\" -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpdHJodW1ka2ZpdmR6Ym1heWRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxMDgyNzUsImV4cCI6MjA4NDY4NDI3NX0.83x3-NrKoJgtIuSE7Jjsaj0zH-b-XJ3Z8i3XkBkwVoU\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpdHJodW1ka2ZpdmR6Ym1heWRlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTEwODI3NSwiZXhwIjoyMDg0Njg0Mjc1fQ.fCq8RVCcwKd9rgJj1cYFtNvKUrQmFeujCvwccZIBuSY\" --max-time 10)",
-      "Bash(curl -s \"https://citrhumdkfivdzbmayde.supabase.co/rest/v1/Cliente_Manual?select=*&limit=1\" -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpdHJodW1ka2ZpdmR6Ym1heWRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxMDgyNzUsImV4cCI6MjA4NDY4NDI3NX0.83x3-NrKoJgtIuSE7Jjsaj0zH-b-XJ3Z8i3XkBkwVoU\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpdHJodW1ka2ZpdmR6Ym1heWRlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTEwODI3NSwiZXhwIjoyMDg0Njg0Mjc1fQ.fCq8RVCcwKd9rgJj1cYFtNvKUrQmFeujCvwccZIBuSY\" --max-time 10)"
+      "Bash(curl -s \"https://citrhumdkfivdzbmayde.supabase.co/rest/v1/Cliente_Manual?select=*&limit=1\" -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpdHJodW1ka2ZpdmR6Ym1heWRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxMDgyNzUsImV4cCI6MjA4NDY4NDI3NX0.83x3-NrKoJgtIuSE7Jjsaj0zH-b-XJ3Z8i3XkBkwVoU\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpdHJodW1ka2ZpdmR6Ym1heWRlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTEwODI3NSwiZXhwIjoyMDg0Njg0Mjc1fQ.fCq8RVCcwKd9rgJj1cYFtNvKUrQmFeujCvwccZIBuSY\" --max-time 10)",
+      "PowerShell(npx tsc --noEmit --pretty 2>&1)",
+      "PowerShell(Get-ChildItem \"c:\\\\projetos\\\\visual-estoque\" -Recurse -File | Where-Object { $_.FullName -notmatch 'node_modules|\\\\.next|dist|\\\\.git' } | Select-Object -ExpandProperty FullName | Select-Object -First 40)",
+      "Bash(taskkill /PID 844 /F)",
+      "PowerShell(Stop-Process -Id 844 -Force -Confirm:$false)",
+      "Bash(node src/server.js)",
+      "PowerShell(Start-Sleep -Seconds 3; \\(Test-NetConnection -ComputerName localhost -Port 3001\\).TcpTestSucceeded)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3003/css/style.css)",
+      "PowerShell($r = Invoke-RestMethod -Uri \"http://localhost:3000/api/mecanicos?nome=Nicolas%20Dario\" -Method Get; $r.gps | ConvertTo-Json)",
+      "PowerShell($r = Invoke-RestMethod -Uri \"http://localhost:3000/api/mecanicos?nome=Nicolas%20Dario\" -Method Get; \"tecnico_nome: $\\($r.tecnico_nome\\)\")",
+      "PowerShell($r = Invoke-RestMethod -Uri \"http://localhost:3000/api/mecanicos?nome=Nicolas%20Dario&mes=2026-05\" -Method Get; \"GPS: kmMes=$\\($r.gps.kmMes\\) dias=$\\($r.gps.dias\\) dirigindoMin=$\\($r.gps.dirigindoMin\\) paradoForaMin=$\\($r.gps.paradoForaMin\\)\")",
+      "PowerShell($r = Invoke-RestMethod -Uri \"http://localhost:3000/api/mecanicos?nome=Nicolas%20Dario\" -Method Get; \"GPS jun: kmMes=$\\($r.gps.kmMes\\) dias=$\\($r.gps.dias\\) dirigindoMin=$\\($r.gps.dirigindoMin\\) paradoForaMin=$\\($r.gps.paradoForaMin\\)\")"
+    ],
+    "additionalDirectories": [
+      "c:\\projetos\\visual-estoque\\src",
+      "c:\\projetos\\visual-estoque\\public\\css"
     ]
   }
 }

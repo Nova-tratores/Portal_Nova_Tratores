@@ -35,6 +35,9 @@ const App = {
         // Auto-refresh vehicles every 15s (tempo real)
         setInterval(() => this.refreshVehicles(), 15000);
 
+        // Supabase Realtime: refresh instantly when app mecânicos does check-in or alerts change
+        this._initRealtime();
+
         // Set default dates
         const hoje = new Date();
         const mes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
@@ -205,6 +208,45 @@ const App = {
         }
     },
 
+    _initRealtime() {
+        try {
+            const sb = this._getSupabase();
+            if (!sb) { console.warn('[Mapa] Sem Supabase — Realtime desativado'); return; }
+
+            const channel = sb.channel('mapa-sync')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'checkin_diario' }, (payload) => {
+                    console.log('[Mapa Realtime] checkin_diario mudou:', payload.eventType);
+                    this.refreshVehicles();
+                })
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'mecanico_alertas' }, (payload) => {
+                    console.log('[Mapa Realtime] mecanico_alertas mudou:', payload.eventType);
+                    this.refreshVehicles();
+                })
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'mecanico_ocorrencias' }, (payload) => {
+                    console.log('[Mapa Realtime] mecanico_ocorrencias mudou:', payload.eventType);
+                    this.refreshVehicles();
+                })
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'GPS_Viagens' }, (payload) => {
+                    console.log('[Mapa Realtime] GPS_Viagens mudou:', payload.eventType);
+                    this.refreshVehicles();
+                })
+                .subscribe((status) => {
+                    const el = document.getElementById('realtime-status');
+                    if (status === 'SUBSCRIBED') {
+                        console.log('[Mapa Realtime] Conectado!');
+                        if (el) { el.style.background = '#10B981'; el.title = 'Sync ativo'; }
+                    } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+                        console.warn('[Mapa Realtime] Desconectado:', status);
+                        if (el) { el.style.background = '#EF4444'; el.title = 'Sync desconectado'; }
+                    }
+                });
+
+            this._realtimeChannel = channel;
+        } catch (e) {
+            console.error('[Mapa Realtime] Erro ao inicializar:', e);
+        }
+    },
+
     populateCityFilter(clientes) {
         const cidades = [...new Set(clientes.map(c => c.cidade).filter(Boolean))].sort();
         const select = document.getElementById('filter-cidade');
@@ -319,19 +361,40 @@ const App = {
             }
 
             // 3. Caminhos do dia sobrescrevem (tecnico escolheu o carro no portal)
-            const { data: caminhos } = await sb
-                .from('tecnico_caminhos')
-                .select('tecnico_nome, placa')
-                .not('placa', 'is', null)
-                .gte('data_saida', `${hoje}T00:00:00`)
-                .lte('data_saida', `${hoje}T23:59:59`);
+            const [{ data: caminhos }, { data: alertasPendentes }, { data: ocPendentes }] = await Promise.all([
+                sb.from('tecnico_caminhos')
+                    .select('tecnico_nome, placa')
+                    .not('placa', 'is', null)
+                    .gte('data_saida', `${hoje}T00:00:00`)
+                    .lte('data_saida', `${hoje}T23:59:59`),
+                sb.from('mecanico_alertas')
+                    .select('tecnico_nome')
+                    .eq('status', 'pendente'),
+                sb.from('mecanico_ocorrencias')
+                    .select('tecnico_nome')
+                    .eq('pontos', 0),
+            ]);
             if (caminhos) {
                 for (const c of caminhos) {
                     if (c.placa) placaTecnico[c.placa.replace(/[^A-Z0-9]/g, '').toUpperCase()] = c.tecnico_nome;
                 }
             }
 
-            console.log('[Mapa] Vinculos tecnico-placa:', placaTecnico);
+            // Contar alertas e ocorrências por técnico
+            const alertasPorTec = {};
+            for (const a of (alertasPendentes || [])) {
+                const n = (a.tecnico_nome || '').toLowerCase();
+                alertasPorTec[n] = (alertasPorTec[n] || 0) + 1;
+            }
+            const ocPorTec = {};
+            for (const o of (ocPendentes || [])) {
+                const n = (o.tecnico_nome || '').toLowerCase();
+                ocPorTec[n] = (ocPorTec[n] || 0) + 1;
+            }
+            this.state.alertasPorTecnico = alertasPorTec;
+            this.state.ocorrenciasPorTecnico = ocPorTec;
+
+            console.log('[Mapa] Vinculos tecnico-placa:', placaTecnico, '| Alertas:', alertasPorTec);
 
             // Sobrescrever motorista nos veiculos que tem tecnico vinculado
             const tecnicosComCarro = new Set();
@@ -348,6 +411,10 @@ const App = {
                         v._clienteOrdem = ck.cliente;
                         v._destino = ck.destino;
                     }
+                    // Alertas e ocorrências pendentes
+                    const tecKey = placaTecnico[placaNorm].toLowerCase();
+                    v._alertas = alertasPorTec[tecKey] || 0;
+                    v._ocorrencias = ocPorTec[tecKey] || 0;
                 }
             }
 

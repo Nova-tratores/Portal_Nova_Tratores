@@ -285,6 +285,10 @@ const Markers = {
             const primeiroNome = tecnico ? tecnico.split(/\s+/)[0] : '';
             let markerHtml;
 
+            const alertBadge = (v._alertas || 0) + (v._ocorrencias || 0) > 0
+                ? `<div style="position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;background:#EF4444;border-radius:8px;border:2px solid rgba(15,23,42,0.9);display:flex;align-items:center;justify-content:center;padding:0 3px"><span style="font-size:9px;font-weight:800;color:#fff;line-height:1">${(v._alertas || 0) + (v._ocorrencias || 0)}</span></div>`
+                : '';
+
             if (paradoCliente) {
                 // Marker: tecnico parado no cliente
                 const nomeCliente = clienteProximo ? Utils.truncate(clienteProximo.nome || clienteProximo.nome_fantasia || '', 28) : 'Cliente';
@@ -294,6 +298,7 @@ const Markers = {
                         <div class="vehicle-marker-icon off ${tipo}" style="position:relative">
                             <img src="${iconUrl}" alt="" class="vehicle-marker-svg"/>
                             <div style="position:absolute;bottom:-3px;right:-3px;width:10px;height:10px;background:#f59e0b;border-radius:50%;border:2px solid rgba(15,23,42,0.9)"></div>
+                            ${alertBadge}
                         </div>
                         <div class="vehicle-marker-text">
                             <div style="font-size:13px;font-weight:800;color:#f59e0b;line-height:1.2;text-shadow:0 1px 3px rgba(0,0,0,0.9)">${primeiroNome || nome}</div>
@@ -308,8 +313,9 @@ const Markers = {
                 const label = semGPS ? 'na oficina (sem carro)' : 'na oficina';
                 markerHtml = `
                     <div class="vehicle-marker-wrap vehicle-at-loja" title="${nome} - ${label}">
-                        <div style="width:28px;height:28px;border-radius:50%;background:rgba(100,116,139,0.5);display:flex;align-items:center;justify-content:center;border:2px solid rgba(100,116,139,0.3)">
+                        <div style="width:28px;height:28px;border-radius:50%;background:rgba(100,116,139,0.5);display:flex;align-items:center;justify-content:center;border:2px solid rgba(100,116,139,0.3);position:relative">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                            ${alertBadge}
                         </div>
                         <div class="vehicle-marker-text" style="opacity:0.6">
                             <div style="font-size:12px;font-weight:700;color:rgba(255,255,255,0.7)">${primeiroNome || nome}</div>
@@ -322,8 +328,9 @@ const Markers = {
                 const ordemLabel = v._ordem ? `<div style="font-size:10px;font-weight:700;color:#f59e0b;line-height:1.2;text-shadow:0 1px 2px rgba(0,0,0,0.9)">${v._ordem}${v._clienteOrdem ? ' · ' + Utils.truncate(v._clienteOrdem, 20) : ''}</div>` : '';
                 markerHtml = `
                     <div class="vehicle-marker-wrap" title="${nome} em movimento - ${v.placa}${v._ordem ? ' - ' + v._ordem : ''}">
-                        <div class="vehicle-marker-icon on ${tipo}">
+                        <div class="vehicle-marker-icon on ${tipo}" style="position:relative">
                             <img src="${iconUrl}" alt="" class="vehicle-marker-svg"/>
+                            ${alertBadge}
                         </div>
                         <div class="vehicle-marker-text">
                             <div style="font-size:13px;font-weight:800;color:#22c55e;text-shadow:0 1px 2px rgba(0,0,0,0.7)">${primeiroNome || nome}</div>

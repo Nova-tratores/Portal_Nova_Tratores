@@ -62,8 +62,9 @@ export async function GET(req: NextRequest) {
       const primeiro = `${mesAtual}-01`;
       const ultimo = `${mesAtual}-${new Date(anoMes, mesMes, 0).getDate()}`;
 
-      // Ordens do tecnico no mes, ocorrencias, GPS
-      const [allOrdensRes, ocorrenciasRes, gpsRes, reqRes] = await Promise.all([
+      // Ordens do tecnico no mes, ocorrencias, GPS, resumo diario
+      const tecFirstName = normName(tecNome).split(/\s+/)[0];
+      const [allOrdensRes, ocorrenciasRes, gpsRes, resumoDiarioRes, reqRes] = await Promise.all([
         supabase
           .from("Ordens_Omie")
           .select("os_num, cod_int, data, horas, km, valor, status, faturada, interno, cidade, empresa, descricao, obs, tecnicos, vendedor_nome")
@@ -80,8 +81,14 @@ export async function GET(req: NextRequest) {
           .limit(50),
         supabase
           .from("GPS_Viagens")
-          .select("data, km_total, placa, saida_loja, chegada_cliente, saida_cliente, retorno_loja, eventos")
-          .eq("tecnico_nome", tecNome)
+          .select("tecnico_nome, data, km_total, placa, saida_loja, chegada_cliente, saida_cliente, retorno_loja, eventos")
+          .ilike("tecnico_nome", `%${tecFirstName}%`)
+          .gte("data", primeiro)
+          .lte("data", ultimo),
+        supabase
+          .from("resumo_diario_tecnico")
+          .select("tecnico_nome, data, horas_dirigindo")
+          .ilike("tecnico_nome", `%${tecFirstName}%`)
           .gte("data", primeiro)
           .lte("data", ultimo),
         supabase
@@ -89,6 +96,17 @@ export async function GET(req: NextRequest) {
           .select("id_pedido, Id_Os, status, data, pedido_omie, valor_total, Tipo_Pedido")
           .ilike("tecnico", `%${tecNome}%`),
       ]);
+
+      // Filtrar GPS e resumo_diario pelo nome normalizado
+      const gpsData = (gpsRes.data || []).filter((g: any) => nomesBatem(g.tecnico_nome || '', tecNome));
+      const resumoDiarioData = (resumoDiarioRes.data || []).filter((r: any) => nomesBatem(r.tecnico_nome || '', tecNome));
+
+      // Map resumo_diario para lookup rápido
+      const resumoDiarioMap: Record<string, number> = {};
+      for (const r of resumoDiarioData) {
+        const key = String(r.data);
+        resumoDiarioMap[key] = (resumoDiarioMap[key] || 0) + (parseFloat(r.horas_dirigindo) || 0);
+      }
 
       // Filtrar ordens do tecnico no JS (mais confiavel que filtro Supabase em array)
       const ordens = (allOrdensRes.data || []).filter((o: Record<string, unknown>) => {
@@ -194,71 +212,48 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      // Resumo GPS
+      // Resumo GPS — mesma lógica do relatório frontend para consistência
       let gpsKmMes = 0;
       let gpsDias = 0;
-      let gpsDirigindoMin = 0;
-      let gpsParadoForaMin = 0;
+      let gpsDirigindoHoras = 0;
+      let gpsForaHoras = 0;
+      let gpsParadoForaHoras = 0;
 
-      const diffMinutos = (a: string | null, b: string | null) => {
-        if (!a || !b) return 0;
-        try { return Math.max(0, Math.round((new Date(b).getTime() - new Date(a).getTime()) / 60000)); } catch { return 0; }
-      };
-
-      for (const g of gpsRes.data || []) {
-        gpsKmMes += parseFloat(g.km_total) || 0;
-        gpsDias++;
-
-        const eventos = g.eventos || [];
-        let ultimaSaida: string | null = null;
-
+      const calcHorasServicoDia = (eventos: any[]): number => {
+        if (!eventos || eventos.length === 0) return 0;
+        let horas = 0;
+        let ultimaSaida: Date | null = null;
         for (const ev of eventos) {
-          if (ev.tipo === "saida_loja" || ev.tipo === "saida_cliente") {
-            ultimaSaida = ev.horario;
-          } else if ((ev.tipo === "chegada_cliente" || ev.tipo === "retorno_loja") && ultimaSaida) {
-            gpsDirigindoMin += diffMinutos(ultimaSaida, ev.horario);
+          if (ev.tipo === 'saida_loja') {
+            ultimaSaida = new Date(ev.horario);
+          } else if (ev.tipo === 'retorno_loja' && ultimaSaida) {
+            const diffMin = (new Date(ev.horario).getTime() - ultimaSaida.getTime()) / 60000;
+            if (diffMin > 30) horas += diffMin / 60;
             ultimaSaida = null;
           }
         }
-
-        // Tempo parado fora da empresa (entre chegada_cliente e saida_cliente)
-        if (g.chegada_cliente && g.saida_cliente) {
-          gpsParadoForaMin += diffMinutos(g.chegada_cliente, g.saida_cliente);
-        } else if (g.chegada_cliente && !g.retorno_loja) {
-          // Ainda no cliente
-          gpsParadoForaMin += diffMinutos(g.chegada_cliente, new Date().toISOString());
+        if (ultimaSaida && eventos.length > 0) {
+          const diffMin = (new Date(eventos[eventos.length - 1].horario).getTime() - ultimaSaida.getTime()) / 60000;
+          if (diffMin > 30) horas += diffMin / 60;
         }
+        return horas;
+      };
 
-        // Paradas múltiplas via eventos
-        for (let i = 0; i < eventos.length; i++) {
-          if (eventos[i].tipo === "chegada_cliente") {
-            const saida = eventos.slice(i + 1).find((e: any) => e.tipo === "saida_cliente" || e.tipo === "retorno_loja");
-            if (saida) {
-              gpsParadoForaMin += diffMinutos(eventos[i].horario, saida.horario);
-            }
-          }
-        }
+      for (const g of gpsData) {
+        gpsKmMes += parseFloat(g.km_total) || 0;
+        gpsDias++;
+
+        const horasFora = calcHorasServicoDia(g.eventos || []);
+        const dirigindo = resumoDiarioMap[String(g.data)] || 0;
+        const parado = Math.max(0, horasFora - dirigindo);
+
+        gpsForaHoras += horasFora;
+        gpsDirigindoHoras += dirigindo;
+        gpsParadoForaHoras += parado;
       }
 
-      // Evitar contar dobrado (eventos vs campos diretos) — usar o maior
-      // Se tiver eventos detalhados, zera o cálculo simples pra não somar dobrado
-      // Recalcular parado fora apenas dos eventos
-      let paradoForaFinal = 0;
-      for (const g of gpsRes.data || []) {
-        const eventos = g.eventos || [];
-        let temEventos = eventos.some((e: any) => e.tipo === "chegada_cliente");
-        if (temEventos) {
-          for (let i = 0; i < eventos.length; i++) {
-            if (eventos[i].tipo === "chegada_cliente") {
-              const saida = eventos.slice(i + 1).find((e: any) => e.tipo === "saida_cliente" || e.tipo === "retorno_loja");
-              if (saida) paradoForaFinal += diffMinutos(eventos[i].horario, saida.horario);
-            }
-          }
-        } else if (g.chegada_cliente && g.saida_cliente) {
-          paradoForaFinal += diffMinutos(g.chegada_cliente, g.saida_cliente);
-        }
-      }
-      gpsParadoForaMin = paradoForaFinal;
+      const gpsDirigindoMin = Math.round(gpsDirigindoHoras * 60);
+      const gpsParadoForaMin = Math.round(gpsParadoForaHoras * 60);
 
       // Montar ordens com dados complementares
       const ordensComPpv: any[] = ordens.map((o: Record<string, unknown>) => {
@@ -294,7 +289,7 @@ export async function GET(req: NextRequest) {
 
       // 2. Divergencia de KM: GPS vs relatado na OS
       const gpsKmPorData: Record<string, number> = {};
-      for (const g of gpsRes.data || []) {
+      for (const g of gpsData) {
         gpsKmPorData[String(g.data)] = (gpsKmPorData[String(g.data)] || 0) + (parseFloat(g.km_total) || 0);
       }
       for (const o of ordensComPpv as Array<Record<string, unknown>>) {
@@ -765,6 +760,75 @@ export async function POST(req: NextRequest) {
       }).eq("id", id);
 
       return NextResponse.json({ ok: true });
+    }
+
+    if (acao === "sync_alertas") {
+      // Gera alertas para TODOS os técnicos de uma vez (chamado em background)
+      const now = new Date();
+      const mesAtual = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      const primeiro = `${mesAtual}-01`;
+      const [anoMes, mesMes] = mesAtual.split("-").map(Number);
+      const ultimo = `${mesAtual}-${new Date(anoMes, mesMes, 0).getDate()}`;
+
+      const [permsRes, ordensRes, gpsRes, tecRelRes] = await Promise.all([
+        supabase.from("portal_permissoes").select("mecanico_tecnico_nome").eq("mecanico_role", "tecnico"),
+        supabase.from("Ordens_Omie").select("os_num, cod_int, data, km, tecnicos").neq("status", "Cancelada").gte("data", primeiro).lte("data", ultimo).limit(5000),
+        supabase.from("GPS_Viagens").select("tecnico_nome, data, km_total").gte("data", primeiro).lte("data", ultimo),
+        supabase.from("Ordem_Servico_Tecnicos").select("Ordem_Servico, ServicoRealizado, Status"),
+      ]);
+
+      const tecnicos = (permsRes.data || []).map((p: any) => p.mecanico_tecnico_nome).filter(Boolean);
+      const ordens = ordensRes.data || [];
+      const gpsViagens = gpsRes.data || [];
+
+      const relTecMap: Record<string, boolean> = {};
+      for (const rt of tecRelRes.data || []) {
+        if (rt.ServicoRealizado) relTecMap[String(rt.Ordem_Servico)] = true;
+      }
+
+      let totalNovos = 0;
+
+      for (const tecNome of tecnicos) {
+        const ordTec = ordens.filter((o: any) => ((o.tecnicos || []) as string[]).some((t: string) => nomesBatem(t, tecNome)));
+        const alertasDetectados: { tipo: string; descricao: string; id_ordem: string; data_referencia: string; detalhes: string }[] = [];
+
+        // OS sem relatorio
+        for (const o of ordTec) {
+          if (!relTecMap[String(o.cod_int)]) {
+            alertasDetectados.push({ tipo: "atraso_relatorio", descricao: `OS ${o.os_num} sem relatorio do tecnico`, id_ordem: String(o.cod_int), data_referencia: String(o.data || primeiro), detalhes: "" });
+          }
+        }
+
+        // Divergencia KM
+        const gpsKmPorData: Record<string, number> = {};
+        for (const g of gpsViagens.filter((g: any) => nomesBatem(g.tecnico_nome || "", tecNome))) {
+          gpsKmPorData[String(g.data)] = (gpsKmPorData[String(g.data)] || 0) + (parseFloat(g.km_total) || 0);
+        }
+        for (const o of ordTec) {
+          const kmOs = parseFloat(String(o.km)) || 0;
+          const kmGps = gpsKmPorData[String(o.data || "")] || 0;
+          if (kmOs > 0 && kmGps > 0) {
+            const diff = Math.abs(kmOs - kmGps);
+            const pct = diff / Math.max(kmOs, kmGps) * 100;
+            if (pct > 30 && diff > 20) {
+              alertasDetectados.push({ tipo: "divergencia_km", descricao: `OS ${o.os_num} - KM divergente (OS: ${kmOs.toFixed(0)} | GPS: ${kmGps.toFixed(0)})`, id_ordem: String(o.cod_int), data_referencia: String(o.data || primeiro), detalhes: `${diff.toFixed(0)} km (${pct.toFixed(0)}%)` });
+            }
+          }
+        }
+
+        if (alertasDetectados.length === 0) continue;
+
+        const { data: existentes } = await supabase.from("mecanico_alertas").select("tipo, id_ordem").eq("tecnico_nome", tecNome).gte("data_referencia", primeiro).lte("data_referencia", ultimo);
+        const existSet = new Set((existentes || []).map((a: any) => `${a.tipo}_${a.id_ordem}`));
+        const novos = alertasDetectados.filter(a => !existSet.has(`${a.tipo}_${a.id_ordem}`));
+
+        if (novos.length > 0) {
+          await supabase.from("mecanico_alertas").insert(novos.map(a => ({ tecnico_nome: tecNome, tipo: a.tipo, descricao: a.descricao, detalhes: a.detalhes, id_ordem: a.id_ordem, data_referencia: a.data_referencia, status: "pendente" })));
+          totalNovos += novos.length;
+        }
+      }
+
+      return NextResponse.json({ ok: true, tecnicos: tecnicos.length, alertas_criados: totalNovos });
     }
 
     return NextResponse.json({ error: "acao desconhecida" }, { status: 400 });

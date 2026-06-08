@@ -123,6 +123,34 @@ const VehiclePanel = {
             </div>
         `;
 
+        // Alertas e Ocorrencias do tecnico (se for veiculo de oficina com tecnico vinculado)
+        if (v._tecnico && ((v._alertas || 0) + (v._ocorrencias || 0) > 0)) {
+            const total = (v._alertas || 0) + (v._ocorrencias || 0);
+            body.innerHTML += `
+                <div class="vp-section" style="border-left:3px solid #EF4444;margin:0 12px;border-radius:8px;background:rgba(239,68,68,0.08)">
+                    <div class="vp-section-title" style="color:#EF4444;display:flex;align-items:center;gap:6px">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#EF4444" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                        Pendencias (${total})
+                    </div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;padding:0 12px 12px">
+                        ${v._alertas > 0 ? `<div style="display:flex;align-items:center;gap:5px;background:rgba(239,68,68,0.15);border-radius:6px;padding:4px 10px"><span style="font-size:16px;font-weight:800;color:#EF4444">${v._alertas}</span><span style="font-size:11px;color:#DC2626;font-weight:600">alerta${v._alertas > 1 ? 's' : ''}</span></div>` : ''}
+                        ${v._ocorrencias > 0 ? `<div style="display:flex;align-items:center;gap:5px;background:rgba(245,158,11,0.15);border-radius:6px;padding:4px 10px"><span style="font-size:16px;font-weight:800;color:#F59E0B">${v._ocorrencias}</span><span style="font-size:11px;color:#D97706;font-weight:600">ocorrencia${v._ocorrencias > 1 ? 's' : ''}</span></div>` : ''}
+                    </div>
+                    <a href="/mecanicos?tecnico=${encodeURIComponent(v._tecnico)}" target="_top" style="display:block;margin:0 12px 12px;padding:8px 14px;background:#EF4444;color:#fff;text-align:center;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;cursor:pointer">
+                        Ver na Janela Mecanicos
+                    </a>
+                </div>
+            `;
+        } else if (v._tecnico) {
+            body.innerHTML += `
+                <div class="vp-section" style="margin:0 12px;border-radius:8px">
+                    <a href="/mecanicos?tecnico=${encodeURIComponent(v._tecnico)}" target="_top" style="display:block;padding:8px 14px;background:rgba(99,102,241,0.1);color:#6366F1;text-align:center;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;cursor:pointer;border:1px solid rgba(99,102,241,0.2)">
+                        Abrir na Janela Mecanicos
+                    </a>
+                </div>
+            `;
+        }
+
         // Paradas no mapa (mostra todas as paradas do dia com tempo)
         if (v.paradas_hoje && v.paradas_hoje.length > 0) {
             const totalParadoMin = v.paradas_hoje.reduce((s, p) => s + (p.duracao_min || 0), 0);
