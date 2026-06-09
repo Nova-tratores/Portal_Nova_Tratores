@@ -160,12 +160,13 @@ const navItems: NavItem[] = [
     external: true
   },
   {
-    id: 'visual-estoque',
+    id: 'consulta-omie',
     name: 'Consulta Omie',
-    href: '/consulta-omie',
+    href: 'https://produtos.novatratores.com',
     icon: <Eye size={18} />,
     tag: 'SHOWROOM',
     gradient: 'linear-gradient(135deg, #b91c1c, #7f1d1d)',
+    external: true
   },
   {
     id: 'dashboard-agro',
@@ -939,7 +940,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                   setSidebarOpen(false)
                   if (item.external) {
                     e.preventDefault()
-                    if (['consulta-estoque'].includes(item.id)) {
+                    if (['consulta-estoque', 'consulta-omie'].includes(item.id)) {
                       openExternalWithAuth(item.href)
                     } else {
                       window.open(item.href, '_blank')

@@ -164,17 +164,22 @@ export async function syncProjetos(): Promise<{ total: number; novos: number }> 
 
       const projetosPagina = res.cadastro || [];
       if (projetosPagina.length > 0) {
-        const nomes = projetosPagina.map((p) => p.nome);
+        const rows = projetosPagina.map((p) => ({
+          codigo: p.codigo,
+          empresa: acc.name,
+          nome: p.nome,
+          inativo: (p.status === "I" || p.status === "S") ? "S" : "N",
+          updated_at: new Date().toISOString(),
+        }));
+
         const { data: existentes } = await supabase
           .from(TBL_PROJETOS_DB)
-          .select("Nome_Projeto")
-          .in("Nome_Projeto", nomes);
-        const existentesSet = new Set((existentes || []).map((e) => e.Nome_Projeto));
+          .select("codigo")
+          .eq("empresa", acc.name)
+          .in("codigo", rows.map(r => r.codigo));
+        const existSet = new Set((existentes || []).map((e) => e.codigo));
 
-        const novosProj = projetosPagina
-          .filter((p) => !existentesSet.has(p.nome))
-          .map((p) => ({ Nome_Projeto: p.nome }));
-
+        const novosProj = rows.filter((r) => !existSet.has(r.codigo));
         if (novosProj.length > 0) {
           const { error: insertErr } = await supabase.from(TBL_PROJETOS_DB).insert(novosProj);
           if (insertErr) {

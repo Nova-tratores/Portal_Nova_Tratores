@@ -20,6 +20,11 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
   const [solBusca, setSolBusca] = useState('');
   const solRef = useRef<HTMLDivElement>(null);
 
+  const [projBusca, setProjBusca] = useState('');
+  const [projDropdownOpen, setProjDropdownOpen] = useState(false);
+  const [projResultados, setProjResultados] = useState<{ codigo: number; nome: string; empresa: string }[]>([]);
+  const projRef = useRef<HTMLDivElement>(null);
+
   const [tagsDisponiveis, setTagsDisponiveis] = useState<{ id: number; nome: string; cor: string; grupo: string | null }[]>([]);
   const [tagsSelecionadas, setTagsSelecionadas] = useState<string[]>([]);
 
@@ -28,7 +33,8 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
     data: new Date().toISOString().split('T')[0],
     empresa: EMPRESAS.NOVA.nome, endereco_empr: EMPRESAS.NOVA.endereco, veiculo: '', hodometro: '',
     cliente: '', ordem_servico: '', fornecedor: '', obs: '',
-    valor_cobrado_cliente: '', quem_ferramenta: '', Chassis_Modelo: '', litros_combustivel: '', status: 'pedido'
+    valor_cobrado_cliente: '', quem_ferramenta: '', Chassis_Modelo: '', litros_combustivel: '', status: 'pedido',
+    projeto_codigo: '', projeto_nome: ''
   });
 
   useEffect(() => {
@@ -47,15 +53,31 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
     fetchData();
   }, []);
 
-  // Fechar dropdown de OS ao clicar fora
+  // Fechar dropdowns ao clicar fora
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (osRef.current && !osRef.current.contains(e.target as Node)) setOsDropdownOpen(false);
       if (solRef.current && !solRef.current.contains(e.target as Node)) setSolDropdownOpen(false);
+      if (projRef.current && !projRef.current.contains(e.target as Node)) setProjDropdownOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Busca debounced de projetos
+  useEffect(() => {
+    if (projBusca.trim().length < 2) { setProjResultados([]); return; }
+    const timer = setTimeout(async () => {
+      const termo = projBusca.trim();
+      const { data } = await supabase
+        .from('projetos_omie')
+        .select('codigo, nome, empresa')
+        .ilike('nome', `%${termo}%`)
+        .limit(15);
+      setProjResultados(data || []);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [projBusca]);
 
   // Empresa já inicializada no estado — sem useEffect loop
 
@@ -257,10 +279,61 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
               <p className="text-xs font-black text-amber-600 uppercase tracking-widest mb-4">Abastecimento</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {!['Trator Abastecimento', 'Quadri Abastecimento'].includes(formData.tipo) ? null : (
-                  <div>
-                    <label className={labelStyle}>Chassis / Modelo</label>
-                    <input placeholder="Ex: VALTRA BM110 - CHASSIS 123456" value={formData.Chassis_Modelo} onChange={e => setFormData({...formData, Chassis_Modelo: e.target.value.toUpperCase()})} className={`${inputStyle} !border-amber-300`} />
-                  </div>
+                  <>
+                    <div ref={!['Trator-Loja', 'Trator-Cliente'].includes(formData.setor) ? projRef : undefined} className="relative">
+                      <label className={labelStyle}>Projeto / Chassis</label>
+                      <div
+                        className={`${inputStyle} !border-amber-300 cursor-pointer flex items-center justify-between`}
+                        onClick={() => setProjDropdownOpen(!projDropdownOpen)}
+                      >
+                        <span className={formData.projeto_nome ? 'text-zinc-900' : 'text-zinc-400'}>
+                          {formData.projeto_nome || 'Buscar projeto ou chassis...'}
+                        </span>
+                        <svg className="w-4 h-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                      </div>
+                      {projDropdownOpen && (
+                        <div className="absolute z-50 mt-1 w-full bg-white border border-zinc-200 rounded-xl shadow-xl max-h-64 overflow-auto">
+                          <div className="sticky top-0 bg-white p-2 border-b border-zinc-100">
+                            <input
+                              autoFocus
+                              placeholder="Buscar por nome, chassis, modelo..."
+                              value={projBusca}
+                              onChange={e => setProjBusca(e.target.value)}
+                              className="w-full px-3 py-2 rounded-lg border border-zinc-200 text-sm outline-none focus:border-amber-400"
+                            />
+                          </div>
+                          {formData.projeto_codigo && (
+                            <button type="button"
+                              onClick={() => { setFormData(p => ({...p, projeto_codigo: '', projeto_nome: '', Chassis_Modelo: ''})); setProjDropdownOpen(false); setProjBusca(''); }}
+                              className="w-full px-4 py-2 text-left text-sm text-red-500 hover:bg-red-50 border-b border-zinc-100">
+                              ✕ Remover seleção
+                            </button>
+                          )}
+                          {projResultados.map(p => (
+                            <button type="button" key={`${p.codigo}-${p.empresa}`}
+                              onClick={() => {
+                                setFormData(prev => ({...prev, projeto_codigo: String(p.codigo), projeto_nome: p.nome, Chassis_Modelo: p.nome}));
+                                setProjDropdownOpen(false); setProjBusca('');
+                              }}
+                              className={`w-full px-4 py-3 text-left hover:bg-zinc-50 border-b border-zinc-50 ${formData.projeto_codigo === String(p.codigo) ? 'bg-amber-50' : ''}`}>
+                              <span className="font-bold text-sm text-zinc-800">{p.nome}</span>
+                              <span className="text-xs text-zinc-400 ml-2">{p.empresa}</span>
+                            </button>
+                          ))}
+                          {projBusca.trim().length >= 2 && projResultados.length === 0 && (
+                            <p className="px-4 py-3 text-sm text-zinc-400 text-center">Nenhum projeto encontrado</p>
+                          )}
+                          {projBusca.trim().length < 2 && (
+                            <p className="px-4 py-3 text-sm text-zinc-400 text-center">Digite pelo menos 2 caracteres</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <label className={labelStyle}>Chassis / Modelo</label>
+                      <input placeholder={formData.projeto_nome ? 'Preenchido pelo projeto' : 'Ex: VALTRA BM110 - CHASSIS 123456'} value={formData.Chassis_Modelo} onChange={e => setFormData({...formData, Chassis_Modelo: e.target.value.toUpperCase()})} className={`${inputStyle} !border-amber-300`} />
+                    </div>
+                  </>
                 )}
                 <div>
                   <label className={labelStyle}>Litros de Combustível</label>
@@ -274,10 +347,67 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
           {formData.setor === 'Trator-Loja' && (
             <div className="p-6 bg-zinc-100/30 rounded-2xl border border-zinc-300/50">
               <p className="text-xs font-black text-zinc-500 uppercase tracking-widest mb-4">Informacoes do Trator (Loja)</p>
-              <div>
-                <label className={labelStyle}>Chassis / Modelo do Trator</label>
-                <input placeholder="Ex: VALTRA BM110 - CHASSIS 123456" value={formData.Chassis_Modelo} onChange={e => setFormData({...formData, Chassis_Modelo: e.target.value.toUpperCase()})} className={inputStyle} />
+              <div ref={projRef} className="relative">
+                <label className={labelStyle}>Projeto / Chassis</label>
+                <div
+                  className={`${inputStyle} cursor-pointer flex items-center justify-between`}
+                  onClick={() => setProjDropdownOpen(!projDropdownOpen)}
+                >
+                  <span className={formData.projeto_nome ? 'text-zinc-900' : 'text-zinc-400'}>
+                    {formData.projeto_nome || 'Buscar projeto ou chassis...'}
+                  </span>
+                  <svg className="w-4 h-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                </div>
+                {projDropdownOpen && (
+                  <div className="absolute z-50 mt-1 w-full bg-white border border-zinc-200 rounded-xl shadow-xl max-h-64 overflow-auto">
+                    <div className="sticky top-0 bg-white p-2 border-b border-zinc-100">
+                      <input
+                        autoFocus
+                        placeholder="Buscar por nome, chassis, modelo..."
+                        value={projBusca}
+                        onChange={e => setProjBusca(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-zinc-200 text-sm outline-none focus:border-red-400"
+                      />
+                    </div>
+                    {formData.projeto_codigo && (
+                      <button type="button"
+                        onClick={() => { setFormData(p => ({...p, projeto_codigo: '', projeto_nome: '', Chassis_Modelo: ''})); setProjDropdownOpen(false); setProjBusca(''); }}
+                        className="w-full px-4 py-2 text-left text-sm text-red-500 hover:bg-red-50 border-b border-zinc-100">
+                        ✕ Remover seleção
+                      </button>
+                    )}
+                    {projResultados.map(p => (
+                      <button type="button" key={`${p.codigo}-${p.empresa}`}
+                        onClick={() => {
+                          setFormData(prev => ({...prev, projeto_codigo: String(p.codigo), projeto_nome: p.nome, Chassis_Modelo: p.nome}));
+                          setProjDropdownOpen(false); setProjBusca('');
+                        }}
+                        className={`w-full px-4 py-3 text-left hover:bg-zinc-50 border-b border-zinc-50 ${formData.projeto_codigo === String(p.codigo) ? 'bg-red-50' : ''}`}>
+                        <span className="font-bold text-sm text-zinc-800">{p.nome}</span>
+                        <span className="text-xs text-zinc-400 ml-2">{p.empresa}</span>
+                      </button>
+                    ))}
+                    {projBusca.trim().length >= 2 && projResultados.length === 0 && (
+                      <p className="px-4 py-3 text-sm text-zinc-400 text-center">Nenhum projeto encontrado</p>
+                    )}
+                    {projBusca.trim().length < 2 && (
+                      <p className="px-4 py-3 text-sm text-zinc-400 text-center">Digite pelo menos 2 caracteres</p>
+                    )}
+                  </div>
+                )}
               </div>
+              {formData.projeto_nome && (
+                <div className="mt-3">
+                  <label className={labelStyle}>Chassis / Modelo (manual)</label>
+                  <input placeholder="Ajuste se necessário" value={formData.Chassis_Modelo} onChange={e => setFormData({...formData, Chassis_Modelo: e.target.value.toUpperCase()})} className={inputStyle} />
+                </div>
+              )}
+              {!formData.projeto_nome && (
+                <div className="mt-3">
+                  <label className={labelStyle}>Chassis / Modelo do Trator</label>
+                  <input placeholder="Ex: VALTRA BM110 - CHASSIS 123456" value={formData.Chassis_Modelo} onChange={e => setFormData({...formData, Chassis_Modelo: e.target.value.toUpperCase()})} className={inputStyle} />
+                </div>
+              )}
             </div>
           )}
 
@@ -357,9 +487,58 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
                     </div>
                   )}
                 </div>
+                <div ref={!['Trator-Loja'].includes(formData.setor) ? projRef : undefined} className="relative">
+                  <label className="text-xs font-bold text-orange-400 uppercase">Projeto / Chassis</label>
+                  <div
+                    className={`${inputStyle} !text-base border-orange-500/20 cursor-pointer flex items-center justify-between`}
+                    onClick={() => setProjDropdownOpen(!projDropdownOpen)}
+                  >
+                    <span className={formData.projeto_nome ? 'text-zinc-900' : 'text-zinc-400'}>
+                      {formData.projeto_nome || 'Buscar projeto ou chassis...'}
+                    </span>
+                    <svg className="w-4 h-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                  </div>
+                  {projDropdownOpen && (
+                    <div className="absolute z-50 mt-1 w-full bg-white border border-zinc-200 rounded-xl shadow-xl max-h-64 overflow-auto">
+                      <div className="sticky top-0 bg-white p-2 border-b border-zinc-100">
+                        <input
+                          autoFocus
+                          placeholder="Buscar por nome, chassis, modelo..."
+                          value={projBusca}
+                          onChange={e => setProjBusca(e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg border border-zinc-200 text-sm outline-none focus:border-orange-400"
+                        />
+                      </div>
+                      {formData.projeto_codigo && (
+                        <button type="button"
+                          onClick={() => { setFormData(p => ({...p, projeto_codigo: '', projeto_nome: '', Chassis_Modelo: ''})); setProjDropdownOpen(false); setProjBusca(''); }}
+                          className="w-full px-4 py-2 text-left text-sm text-red-500 hover:bg-red-50 border-b border-zinc-100">
+                          ✕ Remover seleção
+                        </button>
+                      )}
+                      {projResultados.map(p => (
+                        <button type="button" key={`${p.codigo}-${p.empresa}`}
+                          onClick={() => {
+                            setFormData(prev => ({...prev, projeto_codigo: String(p.codigo), projeto_nome: p.nome, Chassis_Modelo: p.nome}));
+                            setProjDropdownOpen(false); setProjBusca('');
+                          }}
+                          className={`w-full px-4 py-3 text-left hover:bg-zinc-50 border-b border-zinc-50 ${formData.projeto_codigo === String(p.codigo) ? 'bg-orange-50' : ''}`}>
+                          <span className="font-bold text-sm text-zinc-800">{p.nome}</span>
+                          <span className="text-xs text-zinc-400 ml-2">{p.empresa}</span>
+                        </button>
+                      ))}
+                      {projBusca.trim().length >= 2 && projResultados.length === 0 && (
+                        <p className="px-4 py-3 text-sm text-zinc-400 text-center">Nenhum projeto encontrado</p>
+                      )}
+                      {projBusca.trim().length < 2 && (
+                        <p className="px-4 py-3 text-sm text-zinc-400 text-center">Digite pelo menos 2 caracteres</p>
+                      )}
+                    </div>
+                  )}
+                </div>
                 <div>
-                  <label className="text-xs font-bold text-orange-400 uppercase">Chassis / Modelo do Trator</label>
-                  <input placeholder="Ex: VALTRA BM110 - CHASSIS 123456" value={formData.Chassis_Modelo} onChange={e => setFormData({...formData, Chassis_Modelo: e.target.value.toUpperCase()})} className={`${inputStyle} !text-base border-orange-500/20`} />
+                  <label className="text-xs font-bold text-orange-400 uppercase">Chassis / Modelo</label>
+                  <input placeholder={formData.projeto_nome ? 'Preenchido pelo projeto' : 'Ex: VALTRA BM110 - CHASSIS 123456'} value={formData.Chassis_Modelo} onChange={e => setFormData({...formData, Chassis_Modelo: e.target.value.toUpperCase()})} className={`${inputStyle} !text-base border-orange-500/20`} />
                 </div>
                 <div>
                   <label className="text-xs font-bold text-orange-400 uppercase">Valor Cobrado do Cliente</label>

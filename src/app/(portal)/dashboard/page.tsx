@@ -30,7 +30,7 @@ const systems: SystemCard[] = [
   { id: 'avisos', name: 'Avisos', description: 'Comunicados e avisos para toda a equipe, com anexos e notificacoes', icon: <Megaphone size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #dc2626, #991b1b)', href: '/avisos', tag: 'COMUNICADOS' },
   { id: 'back-nova', name: 'Back Nova', description: 'Sistema backend Nova Tratores', icon: <Server size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #dc2626, #b91c1c)', href: 'https://back.novatratores.com', tag: 'BACKEND', external: true },
   { id: 'configuracoes', name: 'Configurações', description: 'Gestão de usuários, permissões, módulos e configurações gerais do portal', icon: <Settings size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #525252, #1a1a1a)', href: '/admin', tag: 'ADMIN' },
-  { id: 'visual-estoque', name: 'Consulta Omie', description: 'Estoque Omie, CMC, curva ABC, dashboard de vendas e comissões', icon: <Eye size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #b91c1c, #7f1d1d)', href: '/consulta-omie', tag: 'SHOWROOM' },
+  { id: 'consulta-omie', name: 'Consulta Omie', description: 'Estoque Omie, CMC, curva ABC, dashboard de vendas e comissões', icon: <Eye size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #b91c1c, #7f1d1d)', href: 'https://produtos.novatratores.com', tag: 'SHOWROOM', external: true },
   { id: 'controle-revisao', name: 'Controle de Revisões', description: 'Acompanhamento de revisões periódicas de tratores com integração Gmail', icon: <Wrench size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #b91c1c, #991b1b)', href: '/revisoes', tag: 'MANUTENÇÃO' },
   { id: 'dashboard-agro', name: 'Dashboard Agro', description: 'Dashboard de acompanhamento do segmento agrícola', icon: <Wheat size={28} />, color: '#16a34a', gradient: 'linear-gradient(135deg, #22c55e, #15803d)', href: '/dashboard-agro', tag: 'AGRO' },
   { id: 'dre', name: 'DRE Financeiro', description: 'Demonstração do Resultado do Exercício com dados integrados do Omie', icon: <TrendingUp size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #dc2626, #991b1b)', href: 'https://financeiro-omie-production-ce7e.up.railway.app/dre', tag: 'FINANÇAS', external: true },
@@ -48,7 +48,7 @@ const systems: SystemCard[] = [
   { id: 'app-requisicoes', name: 'Requisições', description: 'Kanban de requisições de materiais e serviços das unidades', icon: <ClipboardList size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #ef4444, #dc2626)', href: '/requisicoes', tag: 'COMPRAS' },
   { id: 'tarefas', name: 'Tarefas', description: 'Gestão de tarefas entre usuários', icon: <ClipboardCheck size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #dc2626, #b91c1c)', href: '/tarefas', tag: 'TAREFAS' },
   { id: 'supervisor-vendas', name: 'Supervisor Vendas', description: 'Painel do supervisor: vendedores, visitas, catálogo, mapa e alertas', icon: <TrendingUp size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #dc2626, #991b1b)', href: '/supervisor-vendas', tag: 'VENDAS' },
-  { id: 'consulta-estoque', name: 'Visual Estoque', description: 'Showroom virtual de estoque com visualização de peças e produtos', icon: <BarChart3 size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #ef4444, #991b1b)', href: '/visual-estoque', tag: 'ESTOQUE' },
+  { id: 'consulta-estoque', name: 'Visual Estoque', description: 'Showroom virtual de estoque com visualização de peças e produtos', icon: <BarChart3 size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #ef4444, #991b1b)', href: 'https://estoque.novatratores.com', tag: 'ESTOQUE', external: true },
 ]
 
 interface LogEntry {
@@ -74,7 +74,7 @@ const systemToModulo: Record<string, string> = {
   'mapa-geral': 'mapa',
   'fotos-tecnicos': 'fotos-tecnicos',
   'consulta-estoque': 'estoque',
-  'visual-estoque': 'visual-estoque',
+  'consulta-omie': 'visual-estoque',
   'avisos': 'avisos',
   'dashboard-agro': 'dashboard-agro',
   'dre': 'dre',
@@ -230,7 +230,7 @@ export default function DashboardPage() {
     logAccess(system)
     auditLog({ sistema: system.id.replace('sistema-', ''), acao: 'acesso', entidade_label: system.name })
     if (system.external) {
-      const appsComAuth = ['visual-estoque']
+      const appsComAuth = ['consulta-estoque', 'consulta-omie']
       if (appsComAuth.includes(system.id)) {
         const { data: { session } } = await supabase.auth.getSession()
         if (session) {

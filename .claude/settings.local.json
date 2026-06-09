@@ -887,7 +887,8 @@
       "PowerShell($r = Invoke-RestMethod -Uri \"http://localhost:3000/api/mecanicos?nome=Nicolas%20Dario\" -Method Get; $r.gps | ConvertTo-Json)",
       "PowerShell($r = Invoke-RestMethod -Uri \"http://localhost:3000/api/mecanicos?nome=Nicolas%20Dario\" -Method Get; \"tecnico_nome: $\\($r.tecnico_nome\\)\")",
       "PowerShell($r = Invoke-RestMethod -Uri \"http://localhost:3000/api/mecanicos?nome=Nicolas%20Dario&mes=2026-05\" -Method Get; \"GPS: kmMes=$\\($r.gps.kmMes\\) dias=$\\($r.gps.dias\\) dirigindoMin=$\\($r.gps.dirigindoMin\\) paradoForaMin=$\\($r.gps.paradoForaMin\\)\")",
-      "PowerShell($r = Invoke-RestMethod -Uri \"http://localhost:3000/api/mecanicos?nome=Nicolas%20Dario\" -Method Get; \"GPS jun: kmMes=$\\($r.gps.kmMes\\) dias=$\\($r.gps.dias\\) dirigindoMin=$\\($r.gps.dirigindoMin\\) paradoForaMin=$\\($r.gps.paradoForaMin\\)\")"
+      "PowerShell($r = Invoke-RestMethod -Uri \"http://localhost:3000/api/mecanicos?nome=Nicolas%20Dario\" -Method Get; \"GPS jun: kmMes=$\\($r.gps.kmMes\\) dias=$\\($r.gps.dias\\) dirigindoMin=$\\($r.gps.dirigindoMin\\) paradoForaMin=$\\($r.gps.paradoForaMin\\)\")",
+      "Bash(Select-Object -Last 30)"
     ],
     "additionalDirectories": [
       "c:\\projetos\\visual-estoque\\src",

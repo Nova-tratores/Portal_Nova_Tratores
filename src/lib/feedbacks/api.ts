@@ -188,9 +188,9 @@ export async function buscarProjetosOmie(q: string): Promise<ProjetoOmie[]> {
 
   const [omieRes, tratoresRes] = await Promise.all([
     supabase
-      .from("Projeto")
-      .select("id_omie, Nome_Projeto, Nome_Cliente, Codigo_Cliente")
-      .ilike("Nome_Projeto", `%${termo}%`)
+      .from("projetos_omie")
+      .select("codigo, nome, cliente_nome_ultimo, cod_cli_ultimo")
+      .ilike("nome", `%${termo}%`)
       .limit(10),
     supabase
       .from("tratores")
@@ -203,11 +203,17 @@ export async function buscarProjetosOmie(q: string): Promise<ProjetoOmie[]> {
   // erro em tratores é tolerado (best-effort) — não bloqueia a busca
 
   const omieList: ProjetoOmie[] = ((omieRes.data || []) as Array<{
-    id_omie: string;
-    Nome_Projeto: string;
-    Nome_Cliente?: string | null;
-    Codigo_Cliente?: string | null;
-  }>).map((p) => ({ ...p, fonte: "omie" as const }));
+    codigo: number;
+    nome: string;
+    cliente_nome_ultimo?: string | null;
+    cod_cli_ultimo?: number | null;
+  }>).map((p) => ({
+    id_omie: String(p.codigo),
+    Nome_Projeto: p.nome,
+    Nome_Cliente: p.cliente_nome_ultimo || null,
+    Codigo_Cliente: p.cod_cli_ultimo ? String(p.cod_cli_ultimo) : null,
+    fonte: "omie" as const,
+  }));
 
   const tratoresList: ProjetoOmie[] = ((tratoresRes.data || []) as Array<{
     ID: string | number | null;

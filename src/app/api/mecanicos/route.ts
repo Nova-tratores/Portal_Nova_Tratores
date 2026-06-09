@@ -129,7 +129,7 @@ export async function GET(req: NextRequest) {
       const osCodInts = ordens.map((o: Record<string, unknown>) => String(o.cod_int)).filter(Boolean);
       let ppvsPorOs: Record<string, { id: string; pedido_omie: string; status: string; produtos: { codigo: string; descricao: string; qtd: number; preco: number; devolvido: number }[] }[]> = {};
       let clientePorOs: Record<string, { cliente: string; cidade_cliente: string }> = {};
-      let relatorioTecPorOs: Record<string, { motivo: string; servico_realizado: string; status: string }> = {};
+      let relatorioTecPorOs: Record<string, { motivo: string; servico_realizado: string; status: string; data_envio: string }> = {};
 
       if (osCodInts.length > 0) {
         // Buscar em paralelo: pedidos, cliente, relatorio tecnico
@@ -144,7 +144,7 @@ export async function GET(req: NextRequest) {
             .in("Id_Ordem", osCodInts),
           supabase
             .from("Ordem_Servico_Tecnicos")
-            .select("Ordem_Servico, Motivo, ServicoRealizado, Status")
+            .select("Ordem_Servico, Motivo, ServicoRealizado, Status, Data")
             .in("Ordem_Servico", osCodInts),
         ]);
 
@@ -165,6 +165,7 @@ export async function GET(req: NextRequest) {
               motivo: String(rt.Motivo || ""),
               servico_realizado: String(rt.ServicoRealizado || ""),
               status: String(rt.Status || ""),
+              data_envio: String(rt.Data || ""),
             };
           }
         }
@@ -266,6 +267,8 @@ export async function GET(req: NextRequest) {
           cidade_cliente: cli?.cidade_cliente || "",
           relatorio_tecnico: relTec?.servico_realizado || "",
           diagnostico_tecnico: relTec?.motivo || "",
+          relatorio_status: relTec?.status || "",
+          relatorio_data_envio: relTec?.data_envio || "",
           ppvs: ppvsPorOs[codInt] || [],
         };
       });
@@ -273,17 +276,35 @@ export async function GET(req: NextRequest) {
       // Montar alertas e sincronizar com tabela mecanico_alertas
       const alertasDetectados: { tipo: string; descricao: string; id_ordem: string; data_referencia: string; detalhes: string }[] = [];
 
-      // 1. OS sem relatorio do tecnico (atraso)
+      // 1. OS sem relatorio do tecnico (atraso) + relatorio entregue com atraso
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
       for (const o of ordensComPpv as Array<Record<string, unknown>>) {
         const codInt = String(o.cod_int);
-        if (!relatorioTecPorOs[codInt] || !relatorioTecPorOs[codInt].servico_realizado) {
+        const rel = relatorioTecPorOs[codInt];
+        const dataOs = String(o.data || "");
+        if (!rel || !rel.servico_realizado) {
+          const diasSem = dataOs ? Math.floor((hoje.getTime() - new Date(dataOs + "T00:00:00").getTime()) / 86400000) : 0;
           alertasDetectados.push({
             tipo: "atraso_relatorio",
-            descricao: `OS ${o.os_num} sem relatorio do tecnico`,
+            descricao: `OS ${o.os_num} sem relatorio do tecnico${diasSem > 0 ? ` (${diasSem} dias)` : ""}`,
             id_ordem: codInt,
-            data_referencia: String(o.data || primeiro),
+            data_referencia: dataOs || primeiro,
             detalhes: `${o.cliente || o.cidade || "Sem cliente"}`,
           });
+        } else if (rel.status === "enviado" && rel.data_envio && dataOs) {
+          const dOs = new Date(dataOs + "T00:00:00");
+          const dEnvio = new Date(rel.data_envio.slice(0, 10) + "T00:00:00");
+          const diasAtraso = Math.floor((dEnvio.getTime() - dOs.getTime()) / 86400000);
+          if (diasAtraso > 1) {
+            alertasDetectados.push({
+              tipo: "atraso_entrega_relatorio",
+              descricao: `OS ${o.os_num} - relatorio entregue com ${diasAtraso} dias de atraso`,
+              id_ordem: codInt,
+              data_referencia: dataOs,
+              detalhes: `Executada: ${dataOs.split("-").reverse().join("/")} | Entregue: ${rel.data_envio.slice(0, 10).split("-").reverse().join("/")} | ${o.cliente || o.cidade || "Sem cliente"}`,
+            });
+          }
         }
       }
 
@@ -742,7 +763,7 @@ export async function POST(req: NextRequest) {
       if (aErr || !alerta) return NextResponse.json({ error: "alerta nao encontrado" }, { status: 404 });
 
       // Criar ocorrencia a partir do alerta
-      const tipoOc = alerta.tipo === "atraso_relatorio" ? "atraso" : "observacao";
+      const tipoOc = alerta.tipo === "atraso_relatorio" || alerta.tipo === "atraso_entrega_relatorio" ? "atraso" : "observacao";
       await supabase.from("mecanico_ocorrencias").insert({
         tecnico_nome: alerta.tecnico_nome,
         tipo: tipoOc,
@@ -774,16 +795,19 @@ export async function POST(req: NextRequest) {
         supabase.from("portal_permissoes").select("mecanico_tecnico_nome").eq("mecanico_role", "tecnico"),
         supabase.from("Ordens_Omie").select("os_num, cod_int, data, km, tecnicos").neq("status", "Cancelada").gte("data", primeiro).lte("data", ultimo).limit(5000),
         supabase.from("GPS_Viagens").select("tecnico_nome, data, km_total").gte("data", primeiro).lte("data", ultimo),
-        supabase.from("Ordem_Servico_Tecnicos").select("Ordem_Servico, ServicoRealizado, Status"),
+        supabase.from("Ordem_Servico_Tecnicos").select("Ordem_Servico, ServicoRealizado, Status, Data"),
       ]);
 
       const tecnicos = (permsRes.data || []).map((p: any) => p.mecanico_tecnico_nome).filter(Boolean);
       const ordens = ordensRes.data || [];
       const gpsViagens = gpsRes.data || [];
 
-      const relTecMap: Record<string, boolean> = {};
+      const relTecMap: Record<string, { enviado: boolean; data_envio: string }> = {};
       for (const rt of tecRelRes.data || []) {
-        if (rt.ServicoRealizado) relTecMap[String(rt.Ordem_Servico)] = true;
+        const osId = String(rt.Ordem_Servico);
+        if (!relTecMap[osId] || rt.Status === "enviado") {
+          relTecMap[osId] = { enviado: !!rt.ServicoRealizado && rt.Status === "enviado", data_envio: String(rt.Data || "") };
+        }
       }
 
       let totalNovos = 0;
@@ -792,10 +816,23 @@ export async function POST(req: NextRequest) {
         const ordTec = ordens.filter((o: any) => ((o.tecnicos || []) as string[]).some((t: string) => nomesBatem(t, tecNome)));
         const alertasDetectados: { tipo: string; descricao: string; id_ordem: string; data_referencia: string; detalhes: string }[] = [];
 
-        // OS sem relatorio
+        // OS sem relatorio + relatorio entregue com atraso
+        const hojeSync = new Date();
+        hojeSync.setHours(0, 0, 0, 0);
         for (const o of ordTec) {
-          if (!relTecMap[String(o.cod_int)]) {
-            alertasDetectados.push({ tipo: "atraso_relatorio", descricao: `OS ${o.os_num} sem relatorio do tecnico`, id_ordem: String(o.cod_int), data_referencia: String(o.data || primeiro), detalhes: "" });
+          const codInt = String(o.cod_int);
+          const rel = relTecMap[codInt];
+          const dataOs = String(o.data || "");
+          if (!rel || !rel.enviado) {
+            const diasSem = dataOs ? Math.floor((hojeSync.getTime() - new Date(dataOs + "T00:00:00").getTime()) / 86400000) : 0;
+            alertasDetectados.push({ tipo: "atraso_relatorio", descricao: `OS ${o.os_num} sem relatorio do tecnico${diasSem > 0 ? ` (${diasSem} dias)` : ""}`, id_ordem: codInt, data_referencia: dataOs || primeiro, detalhes: "" });
+          } else if (rel.data_envio && dataOs) {
+            const dOs = new Date(dataOs + "T00:00:00");
+            const dEnvio = new Date(rel.data_envio.slice(0, 10) + "T00:00:00");
+            const diasAtraso = Math.floor((dEnvio.getTime() - dOs.getTime()) / 86400000);
+            if (diasAtraso > 1) {
+              alertasDetectados.push({ tipo: "atraso_entrega_relatorio", descricao: `OS ${o.os_num} - relatorio entregue com ${diasAtraso} dias de atraso`, id_ordem: codInt, data_referencia: dataOs, detalhes: `Executada: ${dataOs.split("-").reverse().join("/")} | Entregue: ${rel.data_envio.slice(0, 10).split("-").reverse().join("/")}` });
+            }
           }
         }
 

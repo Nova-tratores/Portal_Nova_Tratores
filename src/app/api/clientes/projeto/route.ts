@@ -133,6 +133,85 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // ─── DONOS: clientes que tiveram OS/PV neste projeto, ordenados por data ───
+    const donosMap = new Map<number, { cod_cli: number; nome: string; cnpj_cpf: string; cidade: string; estado: string; primeira_os: string; ultima_os: string; total_os: number; total_valor: number }>();
+    for (const os of osDoProj) {
+      const cli = clienteMap.get(os.cod_cli);
+      const existing = donosMap.get(os.cod_cli);
+      const dt = os.data_previsao || os.data_inclusao || "9999-99-99";
+      if (existing) {
+        existing.total_os++;
+        existing.total_valor += (os.valor_total || 0);
+        if (dt < existing.primeira_os) existing.primeira_os = dt;
+        if (dt > existing.ultima_os) existing.ultima_os = dt;
+      } else {
+        donosMap.set(os.cod_cli, {
+          cod_cli: os.cod_cli,
+          nome: cli?.nome_fantasia || cli?.razao_social || "",
+          cnpj_cpf: cli?.cnpj_cpf || "",
+          cidade: cli?.cidade || "",
+          estado: cli?.estado || "",
+          primeira_os: dt, ultima_os: dt,
+          total_os: 1, total_valor: os.valor_total || 0,
+        });
+      }
+    }
+    const donos = Array.from(donosMap.values()).sort((a, b) => b.ultima_os.localeCompare(a.ultima_os));
+
+    // ─── SERVICOS: extraídos das OS ───
+    const servicosLista: any[] = [];
+    for (const os of osDoProj) {
+      const servs = typeof os.servicos === 'string' ? JSON.parse(os.servicos) : (os.servicos || []);
+      for (const s of servs) {
+        servicosLista.push({
+          num_os: os.num_os,
+          data: os.data_previsao || os.data_inclusao || "",
+          desc: s.desc || s.descricao || s.nome || "",
+          valor: s.valor || s.valor_unitario || 0,
+          quantidade: s.quantidade || 1,
+          cliente: clienteMap.get(os.cod_cli)?.nome_fantasia || clienteMap.get(os.cod_cli)?.razao_social || "",
+          status: os.status,
+        });
+      }
+    }
+
+    // ─── PECAS: itens dos PVs ───
+    const pecasLista: any[] = [];
+    for (const pv of pvs) {
+      const itens = typeof pv.itens === 'string' ? JSON.parse(pv.itens) : (pv.itens || []);
+      for (const it of itens) {
+        pecasLista.push({
+          num_pv: pv.num_pedido,
+          data: pv.data_previsao || pv.data_inclusao || "",
+          desc: it.descricao || it.desc || it.nome || "",
+          codigo: it.codigo || it.cod || "",
+          quantidade: it.quantidade || 1,
+          valor_unitario: it.valor_unitario || it.preco || 0,
+          valor_total: it.valor_total || (it.quantidade || 1) * (it.valor_unitario || it.preco || 0),
+          cliente: clienteMap.get(pv.cod_cli)?.nome_fantasia || clienteMap.get(pv.cod_cli)?.razao_social || "",
+        });
+      }
+    }
+
+    // ─── REQUISICOES: do banco Requisicao ───
+    const { data: reqData } = await supabase.from("Requisicao")
+      .select("id, titulo, tipo, solicitante, status, valor_despeza, created_at, obs, Chassis_Modelo, projeto_nome, projeto_codigo, fornecedor, numero_nota")
+      .eq("projeto_nome", nome)
+      .order("created_at", { ascending: false });
+    const requisicoes = reqData || [];
+
+    // ─── REVISOES: do banco tratores, matchando por chassis ───
+    let revisoes: any[] = [];
+    if (allChassis.length > 0) {
+      const chassisFinals = allChassis.map(ch => ch.slice(-6)).filter(Boolean);
+      if (chassisFinals.length > 0) {
+        const { data: tratorData } = await supabase.from("tratores")
+          .select("*")
+          .or(allChassis.map(ch => `Chassis.ilike.%${ch.slice(-6)}`).join(","));
+        revisoes = tratorData || [];
+      }
+    }
+
     const ultimoCliente = osDoProj[0] ? clienteMap.get(osDoProj[0].cod_cli) : null;
     const valorTotalOS = osDoProj.reduce((s, o) => s + (o.valor_total || 0), 0);
     const valorTotalPV = pvs.reduce((s: number, p: any) => s + (p.valor_total || 0), 0);
@@ -147,12 +226,19 @@ export async function GET(req: NextRequest) {
       } : null,
       chassis: chassisList,
       emails_por_chassis: emailsPorChassis,
+      donos,
+      servicos: servicosLista,
+      pecas: pecasLista,
+      requisicoes,
+      revisoes,
       resumo: {
         total_os: osDoProj.length,
         os_faturadas: osDoProj.filter(o => o.faturada).length,
         valor_total_os: valorTotalOS,
         total_pv: pvs.length,
         valor_total_pv: valorTotalPV,
+        total_requisicoes: requisicoes.length,
+        total_revisoes: revisoes.length,
       },
       ordens: osDoProj.map(os => ({
         ...os,

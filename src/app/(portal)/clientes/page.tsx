@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
-import { Search, ChevronDown, ChevronUp, ArrowLeft, RefreshCw, ChevronRight, Download, Printer } from 'lucide-react'
+import { Search, ChevronDown, ChevronUp, ArrowLeft, RefreshCw, ChevronRight, Download, Printer, FolderOpen, X, FileText, Wrench, Calendar, MapPin, User, Hash, ClipboardList, Package, Users, Shield, CheckCircle, Clock, Mail } from 'lucide-react'
 
 interface Cliente {
   cod_cli: number; empresa: string; razao_social: string; nome_fantasia: string
@@ -39,8 +39,8 @@ function formatCNPJ(v: string) {
   return v
 }
 
-const ln = '#e5e5e5'
-const ln2 = '#f0f0f0'
+const ln = '#E5E7EB'
+const ln2 = '#F3F4F6'
 
 function ClientesPageInner() {
   const [clientes, setClientes] = useState<Cliente[]>([])
@@ -54,9 +54,11 @@ function ClientesPageInner() {
   const [pedidos, setPedidos] = useState<PedidoVenda[]>([])
   const [loadingDetalhe, setLoadingDetalhe] = useState(false)
   const [expandedOS, setExpandedOS] = useState<string | null>(null)
+  const [modalOS, setModalOS] = useState<OrdemServico | null>(null)
   const [modalProjeto, setModalProjeto] = useState<string | null>(null)
   const [modalProjetoData, setModalProjetoData] = useState<any>(null)
   const [modalProjetoLoading, setModalProjetoLoading] = useState(false)
+  const [projetoTab, setProjetoTab] = useState('resumo')
   const [emailsData, setEmailsData] = useState<Record<string, any[]>>({})
   const [loadingEmails, setLoadingEmails] = useState<string | null>(null)
 
@@ -112,6 +114,7 @@ function ClientesPageInner() {
     setModalProjeto(nome)
     setModalProjetoLoading(true)
     setModalProjetoData(null)
+    setProjetoTab('resumo')
     try {
       const res = await fetch(`/api/clientes/projeto?nome=${encodeURIComponent(nome)}&empresa=${encodeURIComponent(empresa)}`)
       const data = await res.json()
@@ -153,41 +156,50 @@ function ClientesPageInner() {
   // ============ DETALHE DO CLIENTE ============
   if (selectedCliente) {
     const cli = selectedCliente
+    const totalFaturadas = ordens.filter(o => o.faturada).length
+    const totalCanceladas = ordens.filter(o => o.cancelada).length
+    const totalAtivas = ordens.filter(o => !o.faturada && !o.cancelada).length
+    const totalValorOS = ordens.reduce((s, o) => s + (o.valor_total || 0), 0)
+    const totalValorPV = pedidos.reduce((s, p) => s + (p.valor_total || 0), 0)
+    const pvsSemOS = pedidos.filter(pv => !ordens.some(os => /^\d+$/.test(os.num_pedido_cli) && os.num_pedido_cli === pv.num_pedido))
+
     return (
-      <div style={{ padding: '28px 36px' }}>
+      <div style={{ padding: '32px 40px', maxWidth: 1400, margin: '0 auto' }}>
         <button onClick={() => setSelectedCliente(null)}
-          style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', color: '#999', fontSize: '12px', padding: '4px 0', marginBottom: '20px' }}>
-          <ArrowLeft size={14} /> Voltar para lista
+          style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', fontSize: 13, padding: '4px 0', marginBottom: 20 }}>
+          <ArrowLeft size={16} /> Voltar para lista
         </button>
 
         {/* HEADER CLIENTE */}
-        <div style={{ border: `1px solid ${ln}`, borderRadius: '4px', marginBottom: '20px' }}>
-          <div style={{ padding: '16px 20px', borderBottom: `1px solid ${ln}` }}>
-            <div style={{ fontSize: '18px', color: '#111', marginBottom: '4px' }}>{cli.nome_fantasia || cli.razao_social}</div>
+        <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #E5E7EB', marginBottom: 24, overflow: 'hidden' }}>
+          <div style={{ padding: '24px 28px', background: 'linear-gradient(135deg, #1E3A5F 0%, #2563EB 100%)', color: '#fff' }}>
+            <div style={{ fontSize: 24, fontWeight: 700 }}>{cli.nome_fantasia || cli.razao_social}</div>
             {cli.nome_fantasia && cli.razao_social && cli.nome_fantasia !== cli.razao_social && (
-              <div style={{ fontSize: '12px', color: '#999', marginBottom: '4px' }}>{cli.razao_social}</div>
+              <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>{cli.razao_social}</div>
             )}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)' }}>
             {[
-              { l: 'CNPJ/CPF', v: cli.cnpj_cpf ? formatCNPJ(cli.cnpj_cpf) : '-' },
-              { l: 'Cidade', v: cli.cidade ? `${cli.cidade}/${cli.estado}` : '-' },
-              { l: 'Telefone', v: cli.telefone || '-' },
-              { l: 'Email', v: cli.email || '-' },
-              { l: 'Empresa', v: cli.empresa },
+              { l: 'CNPJ / CPF', v: cli.cnpj_cpf ? formatCNPJ(cli.cnpj_cpf) : '-', icon: Hash },
+              { l: 'Cidade', v: cli.cidade ? `${cli.cidade}/${cli.estado}` : '-', icon: MapPin },
+              { l: 'Telefone', v: cli.telefone || '-', icon: User },
+              { l: 'Email', v: cli.email || '-', icon: FileText },
+              { l: 'Empresa', v: cli.empresa, icon: FolderOpen },
             ].map((f, i) => (
-              <div key={i} style={{ padding: '10px 20px', borderRight: i < 4 ? `1px solid ${ln}` : 'none', borderBottom: `1px solid ${ln}` }}>
-                <div style={{ fontSize: '9px', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>{f.l}</div>
-                <div style={{ fontSize: '12px', color: '#333' }}>{f.v}</div>
+              <div key={i} style={{ padding: '16px 20px', borderRight: i < 4 ? '1px solid #F3F4F6' : 'none' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, fontWeight: 600 }}>
+                  <f.icon size={12} /> {f.l}
+                </div>
+                <div style={{ fontSize: 14, color: '#111827', fontWeight: 500 }}>{f.v}</div>
               </div>
             ))}
           </div>
           {cli.projetos && cli.projetos.length > 0 && (
-            <div style={{ padding: '10px 20px', display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
-              <span style={{ fontSize: '9px', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.5px', marginRight: '4px' }}>Projetos:</span>
+            <div style={{ padding: '14px 20px', borderTop: '1px solid #F3F4F6', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <span style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Projetos:</span>
               {cli.projetos.map(p => (
                 <button key={p} onClick={() => abrirModalProjeto(p, cli.empresa)}
-                  style={{ fontSize: '11px', color: '#555', padding: '2px 8px', border: `1px solid ${ln}`, borderRadius: '3px', background: '#fff', cursor: 'pointer' }}>
+                  style={{ fontSize: 13, color: '#2563EB', padding: '5px 14px', border: '1px solid #BFDBFE', borderRadius: 8, background: '#EFF6FF', cursor: 'pointer', fontWeight: 600 }}>
                   {p}
                 </button>
               ))}
@@ -196,167 +208,335 @@ function ClientesPageInner() {
         </div>
 
         {loadingDetalhe ? (
-          <p style={{ color: '#999', fontSize: '13px', padding: '40px 0', textAlign: 'center' }}>Carregando...</p>
-        ) : ordens.length === 0 ? (
-          <p style={{ color: '#999', fontSize: '13px', padding: '40px 0', textAlign: 'center' }}>Nenhuma ordem de servico encontrada</p>
+          <div style={{ padding: 80, textAlign: 'center', color: '#9CA3AF', fontSize: 15 }}>
+            <RefreshCw size={24} style={{ animation: 'spin 1s linear infinite', marginBottom: 12 }} />
+            <div>Carregando...</div>
+          </div>
         ) : (
-          /* ============ ABA ORDENS ============ */
-          <div>
-
-            <div style={{ border: `1px solid ${ln}`, borderRadius: '4px', overflow: 'hidden' }}>
-              {/* Header tabela OS */}
-              <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr 100px 100px 100px 24px', padding: '8px 14px', background: '#fafafa', borderBottom: `1px solid ${ln}`, fontSize: '9px', color: '#999', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                <span>Ordem / Pedido</span><span>Servico Solicitado</span><span>Status</span><span style={{ textAlign: 'right' }}>Valor</span><span>Data</span><span></span>
-              </div>
-
-              {ordens.map((os, idx) => {
-                const isExp = expandedOS === os.num_os
-                const servicos = typeof os.servicos === 'string' ? JSON.parse(os.servicos) : (os.servicos || [])
-                const solicitacao = (() => { const d = servicos.map((s: any) => s.desc || '').join('|'); const m = d.match(/Solicita[çc][ãa]o[^:]*:\s*([^|]+)/i); return m ? m[1].trim() : '' })()
-                const ref = classifyRef(os.num_pedido_cli)
-                const pvs = ref.tipo === 'pv' ? findAllPVs(os.num_pedido_cli) : []
-                const numRef = ref.tipo === 'pv' ? os.num_pedido_cli : ''
-
-                return (
-                  <div key={os.num_os}>
-                    <div
-                      onClick={() => setExpandedOS(isExp ? null : os.num_os)}
-                      style={{
-                        display: 'grid', gridTemplateColumns: '100px 1fr 100px 100px 100px 24px',
-                        padding: '10px 14px', borderBottom: `1px solid ${ln2}`, cursor: 'pointer',
-                        background: isExp ? '#f8f8f8' : 'transparent', alignItems: 'center', fontSize: '12px', color: '#333',
-                        transition: 'background 0.1s'
-                      }}
-                      onMouseEnter={ev => { if (!isExp) ev.currentTarget.style.background = '#fcfcfc' }}
-                      onMouseLeave={ev => { if (!isExp) ev.currentTarget.style.background = 'transparent' }}>
-                      <span style={{ fontWeight: 500 }}>{os.num_os}{numRef ? `/${numRef}` : ''}</span>
-                      <span style={{ color: '#555', fontSize: '12px' }}>{solicitacao || '-'}</span>
-                      <span style={{ fontSize: '11px', color: '#666' }}>{os.status}</span>
-                      <span style={{ textAlign: 'right', fontWeight: 500 }}>{formatCurrency(os.valor_total || 0)}</span>
-                      <span style={{ fontSize: '11px', color: '#888' }}>{formatDate(os.data_previsao)}</span>
-                      {isExp ? <ChevronUp size={12} color="#bbb" /> : <ChevronDown size={12} color="#bbb" />}
-                    </div>
-
-                    {isExp && (
-                      <div style={{ padding: '14px 14px 14px 84px', borderBottom: `1px solid ${ln}`, background: '#fafafa' }}>
-                        {solicitacao && (
-                          <div style={{ fontSize: '13px', color: '#333', marginBottom: '12px', paddingLeft: '10px', borderLeft: '3px solid #ddd' }}>
-                            {solicitacao}
-                          </div>
-                        )}
-                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                          <a href={`/api/clientes/print?tipo=os&cod=${os.cod_os}&empresa=${encodeURIComponent(os.empresa)}`}
-                            target="_blank" rel="noopener noreferrer"
-                            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '5px 10px', border: `1px solid ${ln}`, borderRadius: '3px', background: '#fff', color: '#444', fontSize: '11px', textDecoration: 'none' }}>
-                            <Printer size={11} /> Ordem de Servico
-                          </a>
-                          {os.link_nf && (
-                            <a href={os.link_nf} target="_blank" rel="noopener noreferrer"
-                              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '5px 10px', border: `1px solid ${ln}`, borderRadius: '3px', background: '#fff', color: '#444', fontSize: '11px', textDecoration: 'none' }}>
-                              <Download size={11} /> Nota Fiscal da Ordem
-                            </a>
-                          )}
-                          {pvs.map(pv => (
-                            <span key={pv.num_pedido} style={{ display: 'contents' }}>
-                              <a href={`/api/clientes/print?tipo=pv&cod=${pv.cod_pedido}&empresa=${encodeURIComponent(pv.empresa)}`}
-                                target="_blank" rel="noopener noreferrer"
-                                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '5px 10px', border: `1px solid ${ln}`, borderRadius: '3px', background: '#fff', color: '#444', fontSize: '11px', textDecoration: 'none' }}>
-                                <Printer size={11} /> Pedido de Venda {pv.num_pedido}
-                              </a>
-                              {pv.link_nf && (
-                                <a href={pv.link_nf} target="_blank" rel="noopener noreferrer"
-                                  style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '5px 10px', border: `1px solid ${ln}`, borderRadius: '3px', background: '#fff', color: '#444', fontSize: '11px', textDecoration: 'none' }}>
-                                  <Download size={11} /> Nota Fiscal do Pedido {pv.num_pedido}
-                                </a>
-                              )}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+          <>
+            {/* RESUMO CARDS */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 28 }}>
+              {[
+                { l: 'Total OS', v: String(ordens.length), bg: '#EFF6FF', c: '#2563EB', b: '#BFDBFE', icon: ClipboardList },
+                { l: 'Ativas', v: String(totalAtivas), bg: '#FFF7ED', c: '#EA580C', b: '#FED7AA', icon: Wrench },
+                { l: 'Faturadas', v: String(totalFaturadas), bg: '#ECFDF5', c: '#059669', b: '#A7F3D0', icon: FileText },
+                { l: 'Valor OS', v: formatCurrency(totalValorOS), bg: '#F5F3FF', c: '#7C3AED', b: '#C4B5FD', icon: Package },
+                { l: 'Valor PV', v: formatCurrency(totalValorPV), bg: '#FEF2F2', c: '#DC2626', b: '#FECACA', icon: Package },
+              ].map((c, i) => (
+                <div key={i} style={{ padding: '16px 20px', borderRadius: 12, background: c.bg, border: `1px solid ${c.b}` }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
+                    <c.icon size={13} color={c.c} /> {c.l}
                   </div>
-                )
-              })}
+                  <div style={{ fontSize: 22, fontWeight: 800, color: c.c }}>{c.v}</div>
+                </div>
+              ))}
             </div>
 
-            {/* PVs sem OS */}
-            {(() => {
-              const pvsSemOS = pedidos.filter(pv => !ordens.some(os => /^\d+$/.test(os.num_pedido_cli) && os.num_pedido_cli === pv.num_pedido))
-              if (pvsSemOS.length === 0) return null
-              return (
-                <div style={{ marginTop: '24px' }}>
-                  <div style={{ fontSize: '11px', color: '#999', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
-                    Pedidos de Venda sem ordem vinculada ({pvsSemOS.length})
+            {ordens.length === 0 && pedidos.length === 0 ? (
+              <div style={{ padding: 60, textAlign: 'center', color: '#9CA3AF', fontSize: 15 }}>Nenhuma ordem de servico encontrada</div>
+            ) : (
+              <div>
+                {/* TITULO SECAO */}
+                {ordens.length > 0 && (
+                  <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Wrench size={18} color="#2563EB" /> Ordens de Servico ({ordens.length})
                   </div>
-                  <div style={{ border: `1px solid ${ln}`, borderRadius: '4px', overflow: 'hidden' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 100px 100px 100px 24px', padding: '8px 14px', background: '#fafafa', borderBottom: `1px solid ${ln}`, fontSize: '9px', color: '#999', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      <span>Numero</span><span>Etapa</span><span>Nota Fiscal</span><span style={{ textAlign: 'right' }}>Valor</span><span>Data</span><span></span>
-                    </div>
-                    {pvsSemOS.map(pv => {
-                      const isExp = expandedOS === `pv-${pv.num_pedido}`
-                      return (
-                        <div key={pv.num_pedido}>
-                          <div onClick={() => setExpandedOS(isExp ? null : `pv-${pv.num_pedido}`)}
-                            style={{ display: 'grid', gridTemplateColumns: '80px 1fr 100px 100px 100px 24px', padding: '10px 14px', borderBottom: `1px solid ${ln2}`, cursor: 'pointer', background: isExp ? '#f8f8f8' : 'transparent', alignItems: 'center', fontSize: '12px', color: '#333' }}
-                            onMouseEnter={ev => { if (!isExp) ev.currentTarget.style.background = '#fcfcfc' }}
-                            onMouseLeave={ev => { if (!isExp) ev.currentTarget.style.background = 'transparent' }}>
-                            <span style={{ fontWeight: 500 }}>{pv.num_pedido}</span>
-                            <span style={{ color: '#666', fontSize: '11px' }}>{pv.etapa}</span>
-                            <span style={{ fontSize: '11px', color: '#666' }}>{pv.numero_nf || '-'}</span>
-                            <span style={{ textAlign: 'right', fontWeight: 500 }}>{formatCurrency(pv.valor_total || 0)}</span>
-                            <span style={{ fontSize: '11px', color: '#888' }}>{formatDate(pv.data_previsao)}</span>
-                            {isExp ? <ChevronUp size={12} color="#bbb" /> : <ChevronDown size={12} color="#bbb" />}
-                          </div>
-                          {isExp && (
-                            <div style={{ padding: '14px 14px 14px 94px', borderBottom: `1px solid ${ln}`, background: '#fafafa' }}>
-                              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                                <a href={`/api/clientes/print?tipo=pv&cod=${pv.cod_pedido}&empresa=${encodeURIComponent(pv.empresa)}`}
-                                  target="_blank" rel="noopener noreferrer"
-                                  style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '5px 10px', border: `1px solid ${ln}`, borderRadius: '3px', background: '#fff', color: '#444', fontSize: '11px', textDecoration: 'none' }}>
-                                  <Printer size={11} /> Pedido de Venda
-                                </a>
-                                {pv.link_nf && (
-                                  <a href={pv.link_nf} target="_blank" rel="noopener noreferrer"
-                                    style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '5px 10px', border: `1px solid ${ln}`, borderRadius: '3px', background: '#fff', color: '#444', fontSize: '11px', textDecoration: 'none' }}>
-                                    <Download size={11} /> Nota Fiscal do Pedido
-                                  </a>
-                                )}
-                              </div>
-                            </div>
-                          )}
+                )}
+
+                {/* OS COMO CARDS */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 28 }}>
+                  {ordens.map((os) => {
+                    const servicos = typeof os.servicos === 'string' ? JSON.parse(os.servicos) : (os.servicos || [])
+                    const solicitacao = (() => { const d = servicos.map((s: any) => s.desc || '').join('|'); const m = d.match(/Solicita[çc][ãa]o[^:]*:\s*([^|]+)/i); return m ? m[1].trim() : '' })()
+                    const ref = classifyRef(os.num_pedido_cli)
+                    const numRef = ref.tipo === 'pv' ? os.num_pedido_cli : ''
+
+                    return (
+                      <div key={os.num_os} onClick={() => setModalOS(os)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 16, padding: '16px 20px',
+                          border: '1px solid #E5E7EB', borderRadius: 12, background: '#fff', cursor: 'pointer',
+                          transition: 'all 0.15s', boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                        }}
+                        onMouseEnter={ev => { ev.currentTarget.style.borderColor = '#2563EB'; ev.currentTarget.style.boxShadow = '0 4px 12px rgba(37,99,235,0.08)' }}
+                        onMouseLeave={ev => { ev.currentTarget.style.borderColor = '#E5E7EB'; ev.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,0.03)' }}>
+                        <div style={{
+                          width: 44, height: 44, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                          background: os.cancelada ? '#FEF2F2' : os.faturada ? '#ECFDF5' : '#EFF6FF',
+                        }}>
+                          <Wrench size={20} color={os.cancelada ? '#DC2626' : os.faturada ? '#059669' : '#2563EB'} />
                         </div>
-                      )
-                    })}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>OS {os.num_os}</span>
+                            {numRef && <span style={{ fontSize: 13, color: '#6B7280' }}>/ PV {numRef}</span>}
+                            <span style={{
+                              fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 5,
+                              background: os.cancelada ? '#FEF2F2' : os.faturada ? '#ECFDF5' : '#FFF7ED',
+                              color: os.cancelada ? '#DC2626' : os.faturada ? '#059669' : '#EA580C',
+                              border: `1px solid ${os.cancelada ? '#FECACA' : os.faturada ? '#A7F3D0' : '#FED7AA'}`,
+                            }}>{os.status}</span>
+                          </div>
+                          <div style={{ fontSize: 13, color: '#6B7280', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {solicitacao || os.descricao || 'Sem descricao'}
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                          <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>{formatCurrency(os.valor_total || 0)}</div>
+                          <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 2 }}>{formatDate(os.data_previsao)}</div>
+                        </div>
+                        <ChevronRight size={18} color="#D1D5DB" style={{ flexShrink: 0 }} />
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* PVs sem OS */}
+                {pvsSemOS.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Package size={18} color="#EA580C" /> Pedidos de Venda avulsos ({pvsSemOS.length})
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {pvsSemOS.map(pv => (
+                        <div key={pv.num_pedido}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 16, padding: '14px 20px',
+                            border: '1px solid #E5E7EB', borderRadius: 12, background: '#fff',
+                          }}>
+                          <div style={{ width: 44, height: 44, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: '#FFF7ED' }}>
+                            <Package size={20} color="#EA580C" />
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>PV {pv.num_pedido}</span>
+                              <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 5, background: '#F9FAFB', color: '#6B7280', border: '1px solid #E5E7EB' }}>{pv.etapa}</span>
+                            </div>
+                            {pv.numero_nf && <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>NF {pv.numero_nf}</div>}
+                          </div>
+                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                            <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>{formatCurrency(pv.valor_total || 0)}</div>
+                            <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 2 }}>{formatDate(pv.data_previsao)}</div>
+                          </div>
+                          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                            <a href={`/api/clientes/print?tipo=pv&cod=${pv.cod_pedido}&empresa=${encodeURIComponent(pv.empresa)}`}
+                              target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', textDecoration: 'none', color: '#374151' }}>
+                              <Printer size={16} />
+                            </a>
+                            {pv.link_nf && (
+                              <a href={pv.link_nf} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 8, border: 'none', background: '#111827', textDecoration: 'none', color: '#fff' }}>
+                                <Download size={16} />
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ========== MODAL OS DETALHADA ========== */}
+        {modalOS && (() => {
+          const os = modalOS
+          const servicos = typeof os.servicos === 'string' ? JSON.parse(os.servicos) : (os.servicos || [])
+          const solicitacao = (() => { const d = servicos.map((s: any) => s.desc || '').join('|'); const m = d.match(/Solicita[çc][ãa]o[^:]*:\s*([^|]+)/i); return m ? m[1].trim() : '' })()
+          const ref = classifyRef(os.num_pedido_cli)
+          const pvs = ref.tipo === 'pv' ? findAllPVs(os.num_pedido_cli) : []
+
+          return (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              onClick={() => setModalOS(null)}>
+              <div style={{ background: '#fff', borderRadius: 16, width: '92%', maxWidth: 800, maxHeight: '90vh', overflow: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.25)' }}
+                onClick={e => e.stopPropagation()}>
+
+                {/* Header azul */}
+                <div style={{ padding: '24px 28px', background: 'linear-gradient(135deg, #1E3A5F 0%, #2563EB 100%)', borderRadius: '16px 16px 0 0', color: '#fff', position: 'relative' }}>
+                  <button onClick={() => setModalOS(null)}
+                    style={{ position: 'absolute', top: 16, right: 16, background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8, padding: '6px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                    <X size={18} color="#fff" />
+                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                    <div style={{ width: 48, height: 48, borderRadius: 12, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Wrench size={24} color="#fff" />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 22, fontWeight: 800 }}>Ordem de Servico {os.num_os}</div>
+                      <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', marginTop: 2 }}>{cli.nome_fantasia || cli.razao_social}</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 700,
+                      background: os.cancelada ? 'rgba(220,38,38,0.2)' : os.faturada ? 'rgba(5,150,105,0.2)' : 'rgba(255,255,255,0.15)',
+                      color: '#fff', border: '1px solid rgba(255,255,255,0.2)' }}>
+                      {os.status}
+                    </span>
+                    {os.projeto && (
+                      <span style={{ padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, background: 'rgba(255,255,255,0.15)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)' }}>
+                        {os.projeto}
+                      </span>
+                    )}
+                    {os.contrato && (
+                      <span style={{ padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, background: 'rgba(255,255,255,0.15)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)' }}>
+                        Contrato: {os.contrato}
+                      </span>
+                    )}
                   </div>
                 </div>
-              )
-            })()}
-          </div>
-        )}
+
+                <div style={{ padding: '24px 28px' }}>
+                  {/* Info grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 24 }}>
+                    {[
+                      { l: 'Valor Total', v: formatCurrency(os.valor_total || 0), bg: '#F5F3FF', c: '#7C3AED', b: '#C4B5FD' },
+                      { l: 'Data Previsao', v: formatDate(os.data_previsao), bg: '#EFF6FF', c: '#2563EB', b: '#BFDBFE' },
+                      { l: 'Data Inclusao', v: formatDate(os.data_inclusao), bg: '#F9FAFB', c: '#374151', b: '#E5E7EB' },
+                      { l: 'Faturamento', v: formatDate(os.data_faturamento), bg: os.faturada ? '#ECFDF5' : '#F9FAFB', c: os.faturada ? '#059669' : '#9CA3AF', b: os.faturada ? '#A7F3D0' : '#E5E7EB' },
+                    ].map((c, i) => (
+                      <div key={i} style={{ padding: '14px 16px', borderRadius: 10, background: c.bg, border: `1px solid ${c.b}` }}>
+                        <div style={{ fontSize: 11, color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>{c.l}</div>
+                        <div style={{ fontSize: 18, fontWeight: 700, color: c.c }}>{c.v}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Info adicional */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 24 }}>
+                    {[
+                      { l: 'Vendedor', v: os.vendedor || '-' },
+                      { l: 'Cidade', v: os.cidade || cli.cidade || '-' },
+                      { l: 'NF', v: os.num_nf || '-' },
+                    ].map((f, i) => (
+                      <div key={i} style={{ padding: '12px 16px', borderRadius: 10, border: '1px solid #E5E7EB', background: '#F9FAFB' }}>
+                        <div style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>{f.l}</div>
+                        <div style={{ fontSize: 14, color: '#111827', fontWeight: 500 }}>{f.v}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Solicitacao */}
+                  {solicitacao && (
+                    <div style={{ marginBottom: 24 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Solicitacao</div>
+                      <div style={{ padding: '14px 18px', borderRadius: 10, background: '#F0F4FF', border: '1px solid #BFDBFE', fontSize: 14, color: '#1E3A5F', lineHeight: 1.6 }}>
+                        {solicitacao}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Servicos */}
+                  {servicos.length > 0 && (
+                    <div style={{ marginBottom: 24 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Servicos ({servicos.length})</div>
+                      <div style={{ border: '1px solid #E5E7EB', borderRadius: 10, overflow: 'hidden' }}>
+                        {servicos.map((s: any, si: number) => (
+                          <div key={si} style={{ padding: '12px 16px', borderBottom: si < servicos.length - 1 ? '1px solid #F3F4F6' : 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: 13, color: '#374151', fontWeight: 500 }}>{s.desc || s.descricao || s.nome || `Servico ${si + 1}`}</div>
+                              {s.quantidade && <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 2 }}>Qtd: {s.quantidade}</div>}
+                            </div>
+                            {(s.valor || s.valor_unitario) && (
+                              <div style={{ fontSize: 14, fontWeight: 600, color: '#374151', flexShrink: 0, marginLeft: 16 }}>
+                                {formatCurrency(s.valor || s.valor_unitario || 0)}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Obs */}
+                  {os.obs && (
+                    <div style={{ marginBottom: 24 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Observacoes</div>
+                      <div style={{ padding: '14px 18px', borderRadius: 10, background: '#FFFBEB', border: '1px solid #FDE68A', fontSize: 13, color: '#92400E', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                        {os.obs}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Dados adicionais */}
+                  {os.dados_adic && (
+                    <div style={{ marginBottom: 24 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Dados Adicionais</div>
+                      <div style={{ padding: '14px 18px', borderRadius: 10, background: '#F9FAFB', border: '1px solid #E5E7EB', fontSize: 13, color: '#6B7280', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                        {os.dados_adic}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Botoes de acao */}
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', paddingTop: 8, borderTop: '1px solid #F3F4F6' }}>
+                    <a href={`/api/clientes/print?tipo=os&cod=${os.cod_os}&empresa=${encodeURIComponent(os.empresa)}`}
+                      target="_blank" rel="noopener noreferrer"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: '1px solid #E5E7EB', borderRadius: 10, background: '#fff', color: '#374151', fontSize: 14, textDecoration: 'none', fontWeight: 600 }}>
+                      <Printer size={16} /> Imprimir OS
+                    </a>
+                    {os.link_nf && (
+                      <a href={os.link_nf} target="_blank" rel="noopener noreferrer"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: 'none', borderRadius: 10, background: '#111827', color: '#fff', fontSize: 14, textDecoration: 'none', fontWeight: 600 }}>
+                        <Download size={16} /> Baixar NF
+                      </a>
+                    )}
+                    {pvs.map(pv => (
+                      <span key={pv.num_pedido} style={{ display: 'contents' }}>
+                        <a href={`/api/clientes/print?tipo=pv&cod=${pv.cod_pedido}&empresa=${encodeURIComponent(pv.empresa)}`}
+                          target="_blank" rel="noopener noreferrer"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: '1px solid #E5E7EB', borderRadius: 10, background: '#fff', color: '#374151', fontSize: 14, textDecoration: 'none', fontWeight: 600 }}>
+                          <Printer size={16} /> PV {pv.num_pedido}
+                        </a>
+                        {pv.link_nf && (
+                          <a href={pv.link_nf} target="_blank" rel="noopener noreferrer"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: 'none', borderRadius: 10, background: '#111827', color: '#fff', fontSize: 14, textDecoration: 'none', fontWeight: 600 }}>
+                            <Download size={16} /> NF PV {pv.num_pedido}
+                          </a>
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )
+        })()}
 
         {/* MODAL PROJETO */}
         {modalProjeto && (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             onClick={() => setModalProjeto(null)}>
-            <div style={{ background: '#fff', borderRadius: '6px', width: '90%', maxWidth: '900px', maxHeight: '85vh', overflow: 'auto', border: `1px solid ${ln}` }}
+            <div style={{ background: '#F9FAFB', borderRadius: 16, width: '95%', maxWidth: 1100, maxHeight: '92vh', overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column' }}
               onClick={ev => ev.stopPropagation()}>
 
-              {/* Header modal */}
-              <div style={{ padding: '16px 20px', borderBottom: `1px solid ${ln}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: '#fff', zIndex: 1 }}>
-                <div>
-                  <div style={{ fontSize: '16px', color: '#111' }}>{modalProjeto}</div>
-                  <div style={{ fontSize: '11px', color: '#999' }}>{cli.empresa}</div>
-                </div>
+              {/* Header gradient */}
+              <div style={{ padding: '20px 28px', background: 'linear-gradient(135deg, #1E3A5F 0%, #2563EB 100%)', color: '#fff', position: 'relative', flexShrink: 0 }}>
                 <button onClick={() => setModalProjeto(null)}
-                  style={{ background: 'none', border: 'none', fontSize: '20px', color: '#999', cursor: 'pointer', padding: '4px 8px' }}>
-                  x
+                  style={{ position: 'absolute', top: 14, right: 14, background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8, padding: '6px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                  <X size={18} color="#fff" />
                 </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 10, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <FolderOpen size={22} color="#fff" />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 20, fontWeight: 800 }}>{modalProjeto}</div>
+                    <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 2 }}>{cli.empresa}</div>
+                  </div>
+                </div>
               </div>
 
               {modalProjetoLoading ? (
-                <div style={{ padding: '40px', textAlign: 'center', color: '#999', fontSize: '13px' }}>Carregando projeto...</div>
+                <div style={{ padding: 80, textAlign: 'center', color: '#9CA3AF', fontSize: 15 }}>
+                  <RefreshCw size={24} style={{ animation: 'spin 1s linear infinite', marginBottom: 12 }} />
+                  <div>Carregando projeto...</div>
+                </div>
               ) : !modalProjetoData ? (
-                <div style={{ padding: '40px', textAlign: 'center', color: '#999', fontSize: '13px' }}>Erro ao carregar projeto</div>
+                <div style={{ padding: 80, textAlign: 'center', color: '#9CA3AF', fontSize: 15 }}>Erro ao carregar projeto</div>
               ) : (() => {
                 const d = modalProjetoData
                 const chassis: any[] = d.chassis || []
@@ -364,116 +544,339 @@ function ClientesPageInner() {
                 const osProj: any[] = d.ordens || []
                 const pvsProj: any[] = d.pedidos_venda || []
                 const resumo = d.resumo || {}
+                const donosList: any[] = d.donos || []
+                const servicosList: any[] = d.servicos || []
+                const pecasList: any[] = d.pecas || []
+                const reqList: any[] = d.requisicoes || []
+                const revList: any[] = d.revisoes || []
+                const emailsList = d.emails_por_chassis || {}
+                const totalEmails = Object.values(emailsList).reduce((s: number, arr: any) => s + (arr?.length || 0), 0)
+                const REVISOES_HORAS = ['50h','300h','600h','900h','1200h','1500h','1800h','2100h','2400h','2700h','3000h']
+
+                const tabs = [
+                  { id: 'resumo', label: 'Resumo', icon: ClipboardList, count: null },
+                  { id: 'donos', label: 'Donos', icon: Users, count: donosList.length },
+                  { id: 'servicos', label: 'Servicos', icon: Wrench, count: servicosList.length },
+                  { id: 'pecas', label: 'Pecas', icon: Package, count: pecasList.length },
+                  { id: 'requisicoes', label: 'Requisicoes', icon: ClipboardList, count: reqList.length },
+                  { id: 'revisoes', label: 'Revisoes', icon: CheckCircle, count: revList.length },
+                  { id: 'garantias', label: 'Garantias', icon: Shield, count: totalEmails },
+                ]
 
                 return (
-                  <div style={{ padding: '16px 20px' }}>
-
-                    {/* Resumo */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px', marginBottom: '16px' }}>
-                      {[
-                        { l: 'Ordens de Servico', v: String(resumo.total_os || 0) },
-                        { l: 'Valor Servicos', v: formatCurrency(resumo.valor_total_os || 0) },
-                        { l: 'Pedidos de Venda', v: String(resumo.total_pv || 0) },
-                        { l: 'Valor Pecas', v: formatCurrency(resumo.valor_total_pv || 0) },
-                      ].map((f, i) => (
-                        <div key={i} style={{ padding: '8px 14px', border: `1px solid ${ln}`, borderRadius: '4px' }}>
-                          <div style={{ fontSize: '9px', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>{f.l}</div>
-                          <div style={{ fontSize: '14px', color: '#222' }}>{f.v}</div>
-                        </div>
+                  <>
+                    {/* Tabs */}
+                    <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid #E5E7EB', background: '#fff', flexShrink: 0, overflowX: 'auto' }}>
+                      {tabs.map(t => (
+                        <button key={t.id} onClick={() => setProjetoTab(t.id)}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 6, padding: '12px 18px', border: 'none', borderBottom: projetoTab === t.id ? '2px solid #2563EB' : '2px solid transparent',
+                            background: 'none', cursor: 'pointer', fontSize: 13, fontWeight: projetoTab === t.id ? 700 : 500,
+                            color: projetoTab === t.id ? '#2563EB' : '#6B7280', transition: 'all 0.15s', whiteSpace: 'nowrap',
+                          }}>
+                          <t.icon size={15} />
+                          {t.label}
+                          {t.count !== null && t.count > 0 && (
+                            <span style={{ fontSize: 11, padding: '1px 6px', borderRadius: 10, background: projetoTab === t.id ? '#EFF6FF' : '#F3F4F6', color: projetoTab === t.id ? '#2563EB' : '#9CA3AF', fontWeight: 700 }}>
+                              {t.count}
+                            </span>
+                          )}
+                        </button>
                       ))}
                     </div>
 
-                    {/* Chassis */}
-                    {chassis.length > 0 && (
-                      <div style={{ marginBottom: '16px' }}>
-                        <div style={{ fontSize: '9px', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
-                          Chassis ({chassis.length})
-                        </div>
-                        <div style={{ border: `1px solid ${ln}`, borderRadius: '4px', overflow: 'hidden' }}>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', padding: '6px 12px', background: '#fafafa', borderBottom: `1px solid ${ln}`, fontSize: '9px', color: '#999', textTransform: 'uppercase' }}>
-                            <span>Chassis</span><span>Modelo</span><span>Cliente</span>
-                          </div>
-                          {chassis.map((ch: any, ci: number) => (
-                            <div key={ci} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', padding: '7px 12px', borderBottom: `1px solid ${ln2}`, fontSize: '12px', color: '#333' }}>
-                              <span style={{ fontFamily: 'monospace', fontSize: '11px' }}>{ch.chassis}</span>
-                              <span>{ch.modelo || '-'}</span>
-                              <span style={{ color: '#666', fontSize: '11px' }}>{ch.cliente_nome || '-'}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                    {/* Content */}
+                    <div style={{ flex: 1, overflow: 'auto', padding: '24px 28px' }}>
 
-                    {/* Notas Fiscais */}
-                    {nfs.length > 0 && (
-                      <div style={{ marginBottom: '16px' }}>
-                        <div style={{ fontSize: '9px', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
-                          Notas Fiscais ({nfs.length})
-                        </div>
-                        <div style={{ border: `1px solid ${ln}`, borderRadius: '4px', overflow: 'hidden' }}>
-                          <div style={{ display: 'grid', gridTemplateColumns: '60px 1fr 80px 90px 80px 60px', padding: '6px 12px', background: '#fafafa', borderBottom: `1px solid ${ln}`, fontSize: '9px', color: '#999', textTransform: 'uppercase' }}>
-                            <span>Tipo</span><span>Origem</span><span>Numero</span><span style={{ textAlign: 'right' }}>Valor</span><span>Data</span><span></span>
+                      {/* ─── RESUMO ─── */}
+                      {projetoTab === 'resumo' && (
+                        <div>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 24 }}>
+                            {[
+                              { l: 'Ordens de Servico', v: String(resumo.total_os || 0), bg: '#EFF6FF', c: '#2563EB', b: '#BFDBFE', icon: Wrench },
+                              { l: 'Valor Servicos', v: formatCurrency(resumo.valor_total_os || 0), bg: '#ECFDF5', c: '#059669', b: '#A7F3D0', icon: FileText },
+                              { l: 'Pedidos de Venda', v: String(resumo.total_pv || 0), bg: '#FFF7ED', c: '#EA580C', b: '#FED7AA', icon: Package },
+                            ].map((f, i) => (
+                              <div key={i} style={{ padding: '16px 20px', border: `1px solid ${f.b}`, borderRadius: 12, background: f.bg }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#6B7280', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, fontWeight: 600 }}>
+                                  <f.icon size={13} color={f.c} /> {f.l}
+                                </div>
+                                <div style={{ fontSize: 22, color: f.c, fontWeight: 800 }}>{f.v}</div>
+                              </div>
+                            ))}
                           </div>
-                          {nfs.map((nf: any, ni: number) => (
-                            <div key={ni} style={{ display: 'grid', gridTemplateColumns: '60px 1fr 80px 90px 80px 60px', padding: '7px 12px', borderBottom: `1px solid ${ln2}`, fontSize: '11px', color: '#333', alignItems: 'center' }}>
-                              <span style={{ color: '#888' }}>{nf.tipo}</span>
-                              <span>{nf.origem}</span>
-                              <span style={{ fontFamily: 'monospace' }}>{nf.numero || '-'}</span>
-                              <span style={{ textAlign: 'right' }}>{formatCurrency(nf.valor || 0)}</span>
-                              <span style={{ color: '#888' }}>{nf.data ? (nf.data.includes('/') ? nf.data : new Date(nf.data + 'T00:00:00').toLocaleDateString('pt-BR')) : '-'}</span>
-                              <span>{nf.link && <a href={nf.link} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '2px 6px', border: `1px solid ${ln}`, borderRadius: '3px', background: '#fff', color: '#444', fontSize: '10px', textDecoration: 'none' }}><Download size={9} /> PDF</a>}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
 
-                    {/* Ordens */}
-                    {osProj.length > 0 && (
-                      <div style={{ marginBottom: '16px' }}>
-                        <div style={{ fontSize: '9px', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
-                          Ordens de Servico ({osProj.length})
-                        </div>
-                        <div style={{ border: `1px solid ${ln}`, borderRadius: '4px', overflow: 'hidden' }}>
-                          <div style={{ display: 'grid', gridTemplateColumns: '60px 1fr 80px 90px 80px', padding: '6px 12px', background: '#fafafa', borderBottom: `1px solid ${ln}`, fontSize: '9px', color: '#999', textTransform: 'uppercase' }}>
-                            <span>Numero</span><span>Cliente</span><span>Status</span><span style={{ textAlign: 'right' }}>Valor</span><span>Data</span>
-                          </div>
-                          {osProj.map((os: any, oi: number) => (
-                            <div key={oi} style={{ display: 'grid', gridTemplateColumns: '60px 1fr 80px 90px 80px', padding: '7px 12px', borderBottom: `1px solid ${ln2}`, fontSize: '11px', color: '#333' }}>
-                              <span style={{ fontWeight: 500 }}>{os.num_os}</span>
-                              <span style={{ color: '#666' }}>{os.cliente_nome || '-'}</span>
-                              <span style={{ color: '#888' }}>{os.status}</span>
-                              <span style={{ textAlign: 'right' }}>{formatCurrency(os.valor_total || 0)}</span>
-                              <span style={{ color: '#888' }}>{formatDate(os.data_previsao)}</span>
+                          {/* Chassis */}
+                          {chassis.length > 0 && (
+                            <div style={{ marginBottom: 20 }}>
+                              <div style={{ fontSize: 13, color: '#374151', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>Chassis ({chassis.length})</div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                {chassis.map((ch: any, ci: number) => (
+                                  <div key={ci} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', border: '1px solid #E5E7EB', borderRadius: 10, background: '#fff' }}>
+                                    <div style={{ width: 36, height: 36, borderRadius: 8, background: '#F0F4FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                      <Hash size={16} color="#2563EB" />
+                                    </div>
+                                    <div style={{ flex: 1 }}>
+                                      <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', fontFamily: 'monospace' }}>{ch.chassis}</div>
+                                      <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>{ch.modelo || 'Modelo nao informado'} {ch.cliente_nome ? `— ${ch.cliente_nome}` : ''}</div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                          )}
 
-                    {/* PVs */}
-                    {pvsProj.length > 0 && (
-                      <div>
-                        <div style={{ fontSize: '9px', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
-                          Pedidos de Venda ({pvsProj.length})
-                        </div>
-                        <div style={{ border: `1px solid ${ln}`, borderRadius: '4px', overflow: 'hidden' }}>
-                          <div style={{ display: 'grid', gridTemplateColumns: '60px 1fr 80px 90px 80px', padding: '6px 12px', background: '#fafafa', borderBottom: `1px solid ${ln}`, fontSize: '9px', color: '#999', textTransform: 'uppercase' }}>
-                            <span>Numero</span><span>Cliente</span><span>Etapa</span><span style={{ textAlign: 'right' }}>Valor</span><span>Data</span>
-                          </div>
-                          {pvsProj.map((pv: any, pi: number) => (
-                            <div key={pi} style={{ display: 'grid', gridTemplateColumns: '60px 1fr 80px 90px 80px', padding: '7px 12px', borderBottom: `1px solid ${ln2}`, fontSize: '11px', color: '#333' }}>
-                              <span style={{ fontWeight: 500 }}>{pv.num_pedido}</span>
-                              <span style={{ color: '#666' }}>{pv.cliente_nome || '-'}</span>
-                              <span style={{ color: '#888' }}>{pv.etapa || '-'}</span>
-                              <span style={{ textAlign: 'right' }}>{formatCurrency(pv.valor_total || 0)}</span>
-                              <span style={{ color: '#888' }}>{formatDate(pv.data_previsao || pv.data_inclusao)}</span>
+                          {/* NFs */}
+                          {nfs.length > 0 && (
+                            <div style={{ marginBottom: 20 }}>
+                              <div style={{ fontSize: 13, color: '#374151', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>Notas Fiscais ({nfs.length})</div>
+                              <div style={{ border: '1px solid #E5E7EB', borderRadius: 10, overflow: 'hidden', background: '#fff' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '60px 1fr 80px 110px 90px 60px', padding: '10px 16px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB', fontSize: 11, color: '#6B7280', textTransform: 'uppercase', fontWeight: 600 }}>
+                                  <span>Tipo</span><span>Origem</span><span>Numero</span><span style={{ textAlign: 'right' }}>Valor</span><span>Data</span><span></span>
+                                </div>
+                                {nfs.map((nf: any, ni: number) => (
+                                  <div key={ni} style={{ display: 'grid', gridTemplateColumns: '60px 1fr 80px 110px 90px 60px', padding: '10px 16px', borderBottom: `1px solid ${ln2}`, fontSize: 13, color: '#374151', alignItems: 'center' }}>
+                                    <span style={{ fontSize: 11, color: '#9CA3AF' }}>{nf.tipo}</span>
+                                    <span style={{ fontWeight: 500 }}>{nf.origem}</span>
+                                    <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{nf.numero || '-'}</span>
+                                    <span style={{ textAlign: 'right', fontWeight: 600 }}>{formatCurrency(nf.valor || 0)}</span>
+                                    <span style={{ color: '#9CA3AF', fontSize: 12 }}>{nf.data ? (nf.data.includes('/') ? nf.data : new Date(nf.data + 'T00:00:00').toLocaleDateString('pt-BR')) : '-'}</span>
+                                    <span>{nf.link && <a href={nf.link} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '3px 8px', borderRadius: 6, background: '#111827', color: '#fff', fontSize: 10, textDecoration: 'none', fontWeight: 600 }}><Download size={10} /> PDF</a>}</span>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
-                          ))}
+                          )}
                         </div>
-                      </div>
-                    )}
-                  </div>
+                      )}
+
+                      {/* ─── DONOS ─── */}
+                      {projetoTab === 'donos' && (
+                        <div>
+                          <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 16 }}>Clientes que tiveram servicos faturados neste projeto</div>
+                          {donosList.length === 0 ? (
+                            <div style={{ padding: 40, textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>Nenhum dono encontrado</div>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                              {donosList.map((dono: any, di: number) => (
+                                <div key={di} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 20px', border: '1px solid #E5E7EB', borderRadius: 12, background: '#fff' }}>
+                                  <div style={{
+                                    width: 48, height: 48, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                                    background: di === 0 ? '#EFF6FF' : '#F9FAFB',
+                                  }}>
+                                    <User size={22} color={di === 0 ? '#2563EB' : '#9CA3AF'} />
+                                  </div>
+                                  <div style={{ flex: 1 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                      <span style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>{dono.nome || 'Cliente sem nome'}</span>
+                                      {di === 0 && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 5, background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE' }}>ATUAL</span>}
+                                    </div>
+                                    <div style={{ fontSize: 13, color: '#6B7280', marginTop: 2, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                                      {dono.cnpj_cpf && <span>{formatCNPJ(dono.cnpj_cpf)}</span>}
+                                      {dono.cidade && <span>{dono.cidade}/{dono.estado}</span>}
+                                    </div>
+                                  </div>
+                                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                                    <div style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>{dono.total_os} OS</div>
+                                    <div style={{ fontSize: 13, color: '#059669', fontWeight: 600 }}>{formatCurrency(dono.total_valor)}</div>
+                                    <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>{formatDate(dono.primeira_os)} — {formatDate(dono.ultima_os)}</div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* ─── SERVICOS ─── */}
+                      {projetoTab === 'servicos' && (
+                        <div>
+                          {servicosList.length === 0 ? (
+                            <div style={{ padding: 40, textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>Nenhum servico encontrado</div>
+                          ) : (
+                            <div style={{ border: '1px solid #E5E7EB', borderRadius: 10, overflow: 'hidden', background: '#fff' }}>
+                              <div style={{ display: 'grid', gridTemplateColumns: '70px 1fr 120px 100px 100px', padding: '10px 16px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB', fontSize: 11, color: '#6B7280', textTransform: 'uppercase', fontWeight: 600 }}>
+                                <span>OS</span><span>Descricao</span><span>Cliente</span><span style={{ textAlign: 'right' }}>Valor</span><span>Data</span>
+                              </div>
+                              {servicosList.map((s: any, si: number) => (
+                                <div key={si} style={{ display: 'grid', gridTemplateColumns: '70px 1fr 120px 100px 100px', padding: '10px 16px', borderBottom: `1px solid ${ln2}`, fontSize: 13, color: '#374151', alignItems: 'start' }}>
+                                  <span style={{ fontWeight: 600 }}>{s.num_os}</span>
+                                  <span style={{ color: '#374151', lineHeight: 1.4, fontSize: 12 }}>{s.desc || '-'}</span>
+                                  <span style={{ color: '#6B7280', fontSize: 12 }}>{s.cliente || '-'}</span>
+                                  <span style={{ textAlign: 'right', fontWeight: 600 }}>{formatCurrency(s.valor || 0)}</span>
+                                  <span style={{ fontSize: 12, color: '#9CA3AF' }}>{formatDate(s.data)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* ─── PECAS ─── */}
+                      {projetoTab === 'pecas' && (
+                        <div>
+                          {pecasList.length === 0 ? (
+                            <div style={{ padding: 40, textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>Nenhuma peca encontrada</div>
+                          ) : (
+                            <div style={{ border: '1px solid #E5E7EB', borderRadius: 10, overflow: 'hidden', background: '#fff' }}>
+                              <div style={{ display: 'grid', gridTemplateColumns: '70px 80px 1fr 50px 90px 100px', padding: '10px 16px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB', fontSize: 11, color: '#6B7280', textTransform: 'uppercase', fontWeight: 600 }}>
+                                <span>PV</span><span>Codigo</span><span>Descricao</span><span>Qtd</span><span style={{ textAlign: 'right' }}>Unit.</span><span style={{ textAlign: 'right' }}>Total</span>
+                              </div>
+                              {pecasList.map((p: any, pi: number) => (
+                                <div key={pi} style={{ display: 'grid', gridTemplateColumns: '70px 80px 1fr 50px 90px 100px', padding: '10px 16px', borderBottom: `1px solid ${ln2}`, fontSize: 13, color: '#374151', alignItems: 'start' }}>
+                                  <span style={{ fontWeight: 600 }}>{p.num_pv}</span>
+                                  <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#6B7280' }}>{p.codigo || '-'}</span>
+                                  <span style={{ fontSize: 12, lineHeight: 1.4 }}>{p.desc || '-'}</span>
+                                  <span style={{ fontSize: 12 }}>{p.quantidade}</span>
+                                  <span style={{ textAlign: 'right', fontSize: 12, color: '#6B7280' }}>{formatCurrency(p.valor_unitario || 0)}</span>
+                                  <span style={{ textAlign: 'right', fontWeight: 600 }}>{formatCurrency(p.valor_total || 0)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* ─── REQUISICOES ─── */}
+                      {projetoTab === 'requisicoes' && (
+                        <div>
+                          {reqList.length === 0 ? (
+                            <div style={{ padding: 40, textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>Nenhuma requisicao encontrada</div>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                              {reqList.map((r: any, ri: number) => {
+                                const statusColor: Record<string, { bg: string; c: string; b: string }> = {
+                                  pedido: { bg: '#FFF7ED', c: '#EA580C', b: '#FED7AA' },
+                                  completa: { bg: '#ECFDF5', c: '#059669', b: '#A7F3D0' },
+                                  aguardando: { bg: '#EFF6FF', c: '#2563EB', b: '#BFDBFE' },
+                                  financeiro: { bg: '#F5F3FF', c: '#7C3AED', b: '#C4B5FD' },
+                                  lixeira: { bg: '#FEF2F2', c: '#DC2626', b: '#FECACA' },
+                                }
+                                const sc = statusColor[r.status] || statusColor.pedido
+                                return (
+                                  <div key={ri} style={{ padding: '14px 18px', border: '1px solid #E5E7EB', borderRadius: 10, background: '#fff' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>#{r.id}</span>
+                                        <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 5, background: sc.bg, color: sc.c, border: `1px solid ${sc.b}` }}>{r.status}</span>
+                                        <span style={{ fontSize: 12, padding: '2px 8px', borderRadius: 5, background: '#F3F4F6', color: '#6B7280' }}>{r.tipo}</span>
+                                      </div>
+                                      <span style={{ fontSize: 12, color: '#9CA3AF' }}>{r.created_at ? new Date(r.created_at).toLocaleDateString('pt-BR') : '-'}</span>
+                                    </div>
+                                    <div style={{ fontSize: 13, color: '#374151' }}>{r.titulo || '-'}</div>
+                                    <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 4, display: 'flex', gap: 16 }}>
+                                      <span>Solicitante: {r.solicitante || '-'}</span>
+                                      {r.fornecedor && <span>Fornecedor: {r.fornecedor}</span>}
+                                      {r.valor_despeza && parseFloat(r.valor_despeza) > 0 && <span style={{ color: '#059669', fontWeight: 600 }}>{formatCurrency(parseFloat(r.valor_despeza))}</span>}
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* ─── REVISOES ─── */}
+                      {projetoTab === 'revisoes' && (
+                        <div>
+                          {revList.length === 0 ? (
+                            <div style={{ padding: 40, textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>Nenhuma revisao encontrada para os chassis deste projeto</div>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                              {revList.map((t: any, ti: number) => {
+                                const revisoesDone = REVISOES_HORAS.filter(h => t[`${h} Data`])
+                                const proximaRevisao = REVISOES_HORAS.find(h => !t[`${h} Data`])
+                                return (
+                                  <div key={ti} style={{ border: '1px solid #E5E7EB', borderRadius: 12, background: '#fff', overflow: 'hidden' }}>
+                                    <div style={{ padding: '14px 20px', borderBottom: '1px solid #F3F4F6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                      <div>
+                                        <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>{t.Modelo || '-'}</div>
+                                        <div style={{ fontSize: 13, color: '#6B7280', marginTop: 2 }}>Chassis: <span style={{ fontFamily: 'monospace' }}>{t.Chassis || '-'}</span> — Cliente: {t.Cliente || '-'}</div>
+                                      </div>
+                                      <div style={{ textAlign: 'right' }}>
+                                        <div style={{ fontSize: 13, fontWeight: 600, color: '#059669' }}>{revisoesDone.length}/{REVISOES_HORAS.length} revisoes</div>
+                                        {proximaRevisao && <div style={{ fontSize: 11, color: '#EA580C' }}>Proxima: {proximaRevisao}</div>}
+                                      </div>
+                                    </div>
+                                    <div style={{ padding: '14px 20px', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                      {REVISOES_HORAS.map(h => {
+                                        const data = t[`${h} Data`]
+                                        const horim = t[`${h} Horimetro`]
+                                        const done = !!data
+                                        return (
+                                          <div key={h} style={{
+                                            padding: '8px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, minWidth: 70, textAlign: 'center',
+                                            background: done ? '#ECFDF5' : '#F9FAFB', color: done ? '#059669' : '#D1D5DB', border: `1px solid ${done ? '#A7F3D0' : '#E5E7EB'}`,
+                                          }}>
+                                            <div>{h}</div>
+                                            {done && <div style={{ fontSize: 10, fontWeight: 500, color: '#6B7280', marginTop: 2 }}>{data}</div>}
+                                            {horim && <div style={{ fontSize: 10, color: '#9CA3AF' }}>{horim}h</div>}
+                                          </div>
+                                        )
+                                      })}
+                                    </div>
+                                    {(t.Entrega || t["Inspecao Data"]) && (
+                                      <div style={{ padding: '10px 20px', borderTop: '1px solid #F3F4F6', display: 'flex', gap: 20, fontSize: 12, color: '#6B7280' }}>
+                                        {t.Entrega && <span>Entrega: <strong style={{ color: '#374151' }}>{t.Entrega}</strong></span>}
+                                        {t["Inspecao Data"] && <span>Inspecao: <strong style={{ color: '#374151' }}>{t["Inspecao Data"]}</strong></span>}
+                                        {t["Inspecao Horimetro"] && <span>Horimetro inspecao: <strong style={{ color: '#374151' }}>{t["Inspecao Horimetro"]}h</strong></span>}
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* ─── GARANTIAS (emails) ─── */}
+                      {projetoTab === 'garantias' && (
+                        <div>
+                          <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 16 }}>Emails relacionados aos chassis deste projeto</div>
+                          {totalEmails === 0 ? (
+                            <div style={{ padding: 40, textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>Nenhum email de garantia encontrado</div>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                              {Object.entries(emailsList).map(([ch, emails]: [string, any]) => (
+                                <div key={ch}>
+                                  <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <Hash size={13} color="#2563EB" /> Chassis {ch} ({emails.length} emails)
+                                  </div>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                    {emails.map((e: any, ei: number) => (
+                                      <div key={ei} style={{ padding: '12px 16px', border: '1px solid #E5E7EB', borderRadius: 10, background: '#fff' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            <Mail size={14} color="#6B7280" />
+                                            <span style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{e.assunto || e.subject || 'Sem assunto'}</span>
+                                          </div>
+                                          <span style={{ fontSize: 11, color: '#9CA3AF' }}>{e.data ? new Date(e.data).toLocaleDateString('pt-BR') : '-'}</span>
+                                        </div>
+                                        <div style={{ fontSize: 12, color: '#6B7280' }}>De: {e.de || e.from || '-'}</div>
+                                        {e.anexos && e.anexos.length > 0 && (
+                                          <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                                            {e.anexos.map((a: any, ai: number) => (
+                                              <a key={ai} href={a.url || a.link || '#'} target="_blank" rel="noopener noreferrer"
+                                                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, padding: '3px 8px', borderRadius: 5, background: '#F3F4F6', color: '#374151', textDecoration: 'none', border: '1px solid #E5E7EB' }}>
+                                                <Download size={10} /> {a.nome || a.filename || `Anexo ${ai + 1}`}
+                                              </a>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                    </div>
+                  </>
                 )
               })()}
             </div>
@@ -485,37 +888,37 @@ function ClientesPageInner() {
 
   // ============ LISTA DE CLIENTES ============
   return (
-    <div style={{ padding: '28px 36px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+    <div style={{ padding: '32px 40px', maxWidth: 1400, margin: '0 auto' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 28 }}>
         <div>
-          <div style={{ fontSize: '18px', color: '#111', marginBottom: '2px' }}>Pastas Clientes</div>
-          <div style={{ fontSize: '11px', color: '#999' }}>{clientes.length} clientes</div>
+          <h1 style={{ fontSize: 26, color: '#111827', fontWeight: 700, margin: 0, letterSpacing: -0.5 }}>Clientes</h1>
+          <p style={{ fontSize: 14, color: '#6B7280', margin: '4px 0 0' }}>{clientes.length} clientes cadastrados</p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {(syncStatus || nfStatus) && (
-            <span style={{ fontSize: '11px', color: '#999', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              {(syncing || nfStatus) && <RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} />}
+            <span style={{ fontSize: 13, color: '#6B7280', display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#F9FAFB', borderRadius: 8, border: '1px solid #E5E7EB' }}>
+              {(syncing || nfStatus) && <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />}
               {syncStatus || nfStatus}
             </span>
           )}
           <button onClick={syncBackground} disabled={syncing}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '30px', height: '30px', borderRadius: '4px', border: `1px solid ${ln}`, background: '#fff', color: '#888', cursor: syncing ? 'not-allowed' : 'pointer' }}>
-            <RefreshCw size={14} style={syncing ? { animation: 'spin 1s linear infinite' } : {}} />
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', color: '#6B7280', cursor: syncing ? 'not-allowed' : 'pointer' }}>
+            <RefreshCw size={16} style={syncing ? { animation: 'spin 1s linear infinite' } : {}} />
           </button>
         </div>
         <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
       </div>
 
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
-        <div style={{ position: 'relative', flex: 1 }}>
-          <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#bbb' }} />
+      <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+        <div style={{ position: 'relative', flex: 1, minWidth: 260 }}>
+          <Search size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }} />
           <input type="text" placeholder="Buscar por nome, CNPJ, cidade, projeto..."
             value={search} onChange={ev => setSearch(ev.target.value)}
-            style={{ width: '100%', padding: '7px 10px 7px 32px', borderRadius: '4px', border: `1px solid ${ln}`, color: '#333', fontSize: '12px', outline: 'none', background: '#fff' }} />
+            style={{ width: '100%', padding: '11px 14px 11px 40px', borderRadius: 10, border: '1px solid #E5E7EB', color: '#111827', fontSize: 14, outline: 'none', background: '#fff', boxSizing: 'border-box' }} />
         </div>
         {empresas.length > 1 && (
           <select value={empresaFilter} onChange={ev => setEmpresaFilter(ev.target.value)}
-            style={{ padding: '7px 12px', borderRadius: '4px', border: `1px solid ${ln}`, color: '#333', fontSize: '11px', cursor: 'pointer', outline: 'none', background: '#fff' }}>
+            style={{ padding: '11px 16px', borderRadius: 10, border: '1px solid #E5E7EB', color: '#374151', fontSize: 13, cursor: 'pointer', outline: 'none', background: '#fff' }}>
             <option value="">Todas empresas</option>
             {empresas.map(emp => <option key={emp} value={emp}>{emp}</option>)}
           </select>
@@ -523,50 +926,52 @@ function ClientesPageInner() {
       </div>
 
       {loading ? (
-        <p style={{ color: '#999', fontSize: '13px', padding: '60px 0', textAlign: 'center' }}>Carregando...</p>
+        <div style={{ padding: 80, textAlign: 'center', color: '#9CA3AF', fontSize: 15 }}>
+          <RefreshCw size={24} style={{ animation: 'spin 1s linear infinite', marginBottom: 12 }} />
+          <div>Carregando clientes...</div>
+        </div>
       ) : filtered.length === 0 ? (
-        <p style={{ color: '#999', fontSize: '13px', padding: '60px 0', textAlign: 'center' }}>
+        <div style={{ padding: 80, textAlign: 'center', color: '#9CA3AF', fontSize: 15 }}>
           {clientes.length === 0 ? 'Nenhum cliente. Sincronizacao em andamento...' : 'Nenhum cliente encontrado'}
-        </p>
+        </div>
       ) : (
-        <div style={{ border: `1px solid ${ln}`, borderRadius: '4px', overflow: 'hidden' }}>
-          {/* Header */}
+        <div style={{ border: '1px solid #E5E7EB', borderRadius: 12, overflow: 'hidden', background: '#fff' }}>
           <div style={{
-            display: 'grid', gridTemplateColumns: '40px 1fr 140px 120px 60px 100px 100px 20px',
-            padding: '8px 14px', background: '#fafafa', borderBottom: `1px solid ${ln}`,
-            fontSize: '9px', color: '#999', textTransform: 'uppercase', letterSpacing: '0.5px', alignItems: 'center'
+            display: 'grid', gridTemplateColumns: '44px 1fr 160px 140px 70px 120px 110px 24px',
+            padding: '12px 20px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB',
+            fontSize: 11, color: '#6B7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.5, alignItems: 'center'
           }}>
-            <span>#</span><span>Cliente</span><span>CNPJ</span><span>Cidade</span>
-            <span style={{ textAlign: 'center' }}>Ordens</span><span style={{ textAlign: 'right' }}>Valor</span><span>Empresa</span><span></span>
+            <span>#</span><span>Cliente</span><span>CNPJ / CPF</span><span>Cidade</span>
+            <span style={{ textAlign: 'center' }}>OS</span><span style={{ textAlign: 'right' }}>Valor Total</span><span>Empresa</span><span></span>
           </div>
 
           {filtered.slice(0, 200).map((cli, idx) => (
             <div key={`${cli.cod_cli}-${cli.empresa}`} onClick={() => abrirDetalhe(cli)}
               style={{
-                display: 'grid', gridTemplateColumns: '40px 1fr 140px 120px 60px 100px 100px 20px',
-                padding: '9px 14px', borderBottom: `1px solid ${ln2}`, alignItems: 'center', cursor: 'pointer',
-                fontSize: '12px', color: '#333', transition: 'background 0.1s'
+                display: 'grid', gridTemplateColumns: '44px 1fr 160px 140px 70px 120px 110px 24px',
+                padding: '14px 20px', borderBottom: '1px solid #F3F4F6', alignItems: 'center', cursor: 'pointer',
+                fontSize: 14, color: '#111827', transition: 'background 0.15s'
               }}
-              onMouseEnter={ev => { ev.currentTarget.style.background = '#fcfcfc' }}
+              onMouseEnter={ev => { ev.currentTarget.style.background = '#F9FAFB' }}
               onMouseLeave={ev => { ev.currentTarget.style.background = 'transparent' }}>
-              <span style={{ color: '#bbb', fontSize: '11px' }}>{idx + 1}</span>
+              <span style={{ color: '#D1D5DB', fontSize: 12, fontWeight: 500 }}>{idx + 1}</span>
               <div>
-                <div style={{ fontSize: '12px', color: '#222' }}>{cli.nome_fantasia || cli.razao_social}</div>
+                <div style={{ fontSize: 14, color: '#111827', fontWeight: 600 }}>{cli.nome_fantasia || cli.razao_social}</div>
                 {cli.nome_fantasia && cli.razao_social && cli.nome_fantasia !== cli.razao_social && (
-                  <div style={{ fontSize: '10px', color: '#aaa' }}>{cli.razao_social}</div>
+                  <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 1 }}>{cli.razao_social}</div>
                 )}
               </div>
-              <span style={{ fontSize: '10px', color: '#666', fontFamily: 'monospace' }}>{formatCNPJ(cli.cnpj_cpf)}</span>
-              <span style={{ fontSize: '11px', color: '#666' }}>{cli.cidade ? `${cli.cidade}/${cli.estado}` : '-'}</span>
-              <span style={{ textAlign: 'center', fontWeight: 500 }}>{cli.total_os}</span>
-              <span style={{ textAlign: 'right', fontSize: '11px' }}>{cli.total_valor > 0 ? formatCurrency(cli.total_valor) : '-'}</span>
-              <span style={{ fontSize: '10px', color: '#888' }}>{cli.empresa}</span>
-              <ChevronRight size={12} color="#ccc" />
+              <span style={{ fontSize: 12, color: '#6B7280', fontFamily: 'monospace' }}>{formatCNPJ(cli.cnpj_cpf)}</span>
+              <span style={{ fontSize: 13, color: '#6B7280' }}>{cli.cidade ? `${cli.cidade}/${cli.estado}` : '-'}</span>
+              <span style={{ textAlign: 'center', fontWeight: 700, fontSize: 14, color: '#374151' }}>{cli.total_os}</span>
+              <span style={{ textAlign: 'right', fontSize: 14, fontWeight: 600, color: '#374151' }}>{cli.total_valor > 0 ? formatCurrency(cli.total_valor) : '-'}</span>
+              <span style={{ fontSize: 12, color: '#9CA3AF' }}>{cli.empresa}</span>
+              <ChevronRight size={16} color="#D1D5DB" />
             </div>
           ))}
 
           {filtered.length > 200 && (
-            <div style={{ padding: '10px 14px', textAlign: 'center', fontSize: '11px', color: '#999', background: '#fafafa' }}>
+            <div style={{ padding: 14, textAlign: 'center', fontSize: 13, color: '#6B7280', background: '#F9FAFB' }}>
               Mostrando 200 de {filtered.length} clientes. Use a busca para filtrar.
             </div>
           )}

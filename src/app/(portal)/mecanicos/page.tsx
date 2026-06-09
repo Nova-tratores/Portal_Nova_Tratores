@@ -72,6 +72,8 @@ interface Ordem {
   servico_solicitado: string
   relatorio_tecnico: string
   diagnostico_tecnico: string
+  relatorio_status: string
+  relatorio_data_envio: string
   obs: string
   ppvs: PPV[]
 }
@@ -588,8 +590,24 @@ export default function MecanicosPage() {
                   const temPecas = o.ppvs.some(p => p.produtos.length > 0)
                   const temRelTec = !!o.relatorio_tecnico?.trim()
                   const temDiag = !!o.diagnostico_tecnico?.trim()
+                  const relEnviado = o.relatorio_status === 'enviado'
+                  const relRascunho = o.relatorio_status === 'rascunho'
+                  const semRelatorio = !temRelTec && !relRascunho
+                  const diasAtrasoRel = (() => {
+                    if (!relEnviado || !o.relatorio_data_envio || !o.data) return 0
+                    const dOs = new Date(o.data + 'T00:00:00')
+                    const dEnv = new Date(o.relatorio_data_envio.slice(0, 10) + 'T00:00:00')
+                    return Math.floor((dEnv.getTime() - dOs.getTime()) / 86400000)
+                  })()
+                  const diasSemRel = (() => {
+                    if (!semRelatorio || !o.data) return 0
+                    const dOs = new Date(o.data + 'T00:00:00')
+                    const hoje = new Date()
+                    hoje.setHours(0, 0, 0, 0)
+                    return Math.floor((hoje.getTime() - dOs.getTime()) / 86400000)
+                  })()
                   return (
-                    <div key={o.os_num} style={{ background: '#fff', border: `1px solid ${isOpen ? '#BFDBFE' : '#E5E7EB'}`, borderRadius: 8, overflow: 'hidden', transition: 'border-color .15s' }}>
+                    <div key={o.os_num} style={{ background: semRelatorio ? '#FFFBEB' : '#fff', border: `1px solid ${isOpen ? '#BFDBFE' : semRelatorio ? '#FDE68A' : '#E5E7EB'}`, borderRadius: 8, overflow: 'hidden', transition: 'border-color .15s' }}>
                       <div onClick={() => toggleOs(o.os_num)} style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', cursor: 'pointer', gap: 8, userSelect: 'none', flexWrap: 'wrap' }}>
                         <ChevronDown size={14} color="#9CA3AF" style={{ transition: 'transform .15s', transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)', flexShrink: 0 }} />
                         <span style={{ fontWeight: 700, color: '#2563EB', fontSize: 13 }}>OS {o.os_num}</span>
@@ -598,13 +616,30 @@ export default function MecanicosPage() {
                         {!o.cliente && o.cidade && <span style={{ fontSize: 12, color: '#6B7280' }}>{o.cidade}</span>}
                         {o.interno && <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: '#EFF6FF', color: '#2563EB', fontWeight: 600 }}>INT</span>}
                         {!o.faturada && <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: o.status === 'Executada' ? '#FEF3C7' : o.status === 'Faturando' ? '#EEF2FF' : '#F3F4F6', color: o.status === 'Executada' ? '#92400E' : o.status === 'Faturando' ? '#4338CA' : '#6B7280', fontWeight: 600 }}>{o.status}</span>}
+                        {relEnviado && diasAtrasoRel <= 1 && (
+                          <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: '#ECFDF5', color: '#059669', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3 }}>
+                            <CheckCircle size={10} /> Rel. {o.relatorio_data_envio ? o.relatorio_data_envio.slice(0, 10).split('-').reverse().join('/') : 'enviado'}
+                          </span>
+                        )}
+                        {relEnviado && diasAtrasoRel > 1 && (
+                          <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: '#FEF3C7', color: '#92400E', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3 }}>
+                            <AlertTriangle size={10} /> Rel. {diasAtrasoRel}d atraso
+                          </span>
+                        )}
+                        {relRascunho && (
+                          <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: '#FEF3C7', color: '#92400E', fontWeight: 600 }}>Rascunho</span>
+                        )}
+                        {semRelatorio && (
+                          <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: '#FEF2F2', color: '#DC2626', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3 }}>
+                            <XCircle size={10} /> Sem relatorio{diasSemRel > 1 ? ` (${diasSemRel}d)` : ''}
+                          </span>
+                        )}
                         <div style={{ marginLeft: 'auto', display: 'flex', gap: 12, fontSize: 12 }}>
                           <span style={{ color: '#059669', fontWeight: 600 }}>{(parseFloat(o.horas) || 0).toFixed(1)}h</span>
                           <span style={{ color: '#D97706', fontWeight: 600 }}>{(parseFloat(o.km) || 0).toFixed(0)} km</span>
                           <span style={{ color: '#7C3AED', fontWeight: 600 }}>R$ {(parseFloat(o.valor) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                         </div>
                         {temPecas && <Package size={13} color="#EA580C" style={{ flexShrink: 0 }} />}
-                        {temRelTec && <FileText size={13} color="#059669" style={{ flexShrink: 0 }} />}
                       </div>
                       {isOpen && (
                         <div style={{ borderTop: '1px solid #F3F4F6', padding: '14px' }}>
@@ -872,18 +907,23 @@ export default function MecanicosPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {detalhe.alertas.map(a => {
                   const isAtraso = a.tipo === 'atraso_relatorio'
+                  const isAtrasoEntrega = a.tipo === 'atraso_entrega_relatorio'
+                  const isDivKm = a.tipo === 'divergencia_km'
                   const isPendente = a.status === 'pendente'
                   const isExpanded = expandedAlerta === a.id
                   const statusLabel = a.status === 'justificada' ? 'Justificada' : a.status === 'ocorrencia' ? 'Virou Ocorrencia' : 'Pendente'
                   const statusBg = a.status === 'justificada' ? '#ECFDF5' : a.status === 'ocorrencia' ? '#EFF6FF' : '#FFFBEB'
                   const statusColor = a.status === 'justificada' ? '#059669' : a.status === 'ocorrencia' ? '#2563EB' : '#D97706'
+                  const tipoBg = isAtraso ? '#FEF2F2' : isAtrasoEntrega ? '#FFFBEB' : '#FEF2F2'
+                  const tipoColor = isAtraso ? '#DC2626' : isAtrasoEntrega ? '#D97706' : '#DC2626'
+                  const tipoLabel = isAtraso ? 'Sem Relatorio' : isAtrasoEntrega ? 'Entrega Atrasada' : 'Divergencia KM'
                   const ord = a.ordem
                   return (
-                    <div key={a.id} style={{ background: '#fff', border: `1px solid ${isPendente ? '#FDE68A' : '#E5E7EB'}`, borderRadius: 8, overflow: 'hidden', opacity: isPendente ? 1 : 0.7, transition: 'all .15s' }}>
+                    <div key={a.id} style={{ background: '#fff', border: `1px solid ${isPendente ? (isAtraso ? '#FECACA' : '#FDE68A') : '#E5E7EB'}`, borderRadius: 8, overflow: 'hidden', opacity: isPendente ? 1 : 0.7, transition: 'all .15s' }}>
                       <div onClick={() => setExpandedAlerta(isExpanded ? null : a.id)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px', cursor: 'pointer', flexWrap: 'wrap', userSelect: 'none' }}>
                         <ChevronDown size={13} color="#9CA3AF" style={{ transition: 'transform .15s', transform: isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)', flexShrink: 0 }} />
-                        <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 600, background: isAtraso ? '#FFFBEB' : '#FEF2F2', color: isAtraso ? '#D97706' : '#DC2626' }}>
-                          {isAtraso ? 'Atraso Relatorio' : 'Divergencia KM'}
+                        <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 600, background: tipoBg, color: tipoColor }}>
+                          {tipoLabel}
                         </span>
                         <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 600, background: statusBg, color: statusColor }}>{statusLabel}</span>
                         {a.carryover && <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 9, fontWeight: 700, background: '#7C3AED', color: '#fff' }}>MES ANTERIOR</span>}
@@ -893,7 +933,7 @@ export default function MecanicosPage() {
                       </div>
                       {isExpanded && (
                         <div style={{ borderTop: '1px solid #F3F4F6', padding: 14 }}>
-                          <div style={{ marginBottom: 14, padding: '10px 12px', borderRadius: 6, background: isAtraso ? '#FFFBEB' : '#FEF2F2', border: `1px solid ${isAtraso ? '#FDE68A' : '#FECACA'}` }}>
+                          <div style={{ marginBottom: 14, padding: '10px 12px', borderRadius: 6, background: isDivKm ? '#FEF2F2' : '#FFFBEB', border: `1px solid ${isDivKm ? '#FECACA' : '#FDE68A'}` }}>
                             <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 3 }}>{a.descricao}</div>
                             {a.detalhes && <div style={{ fontSize: 12, color: '#6B7280' }}>{a.detalhes}</div>}
                           </div>
