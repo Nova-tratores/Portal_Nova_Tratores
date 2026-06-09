@@ -31,13 +31,13 @@ export async function GET(req: NextRequest) {
 
   try {
     const projetos = await fetchAll<Record<string, any>>(
-      "projetos_omie",
+      "portal_nt_projetos_PRINCIPAL",
       "codigo, empresa, nome, inativo, cod_cli_ultimo, cliente_nome_ultimo, cnpj_cpf_ultimo"
     );
 
     // OS com projeto preenchido
     const osAll = await fetchAll<Record<string, any>>(
-      "clientes_os",
+      "portal_nt_clientes_os",
       "num_os, cod_os, empresa, cod_cli, projeto, valor_total, status, faturada, cancelada, num_nf, link_nf, data_previsao, data_faturamento, cliente_nome, num_pedido_cli",
       (q: any) => q.not("projeto", "is", null).not("projeto", "eq", "")
     );
@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
     const pvMap = new Map<string, any>();
     for (let i = 0; i < uniquePedidos.length; i += 200) {
       const batch = uniquePedidos.slice(i, i + 200);
-      const { data } = await supabase.from("clientes_pv")
+      const { data } = await supabase.from("portal_nt_clientes_pv")
         .select("num_pedido, cod_pedido, empresa, cod_cli, valor_total, faturado, cancelado, numero_nf, link_nf, data_previsao, cliente_nome")
         .in("num_pedido", batch);
       for (const pv of data || []) {
@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
     const clienteMap = new Map<number, { nome: string; cnpj_cpf: string; cidade: string; estado: string }>();
     for (let i = 0; i < allCodClis.length; i += 200) {
       const batch = allCodClis.slice(i, i + 200);
-      const { data } = await supabase.from("clientes_omie")
+      const { data } = await supabase.from("portal_nt_clientes_cadastro_omie")
         .select("cod_cli, nome_fantasia, razao_social, cnpj_cpf, cidade, estado")
         .in("cod_cli", batch);
       for (const c of data || []) {

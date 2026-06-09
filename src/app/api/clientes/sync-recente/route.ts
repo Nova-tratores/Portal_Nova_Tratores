@@ -83,7 +83,7 @@ export async function GET() {
             let status = ETAPA_OS[cab.cEtapa] || cab.cEtapa;
             if (info.cCancelada === "S") status = "Cancelada";
 
-            await supabase.from("clientes_os").upsert({
+            await supabase.from("portal_nt_clientes_os").upsert({
               num_os: cab.cNumOS, cod_os: cab.nCodOS, empresa: acc.name,
               cod_cli: cab.nCodCli, etapa: cab.cEtapa,
               data_previsao: parseData(cab.dDtPrevisao),
@@ -128,7 +128,7 @@ export async function GET() {
               valor_total: d.produto?.valor_total || 0,
             }));
 
-            await supabase.from("clientes_pv").upsert({
+            await supabase.from("portal_nt_clientes_pv").upsert({
               num_pedido: cab.numero_pedido, cod_pedido: cab.codigo_pedido, empresa: acc.name,
               cod_cli: cab.codigo_cliente, data_previsao: parseData(cab.data_previsao),
               data_inclusao: parseData(info.dInc),
@@ -148,7 +148,7 @@ export async function GET() {
       }
 
       // Buscar NFs para OS/PV faturados recentes sem link_nf
-      const { data: osSemNF } = await supabase.from("clientes_os")
+      const { data: osSemNF } = await supabase.from("portal_nt_clientes_os")
         .select("num_os, cod_os").eq("empresa", acc.name)
         .eq("faturada", true).eq("cancelada", false)
         .or("link_nf.is.null,link_nf.eq.").limit(50);
@@ -167,7 +167,7 @@ export async function GET() {
               const upd: Record<string, string> = {};
               if (num) upd.num_nf = num;
               if (finalUrl) upd.link_nf = finalUrl;
-              await supabase.from("clientes_os").update(upd).eq("num_os", os.num_os).eq("empresa", acc.name);
+              await supabase.from("portal_nt_clientes_os").update(upd).eq("num_os", os.num_os).eq("empresa", acc.name);
               nfs++;
             }
           }
@@ -175,7 +175,7 @@ export async function GET() {
         } catch {}
       }
 
-      const { data: pvSemNF } = await supabase.from("clientes_pv")
+      const { data: pvSemNF } = await supabase.from("portal_nt_clientes_pv")
         .select("num_pedido, cod_pedido").eq("empresa", acc.name)
         .eq("faturado", true).eq("cancelado", false)
         .or("link_nf.is.null,link_nf.eq.").limit(50);
@@ -194,7 +194,7 @@ export async function GET() {
               const upd: Record<string, string> = {};
               if (num) upd.numero_nf = num;
               if (finalUrl) upd.link_nf = finalUrl;
-              await supabase.from("clientes_pv").update(upd).eq("num_pedido", pv.num_pedido).eq("empresa", acc.name);
+              await supabase.from("portal_nt_clientes_pv").update(upd).eq("num_pedido", pv.num_pedido).eq("empresa", acc.name);
               nfs++;
             }
           }

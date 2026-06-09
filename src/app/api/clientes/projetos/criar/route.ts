@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
     const codigo = res.codigo;
 
     const { error: dbError } = await supabase
-      .from("projetos_omie")
+      .from("portal_nt_projetos_PRINCIPAL")
       .insert({
         codigo,
         empresa,

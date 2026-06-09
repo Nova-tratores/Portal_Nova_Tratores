@@ -86,7 +86,7 @@ async function carregarFornecedores(): Promise<Set<string>> {
   //    `tags` é texto JSON, ex.: [{"tag":"Cliente"},{"tag":"Fornecedor"}].
   const omie = await lerTudo<{ razao_social: string | null; nome_fantasia: string | null }>((from, to) =>
     supabase
-      .from("clientes_omie")
+      .from("portal_nt_clientes_cadastro_omie")
       .select("razao_social, nome_fantasia")
       .ilike("tags", "%ornecedor%")
       .range(from, to)
@@ -117,7 +117,7 @@ async function carregarMapaClientes(): Promise<Map<string, string>> {
     razao_social: string | null;
   }>((from, to) =>
     supabase
-      .from("Clientes")
+      .from("portal_nt_clientes_PRINCIPAL")
       .select("id_omie, nome_fantasia, razao_social")
       .range(from, to)
   );

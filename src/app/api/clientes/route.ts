@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
     // -------- Check last sync timestamp --------
     if (checkSync) {
       const { data } = await supabase
-        .from("clientes_omie")
+        .from("portal_nt_clientes_cadastro_omie")
         .select("updated_at")
         .order("updated_at", { ascending: false })
         .limit(1);
@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
     if (codCli && empresa) {
       // Info do cliente
       const { data: cliente } = await supabase
-        .from("clientes_omie")
+        .from("portal_nt_clientes_cadastro_omie")
         .select("*")
         .eq("cod_cli", codCli)
         .eq("empresa", empresa)
@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
 
       // Todas as OS do cliente
       const { data: ordens } = await supabase
-        .from("clientes_os")
+        .from("portal_nt_clientes_os")
         .select("*")
         .eq("cod_cli", codCli)
         .eq("empresa", empresa)
@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
       let pedidos: any[] = [];
       if (numPedidos.length > 0) {
         const { data: pvs } = await supabase
-          .from("clientes_pv")
+          .from("portal_nt_clientes_pv")
           .select("*")
           .in("num_pedido", numPedidos);
         pedidos = pvs || [];
@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
 
       // Também buscar PVs diretamente pelo cod_cli em TODAS as empresas
       const pvsDiretos = await fetchAll<any>(
-        "clientes_pv", "*",
+        "portal_nt_clientes_pv", "*",
         (q: any) => q.eq("cod_cli", codCli).order("data_previsao", { ascending: false })
       );
 
@@ -99,7 +99,7 @@ export async function GET(req: NextRequest) {
 
     // -------- Lista de clientes com ranking + projetos --------
     const osCounts = await fetchAll<{ cod_cli: number; empresa: string; valor_total: number; cancelada: boolean }>(
-      "clientes_os", "cod_cli, empresa, valor_total, cancelada"
+      "portal_nt_clientes_os", "cod_cli, empresa, valor_total, cancelada"
     );
 
     // Agrupar por cod_cli + empresa
@@ -122,7 +122,7 @@ export async function GET(req: NextRequest) {
     // Buscar projetos vinculados a clientes (da tabela projetos_omie)
     const allProjetos = await fetchAll<{
       nome: string; empresa: string; cod_cli_ultimo: number | null; cliente_nome_ultimo: string | null;
-    }>("projetos_omie", "nome, empresa, cod_cli_ultimo, cliente_nome_ultimo",
+    }>("portal_nt_projetos_PRINCIPAL", "nome, empresa, cod_cli_ultimo, cliente_nome_ultimo",
       (q: any) => q.not("cod_cli_ultimo", "is", null)
     );
 
@@ -140,7 +140,7 @@ export async function GET(req: NextRequest) {
     const clientes = await fetchAll<{
       cod_cli: number; empresa: string; razao_social: string; nome_fantasia: string;
       cnpj_cpf: string; cidade: string; estado: string; telefone: string; email: string;
-    }>("clientes_omie", "cod_cli, empresa, razao_social, nome_fantasia, cnpj_cpf, cidade, estado, telefone, email");
+    }>("portal_nt_clientes_cadastro_omie", "cod_cli, empresa, razao_social, nome_fantasia, cnpj_cpf, cidade, estado, telefone, email");
 
     // Juntar ranking + projetos com dados do cliente
     const resultado = clientes.map(c => {

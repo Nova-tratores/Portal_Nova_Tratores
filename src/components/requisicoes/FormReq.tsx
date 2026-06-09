@@ -70,7 +70,7 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
     const timer = setTimeout(async () => {
       const termo = projBusca.trim();
       const { data } = await supabase
-        .from('projetos_omie')
+        .from('portal_nt_projetos_PRINCIPAL')
         .select('codigo, nome, empresa')
         .ilike('nome', `%${termo}%`)
         .limit(15);

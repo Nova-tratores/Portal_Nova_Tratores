@@ -209,7 +209,7 @@ export async function GET(req: NextRequest) {
 
     // Buscar OS desse cliente no Supabase
     const { data: ordens } = await supabase
-      .from("clientes_os")
+      .from("portal_nt_clientes_os")
       .select("num_os, cod_os, empresa, faturada, num_nf, link_nf, status, valor_total, num_pedido_cli, cancelada")
       .eq("cod_cli", codCli)
       .eq("empresa", empresa)
@@ -228,7 +228,7 @@ export async function GET(req: NextRequest) {
 
       // Se conseguiu URL, atualizar no banco
       if (pdfResult.url) {
-        await supabase.from("clientes_os").update({
+        await supabase.from("portal_nt_clientes_os").update({
           link_nf: pdfResult.url,
           num_nf: pdfResult.numNF || os.num_nf,
         }).eq("num_os", os.num_os).eq("empresa", empresa);
@@ -250,7 +250,7 @@ export async function GET(req: NextRequest) {
 
     // Buscar PVs desse cliente (cross-empresa)
     const { data: pedidos } = await supabase
-      .from("clientes_pv")
+      .from("portal_nt_clientes_pv")
       .select("num_pedido, cod_pedido, empresa, faturado, numero_nf, link_nf, valor_total, cancelado")
       .eq("cod_cli", codCli)
       .order("data_previsao", { ascending: false })
@@ -265,7 +265,7 @@ export async function GET(req: NextRequest) {
       const pdfResult = await buscarPdfPV(pv.cod_pedido, pv.num_pedido, pv.empresa.replace(/ /g, "_"), pvAcc);
 
       if (pdfResult.url) {
-        await supabase.from("clientes_pv").update({
+        await supabase.from("portal_nt_clientes_pv").update({
           link_nf: pdfResult.url,
           numero_nf: pdfResult.numNF || pv.numero_nf,
         }).eq("num_pedido", pv.num_pedido).eq("empresa", pv.empresa);

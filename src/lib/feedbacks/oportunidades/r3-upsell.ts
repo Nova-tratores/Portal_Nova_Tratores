@@ -137,7 +137,7 @@ async function carregarMapaClientes(): Promise<Map<string, string>> {
     razao_social: string | null;
   }>((from, to) =>
     supabase
-      .from("Clientes")
+      .from("portal_nt_clientes_PRINCIPAL")
       .select("id_omie, nome_fantasia, razao_social")
       .range(from, to)
   );

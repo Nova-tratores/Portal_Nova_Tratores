@@ -83,7 +83,7 @@ async function carregarProjetos(acc: OmieAccount): Promise<Map<number, string>> 
   // Salvar todos os projetos no banco
   for (let i = 0; i < rows.length; i += 200) {
     const batch = rows.slice(i, i + 200);
-    await supabase.from("projetos_omie").upsert(
+    await supabase.from("portal_nt_projetos_PRINCIPAL").upsert(
       batch.map(r => ({ ...r, updated_at: new Date().toISOString() })),
       { onConflict: "codigo,empresa" }
     );
@@ -161,7 +161,7 @@ async function syncClientes(acc: OmieAccount) {
   for (let i = 0; i < clientes.length; i += 200) {
     const batch = clientes.slice(i, i + 200);
     const { error } = await supabase
-      .from("clientes_omie")
+      .from("portal_nt_clientes_cadastro_omie")
       .upsert(batch, { onConflict: "cod_cli,empresa" });
     if (error) throw new Error(`Erro upsert clientes ${acc.name}: ${error.message}`);
   }
@@ -278,7 +278,7 @@ async function syncOS(
   for (let i = 0; i < dedupRows.length; i += 200) {
     const batch = dedupRows.slice(i, i + 200);
     const { error } = await supabase
-      .from("clientes_os")
+      .from("portal_nt_clientes_os")
       .upsert(batch, { onConflict: "num_os,empresa" });
     if (error) throw new Error(`Erro upsert OS ${acc.name}: ${error.message}`);
   }
@@ -293,7 +293,7 @@ async function syncNFSe(acc: OmieAccount) {
 
   // Buscar OS faturadas sem link_nf
   const { data: osFaturadas } = await supabase
-    .from("clientes_os")
+    .from("portal_nt_clientes_os")
     .select("num_os, cod_os")
     .eq("empresa", acc.name)
     .eq("faturada", true)
@@ -340,7 +340,7 @@ async function syncNFSe(acc: OmieAccount) {
           if (numNFSe) updates.num_nf = numNFSe;
           if (finalUrl) updates.link_nf = finalUrl;
 
-          await supabase.from("clientes_os").update(updates)
+          await supabase.from("portal_nt_clientes_os").update(updates)
             .eq("num_os", os.num_os).eq("empresa", acc.name);
           count++;
         }
@@ -363,7 +363,7 @@ async function syncNFePV(acc: OmieAccount) {
 
   // Buscar PVs faturados sem link_nf
   const { data: pvsFaturados } = await supabase
-    .from("clientes_pv")
+    .from("portal_nt_clientes_pv")
     .select("num_pedido, cod_pedido")
     .eq("empresa", acc.name)
     .eq("faturado", true)
@@ -413,7 +413,7 @@ async function syncNFePV(acc: OmieAccount) {
           if (numNFe) updates.numero_nf = numNFe;
           if (finalUrl) updates.link_nf = finalUrl;
 
-          await supabase.from("clientes_pv").update(updates)
+          await supabase.from("portal_nt_clientes_pv").update(updates)
             .eq("num_pedido", pv.num_pedido).eq("empresa", acc.name);
           count++;
         }
@@ -521,7 +521,7 @@ async function syncPV(acc: OmieAccount, ano: string) {
   for (let i = 0; i < dedupRows.length; i += 200) {
     const batch = dedupRows.slice(i, i + 200);
     const { error } = await supabase
-      .from("clientes_pv")
+      .from("portal_nt_clientes_pv")
       .upsert(batch, { onConflict: "num_pedido,empresa" });
     if (error) throw new Error(`Erro upsert PV ${acc.name}: ${error.message}`);
   }
@@ -533,7 +533,7 @@ async function syncPV(acc: OmieAccount, ano: string) {
 async function enriquecerNomes(acc: OmieAccount) {
   // OS sem nome
   const { data: osSemNome } = await supabase
-    .from("clientes_os")
+    .from("portal_nt_clientes_os")
     .select("num_os, cod_cli")
     .eq("empresa", acc.name)
     .is("cliente_nome", null)
@@ -543,7 +543,7 @@ async function enriquecerNomes(acc: OmieAccount) {
     const codClis = [...new Set(osSemNome.map(o => o.cod_cli).filter(Boolean))];
     if (codClis.length > 0) {
       const { data: clientes } = await supabase
-        .from("clientes_omie")
+        .from("portal_nt_clientes_cadastro_omie")
         .select("cod_cli, razao_social, nome_fantasia")
         .eq("empresa", acc.name)
         .in("cod_cli", codClis);
@@ -552,7 +552,7 @@ async function enriquecerNomes(acc: OmieAccount) {
       for (const os of osSemNome) {
         const nome = nomeMap.get(os.cod_cli);
         if (nome) {
-          await supabase.from("clientes_os").update({ cliente_nome: nome })
+          await supabase.from("portal_nt_clientes_os").update({ cliente_nome: nome })
             .eq("num_os", os.num_os).eq("empresa", acc.name);
         }
       }
@@ -561,7 +561,7 @@ async function enriquecerNomes(acc: OmieAccount) {
 
   // PV sem nome
   const { data: pvSemNome } = await supabase
-    .from("clientes_pv")
+    .from("portal_nt_clientes_pv")
     .select("num_pedido, cod_cli")
     .eq("empresa", acc.name)
     .is("cliente_nome", null)
@@ -571,7 +571,7 @@ async function enriquecerNomes(acc: OmieAccount) {
     const codClis = [...new Set(pvSemNome.map(p => p.cod_cli).filter(Boolean))];
     if (codClis.length > 0) {
       const { data: clientes } = await supabase
-        .from("clientes_omie")
+        .from("portal_nt_clientes_cadastro_omie")
         .select("cod_cli, razao_social, nome_fantasia")
         .eq("empresa", acc.name)
         .in("cod_cli", codClis);
@@ -580,7 +580,7 @@ async function enriquecerNomes(acc: OmieAccount) {
       for (const pv of pvSemNome) {
         const nome = nomeMap.get(pv.cod_cli);
         if (nome) {
-          await supabase.from("clientes_pv").update({ cliente_nome: nome })
+          await supabase.from("portal_nt_clientes_pv").update({ cliente_nome: nome })
             .eq("num_pedido", pv.num_pedido).eq("empresa", acc.name);
         }
       }
@@ -602,7 +602,7 @@ async function ensureBucket() {
 async function vincularProjetosAoUltimoCliente(acc: OmieAccount) {
   // Para cada projeto, achar a OS mais recente e pegar o cod_cli/cnpj
   const { data: projetos } = await supabase
-    .from("projetos_omie")
+    .from("portal_nt_projetos_PRINCIPAL")
     .select("codigo, nome")
     .eq("empresa", acc.name);
 
@@ -615,7 +615,7 @@ async function vincularProjetosAoUltimoCliente(acc: OmieAccount) {
   const osComProjeto: { projeto: string; cod_cli: number; data_previsao: string | null }[] = [];
   while (hasMore) {
     const { data } = await supabase
-      .from("clientes_os")
+      .from("portal_nt_clientes_os")
       .select("projeto, cod_cli, data_previsao")
       .eq("empresa", acc.name)
       .not("projeto", "is", null)
@@ -645,7 +645,7 @@ async function vincularProjetosAoUltimoCliente(acc: OmieAccount) {
   for (let i = 0; i < codClis.length; i += 200) {
     const batch = codClis.slice(i, i + 200);
     const { data: clis } = await supabase
-      .from("clientes_omie")
+      .from("portal_nt_clientes_cadastro_omie")
       .select("cod_cli, cnpj_cpf, nome_fantasia, razao_social")
       .eq("empresa", acc.name)
       .in("cod_cli", batch);
@@ -659,7 +659,7 @@ async function vincularProjetosAoUltimoCliente(acc: OmieAccount) {
     const ultimo = ultimoCliente.get(proj.nome);
     if (ultimo) {
       const cli = cliMap.get(ultimo.cod_cli);
-      await supabase.from("projetos_omie").update({
+      await supabase.from("portal_nt_projetos_PRINCIPAL").update({
         cod_cli_ultimo: ultimo.cod_cli,
         cnpj_cpf_ultimo: cli?.cnpj_cpf || "",
         cliente_nome_ultimo: cli?.nome || "",
@@ -680,7 +680,7 @@ export async function POST(req: NextRequest) {
     await ensureBucket();
     // Verificar se já tem dados antigos sincronizados
     const { data: oldest } = await supabase
-      .from("clientes_os")
+      .from("portal_nt_clientes_os")
       .select("data_inclusao")
       .not("data_inclusao", "is", null)
       .order("data_inclusao", { ascending: true })

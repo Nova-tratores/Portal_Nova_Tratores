@@ -17,7 +17,7 @@ const CrudModal = {
 
         if (id) {
             // Editar: buscar dados do cliente via endpoint local
-            _originalFetch(`/api/mapa/clientes?id=${id}`).then(r => r.json()).then(c => {
+            fetch(`/api/mapa/clientes?id=${id}`).then(r => r.json()).then(c => {
                 this.editData = c;
                 this._render();
             }).catch(() => Utils.toast('Erro ao carregar cliente', 'error'));
@@ -206,13 +206,13 @@ const CrudModal = {
                 let resp;
                 if (this.editId) {
                     supaData.id = this.editId;
-                    resp = await _originalFetch('/api/mapa/clientes', {
+                    resp = await fetch('/api/mapa/clientes', {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(supaData)
                     });
                 } else {
-                    resp = await _originalFetch('/api/mapa/clientes', {
+                    resp = await fetch('/api/mapa/clientes', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(supaData)
@@ -271,7 +271,7 @@ const CrudModal = {
         try {
             let resp;
             if (this.type === 'client') {
-                resp = await _originalFetch(`/api/mapa/clientes?id=${this.editId}`, { method: 'DELETE' });
+                resp = await fetch(`/api/mapa/clientes?id=${this.editId}`, { method: 'DELETE' });
             } else {
                 resp = await fetch(`/api/veiculos/${this.editId}`, { method: 'DELETE' });
             }

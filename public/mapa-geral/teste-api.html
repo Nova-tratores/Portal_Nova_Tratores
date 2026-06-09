@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head><title>Teste API</title></head>
+<body>
+<h2>Teste API Mapa Clientes</h2>
+<div id="resultado">Carregando...</div>
+<script>
+(async () => {
+    const el = document.getElementById('resultado');
+    try {
+        const t0 = Date.now();
+        const r = await fetch('/api/mapa/clientes');
+        const ms = Date.now() - t0;
+        el.innerHTML = `<b>Status:</b> ${r.status}<br><b>URL:</b> ${r.url}<br><b>Tempo:</b> ${ms}ms<br>`;
+        const data = await r.json();
+        el.innerHTML += `<b>Clientes:</b> ${data.length}<br>`;
+        el.innerHTML += `<b>Com coordenadas:</b> ${data.filter(c => c.lat && c.lng).length}<br>`;
+        if (data.length > 0) {
+            el.innerHTML += `<br><b>Primeiro:</b> ${JSON.stringify(data[0]).substring(0, 200)}`;
+        }
+    } catch (e) {
+        el.innerHTML = `<b style="color:red">ERRO:</b> ${e.message}<br><pre>${e.stack}</pre>`;
+    }
+})();
+</script>
+</body>
+</html>

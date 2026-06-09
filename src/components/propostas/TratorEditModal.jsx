@@ -1,6 +1,5 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
 
 export default function TratorEditModal({ onClose }) {
   const [listaTratores, setListaTratores] = useState([])
@@ -9,6 +8,7 @@ export default function TratorEditModal({ onClose }) {
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
+  const [imageFile, setImageFile] = useState(null)
 
   const [formData, setFormData] = useState({
     marca: '', modelo: '', motor: '', transmissao_diant: '',
@@ -21,35 +21,48 @@ export default function TratorEditModal({ onClose }) {
   useEffect(() => { fetchTratores() }, [])
 
   const fetchTratores = async () => {
-    const { data } = await supabase.from('cad_trator').select('*').order('marca')
-    if (data) setListaTratores(data)
+    try {
+      const res = await fetch('/api/propostas/trator-lista')
+      const data = await res.json()
+      if (Array.isArray(data)) setListaTratores(data)
+    } catch (e) { console.error('Erro ao buscar tratores:', e) }
   }
 
   const handleSelecionar = (t) => {
     setSelecionado(t); setFormData({ ...t }); setBusca(`${t.marca} ${t.modelo}`); setShowDropdown(false)
   }
 
-  const handleUpload = async (e) => {
-    try {
-      setUploading(true)
-      const file = e.target.files[0]
-      if (!file) return
-      const fileExt = file.name.split('.').pop()
-      const fileName = `${Math.random()}-${Date.now()}.${fileExt}`
-      const { error: uploadError } = await supabase.storage.from('equipamentos').upload(fileName, file)
-      if (uploadError) throw uploadError
-      const { data } = supabase.storage.from('equipamentos').getPublicUrl(fileName)
-      setFormData({ ...formData, imagem: data.publicUrl })
-    } catch (err) { alert("Erro upload: " + err.message) }
-    finally { setUploading(false) }
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    setImageFile(file)
+    setFormData({ ...formData, imagem: URL.createObjectURL(file) })
   }
 
   const handleUpdate = async (e) => {
     e.preventDefault()
     setLoading(true)
-    const { error } = await supabase.from('cad_trator').update(formData).eq('id', selecionado.id)
-    if (!error) { alert("TRATOR ATUALIZADO COM SUCESSO!"); window.location.reload() }
-    else { alert("Erro: " + error.message); setLoading(false) }
+    try {
+      const fd = new FormData()
+      fd.append('id', String(selecionado.id))
+      for (const [key, val] of Object.entries(formData)) {
+        if (key !== 'id' && key !== 'imagem' && val != null) fd.append(key, String(val))
+      }
+      if (imageFile) {
+        fd.append('file', imageFile)
+      } else if (formData.imagem && !formData.imagem.startsWith('blob:')) {
+        fd.append('imagem', formData.imagem)
+      }
+
+      const res = await fetch('/api/propostas/trator', { method: 'PATCH', body: fd })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Erro ao atualizar')
+      alert("TRATOR ATUALIZADO COM SUCESSO!")
+      window.location.reload()
+    } catch (err) {
+      alert("Erro: " + err.message)
+    }
+    setLoading(false)
   }
 
   const inputStyle = "w-full border-none outline-none text-sm font-bold bg-transparent"
@@ -99,8 +112,8 @@ export default function TratorEditModal({ onClose }) {
                   ) : (
                     <div className="w-[250px] h-[150px] bg-zinc-100 flex items-center justify-center rounded-xl border-2 border-dashed border-zinc-300">SEM FOTO</div>
                   )}
-                  <input type="file" id="editTratorImg" className="hidden" onChange={handleUpload} />
-                  <button type="button" onClick={() => document.getElementById('editTratorImg').click()} className="px-4 py-2 bg-zinc-900 text-white border-none rounded-md cursor-pointer text-[10px] font-extrabold">{uploading ? 'ENVIANDO...' : 'ALTERAR FOTO'}</button>
+                  <input type="file" id="editTratorImg" className="hidden" onChange={handleFileSelect} />
+                  <button type="button" onClick={() => document.getElementById('editTratorImg').click()} className="px-4 py-2 bg-zinc-900 text-white border-none rounded-md cursor-pointer text-[10px] font-extrabold">ALTERAR FOTO</button>
                 </div>
               </div>
 
@@ -153,7 +166,7 @@ export default function TratorEditModal({ onClose }) {
               <div className="text-xs font-black text-red-600 uppercase">V. OBSERVACOES</div>
               <textarea value={formData.obs} onChange={e => setFormData({ ...formData, obs: e.target.value })} className="px-4 py-3.5 border border-zinc-200 rounded-xl text-sm w-full min-h-[80px] bg-white resize-none font-bold outline-none focus:ring-2 focus:ring-red-500/40" />
 
-              <button type="submit" disabled={loading || uploading} className="w-full py-4 bg-zinc-900 text-white border-none rounded-xl font-black cursor-pointer mt-2.5 mb-5 hover:bg-zinc-800 transition-colors disabled:opacity-50">{loading ? 'SALVANDO...' : 'ATUALIZAR CADASTRO DO TRATOR'}</button>
+              <button type="submit" disabled={loading} className="w-full py-4 bg-zinc-900 text-white border-none rounded-xl font-black cursor-pointer mt-2.5 mb-5 hover:bg-zinc-800 transition-colors disabled:opacity-50">{loading ? 'SALVANDO...' : 'ATUALIZAR CADASTRO DO TRATOR'}</button>
             </form>
           )}
         </div>

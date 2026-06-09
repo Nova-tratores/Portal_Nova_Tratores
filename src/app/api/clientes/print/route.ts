@@ -196,7 +196,7 @@ async function renderOS(codOS: number, empresa: string): Promise<string> {
 
   // Vendedor
   let vendNome = "";
-  try { const { data } = await supabase.from("clientes_os").select("vendedor").eq("cod_os", codOS).eq("empresa", empresa).single(); vendNome = data?.vendedor || ""; } catch {}
+  try { const { data } = await supabase.from("portal_nt_clientes_os").select("vendedor").eq("cod_os", codOS).eq("empresa", empresa).single(); vendNome = data?.vendedor || ""; } catch {}
 
   // Descricao item (sol.aber.os)
   const descItem = servicos.find((s: any) => s.cCodigo === "sol.aber.os" || (s.nValUnit < 0.01 && (s.cDescServ || "").length > 30));
@@ -323,7 +323,7 @@ async function renderPV(codPedido: number, empresa: string): Promise<string> {
   let vendNome = "";
   try {
     // Buscar nas OS que referenciam esse PV
-    const { data } = await supabase.from("clientes_os").select("vendedor").eq("num_pedido_cli", cab.numero_pedido).eq("empresa", empresa).limit(1).single();
+    const { data } = await supabase.from("portal_nt_clientes_os").select("vendedor").eq("num_pedido_cli", cab.numero_pedido).eq("empresa", empresa).limit(1).single();
     vendNome = data?.vendedor || "";
   } catch {}
 

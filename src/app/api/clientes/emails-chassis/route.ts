@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const { data: emails } = await supabase
-      .from("projeto_emails")
+      .from("portal_nt_projetos_emails")
       .select("*")
       .eq("chassis", chassis)
       .neq("uid", 0)

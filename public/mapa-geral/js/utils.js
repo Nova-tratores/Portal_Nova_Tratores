@@ -2,12 +2,7 @@
 // UTILS - Funcoes auxiliares
 // =========================================================
 
-const API_BASE = 'https://mapa-geral-production.up.railway.app';
-const _originalFetch = window.fetch;
-window.fetch = function(url, opts) {
-    if (typeof url === 'string' && url.startsWith('/api')) url = API_BASE + url;
-    return _originalFetch.call(this, url, opts);
-};
+// Todas as chamadas /api/* vão direto pro Next.js local (sem redirect externo)
 
 const Utils = {
     brl(value) {

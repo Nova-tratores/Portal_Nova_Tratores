@@ -31,7 +31,7 @@ const Panels = {
         }
 
         // 3) Tenta buscar dados completos da API (em background, sem bloquear)
-        _originalFetch('/api/mapa/clientes?id=' + clienteId)
+        fetch('/api/mapa/clientes?id=' + clienteId)
             .then(r => r.ok ? r.json() : null)
             .then(c => {
                 if (c && !c.error && this.currentClientId === clienteId) {
@@ -131,7 +131,7 @@ const Panels = {
         }
 
         try {
-            const resp = await _originalFetch('/api/mapa/clientes', {
+            const resp = await fetch('/api/mapa/clientes', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id: this.currentClientId, lat, lng })

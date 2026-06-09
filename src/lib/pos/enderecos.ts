@@ -14,7 +14,7 @@ export async function buscarEnderecos(cnpj: string, enderecoOS: string, cidadeOS
     const cnpjLimpo = String(cnpj).replace(/\D/g, "");
 
     const { data: clienteOmie } = await supabase
-      .from("Clientes")
+      .from("portal_nt_clientes_PRINCIPAL")
       .select("endereco, cidade, bairro, cep, estado, numero, cnpj_cpf")
       .or(`cnpj_cpf.eq.${cnpjLimpo},cnpj_cpf.eq.${cnpj}`)
       .limit(1);

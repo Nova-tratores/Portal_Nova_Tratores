@@ -553,7 +553,7 @@ const KmzManager = {
             if (q.length < 2) { list.innerHTML = '<div style="font-size:11px;color:var(--text-muted);padding:6px">Digite ao menos 2 caracteres</div>'; return; }
             list.innerHTML = '<div style="font-size:11px;color:var(--text-muted);padding:6px">Buscando...</div>';
             try {
-                const r = await _originalFetch('/api/mapa/clientes?busca=' + encodeURIComponent(q));
+                const r = await fetch('/api/mapa/clientes?busca=' + encodeURIComponent(q));
                 const data = await r.json();
                 if (data.length === 0) {
                     list.innerHTML = '<div style="font-size:11px;color:var(--text-muted);padding:6px">Nenhum cliente Omie encontrado</div>';
@@ -713,7 +713,7 @@ const KmzManager = {
 
                 if (newClientes.length > 0) {
                     for (const nc of newClientes) {
-                        const resp = await _originalFetch('/api/mapa/clientes', {
+                        const resp = await fetch('/api/mapa/clientes', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(nc)
@@ -723,7 +723,7 @@ const KmzManager = {
                 }
 
                 for (const upd of linkUpdates) {
-                    const resp = await _originalFetch('/api/mapa/clientes', {
+                    const resp = await fetch('/api/mapa/clientes', {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ id: upd.id, ...upd.patch })

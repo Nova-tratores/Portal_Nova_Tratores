@@ -73,7 +73,7 @@ async function processarOS(codOS: number, acc: Acc) {
   let projetoNome = "";
   if (adicional?.nCodProj) {
     try {
-      const { data: proj } = await supabase.from("projetos_omie").select("nome").eq("codigo", adicional.nCodProj).eq("empresa", acc.name).single();
+      const { data: proj } = await supabase.from("portal_nt_projetos_PRINCIPAL").select("nome").eq("codigo", adicional.nCodProj).eq("empresa", acc.name).single();
       projetoNome = proj?.nome || "";
     } catch {}
   }
@@ -115,7 +115,7 @@ async function processarOS(codOS: number, acc: Acc) {
     updated_at: new Date().toISOString(),
   };
 
-  await supabase.from("clientes_os").upsert(row, { onConflict: "num_os,empresa" });
+  await supabase.from("portal_nt_clientes_os").upsert(row, { onConflict: "num_os,empresa" });
 
   // Se faturada, buscar NFS-e
   if (info.cFaturada === "S") {
@@ -132,7 +132,7 @@ async function processarOS(codOS: number, acc: Acc) {
           const updates: Record<string, string> = {};
           if (numNFSe) updates.num_nf = numNFSe;
           if (finalUrl) updates.link_nf = finalUrl;
-          await supabase.from("clientes_os").update(updates).eq("num_os", cab.cNumOS).eq("empresa", acc.name);
+          await supabase.from("portal_nt_clientes_os").update(updates).eq("num_os", cab.cNumOS).eq("empresa", acc.name);
         }
       }
     } catch {}
@@ -140,9 +140,9 @@ async function processarOS(codOS: number, acc: Acc) {
 
   // Enriquecer nome do cliente
   try {
-    const { data: cli } = await supabase.from("clientes_omie").select("nome_fantasia, razao_social").eq("cod_cli", cab.nCodCli).eq("empresa", acc.name).single();
+    const { data: cli } = await supabase.from("portal_nt_clientes_cadastro_omie").select("nome_fantasia, razao_social").eq("cod_cli", cab.nCodCli).eq("empresa", acc.name).single();
     if (cli) {
-      await supabase.from("clientes_os").update({ cliente_nome: cli.nome_fantasia || cli.razao_social }).eq("num_os", cab.cNumOS).eq("empresa", acc.name);
+      await supabase.from("portal_nt_clientes_os").update({ cliente_nome: cli.nome_fantasia || cli.razao_social }).eq("num_os", cab.cNumOS).eq("empresa", acc.name);
     }
   } catch {}
 
@@ -186,7 +186,7 @@ async function processarPV(codPedido: number, acc: Acc) {
     updated_at: new Date().toISOString(),
   };
 
-  await supabase.from("clientes_pv").upsert(row, { onConflict: "num_pedido,empresa" });
+  await supabase.from("portal_nt_clientes_pv").upsert(row, { onConflict: "num_pedido,empresa" });
 
   // Se faturado, buscar NF-e
   if (info.faturado === "S") {
@@ -203,7 +203,7 @@ async function processarPV(codPedido: number, acc: Acc) {
           const updates: Record<string, string> = {};
           if (numNFe) updates.numero_nf = numNFe;
           if (finalUrl) updates.link_nf = finalUrl;
-          await supabase.from("clientes_pv").update(updates).eq("num_pedido", cab.numero_pedido).eq("empresa", acc.name);
+          await supabase.from("portal_nt_clientes_pv").update(updates).eq("num_pedido", cab.numero_pedido).eq("empresa", acc.name);
         }
       }
     } catch {}
@@ -211,9 +211,9 @@ async function processarPV(codPedido: number, acc: Acc) {
 
   // Enriquecer nome do cliente
   try {
-    const { data: cli } = await supabase.from("clientes_omie").select("nome_fantasia, razao_social").eq("cod_cli", cab.codigo_cliente).eq("empresa", acc.name).single();
+    const { data: cli } = await supabase.from("portal_nt_clientes_cadastro_omie").select("nome_fantasia, razao_social").eq("cod_cli", cab.codigo_cliente).eq("empresa", acc.name).single();
     if (cli) {
-      await supabase.from("clientes_pv").update({ cliente_nome: cli.nome_fantasia || cli.razao_social }).eq("num_pedido", cab.numero_pedido).eq("empresa", acc.name);
+      await supabase.from("portal_nt_clientes_pv").update({ cliente_nome: cli.nome_fantasia || cli.razao_social }).eq("num_pedido", cab.numero_pedido).eq("empresa", acc.name);
     }
   } catch {}
 
@@ -286,7 +286,7 @@ export async function POST(req: NextRequest) {
       if (codCli) {
         try {
           const cli: any = await omieCall("/geral/clientes/", "ConsultarCliente", { codigo_cliente_omie: codCli }, acc);
-          await supabase.from("clientes_omie").upsert({
+          await supabase.from("portal_nt_clientes_cadastro_omie").upsert({
             cod_cli: cli.codigo_cliente_omie,
             empresa: acc.name,
             razao_social: cli.razao_social || "",

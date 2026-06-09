@@ -72,7 +72,7 @@ async function baixarAnexos(chassis, uid, pasta) {
 
 async function main() {
   // Emails que tem conteudo mas nao tem anexo baixado
-  const { data: emails } = await supabase.from('projeto_emails')
+  const { data: emails } = await supabase.from('portal_nt_projetos_emails')
     .select('id, chassis, uid, pasta, assunto')
     .neq('uid', 0)
     .eq('tem_anexo', false);
@@ -84,7 +84,7 @@ async function main() {
     const salvos = await baixarAnexos(email.chassis, email.uid, email.pasta);
 
     if (salvos.length > 0) {
-      await supabase.from('projeto_emails').update({
+      await supabase.from('portal_nt_projetos_emails').update({
         tem_anexo: true,
         anexos: JSON.stringify(salvos),
         updated_at: new Date().toISOString(),

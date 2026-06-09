@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
       }));
 
       const { error } = await supabase
-        .from("Clientes")
+        .from("portal_nt_clientes_PRINCIPAL")
         .upsert(clientesFormatados, { onConflict: "id_omie" });
 
       if (error) throw error;
@@ -115,7 +115,7 @@ export async function POST(req: NextRequest) {
     let geocodificados = 0;
     if (geocodificar) {
       const { data: semCoord } = await supabase
-        .from("Clientes")
+        .from("portal_nt_clientes_PRINCIPAL")
         .select("id, endereco, cidade, estado, bairro")
         .is("lat", null)
         .not("cidade", "is", null)
@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
 
           if (coords) {
             await supabase
-              .from("Clientes")
+              .from("portal_nt_clientes_PRINCIPAL")
               .update({ lat: coords.lat, lng: coords.lng })
               .eq("id", c.id);
             geocodificados++;

@@ -31,7 +31,7 @@ async function fetchAll(select: string) {
   let from = 0;
 
   while (true) {
-    const { data, error } = await supabase.from("Clientes").select(select).range(from, from + PAGE - 1);
+    const { data, error } = await supabase.from("portal_nt_clientes_PRINCIPAL").select(select).range(from, from + PAGE - 1);
     if (error) {
       console.error("[mapa/clientes] fetchAll error:", error.message);
       break;
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
 
   if (id) {
     const { data, error } = await supabase
-      .from("Clientes")
+      .from("portal_nt_clientes_PRINCIPAL")
       .select("*")
       .eq("id", id)
       .single();
@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
 
   if (busca) {
     const { data, error } = await supabase
-      .from("Clientes")
+      .from("portal_nt_clientes_PRINCIPAL")
       .select(SELECT_MAPA)
       .or(`nome_fantasia.ilike.%${busca}%,razao_social.ilike.%${busca}%,cnpj_cpf.ilike.%${busca}%,cidade.ilike.%${busca}%`)
       .limit(20);
@@ -140,7 +140,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
 
   const { data, error } = await supabase
-    .from("Clientes")
+    .from("portal_nt_clientes_PRINCIPAL")
     .insert(body)
     .select("id")
     .single();
@@ -161,7 +161,7 @@ export async function PUT(req: NextRequest) {
   }
 
   const { error } = await supabase
-    .from("Clientes")
+    .from("portal_nt_clientes_PRINCIPAL")
     .update(updates)
     .eq("id", id);
 
@@ -180,7 +180,7 @@ export async function DELETE(req: NextRequest) {
   }
 
   const { error } = await supabase
-    .from("Clientes")
+    .from("portal_nt_clientes_PRINCIPAL")
     .delete()
     .eq("id", id);
 

@@ -30,7 +30,7 @@ const VeiculosTecnicos = {
 
     // Chama API local (portal Next.js) - nao usa fetch overridden que vai pro Railway
     async _fetchLocal(path) {
-        const res = await _originalFetch(path);
+        const res = await fetch(path);
         if (!res.ok) {
             const txt = await res.text().catch(() => '');
             // Se retornou HTML (endpoint nao existe), erro claro
@@ -247,7 +247,7 @@ const VeiculosTecnicos = {
     },
 
     async _apiPost(body) {
-        const res = await _originalFetch('/api/pos/rastreamento', {
+        const res = await fetch('/api/pos/rastreamento', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body)

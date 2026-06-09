@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
       const empKey = acc.name.replace(/ /g, "_");
 
       // OS faturadas sem link_nf
-      const { data: osSemNF } = await supabase.from("clientes_os")
+      const { data: osSemNF } = await supabase.from("portal_nt_clientes_os")
         .select("num_os, cod_os")
         .eq("empresa", acc.name).eq("faturada", true).eq("cancelada", false)
         .or("link_nf.is.null,link_nf.eq.")
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
               const updates: Record<string, string> = {};
               if (numNFSe) updates.num_nf = numNFSe;
               if (finalUrl) updates.link_nf = finalUrl;
-              await supabase.from("clientes_os").update(updates).eq("num_os", os.num_os).eq("empresa", acc.name);
+              await supabase.from("portal_nt_clientes_os").update(updates).eq("num_os", os.num_os).eq("empresa", acc.name);
               osComNF++;
             }
           }
@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
       }
 
       // PV faturados sem link_nf
-      const { data: pvSemNF } = await supabase.from("clientes_pv")
+      const { data: pvSemNF } = await supabase.from("portal_nt_clientes_pv")
         .select("num_pedido, cod_pedido")
         .eq("empresa", acc.name).eq("faturado", true).eq("cancelado", false)
         .or("link_nf.is.null,link_nf.eq.")
@@ -112,7 +112,7 @@ export async function POST(req: NextRequest) {
               const updates: Record<string, string> = {};
               if (numNFe) updates.numero_nf = numNFe;
               if (finalUrl) updates.link_nf = finalUrl;
-              await supabase.from("clientes_pv").update(updates).eq("num_pedido", pv.num_pedido).eq("empresa", acc.name);
+              await supabase.from("portal_nt_clientes_pv").update(updates).eq("num_pedido", pv.num_pedido).eq("empresa", acc.name);
               pvComNF++;
             }
           }

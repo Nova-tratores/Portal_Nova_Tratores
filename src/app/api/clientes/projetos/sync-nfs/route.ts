@@ -170,7 +170,7 @@ async function upsertLote(rows: NonNullable<ReturnType<typeof parsarNota>>[]) {
   for (let i = 0; i < rows.length; i += 200) {
     const lote = rows.slice(i, i + 200);
     const { error } = await supabase
-      .from("notas_fiscais_omie")
+      .from("portal_nt_notas_fiscais_PRINCIPAL")
       .upsert(lote, { onConflict: "numero_nf,serie,empresa" });
     if (error) erros.push(error.message);
   }

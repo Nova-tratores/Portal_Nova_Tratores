@@ -18,7 +18,7 @@ export default function FactoryFormModal({ onClose }) {
 
   useEffect(() => {
     async function fetchData() {
-      const { data: clis } = await supabase.from('Clientes').select('*')
+      const { data: clis } = await supabase.from('portal_nt_clientes_PRINCIPAL').select('*')
       const { data: equis } = await supabase.from('Equipamentos').select('*')
       if (clis) setListaClientes(clis)
       if (equis) setListaEquipamentos(equis)

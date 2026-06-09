@@ -539,7 +539,7 @@ const Markers = {
         }
 
         try {
-            const resp = await _originalFetch('/api/mapa/clientes', {
+            const resp = await fetch('/api/mapa/clientes', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id: data.id, lat: pos.lat, lng: pos.lng })

@@ -109,56 +109,27 @@ const App = {
             const t0 = Date.now();
 
             // Fase 1: Carrega veiculos e clientes em paralelo
-            // Tenta Supabase + Rota Exata local, com fallback pro Railway
             let clientes = [];
             let veiculos = [];
 
-            // Clientes: Supabase como fonte principal, Railway so complementa coordenadas
+            // Clientes: busca direto da API local (Next.js / Supabase)
             try {
-                const [supaClientes, railClientes] = await Promise.all([
-                    _originalFetch('/api/mapa/clientes').then(r => r.json()).catch(() => []),
-                    Utils.fetchJson('/api/clientes-mapa/leve').catch(() => [])
-                ]);
-
-                // Mapa de coordenadas do Railway (indexado por nome lowercase)
-                // Ignora coords dentro de Piraju (geocoding errado pra cidade da loja)
-                const LOJA_LAT = -23.208410, LOJA_LNG = -49.370770;
-                const railCoords = new Map();
-                for (const c of railClientes) {
-                    if (c.nome && c.lat && c.lng) {
-                        const distLoja = Utils.calcularDistancia(c.lat, c.lng, LOJA_LAT, LOJA_LNG);
-                        if (distLoja > 15) { // ignora tudo dentro de ~15km de Piraju
-                            railCoords.set(c.nome.toLowerCase().trim(), { lat: c.lat, lng: c.lng });
-                        }
-                    }
-                }
-
-                // Supabase eh a fonte unica - so complementa coords do Railway se nao tiver
-                clientes = supaClientes.map(c => {
-                    if (!c.lat && !c.lng) {
-                        const key = (c.nome || '').toLowerCase().trim();
-                        const coords = railCoords.get(key);
-                        if (coords) {
-                            return { ...c, lat: coords.lat, lng: coords.lng };
-                        }
-                    }
-                    return c;
-                });
-
+                clientes = await Utils.fetchJson('/api/mapa/clientes');
                 const comCoords = clientes.filter(c => c.lat && c.lng).length;
-                console.log(`[Mapa] ${clientes.length} clientes (Supabase), ${comCoords} com coordenadas (${railCoords.size} do Railway)`);
+                console.log(`[Mapa] ${clientes.length} clientes carregados, ${comCoords} com coordenadas`);
+                Utils.toast(`${clientes.length} clientes carregados (${comCoords} no mapa)`, 'info');
             } catch (e) {
                 console.warn('[Mapa] Erro ao carregar clientes:', e);
+                Utils.toast('Erro ao carregar clientes: ' + e.message, 'error');
             }
 
-            // Veiculos: tenta Rota Exata local, fallback Railway
+            // Veiculos: Rota Exata via API local
             try {
-                veiculos = await _originalFetch('/api/pos/rastreamento?acao=veiculos_mapa').then(r => r.json());
+                veiculos = await Utils.fetchJson('/api/pos/rastreamento?acao=veiculos_mapa');
                 if (!veiculos || veiculos.length === 0) throw new Error('Vazio');
-                console.log(`[Mapa] ${veiculos.length} veiculos do Rota Exata local`);
+                console.log(`[Mapa] ${veiculos.length} veiculos carregados`);
             } catch (e) {
-                console.log('[Mapa] Usando Railway para veiculos...', e.message || '');
-                try { veiculos = await Utils.fetchJson('/api/veiculos'); } catch(e2) { console.warn('[Mapa] Railway veiculos falhou:', e2); }
+                console.warn('[Mapa] Erro ao carregar veiculos:', e.message || '');
             }
 
             console.log(`[Mapa] Fase 1: ${clientes.length} clientes + ${veiculos.length} veiculos em ${Date.now() - t0}ms`);
@@ -295,7 +266,7 @@ const App = {
         try {
             let veiculos;
             try {
-                veiculos = await _originalFetch('/api/pos/rastreamento?acao=veiculos_mapa').then(r => r.json());
+                veiculos = await fetch('/api/pos/rastreamento?acao=veiculos_mapa').then(r => r.json());
                 if (!veiculos || veiculos.length === 0) throw new Error('vazio');
             } catch { veiculos = await Utils.fetchJson('/api/veiculos'); }
             await this._aplicarTecnicosVeiculos(veiculos);
@@ -564,7 +535,7 @@ const App = {
             if (type === 'veiculo') {
                 res = await fetch(`/api/veiculos/${id}`, { method: 'DELETE' });
             } else {
-                res = await _originalFetch(`/api/mapa/clientes?id=${id}`, { method: 'DELETE' });
+                res = await fetch(`/api/mapa/clientes?id=${id}`, { method: 'DELETE' });
             }
             if (!res.ok) throw new Error('Erro ao excluir');
 
@@ -761,7 +732,7 @@ const App = {
 
             if (type === 'clientes') {
                 // Sync Omie via endpoint local (Next.js) com geocoding
-                res = await _originalFetch('/api/mapa/sync-omie', {
+                res = await fetch('/api/mapa/sync-omie', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ geocodificar: true, maxGeocode: 100 })
@@ -771,7 +742,7 @@ const App = {
                 await this.loadAllData();
             } else if (type === 'geocode') {
                 // Geocodificar via endpoint local (sem sync do Omie)
-                res = await _originalFetch('/api/mapa/sync-omie', {
+                res = await fetch('/api/mapa/sync-omie', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ geocodificar: true, maxGeocode: 200 })

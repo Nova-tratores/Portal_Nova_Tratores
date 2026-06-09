@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
     let from = 0, hasMore = true;
     const osDoProj: any[] = [];
     while (hasMore) {
-      const { data } = await supabase.from("clientes_os")
+      const { data } = await supabase.from("portal_nt_clientes_os")
         .select("num_os, cod_os, cod_cli, empresa, data_previsao, data_inclusao, data_faturamento, valor_total, status, faturada, cancelada, num_nf, link_nf, num_pedido_cli, vendedor, cidade, descricao, servicos")
         .eq("empresa", empresa).eq("projeto", nome)
         .order("data_previsao", { ascending: false })
@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Chassis do banco
-    const { data: chassisDB } = await supabase.from("projeto_chassis")
+    const { data: chassisDB } = await supabase.from("portal_nt_projetos_chassis")
       .select("chassis, modelo, cod_cli_ultimo, cnpj_cpf_ultimo, cliente_nome_ultimo")
       .eq("projeto", nome).eq("empresa", empresa);
 
@@ -72,7 +72,7 @@ export async function GET(req: NextRequest) {
     const numPedidos = [...new Set(osDoProj.map(o => o.num_pedido_cli).filter((v: string) => v && /^\d+$/.test(v)))];
     let pvs: any[] = [];
     if (numPedidos.length > 0) {
-      const { data } = await supabase.from("clientes_pv").select("*").in("num_pedido", numPedidos);
+      const { data } = await supabase.from("portal_nt_clientes_pv").select("*").in("num_pedido", numPedidos);
       pvs = data || [];
     }
 
@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
     const clienteMap = new Map<number, any>();
     for (let i = 0; i < codClis.length; i += 200) {
       const batch = codClis.slice(i, i + 200);
-      const { data } = await supabase.from("clientes_omie")
+      const { data } = await supabase.from("portal_nt_clientes_cadastro_omie")
         .select("cod_cli, razao_social, nome_fantasia, cnpj_cpf, cidade, estado")
         .eq("empresa", empresa).in("cod_cli", batch);
       for (const c of data || []) clienteMap.set(c.cod_cli, c);
@@ -122,7 +122,7 @@ export async function GET(req: NextRequest) {
     const allChassis = chassisList.map(c => c.chassis);
     let emailsPorChassis: Record<string, any[]> = {};
     if (allChassis.length > 0) {
-      const { data: emails } = await supabase.from("projeto_emails")
+      const { data: emails } = await supabase.from("portal_nt_projetos_emails")
         .select("*").in("chassis", allChassis).neq("uid", 0).order("data", { ascending: false });
       for (const e of emails || []) {
         if (!emailsPorChassis[e.chassis]) emailsPorChassis[e.chassis] = [];

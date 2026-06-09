@@ -350,7 +350,7 @@ const Relatorio = {
         this._showSyncBar(true);
         try {
             const ano = this._mes.split('-')[0];
-            const res = await _originalFetch(`/api/pos/ordens/omie-sync?ano=${ano}`, { method: 'POST' });
+            const res = await fetch(`/api/pos/ordens/omie-sync?ano=${ano}`, { method: 'POST' });
             if (res.ok) await this._carregar();
         } catch (e) {
             console.error('Erro sync background:', e);
@@ -777,8 +777,8 @@ const Relatorio = {
         const ultimo = `${y}-${String(m).padStart(2, '0')}-${new Date(y, m, 0).getDate()}`;
 
         const [veicRes, odomRes, vincRes, kmRes, gpsRes] = await Promise.all([
-            _originalFetch('/api/pos/rastreamento?acao=veiculos').then(r => r.json()),
-            _originalFetch('/api/pos/rastreamento?acao=odometros').then(r => r.json()),
+            fetch('/api/pos/rastreamento?acao=veiculos').then(r => r.json()),
+            fetch('/api/pos/rastreamento?acao=odometros').then(r => r.json()),
             _supabase.from('tecnico_veiculos').select('placa, tecnico_nome, adesao_id').order('placa'),
             _supabase.from('km_mensal_veiculos').select('*').eq('mes', this._mes),
             _supabase.from('GPS_Viagens').select('placa, km_total, data').gte('data', primeiro).lte('data', ultimo)
@@ -875,7 +875,7 @@ const Relatorio = {
         let rotaOk = 0;
         for (const upd of odomUpdates) {
             try {
-                const res = await _originalFetch('/api/pos/rastreamento', {
+                const res = await fetch('/api/pos/rastreamento', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ acao: 'atualizar_odometro', adesao_id: upd.adesao_id, km: upd.km })

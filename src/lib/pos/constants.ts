@@ -1,10 +1,10 @@
 // Tabelas Supabase
 export const TBL_OS = "Ordem_Servico";
-export const TBL_CLIENTES = "Clientes";
+export const TBL_CLIENTES = "portal_nt_clientes_PRINCIPAL";
 export const TBL_CLIENTES_MANUAIS = "Clientes_Manuais";
 export const TBL_TECNICOS = "Tecnicos_Appsheet";
 export const TBL_ITENS = "movimentacoes";
-export const TBL_PROJETOS_DB = "projetos_omie";
+export const TBL_PROJETOS_DB = "portal_nt_projetos_PRINCIPAL";
 export const TBL_LOGS_PPO = "logs_ppo";
 export const TBL_LOGS_PPV = "logs_ppv";
 export const TBL_PEDIDOS = "pedidos";

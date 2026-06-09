@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
       let from = 0, hasMore = true;
       const osAll: any[] = [];
       while (hasMore) {
-        const { data } = await supabase.from("clientes_os")
+        const { data } = await supabase.from("portal_nt_clientes_os")
           .select("projeto, empresa, cod_cli, data_previsao, servicos")
           .not("projeto", "is", null).not("projeto", "eq", "")
           .range(from, from + PAGE - 1);
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
       const cliMap = new Map<number, { cnpj: string; nome: string }>();
       for (let i = 0; i < codClis.length; i += 200) {
         const batch = codClis.slice(i, i + 200);
-        const { data } = await supabase.from("clientes_omie")
+        const { data } = await supabase.from("portal_nt_clientes_cadastro_omie")
           .select("cod_cli, cnpj_cpf, nome_fantasia, razao_social")
           .in("cod_cli", batch);
         for (const c of data || []) cliMap.set(c.cod_cli, { cnpj: c.cnpj_cpf || "", nome: c.nome_fantasia || c.razao_social || "" });
@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
 
       for (let i = 0; i < rows.length; i += 200) {
         const batch = rows.slice(i, i + 200);
-        await supabase.from("projeto_chassis").upsert(batch, { onConflict: "chassis,empresa" });
+        await supabase.from("portal_nt_projetos_chassis").upsert(batch, { onConflict: "chassis,empresa" });
       }
 
       resultado.chassis = { total_os: osAll.length, chassis_encontrados: rows.length };
@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
     if (etapa === "tudo" || etapa === "emails") {
       // Pegar chassis que ainda nao tem emails no banco
       const { data: chassisSemEmail } = await supabase
-        .from("projeto_chassis")
+        .from("portal_nt_projetos_chassis")
         .select("chassis")
         .limit(500);
 
@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
 
       // Ver quais ja tem emails
       const { data: jaTemEmail } = await supabase
-        .from("projeto_emails")
+        .from("portal_nt_projetos_emails")
         .select("chassis");
       const jaProcessados = new Set((jaTemEmail || []).map(e => e.chassis));
 
@@ -197,12 +197,12 @@ export async function POST(req: NextRequest) {
           // Salvar emails no banco
           if (emailsDosChassis.length > 0) {
             for (const email of emailsDosChassis) {
-              await supabase.from("projeto_emails").upsert(email, { onConflict: "chassis,uid,pasta" });
+              await supabase.from("portal_nt_projetos_emails").upsert(email, { onConflict: "chassis,uid,pasta" });
             }
             totalEmails += emailsDosChassis.length;
           } else {
             // Marcar como processado (inserir registro vazio para nao buscar de novo)
-            await supabase.from("projeto_emails").upsert({
+            await supabase.from("portal_nt_projetos_emails").upsert({
               chassis, uid: 0, pasta: "NONE", assunto: "", de: "", para: [],
               data: null, tem_anexo: false, anexos: "[]", updated_at: new Date().toISOString(),
             }, { onConflict: "chassis,uid,pasta" });

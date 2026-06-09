@@ -155,7 +155,7 @@ export async function salvarConfigRegra(
 export async function buscarClientePorOmieId(idOmie: string): Promise<ClienteOmie | null> {
   if (!idOmie) return null;
   const { data, error } = await supabase
-    .from("Clientes")
+    .from("portal_nt_clientes_PRINCIPAL")
     .select("id_omie, razao_social, nome_fantasia, cnpj_cpf, telefone, email")
     .eq("id_omie", idOmie)
     .maybeSingle();
@@ -167,7 +167,7 @@ export async function buscarClientesOmie(q: string): Promise<ClienteOmie[]> {
   if (!q || q.trim().length < 2) return [];
   const termo = q.trim();
   const { data, error } = await supabase
-    .from("Clientes")
+    .from("portal_nt_clientes_PRINCIPAL")
     .select("id_omie, razao_social, nome_fantasia, cnpj_cpf, telefone, email")
     .or(
       `razao_social.ilike.%${termo}%,nome_fantasia.ilike.%${termo}%,cnpj_cpf.ilike.%${termo}%`
@@ -188,7 +188,7 @@ export async function buscarProjetosOmie(q: string): Promise<ProjetoOmie[]> {
 
   const [omieRes, tratoresRes] = await Promise.all([
     supabase
-      .from("projetos_omie")
+      .from("portal_nt_projetos_PRINCIPAL")
       .select("codigo, nome, cliente_nome_ultimo, cod_cli_ultimo")
       .ilike("nome", `%${termo}%`)
       .limit(10),

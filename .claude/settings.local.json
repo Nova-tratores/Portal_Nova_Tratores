@@ -888,7 +888,19 @@
       "PowerShell($r = Invoke-RestMethod -Uri \"http://localhost:3000/api/mecanicos?nome=Nicolas%20Dario\" -Method Get; \"tecnico_nome: $\\($r.tecnico_nome\\)\")",
       "PowerShell($r = Invoke-RestMethod -Uri \"http://localhost:3000/api/mecanicos?nome=Nicolas%20Dario&mes=2026-05\" -Method Get; \"GPS: kmMes=$\\($r.gps.kmMes\\) dias=$\\($r.gps.dias\\) dirigindoMin=$\\($r.gps.dirigindoMin\\) paradoForaMin=$\\($r.gps.paradoForaMin\\)\")",
       "PowerShell($r = Invoke-RestMethod -Uri \"http://localhost:3000/api/mecanicos?nome=Nicolas%20Dario\" -Method Get; \"GPS jun: kmMes=$\\($r.gps.kmMes\\) dias=$\\($r.gps.dias\\) dirigindoMin=$\\($r.gps.dirigindoMin\\) paradoForaMin=$\\($r.gps.paradoForaMin\\)\")",
-      "Bash(Select-Object -Last 30)"
+      "Bash(Select-Object -Last 30)",
+      "Bash(xargs grep -l \"SELECT.*FROM.*Clientes\\\\|SELECT_MAPA\\\\|SELECT_FULL\")",
+      "Bash(curl -s \"http://localhost:3000/api/mapa/clientes?busca=nova\")",
+      "Bash(curl -s \"http://localhost:3000/api/mapa/clientes\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f'Total: {len\\(d\\)}'\\); print\\(f'Com coords: {len\\([c for c in d if c.get\\(\\\\\"lat\\\\\"\\)]\\)}'\\)\")",
+      "PowerShell($r = Invoke-WebRequest -Uri \"http://localhost:3000/api/mapa/clientes\" -UseBasicParsing; $d = $r.Content | ConvertFrom-Json; \"Total: $\\($d.Count\\)\"; \"Com coords: $\\(\\($d | Where-Object { $_.lat -ne $null }\\).Count\\)\")",
+      "PowerShell($r = Invoke-WebRequest -Uri \"http://localhost:3000/api/mapa/clientes\" -UseBasicParsing; \"Status: $\\($r.StatusCode\\)\"; \"Content-Type: $\\($r.Headers.'Content-Type'\\)\"; \"Length: $\\($r.Content.Length\\)\"; \"First 200 chars: $\\($r.Content.Substring\\(0, [Math]::Min\\(200, $r.Content.Length\\)\\)\\)\")",
+      "PowerShell(try { $r = Invoke-WebRequest -Uri \"http://localhost:3000/api/mapa/clientes\" -UseBasicParsing -TimeoutSec 10; \"Status: $\\($r.StatusCode\\) | Size: $\\($r.Content.Length\\) bytes\" } catch { \"ERROR: $\\($_.Exception.Message\\)\" })",
+      "PowerShell(curl -s \"http://localhost:3000/api/mapa/clientes\" 2>&1 | Select-Object -First 1 | ForEach-Object { $_.Substring\\(0, [Math]::Min\\(500, $_.Length\\)\\) })",
+      "PowerShell(try { $r = Invoke-WebRequest -Uri \"http://localhost:3000/api/clientes-mapa/leve\" -UseBasicParsing -TimeoutSec 10; \"Status: $\\($r.StatusCode\\) | Size: $\\($r.Content.Length\\)\" } catch { \"ERROR: $\\($_.Exception.Message\\)\" })",
+      "PowerShell(try { $r = Invoke-WebRequest -Uri \"http://localhost:3000/api/pos/rastreamento?acao=veiculos_mapa\" -UseBasicParsing -TimeoutSec 10; \"Status: $\\($r.StatusCode\\) | Size: $\\($r.Content.Length\\)\" } catch { \"ERROR: $\\($_.Exception.Message\\)\" })",
+      "PowerShell($r = Invoke-WebRequest -Uri \"http://localhost:3000/mapa-geral/index.html\" -UseBasicParsing -TimeoutSec 10; \"Status: $\\($r.StatusCode\\) | Size: $\\($r.Content.Length\\)\")",
+      "PowerShell(try { $r = Invoke-WebRequest -Uri 'http://localhost:3000/api/mapa/clientes' -UseBasicParsing -TimeoutSec 5; \"Status: $\\($r.StatusCode\\), Bytes: $\\($r.Content.Length\\)\" } catch { \"ERRO: $\\($_.Exception.Message\\)\" })"
     ],
     "additionalDirectories": [
       "c:\\projetos\\visual-estoque\\src",

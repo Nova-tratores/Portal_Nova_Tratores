@@ -1,39 +1,44 @@
 'use client'
 import { useState } from 'react'
-import { supabase } from '@/lib/supabase'
 
 export default function TratorModal({ onClose }) {
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [imagePreview, setImagePreview] = useState(null)
+  const [imageFile, setImageFile] = useState(null)
   const [formData, setFormData] = useState({
     marca: '', modelo: '', motor: '', transmissao_diant: '',
     bomb_inje: '', bomb_hidra: '', embreagem: '', capacit_comb: '',
     cambio: '', reversor: '', trasmissao_tras: '', oleo_motor: '',
     oleo_trasmissao: '', diant_min_max: '', tras_min_max: '',
-    obs: '', imagem: '', ano: '', 'finame/ncm': ''
+    obs: '', ano: '', 'finame/ncm': ''
   })
 
-  const handleUpload = async (e) => {
-    try {
-      setUploading(true)
-      const file = e.target.files[0]
-      if (!file) return
-      const fileExt = file.name.split('.').pop()
-      const fileName = `${Math.random()}-${Date.now()}.${fileExt}`
-      const { error: uploadError } = await supabase.storage.from('equipamentos').upload(fileName, file)
-      if (uploadError) throw uploadError
-      const { data } = supabase.storage.from('equipamentos').getPublicUrl(fileName)
-      setFormData({ ...formData, imagem: data.publicUrl })
-    } catch (error) { alert('Erro no upload: ' + error.message) }
-    finally { setUploading(false) }
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    setImageFile(file)
+    setImagePreview(URL.createObjectURL(file))
   }
 
   const handleSave = async (e) => {
     e.preventDefault()
     setLoading(true)
-    const { error } = await supabase.from('cad_trator').insert([formData])
-    if (error) { alert("Erro ao cadastrar trator: " + error.message) }
-    else { alert("TRATOR CADASTRADO COM SUCESSO!"); window.location.reload() }
+    try {
+      const fd = new FormData()
+      for (const [key, val] of Object.entries(formData)) {
+        if (val) fd.append(key, val)
+      }
+      if (imageFile) fd.append('file', imageFile)
+
+      const res = await fetch('/api/propostas/trator', { method: 'POST', body: fd })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Erro ao cadastrar')
+      alert("TRATOR CADASTRADO COM SUCESSO!")
+      window.location.reload()
+    } catch (error) {
+      alert("Erro ao cadastrar trator: " + error.message)
+    }
     setLoading(false)
   }
 
@@ -53,12 +58,12 @@ export default function TratorModal({ onClose }) {
             <div className="text-xs font-black text-red-600 uppercase">I. IDENTIFICACAO E FOTO</div>
             <div className="text-center">
               <div className="inline-flex flex-col items-center gap-2.5 mb-2.5">
-                {formData.imagem ? (
-                  <img src={formData.imagem} className="w-[300px] h-[200px] object-cover border-2 border-zinc-300 rounded-xl" alt="Trator" />
+                {imagePreview ? (
+                  <img src={imagePreview} className="w-[300px] h-[200px] object-cover border-2 border-zinc-300 rounded-xl" alt="Trator" />
                 ) : (
                   <div className="w-[300px] h-[200px] flex items-center justify-center bg-zinc-100 border-2 border-dashed border-zinc-300 rounded-xl text-zinc-400 font-bold">SEM FOTO</div>
                 )}
-                <input type="file" id="fileTrator" onChange={handleUpload} className="hidden" accept="image/*" />
+                <input type="file" id="fileTrator" onChange={handleFileSelect} className="hidden" accept="image/*" />
                 <button type="button" onClick={() => document.getElementById('fileTrator').click()} className="px-5 py-2.5 bg-zinc-900 text-white border-none rounded-lg cursor-pointer font-extrabold text-[11px]">{uploading ? 'ENVIANDO...' : 'ANEXAR FOTO DO TRATOR'}</button>
               </div>
             </div>
@@ -117,7 +122,7 @@ export default function TratorModal({ onClose }) {
         </div>
 
         <div className="px-8 py-5 bg-white border-t border-zinc-200">
-          <button onClick={handleSave} disabled={loading || uploading} className="w-full py-4 bg-red-600 text-white border-none rounded-xl font-black cursor-pointer text-base hover:bg-red-700 transition-colors disabled:opacity-50">{loading ? 'CADASTRANDO...' : 'SALVAR TRATOR NO SISTEMA'}</button>
+          <button onClick={handleSave} disabled={loading} className="w-full py-4 bg-red-600 text-white border-none rounded-xl font-black cursor-pointer text-base hover:bg-red-700 transition-colors disabled:opacity-50">{loading ? 'CADASTRANDO...' : 'SALVAR TRATOR NO SISTEMA'}</button>
         </div>
       </div>
     </div>

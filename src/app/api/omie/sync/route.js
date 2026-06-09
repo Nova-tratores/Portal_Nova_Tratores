@@ -54,7 +54,7 @@ export async function POST() {
       }))
 
       const { error } = await supabase
-        .from('Clientes')
+        .from('portal_nt_clientes_PRINCIPAL')
         .upsert(clientesFormatados, { onConflict: 'id_omie' })
 
       if (error) throw error

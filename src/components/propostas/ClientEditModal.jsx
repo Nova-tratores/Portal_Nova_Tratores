@@ -9,7 +9,7 @@ export default function ClientEditModal({ onClose }) {
   const [selectedClient, setSelectedClient] = useState(null)
 
   const loadClientes = async () => {
-    let query = supabase.from('Clientes').select('*').order('nome', { ascending: true })
+    let query = supabase.from('portal_nt_clientes_PRINCIPAL').select('*').order('nome', { ascending: true })
     if (searchTerm.trim() !== '') query = query.ilike('nome', `%${searchTerm}%`)
     const { data, error } = await query.limit(50)
     if (!error) setClientes(data || [])
@@ -23,7 +23,7 @@ export default function ClientEditModal({ onClose }) {
   const handleUpdate = async (e) => {
     e.preventDefault()
     setLoading(true)
-    const { error } = await supabase.from('Clientes').update(selectedClient).eq('id', selectedClient.id)
+    const { error } = await supabase.from('portal_nt_clientes_PRINCIPAL').update(selectedClient).eq('id', selectedClient.id)
     if (!error) { alert("CLIENTE ATUALIZADO!"); onClose() }
     else { alert("Erro: " + error.message) }
     setLoading(false)

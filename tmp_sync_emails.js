@@ -9,7 +9,7 @@ const BUCKET = 'clientes-docs';
 
 async function main() {
   // Pegar todos os chassis do banco pra fazer match
-  const { data: chassisDB } = await supabase.from('projeto_chassis').select('chassis, projeto, empresa, modelo');
+  const { data: chassisDB } = await supabase.from('portal_nt_projetos_chassis').select('chassis, projeto, empresa, modelo');
   const chassisMap = new Map();
   for (const c of chassisDB || []) {
     chassisMap.set(c.chassis.toUpperCase(), c);
@@ -20,7 +20,7 @@ async function main() {
   console.log('Chassis no banco:', chassisDB?.length, '| Chaves de busca:', chassisMap.size);
 
   // Limpar emails antigos (uid=0)
-  await supabase.from('projeto_emails').delete().eq('uid', 0);
+  await supabase.from('portal_nt_projetos_emails').delete().eq('uid', 0);
 
   // Conectar ao Gmail
   const client = new ImapFlow({
@@ -139,7 +139,7 @@ async function main() {
     }
 
     // Salvar no banco
-    await supabase.from('projeto_emails').upsert({
+    await supabase.from('portal_nt_projetos_emails').upsert({
       chassis: email.chassis,
       uid: email.uid,
       pasta: pastaUsada,

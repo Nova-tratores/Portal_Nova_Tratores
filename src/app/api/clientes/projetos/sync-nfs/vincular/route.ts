@@ -28,7 +28,7 @@ export async function POST() {
 
   // 1. Buscar mapa CNPJ → cod_cli (Clientes)
   const clientes = await fetchAll<{ id_omie: string; cnpj_cpf: string }>(
-    "Clientes", "id_omie, cnpj_cpf"
+    "portal_nt_clientes_PRINCIPAL", "id_omie, cnpj_cpf"
   );
   const cnpjToCliente: Record<string, number> = {};
   for (const c of clientes) {
@@ -38,12 +38,12 @@ export async function POST() {
 
   // 2. Buscar mapa num_nf → projeto (via clientes_os)
   const osComNf = await fetchAll<{ num_nf: string; projeto: string; empresa: string }>(
-    "clientes_os", "num_nf, projeto, empresa",
+    "portal_nt_clientes_os", "num_nf, projeto, empresa",
     (q: any) => q.not("num_nf", "is", null).neq("num_nf", "").not("projeto", "is", null).neq("projeto", "")
   );
   // Buscar codigo do projeto pelo nome
   const projetos = await fetchAll<{ codigo: number; nome: string; empresa: string }>(
-    "projetos_omie", "codigo, nome, empresa"
+    "portal_nt_projetos_PRINCIPAL", "codigo, nome, empresa"
   );
   const projetoMap: Record<string, number> = {};
   for (const p of projetos) {
@@ -60,7 +60,7 @@ export async function POST() {
 
   // 3. Buscar NFs sem vínculo
   const nfsSemCliente = await fetchAll<{ id: number; numero_nf: string; serie: string; empresa: string; tipo_nf: string; cnpj_emitente: string; cnpj_destinatario: string }>(
-    "notas_fiscais_omie",
+    "portal_nt_notas_fiscais_PRINCIPAL",
     "id, numero_nf, serie, empresa, tipo_nf, cnpj_emitente, cnpj_destinatario",
     (q: any) => q.is("cliente_cod_omie", null)
   );
@@ -73,7 +73,7 @@ export async function POST() {
     const codCli = cnpjAlvo ? cnpjToCliente[cnpjAlvo] : undefined;
     if (codCli) {
       const { error } = await supabase
-        .from("notas_fiscais_omie")
+        .from("portal_nt_notas_fiscais_PRINCIPAL")
         .update({ cliente_cod_omie: codCli })
         .eq("id", nf.id);
       if (!error) clientesVinculados++;
@@ -82,7 +82,7 @@ export async function POST() {
 
   // 4. Buscar NFs sem projeto
   const nfsSemProjeto = await fetchAll<{ id: number; numero_nf: string; empresa: string }>(
-    "notas_fiscais_omie",
+    "portal_nt_notas_fiscais_PRINCIPAL",
     "id, numero_nf, empresa",
     (q: any) => q.is("projeto_codigo", null)
   );
@@ -91,7 +91,7 @@ export async function POST() {
     const projCod = nfToProjeto[`${nf.numero_nf}|${nf.empresa}`];
     if (projCod) {
       const { error } = await supabase
-        .from("notas_fiscais_omie")
+        .from("portal_nt_notas_fiscais_PRINCIPAL")
         .update({ projeto_codigo: projCod })
         .eq("id", nf.id);
       if (!error) projetosVinculados++;

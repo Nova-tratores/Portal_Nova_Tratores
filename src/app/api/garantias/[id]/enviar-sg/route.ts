@@ -238,7 +238,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // inscrição estadual. Match por CNPJ só com dígitos pra evitar erros de máscara.
     cnpjCliente
       ? supabase
-          .from('Clientes')
+          .from('portal_nt_clientes_PRINCIPAL')
           .select('cnpj_cpf, telefone, email, endereco, cep, bairro, inscricao_estadual')
           .or(`cnpj_cpf.eq.${cnpjCliente},cnpj_cpf.eq.${osRes.data?.Cnpj_Cliente}`)
           .limit(1)
