@@ -280,18 +280,13 @@ function renderizarDetalhes(op: Oportunidade): string {
       return `Última compra de peça há ${meses} meses. Oferecer reposição ou kit de manutenção.`;
     }
     case "R6_fora_garantia": {
-      const marca = d.marca as string | undefined;
-      const foraPor = d.fora_por as string | undefined;
+      const tipo = (d.tipo as string | undefined) || "Equipamento";
+      const venda = typeof d.data_venda === "string" ? new Date(d.data_venda).toLocaleDateString("pt-BR") : "";
       const fim = typeof d.fim_garantia === "string" ? new Date(d.fim_garantia).toLocaleDateString("pt-BR") : "";
-      const horas = d.horimetro_atual as number | null | undefined;
       const meses = d.garantia_meses as number | undefined;
-      const horasGar = d.garantia_horas as number | undefined;
-      const motivo = foraPor === "horas"
-        ? `atingiu ${horas}h (limite ${horasGar}h)`
-        : foraPor === "tempo+horas"
-          ? `passou do prazo (${fim}) e das ${horasGar}h`
-          : `passou do prazo de garantia (${fim})`;
-      return `${marca || "Equipamento"} fora de garantia — ${motivo}. Garantia: ${meses}m / ${horasGar}h. Oferecer revisão paga ou garantia estendida.`;
+      const anos = meses ? Math.round(meses / 12) : undefined;
+      const prazo = anos ? `${anos} ano${anos > 1 ? "s" : ""}` : `${meses} meses`;
+      return `${tipo} fora de garantia${venda ? ` — vendido em ${venda}` : ""}. Garantia de ${prazo} venceu${fim ? ` em ${fim}` : ""}. Oferecer revisão paga / garantia estendida.`;
     }
     case "R4_followup": {
       const dias = d.dias_desde_ultimo as number | undefined;
