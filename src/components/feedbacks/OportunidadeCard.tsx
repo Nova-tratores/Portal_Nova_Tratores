@@ -247,6 +247,13 @@ function renderizarDetalhes(op: Oportunidade): string {
         ? new Date(d.data_estimada).toLocaleDateString("pt-BR")
         : "";
       const atrasada = d.atrasada ? " (ATRASADA)" : "";
+      // 1ª revisão de garantia estimada por TEMPO (trator recém-entregue).
+      if (d.base_estimativa === "tempo_primeira") {
+        const entrega = typeof d.entrega_data === "string"
+          ? new Date(d.entrega_data).toLocaleDateString("pt-BR")
+          : "";
+        return `1ª revisão de garantia (${alvo}) — prevista para ${data}${atrasada}.${entrega ? ` Trator entregue em ${entrega}.` : ""}`;
+      }
       const horas = d.media_horas_dia ? `${d.media_horas_dia}h/dia` : "";
       return `Revisão ${alvo} estimada para ${data}${atrasada}. Uso médio: ${horas}.`;
     }
@@ -271,6 +278,15 @@ function renderizarDetalhes(op: Oportunidade): string {
     case "R5_pecas": {
       const meses = d.meses_sem_pedido as number | undefined;
       return `Última compra de peça há ${meses} meses. Oferecer reposição ou kit de manutenção.`;
+    }
+    case "R6_fora_garantia": {
+      const tipo = (d.tipo as string | undefined) || "Equipamento";
+      const venda = typeof d.data_venda === "string" ? new Date(d.data_venda).toLocaleDateString("pt-BR") : "";
+      const fim = typeof d.fim_garantia === "string" ? new Date(d.fim_garantia).toLocaleDateString("pt-BR") : "";
+      const meses = d.garantia_meses as number | undefined;
+      const anos = meses ? Math.round(meses / 12) : undefined;
+      const prazo = anos ? `${anos} ano${anos > 1 ? "s" : ""}` : `${meses} meses`;
+      return `${tipo} fora de garantia${venda ? ` — vendido em ${venda}` : ""}. Garantia de ${prazo} venceu${fim ? ` em ${fim}` : ""}. Oferecer revisão paga / garantia estendida.`;
     }
     case "R4_followup": {
       const dias = d.dias_desde_ultimo as number | undefined;

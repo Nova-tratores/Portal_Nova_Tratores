@@ -31,8 +31,9 @@ function extrairUltimaRevData(t: Trator): Date {
 }
 
 interface ParametrosR1 {
-  revisoes_alvo?: number[];   // default [50, 300, 600]
-  dias_anteced?: number;      // default 15
+  revisoes_alvo?: number[];        // default [50, 300, 600]
+  dias_anteced?: number;           // default 15
+  dias_primeira_revisao?: number;  // default 50 — 1ª revisão por tempo (trator novo)
 }
 
 interface OportunidadeR1 {
@@ -63,6 +64,7 @@ function norm(s: string | null | undefined): string {
 export async function computarR1(parametros: ParametrosR1 = {}): Promise<OportunidadeR1[]> {
   const revisoesAlvo = parametros.revisoes_alvo ?? [50, 300, 600];
   const diasAnteced = parametros.dias_anteced ?? 15;
+  const diasPrimeiraRev = parametros.dias_primeira_revisao ?? 50;
   const hoje = new Date();
   const limiteFuturo = new Date(hoje.getTime() + diasAnteced * 86400000);
 
@@ -84,8 +86,22 @@ export async function computarR1(parametros: ParametrosR1 = {}): Promise<Oportun
 
     if (!revisoesAlvo.includes(prev.proximaRevHoras)) continue;
 
-    const dentroDaJanela = prev.dataEstimada <= limiteFuturo;
-    if (!prev.atrasada && !dentroDaJanela) continue;
+    // 1ª revisão (garantia): trator novo sem nenhuma revisão feita. A estimativa
+    // por horímetro (0,5h/dia default) joga a previsão pra ~100 dias, tarde demais.
+    // Regra de negócio: ~50 dias após a entrega já é hora da 1ª revisão. Então,
+    // para o primeiro caso, usamos a data por TEMPO (entrega + dias_primeira_revisao)
+    // quando ela for mais cedo que a estimativa por horímetro.
+    const primeiraPendente = prev.ultimaRevHoras === 0 && prev.proximaRevHoras === 50;
+    let dataEfetiva = prev.dataEstimada;
+    let basePrimeiraTempo = false;
+    if (primeiraPendente && t.Entrega) {
+      const dataTempo = new Date(t.Entrega);
+      dataTempo.setDate(dataTempo.getDate() + diasPrimeiraRev);
+      if (dataTempo < dataEfetiva) { dataEfetiva = dataTempo; basePrimeiraTempo = true; }
+    }
+    const atrasadaEf = dataEfetiva < hoje && prev.proximaRevHoras !== 3000;
+    const dentroDaJanela = dataEfetiva <= limiteFuturo;
+    if (!atrasadaEf && !dentroDaJanela) continue;
 
     // Verificar se existe OS de revisão em Ordem_Servico depois da última
     // revisão registrada no trator. Se sim, considera que a revisão foi feita
@@ -115,16 +131,18 @@ export async function computarR1(parametros: ParametrosR1 = {}): Promise<Oportun
       cliente_nome: t.Cliente,
       trator: `${t.Modelo || ""} — ${t.Chassis || ""}`.trim(),
       chassis: t.Chassis || null,
-      prioridade: prev.atrasada ? "Urgente" : "Normal",
+      prioridade: atrasadaEf ? "Urgente" : "Normal",
       detalhes: {
         revisao_alvo: `${prev.proximaRevHoras}h`,
-        data_estimada: prev.dataEstimada.toISOString(),
+        data_estimada: dataEfetiva.toISOString(),
         ultima_revisao_horas: prev.ultimaRevHoras,
         media_horas_dia: prev.mediaHorasDia,
         modelo: t.Modelo,
         cidade: t.Cidade,
         vendedor: t.Vendedor,
-        atrasada: prev.atrasada,
+        atrasada: atrasadaEf,
+        base_estimativa: basePrimeiraTempo ? "tempo_primeira" : "horimetro",
+        entrega_data: t.Entrega || null,
         ultima_os_id: ultimaOS?.id_ordem ?? null,
         ultima_os_data: ultimaOS?.data.toISOString() ?? null,
         ultima_os_tipo: ultimaOS?.tipo_servico ?? null,

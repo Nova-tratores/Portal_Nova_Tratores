@@ -11,6 +11,7 @@ import { computarR2 } from "./r2-sem-os";
 import { computarR3 } from "./r3-upsell";
 import { computarR4 } from "./r4-followup";
 import { computarR5 } from "./r5-pecas";
+import { computarR6 } from "./r6-fora-garantia";
 import { origemDaOportunidade } from "../origem";
 import type { Oportunidade, PrioridadeOportunidade, RegraOportunidade } from "../types";
 
@@ -61,6 +62,7 @@ export async function recomputar(
     { regra: "R3_upsell",   fn: async () => (await computarR3((params.R3_upsell   as Params) || {})) as unknown as OportunidadeInput[] },
     { regra: "R4_followup", fn: async () => (await computarR4((params.R4_followup as Params) || {})) as unknown as OportunidadeInput[] },
     { regra: "R5_pecas",    fn: async () => (await computarR5((params.R5_pecas    as Params) || {})) as unknown as OportunidadeInput[] },
+    { regra: "R6_fora_garantia", fn: async () => (await computarR6()) as unknown as OportunidadeInput[] },
   ];
 
   for (const { regra, fn } of tarefas) {

@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import RegistroCard from "./RegistroCard";
 import ModalFeedback from "./ModalFeedback";
-import { atualizarRegistro, deletarRegistro, listarRegistros } from "@/lib/feedbacks/api";
+import { atualizarRegistro, buscarUltimasOSPorCliente, deletarRegistro, listarRegistros, type UltimaOS } from "@/lib/feedbacks/api";
 import type { FeedbackRegistro, StatusAtendimento, TipoFeedback } from "@/lib/feedbacks/types";
 
 interface Props {
@@ -14,8 +14,8 @@ interface Filtros {
   tecnico: string;
   dataDe: string;
   dataAte: string;
-  // Atendimento
-  statusAtendimento: "todos" | "aberto" | "em_andamento" | "concluido" | "sem_resposta" | "atrasados";
+  // Atendimento ("pendentes" = tudo menos concluído; é o padrão da tela)
+  statusAtendimento: "pendentes" | "todos" | "aberto" | "em_andamento" | "concluido" | "sem_resposta" | "atrasados";
   // CRM-only
   notaMin: number;
   statusCrm: string;
@@ -26,7 +26,7 @@ interface Filtros {
 
 const FILTROS_VAZIO: Filtros = {
   busca: "", tecnico: "", dataDe: "", dataAte: "",
-  statusAtendimento: "todos",
+  statusAtendimento: "pendentes",
   notaMin: 0, statusCrm: "",
   prioridade: "", semResposta: "todos",
 };
@@ -53,6 +53,9 @@ function aplicarFiltros(rows: FeedbackRegistro[], f: Filtros, tipo: TipoFeedback
       if (!r.aberto_em) return false;
       const horas = (Date.now() - new Date(r.aberto_em).getTime()) / (1000 * 60 * 60);
       if (horas < 24) return false;
+    } else if (f.statusAtendimento === "pendentes") {
+      // Padrão da tela: esconde atendimentos já concluídos.
+      if (r.status_atendimento === "concluido") return false;
     } else if (f.statusAtendimento !== "todos") {
       if (r.status_atendimento !== f.statusAtendimento) return false;
     }
@@ -77,6 +80,8 @@ export default function ListaRegistros({ tipo }: Props) {
 
   const [modalAberto, setModalAberto] = useState(false);
   const [registroEdit, setRegistroEdit] = useState<FeedbackRegistro | null>(null);
+  // Última OS (oficina) por nome de cliente — preenche o "último técnico" no card.
+  const [ultimasOS, setUltimasOS] = useState<Record<string, UltimaOS>>({});
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -84,6 +89,10 @@ export default function ListaRegistros({ tipo }: Props) {
     try {
       const data = await listarRegistros(tipo);
       setRows(data);
+      // Busca a última OS por cliente em paralelo (best-effort — não bloqueia a lista).
+      buscarUltimasOSPorCliente(data.map((r) => r.nome))
+        .then(setUltimasOS)
+        .catch(() => { /* silencioso: card só não mostra a última OS */ });
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
     } finally {
@@ -191,6 +200,7 @@ export default function ListaRegistros({ tipo }: Props) {
               onChange={(e) => setFiltros((f) => ({ ...f, statusAtendimento: e.target.value as Filtros["statusAtendimento"] }))}
               style={filtroInput}
             >
+              <option value="pendentes">⏳ Pendentes (não concluídos)</option>
               <option value="todos">Todos</option>
               <option value="aberto">🟢 Em atendimento</option>
               <option value="atrasados">⚠️ Atrasados (+24h)</option>
@@ -266,6 +276,7 @@ export default function ListaRegistros({ tipo }: Props) {
             <RegistroCard
               key={r.id}
               registro={r}
+              ultimaOS={ultimasOS[(r.nome || "").trim()] || null}
               onEditar={abrirEdit}
               onExcluir={handleExcluir}
               onMudarAtendimento={handleMudarAtendimento}

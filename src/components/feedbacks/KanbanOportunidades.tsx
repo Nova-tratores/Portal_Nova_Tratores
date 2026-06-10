@@ -6,15 +6,15 @@ import type { Oportunidade, RegraOportunidade } from "@/lib/feedbacks/types";
 // Quantos cards mostrar por coluna inicialmente, e o passo de "Ver mais".
 const PAGE_SIZE = 10;
 
-// Urgentes primeiro, depois Normal, depois Baixa. Dentro do mesmo grupo,
-// ordena por computado_em mais recente.
+// Escala de urgência primeiro (Urgente > Normal > Baixa) e, dentro do mesmo
+// grupo, ordem alfabética pelo nome do cliente.
 function ordenarCards(cards: Oportunidade[]): Oportunidade[] {
   const peso = { Urgente: 0, Normal: 1, Baixa: 2 } as const;
   return [...cards].sort((a, b) => {
     const pa = peso[a.prioridade] ?? 9;
     const pb = peso[b.prioridade] ?? 9;
     if (pa !== pb) return pa - pb;
-    return b.computado_em.localeCompare(a.computado_em);
+    return (a.cliente_nome || "").localeCompare(b.cliente_nome || "", "pt-BR", { sensitivity: "base" });
   });
 }
 
@@ -40,6 +40,13 @@ const COLUNAS: ColunaDef[] = [
     emoji: "🏗️",
     cor: "#f59e0b",
     explicacao: "Clientes nossos parados há 3+ meses — sem nenhuma OS na oficina e sem registro de contato em feedback. Hora de ligar.",
+  },
+  {
+    regra: "R6_fora_garantia",
+    titulo: "Fora de garantia",
+    emoji: "🛡️",
+    cor: "#0ea5e9",
+    explicacao: "Equipamentos que saíram da garantia (por tempo ou horas, conforme a marca). Bom momento pra oferecer revisão paga, garantia estendida ou contrato de manutenção.",
   },
   {
     regra: "R5_pecas",
@@ -73,7 +80,7 @@ interface Props {
 export default function KanbanOportunidades({ oportunidades, onAtender, onDispensar }: Props) {
   const porRegra = useMemo(() => {
     const m: Record<RegraOportunidade, Oportunidade[]> = {
-      R1_revisao: [], R2_sem_os: [], R3_upsell: [], R4_followup: [], R5_pecas: [],
+      R1_revisao: [], R2_sem_os: [], R3_upsell: [], R4_followup: [], R5_pecas: [], R6_fora_garantia: [],
     };
     for (const op of oportunidades) {
       if (m[op.regra]) m[op.regra].push(op);
@@ -92,6 +99,7 @@ export default function KanbanOportunidades({ oportunidades, onAtender, onDispen
     R3_upsell: PAGE_SIZE,
     R4_followup: PAGE_SIZE,
     R5_pecas: PAGE_SIZE,
+    R6_fora_garantia: PAGE_SIZE,
   });
 
   function verMais(regra: RegraOportunidade) {
