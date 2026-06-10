@@ -247,6 +247,13 @@ function renderizarDetalhes(op: Oportunidade): string {
         ? new Date(d.data_estimada).toLocaleDateString("pt-BR")
         : "";
       const atrasada = d.atrasada ? " (ATRASADA)" : "";
+      // 1ª revisão de garantia estimada por TEMPO (trator recém-entregue).
+      if (d.base_estimativa === "tempo_primeira") {
+        const entrega = typeof d.entrega_data === "string"
+          ? new Date(d.entrega_data).toLocaleDateString("pt-BR")
+          : "";
+        return `1ª revisão de garantia (${alvo}) — prevista para ${data}${atrasada}.${entrega ? ` Trator entregue em ${entrega}.` : ""}`;
+      }
       const horas = d.media_horas_dia ? `${d.media_horas_dia}h/dia` : "";
       return `Revisão ${alvo} estimada para ${data}${atrasada}. Uso médio: ${horas}.`;
     }

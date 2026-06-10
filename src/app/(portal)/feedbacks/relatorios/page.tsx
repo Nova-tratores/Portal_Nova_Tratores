@@ -22,6 +22,15 @@ interface StatsCliente {
   ultimoContato: string;
 }
 
+interface StatsAtendente {
+  atendente: string;
+  total: number;       // atendimentos que passou pela mão dele
+  concluidos: number;
+  semResposta: number;
+  emAberto: number;    // aberto/em_andamento
+  pctConclusao: number;
+}
+
 function dataRef(r: FeedbackRegistro): string {
   return r.data_contato || r.data_servico || r.ultimo_servico || r.criado_em;
 }
@@ -133,6 +142,29 @@ export default function RelatoriosPage() {
     return Array.from(map.values()).sort((a, b) => b.total - a.total).slice(0, 20);
   }, [filtradas]);
 
+  // Performance por ATENDENTE (quem trabalhou o contato/oportunidade).
+  // "Deu mais resultado" = mais atendimentos concluídos.
+  const statsAtendente = useMemo<StatsAtendente[]>(() => {
+    const map = new Map<string, StatsAtendente>();
+    for (const r of filtradas) {
+      if (!r.atendente_nome) continue;
+      let s = map.get(r.atendente_nome);
+      if (!s) {
+        s = { atendente: r.atendente_nome, total: 0, concluidos: 0, semResposta: 0, emAberto: 0, pctConclusao: 0 };
+        map.set(r.atendente_nome, s);
+      }
+      s.total++;
+      if (r.status_atendimento === "concluido") s.concluidos++;
+      else if (r.status_atendimento === "sem_resposta") s.semResposta++;
+      else s.emAberto++; // aberto / em_andamento
+    }
+    for (const s of map.values()) {
+      s.pctConclusao = s.total > 0 ? Math.round((s.concluidos / s.total) * 100) : 0;
+    }
+    return Array.from(map.values()).sort((a, b) => b.concluidos - a.concluidos || b.total - a.total);
+  }, [filtradas]);
+  const topAtendente = statsAtendente[0] || null;
+
   const doDia = useMemo(() => filtradas.filter((r) => dataRef(r).startsWith(diaEscolhido)), [filtradas, diaEscolhido]);
 
   return (
@@ -212,6 +244,42 @@ export default function RelatoriosPage() {
               const sat = comStatus.filter((r) => r.status_cliente === "Satisfeito").length;
               return `${Math.round((sat / comStatus.length) * 100)}%`;
             })()} />
+          </div>
+
+          {/* Ranking de Atendentes — quem trabalhou os contatos/oportunidades */}
+          <div style={secaoStyle}>
+            <h2 style={tituloSecaoStyle}>🎧 Performance por Atendente</h2>
+            {topAtendente && topAtendente.concluidos > 0 && (
+              <div style={destaqueAtendenteStyle}>
+                🏅 <strong>{topAtendente.atendente}</strong> foi quem mais deu resultado:{" "}
+                <strong>{topAtendente.concluidos}</strong> atendimento{topAtendente.concluidos !== 1 ? "s" : ""} concluído{topAtendente.concluidos !== 1 ? "s" : ""}
+                {" "}de {topAtendente.total} ({topAtendente.pctConclusao}% de conclusão).
+              </div>
+            )}
+            <div style={{ overflowX: "auto" }}>
+              <table style={tabelaStyle}>
+                <thead>
+                  <tr>
+                    <Th>Atendente</Th><Th>Atendidos</Th><Th>Concluídos</Th><Th>Sem resposta</Th><Th>Em aberto</Th><Th>% Conclusão</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {statsAtendente.map((s, i) => (
+                    <tr key={s.atendente}>
+                      <Td><strong>{i === 0 && s.concluidos > 0 ? "🏅 " : ""}{s.atendente}</strong></Td>
+                      <Td>{s.total}</Td>
+                      <Td><strong style={{ color: "#065f46" }}>{s.concluidos}</strong></Td>
+                      <Td>{s.semResposta}</Td>
+                      <Td>{s.emAberto}</Td>
+                      <Td><span style={badgePctStyle(s.pctConclusao)}>{s.pctConclusao}%</span></Td>
+                    </tr>
+                  ))}
+                  {statsAtendente.length === 0 && (
+                    <tr><Td colSpan={6}><em style={{ color: "var(--portal-text-muted)" }}>Nenhum atendimento iniciado ainda (atendentes aparecem quando alguém atende uma oportunidade).</em></Td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* Tabela técnicos */}
@@ -368,6 +436,12 @@ const statsGrid: React.CSSProperties = {
   gap: 12, marginBottom: 24,
 };
 const secaoStyle: React.CSSProperties = { marginBottom: 28 };
+const destaqueAtendenteStyle: React.CSSProperties = {
+  marginBottom: 12, padding: "12px 16px",
+  background: "linear-gradient(135deg, #fef9c3, #fef3c7)",
+  border: "1px solid #fde68a", borderRadius: 10,
+  fontSize: 13, color: "#854d0e",
+};
 const tituloSecaoStyle: React.CSSProperties = {
   fontSize: 14, fontWeight: 800, color: "var(--portal-text)",
   textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 12,
