@@ -6,15 +6,15 @@ import type { Oportunidade, RegraOportunidade } from "@/lib/feedbacks/types";
 // Quantos cards mostrar por coluna inicialmente, e o passo de "Ver mais".
 const PAGE_SIZE = 10;
 
-// Urgentes primeiro, depois Normal, depois Baixa. Dentro do mesmo grupo,
-// ordena por computado_em mais recente.
+// Escala de urgência primeiro (Urgente > Normal > Baixa) e, dentro do mesmo
+// grupo, ordem alfabética pelo nome do cliente.
 function ordenarCards(cards: Oportunidade[]): Oportunidade[] {
   const peso = { Urgente: 0, Normal: 1, Baixa: 2 } as const;
   return [...cards].sort((a, b) => {
     const pa = peso[a.prioridade] ?? 9;
     const pb = peso[b.prioridade] ?? 9;
     if (pa !== pb) return pa - pb;
-    return b.computado_em.localeCompare(a.computado_em);
+    return (a.cliente_nome || "").localeCompare(b.cliente_nome || "", "pt-BR", { sensitivity: "base" });
   });
 }
 
