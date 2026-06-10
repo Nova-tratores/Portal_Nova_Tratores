@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import RegistroCard from "./RegistroCard";
 import ModalFeedback from "./ModalFeedback";
-import { atualizarRegistro, deletarRegistro, listarRegistros } from "@/lib/feedbacks/api";
+import { atualizarRegistro, buscarUltimasOSPorCliente, deletarRegistro, listarRegistros, type UltimaOS } from "@/lib/feedbacks/api";
 import type { FeedbackRegistro, StatusAtendimento, TipoFeedback } from "@/lib/feedbacks/types";
 
 interface Props {
@@ -80,6 +80,8 @@ export default function ListaRegistros({ tipo }: Props) {
 
   const [modalAberto, setModalAberto] = useState(false);
   const [registroEdit, setRegistroEdit] = useState<FeedbackRegistro | null>(null);
+  // Última OS (oficina) por nome de cliente — preenche o "último técnico" no card.
+  const [ultimasOS, setUltimasOS] = useState<Record<string, UltimaOS>>({});
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -87,6 +89,10 @@ export default function ListaRegistros({ tipo }: Props) {
     try {
       const data = await listarRegistros(tipo);
       setRows(data);
+      // Busca a última OS por cliente em paralelo (best-effort — não bloqueia a lista).
+      buscarUltimasOSPorCliente(data.map((r) => r.nome))
+        .then(setUltimasOS)
+        .catch(() => { /* silencioso: card só não mostra a última OS */ });
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
     } finally {
@@ -270,6 +276,7 @@ export default function ListaRegistros({ tipo }: Props) {
             <RegistroCard
               key={r.id}
               registro={r}
+              ultimaOS={ultimasOS[(r.nome || "").trim()] || null}
               onEditar={abrirEdit}
               onExcluir={handleExcluir}
               onMudarAtendimento={handleMudarAtendimento}
