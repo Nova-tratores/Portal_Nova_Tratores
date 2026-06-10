@@ -62,19 +62,30 @@ export default function RegistroCard({ registro: r, onEditar, onExcluir, onMudar
 
   return (
     <article style={{ ...cardStyle, ...(atrasado ? { borderColor: "#dc2626", borderWidth: 2 } : {}) }}>
-      {emAtendimento && (
-        <div style={atendimentoBannerStyle(atrasado)}>
-          <span>
-            {atrasado ? "⚠️" : "🟢"} Em atendimento por <strong>{r.atendente_nome || "—"}</strong>
-            {horasAberto !== null && ` · há ${fmtTempoDecorrido(horasAberto)}`}
-          </span>
-          {atrasado && (
-            <span style={{ fontSize: 10, fontWeight: 700, color: "#991b1b" }}>
-              ATUALIZE COM DETALHES
+      {r.atendente_nome && (() => {
+        // Banner sempre presente quando há atendente, mudando conforme o status.
+        let bg = "#d1fae5", fg = "#065f46", txt = "🟢 Em atendimento por";
+        if (emAtendimento) {
+          if (atrasado) { bg = "#fee2e2"; fg = "#991b1b"; txt = "⚠️ Em atendimento por"; }
+        } else if (r.status_atendimento === "concluido") {
+          bg = "#f3f4f6"; fg = "#374151"; txt = "✓ Concluído por";
+        } else if (r.status_atendimento === "sem_resposta") {
+          bg = "#fee2e2"; fg = "#991b1b"; txt = "📵 Sem resposta — atendido por";
+        }
+        return (
+          <div style={{ ...atendimentoBannerBase, background: bg, color: fg }}>
+            <span>
+              {txt} <strong>{r.atendente_nome}</strong>
+              {emAtendimento && horasAberto !== null && ` · há ${fmtTempoDecorrido(horasAberto)}`}
             </span>
-          )}
-        </div>
-      )}
+            {atrasado && (
+              <span style={{ fontSize: 10, fontWeight: 700, color: "#991b1b" }}>
+                ATUALIZE COM DETALHES
+              </span>
+            )}
+          </div>
+        );
+      })()}
       <header style={cardHeader}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -224,22 +235,18 @@ const cardStyle: React.CSSProperties = {
   fontFamily: "Inter, sans-serif",
   display: "flex", flexDirection: "column", gap: 10,
 };
-function atendimentoBannerStyle(atrasado: boolean): React.CSSProperties {
-  return {
-    margin: "-16px -16px 0",
-    padding: "8px 14px",
-    background: atrasado ? "#fee2e2" : "#d1fae5",
-    color: atrasado ? "#991b1b" : "#065f46",
-    fontSize: 11,
-    fontWeight: 600,
-    borderRadius: "12px 12px 0 0",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 8,
-    flexWrap: "wrap",
-  };
-}
+const atendimentoBannerBase: React.CSSProperties = {
+  margin: "-16px -16px 0",
+  padding: "8px 14px",
+  fontSize: 11,
+  fontWeight: 600,
+  borderRadius: "12px 12px 0 0",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 8,
+  flexWrap: "wrap",
+};
 const cardHeader: React.CSSProperties = {
   display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8,
 };
