@@ -1,8 +1,11 @@
 "use client";
 import type { FeedbackRegistro, StatusAtendimento } from "@/lib/feedbacks/types";
+import type { UltimaOS } from "@/lib/feedbacks/api";
 
 interface Props {
   registro: FeedbackRegistro;
+  // Última OS (oficina) do cliente — quem foi o último técnico e quando.
+  ultimaOS?: UltimaOS | null;
   onEditar?: (r: FeedbackRegistro) => void;
   onExcluir?: (r: FeedbackRegistro) => void;
   // Muda o status de atendimento do registro (concluir, reabrir, sem-resposta…).
@@ -50,7 +53,7 @@ function corPrioridade(p: string | null): { bg: string; fg: string } {
   }
 }
 
-export default function RegistroCard({ registro: r, onEditar, onExcluir, onMudarAtendimento }: Props) {
+export default function RegistroCard({ registro: r, ultimaOS, onEditar, onExcluir, onMudarAtendimento }: Props) {
   const isCrm = r.tipo === "crm";
   const corStatusObj = isCrm ? corStatus(r.status_cliente) : corPrioridade(r.prioridade);
   const emAtendimento = r.status_atendimento === "aberto" || r.status_atendimento === "em_andamento";
@@ -145,6 +148,15 @@ export default function RegistroCard({ registro: r, onEditar, onExcluir, onMudar
         {isCrm && r.nps && <Detail label="NPS" val={r.nps} />}
         {isCrm && r.melhoria && <Detail label="Melhoria" val={r.melhoria} />}
       </div>
+
+      {ultimaOS && (ultimaOS.tecnico || ultimaOS.data) && (
+        <div style={ultimaOSStyle}>
+          🔧 <strong>Último serviço:</strong>{" "}
+          {ultimaOS.tecnico || "técnico não informado"}
+          {ultimaOS.data ? ` · ${fmtData(ultimaOS.data)}` : ""}
+          {ultimaOS.tipo ? ` · ${ultimaOS.tipo}` : ""}
+        </div>
+      )}
 
       {(isCrm ? r.feedback : r.motivo) && (
         <blockquote style={citaStyle}>
@@ -298,6 +310,11 @@ const citaStyle: React.CSSProperties = {
 };
 const footerStyle: React.CSSProperties = {
   display: "flex", gap: 6, paddingTop: 8, borderTop: "1px solid #f5f5f5",
+};
+const ultimaOSStyle: React.CSSProperties = {
+  fontSize: 11.5, color: "var(--portal-text-secondary)",
+  background: "#f9fafb", border: "1px solid #eee",
+  borderRadius: 6, padding: "6px 10px",
 };
 const acoesAtendimentoStyle: React.CSSProperties = {
   display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "wrap",
