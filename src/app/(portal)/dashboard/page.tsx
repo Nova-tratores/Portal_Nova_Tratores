@@ -23,32 +23,55 @@ interface SystemCard {
   gradient: string
   href: string
   tag: string
+  group: string
   external?: boolean
 }
 
+const DASH_GROUPS: Record<string, { label: string; color: string; gradient: string; icon: React.ReactNode }> = {
+  servicos:   { label: 'Serviços',    color: '#0EA5E9', gradient: 'linear-gradient(135deg, #0EA5E9, #0369A1)', icon: <Settings size={22} /> },
+  pecas:      { label: 'Peças',       color: '#F97316', gradient: 'linear-gradient(135deg, #F97316, #EA580C)', icon: <Package size={22} /> },
+  financeiro: { label: 'Financeiro',  color: '#10B981', gradient: 'linear-gradient(135deg, #10B981, #059669)', icon: <DollarSign size={22} /> },
+  comercial:  { label: 'Comercial',   color: '#8B5CF6', gradient: 'linear-gradient(135deg, #8B5CF6, #7C3AED)', icon: <Building size={22} /> },
+  estoque:    { label: 'Estoque',     color: '#DC2626', gradient: 'linear-gradient(135deg, #DC2626, #991B1B)', icon: <BarChart3 size={22} /> },
+  outros:     { label: 'Outros',      color: '#6B7280', gradient: 'linear-gradient(135deg, #6B7280, #4B5563)', icon: <Activity size={22} /> },
+}
+
+const DASH_GROUP_ORDER = ['servicos', 'pecas', 'financeiro', 'comercial', 'estoque', 'outros']
+
 const systems: SystemCard[] = [
-  { id: 'avisos', name: 'Avisos', description: 'Comunicados e avisos para toda a equipe, com anexos e notificacoes', icon: <Megaphone size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #dc2626, #991b1b)', href: '/avisos', tag: 'COMUNICADOS' },
-  { id: 'back-nova', name: 'Back Nova', description: 'Sistema backend Nova Tratores', icon: <Server size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #dc2626, #b91c1c)', href: 'https://back.novatratores.com', tag: 'BACKEND', external: true },
-  { id: 'configuracoes', name: 'Configurações', description: 'Gestão de usuários, permissões, módulos e configurações gerais do portal', icon: <Settings size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #525252, #1a1a1a)', href: '/admin', tag: 'ADMIN' },
-  { id: 'consulta-omie', name: 'Consulta Omie', description: 'Estoque Omie, CMC, curva ABC, dashboard de vendas e comissões', icon: <Eye size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #b91c1c, #7f1d1d)', href: 'https://produtos.novatratores.com', tag: 'SHOWROOM', external: true },
-  { id: 'controle-revisao', name: 'Controle de Revisões', description: 'Acompanhamento de revisões periódicas de tratores com integração Gmail', icon: <Wrench size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #b91c1c, #991b1b)', href: '/revisoes', tag: 'MANUTENÇÃO' },
-  { id: 'dashboard-agro', name: 'Dashboard Agro', description: 'Dashboard de acompanhamento do segmento agrícola', icon: <Wheat size={28} />, color: '#16a34a', gradient: 'linear-gradient(135deg, #22c55e, #15803d)', href: '/dashboard-agro', tag: 'AGRO' },
-  { id: 'dre', name: 'DRE Financeiro', description: 'Demonstração do Resultado do Exercício com dados integrados do Omie', icon: <TrendingUp size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #dc2626, #991b1b)', href: 'https://financeiro-omie-production-ce7e.up.railway.app/dre', tag: 'FINANÇAS', external: true },
-  { id: 'feedbacks', name: 'Feedbacks & CRM', description: 'CRM/RFM, oportunidades automáticas de revisão, peças, up-sell e follow-up', icon: <Megaphone size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #dc2626, #b91c1c)', href: '/feedbacks', tag: 'CRM' },
-  { id: 'sistema-financeiro', name: 'Financeiro', description: 'Gestão de NF, boletos, contas a pagar e receber, chamados RH', icon: <DollarSign size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #dc2626, #b91c1c)', href: '/financeiro', tag: 'FINANÇAS' },
-  { id: 'fotos-tecnicos', name: 'Fotos Técnicos', description: 'Visualize as fotos anexadas pelos técnicos em cada ordem de serviço', icon: <Camera size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #dc2626, #b91c1c)', href: '/fotos-tecnicos', tag: 'FOTOS' },
-  { id: 'garantias', name: 'Garantias', description: 'Solicitações de garantia, envio à fábrica, cobrança ao cliente e relatórios por montadora', icon: <ShieldCheck size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #dc2626, #991b1b)', href: '/garantias', tag: 'GARANTIAS' },
-  { id: 'mecanicos', name: 'Janela Mecânicos', description: 'Jornada, agenda e acompanhamento dos mecânicos de campo', icon: <Users size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #dc2626, #ef4444)', href: '/mecanicos', tag: 'TÉCNICOS' },
-  { id: 'mapa-geral', name: 'Mapeamento Técnico', description: 'Visualização geográfica de clientes, técnicos e operações', icon: <Map size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #b91c1c, #991b1b)', href: '/mapa-geral', tag: 'MAPA' },
-  { id: 'orcamentos', name: 'Orçamentos', description: 'Orçamentos personalizados com peças, mão de obra e deslocamento', icon: <Calculator size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #dc2626, #ef4444)', href: '/orcamentos', tag: 'ORÇAMENTOS' },
-  { id: 'clientes', name: 'Pastas Clientes', description: 'Ranking de clientes por volume de serviços, OS, PV e NF integrados ao Omie', icon: <Building size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #dc2626, #991b1b)', href: '/clientes', tag: 'CLIENTES' },
-  { id: 'ppv', name: 'Peças (Pedido de Venda)', description: 'Pedidos de venda de peças, rastreamento e gestão', icon: <Package size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #ef4444, #b91c1c)', href: '/ppv', tag: 'PEÇAS' },
-  { id: 'pos', name: 'Pós-Vendas (OS)', description: 'Ordens de serviço, integração Omie ERP, geração de PDF', icon: <Settings size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #dc2626, #991b1b)', href: '/pos', tag: 'SERVIÇOS' },
-  { id: 'proposta-comercial', name: 'Proposta Comercial', description: 'Geração de propostas com PDF e QR Code para clientes', icon: <FileText size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #991b1b, #7f1d1d)', href: '/propostas', tag: 'VENDAS' },
-  { id: 'app-requisicoes', name: 'Requisições', description: 'Kanban de requisições de materiais e serviços das unidades', icon: <ClipboardList size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #ef4444, #dc2626)', href: '/requisicoes', tag: 'COMPRAS' },
-  { id: 'tarefas', name: 'Tarefas', description: 'Gestão de tarefas entre usuários', icon: <ClipboardCheck size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #dc2626, #b91c1c)', href: '/tarefas', tag: 'TAREFAS' },
-  { id: 'supervisor-vendas', name: 'Supervisor Vendas', description: 'Painel do supervisor: vendedores, visitas, catálogo, mapa e alertas', icon: <TrendingUp size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #dc2626, #991b1b)', href: '/supervisor-vendas', tag: 'VENDAS' },
-  { id: 'consulta-estoque', name: 'Visual Estoque', description: 'Showroom virtual de estoque com visualização de peças e produtos', icon: <BarChart3 size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #ef4444, #991b1b)', href: 'https://estoque.novatratores.com', tag: 'ESTOQUE', external: true },
+  // Serviços (azul claro)
+  { id: 'pos', name: 'Pós-Vendas (OS)', description: 'Ordens de serviço, integração Omie ERP, geração de PDF', icon: <Settings size={28} />, color: '#0EA5E9', gradient: 'linear-gradient(135deg, #0EA5E9, #0369A1)', href: '/pos', tag: 'OS', group: 'servicos' },
+  { id: 'garantias', name: 'Garantias', description: 'Solicitações de garantia, envio à fábrica, cobrança ao cliente e relatórios', icon: <ShieldCheck size={28} />, color: '#0EA5E9', gradient: 'linear-gradient(135deg, #0EA5E9, #0284C7)', href: '/garantias', tag: 'GARANTIAS', group: 'servicos' },
+  { id: 'controle-revisao', name: 'Controle de Revisões', description: 'Acompanhamento de revisões periódicas de tratores com integração Gmail', icon: <Wrench size={28} />, color: '#0EA5E9', gradient: 'linear-gradient(135deg, #0284C7, #0369A1)', href: '/revisoes', tag: 'MANUTENÇÃO', group: 'servicos' },
+  { id: 'mecanicos', name: 'Janela Mecânicos', description: 'Jornada, agenda e acompanhamento dos mecânicos de campo', icon: <Users size={28} />, color: '#0EA5E9', gradient: 'linear-gradient(135deg, #38BDF8, #0EA5E9)', href: '/mecanicos', tag: 'TÉCNICOS', group: 'servicos' },
+  { id: 'mapa-geral', name: 'Mapeamento Técnico', description: 'Visualização geográfica de clientes, técnicos e operações', icon: <Map size={28} />, color: '#0EA5E9', gradient: 'linear-gradient(135deg, #0EA5E9, #0369A1)', href: '/mapa-geral', tag: 'MAPA', group: 'servicos' },
+  { id: 'fotos-tecnicos', name: 'Fotos Técnicos', description: 'Fotos anexadas pelos técnicos em cada ordem de serviço', icon: <Camera size={28} />, color: '#0EA5E9', gradient: 'linear-gradient(135deg, #0284C7, #0369A1)', href: '/fotos-tecnicos', tag: 'FOTOS', group: 'servicos' },
+
+  // Peças (laranja)
+  { id: 'ppv', name: 'Peças (Pedido de Venda)', description: 'Pedidos de venda de peças, rastreamento e gestão', icon: <Package size={28} />, color: '#F97316', gradient: 'linear-gradient(135deg, #F97316, #EA580C)', href: '/ppv', tag: 'PEÇAS', group: 'pecas' },
+  { id: 'orcamentos', name: 'Orçamentos', description: 'Orçamentos personalizados com peças, mão de obra e deslocamento', icon: <Calculator size={28} />, color: '#F97316', gradient: 'linear-gradient(135deg, #FB923C, #EA580C)', href: '/orcamentos', tag: 'ORÇAMENTOS', group: 'pecas' },
+  { id: 'app-requisicoes', name: 'Requisições', description: 'Kanban de requisições de materiais e serviços das unidades', icon: <ClipboardList size={28} />, color: '#F97316', gradient: 'linear-gradient(135deg, #F97316, #C2410C)', href: '/requisicoes', tag: 'COMPRAS', group: 'pecas' },
+
+  // Financeiro (verde)
+  { id: 'sistema-financeiro', name: 'Financeiro', description: 'Gestão de NF, boletos, contas a pagar e receber, chamados RH', icon: <DollarSign size={28} />, color: '#10B981', gradient: 'linear-gradient(135deg, #10B981, #059669)', href: '/financeiro', tag: 'FINANÇAS', group: 'financeiro' },
+  { id: 'dre', name: 'DRE Financeiro', description: 'Demonstração do Resultado do Exercício com dados integrados do Omie', icon: <TrendingUp size={28} />, color: '#10B981', gradient: 'linear-gradient(135deg, #059669, #047857)', href: 'https://financeiro-omie-production-ce7e.up.railway.app/dre', tag: 'DRE', group: 'financeiro', external: true },
+
+  // Comercial (roxo)
+  { id: 'proposta-comercial', name: 'Proposta Comercial', description: 'Geração de propostas com PDF e QR Code para clientes', icon: <FileText size={28} />, color: '#8B5CF6', gradient: 'linear-gradient(135deg, #8B5CF6, #7C3AED)', href: '/propostas', tag: 'VENDAS', group: 'comercial' },
+  { id: 'feedbacks', name: 'Feedbacks & CRM', description: 'CRM/RFM, oportunidades automáticas de revisão, peças, up-sell e follow-up', icon: <Megaphone size={28} />, color: '#8B5CF6', gradient: 'linear-gradient(135deg, #A78BFA, #7C3AED)', href: '/feedbacks', tag: 'CRM', group: 'comercial' },
+  { id: 'clientes', name: 'Pastas Clientes', description: 'Ranking de clientes por volume de serviços, OS, PV e NF integrados ao Omie', icon: <Building size={28} />, color: '#8B5CF6', gradient: 'linear-gradient(135deg, #8B5CF6, #6D28D9)', href: '/clientes', tag: 'CLIENTES', group: 'comercial' },
+  { id: 'supervisor-vendas', name: 'Supervisor Vendas', description: 'Painel do supervisor: vendedores, visitas, catálogo, mapa e alertas', icon: <TrendingUp size={28} />, color: '#8B5CF6', gradient: 'linear-gradient(135deg, #7C3AED, #6D28D9)', href: '/supervisor-vendas', tag: 'VENDAS', group: 'comercial' },
+
+  // Estoque (vermelho)
+  { id: 'consulta-estoque', name: 'Visual Estoque', description: 'Showroom virtual de estoque com visualização de peças e produtos', icon: <BarChart3 size={28} />, color: '#DC2626', gradient: 'linear-gradient(135deg, #DC2626, #991B1B)', href: '/visual-estoque', tag: 'VISUAL', group: 'estoque' },
+  { id: 'consulta-omie', name: 'Consulta Estoque', description: 'Estoque Omie, CMC, curva ABC, dashboard de vendas e comissões', icon: <Eye size={28} />, color: '#DC2626', gradient: 'linear-gradient(135deg, #EF4444, #B91C1C)', href: '/estoque', tag: 'CONSULTA', group: 'estoque' },
+
+  // Outros (cinza)
+  { id: 'avisos', name: 'Avisos', description: 'Comunicados e avisos para toda a equipe, com anexos e notificações', icon: <Megaphone size={28} />, color: '#6B7280', gradient: 'linear-gradient(135deg, #6B7280, #4B5563)', href: '/avisos', tag: 'COMUNICADOS', group: 'outros' },
+  { id: 'tarefas', name: 'Tarefas', description: 'Gestão de tarefas entre usuários', icon: <ClipboardCheck size={28} />, color: '#6B7280', gradient: 'linear-gradient(135deg, #6B7280, #374151)', href: '/tarefas', tag: 'TAREFAS', group: 'outros' },
+  { id: 'dashboard-agro', name: 'Dashboard Agro', description: 'Dashboard de acompanhamento do segmento agrícola', icon: <Wheat size={28} />, color: '#6B7280', gradient: 'linear-gradient(135deg, #22c55e, #15803d)', href: '/dashboard-agro', tag: 'AGRO', group: 'outros' },
+  { id: 'back-nova', name: 'Back Nova', description: 'Sistema backend Nova Tratores', icon: <Server size={28} />, color: '#6B7280', gradient: 'linear-gradient(135deg, #6B7280, #374151)', href: 'https://back.novatratores.com', tag: 'BACKEND', group: 'outros', external: true },
+  { id: 'configuracoes', name: 'Configurações', description: 'Gestão de usuários, permissões e configurações gerais do portal', icon: <Settings size={28} />, color: '#6B7280', gradient: 'linear-gradient(135deg, #525252, #1a1a1a)', href: '/admin', tag: 'ADMIN', group: 'outros' },
 ]
 
 interface LogEntry {
@@ -119,6 +142,11 @@ export default function DashboardPage() {
   const [favoritos, setFavoritos] = useState<string[]>([])
   const [viewMode, setViewMode] = useState<ViewMode>('grade')
   const [showFavoritosOnly, setShowFavoritosOnly] = useState(false)
+  const [openGroups, setOpenGroups] = useState<string[]>([])
+
+  const toggleGroup = (key: string) => {
+    setOpenGroups(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key])
+  }
 
   // Refresh ao voltar para a aba
   const refreshDashboard = useCallback(() => {
@@ -284,6 +312,15 @@ export default function DashboardPage() {
       return aFav - bFav
     })
   }, [filteredSystems, activeFolder, folders, editingFolder, showFavoritosOnly, favoritos])
+
+  const groupedDisplayed = useMemo(() => {
+    const groups: { key: string; config: typeof DASH_GROUPS[string]; items: typeof displayedSystems }[] = []
+    for (const gk of DASH_GROUP_ORDER) {
+      const items = displayedSystems.filter(s => s.group === gk)
+      if (items.length > 0) groups.push({ key: gk, config: DASH_GROUPS[gk], items })
+    }
+    return groups
+  }, [displayedSystems])
 
   const createFolder = () => {
     const name = prompt('Nome da pasta:')
@@ -586,21 +623,6 @@ export default function DashboardPage() {
           {displayedSystems.length}
         </span>
 
-        {/* Botão favoritos */}
-        <button
-          onClick={() => setShowFavoritosOnly(!showFavoritosOnly)}
-          style={{
-            display: 'flex', alignItems: 'center', gap: '6px',
-            padding: '6px 14px', borderRadius: '10px', border: 'none',
-            background: showFavoritosOnly ? '#FEF3C7' : 'var(--portal-bg-secondary)',
-            color: showFavoritosOnly ? '#B45309' : '#a3a3a3',
-            fontSize: '13px', fontWeight: '600', cursor: 'pointer', transition: 'all .2s'
-          }}
-        >
-          <Star size={14} fill={showFavoritosOnly ? '#F59E0B' : 'none'} />
-          Favoritos{favoritos.length > 0 ? ` (${favoritos.length})` : ''}
-        </button>
-
         <div style={{ flex: 1 }} />
 
         {/* View mode buttons */}
@@ -659,239 +681,168 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ══ MODO GRADE ══ */}
-      {viewMode === 'grade' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
-          {/* Pastas do usuario */}
-          {activeFolder === 'todos' && !editingFolder && !showFavoritosOnly && folders.map((folder) => {
-            const count = folder.cardIds.filter(id => allowedSystems.some(s => s.id === id)).length
-            return (
-              <div key={`f-${folder.id}`} onClick={() => setActiveFolder(folder.id)} style={{
-                borderRadius: '16px', padding: '20px', cursor: 'pointer',
-                background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
-                transition: 'all .2s', display: 'flex', alignItems: 'center', gap: '14px'
-              }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = '#fde68a' }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = '' }}
+      {/* ══ GRUPOS CASCATA ══ */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {groupedDisplayed.map((group) => {
+          const isOpen = openGroups.includes(group.key)
+          const gc = group.config
+          return (
+            <div key={group.key} style={{
+              borderRadius: 16, overflow: 'hidden',
+              border: `1px solid ${isOpen ? gc.color + '40' : 'var(--portal-border)'}`,
+              background: 'var(--portal-bg-card)',
+              boxShadow: isOpen ? `0 4px 20px ${gc.color}12` : '0 1px 3px rgba(0,0,0,0.04)',
+              transition: 'all 0.25s ease',
+            }}>
+              {/* Header do grupo */}
+              <div
+                onClick={() => toggleGroup(group.key)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 14, padding: '18px 22px',
+                  cursor: 'pointer', transition: 'background 0.15s',
+                  background: isOpen ? `${gc.color}08` : 'transparent',
+                }}
+                onMouseEnter={e => { if (!isOpen) e.currentTarget.style.background = `${gc.color}06` }}
+                onMouseLeave={e => { if (!isOpen) e.currentTarget.style.background = 'transparent' }}
               >
-                <div style={{ width: 44, height: 44, borderRadius: 12, background: 'linear-gradient(135deg, #f59e0b, #d97706)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0 }}>
-                  <FolderOpen size={22} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--portal-text)' }}>{folder.name}</div>
-                  <div style={{ fontSize: 12, color: '#a3a3a3' }}>{count} sistemas</div>
-                </div>
-                <ChevronRight size={16} color="#d4d4d4" />
-              </div>
-            )
-          })}
-          {activeFolder === 'todos' && !editingFolder && !showFavoritosOnly && (
-            <div onClick={createFolder} style={{
-              borderRadius: '16px', padding: '20px', cursor: 'pointer',
-              border: '1px dashed #e5e5e5', transition: 'all .2s',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-              color: '#a3a3a3', fontSize: 13, fontWeight: 600
-            }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = '#fecaca'; e.currentTarget.style.color = '#dc2626' }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = '#e5e5e5'; e.currentTarget.style.color = '#a3a3a3' }}
-            >
-              <FolderPlus size={18} /> Nova Pasta
-            </div>
-          )}
-
-          {displayedSystems.map((system, i) => {
-            const isFav = favoritos.includes(system.id)
-            return (
-              <div key={system.id} style={{
-                borderRadius: '16px', overflow: 'hidden', cursor: 'pointer', position: 'relative',
-                background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.04)', transition: 'all .2s',
-                animation: `fadeIn 0.4s ease-out ${i * 0.05}s both`
-              }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = '#fecaca'; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)' }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = ''; e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)' }}
-              >
-                {/* Favorito */}
-                <button onClick={(e) => { e.stopPropagation(); toggleFavorito(system.id) }} style={{
-                  position: 'absolute', top: 12, right: 12, zIndex: 2,
-                  width: 30, height: 30, borderRadius: 8, border: 'none',
-                  background: isFav ? '#FEF3C7' : 'transparent', cursor: 'pointer',
+                <div style={{
+                  width: 44, height: 44, borderRadius: 12,
+                  background: gc.gradient,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  opacity: isFav ? 1 : 0, transition: 'opacity .2s'
-                }}
-                  className="fav-btn"
-                >
-                  <Star size={16} fill={isFav ? '#F59E0B' : 'none'} color={isFav ? '#F59E0B' : '#d4d4d4'} />
-                </button>
-
-                <div onClick={() => editingFolder ? toggleCardInFolder(editingFolder, system.id) : openSystem(system)} style={{ padding: '24px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '14px' }}>
-                    <div style={{
-                      width: 46, height: 46, borderRadius: 12,
-                      background: system.gradient, display: 'flex',
-                      alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0
-                    }}>
-                      {system.icon}
-                    </div>
-                    <div>
-                      <h4 style={{ fontSize: 16, fontWeight: 700, color: 'var(--portal-text)', margin: 0 }}>{system.name}</h4>
-                      <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1, color: '#dc2626' }}>{system.tag}</span>
-                    </div>
-                  </div>
-                  <p style={{ fontSize: 13, color: 'var(--portal-text-secondary)', lineHeight: 1.6, margin: 0 }}>{system.description}</p>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      {/* ══ MODO LISTA ══ */}
-      {viewMode === 'lista' && (
-        <div style={{ borderRadius: 16, overflow: 'hidden', background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)' }}>
-          {/* Pastas na lista */}
-          {activeFolder === 'todos' && !editingFolder && !showFavoritosOnly && folders.map((folder) => {
-            const count = folder.cardIds.filter(id => allowedSystems.some(s => s.id === id)).length
-            return (
-              <div key={`f-${folder.id}`} onClick={() => setActiveFolder(folder.id)} style={{
-                display: 'flex', alignItems: 'center', gap: '16px', padding: '14px 20px',
-                borderBottom: '1px solid #f5f5f5', cursor: 'pointer', transition: 'background .15s'
-              }}
-                onMouseEnter={e => { e.currentTarget.style.background = '#FFFBEB' }}
-                onMouseLeave={e => { e.currentTarget.style.background = '' }}
-              >
-                <div style={{ width: 38, height: 38, borderRadius: 10, background: 'linear-gradient(135deg, #f59e0b, #d97706)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0 }}>
-                  <FolderOpen size={18} />
+                  flexShrink: 0, transition: 'transform 0.2s', color: '#fff',
+                  transform: isOpen ? 'scale(1.05)' : 'scale(1)',
+                }}>
+                  {gc.icon}
                 </div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--portal-text)' }}>{folder.name}</div>
-                  <div style={{ fontSize: 12, color: '#a3a3a3' }}>{count} sistemas</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                    <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--portal-text)' }}>{gc.label}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: gc.color, background: `${gc.color}12`, padding: '2px 8px', borderRadius: 6 }}>{group.items.length}</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: '#a3a3a3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {group.items.map(s => s.name).join(' · ')}
+                  </div>
                 </div>
-                <ChevronRight size={16} color="#d97706" />
+                <ChevronRight size={18} color={gc.color} style={{ transition: 'transform 0.25s ease', transform: isOpen ? 'rotate(90deg)' : 'rotate(0)', flexShrink: 0 }} />
               </div>
-            )
-          })}
-          {activeFolder === 'todos' && !editingFolder && !showFavoritosOnly && (
-            <div onClick={createFolder} style={{
-              display: 'flex', alignItems: 'center', gap: '16px', padding: '14px 20px',
-              borderBottom: '1px solid #f5f5f5', cursor: 'pointer', color: '#a3a3a3', transition: 'all .15s'
-            }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#dc2626' }}
-              onMouseLeave={e => { e.currentTarget.style.background = ''; e.currentTarget.style.color = '#a3a3a3' }}
-            >
-              <div style={{ width: 38, height: 38, borderRadius: 10, border: '1px dashed currentColor', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <FolderPlus size={18} />
-              </div>
-              <span style={{ fontSize: 14, fontWeight: 600 }}>Nova Pasta</span>
-            </div>
-          )}
-          {displayedSystems.map((system, i) => {
-            const isFav = favoritos.includes(system.id)
-            return (
-              <div key={system.id} onClick={() => openSystem(system)} style={{
-                display: 'flex', alignItems: 'center', gap: '16px', padding: '14px 20px',
-                borderBottom: i < displayedSystems.length - 1 ? '1px solid #f5f5f5' : 'none',
-                cursor: 'pointer', transition: 'background .15s'
-              }}
-                onMouseEnter={e => { e.currentTarget.style.background = 'var(--portal-bg-hover, #fafafa)' }}
-                onMouseLeave={e => { e.currentTarget.style.background = '' }}
-              >
-                <div style={{
-                  width: 38, height: 38, borderRadius: 10,
-                  background: system.gradient, display: 'flex',
-                  alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0
-                }}>
-                  {system.icon}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--portal-text)' }}>{system.name}</div>
-                  <div style={{ fontSize: 12, color: '#a3a3a3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{system.description}</div>
-                </div>
-                <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1, color: '#dc2626', background: '#fef2f2', padding: '3px 10px', borderRadius: 6, flexShrink: 0 }}>{system.tag}</span>
-                <button onClick={(e) => { e.stopPropagation(); toggleFavorito(system.id) }} style={{
-                  width: 28, height: 28, borderRadius: 6, border: 'none',
-                  background: isFav ? '#FEF3C7' : 'transparent', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
-                }}>
-                  <Star size={14} fill={isFav ? '#F59E0B' : 'none'} color={isFav ? '#F59E0B' : '#e5e5e5'} />
-                </button>
-                <ChevronRight size={16} color="#d4d4d4" style={{ flexShrink: 0 }} />
-              </div>
-            )
-          })}
-        </div>
-      )}
 
-      {/* ══ MODO CIRCULAR ══ */}
-      {viewMode === 'circular' && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '28px', justifyContent: 'center', padding: '20px 0' }}>
-          {/* Pastas circular */}
-          {activeFolder === 'todos' && !editingFolder && !showFavoritosOnly && folders.map((folder) => (
-            <div key={`f-${folder.id}`} onClick={() => setActiveFolder(folder.id)} style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
-              cursor: 'pointer', width: 100, textAlign: 'center'
-            }}>
+              {/* Conteúdo expandido */}
               <div style={{
-                width: 64, height: 64, borderRadius: '50%',
-                background: 'linear-gradient(135deg, #f59e0b, #d97706)', display: 'flex',
-                alignItems: 'center', justifyContent: 'center', color: '#fff',
-                boxShadow: '0 4px 16px rgba(245,158,11,0.25)',
-                transition: 'all .2s', border: '3px solid #fff'
-              }}
-                onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.12)' }}
-                onMouseLeave={e => { e.currentTarget.style.transform = '' }}
-              >
-                <FolderOpen size={26} />
-              </div>
-              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--portal-text)', lineHeight: 1.2 }}>{folder.name}</span>
-            </div>
-          ))}
-          {activeFolder === 'todos' && !editingFolder && !showFavoritosOnly && (
-            <div onClick={createFolder} style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
-              cursor: 'pointer', width: 100, textAlign: 'center'
-            }}>
-              <div style={{
-                width: 64, height: 64, borderRadius: '50%',
-                border: '2px dashed #d4d4d4', display: 'flex',
-                alignItems: 'center', justifyContent: 'center', color: '#d4d4d4',
-                transition: 'all .2s'
-              }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = '#dc2626'; e.currentTarget.style.color = '#dc2626' }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = '#d4d4d4'; e.currentTarget.style.color = '#d4d4d4' }}
-              >
-                <FolderPlus size={24} />
-              </div>
-              <span style={{ fontSize: 12, fontWeight: 600, color: '#a3a3a3', lineHeight: 1.2 }}>Nova Pasta</span>
-            </div>
-          )}
-          {displayedSystems.map((system) => {
-            const isFav = favoritos.includes(system.id)
-            return (
-              <div key={system.id} onClick={() => openSystem(system)} style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
-                cursor: 'pointer', width: 100, textAlign: 'center', position: 'relative'
+                maxHeight: isOpen ? 2000 : 0, opacity: isOpen ? 1 : 0,
+                overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
               }}>
-                {isFav && <Star size={12} fill="#F59E0B" color="#F59E0B" style={{ position: 'absolute', top: -4, right: 8, zIndex: 2 }} />}
-                <div style={{
-                  width: 64, height: 64, borderRadius: '50%',
-                  background: system.gradient, display: 'flex',
-                  alignItems: 'center', justifyContent: 'center', color: '#fff',
-                  boxShadow: '0 4px 16px rgba(220,38,38,0.2)',
-                  transition: 'all .2s', border: '3px solid #fff'
-                }}
-                  onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.12)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(220,38,38,0.3)' }}
-                  onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 4px 16px rgba(220,38,38,0.2)' }}
-                  onContextMenu={(e) => { e.preventDefault(); toggleFavorito(system.id) }}
-                >
-                  {system.icon}
+                <div style={{ borderTop: `1px solid ${gc.color}15`, padding: 16 }}>
+
+                  {/* === GRADE === */}
+                  {viewMode === 'grade' && (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
+                      {group.items.map((system, i) => {
+                        const isFav = favoritos.includes(system.id)
+                        return (
+                          <div key={system.id} style={{
+                            borderRadius: 12, overflow: 'hidden', cursor: 'pointer', position: 'relative',
+                            background: 'var(--portal-bg)', border: '1px solid var(--portal-border)',
+                            transition: 'all 0.2s', animation: `fadeIn 0.3s ease-out ${i * 0.06}s both`,
+                          }}
+                            onMouseEnter={e => { e.currentTarget.style.borderColor = `${gc.color}50`; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = `0 6px 16px ${gc.color}15` }}
+                            onMouseLeave={e => { e.currentTarget.style.borderColor = ''; e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '' }}
+                          >
+                            <button onClick={(e) => { e.stopPropagation(); toggleFavorito(system.id) }} className="fav-btn" style={{
+                              position: 'absolute', top: 10, right: 10, zIndex: 2, width: 28, height: 28, borderRadius: 6, border: 'none',
+                              background: isFav ? '#FEF3C7' : 'transparent', cursor: 'pointer',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: isFav ? 1 : 0, transition: 'opacity .2s',
+                            }}>
+                              <Star size={14} fill={isFav ? '#F59E0B' : 'none'} color={isFav ? '#F59E0B' : '#d4d4d4'} />
+                            </button>
+                            <div onClick={() => editingFolder ? toggleCardInFolder(editingFolder, system.id) : openSystem(system)} style={{ padding: '18px 20px', display: 'flex', alignItems: 'center', gap: 14 }}>
+                              <div style={{ width: 42, height: 42, borderRadius: 10, background: system.gradient, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0 }}>
+                                {system.icon}
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text)', marginBottom: 2 }}>{system.name}</div>
+                                <div style={{ fontSize: 12, color: 'var(--portal-text-secondary)', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{system.description}</div>
+                              </div>
+                              {system.external && <ChevronRight size={14} color="#d4d4d4" style={{ flexShrink: 0 }} />}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {/* === LISTA === */}
+                  {viewMode === 'lista' && (
+                    <div style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid var(--portal-border)' }}>
+                      {group.items.map((system, i) => {
+                        const isFav = favoritos.includes(system.id)
+                        return (
+                          <div key={system.id} onClick={() => openSystem(system)} style={{
+                            display: 'flex', alignItems: 'center', gap: 14, padding: '12px 18px',
+                            borderBottom: i < group.items.length - 1 ? '1px solid var(--portal-border)' : 'none',
+                            cursor: 'pointer', transition: 'background .15s', background: 'var(--portal-bg)',
+                          }}
+                            onMouseEnter={e => { e.currentTarget.style.background = `${gc.color}06` }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'var(--portal-bg)' }}
+                          >
+                            <div style={{ width: 34, height: 34, borderRadius: 8, background: system.gradient, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0 }}>
+                              {system.icon}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--portal-text)' }}>{system.name}</div>
+                              <div style={{ fontSize: 11, color: '#a3a3a3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{system.description}</div>
+                            </div>
+                            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: gc.color, background: `${gc.color}10`, padding: '3px 8px', borderRadius: 4, flexShrink: 0 }}>{system.tag}</span>
+                            <button onClick={(e) => { e.stopPropagation(); toggleFavorito(system.id) }} style={{
+                              width: 26, height: 26, borderRadius: 6, border: 'none',
+                              background: isFav ? '#FEF3C7' : 'transparent', cursor: 'pointer',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                            }}>
+                              <Star size={13} fill={isFav ? '#F59E0B' : 'none'} color={isFav ? '#F59E0B' : '#e5e5e5'} />
+                            </button>
+                            <ChevronRight size={14} color="#d4d4d4" style={{ flexShrink: 0 }} />
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {/* === CIRCULAR === */}
+                  {viewMode === 'circular' && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, justifyContent: 'center', padding: '8px 0' }}>
+                      {group.items.map((system) => {
+                        const isFav = favoritos.includes(system.id)
+                        return (
+                          <div key={system.id} onClick={() => openSystem(system)} style={{
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+                            cursor: 'pointer', width: 90, textAlign: 'center', position: 'relative',
+                          }}>
+                            {isFav && <Star size={11} fill="#F59E0B" color="#F59E0B" style={{ position: 'absolute', top: -2, right: 4, zIndex: 2 }} />}
+                            <div style={{
+                              width: 56, height: 56, borderRadius: '50%',
+                              background: system.gradient, display: 'flex',
+                              alignItems: 'center', justifyContent: 'center', color: '#fff',
+                              boxShadow: `0 4px 14px ${gc.color}25`,
+                              transition: 'all .2s', border: '3px solid #fff',
+                            }}
+                              onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.15)'; e.currentTarget.style.boxShadow = `0 6px 20px ${gc.color}35` }}
+                              onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = `0 4px 14px ${gc.color}25` }}
+                              onContextMenu={e => { e.preventDefault(); toggleFavorito(system.id) }}
+                            >
+                              {system.icon}
+                            </div>
+                            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--portal-text)', lineHeight: 1.2 }}>{system.name}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+
                 </div>
-                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--portal-text)', lineHeight: 1.2 }}>{system.name}</span>
               </div>
-            )
-          })}
-        </div>
-      )}
+            </div>
+          )
+        })}
+      </div>
 
       <style>{`.fav-btn { opacity: 0 !important; } div:hover > .fav-btn { opacity: 1 !important; }`}</style>
 

@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
-import { Search, ChevronDown, ChevronUp, ArrowLeft, RefreshCw, ChevronRight, Download, Printer, FolderOpen, X, FileText, Wrench, Calendar, MapPin, User, Hash, ClipboardList, Package, Users, Shield, CheckCircle, Clock, Mail } from 'lucide-react'
+import { Search, ChevronDown, ChevronUp, ArrowLeft, RefreshCw, ChevronRight, Download, Printer, FolderOpen, X, FileText, Wrench, Calendar, MapPin, User, Hash, ClipboardList, Package, Users, Shield, CheckCircle, Clock, Mail, Bell } from 'lucide-react'
 
 interface Cliente {
   cod_cli: number; empresa: string; razao_social: string; nome_fantasia: string
@@ -61,6 +61,7 @@ function ClientesPageInner() {
   const [projetoTab, setProjetoTab] = useState('resumo')
   const [emailsData, setEmailsData] = useState<Record<string, any[]>>({})
   const [loadingEmails, setLoadingEmails] = useState<string | null>(null)
+  const [lembretesCliente, setLembretesCliente] = useState<any[]>([])
 
   const carregarLista = useCallback(async () => {
     setLoading(true)
@@ -134,10 +135,13 @@ function ClientesPageInner() {
   }
 
   const abrirDetalhe = async (cliente: Cliente) => {
-    setSelectedCliente(cliente); setExpandedOS(null); setModalProjeto(null); setEmailsData({}); setLoadingDetalhe(true)
+    setSelectedCliente(cliente); setExpandedOS(null); setModalProjeto(null); setEmailsData({}); setLoadingDetalhe(true); setLembretesCliente([])
     try { const res = await fetch(`/api/clientes?codCli=${cliente.cod_cli}&empresa=${encodeURIComponent(cliente.empresa)}`); const data = await res.json(); setOrdens(data.ordens || [])
       setPedidos((data.pedidos || []).map((pv: any) => ({ ...pv, itens: typeof pv.itens === 'string' ? JSON.parse(pv.itens) : (pv.itens || []) })))
     } catch {} setLoadingDetalhe(false)
+    if (cliente.cnpj_cpf) {
+      try { const res = await fetch(`/api/pos/lembretes?cnpj=${encodeURIComponent(cliente.cnpj_cpf.replace(/\D/g, ''))}`); const data = await res.json(); if (Array.isArray(data)) setLembretesCliente(data) } catch {}
+    }
   }
   const filtered = clientes.filter(c => {
     const matchSearch = !search || [c.razao_social, c.nome_fantasia, c.cnpj_cpf, c.cidade, ...(c.projetos || [])].some(f => (f || '').toLowerCase().includes(search.toLowerCase()))
@@ -206,6 +210,59 @@ function ClientesPageInner() {
             </div>
           )}
         </div>
+
+        {/* LEMBRETES DO CLIENTE */}
+        {lembretesCliente.length > 0 && (
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Bell size={16} color="#E65100" /> Lembretes ({lembretesCliente.filter((l: any) => !l.concluido).length} ativos)
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {lembretesCliente.filter((l: any) => !l.concluido).map((l: any) => (
+                <div key={l.id} style={{
+                  padding: '14px 18px', borderRadius: 12,
+                  background: '#FFF7ED', border: '1px solid #FFCC80',
+                  display: 'flex', alignItems: 'flex-start', gap: 12,
+                }}>
+                  <Bell size={16} color="#E65100" style={{ flexShrink: 0, marginTop: 2 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, color: '#1a1a1a', fontWeight: 600, lineHeight: 1.4 }}>{l.lembrete}</div>
+                    <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>
+                      {l.criado_por ? `Por ${l.criado_por}` : ''}
+                      {l.criado_por && l.created_at ? ' — ' : ''}
+                      {l.created_at ? new Date(l.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : ''}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {lembretesCliente.filter((l: any) => l.concluido).length > 0 && (
+                <details style={{ marginTop: 4 }}>
+                  <summary style={{ fontSize: 12, color: '#9CA3AF', cursor: 'pointer', fontWeight: 600 }}>
+                    {lembretesCliente.filter((l: any) => l.concluido).length} concluído(s)
+                  </summary>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+                    {lembretesCliente.filter((l: any) => l.concluido).map((l: any) => (
+                      <div key={l.id} style={{
+                        padding: '12px 16px', borderRadius: 10,
+                        background: '#F0FFF0', border: '1px solid #C8E6C9',
+                        display: 'flex', alignItems: 'flex-start', gap: 10, opacity: 0.7,
+                      }}>
+                        <CheckCircle size={14} color="#2E7D32" style={{ flexShrink: 0, marginTop: 2 }} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 13, color: '#555', textDecoration: 'line-through' }}>{l.lembrete}</div>
+                          <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 3 }}>
+                            Concluído por {l.concluido_por || '—'}
+                            {l.concluido_em ? ` em ${new Date(l.concluido_em).toLocaleDateString('pt-BR')}` : ''}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
+            </div>
+          </div>
+        )}
 
         {loadingDetalhe ? (
           <div style={{ padding: 80, textAlign: 'center', color: '#9CA3AF', fontSize: 15 }}>

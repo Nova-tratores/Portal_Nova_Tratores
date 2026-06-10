@@ -13,6 +13,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.cliente_nomes !== undefined) updates.cliente_nomes = body.cliente_nomes;
   if (body.ativo !== undefined) updates.ativo = body.ativo;
 
+  if (body.concluido !== undefined) {
+    updates.concluido = body.concluido;
+    if (body.concluido) {
+      updates.concluido_em = new Date().toISOString();
+      updates.concluido_por = body.concluido_por || "Sistema";
+    } else {
+      updates.concluido_em = null;
+      updates.concluido_por = null;
+    }
+  }
+
   const { data, error } = await supabase
     .from(TBL_LEMBRETES)
     .update(updates)

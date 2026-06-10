@@ -26,166 +26,56 @@ interface NavItem {
   icon: React.ReactNode
   tag: string
   gradient: string
+  group: string
   external?: boolean
 }
 
+const GROUP_CONFIG: Record<string, { label: string; color: string; gradient: string }> = {
+  geral:      { label: '',            color: '#dc2626', gradient: 'linear-gradient(135deg, #dc2626, #b91c1c)' },
+  servicos:   { label: 'SERVIÇOS',    color: '#0EA5E9', gradient: 'linear-gradient(135deg, #0EA5E9, #0369A1)' },
+  pecas:      { label: 'PEÇAS',       color: '#F97316', gradient: 'linear-gradient(135deg, #F97316, #EA580C)' },
+  financeiro: { label: 'FINANCEIRO',  color: '#10B981', gradient: 'linear-gradient(135deg, #10B981, #059669)' },
+  comercial:  { label: 'COMERCIAL',   color: '#8B5CF6', gradient: 'linear-gradient(135deg, #8B5CF6, #7C3AED)' },
+  estoque:    { label: 'ESTOQUE',     color: '#DC2626', gradient: 'linear-gradient(135deg, #DC2626, #991B1B)' },
+  outros:     { label: 'OUTROS',      color: '#6B7280', gradient: 'linear-gradient(135deg, #6B7280, #4B5563)' },
+}
+
+const GROUP_ORDER = ['geral', 'servicos', 'pecas', 'financeiro', 'comercial', 'estoque', 'outros']
+
 const navItems: NavItem[] = [
-  {
-    id: 'dashboard',
-    name: 'Dashboard',
-    href: '/dashboard',
-    icon: <LayoutDashboard size={18} />,
-    tag: 'INÍCIO',
-    gradient: 'linear-gradient(135deg, #dc2626, #b91c1c)'
-  },
-  {
-    id: 'financeiro',
-    name: 'Financeiro',
-    href: '/financeiro',
-    icon: <DollarSign size={18} />,
-    tag: 'FINANÇAS',
-    gradient: 'linear-gradient(135deg, #dc2626, #b91c1c)'
-  },
-  {
-    id: 'requisicoes',
-    name: 'Requisições',
-    href: '/requisicoes',
-    icon: <ClipboardList size={18} />,
-    tag: 'COMPRAS',
-    gradient: 'linear-gradient(135deg, #ef4444, #dc2626)'
-  },
-  {
-    id: 'revisoes',
-    name: 'Controle de Revisões',
-    href: '/revisoes',
-    icon: <Wrench size={18} />,
-    tag: 'MANUTENÇÃO',
-    gradient: 'linear-gradient(135deg, #b91c1c, #991b1b)'
-  },
-  {
-    id: 'pos',
-    name: 'Pós-Vendas (OS)',
-    href: '/pos',
-    icon: <Settings size={18} />,
-    tag: 'SERVIÇOS',
-    gradient: 'linear-gradient(135deg, #dc2626, #991b1b)'
-  },
-  {
-    id: 'ppv',
-    name: 'Peças (Pedido de Venda)',
-    href: '/ppv',
-    icon: <Package size={18} />,
-    tag: 'PEÇAS',
-    gradient: 'linear-gradient(135deg, #ef4444, #b91c1c)'
-  },
-  {
-    id: 'garantias',
-    name: 'Garantias',
-    href: '/garantias',
-    icon: <ShieldCheck size={18} />,
-    tag: 'GARANTIAS',
-    gradient: 'linear-gradient(135deg, #dc2626, #7f1d1d)'
-  },
-  {
-    id: 'propostas',
-    name: 'Proposta Comercial',
-    href: '/propostas',
-    icon: <FileText size={18} />,
-    tag: 'VENDAS',
-    gradient: 'linear-gradient(135deg, #991b1b, #7f1d1d)'
-  },
-  {
-    id: 'feedbacks',
-    name: 'Feedbacks & CRM',
-    href: '/feedbacks',
-    icon: <Megaphone size={18} />,
-    tag: 'CRM',
-    gradient: 'linear-gradient(135deg, #dc2626, #b91c1c)'
-  },
-  {
-    id: 'orcamentos',
-    name: 'Orçamentos',
-    href: '/orcamentos',
-    icon: <Calculator size={18} />,
-    tag: 'ORÇAMENTOS',
-    gradient: 'linear-gradient(135deg, #dc2626, #ef4444)'
-  },
-  {
-    id: 'atividades',
-    name: 'Atividades',
-    href: '/atividades',
-    icon: <Activity size={18} />,
-    tag: 'LOGS',
-    gradient: 'linear-gradient(135deg, #dc2626, #991b1b)'
-  },
-  {
-    id: 'clientes',
-    name: 'Clientes',
-    href: '/clientes',
-    icon: <Building size={18} />,
-    tag: 'CLIENTES',
-    gradient: 'linear-gradient(135deg, #dc2626, #991b1b)'
-  },
-  {
-    id: 'mapa-geral',
-    name: 'Mapeamento Tecnico',
-    href: '/mapa-geral',
-    icon: <MapPin size={18} />,
-    tag: 'MAPA',
-    gradient: 'linear-gradient(135deg, #b91c1c, #991b1b)'
-  },
-  {
-    id: 'mecanicos',
-    name: 'Janela Mecanico',
-    href: '/mecanicos',
-    icon: <Users size={18} />,
-    tag: 'TECNICOS',
-    gradient: 'linear-gradient(135deg, #1d4ed8, #3b82f6)'
-  },
-  {
-    id: 'fotos-tecnicos',
-    name: 'Fotos Técnicos',
-    href: '/fotos-tecnicos',
-    icon: <Camera size={18} />,
-    tag: 'FOTOS',
-    gradient: 'linear-gradient(135deg, #7C3AED, #5B21B6)'
-  },
-  {
-    id: 'consulta-estoque',
-    name: 'Visual Estoque',
-    href: 'https://estoque.novatratores.com',
-    icon: <BarChart3 size={18} />,
-    tag: 'ESTOQUE',
-    gradient: 'linear-gradient(135deg, #ef4444, #991b1b)',
-    external: true
-  },
-  {
-    id: 'consulta-omie',
-    name: 'Consulta Omie',
-    href: 'https://produtos.novatratores.com',
-    icon: <Eye size={18} />,
-    tag: 'SHOWROOM',
-    gradient: 'linear-gradient(135deg, #b91c1c, #7f1d1d)',
-    external: true
-  },
-  {
-    id: 'dashboard-agro',
-    name: 'Dashboard Agro',
-    href: 'https://dashboard-agro-sp-production.up.railway.app/',
-    icon: <Wheat size={18} />,
-    tag: 'AGRO',
-    gradient: 'linear-gradient(135deg, #22c55e, #15803d)',
-    external: true
-  },
-  {
-    id: 'dre',
-    name: 'DRE Financeiro',
-    href: 'https://financeiro-omie-production-ce7e.up.railway.app/dre',
-    icon: <DollarSign size={18} />,
-    tag: 'DRE',
-    gradient: 'linear-gradient(135deg, #0ea5e9, #0369a1)',
-    external: true
-  }
+  // Geral
+  { id: 'dashboard', name: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={18} />, tag: 'INÍCIO', gradient: '', group: 'geral' },
+
+  // Serviços (azul claro)
+  { id: 'pos', name: 'Pós-Vendas (OS)', href: '/pos', icon: <Settings size={18} />, tag: 'OS', gradient: '', group: 'servicos' },
+  { id: 'garantias', name: 'Garantias', href: '/garantias', icon: <ShieldCheck size={18} />, tag: 'GARANTIAS', gradient: '', group: 'servicos' },
+  { id: 'revisoes', name: 'Controle de Revisões', href: '/revisoes', icon: <Wrench size={18} />, tag: 'MANUTENÇÃO', gradient: '', group: 'servicos' },
+  { id: 'mecanicos', name: 'Janela Mecânico', href: '/mecanicos', icon: <Users size={18} />, tag: 'TÉCNICOS', gradient: '', group: 'servicos' },
+  { id: 'mapa-geral', name: 'Mapeamento Técnico', href: '/mapa-geral', icon: <MapPin size={18} />, tag: 'MAPA', gradient: '', group: 'servicos' },
+  { id: 'fotos-tecnicos', name: 'Fotos Técnicos', href: '/fotos-tecnicos', icon: <Camera size={18} />, tag: 'FOTOS', gradient: '', group: 'servicos' },
+
+  // Peças (laranja)
+  { id: 'ppv', name: 'Peças (Pedido de Venda)', href: '/ppv', icon: <Package size={18} />, tag: 'PEÇAS', gradient: '', group: 'pecas' },
+  { id: 'orcamentos', name: 'Orçamentos', href: '/orcamentos', icon: <Calculator size={18} />, tag: 'ORÇAMENTOS', gradient: '', group: 'pecas' },
+  { id: 'requisicoes', name: 'Requisições', href: '/requisicoes', icon: <ClipboardList size={18} />, tag: 'COMPRAS', gradient: '', group: 'pecas' },
+
+  // Financeiro (verde)
+  { id: 'financeiro', name: 'Financeiro', href: '/financeiro', icon: <DollarSign size={18} />, tag: 'FINANÇAS', gradient: '', group: 'financeiro' },
+  { id: 'dre', name: 'DRE Financeiro', href: 'https://financeiro-omie-production-ce7e.up.railway.app/dre', icon: <DollarSign size={18} />, tag: 'DRE', gradient: '', group: 'financeiro', external: true },
+
+  // Comercial (roxo)
+  { id: 'propostas', name: 'Proposta Comercial', href: '/propostas', icon: <FileText size={18} />, tag: 'VENDAS', gradient: '', group: 'comercial' },
+  { id: 'feedbacks', name: 'Feedbacks & CRM', href: '/feedbacks', icon: <Megaphone size={18} />, tag: 'CRM', gradient: '', group: 'comercial' },
+  { id: 'clientes', name: 'Clientes', href: '/clientes', icon: <Building size={18} />, tag: 'CLIENTES', gradient: '', group: 'comercial' },
+  { id: 'supervisor-vendas', name: 'Supervisor Vendas', href: '/supervisor-vendas', icon: <SlidersHorizontal size={18} />, tag: 'VENDAS', gradient: '', group: 'comercial' },
+
+  // Estoque (vermelho)
+  { id: 'consulta-estoque', name: 'Visual Estoque', href: '/visual-estoque', icon: <BarChart3 size={18} />, tag: 'VISUAL', gradient: '', group: 'estoque' },
+  { id: 'consulta-omie', name: 'Consulta Estoque', href: '/estoque', icon: <Eye size={18} />, tag: 'CONSULTA', gradient: '', group: 'estoque' },
+
+  // Outros (cinza)
+  { id: 'atividades', name: 'Atividades', href: '/atividades', icon: <Activity size={18} />, tag: 'LOGS', gradient: '', group: 'outros' },
+  { id: 'dashboard-agro', name: 'Dashboard Agro', href: 'https://dashboard-agro-sp-production.up.railway.app/', icon: <Wheat size={18} />, tag: 'AGRO', gradient: '', group: 'outros', external: true },
 ]
 
 // Ícone por tipo de notificação
@@ -370,25 +260,6 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const limparNotifRef = useRef(chatData.limparNotificacao)
   limparNotifRef.current = chatData.limparNotificacao
 
-  // Abrir link externo com token portal (bypass auth)
-  const openExternalWithAuth = useCallback(async (href: string) => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (session) {
-      const ts = Date.now().toString()
-      // Gerar HMAC via API route (funciona em http e https)
-      const res = await fetch('/api/portal-token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ts })
-      })
-      const { hash } = await res.json()
-      const sep = href.includes('?') ? '&' : '?'
-      window.open(`${href}${sep}portal_token=${hash}&portal_ts=${ts}&portal_user=${encodeURIComponent(session.user.email || '')}`, '_blank')
-    } else {
-      window.open(href, '_blank')
-    }
-  }, [])
-
   // Fechar dropdown do sino ao clicar fora
   useEffect(() => {
     const handle = (e: MouseEvent) => {
@@ -494,6 +365,15 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     if (item.id === 'dashboard') return true
     return temAcesso(item.id)
   }), [temAcesso])
+
+  const groupedNav = useMemo(() => {
+    const groups: { key: string; config: typeof GROUP_CONFIG[string]; items: NavItem[] }[] = []
+    for (const gk of GROUP_ORDER) {
+      const items = filteredNavItems.filter(i => i.group === gk)
+      if (items.length > 0) groups.push({ key: gk, config: GROUP_CONFIG[gk], items })
+    }
+    return groups
+  }, [filteredNavItems])
 
   // Items mesclados para o dropdown do sino
   const bellItems = useMemo(() => [
@@ -922,60 +802,64 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
           {/* Navigation - scrollável */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px', minHeight: 0 }}>
-          <p style={{
-            fontSize: '10px', fontWeight: '700', color: '#a3a3a3',
-            letterSpacing: '2px', marginBottom: '10px', paddingLeft: '4px'
-          }}>
-            SISTEMAS
-          </p>
-          {filteredNavItems.map((item) => {
-            const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
-            return (
-              <Link
-                key={item.id}
-                href={item.external ? '#' : item.href}
-                target={item.external ? undefined : undefined}
-                rel={item.external ? 'noopener noreferrer' : undefined}
-                onClick={(e) => {
-                  setSidebarOpen(false)
-                  if (item.external) {
-                    e.preventDefault()
-                    if (['consulta-estoque', 'consulta-omie'].includes(item.id)) {
-                      openExternalWithAuth(item.href)
-                    } else {
-                      window.open(item.href, '_blank')
-                    }
-                  }
-                }}
-                style={{
-                  width: '100%', display: 'flex', alignItems: 'center', gap: '10px',
-                  padding: '10px 12px', borderRadius: '10px', border: 'none',
-                  background: isActive ? 'var(--portal-bg-hover)' : 'transparent',
-                  color: isActive ? '#dc2626' : 'var(--portal-text-secondary)',
-                  cursor: 'pointer', fontSize: '13px', fontWeight: isActive ? '600' : '500',
-                  fontFamily: 'Inter', transition: 'all 0.2s', textAlign: 'left' as const,
-                  marginBottom: '2px', textDecoration: 'none'
-                }}
-                onMouseEnter={(e) => {
-                  if (!isActive) { e.currentTarget.style.background = 'var(--portal-bg-hover)'; e.currentTarget.style.color = '#dc2626' }
-                }}
-                onMouseLeave={(e) => {
-                  if (!isActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--portal-text-secondary)' }
-                }}
-              >
-                <div style={{
-                  width: '30px', height: '30px', borderRadius: '8px',
-                  background: isActive ? item.gradient : 'var(--portal-bg-secondary)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  flexShrink: 0, transition: 'all 0.2s'
+          {groupedNav.map((group) => (
+            <div key={group.key} style={{ marginBottom: group.key === 'geral' ? 4 : 8 }}>
+              {group.config.label && (
+                <p style={{
+                  fontSize: '9px', fontWeight: '800', color: group.config.color,
+                  letterSpacing: '2px', margin: '14px 0 6px', paddingLeft: '4px',
+                  display: 'flex', alignItems: 'center', gap: 6,
                 }}>
-                  <span style={{ color: isActive ? '#fff' : 'var(--portal-text-muted)', display: 'flex' }}>{item.icon}</span>
-                </div>
-                <span style={{ flex: 1 }}>{item.name}</span>
-                {isActive && <ChevronRight size={14} style={{ color: '#dc2626' }} />}
-              </Link>
-            )
-          })}
+                  <span style={{ width: 12, height: 2, borderRadius: 1, background: group.config.color, opacity: 0.4 }} />
+                  {group.config.label}
+                </p>
+              )}
+              {group.items.map((item) => {
+                const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
+                const gc = group.config
+                return (
+                  <Link
+                    key={item.id}
+                    href={item.external ? '#' : item.href}
+                    onClick={(e) => {
+                      setSidebarOpen(false)
+                      if (item.external) {
+                        e.preventDefault()
+                        window.open(item.href, '_blank')
+                      }
+                    }}
+                    style={{
+                      width: '100%', display: 'flex', alignItems: 'center', gap: '10px',
+                      padding: '10px 12px', borderRadius: '10px', border: 'none',
+                      background: isActive ? `${gc.color}12` : 'transparent',
+                      color: isActive ? gc.color : 'var(--portal-text-secondary)',
+                      cursor: 'pointer', fontSize: '13px', fontWeight: isActive ? '600' : '500',
+                      fontFamily: 'Inter', transition: 'all 0.2s', textAlign: 'left' as const,
+                      marginBottom: '2px', textDecoration: 'none'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isActive) { e.currentTarget.style.background = `${gc.color}0A`; e.currentTarget.style.color = gc.color }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--portal-text-secondary)' }
+                    }}
+                  >
+                    <div style={{
+                      width: '30px', height: '30px', borderRadius: '8px',
+                      background: isActive ? gc.gradient : 'var(--portal-bg-secondary)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      flexShrink: 0, transition: 'all 0.2s'
+                    }}>
+                      <span style={{ color: isActive ? '#fff' : 'var(--portal-text-muted)', display: 'flex' }}>{item.icon}</span>
+                    </div>
+                    <span style={{ flex: 1 }}>{item.name}</span>
+                    {item.external && <ExternalLink size={11} style={{ color: 'var(--portal-text-muted)', opacity: 0.5 }} />}
+                    {isActive && !item.external && <ChevronRight size={14} style={{ color: gc.color }} />}
+                  </Link>
+                )
+              })}
+            </div>
+          ))}
 
           {/* Admin */}
           {isAdmin && (

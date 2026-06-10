@@ -8,7 +8,6 @@ interface HeaderProps {
   onNewOS: () => void;
   onNewClient: () => void;
   onGenerateReport: (filtros: { tecnico: string; tipo: string }) => void;
-  onSync?: () => Promise<void>;
   onLembretes?: () => void;
   tecnicos?: string[];
   valorHora: number;
@@ -16,8 +15,7 @@ interface HeaderProps {
   onConfigSaved?: (valorHora: number, valorKm: number) => void;
 }
 
-export default function Header({ searchTerm, onSearch, onNewOS, onNewClient, onGenerateReport, onSync, onLembretes, tecnicos = [], valorHora, valorKm, onConfigSaved }: HeaderProps) {
-  const [syncing, setSyncing] = useState(false);
+export default function Header({ searchTerm, onSearch, onNewOS, onNewClient, onGenerateReport, onLembretes, tecnicos = [], valorHora, valorKm, onConfigSaved }: HeaderProps) {
   const [showFiltroRelatorio, setShowFiltroRelatorio] = useState(false);
   const [filtroTecnico, setFiltroTecnico] = useState("todos");
   const [filtroTipo, setFiltroTipo] = useState("todas");
@@ -25,16 +23,6 @@ export default function Header({ searchTerm, onSearch, onNewOS, onNewClient, onG
   const [cfgHora, setCfgHora] = useState(valorHora);
   const [cfgKm, setCfgKm] = useState(valorKm);
   const [salvando, setSalvando] = useState(false);
-
-  const handleSync = async () => {
-    if (!onSync || syncing) return;
-    setSyncing(true);
-    try {
-      await onSync();
-    } finally {
-      setSyncing(false);
-    }
-  };
 
   const handleGerar = () => {
     setShowFiltroRelatorio(false);
@@ -81,9 +69,6 @@ export default function Header({ searchTerm, onSearch, onNewOS, onNewClient, onG
           <input type="text" className="search-input" placeholder="Pesquisar cliente ou OS..." value={searchTerm} onChange={(e) => onSearch(e.target.value)} />
         </div>
         <div className="header-actions">
-          <button className="btn-top btn-report" onClick={handleSync} disabled={syncing} title="Sincronizar clientes e projetos do Omie">
-            <i className={`fas fa-sync-alt${syncing ? " fa-spin" : ""}`} /> {syncing ? "SINCRONIZANDO..." : "SINCRONIZAR"}
-          </button>
           <button className="btn-top btn-lembretes" onClick={onLembretes}><i className="fas fa-bell" /> LEMBRETES</button>
           <button className="btn-top btn-report" onClick={() => setShowFiltroRelatorio(true)}><i className="fas fa-file-invoice" /> GERAR RELATÓRIO</button>
           <button className="btn-top btn-cli" onClick={onNewClient}><i className="fas fa-user-plus" /> CRIAR CLIENTE</button>

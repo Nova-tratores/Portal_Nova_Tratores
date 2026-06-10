@@ -14,9 +14,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   const row = res[0];
 
-  // Buscar Servico_Interno via RPC (bypassa schema cache)
-  const { data: siData } = await supabase.rpc('get_servico_interno', { p_id_ordem: idOs });
-  const servicoInternoVal = siData === true;
+  const servicoInternoVal = !!safeGet(row, "Servico_Interno");
 
   // Buscar requisições vinculadas (legado via Id_Req + novo via Requisicao.ordem_servico)
   const requisicoes: Array<{ id: string; atualizada: boolean; valor: number; linkNota: string; material: string; solicitante: string }> = [];
@@ -263,6 +261,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     Alimentacao_Tecnico: !!dados.alimentacaoTecnico,
     Alimentacao_Valor: parseFloat(dados.alimentacaoValor || 0),
     Alimentacao_No_PDF: !!dados.alimentacaoNoPdf,
+    Servico_Interno: !!dados.servicoInterno,
   };
 
   const { error } = await supabase.from(TBL_OS).update(baseUpdate).eq("Id_Ordem", idOs);
@@ -285,11 +284,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     } catch (e) {
       console.error(`[alimentacao-os] OS ${idOs} falhou (ignorado):`, e instanceof Error ? e.message : e);
     }
-  }
-
-  // Servico_Interno via RPC (bypassa schema cache do PostgREST)
-  if (dados.servicoInterno !== undefined) {
-    await supabase.rpc('set_servico_interno', { p_id_ordem: idOs, p_valor: !!dados.servicoInterno });
   }
 
   // Sincroniza status do PPV vinculado

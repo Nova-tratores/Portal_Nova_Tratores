@@ -193,7 +193,6 @@ function PosPageInner() {
         onNewOS={handleNewOS}
         onNewClient={() => setClientDrawerVisible(true)}
         onGenerateReport={handleGenerateReport}
-        onSync={handleSync}
         onLembretes={() => setLembretesVisible(true)}
         tecnicos={tecnicos}
         valorHora={valorHora}
@@ -225,6 +224,7 @@ function PosPageInner() {
       <LembretesDrawer
         visible={lembretesVisible}
         clientes={clientes}
+        userName={userProfile?.nome || ""}
         onClose={() => setLembretesVisible(false)}
       />
 
