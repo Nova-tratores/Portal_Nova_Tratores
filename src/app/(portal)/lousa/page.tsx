@@ -8,7 +8,7 @@ import { supabase } from '@/lib/supabase'
 import {
   ChevronLeft, ChevronRight, Plus, X, Trash2, Search,
   CheckCircle, XCircle, Package, Bell, User, Calendar, Wrench,
-  Ban, Sun, LogOut
+  Ban, Sun, LogOut, Warehouse, Settings
 } from 'lucide-react'
 
 interface LousaEntry {
@@ -29,11 +29,12 @@ interface LousaEntry {
   temPedidoPPV?: boolean
 }
 
-type TipoMarca = 'servico' | 'faltou' | 'feriado' | 'saida'
+type TipoMarca = 'servico' | 'faltou' | 'feriado' | 'oficina' | 'saida'
 const TIPO_CONFIG: Record<TipoMarca, { label: string; cor: string; bg: string; icon: typeof Wrench }> = {
   servico: { label: 'Serviço', cor: '#3b82f6', bg: '#eff6ff', icon: Wrench },
   faltou:  { label: 'Faltou', cor: '#dc2626', bg: '#fef2f2', icon: Ban },
   feriado: { label: 'Feriado', cor: '#f59e0b', bg: '#fffbeb', icon: Sun },
+  oficina: { label: 'Oficina', cor: '#0d9488', bg: '#f0fdfa', icon: Warehouse },
   saida:   { label: 'Saída antecipada', cor: '#8b5cf6', bg: '#faf5ff', icon: LogOut },
 }
 
@@ -99,7 +100,7 @@ export default function LousaPage() {
   const [editEntry, setEditEntry] = useState<LousaEntry | null>(null)
   const [modalDia, setModalDia] = useState('')
   const [modalTecnico, setModalTecnico] = useState('')
-  const [modalPeriodo, setModalPeriodo] = useState<'manha' | 'tarde'>('manha')
+  const [modalPeriodo, setModalPeriodo] = useState<'manha' | 'tarde' | 'dia'>('manha')
   const [modalTipo, setModalTipo] = useState<TipoMarca>('servico')
 
   const [configOpen, setConfigOpen] = useState(false)
@@ -179,12 +180,12 @@ export default function LousaPage() {
     })
     entradas.forEach(e => {
       const tec = e.tecnico_nome || '_sem_tecnico'
-      const per = (e.periodo === 'tarde' ? 'tarde' : 'manha') as 'manha' | 'tarde'
-      if (mapa[tec]?.[e.data]) {
-        mapa[tec][e.data][per].push(e)
-      } else if (mapa['_sem_tecnico']?.[e.data]) {
-        mapa['_sem_tecnico'][e.data][per].push(e)
-      }
+      const target = mapa[tec]?.[e.data] ? mapa[tec][e.data] : mapa['_sem_tecnico']?.[e.data]
+      if (!target) return
+      // "dia" inteiro aparece nos dois períodos
+      if (e.periodo === 'dia') { target.manha.push(e); target.tarde.push(e) }
+      else if (e.periodo === 'tarde') target.tarde.push(e)
+      else target.manha.push(e)
     })
     return mapa
   }, [entradas, semana, tecnicos])
@@ -212,7 +213,7 @@ export default function LousaPage() {
     setEditEntry(entry)
     setModalDia(entry.data)
     setModalTecnico(entry.tecnico_nome || '')
-    setModalPeriodo((entry.periodo === 'tarde' ? 'tarde' : 'manha') as 'manha' | 'tarde')
+    setModalPeriodo(entry.periodo === 'tarde' ? 'tarde' : entry.periodo === 'dia' ? 'dia' : 'manha')
     setModalTipo((entry.tipo as TipoMarca) || 'servico')
     setFormCliente(entry.cliente_cnpj ? { cnpj_cpf: entry.cliente_cnpj, nome_fantasia: entry.cliente_nome, razao_social: '', cidade: '' } : null)
     setFormClienteSearch(entry.cliente_nome)
@@ -291,7 +292,7 @@ export default function LousaPage() {
 
   if (!pLoading && userProfile && !temAcesso('lousa')) return <SemPermissao />
 
-  const COL_TEMPLATE = '230px repeat(12, 1fr)'
+  const COL_TEMPLATE = '230px repeat(12, minmax(0, 1fr))'
 
   const renderTechRow = (tecNome: string, tecIdx: number, isUnassigned?: boolean) => {
     const palette = isUnassigned
@@ -340,12 +341,12 @@ export default function LousaPage() {
                 key={`${dia}-${per}`}
                 onClick={() => abrirNovaEntrada(tecNome, dia, per)}
                 style={{
-                  padding: 3,
-                  borderLeft: isManha ? '1px solid #e5e7eb' : '1px dashed #f3f4f6',
+                  padding: 4,
+                  borderLeft: isManha ? '2px solid #cbd5e1' : '1px dashed #e5e7eb',
                   background: isHoje ? `${palette.bg}` : items.length > 0 ? `${palette.bg}88` : 'transparent',
                   cursor: 'pointer',
-                  display: 'flex', flexDirection: 'column', gap: 2,
-                  minHeight: 74,
+                  display: 'flex', flexDirection: 'column', gap: 3,
+                  minHeight: 84,
                   transition: 'background 0.1s',
                 }}
                 onMouseEnter={e => { if (!items.length) e.currentTarget.style.background = palette.bg }}
@@ -391,8 +392,13 @@ export default function LousaPage() {
                         <Trash2 size={13} />
                       </button>
                     </div>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: isServico ? '#1a1a1a' : cfgMarca.cor, lineHeight: 1.3 }}>
-                      {isServico ? entry.cliente_nome : cfgMarca.label}
+                    <div style={{ fontWeight: 700, fontSize: 14, color: isServico ? '#1a1a1a' : cfgMarca.cor, lineHeight: 1.3, display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                      <span>{isServico ? entry.cliente_nome : cfgMarca.label}</span>
+                      {entry.periodo === 'dia' && (
+                        <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: 0.5, color: '#0369a1', background: '#e0f2fe', padding: '1px 6px', borderRadius: 5 }}>
+                          DIA TODO
+                        </span>
+                      )}
                     </div>
                     {entry.descricao && (
                       <div style={{
@@ -415,58 +421,13 @@ export default function LousaPage() {
   }
 
   return (
-    <div style={{ padding: '20px 24px', maxWidth: 1800, margin: '0 auto' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--portal-text, #1a1a1a)', margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Calendar size={22} color="#3b82f6" /> Lousa Virtual
-          </h1>
-          <p style={{ fontSize: 13, color: '#9CA3AF', margin: '4px 0 0' }}>Agenda semanal de serviços por técnico</p>
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <button onClick={abrirConfig} style={{
-            display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px', borderRadius: 10,
-            border: '1px solid var(--portal-border, #e5e5e5)', background: 'var(--portal-bg-card, #fff)',
-            fontSize: 13, fontWeight: 600, cursor: 'pointer', color: 'var(--portal-text-secondary, #666)',
-          }}>
-            <Bell size={15} /> Notificação
-          </button>
-        </div>
-      </div>
-
-      {/* Navegação da semana */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 16, padding: '8px 0' }}>
-        <button onClick={() => setSemana(addDays(semana, -7))} style={{
-          width: 36, height: 36, borderRadius: 10, border: '1px solid var(--portal-border, #e5e5e5)',
-          background: 'var(--portal-bg-card, #fff)', cursor: 'pointer', display: 'flex',
-          alignItems: 'center', justifyContent: 'center', color: 'var(--portal-text-secondary, #666)',
-        }}>
-          <ChevronLeft size={18} />
-        </button>
-        <button onClick={() => setSemana(getSegunda(new Date()))} style={{
-          padding: '8px 20px', borderRadius: 10, border: '1px solid #3b82f6',
-          background: '#EFF6FF', cursor: 'pointer', fontSize: 14, fontWeight: 700, color: '#3b82f6',
-        }}>
-          Hoje
-        </button>
-        <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--portal-text, #1a1a1a)', minWidth: 180, textAlign: 'center' }}>
-          {fmtSemana(semana)}
-        </span>
-        <button onClick={() => setSemana(addDays(semana, 7))} style={{
-          width: 36, height: 36, borderRadius: 10, border: '1px solid var(--portal-border, #e5e5e5)',
-          background: 'var(--portal-bg-card, #fff)', cursor: 'pointer', display: 'flex',
-          alignItems: 'center', justifyContent: 'center', color: 'var(--portal-text-secondary, #666)',
-        }}>
-          <ChevronRight size={18} />
-        </button>
-      </div>
-
+    <div style={{ padding: '8px 12px 80px' }}>
       {/* Grade */}
       {loading ? (
         <div style={{ padding: 80, textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>Carregando agenda...</div>
       ) : (
-        <div style={{ border: '1px solid #d1d5db', borderRadius: 12, overflow: 'hidden', background: '#fff' }}>
+        <div style={{ overflowX: 'auto' }}>
+        <div style={{ border: '1px solid #d1d5db', borderRadius: 12, overflow: 'hidden', background: '#fff', minWidth: 1180 }}>
 
           {/* Cabeçalho: dias */}
           <div style={{ display: 'grid', gridTemplateColumns: COL_TEMPLATE, borderBottom: '1px solid #d1d5db' }}>
@@ -487,8 +448,8 @@ export default function LousaPage() {
               return (
                 <div key={dia} style={{
                   gridColumn: 'span 2', textAlign: 'center', padding: '8px 4px',
-                  background: isHoje ? '#eff6ff' : '#f8fafc',
-                  borderLeft: '1px solid #d1d5db',
+                  background: isHoje ? '#eff6ff' : '#f1f5f9',
+                  borderLeft: '2px solid #94a3b8',
                 }}>
                   <div style={{ fontSize: 16, fontWeight: 700, color: isHoje ? '#2563eb' : '#1e293b' }}>
                     {nome}
@@ -513,7 +474,7 @@ export default function LousaPage() {
                 <div key={`${dia}-m`} style={{
                   textAlign: 'center', padding: '7px 2px', fontSize: 13, fontWeight: 700,
                   color: '#6b7280', background: isHoje ? '#eff6ff' : '#f8fafc',
-                  borderLeft: '1px solid #d1d5db', letterSpacing: 0.5,
+                  borderLeft: '2px solid #94a3b8', letterSpacing: 0.5,
                 }}>
                   <span style={{ color: isHoje ? '#2563eb' : '#6b7280' }}>MANHÃ</span>
                   <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 500 }}>7:30 — 11:30</div>
@@ -541,6 +502,7 @@ export default function LousaPage() {
               Nenhum técnico cadastrado
             </div>
           )}
+        </div>
         </div>
       )}
 
@@ -573,7 +535,7 @@ export default function LousaPage() {
             {/* Tipo de marcação */}
             <div style={{ marginBottom: 16 }}>
               <label style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', letterSpacing: 1, display: 'block', marginBottom: 6 }}>TIPO</label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
                 {(Object.keys(TIPO_CONFIG) as TipoMarca[]).map(t => {
                   const cfg = TIPO_CONFIG[t]
                   const Icon = cfg.icon
@@ -620,21 +582,21 @@ export default function LousaPage() {
               <div>
                 <label style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', letterSpacing: 1, display: 'block', marginBottom: 6 }}>PERÍODO</label>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  {(['manha', 'tarde'] as const).map(p => (
+                  {(['manha', 'tarde', 'dia'] as const).map(p => (
                     <button
                       key={p}
                       onClick={() => setModalPeriodo(p)}
                       style={{
-                        flex: 1, padding: '10px 0', borderRadius: 10, fontSize: 13, fontWeight: 600,
+                        flex: 1, padding: '10px 0', borderRadius: 10, fontSize: 12, fontWeight: 600,
                         border: modalPeriodo === p ? '2px solid #3b82f6' : '1px solid var(--portal-border, #e5e5e5)',
                         background: modalPeriodo === p ? '#eff6ff' : 'var(--portal-bg-card, #fff)',
                         color: modalPeriodo === p ? '#2563eb' : 'var(--portal-text-secondary, #666)',
                         cursor: 'pointer',
                       }}
                     >
-                      {p === 'manha' ? 'Manhã' : 'Tarde'}
+                      {p === 'manha' ? 'Manhã' : p === 'tarde' ? 'Tarde' : 'Dia inteiro'}
                       <div style={{ fontSize: 9, fontWeight: 500, color: '#9ca3af', marginTop: 2 }}>
-                        {p === 'manha' ? '7:30 — 11:30' : '12:30 — 17:30'}
+                        {p === 'manha' ? '7:30 — 11:30' : p === 'tarde' ? '12:30 — 17:30' : '7:30 — 17:30'}
                       </div>
                     </button>
                   ))}
@@ -736,12 +698,12 @@ export default function LousaPage() {
             {modalTipo !== 'feriado' && (
             <div style={{ marginBottom: 16 }}>
               <label style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', letterSpacing: 1, display: 'block', marginBottom: 6 }}>
-                {modalTipo === 'faltou' ? 'MOTIVO' : modalTipo === 'saida' ? 'HORÁRIO / MOTIVO (opcional)' : 'DESCRIÇÃO'}
+                {modalTipo === 'faltou' ? 'MOTIVO' : modalTipo === 'saida' ? 'HORÁRIO / MOTIVO (opcional)' : modalTipo === 'oficina' ? 'O QUE VAI FAZER (opcional)' : 'DESCRIÇÃO'}
               </label>
               <textarea
                 value={formDesc}
                 onChange={e => setFormDesc(e.target.value)}
-                placeholder={modalTipo === 'faltou' ? 'Por que faltou?' : modalTipo === 'saida' ? 'Ex: saiu 15h por consulta...' : 'Descreva o serviço...'}
+                placeholder={modalTipo === 'faltou' ? 'Por que faltou?' : modalTipo === 'saida' ? 'Ex: saiu 15h por consulta...' : modalTipo === 'oficina' ? 'Ex: manutenção interna, organização...' : 'Descreva o serviço...'}
                 rows={3}
                 style={{
                   width: '100%', padding: '10px 14px', borderRadius: 10,
@@ -911,6 +873,42 @@ export default function LousaPage() {
           </div>
         </div>
       )}
+
+      {/* ===== Barra flutuante: semana + engrenagem ===== */}
+      <div style={{
+        position: 'fixed', bottom: 18, left: '50%', transform: 'translateX(-50%)',
+        zIndex: 1000, display: 'flex', alignItems: 'center', gap: 8,
+        background: 'var(--portal-bg-card, #fff)', border: '1px solid var(--portal-border, #e5e7eb)',
+        borderRadius: 999, padding: '7px 10px', boxShadow: '0 8px 28px rgba(0,0,0,0.16)',
+      }}>
+        <button onClick={() => setSemana(addDays(semana, -7))} title="Semana anterior" style={{
+          width: 34, height: 34, borderRadius: '50%', border: 'none', background: 'var(--portal-bg-secondary, #f5f5f5)',
+          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569',
+        }}>
+          <ChevronLeft size={18} />
+        </button>
+        <button onClick={() => setSemana(getSegunda(new Date()))} title="Voltar para esta semana" style={{
+          padding: '7px 14px', borderRadius: 999, border: 'none', cursor: 'pointer',
+          background: '#EFF6FF', color: '#2563eb', fontSize: 13, fontWeight: 700,
+          display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
+        }}>
+          <Calendar size={14} /> {fmtSemana(semana)}
+        </button>
+        <button onClick={() => setSemana(addDays(semana, 7))} title="Próxima semana" style={{
+          width: 34, height: 34, borderRadius: '50%', border: 'none', background: 'var(--portal-bg-secondary, #f5f5f5)',
+          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569',
+        }}>
+          <ChevronRight size={18} />
+        </button>
+        <div style={{ width: 1, height: 22, background: 'var(--portal-border, #e5e7eb)', margin: '0 2px' }} />
+        <button onClick={abrirConfig} title="Configurar notificação de peças (PPV)" style={{
+          width: 38, height: 38, borderRadius: '50%', border: 'none', cursor: 'pointer',
+          background: 'linear-gradient(135deg, #475569, #1e293b)', color: '#fff',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 3px 10px rgba(30,41,59,0.3)',
+        }}>
+          <Settings size={18} />
+        </button>
+      </div>
     </div>
   )
 }
