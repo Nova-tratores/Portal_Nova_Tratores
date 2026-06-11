@@ -91,6 +91,19 @@ export default function TimelineRegistros({ registros, onEditar }: Props) {
                 )}
               </div>
 
+              {/* Quem atendeu + status do atendimento (log) */}
+              {(r.atendente_nome || r.status_atendimento) && (
+                <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
+                  {statusAtendimentoChip(r.status_atendimento)}
+                  {r.atendente_nome && (
+                    <span style={{ fontSize: 11, color: "var(--portal-text-secondary)" }}>🎧 {r.atendente_nome}</span>
+                  )}
+                  {r.status_atendimento === "arquivado" && r.arquivado_motivo && (
+                    <span style={{ fontSize: 11, color: "#92400e", fontStyle: "italic" }}>— {r.arquivado_motivo}</span>
+                  )}
+                </div>
+              )}
+
               {isCrm ? (
                 <>
                   {r.servico && (
@@ -133,6 +146,17 @@ export default function TimelineRegistros({ registros, onEditar }: Props) {
       })}
     </div>
   );
+}
+
+function statusAtendimentoChip(status: string | null | undefined): React.ReactNode {
+  switch (status) {
+    case "concluido":    return <Chip color="#d1fae5" textColor="#065f46">✓ Concluído</Chip>;
+    case "sem_resposta": return <Chip color="#fee2e2" textColor="#991b1b">📵 Sem resposta</Chip>;
+    case "arquivado":    return <Chip color="#e5e7eb" textColor="#374151">🗄️ Arquivado</Chip>;
+    case "aberto":
+    case "em_andamento": return <Chip color="#dbeafe" textColor="#1e40af">🟢 Em atendimento</Chip>;
+    default:             return null;
+  }
 }
 
 function Chip({ children, color = "#f3f4f6", textColor = "var(--portal-text-secondary)" }: { children: React.ReactNode; color?: string; textColor?: string }) {

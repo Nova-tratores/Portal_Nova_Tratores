@@ -12,7 +12,7 @@ export type Melhoria = "Prazo" | "Atendimento" | "Preço" | "Qualidade Técnica"
 export type PrioridadeRFM = "Urgente" | "Normal" | "Inativo";
 
 // Estado do registro quando criado a partir de oportunidade
-export type StatusAtendimento = "aberto" | "em_andamento" | "concluido" | "sem_resposta";
+export type StatusAtendimento = "aberto" | "em_andamento" | "concluido" | "sem_resposta" | "arquivado";
 
 export interface Tentativa {
   data: string;          // ISO
@@ -53,6 +53,7 @@ export interface FeedbackRegistro {
   aberto_em: string | null;
   concluido_em: string | null;
   status_atendimento: StatusAtendimento;
+  arquivado_motivo: string | null;  // justificativa quando status_atendimento = 'arquivado'
   origem_dados: string | null;  // "Omie NOVA" | "Omie CASTRO" | "Omie" | "Portal"
 
   criado_em: string;

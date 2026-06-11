@@ -10,6 +10,8 @@ interface Props {
   onExcluir?: (r: FeedbackRegistro) => void;
   // Muda o status de atendimento do registro (concluir, reabrir, sem-resposta…).
   onMudarAtendimento?: (r: FeedbackRegistro, novo: StatusAtendimento) => void;
+  // Arquiva o atendimento com justificativa (cliente que não vale a pena).
+  onArquivar?: (r: FeedbackRegistro) => void;
 }
 
 // Horas decorridas desde aberto_em (negativo se aberto_em for futuro)
@@ -53,7 +55,7 @@ function corPrioridade(p: string | null): { bg: string; fg: string } {
   }
 }
 
-export default function RegistroCard({ registro: r, ultimaOS, onEditar, onExcluir, onMudarAtendimento }: Props) {
+export default function RegistroCard({ registro: r, ultimaOS, onEditar, onExcluir, onMudarAtendimento, onArquivar }: Props) {
   const isCrm = r.tipo === "crm";
   const corStatusObj = isCrm ? corStatus(r.status_cliente) : corPrioridade(r.prioridade);
   const emAtendimento = r.status_atendimento === "aberto" || r.status_atendimento === "em_andamento";
@@ -65,10 +67,12 @@ export default function RegistroCard({ registro: r, ultimaOS, onEditar, onExclui
 
   return (
     <article style={{ ...cardStyle, ...(atrasado ? { borderColor: "#dc2626", borderWidth: 2 } : {}) }}>
-      {r.atendente_nome && (() => {
-        // Banner sempre presente quando há atendente, mudando conforme o status.
+      {(r.atendente_nome || r.status_atendimento === "arquivado") && (() => {
+        // Banner conforme o status do atendimento.
         let bg = "#d1fae5", fg = "#065f46", txt = "🟢 Em atendimento por";
-        if (emAtendimento) {
+        if (r.status_atendimento === "arquivado") {
+          bg = "#e5e7eb"; fg = "#374151"; txt = r.atendente_nome ? "🗄️ Arquivado por" : "🗄️ Arquivado";
+        } else if (emAtendimento) {
           if (atrasado) { bg = "#fee2e2"; fg = "#991b1b"; txt = "⚠️ Em atendimento por"; }
         } else if (r.status_atendimento === "concluido") {
           bg = "#f3f4f6"; fg = "#374151"; txt = "✓ Concluído por";
@@ -76,15 +80,14 @@ export default function RegistroCard({ registro: r, ultimaOS, onEditar, onExclui
           bg = "#fee2e2"; fg = "#991b1b"; txt = "📵 Sem resposta — atendido por";
         }
         return (
-          <div style={{ ...atendimentoBannerBase, background: bg, color: fg }}>
+          <div style={{ ...atendimentoBannerBase, background: bg, color: fg, flexDirection: "column", alignItems: "flex-start" }}>
             <span>
-              {txt} <strong>{r.atendente_nome}</strong>
+              {txt}{r.atendente_nome ? <> <strong>{r.atendente_nome}</strong></> : null}
               {emAtendimento && horasAberto !== null && ` · há ${fmtTempoDecorrido(horasAberto)}`}
+              {atrasado && <strong style={{ marginLeft: 8, color: "#991b1b" }}>· ATUALIZE COM DETALHES</strong>}
             </span>
-            {atrasado && (
-              <span style={{ fontSize: 10, fontWeight: 700, color: "#991b1b" }}>
-                ATUALIZE COM DETALHES
-              </span>
+            {r.status_atendimento === "arquivado" && r.arquivado_motivo && (
+              <span style={{ fontStyle: "italic", opacity: 0.85 }}>Motivo: {r.arquivado_motivo}</span>
             )}
           </div>
         );
@@ -172,6 +175,12 @@ export default function RegistroCard({ registro: r, ultimaOS, onEditar, onExclui
 
       {onMudarAtendimento && (
         <div style={acoesAtendimentoStyle}>
+          {r.status_atendimento === "arquivado" ? (
+            <button onClick={() => onMudarAtendimento(r, "em_andamento")} style={btnAcao("#e5e7eb", "#374151")} type="button">
+              ♻️ Desarquivar
+            </button>
+          ) : (
+          <>
           {/* Concluir / Reabrir */}
           {r.status_atendimento === "concluido" ? (
             <button onClick={() => onMudarAtendimento(r, "em_andamento")} style={btnAcao("#f3f4f6", "#525252")} type="button">
@@ -205,6 +214,13 @@ export default function RegistroCard({ registro: r, ultimaOS, onEditar, onExclui
               )}
             </div>
           )}
+          {onArquivar && (
+            <button onClick={() => onArquivar(r)} style={btnAcao("#e5e7eb", "#374151")} type="button" title="Arquivar este atendimento (com justificativa)">
+              🗄️ Arquivar
+            </button>
+          )}
+          </>
+          )}
         </div>
       )}
 
@@ -212,7 +228,7 @@ export default function RegistroCard({ registro: r, ultimaOS, onEditar, onExclui
         <footer style={footerStyle}>
           {onEditar && (
             <button onClick={() => onEditar(r)} style={btnAcao("#fef3c7", "#92400e")} type="button">
-              ✎ Editar
+              📝 Preencher atendimento
             </button>
           )}
           {onExcluir && (
