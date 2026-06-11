@@ -15,6 +15,8 @@ export default function ProjetoAutocomplete({ valor, onChange, onSelecionar }: P
   const [buscando, setBuscando] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Só busca/abre quando o usuário digita (não reabre com o campo pré-preenchido).
+  const usuarioDigitou = useRef(false);
 
   const buscar = useCallback(async (q: string) => {
     if (!q || q.trim().length < 2) { setResultados([]); return; }
@@ -31,6 +33,7 @@ export default function ProjetoAutocomplete({ valor, onChange, onSelecionar }: P
   }, []);
 
   useEffect(() => {
+    if (!usuarioDigitou.current) return; // pré-preenchido — não abre sozinho
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => void buscar(valor), 300);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
@@ -49,7 +52,7 @@ export default function ProjetoAutocomplete({ valor, onChange, onSelecionar }: P
       <input
         type="text"
         value={valor}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => { usuarioDigitou.current = true; onChange(e.target.value); }}
         onFocus={() => resultados.length > 0 && setAberto(true)}
         placeholder="Digite modelo ou chassi para buscar no Omie..."
         style={inputStyle}
@@ -63,7 +66,7 @@ export default function ProjetoAutocomplete({ valor, onChange, onSelecionar }: P
             <button
               key={p.id_omie}
               type="button"
-              onClick={() => { onSelecionar(p); setAberto(false); }}
+              onClick={() => { usuarioDigitou.current = false; onSelecionar(p); setAberto(false); }}
               style={itemStyle}
               onMouseEnter={(e) => (e.currentTarget.style.background = "#fef2f2")}
               onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
