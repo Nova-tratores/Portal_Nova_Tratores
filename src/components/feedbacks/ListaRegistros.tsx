@@ -15,7 +15,7 @@ interface Filtros {
   dataDe: string;
   dataAte: string;
   // Atendimento ("pendentes" = tudo menos concluído; é o padrão da tela)
-  statusAtendimento: "pendentes" | "todos" | "aberto" | "em_andamento" | "concluido" | "sem_resposta" | "atrasados";
+  statusAtendimento: "pendentes" | "todos" | "aberto" | "em_andamento" | "concluido" | "sem_resposta" | "atrasados" | "arquivado";
   // CRM-only
   notaMin: number;
   statusCrm: string;
@@ -54,8 +54,8 @@ function aplicarFiltros(rows: FeedbackRegistro[], f: Filtros, tipo: TipoFeedback
       const horas = (Date.now() - new Date(r.aberto_em).getTime()) / (1000 * 60 * 60);
       if (horas < 24) return false;
     } else if (f.statusAtendimento === "pendentes") {
-      // Padrão da tela: esconde atendimentos já concluídos.
-      if (r.status_atendimento === "concluido") return false;
+      // Padrão da tela: esconde concluídos e arquivados (o que ainda precisa de ação fica visível).
+      if (r.status_atendimento === "concluido" || r.status_atendimento === "arquivado") return false;
     } else if (f.statusAtendimento !== "todos") {
       if (r.status_atendimento !== f.statusAtendimento) return false;
     }
@@ -154,6 +154,20 @@ export default function ListaRegistros({ tipo }: Props) {
       setErro(e instanceof Error ? e.message : String(e));
     }
   }
+  // Arquiva o atendimento com justificativa (cliente que não vale a pena).
+  async function handleArquivar(r: FeedbackRegistro) {
+    const motivo = prompt(`Motivo para arquivar o atendimento de "${r.nome}":`);
+    if (motivo === null) return; // cancelou
+    try {
+      const salvo = await atualizarRegistro(r.id, {
+        status_atendimento: "arquivado",
+        arquivado_motivo: motivo || "(sem motivo)",
+      });
+      handleSalvo(salvo);
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : String(e));
+    }
+  }
 
   return (
     <div style={{ paddingTop: 20, fontFamily: "Inter, sans-serif" }}>
@@ -206,6 +220,7 @@ export default function ListaRegistros({ tipo }: Props) {
               <option value="atrasados">⚠️ Atrasados (+24h)</option>
               <option value="concluido">✓ Concluídos</option>
               <option value="sem_resposta">🔴 Sem resposta</option>
+              <option value="arquivado">🗄️ Arquivados</option>
             </select>
           </FiltroCampo>
           <FiltroCampo label="Data de">
@@ -280,6 +295,7 @@ export default function ListaRegistros({ tipo }: Props) {
               onEditar={abrirEdit}
               onExcluir={handleExcluir}
               onMudarAtendimento={handleMudarAtendimento}
+              onArquivar={handleArquivar}
             />
           ))}
         </div>
