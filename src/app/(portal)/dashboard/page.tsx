@@ -46,6 +46,7 @@ const systems: SystemCard[] = [
   { id: 'mecanicos', name: 'Janela Mecânicos', description: 'Jornada, agenda e acompanhamento dos mecânicos de campo', icon: <Users size={28} />, color: '#0EA5E9', gradient: 'linear-gradient(135deg, #38BDF8, #0EA5E9)', href: '/mecanicos', tag: 'TÉCNICOS', group: 'servicos' },
   { id: 'mapa-geral', name: 'Mapeamento Técnico', description: 'Visualização geográfica de clientes, técnicos e operações', icon: <Map size={28} />, color: '#0EA5E9', gradient: 'linear-gradient(135deg, #0EA5E9, #0369A1)', href: '/mapa-geral', tag: 'MAPA', group: 'servicos' },
   { id: 'fotos-tecnicos', name: 'Fotos Técnicos', description: 'Fotos anexadas pelos técnicos em cada ordem de serviço', icon: <Camera size={28} />, color: '#0EA5E9', gradient: 'linear-gradient(135deg, #0284C7, #0369A1)', href: '/fotos-tecnicos', tag: 'FOTOS', group: 'servicos' },
+  { id: 'lousa', name: 'Lousa Virtual', description: 'Agenda semanal de serviços com verificação de OS e pedidos PPV', icon: <ClipboardCheck size={28} />, color: '#0EA5E9', gradient: 'linear-gradient(135deg, #38BDF8, #0284C7)', href: '/lousa', tag: 'AGENDA', group: 'servicos' },
 
   // Peças (laranja)
   { id: 'ppv', name: 'Peças (Pedido de Venda)', description: 'Pedidos de venda de peças, rastreamento e gestão', icon: <Package size={28} />, color: '#F97316', gradient: 'linear-gradient(135deg, #F97316, #EA580C)', href: '/ppv', tag: 'PEÇAS', group: 'pecas' },
@@ -96,6 +97,7 @@ const systemToModulo: Record<string, string> = {
   'clientes': 'clientes',
   'mapa-geral': 'mapa',
   'fotos-tecnicos': 'fotos-tecnicos',
+  'lousa': 'lousa',
   'consulta-estoque': 'estoque',
   'consulta-omie': 'visual-estoque',
   'avisos': 'avisos',
@@ -681,168 +683,253 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ══ GRUPOS CASCATA ══ */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {groupedDisplayed.map((group) => {
-          const isOpen = openGroups.includes(group.key)
-          const gc = group.config
-          return (
-            <div key={group.key} style={{
-              borderRadius: 16, overflow: 'hidden',
-              border: `1px solid ${isOpen ? gc.color + '40' : 'var(--portal-border)'}`,
-              background: 'var(--portal-bg-card)',
-              boxShadow: isOpen ? `0 4px 20px ${gc.color}12` : '0 1px 3px rgba(0,0,0,0.04)',
-              transition: 'all 0.25s ease',
-            }}>
-              {/* Header do grupo */}
-              <div
-                onClick={() => toggleGroup(group.key)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 14, padding: '18px 22px',
-                  cursor: 'pointer', transition: 'background 0.15s',
-                  background: isOpen ? `${gc.color}08` : 'transparent',
-                }}
-                onMouseEnter={e => { if (!isOpen) e.currentTarget.style.background = `${gc.color}06` }}
-                onMouseLeave={e => { if (!isOpen) e.currentTarget.style.background = 'transparent' }}
-              >
-                <div style={{
-                  width: 44, height: 44, borderRadius: 12,
-                  background: gc.gradient,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  flexShrink: 0, transition: 'transform 0.2s', color: '#fff',
-                  transform: isOpen ? 'scale(1.05)' : 'scale(1)',
-                }}>
-                  {gc.icon}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-                    <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--portal-text)' }}>{gc.label}</span>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: gc.color, background: `${gc.color}12`, padding: '2px 8px', borderRadius: 6 }}>{group.items.length}</span>
-                  </div>
-                  <div style={{ fontSize: 12, color: '#a3a3a3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {group.items.map(s => s.name).join(' · ')}
-                  </div>
-                </div>
-                <ChevronRight size={18} color={gc.color} style={{ transition: 'transform 0.25s ease', transform: isOpen ? 'rotate(90deg)' : 'rotate(0)', flexShrink: 0 }} />
-              </div>
-
-              {/* Conteúdo expandido */}
-              <div style={{
-                maxHeight: isOpen ? 2000 : 0, opacity: isOpen ? 1 : 0,
-                overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
+      {/* ══ GRADE ══ */}
+      {viewMode === 'grade' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
+          {groupedDisplayed.map((group) => {
+            const isOpen = openGroups.includes(group.key)
+            const gc = group.config
+            return (
+              <div key={group.key} style={{
+                borderRadius: 18, overflow: 'hidden',
+                border: `1px solid ${isOpen ? gc.color + '40' : 'var(--portal-border)'}`,
+                background: 'var(--portal-bg-card)',
+                boxShadow: isOpen ? `0 6px 24px ${gc.color}14` : '0 1px 4px rgba(0,0,0,0.04)',
+                transition: 'all 0.25s ease',
+                gridColumn: group.items.length >= 5 ? 'span 2' : 'span 1',
               }}>
-                <div style={{ borderTop: `1px solid ${gc.color}15`, padding: 16 }}>
-
-                  {/* === GRADE === */}
-                  {viewMode === 'grade' && (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
+                <div
+                  onClick={() => toggleGroup(group.key)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 14, padding: '16px 20px',
+                    cursor: 'pointer', transition: 'background 0.15s',
+                    background: isOpen ? `${gc.color}08` : 'transparent',
+                  }}
+                  onMouseEnter={e => { if (!isOpen) e.currentTarget.style.background = `${gc.color}06` }}
+                  onMouseLeave={e => { if (!isOpen) e.currentTarget.style.background = 'transparent' }}
+                >
+                  <div style={{
+                    width: 40, height: 40, borderRadius: 11,
+                    background: gc.gradient,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0, color: '#fff', transition: 'transform 0.2s',
+                    transform: isOpen ? 'scale(1.05)' : 'scale(1)',
+                  }}>
+                    {gc.icon}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--portal-text)' }}>{gc.label}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: gc.color, background: `${gc.color}12`, padding: '2px 8px', borderRadius: 6 }}>{group.items.length}</span>
+                    </div>
+                    {!isOpen && (
+                      <div style={{ fontSize: 11, color: '#a3a3a3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
+                        {group.items.map(s => s.name).join(' · ')}
+                      </div>
+                    )}
+                  </div>
+                  <ChevronRight size={16} color={gc.color} style={{ transition: 'transform 0.25s ease', transform: isOpen ? 'rotate(90deg)' : 'rotate(0)', flexShrink: 0 }} />
+                </div>
+                <div style={{
+                  maxHeight: isOpen ? 3000 : 0, opacity: isOpen ? 1 : 0,
+                  overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
+                }}>
+                  <div style={{ borderTop: `1px solid ${gc.color}15`, padding: '14px 16px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: group.items.length >= 5 ? 'repeat(auto-fill, minmax(260px, 1fr))' : 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
                       {group.items.map((system, i) => {
                         const isFav = favoritos.includes(system.id)
                         return (
                           <div key={system.id} style={{
-                            borderRadius: 12, overflow: 'hidden', cursor: 'pointer', position: 'relative',
+                            borderRadius: 14, overflow: 'hidden', cursor: 'pointer', position: 'relative',
                             background: 'var(--portal-bg)', border: '1px solid var(--portal-border)',
-                            transition: 'all 0.2s', animation: `fadeIn 0.3s ease-out ${i * 0.06}s both`,
+                            transition: 'all 0.2s', animation: `fadeIn 0.3s ease-out ${i * 0.04}s both`,
                           }}
-                            onMouseEnter={e => { e.currentTarget.style.borderColor = `${gc.color}50`; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = `0 6px 16px ${gc.color}15` }}
+                            onMouseEnter={e => { e.currentTarget.style.borderColor = `${gc.color}50`; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = `0 8px 20px ${gc.color}12` }}
                             onMouseLeave={e => { e.currentTarget.style.borderColor = ''; e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '' }}
                           >
+                            <div style={{ height: 3, background: gc.gradient }} />
                             <button onClick={(e) => { e.stopPropagation(); toggleFavorito(system.id) }} className="fav-btn" style={{
-                              position: 'absolute', top: 10, right: 10, zIndex: 2, width: 28, height: 28, borderRadius: 6, border: 'none',
+                              position: 'absolute', top: 12, right: 10, zIndex: 2, width: 26, height: 26, borderRadius: 6, border: 'none',
                               background: isFav ? '#FEF3C7' : 'transparent', cursor: 'pointer',
                               display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: isFav ? 1 : 0, transition: 'opacity .2s',
                             }}>
-                              <Star size={14} fill={isFav ? '#F59E0B' : 'none'} color={isFav ? '#F59E0B' : '#d4d4d4'} />
+                              <Star size={13} fill={isFav ? '#F59E0B' : 'none'} color={isFav ? '#F59E0B' : '#d4d4d4'} />
                             </button>
-                            <div onClick={() => editingFolder ? toggleCardInFolder(editingFolder, system.id) : openSystem(system)} style={{ padding: '18px 20px', display: 'flex', alignItems: 'center', gap: 14 }}>
-                              <div style={{ width: 42, height: 42, borderRadius: 10, background: system.gradient, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0 }}>
+                            <div onClick={() => editingFolder ? toggleCardInFolder(editingFolder, system.id) : openSystem(system)} style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                              <div style={{ width: 38, height: 38, borderRadius: 10, background: system.gradient, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0 }}>
                                 {system.icon}
                               </div>
                               <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text)', marginBottom: 2 }}>{system.name}</div>
-                                <div style={{ fontSize: 12, color: 'var(--portal-text-secondary)', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{system.description}</div>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--portal-text)', marginBottom: 2 }}>{system.name}</div>
+                                <div style={{ fontSize: 11, color: 'var(--portal-text-secondary)', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{system.description}</div>
                               </div>
-                              {system.external && <ChevronRight size={14} color="#d4d4d4" style={{ flexShrink: 0 }} />}
+                              {system.external && <ChevronRight size={13} color="#d4d4d4" style={{ flexShrink: 0 }} />}
                             </div>
                           </div>
                         )
                       })}
                     </div>
-                  )}
-
-                  {/* === LISTA === */}
-                  {viewMode === 'lista' && (
-                    <div style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid var(--portal-border)' }}>
-                      {group.items.map((system, i) => {
-                        const isFav = favoritos.includes(system.id)
-                        return (
-                          <div key={system.id} onClick={() => openSystem(system)} style={{
-                            display: 'flex', alignItems: 'center', gap: 14, padding: '12px 18px',
-                            borderBottom: i < group.items.length - 1 ? '1px solid var(--portal-border)' : 'none',
-                            cursor: 'pointer', transition: 'background .15s', background: 'var(--portal-bg)',
-                          }}
-                            onMouseEnter={e => { e.currentTarget.style.background = `${gc.color}06` }}
-                            onMouseLeave={e => { e.currentTarget.style.background = 'var(--portal-bg)' }}
-                          >
-                            <div style={{ width: 34, height: 34, borderRadius: 8, background: system.gradient, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0 }}>
-                              {system.icon}
-                            </div>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--portal-text)' }}>{system.name}</div>
-                              <div style={{ fontSize: 11, color: '#a3a3a3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{system.description}</div>
-                            </div>
-                            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: gc.color, background: `${gc.color}10`, padding: '3px 8px', borderRadius: 4, flexShrink: 0 }}>{system.tag}</span>
-                            <button onClick={(e) => { e.stopPropagation(); toggleFavorito(system.id) }} style={{
-                              width: 26, height: 26, borderRadius: 6, border: 'none',
-                              background: isFav ? '#FEF3C7' : 'transparent', cursor: 'pointer',
-                              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                            }}>
-                              <Star size={13} fill={isFav ? '#F59E0B' : 'none'} color={isFav ? '#F59E0B' : '#e5e5e5'} />
-                            </button>
-                            <ChevronRight size={14} color="#d4d4d4" style={{ flexShrink: 0 }} />
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-
-                  {/* === CIRCULAR === */}
-                  {viewMode === 'circular' && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, justifyContent: 'center', padding: '8px 0' }}>
-                      {group.items.map((system) => {
-                        const isFav = favoritos.includes(system.id)
-                        return (
-                          <div key={system.id} onClick={() => openSystem(system)} style={{
-                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
-                            cursor: 'pointer', width: 90, textAlign: 'center', position: 'relative',
-                          }}>
-                            {isFav && <Star size={11} fill="#F59E0B" color="#F59E0B" style={{ position: 'absolute', top: -2, right: 4, zIndex: 2 }} />}
-                            <div style={{
-                              width: 56, height: 56, borderRadius: '50%',
-                              background: system.gradient, display: 'flex',
-                              alignItems: 'center', justifyContent: 'center', color: '#fff',
-                              boxShadow: `0 4px 14px ${gc.color}25`,
-                              transition: 'all .2s', border: '3px solid #fff',
-                            }}
-                              onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.15)'; e.currentTarget.style.boxShadow = `0 6px 20px ${gc.color}35` }}
-                              onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = `0 4px 14px ${gc.color}25` }}
-                              onContextMenu={e => { e.preventDefault(); toggleFavorito(system.id) }}
-                            >
-                              {system.icon}
-                            </div>
-                            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--portal-text)', lineHeight: 1.2 }}>{system.name}</span>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-
+                  </div>
                 </div>
               </div>
-            </div>
-          )
-        })}
-      </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* ══ LISTA ══ */}
+      {viewMode === 'lista' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
+          {groupedDisplayed.map((group) => {
+            const isOpen = openGroups.includes(group.key)
+            const gc = group.config
+            return (
+              <div key={group.key} style={{
+                borderRadius: 14, overflow: 'hidden',
+                border: `1px solid var(--portal-border)`,
+                background: 'var(--portal-bg-card)',
+                transition: 'all 0.2s',
+              }}>
+                <div
+                  onClick={() => toggleGroup(group.key)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px',
+                    cursor: 'pointer', borderBottom: isOpen ? `1px solid var(--portal-border)` : 'none',
+                    background: isOpen ? `${gc.color}06` : 'transparent',
+                    transition: 'background 0.15s',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = `${gc.color}06` }}
+                  onMouseLeave={e => { if (!isOpen) e.currentTarget.style.background = 'transparent' }}
+                >
+                  <div style={{ width: 4, height: 22, borderRadius: 2, background: gc.color, flexShrink: 0 }} />
+                  <div style={{ width: 30, height: 30, borderRadius: 8, background: gc.gradient, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0 }}>
+                    {gc.icon}
+                  </div>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text)', flex: 1 }}>{gc.label}</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: gc.color, background: `${gc.color}12`, padding: '2px 8px', borderRadius: 6 }}>{group.items.length}</span>
+                  <ChevronRight size={14} color={gc.color} style={{ transition: 'transform 0.2s', transform: isOpen ? 'rotate(90deg)' : 'rotate(0)', flexShrink: 0 }} />
+                </div>
+                <div style={{
+                  maxHeight: isOpen ? 2000 : 0, opacity: isOpen ? 1 : 0,
+                  overflow: 'hidden', transition: 'max-height 0.3s ease, opacity 0.2s ease',
+                }}>
+                  {group.items.map((system, i) => {
+                    const isFav = favoritos.includes(system.id)
+                    return (
+                      <div key={system.id} onClick={() => editingFolder ? toggleCardInFolder(editingFolder, system.id) : openSystem(system)} style={{
+                        display: 'flex', alignItems: 'center', gap: 12, padding: '11px 16px',
+                        borderBottom: i < group.items.length - 1 ? '1px solid var(--portal-border)' : 'none',
+                        cursor: 'pointer', transition: 'background .15s', background: 'transparent',
+                        borderLeft: `3px solid ${gc.color}20`,
+                      }}
+                        onMouseEnter={e => { e.currentTarget.style.background = `${gc.color}05`; e.currentTarget.style.borderLeftColor = gc.color }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderLeftColor = `${gc.color}20` }}
+                      >
+                        <div style={{ width: 32, height: 32, borderRadius: 8, background: system.gradient, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0 }}>
+                          {system.icon}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--portal-text)' }}>{system.name}</div>
+                          <div style={{ fontSize: 11, color: '#a3a3a3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{system.description}</div>
+                        </div>
+                        <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: gc.color, background: `${gc.color}10`, padding: '3px 8px', borderRadius: 4, flexShrink: 0 }}>{system.tag}</span>
+                        <button onClick={(e) => { e.stopPropagation(); toggleFavorito(system.id) }} style={{
+                          width: 24, height: 24, borderRadius: 6, border: 'none',
+                          background: isFav ? '#FEF3C7' : 'transparent', cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                        }}>
+                          <Star size={12} fill={isFav ? '#F59E0B' : 'none'} color={isFav ? '#F59E0B' : '#e5e5e5'} />
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* ══ CIRCULAR ══ */}
+      {viewMode === 'circular' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 18 }}>
+          {groupedDisplayed.map((group) => {
+            const isOpen = openGroups.includes(group.key)
+            const gc = group.config
+            return (
+              <div key={group.key} style={{
+                borderRadius: 20, overflow: 'hidden',
+                background: isOpen ? `${gc.color}06` : 'var(--portal-bg-card)',
+                border: `1px solid ${isOpen ? gc.color + '30' : 'var(--portal-border)'}`,
+                transition: 'all 0.25s ease', textAlign: 'center',
+                gridColumn: group.items.length >= 6 ? 'span 2' : 'span 1',
+              }}>
+                <div
+                  onClick={() => toggleGroup(group.key)}
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                    cursor: 'pointer', padding: '20px 16px 12px',
+                  }}
+                >
+                  <div style={{
+                    width: 56, height: 56, borderRadius: '50%',
+                    background: gc.gradient,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: '#fff', boxShadow: `0 6px 20px ${gc.color}30`,
+                    transition: 'transform 0.2s',
+                    transform: isOpen ? 'scale(1.08)' : 'scale(1)',
+                    border: `3px solid var(--portal-bg-card, #fff)`,
+                  }}>
+                    {gc.icon}
+                  </div>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text)' }}>{gc.label}</span>
+                  <span style={{ fontSize: 10, fontWeight: 600, color: gc.color }}>{group.items.length} sistemas</span>
+                </div>
+                <div style={{
+                  maxHeight: isOpen ? 2000 : 0, opacity: isOpen ? 1 : 0,
+                  overflow: 'hidden', transition: 'max-height 0.3s ease, opacity 0.2s ease',
+                }}>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: group.items.length <= 3 ? `repeat(${group.items.length}, 1fr)` : group.items.length <= 6 ? 'repeat(3, 1fr)' : 'repeat(4, 1fr)',
+                    gap: '8px 4px', padding: '4px 12px 20px', justifyItems: 'center',
+                  }}>
+                    {group.items.map((system) => {
+                      const isFav = favoritos.includes(system.id)
+                      return (
+                        <div key={system.id} onClick={() => editingFolder ? toggleCardInFolder(editingFolder, system.id) : openSystem(system)} style={{
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                          cursor: 'pointer', padding: '8px 4px', borderRadius: 12,
+                          transition: 'background 0.15s', width: '100%', position: 'relative',
+                        }}
+                          onMouseEnter={e => { e.currentTarget.style.background = `${gc.color}0A` }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+                        >
+                          {isFav && <Star size={10} fill="#F59E0B" color="#F59E0B" style={{ position: 'absolute', top: 4, right: 8, zIndex: 2 }} />}
+                          <div style={{
+                            width: 52, height: 52, borderRadius: '50%',
+                            background: system.gradient, display: 'flex',
+                            alignItems: 'center', justifyContent: 'center', color: '#fff',
+                            boxShadow: `0 4px 12px ${gc.color}20`,
+                            transition: 'transform .2s', border: '3px solid var(--portal-bg-card, #fff)',
+                          }}
+                            onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.12)' }}
+                            onMouseLeave={e => { e.currentTarget.style.transform = '' }}
+                            onContextMenu={e => { e.preventDefault(); toggleFavorito(system.id) }}
+                          >
+                            {system.icon}
+                          </div>
+                          <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--portal-text)', lineHeight: 1.2, maxWidth: 80, textAlign: 'center' }}>{system.name}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       <style>{`.fav-btn { opacity: 0 !important; } div:hover > .fav-btn { opacity: 1 !important; }`}</style>
 

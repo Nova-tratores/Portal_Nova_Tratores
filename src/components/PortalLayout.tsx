@@ -53,6 +53,7 @@ const navItems: NavItem[] = [
   { id: 'mecanicos', name: 'Janela Mecânico', href: '/mecanicos', icon: <Users size={18} />, tag: 'TÉCNICOS', gradient: '', group: 'servicos' },
   { id: 'mapa-geral', name: 'Mapeamento Técnico', href: '/mapa-geral', icon: <MapPin size={18} />, tag: 'MAPA', gradient: '', group: 'servicos' },
   { id: 'fotos-tecnicos', name: 'Fotos Técnicos', href: '/fotos-tecnicos', icon: <Camera size={18} />, tag: 'FOTOS', gradient: '', group: 'servicos' },
+  { id: 'lousa', name: 'Lousa Virtual', href: '/lousa', icon: <Calendar size={18} />, tag: 'AGENDA', gradient: '', group: 'servicos' },
 
   // Peças (laranja)
   { id: 'ppv', name: 'Peças (Pedido de Venda)', href: '/ppv', icon: <Package size={18} />, tag: 'PEÇAS', gradient: '', group: 'pecas' },

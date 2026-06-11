@@ -261,7 +261,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     Alimentacao_Tecnico: !!dados.alimentacaoTecnico,
     Alimentacao_Valor: parseFloat(dados.alimentacaoValor || 0),
     Alimentacao_No_PDF: !!dados.alimentacaoNoPdf,
-    Servico_Interno: !!dados.servicoInterno,
   };
 
   const { error } = await supabase.from(TBL_OS).update(baseUpdate).eq("Id_Ordem", idOs);
@@ -270,6 +269,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     console.error("Erro Supabase update:", error);
     return NextResponse.json({ success: false, erro: `Erro ao salvar: ${error.message}` }, { status: 500 });
   }
+
+  // Servico_Interno via RPC (bypassa schema cache do PostgREST)
+  await supabase.rpc('set_servico_interno', { p_id_ordem: idOs, p_valor: !!dados.servicoInterno });
 
   // Se a OS acabou de ser concluída, registra a despesa de alimentação como Requisicao (fluxo padrão)
   if (dados.status === "Concluída") {
