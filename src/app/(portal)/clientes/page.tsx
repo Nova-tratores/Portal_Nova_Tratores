@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
-import { Search, ChevronDown, ChevronUp, ArrowLeft, RefreshCw, ChevronRight, Download, Printer, FolderOpen, X, FileText, Wrench, Calendar, MapPin, User, Hash, ClipboardList, Package, Users, Shield, CheckCircle, Clock, Mail, Bell } from 'lucide-react'
+import { Search, ChevronDown, ChevronUp, ArrowLeft, RefreshCw, ChevronRight, Download, Printer, FolderOpen, X, FileText, Wrench, Calendar, MapPin, User, Hash, ClipboardList, Package, Users, Shield, CheckCircle, Clock, Mail, Bell, Tag, Plus, Trash2, Save } from 'lucide-react'
 
 interface Cliente {
   cod_cli: number; empresa: string; razao_social: string; nome_fantasia: string
@@ -63,6 +63,90 @@ function ClientesPageInner() {
   const [loadingEmails, setLoadingEmails] = useState<string | null>(null)
   const [lembretesCliente, setLembretesCliente] = useState<any[]>([])
 
+  // Etiquetas
+  const [todasEtiquetas, setTodasEtiquetas] = useState<{ id: number; nome: string; cor: string }[]>([])
+  const [etiquetasCliente, setEtiquetasCliente] = useState<{ id: number; nome: string; cor: string }[]>([])
+  const [descricaoCliente, setDescricaoCliente] = useState('')
+  const [descricaoLocal, setDescricaoLocal] = useState('')
+  const [salvandoDesc, setSalvandoDesc] = useState(false)
+  const [modalEtiqueta, setModalEtiqueta] = useState(false)
+  const [novaEtiquetaNome, setNovaEtiquetaNome] = useState('')
+  const [novaEtiquetaCor, setNovaEtiquetaCor] = useState('#3b82f6')
+  const [etiquetasMapa, setEtiquetasMapa] = useState<Record<string, { id: number; nome: string; cor: string }[]>>({})
+
+  const carregarMapaEtiquetas = useCallback(async () => {
+    try {
+      const res = await fetch('/api/clientes/etiquetas?modo=mapa')
+      const data = await res.json()
+      const etqs = data.etiquetas || []
+      const mapa: Record<string, { id: number; nome: string; cor: string }[]> = {}
+      for (const v of (data.mapa || [])) {
+        const etq = etqs.find((e: any) => e.id === v.etiqueta_id)
+        if (etq) {
+          if (!mapa[v.cnpj_cpf]) mapa[v.cnpj_cpf] = []
+          mapa[v.cnpj_cpf].push(etq)
+        }
+      }
+      setEtiquetasMapa(mapa)
+      setTodasEtiquetas(etqs)
+    } catch {}
+  }, [])
+
+  const carregarEtiquetasCliente = useCallback(async (cnpj: string) => {
+    try {
+      const res = await fetch(`/api/clientes/etiquetas?cnpj=${encodeURIComponent(cnpj)}`)
+      const data = await res.json()
+      setEtiquetasCliente(data.etiquetas || [])
+      setDescricaoCliente(data.descricao || '')
+      setDescricaoLocal(data.descricao || '')
+    } catch {}
+  }, [])
+
+  const toggleEtiqueta = async (cnpj: string, etiquetaId: number, ativo: boolean) => {
+    await fetch('/api/clientes/etiquetas', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ modo: ativo ? 'desvincular' : 'vincular', cnpj_cpf: cnpj, etiqueta_id: etiquetaId })
+    })
+    await carregarEtiquetasCliente(cnpj)
+    await carregarMapaEtiquetas()
+  }
+
+  const salvarDescricao = async (cnpj: string) => {
+    setSalvandoDesc(true)
+    await fetch('/api/clientes/etiquetas', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ modo: 'descricao', cnpj_cpf: cnpj, descricao: descricaoLocal })
+    })
+    setDescricaoCliente(descricaoLocal)
+    setSalvandoDesc(false)
+  }
+
+  const criarEtiqueta = async () => {
+    if (!novaEtiquetaNome.trim()) return
+    await fetch('/api/clientes/etiquetas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nome: novaEtiquetaNome.trim(), cor: novaEtiquetaCor })
+    })
+    setNovaEtiquetaNome('')
+    setNovaEtiquetaCor('#3b82f6')
+    const res = await fetch('/api/clientes/etiquetas')
+    const data = await res.json()
+    setTodasEtiquetas(data.etiquetas || [])
+  }
+
+  const excluirEtiqueta = async (id: number) => {
+    if (!confirm('Excluir esta etiqueta de todos os clientes?')) return
+    await fetch(`/api/clientes/etiquetas?id=${id}`, { method: 'DELETE' })
+    const res = await fetch('/api/clientes/etiquetas')
+    const data = await res.json()
+    setTodasEtiquetas(data.etiquetas || [])
+    if (selectedCliente) await carregarEtiquetasCliente(selectedCliente.cnpj_cpf)
+    await carregarMapaEtiquetas()
+  }
+
   const carregarLista = useCallback(async () => {
     setLoading(true)
     try { const res = await fetch('/api/clientes'); const data = await res.json(); setClientes(data.clientes || []); return data.clientes?.length || 0 } catch {} setLoading(false); return 0
@@ -99,6 +183,7 @@ function ClientesPageInner() {
     (async () => { const count = await carregarLista(); setLoading(false); if (count === 0) { syncBackground(); return }
       try { const res = await fetch('/api/clientes?checkSync=1'); const data = await res.json(); if (data.lastSync) { const diffH = (Date.now() - new Date(data.lastSync).getTime()) / 3600000; if (diffH > 6) syncBackground() } else syncBackground() } catch { syncBackground() }
       syncNFs()
+      carregarMapaEtiquetas()
     })()
 
     // Auto-sync a cada 30 minutos: busca OS/PV do dia e NFs pendentes
@@ -135,12 +220,13 @@ function ClientesPageInner() {
   }
 
   const abrirDetalhe = async (cliente: Cliente) => {
-    setSelectedCliente(cliente); setExpandedOS(null); setModalProjeto(null); setEmailsData({}); setLoadingDetalhe(true); setLembretesCliente([])
+    setSelectedCliente(cliente); setExpandedOS(null); setModalProjeto(null); setEmailsData({}); setLoadingDetalhe(true); setLembretesCliente([]); setEtiquetasCliente([]); setDescricaoCliente(''); setDescricaoLocal(''); setModalEtiqueta(false)
     try { const res = await fetch(`/api/clientes?codCli=${cliente.cod_cli}&empresa=${encodeURIComponent(cliente.empresa)}`); const data = await res.json(); setOrdens(data.ordens || [])
       setPedidos((data.pedidos || []).map((pv: any) => ({ ...pv, itens: typeof pv.itens === 'string' ? JSON.parse(pv.itens) : (pv.itens || []) })))
     } catch {} setLoadingDetalhe(false)
     if (cliente.cnpj_cpf) {
       try { const res = await fetch(`/api/pos/lembretes?cnpj=${encodeURIComponent(cliente.cnpj_cpf.replace(/\D/g, ''))}`); const data = await res.json(); if (Array.isArray(data)) setLembretesCliente(data) } catch {}
+      carregarEtiquetasCliente(cliente.cnpj_cpf)
     }
   }
   const filtered = clientes.filter(c => {
@@ -177,7 +263,15 @@ function ClientesPageInner() {
         {/* HEADER CLIENTE */}
         <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #E5E7EB', marginBottom: 24, overflow: 'hidden' }}>
           <div style={{ padding: '24px 28px', background: 'linear-gradient(135deg, #1E3A5F 0%, #2563EB 100%)', color: '#fff' }}>
-            <div style={{ fontSize: 24, fontWeight: 700 }}>{cli.nome_fantasia || cli.razao_social}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 24, fontWeight: 700 }}>{cli.nome_fantasia || cli.razao_social}</span>
+              {etiquetasCliente.map(e => (
+                <span key={e.id} style={{
+                  display: 'inline-block', padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700,
+                  background: e.cor, color: '#fff', letterSpacing: 0.3, border: '1px solid rgba(255,255,255,0.3)'
+                }}>{e.nome}</span>
+              ))}
+            </div>
             {cli.nome_fantasia && cli.razao_social && cli.nome_fantasia !== cli.razao_social && (
               <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>{cli.razao_social}</div>
             )}
@@ -209,6 +303,102 @@ function ClientesPageInner() {
               ))}
             </div>
           )}
+        </div>
+
+        {/* ETIQUETAS + DESCRIÇÃO */}
+        <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #E5E7EB', marginBottom: 20, padding: '20px 24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 700, color: '#111827' }}>
+              <Tag size={16} color="#2563EB" /> Etiquetas
+            </div>
+            <button onClick={() => setModalEtiqueta(!modalEtiqueta)}
+              style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#6B7280', border: '1px solid #E5E7EB', borderRadius: 8, padding: '6px 12px', background: '#fff', cursor: 'pointer', fontWeight: 600 }}>
+              <Plus size={14} /> Gerenciar
+            </button>
+          </div>
+
+          {/* Etiquetas atribuídas */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: etiquetasCliente.length > 0 ? 12 : 0 }}>
+            {etiquetasCliente.map(e => (
+              <span key={e.id} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '6px 14px', borderRadius: 20, fontSize: 13, fontWeight: 700,
+                background: e.cor, color: '#fff', letterSpacing: 0.3
+              }}>
+                {e.nome}
+                <button onClick={() => cli.cnpj_cpf && toggleEtiqueta(cli.cnpj_cpf, e.id, true)}
+                  style={{ background: 'rgba(255,255,255,0.3)', border: 'none', borderRadius: '50%', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}>
+                  <X size={10} color="#fff" />
+                </button>
+              </span>
+            ))}
+            {etiquetasCliente.length === 0 && (
+              <span style={{ fontSize: 13, color: '#9CA3AF', fontStyle: 'italic' }}>Nenhuma etiqueta atribuída</span>
+            )}
+          </div>
+
+          {/* Modal de gerenciamento de etiquetas */}
+          {modalEtiqueta && (
+            <div style={{ marginTop: 12, padding: 16, background: '#F9FAFB', borderRadius: 12, border: '1px solid #E5E7EB' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>
+                Adicionar / Remover Etiquetas
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+                {todasEtiquetas.map(e => {
+                  const ativo = etiquetasCliente.some(ec => ec.id === e.id)
+                  return (
+                    <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <button onClick={() => cli.cnpj_cpf && toggleEtiqueta(cli.cnpj_cpf, e.id, ativo)}
+                        style={{
+                          padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                          border: ativo ? `2px solid ${e.cor}` : '2px solid #D1D5DB',
+                          background: ativo ? e.cor : '#fff',
+                          color: ativo ? '#fff' : '#6B7280',
+                          transition: 'all .15s'
+                        }}>
+                        {e.nome}
+                      </button>
+                      <button onClick={() => excluirEtiqueta(e.id)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#D1D5DB', padding: 2, display: 'flex' }}
+                        title="Excluir etiqueta">
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input value={novaEtiquetaNome} onChange={ev => setNovaEtiquetaNome(ev.target.value)}
+                  placeholder="Nova etiqueta..."
+                  style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 13, outline: 'none' }}
+                  onKeyDown={ev => ev.key === 'Enter' && criarEtiqueta()} />
+                <input type="color" value={novaEtiquetaCor} onChange={ev => setNovaEtiquetaCor(ev.target.value)}
+                  style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid #E5E7EB', cursor: 'pointer', padding: 2 }} />
+                <button onClick={criarEtiqueta}
+                  style={{ padding: '8px 16px', borderRadius: 8, background: '#2563EB', color: '#fff', border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                  Criar
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Descrição */}
+          <div style={{ marginTop: 16 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+              Descrição / Observações
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <textarea value={descricaoLocal} onChange={ev => setDescricaoLocal(ev.target.value)}
+                placeholder="Adicione observações sobre este cliente..."
+                style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid #E5E7EB', fontSize: 14, outline: 'none', resize: 'vertical', minHeight: 60, fontFamily: 'inherit', color: '#111827' }} />
+              {descricaoLocal !== descricaoCliente && (
+                <button onClick={() => cli.cnpj_cpf && salvarDescricao(cli.cnpj_cpf)} disabled={salvandoDesc}
+                  style={{ alignSelf: 'flex-end', display: 'flex', alignItems: 'center', gap: 4, padding: '8px 16px', borderRadius: 8, background: '#059669', color: '#fff', border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                  <Save size={14} /> Salvar
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* LEMBRETES DO CLIENTE */}
@@ -1013,7 +1203,15 @@ function ClientesPageInner() {
               onMouseLeave={ev => { ev.currentTarget.style.background = 'transparent' }}>
               <span style={{ color: '#D1D5DB', fontSize: 12, fontWeight: 500 }}>{idx + 1}</span>
               <div>
-                <div style={{ fontSize: 14, color: '#111827', fontWeight: 600 }}>{cli.nome_fantasia || cli.razao_social}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 14, color: '#111827', fontWeight: 600 }}>{cli.nome_fantasia || cli.razao_social}</span>
+                  {(etiquetasMapa[cli.cnpj_cpf?.replace(/\D/g, '')] || []).map(e => (
+                    <span key={e.id} style={{
+                      display: 'inline-block', padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700,
+                      background: e.cor, color: '#fff', lineHeight: '16px', letterSpacing: 0.3
+                    }}>{e.nome}</span>
+                  ))}
+                </div>
                 {cli.nome_fantasia && cli.razao_social && cli.nome_fantasia !== cli.razao_social && (
                   <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 1 }}>{cli.razao_social}</div>
                 )}

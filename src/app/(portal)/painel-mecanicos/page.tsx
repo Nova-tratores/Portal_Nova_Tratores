@@ -22,6 +22,7 @@ interface Execucao { id: number; tecnico_nome: string; id_ordem: string; servico
 interface RequisicaoMecanico { id: number; tecnico_nome: string; material_solicitado: string; quantidade: string; urgencia: string; id_ordem: string | null; status: string; created_at: string }
 interface Ocorrencia { id: number; tecnico_nome: string; id_ordem: string | null; tipo: string; descricao: string; pontos_descontados: number; data: string }
 interface Justificativa { id: number; tecnico_nome: string; id_ordem: string | null; id_ocorrencia: number | null; justificativa: string; status: string; descontar_comissao: boolean | null; avaliado_por: string | null; data_avaliacao: string | null; created_at: string }
+interface OpaResolvida { id: string; titulo: string; resolvido_por_nome: string | null; resolvido_at: string | null }
 
 function normalizarNome(nome: string): string[] { return nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(p => p.length > 2) }
 function nomesBatem(a: string, b: string): boolean { if (!a || !b) return false; const pA = normalizarNome(a), pB = normalizarNome(b); if (!pA.length || !pB.length || pA[0] !== pB[0]) return false; if (pA.length === 1 || pB.length === 1) return true; const s = new Set(pA.slice(1)); return pB.slice(1).some(p => s.has(p)) }
@@ -50,6 +51,7 @@ function PainelMecanicosPage() {
   const [execucoesRecentes, setExecucoesRecentes] = useState<Execucao[]>([])
   const [reqsMecanico, setReqsMecanico] = useState<RequisicaoMecanico[]>([])
   const [ocorrencias, setOcorrencias] = useState<Ocorrencia[]>([])
+  const [opasResolvidas, setOpasResolvidas] = useState<OpaResolvida[]>([])
   const [justificativas, setJustificativas] = useState<Justificativa[]>([])
   const [loading, setLoading] = useState(true)
   const [blocoAtivo, setBlocoAtivo] = useState<Bloco>('visao')
@@ -59,7 +61,7 @@ function PainelMecanicosPage() {
 
   const carregar = useCallback(async () => {
     setLoading(true)
-    const [{ data: tecs }, { data: usus }, { data: ords }, { data: alerts }, { data: cams }, { data: execs }, { data: reqsMec }, { data: ocors }, { data: justs }] = await Promise.all([
+    const [{ data: tecs }, { data: usus }, { data: ords }, { data: alerts }, { data: cams }, { data: execs }, { data: reqsMec }, { data: ocors }, { data: justs }, { data: opas }] = await Promise.all([
       supabase.from('portal_permissoes').select('user_id, mecanico_role, mecanico_tecnico_nome').not('mecanico_role', 'is', null).not('mecanico_tecnico_nome', 'is', null),
       supabase.from('financeiro_usu').select('id, nome, email'),
       supabase.from('Ordem_Servico').select('*').order('Previsao_Execucao', { ascending: true }),
@@ -69,6 +71,7 @@ function PainelMecanicosPage() {
       supabase.from('mecanico_requisicoes').select('*').order('created_at', { ascending: false }).limit(100),
       supabase.from('tecnico_ocorrencias').select('*').order('created_at', { ascending: false }).limit(200),
       supabase.from('tecnico_justificativas').select('*').order('created_at', { ascending: false }).limit(200),
+      supabase.from('portal_opas').select('id, titulo, resolvido_por_nome, resolvido_at').eq('status', 'resolvido').eq('resolvido_por_tipo', 'tecnico').order('resolvido_at', { ascending: false }).limit(300),
     ])
     const emailMap: Record<string, string> = {}
     ;((usus || []) as any[]).forEach(u => { emailMap[u.id] = u.email || '' })
@@ -79,6 +82,7 @@ function PainelMecanicosPage() {
     setExecucoesRecentes((execs as Execucao[]) || [])
     setReqsMecanico((reqsMec as RequisicaoMecanico[]) || [])
     setOcorrencias((ocors as Ocorrencia[]) || [])
+    setOpasResolvidas((opas as OpaResolvida[]) || [])
     setJustificativas((justs as Justificativa[]) || [])
     setLoading(false)
   }, [])
@@ -99,6 +103,7 @@ function PainelMecanicosPage() {
       supabase.channel('painel_cam').on('postgres_changes', { event: '*', schema: 'public', table: 'tecnico_caminhos' }, () => carregar()).subscribe(),
       supabase.channel('painel_agenda_visao').on('postgres_changes', { event: '*', schema: 'public', table: 'agenda_visao' }, () => carregar()).subscribe(),
       supabase.channel('painel_ocorr').on('postgres_changes', { event: '*', schema: 'public', table: 'tecnico_ocorrencias' }, () => carregar()).subscribe(),
+      supabase.channel('painel_opas').on('postgres_changes', { event: '*', schema: 'public', table: 'portal_opas' }, () => carregar()).subscribe(),
     ]
     return () => { channels.forEach(c => supabase.removeChannel(c)) }
   }, [carregar])
@@ -222,7 +227,7 @@ function PainelMecanicosPage() {
         {blocoAtivo === 'visao' && <BlocoVisaoGeral tecnicos={tecnicos} ordens={ordens} caminhos={caminhos} />}
         {blocoAtivo === 'ordens' && <BlocoAgenda tecnicos={tecnicos} ordens={ordens} semanaOffset={semanaOffset} />}
         {blocoAtivo === 'alertas' && <BlocoAlertas tecnicos={tecnicos} alertas={alertas} onRecarregar={carregar} userName={userProfile?.nome || ''} ordens={ordens} reqsMecanico={reqsMecanico} justificativas={justificativas} ocorrencias={ocorrencias} onAprovarRequisicao={aprovarRequisicao} onRecusarRequisicao={recusarRequisicao} onAvaliarJustificativa={avaliarJustificativa} onConverterOcorrencia={converterAlertaEmOcorrencia} tipoOcorrencia={TIPO_OCORRENCIA} />}
-        {blocoAtivo === 'ocorrencias' && <BlocoOcorrencias tecnicos={tecnicos} ocorrencias={ocorrencias} justificativas={justificativas} tipoOcorrencia={TIPO_OCORRENCIA} onSalvarOcorrencia={async (dados) => {
+        {blocoAtivo === 'ocorrencias' && <BlocoOcorrencias tecnicos={tecnicos} ocorrencias={ocorrencias} justificativas={justificativas} opasResolvidas={opasResolvidas} tipoOcorrencia={TIPO_OCORRENCIA} onSalvarOcorrencia={async (dados) => {
           if (!dados.tecnico_nome || !dados.descricao) return
           await supabase.from('tecnico_ocorrencias').insert({ tecnico_nome: dados.tecnico_nome, id_ordem: dados.id_ordem || null, tipo: dados.tipo, descricao: dados.descricao, pontos_descontados: dados.pontos_descontados, data: new Date().toISOString().split('T')[0] })
           const tipoLabel = (TIPO_OCORRENCIA[dados.tipo] || TIPO_OCORRENCIA.outros).label

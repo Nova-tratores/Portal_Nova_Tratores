@@ -10,7 +10,7 @@ import {
   DollarSign, Package, Menu, X, User as UserIcon,
   LayoutDashboard, Bell, ChevronRight, Activity, Lock, MessageCircle,
   CheckCheck, Trash2, ExternalLink, Calendar, Users, Calculator, BarChart3, Eye, Camera, Wheat, Megaphone,
-  Sun, Moon, Volume2, Check, MapPin, ShieldCheck, Building, SlidersHorizontal
+  Sun, Moon, Volume2, Check, MapPin, ShieldCheck, Building, SlidersHorizontal, AlertCircle
 } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -18,6 +18,7 @@ import ChatPanel from './chat/ChatPanel'
 import LembretesPanel from './lembretes/LembretesPanel'
 import LembreteAlerta from './lembretes/LembreteAlerta'
 import NotifPrefsModal from './notif/NotifPrefsModal'
+import OpaLembrete from './opa/OpaLembrete'
 
 interface NavItem {
   id: string
@@ -75,6 +76,7 @@ const navItems: NavItem[] = [
   { id: 'consulta-omie', name: 'Consulta Estoque', href: '/estoque', icon: <Eye size={18} />, tag: 'CONSULTA', gradient: '', group: 'estoque' },
 
   // Outros (cinza)
+  { id: 'opa', name: 'Opa', href: '/opa', icon: <AlertCircle size={18} />, tag: 'OCORRÊNCIAS', gradient: '', group: 'outros' },
   { id: 'atividades', name: 'Atividades', href: '/atividades', icon: <Activity size={18} />, tag: 'LOGS', gradient: '', group: 'outros' },
   { id: 'dashboard-agro', name: 'Dashboard Agro', href: 'https://dashboard-agro-sp-production.up.railway.app/', icon: <Wheat size={18} />, tag: 'AGRO', gradient: '', group: 'outros', external: true },
 ]
@@ -363,7 +365,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const totalBell = notifData.naoLidas + chatData.totalNaoLidas
 
   const filteredNavItems = useMemo(() => navItems.filter(item => {
-    if (item.id === 'dashboard') return true
+    if (item.id === 'dashboard' || item.id === 'opa') return true
     return temAcesso(item.id)
   }), [temAcesso])
 
@@ -1108,6 +1110,11 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       )}
 
       {userProfile?.id && <LembreteAlerta userId={userProfile.id} />}
+
+      {/* ===== CARDS FLUTUANTES "OPA" ===== */}
+      {userProfile?.id && (
+        <OpaLembrete userId={userProfile.id} userName={userProfile.nome || ''} isAdmin={isAdmin} />
+      )}
 
       {/* ===== POPUP AVISO BLOQUEANTE ===== */}
       {avisosPendentes.length > 0 && (

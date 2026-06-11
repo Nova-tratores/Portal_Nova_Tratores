@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { diasEntre } from "@/lib/pos/utils";
 import type { KanbanCard } from "@/lib/pos/types";
+import { useClienteEtiquetas } from "@/hooks/useClienteEtiquetas";
 
 interface OSCardProps {
   order: KanbanCard;
@@ -23,6 +24,8 @@ export default function OSCard({ order: o, onClick }: OSCardProps) {
   const temReqOuRel = (o.temReq && o.reqInfo && o.reqInfo.length > 0) || o.temRel;
   const [hover, setHover] = useState(false);
   const temPendencia = !!(o.pendenciaMahindra && o.pendenciaMahindra.detalhes?.length);
+  const { getEtiquetas } = useClienteEtiquetas();
+  const etiquetasCli = getEtiquetas(o.cliente);
 
   return (
     <div className="card" style={{ borderLeftColor: borderColor, position: "relative" }} onClick={() => onClick(o.id)}>
@@ -150,7 +153,12 @@ export default function OSCard({ order: o, onClick }: OSCardProps) {
         </div>
       )}
 
-      <div style={{ fontWeight: 600, color: "var(--text)", marginBottom: 4 }}>{o.cliente}</div>
+      <div style={{ fontWeight: 600, color: "var(--text)", marginBottom: 4, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+        <span>{o.cliente}</span>
+        {etiquetasCli.map(e => (
+          <span key={e.id} style={{ display: "inline-block", padding: "1px 6px", borderRadius: 8, fontSize: 9, fontWeight: 700, background: e.cor, color: "#fff", lineHeight: "14px" }}>{e.nome}</span>
+        ))}
+      </div>
       <div style={{ fontSize: 10, color: "var(--text-light)", marginBottom: 8, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const }}>
         <i>{o.servSolicitado}</i>
       </div>

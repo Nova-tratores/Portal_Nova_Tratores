@@ -47,6 +47,14 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
   const [fornBusca, setFornBusca] = useState('');
   const [fornDropdownOpen, setFornDropdownOpen] = useState(false);
   const fornDropdownRef = useRef<HTMLDivElement>(null);
+  const [cliBusca, setCliBusca] = useState('');
+  const [cliDropdownOpen, setCliDropdownOpen] = useState(false);
+  const [cliResultados, setCliResultados] = useState<{ cnpj_cpf: string; nome_fantasia: string; razao_social: string; cidade: string }[]>([]);
+  const cliDropdownRef = useRef<HTMLDivElement>(null);
+  const [projBusca, setProjBusca] = useState('');
+  const [projDropdownOpen, setProjDropdownOpen] = useState(false);
+  const [projResultados, setProjResultados] = useState<{ codigo: number; nome: string; empresa: string }[]>([]);
+  const projDropdownRef = useRef<HTMLDivElement>(null);
 
   // Campos monetários formatados
   const [valorDespesaFmt, setValorDespesaFmt] = useState(() => {
@@ -107,10 +115,45 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
     const handler = (e: MouseEvent) => {
       if (osDropdownRef.current && !osDropdownRef.current.contains(e.target as Node)) setOsDropdownOpen(false);
       if (fornDropdownRef.current && !fornDropdownRef.current.contains(e.target as Node)) setFornDropdownOpen(false);
+      if (cliDropdownRef.current && !cliDropdownRef.current.contains(e.target as Node)) setCliDropdownOpen(false);
+      if (projDropdownRef.current && !projDropdownRef.current.contains(e.target as Node)) setProjDropdownOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  useEffect(() => {
+    if (cliBusca.trim().length < 2) { setCliResultados([]); return; }
+    const timer = setTimeout(async () => {
+      const termo = cliBusca.trim();
+      const { data } = await supabase
+        .from('portal_nt_clientes_PRINCIPAL')
+        .select('cnpj_cpf, nome_fantasia, razao_social, cidade')
+        .or(`nome_fantasia.ilike.%${termo}%,razao_social.ilike.%${termo}%,cnpj_cpf.ilike.%${termo}%`)
+        .limit(20);
+      const seen = new Set<string>();
+      setCliResultados((data || []).filter(c => {
+        if (!c.cnpj_cpf || seen.has(c.cnpj_cpf)) return false;
+        seen.add(c.cnpj_cpf);
+        return true;
+      }));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [cliBusca]);
+
+  useEffect(() => {
+    if (projBusca.trim().length < 2) { setProjResultados([]); return; }
+    const timer = setTimeout(async () => {
+      const termo = projBusca.trim();
+      const { data } = await supabase
+        .from('portal_nt_projetos_PRINCIPAL')
+        .select('codigo, nome, empresa')
+        .ilike('nome', `%${termo}%`)
+        .limit(15);
+      setProjResultados(data || []);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [projBusca]);
 
   useEffect(() => {
     setLocalData((prev: any) => ({
@@ -408,9 +451,58 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                 <div className="border border-amber-200 bg-amber-50/50 rounded-xl p-4 space-y-3">
                   <span className={`${sectionTitle} text-amber-600`}><Truck size={12}/> Cliente / Trator</span>
                   <div className="grid grid-cols-2 gap-4">
-                    <div>
+                    <div ref={cliDropdownRef} className="relative">
                       <label className={labelBase}><User size={11}/> Cliente</label>
-                      <input value={localData.cliente || ''} onChange={e => setField('cliente', e.target.value)} onBlur={e => persist('cliente', e.target.value.toUpperCase())} className={inputBase} />
+                      <div
+                        className={`${inputBase} cursor-pointer flex items-center justify-between`}
+                        onClick={() => setCliDropdownOpen(!cliDropdownOpen)}
+                      >
+                        <span className={localData.cliente ? 'text-zinc-900 text-sm' : 'text-zinc-400 text-sm'}>
+                          {localData.cliente
+                            ? `${localData.cliente}${localData.cliente_cnpj ? ` — ${localData.cliente_cnpj}` : ''}`
+                            : 'Buscar cliente por nome ou CNPJ...'}
+                        </span>
+                        <svg className="w-3 h-3 text-zinc-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                      </div>
+                      {cliDropdownOpen && (
+                        <div className="absolute z-[70] mt-1 w-full bg-white border border-zinc-200 rounded-xl shadow-xl max-h-56 overflow-auto">
+                          <div className="sticky top-0 bg-white p-2 border-b border-zinc-100">
+                            <input
+                              autoFocus
+                              placeholder="Nome fantasia, razão social ou CNPJ/CPF..."
+                              value={cliBusca}
+                              onChange={e => setCliBusca(e.target.value)}
+                              className="w-full px-4 py-3 rounded-xl border border-zinc-200 text-sm outline-none focus:border-amber-400"
+                            />
+                          </div>
+                          {localData.cliente_cnpj && (
+                            <button type="button"
+                              onClick={() => { persist('cliente', ''); persist('cliente_cnpj', ''); setCliDropdownOpen(false); setCliBusca(''); }}
+                              className="w-full px-4 py-2 text-left text-xs text-red-500 hover:bg-red-50 border-b border-zinc-100">
+                              Remover vínculo
+                            </button>
+                          )}
+                          {cliResultados.map(c => (
+                            <button type="button" key={c.cnpj_cpf}
+                              onClick={() => {
+                                persist('cliente', c.nome_fantasia || c.razao_social);
+                                persist('cliente_cnpj', c.cnpj_cpf);
+                                setCliDropdownOpen(false); setCliBusca('');
+                              }}
+                              className={`w-full px-4 py-2 text-left hover:bg-zinc-50 border-b border-zinc-50 ${localData.cliente_cnpj === c.cnpj_cpf ? 'bg-amber-50' : ''}`}>
+                              <span className="font-bold text-sm text-zinc-800">{c.nome_fantasia || c.razao_social}</span>
+                              <span className="text-xs text-zinc-500 ml-2">{c.cnpj_cpf}</span>
+                              {c.cidade && <span className="text-xs text-zinc-400 ml-2">({c.cidade})</span>}
+                            </button>
+                          ))}
+                          {cliBusca.trim().length >= 2 && cliResultados.length === 0 && (
+                            <p className="px-4 py-3 text-xs text-zinc-400 text-center">Nenhum cliente encontrado</p>
+                          )}
+                          {cliBusca.trim().length < 2 && (
+                            <p className="px-4 py-3 text-xs text-zinc-400 text-center">Digite pelo menos 2 caracteres</p>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div ref={osDropdownRef} className="relative">
                       <label className={labelBase}><ClipboardList size={11}/> Ordem de Serviço</label>
@@ -481,9 +573,56 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className={labelBase}><Cpu size={11}/> Chassis / Modelo</label>
-                      <input value={localData.Chassis_Modelo || ''} onChange={e => setField('Chassis_Modelo', e.target.value)} onBlur={e => persist('Chassis_Modelo', e.target.value.toUpperCase())} className={inputBase} />
+                    <div ref={projDropdownRef} className="relative">
+                      <label className={labelBase}><Cpu size={11}/> Projeto / Chassis</label>
+                      <div
+                        className={`${inputBase} cursor-pointer flex items-center justify-between`}
+                        onClick={() => setProjDropdownOpen(!projDropdownOpen)}
+                      >
+                        <span className={localData.Chassis_Modelo ? 'text-zinc-900 text-sm' : 'text-zinc-400 text-sm'}>
+                          {localData.Chassis_Modelo || 'Buscar projeto ou chassis...'}
+                        </span>
+                        <svg className="w-3 h-3 text-zinc-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                      </div>
+                      {projDropdownOpen && (
+                        <div className="absolute z-[70] mt-1 w-full bg-white border border-zinc-200 rounded-xl shadow-xl max-h-56 overflow-auto">
+                          <div className="sticky top-0 bg-white p-2 border-b border-zinc-100">
+                            <input
+                              autoFocus
+                              placeholder="Buscar por nome, chassis, modelo..."
+                              value={projBusca}
+                              onChange={e => setProjBusca(e.target.value)}
+                              className="w-full px-4 py-3 rounded-xl border border-zinc-200 text-sm outline-none focus:border-amber-400"
+                            />
+                          </div>
+                          {localData.Chassis_Modelo && (
+                            <button type="button"
+                              onClick={() => { persist('Chassis_Modelo', ''); persist('projeto_codigo', ''); persist('projeto_nome', ''); setProjDropdownOpen(false); setProjBusca(''); }}
+                              className="w-full px-4 py-2 text-left text-xs text-red-500 hover:bg-red-50 border-b border-zinc-100">
+                              Remover seleção
+                            </button>
+                          )}
+                          {projResultados.map(p => (
+                            <button type="button" key={`${p.codigo}-${p.empresa}`}
+                              onClick={() => {
+                                persist('projeto_codigo', String(p.codigo));
+                                persist('projeto_nome', p.nome);
+                                persist('Chassis_Modelo', p.nome);
+                                setProjDropdownOpen(false); setProjBusca('');
+                              }}
+                              className={`w-full px-4 py-2 text-left hover:bg-zinc-50 border-b border-zinc-50 ${localData.projeto_nome === p.nome ? 'bg-amber-50' : ''}`}>
+                              <span className="font-bold text-sm text-zinc-800">{p.nome}</span>
+                              <span className="text-xs text-zinc-400 ml-2">{p.empresa}</span>
+                            </button>
+                          ))}
+                          {projBusca.trim().length >= 2 && projResultados.length === 0 && (
+                            <p className="px-4 py-3 text-xs text-zinc-400 text-center">Nenhum projeto encontrado</p>
+                          )}
+                          {projBusca.trim().length < 2 && (
+                            <p className="px-4 py-3 text-xs text-zinc-400 text-center">Digite pelo menos 2 caracteres</p>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div>
                       <label className={labelBase}><DollarSign size={11}/> Valor Cobrado</label>

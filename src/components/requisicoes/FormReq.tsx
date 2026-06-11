@@ -25,6 +25,11 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
   const [projResultados, setProjResultados] = useState<{ codigo: number; nome: string; empresa: string }[]>([]);
   const projRef = useRef<HTMLDivElement>(null);
 
+  const [cliBusca, setCliBusca] = useState('');
+  const [cliDropdownOpen, setCliDropdownOpen] = useState(false);
+  const [cliResultados, setCliResultados] = useState<{ cnpj_cpf: string; nome_fantasia: string; razao_social: string; cidade: string }[]>([]);
+  const cliRef = useRef<HTMLDivElement>(null);
+
   const [tagsDisponiveis, setTagsDisponiveis] = useState<{ id: number; nome: string; cor: string; grupo: string | null }[]>([]);
   const [tagsSelecionadas, setTagsSelecionadas] = useState<string[]>([]);
 
@@ -32,7 +37,7 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
     titulo: '', tipo: '', solicitante: '', setor: '',
     data: new Date().toISOString().split('T')[0],
     empresa: EMPRESAS.NOVA.nome, endereco_empr: EMPRESAS.NOVA.endereco, veiculo: '', hodometro: '',
-    cliente: '', ordem_servico: '', fornecedor: '', obs: '',
+    cliente: '', cliente_cnpj: '', ordem_servico: '', fornecedor: '', obs: '',
     valor_cobrado_cliente: '', quem_ferramenta: '', Chassis_Modelo: '', litros_combustivel: '', status: 'pedido',
     projeto_codigo: '', projeto_nome: ''
   });
@@ -59,6 +64,7 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
       if (osRef.current && !osRef.current.contains(e.target as Node)) setOsDropdownOpen(false);
       if (solRef.current && !solRef.current.contains(e.target as Node)) setSolDropdownOpen(false);
       if (projRef.current && !projRef.current.contains(e.target as Node)) setProjDropdownOpen(false);
+      if (cliRef.current && !cliRef.current.contains(e.target as Node)) setCliDropdownOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -78,6 +84,25 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
     }, 300);
     return () => clearTimeout(timer);
   }, [projBusca]);
+
+  useEffect(() => {
+    if (cliBusca.trim().length < 2) { setCliResultados([]); return; }
+    const timer = setTimeout(async () => {
+      const termo = cliBusca.trim();
+      const { data } = await supabase
+        .from('portal_nt_clientes_PRINCIPAL')
+        .select('cnpj_cpf, nome_fantasia, razao_social, cidade')
+        .or(`nome_fantasia.ilike.%${termo}%,razao_social.ilike.%${termo}%,cnpj_cpf.ilike.%${termo}%`)
+        .limit(20);
+      const seen = new Set<string>();
+      setCliResultados((data || []).filter(c => {
+        if (!c.cnpj_cpf || seen.has(c.cnpj_cpf)) return false;
+        seen.add(c.cnpj_cpf);
+        return true;
+      }));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [cliBusca]);
 
   // Empresa já inicializada no estado — sem useEffect loop
 
@@ -416,9 +441,57 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
             <div className="p-6 bg-amber-500/10 rounded-2xl border border-orange-500/20">
               <p className="text-xs font-black text-orange-400 uppercase tracking-widest mb-4">Informacoes do Cliente</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
+                <div ref={cliRef} className="relative">
                   <label className="text-xs font-bold text-orange-400 uppercase">Cliente</label>
-                  <input onChange={e => setFormData({...formData, cliente: e.target.value.toUpperCase()})} className={`${inputStyle} !text-base border-orange-500/20`} />
+                  <div
+                    className={`${inputStyle} !text-base border-orange-500/20 cursor-pointer flex items-center justify-between`}
+                    onClick={() => setCliDropdownOpen(!cliDropdownOpen)}
+                  >
+                    <span className={formData.cliente ? 'text-zinc-900' : 'text-zinc-400'}>
+                      {formData.cliente
+                        ? `${formData.cliente}${formData.cliente_cnpj ? ` — ${formData.cliente_cnpj}` : ''}`
+                        : 'Buscar cliente por nome ou CNPJ...'}
+                    </span>
+                    <svg className="w-4 h-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                  </div>
+                  {cliDropdownOpen && (
+                    <div className="absolute z-50 mt-1 w-full bg-white border border-zinc-200 rounded-xl shadow-xl max-h-64 overflow-auto">
+                      <div className="sticky top-0 bg-white p-2 border-b border-zinc-100">
+                        <input
+                          autoFocus
+                          placeholder="Nome fantasia, razão social ou CNPJ/CPF..."
+                          value={cliBusca}
+                          onChange={e => setCliBusca(e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg border border-zinc-200 text-sm outline-none focus:border-orange-400"
+                        />
+                      </div>
+                      {formData.cliente_cnpj && (
+                        <button type="button"
+                          onClick={() => { setFormData(p => ({...p, cliente: '', cliente_cnpj: ''})); setCliDropdownOpen(false); setCliBusca(''); }}
+                          className="w-full px-4 py-2 text-left text-sm text-red-500 hover:bg-red-50 border-b border-zinc-100">
+                          ✕ Remover seleção
+                        </button>
+                      )}
+                      {cliResultados.map(c => (
+                        <button type="button" key={c.cnpj_cpf}
+                          onClick={() => {
+                            setFormData(prev => ({...prev, cliente: c.nome_fantasia || c.razao_social, cliente_cnpj: c.cnpj_cpf}));
+                            setCliDropdownOpen(false); setCliBusca('');
+                          }}
+                          className={`w-full px-4 py-3 text-left hover:bg-zinc-50 border-b border-zinc-50 ${formData.cliente_cnpj === c.cnpj_cpf ? 'bg-orange-50' : ''}`}>
+                          <span className="font-bold text-sm text-zinc-800">{c.nome_fantasia || c.razao_social}</span>
+                          <span className="text-xs text-zinc-500 ml-2">{c.cnpj_cpf}</span>
+                          {c.cidade && <span className="text-xs text-zinc-400 ml-2">({c.cidade})</span>}
+                        </button>
+                      ))}
+                      {cliBusca.trim().length >= 2 && cliResultados.length === 0 && (
+                        <p className="px-4 py-3 text-sm text-zinc-400 text-center">Nenhum cliente encontrado</p>
+                      )}
+                      {cliBusca.trim().length < 2 && (
+                        <p className="px-4 py-3 text-sm text-zinc-400 text-center">Digite pelo menos 2 caracteres</p>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div ref={osRef} className="relative">
                   <label className="text-xs font-bold text-orange-400 uppercase">O.S.</label>
@@ -535,10 +608,6 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
                       )}
                     </div>
                   )}
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-orange-400 uppercase">Chassis / Modelo</label>
-                  <input placeholder={formData.projeto_nome ? 'Preenchido pelo projeto' : 'Ex: VALTRA BM110 - CHASSIS 123456'} value={formData.Chassis_Modelo} onChange={e => setFormData({...formData, Chassis_Modelo: e.target.value.toUpperCase()})} className={`${inputStyle} !text-base border-orange-500/20`} />
                 </div>
                 <div>
                   <label className="text-xs font-bold text-orange-400 uppercase">Valor Cobrado do Cliente</label>

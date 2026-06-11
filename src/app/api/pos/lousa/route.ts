@@ -98,7 +98,7 @@ export async function GET(req: NextRequest) {
 // POST — criar entrada
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { data, cliente_cnpj, cliente_nome, descricao, criado_por_id, criado_por_nome, cor } = body;
+  const { data, cliente_cnpj, cliente_nome, descricao, criado_por_id, criado_por_nome, cor, tecnico_nome, periodo } = body;
 
   if (!data || !cliente_nome || !criado_por_id || !criado_por_nome) {
     return NextResponse.json({ error: "Campos obrigatórios faltando" }, { status: 400 });
@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
 
   const { data: novo, error } = await supabase
     .from(TBL_LOUSA)
-    .insert({ data, cliente_cnpj: cliente_cnpj || null, cliente_nome, descricao: descricao || null, criado_por_id, criado_por_nome, cor: cor || "#3b82f6" })
+    .insert({ data, cliente_cnpj: cliente_cnpj || null, cliente_nome, descricao: descricao || null, criado_por_id, criado_por_nome, cor: cor || "#3b82f6", tecnico_nome: tecnico_nome || null, periodo: periodo || "manha" })
     .select()
     .single();
 

@@ -5,6 +5,7 @@ import { ChevronDown, ChevronRight, Filter, AlertOctagon, Plus, X } from 'lucide
 interface Tecnico { user_id: string; tecnico_nome: string; tecnico_email: string; mecanico_role: 'tecnico' | 'observador' }
 interface Ocorrencia { id: number; tecnico_nome: string; id_ordem: string | null; tipo: string; descricao: string; pontos_descontados: number; data: string; created_at?: string }
 interface Justificativa { id: number; tecnico_nome: string; id_ordem: string | null; id_ocorrencia: number | null; justificativa: string; status: string; descontar_comissao: boolean | null; avaliado_por: string | null; data_avaliacao: string | null; created_at: string }
+interface OpaResolvida { id: string; titulo: string; resolvido_por_nome: string | null; resolvido_at: string | null }
 
 function getMesAtual() {
   const d = new Date()
@@ -27,11 +28,12 @@ function formatData(iso: string): string {
 }
 
 export default function BlocoOcorrencias({
-  tecnicos, ocorrencias, justificativas, tipoOcorrencia, onSalvarOcorrencia,
+  tecnicos, ocorrencias, justificativas, opasResolvidas = [], tipoOcorrencia, onSalvarOcorrencia,
 }: {
   tecnicos: Tecnico[]
   ocorrencias: Ocorrencia[]
   justificativas: Justificativa[]
+  opasResolvidas?: OpaResolvida[]
   tipoOcorrencia: Record<string, { label: string; color: string }>
   onSalvarOcorrencia: (dados: { tecnico_nome: string; id_ordem: string; tipo: string; descricao: string; pontos_descontados: number }) => Promise<void>
 }) {
@@ -70,22 +72,32 @@ export default function BlocoOcorrencias({
     return filtered
   }, [ocorrencias, mesSelecionado, filtroTecnico])
 
-  // Agrupar por técnico
+  // Opas resolvidos por técnico no mês selecionado (crédito positivo, verde)
+  const opasMes = useMemo(() => {
+    let filtered = opasResolvidas.filter(o => o.resolvido_at && o.resolvido_at.startsWith(mesSelecionado) && o.resolvido_por_nome)
+    if (filtroTecnico !== 'todos') filtered = filtered.filter(o => o.resolvido_por_nome === filtroTecnico)
+    return filtered
+  }, [opasResolvidas, mesSelecionado, filtroTecnico])
+
+  // Agrupar por técnico (ocorrências + opas resolvidos)
   const porTecnico = useMemo(() => {
-    const m: Record<string, { ocorrencias: Ocorrencia[]; pontos: number }> = {}
+    const m: Record<string, { ocorrencias: Ocorrencia[]; pontos: number; opas: OpaResolvida[] }> = {}
+    const garantir = (nome: string) => { if (!m[nome]) m[nome] = { ocorrencias: [], pontos: 0, opas: [] }; return m[nome] }
     ocorrenciasMes.forEach(o => {
-      if (!m[o.tecnico_nome]) m[o.tecnico_nome] = { ocorrencias: [], pontos: 0 }
-      m[o.tecnico_nome].ocorrencias.push(o)
+      const t = garantir(o.tecnico_nome)
+      t.ocorrencias.push(o)
       // Só desconta se não tem justificativa aprovada sem desconto
       const justAprovada = justificativas.find(j => j.id_ocorrencia === o.id && j.status === 'aprovada' && j.descontar_comissao === false)
-      if (!justAprovada) m[o.tecnico_nome].pontos += o.pontos_descontados
+      if (!justAprovada) t.pontos += o.pontos_descontados
     })
+    opasMes.forEach(o => { garantir(o.resolvido_por_nome as string).opas.push(o) })
     return Object.entries(m)
-      .sort(([, a], [, b]) => b.pontos - a.pontos)
-  }, [ocorrenciasMes, justificativas])
+      .sort(([, a], [, b]) => (b.pontos - a.pontos) || (b.opas.length - a.opas.length))
+  }, [ocorrenciasMes, justificativas, opasMes])
 
   const totalOcorrencias = ocorrenciasMes.length
   const totalPontos = porTecnico.reduce((acc, [, v]) => acc + v.pontos, 0)
+  const totalOpas = opasMes.length
 
   const SEL: React.CSSProperties = { padding: '7px 10px', borderRadius: 4, border: '1px solid var(--portal-border)', fontSize: 13, fontWeight: 600, background: 'var(--portal-bg-card)', color: 'var(--portal-text)', cursor: 'pointer' }
 
@@ -101,6 +113,11 @@ export default function BlocoOcorrencias({
           {totalPontos > 0 && (
             <span style={{ fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 4, background: '#111', color: '#fff' }}>
               -{totalPontos} pts total
+            </span>
+          )}
+          {totalOpas > 0 && (
+            <span style={{ fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 4, background: '#D1FAE5', color: '#065F46' }}>
+              +{totalOpas} Opa{totalOpas > 1 ? 's' : ''} resolvido{totalOpas > 1 ? 's' : ''}
             </span>
           )}
           <span style={{ width: 1, height: 20, background: 'var(--portal-border)', margin: '0 4px' }} />
@@ -152,6 +169,11 @@ export default function BlocoOcorrencias({
                     <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--portal-text-secondary)' }}>
                       {dados.ocorrencias.length} ocorrencia(s)
                     </span>
+                    {dados.opas.length > 0 && (
+                      <span style={{ fontSize: 13, fontWeight: 800, padding: '4px 12px', borderRadius: 4, background: '#D1FAE5', color: '#065F46' }}>
+                        +{dados.opas.length} Opa{dados.opas.length > 1 ? 's' : ''}
+                      </span>
+                    )}
                     <span style={{ fontSize: 13, fontWeight: 800, padding: '4px 12px', borderRadius: 4, background: dados.pontos > 0 ? '#FEE2E2' : '#D1FAE5', color: dados.pontos > 0 ? '#DC2626' : '#065F46' }}>
                       -{dados.pontos} pts
                     </span>
@@ -219,6 +241,34 @@ export default function BlocoOcorrencias({
                           </div>
                         )
                       })}
+
+                    {/* Opas resolvidos pelo técnico — crédito positivo (verde) */}
+                    {dados.opas
+                      .sort((a, b) => (b.resolvido_at || '').localeCompare(a.resolvido_at || ''))
+                      .map(opa => (
+                        <div key={`opa-${opa.id}`} style={{
+                          display: 'grid', gridTemplateColumns: '120px 1fr 80px 100px 80px',
+                          padding: '10px 16px', borderBottom: '1px solid var(--portal-border)', alignItems: 'center',
+                          background: '#F0FDF4',
+                          borderLeft: '3px solid #10B981',
+                        }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 3, background: '#10B98118', color: '#065F46', display: 'inline-block', width: 'fit-content' }}>
+                            Opa resolvido
+                          </span>
+                          <div style={{ overflow: 'hidden', paddingRight: 8 }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--portal-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {opa.titulo}
+                            </div>
+                          </div>
+                          <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--portal-text-secondary)' }}>--</span>
+                          <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--portal-text)' }}>
+                            {opa.resolvido_at ? formatData(opa.resolvido_at) : '--'}
+                          </span>
+                          <span style={{ fontSize: 14, fontWeight: 900, color: '#10B981', textAlign: 'right' }}>
+                            +1
+                          </span>
+                        </div>
+                      ))}
                   </div>
                 )}
               </div>

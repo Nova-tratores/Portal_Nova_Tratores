@@ -290,6 +290,7 @@ export default function MeuPainelPage() {
       motivo: novoCaminho.motivo,
       adesao_id: novoCaminho.adesao_id ? Number(novoCaminho.adesao_id) : null,
       placa: novoCaminho.placa || null,
+      data_saida: new Date().toISOString(),
       status: 'em_transito',
     })
     await notificarAdmins(

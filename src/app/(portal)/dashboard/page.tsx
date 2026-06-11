@@ -11,7 +11,7 @@ import {
   BarChart3, Users, Package, ClipboardCheck, AlertTriangle,
   CheckCircle2, Map, RefreshCw, Database, X, Check, Calculator, Eye, Camera, Wheat, Megaphone, TrendingUp, Server,
   FolderPlus, Pencil, Trash2, FolderOpen, MapPin, ShieldCheck, Building,
-  Star, LayoutGrid, List, CircleDot
+  Star, LayoutGrid, List, CircleDot, AlertCircle
 } from 'lucide-react'
 
 interface SystemCard {
@@ -68,6 +68,7 @@ const systems: SystemCard[] = [
   { id: 'consulta-omie', name: 'Consulta Estoque', description: 'Estoque Omie, CMC, curva ABC, dashboard de vendas e comissões', icon: <Eye size={28} />, color: '#DC2626', gradient: 'linear-gradient(135deg, #EF4444, #B91C1C)', href: '/estoque', tag: 'CONSULTA', group: 'estoque' },
 
   // Outros (cinza)
+  { id: 'opa', name: 'Opa', description: 'Sinalize ocorrências e coisas fora do lugar — todos veem até alguém resolver', icon: <AlertCircle size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #ef4444, #dc2626)', href: '/opa', tag: 'OCORRÊNCIAS', group: 'outros' },
   { id: 'avisos', name: 'Avisos', description: 'Comunicados e avisos para toda a equipe, com anexos e notificações', icon: <Megaphone size={28} />, color: '#6B7280', gradient: 'linear-gradient(135deg, #6B7280, #4B5563)', href: '/avisos', tag: 'COMUNICADOS', group: 'outros' },
   { id: 'tarefas', name: 'Tarefas', description: 'Gestão de tarefas entre usuários', icon: <ClipboardCheck size={28} />, color: '#6B7280', gradient: 'linear-gradient(135deg, #6B7280, #374151)', href: '/tarefas', tag: 'TAREFAS', group: 'outros' },
   { id: 'dashboard-agro', name: 'Dashboard Agro', description: 'Dashboard de acompanhamento do segmento agrícola', icon: <Wheat size={28} />, color: '#6B7280', gradient: 'linear-gradient(135deg, #22c55e, #15803d)', href: '/dashboard-agro', tag: 'AGRO', group: 'outros' },
@@ -115,6 +116,7 @@ interface CardFolder {
 }
 
 type ViewMode = 'grade' | 'lista' | 'circular'
+type FavFilter = 'so-favoritos' | 'todos' | 'ocultar'
 
 const defaultFolders: CardFolder[] = []
 
@@ -143,7 +145,7 @@ export default function DashboardPage() {
   const [foldersLoaded, setFoldersLoaded] = useState(false)
   const [favoritos, setFavoritos] = useState<string[]>([])
   const [viewMode, setViewMode] = useState<ViewMode>('grade')
-  const [showFavoritosOnly, setShowFavoritosOnly] = useState(false)
+  const [favFilter, setFavFilter] = useState<FavFilter>('ocultar')
   const [openGroups, setOpenGroups] = useState<string[]>([])
 
   const toggleGroup = (key: string) => {
@@ -205,6 +207,10 @@ export default function DashboardPage() {
     const vmKey = `portal-viewmode-${userProfile.id}`
     const savedVm = localStorage.getItem(vmKey) as ViewMode | null
     if (savedVm) setViewMode(savedVm)
+    // Filtro de favoritos
+    const ffKey = `portal-favfilter-${userProfile.id}`
+    const savedFf = localStorage.getItem(ffKey) as FavFilter | null
+    if (savedFf) setFavFilter(savedFf)
     setFoldersLoaded(true)
   }, [userProfile?.id])
 
@@ -225,6 +231,12 @@ export default function DashboardPage() {
     if (!userProfile?.id || !foldersLoaded) return
     localStorage.setItem(`portal-viewmode-${userProfile.id}`, viewMode)
   }, [viewMode, userProfile?.id, foldersLoaded])
+
+  // Salvar filtro de favoritos
+  useEffect(() => {
+    if (!userProfile?.id || !foldersLoaded) return
+    localStorage.setItem(`portal-favfilter-${userProfile.id}`, favFilter)
+  }, [favFilter, userProfile?.id, foldersLoaded])
 
   // Carregar tarefas
   useEffect(() => {
@@ -301,7 +313,7 @@ export default function DashboardPage() {
   // Sistemas filtrados por pasta/favoritos
   const displayedSystems = useMemo(() => {
     let result = filteredSystems
-    if (showFavoritosOnly) {
+    if (favFilter === 'so-favoritos') {
       result = result.filter(s => favoritos.includes(s.id))
     } else if (activeFolder !== 'todos' && !editingFolder) {
       const folder = folders.find(f => f.id === activeFolder)
@@ -313,7 +325,13 @@ export default function DashboardPage() {
       const bFav = favoritos.includes(b.id) ? 0 : 1
       return aFav - bFav
     })
-  }, [filteredSystems, activeFolder, folders, editingFolder, showFavoritosOnly, favoritos])
+  }, [filteredSystems, activeFolder, folders, editingFolder, favFilter, favoritos])
+
+  // Favoritos para a faixa de destaque (modo "Todos")
+  const favoritosSystems = useMemo(
+    () => filteredSystems.filter(s => favoritos.includes(s.id)),
+    [filteredSystems, favoritos]
+  )
 
   const groupedDisplayed = useMemo(() => {
     const groups: { key: string; config: typeof DASH_GROUPS[string]; items: typeof displayedSystems }[] = []
@@ -422,12 +440,12 @@ export default function DashboardPage() {
   }
 
   return (
-    <div style={{ padding: '32px 40px', background: 'var(--portal-bg)', minHeight: '100%' }}>
+    <div style={{ padding: '20px 28px', background: 'var(--portal-bg)', minHeight: '100%' }}>
       {/* Greeting */}
-      <div style={{ marginBottom: '40px' }} className="animate-fade-in">
+      <div style={{ marginBottom: '20px' }} className="animate-fade-in">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
-            <h2 style={{ fontSize: '32px', fontWeight: '800', color: 'var(--portal-text)', marginBottom: '8px' }}>
+            <h2 style={{ fontSize: '26px', fontWeight: '800', color: 'var(--portal-text)', marginBottom: '4px' }}>
               {greeting()}, <span className="gradient-text">{userProfile?.nome?.split(' ')[0] || 'Usuário'}</span>
             </h2>
             <p style={{ color: '#a3a3a3', fontSize: '15px', fontWeight: '400' }}>
@@ -468,8 +486,8 @@ export default function DashboardPage() {
 
       {/* Stats */}
       <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px',
-        marginBottom: '40px'
+        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px',
+        marginBottom: '24px'
       }}>
         {[
           { icon: <BarChart3 size={20} />, label: 'Sistemas', value: String(allowedSystems.length) },
@@ -478,14 +496,14 @@ export default function DashboardPage() {
           { icon: <Clock size={20} />, label: 'Último Acesso', value: recentLogs[0] ? new Date(recentLogs[0].created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '-' }
         ].map((stat, i) => (
           <div key={i} style={{
-            padding: '20px 24px', borderRadius: '16px',
+            padding: '14px 18px', borderRadius: '14px',
             background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
             boxShadow: '0 1px 3px var(--portal-shadow)',
             animation: `fadeIn 0.6s ease-out ${i * 0.1}s both`
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <div style={{
-                width: '40px', height: '40px', borderRadius: '10px',
+                width: '36px', height: '36px', borderRadius: '10px',
                 background: '#fef2f2', display: 'flex',
                 alignItems: 'center', justifyContent: 'center', color: '#dc2626'
               }}>
@@ -507,8 +525,8 @@ export default function DashboardPage() {
       {/* Breadcrumb quando dentro de uma pasta */}
       {activeFolder !== 'todos' && !editingFolder && (
         <div style={{
-          display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '28px',
-          padding: '20px 28px', borderRadius: '16px',
+          display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px',
+          padding: '14px 22px', borderRadius: '16px',
           background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
           boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
         }}>
@@ -609,13 +627,13 @@ export default function DashboardPage() {
       )}
 
       {/* Search + Filtros + View modes */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
         <div style={{
           width: '4px', height: '24px', borderRadius: '2px',
           background: 'linear-gradient(180deg, #dc2626, #b91c1c)'
         }} />
         <h3 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--portal-text)' }}>
-          {showFavoritosOnly ? 'Favoritos' : 'Sistemas'}
+          {favFilter === 'so-favoritos' ? 'Favoritos' : 'Sistemas'}
         </h3>
         <span style={{
           fontSize: '12px', fontWeight: '600', color: '#a3a3a3',
@@ -626,6 +644,35 @@ export default function DashboardPage() {
         </span>
 
         <div style={{ flex: 1 }} />
+
+        {/* Filtro de favoritos (3 estados) */}
+        <div style={{ display: 'flex', gap: '2px', background: 'var(--portal-bg-secondary)', borderRadius: '10px', padding: '3px' }}>
+          {([
+            { val: 'so-favoritos' as FavFilter, label: 'Favoritos', star: true, title: 'Mostrar só favoritos' },
+            { val: 'todos' as FavFilter, label: 'Todos', star: false, title: 'Destacar favoritos no topo' },
+            { val: 'ocultar' as FavFilter, label: 'Ocultar', star: false, title: 'Sem destaque de favoritos' },
+          ]).map(f => {
+            const ativo = favFilter === f.val
+            return (
+              <button
+                key={f.val}
+                onClick={() => setFavFilter(f.val)}
+                title={f.title}
+                style={{
+                  height: 32, padding: '0 12px', borderRadius: 8, border: 'none',
+                  background: ativo ? '#dc2626' : 'transparent',
+                  color: ativo ? '#fff' : '#a3a3a3',
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  cursor: 'pointer', transition: 'all .15s',
+                  fontSize: 12, fontWeight: 600, fontFamily: 'Inter',
+                }}
+              >
+                {f.star && <Star size={13} fill={ativo ? '#fff' : 'none'} color={ativo ? '#fff' : '#a3a3a3'} />}
+                {f.label}
+              </button>
+            )
+          })}
+        </div>
 
         {/* View mode buttons */}
         <div style={{ display: 'flex', gap: '4px', background: 'var(--portal-bg-secondary)', borderRadius: '10px', padding: '3px' }}>
@@ -683,9 +730,51 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* ══ Faixa de favoritos (modo "Todos") ══ */}
+      {favFilter === 'todos' && favoritosSystems.length > 0 && !editingFolder && (
+        <div style={{
+          marginBottom: 16, padding: '12px 14px', borderRadius: 14,
+          background: 'linear-gradient(135deg, #FFFBEB, var(--portal-bg-card))',
+          border: '1px solid #FDE68A',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+            <Star size={14} fill="#F59E0B" color="#F59E0B" />
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#B45309', letterSpacing: 0.3 }}>FAVORITOS</span>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {favoritosSystems.map(system => (
+              <div key={system.id} onClick={() => openSystem(system)} style={{
+                display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px 7px 8px',
+                borderRadius: 10, cursor: 'pointer', background: 'var(--portal-bg-card)',
+                border: '1px solid var(--portal-border)', transition: 'all .15s',
+              }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = `${system.color}60`; e.currentTarget.style.transform = 'translateY(-1px)' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = ''; e.currentTarget.style.transform = '' }}
+              >
+                <div style={{ width: 32, height: 32, borderRadius: 9, background: system.gradient, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0 }}>
+                  {system.icon}
+                </div>
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--portal-text)', whiteSpace: 'nowrap' }}>{system.name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Vazio: nenhum favorito marcado */}
+      {favFilter === 'so-favoritos' && favoritosSystems.length === 0 && !loadingPerm && (
+        <div style={{
+          padding: '40px', textAlign: 'center', borderRadius: 16,
+          background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
+        }}>
+          <Star size={28} color="#e5e5e5" style={{ margin: '0 auto 10px', display: 'block' }} />
+          <p style={{ color: '#a3a3a3', fontSize: 14, margin: 0 }}>Nenhum favorito ainda. Passe o mouse num card e clique na estrela.</p>
+        </div>
+      )}
+
       {/* ══ GRADE ══ */}
       {viewMode === 'grade' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
           {groupedDisplayed.map((group) => {
             const isOpen = openGroups.includes(group.key)
             const gc = group.config
@@ -701,7 +790,7 @@ export default function DashboardPage() {
                 <div
                   onClick={() => toggleGroup(group.key)}
                   style={{
-                    display: 'flex', alignItems: 'center', gap: 14, padding: '16px 20px',
+                    display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px',
                     cursor: 'pointer', transition: 'background 0.15s',
                     background: isOpen ? `${gc.color}08` : 'transparent',
                   }}
@@ -734,8 +823,8 @@ export default function DashboardPage() {
                   maxHeight: isOpen ? 3000 : 0, opacity: isOpen ? 1 : 0,
                   overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
                 }}>
-                  <div style={{ borderTop: `1px solid ${gc.color}15`, padding: '14px 16px' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: group.items.length >= 5 ? 'repeat(auto-fill, minmax(260px, 1fr))' : 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
+                  <div style={{ borderTop: `1px solid ${gc.color}15`, padding: '12px 14px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: group.items.length >= 5 ? 'repeat(auto-fill, minmax(240px, 1fr))' : 'repeat(auto-fill, minmax(210px, 1fr))', gap: 8 }}>
                       {group.items.map((system, i) => {
                         const isFav = favoritos.includes(system.id)
                         return (
@@ -755,7 +844,7 @@ export default function DashboardPage() {
                             }}>
                               <Star size={13} fill={isFav ? '#F59E0B' : 'none'} color={isFav ? '#F59E0B' : '#d4d4d4'} />
                             </button>
-                            <div onClick={() => editingFolder ? toggleCardInFolder(editingFolder, system.id) : openSystem(system)} style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <div onClick={() => editingFolder ? toggleCardInFolder(editingFolder, system.id) : openSystem(system)} style={{ padding: '11px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
                               <div style={{ width: 38, height: 38, borderRadius: 10, background: system.gradient, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0 }}>
                                 {system.icon}
                               </div>
@@ -779,7 +868,7 @@ export default function DashboardPage() {
 
       {/* ══ LISTA ══ */}
       {viewMode === 'lista' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
           {groupedDisplayed.map((group) => {
             const isOpen = openGroups.includes(group.key)
             const gc = group.config
@@ -852,7 +941,7 @@ export default function DashboardPage() {
 
       {/* ══ CIRCULAR ══ */}
       {viewMode === 'circular' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 18 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
           {groupedDisplayed.map((group) => {
             const isOpen = openGroups.includes(group.key)
             const gc = group.config
@@ -934,10 +1023,10 @@ export default function DashboardPage() {
       <style>{`.fav-btn { opacity: 0 !important; } div:hover > .fav-btn { opacity: 1 !important; }`}</style>
 
       {/* Minhas Tarefas */}
-      <div style={{ marginTop: '48px' }}>
+      <div style={{ marginTop: '28px' }}>
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          marginBottom: '20px'
+          marginBottom: '14px'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{
@@ -1004,7 +1093,7 @@ export default function DashboardPage() {
                   key={t.id}
                   onClick={() => router.push('/tarefas')}
                   style={{
-                    padding: '16px 24px',
+                    padding: '13px 20px',
                     display: 'flex', alignItems: 'center', gap: '16px',
                     borderBottom: i < minhasTarefas.length - 1 ? '1px solid #f5f5f5' : 'none',
                     borderLeft: `3px solid ${isAtrasada ? '#ef4444' : '#f59e0b'}`,
@@ -1081,10 +1170,10 @@ export default function DashboardPage() {
 
       {/* Recent Activity */}
       {recentLogs.length > 0 && (
-        <div style={{ marginTop: '48px' }}>
+        <div style={{ marginTop: '28px' }}>
           <div style={{
             display: 'flex', alignItems: 'center', gap: '12px',
-            marginBottom: '20px'
+            marginBottom: '14px'
           }}>
             <div style={{
               width: '4px', height: '24px', borderRadius: '2px',
@@ -1102,7 +1191,7 @@ export default function DashboardPage() {
           }}>
             {recentLogs.map((log, i) => (
               <div key={log.id || i} style={{
-                padding: '16px 24px',
+                padding: '13px 20px',
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 borderBottom: i < recentLogs.length - 1 ? '1px solid #f5f5f5' : 'none'
               }}>
@@ -1288,7 +1377,7 @@ export default function DashboardPage() {
 
       {/* Footer */}
       <div style={{
-        marginTop: '60px', paddingTop: '24px',
+        marginTop: '36px', paddingTop: '20px',
         borderTop: '1px solid #f0f0f0',
         textAlign: 'center'
       }}>

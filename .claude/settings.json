@@ -25,7 +25,9 @@
     ],
     "additionalDirectories": [
       "C:\\projetos\\vendas-pwa\\src\\pages",
-      "C:\\projetos\\vendas-pwa\\src\\hooks"
+      "C:\\projetos\\vendas-pwa\\src\\hooks",
+      "c:\\projetos\\mecanicos\\src\\app\\(tecnico)\\opa",
+      "c:\\projetos\\mecanicos\\src\\app\\(tecnico)"
     ]
   }
 }

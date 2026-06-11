@@ -2,10 +2,12 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
+import { useRouter } from 'next/navigation'
 import SemPermissao from '@/components/SemPermissao'
+import { supabase } from '@/lib/supabase'
 import {
   ChevronLeft, ChevronRight, Plus, X, Trash2, Search,
-  CheckCircle, XCircle, Package, Bell, Settings, User, Calendar
+  CheckCircle, XCircle, Package, Bell, User, Calendar, Wrench
 } from 'lucide-react'
 
 interface LousaEntry {
@@ -18,26 +20,32 @@ interface LousaEntry {
   criado_por_nome: string
   cor: string
   created_at: string
+  tecnico_nome: string | null
+  periodo: string | null
   temOsAberta?: boolean
   ordensAbertas?: { id_ordem: string; status: string }[]
   temPedidoPPV?: boolean
 }
 
-interface Cliente {
-  cnpj_cpf: string
-  nome_fantasia: string
-  razao_social: string
-  cidade: string
-}
-
-interface Usuario {
-  id: string
-  nome: string
-  funcao: string
-}
+interface Cliente { cnpj_cpf: string; nome_fantasia: string; razao_social: string; cidade: string }
+interface Usuario { id: string; nome: string; funcao: string }
+interface Tecnico { user_id: string; tecnico_nome: string; mecanico_role: string }
 
 const DIAS_SEMANA = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
 const CORES = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316', '#6366f1']
+
+const TECH_PALETTES = [
+  { bg: '#eff6ff', border: '#bfdbfe', text: '#1e40af', avatar: '#3b82f6' },
+  { bg: '#f0fdf4', border: '#bbf7d0', text: '#166534', avatar: '#22c55e' },
+  { bg: '#fffbeb', border: '#fde68a', text: '#92400e', avatar: '#f59e0b' },
+  { bg: '#faf5ff', border: '#d8b4fe', text: '#6b21a8', avatar: '#a855f7' },
+  { bg: '#fdf2f8', border: '#fbcfe8', text: '#9d174d', avatar: '#ec4899' },
+  { bg: '#ecfeff', border: '#a5f3fc', text: '#155e75', avatar: '#06b6d4' },
+  { bg: '#fff7ed', border: '#fed7aa', text: '#9a3412', avatar: '#f97316' },
+  { bg: '#eef2ff', border: '#c7d2fe', text: '#3730a3', avatar: '#6366f1' },
+  { bg: '#fef2f2', border: '#fecaca', text: '#991b1b', avatar: '#ef4444' },
+  { bg: '#f0fdfa', border: '#99f6e4', text: '#115e59', avatar: '#14b8a6' },
+]
 
 function getSegunda(d: Date): Date {
   const date = new Date(d)
@@ -70,18 +78,24 @@ function fmtSemana(seg: Date): string {
 export default function LousaPage() {
   const { userProfile } = useAuth()
   const { temAcesso, loading: pLoading } = usePermissoes(userProfile?.id)
+  const router = useRouter()
+
   const [semana, setSemana] = useState(() => getSegunda(new Date()))
   const [entradas, setEntradas] = useState<LousaEntry[]>([])
   const [loading, setLoading] = useState(true)
+  const [tecnicos, setTecnicos] = useState<Tecnico[]>([])
+
   const [modalOpen, setModalOpen] = useState(false)
   const [editEntry, setEditEntry] = useState<LousaEntry | null>(null)
   const [modalDia, setModalDia] = useState('')
+  const [modalTecnico, setModalTecnico] = useState('')
+  const [modalPeriodo, setModalPeriodo] = useState<'manha' | 'tarde'>('manha')
+
   const [configOpen, setConfigOpen] = useState(false)
   const [configUser, setConfigUser] = useState<{ id: string; nome: string } | null>(null)
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [loadingConfig, setLoadingConfig] = useState(false)
 
-  // Form state
   const [formCliente, setFormCliente] = useState<Cliente | null>(null)
   const [formClienteSearch, setFormClienteSearch] = useState('')
   const [formDesc, setFormDesc] = useState('')
@@ -105,12 +119,24 @@ export default function LousaPage() {
 
   useEffect(() => { carregarEntradas() }, [carregarEntradas])
 
-  // Fechar dropdown ao clicar fora
+  useEffect(() => {
+    supabase
+      .from('portal_permissoes')
+      .select('user_id, mecanico_role, mecanico_tecnico_nome')
+      .not('mecanico_role', 'is', null)
+      .not('mecanico_tecnico_nome', 'is', null)
+      .then(({ data }) => {
+        const lista = ((data || []) as any[])
+          .filter(t => t.mecanico_role === 'tecnico')
+          .map(t => ({ user_id: t.user_id, tecnico_nome: t.mecanico_tecnico_nome, mecanico_role: t.mecanico_role }))
+          .sort((a, b) => a.tecnico_nome.localeCompare(b.tecnico_nome))
+        setTecnicos(lista)
+      })
+  }, [])
+
   useEffect(() => {
     const handle = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setShowClienteDropdown(false)
-      }
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setShowClienteDropdown(false)
     }
     document.addEventListener('mousedown', handle)
     return () => document.removeEventListener('mousedown', handle)
@@ -129,9 +155,40 @@ export default function LousaPage() {
     }, 300)
   }, [])
 
-  const abrirNovaEntrada = (dia: string) => {
+  // Grade: tecnico × dia × periodo
+  const grade = useMemo(() => {
+    const mapa: Record<string, Record<string, { manha: LousaEntry[]; tarde: LousaEntry[] }>> = {}
+    const allKeys = [...tecnicos.map(t => t.tecnico_nome), '_sem_tecnico']
+    allKeys.forEach(key => {
+      mapa[key] = {}
+      for (let i = 0; i < 6; i++) {
+        const dia = fmtDate(addDays(semana, i))
+        mapa[key][dia] = { manha: [], tarde: [] }
+      }
+    })
+    entradas.forEach(e => {
+      const tec = e.tecnico_nome || '_sem_tecnico'
+      const per = (e.periodo === 'tarde' ? 'tarde' : 'manha') as 'manha' | 'tarde'
+      if (mapa[tec]?.[e.data]) {
+        mapa[tec][e.data][per].push(e)
+      } else if (mapa['_sem_tecnico']?.[e.data]) {
+        mapa['_sem_tecnico'][e.data][per].push(e)
+      }
+    })
+    return mapa
+  }, [entradas, semana, tecnicos])
+
+  const temSemTecnico = useMemo(() => {
+    return entradas.some(e => !e.tecnico_nome)
+  }, [entradas])
+
+  const hoje = fmtDate(new Date())
+
+  const abrirNovaEntrada = (tecnico: string, dia: string, periodo: 'manha' | 'tarde') => {
     setEditEntry(null)
     setModalDia(dia)
+    setModalTecnico(tecnico === '_sem_tecnico' ? '' : tecnico)
+    setModalPeriodo(periodo)
     setFormCliente(null)
     setFormClienteSearch('')
     setFormDesc('')
@@ -142,6 +199,8 @@ export default function LousaPage() {
   const abrirEdicao = (entry: LousaEntry) => {
     setEditEntry(entry)
     setModalDia(entry.data)
+    setModalTecnico(entry.tecnico_nome || '')
+    setModalPeriodo((entry.periodo === 'tarde' ? 'tarde' : 'manha') as 'manha' | 'tarde')
     setFormCliente(entry.cliente_cnpj ? { cnpj_cpf: entry.cliente_cnpj, nome_fantasia: entry.cliente_nome, razao_social: '', cidade: '' } : null)
     setFormClienteSearch(entry.cliente_nome)
     setFormDesc(entry.descricao || '')
@@ -152,15 +211,15 @@ export default function LousaPage() {
   const salvar = async () => {
     if (!formClienteSearch.trim() || !userProfile) return
     setSaving(true)
-
     const payload: any = {
       data: modalDia,
       cliente_cnpj: formCliente?.cnpj_cpf || null,
       cliente_nome: formCliente?.nome_fantasia || formClienteSearch.trim(),
       descricao: formDesc.trim() || null,
       cor: formCor,
+      tecnico_nome: modalTecnico || null,
+      periodo: modalPeriodo,
     }
-
     if (editEntry) {
       payload.id = editEntry.id
       await fetch('/api/pos/lousa', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
@@ -169,7 +228,6 @@ export default function LousaPage() {
       payload.criado_por_nome = userProfile.nome || 'Usuário'
       await fetch('/api/pos/lousa', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
     }
-
     setSaving(false)
     setModalOpen(false)
     carregarEntradas()
@@ -180,7 +238,6 @@ export default function LousaPage() {
     carregarEntradas()
   }
 
-  // Config modal
   const abrirConfig = async () => {
     setConfigOpen(true)
     setLoadingConfig(true)
@@ -199,38 +256,133 @@ export default function LousaPage() {
     await fetch('/api/pos/lousa', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        modo: 'config',
-        notificar_user_id: configUser?.id || null,
-        notificar_user_nome: configUser?.nome || null,
-      }),
+      body: JSON.stringify({ modo: 'config', notificar_user_id: configUser?.id || null, notificar_user_nome: configUser?.nome || null }),
     })
     setConfigOpen(false)
   }
 
-  // Agrupar entradas por dia
-  const entradasPorDia = useMemo(() => {
-    const mapa: Record<string, LousaEntry[]> = {}
-    for (let i = 0; i < 6; i++) {
-      const dia = fmtDate(addDays(semana, i))
-      mapa[dia] = entradas.filter(e => e.data === dia)
-    }
-    return mapa
-  }, [entradas, semana])
-
-  const hoje = fmtDate(new Date())
-
   if (!pLoading && userProfile && !temAcesso('lousa')) return <SemPermissao />
 
+  const COL_TEMPLATE = '200px repeat(12, 1fr)'
+
+  const renderTechRow = (tecNome: string, tecIdx: number, isUnassigned?: boolean) => {
+    const palette = isUnassigned
+      ? { bg: '#f9fafb', border: '#e5e7eb', text: '#6b7280', avatar: '#9ca3af' }
+      : TECH_PALETTES[tecIdx % TECH_PALETTES.length]
+
+    return (
+      <div key={tecNome} style={{ display: 'grid', gridTemplateColumns: COL_TEMPLATE, borderBottom: '1px solid #e5e7eb' }}>
+        {/* Nome do técnico */}
+        <div
+          onClick={() => !isUnassigned && router.push(`/mecanicos?tecnico=${encodeURIComponent(tecNome)}`)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '8px 10px',
+            background: palette.bg,
+            borderRight: `3px solid ${palette.avatar}`,
+            cursor: isUnassigned ? 'default' : 'pointer',
+            minHeight: 56,
+          }}
+        >
+          <div style={{
+            width: 32, height: 32, borderRadius: 7, flexShrink: 0,
+            background: palette.avatar,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 13, fontWeight: 800, color: '#fff',
+          }}>
+            {isUnassigned ? '?' : tecNome.charAt(0).toUpperCase()}
+          </div>
+          <span style={{
+            fontSize: 13, fontWeight: 700, color: palette.text,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {isUnassigned ? 'Sem Técnico' : tecNome}
+          </span>
+        </div>
+
+        {/* Células: 6 dias × 2 períodos */}
+        {Array.from({ length: 6 }, (_, dayIdx) => {
+          const dia = fmtDate(addDays(semana, dayIdx))
+          const isHoje = dia === hoje
+          return (['manha', 'tarde'] as const).map(per => {
+            const items = grade[tecNome]?.[dia]?.[per] || []
+            const isManha = per === 'manha'
+            return (
+              <div
+                key={`${dia}-${per}`}
+                onClick={() => abrirNovaEntrada(tecNome, dia, per)}
+                style={{
+                  padding: 3,
+                  borderLeft: isManha ? '1px solid #e5e7eb' : '1px dashed #f3f4f6',
+                  background: isHoje ? `${palette.bg}` : items.length > 0 ? `${palette.bg}88` : 'transparent',
+                  cursor: 'pointer',
+                  display: 'flex', flexDirection: 'column', gap: 2,
+                  minHeight: 56,
+                  transition: 'background 0.1s',
+                }}
+                onMouseEnter={e => { if (!items.length) e.currentTarget.style.background = palette.bg }}
+                onMouseLeave={e => { if (!items.length && !isHoje) e.currentTarget.style.background = 'transparent' }}
+              >
+                {items.map(entry => (
+                  <div
+                    key={entry.id}
+                    onClick={e => { e.stopPropagation(); abrirEdicao(entry) }}
+                    style={{
+                      padding: '5px 7px', borderRadius: 6,
+                      borderLeft: `3px solid ${entry.cor || '#3b82f6'}`,
+                      background: '#fff',
+                      fontSize: 11,
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+                      cursor: 'pointer',
+                      position: 'relative',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginBottom: 2 }}>
+                      {entry.temOsAberta
+                        ? <CheckCircle size={10} color="#059669" />
+                        : <XCircle size={10} color="#dc2626" />}
+                      {entry.temPedidoPPV && <Package size={10} color="#d97706" />}
+                      <button
+                        onClick={ev => { ev.stopPropagation(); excluir(entry.id) }}
+                        style={{
+                          marginLeft: 'auto', width: 18, height: 18, borderRadius: 4,
+                          border: 'none', background: 'transparent', color: '#d1d5db',
+                          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          padding: 0,
+                        }}
+                        onMouseEnter={ev => { ev.currentTarget.style.color = '#dc2626' }}
+                        onMouseLeave={ev => { ev.currentTarget.style.color = '#d1d5db' }}
+                      >
+                        <Trash2 size={10} />
+                      </button>
+                    </div>
+                    <div style={{ fontWeight: 700, fontSize: 12, color: '#1a1a1a', lineHeight: 1.3 }}>
+                      {entry.cliente_nome}
+                    </div>
+                    {entry.descricao && (
+                      <div style={{ color: '#6b7280', fontSize: 11, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {entry.descricao}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )
+          })
+        })}
+      </div>
+    )
+  }
+
   return (
-    <div style={{ padding: '24px 32px', maxWidth: 1600, margin: '0 auto' }}>
+    <div style={{ padding: '20px 24px', maxWidth: 1800, margin: '0 auto' }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--portal-text, #1a1a1a)', margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
             <Calendar size={22} color="#3b82f6" /> Lousa Virtual
           </h1>
-          <p style={{ fontSize: 13, color: '#9CA3AF', margin: '4px 0 0' }}>Agenda semanal de serviços</p>
+          <p style={{ fontSize: 13, color: '#9CA3AF', margin: '4px 0 0' }}>Agenda semanal de serviços por técnico</p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button onClick={abrirConfig} style={{
@@ -244,10 +396,7 @@ export default function LousaPage() {
       </div>
 
       {/* Navegação da semana */}
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 20,
-        padding: '12px 0',
-      }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 16, padding: '8px 0' }}>
         <button onClick={() => setSemana(addDays(semana, -7))} style={{
           width: 36, height: 36, borderRadius: 10, border: '1px solid var(--portal-border, #e5e5e5)',
           background: 'var(--portal-bg-card, #fff)', cursor: 'pointer', display: 'flex',
@@ -273,142 +422,85 @@ export default function LousaPage() {
         </button>
       </div>
 
-      {/* Grid semanal */}
+      {/* Grade */}
       {loading ? (
         <div style={{ padding: 80, textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>Carregando agenda...</div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 10, minHeight: 500 }}>
-          {DIAS_SEMANA.map((nome, i) => {
-            const dia = fmtDate(addDays(semana, i))
-            const isHoje = dia === hoje
-            const items = entradasPorDia[dia] || []
+        <div style={{ border: '1px solid #d1d5db', borderRadius: 12, overflow: 'hidden', background: '#fff' }}>
 
-            return (
-              <div key={dia} style={{
-                borderRadius: 14, overflow: 'hidden',
-                border: isHoje ? '2px solid #3b82f6' : '1px solid var(--portal-border, #e5e5e5)',
-                background: 'var(--portal-bg-card, #fff)',
-                display: 'flex', flexDirection: 'column',
-                boxShadow: isHoje ? '0 0 20px rgba(59,130,246,0.12)' : 'none',
-              }}>
-                {/* Cabeçalho do dia */}
-                <div style={{
-                  padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  borderBottom: '1px solid var(--portal-border, #e5e5e5)',
-                  background: isHoje ? '#EFF6FF' : 'var(--portal-bg-hover, #fafafa)',
+          {/* Cabeçalho: dias */}
+          <div style={{ display: 'grid', gridTemplateColumns: COL_TEMPLATE, borderBottom: '1px solid #d1d5db' }}>
+            <div style={{
+              padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 6,
+              background: 'linear-gradient(135deg, #1e293b, #334155)',
+              borderRight: '1px solid #475569',
+            }}>
+              <Wrench size={15} color="#fff" />
+              <span style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>Técnicos</span>
+              <span style={{ fontSize: 11, fontWeight: 700, background: 'rgba(255,255,255,0.2)', color: '#fff', padding: '2px 6px', borderRadius: 5, marginLeft: 'auto' }}>
+                {tecnicos.length}
+              </span>
+            </div>
+            {DIAS_SEMANA.map((nome, i) => {
+              const dia = fmtDate(addDays(semana, i))
+              const isHoje = dia === hoje
+              return (
+                <div key={dia} style={{
+                  gridColumn: 'span 2', textAlign: 'center', padding: '8px 4px',
+                  background: isHoje ? '#eff6ff' : '#f8fafc',
+                  borderLeft: '1px solid #d1d5db',
                 }}>
-                  <div>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: isHoje ? '#3b82f6' : 'var(--portal-text, #1a1a1a)' }}>
-                      {nome}
-                    </span>
-                    <span style={{
-                      fontSize: 11, color: isHoje ? '#3b82f6' : '#9CA3AF', marginLeft: 8, fontWeight: 500,
-                    }}>
-                      {fmtDateBR(addDays(semana, i))}
-                    </span>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: isHoje ? '#2563eb' : '#1e293b' }}>
+                    {nome}
                   </div>
-                  <button onClick={() => abrirNovaEntrada(dia)} style={{
-                    width: 26, height: 26, borderRadius: 8, border: 'none',
-                    background: isHoje ? '#3b82f6' : 'var(--portal-bg-secondary, #f5f5f5)',
-                    color: isHoje ? '#fff' : '#9CA3AF', cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    <Plus size={14} />
-                  </button>
+                  <div style={{ fontSize: 12, color: isHoje ? '#3b82f6' : '#9ca3af', fontWeight: 500 }}>
+                    {fmtDateBR(addDays(semana, i))}
+                  </div>
                 </div>
+              )
+            })}
+          </div>
 
-                {/* Entradas do dia */}
-                <div style={{ flex: 1, padding: 8, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {items.length === 0 && (
-                    <div style={{
-                      flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: '#D1D5DB', fontSize: 12, fontStyle: 'italic', padding: 20,
-                    }}>
-                      Sem serviços
-                    </div>
-                  )}
-                  {items.map(entry => (
-                    <div
-                      key={entry.id}
-                      onClick={() => abrirEdicao(entry)}
-                      style={{
-                        padding: '10px 12px', borderRadius: 10, cursor: 'pointer',
-                        borderLeft: `4px solid ${entry.cor || '#3b82f6'}`,
-                        background: 'var(--portal-bg-hover, #fafafa)',
-                        transition: 'all 0.15s',
-                        position: 'relative',
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.background = 'var(--portal-bg-secondary, #f0f0f0)' }}
-                      onMouseLeave={e => { e.currentTarget.style.background = 'var(--portal-bg-hover, #fafafa)' }}
-                    >
-                      {/* Indicadores OS e PPV */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-                        {entry.temOsAberta ? (
-                          <span title="OS aberta" style={{
-                            display: 'inline-flex', alignItems: 'center', gap: 3,
-                            fontSize: 9, fontWeight: 700, color: '#059669', background: '#ECFDF5',
-                            padding: '2px 6px', borderRadius: 6,
-                          }}>
-                            <CheckCircle size={10} /> OS
-                          </span>
-                        ) : (
-                          <span title="Sem OS aberta" style={{
-                            display: 'inline-flex', alignItems: 'center', gap: 3,
-                            fontSize: 9, fontWeight: 700, color: '#DC2626', background: '#FEF2F2',
-                            padding: '2px 6px', borderRadius: 6,
-                          }}>
-                            <XCircle size={10} /> Sem OS
-                          </span>
-                        )}
-                        {entry.temPedidoPPV && (
-                          <span title="Pedido de peças (PPV)" style={{
-                            display: 'inline-flex', alignItems: 'center', gap: 3,
-                            fontSize: 9, fontWeight: 700, color: '#D97706', background: '#FFFBEB',
-                            padding: '2px 6px', borderRadius: 6,
-                          }}>
-                            <Package size={10} /> PPV
-                          </span>
-                        )}
-                      </div>
+          {/* Sub-cabeçalho: períodos */}
+          <div style={{ display: 'grid', gridTemplateColumns: COL_TEMPLATE, borderBottom: '2px solid #d1d5db' }}>
+            <div style={{ background: '#1e293b', borderRight: '1px solid #475569', padding: '4px 10px' }}>
+              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', letterSpacing: 1, fontWeight: 600 }}>HORÁRIOS</div>
+            </div>
+            {DIAS_SEMANA.map((_, i) => {
+              const dia = fmtDate(addDays(semana, i))
+              const isHoje = dia === hoje
+              return [
+                <div key={`${dia}-m`} style={{
+                  textAlign: 'center', padding: '5px 2px', fontSize: 11, fontWeight: 700,
+                  color: '#6b7280', background: isHoje ? '#eff6ff' : '#f8fafc',
+                  borderLeft: '1px solid #d1d5db', letterSpacing: 0.5,
+                }}>
+                  <span style={{ color: isHoje ? '#2563eb' : '#6b7280' }}>MANHÃ</span>
+                  <div style={{ fontSize: 10, color: '#9ca3af', fontWeight: 500 }}>7:30 — 11:30</div>
+                </div>,
+                <div key={`${dia}-t`} style={{
+                  textAlign: 'center', padding: '5px 2px', fontSize: 11, fontWeight: 700,
+                  color: '#6b7280', background: isHoje ? '#eff6ff' : '#f8fafc',
+                  borderLeft: '1px dashed #e5e7eb', letterSpacing: 0.5,
+                }}>
+                  <span style={{ color: isHoje ? '#2563eb' : '#6b7280' }}>TARDE</span>
+                  <div style={{ fontSize: 10, color: '#9ca3af', fontWeight: 500 }}>12:30 — 17:30</div>
+                </div>,
+              ]
+            })}
+          </div>
 
-                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text, #1a1a1a)', marginBottom: 2, lineHeight: 1.3 }}>
-                        {entry.cliente_nome}
-                      </div>
+          {/* Linhas dos técnicos */}
+          {tecnicos.map((tec, idx) => renderTechRow(tec.tecnico_nome, idx))}
 
-                      {entry.descricao && (
-                        <div style={{
-                          fontSize: 11, color: 'var(--portal-text-secondary, #666)',
-                          lineHeight: 1.4, marginBottom: 4,
-                          overflow: 'hidden', textOverflow: 'ellipsis',
-                          display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any,
-                        }}>
-                          {entry.descricao}
-                        </div>
-                      )}
+          {/* Linha "Sem Técnico" se houver entradas sem técnico */}
+          {temSemTecnico && renderTechRow('_sem_tecnico', tecnicos.length, true)}
 
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: 9, color: '#9CA3AF', display: 'flex', alignItems: 'center', gap: 3 }}>
-                          <User size={9} /> {entry.criado_por_nome.split(' ')[0]}
-                        </span>
-                        <button
-                          onClick={e => { e.stopPropagation(); excluir(entry.id) }}
-                          style={{
-                            width: 20, height: 20, borderRadius: 6, border: 'none',
-                            background: 'transparent', color: '#D1D5DB', cursor: 'pointer',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          }}
-                          onMouseEnter={e => { e.currentTarget.style.color = '#DC2626'; e.currentTarget.style.background = '#FEF2F2' }}
-                          onMouseLeave={e => { e.currentTarget.style.color = '#D1D5DB'; e.currentTarget.style.background = 'transparent' }}
-                        >
-                          <Trash2 size={11} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )
-          })}
+          {tecnicos.length === 0 && !temSemTecnico && (
+            <div style={{ padding: 40, textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>
+              Nenhum técnico cadastrado
+            </div>
+          )}
         </div>
       )}
 
@@ -422,7 +514,7 @@ export default function LousaPage() {
           }}
         >
           <div style={{
-            background: 'var(--portal-bg-card, #fff)', borderRadius: 20, width: 500, maxWidth: '95vw',
+            background: 'var(--portal-bg-card, #fff)', borderRadius: 20, width: 520, maxWidth: '95vw',
             padding: 32, boxShadow: '0 25px 60px rgba(0,0,0,0.15)',
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
@@ -436,6 +528,49 @@ export default function LousaPage() {
               }}>
                 <X size={18} />
               </button>
+            </div>
+
+            {/* Técnico e Período — lado a lado */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', letterSpacing: 1, display: 'block', marginBottom: 6 }}>TÉCNICO</label>
+                <select
+                  value={modalTecnico}
+                  onChange={e => setModalTecnico(e.target.value)}
+                  style={{
+                    width: '100%', padding: '10px 12px', borderRadius: 10,
+                    border: '1px solid var(--portal-border, #e5e5e5)', fontSize: 13,
+                    background: 'var(--portal-bg-card, #fff)', color: 'var(--portal-text, #1a1a1a)',
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  <option value="">Sem técnico</option>
+                  {tecnicos.map(t => <option key={t.user_id} value={t.tecnico_nome}>{t.tecnico_nome}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', letterSpacing: 1, display: 'block', marginBottom: 6 }}>PERÍODO</label>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {(['manha', 'tarde'] as const).map(p => (
+                    <button
+                      key={p}
+                      onClick={() => setModalPeriodo(p)}
+                      style={{
+                        flex: 1, padding: '10px 0', borderRadius: 10, fontSize: 13, fontWeight: 600,
+                        border: modalPeriodo === p ? '2px solid #3b82f6' : '1px solid var(--portal-border, #e5e5e5)',
+                        background: modalPeriodo === p ? '#eff6ff' : 'var(--portal-bg-card, #fff)',
+                        color: modalPeriodo === p ? '#2563eb' : 'var(--portal-text-secondary, #666)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {p === 'manha' ? 'Manhã' : 'Tarde'}
+                      <div style={{ fontSize: 9, fontWeight: 500, color: '#9ca3af', marginTop: 2 }}>
+                        {p === 'manha' ? '7:30 — 11:30' : '12:30 — 17:30'}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             {/* Data */}
@@ -480,15 +615,13 @@ export default function LousaPage() {
                   </span>
                 )}
               </div>
-
-              {/* Dropdown de resultados */}
               {showClienteDropdown && clienteResults.length > 0 && (
                 <div style={{
                   position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
                   background: 'var(--portal-bg-card, #fff)', borderRadius: 12,
                   border: '1px solid var(--portal-border, #e5e5e5)',
                   boxShadow: '0 12px 32px rgba(0,0,0,0.12)',
-                  maxHeight: 240, overflowY: 'auto', marginTop: 4,
+                  maxHeight: 200, overflowY: 'auto', marginTop: 4,
                 }}>
                   {clienteResults.map((c, i) => (
                     <div
@@ -630,7 +763,6 @@ export default function LousaPage() {
               <div style={{ padding: 40, textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>Carregando...</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 300, overflowY: 'auto', marginBottom: 20 }}>
-                {/* Opção nenhum */}
                 <button
                   onClick={() => setConfigUser(null)}
                   style={{
