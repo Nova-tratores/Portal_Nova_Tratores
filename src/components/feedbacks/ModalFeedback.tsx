@@ -309,13 +309,13 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
                 <textarea value={form.motivo} onChange={(e) => upd("motivo", e.target.value)} rows={2} style={{ ...inputStyle, resize: "vertical", minHeight: 56 }} />
               </Field>
 
-              <Field label="Ação tomada / planejada">
+              <Field label="O que foi conversado com o cliente">
                 <textarea value={form.acao} onChange={(e) => upd("acao", e.target.value)} rows={2} style={{ ...inputStyle, resize: "vertical", minHeight: 56 }} />
               </Field>
 
               <Row>
-                <Field label="Revisão confirmada (se aplicável)">
-                  <input type="text" value={form.revisao_confirmada} onChange={(e) => upd("revisao_confirmada", e.target.value)} placeholder="ex: 50h, 300h" style={inputStyle} />
+                <Field label="Serviço confirmado">
+                  <input type="text" value={form.revisao_confirmada} onChange={(e) => upd("revisao_confirmada", e.target.value)} placeholder="Preencha se gerou serviço (ex: revisão 300h, troca de óleo...)" style={inputStyle} />
                 </Field>
                 <Field label="Sem resposta?">
                   <CampoSemResposta abertoEm={registro?.aberto_em} checked={form.sem_resposta} onChange={(v) => upd("sem_resposta", v)} />
