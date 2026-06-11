@@ -165,6 +165,12 @@ export default function RelatoriosPage() {
   }, [filtradas]);
   const topAtendente = statsAtendente[0] || null;
 
+  // Feedbacks que GERARAM RETORNO DE SERVIÇO = têm "serviço confirmado" preenchido.
+  const retornosServico = useMemo(
+    () => filtradas.filter((r) => (r.revisao_confirmada || "").trim().length > 0),
+    [filtradas]
+  );
+
   const doDia = useMemo(() => filtradas.filter((r) => dataRef(r).startsWith(diaEscolhido)), [filtradas, diaEscolhido]);
 
   return (
@@ -244,6 +250,7 @@ export default function RelatoriosPage() {
               const sat = comStatus.filter((r) => r.status_cliente === "Satisfeito").length;
               return `${Math.round((sat / comStatus.length) * 100)}%`;
             })()} />
+            <StatCard icon="🔧" label="Retornos de serviço" value={retornosServico.length} />
           </div>
 
           {/* Ranking de Atendentes — quem trabalhou os contatos/oportunidades */}
@@ -276,6 +283,32 @@ export default function RelatoriosPage() {
                   ))}
                   {statsAtendente.length === 0 && (
                     <tr><Td colSpan={6}><em style={{ color: "var(--portal-text-muted)" }}>Nenhum atendimento iniciado ainda (atendentes aparecem quando alguém atende uma oportunidade).</em></Td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Feedbacks que geraram retorno de serviço — métrica-chave */}
+          <div style={secaoStyle}>
+            <h2 style={tituloSecaoStyle}>🔧 Feedbacks que geraram retorno de serviço ({retornosServico.length})</h2>
+            <div style={{ overflowX: "auto" }}>
+              <table style={tabelaStyle}>
+                <thead>
+                  <tr><Th>Cliente</Th><Th>Serviço confirmado</Th><Th>Atendente</Th><Th>Técnico</Th><Th>Data</Th></tr>
+                </thead>
+                <tbody>
+                  {retornosServico.map((r) => (
+                    <tr key={r.id}>
+                      <Td><strong>{r.nome}</strong></Td>
+                      <Td>{r.revisao_confirmada}</Td>
+                      <Td>{r.atendente_nome || "—"}</Td>
+                      <Td>{r.tecnico || "—"}</Td>
+                      <Td>{dataRef(r).slice(0, 10)}</Td>
+                    </tr>
+                  ))}
+                  {retornosServico.length === 0 && (
+                    <tr><Td colSpan={5}><em style={{ color: "var(--portal-text-muted)" }}>Nenhum retorno de serviço registrado ainda — preencha o campo &quot;Serviço confirmado&quot; ao atender.</em></Td></tr>
                   )}
                 </tbody>
               </table>

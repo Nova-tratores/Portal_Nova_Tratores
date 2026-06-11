@@ -228,7 +228,7 @@ export default function RegistroCard({ registro: r, ultimaOS, onEditar, onExclui
         <footer style={footerStyle}>
           {onEditar && (
             <button onClick={() => onEditar(r)} style={btnAcao("#fef3c7", "#92400e")} type="button">
-              ✎ Editar
+              📝 Preencher atendimento
             </button>
           )}
           {onExcluir && (
