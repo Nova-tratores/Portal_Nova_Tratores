@@ -7,7 +7,8 @@ import SemPermissao from '@/components/SemPermissao'
 import { supabase } from '@/lib/supabase'
 import {
   ChevronLeft, ChevronRight, Plus, X, Trash2, Search,
-  CheckCircle, XCircle, Package, Bell, User, Calendar, Wrench
+  CheckCircle, XCircle, Package, Bell, User, Calendar, Wrench,
+  Ban, Sun, LogOut
 } from 'lucide-react'
 
 interface LousaEntry {
@@ -22,9 +23,18 @@ interface LousaEntry {
   created_at: string
   tecnico_nome: string | null
   periodo: string | null
+  tipo?: string | null
   temOsAberta?: boolean
   ordensAbertas?: { id_ordem: string; status: string }[]
   temPedidoPPV?: boolean
+}
+
+type TipoMarca = 'servico' | 'faltou' | 'feriado' | 'saida'
+const TIPO_CONFIG: Record<TipoMarca, { label: string; cor: string; bg: string; icon: typeof Wrench }> = {
+  servico: { label: 'Serviço', cor: '#3b82f6', bg: '#eff6ff', icon: Wrench },
+  faltou:  { label: 'Faltou', cor: '#dc2626', bg: '#fef2f2', icon: Ban },
+  feriado: { label: 'Feriado', cor: '#f59e0b', bg: '#fffbeb', icon: Sun },
+  saida:   { label: 'Saída antecipada', cor: '#8b5cf6', bg: '#faf5ff', icon: LogOut },
 }
 
 interface Cliente { cnpj_cpf: string; nome_fantasia: string; razao_social: string; cidade: string }
@@ -90,6 +100,7 @@ export default function LousaPage() {
   const [modalDia, setModalDia] = useState('')
   const [modalTecnico, setModalTecnico] = useState('')
   const [modalPeriodo, setModalPeriodo] = useState<'manha' | 'tarde'>('manha')
+  const [modalTipo, setModalTipo] = useState<TipoMarca>('servico')
 
   const [configOpen, setConfigOpen] = useState(false)
   const [configUser, setConfigUser] = useState<{ id: string; nome: string } | null>(null)
@@ -189,6 +200,7 @@ export default function LousaPage() {
     setModalDia(dia)
     setModalTecnico(tecnico === '_sem_tecnico' ? '' : tecnico)
     setModalPeriodo(periodo)
+    setModalTipo('servico')
     setFormCliente(null)
     setFormClienteSearch('')
     setFormDesc('')
@@ -201,6 +213,7 @@ export default function LousaPage() {
     setModalDia(entry.data)
     setModalTecnico(entry.tecnico_nome || '')
     setModalPeriodo((entry.periodo === 'tarde' ? 'tarde' : 'manha') as 'manha' | 'tarde')
+    setModalTipo((entry.tipo as TipoMarca) || 'servico')
     setFormCliente(entry.cliente_cnpj ? { cnpj_cpf: entry.cliente_cnpj, nome_fantasia: entry.cliente_nome, razao_social: '', cidade: '' } : null)
     setFormClienteSearch(entry.cliente_nome)
     setFormDesc(entry.descricao || '')
@@ -208,27 +221,42 @@ export default function LousaPage() {
     setModalOpen(true)
   }
 
+  // Validação de salvamento conforme o tipo
+  const podeSalvar = modalTipo === 'servico'
+    ? !!formClienteSearch.trim()
+    : modalTipo === 'faltou'
+      ? !!formDesc.trim()   // faltou exige motivo
+      : true                // feriado e saída não exigem nada
+
   const salvar = async () => {
-    if (!formClienteSearch.trim() || !userProfile) return
+    if (!podeSalvar || !userProfile) return
     setSaving(true)
+    const isServico = modalTipo === 'servico'
     const payload: any = {
       data: modalDia,
-      cliente_cnpj: formCliente?.cnpj_cpf || null,
-      cliente_nome: formCliente?.nome_fantasia || formClienteSearch.trim(),
+      tipo: modalTipo,
+      cliente_cnpj: isServico ? (formCliente?.cnpj_cpf || null) : null,
+      cliente_nome: isServico ? (formCliente?.nome_fantasia || formClienteSearch.trim()) : TIPO_CONFIG[modalTipo].label,
       descricao: formDesc.trim() || null,
-      cor: formCor,
+      cor: isServico ? formCor : TIPO_CONFIG[modalTipo].cor,
       tecnico_nome: modalTecnico || null,
       periodo: modalPeriodo,
     }
+    let res: Response
     if (editEntry) {
       payload.id = editEntry.id
-      await fetch('/api/pos/lousa', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      res = await fetch('/api/pos/lousa', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
     } else {
       payload.criado_por_id = userProfile.id
       payload.criado_por_nome = userProfile.nome || 'Usuário'
-      await fetch('/api/pos/lousa', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      res = await fetch('/api/pos/lousa', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
     }
     setSaving(false)
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      alert(`Erro ao salvar: ${err.error || res.statusText}`)
+      return
+    }
     setModalOpen(false)
     carregarEntradas()
   }
@@ -263,7 +291,7 @@ export default function LousaPage() {
 
   if (!pLoading && userProfile && !temAcesso('lousa')) return <SemPermissao />
 
-  const COL_TEMPLATE = '200px repeat(12, 1fr)'
+  const COL_TEMPLATE = '230px repeat(12, 1fr)'
 
   const renderTechRow = (tecNome: string, tecIdx: number, isUnassigned?: boolean) => {
     const palette = isUnassigned
@@ -281,19 +309,19 @@ export default function LousaPage() {
             background: palette.bg,
             borderRight: `3px solid ${palette.avatar}`,
             cursor: isUnassigned ? 'default' : 'pointer',
-            minHeight: 56,
+            minHeight: 74,
           }}
         >
           <div style={{
-            width: 32, height: 32, borderRadius: 7, flexShrink: 0,
+            width: 40, height: 40, borderRadius: 9, flexShrink: 0,
             background: palette.avatar,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 13, fontWeight: 800, color: '#fff',
+            fontSize: 16, fontWeight: 800, color: '#fff',
           }}>
             {isUnassigned ? '?' : tecNome.charAt(0).toUpperCase()}
           </div>
           <span style={{
-            fontSize: 13, fontWeight: 700, color: palette.text,
+            fontSize: 15, fontWeight: 700, color: palette.text,
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>
             {isUnassigned ? 'Sem Técnico' : tecNome}
@@ -317,35 +345,42 @@ export default function LousaPage() {
                   background: isHoje ? `${palette.bg}` : items.length > 0 ? `${palette.bg}88` : 'transparent',
                   cursor: 'pointer',
                   display: 'flex', flexDirection: 'column', gap: 2,
-                  minHeight: 56,
+                  minHeight: 74,
                   transition: 'background 0.1s',
                 }}
                 onMouseEnter={e => { if (!items.length) e.currentTarget.style.background = palette.bg }}
                 onMouseLeave={e => { if (!items.length && !isHoje) e.currentTarget.style.background = 'transparent' }}
               >
-                {items.map(entry => (
+                {items.map(entry => {
+                  const tipoMarca = (entry.tipo as TipoMarca) || 'servico'
+                  const isServico = tipoMarca === 'servico'
+                  const cfgMarca = TIPO_CONFIG[tipoMarca] || TIPO_CONFIG.servico
+                  const IconMarca = cfgMarca.icon
+                  return (
                   <div
                     key={entry.id}
                     onClick={e => { e.stopPropagation(); abrirEdicao(entry) }}
                     style={{
-                      padding: '5px 7px', borderRadius: 6,
-                      borderLeft: `3px solid ${entry.cor || '#3b82f6'}`,
-                      background: '#fff',
-                      fontSize: 11,
+                      padding: '7px 9px', borderRadius: 7,
+                      borderLeft: `4px solid ${entry.cor || '#3b82f6'}`,
+                      background: isServico ? '#fff' : cfgMarca.bg,
+                      fontSize: 13,
                       boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
                       cursor: 'pointer',
                       position: 'relative',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginBottom: 2 }}>
-                      {entry.temOsAberta
-                        ? <CheckCircle size={10} color="#059669" />
-                        : <XCircle size={10} color="#dc2626" />}
-                      {entry.temPedidoPPV && <Package size={10} color="#d97706" />}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 3 }}>
+                      {isServico
+                        ? (entry.temOsAberta
+                            ? <CheckCircle size={13} color="#059669" />
+                            : <XCircle size={13} color="#dc2626" />)
+                        : <IconMarca size={13} color={cfgMarca.cor} />}
+                      {isServico && entry.temPedidoPPV && <Package size={13} color="#d97706" />}
                       <button
                         onClick={ev => { ev.stopPropagation(); excluir(entry.id) }}
                         style={{
-                          marginLeft: 'auto', width: 18, height: 18, borderRadius: 4,
+                          marginLeft: 'auto', width: 22, height: 22, borderRadius: 5,
                           border: 'none', background: 'transparent', color: '#d1d5db',
                           cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
                           padding: 0,
@@ -353,19 +388,24 @@ export default function LousaPage() {
                         onMouseEnter={ev => { ev.currentTarget.style.color = '#dc2626' }}
                         onMouseLeave={ev => { ev.currentTarget.style.color = '#d1d5db' }}
                       >
-                        <Trash2 size={10} />
+                        <Trash2 size={13} />
                       </button>
                     </div>
-                    <div style={{ fontWeight: 700, fontSize: 12, color: '#1a1a1a', lineHeight: 1.3 }}>
-                      {entry.cliente_nome}
+                    <div style={{ fontWeight: 700, fontSize: 14, color: isServico ? '#1a1a1a' : cfgMarca.cor, lineHeight: 1.3 }}>
+                      {isServico ? entry.cliente_nome : cfgMarca.label}
                     </div>
                     {entry.descricao && (
-                      <div style={{ color: '#6b7280', fontSize: 11, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div style={{
+                        color: '#1f2937', fontSize: 13, fontWeight: 600, lineHeight: 1.4, marginTop: 3,
+                        display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                        wordBreak: 'break-word',
+                      }}>
                         {entry.descricao}
                       </div>
                     )}
                   </div>
-                ))}
+                  )
+                })}
               </div>
             )
           })
@@ -435,9 +475,9 @@ export default function LousaPage() {
               background: 'linear-gradient(135deg, #1e293b, #334155)',
               borderRight: '1px solid #475569',
             }}>
-              <Wrench size={15} color="#fff" />
-              <span style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>Técnicos</span>
-              <span style={{ fontSize: 11, fontWeight: 700, background: 'rgba(255,255,255,0.2)', color: '#fff', padding: '2px 6px', borderRadius: 5, marginLeft: 'auto' }}>
+              <Wrench size={17} color="#fff" />
+              <span style={{ fontSize: 16, fontWeight: 700, color: '#fff' }}>Técnicos</span>
+              <span style={{ fontSize: 12, fontWeight: 700, background: 'rgba(255,255,255,0.2)', color: '#fff', padding: '3px 8px', borderRadius: 5, marginLeft: 'auto' }}>
                 {tecnicos.length}
               </span>
             </div>
@@ -450,10 +490,10 @@ export default function LousaPage() {
                   background: isHoje ? '#eff6ff' : '#f8fafc',
                   borderLeft: '1px solid #d1d5db',
                 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: isHoje ? '#2563eb' : '#1e293b' }}>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: isHoje ? '#2563eb' : '#1e293b' }}>
                     {nome}
                   </div>
-                  <div style={{ fontSize: 12, color: isHoje ? '#3b82f6' : '#9ca3af', fontWeight: 500 }}>
+                  <div style={{ fontSize: 13, color: isHoje ? '#3b82f6' : '#9ca3af', fontWeight: 500 }}>
                     {fmtDateBR(addDays(semana, i))}
                   </div>
                 </div>
@@ -471,20 +511,20 @@ export default function LousaPage() {
               const isHoje = dia === hoje
               return [
                 <div key={`${dia}-m`} style={{
-                  textAlign: 'center', padding: '5px 2px', fontSize: 11, fontWeight: 700,
+                  textAlign: 'center', padding: '7px 2px', fontSize: 13, fontWeight: 700,
                   color: '#6b7280', background: isHoje ? '#eff6ff' : '#f8fafc',
                   borderLeft: '1px solid #d1d5db', letterSpacing: 0.5,
                 }}>
                   <span style={{ color: isHoje ? '#2563eb' : '#6b7280' }}>MANHÃ</span>
-                  <div style={{ fontSize: 10, color: '#9ca3af', fontWeight: 500 }}>7:30 — 11:30</div>
+                  <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 500 }}>7:30 — 11:30</div>
                 </div>,
                 <div key={`${dia}-t`} style={{
-                  textAlign: 'center', padding: '5px 2px', fontSize: 11, fontWeight: 700,
+                  textAlign: 'center', padding: '7px 2px', fontSize: 13, fontWeight: 700,
                   color: '#6b7280', background: isHoje ? '#eff6ff' : '#f8fafc',
                   borderLeft: '1px dashed #e5e7eb', letterSpacing: 0.5,
                 }}>
                   <span style={{ color: isHoje ? '#2563eb' : '#6b7280' }}>TARDE</span>
-                  <div style={{ fontSize: 10, color: '#9ca3af', fontWeight: 500 }}>12:30 — 17:30</div>
+                  <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 500 }}>12:30 — 17:30</div>
                 </div>,
               ]
             })}
@@ -519,7 +559,7 @@ export default function LousaPage() {
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
               <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--portal-text, #1a1a1a)', margin: 0 }}>
-                {editEntry ? 'Editar Serviço' : 'Novo Serviço'}
+                {editEntry ? 'Editar marcação' : 'Nova marcação'}
               </h3>
               <button onClick={() => setModalOpen(false)} style={{
                 background: 'var(--portal-bg-secondary, #f5f5f5)', border: 'none', borderRadius: 10,
@@ -528,6 +568,35 @@ export default function LousaPage() {
               }}>
                 <X size={18} />
               </button>
+            </div>
+
+            {/* Tipo de marcação */}
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', letterSpacing: 1, display: 'block', marginBottom: 6 }}>TIPO</label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+                {(Object.keys(TIPO_CONFIG) as TipoMarca[]).map(t => {
+                  const cfg = TIPO_CONFIG[t]
+                  const Icon = cfg.icon
+                  const ativo = modalTipo === t
+                  return (
+                    <button
+                      key={t}
+                      onClick={() => setModalTipo(t)}
+                      style={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                        padding: '10px 4px', borderRadius: 10, cursor: 'pointer',
+                        border: ativo ? `2px solid ${cfg.cor}` : '1px solid var(--portal-border, #e5e5e5)',
+                        background: ativo ? cfg.bg : 'var(--portal-bg-card, #fff)',
+                        color: ativo ? cfg.cor : 'var(--portal-text-secondary, #666)',
+                        fontSize: 11, fontWeight: 700, transition: 'all 0.15s', lineHeight: 1.1, textAlign: 'center',
+                      }}
+                    >
+                      <Icon size={16} />
+                      {cfg.label}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
 
             {/* Técnico e Período — lado a lado */}
@@ -584,7 +653,8 @@ export default function LousaPage() {
               }} />
             </div>
 
-            {/* Cliente */}
+            {/* Cliente (só para serviço) */}
+            {modalTipo === 'servico' && (
             <div style={{ marginBottom: 16, position: 'relative' }} ref={dropdownRef}>
               <label style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', letterSpacing: 1, display: 'block', marginBottom: 6 }}>CLIENTE</label>
               <div style={{ position: 'relative' }}>
@@ -660,14 +730,18 @@ export default function LousaPage() {
                 </div>
               )}
             </div>
+            )}
 
-            {/* Descrição */}
+            {/* Descrição / Motivo (oculto para feriado) */}
+            {modalTipo !== 'feriado' && (
             <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', letterSpacing: 1, display: 'block', marginBottom: 6 }}>DESCRIÇÃO</label>
+              <label style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', letterSpacing: 1, display: 'block', marginBottom: 6 }}>
+                {modalTipo === 'faltou' ? 'MOTIVO' : modalTipo === 'saida' ? 'HORÁRIO / MOTIVO (opcional)' : 'DESCRIÇÃO'}
+              </label>
               <textarea
                 value={formDesc}
                 onChange={e => setFormDesc(e.target.value)}
-                placeholder="Descreva o serviço..."
+                placeholder={modalTipo === 'faltou' ? 'Por que faltou?' : modalTipo === 'saida' ? 'Ex: saiu 15h por consulta...' : 'Descreva o serviço...'}
                 rows={3}
                 style={{
                   width: '100%', padding: '10px 14px', borderRadius: 10,
@@ -677,8 +751,10 @@ export default function LousaPage() {
                 }}
               />
             </div>
+            )}
 
-            {/* Cor */}
+            {/* Cor (só para serviço) */}
+            {modalTipo === 'servico' && (
             <div style={{ marginBottom: 24 }}>
               <label style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', letterSpacing: 1, display: 'block', marginBottom: 6 }}>COR</label>
               <div style={{ display: 'flex', gap: 8 }}>
@@ -694,6 +770,7 @@ export default function LousaPage() {
                 ))}
               </div>
             </div>
+            )}
 
             {/* Botões */}
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
@@ -704,11 +781,11 @@ export default function LousaPage() {
               }}>
                 Cancelar
               </button>
-              <button onClick={salvar} disabled={!formClienteSearch.trim() || saving} style={{
+              <button onClick={salvar} disabled={!podeSalvar || saving} style={{
                 padding: '12px 24px', borderRadius: 12, border: 'none',
                 background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: '#fff',
                 fontSize: 14, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer',
-                opacity: !formClienteSearch.trim() || saving ? 0.5 : 1,
+                opacity: !podeSalvar || saving ? 0.5 : 1,
                 boxShadow: '0 4px 12px rgba(59,130,246,0.25)',
               }}>
                 {saving ? 'Salvando...' : editEntry ? 'Salvar' : 'Adicionar'}

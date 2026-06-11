@@ -98,15 +98,17 @@ export async function GET(req: NextRequest) {
 // POST — criar entrada
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { data, cliente_cnpj, cliente_nome, descricao, criado_por_id, criado_por_nome, cor, tecnico_nome, periodo } = body;
+  const { data, cliente_cnpj, cliente_nome, descricao, criado_por_id, criado_por_nome, cor, tecnico_nome, periodo, tipo } = body;
+  const tipoFinal = tipo || "servico";
 
-  if (!data || !cliente_nome || !criado_por_id || !criado_por_nome) {
+  // Cliente só é obrigatório para serviço; faltou/feriado/saida não precisam
+  if (!data || !criado_por_id || !criado_por_nome || (tipoFinal === "servico" && !cliente_nome)) {
     return NextResponse.json({ error: "Campos obrigatórios faltando" }, { status: 400 });
   }
 
   const { data: novo, error } = await supabase
     .from(TBL_LOUSA)
-    .insert({ data, cliente_cnpj: cliente_cnpj || null, cliente_nome, descricao: descricao || null, criado_por_id, criado_por_nome, cor: cor || "#3b82f6", tecnico_nome: tecnico_nome || null, periodo: periodo || "manha" })
+    .insert({ data, tipo: tipoFinal, cliente_cnpj: cliente_cnpj || null, cliente_nome, descricao: descricao || null, criado_por_id, criado_por_nome, cor: cor || "#3b82f6", tecnico_nome: tecnico_nome || null, periodo: periodo || "manha" })
     .select()
     .single();
 
