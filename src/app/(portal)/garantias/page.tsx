@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import { ShieldCheck, Loader2, LayoutGrid, CheckSquare, BarChart3, Search, Factory } from 'lucide-react';
+import { ShieldCheck, Loader2, LayoutGrid, CheckSquare, BarChart3, Search, Factory, PlusCircle } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
@@ -12,6 +12,7 @@ import GarantiasHistorico from '@/components/garantias/GarantiasHistorico';
 import GarantiasRelatorio from '@/components/garantias/GarantiasRelatorio';
 import GarantiaBusca from '@/components/garantias/GarantiaBusca';
 import MontadorasConfig from '@/components/garantias/MontadorasConfig';
+import CriarGarantiaManualModal from '@/components/garantias/CriarGarantiaManualModal';
 
 type Aba = 'pipeline' | 'finalizadas' | 'relatorio' | 'buscar' | 'montadoras';
 
@@ -22,6 +23,7 @@ function GarantiasPageInner({ isAdmin }: { isAdmin: boolean }) {
   const [aba, setAba] = useState<Aba>('pipeline');
   const [drawerId, setDrawerId] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [criarManualAberto, setCriarManualAberto] = useState(false);
 
   const carregar = useCallback(async () => {
     try {
@@ -93,12 +95,25 @@ function GarantiasPageInner({ isAdmin }: { isAdmin: boolean }) {
         >
           <ShieldCheck size={24} />
         </div>
-        <div>
+        <div style={{ flex: 1 }}>
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: 'var(--portal-text)' }}>Garantias</h1>
           <p style={{ margin: 0, fontSize: 13, color: 'var(--portal-text-muted)' }}>
             Controle do ciclo de garantias — da solicitação do técnico ao retorno da fábrica.
           </p>
         </div>
+        <button
+          onClick={() => setCriarManualAberto(true)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '10px 16px', borderRadius: 10, border: 'none',
+            background: 'linear-gradient(135deg,#dc2626,#7f1d1d)', color: '#fff',
+            fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            boxShadow: '0 4px 12px rgba(220,38,38,0.25)',
+          }}
+          title="Criar uma garantia manualmente a partir de uma OS existente"
+        >
+          <PlusCircle size={15} /> Nova garantia
+        </button>
       </div>
 
       {/* Stats */}
@@ -164,6 +179,19 @@ function GarantiasPageInner({ isAdmin }: { isAdmin: boolean }) {
           userId={userProfile?.id || ''}
           onClose={fecharDrawer}
           onSaved={aposSalvar}
+        />
+      )}
+
+      {criarManualAberto && (
+        <CriarGarantiaManualModal
+          userName={userProfile?.nome || ''}
+          userId={userProfile?.id || ''}
+          onClose={() => setCriarManualAberto(false)}
+          onCriada={(garantiaId) => {
+            setCriarManualAberto(false);
+            setDrawerId(garantiaId);
+            carregar();
+          }}
         />
       )}
     </div>
