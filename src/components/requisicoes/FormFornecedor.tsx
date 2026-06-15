@@ -19,9 +19,14 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
     numero: '',
     'cpf/cnpj': '',
     descricao: '',
-    estado: '',
-    cidade: ''
+    cep: '',
+    endereco: '',
+    endereco_numero: '',
+    bairro: '',
+    cidade: '',
+    estado: ''
   });
+  const [cepStatus, setCepStatus] = useState<'' | 'buscando' | 'ok' | 'erro'>('');
 
   // 1. CARREGAR FORNECEDORES DO BANCO
   const carregarFornecedores = async () => {
@@ -47,9 +52,14 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
       numero: forn.numero || '',
       'cpf/cnpj': forn['cpf/cnpj'] || '',
       descricao: forn.descricao || '',
-      estado: forn.estado || '',
-      cidade: forn.cidade || ''
+      cep: forn.cep || '',
+      endereco: forn.endereco || '',
+      endereco_numero: forn.endereco_numero || '',
+      bairro: forn.bairro || '',
+      cidade: forn.cidade || '',
+      estado: forn.estado || ''
     });
+    setCepStatus('');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -64,9 +74,34 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
     }
   }, [editarId, fornecedores]);
 
+  const FORM_VAZIO = { nome: '', numero: '', 'cpf/cnpj': '', descricao: '', cep: '', endereco: '', endereco_numero: '', bairro: '', cidade: '', estado: '' };
+
   const cancelarEdicao = () => {
     setEditando(null);
-    setFormData({ nome: '', numero: '', 'cpf/cnpj': '', descricao: '', estado: '', cidade: '' });
+    setFormData(FORM_VAZIO);
+    setCepStatus('');
+  };
+
+  // Busca o endereço pelo CEP (ViaCEP) e preenche logradouro/bairro/cidade/UF.
+  const buscarCep = async (cepRaw: string) => {
+    const digits = (cepRaw || '').replace(/\D/g, '');
+    if (digits.length !== 8) { setCepStatus(''); return; }
+    setCepStatus('buscando');
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
+      const data = await res.json();
+      if (data?.erro) { setCepStatus('erro'); return; }
+      setFormData(prev => ({
+        ...prev,
+        endereco: (data.logradouro || prev.endereco || '').toUpperCase(),
+        bairro: (data.bairro || prev.bairro || '').toUpperCase(),
+        cidade: (data.localidade || prev.cidade || '').toUpperCase(),
+        estado: (data.uf || prev.estado || '').toUpperCase(),
+      }));
+      setCepStatus('ok');
+    } catch {
+      setCepStatus('erro'); // offline/bloqueado — usuário preenche manualmente
+    }
   };
 
   // 3. EXCLUIR FORNECEDOR
@@ -97,7 +132,8 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
       }
     } else {
       await onSave(formData);
-      setFormData({ nome: '', numero: '', 'cpf/cnpj': '', descricao: '', estado: '', cidade: '' });
+      setFormData(FORM_VAZIO);
+      setCepStatus('');
       await carregarFornecedores();
     }
   };
@@ -153,14 +189,46 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
               <input name="descricao" value={formData.descricao} onChange={handleChange} className={inputStyle} placeholder="EX: PEÇAS AGRÍCOLAS" />
             </div>
 
+            <div className={`${cellStyle} border-b md:border-r`}>
+              <label className={labelStyle}>
+                CEP <span className="text-zinc-400 normal-case tracking-normal">— p/ Omie</span>
+                {cepStatus === 'buscando' && <span className="text-blue-500 normal-case tracking-normal"> · buscando…</span>}
+                {cepStatus === 'ok' && <span className="text-green-600 normal-case tracking-normal"> · endereço preenchido</span>}
+                {cepStatus === 'erro' && <span className="text-red-500 normal-case tracking-normal"> · CEP não encontrado, preencha à mão</span>}
+              </label>
+              <input
+                name="cep"
+                maxLength={9}
+                value={formData.cep}
+                onChange={e => { const v = e.target.value; setFormData(prev => ({ ...prev, cep: v })); buscarCep(v); }}
+                className={inputStyle}
+                placeholder="00000-000"
+              />
+            </div>
+
+            <div className={`${cellStyle} border-b`}>
+              <label className={labelStyle}>Endereço</label>
+              <input name="endereco" value={formData.endereco} onChange={handleChange} className={inputStyle} placeholder="RUA / AV." />
+            </div>
+
+            <div className={`${cellStyle} border-b md:border-r`}>
+              <label className={labelStyle}>Número</label>
+              <input name="endereco_numero" value={formData.endereco_numero} onChange={handleChange} className={inputStyle} placeholder="Nº" />
+            </div>
+
+            <div className={`${cellStyle} border-b`}>
+              <label className={labelStyle}>Bairro</label>
+              <input name="bairro" value={formData.bairro} onChange={handleChange} className={inputStyle} placeholder="BAIRRO" />
+            </div>
+
             <div className={`${cellStyle} md:border-r`}>
-              <label className={labelStyle}>Estado (UF) <span className="text-zinc-400 normal-case tracking-normal">— p/ Omie</span></label>
-              <input name="estado" maxLength={2} value={formData.estado} onChange={handleChange} className={inputStyle} placeholder="SP" />
+              <label className={labelStyle}>Cidade</label>
+              <input name="cidade" value={formData.cidade} onChange={handleChange} className={inputStyle} placeholder="EX: BAURU" />
             </div>
 
             <div className={cellStyle}>
-              <label className={labelStyle}>Cidade <span className="text-zinc-400 normal-case tracking-normal">— p/ Omie</span></label>
-              <input name="cidade" value={formData.cidade} onChange={handleChange} className={inputStyle} placeholder="EX: BAURU" />
+              <label className={labelStyle}>Estado (UF)</label>
+              <input name="estado" maxLength={2} value={formData.estado} onChange={handleChange} className={inputStyle} placeholder="SP" />
             </div>
           </div>
 
