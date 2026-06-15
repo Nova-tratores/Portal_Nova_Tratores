@@ -45,10 +45,21 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const vHoras = qtdHoras * configPrint.valor_hora;
   const vKm = qtdKm * configPrint.valor_km;
 
-  // Alimentação
+  // Alimentação (várias). Mostra no PDF só os itens com no_pdf=true; com a data.
   const alimentacaoTecnico = !!safeGet(row, "Alimentacao_Tecnico");
   const alimentacaoValor = parseFloat(String(safeGet(row, "Alimentacao_Valor") || 0));
   const alimentacaoNoPdf = !!safeGet(row, "Alimentacao_No_PDF");
+  const alimentacoesArr = Array.isArray(safeGet(row, "Alimentacoes")) ? (safeGet(row, "Alimentacoes") as any[]) : [];
+  const fmtDataAlim = (d: string) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d || "")); return m ? `${m[3]}/${m[2]}/${m[1]}` : ""; };
+  let alimentacaoRows = "";
+  if (alimentacoesArr.length > 0) {
+    alimentacaoRows = alimentacoesArr
+      .filter((a) => a?.no_pdf && (parseFloat(a?.valor) || 0) > 0)
+      .map((a) => `<tr><td>Alimentação Técnico${a.data ? ` (${fmtDataAlim(a.data)})` : ""}</td><td style="text-align:center">—</td><td style="text-align:right">R$ ${(parseFloat(a.valor) || 0).toFixed(2)}</td></tr>`)
+      .join("");
+  } else if (alimentacaoTecnico && alimentacaoNoPdf && alimentacaoValor > 0) {
+    alimentacaoRows = `<tr><td>Alimentação Técnico</td><td style="text-align:center">—</td><td style="text-align:right">R$ ${alimentacaoValor.toFixed(2)}</td></tr>`;
+  }
 
   // Produtos (PPV)
   const ppvId = safeGet(row, "ID_PPV") as string;
@@ -301,7 +312,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         <tr><td>Deslocamento</td><td style="text-align:center">${qtdKm} km</td><td style="text-align:right">R$ ${vKm.toFixed(2)}</td></tr>
         ${totalPecas > 0 ? `<tr><td>Peças / Materiais</td><td style="text-align:center">—</td><td style="text-align:right">R$ ${totalPecas.toFixed(2)}</td></tr>` : ""}
         ${totalReq > 0 ? `<tr><td>Requisições</td><td style="text-align:center">—</td><td style="text-align:right">R$ ${totalReq.toFixed(2)}</td></tr>` : ""}
-        ${alimentacaoTecnico && alimentacaoNoPdf && alimentacaoValor > 0 ? `<tr><td>Alimentação Técnico</td><td style="text-align:center">—</td><td style="text-align:right">R$ ${alimentacaoValor.toFixed(2)}</td></tr>` : ""}
+        ${alimentacaoRows}
         ${descontoRows.join("")}
       </tbody>
     </table>

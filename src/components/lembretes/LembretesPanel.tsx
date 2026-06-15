@@ -71,7 +71,7 @@ export default function LembretesPanel({
     if (!open) return
     carregarLembretes()
     // Carregar usuarios
-    supabase.from('financeiro_usu').select('id, nome, funcao').order('nome').then(({ data }) => {
+    supabase.from('financeiro_usu').select('id, nome, funcao').eq('ativo', true).order('nome').then(({ data }) => {
       if (data) setUsuarios(data)
     })
   }, [open, carregarLembretes])

@@ -6,6 +6,7 @@ export async function GET() {
     const { data, error } = await supabase
       .from('financeiro_usu')
       .select('id, nome, avatar_url')
+      .eq('ativo', true)
       .order('nome')
 
     if (error) throw new Error(error.message)

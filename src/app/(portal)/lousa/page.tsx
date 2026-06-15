@@ -8,7 +8,7 @@ import { supabase } from '@/lib/supabase'
 import {
   ChevronLeft, ChevronRight, Plus, X, Trash2, Search,
   CheckCircle, XCircle, Package, Bell, User, Calendar, Wrench,
-  Ban, Sun, LogOut, Warehouse, Settings
+  Ban, Sun, LogOut, Warehouse, Settings, UserPlus
 } from 'lucide-react'
 
 interface LousaEntry {
@@ -24,6 +24,7 @@ interface LousaEntry {
   tecnico_nome: string | null
   periodo: string | null
   tipo?: string | null
+  tecnico_acompanhante?: string | null
   temOsAberta?: boolean
   ordensAbertas?: { id_ordem: string; status: string }[]
   temPedidoPPV?: boolean
@@ -102,6 +103,7 @@ export default function LousaPage() {
   const [modalTecnico, setModalTecnico] = useState('')
   const [modalPeriodo, setModalPeriodo] = useState<'manha' | 'tarde' | 'dia'>('manha')
   const [modalTipo, setModalTipo] = useState<TipoMarca>('servico')
+  const [modalAcompanhante, setModalAcompanhante] = useState('')
 
   const [configOpen, setConfigOpen] = useState(false)
   const [configUser, setConfigUser] = useState<{ id: string; nome: string } | null>(null)
@@ -132,18 +134,20 @@ export default function LousaPage() {
   useEffect(() => { carregarEntradas() }, [carregarEntradas])
 
   useEffect(() => {
-    supabase
-      .from('portal_permissoes')
-      .select('user_id, mecanico_role, mecanico_tecnico_nome')
-      .not('mecanico_role', 'is', null)
-      .not('mecanico_tecnico_nome', 'is', null)
-      .then(({ data }) => {
-        const lista = ((data || []) as any[])
-          .filter(t => t.mecanico_role === 'tecnico')
-          .map(t => ({ user_id: t.user_id, tecnico_nome: t.mecanico_tecnico_nome, mecanico_role: t.mecanico_role }))
-          .sort((a, b) => a.tecnico_nome.localeCompare(b.tecnico_nome))
-        setTecnicos(lista)
-      })
+    Promise.all([
+      supabase.from('portal_permissoes')
+        .select('user_id, mecanico_role, mecanico_tecnico_nome')
+        .not('mecanico_role', 'is', null)
+        .not('mecanico_tecnico_nome', 'is', null),
+      supabase.from('financeiro_usu').select('id').eq('ativo', true),
+    ]).then(([{ data }, { data: ativos }]) => {
+      const idsAtivos = new Set(((ativos || []) as any[]).map(u => u.id))
+      const lista = ((data || []) as any[])
+        .filter(t => t.mecanico_role === 'tecnico' && idsAtivos.has(t.user_id))
+        .map(t => ({ user_id: t.user_id, tecnico_nome: t.mecanico_tecnico_nome, mecanico_role: t.mecanico_role }))
+        .sort((a, b) => a.tecnico_nome.localeCompare(b.tecnico_nome))
+      setTecnicos(lista)
+    })
   }, [])
 
   useEffect(() => {
@@ -178,14 +182,20 @@ export default function LousaPage() {
         mapa[key][dia] = { manha: [], tarde: [] }
       }
     })
+    const pushEntry = (cell: { manha: LousaEntry[]; tarde: LousaEntry[] }, e: LousaEntry) => {
+      // "dia" inteiro aparece nos dois períodos
+      if (e.periodo === 'dia') { cell.manha.push(e); cell.tarde.push(e) }
+      else if (e.periodo === 'tarde') cell.tarde.push(e)
+      else cell.manha.push(e)
+    }
     entradas.forEach(e => {
       const tec = e.tecnico_nome || '_sem_tecnico'
       const target = mapa[tec]?.[e.data] ? mapa[tec][e.data] : mapa['_sem_tecnico']?.[e.data]
-      if (!target) return
-      // "dia" inteiro aparece nos dois períodos
-      if (e.periodo === 'dia') { target.manha.push(e); target.tarde.push(e) }
-      else if (e.periodo === 'tarde') target.tarde.push(e)
-      else target.manha.push(e)
+      if (target) pushEntry(target, e)
+      // Técnico acompanhante: aparece também na linha dele
+      if (e.tecnico_acompanhante && mapa[e.tecnico_acompanhante]?.[e.data]) {
+        pushEntry(mapa[e.tecnico_acompanhante][e.data], e)
+      }
     })
     return mapa
   }, [entradas, semana, tecnicos])
@@ -202,6 +212,7 @@ export default function LousaPage() {
     setModalTecnico(tecnico === '_sem_tecnico' ? '' : tecnico)
     setModalPeriodo(periodo)
     setModalTipo('servico')
+    setModalAcompanhante('')
     setFormCliente(null)
     setFormClienteSearch('')
     setFormDesc('')
@@ -215,6 +226,7 @@ export default function LousaPage() {
     setModalTecnico(entry.tecnico_nome || '')
     setModalPeriodo(entry.periodo === 'tarde' ? 'tarde' : entry.periodo === 'dia' ? 'dia' : 'manha')
     setModalTipo((entry.tipo as TipoMarca) || 'servico')
+    setModalAcompanhante(entry.tecnico_acompanhante || '')
     setFormCliente(entry.cliente_cnpj ? { cnpj_cpf: entry.cliente_cnpj, nome_fantasia: entry.cliente_nome, razao_social: '', cidade: '' } : null)
     setFormClienteSearch(entry.cliente_nome)
     setFormDesc(entry.descricao || '')
@@ -242,6 +254,7 @@ export default function LousaPage() {
       cor: isServico ? formCor : TIPO_CONFIG[modalTipo].cor,
       tecnico_nome: modalTecnico || null,
       periodo: modalPeriodo,
+      tecnico_acompanhante: isServico && modalAcompanhante && modalAcompanhante !== modalTecnico ? modalAcompanhante : null,
     }
     let res: Response
     if (editEntry) {
@@ -357,6 +370,10 @@ export default function LousaPage() {
                   const isServico = tipoMarca === 'servico'
                   const cfgMarca = TIPO_CONFIG[tipoMarca] || TIPO_CONFIG.servico
                   const IconMarca = cfgMarca.icon
+                  // Quem vai junto, relativo à linha atual
+                  const companheiro = entry.tecnico_acompanhante
+                    ? (tecNome === entry.tecnico_acompanhante ? (entry.tecnico_nome || 'Sem técnico') : entry.tecnico_acompanhante)
+                    : null
                   return (
                   <div
                     key={entry.id}
@@ -397,6 +414,11 @@ export default function LousaPage() {
                       {entry.periodo === 'dia' && (
                         <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: 0.5, color: '#0369a1', background: '#e0f2fe', padding: '1px 6px', borderRadius: 5 }}>
                           DIA TODO
+                        </span>
+                      )}
+                      {companheiro && (
+                        <span title={`Vai junto com ${companheiro}`} style={{ fontSize: 9, fontWeight: 800, letterSpacing: 0.3, color: '#7c3aed', background: '#f3e8ff', padding: '1px 6px', borderRadius: 5, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                          <UserPlus size={9} /> com {companheiro.split(' ')[0]}
                         </span>
                       )}
                     </div>
@@ -603,6 +625,30 @@ export default function LousaPage() {
                 </div>
               </div>
             </div>
+
+            {/* Técnico acompanhante (só para serviço) — vai junto com outro técnico */}
+            {modalTipo === 'servico' && (
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', letterSpacing: 1, display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
+                  <UserPlus size={13} /> VAI JUNTO COM (opcional)
+                </label>
+                <select
+                  value={modalAcompanhante}
+                  onChange={e => setModalAcompanhante(e.target.value)}
+                  style={{
+                    width: '100%', padding: '10px 12px', borderRadius: 10,
+                    border: '1px solid var(--portal-border, #e5e5e5)', fontSize: 13,
+                    background: 'var(--portal-bg-card, #fff)', color: 'var(--portal-text, #1a1a1a)',
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  <option value="">Ninguém</option>
+                  {tecnicos.filter(t => t.tecnico_nome !== modalTecnico).map(t => (
+                    <option key={t.user_id} value={t.tecnico_nome}>{t.tecnico_nome}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Data */}
             <div style={{ marginBottom: 16 }}>

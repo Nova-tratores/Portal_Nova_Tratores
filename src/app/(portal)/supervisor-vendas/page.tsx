@@ -5,18 +5,20 @@ import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import {
   BarChart3, Users, MapPin, AlertTriangle, Eye, ShoppingCart,
-  RefreshCw, TrendingUp, Calendar, Clock, ChevronRight
+  RefreshCw, TrendingUp, Calendar, Clock, ChevronRight, Car, Trash2, Link2
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
 
 const MapaVisitas = dynamic(() => import('@/components/supervisor/MapaVisitas'), { ssr: false })
+const MapaCarros = dynamic(() => import('@/components/supervisor/MapaCarros'), { ssr: false })
 import ModalVisita from '@/components/supervisor/ModalVisita'
+import VincularCarroModal from '@/components/supervisor/VincularCarroModal'
 
-type Tab = 'geral' | 'vendedores' | 'visitas' | 'mapa' | 'pos-vendas' | 'alertas'
+type Tab = 'geral' | 'vendedores' | 'visitas' | 'mapa' | 'carros' | 'pos-vendas' | 'alertas'
 
 export default function SupervisorVendasPage() {
   const { userProfile } = useAuth()
-  const { temAcesso, loading: loadingPerm } = usePermissoes(userProfile?.id)
+  const { temAcesso, isAdmin, loading: loadingPerm } = usePermissoes(userProfile?.id)
   const [tab, setTab] = useState<Tab>('geral')
   const [kpis, setKpis] = useState<any>(null)
   const [vendedores, setVendedores] = useState<any[]>([])
@@ -28,6 +30,9 @@ export default function SupervisorVendasPage() {
   const [filtroPosVendas, setFiltroPosVendas] = useState<'pendentes' | 'resolvidos' | 'todos'>('pendentes')
   const [visitasMapa, setVisitasMapa] = useState<any[]>([])
   const [visitaSelecionada, setVisitaSelecionada] = useState<any>(null)
+  // Carros do comercial
+  const [carros, setCarros] = useState<any[]>([])
+  const [showVincular, setShowVincular] = useState(false)
 
   const carregar = useCallback(async () => {
     setLoading(true)
@@ -53,6 +58,9 @@ export default function SupervisorVendasPage() {
         if (filtroTipo) url += `&tipo=${filtroTipo}`
         const res = await fetch(url)
         if (res.ok) setVisitasMapa((await res.json()).filter((v: any) => v.latitude && v.longitude))
+      } else if (tab === 'carros') {
+        const res = await fetch('/api/supervisor-vendas/carros')
+        if (res.ok) setCarros(await res.json())
       } else if (tab === 'alertas') {
         const res = await fetch('/api/supervisor-vendas?acao=alertas')
         if (res.ok) setAlertas(await res.json())
@@ -74,6 +82,12 @@ export default function SupervisorVendasPage() {
     carregar()
   }
 
+  const removerCarro = async (placa: string) => {
+    if (!confirm('Remover o vínculo deste carro?')) return
+    await fetch(`/api/supervisor-vendas/carros?placa=${encodeURIComponent(placa)}`, { method: 'DELETE' })
+    carregar()
+  }
+
   if (!loadingPerm && userProfile && !temAcesso('supervisor-vendas')) return <SemPermissao />
 
   const fmtBRL = (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}`
@@ -85,6 +99,7 @@ export default function SupervisorVendasPage() {
     { id: 'vendedores', label: 'Vendedores', icon: <Users size={16} /> },
     { id: 'visitas', label: 'Visitas', icon: <Eye size={16} /> },
     { id: 'mapa', label: 'Mapa', icon: <MapPin size={16} /> },
+    { id: 'carros', label: 'Carros', icon: <Car size={16} /> },
     { id: 'pos-vendas', label: 'Pós Vendas', icon: <ShoppingCart size={16} /> },
     { id: 'alertas', label: 'Alertas', icon: <AlertTriangle size={16} /> },
   ]
@@ -254,6 +269,46 @@ export default function SupervisorVendasPage() {
             </div>
           )}
 
+          {/* CARROS DO COMERCIAL */}
+          {tab === 'carros' && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 13, color: '#94A3B8' }}>{carros.length} carro{carros.length !== 1 ? 's' : ''} vinculado{carros.length !== 1 ? 's' : ''}</span>
+                <div style={{ flex: 1 }} />
+                {isAdmin && (
+                  <button onClick={() => setShowVincular(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 10, background: 'linear-gradient(135deg, #dc2626, #991b1b)', color: '#fff', border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                    <Link2 size={15} /> Vincular carro
+                  </button>
+                )}
+              </div>
+
+              {/* Lista de vínculos (admin) */}
+              {isAdmin && carros.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+                  {carros.map((c: any) => (
+                    <div key={c.placa} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderRadius: 10, background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)' }}>
+                      <Car size={15} color="#dc2626" />
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--portal-text)' }}>{c.pessoa_nome || '—'}</div>
+                        <div style={{ fontSize: 11, color: '#94a3b8' }}>{c.placa} · {c.vinculo_tipo === 'vendedor' ? 'Vendedor' : 'Portal'}</div>
+                      </div>
+                      <button onClick={() => removerCarro(c.placa)} title="Remover vínculo" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#cbd5e1', display: 'flex', padding: 2 }}
+                        onMouseEnter={e => { e.currentTarget.style.color = '#dc2626' }}
+                        onMouseLeave={e => { e.currentTarget.style.color = '#cbd5e1' }}>
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Mapa de rotas dos carros */}
+              <div style={{ width: '100%', height: 'calc(100vh - 320px)', minHeight: 420, borderRadius: 14, overflow: 'hidden', border: '1px solid var(--portal-border)' }}>
+                <MapaCarros carros={carros} />
+              </div>
+            </div>
+          )}
+
           {/* PÓS VENDAS */}
           {tab === 'pos-vendas' && (
             <div>
@@ -334,6 +389,7 @@ export default function SupervisorVendasPage() {
       )}
 
       {visitaSelecionada && <ModalVisita visita={visitaSelecionada} onClose={() => setVisitaSelecionada(null)} />}
+      {showVincular && <VincularCarroModal onClose={() => setShowVincular(false)} onSaved={carregar} />}
     </div>
   )
 }

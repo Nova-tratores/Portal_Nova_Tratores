@@ -249,3 +249,97 @@ export function detectarViagens(posicoes: Posicao[], destinos: Destino[]): Viage
 
   return viagens.sort((a, b) => b.data.localeCompare(a.data))
 }
+
+// =============================================
+// Rota de UM carro num dia: caminho + paradas + km.
+// Lê do banco (rotas_vendedor) se já salva; senão busca na Rota Exata,
+// calcula e salva (quando é dia passado). Reutilizado pela API e pelo cron.
+// =============================================
+export interface RotaDia {
+  placa: string
+  data: string
+  pontos: { lat: number; lng: number; dt: string; ignicao: number; vel: number }[]
+  paradas: { lat: number; lng: number; inicio: string; fim: string | null; duracao_min: number }[]
+  km_total: number
+  hora_inicio: string | null
+  hora_fim: string | null
+}
+
+export async function computarESalvarRota(
+  supabase: any,
+  placa: string,
+  data: string,
+): Promise<RotaDia> {
+  const hoje = new Date().toISOString().split('T')[0]
+
+  // 1) Rota já salva?
+  const { data: rotaSalva } = await supabase
+    .from('rotas_vendedor')
+    .select('*')
+    .eq('placa', placa)
+    .eq('data', data)
+    .maybeSingle()
+  if (rotaSalva && Array.isArray(rotaSalva.pontos) && rotaSalva.pontos.length > 0) {
+    return rotaSalva as RotaDia
+  }
+
+  // 2) Achar o veículo na Rota Exata pela placa
+  const vData = await fetchRotaExata('/adesoes', { limit: '200', page: '0' })
+  const placaNorm = placa.replace(/[-\s]/g, '').toUpperCase()
+  const ad = (vData.data || []).find(
+    (a: any) => (a.vei_placa || '').replace(/[-\s]/g, '').toUpperCase() === placaNorm,
+  )
+  if (!ad) return { placa, data, pontos: [], paradas: [], km_total: 0, hora_inicio: null, hora_fim: null }
+
+  // 3) Posições do dia
+  const inicio = `${data}T00:00:00.000Z`
+  const fim = data === hoje ? new Date().toISOString() : `${data}T23:59:59.000Z`
+  const w = JSON.stringify({ adesao_id: ad.id, dt_posicao: { $gte: inicio, $lte: fim } })
+  const posData = await fetchRotaExata('/posicoes', { where: w, limit: '1000', page: '0' })
+  const posicoes = (Array.isArray(posData.data) ? posData.data : [])
+    .sort((a: any, b: any) => new Date(a.dt_posicao).getTime() - new Date(b.dt_posicao).getTime())
+
+  const pontos = posicoes.map((p: any) => ({ lat: p.latitude, lng: p.longitude, dt: p.dt_posicao, ignicao: p.ignicao, vel: p.velocidade }))
+
+  // km (haversine, ignora saltos > 5km de erro de GPS)
+  let kmTotal = 0
+  for (let i = 1; i < pontos.length; i++) {
+    const d = distanciaKm(pontos[i - 1].lat, pontos[i - 1].lng, pontos[i].lat, pontos[i].lng)
+    if (d < 5) kmTotal += d
+  }
+
+  // paradas (ignição 0 + velocidade 0 por >= 5 min)
+  const paradas: RotaDia['paradas'] = []
+  let pIni: any = null
+  for (const p of pontos) {
+    if (p.ignicao === 0 && p.vel === 0) {
+      if (!pIni) pIni = p
+    } else if (pIni) {
+      const dur = Math.round((new Date(p.dt).getTime() - new Date(pIni.dt).getTime()) / 60000)
+      if (dur >= 5) paradas.push({ lat: pIni.lat, lng: pIni.lng, inicio: pIni.dt, fim: p.dt, duracao_min: dur })
+      pIni = null
+    }
+  }
+
+  const rota: RotaDia = {
+    placa, data, pontos, paradas, km_total: Math.round(kmTotal),
+    hora_inicio: pontos.length > 0 ? pontos[0].dt : null,
+    hora_fim: pontos.length > 0 ? pontos[pontos.length - 1].dt : null,
+  }
+
+  // 4) Salva histórico (dia passado, com pontos)
+  if (data !== hoje && pontos.length > 0) {
+    const { data: vinc } = await supabase
+      .from('comercial_veiculos')
+      .select('pessoa_id, pessoa_nome')
+      .eq('placa', placa)
+      .maybeSingle()
+    await supabase.from('rotas_vendedor').upsert({
+      ...rota,
+      vendedor_id: vinc?.pessoa_id || null,
+      vendedor_nome: vinc?.pessoa_nome || null,
+    }, { onConflict: 'placa,data' })
+  }
+
+  return rota
+}

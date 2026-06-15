@@ -122,7 +122,7 @@ function RequisicoesPageInner() {
 
       const [allReqs, resUser, resVei] = await Promise.all([
         buscarTodasReqs(),
-        supabase.from('financeiro_usu').select('*').order('nome', { ascending: true }),
+        supabase.from('financeiro_usu').select('*').eq('ativo', true).order('nome', { ascending: true }),
         supabase.from('SupaPlacas').select('*').order('NumPlaca', { ascending: true })
       ]);
 

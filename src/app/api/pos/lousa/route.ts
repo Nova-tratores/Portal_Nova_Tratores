@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { TBL_LOUSA, TBL_LOUSA_CONFIG, TBL_OS, TBL_PEDIDOS, TBL_CLIENTES } from "@/lib/pos/constants";
+import { TBL_LOUSA, TBL_LOUSA_CONFIG, TBL_OS, TBL_CLIENTES } from "@/lib/pos/constants";
 
 // GET — buscar entradas da semana + verificar OS abertas + pedidos PPV
 export async function GET(req: NextRequest) {
@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
     const { data } = await supabase
       .from("financeiro_usu")
       .select("id, nome, funcao")
+      .eq("ativo", true)
       .order("nome");
     return NextResponse.json(data || []);
   }
@@ -49,33 +50,22 @@ export async function GET(req: NextRequest) {
   // Pegar CNPJs únicos para verificar OS abertas
   const cnpjs = [...new Set(entradas.map((e) => e.cliente_cnpj).filter(Boolean))];
 
-  let osAbertas: Record<string, { id_ordem: string; status: string }[]> = {};
-  let pedidosPorOs: Record<string, number> = {};
+  const osAbertas: Record<string, { id_ordem: string; status: string; temPPV: boolean }[]> = {};
 
   if (cnpjs.length > 0) {
+    // Coluna correta na Ordem_Servico é "Cnpj_Cliente"; PPV vem do campo ID_PPV da própria OS
     const { data: ordens } = await supabase
       .from(TBL_OS)
-      .select("Id_Ordem, CNPJ_CPF_Cliente, Status")
-      .in("CNPJ_CPF_Cliente", cnpjs)
-      .not("Status", "in", '("Concluída","Cancelada")');
+      .select("Id_Ordem, Cnpj_Cliente, Status, ID_PPV")
+      .in("Cnpj_Cliente", cnpjs)
+      .not("Status", "in", '("Concluída","Concluida","Cancelada","cancelada")');
 
     (ordens || []).forEach((o: any) => {
-      const cnpj = o.CNPJ_CPF_Cliente;
+      const cnpj = o.Cnpj_Cliente;
+      if (!cnpj) return;
       if (!osAbertas[cnpj]) osAbertas[cnpj] = [];
-      osAbertas[cnpj].push({ id_ordem: String(o.Id_Ordem), status: o.Status });
+      osAbertas[cnpj].push({ id_ordem: String(o.Id_Ordem), status: o.Status, temPPV: !!o.ID_PPV });
     });
-
-    // Verificar pedidos PPV para cada OS aberta
-    const osIds = (ordens || []).map((o: any) => String(o.Id_Ordem));
-    if (osIds.length > 0) {
-      const { data: peds } = await supabase
-        .from(TBL_PEDIDOS)
-        .select("Id_Os")
-        .in("Id_Os", osIds);
-      (peds || []).forEach((p: any) => {
-        pedidosPorOs[String(p.Id_Os)] = (pedidosPorOs[String(p.Id_Os)] || 0) + 1;
-      });
-    }
   }
 
   // Enriquecer cada entrada
@@ -83,11 +73,11 @@ export async function GET(req: NextRequest) {
     const cnpj = e.cliente_cnpj;
     const ordensCliente = cnpj ? osAbertas[cnpj] || [] : [];
     const temOsAberta = ordensCliente.length > 0;
-    const temPedidoPPV = ordensCliente.some((o) => pedidosPorOs[o.id_ordem] > 0);
+    const temPedidoPPV = ordensCliente.some((o) => o.temPPV);
     return {
       ...e,
       temOsAberta,
-      ordensAbertas: ordensCliente,
+      ordensAbertas: ordensCliente.map(({ id_ordem, status }) => ({ id_ordem, status })),
       temPedidoPPV,
     };
   });
@@ -98,7 +88,7 @@ export async function GET(req: NextRequest) {
 // POST — criar entrada
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { data, cliente_cnpj, cliente_nome, descricao, criado_por_id, criado_por_nome, cor, tecnico_nome, periodo, tipo } = body;
+  const { data, cliente_cnpj, cliente_nome, descricao, criado_por_id, criado_por_nome, cor, tecnico_nome, periodo, tipo, tecnico_acompanhante } = body;
   const tipoFinal = tipo || "servico";
 
   // Cliente só é obrigatório para serviço; faltou/feriado/saida não precisam
@@ -108,7 +98,7 @@ export async function POST(req: NextRequest) {
 
   const { data: novo, error } = await supabase
     .from(TBL_LOUSA)
-    .insert({ data, tipo: tipoFinal, cliente_cnpj: cliente_cnpj || null, cliente_nome, descricao: descricao || null, criado_por_id, criado_por_nome, cor: cor || "#3b82f6", tecnico_nome: tecnico_nome || null, periodo: periodo || "manha" })
+    .insert({ data, tipo: tipoFinal, cliente_cnpj: cliente_cnpj || null, cliente_nome, descricao: descricao || null, criado_por_id, criado_por_nome, cor: cor || "#3b82f6", tecnico_nome: tecnico_nome || null, periodo: periodo || "manha", tecnico_acompanhante: tecnico_acompanhante || null })
     .select()
     .single();
 

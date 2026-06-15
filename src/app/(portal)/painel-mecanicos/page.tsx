@@ -63,7 +63,7 @@ function PainelMecanicosPage() {
     setLoading(true)
     const [{ data: tecs }, { data: usus }, { data: ords }, { data: alerts }, { data: cams }, { data: execs }, { data: reqsMec }, { data: ocors }, { data: justs }, { data: opas }] = await Promise.all([
       supabase.from('portal_permissoes').select('user_id, mecanico_role, mecanico_tecnico_nome').not('mecanico_role', 'is', null).not('mecanico_tecnico_nome', 'is', null),
-      supabase.from('financeiro_usu').select('id, nome, email'),
+      supabase.from('financeiro_usu').select('id, nome, email, ativo'),
       supabase.from('Ordem_Servico').select('*').order('Previsao_Execucao', { ascending: true }),
       supabase.from('painel_alertas').select('*').order('created_at', { ascending: false }),
       supabase.from('tecnico_caminhos').select('*').order('created_at', { ascending: false }).limit(50),
@@ -74,8 +74,9 @@ function PainelMecanicosPage() {
       supabase.from('portal_opas').select('id, titulo, resolvido_por_nome, resolvido_at').eq('status', 'resolvido').eq('resolvido_por_tipo', 'tecnico').order('resolvido_at', { ascending: false }).limit(300),
     ])
     const emailMap: Record<string, string> = {}
-    ;((usus || []) as any[]).forEach(u => { emailMap[u.id] = u.email || '' })
-    setTecnicos(((tecs || []) as any[]).map(t => ({ user_id: t.user_id, tecnico_nome: t.mecanico_tecnico_nome, tecnico_email: emailMap[t.user_id] || '', mecanico_role: t.mecanico_role })).sort((a: Tecnico, b: Tecnico) => a.tecnico_nome.localeCompare(b.tecnico_nome)))
+    const inativoSet = new Set<string>()
+    ;((usus || []) as any[]).forEach(u => { emailMap[u.id] = u.email || ''; if (u.ativo === false) inativoSet.add(u.id) })
+    setTecnicos(((tecs || []) as any[]).filter(t => !inativoSet.has(t.user_id)).map(t => ({ user_id: t.user_id, tecnico_nome: t.mecanico_tecnico_nome, tecnico_email: emailMap[t.user_id] || '', mecanico_role: t.mecanico_role })).sort((a: Tecnico, b: Tecnico) => a.tecnico_nome.localeCompare(b.tecnico_nome)))
     setOrdens((ords as OrdemServico[]) || [])
     setAlertas((alerts as Alerta[]) || [])
     setCaminhos((cams as Caminho[]) || [])

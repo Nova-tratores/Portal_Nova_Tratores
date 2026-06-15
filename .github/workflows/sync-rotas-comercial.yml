@@ -1,0 +1,22 @@
+name: Gravar rotas dos carros (Comercial)
+
+# Grava a rota/paradas/km do dia anterior de cada carro do comercial vinculado.
+# Necessário porque o portal roda no Railway e o vercel.json não dispara cron.
+# Requer os secrets do GitHub: PORTAL_URL e CRON_SECRET.
+
+on:
+  schedule:
+    - cron: '0 7 * * *'    # 07:00 UTC ≈ 04:00 de Brasília (madrugada)
+  workflow_dispatch: {}      # permite rodar manualmente
+
+jobs:
+  gravar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Disparar cron de rotas
+        run: |
+          curl -fsS --max-time 600 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/supervisor-vendas/cron/gravar-rotas" \
+            -o /dev/null -w "gravar-rotas: HTTP %{http_code}\n"

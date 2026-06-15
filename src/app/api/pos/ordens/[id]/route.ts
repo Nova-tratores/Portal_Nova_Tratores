@@ -6,6 +6,7 @@ import { formatarDataBR, safeGet } from "@/lib/pos/utils";
 import { sincronizarStatusPPV } from "@/lib/pos/sync-ppv";
 import { logAndNotify } from "@/lib/server/audit-notify";
 import { checarIrregularidade } from "@/lib/pos/checarIrregularidade";
+import { normalizarAlimentacoes, agregadosAlimentacao } from "@/lib/pos/alimentacao-os";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: idOs } = await params;
@@ -96,6 +97,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     alimentacaoTecnico: !!safeGet(row, "Alimentacao_Tecnico"),
     alimentacaoValor: parseFloat(String(safeGet(row, "Alimentacao_Valor") || 0)),
     alimentacaoNoPdf: !!safeGet(row, "Alimentacao_No_PDF"),
+    alimentacoes: Array.isArray(safeGet(row, "Alimentacoes")) ? safeGet(row, "Alimentacoes") : [],
     horaInicioExec: safeGet(row, "Hora_Inicio_Exec") || "",
     horaChegada: safeGet(row, "Hora_Chegada") || "",
     horaFimExec: safeGet(row, "Hora_Fim_Exec") || "",
@@ -258,9 +260,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     Data_Fim_Servico: dados.dataFimServico || null,
     Hora_Inicio_Servico: dados.horaInicioServico || '',
     Servico_Numero: dados.servicoNumero || null,
-    Alimentacao_Tecnico: !!dados.alimentacaoTecnico,
-    Alimentacao_Valor: parseFloat(dados.alimentacaoValor || 0),
-    Alimentacao_No_PDF: !!dados.alimentacaoNoPdf,
+    ...(() => {
+      const temArray = Array.isArray(dados.alimentacoes);
+      const lista = temArray ? normalizarAlimentacoes(dados.alimentacoes) : [];
+      const agg = temArray ? agregadosAlimentacao(lista)
+        : { tecnico: !!dados.alimentacaoTecnico, valor: parseFloat(dados.alimentacaoValor || 0), noPdf: !!dados.alimentacaoNoPdf };
+      return {
+        Alimentacao_Tecnico: agg.tecnico,
+        Alimentacao_Valor: agg.valor,
+        Alimentacao_No_PDF: agg.noPdf,
+        ...(temArray ? { Alimentacoes: lista } : {}),
+      };
+    })(),
   };
 
   const { error } = await supabase.from(TBL_OS).update(baseUpdate).eq("Id_Ordem", idOs);

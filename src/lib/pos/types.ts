@@ -114,6 +114,13 @@ export interface TotaisCalculados {
   vPecasRaw: number;
 }
 
+export interface AlimentacaoItem {
+  data: string;          // YYYY-MM-DD
+  valor: number;         // valor total da alimentação
+  tecnicos: string[];    // 1 ou 2 nomes (técnicos da OS)
+  no_pdf: boolean;       // mostrar no PDF do cliente
+}
+
 export interface OSFormData {
   id?: string;
   nomeCliente: string;
@@ -138,6 +145,11 @@ export interface OSFormData {
   previsaoFaturamento: string;
   dataFimServico: string;
   servicoNumero: number;
+  // Alimentação (várias por OS). Agregados antigos abaixo (compat).
+  alimentacoes?: AlimentacaoItem[];
+  alimentacaoTecnico?: boolean;
+  alimentacaoValor?: number;
+  alimentacaoNoPdf?: boolean;
 }
 
 export interface RequisicaoInfo {

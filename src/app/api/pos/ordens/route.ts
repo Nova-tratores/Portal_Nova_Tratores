@@ -6,6 +6,7 @@ import { formatarDataBR, safeGet } from "@/lib/pos/utils";
 import { sincronizarStatusPPV } from "@/lib/pos/sync-ppv";
 import { logAndNotify } from "@/lib/server/audit-notify";
 import { checarIrregularidade } from "@/lib/pos/checarIrregularidade";
+import { normalizarAlimentacoes, agregadosAlimentacao } from "@/lib/pos/alimentacao-os";
 import type { KanbanCard } from "@/lib/pos/types";
 
 /*
@@ -406,9 +407,18 @@ export async function POST(req: NextRequest) {
     Data_Fim_Servico: dados.dataFimServico || null,
     Hora_Inicio_Servico: dados.horaInicioServico || '',
     Servico_Numero: dados.servicoNumero || null,
-    Alimentacao_Tecnico: !!dados.alimentacaoTecnico,
-    Alimentacao_Valor: parseFloat(dados.alimentacaoValor || 0),
-    Alimentacao_No_PDF: !!dados.alimentacaoNoPdf,
+    ...(() => {
+      const temArray = Array.isArray(dados.alimentacoes);
+      const lista = temArray ? normalizarAlimentacoes(dados.alimentacoes) : [];
+      const agg = temArray ? agregadosAlimentacao(lista)
+        : { tecnico: !!dados.alimentacaoTecnico, valor: parseFloat(dados.alimentacaoValor || 0), noPdf: !!dados.alimentacaoNoPdf };
+      return {
+        Alimentacao_Tecnico: agg.tecnico,
+        Alimentacao_Valor: agg.valor,
+        Alimentacao_No_PDF: agg.noPdf,
+        Alimentacoes: lista,
+      };
+    })(),
   };
 
   const { error } = await supabase.from(TBL_OS).insert(baseInsert);

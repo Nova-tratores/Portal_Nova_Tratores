@@ -161,6 +161,7 @@ export default function BugReporterChat() {
       const { data: usuarios } = await supabase
         .from('financeiro_usu')
         .select('id, nome')
+        .eq('ativo', true)
         .neq('id', user.id)
         .order('nome')
 

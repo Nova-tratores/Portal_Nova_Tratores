@@ -10,7 +10,7 @@ import {
   DollarSign, Package, Menu, X, User as UserIcon,
   LayoutDashboard, Bell, ChevronRight, Activity, Lock, MessageCircle,
   CheckCheck, Trash2, ExternalLink, Calendar, Users, Calculator, BarChart3, Eye, Camera, Wheat, Megaphone,
-  Sun, Moon, Volume2, Check, MapPin, ShieldCheck, Building, SlidersHorizontal, AlertCircle
+  Sun, Moon, Volume2, Check, MapPin, ShieldCheck, Building, SlidersHorizontal, AlertCircle, Headset
 } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -19,6 +19,7 @@ import LembretesPanel from './lembretes/LembretesPanel'
 import LembreteAlerta from './lembretes/LembreteAlerta'
 import NotifPrefsModal from './notif/NotifPrefsModal'
 import OpaLembrete from './opa/OpaLembrete'
+import SatLembrete from './sat/SatLembrete'
 
 interface NavItem {
   id: string
@@ -52,6 +53,7 @@ const navItems: NavItem[] = [
   { id: 'garantias', name: 'Garantias', href: '/garantias', icon: <ShieldCheck size={18} />, tag: 'GARANTIAS', gradient: '', group: 'servicos' },
   { id: 'revisoes', name: 'Controle de Revisões', href: '/revisoes', icon: <Wrench size={18} />, tag: 'MANUTENÇÃO', gradient: '', group: 'servicos' },
   { id: 'mecanicos', name: 'Janela Mecânico', href: '/mecanicos', icon: <Users size={18} />, tag: 'TÉCNICOS', gradient: '', group: 'servicos' },
+  { id: 'sat', name: 'SAT Digital', href: '/sat', icon: <Headset size={18} />, tag: 'ATENDIMENTO', gradient: '', group: 'servicos' },
   { id: 'mapa-geral', name: 'Mapeamento Técnico', href: '/mapa-geral', icon: <MapPin size={18} />, tag: 'MAPA', gradient: '', group: 'servicos' },
   { id: 'fotos-tecnicos', name: 'Fotos Técnicos', href: '/fotos-tecnicos', icon: <Camera size={18} />, tag: 'FOTOS', gradient: '', group: 'servicos' },
   { id: 'lousa', name: 'Lousa Virtual', href: '/lousa', icon: <Calendar size={18} />, tag: 'AGENDA', gradient: '', group: 'servicos' },
@@ -153,7 +155,7 @@ const SONS_NOTIFICACAO = [
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
   const { userProfile, loading, handleLogout } = useAuth()
-  const { isAdmin, temAcesso, loading: loadingPerm } = usePermissoes(userProfile?.id)
+  const { permissoes, isAdmin, temAcesso, loading: loadingPerm } = usePermissoes(userProfile?.id)
   const chatData = useChat(userProfile?.id)
   const notifData = useNotificacoes(userProfile?.id)
   const router = useRouter()
@@ -365,7 +367,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const totalBell = notifData.naoLidas + chatData.totalNaoLidas
 
   const filteredNavItems = useMemo(() => navItems.filter(item => {
-    if (item.id === 'dashboard' || item.id === 'opa') return true
+    if (item.id === 'dashboard' || item.id === 'opa' || item.id === 'sat') return true
     return temAcesso(item.id)
   }), [temAcesso])
 
@@ -1114,6 +1116,11 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       {/* ===== CARDS FLUTUANTES "OPA" ===== */}
       {userProfile?.id && (
         <OpaLembrete userId={userProfile.id} userName={userProfile.nome || ''} isAdmin={isAdmin} />
+      )}
+
+      {/* ===== CARDS FLUTUANTES "SAT" (só Pós-Vendas) ===== */}
+      {userProfile?.id && (permissoes?.categoria === 'Pós Vendas' || isAdmin) && (
+        <SatLembrete userId={userProfile.id} userName={userProfile.nome || ''} />
       )}
 
       {/* ===== POPUP AVISO BLOQUEANTE ===== */}

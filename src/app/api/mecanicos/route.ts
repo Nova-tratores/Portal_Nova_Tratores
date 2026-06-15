@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
     const { data: users, error: usrErr } = await supabase
       .from("financeiro_usu")
       .select("id, nome, email, funcao, avatar_url")
+      .eq("ativo", true)
       .in("id", userIds);
 
     if (usrErr) throw usrErr;

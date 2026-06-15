@@ -45,7 +45,7 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
   useEffect(() => {
     const fetchData = async () => {
       const [{ data: users }, { data: veic }, { data: ordens }] = await Promise.all([
-        supabase.from('financeiro_usu').select('id, nome, funcao').order('nome'),
+        supabase.from('financeiro_usu').select('id, nome, funcao').eq('ativo', true).order('nome'),
         supabase.from('SupaPlacas').select('IdPlaca, NumPlaca').order('NumPlaca'),
         supabase.from('Ordem_Servico').select('Id_Ordem, Os_Cliente, Os_Tecnico, Status').not('Status', 'in', '("Concluída","Cancelada")').order('Id_Ordem', { ascending: false }),
       ]);

@@ -11,7 +11,7 @@ import {
   BarChart3, Users, Package, ClipboardCheck, AlertTriangle,
   CheckCircle2, Map, RefreshCw, Database, X, Check, Calculator, Eye, Camera, Wheat, Megaphone, TrendingUp, Server,
   FolderPlus, Pencil, Trash2, FolderOpen, MapPin, ShieldCheck, Building,
-  Star, LayoutGrid, List, CircleDot, AlertCircle
+  Star, LayoutGrid, List, CircleDot, AlertCircle, Headset
 } from 'lucide-react'
 
 interface SystemCard {
@@ -44,6 +44,7 @@ const systems: SystemCard[] = [
   { id: 'garantias', name: 'Garantias', description: 'Solicitações de garantia, envio à fábrica, cobrança ao cliente e relatórios', icon: <ShieldCheck size={28} />, color: '#0EA5E9', gradient: 'linear-gradient(135deg, #0EA5E9, #0284C7)', href: '/garantias', tag: 'GARANTIAS', group: 'servicos' },
   { id: 'controle-revisao', name: 'Controle de Revisões', description: 'Acompanhamento de revisões periódicas de tratores com integração Gmail', icon: <Wrench size={28} />, color: '#0EA5E9', gradient: 'linear-gradient(135deg, #0284C7, #0369A1)', href: '/revisoes', tag: 'MANUTENÇÃO', group: 'servicos' },
   { id: 'mecanicos', name: 'Janela Mecânicos', description: 'Jornada, agenda e acompanhamento dos mecânicos de campo', icon: <Users size={28} />, color: '#0EA5E9', gradient: 'linear-gradient(135deg, #38BDF8, #0EA5E9)', href: '/mecanicos', tag: 'TÉCNICOS', group: 'servicos' },
+  { id: 'sat', name: 'SAT Digital', description: 'Solicitações de atendimento técnico — Kanban e cards para o Pós-Vendas', icon: <Headset size={28} />, color: '#0EA5E9', gradient: 'linear-gradient(135deg, #0EA5E9, #0369A1)', href: '/sat', tag: 'ATENDIMENTO', group: 'servicos' },
   { id: 'mapa-geral', name: 'Mapeamento Técnico', description: 'Visualização geográfica de clientes, técnicos e operações', icon: <Map size={28} />, color: '#0EA5E9', gradient: 'linear-gradient(135deg, #0EA5E9, #0369A1)', href: '/mapa-geral', tag: 'MAPA', group: 'servicos' },
   { id: 'fotos-tecnicos', name: 'Fotos Técnicos', description: 'Fotos anexadas pelos técnicos em cada ordem de serviço', icon: <Camera size={28} />, color: '#0EA5E9', gradient: 'linear-gradient(135deg, #0284C7, #0369A1)', href: '/fotos-tecnicos', tag: 'FOTOS', group: 'servicos' },
   { id: 'lousa', name: 'Lousa Virtual', description: 'Agenda semanal de serviços com verificação de OS e pedidos PPV', icon: <ClipboardCheck size={28} />, color: '#0EA5E9', gradient: 'linear-gradient(135deg, #38BDF8, #0284C7)', href: '/lousa', tag: 'AGENDA', group: 'servicos' },
