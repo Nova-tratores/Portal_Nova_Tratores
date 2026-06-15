@@ -56,7 +56,7 @@ const systems: SystemCard[] = [
 
   // Financeiro (verde)
   { id: 'sistema-financeiro', name: 'Financeiro', description: 'Gestão de NF, boletos, contas a pagar e receber, chamados RH', icon: <DollarSign size={28} />, color: '#10B981', gradient: 'linear-gradient(135deg, #10B981, #059669)', href: '/financeiro', tag: 'FINANÇAS', group: 'financeiro' },
-  { id: 'dre', name: 'DRE Financeiro', description: 'Demonstração do Resultado do Exercício com dados integrados do Omie', icon: <TrendingUp size={28} />, color: '#10B981', gradient: 'linear-gradient(135deg, #059669, #047857)', href: 'https://financeiro-omie-production-ce7e.up.railway.app/dre', tag: 'DRE', group: 'financeiro', external: true },
+  { id: 'dre', name: 'DRE Financeiro', description: 'Demonstração do Resultado do Exercício com dados integrados do Omie', icon: <TrendingUp size={28} />, color: '#10B981', gradient: 'linear-gradient(135deg, #059669, #047857)', href: '/dre-financeiro', tag: 'DRE', group: 'financeiro' },
 
   // Comercial (roxo)
   { id: 'proposta-comercial', name: 'Proposta Comercial', description: 'Geração de propostas com PDF e QR Code para clientes', icon: <FileText size={28} />, color: '#8B5CF6', gradient: 'linear-gradient(135deg, #8B5CF6, #7C3AED)', href: '/propostas', tag: 'VENDAS', group: 'comercial' },
