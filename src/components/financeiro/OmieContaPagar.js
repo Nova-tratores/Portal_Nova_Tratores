@@ -627,6 +627,17 @@ export function EnviarParaOmieBox({ finanPagar, onSynced, autoOrigem = {} }) {
         </div>
       </div>
 
+      {finanPagar?.autonomo_sem_nota && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '18px',
+          background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '10px',
+          padding: '10px 14px', fontSize: '12px', color: '#92400e', fontWeight: '600',
+        }}>
+          <CheckCircle size={15} />
+          Prestador autônomo — nota fiscal e boleto dispensados nesta conta.
+        </div>
+      )}
+
       <CamposOmieContaPagar value={campos} onChange={setCampos} tema="modal" autoOrigem={autoOrigem} contextoTexto={finanPagar?.motivo || ''} />
 
       {/* Chave NF-e — lida do anexo de NF ou preenchida à mão */}

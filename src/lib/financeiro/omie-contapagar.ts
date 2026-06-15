@@ -872,6 +872,7 @@ export interface ValidacaoInput {
     anexo_nf?: string | null;
     anexo_boleto?: string | null;
     nfe_chave?: string | null;
+    autonomo_sem_nota?: boolean | null;
     omie_vendedor?: number | null;
     omie_tipo_documento?: string | null;
     omie_cod_lancamento?: string | null;
@@ -887,9 +888,11 @@ export function validarContaPagarParaOmie(input: ValidacaoInput): ValidacaoIssue
 
   const isCarne = (row.metodo || "").toLowerCase().includes("carnê iss") || (row.metodo || "").toLowerCase().includes("carne iss");
   const isBoleto = (row.metodo || "").toLowerCase().startsWith("boleto");
+  // Prestador autônomo (RPA): não emite nota fiscal nem boleto — dispensa ambos.
+  const semNota = !!row.autonomo_sem_nota;
 
-  // NF
-  if (!isCarne) {
+  // NF — dispensada para Carnê ISS e para prestador autônomo
+  if (!isCarne && !semNota) {
     if (!String(row.numero_NF || "").trim()) {
       issues.push({ campo: "numero_NF", mensagem: "Informe o número da NF (ou marque como Carnê ISS).", severidade: "erro" });
     }
@@ -898,8 +901,8 @@ export function validarContaPagarParaOmie(input: ValidacaoInput): ValidacaoIssue
     }
   }
 
-  // Boleto
-  if (isBoleto && !String(row.anexo_boleto || "").trim()) {
+  // Boleto — dispensado para prestador autônomo
+  if (isBoleto && !semNota && !String(row.anexo_boleto || "").trim()) {
     issues.push({ campo: "anexo_boleto", mensagem: "Anexe o boleto.", severidade: "erro" });
   }
 
@@ -948,7 +951,7 @@ export function validarContaPagarParaOmie(input: ValidacaoInput): ValidacaoIssue
   if (!opts.codigoTipoDocumento && !row.omie_tipo_documento) {
     issues.push({ campo: "codigoTipoDocumento", mensagem: "Tipo de documento não informado.", severidade: "aviso" });
   }
-  if (!row.nfe_chave && !isCarne) {
+  if (!row.nfe_chave && !isCarne && !semNota) {
     issues.push({ campo: "nfe_chave", mensagem: "Sem chave NF-e — recomendamos importar o XML para rastreabilidade.", severidade: "aviso" });
   }
 
