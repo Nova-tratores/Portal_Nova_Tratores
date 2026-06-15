@@ -170,6 +170,7 @@ export async function POST(req: NextRequest) {
     codigoTipoDocumento?: string;
     codigoDepartamento?: string;
     chaveNFe?: string;
+    enviadoPor?: string;
   } = {};
   try {
     body = await req.json();
@@ -300,7 +301,7 @@ export async function POST(req: NextRequest) {
     try {
       const r = await enviarFinanPagarParaOmie(
         row as FinanPagarRow,
-        { codFornecedor, codigoCategoria, idContaCorrente, codigoProjeto, codigoVendedor, codigoTipoDocumento, numeroDocumentoFiscal, codigoDepartamento, chaveNFe },
+        { codFornecedor, codigoCategoria, idContaCorrente, codigoProjeto, codigoVendedor, codigoTipoDocumento, numeroDocumentoFiscal, codigoDepartamento, chaveNFe, enviadoPor: body.enviadoPor },
         acc,
       );
       codigos = r.codigos;

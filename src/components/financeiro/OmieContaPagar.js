@@ -7,6 +7,7 @@ import ChecklistValidacao from './ChecklistValidacao'
 import { lerChaveNFeDeUrl } from '@/lib/financeiro/leitor-anexos'
 import { supabase } from '@/lib/supabase'
 import { useAuditLog } from '@/hooks/useAuditLog'
+import { useAuth } from '@/hooks/useAuth'
 
 const EMPRESAS = ['Nova Tratores', 'Castro Peças']
 
@@ -421,6 +422,7 @@ export function EnviarParaOmieBox({ finanPagar, onSynced, autoOrigem = {} }) {
   const [anexando, setAnexando] = useState(false)
   const [anexosMsg, setAnexosMsg] = useState(null)
   const { log: auditLog } = useAuditLog()
+  const { userProfile } = useAuth()
 
   // Autosave: persiste os campos no finan_pagar (debounced) para não perder o
   // que foi preenchido caso o modal seja fechado e reaberto antes do envio.
@@ -464,6 +466,7 @@ export function EnviarParaOmieBox({ finanPagar, onSynced, autoOrigem = {} }) {
           codigoTipoDocumento: campos.codigoTipoDocumento || undefined,
           codigoDepartamento: campos.codigoDepartamento || undefined,
           chaveNFe: chaveNFe || undefined,
+          enviadoPor: userProfile?.nome || undefined,
         }),
       })
       const data = await res.json()

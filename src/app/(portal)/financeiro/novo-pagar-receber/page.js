@@ -319,6 +319,8 @@ export default function NovoPagarReceber() {
         anexo_requisicao: reqs,
         is_requisicao: true,
         status: 'financeiro',
+        // Quem registrou a conta no portal (vai pra observação do Omie)
+        criado_por: userProfile?.nome || null,
         // Rascunho sempre — o envio ao Omie acontece pelo painel após validação
         status_envio: 'rascunho',
         // Pré-preenchimento Omie (sugestões salvas para o painel já abrir prontas)

@@ -550,6 +550,7 @@ export interface FinanPagarRow {
   metodo?: string | null;
   qtd_parcelas?: number | null;
   parcelas_vencimentos?: string | null; // "2026-01-01|123.45, 2026-02-01|123.45"
+  criado_por?: string | null;           // quem registrou a conta no portal
 }
 
 export interface EnviarContaPagarOpts {
@@ -562,6 +563,24 @@ export interface EnviarContaPagarOpts {
   numeroDocumentoFiscal?: string; // número da NF (máx 20 chars)
   codigoDepartamento?: string;
   chaveNFe?: string;              // chave de acesso NF-e (44 dígitos)
+  enviadoPor?: string;           // quem clicou "enviar ao Omie" no portal
+}
+
+// Monta a observação do lançamento: motivo do registro + linha de autoria.
+// Ex: "Pagamento mangueira\nCriado por Fulano · Enviado por Beltrano"
+// Se faltar algum dos nomes, omite a parte ausente. Truncado depois em 999.
+function montarObservacao(row: FinanPagarRow, enviadoPor?: string | null): string {
+  const motivo = (row.motivo || "").trim();
+  const criadoPor = (row.criado_por || "").trim();
+  const enviado = (enviadoPor || "").trim();
+
+  const autoria: string[] = [];
+  if (criadoPor) autoria.push(`Criado por ${criadoPor}`);
+  if (enviado) autoria.push(`Enviado por ${enviado}`);
+  const linhaAutoria = autoria.join(" · ");
+
+  if (motivo && linhaAutoria) return `${motivo}\n${linhaAutoria}`;
+  return motivo || linhaAutoria;
 }
 
 function parseParcelas(row: FinanPagarRow): Array<{ vencimento: string; valor: number }> {
@@ -586,7 +605,8 @@ export async function enviarFinanPagarParaOmie(
   opts: EnviarContaPagarOpts,
   acc: OmieAccount,
 ): Promise<{ codigos: number[]; jaExistia: boolean }> {
-  const observacao = (row.motivo || "").trim();
+  // Observação = motivo do registro + linha de autoria (criado por / enviado por).
+  const observacao = montarObservacao(row, opts.enviadoPor);
   const numeroDocumento = (row.numero_NF || "").trim();
   const parcelas = row.metodo === "Boleto Parcelado" ? parseParcelas(row) : [];
 
