@@ -146,6 +146,15 @@ export interface DadosFornecedor {
   telefone?: string;
   fornecedorId?: number | string; // id na tabela Fornecedores (para codigo_cliente_integracao estável)
   email?: string;
+  // Endereço — Omie exige ao menos o Estado (UF) ao cadastrar um fornecedor novo.
+  endereco?: {
+    estado?: string;
+    cidade?: string;
+    cep?: string;
+    logradouro?: string;
+    numero?: string;
+    bairro?: string;
+  };
 }
 
 async function listarClientePorDoc(doc: string, acc: OmieAccount): Promise<number | null> {
@@ -199,6 +208,17 @@ export async function buscarOuCriarFornecedorOmie(dados: DadosFornecedor, acc: O
     param.telefone1_numero = num;
   }
   if (dados.email) param.email = dados.email;
+  // Endereço (Omie exige Estado ao cadastrar fornecedor novo)
+  const end = dados.endereco;
+  if (end?.estado) {
+    param.estado = String(end.estado).toUpperCase().slice(0, 2);
+    if (end.cidade) param.cidade = end.cidade;
+    if (end.logradouro) param.endereco = end.logradouro;
+    if (end.numero) param.endereco_numero = end.numero;
+    if (end.bairro) param.bairro = end.bairro;
+    if (end.cep) param.cep = soDigitos(end.cep);
+    param.codigo_pais = "1058"; // Brasil
+  }
 
   try {
     const r = await omieCall<{ codigo_cliente_omie?: number }>("/geral/clientes/", "IncluirCliente", param, acc);

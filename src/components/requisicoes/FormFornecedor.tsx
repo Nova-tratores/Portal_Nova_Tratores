@@ -18,7 +18,9 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
     nome: '',
     numero: '',
     'cpf/cnpj': '',
-    descricao: ''
+    descricao: '',
+    estado: '',
+    cidade: ''
   });
 
   // 1. CARREGAR FORNECEDORES DO BANCO
@@ -44,7 +46,9 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
       nome: forn.nome || '',
       numero: forn.numero || '',
       'cpf/cnpj': forn['cpf/cnpj'] || '',
-      descricao: forn.descricao || ''
+      descricao: forn.descricao || '',
+      estado: forn.estado || '',
+      cidade: forn.cidade || ''
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -62,7 +66,7 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
 
   const cancelarEdicao = () => {
     setEditando(null);
-    setFormData({ nome: '', numero: '', 'cpf/cnpj': '', descricao: '' });
+    setFormData({ nome: '', numero: '', 'cpf/cnpj': '', descricao: '', estado: '', cidade: '' });
   };
 
   // 3. EXCLUIR FORNECEDOR
@@ -93,7 +97,7 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
       }
     } else {
       await onSave(formData);
-      setFormData({ nome: '', numero: '', 'cpf/cnpj': '', descricao: '' });
+      setFormData({ nome: '', numero: '', 'cpf/cnpj': '', descricao: '', estado: '', cidade: '' });
       await carregarFornecedores();
     }
   };
@@ -139,14 +143,24 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
               <input name="cpf/cnpj" required value={formData['cpf/cnpj']} onChange={handleChange} className={inputStyle} placeholder="00.000.000/0001-00" />
             </div>
 
-            <div className={`${cellStyle} md:border-r`}>
+            <div className={`${cellStyle} border-b md:border-r`}>
               <label className={labelStyle}>Contato / WhatsApp</label>
               <input name="numero" required value={formData.numero} onChange={handleChange} className={inputStyle} placeholder="(14) 00000-0000" />
             </div>
 
-            <div className={cellStyle}>
+            <div className={`${cellStyle} border-b`}>
               <label className={labelStyle}>Descrição de Serviço</label>
               <input name="descricao" value={formData.descricao} onChange={handleChange} className={inputStyle} placeholder="EX: PEÇAS AGRÍCOLAS" />
+            </div>
+
+            <div className={`${cellStyle} md:border-r`}>
+              <label className={labelStyle}>Estado (UF) <span className="text-zinc-400 normal-case tracking-normal">— p/ Omie</span></label>
+              <input name="estado" maxLength={2} value={formData.estado} onChange={handleChange} className={inputStyle} placeholder="SP" />
+            </div>
+
+            <div className={cellStyle}>
+              <label className={labelStyle}>Cidade <span className="text-zinc-400 normal-case tracking-normal">— p/ Omie</span></label>
+              <input name="cidade" value={formData.cidade} onChange={handleChange} className={inputStyle} placeholder="EX: BAURU" />
             </div>
           </div>
 
