@@ -86,6 +86,14 @@ function isJaCadastrado(err: unknown): boolean {
   );
 }
 
+// Omie devolve fault 5113 ("Não existem registros para a página [1]") quando um
+// Listar/Consultar com filtro não acha nada — não é erro, é "lista vazia".
+function isSemRegistros(err: unknown): boolean {
+  if (err instanceof OmieError && (err.faultcode || "").includes("5113")) return true;
+  const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
+  return msg.includes("não existem registros") || msg.includes("nao existem registros") || msg.includes("-5113");
+}
+
 // =====================================================================
 // HELPERS DE FORMATAÇÃO
 // =====================================================================
@@ -141,13 +149,19 @@ export interface DadosFornecedor {
 }
 
 async function listarClientePorDoc(doc: string, acc: OmieAccount): Promise<number | null> {
-  const r = await omieCall<{ clientes_cadastro?: Array<{ codigo_cliente_omie: number }> }>(
-    "/geral/clientes/",
-    "ListarClientes",
-    { pagina: 1, registros_por_pagina: 1, clientesFiltro: { cnpj_cpf: doc } },
-    acc,
-  );
-  return r?.clientes_cadastro?.[0]?.codigo_cliente_omie || null;
+  try {
+    const r = await omieCall<{ clientes_cadastro?: Array<{ codigo_cliente_omie: number }> }>(
+      "/geral/clientes/",
+      "ListarClientes",
+      { pagina: 1, registros_por_pagina: 1, clientesFiltro: { cnpj_cpf: doc } },
+      acc,
+    );
+    return r?.clientes_cadastro?.[0]?.codigo_cliente_omie || null;
+  } catch (err) {
+    // fornecedor ainda não existe no Omie: o filtro devolve fault 5113 → trata como "não achou"
+    if (isSemRegistros(err)) return null;
+    throw err;
+  }
 }
 
 export async function buscarOuCriarFornecedorOmie(dados: DadosFornecedor, acc: OmieAccount): Promise<number> {
@@ -551,6 +565,7 @@ export interface FinanPagarRow {
   qtd_parcelas?: number | null;
   parcelas_vencimentos?: string | null; // "2026-01-01|123.45, 2026-02-01|123.45"
   criado_por?: string | null;           // quem registrou a conta no portal
+  autonomo_sem_nota?: boolean | null;   // prestador autônomo: sem NF nem boleto
 }
 
 export interface EnviarContaPagarOpts {
@@ -566,9 +581,10 @@ export interface EnviarContaPagarOpts {
   enviadoPor?: string;           // quem clicou "enviar ao Omie" no portal
 }
 
-// Monta a observação do lançamento: motivo do registro + linha de autoria.
-// Ex: "Pagamento mangueira\nCriado por Fulano · Enviado por Beltrano"
-// Se faltar algum dos nomes, omite a parte ausente. Truncado depois em 999.
+// Monta a observação do lançamento: motivo + nota de autônomo (se for o caso) + autoria.
+// Ex: "Pagamento mangueira\nSem NF e boleto — fornecedor considerado autônomo por
+//      Fulano.\nCriado por Fulano · Enviado por Beltrano"
+// Se faltar alguma parte, ela é omitida. Truncado depois em 999.
 function montarObservacao(row: FinanPagarRow, enviadoPor?: string | null): string {
   const motivo = (row.motivo || "").trim();
   const criadoPor = (row.criado_por || "").trim();
@@ -579,8 +595,17 @@ function montarObservacao(row: FinanPagarRow, enviadoPor?: string | null): strin
   if (enviado) autoria.push(`Enviado por ${enviado}`);
   const linhaAutoria = autoria.join(" · ");
 
-  if (motivo && linhaAutoria) return `${motivo}\n${linhaAutoria}`;
-  return motivo || linhaAutoria;
+  const linhas: string[] = [];
+  if (motivo) linhas.push(motivo);
+  if (row.autonomo_sem_nota) {
+    linhas.push(
+      criadoPor
+        ? `Sem NF e boleto — fornecedor considerado autônomo por ${criadoPor}.`
+        : "Sem NF e boleto — fornecedor considerado autônomo.",
+    );
+  }
+  if (linhaAutoria) linhas.push(linhaAutoria);
+  return linhas.join("\n");
 }
 
 function parseParcelas(row: FinanPagarRow): Array<{ vencimento: string; valor: number }> {
