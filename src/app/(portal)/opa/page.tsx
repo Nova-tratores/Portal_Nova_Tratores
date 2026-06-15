@@ -147,6 +147,12 @@ export default function OpaPage() {
 
     auditLog({ sistema: 'opa', acao: 'criar', entidade: 'opa', entidade_id: opa.id, entidade_label: `Opa: ${titulo.trim()}` })
 
+    // Notifica o sino de quem tem acesso ao Opa
+    fetch('/api/opa/notificar', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ opa_id: opa.id, titulo: titulo.trim(), descricao: descricao.trim() || null, criado_por_id: userProfile.id }),
+    }).catch(() => {})
+
     setTitulo(''); setDescricao(''); setArquivos([]); setShowModal(false); setEnviando(false)
     carregar()
   }

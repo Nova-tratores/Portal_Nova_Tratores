@@ -24,7 +24,10 @@
       "Bash(Get-ChildItem -Path \"C:\\\\projetos\\\\vendas-pwa\\\\src\\\\hooks\" -Filter \"*.ts\" -ErrorAction SilentlyContinue)",
       "Bash(sed -n '1,60p' src/app/api/clientes/sync-nfs/route.ts)",
       "Bash(sed -n '1,50p' src/app/api/clientes/sync-recente/route.ts)",
-      "Bash(grep -nE \"const .* = \\\\{$|await import|registrarAlimentacaoOS|\\\\.update\\\\\\(|async function PATCH|export async function PATCH|const dados\" \"src/app/api/pos/ordens/[id]/route.ts\")"
+      "Bash(grep -nE \"const .* = \\\\{$|await import|registrarAlimentacaoOS|\\\\.update\\\\\\(|async function PATCH|export async function PATCH|const dados\" \"src/app/api/pos/ordens/[id]/route.ts\")",
+      "Bash(node -e \"const c=require\\('fs'\\).readFileSync\\('src/app/api/pos/lousa/route.ts','utf8'\\); const l=c.split\\('\\\\n'\\).find\\(x=>x.includes\\('const norm'\\)\\); console.log\\(JSON.stringify\\(l\\)\\)\")",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\projetos\\\\portal\\\\src\\\\app\" -Recurse -Filter \"route.ts\" | Where-Object { $_.FullName -match \"opa|notif\" } | Select-Object FullName)",
+      "Bash(node --check public/mapa-geral/js/routes.js)"
     ],
     "additionalDirectories": [
       "C:\\projetos\\vendas-pwa\\src\\pages",

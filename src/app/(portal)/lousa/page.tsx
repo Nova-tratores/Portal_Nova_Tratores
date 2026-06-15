@@ -8,7 +8,7 @@ import { supabase } from '@/lib/supabase'
 import {
   ChevronLeft, ChevronRight, Plus, X, Trash2, Search,
   CheckCircle, XCircle, Package, Bell, User, Calendar, Wrench,
-  Ban, Sun, LogOut, Warehouse, Settings, UserPlus
+  Ban, Sun, LogOut, Warehouse, Settings, UserPlus, Pencil, MapPin, FileText
 } from 'lucide-react'
 
 interface LousaEntry {
@@ -28,6 +28,23 @@ interface LousaEntry {
   temOsAberta?: boolean
   ordensAbertas?: { id_ordem: string; status: string }[]
   temPedidoPPV?: boolean
+  temOsPos?: boolean
+  semOrdem?: boolean
+  ordensPos?: OrdemPos[]
+}
+
+interface OrdemPos {
+  id_ordem: string
+  numero: string | null
+  status: string
+  cliente: string
+  tecnico: string
+  valor: number
+  data: string | null
+  previsao: string | null
+  cidade: string
+  servico: string
+  temPPV: boolean
 }
 
 type TipoMarca = 'servico' | 'faltou' | 'feriado' | 'oficina' | 'saida'
@@ -99,6 +116,7 @@ export default function LousaPage() {
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editEntry, setEditEntry] = useState<LousaEntry | null>(null)
+  const [osModalEntry, setOsModalEntry] = useState<LousaEntry | null>(null)
   const [modalDia, setModalDia] = useState('')
   const [modalTecnico, setModalTecnico] = useState('')
   const [modalPeriodo, setModalPeriodo] = useState<'manha' | 'tarde' | 'dia'>('manha')
@@ -377,11 +395,13 @@ export default function LousaPage() {
                   return (
                   <div
                     key={entry.id}
-                    onClick={e => { e.stopPropagation(); abrirEdicao(entry) }}
+                    onClick={e => { e.stopPropagation(); if (isServico && entry.ordensPos && entry.ordensPos.length > 0) setOsModalEntry(entry); else abrirEdicao(entry) }}
+                    title={isServico ? (entry.semOrdem ? 'Sem OS no POS — clique para editar' : (entry.temOsPos ? 'Tem OS no POS — clique para ver' : undefined)) : undefined}
                     style={{
                       padding: '7px 9px', borderRadius: 7,
-                      borderLeft: `4px solid ${entry.cor || '#3b82f6'}`,
-                      background: isServico ? '#fff' : cfgMarca.bg,
+                      borderLeft: `4px solid ${entry.semOrdem ? '#dc2626' : (entry.cor || '#3b82f6')}`,
+                      background: isServico ? (entry.semOrdem ? '#fef2f2' : '#fff') : cfgMarca.bg,
+                      border: entry.semOrdem ? '1px solid #fca5a5' : undefined,
                       fontSize: 13,
                       boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
                       cursor: 'pointer',
@@ -390,15 +410,37 @@ export default function LousaPage() {
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 3 }}>
                       {isServico
-                        ? (entry.temOsAberta
+                        ? (entry.temOsPos
                             ? <CheckCircle size={13} color="#059669" />
                             : <XCircle size={13} color="#dc2626" />)
                         : <IconMarca size={13} color={cfgMarca.cor} />}
                       {isServico && entry.temPedidoPPV && <Package size={13} color="#d97706" />}
+                      {isServico && entry.temOsPos && entry.ordensPos && (
+                        <span style={{ fontSize: 9, fontWeight: 800, color: '#059669', background: '#ecfdf5', border: '1px solid #a7f3d0', padding: '1px 6px', borderRadius: 5 }}>
+                          {entry.ordensPos.length === 1 ? 'OS' : `${entry.ordensPos.length} OS`}
+                        </span>
+                      )}
+                      {isServico && entry.semOrdem && (
+                        <span style={{ fontSize: 9, fontWeight: 800, color: '#dc2626', background: '#fef2f2', border: '1px solid #fca5a5', padding: '1px 6px', borderRadius: 5 }}>SEM OS</span>
+                      )}
                       <button
-                        onClick={ev => { ev.stopPropagation(); excluir(entry.id) }}
+                        onClick={ev => { ev.stopPropagation(); abrirEdicao(entry) }}
+                        title="Editar"
                         style={{
                           marginLeft: 'auto', width: 22, height: 22, borderRadius: 5,
+                          border: 'none', background: 'transparent', color: '#d1d5db',
+                          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
+                        }}
+                        onMouseEnter={ev => { ev.currentTarget.style.color = '#2563eb' }}
+                        onMouseLeave={ev => { ev.currentTarget.style.color = '#d1d5db' }}
+                      >
+                        <Pencil size={12} />
+                      </button>
+                      <button
+                        onClick={ev => { ev.stopPropagation(); excluir(entry.id) }}
+                        title="Excluir"
+                        style={{
+                          width: 22, height: 22, borderRadius: 5,
                           border: 'none', background: 'transparent', color: '#d1d5db',
                           cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
                           padding: 0,
@@ -955,6 +997,66 @@ export default function LousaPage() {
           <Settings size={18} />
         </button>
       </div>
+
+      {/* ===== Modal: OS do cliente no POS ===== */}
+      {osModalEntry && (() => {
+        const ordens = osModalEntry.ordensPos || []
+        const brl = (v: number) => (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+        const dt = (d: string | null) => d ? new Date(String(d).length <= 10 ? d + 'T00:00:00' : d).toLocaleDateString('pt-BR') : '—'
+        return (
+          <div onClick={e => { if (e.target === e.currentTarget) setOsModalEntry(null) }}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', backdropFilter: 'blur(6px)', zIndex: 56000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <div style={{ background: '#fff', borderRadius: 18, width: 640, maxWidth: '96vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 60px rgba(0,0,0,0.3)' }}>
+              <div style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(255,255,255,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Wrench size={22} color="#fff" /></div>
+                  <div>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)', fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase' }}>Ordens no POS</div>
+                    <div style={{ fontSize: 19, fontWeight: 800, color: '#fff', lineHeight: 1.2 }}>{osModalEntry.cliente_nome}</div>
+                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)' }}>Técnico: {osModalEntry.tecnico_nome || 'Sem técnico'}</div>
+                  </div>
+                </div>
+                <button onClick={() => setOsModalEntry(null)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 9, width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}><X size={18} color="#fff" /></button>
+              </div>
+              <div style={{ padding: '20px 24px', overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {ordens.length === 0 ? (
+                  <div style={{ padding: 24, textAlign: 'center', color: '#9ca3af', fontSize: 14 }}>Nenhuma OS encontrada.</div>
+                ) : ordens.map((o, i) => (
+                  <div key={i} style={{ border: '1px solid #e5e7eb', borderRadius: 14, overflow: 'hidden' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '12px 16px', background: '#f8fafc', borderBottom: '1px solid #eef0f3', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 15, fontWeight: 800, color: '#111827' }}>OS {o.numero || o.id_ordem}</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe' }}>{o.status || '—'}</span>
+                        {o.temPPV && <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: '#fff7ed', color: '#ea580c', border: '1px solid #fed7aa', display: 'inline-flex', alignItems: 'center', gap: 4 }}><Package size={11} /> Peças</span>}
+                      </div>
+                      <span style={{ fontSize: 16, fontWeight: 800, color: '#059669' }}>{brl(o.valor)}</span>
+                    </div>
+                    <div style={{ padding: '14px 16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                      {[
+                        { l: 'Técnico', v: o.tecnico || '—', icon: User },
+                        { l: 'Cidade', v: o.cidade || '—', icon: MapPin },
+                        { l: 'Data', v: dt(o.data), icon: Calendar },
+                        { l: 'Previsão', v: dt(o.previsao), icon: Calendar },
+                      ].map((f, fi) => (
+                        <div key={fi}>
+                          <div style={{ fontSize: 10.5, color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 4 }}><f.icon size={11} />{f.l}</div>
+                          <div style={{ fontSize: 13.5, color: '#111827', fontWeight: 600 }}>{f.v}</div>
+                        </div>
+                      ))}
+                      {o.servico && (
+                        <div style={{ gridColumn: '1 / -1' }}>
+                          <div style={{ fontSize: 10.5, color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4 }}><FileText size={11} />Serviço solicitado</div>
+                          <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{o.servico}</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

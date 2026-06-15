@@ -47,38 +47,64 @@ export async function GET(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!entradas || entradas.length === 0) return NextResponse.json([]);
 
-  // Pegar CNPJs únicos para verificar OS abertas
-  const cnpjs = [...new Set(entradas.map((e) => e.cliente_cnpj).filter(Boolean))];
+  // Cruzar cada card com OS do POS por TÉCNICO + NOME DO CLIENTE (e CNPJ, quando houver).
+  const norm = (s: any) => (s ?? "").toString().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]/g, "").trim();
+  const soDig = (s: any) => (s ?? "").toString().replace(/\D/g, "");
 
-  const osAbertas: Record<string, { id_ordem: string; status: string; temPPV: boolean }[]> = {};
-
-  if (cnpjs.length > 0) {
-    // Coluna correta na Ordem_Servico é "Cnpj_Cliente"; PPV vem do campo ID_PPV da própria OS
-    const { data: ordens } = await supabase
+  const tecnicos = [...new Set(entradas.map((e) => e.tecnico_nome).filter(Boolean))];
+  let ordensPos: any[] = [];
+  if (tecnicos.length > 0) {
+    const { data } = await supabase
       .from(TBL_OS)
-      .select("Id_Ordem, Cnpj_Cliente, Status, ID_PPV")
-      .in("Cnpj_Cliente", cnpjs)
-      .not("Status", "in", '("Concluída","Concluida","Cancelada","cancelada")');
-
-    (ordens || []).forEach((o: any) => {
-      const cnpj = o.Cnpj_Cliente;
-      if (!cnpj) return;
-      if (!osAbertas[cnpj]) osAbertas[cnpj] = [];
-      osAbertas[cnpj].push({ id_ordem: String(o.Id_Ordem), status: o.Status, temPPV: !!o.ID_PPV });
-    });
+      .select("Id_Ordem, Servico_Numero, Cnpj_Cliente, Os_Cliente, Os_Tecnico, Status, Data, Serv_Solicitado, Valor_Total, ID_PPV, Previsao_Execucao, Cidade_Cliente")
+      .in("Os_Tecnico", tecnicos)
+      .not("Status", "in", '("Cancelada","cancelada")');
+    ordensPos = data || [];
   }
 
   // Enriquecer cada entrada
   const resultado = entradas.map((e) => {
-    const cnpj = e.cliente_cnpj;
-    const ordensCliente = cnpj ? osAbertas[cnpj] || [] : [];
-    const temOsAberta = ordensCliente.length > 0;
-    const temPedidoPPV = ordensCliente.some((o) => o.temPPV);
+    const isServico = (e.tipo || "servico") === "servico";
+    const tecE = norm(e.tecnico_nome);
+    const nomeE = norm(e.cliente_nome);
+    const cnpjE = soDig(e.cliente_cnpj);
+
+    let matches: any[] = [];
+    if (isServico && tecE && (nomeE || cnpjE)) {
+      matches = ordensPos.filter((o) => {
+        const tecO = norm(o.Os_Tecnico);
+        if (!tecO || !(tecO === tecE || tecO.includes(tecE) || tecE.includes(tecO))) return false;
+        if (cnpjE && soDig(o.Cnpj_Cliente) === cnpjE) return true;
+        const nomeO = norm(o.Os_Cliente);
+        return !!nomeE && !!nomeO && (nomeO.includes(nomeE) || nomeE.includes(nomeO));
+      });
+    }
+
+    const ordens = matches.map((o) => ({
+      id_ordem: String(o.Id_Ordem),
+      numero: o.Servico_Numero || null,
+      status: o.Status || "",
+      cliente: o.Os_Cliente || "",
+      tecnico: o.Os_Tecnico || "",
+      valor: Number(o.Valor_Total) || 0,
+      data: o.Data || null,
+      previsao: o.Previsao_Execucao || null,
+      cidade: o.Cidade_Cliente || "",
+      servico: o.Serv_Solicitado || "",
+      temPPV: !!o.ID_PPV,
+    }));
+    const temOsPos = ordens.length > 0;
+    const buscavel = isServico && !!tecE && (!!nomeE || !!cnpjE);
+
     return {
       ...e,
-      temOsAberta,
-      ordensAbertas: ordensCliente.map(({ id_ordem, status }) => ({ id_ordem, status })),
-      temPedidoPPV,
+      ordensPos: ordens,
+      temOsPos,
+      semOrdem: buscavel && !temOsPos,
+      // compat com o que a UI já usava
+      temOsAberta: temOsPos,
+      ordensAbertas: ordens.map((o) => ({ id_ordem: o.id_ordem, status: o.status })),
+      temPedidoPPV: ordens.some((o) => o.temPPV),
     };
   });
 

@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { AlertCircle, Check, X, ChevronRight, User } from 'lucide-react'
+import { AlertCircle, Check, CheckCheck, ChevronRight, User } from 'lucide-react'
 
 interface OpaAnexo { id: string; opa_id: string; url: string; tipo: string | null }
 interface Opa {
@@ -24,19 +24,16 @@ function timeAgo(date: string) {
   return `${Math.floor(hrs / 24)}d`
 }
 
-const MAX_VISIVEIS = 4
-
 export default function OpaLembrete({
   userId, userName, isAdmin,
 }: { userId?: string; userName?: string; isAdmin?: boolean }) {
   const router = useRouter()
   const [opas, setOpas] = useState<Opa[]>([])
-  const [dismissed, setDismissed] = useState<string[]>([])
+  const [lidos, setLidos] = useState<string[]>([])   // ids que ESTE usuário já marcou como lido (do banco)
   const [resolvendo, setResolvendo] = useState<string | null>(null)
+  const [marcando, setMarcando] = useState<string | null>(null)
 
-  const dismissKey = userId ? `opa-dismissed-${userId}` : ''
-
-  // Carregar opas abertos + anexos
+  // Carregar opas abertos + anexos + o que este usuário já leu
   const carregar = useCallback(async () => {
     const { data: lista } = await supabase
       .from('portal_opas')
@@ -53,8 +50,16 @@ export default function OpaLembrete({
         .in('opa_id', ids)
       anexos = anx || []
     }
+    if (userId) {
+      // "Lido" = quem já viu/leu (mesma tabela que o /opa mostra como "pessoas viram")
+      const { data: ld } = await supabase
+        .from('portal_opas_views')
+        .select('opa_id')
+        .eq('user_id', userId)
+      setLidos((ld || []).map(d => d.opa_id))
+    }
     setOpas(lista.map(o => ({ ...o, anexos: anexos.filter(a => a.opa_id === o.id) })))
-  }, [])
+  }, [userId])
 
   useEffect(() => {
     if (!userId) return
@@ -65,138 +70,138 @@ export default function OpaLembrete({
     return () => { supabase.removeChannel(ch) }
   }, [userId, carregar])
 
-  // Carregar dismissed do localStorage
-  useEffect(() => {
-    if (!dismissKey) return
-    try {
-      const saved = localStorage.getItem(dismissKey)
-      if (saved) setDismissed(JSON.parse(saved))
-    } catch { /* */ }
-  }, [dismissKey])
-
-  const dispensar = (id: string) => {
-    setDismissed(prev => {
-      const next = [...prev, id]
-      if (dismissKey) localStorage.setItem(dismissKey, JSON.stringify(next))
-      return next
-    })
+  // Marcar como lido (só some pra mim — fica registrado no banco quem leu)
+  const marcarLido = async (id: string) => {
+    if (!userId) return
+    setMarcando(id)
+    await supabase.from('portal_opas_views').upsert(
+      { opa_id: id, user_id: userId, user_nome: userName || 'Usuário', visto_at: new Date().toISOString() },
+      { onConflict: 'opa_id,user_id' }
+    )
+    setLidos(prev => prev.includes(id) ? prev : [...prev, id])
+    setMarcando(null)
   }
 
+  // Resolver (some pra todos)
   const resolver = async (id: string) => {
     if (!userId) return
     setResolvendo(id)
     const { data } = await supabase.rpc('resolver_opa', {
       p_opa_id: id, p_user_id: userId, p_user_nome: userName || 'Usuário', p_user_tipo: 'portal',
     })
-    // Some da minha tela de qualquer forma (eu venci, ou alguém já resolveu)
     setOpas(prev => prev.filter(o => o.id !== id))
     setResolvendo(null)
     void data
   }
 
-  const visiveis = opas.filter(o => !dismissed.includes(o.id))
+  const visiveis = opas.filter(o => !lidos.includes(o.id))
   if (!userId || visiveis.length === 0) return null
-
-  const mostrados = visiveis.slice(0, MAX_VISIVEIS)
-  const extras = visiveis.length - mostrados.length
 
   return (
     <div style={{
-      position: 'fixed', right: 20, bottom: 20, zIndex: 49000,
-      display: 'flex', flexDirection: 'column', gap: 10, width: 340, maxWidth: 'calc(100vw - 40px)',
+      position: 'fixed', inset: 0, zIndex: 54000,
+      background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(5px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
     }}>
-      {extras > 0 && (
-        <button
-          onClick={() => router.push('/opa')}
-          style={{
-            alignSelf: 'flex-end', background: '#dc2626', color: '#fff', border: 'none',
-            borderRadius: 10, padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(220,38,38,0.25)',
-          }}
-        >
-          +{extras} Opa{extras > 1 ? 's' : ''} abertos
-        </button>
-      )}
+      <div style={{
+        width: 480, maxWidth: '96vw', maxHeight: '90vh',
+        display: 'flex', flexDirection: 'column', gap: 12, overflow: 'auto',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#fff' }}>
+          <div style={{ width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg, #ef4444, #dc2626)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <AlertCircle size={20} color="#fff" />
+          </div>
+          <div style={{ fontSize: 17, fontWeight: 800, letterSpacing: 0.3 }}>
+            {visiveis.length === 1 ? '1 Opa aberto' : `${visiveis.length} Opas abertos`}
+          </div>
+        </div>
 
-      {mostrados.map((o, i) => {
-        const anexo = o.anexos?.[0]
-        const isVideo = anexo?.tipo?.startsWith('video')
-        return (
-          <div key={o.id} style={{
-            background: 'var(--portal-bg-card)', border: '1px solid #FCA5A5',
-            borderLeft: '4px solid #dc2626', borderRadius: 14,
-            boxShadow: '0 10px 30px rgba(0,0,0,0.12)', overflow: 'hidden',
-            animation: `opaSlideIn 0.3s ease-out ${i * 0.05}s both`,
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderBottom: '1px solid var(--portal-border)' }}>
-              <div style={{ width: 26, height: 26, borderRadius: 8, background: 'linear-gradient(135deg, #ef4444, #dc2626)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <AlertCircle size={15} color="#fff" />
+        {visiveis.map((o, i) => {
+          const anexo = o.anexos?.[0]
+          const isVideo = anexo?.tipo?.startsWith('video')
+          return (
+            <div key={o.id} style={{
+              background: '#fff', border: '1px solid #FCA5A5',
+              borderLeft: '4px solid #dc2626', borderRadius: 14,
+              boxShadow: '0 18px 40px rgba(0,0,0,0.28)', overflow: 'hidden',
+              animation: `opaPop 0.28s ease-out ${i * 0.05}s both`,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderBottom: '1px solid #f1f5f9' }}>
+                <span style={{ fontSize: 11, fontWeight: 800, color: '#dc2626', letterSpacing: 0.5, flex: 1 }}>OPA</span>
+                <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>{timeAgo(o.created_at)}</span>
               </div>
-              <span style={{ fontSize: 11, fontWeight: 800, color: '#dc2626', letterSpacing: 0.5, flex: 1 }}>OPA</span>
-              <span style={{ fontSize: 11, color: 'var(--portal-text-muted)', fontWeight: 500 }}>{timeAgo(o.created_at)}</span>
-              <button onClick={() => dispensar(o.id)} title="Dispensar (só some pra você)" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, display: 'flex', color: 'var(--portal-text-muted)' }}>
-                <X size={15} />
-              </button>
-            </div>
 
-            <div style={{ padding: '12px', cursor: 'pointer' }} onClick={() => router.push('/opa')}>
-              <div style={{ display: 'flex', gap: 10 }}>
-                {anexo && (
-                  isVideo ? (
-                    <video src={anexo.url} muted style={{ width: 52, height: 52, borderRadius: 8, objectFit: 'cover', flexShrink: 0, background: '#000' }} />
-                  ) : (
-                    <img src={anexo.url} alt="" style={{ width: 52, height: 52, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
-                  )
-                )}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text)', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {o.titulo}
+              <div style={{ padding: '14px', cursor: 'pointer' }} onClick={() => router.push('/opa')}>
+                <div style={{ display: 'flex', gap: 12 }}>
+                  {anexo && (
+                    isVideo ? (
+                      <video src={anexo.url} muted style={{ width: 60, height: 60, borderRadius: 8, objectFit: 'cover', flexShrink: 0, background: '#000' }} />
+                    ) : (
+                      <img src={anexo.url} alt="" style={{ width: 60, height: 60, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+                    )
+                  )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 3 }}>
+                      {o.titulo}
+                    </div>
+                    {o.descricao && (
+                      <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                        {o.descricao}
+                      </div>
+                    )}
+                    {isAdmin && o.criado_por_nome && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 6, fontSize: 11, color: '#94a3b8' }}>
+                        <User size={11} /> {o.criado_por_nome}
+                      </div>
+                    )}
                   </div>
-                  {o.descricao && (
-                    <div style={{ fontSize: 12, color: 'var(--portal-text-secondary)', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                      {o.descricao}
-                    </div>
-                  )}
-                  {isAdmin && o.criado_por_nome && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, fontSize: 11, color: 'var(--portal-text-muted)' }}>
-                      <User size={11} /> {o.criado_por_nome}
-                    </div>
-                  )}
                 </div>
               </div>
-            </div>
 
-            <div style={{ display: 'flex', gap: 8, padding: '0 12px 12px' }}>
-              <button
-                disabled={resolvendo === o.id}
-                onClick={() => resolver(o.id)}
-                style={{
-                  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                  padding: '9px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                  background: '#10B981', color: '#fff', fontSize: 13, fontWeight: 700,
-                  opacity: resolvendo === o.id ? 0.6 : 1,
-                }}
-              >
-                <Check size={15} /> {resolvendo === o.id ? 'Resolvendo...' : 'Resolvido'}
-              </button>
-              <button
-                onClick={() => router.push('/opa')}
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  padding: '9px 12px', borderRadius: 10, border: '1px solid var(--portal-border)',
-                  cursor: 'pointer', background: 'var(--portal-bg-secondary)', color: 'var(--portal-text-secondary)',
-                  fontSize: 13, fontWeight: 600,
-                }}
-                title="Ver todos"
-              >
-                <ChevronRight size={15} />
-              </button>
+              <div style={{ display: 'flex', gap: 8, padding: '0 14px 14px' }}>
+                <button
+                  disabled={marcando === o.id}
+                  onClick={() => marcarLido(o.id)}
+                  style={{
+                    flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    padding: '11px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                    background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: '#fff', fontSize: 13.5, fontWeight: 700,
+                    opacity: marcando === o.id ? 0.6 : 1,
+                  }}
+                >
+                  <Check size={16} /> {marcando === o.id ? 'Marcando...' : 'Li, marcar como lido'}
+                </button>
+                <button
+                  disabled={resolvendo === o.id}
+                  onClick={() => resolver(o.id)}
+                  title="Resolver (some para todos)"
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    padding: '11px 14px', borderRadius: 10, border: '1px solid #a7f3d0', cursor: 'pointer',
+                    background: '#ecfdf5', color: '#059669', fontSize: 13, fontWeight: 700,
+                    opacity: resolvendo === o.id ? 0.6 : 1,
+                  }}
+                >
+                  <CheckCheck size={16} /> Resolvido
+                </button>
+                <button
+                  onClick={() => router.push('/opa')}
+                  title="Ver todos"
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: '11px 12px', borderRadius: 10, border: '1px solid #e5e7eb',
+                    cursor: 'pointer', background: '#f8fafc', color: '#475569',
+                  }}
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
             </div>
-          </div>
-        )
-      })}
+          )
+        })}
 
-      <style>{`@keyframes opaSlideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }`}</style>
+        <style>{`@keyframes opaPop { from { opacity: 0; transform: translateY(12px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }`}</style>
+      </div>
     </div>
   )
 }
