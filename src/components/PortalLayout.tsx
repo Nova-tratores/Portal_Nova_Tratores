@@ -65,7 +65,7 @@ const navItems: NavItem[] = [
 
   // Financeiro (verde)
   { id: 'financeiro', name: 'Financeiro', href: '/financeiro', icon: <DollarSign size={18} />, tag: 'FINANÇAS', gradient: '', group: 'financeiro' },
-  { id: 'dre', name: 'DRE Financeiro', href: 'https://financeiro-omie-production-ce7e.up.railway.app/dre', icon: <DollarSign size={18} />, tag: 'DRE', gradient: '', group: 'financeiro', external: true },
+  { id: 'dre', name: 'DRE Financeiro', href: '/dre-financeiro', icon: <DollarSign size={18} />, tag: 'DRE', gradient: '', group: 'financeiro' },
 
   // Comercial (roxo)
   { id: 'propostas', name: 'Proposta Comercial', href: '/propostas', icon: <FileText size={18} />, tag: 'VENDAS', gradient: '', group: 'comercial' },

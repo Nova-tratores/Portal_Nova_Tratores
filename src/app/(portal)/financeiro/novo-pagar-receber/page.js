@@ -29,6 +29,10 @@ export default function NovoPagarReceber() {
   const [filesBoleto, setFilesBoleto] = useState([])
   const [filesReq, setFilesReq] = useState([])
 
+  // Prestador autônomo (RPA) — não emite nota fiscal nem boleto.
+  // Quando marcado, dispensa NF e boleto na validação de envio ao Omie.
+  const [autonomoSemNota, setAutonomoSemNota] = useState(false)
+
   // Requisições do financeiro (carregadas uma vez)
   const [reqsFinanceiro, setReqsFinanceiro] = useState([])
   const [buscaNota, setBuscaNota] = useState('')
@@ -319,6 +323,10 @@ export default function NovoPagarReceber() {
         anexo_requisicao: reqs,
         is_requisicao: true,
         status: 'financeiro',
+        // Prestador autônomo (RPA): dispensa NF e boleto na validação do Omie
+        autonomo_sem_nota: autonomoSemNota,
+        // Quem registrou a conta no portal (vai pra observação do Omie)
+        criado_por: userProfile?.nome || null,
         // Rascunho sempre — o envio ao Omie acontece pelo painel após validação
         status_envio: 'rascunho',
         // Pré-preenchimento Omie (sugestões salvas para o painel já abrir prontas)
@@ -587,8 +595,8 @@ export default function NovoPagarReceber() {
               </select>
             </Field>
 
-            {/* NF — não exige para Carnê ISS */}
-            {formData.metodo !== 'Carnê ISS' && (
+            {/* NF — não exige para Carnê ISS nem para prestador autônomo */}
+            {formData.metodo !== 'Carnê ISS' && !autonomoSemNota && (
             <Field label="Numero da Nota Fiscal" icon={<Hash size={18} />}>
               <input
                 placeholder="000.000.000"
@@ -707,6 +715,30 @@ export default function NovoPagarReceber() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '24px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
               <label style={{ ...labelStyle, marginBottom: '0' }}>Documentacao</label>
 
+              {/* Prestador autônomo (RPA) — dispensa NF e boleto */}
+              <label style={{
+                display: 'flex', alignItems: 'flex-start', gap: '10px',
+                padding: '12px 16px', cursor: 'pointer',
+                background: autonomoSemNota ? '#fffbeb' : '#f8fafc',
+                border: `1px solid ${autonomoSemNota ? '#fcd34d' : '#e5e7eb'}`,
+                borderRadius: '10px', transition: '0.2s'
+              }}>
+                <input
+                  type="checkbox"
+                  checked={autonomoSemNota}
+                  onChange={e => setAutonomoSemNota(e.target.checked)}
+                  style={{ marginTop: '2px', width: '16px', height: '16px', cursor: 'pointer', accentColor: '#d97706' }}
+                />
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: '600', color: '#1e293b' }}>
+                    Prestador autônomo (sem nota fiscal)
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                    Dispensa nota fiscal e boleto para enviar ao Omie (ex.: RPA / autônomo).
+                  </div>
+                </div>
+              </label>
+
               {/* NF auto importada */}
               {nfAutoUrl && (
                 <div style={{
@@ -724,9 +756,9 @@ export default function NovoPagarReceber() {
                 </div>
               )}
 
-              {/* NF manual — só aparece se não tem auto */}
-              {!nfAutoUrl && formData.metodo !== 'Carnê ISS' && (
-                <FileUploadBtn file={fileNFServ} onSelect={setFileNFServ} label="Nota Fiscal Principal" required />
+              {/* NF manual — só aparece se não tem auto e não é autônomo */}
+              {!nfAutoUrl && formData.metodo !== 'Carnê ISS' && !autonomoSemNota && (
+                <FileUploadBtn file={fileNFServ} onSelect={setFileNFServ} label="Nota Fiscal Principal" />
               )}
 
               {/* Anexos importados das requisições */}
@@ -873,7 +905,7 @@ function FileUploadBtn({ file, onSelect, label, required, isMulti, filesReq, set
           <X size={16} />
         </span>
       )}
-      <input type="file" required={required && !file} hidden onChange={(e) => onSelect(e.target.files[0])} />
+      <input type="file" hidden onChange={(e) => onSelect(e.target.files[0])} />
     </label>
   )
 }

@@ -7,6 +7,7 @@ import ChecklistValidacao from './ChecklistValidacao'
 import { lerChaveNFeDeUrl } from '@/lib/financeiro/leitor-anexos'
 import { supabase } from '@/lib/supabase'
 import { useAuditLog } from '@/hooks/useAuditLog'
+import { useAuth } from '@/hooks/useAuth'
 
 const EMPRESAS = ['Nova Tratores', 'Castro Peças']
 
@@ -421,6 +422,7 @@ export function EnviarParaOmieBox({ finanPagar, onSynced, autoOrigem = {} }) {
   const [anexando, setAnexando] = useState(false)
   const [anexosMsg, setAnexosMsg] = useState(null)
   const { log: auditLog } = useAuditLog()
+  const { userProfile } = useAuth()
 
   // Autosave: persiste os campos no finan_pagar (debounced) para não perder o
   // que foi preenchido caso o modal seja fechado e reaberto antes do envio.
@@ -464,6 +466,7 @@ export function EnviarParaOmieBox({ finanPagar, onSynced, autoOrigem = {} }) {
           codigoTipoDocumento: campos.codigoTipoDocumento || undefined,
           codigoDepartamento: campos.codigoDepartamento || undefined,
           chaveNFe: chaveNFe || undefined,
+          enviadoPor: userProfile?.nome || undefined,
         }),
       })
       const data = await res.json()
@@ -623,6 +626,17 @@ export function EnviarParaOmieBox({ finanPagar, onSynced, autoOrigem = {} }) {
           <div style={{ fontSize: '11px', color: '#6b7280' }}>Cria o lançamento no Omie com fornecedor, NF, valor, vencimento, vendedor e projeto</div>
         </div>
       </div>
+
+      {finanPagar?.autonomo_sem_nota && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '18px',
+          background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '10px',
+          padding: '10px 14px', fontSize: '12px', color: '#92400e', fontWeight: '600',
+        }}>
+          <CheckCircle size={15} />
+          Prestador autônomo — nota fiscal e boleto dispensados nesta conta.
+        </div>
+      )}
 
       <CamposOmieContaPagar value={campos} onChange={setCampos} tema="modal" autoOrigem={autoOrigem} contextoTexto={finanPagar?.motivo || ''} />
 

@@ -86,6 +86,14 @@ function isJaCadastrado(err: unknown): boolean {
   );
 }
 
+// Omie devolve fault 5113 ("Não existem registros para a página [1]") quando um
+// Listar/Consultar com filtro não acha nada — não é erro, é "lista vazia".
+function isSemRegistros(err: unknown): boolean {
+  if (err instanceof OmieError && (err.faultcode || "").includes("5113")) return true;
+  const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
+  return msg.includes("não existem registros") || msg.includes("nao existem registros") || msg.includes("-5113");
+}
+
 // =====================================================================
 // HELPERS DE FORMATAÇÃO
 // =====================================================================
@@ -138,16 +146,31 @@ export interface DadosFornecedor {
   telefone?: string;
   fornecedorId?: number | string; // id na tabela Fornecedores (para codigo_cliente_integracao estável)
   email?: string;
+  // Endereço — Omie exige ao menos o Estado (UF) ao cadastrar um fornecedor novo.
+  endereco?: {
+    estado?: string;
+    cidade?: string;
+    cep?: string;
+    logradouro?: string;
+    numero?: string;
+    bairro?: string;
+  };
 }
 
 async function listarClientePorDoc(doc: string, acc: OmieAccount): Promise<number | null> {
-  const r = await omieCall<{ clientes_cadastro?: Array<{ codigo_cliente_omie: number }> }>(
-    "/geral/clientes/",
-    "ListarClientes",
-    { pagina: 1, registros_por_pagina: 1, clientesFiltro: { cnpj_cpf: doc } },
-    acc,
-  );
-  return r?.clientes_cadastro?.[0]?.codigo_cliente_omie || null;
+  try {
+    const r = await omieCall<{ clientes_cadastro?: Array<{ codigo_cliente_omie: number }> }>(
+      "/geral/clientes/",
+      "ListarClientes",
+      { pagina: 1, registros_por_pagina: 1, clientesFiltro: { cnpj_cpf: doc } },
+      acc,
+    );
+    return r?.clientes_cadastro?.[0]?.codigo_cliente_omie || null;
+  } catch (err) {
+    // fornecedor ainda não existe no Omie: o filtro devolve fault 5113 → trata como "não achou"
+    if (isSemRegistros(err)) return null;
+    throw err;
+  }
 }
 
 export async function buscarOuCriarFornecedorOmie(dados: DadosFornecedor, acc: OmieAccount): Promise<number> {
@@ -185,6 +208,17 @@ export async function buscarOuCriarFornecedorOmie(dados: DadosFornecedor, acc: O
     param.telefone1_numero = num;
   }
   if (dados.email) param.email = dados.email;
+  // Endereço (Omie exige Estado ao cadastrar fornecedor novo)
+  const end = dados.endereco;
+  if (end?.estado) {
+    param.estado = String(end.estado).toUpperCase().slice(0, 2);
+    if (end.cidade) param.cidade = end.cidade;
+    if (end.logradouro) param.endereco = end.logradouro;
+    if (end.numero) param.endereco_numero = end.numero;
+    if (end.bairro) param.bairro = end.bairro;
+    if (end.cep) param.cep = soDigitos(end.cep);
+    param.codigo_pais = "1058"; // Brasil
+  }
 
   try {
     const r = await omieCall<{ codigo_cliente_omie?: number }>("/geral/clientes/", "IncluirCliente", param, acc);
@@ -550,6 +584,8 @@ export interface FinanPagarRow {
   metodo?: string | null;
   qtd_parcelas?: number | null;
   parcelas_vencimentos?: string | null; // "2026-01-01|123.45, 2026-02-01|123.45"
+  criado_por?: string | null;           // quem registrou a conta no portal
+  autonomo_sem_nota?: boolean | null;   // prestador autônomo: sem NF nem boleto
 }
 
 export interface EnviarContaPagarOpts {
@@ -562,6 +598,34 @@ export interface EnviarContaPagarOpts {
   numeroDocumentoFiscal?: string; // número da NF (máx 20 chars)
   codigoDepartamento?: string;
   chaveNFe?: string;              // chave de acesso NF-e (44 dígitos)
+  enviadoPor?: string;           // quem clicou "enviar ao Omie" no portal
+}
+
+// Monta a observação do lançamento: motivo + nota de autônomo (se for o caso) + autoria.
+// Ex: "Pagamento mangueira\nSem NF e boleto — fornecedor considerado autônomo por
+//      Fulano.\nCriado por Fulano · Enviado por Beltrano"
+// Se faltar alguma parte, ela é omitida. Truncado depois em 999.
+function montarObservacao(row: FinanPagarRow, enviadoPor?: string | null): string {
+  const motivo = (row.motivo || "").trim();
+  const criadoPor = (row.criado_por || "").trim();
+  const enviado = (enviadoPor || "").trim();
+
+  const autoria: string[] = [];
+  if (criadoPor) autoria.push(`Criado por ${criadoPor}`);
+  if (enviado) autoria.push(`Enviado por ${enviado}`);
+  const linhaAutoria = autoria.join(" · ");
+
+  const linhas: string[] = [];
+  if (motivo) linhas.push(motivo);
+  if (row.autonomo_sem_nota) {
+    linhas.push(
+      criadoPor
+        ? `Sem NF e boleto — fornecedor considerado autônomo por ${criadoPor}.`
+        : "Sem NF e boleto — fornecedor considerado autônomo.",
+    );
+  }
+  if (linhaAutoria) linhas.push(linhaAutoria);
+  return linhas.join("\n");
 }
 
 function parseParcelas(row: FinanPagarRow): Array<{ vencimento: string; valor: number }> {
@@ -586,7 +650,8 @@ export async function enviarFinanPagarParaOmie(
   opts: EnviarContaPagarOpts,
   acc: OmieAccount,
 ): Promise<{ codigos: number[]; jaExistia: boolean }> {
-  const observacao = (row.motivo || "").trim();
+  // Observação = motivo do registro + linha de autoria (criado por / enviado por).
+  const observacao = montarObservacao(row, opts.enviadoPor);
   const numeroDocumento = (row.numero_NF || "").trim();
   const parcelas = row.metodo === "Boleto Parcelado" ? parseParcelas(row) : [];
 
@@ -852,6 +917,7 @@ export interface ValidacaoInput {
     anexo_nf?: string | null;
     anexo_boleto?: string | null;
     nfe_chave?: string | null;
+    autonomo_sem_nota?: boolean | null;
     omie_vendedor?: number | null;
     omie_tipo_documento?: string | null;
     omie_cod_lancamento?: string | null;
@@ -867,9 +933,11 @@ export function validarContaPagarParaOmie(input: ValidacaoInput): ValidacaoIssue
 
   const isCarne = (row.metodo || "").toLowerCase().includes("carnê iss") || (row.metodo || "").toLowerCase().includes("carne iss");
   const isBoleto = (row.metodo || "").toLowerCase().startsWith("boleto");
+  // Prestador autônomo (RPA): não emite nota fiscal nem boleto — dispensa ambos.
+  const semNota = !!row.autonomo_sem_nota;
 
-  // NF
-  if (!isCarne) {
+  // NF — dispensada para Carnê ISS e para prestador autônomo
+  if (!isCarne && !semNota) {
     if (!String(row.numero_NF || "").trim()) {
       issues.push({ campo: "numero_NF", mensagem: "Informe o número da NF (ou marque como Carnê ISS).", severidade: "erro" });
     }
@@ -878,8 +946,8 @@ export function validarContaPagarParaOmie(input: ValidacaoInput): ValidacaoIssue
     }
   }
 
-  // Boleto
-  if (isBoleto && !String(row.anexo_boleto || "").trim()) {
+  // Boleto — dispensado para prestador autônomo
+  if (isBoleto && !semNota && !String(row.anexo_boleto || "").trim()) {
     issues.push({ campo: "anexo_boleto", mensagem: "Anexe o boleto.", severidade: "erro" });
   }
 
@@ -928,7 +996,7 @@ export function validarContaPagarParaOmie(input: ValidacaoInput): ValidacaoIssue
   if (!opts.codigoTipoDocumento && !row.omie_tipo_documento) {
     issues.push({ campo: "codigoTipoDocumento", mensagem: "Tipo de documento não informado.", severidade: "aviso" });
   }
-  if (!row.nfe_chave && !isCarne) {
+  if (!row.nfe_chave && !isCarne && !semNota) {
     issues.push({ campo: "nfe_chave", mensagem: "Sem chave NF-e — recomendamos importar o XML para rastreabilidade.", severidade: "aviso" });
   }
 
