@@ -376,6 +376,24 @@ export default function PPVDrawer({
                         )}
                       </div>
                     )}
+                    {!pedidoOmie ? (
+                      <button
+                        className="ppv-btn-omie"
+                        style={{ width: "100%", marginTop: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+                        onClick={enviarOmie}
+                        disabled={enviandoOmie}
+                      >
+                        {enviandoOmie ? (
+                          <><i className="fas fa-spinner fa-spin" /> Enviando...</>
+                        ) : (
+                          <><i className="fas fa-cloud-upload-alt" /> Enviar para Omie</>
+                        )}
+                      </button>
+                    ) : (
+                      <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 10, background: "#ECFDF5", border: "1px solid #A7F3D0", color: "#047857", fontWeight: 700, fontSize: 13 }}>
+                        <i className="fas fa-check-circle" /> Enviado para Omie (Pedido: {pedidoOmie})
+                      </div>
+                    )}
                   </div>
 
                   {/* ── Cliente ── */}
@@ -620,19 +638,6 @@ export default function PPVDrawer({
                 {/* ── Footer ── */}
                 <div className="ppv-drawer-footer">
                   <button className="ppv-btn-cancel" onClick={onClose}>Cancelar</button>
-                  {!pedidoOmie && (
-                    <button
-                      className="ppv-btn-omie"
-                      onClick={enviarOmie}
-                      disabled={enviandoOmie}
-                    >
-                      {enviandoOmie ? (
-                        <><i className="fas fa-spinner fa-spin" /> Enviando...</>
-                      ) : (
-                        <><i className="fas fa-paper-plane" /> Enviar para Omie</>
-                      )}
-                    </button>
-                  )}
                   <button className="ppv-btn-save" onClick={salvar} disabled={salvando}>
                     {salvando ? "Salvando..." : "Salvar Alterações"}
                   </button>

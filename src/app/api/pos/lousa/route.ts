@@ -75,9 +75,20 @@ export async function GET(req: NextRequest) {
     let matches: any[] = [];
     if (isServico && (nomeE.length >= 4 || cnpjE)) {
       matches = ordensPos.filter((o) => {
-        if (cnpjE && soDig(o.Cnpj_Cliente) === cnpjE) return true;
+        // CNPJ é autoritativo: se a entrada tem CNPJ, casa só por CNPJ.
+        if (cnpjE) return soDig(o.Cnpj_Cliente) === cnpjE;
+        // Sem CNPJ: exige nome IDÊNTICO (normalizado). Nada de substring —
+        // senão "Nova Tratores" casa com "Nova Tratores Maquinas Agricolas Ltda".
         const nomeO = norm(o.Os_Cliente);
-        return nomeE.length >= 4 && !!nomeO && (nomeO.includes(nomeE) || nomeE.includes(nomeO));
+        return !!nomeO && nomeE.length >= 4 && nomeO === nomeE;
+      });
+      // Dedup por OS (mesma ordem não aparece duas vezes).
+      const vistos = new Set<string>();
+      matches = matches.filter((o) => {
+        const k = String(o.Id_Ordem);
+        if (vistos.has(k)) return false;
+        vistos.add(k);
+        return true;
       });
     }
 

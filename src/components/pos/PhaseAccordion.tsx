@@ -166,8 +166,9 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
   );
 });
 
-// Começa tudo colapsado pra não poluir — clica no cabeçalho da fase pra abrir.
-const COLLAPSED_DEFAULT = new Set(PHASES);
+// Fases abertas por padrão; só Concluída e Cancelada começam fechadas
+// (fases sem nenhuma ordem nem aparecem). Clica no cabeçalho pra abrir/fechar.
+const COLLAPSED_DEFAULT = new Set(["Concluída", "Cancelada"]);
 
 export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChange }: PhaseViewProps) {
   const [activePhase, setActivePhase] = useState<string>("");
