@@ -11,13 +11,13 @@ import Header from "@/components/ppv/Header";
 import Toast from "@/components/ppv/Toast";
 import GlobalLoader from "@/components/ppv/GlobalLoader";
 import PhaseView from "@/components/ppv/PhaseView";
+import CatalogoNovo from "@/components/ppv/CatalogoNovo";
 import FormNovoLancamento from "@/components/ppv/FormNovoLancamento";
 import PPVDrawer from "@/components/ppv/PPVDrawer";
 import ModalBuscaCliente from "@/components/ppv/ModalBuscaCliente";
 import ModalBuscaOS from "@/components/ppv/ModalBuscaOS";
 import ModalBuscaProduto from "@/components/ppv/ModalBuscaProduto";
 import ModalProdutoManual from "@/components/ppv/ModalProdutoManual";
-import CatalogoPecas from "@/components/ppv/CatalogoPecas";
 import ModalRevisoes from "@/components/ppv/ModalRevisoes";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 
@@ -321,8 +321,8 @@ function PPVApp() {
         )}
 
         {activeTab === "catalogoTab" && (
-          <div className="flex-1 overflow-hidden bg-red-950 p-5">
-            <CatalogoPecas />
+          <div className="flex-1 overflow-hidden p-4" style={bgPattern}>
+            <CatalogoNovo userName={userProfile?.nome || ""} />
           </div>
         )}
 

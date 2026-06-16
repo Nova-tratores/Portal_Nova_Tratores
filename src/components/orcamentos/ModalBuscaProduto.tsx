@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+import CatalogoNovo from '@/components/ppv/CatalogoNovo'
 
 interface ProdutoBusca {
   codigo: string
@@ -21,6 +22,7 @@ export default function ModalBuscaProdutoOrc({ open, onClose, onSelect }: Props)
   const [resultados, setResultados] = useState<ProdutoBusca[]>([])
   const [buscando, setBuscando] = useState(false)
   const [mensagem, setMensagem] = useState('Digite para pesquisar produtos...')
+  const [verCatalogo, setVerCatalogo] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -28,6 +30,7 @@ export default function ModalBuscaProdutoOrc({ open, onClose, onSelect }: Props)
     if (open) {
       setTermo('')
       setResultados([])
+      setVerCatalogo(false)
       setMensagem('Digite para pesquisar produtos...')
       setTimeout(() => inputRef.current?.focus(), 200)
     }
@@ -70,7 +73,8 @@ export default function ModalBuscaProdutoOrc({ open, onClose, onSelect }: Props)
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
       <div style={{
-        width: 750, maxHeight: 520, display: 'flex', flexDirection: 'column',
+        width: verCatalogo ? 1060 : 750, maxWidth: '96vw', height: verCatalogo ? '88vh' : undefined,
+        maxHeight: verCatalogo ? '88vh' : 520, display: 'flex', flexDirection: 'column',
         borderRadius: 12, background: '#FFFAF5', boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
       }}>
         <div style={{
@@ -78,8 +82,18 @@ export default function ModalBuscaProdutoOrc({ open, onClose, onSelect }: Props)
           padding: '20px 32px', borderBottom: '1px solid rgba(251,146,60,0.3)',
         }}>
           <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1e293b', margin: 0 }}>Buscar Produto</h2>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 24, color: '#94a3b8', cursor: 'pointer' }}>&times;</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button onClick={() => setVerCatalogo(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 9, border: '1px solid #fecaca', background: verCatalogo ? '#dc2626' : '#fff', color: verCatalogo ? '#fff' : '#dc2626', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+              <i className="fas fa-book-open" /> Catálogo Jivo
+            </button>
+            <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 24, color: '#94a3b8', cursor: 'pointer' }}>&times;</button>
+          </div>
         </div>
+        {verCatalogo ? (
+          <div style={{ flex: 1, overflow: 'hidden', padding: 12, minHeight: 0 }}>
+            <CatalogoNovo onSelecionarPeca={(p) => { setVerCatalogo(false); setTermo(p.code); buscar(p.code) }} />
+          </div>
+        ) : (
         <div style={{ flex: 1, overflow: 'auto', padding: '20px 32px' }}>
           <div style={{ position: 'relative', marginBottom: 12 }}>
             <input
@@ -149,6 +163,7 @@ export default function ModalBuscaProdutoOrc({ open, onClose, onSelect }: Props)
             </table>
           </div>
         </div>
+        )}
       </div>
     </div>
   )
