@@ -1,4 +1,5 @@
 'use client'
+import { createPortal } from 'react-dom'
 import { X, MapPin, User, Calendar, MessageSquare, Flag, Navigation, Camera, ArrowRight } from 'lucide-react'
 
 const tipoCores: Record<string, { bg: string; text: string; label: string }> = {
@@ -9,13 +10,13 @@ const tipoCores: Record<string, { bg: string; text: string; label: string }> = {
 }
 
 export default function ModalVisita({ visita, onClose }: { visita: any; onClose: () => void }) {
-  if (!visita) return null
+  if (!visita || typeof document === 'undefined') return null
 
   const tc = tipoCores[visita.tipo] || { bg: '#F1F5F9', text: '#475569', label: visita.tipo }
   const fmtData = (iso: string) => iso ? new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'
   const fotoUrl = visita.foto_path ? `https://citrhumdkfivdzbmayde.supabase.co/storage/v1/object/public/fotos-visitas/${visita.foto_path}` : null
 
-  return (
+  return createPortal(
     <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
       style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', zIndex: 60000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 640, maxHeight: '90vh', overflow: 'auto', boxShadow: '0 25px 60px rgba(0,0,0,0.2)' }}>
@@ -168,6 +169,7 @@ export default function ModalVisita({ visita, onClose }: { visita: any; onClose:
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

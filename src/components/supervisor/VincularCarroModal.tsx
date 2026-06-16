@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { X, Car, Search } from 'lucide-react'
 
 interface Adesao { adesao_id: number; placa: string; descricao: string }
@@ -68,7 +69,9 @@ export default function VincularCarroModal({ onClose, onSaved }: { onClose: () =
     background: active ? cor : 'transparent', color: active ? '#fff' : 'var(--portal-text-secondary, #888)',
   })
 
-  return (
+  if (typeof document === 'undefined') return null
+
+  return createPortal(
     <div onClick={e => { if (e.target === e.currentTarget) onClose() }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div style={{ background: 'var(--portal-bg-card, #fff)', borderRadius: 18, width: 620, maxWidth: '96vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '22px 24px', borderBottom: '1px solid var(--portal-border, #eee)' }}>
@@ -139,6 +142,7 @@ export default function VincularCarroModal({ onClose, onSaved }: { onClose: () =
           })}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

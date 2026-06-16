@@ -265,6 +265,8 @@ export interface RotaDia {
   hora_fim: string | null
   tempo_dirigindo_min: number
   tempo_parado_min: number
+  // Visitas do dia feitas a até 2km de alguma parada do carro (cruzamento rota×visitas)
+  visitas: { id: any; vendedor_nome: string; cliente_nome: string; tipo: string; data_visita: string; lat: number; lng: number; dist_parada_km: number }[]
 }
 
 export async function computarESalvarRota(
@@ -291,7 +293,14 @@ export async function computarESalvarRota(
   const ad = (vData.data || []).find(
     (a: any) => (a.vei_placa || '').replace(/[-\s]/g, '').toUpperCase() === placaNorm,
   )
-  if (!ad) return { placa, data, pontos: [], paradas: [], km_total: 0, hora_inicio: null, hora_fim: null, tempo_dirigindo_min: 0, tempo_parado_min: 0 }
+  if (!ad) return { placa, data, pontos: [], paradas: [], km_total: 0, hora_inicio: null, hora_fim: null, tempo_dirigindo_min: 0, tempo_parado_min: 0, visitas: [] }
+
+  // Vínculo do carro (pessoa/vendedor) — usado no cruzamento de visitas e na gravação
+  const { data: vinc } = await supabase
+    .from('comercial_veiculos')
+    .select('pessoa_id, pessoa_nome, vinculo_tipo')
+    .eq('placa', placa)
+    .maybeSingle()
 
   // 3) Posições do dia
   const inicio = `${data}T00:00:00.000Z`
@@ -335,20 +344,47 @@ export async function computarESalvarRota(
   const tempo_dirigindo_min = Math.round(dirigindoMs / 60000)
   const tempo_parado_min = paradas.reduce((s, p) => s + (p.duracao_min || 0), 0)
 
+  // Cruzamento rota × visitas: visitas do dia feitas a até 2km de alguma parada.
+  // Se o carro é de um vendedor, restringe às visitas dele; senão, casa por proximidade.
+  const visitas: RotaDia['visitas'] = []
+  if (paradas.length > 0) {
+    try {
+      const proxDia = new Date(`${data}T00:00:00`)
+      proxDia.setDate(proxDia.getDate() + 1)
+      const fimData = proxDia.toISOString().split('T')[0]
+      let vq = supabase
+        .from('vw_visitas_detalhadas')
+        .select('id, vendedor_id, vendedor_nome, cliente_nome, tipo, data_visita, latitude, longitude')
+        .gte('data_visita', data)
+        .lt('data_visita', fimData)
+        .not('latitude', 'is', null)
+      if (vinc?.vinculo_tipo === 'vendedor' && vinc?.pessoa_id) vq = vq.eq('vendedor_id', vinc.pessoa_id)
+      const { data: vis } = await vq
+      for (const v of vis || []) {
+        const vlat = Number(v.latitude), vlng = Number(v.longitude)
+        if (!vlat || !vlng) continue
+        let melhor = Infinity
+        for (const p of paradas) { const d = distanciaKm(p.lat, p.lng, vlat, vlng); if (d < melhor) melhor = d }
+        if (melhor <= 2) {
+          visitas.push({
+            id: v.id, vendedor_nome: v.vendedor_nome || '', cliente_nome: v.cliente_nome || '',
+            tipo: v.tipo || '', data_visita: v.data_visita, lat: vlat, lng: vlng,
+            dist_parada_km: Math.round(melhor * 100) / 100,
+          })
+        }
+      }
+    } catch { /* sem visitas */ }
+  }
+
   const rota: RotaDia = {
     placa, data, pontos, paradas, km_total: Math.round(kmTotal),
     hora_inicio: pontos.length > 0 ? pontos[0].dt : null,
     hora_fim: pontos.length > 0 ? pontos[pontos.length - 1].dt : null,
-    tempo_dirigindo_min, tempo_parado_min,
+    tempo_dirigindo_min, tempo_parado_min, visitas,
   }
 
-  // 4) Salva histórico (dia passado, com pontos)
+  // 4) Salva histórico (dia passado, com pontos) — inclui as visitas cruzadas
   if (data !== hoje && pontos.length > 0) {
-    const { data: vinc } = await supabase
-      .from('comercial_veiculos')
-      .select('pessoa_id, pessoa_nome')
-      .eq('placa', placa)
-      .maybeSingle()
     await supabase.from('rotas_vendedor').upsert({
       ...rota,
       vendedor_id: vinc?.pessoa_id || null,

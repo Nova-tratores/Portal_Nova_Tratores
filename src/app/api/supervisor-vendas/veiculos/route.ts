@@ -143,7 +143,7 @@ export async function GET(req: NextRequest) {
       if (!placa) return NextResponse.json({ error: "placa obrigatória" }, { status: 400 });
       const { data } = await supabase
         .from("rotas_vendedor")
-        .select("data, km_total, paradas, tempo_dirigindo_min, tempo_parado_min, hora_inicio, hora_fim")
+        .select("data, km_total, paradas, visitas, tempo_dirigindo_min, tempo_parado_min, hora_inicio, hora_fim")
         .eq("placa", placa)
         .order("data", { ascending: false })
         .limit(90);
@@ -151,6 +151,7 @@ export async function GET(req: NextRequest) {
         data: r.data,
         km_total: r.km_total || 0,
         paradas: Array.isArray(r.paradas) ? r.paradas.length : 0,
+        visitas: Array.isArray(r.visitas) ? r.visitas.length : 0,
         tempo_dirigindo_min: r.tempo_dirigindo_min || 0,
         tempo_parado_min: r.tempo_parado_min || 0,
         hora_inicio: r.hora_inicio,

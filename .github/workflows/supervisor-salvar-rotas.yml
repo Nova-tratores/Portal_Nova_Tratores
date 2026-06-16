@@ -1,0 +1,22 @@
+name: Supervisor Vendas - Salvar rotas do dia
+
+# Salva no banco a rota + paradas + km + tempo dirigindo do dia anterior
+# de todos os carros comerciais ativos (histórico completo, sem depender
+# de alguém abrir o dia no mapa). Roda no servidor (portal no Railway).
+
+on:
+  schedule:
+    - cron: '30 4 * * *'    # 04:30 UTC ≈ 01:30 de Brasília (já virou o dia)
+  workflow_dispatch: {}      # permite rodar manualmente
+
+jobs:
+  salvar-rotas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Salvar rotas do dia anterior
+        run: |
+          curl -fsS --max-time 600 -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/supervisor-vendas/salvar-rotas" \
+            -w "\nsalvar-rotas: HTTP %{http_code}\n"

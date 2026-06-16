@@ -9,12 +9,11 @@ import {
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
 
-const MapaVisitas = dynamic(() => import('@/components/supervisor/MapaVisitas'), { ssr: false })
 const MapaCarros = dynamic(() => import('@/components/supervisor/MapaCarros'), { ssr: false })
 import ModalVisita from '@/components/supervisor/ModalVisita'
 import VincularCarroModal from '@/components/supervisor/VincularCarroModal'
 
-type Tab = 'geral' | 'vendedores' | 'visitas' | 'mapa' | 'carros' | 'pos-vendas' | 'alertas'
+type Tab = 'geral' | 'vendedores' | 'visitas' | 'mapa' | 'pos-vendas' | 'alertas'
 
 export default function SupervisorVendasPage() {
   const { userProfile } = useAuth()
@@ -32,6 +31,7 @@ export default function SupervisorVendasPage() {
   const [visitaSelecionada, setVisitaSelecionada] = useState<any>(null)
   // Carros do comercial
   const [carros, setCarros] = useState<any[]>([])
+  const [carrosErro, setCarrosErro] = useState<string>('')
   const [showVincular, setShowVincular] = useState(false)
 
   const carregar = useCallback(async () => {
@@ -53,14 +53,28 @@ export default function SupervisorVendasPage() {
         const res = await fetch('/api/supervisor-vendas?acao=visitas&pos_vendas=true')
         if (res.ok) setVisitas(await res.json())
       } else if (tab === 'mapa') {
+        // Mapa unificado: visitas a clientes + carros do comercial
         let url = '/api/supervisor-vendas?acao=visitas'
         if (filtroVendedor) url += `&vendedor_id=${filtroVendedor}`
         if (filtroTipo) url += `&tipo=${filtroTipo}`
-        const res = await fetch(url)
-        if (res.ok) setVisitasMapa((await res.json()).filter((v: any) => v.latitude && v.longitude))
-      } else if (tab === 'carros') {
-        const res = await fetch('/api/supervisor-vendas/carros')
-        if (res.ok) setCarros(await res.json())
+        const [resV, resC] = await Promise.all([
+          fetch(url),
+          fetch('/api/supervisor-vendas/carros'),
+        ])
+        if (resV.ok) setVisitasMapa((await resV.json()).filter((v: any) => v.latitude && v.longitude))
+        if (resC.ok) {
+          setCarros(await resC.json())
+          setCarrosErro('')
+        } else {
+          const e = await resC.json().catch(() => ({}))
+          let msg = e?.error || `Falha ao carregar carros (HTTP ${resC.status})`
+          // Supabase fora do ar (5xx do Cloudflare) → mensagem limpa, sem HTML
+          if (/<!DOCTYPE|<html|Web server is down|Connection timed out|cloudflare|52\d\b/i.test(msg)) {
+            msg = 'Banco de dados indisponível no momento (Supabase reiniciando). Aguarde alguns minutos e recarregue.'
+          }
+          setCarrosErro(msg.length > 200 ? msg.slice(0, 200) + '…' : msg)
+          setCarros([])
+        }
       } else if (tab === 'alertas') {
         const res = await fetch('/api/supervisor-vendas?acao=alertas')
         if (res.ok) setAlertas(await res.json())
@@ -99,7 +113,6 @@ export default function SupervisorVendasPage() {
     { id: 'vendedores', label: 'Vendedores', icon: <Users size={16} /> },
     { id: 'visitas', label: 'Visitas', icon: <Eye size={16} /> },
     { id: 'mapa', label: 'Mapa', icon: <MapPin size={16} /> },
-    { id: 'carros', label: 'Carros', icon: <Car size={16} /> },
     { id: 'pos-vendas', label: 'Pós Vendas', icon: <ShoppingCart size={16} /> },
     { id: 'alertas', label: 'Alertas', icon: <AlertTriangle size={16} /> },
   ]
@@ -244,7 +257,7 @@ export default function SupervisorVendasPage() {
             </div>
           )}
 
-          {/* MAPA */}
+          {/* MAPA UNIFICADO: visitas a clientes + carros do comercial */}
           {tab === 'mapa' && (
             <div>
               <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -261,30 +274,29 @@ export default function SupervisorVendasPage() {
                   <option value="telefonema">Telefonema</option>
                   <option value="email">E-mail</option>
                 </select>
-                <span style={{ fontSize: 13, color: '#94A3B8' }}>{visitasMapa.length} visitas com GPS</span>
-              </div>
-              <div id="supervisor-mapa" style={{ width: '100%', height: 'calc(100vh - 280px)', minHeight: 400, borderRadius: 14, overflow: 'hidden', border: '1px solid var(--portal-border)' }}>
-                <MapaVisitas visitas={visitasMapa} tipoCores={tipoCores} fmtData={fmtData} onVisitaClick={(v: any) => setVisitaSelecionada(v)} />
-              </div>
-            </div>
-          )}
-
-          {/* CARROS DO COMERCIAL */}
-          {tab === 'carros' && (
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 13, color: '#94A3B8' }}>{carros.length} carro{carros.length !== 1 ? 's' : ''} comercia{carros.length !== 1 ? 'is' : 'l'}</span>
+                <span style={{ fontSize: 13, color: '#94A3B8' }}>{visitasMapa.length} visitas · {carros.length} carro{carros.length !== 1 ? 's' : ''}</span>
                 <div style={{ flex: 1 }} />
                 {isAdmin && (
                   <button onClick={() => setShowVincular(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 10, background: 'linear-gradient(135deg, #dc2626, #991b1b)', color: '#fff', border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-                    <Link2 size={15} /> Carros
+                    <Car size={15} /> Carros
                   </button>
                 )}
               </div>
 
+              {carrosErro && (
+                <div style={{ marginBottom: 12, padding: '10px 14px', borderRadius: 10, background: '#FEF2F2', border: '1px solid #FECACA', color: '#991B1B', fontSize: 13, fontWeight: 600 }}>
+                  ⚠️ Carros não carregaram: {carrosErro}
+                  {/categoria|column|schema|comercial_veiculos/i.test(carrosErro) && (
+                    <div style={{ fontWeight: 500, marginTop: 4, fontSize: 12 }}>
+                      Provável SQL pendente — rode <b>sql/alter-comercial-veiculos-categoria.sql</b> no Supabase (com <b>NOTIFY pgrst, &apos;reload schema&apos;</b>).
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Lista de vínculos (admin) */}
               {isAdmin && carros.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
                   {carros.map((c: any) => (
                     <div key={c.placa} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderRadius: 10, background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)' }}>
                       <Car size={15} color="#dc2626" />
@@ -302,9 +314,8 @@ export default function SupervisorVendasPage() {
                 </div>
               )}
 
-              {/* Mapa de rotas dos carros */}
-              <div style={{ width: '100%', height: 'calc(100vh - 320px)', minHeight: 420, borderRadius: 14, overflow: 'hidden', border: '1px solid var(--portal-border)' }}>
-                <MapaCarros carros={carros} />
+              <div id="supervisor-mapa" style={{ width: '100%', height: 'calc(100vh - 300px)', minHeight: 440, borderRadius: 14, overflow: 'hidden', border: '1px solid var(--portal-border)' }}>
+                <MapaCarros carros={carros} visitas={visitasMapa} tipoCores={tipoCores} fmtVisita={fmtData} onVisitaClick={(v: any) => setVisitaSelecionada(v)} />
               </div>
             </div>
           )}
