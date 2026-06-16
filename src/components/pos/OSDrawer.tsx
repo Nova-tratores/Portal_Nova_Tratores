@@ -365,28 +365,32 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   const enviarParaOmie = useCallback(async () => {
     if (!osId) return;
     if (!confirm(servicoInterno
-      ? "Gerar remessa desta ordem interna no Omie? (só as peças, como remessa)"
+      ? "Concluir esta ordem interna?\n\n• A OS NÃO vai para o Omie.\n• Se houver peças, a remessa delas é gerada no Omie."
       : "Deseja enviar esta OS para o Omie?")) return;
     setEnviandoOmie(true);
     try {
       const res = await fetch(`/api/pos/ordens/${osId}/omie`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userName }) });
       const result = await res.json();
       if (result.sucesso) {
-        let msg = servicoInterno
-          ? `Remessa gerada no Omie!\nNº Omie: ${result.cNumOS}`
-          : `OS enviada para o Omie com sucesso!\nNº Omie: ${result.cNumOS}`;
-        if (result.pedidoVenda) msg += `\nPedido de Venda nº ${result.pedidoVenda}`;
-        if (result.pedidoVendaErro) msg += `\nErro no Pedido de Venda: ${result.pedidoVendaErro}`;
+        let msg: string;
+        if (result.interna) {
+          msg = "Ordem interna concluída!";
+          msg += result.cNumOS ? `\nRemessa de peças no Omie nº ${result.cNumOS}` : "\n(sem peças — nenhuma remessa gerada)";
+        } else {
+          msg = `OS enviada para o Omie com sucesso!\nNº Omie: ${result.cNumOS}`;
+          if (result.pedidoVenda) msg += `\nPedido de Venda nº ${result.pedidoVenda}`;
+        }
+        if (result.pedidoVendaErro) msg += `\nErro na remessa de peças: ${result.pedidoVendaErro}`;
         alert(msg);
-        setOrdemOmie(String(result.nCodOS));
+        if (result.cNumOS) setOrdemOmie(String(result.cNumOS));
         setStatus("Concluída");
         setLogRefreshKey((k) => k + 1);
         onSaved?.();
       } else {
-        alert(`Erro ao enviar para o Omie:\n${result.erro}`);
+        alert(`Erro ao ${servicoInterno ? "concluir a ordem interna" : "enviar para o Omie"}:\n${result.erro}`);
       }
     } catch (err) {
-      alert("Erro de conexão ao enviar para o Omie.");
+      alert(`Erro de conexão ao ${servicoInterno ? "concluir a ordem" : "enviar para o Omie"}.`);
       console.error(err);
     }
     setEnviandoOmie(false);
@@ -595,7 +599,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                         });
                       }
                     }}>
-                      <i className="fas fa-print" /> Imprimir
+                      <i className="fas fa-print" /> {servicoInterno ? "Comprovante" : "Imprimir"}
                     </button>
                     <button className="os-btn-ghost" onClick={() => setShowLogs(!showLogs)}>
                       <i className="fas fa-history" /> Log
@@ -801,13 +805,13 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                           )}
                         </div>
                       )}
-                      {!ordemOmie && (
+                      {!ordemOmie && !(servicoInterno && status === "Concluída") && (
                         <button className="os-btn-omie" onClick={enviarParaOmie} disabled={enviandoOmie}
                           style={servicoInterno ? { background: '#7C3AED' } : undefined}>
                           {enviandoOmie ? (
-                            <><div className="spinner-inner" style={S_SPINNER_OMIE} /> {servicoInterno ? 'Gerando remessa...' : 'Enviando...'}</>
+                            <><div className="spinner-inner" style={S_SPINNER_OMIE} /> {servicoInterno ? 'Concluindo...' : 'Enviando...'}</>
                           ) : servicoInterno ? (
-                            <><i className="fas fa-dolly" /> Gerar Remessa</>
+                            <><i className="fas fa-clipboard-check" /> Concluir Ordem Interna</>
                           ) : (
                             <><i className="fas fa-cloud-upload-alt" /> Enviar para Omie</>
                           )}
@@ -816,6 +820,11 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                       {ordemOmie && (
                         <div className="os-omie-badge">
                           <i className="fas fa-check-circle" /> {servicoInterno ? 'Remessa gerada' : 'Enviado para Omie'} (ID: {ordemOmie})
+                        </div>
+                      )}
+                      {!ordemOmie && servicoInterno && status === "Concluída" && (
+                        <div className="os-omie-badge" style={{ background: '#F3E8FF', color: '#6D28D9', borderColor: '#C4B5FD' }}>
+                          <i className="fas fa-check-circle" /> Ordem interna concluída (sem peças)
                         </div>
                       )}
                     </div>

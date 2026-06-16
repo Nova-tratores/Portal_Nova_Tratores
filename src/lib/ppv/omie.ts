@@ -51,9 +51,11 @@ interface OmieAccount {
   key: string;
   secret: string;
   codCC?: number; // codigo_conta_corrente (específico por conta)
+  cenarioRemessa?: number; // codigo_cenario_impostos da operação de Remessa (não fatura)
 }
 
 const OMIE_ACCOUNTS: OmieAccount[] = [
+  // cenarioRemessa: preencher com o código do Cenário Fiscal de "Remessa" de cada conta no Omie
   { name: "Nova Tratores", key: "2729522270475", secret: "113d785bb86c48d064889d4d73348131", codCC: 1969919780 },
   { name: "Castro Peças", key: "2730028269969", secret: "dc270bf5348b40d3ed1398ef70beb628", codCC: 5335855842 },
 ];
@@ -413,8 +415,11 @@ export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: bool
     // Projeto (copiado da OS) → código do projeto no Omie
     const nCodProj = await buscarNcodProj(String(detalhes.projeto || ""), acc.key, acc.secret);
 
-    // Cria Pedido de Venda ou Remessa (serviço interno)
+    // Remessa e Pedido de Venda ficam AMBOS na área de Pedidos do Omie (IncluirPedido).
+    // A diferença é só o Cenário Fiscal: a remessa usa um cenário de remessa (não fatura).
     const prefixoIntegracao = isRemessa ? `RM-${idPPV}` : `PV-${idPPV}`;
+    const tipoLabel = isRemessa ? "Remessa" : "Pedido de Venda";
+
     const payload = {
       cabecalho: {
         codigo_pedido_integracao: prefixoIntegracao,
@@ -422,6 +427,8 @@ export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: bool
         data_previsao: formatarDataOmie(),
         etapa: "10",
         quantidade_itens: det.length,
+        // Cenário fiscal de remessa (não fatura) — configurado por conta
+        ...(isRemessa && acc.cenarioRemessa ? { codigo_cenario_impostos: acc.cenarioRemessa } : {}),
       },
       informacoes_adicionais: {
         codigo_categoria: OMIE_COD_CATEG_VENDA,
@@ -433,19 +440,15 @@ export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: bool
       det,
     };
 
-    const endpoint = isRemessa ? "/produtos/remessa/" : "/produtos/pedido/";
-    const call = isRemessa ? "IncluirRemessa" : "IncluirPedido";
-    const tipoLabel = isRemessa ? "Remessa" : "Pedido de Venda";
-
-    const resposta = await omieCall<{ numero_pedido?: string; codigo_pedido?: number; nCodRemessa?: number; cCodIntRemessa?: string }>(
-      endpoint,
-      call,
+    const resposta = await omieCall<{ numero_pedido?: string; codigo_pedido?: number }>(
+      "/produtos/pedido/",
+      "IncluirPedido",
       payload as unknown as Record<string, unknown>,
       acc.key,
       acc.secret
     );
 
-    const numPedido = resposta.numero_pedido || String(resposta.codigo_pedido || resposta.nCodRemessa || "");
+    const numPedido = (resposta.numero_pedido || String(resposta.codigo_pedido || "")).trim();
     console.log(`[Omie PPV] ${idPPV} → ${tipoLabel} nº ${numPedido} (${acc.name})`);
 
     // Atualiza PPV: salva pedido_omie + muda status para Fechado

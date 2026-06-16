@@ -16,9 +16,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const agora = new Date();
     const dataFmt = new Intl.DateTimeFormat("pt-BR").format(agora);
     const horaFmt = agora.toLocaleTimeString("pt-BR");
-    const acaoParts = [`OS enviada para Omie (nº ${result.cNumOS})`];
+    const acaoParts = [
+      result.interna
+        ? `Ordem interna concluída${result.cNumOS ? ` (remessa de peças nº ${result.cNumOS})` : " (sem peças)"}`
+        : `OS enviada para Omie (nº ${result.cNumOS})`,
+    ];
     if (result.pedidoVenda) acaoParts.push(`PV nº ${result.pedidoVenda}`);
-    if (result.pedidoVendaErro) acaoParts.push(`Erro PV: ${result.pedidoVendaErro}`);
+    if (result.pedidoVendaErro) acaoParts.push(`Erro remessa: ${result.pedidoVendaErro}`);
 
     // Move para Concluída automaticamente
     await supabase.from(TBL_OS).update({ Status: "Concluída" }).eq("Id_Ordem", idOs);
@@ -44,11 +48,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
 
     await logAndNotify({
-      userName, sistema: "pos", acao: "enviar_omie",
+      userName, sistema: "pos", acao: result.interna ? "concluir_interna" : "enviar_omie",
       entidade: "ordem_servico", entidadeId: idOs, entidadeLabel: `OS ${idOs}`,
-      detalhes: { cNumOS: result.cNumOS, pedidoVenda: result.pedidoVenda },
-      notifTitulo: `OS ${idOs} enviada para Omie`,
-      notifDescricao: `${userName} enviou OS ${idOs} para Omie (nº ${result.cNumOS})`,
+      detalhes: { cNumOS: result.cNumOS, pedidoVenda: result.pedidoVenda, interna: result.interna },
+      notifTitulo: result.interna ? `Ordem interna ${idOs} concluída` : `OS ${idOs} enviada para Omie`,
+      notifDescricao: result.interna
+        ? `${userName} concluiu a ordem interna ${idOs}${result.cNumOS ? ` (remessa de peças nº ${result.cNumOS})` : ""}`
+        : `${userName} enviou OS ${idOs} para Omie (nº ${result.cNumOS})`,
       notifLink: `/pos?id=${idOs}`,
     });
   }
