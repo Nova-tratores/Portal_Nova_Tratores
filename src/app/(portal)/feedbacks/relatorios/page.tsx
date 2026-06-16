@@ -10,10 +10,11 @@ interface StatsAtendDet {
   atendente: string;
   hoje: number;
   ontem: number;
-  sete: number;      // contatos nos últimos 7 dias
-  respondeu: number; // dos últimos 7 dias: status_atendimento concluído
-  positiva: number;
-  negativa: number;
+  sete: number;         // contatos nos últimos 7 dias
+  respondeu: number;    // dos últimos 7 dias: status_atendimento concluído
+  positiva: number;     // só CRM (satisfação)
+  negativa: number;     // só CRM (satisfação)
+  gerouServico: number; // 7 dias: atendimentos com "serviço confirmado" preenchido
 }
 
 interface StatsTecnico {
@@ -203,17 +204,19 @@ export default function RelatoriosPage() {
       const d = dataAt(r);
       if (!d) continue;
       let s = map.get(r.atendente_nome);
-      if (!s) { s = { atendente: r.atendente_nome, hoje: 0, ontem: 0, sete: 0, respondeu: 0, positiva: 0, negativa: 0 }; map.set(r.atendente_nome, s); }
+      if (!s) { s = { atendente: r.atendente_nome, hoje: 0, ontem: 0, sete: 0, respondeu: 0, positiva: 0, negativa: 0, gerouServico: 0 }; map.set(r.atendente_nome, s); }
       if (d === hojeStr) s.hoje++;
       if (d === ontemStr) s.ontem++;
       if (d >= seteStr) {
         s.sete++;
+        if ((r.revisao_confirmada || "").trim().length > 0) s.gerouServico++;
         if (r.status_atendimento === "concluido") {
           s.respondeu++;
-          const pos = r.status_cliente === "Satisfeito" || r.nps === "Sim" || (r.revisao_confirmada || "").trim().length > 0;
-          const neg = r.status_cliente === "Insatisfeito" || r.nps === "Não";
-          if (pos) s.positiva++;
-          else if (neg) s.negativa++;
+          // Positiva/negativa = satisfação, só faz sentido no CRM (feedback do serviço).
+          if (r.tipo === "crm") {
+            if (r.status_cliente === "Satisfeito" || r.nps === "Sim") s.positiva++;
+            else if (r.status_cliente === "Insatisfeito" || r.nps === "Não") s.negativa++;
+          }
         }
       }
     }
@@ -221,10 +224,10 @@ export default function RelatoriosPage() {
   }, [registros, fonte]);
 
   function baixarCSVAtendentes() {
-    const headers = ["atendente", "contatos_hoje", "contatos_ontem", "contatos_7d", "respondeu_7d", "positiva_7d", "negativa_7d"];
+    const headers = ["atendente", "contatos_hoje", "contatos_ontem", "contatos_7d", "respondeu_7d", "positiva_crm_7d", "negativa_crm_7d", "gerou_servico_7d", "nao_gerou_7d"];
     const linhas = [headers.join(",")];
     for (const s of statsAtendenteDet) {
-      linhas.push([escapeCSV(s.atendente), s.hoje, s.ontem, s.sete, s.respondeu, s.positiva, s.negativa].join(","));
+      linhas.push([escapeCSV(s.atendente), s.hoje, s.ontem, s.sete, s.respondeu, s.positiva, s.negativa, s.gerouServico, s.sete - s.gerouServico].join(","));
     }
     const csv = "﻿" + linhas.join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
@@ -461,12 +464,17 @@ export default function RelatoriosPage() {
                     </div>
                     <div style={{ borderTop: "1px dashed var(--portal-border)", margin: "12px 0 0", paddingTop: 10 }}>
                       <div style={{ fontSize: 10, fontWeight: 700, color: "var(--portal-text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8, textAlign: "center" }}>
-                        Respostas (últimos 7 dias)
+                        Últimos 7 dias
+                      </div>
+                      <div style={{ display: "flex", gap: 6, justifyContent: "center", flexWrap: "wrap", marginBottom: 8 }}>
+                        <PillResp bg="#dbeafe" fg="#1e40af">✅ {s.respondeu} respondeu</PillResp>
+                        <PillResp bg="#e0f2fe" fg="#075985">🔧 {s.gerouServico} gerou serviço</PillResp>
+                        <PillResp bg="#f3f4f6" fg="#525252">↩ {s.sete - s.gerouServico} não gerou</PillResp>
                       </div>
                       <div style={{ display: "flex", gap: 6, justifyContent: "center", flexWrap: "wrap" }}>
-                        <PillResp bg="#dbeafe" fg="#1e40af">✅ {s.respondeu} respondeu</PillResp>
                         <PillResp bg="#d1fae5" fg="#065f46">😊 {s.positiva} positiva</PillResp>
                         <PillResp bg="#fee2e2" fg="#991b1b">😞 {s.negativa} negativa</PillResp>
+                        <span style={{ fontSize: 9, color: "var(--portal-text-muted)", alignSelf: "center" }}>(satisfação CRM)</span>
                       </div>
                       <div style={{ fontSize: 11, color: "var(--portal-text-secondary)", marginTop: 8, textAlign: "center" }}>
                         Taxa de resposta: <strong>{taxa}%</strong>

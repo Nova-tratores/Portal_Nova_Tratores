@@ -10,7 +10,7 @@ interface Tab {
 const TABS: Tab[] = [
   { href: "/feedbacks/crm",            label: "CRM" },
   { href: "/feedbacks/rfm",            label: "RFM" },
-  { href: "/feedbacks/clientes",       label: "Clientes" },
+  { href: "/feedbacks/clientes",       label: "Histórico de atendimentos" },
   { href: "/feedbacks/relatorios",     label: "Relatórios" },
   { href: "/feedbacks/agenda",         label: "Agenda" },
   { href: "/feedbacks/oportunidades",  label: "Oportunidades" },
