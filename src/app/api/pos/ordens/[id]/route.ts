@@ -283,6 +283,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   // Servico_Interno via RPC (bypassa schema cache do PostgREST)
   await supabase.rpc('set_servico_interno', { p_id_ordem: idOs, p_valor: !!dados.servicoInterno });
+  // OS interna → PPVs vinculados viram Remessa automaticamente
+  if (dados.servicoInterno) {
+    await supabase.from("pedidos").update({ Tipo_Pedido: "Remessa" }).eq("Id_Os", idOs);
+  }
 
   // Se a OS acabou de ser concluída, registra a despesa de alimentação como Requisicao (fluxo padrão)
   if (dados.status === "Concluída") {

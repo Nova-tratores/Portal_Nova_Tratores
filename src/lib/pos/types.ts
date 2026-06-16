@@ -64,6 +64,7 @@ export interface KanbanCard {
   reqInfo: ReqResumo[];
   relTecnico: string;
   pendenciaMahindra?: PendenciaMahindra | null;
+  servicoInterno: boolean;
 }
 
 export interface ClienteOption {

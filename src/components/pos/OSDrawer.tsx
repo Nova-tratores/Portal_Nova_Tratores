@@ -115,6 +115,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   const [gerarPPV, setGerarPPV] = useState(false);
   const [servicoOficina, setServicoOficina] = useState(false);
   const [servicoInterno, setServicoInterno] = useState(false);
+  const internoOriginalRef = useRef(false);
   const [alimentacoes, setAlimentacoes] = useState<AlimentacaoItem[]>([]);
   const [enviandoOmie, setEnviandoOmie] = useState(false);
   const [showDescontos, setShowDescontos] = useState(false);
@@ -322,6 +323,21 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
     }
   }, []);
 
+  const concluirLembrete = useCallback(async (id: number) => {
+    if (!osId) { alert("Salve a OS antes de concluir o lembrete."); return; }
+    if (!confirm(`Concluir este lembrete e registrar que foi resolvido na OS ${osId}?`)) return;
+    try {
+      await fetch(`/api/pos/lembretes/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ concluido: true, concluido_por: userName, concluido_em_ordem: String(osId) }),
+      });
+      setLembretes((prev) => prev.filter((l) => l.id !== id));
+    } catch {
+      alert("Erro ao concluir lembrete.");
+    }
+  }, [osId, userName]);
+
   const selectCliente = useCallback(async (chave: string) => {
     setClienteChave(chave);
     if (!chave) return;
@@ -348,13 +364,17 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
 
   const enviarParaOmie = useCallback(async () => {
     if (!osId) return;
-    if (!confirm("Deseja enviar esta OS para o Omie?")) return;
+    if (!confirm(servicoInterno
+      ? "Gerar remessa desta ordem interna no Omie? (só as peças, como remessa)"
+      : "Deseja enviar esta OS para o Omie?")) return;
     setEnviandoOmie(true);
     try {
       const res = await fetch(`/api/pos/ordens/${osId}/omie`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userName }) });
       const result = await res.json();
       if (result.sucesso) {
-        let msg = `OS enviada para o Omie com sucesso!\nNº Omie: ${result.cNumOS}`;
+        let msg = servicoInterno
+          ? `Remessa gerada no Omie!\nNº Omie: ${result.cNumOS}`
+          : `OS enviada para o Omie com sucesso!\nNº Omie: ${result.cNumOS}`;
         if (result.pedidoVenda) msg += `\nPedido de Venda nº ${result.pedidoVenda}`;
         if (result.pedidoVendaErro) msg += `\nErro no Pedido de Venda: ${result.pedidoVendaErro}`;
         alert(msg);
@@ -370,7 +390,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
       console.error(err);
     }
     setEnviandoOmie(false);
-  }, [osId, onSaved]);
+  }, [osId, onSaved, servicoInterno, userName]);
 
   const salvar = useCallback(async () => {
     if (mode === "create" && !clienteChave) { alert("Selecione o Cliente"); return; }
@@ -415,6 +435,12 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
       }
       setSaving(false);
       setLogRefreshKey((k) => k + 1);
+      // Avisa quando a ordem muda de externa↔interna (ela migra de aba no kanban)
+      if (mode === "edit" && servicoInterno !== internoOriginalRef.current) {
+        alert(servicoInterno
+          ? "Ordem marcada como INTERNA — movida para a aba \"Internas\"."
+          : "Ordem voltou a ser EXTERNA — movida para a aba \"Externas\".");
+      }
       onClose();
       onSaved();
     } catch (err) {
@@ -502,6 +528,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
           setRequisicoes(d.infoRequisicoes || []);
           setServicoOficina(!!d.servicoOficina);
           setServicoInterno(!!d.servicoInterno);
+          internoOriginalRef.current = !!d.servicoInterno;
           // Alimentações: usa o array novo; se vazio mas houver valor antigo, migra p/ 1 linha
           if (Array.isArray(d.alimentacoes) && d.alimentacoes.length > 0) {
             setAlimentacoes(d.alimentacoes.map((a: any) => ({
@@ -677,22 +704,23 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                             Endereço será salvo como: Nova Tratores - Piraju (SP)
                           </div>
                         )}
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, color: servicoInterno ? '#1E3A5F' : 'var(--portal-text-secondary)' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, cursor: 'pointer', padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${servicoInterno ? '#7C3AED' : 'var(--portal-border)'}`, background: servicoInterno ? '#F3E8FF' : 'var(--portal-bg-secondary)' }}>
                           <input
                             type="checkbox"
                             checked={servicoInterno}
                             onChange={(e) => setServicoInterno(e.target.checked)}
-                            style={{ width: 16, height: 16, accentColor: '#1E3A5F' }}
+                            style={{ width: 18, height: 18, accentColor: '#7C3AED', flexShrink: 0 }}
                           />
-                          <i className="fas fa-tools" style={{ fontSize: 14 }} />
-                          Serviço interno
+                          <i className="fas fa-tools" style={{ fontSize: 15, color: servicoInterno ? '#7C3AED' : 'var(--portal-text-secondary)', flexShrink: 0 }} />
+                          <span style={{ fontSize: 13.5, fontWeight: 700, color: servicoInterno ? '#6D28D9' : 'var(--portal-text)' }}>
+                            Ordem interna
+                            <span style={{ display: 'block', fontSize: 11, fontWeight: 500, color: servicoInterno ? '#7C3AED' : 'var(--portal-text-secondary)', marginTop: 2 }}>
+                              {servicoInterno
+                                ? 'Não vai pro Omie — fica na aba Internas (peças só por remessa).'
+                                : 'Marque pra tratar como interna (vai pra aba Internas e não envia ao Omie).'}
+                            </span>
+                          </span>
                         </label>
-                        {servicoInterno && (
-                          <div style={{ fontSize: 11, color: '#1E3A5F', marginTop: 4, background: '#DBEAFE', padding: '4px 8px', borderRadius: 4 }}>
-                            <i className="fas fa-info-circle" style={{ marginRight: 4 }} />
-                            Peças serão enviadas como Remessa no Omie (sem pedido de venda)
-                          </div>
-                        )}
                       </div>
                     )}
                   </div>
@@ -719,9 +747,16 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                       ) : (
                         <>
                           <div className="os-lembrete-alert-text">{l.lembrete}</div>
-                          <button className="os-lembrete-edit-btn" onClick={() => { setEditingLembreteId(l.id); setEditingLembreteText(l.lembrete); }}>
-                            <i className="fas fa-pen" style={{ marginRight: 4 }} /> Editar
-                          </button>
+                          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                            <button className="os-lembrete-edit-btn" onClick={() => { setEditingLembreteId(l.id); setEditingLembreteText(l.lembrete); }}>
+                              <i className="fas fa-pen" style={{ marginRight: 4 }} /> Editar
+                            </button>
+                            {osId && (
+                              <button className="os-lembrete-edit-btn" style={{ background: "#10B981", color: "#fff", borderColor: "#10B981" }} onClick={() => concluirLembrete(l.id)}>
+                                <i className="fas fa-check" style={{ marginRight: 4 }} /> Concluir
+                              </button>
+                            )}
+                          </div>
                         </>
                       )}
                     </div>
@@ -767,9 +802,12 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                         </div>
                       )}
                       {!ordemOmie && (
-                        <button className="os-btn-omie" onClick={enviarParaOmie} disabled={enviandoOmie}>
+                        <button className="os-btn-omie" onClick={enviarParaOmie} disabled={enviandoOmie}
+                          style={servicoInterno ? { background: '#7C3AED' } : undefined}>
                           {enviandoOmie ? (
-                            <><div className="spinner-inner" style={S_SPINNER_OMIE} /> Enviando...</>
+                            <><div className="spinner-inner" style={S_SPINNER_OMIE} /> {servicoInterno ? 'Gerando remessa...' : 'Enviando...'}</>
+                          ) : servicoInterno ? (
+                            <><i className="fas fa-dolly" /> Gerar Remessa</>
                           ) : (
                             <><i className="fas fa-cloud-upload-alt" /> Enviar para Omie</>
                           )}
@@ -777,7 +815,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                       )}
                       {ordemOmie && (
                         <div className="os-omie-badge">
-                          <i className="fas fa-check-circle" /> Enviado para Omie (ID: {ordemOmie})
+                          <i className="fas fa-check-circle" /> {servicoInterno ? 'Remessa gerada' : 'Enviado para Omie'} (ID: {ordemOmie})
                         </div>
                       )}
                     </div>

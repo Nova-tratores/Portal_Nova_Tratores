@@ -15,8 +15,16 @@ export async function GET(req: NextRequest) {
       .from(TBL_CLIENTES)
       .select("cnpj_cpf, nome_fantasia, razao_social, cidade")
       .or(`nome_fantasia.ilike.%${q}%,razao_social.ilike.%${q}%,cnpj_cpf.ilike.%${q}%`)
-      .limit(20);
-    return NextResponse.json(data || []);
+      .limit(60);
+    // Remove duplicados (mesmo CNPJ ou mesmo nome aparecem mais de uma vez na base)
+    const dedup = new Map<string, any>();
+    for (const c of data || []) {
+      const cnpj = String(c.cnpj_cpf || "").replace(/\D/g, "");
+      const nome = (c.nome_fantasia || c.razao_social || "").toLowerCase().trim();
+      const key = cnpj || nome;
+      if (key && !dedup.has(key)) dedup.set(key, c);
+    }
+    return NextResponse.json([...dedup.values()].slice(0, 25));
   }
 
   if (modo === "usuarios") {
@@ -47,36 +55,29 @@ export async function GET(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!entradas || entradas.length === 0) return NextResponse.json([]);
 
-  // Cruzar cada card com OS do POS por TÉCNICO + NOME DO CLIENTE (e CNPJ, quando houver).
+  // Cruzar cada card com OS ABERTAS do POS pelo NOME do cliente (ou CNPJ). Sem exigir técnico.
   const norm = (s: any) => (s ?? "").toString().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]/g, "").trim();
   const soDig = (s: any) => (s ?? "").toString().replace(/\D/g, "");
 
-  const tecnicos = [...new Set(entradas.map((e) => e.tecnico_nome).filter(Boolean))];
-  let ordensPos: any[] = [];
-  if (tecnicos.length > 0) {
-    const { data } = await supabase
-      .from(TBL_OS)
-      .select("Id_Ordem, Servico_Numero, Cnpj_Cliente, Os_Cliente, Os_Tecnico, Status, Data, Serv_Solicitado, Valor_Total, ID_PPV, Previsao_Execucao, Cidade_Cliente")
-      .in("Os_Tecnico", tecnicos)
-      .not("Status", "in", '("Cancelada","cancelada")');
-    ordensPos = data || [];
-  }
+  // Busca todas as OS abertas (não concluídas/canceladas) — cruzamento é feito por nome em JS
+  const { data: osData } = await supabase
+    .from(TBL_OS)
+    .select("Id_Ordem, Servico_Numero, Cnpj_Cliente, Os_Cliente, Os_Tecnico, Status, Data, Serv_Solicitado, Valor_Total, ID_PPV, Previsao_Execucao, Cidade_Cliente")
+    .not("Status", "in", '("Concluída","Concluida","Cancelada","cancelada","Fechado","Fechada")');
+  const ordensPos: any[] = osData || [];
 
   // Enriquecer cada entrada
   const resultado = entradas.map((e) => {
     const isServico = (e.tipo || "servico") === "servico";
-    const tecE = norm(e.tecnico_nome);
     const nomeE = norm(e.cliente_nome);
     const cnpjE = soDig(e.cliente_cnpj);
 
     let matches: any[] = [];
-    if (isServico && tecE && (nomeE || cnpjE)) {
+    if (isServico && (nomeE.length >= 4 || cnpjE)) {
       matches = ordensPos.filter((o) => {
-        const tecO = norm(o.Os_Tecnico);
-        if (!tecO || !(tecO === tecE || tecO.includes(tecE) || tecE.includes(tecO))) return false;
         if (cnpjE && soDig(o.Cnpj_Cliente) === cnpjE) return true;
         const nomeO = norm(o.Os_Cliente);
-        return !!nomeE && !!nomeO && (nomeO.includes(nomeE) || nomeE.includes(nomeO));
+        return nomeE.length >= 4 && !!nomeO && (nomeO.includes(nomeE) || nomeE.includes(nomeO));
       });
     }
 
@@ -94,7 +95,7 @@ export async function GET(req: NextRequest) {
       temPPV: !!o.ID_PPV,
     }));
     const temOsPos = ordens.length > 0;
-    const buscavel = isServico && !!tecE && (!!nomeE || !!cnpjE);
+    const buscavel = isServico && (nomeE.length >= 4 || !!cnpjE);
 
     return {
       ...e,

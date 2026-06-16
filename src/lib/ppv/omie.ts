@@ -4,8 +4,46 @@
 // =============================================
 
 import { supabaseFetch } from "./supabase";
-import { TBL_PEDIDOS, TBL_ITENS, TBL_CLIENTES, TBL_LOGS, TBL_PRODUTOS } from "./constants";
+import { TBL_PEDIDOS, TBL_ITENS, TBL_CLIENTES, TBL_LOGS, TBL_PRODUTOS, TBL_OS } from "./constants";
 import { buscarPPVPorId, registrarLog } from "./queries";
+
+// A OS vinculada é interna? (usado pra mandar o PPV como Remessa automaticamente)
+async function osEhInterna(osId: string): Promise<boolean> {
+  if (!osId) return false;
+  try {
+    const res = await supabaseFetch<Record<string, unknown>[]>(
+      `${TBL_OS}?Id_Ordem=eq.${encodeURIComponent(osId)}&select=Servico_Interno&limit=1`
+    );
+    return !!(res && res.length > 0 && res[0].Servico_Interno);
+  } catch { return false; }
+}
+
+// Lookup do código do projeto no Omie pelo nome (igual ao POS).
+const cacheProjetosPPV = new Map<string, number>();
+async function buscarNcodProj(projeto: string, key: string, secret: string): Promise<number> {
+  const norm = (projeto || "").trim();
+  if (!norm) return 0;
+  const cacheKey = `${key}::${norm}`;
+  if (cacheProjetosPPV.has(cacheKey)) return cacheProjetosPPV.get(cacheKey)!;
+  let pagina = 1;
+  let totalPaginas = 1;
+  while (pagina <= totalPaginas) {
+    try {
+      const result = await omieCall<{ cadastro?: Array<{ codigo: number; nome: string }>; total_de_paginas?: number }>(
+        "/geral/projetos/", "ListarProjetos", { pagina, registros_por_pagina: 50 }, key, secret
+      );
+      if (pagina === 1 && result.total_de_paginas) totalPaginas = result.total_de_paginas;
+      for (const p of result.cadastro || []) {
+        if (p.nome === norm || p.nome.includes(norm) || norm.includes(p.nome)) {
+          cacheProjetosPPV.set(cacheKey, p.codigo);
+          return p.codigo;
+        }
+      }
+    } catch { return 0; }
+    pagina++;
+  }
+  return 0;
+}
 
 // --- Contas Omie ---
 interface OmieAccount {
@@ -229,11 +267,19 @@ async function buscarEmpresasProdutos(codigos: string[]): Promise<Record<string,
 // Agrupa produtos por empresa e cria um pedido por empresa
 // =============================================
 export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: boolean }): Promise<{ sucesso: boolean; numeroPedido?: string; erro?: string }> {
-  const isRemessa = !!opcoes?.remessa;
   // 1. Busca detalhes do PPV
   const detalhes = await buscarPPVPorId(idPPV);
   if (!detalhes) {
     return { sucesso: false, erro: "PPV não encontrado" };
+  }
+
+  // Decide se vai como Remessa: o chamador (POS) pode forçar; senão detecta automático
+  // pelo tipo do pedido (Remessa) ou se a OS vinculada é interna.
+  let isRemessa: boolean;
+  if (opcoes?.remessa !== undefined) {
+    isRemessa = !!opcoes.remessa;
+  } else {
+    isRemessa = detalhes.tipoPedido === "Remessa" || (await osEhInterna(detalhes.osId));
   }
 
   // 2. Validações — permite faturar em qualquer status (igual ao card do POS)
@@ -364,6 +410,9 @@ export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: bool
       });
     }
 
+    // Projeto (copiado da OS) → código do projeto no Omie
+    const nCodProj = await buscarNcodProj(String(detalhes.projeto || ""), acc.key, acc.secret);
+
     // Cria Pedido de Venda ou Remessa (serviço interno)
     const prefixoIntegracao = isRemessa ? `RM-${idPPV}` : `PV-${idPPV}`;
     const payload = {
@@ -379,6 +428,7 @@ export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: bool
         ...(acc.codCC ? { codigo_conta_corrente: acc.codCC } : {}),
         codVend: nCodVend || undefined,
         numero_contrato: idPPV,
+        ...(nCodProj ? { codigo_projeto: nCodProj } : {}),
       },
       det,
     };

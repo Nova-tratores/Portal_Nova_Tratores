@@ -1,38 +1,31 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
-import type { KanbanItem } from "@/lib/ppv/types";
-import { normalizarStatus } from "@/lib/ppv/utils";
-import { PHASES, PHASE_COLORS, PHASE_SHORT } from "./PhaseView";
+import { useState, useRef, useEffect } from "react";
 
 interface HeaderProps {
   searchFilter: string;
   onSearchChange: (value: string) => void;
-  statusFilter: string;
-  onStatusFilterChange: (value: string) => void;
+  tipoFilter: string;
+  onTipoFilterChange: (value: string) => void;
   tecnicoFilter: string;
   onTecnicoFilterChange: (value: string) => void;
   tecnicos: string[];
   clienteFilter: string;
   onClienteFilterChange: (value: string) => void;
   clientes: string[];
-  orders: KanbanItem[];
-  activePhase: string;
-  onPhaseChange: (phase: string) => void;
 }
 
-const STATUS_PILLS = [
-  { value: "ATIVOS", label: "Ativos", icon: "fa-circle-check", color: "#047857" },
-  { value: "FECHADOS", label: "Fechados", icon: "fa-archive", color: "#64748B" },
-  { value: "TODOS", label: "Todos", icon: "fa-layer-group", color: "#8B5CF6" },
+const TIPO_TABS = [
+  { value: "TODOS", label: "Todos", icon: "fa-layer-group" },
+  { value: "PEDIDO", label: "Pedido de Venda", icon: "fa-file-invoice-dollar" },
+  { value: "REMESSA", label: "Remessa", icon: "fa-dolly" },
 ];
 
 export default function Header({
   searchFilter, onSearchChange,
-  statusFilter, onStatusFilterChange,
+  tipoFilter, onTipoFilterChange,
   tecnicoFilter, onTecnicoFilterChange, tecnicos,
   clienteFilter, onClienteFilterChange, clientes,
-  orders, activePhase, onPhaseChange,
 }: HeaderProps) {
   const [clienteSearch, setClienteSearch] = useState("");
   const [clienteDropdownOpen, setClienteDropdownOpen] = useState(false);
@@ -42,16 +35,7 @@ export default function Header({
     ? clientes.filter((c) => c.toLowerCase().includes(clienteSearch.toLowerCase()))
     : clientes;
 
-  const hasActiveFilters = tecnicoFilter || clienteFilter || statusFilter !== "ATIVOS" || activePhase;
-
-  const counts = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const o of orders) {
-      const norm = normalizarStatus(o.status);
-      map[norm] = (map[norm] || 0) + 1;
-    }
-    return map;
-  }, [orders]);
+  const hasActiveFilters = tecnicoFilter || clienteFilter || (tipoFilter && tipoFilter !== "TODOS");
 
   useEffect(() => {
     if (!clienteDropdownOpen) return;
@@ -66,10 +50,9 @@ export default function Header({
 
   function clearAllFilters() {
     onSearchChange("");
-    onStatusFilterChange("ATIVOS");
+    onTipoFilterChange("TODOS");
     onTecnicoFilterChange("");
     onClienteFilterChange("");
-    onPhaseChange("");
     setClienteSearch("");
   }
 
@@ -79,8 +62,7 @@ export default function Header({
       borderBottom: "1px solid var(--ppv-border-light)",
       flexShrink: 0, display: "flex", flexDirection: "column", gap: 8,
     }}>
-      {/* Linha 1: Busca + Status pills + Phase pills */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         {/* Busca */}
         <div style={{ position: "relative", width: 260 }}>
           <i className="fas fa-search" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--ppv-accent)", fontSize: 13 }} />
@@ -104,65 +86,21 @@ export default function Header({
           )}
         </div>
 
-        {/* Divider */}
-        <div style={{ width: 1, height: 24, background: "var(--ppv-border-light)" }} />
-
-        {/* Status pills */}
-        <div style={{ display: "flex", gap: 3 }}>
-          {STATUS_PILLS.map((s) => {
-            const active = statusFilter === s.value;
+        {/* Abas boxed: Pedido de Venda / Remessa */}
+        <div style={{ display: "flex", gap: 4, background: "#f1f5f9", padding: 4, borderRadius: 10 }}>
+          {TIPO_TABS.map((t) => {
+            const active = (tipoFilter || "TODOS") === t.value;
             return (
-              <button key={s.value} onClick={() => onStatusFilterChange(s.value)} style={{
-                padding: "6px 12px", borderRadius: 20,
-                border: active ? `1.5px solid ${s.color}` : "1.5px solid var(--ppv-border-light)",
-                background: active ? s.color : "white",
-                color: active ? "white" : "var(--ppv-text-light)",
-                fontSize: 11, fontWeight: 700, cursor: "pointer",
-                fontFamily: "'Poppins', sans-serif",
-                display: "flex", alignItems: "center", gap: 5, transition: "all 0.15s",
+              <button key={t.value} onClick={() => onTipoFilterChange(t.value)} style={{
+                display: "flex", alignItems: "center", gap: 6, padding: "7px 16px", borderRadius: 8,
+                border: active ? "1.5px solid var(--ppv-primary, #B91C1C)" : "1.5px solid transparent",
+                background: active ? "#fff" : "transparent",
+                color: active ? "#111827" : "var(--ppv-text-light)",
+                fontWeight: 700, fontSize: 12, cursor: "pointer",
+                boxShadow: active ? "0 1px 3px rgba(0,0,0,0.12)" : "none",
+                fontFamily: "'Poppins', sans-serif", transition: "all 0.15s",
               }}>
-                <i className={`fas ${s.icon}`} style={{ fontSize: 10 }} />
-                {s.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Divider */}
-        <div style={{ width: 1, height: 24, background: "var(--ppv-border-light)" }} />
-
-        {/* Phase pills */}
-        <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
-          <button
-            onClick={() => onPhaseChange("")}
-            style={{
-              padding: "6px 12px", borderRadius: 20,
-              border: !activePhase ? "1.5px solid #334155" : "1.5px solid var(--ppv-border-light)",
-              background: !activePhase ? "#334155" : "white",
-              color: !activePhase ? "white" : "var(--ppv-text-light)",
-              fontSize: 11, fontWeight: 700, cursor: "pointer",
-              fontFamily: "'Poppins', sans-serif",
-              display: "flex", alignItems: "center", gap: 5, transition: "all 0.15s",
-            }}
-          >
-            Todas <span style={{ background: !activePhase ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.08)", padding: "1px 7px", borderRadius: 8, fontSize: 10, fontWeight: 700 }}>{orders.length}</span>
-          </button>
-          {PHASES.map((phase) => {
-            const active = activePhase === phase;
-            const color = PHASE_COLORS[phase] || "#64748B";
-            return (
-              <button key={phase} onClick={() => onPhaseChange(active ? "" : phase)} style={{
-                padding: "6px 12px", borderRadius: 20,
-                border: active ? `1.5px solid ${color}` : "1.5px solid var(--ppv-border-light)",
-                background: active ? color : "white",
-                color: active ? "white" : "var(--ppv-text-light)",
-                fontSize: 11, fontWeight: 700, cursor: "pointer",
-                fontFamily: "'Poppins', sans-serif",
-                display: "flex", alignItems: "center", gap: 5, transition: "all 0.15s",
-              }}>
-                <span style={{ width: 7, height: 7, borderRadius: "50%", background: active ? "rgba(255,255,255,0.5)" : color, flexShrink: 0 }} />
-                {PHASE_SHORT[phase] || phase}
-                <span style={{ background: active ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.08)", padding: "1px 7px", borderRadius: 8, fontSize: 10, fontWeight: 700 }}>{counts[phase] || 0}</span>
+                <i className={`fas ${t.icon}`} style={{ fontSize: 11 }} /> {t.label}
               </button>
             );
           })}
@@ -170,7 +108,7 @@ export default function Header({
 
         <div style={{ flex: 1 }} />
 
-        {/* Filtros Técnico + Cliente */}
+        {/* Filtro Técnico */}
         <div style={{ position: "relative" }}>
           <select value={tecnicoFilter} onChange={(e) => onTecnicoFilterChange(e.target.value)} style={{
             padding: "7px 28px 7px 30px", borderRadius: 10,
@@ -188,6 +126,7 @@ export default function Header({
           <i className="fas fa-chevron-down" style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 8, color: "var(--ppv-text-light)", pointerEvents: "none" }} />
         </div>
 
+        {/* Filtro Cliente */}
         <div style={{ position: "relative" }} ref={dropdownRef}>
           <div style={{
             display: "flex", alignItems: "center",
@@ -216,7 +155,7 @@ export default function Header({
           </div>
           {clienteDropdownOpen && clientesFiltrados.length > 0 && (
             <div style={{
-              position: "absolute", left: 0, top: "calc(100% + 4px)", zIndex: 50,
+              position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 50,
               maxHeight: 260, width: 300, overflowY: "auto",
               borderRadius: 10, border: "1px solid var(--ppv-border-light)",
               background: "white", boxShadow: "0 8px 24px rgba(0,0,0,0.1)",

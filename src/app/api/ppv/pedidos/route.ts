@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseFetch, getValorInsensivel, formatarDataBR } from "@/lib/ppv/supabase";
-import { TBL_PEDIDOS, TBL_ITENS, TBL_LOGS } from "@/lib/ppv/constants";
+import { TBL_PEDIDOS, TBL_ITENS, TBL_LOGS, TBL_OS } from "@/lib/ppv/constants";
+
+// Sempre que houver OS vinculada com projeto, o PPV copia o projeto da OS.
+async function projetoDaOS(osId: string): Promise<string> {
+  if (!osId) return "";
+  try {
+    const os = await supabaseFetch<Record<string, unknown>[]>(
+      `${TBL_OS}?Id_Ordem=eq.${encodeURIComponent(osId)}&select=Projeto&limit=1`
+    );
+    return os && os.length ? String(getValorInsensivel(os[0], "Projeto") || "") : "";
+  } catch { return ""; }
+}
 import { buscarPPVPorId, atualizarValorTotal, registrarLog, vincularPPVnaOS, gerarProximoId, sincronizarStatusComOS } from "@/lib/ppv/queries";
 import { criarPedidoSchema, editarPedidoSchema } from "@/lib/ppv/schemas";
 import { logAndNotify } from "@/lib/server/audit-notify";
@@ -77,6 +88,10 @@ export async function POST(req: NextRequest) {
     const prefixo = tipo === "Remessa" ? "REM" : "PPV";
     const finalId = dadosPPV.idExistente || (await gerarProximoId(prefixo));
 
+    // Projeto: o que o usuário informou manda; se vazio e tiver OS, copia da OS.
+    const projetoInformado = (dadosPPV.projeto || "").trim();
+    const projetoFinal = projetoInformado || (await projetoDaOS(dadosPPV.osId)) || "";
+
     const novoDoc: Record<string, unknown> = {
       id_pedido: finalId,
       Tipo_Pedido: tipo,
@@ -88,6 +103,7 @@ export async function POST(req: NextRequest) {
       Motivo_Saida_Pedido: dadosPPV.motivoSaida,
       email_usuario: dadosPPV.userName || "Sistema",
       Id_Os: dadosPPV.osId,
+      Projeto: projetoFinal,
     };
     if (!dadosPPV.idExistente) novoDoc.data = dataFormatada;
 
@@ -156,6 +172,11 @@ export async function PATCH(req: NextRequest) {
     if (dados.motivoCancelamento) payload.motivo_cancelamento = dados.motivoCancelamento;
     if (dados.pedidoOmie) payload.pedido_omie = dados.pedidoOmie;
     if (dados.osId !== undefined) payload.Id_Os = dados.osId;
+    // Projeto: o que veio do form manda; se vazio e tiver OS, copia da OS.
+    if (dados.projeto !== undefined) {
+      const projetoInformado = (dados.projeto || "").trim();
+      payload.Projeto = projetoInformado || (await projetoDaOS(dados.osId)) || "";
+    }
     if (dados.tipoPedido) payload.Tipo_Pedido = dados.tipoPedido;
     if (dados.motivoSaida) payload.Motivo_Saida_Pedido = dados.motivoSaida;
     payload.substituto_tipo = dados.substitutoTipo || null;

@@ -1,18 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buscarPPVPorId, montarDadosParaImpressao, buscarDadosCliente } from "@/lib/ppv/queries";
+import { buscarCaracteristicas } from "@/lib/ppv/caracteristicas";
 
-function gerarHTML(dado: ReturnType<typeof montarDadosParaImpressao>) {
-  const itensHTML = dado.itens.map((p) => `
+function gerarHTML(dado: ReturnType<typeof montarDadosParaImpressao>, caracMap: Record<string, string>) {
+  const itensHTML = dado.itens.map((p) => {
+    const car = caracMap[String(p.codigo)] || "";
+    return `
     <tr>
       <td style="font-weight:600;">${p.codigo}</td>
-      <td>${p.descricao}</td>
+      <td>${p.descricao}${car ? `<div style="font-size:7.5pt;color:#1D4ED8;margin-top:2px;font-weight:600;">${car}</div>` : ""}</td>
       <td style="text-align:center;">${p.saida}</td>
       <td style="text-align:center; color:#C41E2A; font-style:italic; font-weight:700;">${p.devStr}</td>
       <td style="text-align:center; font-weight:700;">${p.ficou}</td>
       <td style="text-align:right;">R$ ${p.unit}</td>
       <td style="text-align:right; font-weight:700;">R$ ${p.total}</td>
     </tr>
-  `).join("");
+  `;
+  }).join("");
 
   const statusLabel = dado.pedidoOmie && dado.pedidoOmie !== "-"
     ? "FECHADO" : "EM ABERTO";
@@ -179,7 +183,12 @@ export async function GET(req: NextRequest) {
     dado.documentoCliente = clienteInfo.documento;
     dado.enderecoCliente = clienteInfo.endereco;
     dado.cidadeCliente = clienteInfo.cidade;
-    const html = gerarHTML(dado);
+
+    // Características dos produtos do pedido (busca no Omie sob demanda + cache)
+    const codigos = dado.itens.map((i) => String(i.codigo));
+    const caracMap = await buscarCaracteristicas(codigos);
+
+    const html = gerarHTML(dado, caracMap);
     return NextResponse.json({ html });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erro desconhecido";

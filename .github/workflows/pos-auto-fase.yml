@@ -1,0 +1,22 @@
+name: POS - Transições automáticas de fase
+
+# Move OS por data: chega a Previsão de Execução → "Execução";
+# passa Previsão de Faturamento + 1 dia → "Aguardando ordem Técnico".
+# Roda no servidor (portal no Railway; crons do vercel.json não executam lá).
+
+on:
+  schedule:
+    - cron: '10 8 * * *'    # 08:10 UTC ≈ 05:10 de Brasília (madrugada)
+  workflow_dispatch: {}      # permite rodar manualmente
+
+jobs:
+  auto-fase:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Disparar transições automáticas
+        run: |
+          curl -fsS --max-time 300 -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/pos/ordens/auto-fase" \
+            -w "\nauto-fase: HTTP %{http_code}\n"

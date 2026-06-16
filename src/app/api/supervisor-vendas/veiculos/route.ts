@@ -26,90 +26,105 @@ export async function GET(req: NextRequest) {
 
     if (acao === "posicoes") {
       const fonte = req.nextUrl.searchParams.get("fonte");
+      const normPlaca = (p: string) => (p || "").replace(/[-\s]/g, "").toUpperCase();
 
-      // Frota: carros do comercial (vínculo) OU vendedores que fizeram checkin hoje
-      let frota: { placa: string; pessoa_id: any; pessoa_nome: string }[] = [];
+      const vData = await fetchRotaExata("/adesoes", { limit: "300", page: "0" });
+      const adesoes = vData.data || [];
+
+      // Define quais carros processar (+ dados da pessoa)
+      let alvos: { ad: any; vendedor_id: any; vendedor_nome: string; vinculado: boolean }[] = [];
+
       if (fonte === "carros") {
+        // Só os carros classificados como COMERCIAL e marcados pra exibir (ativo)
         const { data: carros } = await supabase
           .from("comercial_veiculos")
           .select("placa, pessoa_id, pessoa_nome")
+          .eq("categoria", "comercial")
           .eq("ativo", true);
-        frota = (carros || []).map((c: any) => ({ placa: c.placa, pessoa_id: c.pessoa_id, pessoa_nome: c.pessoa_nome || "" }));
+        const comerciais = new Map<string, any>();
+        for (const c of carros || []) comerciais.set(normPlaca(c.placa), c);
+        alvos = (adesoes as any[])
+          .filter((a) => a.vei_placa && comerciais.has(normPlaca(a.vei_placa)))
+          .map((ad) => {
+            const v = comerciais.get(normPlaca(ad.vei_placa));
+            return { ad, vendedor_id: v?.pessoa_id || null, vendedor_nome: v?.pessoa_nome || "", vinculado: !!v };
+          });
       } else {
-        const { data: checkins } = await supabase
-          .from("checkin_vendedor")
-          .select("*")
-          .eq("data", hoje);
-        frota = (checkins || []).map((ck: any) => ({ placa: ck.placa, pessoa_id: ck.vendedor_id, pessoa_nome: ck.vendedor_nome || "" }));
+        // Vendedores que fizeram check-in hoje
+        const { data: checkins } = await supabase.from("checkin_vendedor").select("*").eq("data", hoje);
+        for (const ck of checkins || []) {
+          const ad = (adesoes as any[]).find((a) => normPlaca(a.vei_placa) === normPlaca(ck.placa));
+          if (ad) alvos.push({ ad, vendedor_id: ck.vendedor_id, vendedor_nome: ck.vendedor_nome || "", vinculado: true });
+        }
       }
 
-      if (frota.length === 0) return NextResponse.json([]);
-
-      // Buscar veículos do Rota Exata
-      const vData = await fetchRotaExata("/adesoes", { limit: "200", page: "0" });
-      const adesoes = vData.data || [];
+      if (alvos.length === 0) return NextResponse.json([]);
 
       const agora = new Date();
       const inicioDia = new Date(agora);
       inicioDia.setHours(0, 0, 0, 0);
 
+      const BATCH = 10;
       const resultado: any[] = [];
 
-      for (const ck of frota) {
-        const placaNorm = (ck.placa || "").replace(/[-\s]/g, "").toUpperCase();
-        const ad = adesoes.find((a: any) => (a.vei_placa || "").replace(/[-\s]/g, "").toUpperCase() === placaNorm);
-        if (!ad) continue;
+      for (let i = 0; i < alvos.length; i += BATCH) {
+        const batch = alvos.slice(i, i + BATCH);
+        const lote = await Promise.all(batch.map(async ({ ad, vendedor_id, vendedor_nome, vinculado }) => {
+          const placa = ad.vei_placa || "";
+          if (!placa) return null;
 
-        const veiculo: any = {
-          vendedor_id: ck.pessoa_id,
-          vendedor_nome: ck.pessoa_nome || "",
-          placa: ck.placa,
-          modelo: ad.vei_descricao || ad.vei_modelo || "",
-          adesao_id: ad.id,
-          lat: null, lng: null, ignicao: false, velocidade: 0,
-          dt_posicao: null, paradas_hoje: [],
-        };
-
-        try {
-          const w = JSON.stringify({
+          const veiculo: any = {
+            vendedor_id,
+            vendedor_nome,
+            placa,
+            modelo: ad.vei_descricao || ad.vei_modelo || "",
             adesao_id: ad.id,
-            dt_posicao: { $gte: inicioDia.toISOString(), $lte: agora.toISOString() }
-          });
-          const posData = await fetchRotaExata("/posicoes", { where: w, limit: "200", page: "0" });
-          const posicoes = (Array.isArray(posData.data) ? posData.data : [])
-            .sort((a: any, b: any) => new Date(a.dt_posicao).getTime() - new Date(b.dt_posicao).getTime());
+            vinculado,
+            lat: null, lng: null, ignicao: false, velocidade: 0,
+            dt_posicao: null, paradas_hoje: [],
+          };
 
-          if (posicoes.length > 0) {
-            const last = posicoes[posicoes.length - 1];
-            veiculo.lat = last.latitude;
-            veiculo.lng = last.longitude;
-            veiculo.ignicao = last.ignicao === 1;
-            veiculo.velocidade = last.velocidade || 0;
-            veiculo.dt_posicao = last.dt_posicao;
+          try {
+            const w = JSON.stringify({
+              adesao_id: ad.id,
+              dt_posicao: { $gte: inicioDia.toISOString(), $lte: agora.toISOString() }
+            });
+            const posData = await fetchRotaExata("/posicoes", { where: w, limit: "200", page: "0" });
+            const posicoes = (Array.isArray(posData.data) ? posData.data : [])
+              .sort((a: any, b: any) => new Date(a.dt_posicao).getTime() - new Date(b.dt_posicao).getTime());
 
-            // Detectar paradas
-            let paradaInicio: any = null;
-            for (const pos of posicoes) {
-              if (pos.ignicao === 0 && pos.velocidade === 0) {
-                if (!paradaInicio) paradaInicio = pos;
-              } else if (paradaInicio) {
-                const durMin = Math.round((new Date(pos.dt_posicao).getTime() - new Date(paradaInicio.dt_posicao).getTime()) / 60000);
-                if (durMin >= 5) {
-                  veiculo.paradas_hoje.push({ lat: paradaInicio.latitude, lng: paradaInicio.longitude, inicio: paradaInicio.dt_posicao, fim: pos.dt_posicao, duracao_min: durMin });
+            if (posicoes.length > 0) {
+              const last = posicoes[posicoes.length - 1];
+              veiculo.lat = last.latitude;
+              veiculo.lng = last.longitude;
+              veiculo.ignicao = last.ignicao === 1;
+              veiculo.velocidade = last.velocidade || 0;
+              veiculo.dt_posicao = last.dt_posicao;
+
+              let paradaInicio: any = null;
+              for (const pos of posicoes) {
+                if (pos.ignicao === 0 && pos.velocidade === 0) {
+                  if (!paradaInicio) paradaInicio = pos;
+                } else if (paradaInicio) {
+                  const durMin = Math.round((new Date(pos.dt_posicao).getTime() - new Date(paradaInicio.dt_posicao).getTime()) / 60000);
+                  if (durMin >= 5) {
+                    veiculo.paradas_hoje.push({ lat: paradaInicio.latitude, lng: paradaInicio.longitude, inicio: paradaInicio.dt_posicao, fim: pos.dt_posicao, duracao_min: durMin });
+                  }
+                  paradaInicio = null;
                 }
-                paradaInicio = null;
+              }
+              if (paradaInicio) {
+                const durMin = Math.round((agora.getTime() - new Date(paradaInicio.dt_posicao).getTime()) / 60000);
+                if (durMin >= 5) {
+                  veiculo.paradas_hoje.push({ lat: paradaInicio.latitude, lng: paradaInicio.longitude, inicio: paradaInicio.dt_posicao, fim: null, duracao_min: durMin });
+                }
               }
             }
-            if (paradaInicio) {
-              const durMin = Math.round((agora.getTime() - new Date(paradaInicio.dt_posicao).getTime()) / 60000);
-              if (durMin >= 5) {
-                veiculo.paradas_hoje.push({ lat: paradaInicio.latitude, lng: paradaInicio.longitude, inicio: paradaInicio.dt_posicao, fim: null, duracao_min: durMin });
-              }
-            }
-          }
-        } catch { /* sem posição */ }
+          } catch { /* sem posição */ }
 
-        resultado.push(veiculo);
+          return veiculo;
+        }));
+        resultado.push(...lote.filter(Boolean));
       }
 
       return NextResponse.json(resultado);
@@ -121,6 +136,27 @@ export async function GET(req: NextRequest) {
       if (!placa) return NextResponse.json({ error: "placa obrigatória" }, { status: 400 });
       const rota = await computarESalvarRota(supabase, placa, data);
       return NextResponse.json(rota);
+    }
+
+    if (acao === "historico") {
+      const placa = req.nextUrl.searchParams.get("placa");
+      if (!placa) return NextResponse.json({ error: "placa obrigatória" }, { status: 400 });
+      const { data } = await supabase
+        .from("rotas_vendedor")
+        .select("data, km_total, paradas, tempo_dirigindo_min, tempo_parado_min, hora_inicio, hora_fim")
+        .eq("placa", placa)
+        .order("data", { ascending: false })
+        .limit(90);
+      const hist = (data || []).map((r: any) => ({
+        data: r.data,
+        km_total: r.km_total || 0,
+        paradas: Array.isArray(r.paradas) ? r.paradas.length : 0,
+        tempo_dirigindo_min: r.tempo_dirigindo_min || 0,
+        tempo_parado_min: r.tempo_parado_min || 0,
+        hora_inicio: r.hora_inicio,
+        hora_fim: r.hora_fim,
+      }));
+      return NextResponse.json(hist);
     }
 
     if (acao === "checkin") {

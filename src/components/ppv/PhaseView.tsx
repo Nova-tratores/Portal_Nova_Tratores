@@ -45,7 +45,8 @@ export const PHASE_SHORT: Record<string, string> = {
   "Cancelada": "Cancelada",
 };
 
-const COLLAPSED_DEFAULT = new Set(["Concluída", "Cancelada"]);
+// Começa tudo colapsado pra não poluir — clica no cabeçalho da fase pra abrir.
+const COLLAPSED_DEFAULT = new Set(PHASES);
 
 const MiniCard = memo(function MiniCard({
   order: o,

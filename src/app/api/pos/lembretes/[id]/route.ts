@@ -18,9 +18,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (body.concluido) {
       updates.concluido_em = new Date().toISOString();
       updates.concluido_por = body.concluido_por || "Sistema";
+      updates.concluido_em_ordem = body.concluido_em_ordem || null;
     } else {
       updates.concluido_em = null;
       updates.concluido_por = null;
+      updates.concluido_em_ordem = null;
     }
   }
 

@@ -53,7 +53,7 @@ export const api = {
     tipoPedido: string; motivoSaida: string; tecnico: string;
     cliente: string; observacao: string; osId: string;
     valorTotal: number; produtosSelecionados: unknown[];
-    idExistente?: string; userName?: string;
+    idExistente?: string; userName?: string; projeto?: string;
   }) => post<{ id: string; detalhes: PPVDetalhes }>("/api/ppv/pedidos", dados),
 
   editarPedido: (dados: {
@@ -62,7 +62,7 @@ export const api = {
     motivoCancelamento: string; pedidoOmie: string; osId: string;
     tipoPedido: string; motivoSaida: string; userName?: string;
     substitutoTipo?: string | null; substitutoId?: string | null;
-    desconto?: number;
+    desconto?: number; projeto?: string;
   }) => patch<{ success: boolean }>("/api/ppv/pedidos", dados),
 
   // --- Movimentações ---

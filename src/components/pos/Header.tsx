@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 
 interface HeaderProps {
   searchTerm: string;
   onSearch: (term: string) => void;
   onNewOS: () => void;
-  onNewClient: () => void;
   onGenerateReport: (filtros: { tecnico: string; tipo: string }) => void;
   onLembretes?: () => void;
   tecnicos?: string[];
@@ -15,7 +14,7 @@ interface HeaderProps {
   onConfigSaved?: (valorHora: number, valorKm: number) => void;
 }
 
-export default function Header({ searchTerm, onSearch, onNewOS, onNewClient, onGenerateReport, onLembretes, tecnicos = [], valorHora, valorKm, onConfigSaved }: HeaderProps) {
+export default function Header({ searchTerm, onSearch, onNewOS, onGenerateReport, onLembretes, tecnicos = [], valorHora, valorKm, onConfigSaved }: HeaderProps) {
   const [showFiltroRelatorio, setShowFiltroRelatorio] = useState(false);
   const [filtroTecnico, setFiltroTecnico] = useState("todos");
   const [filtroTipo, setFiltroTipo] = useState("todas");
@@ -23,6 +22,16 @@ export default function Header({ searchTerm, onSearch, onNewOS, onNewClient, onG
   const [cfgHora, setCfgHora] = useState(valorHora);
   const [cfgKm, setCfgKm] = useState(valorKm);
   const [salvando, setSalvando] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onDoc(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [menuOpen]);
 
   const handleGerar = () => {
     setShowFiltroRelatorio(false);
@@ -69,11 +78,45 @@ export default function Header({ searchTerm, onSearch, onNewOS, onNewClient, onG
           <input type="text" className="search-input" placeholder="Pesquisar cliente ou OS..." value={searchTerm} onChange={(e) => onSearch(e.target.value)} />
         </div>
         <div className="header-actions">
-          <button className="btn-top btn-lembretes" onClick={onLembretes}><i className="fas fa-bell" /> LEMBRETES</button>
-          <button className="btn-top btn-report" onClick={() => setShowFiltroRelatorio(true)}><i className="fas fa-file-invoice" /> GERAR RELATÓRIO</button>
-          <button className="btn-top btn-cli" onClick={onNewClient}><i className="fas fa-user-plus" /> CRIAR CLIENTE</button>
           <button className="btn-top btn-new" onClick={onNewOS}><i className="fas fa-plus" /> NOVA ORDEM</button>
-          <button className="btn-top btn-report" onClick={handleOpenConfig} title="Configurações de valores"><i className="fas fa-cog" /></button>
+
+          <div style={{ position: "relative" }} ref={menuRef}>
+            <button className="btn-top btn-report" onClick={() => setMenuOpen((o) => !o)}>
+              <i className="fas fa-bars" /> MENU
+              <i className="fas fa-chevron-down" style={{ fontSize: 10, marginLeft: 6, transform: menuOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+            </button>
+
+            {menuOpen && (() => {
+              const item = (icon: string, label: string, onClick: () => void) => (
+                <button
+                  onClick={() => { onClick(); setMenuOpen(false); }}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 11, padding: "10px 14px", width: "100%",
+                    border: "none", borderRadius: 8, cursor: "pointer", background: "transparent",
+                    color: "#3A3027", fontSize: 13.5, fontWeight: 600, textAlign: "left", transition: "background 0.12s",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "#F3EDE3")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                >
+                  <i className={`fas ${icon}`} style={{ width: 16, textAlign: "center", color: "#9A6A3A" }} />
+                  {label}
+                </button>
+              );
+              return (
+                <div style={{
+                  position: "absolute", right: 0, top: "calc(100% + 8px)", zIndex: 1000,
+                  minWidth: 230, background: "#fff", borderRadius: 12,
+                  border: "1px solid #E4D9C8", boxShadow: "0 12px 32px rgba(0,0,0,0.16)",
+                  padding: 6, display: "flex", flexDirection: "column", gap: 2,
+                }}>
+                  {item("fa-bell", "Lembretes", () => onLembretes?.())}
+                  {item("fa-file-invoice", "Gerar Relatório", () => setShowFiltroRelatorio(true))}
+                  <div style={{ height: 1, background: "#EFE7DA", margin: "4px 8px" }} />
+                  {item("fa-cog", "Configurações", handleOpenConfig)}
+                </div>
+              );
+            })()}
+          </div>
         </div>
       </header>
 

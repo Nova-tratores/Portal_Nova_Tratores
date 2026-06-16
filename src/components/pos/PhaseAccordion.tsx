@@ -78,6 +78,11 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
       )}
       <div className="mini-card-top">
         <span className="mini-card-id">#{o.id}</span>
+        {o.servicoInterno && (
+          <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: 0.5, color: "#7C3AED", background: "#F3E8FF", border: "1px solid #DDD6FE", borderRadius: 5, padding: "1px 6px", textTransform: "uppercase" }}>
+            <i className="fas fa-tools" style={{ marginRight: 3 }} />Interna
+          </span>
+        )}
         <span className="mini-card-valor">R$ {o.valor}</span>
       </div>
       <div className="mini-card-cliente">{o.cliente}</div>
@@ -161,12 +166,22 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
   );
 });
 
-const COLLAPSED_DEFAULT = new Set(["Concluída", "Cancelada"]);
+// Começa tudo colapsado pra não poluir — clica no cabeçalho da fase pra abrir.
+const COLLAPSED_DEFAULT = new Set(PHASES);
 
 export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChange }: PhaseViewProps) {
   const [activePhase, setActivePhase] = useState<string>("");
+  const [escopo, setEscopo] = useState<"externas" | "internas">("externas");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set(COLLAPSED_DEFAULT));
   const [garantiaMap, setGarantiaMap] = useState<Record<string, GarantiaStatus>>({});
+
+  // Separa ordens externas (vão pro Omie) das internas (só remessa quando precisar)
+  const totInternas = useMemo(() => orders.filter((o) => o.servicoInterno).length, [orders]);
+  const totExternas = orders.length - totInternas;
+  const escopoOrders = useMemo(
+    () => orders.filter((o) => (escopo === "internas" ? !!o.servicoInterno : !o.servicoInterno)),
+    [orders, escopo]
+  );
 
   // Carrega quais OS têm garantia (para o ícone de escudo no card)
   useEffect(() => {
@@ -195,7 +210,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
   const searchLower = useMemo(() => searchTerm.toLowerCase(), [searchTerm]);
 
   const filtered = useMemo(() => {
-    return orders.filter(
+    return escopoOrders.filter(
       (o) =>
         (!searchLower ||
           o.cliente.toLowerCase().includes(searchLower) ||
@@ -203,15 +218,8 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
           o.servSolicitado.toLowerCase().includes(searchLower)) &&
         (!activePhase || o.status === activePhase)
     );
-  }, [orders, searchLower, activePhase]);
+  }, [escopoOrders, searchLower, activePhase]);
 
-  const counts = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const o of orders) {
-      map[o.status] = (map[o.status] || 0) + 1;
-    }
-    return map;
-  }, [orders]);
 
   // Group by phase for "Todas" view
   const grouped = useMemo(() => {
@@ -233,26 +241,30 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
 
   return (
     <>
-      {/* Phase tabs */}
-      <div className="phase-tabs">
-        <button
-          className={`phase-tab ${activePhase === "" ? "active" : ""}`}
-          onClick={() => setActivePhase("")}
-        >
-          Todas <span className="phase-tab-count">{orders.length}</span>
-        </button>
-        {PHASES.map((phase) => (
-          <button
-            key={phase}
-            className={`phase-tab ${activePhase === phase ? "active" : ""}`}
-            onClick={() => setActivePhase(activePhase === phase ? "" : phase)}
-            style={{ "--tab-color": PHASE_COLORS[phase] || "#64748B" } as React.CSSProperties}
-          >
-            <span className="phase-tab-dot" style={{ background: PHASE_COLORS[phase] }} />
-            {PHASE_SHORT[phase] || phase}
-            <span className="phase-tab-count">{counts[phase] || 0}</span>
-          </button>
-        ))}
+      {/* Escopo: Externas x Internas — barra horizontal (boxed) */}
+      <div style={{ padding: "12px 30px", display: "flex", borderBottom: "1px solid var(--border)" }}>
+        <div style={{ display: "inline-flex", gap: 4, background: "#EEF1F5", padding: 4, borderRadius: 10 }}>
+          {([
+            { v: "externas" as const, label: "Externas", icon: "fa-globe", count: totExternas, color: "#1E3A5F" },
+            { v: "internas" as const, label: "Internas", icon: "fa-tools", count: totInternas, color: "#7C3AED" },
+          ]).map((t) => {
+            const active = escopo === t.v;
+            return (
+              <button key={t.v} onClick={() => { setEscopo(t.v); setActivePhase(""); }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 8, padding: "8px 22px", borderRadius: 8,
+                  border: active ? `1.5px solid ${t.color}` : "1.5px solid transparent",
+                  background: active ? "#fff" : "transparent",
+                  color: active ? t.color : "var(--portal-text-secondary)",
+                  fontWeight: 700, fontSize: 13, cursor: "pointer",
+                  boxShadow: active ? "0 1px 3px rgba(0,0,0,0.12)" : "none", transition: "all 0.15s",
+                }}>
+                <i className={`fas ${t.icon}`} /> {t.label}
+                <span style={{ background: active ? `${t.color}1f` : "rgba(0,0,0,0.06)", color: active ? t.color : "var(--portal-text-secondary)", padding: "1px 8px", borderRadius: 10, fontSize: 11, fontWeight: 700 }}>{t.count}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Cards */}

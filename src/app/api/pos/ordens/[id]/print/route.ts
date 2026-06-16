@@ -26,6 +26,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const revisao = (safeGet(row, "Revisao") as string) || "";
   const projeto = (safeGet(row, "Projeto") as string) || "-";
   const status = (safeGet(row, "Status") as string) || "-";
+  const servicoInterno = !!safeGet(row, "Servico_Interno");
   const data = formatarDataBR(safeGet(row, "Data") as string);
   const servSolicitado = (safeGet(row, "Serv_Solicitado") as string) || "-";
   const servRealizado = (safeGet(row, "Serv_Realizado") as string) || "";
@@ -233,6 +234,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       <div class="doc-status">${status}</div>
     </div>
   </div>
+
+  ${servicoInterno ? `<div style="margin:0 0 14px;padding:10px 16px;background:#F3E8FF;border:1px solid #C4B5FD;border-left:4px solid #7C3AED;border-radius:8px;display:flex;align-items:center;gap:10px">
+    <span style="font-size:15px;font-weight:800;color:#6D28D9;letter-spacing:0.5px">ORDEM INTERNA</span>
+    <span style="font-size:12px;color:#6B21A8">Uso interno — não enviada ao Omie (apenas remessa de peças quando necessário).</span>
+  </div>` : ""}
 
   <div class="section">
     <div class="section-title">Cliente</div>

@@ -38,6 +38,7 @@ export default function FormNovoLancamento({
   const [tipoPedido, setTipoPedido] = useState(TIPOS_PEDIDO[0].value);
   const [motivoSaida, setMotivoSaida] = useState(MOTIVOS_SAIDA[0].value);
   const [tecnico, setTecnico] = useState("");
+  const [projeto, setProjeto] = useState("");
   const [observacao, setObservacao] = useState("");
   const [recentlyAdded, setRecentlyAdded] = useState<string | null>(null);
   const [removingItem, setRemovingItem] = useState<string | null>(null);
@@ -142,7 +143,7 @@ export default function FormNovoLancamento({
     try {
       const data = await api.criarPedido({
         tipoPedido, motivoSaida, tecnico, cliente: clienteValue,
-        observacao, osId: osIdValue, valorTotal: total, produtosSelecionados: prodsList,
+        observacao, osId: osIdValue, projeto, valorTotal: total, produtosSelecionados: prodsList,
         userName: userProfile?.nome || "",
       });
       showToast("success", "Lançamento salvo!");
@@ -156,7 +157,7 @@ export default function FormNovoLancamento({
         } catch { /* PDF opcional */ }
       }
       setSelectedProducts({}); setTipoPedido(TIPOS_PEDIDO[0].value); setMotivoSaida(MOTIVOS_SAIDA[0].value);
-      setTecnico(""); setObservacao(""); setTentouEnviar(false); onSaved();
+      setTecnico(""); setProjeto(""); setObservacao(""); setTentouEnviar(false); onSaved();
     } catch (e) { showToast("error", e instanceof Error ? e.message : "Erro ao salvar"); }
     setSubmitting(false);
   }
@@ -262,6 +263,22 @@ export default function FormNovoLancamento({
                 </div>
               )}
             </div>
+          </div>
+
+          {/* ── Projeto (copiado da OS quando vinculada) ── */}
+          <div className="ppv-form-field">
+            <span className="ppv-form-label">Projeto <span className="ppv-form-optional">(opcional)</span></span>
+            <input
+              type="text"
+              value={projeto}
+              onChange={(e) => setProjeto(e.target.value)}
+              placeholder={osIdValue ? "Deixe vazio para usar o projeto da OS" : "Nome do projeto..."}
+            />
+            {osIdValue && (
+              <span className="ppv-form-optional" style={{ marginTop: 4 }}>
+                <i className="fas fa-link" style={{ marginRight: 4 }} />Se deixar vazio, uso o projeto da OS vinculada.
+              </span>
+            )}
           </div>
 
           {/* ── Linha 5: Observações ── */}

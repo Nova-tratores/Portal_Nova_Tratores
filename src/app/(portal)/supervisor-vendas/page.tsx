@@ -273,11 +273,11 @@ export default function SupervisorVendasPage() {
           {tab === 'carros' && (
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 13, color: '#94A3B8' }}>{carros.length} carro{carros.length !== 1 ? 's' : ''} vinculado{carros.length !== 1 ? 's' : ''}</span>
+                <span style={{ fontSize: 13, color: '#94A3B8' }}>{carros.length} carro{carros.length !== 1 ? 's' : ''} comercia{carros.length !== 1 ? 'is' : 'l'}</span>
                 <div style={{ flex: 1 }} />
                 {isAdmin && (
                   <button onClick={() => setShowVincular(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 10, background: 'linear-gradient(135deg, #dc2626, #991b1b)', color: '#fff', border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-                    <Link2 size={15} /> Vincular carro
+                    <Link2 size={15} /> Carros
                   </button>
                 )}
               </div>

@@ -53,5 +53,5 @@ export function useAuth() {
     router.push('/login')
   }
 
-  return { userProfile, loading, handleLogout, router }
+  return { userProfile, setUserProfile, loading, handleLogout, router }
 }

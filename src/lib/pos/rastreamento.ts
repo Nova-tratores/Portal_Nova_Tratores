@@ -263,6 +263,8 @@ export interface RotaDia {
   km_total: number
   hora_inicio: string | null
   hora_fim: string | null
+  tempo_dirigindo_min: number
+  tempo_parado_min: number
 }
 
 export async function computarESalvarRota(
@@ -289,7 +291,7 @@ export async function computarESalvarRota(
   const ad = (vData.data || []).find(
     (a: any) => (a.vei_placa || '').replace(/[-\s]/g, '').toUpperCase() === placaNorm,
   )
-  if (!ad) return { placa, data, pontos: [], paradas: [], km_total: 0, hora_inicio: null, hora_fim: null }
+  if (!ad) return { placa, data, pontos: [], paradas: [], km_total: 0, hora_inicio: null, hora_fim: null, tempo_dirigindo_min: 0, tempo_parado_min: 0 }
 
   // 3) Posições do dia
   const inicio = `${data}T00:00:00.000Z`
@@ -321,10 +323,23 @@ export async function computarESalvarRota(
     }
   }
 
+  // tempo dirigindo (intervalos em movimento) e parado (soma das paradas)
+  let dirigindoMs = 0
+  for (let i = 1; i < pontos.length; i++) {
+    const prev = pontos[i - 1]
+    const diff = new Date(pontos[i].dt).getTime() - new Date(prev.dt).getTime()
+    if (diff > 0 && diff < 30 * 60 * 1000 && prev.ignicao === 1 && (prev.vel || 0) > 0) {
+      dirigindoMs += diff
+    }
+  }
+  const tempo_dirigindo_min = Math.round(dirigindoMs / 60000)
+  const tempo_parado_min = paradas.reduce((s, p) => s + (p.duracao_min || 0), 0)
+
   const rota: RotaDia = {
     placa, data, pontos, paradas, km_total: Math.round(kmTotal),
     hora_inicio: pontos.length > 0 ? pontos[0].dt : null,
     hora_fim: pontos.length > 0 ? pontos[pontos.length - 1].dt : null,
+    tempo_dirigindo_min, tempo_parado_min,
   }
 
   // 4) Salva histórico (dia passado, com pontos)

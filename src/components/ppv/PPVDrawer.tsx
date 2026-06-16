@@ -44,6 +44,7 @@ export default function PPVDrawer({
   const [clienteEndereco, setClienteEndereco] = useState("");
   const [clienteCidade, setClienteCidade] = useState("");
   const [tipoPedido, setTipoPedido] = useState("Pedido");
+  const [projeto, setProjeto] = useState("");
   const [motivoSaida, setMotivoSaida] = useState("Venda Balcão");
   const [observacao, setObservacao] = useState("");
   const [motivoCancelamento, setMotivoCancelamento] = useState("");
@@ -109,6 +110,7 @@ export default function PPVDrawer({
       setTecnico(d.tecnico || "");
       setCliente(d.cliente || "");
       setTipoPedido(d.tipoPedido || "Pedido");
+      setProjeto(d.projeto || "");
       setMotivoSaida(d.motivoSaida || "Venda Balcão");
       setObservacao(d.observacao || "");
       setMotivoCancelamento(d.motivoCancelamento || "");
@@ -178,7 +180,7 @@ export default function PPVDrawer({
     setSalvando(true);
     try {
       await api.editarPedido({
-        id: ppvId!, status, observacao, tecnico, cliente, motivoCancelamento, pedidoOmie, osId: modalOSId, tipoPedido, motivoSaida, userName: userProfile?.nome || "",
+        id: ppvId!, status, observacao, tecnico, cliente, motivoCancelamento, pedidoOmie, osId: modalOSId, tipoPedido, projeto, motivoSaida, userName: userProfile?.nome || "",
         substitutoTipo: temSubstituto ? substitutoTipo : null,
         substitutoId: temSubstituto ? substitutoId : null,
         desconto,
@@ -272,6 +274,16 @@ export default function PPVDrawer({
             <div className="ppv-drawer-header">
               <div className="ppv-drawer-header-left">
                 <span className="ppv-drawer-header-title">#{ppvId}</span>
+                <span style={{
+                  fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.5px",
+                  padding: "4px 12px", borderRadius: 6,
+                  background: tipoPedido === "Remessa" ? "#E0E7FF" : "#FEF3C7",
+                  color: tipoPedido === "Remessa" ? "#3730A3" : "#92400E",
+                  border: `1px solid ${tipoPedido === "Remessa" ? "#C7D2FE" : "#FDE68A"}`,
+                }}>
+                  <i className={`fas ${tipoPedido === "Remessa" ? "fa-dolly" : "fa-file-invoice-dollar"}`} style={{ marginRight: 5 }} />
+                  {tipoPedido === "Remessa" ? "Remessa" : "Pedido de Venda"}
+                </span>
                 <span style={{
                   fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px",
                   padding: "4px 12px", borderRadius: 6,
@@ -420,6 +432,15 @@ export default function PPVDrawer({
                         <label>O.S. Vinculada</label>
                         <input type="text" value={modalOSDisplay} readOnly placeholder="Clique para vincular OS..." onClick={onBuscaOS} style={{ cursor: "pointer", fontWeight: 600, marginBottom: 0 }} />
                       </div>
+                    </div>
+                    <div className="ppv-row">
+                      <div style={{ flex: 1 }}>
+                        <label>Projeto</label>
+                        <input type="text" value={projeto} onChange={(e) => setProjeto(e.target.value)}
+                          placeholder={modalOSId ? "Deixe vazio para usar o da OS" : "Nome do projeto..."}
+                          style={{ marginBottom: 0, fontWeight: 600 }} />
+                      </div>
+                      <div style={{ flex: 1 }} />
                     </div>
                   </div>
 
@@ -599,7 +620,7 @@ export default function PPVDrawer({
                 {/* ── Footer ── */}
                 <div className="ppv-drawer-footer">
                   <button className="ppv-btn-cancel" onClick={onClose}>Cancelar</button>
-                  {!pedidoOmie && status !== "Concluída" && status !== "Cancelada" && (
+                  {!pedidoOmie && (
                     <button
                       className="ppv-btn-omie"
                       onClick={enviarOmie}

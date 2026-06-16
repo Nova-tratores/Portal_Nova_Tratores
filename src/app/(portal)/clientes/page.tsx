@@ -567,6 +567,7 @@ function ClientesPageInner() {
                           <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 3 }}>
                             Concluído por {l.concluido_por || '—'}
                             {l.concluido_em ? ` em ${new Date(l.concluido_em).toLocaleDateString('pt-BR')}` : ''}
+                            {l.concluido_em_ordem ? <span style={{ color: '#2E7D32', fontWeight: 700 }}> · OS {l.concluido_em_ordem}</span> : ''}
                           </div>
                         </div>
                       </div>

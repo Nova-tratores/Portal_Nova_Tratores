@@ -244,6 +244,7 @@ async function getOrdensParaKanban(): Promise<KanbanCard[]> {
       reqInfo: reqsDoCard,
       relTecnico: mapaRelTecnico[osId] || "",
       pendenciaMahindra: (safeGet(row, "pendencia_mahindra") as any) || null,
+      servicoInterno: !!safeGet(row, "Servico_Interno"),
     };
   });
 }
@@ -431,6 +432,8 @@ export async function POST(req: NextRequest) {
   // Servico_Interno via RPC (bypassa schema cache do PostgREST)
   if (dados.servicoInterno) {
     await supabase.rpc('set_servico_interno', { p_id_ordem: newId, p_valor: true });
+    // OS interna → PPVs vinculados viram Remessa automaticamente
+    await supabase.from("pedidos").update({ Tipo_Pedido: "Remessa" }).eq("Id_Os", newId);
   }
 
   const userNameLog = dados.userName || "Sistema";
