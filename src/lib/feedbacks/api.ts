@@ -193,6 +193,16 @@ export async function listarClientesInfo(): Promise<ClienteInfo[]> {
   return (data || []) as ClienteInfo[];
 }
 
+export async function buscarClienteInfo(clienteKey: string): Promise<ClienteInfo | null> {
+  const { data, error } = await supabase
+    .from("feedback_clientes_info")
+    .select("*")
+    .eq("cliente_key", clienteKey)
+    .maybeSingle();
+  if (error) throw wrapErr(error);
+  return (data as ClienteInfo | null) ?? null;
+}
+
 export async function upsertClienteInfo(
   payload: Partial<ClienteInfo> & { cliente_key: string }
 ): Promise<ClienteInfo> {
