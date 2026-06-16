@@ -133,6 +133,55 @@ export async function buscarUltimasOSPorCliente(nomes: string[]): Promise<Record
 }
 
 // -----------------------------------------------------------------------------
+// Histórico do cliente — agrega OS, Pedidos de Venda e Requisições do banco.
+// OS/PV: tabelas por cliente (cod_cli = código Omie). Requisições: por nome.
+// Best-effort: cada fonte falha de forma isolada (não derruba as outras).
+// -----------------------------------------------------------------------------
+export interface HistOS {
+  num_os: string | null; empresa: string | null; data_inclusao: string | null;
+  data_faturamento: string | null; etapa: string | null; status: string | null;
+  valor_total: number | null; descricao: string | null; servicos: string | null; num_nf: string | null;
+}
+export interface HistPV {
+  num_pedido: string | null; empresa: string | null; data_inclusao: string | null;
+  etapa: string | null; valor_total: number | null; faturado: string | null; numero_nf: string | null;
+}
+export interface HistReq {
+  id: number; titulo: string | null; tipo: string | null; data: string | null;
+  status: string | null; fornecedor: string | null; valor_despeza: number | null; ordem_servico: string | null;
+}
+export interface HistoricoCliente { os: HistOS[]; pv: HistPV[]; requisicoes: HistReq[] }
+
+export async function buscarHistoricoCliente(codigoOmie: string | null, nome: string): Promise<HistoricoCliente> {
+  const out: HistoricoCliente = { os: [], pv: [], requisicoes: [] };
+  const tarefas: PromiseLike<unknown>[] = [];
+  if (codigoOmie) {
+    tarefas.push(
+      supabase.from("portal_nt_clientes_os")
+        .select("num_os, empresa, data_inclusao, data_faturamento, etapa, status, valor_total, descricao, servicos, num_nf")
+        .eq("cod_cli", codigoOmie).order("data_inclusao", { ascending: false }).limit(100)
+        .then(({ data }) => { out.os = (data || []) as HistOS[]; })
+    );
+    tarefas.push(
+      supabase.from("portal_nt_clientes_pv")
+        .select("num_pedido, empresa, data_inclusao, etapa, valor_total, faturado, numero_nf")
+        .eq("cod_cli", codigoOmie).order("data_inclusao", { ascending: false }).limit(100)
+        .then(({ data }) => { out.pv = (data || []) as HistPV[]; })
+    );
+  }
+  if (nome && nome.trim().length >= 3) {
+    tarefas.push(
+      supabase.from("Requisicao")
+        .select("id, titulo, tipo, data, status, fornecedor, valor_despeza, ordem_servico")
+        .ilike("cliente", `%${nome.trim()}%`).order("id", { ascending: false }).limit(100)
+        .then(({ data }) => { out.requisicoes = (data || []) as HistReq[]; })
+    );
+  }
+  await Promise.allSettled(tarefas);
+  return out;
+}
+
+// -----------------------------------------------------------------------------
 // feedback_clientes_info
 // -----------------------------------------------------------------------------
 export async function listarClientesInfo(): Promise<ClienteInfo[]> {

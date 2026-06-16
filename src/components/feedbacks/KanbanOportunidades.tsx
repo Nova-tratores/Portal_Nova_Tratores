@@ -75,9 +75,10 @@ interface Props {
   oportunidades: Oportunidade[];
   onAtender: (op: Oportunidade) => void;
   onDispensar: (op: Oportunidade) => void;
+  onVerHistorico?: (op: Oportunidade) => void;
 }
 
-export default function KanbanOportunidades({ oportunidades, onAtender, onDispensar }: Props) {
+export default function KanbanOportunidades({ oportunidades, onAtender, onDispensar, onVerHistorico }: Props) {
   const porRegra = useMemo(() => {
     const m: Record<RegraOportunidade, Oportunidade[]> = {
       R1_revisao: [], R2_sem_os: [], R3_upsell: [], R4_followup: [], R5_pecas: [], R6_fora_garantia: [],
@@ -179,6 +180,7 @@ export default function KanbanOportunidades({ oportunidades, onAtender, onDispen
                         op={op}
                         onAtender={onAtender}
                         onDispensar={onDispensar}
+                        onVerHistorico={onVerHistorico}
                       />
                     ))}
                   </div>
