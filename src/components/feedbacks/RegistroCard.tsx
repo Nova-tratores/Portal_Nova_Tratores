@@ -12,6 +12,8 @@ interface Props {
   onMudarAtendimento?: (r: FeedbackRegistro, novo: StatusAtendimento) => void;
   // Arquiva o atendimento com justificativa (cliente que não vale a pena).
   onArquivar?: (r: FeedbackRegistro) => void;
+  // Abre o histórico completo do cliente (OS, pedidos, requisições).
+  onVerHistorico?: (r: FeedbackRegistro) => void;
 }
 
 // Horas decorridas desde aberto_em (negativo se aberto_em for futuro)
@@ -55,7 +57,7 @@ function corPrioridade(p: string | null): { bg: string; fg: string } {
   }
 }
 
-export default function RegistroCard({ registro: r, ultimaOS, onEditar, onExcluir, onMudarAtendimento, onArquivar }: Props) {
+export default function RegistroCard({ registro: r, ultimaOS, onEditar, onExcluir, onMudarAtendimento, onArquivar, onVerHistorico }: Props) {
   const isCrm = r.tipo === "crm";
   const corStatusObj = isCrm ? corStatus(r.status_cliente) : corPrioridade(r.prioridade);
   const emAtendimento = r.status_atendimento === "aberto" || r.status_atendimento === "em_andamento";
@@ -95,7 +97,18 @@ export default function RegistroCard({ registro: r, ultimaOS, onEditar, onExclui
       <header style={cardHeader}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <h3 style={tituloStyle}>{r.nome}</h3>
+            {onVerHistorico ? (
+              <button
+                type="button"
+                onClick={() => onVerHistorico(r)}
+                title="Ver histórico do cliente (OS, pedidos, requisições)"
+                style={{ ...tituloStyle, background: "none", border: "none", padding: 0, cursor: "pointer", color: "#0369a1", textDecoration: "underline", textUnderlineOffset: 3 }}
+              >
+                {r.nome} 📜
+              </button>
+            ) : (
+              <h3 style={tituloStyle}>{r.nome}</h3>
+            )}
             {r.origem_dados && <span style={origemBadgeStyle(r.origem_dados)}>{r.origem_dados}</span>}
           </div>
           <div style={subtituloStyle}>

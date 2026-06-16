@@ -12,9 +12,10 @@ interface Props {
   op: Oportunidade;
   onAtender: (op: Oportunidade) => void;
   onDispensar: (op: Oportunidade) => void;
+  onVerHistorico?: (op: Oportunidade) => void;
 }
 
-export default function OportunidadeCard({ op, onAtender, onDispensar }: Props) {
+export default function OportunidadeCard({ op, onAtender, onDispensar, onVerHistorico }: Props) {
   const cor = CORES_PRIORIDADE[op.prioridade];
   const detalhes = renderizarDetalhes(op);
   const origem = origemDaOportunidade(op);
@@ -39,9 +40,20 @@ export default function OportunidadeCard({ op, onAtender, onDispensar }: Props) 
     >
       <header style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--portal-text)", lineHeight: 1.3 }}>
-            {op.cliente_nome}
-          </div>
+          {onVerHistorico ? (
+            <button
+              type="button"
+              onClick={() => onVerHistorico(op)}
+              title="Ver histórico do cliente (OS, pedidos, requisições)"
+              style={{ fontSize: 14, fontWeight: 700, color: "#0369a1", lineHeight: 1.3, background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left", textDecoration: "underline", textUnderlineOffset: 3 }}
+            >
+              {op.cliente_nome} 📜
+            </button>
+          ) : (
+            <div style={{ fontSize: 14, fontWeight: 700, color: "var(--portal-text)", lineHeight: 1.3 }}>
+              {op.cliente_nome}
+            </div>
+          )}
           <div style={{ marginTop: 4 }}>
             <span style={origemBadgeStyle(origem)}>{origem}</span>
           </div>

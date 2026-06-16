@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import KanbanOportunidades from "@/components/feedbacks/KanbanOportunidades";
+import ModalHistoricoCliente from "@/components/feedbacks/ModalHistoricoCliente";
 import { buscarClientePorOmieId, buscarClientesOmie, inserirRegistro, listarOportunidades } from "@/lib/feedbacks/api";
 import { origemDaOportunidade } from "@/lib/feedbacks/origem";
 import type { FeedbackRegistro, Oportunidade, RegraOportunidade, StatusOportunidade, TipoFeedback } from "@/lib/feedbacks/types";
@@ -67,6 +68,7 @@ export default function OportunidadesPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [comoFuncionaAberto, setComoFuncionaAberto] = useState(false);
+  const [histAlvo, setHistAlvo] = useState<{ nome: string; codigoOmie: string | null } | null>(null);
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -343,9 +345,16 @@ export default function OportunidadesPage() {
           oportunidades={ops}
           onAtender={handleAtender}
           onDispensar={handleDispensar}
+          onVerHistorico={(op) => setHistAlvo({ nome: op.cliente_nome, codigoOmie: op.codigo_omie })}
         />
       )}
 
+      <ModalHistoricoCliente
+        aberto={!!histAlvo}
+        nome={histAlvo?.nome || ""}
+        codigoOmie={histAlvo?.codigoOmie ?? null}
+        onFechar={() => setHistAlvo(null)}
+      />
     </div>
   );
 }
