@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import RegistroCard from "./RegistroCard";
 import ModalFeedback from "./ModalFeedback";
+import ModalHistoricoCliente from "./ModalHistoricoCliente";
 import { atualizarRegistro, buscarUltimasOSPorCliente, deletarRegistro, listarRegistros, type UltimaOS } from "@/lib/feedbacks/api";
 import type { FeedbackRegistro, StatusAtendimento, TipoFeedback } from "@/lib/feedbacks/types";
 
@@ -82,6 +83,8 @@ export default function ListaRegistros({ tipo }: Props) {
   const [registroEdit, setRegistroEdit] = useState<FeedbackRegistro | null>(null);
   // Última OS (oficina) por nome de cliente — preenche o "último técnico" no card.
   const [ultimasOS, setUltimasOS] = useState<Record<string, UltimaOS>>({});
+  // Cliente cujo histórico (OS/PV/requisições) está aberto no modal.
+  const [histAlvo, setHistAlvo] = useState<{ nome: string; codigoOmie: string | null } | null>(null);
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -296,6 +299,7 @@ export default function ListaRegistros({ tipo }: Props) {
               onExcluir={handleExcluir}
               onMudarAtendimento={handleMudarAtendimento}
               onArquivar={handleArquivar}
+              onVerHistorico={(reg) => setHistAlvo({ nome: reg.nome, codigoOmie: reg.codigo_omie })}
             />
           ))}
         </div>
@@ -307,6 +311,13 @@ export default function ListaRegistros({ tipo }: Props) {
         registro={registroEdit}
         onFechar={() => setModalAberto(false)}
         onSalvo={handleSalvo}
+      />
+
+      <ModalHistoricoCliente
+        aberto={!!histAlvo}
+        nome={histAlvo?.nome || ""}
+        codigoOmie={histAlvo?.codigoOmie ?? null}
+        onFechar={() => setHistAlvo(null)}
       />
     </div>
   );

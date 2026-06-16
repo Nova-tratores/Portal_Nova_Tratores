@@ -130,7 +130,7 @@ export default function TimelineRegistros({ registros, onEditar }: Props) {
                   )}
                   {r.acao && (
                     <div style={{ fontSize: 12, color: "var(--portal-text-secondary)" }}>
-                      <strong>Ação:</strong> {r.acao}
+                      <strong>O que foi conversado:</strong> {r.acao}
                     </div>
                   )}
                   <div style={chipsStyle}>

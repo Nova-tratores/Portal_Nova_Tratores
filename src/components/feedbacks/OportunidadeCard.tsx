@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import type { Oportunidade, PrioridadeOportunidade } from "@/lib/feedbacks/types";
 import { origemDaOportunidade } from "@/lib/feedbacks/origem";
 
@@ -12,31 +13,47 @@ interface Props {
   op: Oportunidade;
   onAtender: (op: Oportunidade) => void;
   onDispensar: (op: Oportunidade) => void;
+  onVerHistorico?: (op: Oportunidade) => void;
 }
 
-export default function OportunidadeCard({ op, onAtender, onDispensar }: Props) {
+export default function OportunidadeCard({ op, onAtender, onDispensar, onVerHistorico }: Props) {
   const cor = CORES_PRIORIDADE[op.prioridade];
   const detalhes = renderizarDetalhes(op);
   const origem = origemDaOportunidade(op);
 
   const disabled = op.status !== "aberta";
+  const [hover, setHover] = useState(false);
+  const clicavel = !!onVerHistorico;
 
   return (
     <article
+      onClick={onVerHistorico ? () => onVerHistorico(op) : undefined}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      title={clicavel ? "Clique para ver o histórico do cliente (OS, pedidos, requisições)" : undefined}
       style={{
+        position: "relative",
         background: "var(--portal-bg-card)",
         border: "1px solid var(--portal-border)",
         borderLeft: `4px solid ${cor.fg}`,
         borderRadius: 12,
         padding: "14px 16px",
-        boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+        boxShadow: clicavel && hover ? "0 6px 18px rgba(3,105,161,0.18)" : "0 1px 3px rgba(0,0,0,0.04)",
         display: "flex",
         flexDirection: "column",
         gap: 10,
         fontFamily: "Inter, sans-serif",
         opacity: disabled ? 0.65 : 1,
+        cursor: clicavel ? "pointer" : "default",
+        transform: clicavel && hover ? "translateY(-1px)" : "none",
+        transition: "box-shadow .15s, transform .15s",
       }}
     >
+      {clicavel && hover && (
+        <span style={{ position: "absolute", top: 8, right: 10, fontSize: 10, fontWeight: 700, color: "#0369a1", background: "#e0f2fe", borderRadius: 8, padding: "2px 8px", zIndex: 1 }}>
+          📜 ver histórico
+        </span>
+      )}
       <header style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: "var(--portal-text)", lineHeight: 1.3 }}>
@@ -94,7 +111,7 @@ export default function OportunidadeCard({ op, onAtender, onDispensar }: Props) 
       })()}
 
       {op.status === "aberta" && (
-        <footer style={{ display: "flex", gap: 6, marginTop: 4 }}>
+        <footer style={{ display: "flex", gap: 6, marginTop: 4 }} onClick={(e) => e.stopPropagation()}>
           <button
             onClick={() => onAtender(op)}
             style={btnStyle("#10b981", "#fff")}
