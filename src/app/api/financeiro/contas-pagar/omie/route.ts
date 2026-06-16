@@ -214,13 +214,13 @@ export async function POST(req: NextRequest) {
     //    sem CNPJ mas a NF-e trouxe um, usa o da NF-e e completa o cadastro.
     const colCache = acc.name.toLowerCase().includes("castro") ? "id_omie_castro" : "id_omie";
     const cnpjNFe = soDigitos(String((row as Record<string, unknown>).nfe_cnpj_emitente || ""));
-    type FornRow = { id: number | string; nome: string; numero?: string | null; "cpf/cnpj"?: string | null; id_omie?: number | null; id_omie_castro?: number | null; estado?: string | null; cidade?: string | null; cep?: string | null; endereco?: string | null; endereco_numero?: string | null; bairro?: string | null };
+    type FornRow = { id: number | string; nome: string; numero?: string | null; "cpf/cnpj"?: string | null; id_omie?: number | null; id_omie_castro?: number | null; estado?: string | null; cidade?: string | null; cep?: string | null; endereco?: string | null; endereco_numero?: string | null; bairro?: string | null; email?: string | null };
     let forn: FornRow | undefined;
 
     if (cnpjNFe) {
       const { data: forns } = await supabase
         .from("Fornecedores")
-        .select("id, nome, numero, \"cpf/cnpj\", id_omie, id_omie_castro, estado, cidade, cep, endereco, endereco_numero, bairro");
+        .select("id, nome, numero, \"cpf/cnpj\", id_omie, id_omie_castro, estado, cidade, cep, endereco, endereco_numero, bairro, email");
       forn = ((forns || []) as FornRow[]).find((f) => soDigitos(String(f["cpf/cnpj"] || "")) === cnpjNFe);
     }
 
@@ -228,14 +228,14 @@ export async function POST(req: NextRequest) {
       const termo = String(row.fornecedor).trim();
       const { data: fornsExatos } = await supabase
         .from("Fornecedores")
-        .select("id, nome, numero, \"cpf/cnpj\", id_omie, id_omie_castro, estado, cidade, cep, endereco, endereco_numero, bairro")
+        .select("id, nome, numero, \"cpf/cnpj\", id_omie, id_omie_castro, estado, cidade, cep, endereco, endereco_numero, bairro, email")
         .ilike("nome", termo);
       forn = ((fornsExatos || []) as FornRow[]).find((f) => f.nome?.trim().toLowerCase() === termo.toLowerCase()) || (fornsExatos || [])[0] as FornRow | undefined;
 
       if (!forn) {
         const { data: fornsParciais } = await supabase
           .from("Fornecedores")
-          .select("id, nome, numero, \"cpf/cnpj\", id_omie, id_omie_castro, estado, cidade, cep, endereco, endereco_numero, bairro")
+          .select("id, nome, numero, \"cpf/cnpj\", id_omie, id_omie_castro, estado, cidade, cep, endereco, endereco_numero, bairro, email")
           .ilike("nome", `%${termo}%`)
           .limit(5);
         forn = ((fornsParciais || []) as FornRow[]).find((f) => soDigitos(String(f["cpf/cnpj"] || ""))) || (fornsParciais || [])[0] as FornRow | undefined;
@@ -279,6 +279,7 @@ export async function POST(req: NextRequest) {
           nome: forn!.nome,
           documento,
           telefone: forn!.numero || undefined,
+          email: forn!.email || undefined,
           fornecedorId: forn!.id,
           // Endereço completo vem do cadastro do fornecedor (Omie exige o
           // endereço inteiro ao criar: logradouro, número, bairro, cidade, UF e CEP)

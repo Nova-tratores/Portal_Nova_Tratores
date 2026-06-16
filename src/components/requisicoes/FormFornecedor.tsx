@@ -19,6 +19,7 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
     numero: '',
     'cpf/cnpj': '',
     descricao: '',
+    email: '',
     cep: '',
     endereco: '',
     endereco_numero: '',
@@ -52,6 +53,7 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
       numero: forn.numero || '',
       'cpf/cnpj': forn['cpf/cnpj'] || '',
       descricao: forn.descricao || '',
+      email: forn.email || '',
       cep: forn.cep || '',
       endereco: forn.endereco || '',
       endereco_numero: forn.endereco_numero || '',
@@ -74,7 +76,7 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
     }
   }, [editarId, fornecedores]);
 
-  const FORM_VAZIO = { nome: '', numero: '', 'cpf/cnpj': '', descricao: '', cep: '', endereco: '', endereco_numero: '', bairro: '', cidade: '', estado: '' };
+  const FORM_VAZIO = { nome: '', numero: '', 'cpf/cnpj': '', descricao: '', email: '', cep: '', endereco: '', endereco_numero: '', bairro: '', cidade: '', estado: '' };
 
   const cancelarEdicao = () => {
     setEditando(null);
@@ -185,11 +187,16 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
             </div>
 
             <div className={`${cellStyle} border-b`}>
+              <label className={labelStyle}>E-mail <span className="text-zinc-400 normal-case tracking-normal">— p/ Omie</span></label>
+              <input name="email" type="email" value={formData.email} onChange={e => setFormData(prev => ({ ...prev, email: e.target.value }))} className={inputStyle} placeholder="fornecedor@email.com" />
+            </div>
+
+            <div className={`${cellStyle} border-b md:border-r`}>
               <label className={labelStyle}>Descrição de Serviço</label>
               <input name="descricao" value={formData.descricao} onChange={handleChange} className={inputStyle} placeholder="EX: PEÇAS AGRÍCOLAS" />
             </div>
 
-            <div className={`${cellStyle} border-b md:border-r`}>
+            <div className={`${cellStyle} border-b`}>
               <label className={labelStyle}>
                 CEP <span className="text-zinc-400 normal-case tracking-normal">— p/ Omie</span>
                 {cepStatus === 'buscando' && <span className="text-blue-500 normal-case tracking-normal"> · buscando…</span>}
@@ -206,22 +213,22 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
               />
             </div>
 
-            <div className={`${cellStyle} border-b`}>
+            <div className={`${cellStyle} border-b md:border-r`}>
               <label className={labelStyle}>Endereço</label>
               <input name="endereco" value={formData.endereco} onChange={handleChange} className={inputStyle} placeholder="RUA / AV." />
             </div>
 
-            <div className={`${cellStyle} border-b md:border-r`}>
+            <div className={`${cellStyle} border-b`}>
               <label className={labelStyle}>Número</label>
               <input name="endereco_numero" value={formData.endereco_numero} onChange={handleChange} className={inputStyle} placeholder="Nº" />
             </div>
 
-            <div className={`${cellStyle} border-b`}>
+            <div className={`${cellStyle} border-b md:border-r`}>
               <label className={labelStyle}>Bairro</label>
               <input name="bairro" value={formData.bairro} onChange={handleChange} className={inputStyle} placeholder="BAIRRO" />
             </div>
 
-            <div className={`${cellStyle} md:border-r`}>
+            <div className={`${cellStyle} border-b`}>
               <label className={labelStyle}>Cidade</label>
               <input name="cidade" value={formData.cidade} onChange={handleChange} className={inputStyle} placeholder="EX: BAURU" />
             </div>
