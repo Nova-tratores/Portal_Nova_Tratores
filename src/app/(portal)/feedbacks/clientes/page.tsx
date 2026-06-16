@@ -132,7 +132,7 @@ export default function ClientesPage() {
   return (
     <div style={{ paddingTop: 20, fontFamily: "Inter, sans-serif" }}>
       <h1 style={{ fontSize: 20, fontWeight: 800, color: "var(--portal-text)", margin: 0, marginBottom: 14 }}>
-        👥 Clientes
+        📋 Histórico de atendimentos
       </h1>
 
       {erro && <div style={erroStyle}>Erro: {erro}</div>}

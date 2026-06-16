@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import type { FeedbackRegistro, StatusAtendimento } from "@/lib/feedbacks/types";
 import type { UltimaOS } from "@/lib/feedbacks/api";
 
@@ -66,9 +67,29 @@ export default function RegistroCard({ registro: r, ultimaOS, onEditar, onExclui
   // "Sem resposta" só libera 24h após o início do atendimento (mesma regra do modal).
   const bloqueadoSemResposta = horasAberto !== null && horasAberto < 24;
   const restantesSemResp = bloqueadoSemResposta ? Math.ceil(24 - (horasAberto || 0)) : 0;
+  const [hover, setHover] = useState(false);
+  const clicavel = !!onVerHistorico;
 
   return (
-    <article style={{ ...cardStyle, ...(atrasado ? { borderColor: "#dc2626", borderWidth: 2 } : {}) }}>
+    <article
+      onClick={onVerHistorico ? () => onVerHistorico(r) : undefined}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      title={clicavel ? "Clique para ver o histórico do cliente (OS, pedidos, requisições)" : undefined}
+      style={{
+        ...cardStyle,
+        ...(atrasado ? { borderColor: "#dc2626", borderWidth: 2 } : {}),
+        position: "relative",
+        ...(clicavel ? { cursor: "pointer" } : {}),
+        ...(clicavel && hover ? { boxShadow: "0 6px 18px rgba(3,105,161,0.18)", borderColor: "#0ea5e9", transform: "translateY(-1px)" } : {}),
+        transition: "box-shadow .15s, transform .15s, border-color .15s",
+      }}
+    >
+      {clicavel && hover && (
+        <span style={{ position: "absolute", top: 8, right: 10, fontSize: 10, fontWeight: 700, color: "#0369a1", background: "#e0f2fe", borderRadius: 8, padding: "2px 8px", zIndex: 1 }}>
+          📜 ver histórico
+        </span>
+      )}
       {(r.atendente_nome || r.status_atendimento === "arquivado") && (() => {
         // Banner conforme o status do atendimento.
         let bg = "#d1fae5", fg = "#065f46", txt = "🟢 Em atendimento por";
@@ -97,18 +118,7 @@ export default function RegistroCard({ registro: r, ultimaOS, onEditar, onExclui
       <header style={cardHeader}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            {onVerHistorico ? (
-              <button
-                type="button"
-                onClick={() => onVerHistorico(r)}
-                title="Ver histórico do cliente (OS, pedidos, requisições)"
-                style={{ ...tituloStyle, background: "none", border: "none", padding: 0, cursor: "pointer", color: "#0369a1", textDecoration: "underline", textUnderlineOffset: 3 }}
-              >
-                {r.nome} 📜
-              </button>
-            ) : (
-              <h3 style={tituloStyle}>{r.nome}</h3>
-            )}
+            <h3 style={tituloStyle}>{clicavel ? "📜 " : ""}{r.nome}</h3>
             {r.origem_dados && <span style={origemBadgeStyle(r.origem_dados)}>{r.origem_dados}</span>}
           </div>
           <div style={subtituloStyle}>
@@ -187,7 +197,7 @@ export default function RegistroCard({ registro: r, ultimaOS, onEditar, onExclui
       )}
 
       {onMudarAtendimento && (
-        <div style={acoesAtendimentoStyle}>
+        <div style={acoesAtendimentoStyle} onClick={(e) => e.stopPropagation()}>
           {r.status_atendimento === "arquivado" ? (
             <button onClick={() => onMudarAtendimento(r, "em_andamento")} style={btnAcao("#e5e7eb", "#374151")} type="button">
               ♻️ Desarquivar
@@ -238,7 +248,7 @@ export default function RegistroCard({ registro: r, ultimaOS, onEditar, onExclui
       )}
 
       {(onEditar || onExcluir) && (
-        <footer style={footerStyle}>
+        <footer style={footerStyle} onClick={(e) => e.stopPropagation()}>
           {onEditar && (
             <button onClick={() => onEditar(r)} style={btnAcao("#fef3c7", "#92400e")} type="button">
               📝 Preencher atendimento
