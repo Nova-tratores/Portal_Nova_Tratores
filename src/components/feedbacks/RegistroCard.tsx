@@ -118,7 +118,7 @@ export default function RegistroCard({ registro: r, ultimaOS, onEditar, onExclui
       <header style={cardHeader}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <h3 style={tituloStyle}>{clicavel ? "📜 " : ""}{r.nome}</h3>
+            <h3 style={tituloStyle}>{r.nome}</h3>
             {r.origem_dados && <span style={origemBadgeStyle(r.origem_dados)}>{r.origem_dados}</span>}
           </div>
           <div style={subtituloStyle}>

@@ -57,7 +57,7 @@ export default function OportunidadeCard({ op, onAtender, onDispensar, onVerHist
       <header style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: "var(--portal-text)", lineHeight: 1.3 }}>
-            {clicavel ? "📜 " : ""}{op.cliente_nome}
+            {op.cliente_nome}
           </div>
           <div style={{ marginTop: 4 }}>
             <span style={origemBadgeStyle(origem)}>{origem}</span>
