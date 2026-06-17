@@ -11,14 +11,6 @@
     {
       "path": "/api/pos/cron/sync-omie",
       "schedule": "0 */3 * * *"
-    },
-    {
-      "path": "/api/estoque/cron/backfill-cmc",
-      "schedule": "0 6 * * *"
-    },
-    {
-      "path": "/api/estoque/cron/sync-incremental",
-      "schedule": "0 */3 * * *"
     }
   ]
 }
