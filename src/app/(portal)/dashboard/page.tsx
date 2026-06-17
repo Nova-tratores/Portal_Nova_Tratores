@@ -734,13 +734,14 @@ export default function DashboardPage() {
       {/* ══ Faixa de favoritos (modo "Todos") ══ */}
       {favFilter === 'todos' && favoritosSystems.length > 0 && !editingFolder && (
         <div style={{
-          marginBottom: 16, padding: '12px 14px', borderRadius: 14,
-          background: 'linear-gradient(135deg, #FFFBEB, var(--portal-bg-card))',
-          border: '1px solid #FDE68A',
+          marginBottom: 16, padding: '14px 16px', borderRadius: 14,
+          background: 'var(--portal-bg-card)',
+          border: '1px solid var(--portal-border)',
+          boxShadow: '0 1px 3px rgba(16,24,40,0.05)',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-            <Star size={14} fill="#F59E0B" color="#F59E0B" />
-            <span style={{ fontSize: 12, fontWeight: 700, color: '#B45309', letterSpacing: 0.3 }}>FAVORITOS</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12 }}>
+            <Star size={13} fill="#F59E0B" color="#F59E0B" />
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--portal-text-secondary)', letterSpacing: 1, textTransform: 'uppercase' }}>Favoritos</span>
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {favoritosSystems.map(system => (

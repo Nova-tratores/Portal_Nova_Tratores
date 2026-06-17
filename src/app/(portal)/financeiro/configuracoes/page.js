@@ -87,7 +87,7 @@ function ConfiguracoesContent() {
     } catch (err) { alert("Erro: " + err.message) } finally { setUpdating(false) }
   }
 
-  if (loading) return <div style={{background:'#000', height:'100vh', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontFamily:'Inter'}}>CARREGANDO...</div>
+  if (loading) return <div style={{background:'#f7f8fa', height:'100vh', display:'flex', alignItems:'center', justifyContent:'center', color:'#94a3b8', fontFamily:'Inter'}}>CARREGANDO...</div>
 
   return (
     <div style={{ minHeight: '100vh', background: '#f4f4f4', fontFamily: 'Inter, sans-serif' }}>

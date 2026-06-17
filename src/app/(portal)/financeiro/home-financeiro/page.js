@@ -85,6 +85,7 @@ function HomeFinanceiroContent() {
  const [listaBoletos, setListaBoletos] = useState([]); const [listaSemBoleto, setListaSemBoleto] = useState([]); const [listaPagar, setListaPagar] = useState([]); const [listaRH, setListaRH] = useState([]);
  const [fileBoleto, setFileBoleto] = useState(null);
  const [zoom, setZoom] = useState(1);
+ const [cardLogs, setCardLogs] = useState([]);   // histórico (audit_log) do card aberto
  const router = useRouter();
  const searchParams = useSearchParams();
 
@@ -193,7 +194,28 @@ function HomeFinanceiroContent() {
  };
  const getCardTable = (t) => t.gTipo === 'pagar' ? 'finan_pagar' : t.gTipo === 'receber' ? 'finan_receber' : t.gTipo === 'rh' ? 'finan_rh' : 'Chamado_NF';
 
+ // Histórico (audit_log) do card aberto — o que cada usuário fez NELE
+ useEffect(() => {
+   if (!tarefaSelecionada) { setCardLogs([]); return; }
+   const tbl = getCardTable(tarefaSelecionada);
+   (async () => {
+     const { data: logs } = await supabase.from('audit_log')
+       .select('created_at, acao, user_id, detalhes')
+       .eq('entidade', tbl).eq('entidade_id', String(tarefaSelecionada.id))
+       .order('created_at', { ascending: false }).limit(40);
+     const ids = [...new Set((logs || []).map(l => l.user_id).filter(Boolean))];
+     let nomes = {};
+     if (ids.length) {
+       const { data: us } = await supabase.from('financeiro_usu').select('id, nome').in('id', ids);
+       nomes = Object.fromEntries((us || []).map(u => [u.id, u.nome]));
+     }
+     setCardLogs((logs || []).map(l => ({ ...l, nome: nomes[l.user_id] || 'Usuário' })));
+   })();
+ }, [tarefaSelecionada?.id]);
+
  const handleUpdateField = async (t, field, value) => {
+    // só age se houve MUDANÇA real (evita notificar ao só clicar/sair do campo)
+    if (String(t[field] ?? '') === String(value ?? '')) return;
     const table = getCardTable(t);
     await supabase.from(table).update({ [field]: value }).eq('id', t.id);
     auditLog({ sistema: 'financeiro', acao: 'editar', entidade: table, entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { campo: field, valor: value } });
@@ -378,12 +400,9 @@ function HomeFinanceiroContent() {
           <div onClick={() => router.push('/financeiro/novo-chamado-nf')} style={{ padding:'12px 16px', cursor:'pointer', color:'var(--portal-text)', borderBottom:'1px solid var(--portal-bg-secondary)', fontSize:'13px', fontWeight: '600', transition: '0.15s' }}
             onMouseEnter={e => e.currentTarget.style.background='#fef2f2'}
             onMouseLeave={e => e.currentTarget.style.background='transparent'}>Boleto</div>
-          <div onClick={() => router.push('/financeiro/novo-pagar-receber?tipo=pagar')} style={{ padding:'12px 16px', cursor:'pointer', color:'var(--portal-text)', borderBottom:'1px solid var(--portal-bg-secondary)', fontSize:'13px', fontWeight: '600', transition: '0.15s' }}
+          <div onClick={() => router.push('/financeiro/novo-pagar-receber?tipo=pagar')} style={{ padding:'12px 16px', cursor:'pointer', color:'var(--portal-text)', fontSize:'13px', fontWeight: '600', transition: '0.15s' }}
             onMouseEnter={e => e.currentTarget.style.background='#fef2f2'}
             onMouseLeave={e => e.currentTarget.style.background='transparent'}>Pagar</div>
-          <div onClick={() => router.push('/financeiro/novo-chamado-rh')} style={{ padding:'12px 16px', cursor:'pointer', color:'#dc2626', fontSize:'13px', fontWeight: '600', transition: '0.15s' }}
-            onMouseEnter={e => e.currentTarget.style.background='#fef2f2'}
-            onMouseLeave={e => e.currentTarget.style.background='transparent'}>RH</div>
          </div>
         )}
       </div>
@@ -393,7 +412,7 @@ function HomeFinanceiroContent() {
 
     <div style={{
         display: 'grid',
-        gridTemplateColumns: '1fr 1fr 1fr 1fr',
+        gridTemplateColumns: '1fr 1fr 1fr',
         gap: '30px',
         transform: `scale(${zoom})`,
         transformOrigin: 'top left',
@@ -523,22 +542,6 @@ function HomeFinanceiroContent() {
        </div>
       </div>
 
-      <div style={colWrapperStyle}>
-       <div style={colTitleStyle}>RH</div>
-       <div style={{ display: 'flex', flexDirection: 'column', gap: '0px', borderTop: '0.5px solid var(--portal-border)' }}>
-        {listaRH.map((t, idx) => (
-         <div key={`rh-${t.id}-${idx}`} onClick={() => setTarefaSelecionada(t)} className="task-card-grid">
-          <div style={{padding:'24px', background: 'var(--portal-bg-secondary)', borderLeft: '6px solid #8b5cf6', borderBottom: '0.5px solid var(--portal-border)'}}>
-            <h4 style={{fontSize:'18px', color:'var(--portal-text)', fontWeight:'500'}}>{t.funcionario?.toUpperCase()}</h4>
-            <div style={{fontSize:'14px', color:'#0ea5e9', marginTop:'10px', textTransform:'uppercase', letterSpacing:'1px', fontWeight: '500'}}>{t.setor}</div>
-          </div>
-          <div style={{padding:'24px', background:'var(--portal-bg-card)', borderBottom: '0.5px solid var(--portal-border)'}}>
-             <div style={{fontSize:'14px', color:'var(--portal-text-secondary)', fontWeight:'400'}}>{t.titulo}</div>
-          </div>
-         </div>
-        ))}
-       </div>
-      </div>
     </div>
 
    {tarefaSelecionada && (
@@ -1024,6 +1027,30 @@ function HomeFinanceiroContent() {
                 </button>
             )}
         </div>
+
+        {/* HISTÓRICO DESTE CARD — o que cada usuário fez nele */}
+        {cardLogs.length > 0 && (
+          <div style={{ marginTop: '40px', borderTop: '1px solid var(--portal-border)', paddingTop: '24px' }}>
+            <label style={labelMStyle}>Histórico deste card</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '14px' }}>
+              {cardLogs.map((l, i) => {
+                const det = l.detalhes && typeof l.detalhes === 'object'
+                  ? Object.entries(l.detalhes).map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`).join(' · ')
+                  : '';
+                return (
+                  <div key={i} style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', padding: '12px 14px', background: 'var(--portal-bg-secondary)', borderRadius: '10px', border: '1px solid var(--portal-border)' }}>
+                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#dc2626', marginTop: '6px', flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '13.5px', fontWeight: '600', color: 'var(--portal-text)' }}>{l.nome} <span style={{ fontWeight: '400', color: 'var(--portal-text-secondary)' }}>— {l.acao}</span></div>
+                      {det && <div style={{ fontSize: '12px', color: 'var(--portal-text-secondary)', marginTop: '2px', wordBreak: 'break-word' }}>{det}</div>}
+                    </div>
+                    <div style={{ fontSize: '11.5px', color: '#94a3b8', whiteSpace: 'nowrap' }}>{new Date(l.created_at).toLocaleString('pt-BR')}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
      </div>
@@ -1032,9 +1059,10 @@ function HomeFinanceiroContent() {
 
    </div>{/* fim padding wrapper */}
    <style jsx global>{`
-    .task-card-grid { background: var(--portal-bg-card); border: 0.5px solid var(--portal-border); cursor: pointer; transition: 0.3s; overflow: hidden; margin-bottom: 15px; }
-    .task-card-grid:hover { transform: translateY(-4px); box-shadow: 0 10px 20px rgba(0,0,0,0.04); border-color: #0ea5e9; }
-    .btn-back-light { background: var(--portal-bg-card); color: var(--portal-text-secondary); border: 0.5px solid var(--portal-border); padding: 10px 24px; border-radius: 0px; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.3s; font-size:15px; }
+    .task-card-grid { background: var(--portal-bg-card); border: 1px solid var(--portal-border); border-radius: 14px; cursor: pointer; transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; overflow: hidden; margin-bottom: 14px; box-shadow: 0 1px 2px rgba(16,24,40,.05); }
+    .task-card-grid:hover { transform: translateY(-2px); box-shadow: 0 12px 26px rgba(16,24,40,.10); border-color: var(--portal-border-hover); }
+    .btn-back-light { background: var(--portal-bg-card); color: var(--portal-text-secondary); border: 1px solid var(--portal-border); padding: 9px 16px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s; font-size:13px; font-weight:600; }
+    .btn-back-light:hover { background: var(--portal-bg-secondary); color: var(--portal-text); }
     ::placeholder { color: var(--portal-text-secondary); }
     ::-webkit-scrollbar { width: 8px; height: 12px; }
     ::-webkit-scrollbar-thumb { background: var(--portal-border); border-radius: 10px; }

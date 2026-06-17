@@ -2,13 +2,15 @@ import { supabase } from '@/lib/supabase'
 import { podeNotificar } from '@/lib/notif/prefs'
 
 /**
- * Notifica todos os admins do portal via portal_notificacoes.
- * Uso client-side (sem server import).
+ * Notifica sobre uma mudança via portal_notificacoes.
  *
- * O parâmetro `tipo` é também o ID do módulo origem da notificação
- * (ex: 'financeiro', 'garantia', 'requisicao'). Admins que silenciaram esse
- * módulo nas preferências não recebem — exceto se o módulo for obrigatório
- * pra categoria deles.
+ * REGRAS:
+ * - Recebem: os ADMINISTRADORES + quem tem ACESSO ao módulo de origem (`tipo`).
+ * - NUNCA notifica o próprio autor da ação (o usuário logado é excluído).
+ * - Respeita as preferências de silenciar do destinatário.
+ *
+ * O parâmetro `tipo` é o ID do módulo origem (ex: 'financeiro', 'requisicoes').
+ * Obs.: só chame esta função quando houver MUDANÇA real — não em clique/foco.
  */
 export async function notificarAdminsClient(
   tipo: string,
@@ -17,16 +19,24 @@ export async function notificarAdminsClient(
   link?: string
 ) {
   try {
-    const { data: admins } = await supabase
+    // autor da ação (logado) — pra não notificar ele mesmo
+    const { data: { session } } = await supabase.auth.getSession()
+    const selfId = session?.user?.id
+
+    // admins OU quem tem o módulo em modulos_permitidos
+    const { data: pessoas } = await supabase
       .from('portal_permissoes')
       .select('user_id, categoria, notif_silenciado')
-      .eq('is_admin', true)
+      .or(`is_admin.eq.true,modulos_permitidos.cs.{${tipo}}`)
 
-    if (!admins || admins.length === 0) return
+    if (!pessoas || pessoas.length === 0) return
 
-    const destinatarios = (admins as Array<{ user_id: string; categoria: string | null; notif_silenciado: string[] | null }>)
-      .filter((a) => podeNotificar(tipo, a.notif_silenciado, a.categoria))
-      .map((a) => a.user_id)
+    const destinatarios = [...new Set(
+      (pessoas as Array<{ user_id: string; categoria: string | null; notif_silenciado: string[] | null }>)
+        .filter((a) => a.user_id && a.user_id !== selfId)
+        .filter((a) => podeNotificar(tipo, a.notif_silenciado, a.categoria))
+        .map((a) => a.user_id)
+    )]
 
     if (destinatarios.length === 0) return
 

@@ -12,8 +12,8 @@ import {
 
 function LoadingScreen() {
   return (
-    <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <h1 style={{ color: '#fff', fontFamily: 'Inter, sans-serif', fontWeight: '300', fontSize: '24px', letterSpacing: '4px', textTransform: 'uppercase', textAlign: 'center' }}>
+    <div style={{ position: 'fixed', inset: 0, background: '#f7f8fa', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <h1 style={{ color: '#94a3b8', fontFamily: 'Inter, sans-serif', fontWeight: '300', fontSize: '24px', letterSpacing: '4px', textTransform: 'uppercase', textAlign: 'center' }}>
         Relatorio Pagar <br />
         <span style={{ fontSize: '28px', fontWeight: '400' }}>Nova Tratores</span>
       </h1>
@@ -171,7 +171,7 @@ export default function RelatorioPagar() {
   if (loading) return <LoadingScreen />
 
   if (erro) return (
-    <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '16px' }}>
+    <div style={{ position: 'fixed', inset: 0, background: '#f7f8fa', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '16px' }}>
       <h1 style={{ color: '#ef4444', fontFamily: 'Inter, sans-serif', fontWeight: '300', fontSize: '18px', letterSpacing: '2px', textTransform: 'uppercase', textAlign: 'center', maxWidth: '600px' }}>{erro}</h1>
       <button onClick={() => window.location.reload()} style={{ color: '#fff', background: 'transparent', border: '0.5px solid #fff', padding: '10px 24px', fontFamily: 'Inter', fontSize: '12px', letterSpacing: '2px', cursor: 'pointer' }}>TENTAR NOVAMENTE</button>
     </div>

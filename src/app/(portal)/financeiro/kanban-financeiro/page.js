@@ -187,6 +187,8 @@ useEffect(() => {
 
 const handleUpdateField = async (id, field, value) => {
       if (tarefaSelecionada?.status === 'concluido') return;
+      // só age se houve MUDANÇA real (evita notificar ao só clicar/sair do campo)
+      if (tarefaSelecionada && String(tarefaSelecionada.id) === String(id) && String(tarefaSelecionada[field] ?? '') === String(value ?? '')) return;
       await supabase.from('Chamado_NF').update({ [field]: value }).eq('id', id);
       notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} alterou NF #${id}`, `Campo: ${field}`, `/financeiro/kanban-financeiro`)
       carregarDados();

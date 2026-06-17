@@ -1,18 +1,18 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
 import { formatarDataBR, formatarMoeda } from '@/lib/financeiro/utils'
 import {
-  FileText, Download, Search, Calendar, Hash, FilterX, Eye
+  FileText, Download, Search, Calendar, Hash, FilterX, Eye, ChevronDown
 } from 'lucide-react'
 
 // --- TELA DE CARREGAMENTO ---
 function LoadingScreen() {
   return (
-    <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <h1 style={{ color: '#fff', fontFamily: 'Inter, sans-serif', fontWeight: '300', fontSize: '24px', letterSpacing: '4px', textTransform: 'uppercase', textAlign: 'center' }}>
+    <div style={{ position: 'fixed', inset: 0, background: '#f7f8fa', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <h1 style={{ color: '#94a3b8', fontFamily: 'Inter, sans-serif', fontWeight: '300', fontSize: '24px', letterSpacing: '4px', textTransform: 'uppercase', textAlign: 'center' }}>
             Histórico Financeiro <br /> 
             <span style={{ fontSize: '28px', fontWeight: '400' }}>Nova Tratores</span>
         </h1>
@@ -22,6 +22,49 @@ function LoadingScreen() {
 
 // formatarDataBR e formatarMoeda importados de @/lib/utils
 
+// Tabela de despesas de um mês (usada dentro de cada grupo da cascata)
+function TabelaDespesas({ items }) {
+  return (
+    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+      <thead>
+        <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+          <th style={thStyle}>ID</th>
+          <th style={thStyle}>FORNECEDOR</th>
+          <th style={thStyle}>VALOR</th>
+          <th style={thStyle}>NOTA FISCAL</th>
+          <th style={thStyle}>METODO</th>
+          <th style={thStyle}>VENCIMENTO</th>
+          <th style={{ ...thStyle, textAlign: 'center' }}>DOCUMENTOS</th>
+        </tr>
+      </thead>
+      <tbody>
+        {items.map((item) => (
+          <tr key={item.id} className="row-hover" style={{ borderBottom: '1px solid #f1f5f9', transition: '0.2s' }}>
+            <td style={{ padding: '18px 25px', fontSize: '13px', color: '#9e9e9e' }}>#{item.id}</td>
+            <td style={{ fontSize: '15px', color: '#424242' }}>{item.fornecedor?.toUpperCase()}</td>
+            <td style={{ fontSize: '15px', color: '#000' }}>R$ {item.valor}</td>
+            <td style={{ fontSize: '15px' }}><span style={tagNota}>NF {item.numero_NF || 'N/A'}</span></td>
+            <td style={{ fontSize: '14px', color: '#616161' }}>
+              {item.metodo || '—'}
+              {item.qtd_parcelas > 1 && <span style={{ display: 'block', fontSize: '11px', color: '#0284c7', fontWeight: '600' }}>{item.qtd_parcelas}x parcelas</span>}
+            </td>
+            <td style={{ fontSize: '15px', color: '#757575' }}>{formatarDataBR(item.data_vencimento)}</td>
+            <td style={{ textAlign: 'center' }}>
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                {item.anexo_nf && <a href={item.anexo_nf} target="_blank" title="Ver Nota" style={actionIcon}><FileText size={18} /></a>}
+                {item.anexo_requisicao && <a href={item.anexo_requisicao} target="_blank" title="Ver Requisição" style={actionIcon}><Eye size={18} /></a>}
+                {item.anexo_boleto && item.anexo_boleto.split(',').map((url, i) => url.trim() && (
+                  <a key={`bol-${i}`} href={url.trim()} target="_blank" title={`Ver Boleto ${i + 1}`} style={actionIcon}><Download size={18} /></a>
+                ))}
+              </div>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
 export default function HistoricoPagar() {
   const [lista, setLista] = useState([])
   const [loading, setLoading] = useState(true)
@@ -30,6 +73,7 @@ export default function HistoricoPagar() {
   const [filtroForn, setFiltroForn] = useState('')
   const [filtroNota, setFiltroNota] = useState('')
   const [filtroData, setFiltroData] = useState('')
+  const [mesesAbertos, setMesesAbertos] = useState({})
 
   const router = useRouter()
 
@@ -61,10 +105,29 @@ export default function HistoricoPagar() {
     setFiltroForn(''); setFiltroNota(''); setFiltroData('');
   }
 
+  // AGRUPA POR MÊS/ANO do vencimento — mês atual aberto, anteriores em cascata
+  const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+  const now = new Date();
+  const mesAtual = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const grupos = useMemo(() => {
+    const map = {};
+    for (const item of listaFiltrada) {
+      const k = item.data_vencimento ? String(item.data_vencimento).slice(0, 7) : 'sem-data';
+      (map[k] = map[k] || []).push(item);
+    }
+    return map;
+  }, [listaFiltrada]);
+  const chaves = Object.keys(grupos).filter(k => k !== 'sem-data').sort().reverse();
+  if (grupos['sem-data']) chaves.push('sem-data');
+  const nomeMes = (k) => k === 'sem-data' ? 'Sem data de vencimento' : `${MESES[parseInt(k.split('-')[1]) - 1]} ${k.split('-')[0]}`;
+  const totalMes = (k) => (grupos[k] || []).reduce((s, it) => s + (parseFloat(it.valor) || 0), 0);
+  const isAberto = (k) => mesesAbertos[k] ?? (k === mesAtual);
+  const toggleMes = (k) => setMesesAbertos(prev => ({ ...prev, [k]: !isAberto(k) }));
+
   if (loading) return <LoadingScreen />
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f4f4f4', fontFamily: 'Inter, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#f7f8fa', fontFamily: 'Inter, sans-serif' }}>
       <FinanceiroNav />
 
       <main style={{ padding: '24px 32px' }}>
@@ -100,64 +163,39 @@ export default function HistoricoPagar() {
             </button>
         </div>
 
-        {/* TABELA DE RESULTADOS */}
-        <div style={{ background: '#fff', borderRadius: '25px', border: '0.5px solid #d1d1d1', overflow: 'hidden', boxShadow: '0 15px 35px rgba(0,0,0,0.05)' }}>
-          <table style={{ width:'100%', borderCollapse:'collapse', textAlign:'left' }}>
-            <thead>
-              <tr style={{ background: '#f8fafc', borderBottom: '0.5px solid #e2e8f0' }}>
-                <th style={thStyle}>ID</th>
-                <th style={thStyle}>FORNECEDOR</th>
-                <th style={thStyle}>VALOR</th>
-                <th style={thStyle}>NOTA FISCAL</th>
-                <th style={thStyle}>METODO</th>
-                <th style={thStyle}>VENCIMENTO</th>
-                <th style={{ ...thStyle, textAlign:'center' }}>DOCUMENTOS</th>
-              </tr>
-            </thead>
-            <tbody>
-              {listaFiltrada.map((item) => (
-                <tr key={item.id} className="row-hover" style={{ borderBottom: '0.5px solid #f1f5f9', transition: '0.2s' }}>
-                  <td style={{ padding:'20px 25px', fontSize:'13px', color:'#9e9e9e' }}>#{item.id}</td>
-                  <td style={{ fontSize:'15px', color:'#424242' }}>{item.fornecedor?.toUpperCase()}</td>
-                  <td style={{ fontSize:'15px', color:'#000' }}>R$ {item.valor}</td>
-                  <td style={{ fontSize:'15px' }}>
-                    <span style={tagNota}>NF {item.numero_NF || 'N/A'}</span>
-                  </td>
-                  <td style={{ fontSize:'14px', color:'#616161' }}>
-                    {item.metodo || '—'}
-                    {item.qtd_parcelas > 1 && <span style={{ display:'block', fontSize:'11px', color:'#0284c7', fontWeight:'600' }}>{item.qtd_parcelas}x parcelas</span>}
-                  </td>
-                  <td style={{ fontSize:'15px', color:'#757575' }}>{formatarDataBR(item.data_vencimento)}</td>
-                  <td style={{ textAlign:'center' }}>
-                    <div style={{ display:'flex', gap:'8px', justifyContent:'center' }}>
-                      {item.anexo_nf && (
-                        <a href={item.anexo_nf} target="_blank" title="Ver Nota" style={actionIcon}>
-                            <FileText size={18} />
-                        </a>
-                      )}
-                      {item.anexo_requisicao && (
-                        <a href={item.anexo_requisicao} target="_blank" title="Ver Requisição" style={actionIcon}>
-                            <Eye size={18} />
-                        </a>
-                      )}
-                      {item.anexo_boleto && item.anexo_boleto.split(',').map((url, i) => url.trim() && (
-                        <a key={`bol-${i}`} href={url.trim()} target="_blank" title={`Ver Boleto ${i + 1}`} style={actionIcon}>
-                            <Download size={18} />
-                        </a>
-                      ))}
+        {/* DESPESAS POR MÊS — mês atual aberto, anteriores em cascata */}
+        {listaFiltrada.length === 0 ? (
+          <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #e9ecf1', padding: '80px', textAlign: 'center', boxShadow: '0 1px 3px rgba(16,24,40,0.05)' }}>
+            <p style={{ fontSize: '16px', color: '#9e9e9e' }}>Nenhuma despesa concluída encontrada.</p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {chaves.map((k) => {
+              const aberto = isAberto(k);
+              const atual = k === mesAtual;
+              return (
+                <div key={k} style={{ background: '#fff', borderRadius: '16px', border: '1px solid #e9ecf1', overflow: 'hidden', boxShadow: '0 1px 3px rgba(16,24,40,0.05)' }}>
+                  <button onClick={() => toggleMes(k)} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', padding: '16px 22px', border: 'none', background: atual ? 'linear-gradient(135deg,#fef2f2,#fff)' : '#fff', cursor: 'pointer', textAlign: 'left' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <ChevronDown size={18} style={{ color: '#94a3b8', transform: aberto ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform .15s' }} />
+                      <span style={{ fontSize: '16px', fontWeight: '700', color: '#0f172a' }}>{nomeMes(k)}</span>
+                      {atual && <span style={{ fontSize: '10px', fontWeight: '700', color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '20px', padding: '3px 10px', letterSpacing: '.5px' }}>MÊS ATUAL</span>}
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          {listaFiltrada.length === 0 && (
-            <div style={{padding:'80px', textAlign:'center'}}>
-                <p style={{ fontSize:'16px', color:'#9e9e9e' }}>Nenhum pagamento concluído encontrado.</p>
-            </div>
-          )}
-        </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                      <span style={{ fontSize: '13px', color: '#94a3b8' }}>{grupos[k].length} despesa{grupos[k].length !== 1 ? 's' : ''}</span>
+                      <span style={{ fontSize: '15px', fontWeight: '700', color: '#0f172a' }}>{formatarMoeda(totalMes(k))}</span>
+                    </div>
+                  </button>
+                  {aberto && (
+                    <div style={{ borderTop: '1px solid #f1f4f8', overflowX: 'auto' }}>
+                      <TabelaDespesas items={grupos[k]} />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </main>
 
       <style jsx global>{`

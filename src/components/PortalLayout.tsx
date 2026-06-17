@@ -84,18 +84,25 @@ const navItems: NavItem[] = [
   { id: 'dashboard-agro', name: 'Dashboard Agro', href: 'https://dashboard-agro-sp-production.up.railway.app/', icon: <Wheat size={18} />, tag: 'AGRO', gradient: '', group: 'outros', external: true },
 ]
 
-// Ícone por tipo de notificação
-const NOTIF_ICONS: Record<string, string> = {
-  chat: '💬',
-  financeiro: '💰',
-  requisicao: '📋',
-  revisao: '🔧',
-  pos: '⚙️',
-  ppv: '🛡️',
-  garantia: '🛡️',
-  proposta: '📄',
-  admin: '🔒',
-  sistema: '🔔',
+// Ícone por tipo de notificação (lucide — sem emojis)
+const NOTIF_ICONS: Record<string, import('react').ReactNode> = {
+  chat: <MessageCircle size={18} />,
+  financeiro: <DollarSign size={18} />,
+  requisicao: <ClipboardList size={18} />,
+  revisao: <Wrench size={18} />,
+  pos: <Settings size={18} />,
+  ppv: <Package size={18} />,
+  garantia: <ShieldCheck size={18} />,
+  proposta: <FileText size={18} />,
+  admin: <Lock size={18} />,
+  sistema: <Bell size={18} />,
+}
+
+// Cor de acento por tipo de notificação
+const NOTIF_COLORS: Record<string, string> = {
+  chat: '#3b82f6', financeiro: '#10b981', requisicao: '#f97316', revisao: '#0ea5e9',
+  pos: '#0ea5e9', ppv: '#f97316', garantia: '#0ea5e9', proposta: '#8b5cf6',
+  admin: '#dc2626', sistema: '#6b7280',
 }
 
 const timeAgo = (date: string) => {
@@ -436,7 +443,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       return {
         id: 'chat-' + c.id,
         chatId: c.id,
-        icone: '💬',
+        icone: 'chat',
         titulo: c.tipo === 'grupo' ? (c.nome || 'Grupo') : (outro?.nome || 'Chat'),
         descricao: c.nao_lidas + (c.nao_lidas === 1 ? ' mensagem nova' : ' mensagens novas'),
         tempo: c.ultima_mensagem?.created_at || c.updated_at,
@@ -449,7 +456,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     ...notifData.notificacoes.slice(0, 20).map(n => ({
       id: n.id,
       chatId: null as string | null,
-      icone: NOTIF_ICONS[n.tipo] || '🔔',
+      icone: NOTIF_ICONS[n.tipo] || <Bell size={18} />,
       titulo: n.titulo,
       descricao: n.descricao || '',
       tempo: n.created_at,
@@ -662,9 +669,12 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                       <p style={{ color: 'var(--portal-text-faint)', fontSize: '12px', marginTop: '4px' }}>Você está em dia!</p>
                     </div>
                   ) : (
-                    bellItems.map(item => (
+                    bellItems.map(item => {
+                      const cor = NOTIF_COLORS[item.tipo] || '#dc2626'
+                      return (
                       <div
                         key={item.id}
+                        className="notif-item"
                         onClick={() => {
                           if (item.tipo === 'chat' && item.chatId) {
                             setChatOpen(true)
@@ -677,28 +687,28 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                         }}
                         style={{
                           display: 'flex', alignItems: 'center', gap: '14px',
-                          padding: '14px 24px', cursor: 'pointer',
-                          background: item.lida ? 'transparent' : 'var(--portal-bg-hover)',
+                          padding: '14px 22px 14px 24px', cursor: 'pointer',
+                          background: 'transparent', position: 'relative',
                           borderBottom: `1px solid var(--portal-border)`,
-                          transition: 'background 0.15s'
+                          transition: 'background 0.18s ease'
                         }}
                         onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--portal-bg-secondary)' }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = item.lida ? 'transparent' : 'var(--portal-bg-hover)' }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
                       >
+                        {/* Acento lateral (não lida) */}
+                        {!item.lida && <div style={{ position: 'absolute', left: 0, top: 8, bottom: 8, width: 3, background: cor, borderRadius: '0 3px 3px 0' }} />}
                         {/* Ícone */}
-                        <div style={{
+                        <div className="notif-ava" style={{
                           width: '42px', height: '42px', borderRadius: '12px',
-                          background: item.tipo === 'chat'
-                            ? (item.lida ? 'var(--portal-bg-secondary)' : 'linear-gradient(135deg, #3b82f6, #2563eb)')
-                            : (item.lida ? 'var(--portal-bg-secondary)' : 'var(--portal-bg-hover)'),
+                          background: item.tipo === 'chat' && !item.lida ? 'linear-gradient(135deg, #3b82f6, #2563eb)' : `${cor}1a`,
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: '18px', flexShrink: 0,
+                          flexShrink: 0,
                           boxShadow: !item.lida && item.tipo === 'chat' ? '0 4px 12px rgba(59,130,246,0.25)' : 'none'
                         }}>
                           {item.tipo === 'chat' ? (
-                            <MessageCircle size={18} color={item.lida ? 'var(--portal-text-muted)' : '#fff'} />
+                            <MessageCircle size={18} color={!item.lida ? '#fff' : cor} />
                           ) : (
-                            <span>{item.icone}</span>
+                            <span style={{ display: 'flex', color: cor }}>{item.icone}</span>
                           )}
                         </div>
 
@@ -735,7 +745,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                           {timeAgo(item.tempo)}
                         </span>
                       </div>
-                    ))
+                      )
+                    })
                   )}
                 </div>
               </div>
@@ -1369,7 +1380,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                   ) : isChat ? (
                     <MessageCircle size={20} color="#fff" />
                   ) : (
-                    <span>{NOTIF_ICONS[t.tipo] || '🔔'}</span>
+                    <span style={{ display: 'flex', color: 'var(--portal-text-secondary)' }}>{NOTIF_ICONS[t.tipo] || <Bell size={18} />}</span>
                   )}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
