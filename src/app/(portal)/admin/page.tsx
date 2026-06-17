@@ -34,6 +34,7 @@ const MODULOS = [
   { id: 'sat', label: 'SAT Digital', color: '#0ea5e9' },
   { id: 'supervisor-vendas', label: 'Supervisor Vendas', color: '#dc2626' },
   { id: 'tarefas', label: 'Tarefas', color: '#dc2626' },
+  { id: 'tratorilson', label: 'Tratorilson (Chat IA)', color: '#ef4444' },
 ]
 
 const CATEGORIAS = ['Pós Vendas', 'Peças', 'Comercial', 'Financeiro']

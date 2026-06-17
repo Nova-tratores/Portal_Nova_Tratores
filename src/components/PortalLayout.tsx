@@ -964,8 +964,15 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         {children}
       </main>
 
-      {/* Assistente Tratorino (flutuante, global) */}
-      <TratorinoChat />
+      {/* Assistente Tratorilson (flutuante, global) — só aparece pra quem tem acesso */}
+      {temAcesso('tratorilson') && (
+        <TratorinoChat
+          userName={userProfile?.nome || ''}
+          userId={userProfile?.id || ''}
+          isAdmin={isAdmin}
+          modulos={permissoes?.modulos_permitidos || []}
+        />
+      )}
 
       {/* ===== CHAT PANEL ===== */}
       <ChatPanel
