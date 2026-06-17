@@ -3,8 +3,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import RegistroCard from "./RegistroCard";
 import ModalFeedback from "./ModalFeedback";
 import ModalHistoricoCliente from "./ModalHistoricoCliente";
-import { atualizarRegistro, buscarUltimasOSPorCliente, deletarRegistro, listarRegistros, type UltimaOS } from "@/lib/feedbacks/api";
-import type { FeedbackRegistro, StatusAtendimento, TipoFeedback } from "@/lib/feedbacks/types";
+import { atualizarRegistro, buscarUltimasOSPorCliente, deletarRegistro, listarRegistros, listarClientesInfo, upsertClienteInfo, type UltimaOS } from "@/lib/feedbacks/api";
+import { clienteKey, TAG_NAO_CONTATAR, type ClienteInfo, type FeedbackRegistro, type StatusAtendimento, type TipoFeedback } from "@/lib/feedbacks/types";
+import { useAuditLog } from "@/hooks/useAuditLog";
 
 interface Props {
   tipo: TipoFeedback;
@@ -85,6 +86,9 @@ export default function ListaRegistros({ tipo }: Props) {
   const [ultimasOS, setUltimasOS] = useState<Record<string, UltimaOS>>({});
   // Cliente cujo histórico (OS/PV/requisições) está aberto no modal.
   const [histAlvo, setHistAlvo] = useState<{ nome: string; codigoOmie: string | null } | null>(null);
+  // Info/tags por cliente (feedback_clientes_info) — ícones e caveira.
+  const [infoPorKey, setInfoPorKey] = useState<Record<string, ClienteInfo>>({});
+  const { log } = useAuditLog();
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -96,6 +100,14 @@ export default function ListaRegistros({ tipo }: Props) {
       buscarUltimasOSPorCliente(data.map((r) => r.nome))
         .then(setUltimasOS)
         .catch(() => { /* silencioso: card só não mostra a última OS */ });
+      // Info/tags dos clientes (best-effort).
+      listarClientesInfo()
+        .then((infos) => {
+          const m: Record<string, ClienteInfo> = {};
+          for (const i of infos) m[i.cliente_key] = i;
+          setInfoPorKey(m);
+        })
+        .catch(() => { /* sem tags — cards só não mostram ícones */ });
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
     } finally {
@@ -105,7 +117,17 @@ export default function ListaRegistros({ tipo }: Props) {
 
   useEffect(() => { void carregar(); }, [carregar]);
 
-  const filtradas = useMemo(() => aplicarFiltros(rows, filtros, tipo), [rows, filtros, tipo]);
+  const tagsDe = useCallback(
+    (r: FeedbackRegistro): string[] => (infoPorKey[clienteKey(r.codigo_omie, r.nome)]?.tags as string[] | undefined) || [],
+    [infoPorKey]
+  );
+
+  const filtradas = useMemo(() => {
+    const base = aplicarFiltros(rows, filtros, tipo);
+    // No padrão "pendentes", esconde também os clientes marcados como "não contatar" (caveira).
+    if (filtros.statusAtendimento !== "pendentes") return base;
+    return base.filter((r) => !tagsDe(r).includes(TAG_NAO_CONTATAR));
+  }, [rows, filtros, tipo, tagsDe]);
 
   const tecnicosUnicos = useMemo(() => {
     const set = new Set<string>();
@@ -167,6 +189,24 @@ export default function ListaRegistros({ tipo }: Props) {
         arquivado_motivo: motivo || "(sem motivo)",
       });
       handleSalvo(salvo);
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : String(e));
+    }
+  }
+  // 💀 Caveira: alterna a tag "não contatar" no cliente (Portal). Auditado.
+  async function handleCaveira(r: FeedbackRegistro) {
+    const key = clienteKey(r.codigo_omie, r.nome);
+    const atual = (infoPorKey[key]?.tags as string[] | undefined) || [];
+    const jaMarcado = atual.includes(TAG_NAO_CONTATAR);
+    if (!jaMarcado && !confirm(`Marcar "${r.nome}" como NÃO CONTATAR?\n\nO cliente some da lista de pendentes. (Inativar no Omie virá na próxima fase.)`)) return;
+    const novas = jaMarcado ? atual.filter((t) => t !== TAG_NAO_CONTATAR) : [...atual, TAG_NAO_CONTATAR];
+    try {
+      const salvo = await upsertClienteInfo({ cliente_key: key, codigo_omie: r.codigo_omie, nome: r.nome, tags: novas });
+      setInfoPorKey((prev) => ({ ...prev, [key]: salvo }));
+      void log({
+        sistema: "feedbacks", acao: jaMarcado ? "reativar_contato" : "nao_contatar",
+        entidade: "cliente", entidade_id: key, entidade_label: r.nome, detalhes: { tag: TAG_NAO_CONTATAR },
+      });
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
     }
@@ -300,6 +340,8 @@ export default function ListaRegistros({ tipo }: Props) {
               onMudarAtendimento={handleMudarAtendimento}
               onArquivar={handleArquivar}
               onVerHistorico={(reg) => setHistAlvo({ nome: reg.nome, codigoOmie: reg.codigo_omie })}
+              clienteTags={tagsDe(r)}
+              onCaveira={handleCaveira}
             />
           ))}
         </div>
