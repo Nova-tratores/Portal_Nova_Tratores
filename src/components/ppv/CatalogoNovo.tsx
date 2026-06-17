@@ -7,7 +7,6 @@ interface Secao { secao: string; ordem: number; figuras: number; thumb?: string 
 interface Modelo { slug: string; nome: string; image_url: string | null; figuras?: number }
 
 // Mascote do assistente (mecânico Nova Tratores). Se não existir no storage, cai no ícone.
-const MASCOTE_IMG = (process.env.NEXT_PUBLIC_SUPABASE_URL || "") + "/storage/v1/object/public/catalogo/MascoteAdulto.png";
 
 // Quando embutido no fluxo de adicionar peças, recebe onSelecionarPeca; senão, copia o código.
 export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecionarPeca?: (p: { code: string; name: string }) => void; userName?: string }) {
@@ -24,11 +23,6 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
   const [imgDim, setImgDim] = useState<{ w: number; h: number }>({ w: 1, h: 1 });
   const [toast, setToast] = useState("");
   const [imgErro, setImgErro] = useState<Record<string, boolean>>({});
-  const [mascoteErro, setMascoteErro] = useState(false);
-  const [roboOn, setRoboOn] = useState(false);
-  const [roboQ, setRoboQ] = useState("");
-  const [roboData, setRoboData] = useState<{ ia?: boolean; modelo: string | null; termos: string[]; grupos: { code: string; name: string; qtd: number | null; unit: string | null; tratores: { modelo: string; secao: string; figura_code: string; figura_id: string }[] }[] } | null>(null);
-  const [roboLoading, setRoboLoading] = useState(false);
   // Carrinho (só no modo avulso — sem onSelecionarPeca)
   const [cart, setCart] = useState<{ code: string; name: string; qty: number }[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
@@ -76,16 +70,6 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
     setCriando(false);
     setTimeout(() => setToast(""), 3500);
   }, [cliSel, cart, userName]);
-
-  const perguntarRobo = useCallback(async (e?: React.FormEvent) => {
-    e?.preventDefault?.();
-    const q = roboQ.trim();
-    if (q.length < 2) return;
-    setRoboLoading(true); setRoboData(null);
-    try { const r = await fetch(`/api/catalogo?acao=robo&q=${encodeURIComponent(q)}`); setRoboData(r.ok ? await r.json() : { modelo: null, termos: [], grupos: [] }); }
-    catch { setRoboData({ modelo: null, termos: [], grupos: [] }); }
-    setRoboLoading(false);
-  }, [roboQ]);
 
   const vista = busca.trim().length >= 2 ? "busca" : figura ? "figura" : secaoAtual ? "figuras" : modeloSel ? "secoes" : "modelos";
   const mq = modeloSel ? `&modelo=${encodeURIComponent(modeloSel.nome)}` : "";
@@ -144,122 +128,86 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
   const voltar = () => { if (figura) setFigura(null); else if (secaoAtual) setSecaoAtual(""); else if (modelos.length > 1) setModeloSel(null); };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#fff", borderRadius: 14, overflow: "hidden", color: "#1e293b" }}>
-      {/* Barra: busca + breadcrumb */}
-      <div style={{ padding: "12px 16px", borderBottom: "1px solid #eef0f3", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-        <div style={{ position: "relative", flex: "1 1 280px", maxWidth: 460 }}>
-          <i className="fas fa-search" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#94a3b8", fontSize: 13 }} />
-          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder={modeloSel ? `Buscar em ${modeloSel.nome}…` : "Buscar peça por nome ou código…"}
-            style={{ width: "100%", padding: "10px 12px 10px 34px", borderRadius: 10, border: "1px solid #e2e8f0", fontSize: 14, boxSizing: "border-box", outline: "none" }} />
-          {busca && <button onClick={() => setBusca("")} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", border: "none", background: "transparent", cursor: "pointer", color: "#94a3b8" }}><i className="fas fa-times" /></button>}
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#f7f8fa", borderRadius: 14, overflow: "hidden", color: "#0f172a", fontFamily: "'Inter','Segoe UI',system-ui,sans-serif" }}>
+      <style>{`
+        .cat-card{transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease;box-shadow:0 1px 2px rgba(16,24,40,.05);}
+        .cat-card:hover{transform:translateY(-2px);box-shadow:0 12px 26px rgba(16,24,40,.10);border-color:#d3dae5;}
+        .cat-back:hover{background:#eef1f6 !important;color:#0f172a !important;}
+        .cat-add{transition:filter .15s,transform .08s;}
+        .cat-add:hover{filter:brightness(1.08);}
+        .cat-add:active{transform:scale(.92);}
+        .cat-input:focus{border-color:#dc2626 !important;box-shadow:0 0 0 3px rgba(220,38,38,.12);}
+        .cat-row:hover{background:#f8fafc;}
+        .cat-crumb{cursor:pointer;transition:color .12s;}
+        .cat-crumb:hover{color:#dc2626;text-decoration:underline;}
+        .cat-scroll::-webkit-scrollbar{width:9px;height:9px;}
+        .cat-scroll::-webkit-scrollbar-thumb{background:#d7dde6;border-radius:8px;}
+        .cat-scroll::-webkit-scrollbar-thumb:hover{background:#c2cad6;}
+      `}</style>
+
+      {/* Barra superior: busca + breadcrumb */}
+      <div style={{ padding: "13px 18px", borderBottom: "1px solid #e9ecf1", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", background: "#fff" }}>
+        <div style={{ position: "relative", flex: "1 1 300px", maxWidth: 480 }}>
+          <i className="fas fa-search" style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#9aa4b2", fontSize: 13 }} />
+          <input className="cat-input" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder={modeloSel ? `Buscar em ${modeloSel.nome}…` : "Buscar peça por nome ou código…"}
+            style={{ width: "100%", padding: "11px 14px 11px 38px", borderRadius: 10, border: "1px solid #e3e8ef", fontSize: 14, boxSizing: "border-box", outline: "none", background: "#f8fafc", transition: "border-color .15s, box-shadow .15s" }} />
+          {busca && <button onClick={() => setBusca("")} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", border: "none", background: "transparent", cursor: "pointer", color: "#9aa4b2" }}><i className="fas fa-times" /></button>}
         </div>
         {vista !== "busca" && (
-          <div style={{ fontSize: 13, color: "#64748b", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-            {(secaoAtual || figura || (modeloSel && modelos.length > 1)) && <button onClick={voltar} style={{ display: "flex", alignItems: "center", gap: 6, border: "none", background: "#dc2626", color: "#fff", borderRadius: 9, padding: "7px 13px", cursor: "pointer", fontSize: 13, fontWeight: 700, boxShadow: "0 2px 7px rgba(220,38,38,0.35)" }}><i className="fas fa-arrow-left" /> Voltar</button>}
-            <span onClick={() => { if (modelos.length > 1) setModeloSel(null); setSecaoAtual(""); setFigura(null); }} style={{ cursor: "pointer", fontWeight: 700 }}>Catálogo</span>
-            {modeloSel && <><span>›</span><span onClick={() => { setSecaoAtual(""); setFigura(null); }} style={{ cursor: "pointer" }}>{modeloSel.nome}</span></>}
-            {secaoAtual && <><span>›</span><span onClick={() => setFigura(null)} style={{ cursor: "pointer" }}>{secaoAtual}</span></>}
-            {figura && <><span>›</span><span style={{ fontWeight: 700, color: "#1e293b" }}>{figura.code} · {figura.name}</span></>}
+          <div style={{ fontSize: 13, color: "#64748b", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            {(secaoAtual || figura || (modeloSel && modelos.length > 1)) && <button className="cat-back" onClick={voltar} style={{ display: "flex", alignItems: "center", gap: 7, border: "1px solid #e3e8ef", background: "#fff", color: "#334155", borderRadius: 9, padding: "7px 13px", cursor: "pointer", fontSize: 13, fontWeight: 600, transition: "background .15s,color .15s" }}><i className="fas fa-arrow-left" style={{ fontSize: 11 }} /> Voltar</button>}
+            <span className="cat-crumb" onClick={() => { if (modelos.length > 1) setModeloSel(null); setSecaoAtual(""); setFigura(null); }} style={{ fontWeight: 600 }}>Catálogo</span>
+            {modeloSel && <><span style={{ color: "#cbd5e1" }}>›</span><span className="cat-crumb" onClick={() => { setSecaoAtual(""); setFigura(null); }}>{modeloSel.nome}</span></>}
+            {secaoAtual && <><span style={{ color: "#cbd5e1" }}>›</span><span className="cat-crumb" onClick={() => setFigura(null)}>{secaoAtual}</span></>}
+            {figura && <><span style={{ color: "#cbd5e1" }}>›</span><span style={{ fontWeight: 700, color: "#0f172a" }}>{figura.code} · {figura.name}</span></>}
           </div>
         )}
-        <div style={{ flex: 1 }} />
-        <button onClick={() => setRoboOn(true)} style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 14px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#7c3aed,#6d28d9)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 8px rgba(124,58,237,0.35)" }}><i className="fas fa-robot" /> Assistente</button>
       </div>
 
-      <div style={{ flex: 1, overflow: "auto", position: "relative" }}>
-        {loading && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(255,255,255,0.6)", zIndex: 5, fontSize: 13, color: "#64748b" }}>Carregando…</div>}
-
-        {/* ===== ROBÔ / ASSISTENTE ===== */}
-        {roboOn && (
-          <div style={{ position: "absolute", inset: 0, background: "#fff", zIndex: 10, overflow: "auto" }}>
-            <div style={{ maxWidth: 780, margin: "0 auto", padding: "22px 20px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-                <div className={mascoteErro ? "" : (roboLoading ? "mascote-think" : "mascote-anim")} style={{ width: 64, height: 64, borderRadius: 14, background: mascoteErro ? "linear-gradient(135deg,#7c3aed,#6d28d9)" : "transparent", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>
-                  {!mascoteErro ? <img src={MASCOTE_IMG} alt="Assistente" onError={() => setMascoteErro(true)} style={{ width: "100%", height: "100%", objectFit: "contain" }} /> : <i className="fas fa-robot" />}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 17, fontWeight: 800, display: "flex", alignItems: "center", gap: 8 }}>
-                    Assistente de Peças
-                    {roboData?.ia && <span style={{ fontSize: 10, fontWeight: 800, color: "#7c3aed", background: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 20, padding: "2px 8px" }}>✨ IA</span>}
-                  </div>
-                  <div style={{ fontSize: 12.5, color: "#94a3b8" }}>Descreva a peça que você precisa, com suas palavras.</div>
-                </div>
-                <button onClick={() => setRoboOn(false)} style={{ border: "none", background: "#f1f5f9", borderRadius: 9, width: 34, height: 34, cursor: "pointer", color: "#475569" }}><i className="fas fa-times" /></button>
-              </div>
-              <form onSubmit={perguntarRobo} style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                <input value={roboQ} onChange={(e) => setRoboQ(e.target.value)} autoFocus placeholder="Ex: bomba d'água do 6065 · junta do cabeçote · filtro de óleo do Jivo" style={{ flex: 1, padding: "12px 14px", borderRadius: 10, border: "1px solid #e2e8f0", fontSize: 14, outline: "none" }} />
-                <button type="submit" style={{ padding: "0 20px", borderRadius: 10, border: "none", background: "#7c3aed", color: "#fff", fontWeight: 700, cursor: "pointer" }}>Perguntar</button>
-              </form>
-              <div style={{ fontSize: 11.5, color: "#cbd5e1", marginBottom: 14 }}>Dica: cite o trator pra filtrar (ex: “do 6065”, “do Jivo”).</div>
-
-              {roboLoading && <div style={{ padding: 24, textAlign: "center", color: "#64748b" }}>Procurando…</div>}
-              {roboData && (
-                <div>
-                  <div style={{ fontSize: 12.5, color: "#64748b", marginBottom: 12 }}>
-                    {roboData.modelo ? <b>Trator: {roboData.modelo} · </b> : null}
-                    {roboData.grupos.length} peça(s){roboData.termos.length ? ` para “${roboData.termos.join(" ")}”` : ""}
-                  </div>
-                  {roboData.grupos.length === 0 ? (
-                    <div style={{ padding: 24, textAlign: "center", color: "#94a3b8" }}>Não achei nada. Tente o código ou outras palavras.</div>
-                  ) : roboData.grupos.map((g) => (
-                    <div key={g.code} style={{ padding: "12px 8px", borderBottom: "1px solid #f1f5f9" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                        <code style={{ fontSize: 13, fontWeight: 800, color: "#dc2626", background: "#fef2f2", padding: "3px 8px", borderRadius: 6, whiteSpace: "nowrap" }}>{g.code}</code>
-                        <div style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 600 }}>{g.name}</div>
-                        <span style={{ fontSize: 12, color: "#64748b", whiteSpace: "nowrap" }}>{g.qtd} {g.unit}</span>
-                        <button onClick={() => addPeca({ code: g.code, name: g.name })} title={onSelecionarPeca ? "Adicionar" : "Adicionar ao carrinho"} style={{ border: "none", background: "#dc2626", color: "#fff", borderRadius: 8, width: 30, height: 30, cursor: "pointer", flexShrink: 0 }}><i className="fas fa-plus" /></button>
-                      </div>
-                      {/* Tratores que usam essa peça */}
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8, paddingLeft: 2 }}>
-                        <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 600, alignSelf: "center" }}>{g.tratores.length === 1 ? "Trator:" : `Usada em ${g.tratores.length} tratores:`}</span>
-                        {g.tratores.map((t, i) => (
-                          <button key={i} onClick={() => { setRoboOn(false); abrirFigura(t.figura_id); }} title={`${t.secao} · ${t.figura_code}`} style={{ display: "inline-flex", alignItems: "center", gap: 5, border: "1px solid #e2e8f0", background: "#f8fafc", borderRadius: 20, padding: "3px 10px", fontSize: 11.5, fontWeight: 700, color: "#1e293b", cursor: "pointer" }}>
-                            <i className="fas fa-tractor" style={{ fontSize: 10, color: "#dc2626" }} /> {t.modelo}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+      <div className="cat-scroll" style={{ flex: 1, overflow: "auto", position: "relative" }}>
+        {loading && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(247,248,250,0.72)", zIndex: 5, fontSize: 13, color: "#64748b" }}><i className="fas fa-circle-notch fa-spin" style={{ marginRight: 8, color: "#dc2626" }} /> Carregando…</div>}
 
         {/* ===== BUSCA ===== */}
         {vista === "busca" && (
-          <div style={{ padding: 16 }}>
-            <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 10 }}>{resultados.length} resultado(s) para “{busca.trim()}”{modeloSel ? ` em ${modeloSel.nome}` : ""}</div>
+          <div style={{ padding: 18 }}>
+            <div style={{ fontSize: 12.5, color: "#94a3b8", marginBottom: 12, fontWeight: 500 }}>{resultados.length} resultado(s) para “{busca.trim()}”{modeloSel ? ` em ${modeloSel.nome}` : ""}</div>
             {resultados.length === 0 ? (
-              <div style={{ padding: 30, textAlign: "center", color: "#94a3b8" }}>Nenhuma peça encontrada.</div>
-            ) : resultados.map((p) => (
-              <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderBottom: "1px solid #f1f5f9", borderRadius: 8 }}>
-                <code style={{ fontSize: 13, fontWeight: 800, color: "#dc2626", background: "#fef2f2", padding: "3px 8px", borderRadius: 6, whiteSpace: "nowrap" }}>{p.code}</code>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600 }}>{p.name}</div>
-                  {p.figura && <button onClick={() => { setBusca(""); abrirFigura(p.figura_id!); }} style={{ border: "none", background: "transparent", padding: 0, cursor: "pointer", fontSize: 11.5, color: "#2563eb" }}>{p.figura.secao} · {p.figura.code} {p.figura.name} →</button>}
-                </div>
-                <span style={{ fontSize: 12, color: "#64748b", whiteSpace: "nowrap" }}>{p.qtd} {p.unit}</span>
-                <button onClick={() => addPeca({ code: p.code, name: p.name })} title={onSelecionarPeca ? "Adicionar ao lançamento" : "Copiar código"}
-                  style={{ border: "none", background: "#dc2626", color: "#fff", borderRadius: 8, width: 30, height: 30, cursor: "pointer", flexShrink: 0 }}><i className="fas fa-plus" /></button>
+              <div style={{ padding: 48, textAlign: "center", color: "#94a3b8" }}><i className="fas fa-magnifying-glass" style={{ fontSize: 26, display: "block", marginBottom: 10, color: "#cbd5e1" }} />Nenhuma peça encontrada.</div>
+            ) : (
+              <div style={{ background: "#fff", border: "1px solid #e9ecf1", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 2px rgba(16,24,40,.04)" }}>
+                {resultados.map((p) => (
+                  <div key={p.id} className="cat-row" style={{ display: "flex", alignItems: "center", gap: 14, padding: "11px 14px", borderBottom: "1px solid #f1f4f8", transition: "background .12s" }}>
+                    <code style={{ fontSize: 12.5, fontWeight: 700, color: "#dc2626", background: "#fef2f2", padding: "4px 9px", borderRadius: 7, whiteSpace: "nowrap" }}>{p.code}</code>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: "#0f172a" }}>{p.name}</div>
+                      {p.figura && <button onClick={() => { setBusca(""); abrirFigura(p.figura_id!); }} style={{ border: "none", background: "transparent", padding: 0, cursor: "pointer", fontSize: 11.5, color: "#2563eb", fontWeight: 600 }}>{p.figura.secao} · {p.figura.code} {p.figura.name} →</button>}
+                    </div>
+                    <span style={{ fontSize: 12.5, color: "#64748b", whiteSpace: "nowrap" }}>{p.qtd} {p.unit}</span>
+                    <button className="cat-add" onClick={() => addPeca({ code: p.code, name: p.name })} title={onSelecionarPeca ? "Adicionar ao lançamento" : "Adicionar ao carrinho"}
+                      style={{ border: "none", background: "#dc2626", color: "#fff", borderRadius: 8, width: 32, height: 32, cursor: "pointer", flexShrink: 0 }}><i className="fas fa-plus" /></button>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
         )}
 
         {/* ===== TRATORES ===== */}
         {vista === "modelos" && (
-          <div style={{ padding: 16 }}>
-            <div style={{ fontSize: 12, fontWeight: 800, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 0.5, margin: "0 2px 12px" }}>Tratores</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 16 }}>
+          <div style={{ padding: 18 }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 1, margin: "2px 2px 14px" }}>Tratores</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 18 }}>
               {modelos.map((m) => (
-                <button key={m.slug} onClick={() => { setModeloSel(m); setSecaoAtual(""); setFigura(null); }} style={{ padding: 0, borderRadius: 16, border: "1px solid #e8edf3", background: "#fff", cursor: "pointer", overflow: "hidden", textAlign: "left", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
-                  <div style={{ height: 200, background: "#f8fafc", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    {m.image_url && !imgErro[m.slug] ? <img src={m.image_url} alt={m.nome} onError={() => setImgErro((s) => ({ ...s, [m.slug]: true }))} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <i className="fas fa-tractor" style={{ fontSize: 48, color: "#cbd5e1" }} />}
+                <button key={m.slug} className="cat-card" onClick={() => { setModeloSel(m); setSecaoAtual(""); setFigura(null); }} style={{ padding: 0, borderRadius: 14, border: "1px solid #e9ecf1", background: "#fff", cursor: "pointer", overflow: "hidden", textAlign: "left" }}>
+                  <div style={{ height: 184, background: "linear-gradient(180deg,#fbfcfe,#eef2f7)", display: "flex", alignItems: "center", justifyContent: "center", padding: 14 }}>
+                    {m.image_url && !imgErro[m.slug] ? <img src={m.image_url} alt={m.nome} onError={() => setImgErro((s) => ({ ...s, [m.slug]: true }))} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : <i className="fas fa-tractor" style={{ fontSize: 46, color: "#cbd5e1" }} />}
                   </div>
-                  <div style={{ padding: "14px 16px" }}>
-                    <div style={{ fontSize: 18, fontWeight: 900 }}>{m.nome}</div>
-                    <div style={{ fontSize: 12.5, color: "#94a3b8" }}>{m.figuras || 0} figuras</div>
+                  <div style={{ padding: "13px 15px", borderTop: "1px solid #f0f2f6", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}>{m.nome}</div>
+                      <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 2 }}>{m.figuras || 0} figuras · Mahindra</div>
+                    </div>
+                    <i className="fas fa-chevron-right" style={{ fontSize: 12, color: "#cbd5e1" }} />
                   </div>
                 </button>
               ))}
@@ -270,28 +218,29 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
 
         {/* ===== SISTEMAS DO TRATOR ===== */}
         {vista === "secoes" && modeloSel && (
-          <div style={{ padding: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 16, padding: 16, borderRadius: 16, background: "linear-gradient(135deg, #fef2f2, #ffffff)", border: "1px solid #fee2e2", marginBottom: 18 }}>
-              <div style={{ width: 110, height: 80, borderRadius: 12, overflow: "hidden", background: "#fff", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid #fde2e2" }}>
-                {modeloSel.image_url && !imgErro[modeloSel.slug] ? <img src={modeloSel.image_url} alt={modeloSel.nome} onError={() => setImgErro((s) => ({ ...s, [modeloSel.slug]: true }))} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : <i className="fas fa-tractor" style={{ fontSize: 32, color: "#fca5a5" }} />}
+          <div style={{ padding: 18 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 18, padding: 18, borderRadius: 14, background: "#fff", border: "1px solid #e9ecf1", marginBottom: 20, position: "relative", overflow: "hidden", boxShadow: "0 1px 2px rgba(16,24,40,.05)" }}>
+              <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: "#dc2626" }} />
+              <div style={{ width: 120, height: 84, borderRadius: 10, overflow: "hidden", background: "linear-gradient(180deg,#fbfcfe,#eef2f7)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid #eef1f6", marginLeft: 6 }}>
+                {modeloSel.image_url && !imgErro[modeloSel.slug] ? <img src={modeloSel.image_url} alt={modeloSel.nome} onError={() => setImgErro((s) => ({ ...s, [modeloSel.slug]: true }))} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : <i className="fas fa-tractor" style={{ fontSize: 32, color: "#cbd5e1" }} />}
               </div>
               <div>
-                <div style={{ fontSize: 11, fontWeight: 800, color: "#dc2626", letterSpacing: 1, textTransform: "uppercase" }}>Trator</div>
-                <div style={{ fontSize: 22, fontWeight: 900, lineHeight: 1.1 }}>{modeloSel.nome}</div>
-                <div style={{ fontSize: 12.5, color: "#94a3b8", marginTop: 2 }}>{secoes.reduce((a, s) => a + s.figuras, 0)} figuras · {secoes.length} sistemas</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#dc2626", letterSpacing: 1.2, textTransform: "uppercase" }}>Trator</div>
+                <div style={{ fontSize: 22, fontWeight: 800, lineHeight: 1.15, color: "#0f172a" }}>{modeloSel.nome}</div>
+                <div style={{ fontSize: 12.5, color: "#94a3b8", marginTop: 3 }}>{secoes.reduce((a, s) => a + s.figuras, 0)} figuras · {secoes.length} sistemas</div>
               </div>
             </div>
 
-            <div style={{ fontSize: 12, fontWeight: 800, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 0.5, margin: "0 2px 10px" }}>Sistemas</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 12 }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 1, margin: "2px 2px 12px" }}>Sistemas</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(186px, 1fr))", gap: 14 }}>
               {secoes.map((s) => (
-                <button key={s.secao} onClick={() => abrirSecao(s.secao)} style={{ textAlign: "left", padding: 0, borderRadius: 14, border: "1px solid #e8edf3", background: "#fff", cursor: "pointer", overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-                  <div style={{ height: 112, background: "#f8fafc", display: "flex", alignItems: "center", justifyContent: "center", borderBottom: "1px solid #eef0f3" }}>
-                    {s.thumb ? <img src={s.thumb} alt={s.secao} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : <div style={{ width: 40, height: 40, borderRadius: 10, background: (corSecao[s.secao] || "#64748b") + "1a", color: corSecao[s.secao] || "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}><i className="fas fa-gears" /></div>}
+                <button key={s.secao} className="cat-card" onClick={() => abrirSecao(s.secao)} style={{ textAlign: "left", padding: 0, borderRadius: 12, border: "1px solid #e9ecf1", background: "#fff", cursor: "pointer", overflow: "hidden" }}>
+                  <div style={{ height: 116, background: "linear-gradient(180deg,#fbfcfe,#eef2f7)", display: "flex", alignItems: "center", justifyContent: "center", borderBottom: "1px solid #f0f2f6", padding: 10 }}>
+                    {s.thumb ? <img src={s.thumb} alt={s.secao} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : <div style={{ width: 44, height: 44, borderRadius: 11, background: (corSecao[s.secao] || "#64748b") + "18", color: corSecao[s.secao] || "#64748b", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17 }}><i className="fas fa-gears" /></div>}
                   </div>
-                  <div style={{ padding: "10px 12px" }}>
-                    <div style={{ fontSize: 15, fontWeight: 800 }}>{s.secao}</div>
-                    <div style={{ fontSize: 12, color: "#94a3b8" }}>{s.figuras} figura{s.figuras !== 1 ? "s" : ""}</div>
+                  <div style={{ padding: "11px 13px" }}>
+                    <div style={{ fontSize: 14.5, fontWeight: 700, color: "#0f172a" }}>{s.secao}</div>
+                    <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 1 }}>{s.figuras} figura{s.figuras !== 1 ? "s" : ""}</div>
                   </div>
                 </button>
               ))}
@@ -301,26 +250,31 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
 
         {/* ===== FIGURAS DA SEÇÃO ===== */}
         {vista === "figuras" && (
-          <div style={{ padding: 16, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 14 }}>
+          <div style={{ padding: 18, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(176px, 1fr))", gap: 14 }}>
             {figuras.map((f) => (
-              <button key={f.id} onClick={() => abrirFigura(f.id)} style={{ padding: 0, borderRadius: 14, border: "1px solid #e8edf3", background: "#fff", cursor: "pointer", overflow: "hidden", textAlign: "left" }}>
-                <div style={{ height: 130, background: "#f8fafc", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  {f.thumb_url || f.image_url ? <img src={f.thumb_url || f.image_url || ""} alt={f.name} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : <i className="fas fa-image" style={{ fontSize: 28, color: "#cbd5e1" }} />}
+              <button key={f.id} className="cat-card" onClick={() => abrirFigura(f.id)} style={{ padding: 0, borderRadius: 12, border: "1px solid #e9ecf1", background: "#fff", cursor: "pointer", overflow: "hidden", textAlign: "left" }}>
+                <div style={{ height: 134, background: "linear-gradient(180deg,#fbfcfe,#eef2f7)", display: "flex", alignItems: "center", justifyContent: "center", padding: 8 }}>
+                  {f.thumb_url || f.image_url ? <img src={f.thumb_url || f.image_url || ""} alt={f.name} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : <i className="fas fa-image" style={{ fontSize: 26, color: "#cbd5e1" }} />}
                 </div>
-                <div style={{ padding: "8px 10px" }}>
-                  <div style={{ fontSize: 11, fontWeight: 800, color: "#dc2626" }}>{f.code}</div>
-                  <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.3 }}>{f.name}</div>
+                <div style={{ padding: "9px 11px", borderTop: "1px solid #f0f2f6" }}>
+                  <div style={{ fontSize: 10.5, fontWeight: 700, color: "#dc2626", letterSpacing: 0.3 }}>{f.code}</div>
+                  <div style={{ fontSize: 12.5, fontWeight: 600, lineHeight: 1.3, color: "#0f172a", marginTop: 1 }}>{f.name}</div>
                 </div>
               </button>
             ))}
+            {figuras.length === 0 && !loading && <div style={{ padding: 30, color: "#94a3b8", gridColumn: "1/-1" }}>Nenhuma figura nesta seção.</div>}
           </div>
         )}
 
         {/* ===== DETALHE DA FIGURA (vista explodida + peças) ===== */}
         {vista === "figura" && figura && (
-          <div style={{ display: "flex", gap: 0, height: "100%", flexWrap: "wrap" }}>
-            <div style={{ flex: "1 1 340px", minWidth: 300, padding: 16, borderRight: "1px solid #eef0f3" }}>
-              <div style={{ position: "relative", width: "100%", background: "#f8fafc", borderRadius: 12, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ display: "flex", gap: 0, height: "100%", flexWrap: "wrap", background: "#fff" }}>
+            <div style={{ flex: "1 1 360px", minWidth: 300, padding: 18, borderRight: "1px solid #eef0f3" }}>
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#dc2626", letterSpacing: 0.5 }}>{figura.code}</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}>{figura.name}</div>
+              </div>
+              <div style={{ position: "relative", width: "100%", background: "linear-gradient(180deg,#fbfcfe,#f1f4f8)", borderRadius: 12, overflow: "hidden", border: "1px solid #eef1f6", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 {figura.image_url ? (
                   <>
                     <img src={figura.image_url} alt={figura.name} onLoad={(e) => setImgDim({ w: (e.target as HTMLImageElement).naturalWidth || 1, h: (e.target as HTMLImageElement).naturalHeight || 1 })} style={{ width: "100%", display: "block" }} />
@@ -329,7 +283,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
                       return (
                         <button key={h.reference} onClick={() => { setRefHover(h.reference); rowRefs.current[h.reference]?.scrollIntoView({ block: "nearest", behavior: "smooth" }); }}
                           onMouseEnter={() => setRefHover(h.reference)} onMouseLeave={() => setRefHover(null)}
-                          style={{ position: "absolute", left: `${(h.x / imgDim.w) * 100}%`, top: `${(h.y / imgDim.h) * 100}%`, transform: "translate(-50%,-50%)", width: ativo ? 26 : 20, height: ativo ? 26 : 20, borderRadius: "50%", border: "2px solid #fff", background: ativo ? "#dc2626" : "rgba(37,99,235,0.85)", color: "#fff", fontSize: ativo ? 12 : 10, fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 4px rgba(0,0,0,0.4)", transition: "all .12s", zIndex: ativo ? 3 : 2 }}>{h.reference}</button>
+                          style={{ position: "absolute", left: `${(h.x / imgDim.w) * 100}%`, top: `${(h.y / imgDim.h) * 100}%`, transform: "translate(-50%,-50%)", width: ativo ? 26 : 20, height: ativo ? 26 : 20, borderRadius: "50%", border: "2px solid #fff", background: ativo ? "#dc2626" : "rgba(37,99,235,0.9)", color: "#fff", fontSize: ativo ? 12 : 10, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 5px rgba(0,0,0,0.4)", transition: "all .12s", zIndex: ativo ? 3 : 2 }}>{h.reference}</button>
                       );
                     })}
                   </>
@@ -337,21 +291,21 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
               </div>
             </div>
 
-            <div style={{ flex: "1 1 320px", minWidth: 300, display: "flex", flexDirection: "column", maxHeight: "100%" }}>
-              <div style={{ display: "flex", padding: "10px 14px", fontSize: 11, fontWeight: 800, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #eef0f3" }}>
-                <span style={{ width: 36 }}>Ref</span><span style={{ width: 120 }}>Código</span><span style={{ flex: 1 }}>Nome</span><span style={{ width: 44 }}>Qtd</span><span style={{ width: 34 }} />
+            <div style={{ flex: "1 1 340px", minWidth: 300, display: "flex", flexDirection: "column", maxHeight: "100%" }}>
+              <div style={{ display: "flex", padding: "12px 16px", fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #eef0f3", background: "#fafbfc", position: "sticky", top: 0, zIndex: 1 }}>
+                <span style={{ width: 40 }}>Ref</span><span style={{ width: 124 }}>Código</span><span style={{ flex: 1 }}>Nome</span><span style={{ width: 46 }}>Qtd</span><span style={{ width: 36 }} />
               </div>
-              <div style={{ overflow: "auto", flex: 1 }}>
+              <div className="cat-scroll" style={{ overflow: "auto", flex: 1 }}>
                 {(figura.pecas || []).map((p) => {
                   const ativo = refHover === p.reference;
                   return (
                     <div key={p.id} ref={(el) => { rowRefs.current[p.reference] = el; }} onMouseEnter={() => setRefHover(p.reference)} onMouseLeave={() => setRefHover(null)}
-                      style={{ display: "flex", alignItems: "center", padding: "9px 14px", borderBottom: "1px solid #f5f7fa", background: ativo ? "#fff7ed" : "transparent" }}>
-                      <span style={{ width: 36 }}><span style={{ display: "inline-flex", width: 22, height: 22, borderRadius: "50%", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, background: ativo ? "#dc2626" : "#eef2f7", color: ativo ? "#fff" : "#475569" }}>{p.reference}</span></span>
-                      <code style={{ width: 120, fontSize: 12.5, fontWeight: 700, color: "#dc2626" }}>{p.code}</code>
-                      <span style={{ flex: 1, fontSize: 13, paddingRight: 8 }}>{p.name}</span>
-                      <span style={{ width: 44, fontSize: 12, color: "#64748b" }}>{p.qtd} {p.unit}</span>
-                      <button onClick={() => addPeca({ code: p.code, name: p.name })} title={onSelecionarPeca ? "Adicionar ao lançamento" : "Copiar código"} style={{ width: 30, height: 30, border: "none", background: "#dc2626", color: "#fff", borderRadius: 8, cursor: "pointer" }}><i className="fas fa-plus" /></button>
+                      style={{ display: "flex", alignItems: "center", padding: "10px 16px", borderBottom: "1px solid #f3f5f8", background: ativo ? "#fff7ed" : "transparent", transition: "background .12s" }}>
+                      <span style={{ width: 40 }}><span style={{ display: "inline-flex", width: 23, height: 23, borderRadius: "50%", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, background: ativo ? "#dc2626" : "#eef2f7", color: ativo ? "#fff" : "#475569" }}>{p.reference}</span></span>
+                      <code style={{ width: 124, fontSize: 12.5, fontWeight: 700, color: "#dc2626" }}>{p.code}</code>
+                      <span style={{ flex: 1, fontSize: 13, paddingRight: 8, color: "#0f172a" }}>{p.name}</span>
+                      <span style={{ width: 46, fontSize: 12, color: "#64748b" }}>{p.qtd} {p.unit}</span>
+                      <button className="cat-add" onClick={() => addPeca({ code: p.code, name: p.name })} title={onSelecionarPeca ? "Adicionar ao lançamento" : "Adicionar ao carrinho"} style={{ width: 32, height: 32, border: "none", background: "#dc2626", color: "#fff", borderRadius: 8, cursor: "pointer" }}><i className="fas fa-plus" /></button>
                     </div>
                   );
                 })}
@@ -363,8 +317,8 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
 
       {/* Botão flutuante do carrinho (modo avulso) */}
       {!onSelecionarPeca && cart.length > 0 && !cartOpen && (
-        <button onClick={() => setCartOpen(true)} style={{ position: "absolute", bottom: 16, right: 16, zIndex: 40, display: "flex", alignItems: "center", gap: 8, padding: "12px 18px", borderRadius: 14, border: "none", background: "#dc2626", color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer", boxShadow: "0 6px 20px rgba(220,38,38,0.45)" }}>
-          <i className="fas fa-cart-shopping" /> Carrinho <span style={{ background: "#fff", color: "#dc2626", borderRadius: 20, padding: "1px 9px", fontSize: 12 }}>{cart.reduce((s, i) => s + i.qty, 0)}</span>
+        <button className="cat-add" onClick={() => setCartOpen(true)} style={{ position: "absolute", bottom: 18, right: 18, zIndex: 40, display: "flex", alignItems: "center", gap: 9, padding: "13px 19px", borderRadius: 13, border: "none", background: "linear-gradient(135deg,#ef4444,#dc2626)", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", boxShadow: "0 8px 22px rgba(220,38,38,0.40)" }}>
+          <i className="fas fa-cart-shopping" /> Carrinho <span style={{ background: "#fff", color: "#dc2626", borderRadius: 20, padding: "2px 9px", fontSize: 12, fontWeight: 800 }}>{cart.reduce((s, i) => s + i.qty, 0)}</span>
         </button>
       )}
 
@@ -430,7 +384,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
         </div>
       )}
 
-      {toast && <div style={{ position: "absolute", bottom: 16, left: "50%", transform: "translateX(-50%)", background: "#1e293b", color: "#fff", padding: "8px 16px", borderRadius: 10, fontSize: 13, fontWeight: 600, zIndex: 50 }}>{toast}</div>}
+      {toast && <div style={{ position: "absolute", bottom: 18, left: "50%", transform: "translateX(-50%)", background: "#0f172a", color: "#fff", padding: "10px 18px", borderRadius: 11, fontSize: 13, fontWeight: 600, zIndex: 50, boxShadow: "0 8px 24px rgba(15,23,42,0.3)", display: "flex", alignItems: "center", gap: 8 }}><i className="fas fa-circle-check" style={{ color: "#4ade80" }} /> {toast}</div>}
     </div>
   );
 }

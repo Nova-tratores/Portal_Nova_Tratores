@@ -97,13 +97,36 @@ export async function GET(req: NextRequest) {
       const raw = (req.nextUrl.searchParams.get("q") || "").trim();
       const q = limpo(raw);
       if (q.length < 2) return NextResponse.json([]);
-      let pq = supabase
-        .from("catalogo_pecas")
-        .select("id, code, name, reference, qtd, unit, figura_id")
-        .or(`name.ilike.%${q}%,code.ilike.%${q}%`)
-        .limit(60);
-      if (modelo) pq = pq.eq("modelo", modelo);
-      const { data: pecas, error } = await pq;
+      const SEL = "id, code, name, reference, qtd, unit, figura_id";
+
+      // Detecta o trator citado na busca (ex.: "filtro de ar 6075") pra filtrar por modelo
+      let modeloDet: string | null = modelo;
+      if (!modeloDet) {
+        const { data: mods } = await supabase.from("catalogo_modelos").select("nome");
+        const nomes = (mods || []).map((m) => m.nome).filter(Boolean) as string[];
+        const low = " " + q.toLowerCase() + " ";
+        modeloDet = nomes.find((n) => low.includes(" " + n.toLowerCase() + " ")) || null;
+        if (!modeloDet) modeloDet = nomes.find((n) => (n.match(/\d{3,}/g) || []).some((d) => low.includes(d))) || null;
+      }
+
+      // Quebra em palavras; tira conectores e o que for do modelo (nome/dígitos)
+      const STOP = new Set(["de", "da", "do", "dos", "das", "com", "para", "pra", "no", "na", "em", "e", "ou", "a", "o"]);
+      const modLow = (modeloDet || "").toLowerCase();
+      const modDigs = new Set((modeloDet || "").match(/\d{3,}/g) || []);
+      const tokens = q.toLowerCase().split(/\s+/).filter((t) => t.length >= 2 && !STOP.has(t) && !modDigs.has(t) && !(modLow && modLow.includes(t)));
+
+      // Busca: AND (todas as palavras) -> se vazio, OR (qualquer) + código
+      const rodar = async (and: boolean) => {
+        let pq = supabase.from("catalogo_pecas").select(SEL).limit(60);
+        if (modeloDet) pq = pq.eq("modelo", modeloDet);
+        if (tokens.length === 0) pq = pq.or(`name.ilike.%${q}%,code.ilike.%${q}%`);
+        else if (and) { for (const t of tokens) pq = pq.ilike("name", `%${t}%`); }
+        else pq = pq.or([...tokens.map((t) => `name.ilike.%${t}%`), `code.ilike.%${q}%`].join(","));
+        return (await pq).data || [];
+      };
+      let pecas = await rodar(true);
+      if (!pecas || pecas.length === 0) pecas = await rodar(false);
+      const error = null as any;
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
       const figIds = [...new Set((pecas || []).map((p) => p.figura_id))];
       let figMap: Record<string, any> = {};
@@ -114,15 +137,19 @@ export async function GET(req: NextRequest) {
           .in("id", figIds);
         figMap = Object.fromEntries((figs || []).map((f) => [f.id, f]));
       }
-      // prioriza match exato/início de código
+      // Ranking: código que começa com a busca > nome que começa com a 1ª palavra > nome que contém
       const ql = q.toLowerCase();
+      const principal = tokens[0] || ql;
+      const rel = (p: any) => {
+        const code = (p.code || "").toLowerCase(), name = (p.name || "").toLowerCase();
+        if (code.startsWith(ql)) return 0;
+        if (name.startsWith(principal)) return 1;
+        if (name.includes(principal)) return 2;
+        return 3;
+      };
       const result = (pecas || [])
         .map((p) => ({ ...p, figura: figMap[p.figura_id] || null }))
-        .sort((a, b) => {
-          const sa = (a.code || "").toLowerCase().startsWith(ql) ? 0 : 1;
-          const sb = (b.code || "").toLowerCase().startsWith(ql) ? 0 : 1;
-          return sa - sb;
-        });
+        .sort((a, b) => rel(a) - rel(b));
       return NextResponse.json(result);
     }
 
