@@ -56,14 +56,14 @@ const inputCascadeStyle = { background: 'var(--portal-bg-secondary)', border: '1
 const cascadeValueStyle = { fontSize: '18px', color: 'var(--portal-text)', fontWeight: '500' };
 const dropItemStyle_Container = { position:'absolute', top:'60px', right: 0, background:'var(--portal-bg-card)', zIndex:2000, width:'250px', border:'0.5px solid var(--portal-border)', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' };
 const dropItemStyle = { padding:'15px 20px', cursor:'pointer', color:'var(--portal-text)', borderBottom:'0.5px solid var(--portal-border)', fontSize:'14px', fontWeight: '600' };
-const colWrapperStyle = { padding: '20px', background: 'var(--portal-bg-card)', border: '0.5px solid var(--portal-border)' };
-const colTitleStyle = { textAlign: 'center', fontSize: '22px', color:'var(--portal-text)', fontWeight:'500', marginBottom:'30px', textTransform:'uppercase' };
-const miniTagStyle = { background: 'var(--portal-bg-secondary)', padding: '4px 10px', color: 'var(--portal-text-secondary)', fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px', border: '0.5px solid var(--portal-border)', fontWeight: '600' };
+const colWrapperStyle = { padding: '18px', background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: '16px', boxShadow: '0 1px 3px rgba(16,24,40,0.05)' };
+const colTitleStyle = { textAlign: 'center', fontSize: '14px', color:'var(--portal-text-secondary)', fontWeight:'700', marginBottom:'20px', textTransform:'uppercase', letterSpacing: '1px' };
+const miniTagStyle = { background: 'var(--portal-bg-secondary)', padding: '5px 11px', color: 'var(--portal-text-secondary)', fontSize: '12.5px', display: 'inline-flex', alignItems: 'center', gap: '6px', border: '1px solid var(--portal-border)', borderRadius: '8px', fontWeight: '600' };
 const labelMStyle = { fontSize:'14px', color:'var(--portal-text-secondary)', textTransform:'uppercase', fontWeight: '500', marginBottom: '8px', display: 'block' };
 const pModalStyle = { fontSize:'24px', color:'var(--portal-text)', margin: 0, fontWeight: '400' };
 const fieldBoxModal = { border: '1px solid var(--portal-border)', padding: '30px', background: 'var(--portal-bg-card)', flex: 1, borderRadius: '15px' };
 const fieldBoxInner = { padding: '15px 10px', borderBottom: '1px solid var(--portal-border)' };
-const inputStyleLight = { width: '100%', padding: '15px', border: '1px solid var(--portal-border)', outline: 'none', background:'var(--portal-bg-card)', color:'var(--portal-text)', fontSize: '18px', fontFamily: 'Montserrat, sans-serif' };
+const inputStyleLight = { width: '100%', padding: '15px', border: '1px solid var(--portal-border)', outline: 'none', background:'var(--portal-bg-card)', color:'var(--portal-text)', fontSize: '18px', fontFamily: 'Inter, sans-serif' };
 const miniActionBtn = { background: 'transparent', border: 'none', padding: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', transition: '0.2s', borderRadius: '8px' };
 const btnPrimaryBeautified = { background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)', color:'#ffffff', border:'none', padding:'18px 40px', borderRadius:'15px', cursor:'pointer', fontSize: '14px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 10px 20px rgba(14, 165, 233, 0.2)', transition: '0.3s' };
 const btnSuccessBeautified = { flex: 1, background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color:'#ffffff', border:'none', padding:'25px', borderRadius:'15px', cursor:'pointer', fontSize: '18px', fontWeight: '600', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px', boxShadow: '0 10px 20px rgba(16, 185, 129, 0.2)', transition: '0.3s' };
@@ -71,7 +71,7 @@ const zoomBtnStyle = { background: 'transparent', border: 'none', cursor: 'point
 
 export default function HomeFinanceiro() {
   return (
-    <Suspense fallback={<div style={{ padding: '60px', textAlign: 'center', color: 'var(--portal-text-secondary)', fontFamily: 'Montserrat, sans-serif' }}>Carregando...</div>}>
+    <Suspense fallback={<div style={{ padding: '60px', textAlign: 'center', color: 'var(--portal-text-secondary)', fontFamily: 'Inter, sans-serif' }}>Carregando...</div>}>
       <HomeFinanceiroContent />
     </Suspense>
   )
@@ -355,7 +355,7 @@ function HomeFinanceiroContent() {
  const valorIndividual = tarefaSelecionada ? (tarefaSelecionada.valor_servico / (tarefaSelecionada.qtd_parcelas || 1)) : 0;
 
  return (
-  <div style={{ fontFamily: 'Montserrat, sans-serif' }}>
+  <div style={{ fontFamily: 'Inter, sans-serif' }}>
    <FinanceiroNav>
       <div style={{ display: 'flex', alignItems: 'center', background: 'var(--portal-bg-secondary)', borderRadius: '8px', padding: '4px 10px', gap: '6px' }}>
         <button onClick={() => setZoom(prev => Math.max(0.5, prev - 0.1))} style={zoomBtnStyle} title="Diminuir zoom"><ZoomOut size={15} color="#737373" /></button>
@@ -619,7 +619,7 @@ function HomeFinanceiroContent() {
                 <div style={fieldBoxInner}>
                     <label style={{...labelMStyle, display:'flex', alignItems:'center', gap:'8px', marginBottom:'14px'}}>DESCRIÇÃO / OBSERVAÇÕES</label>
                     <textarea
-                        style={{...inputStyleLight, minHeight:'180px', resize:'vertical', lineHeight:'1.7', fontSize:'15px', padding:'18px 20px', fontFamily:'Montserrat, sans-serif'}}
+                        style={{...inputStyleLight, minHeight:'180px', resize:'vertical', lineHeight:'1.7', fontSize:'15px', padding:'18px 20px', fontFamily:'Inter, sans-serif'}}
                         defaultValue={tarefaSelecionada.motivo}
                         onBlur={e => handleUpdateField(tarefaSelecionada, 'motivo', e.target.value)}
                         placeholder="Detalhes do pagamento, observações relevantes..."

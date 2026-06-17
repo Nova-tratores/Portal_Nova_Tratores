@@ -43,7 +43,7 @@ function AttachmentTag({ label, fileUrl, onUpload, disabled = false }) {
 
 export default function HomePosVendas() {
   return (
-    <Suspense fallback={<div style={{ padding: '60px', textAlign: 'center', color: 'var(--portal-text-secondary)', fontFamily: 'Montserrat, sans-serif' }}>Carregando...</div>}>
+    <Suspense fallback={<div style={{ padding: '60px', textAlign: 'center', color: 'var(--portal-text-secondary)', fontFamily: 'Inter, sans-serif' }}>Carregando...</div>}>
       <HomePosVendasContent />
     </Suspense>
   )
@@ -245,7 +245,7 @@ function HomePosVendasContent() {
   const valorIndividual = tarefaSelecionada ? (tarefaSelecionada.valor_servico / (tarefaSelecionada.qtd_parcelas || 1)) : 0;
 
   return (
-    <div style={{ fontFamily: 'Montserrat, sans-serif' }}>
+    <div style={{ fontFamily: 'Inter, sans-serif' }}>
       <FinanceiroNav>
         <div style={{ position: 'relative' }}>
           <button onClick={() => setShowNovoMenu(s => !s)} style={{
@@ -558,7 +558,7 @@ function HomePosVendasContent() {
                       )}
                       <div style={fieldBoxInner}>
                         <label style={{...labelMStyle, display:'flex', alignItems:'center', gap:'8px', marginBottom:'14px'}}>DESCRIÇÃO / OBSERVAÇÕES</label>
-                        <textarea style={{...inputStyleLight, minHeight:'60px', resize:'vertical', lineHeight:'1.7', fontSize:'15px', padding:'18px 20px', fontFamily:'Montserrat, sans-serif', overflow:'hidden', height:'auto'}} defaultValue={tarefaSelecionada.motivo} onBlur={e => handleUpdateField(tarefaSelecionada, 'motivo', e.target.value)} placeholder="Detalhes do pagamento, observações relevantes..." ref={el => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }} onInput={e => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }} />
+                        <textarea style={{...inputStyleLight, minHeight:'60px', resize:'vertical', lineHeight:'1.7', fontSize:'15px', padding:'18px 20px', fontFamily:'Inter, sans-serif', overflow:'hidden', height:'auto'}} defaultValue={tarefaSelecionada.motivo} onBlur={e => handleUpdateField(tarefaSelecionada, 'motivo', e.target.value)} placeholder="Detalhes do pagamento, observações relevantes..." ref={el => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }} onInput={e => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }} />
                       </div>
                     </div>
                   )}
@@ -806,12 +806,12 @@ const cardMetaStyle = { display:'flex', alignItems:'center', gap:'8px', color:'v
 const btnNovoStyle = { background:'#dc2626', color:'#fff', border:'none', padding:'12px 28px', borderRadius:'14px', cursor:'pointer', display:'flex', alignItems:'center', gap:'12px', fontSize: '15px' };
 const dropdownStyle = { position:'absolute', top:'65px', right: 0, background:'var(--portal-bg-card)', borderRadius:'22px', boxShadow: '0 20px 50px rgba(0,0,0,0.12)', zIndex:2000, width:'300px', border:'1px solid var(--portal-border)', overflow:'hidden' };
 const dropdownItemStyle = { padding:'18px 25px', cursor:'pointer', borderBottom:'1px solid var(--portal-border)', fontSize:'15px', color: 'var(--portal-text-secondary)', transition:'0.2s' };
-const btnBackStyle = { background: 'transparent', color: 'var(--portal-text-secondary)', border: '1px solid var(--portal-border)', padding: '12px 28px', borderRadius: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', marginBottom: '10px', fontFamily: 'Montserrat, sans-serif' };
+const btnBackStyle = { background: 'transparent', color: 'var(--portal-text-secondary)', border: '1px solid var(--portal-border)', padding: '12px 28px', borderRadius: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', marginBottom: '10px', fontFamily: 'Inter, sans-serif' };
 const fieldBoxModal = { border: '1px solid var(--portal-border)', padding: '25px', background: '#fef2f2', flex: 1, borderRadius: '22px' };
 const fieldBoxInner = { padding: '10px' };
 const labelMStyle = { fontSize:'14px', color:'var(--portal-text-secondary)', textTransform:'uppercase', letterSpacing:'1px', fontWeight: '400', marginBottom: '10px', display: 'block' };
 const pModalStyle = { fontSize:'32px', color:'var(--portal-text)', margin: 0 };
-const inputStyleLight = { width: '100%', padding: '20px', border: '1px solid var(--portal-border)', outline: 'none', background:'var(--portal-bg-card)', color:'var(--portal-text)', fontSize: '18px', borderRadius: '15px', boxSizing: 'border-box', fontFamily: 'Montserrat, sans-serif' };
+const inputStyleLight = { width: '100%', padding: '20px', border: '1px solid var(--portal-border)', outline: 'none', background:'var(--portal-bg-card)', color:'var(--portal-text)', fontSize: '18px', borderRadius: '15px', boxSizing: 'border-box', fontFamily: 'Inter, sans-serif' };
 const miniActionBtn = { background: 'transparent', border: 'none', padding: '12px 15px', color: '#374151', cursor: 'pointer', transition: '0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center' };
 const btnActionGreen = { flex:1, color:'#fff', background:'linear-gradient(135deg, #16a34a 0%, #15803d 100%)', border:'none', padding:'22px', borderRadius:'18px', cursor:'pointer', display:'flex', alignItems:'center', gap:'15px', fontSize:'16px', justifyContent:'center', fontWeight: '600', boxShadow: '0 10px 25px rgba(22, 163, 74, 0.3)', transition: '0.3s' };
 const btnActionBlue = { flex:1, color:'#fff', background:'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)', border:'none', padding:'22px', borderRadius:'18px', cursor:'pointer', display:'flex', alignItems:'center', gap:'15px', fontSize:'16px', justifyContent:'center', fontWeight: '600', boxShadow: '0 10px 25px rgba(37, 99, 235, 0.3)', transition: '0.3s' };

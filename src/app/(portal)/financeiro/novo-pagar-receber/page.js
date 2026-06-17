@@ -369,12 +369,12 @@ export default function NovoPagarReceber() {
 
   if (pageLoading) return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <p style={{ color: '#6b7280', fontSize: '16px', letterSpacing: '2px', fontFamily: 'Montserrat, sans-serif' }}>Carregando...</p>
+      <p style={{ color: '#6b7280', fontSize: '16px', letterSpacing: '2px', fontFamily: 'Inter, sans-serif' }}>Carregando...</p>
     </div>
   )
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'Montserrat, sans-serif', color: '#1e293b' }}>
+    <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'Inter, sans-serif', color: '#1e293b' }}>
       <FinanceiroNav />
 
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '32px 20px' }}>
@@ -567,7 +567,7 @@ export default function NovoPagarReceber() {
                   <div style={{ position:'absolute', top:'100%', left:0, right:0, maxHeight:'220px', overflowY:'auto', background:'#fff', border:'1px solid #e5e7eb', borderRadius:'0 0 8px 8px', boxShadow:'0 4px 12px rgba(0,0,0,0.08)', zIndex:10 }}>
                     {fornecedores.filter(f => f.nome.toLowerCase().includes(buscaFornecedor.toLowerCase())).map(f => (
                       <div key={f.id} tabIndex={0} onMouseDown={e => e.preventDefault()} onClick={() => { setBuscaFornecedor(f.nome); setFormData({...formData, entidade: f.nome}); setShowFornecedorList(false); }}
-                        style={{ padding:'10px 14px', cursor:'pointer', fontSize:'14px', color:'#1e293b', borderBottom:'1px solid #f3f4f6', fontFamily:'Montserrat, sans-serif' }}
+                        style={{ padding:'10px 14px', cursor:'pointer', fontSize:'14px', color:'#1e293b', borderBottom:'1px solid #f3f4f6', fontFamily:'Inter, sans-serif' }}
                         onMouseEnter={e => e.currentTarget.style.background = '#f1f5f9'}
                         onMouseLeave={e => e.currentTarget.style.background = '#fff'}
                       >{f.nome}</div>
@@ -842,7 +842,7 @@ export default function NovoPagarReceber() {
               justifyContent: 'center',
               gap: '10px',
               transition: '0.2s',
-              fontFamily: 'Montserrat, sans-serif'
+              fontFamily: 'Inter, sans-serif'
             }}>
               {loading ? 'Processando...' : <><CheckCircle size={18} /> Salvar Rascunho e Abrir no Painel</>}
             </button>
@@ -912,6 +912,6 @@ function FileUploadBtn({ file, onSelect, label, required, isMulti, filesReq, set
 
 // --- ESTILOS ---
 const labelStyle = { display: 'block', fontSize: '12px', fontWeight: '600', color: '#6b7280', marginBottom: '6px', letterSpacing: '0.5px', textTransform: 'uppercase' };
-const inputStyle = { width: '100%', padding: '12px 14px', borderRadius: '8px', border: '1px solid #e5e7eb', outline: 'none', background: '#ffffff', color: '#1e293b', fontSize: '15px', boxSizing: 'border-box', fontFamily: 'Montserrat, sans-serif', transition: '0.2s' };
+const inputStyle = { width: '100%', padding: '12px 14px', borderRadius: '8px', border: '1px solid #e5e7eb', outline: 'none', background: '#ffffff', color: '#1e293b', fontSize: '15px', boxSizing: 'border-box', fontFamily: 'Inter, sans-serif', transition: '0.2s' };
 const inputIconStyle = { ...inputStyle, paddingLeft: '42px' };
 const selectStyle = { ...inputIconStyle, appearance: 'none', cursor: 'pointer' };

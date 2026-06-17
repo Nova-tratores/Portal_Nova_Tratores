@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Poppins:wght@300;400;500;600;700;800&display=swap');
+@import './estilo-portal.css';
 @import "tailwindcss";
 
 @theme inline {
@@ -3869,3 +3870,37 @@ body {
 }
 .mascote-anim  { animation: mascoteIdle 4.8s ease-in-out infinite; transform-origin: center bottom; }
 .mascote-think { animation: mascoteThink 0.65s ease-in-out infinite; transform-origin: center bottom; }
+
+/* Cards de tarefa do Financeiro (home-financeiro) — padrão Estilo Portal */
+.task-card-grid {
+  background: var(--portal-bg-card);
+  border: 1px solid var(--portal-border);
+  border-radius: 14px;
+  overflow: hidden;
+  margin-bottom: 14px;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(16,24,40,.05);
+  transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+.task-card-grid:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 26px rgba(16,24,40,.10);
+  border-color: var(--portal-border-hover);
+}
+
+/* Cards de Kanban do Financeiro — padrão Estilo Portal */
+.kanban-card {
+  background: var(--portal-bg-card);
+  border: 1px solid var(--portal-border);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 12px;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(16,24,40,.05);
+  transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+.kanban-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 26px rgba(16,24,40,.10);
+  border-color: var(--portal-border-hover);
+}

@@ -106,7 +106,7 @@ export default function VencidosPage() {
   })
 
   return (
-    <div style={{ minHeight: 'calc(100vh - 64px)', fontFamily: 'Montserrat, sans-serif', background: '#fafafa' }}>
+    <div style={{ minHeight: 'calc(100vh - 64px)', fontFamily: 'Inter, sans-serif', background: '#fafafa' }}>
       <FinanceiroNav />
 
       <div style={{ padding: '32px 40px', maxWidth: '1200px', margin: '0 auto' }}>

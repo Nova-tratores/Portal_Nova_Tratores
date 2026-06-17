@@ -100,14 +100,14 @@ export default function LogsFinanceiro() {
   }
 
   if (loadingPerm) return (
-    <div style={{ minHeight: 'calc(100vh - 64px)', fontFamily: 'Montserrat, sans-serif' }}>
+    <div style={{ minHeight: 'calc(100vh - 64px)', fontFamily: 'Inter, sans-serif' }}>
       <FinanceiroNav />
       <div style={{ padding: '60px', textAlign: 'center', color: '#6b7280' }}>Carregando...</div>
     </div>
   )
 
   if (!isAdmin) return (
-    <div style={{ minHeight: 'calc(100vh - 64px)', fontFamily: 'Montserrat, sans-serif' }}>
+    <div style={{ minHeight: 'calc(100vh - 64px)', fontFamily: 'Inter, sans-serif' }}>
       <FinanceiroNav />
       <div style={{ padding: '80px 40px', textAlign: 'center' }}>
         <Activity size={48} color="#e5e5e5" style={{ margin: '0 auto 16px' }} />
@@ -117,7 +117,7 @@ export default function LogsFinanceiro() {
   )
 
   return (
-    <div style={{ minHeight: 'calc(100vh - 64px)', fontFamily: 'Montserrat, sans-serif' }}>
+    <div style={{ minHeight: 'calc(100vh - 64px)', fontFamily: 'Inter, sans-serif' }}>
       <FinanceiroNav />
 
       <div style={{ padding: '24px 32px' }}>
@@ -142,14 +142,14 @@ export default function LogsFinanceiro() {
               placeholder="Buscar por card, usuario, ação..."
               value={filtroBusca}
               onChange={(e) => setFiltroBusca(e.target.value)}
-              style={{ width: '100%', padding: '10px 14px 10px 38px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b', fontSize: '13px', outline: 'none', fontFamily: 'Montserrat, sans-serif', boxSizing: 'border-box' }}
+              style={{ width: '100%', padding: '10px 14px 10px 38px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b', fontSize: '13px', outline: 'none', fontFamily: 'Inter, sans-serif', boxSizing: 'border-box' }}
             />
           </div>
 
           <select
             value={filtroUsuario}
             onChange={(e) => setFiltroUsuario(e.target.value)}
-            style={{ padding: '10px 14px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b', fontSize: '13px', outline: 'none', cursor: 'pointer', fontFamily: 'Montserrat, sans-serif' }}
+            style={{ padding: '10px 14px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b', fontSize: '13px', outline: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
           >
             <option value="">Todos os usuarios</option>
             {usuarios.map(u => (
@@ -160,7 +160,7 @@ export default function LogsFinanceiro() {
           <select
             value={filtroAcao}
             onChange={(e) => setFiltroAcao(e.target.value)}
-            style={{ padding: '10px 14px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b', fontSize: '13px', outline: 'none', cursor: 'pointer', fontFamily: 'Montserrat, sans-serif' }}
+            style={{ padding: '10px 14px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b', fontSize: '13px', outline: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
           >
             <option value="">Todas as ações</option>
             <option value="criar">Criou</option>
@@ -272,7 +272,7 @@ export default function LogsFinanceiro() {
             <button
               onClick={() => setPage(p => Math.max(0, p - 1))}
               disabled={page === 0}
-              style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '10px 18px', borderRadius: '10px', background: '#ffffff', border: '1px solid #e2e8f0', color: page === 0 ? '#cbd5e1' : '#64748b', fontSize: '13px', cursor: page === 0 ? 'default' : 'pointer', fontFamily: 'Montserrat, sans-serif' }}
+              style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '10px 18px', borderRadius: '10px', background: '#ffffff', border: '1px solid #e2e8f0', color: page === 0 ? '#cbd5e1' : '#64748b', fontSize: '13px', cursor: page === 0 ? 'default' : 'pointer', fontFamily: 'Inter, sans-serif' }}
             >
               <ChevronLeft size={14} /> Anterior
             </button>
@@ -282,7 +282,7 @@ export default function LogsFinanceiro() {
             <button
               onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
               disabled={page >= totalPages - 1}
-              style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '10px 18px', borderRadius: '10px', background: '#ffffff', border: '1px solid #e2e8f0', color: page >= totalPages - 1 ? '#cbd5e1' : '#64748b', fontSize: '13px', cursor: page >= totalPages - 1 ? 'default' : 'pointer', fontFamily: 'Montserrat, sans-serif' }}
+              style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '10px 18px', borderRadius: '10px', background: '#ffffff', border: '1px solid #e2e8f0', color: page >= totalPages - 1 ? '#cbd5e1' : '#64748b', fontSize: '13px', cursor: page >= totalPages - 1 ? 'default' : 'pointer', fontFamily: 'Inter, sans-serif' }}
             >
               Proxima <ChevronRight size={14} />
             </button>
