@@ -153,11 +153,10 @@ const navItems: NavItem[] = [
   {
     id: 'consulta-estoque',
     name: 'Visual Estoque',
-    href: 'https://estoque.novatratores.com',
+    href: '/estoque',
     icon: <BarChart3 size={18} />,
     tag: 'ESTOQUE',
-    gradient: 'linear-gradient(135deg, #ef4444, #991b1b)',
-    external: true
+    gradient: 'linear-gradient(135deg, #ef4444, #991b1b)'
   },
   {
     id: 'consulta-omie',

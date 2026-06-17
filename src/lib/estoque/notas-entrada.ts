@@ -1,0 +1,374 @@
+// Notas de entrada (NF-e fornecedor): listagem cacheada no Supabase, contas a
+// pagar / DANFE via Omie, categorias Omie e backfill de enriquecimento (nome do
+// emitente via chave NFe → CNPJ → Clientes_Omie; categoria via cCodCateg).
+// Portado de /api/notas-entrada*, /contas-pagar-nf, /danfe, /omie-categorias.
+
+import { supabase, filtroConta } from './supabase';
+import { omieRequest } from './omie';
+import { fmtD, fmtCnpjBR, sleep } from './utils';
+import { getIgnorarFiltro } from './ignorar-clientes';
+import { getCredentials, CONTA_DEFAULT, type Conta, type ContaFiltro } from './conta';
+
+const num = (v: unknown): number => parseFloat(String(v ?? 0)) || 0;
+
+// ===== Categorias Omie (código → descrição), cache 30 min por conta =====
+const categoriasOmieCache: Record<string, { mapa: Record<string, string>; time: number }> = {};
+
+export async function buscarCategoriasOmie(conta: Conta): Promise<Record<string, string>> {
+  const cached = categoriasOmieCache[conta];
+  if (cached && Date.now() - cached.time < 30 * 60 * 1000) return cached.mapa;
+  const mapa: Record<string, string> = {};
+  let pag = 1;
+  while (true) {
+    try {
+      const r = await omieRequest<{ faultstring?: string; total_de_paginas?: number; categoria_cadastro?: Array<{ codigo?: string; descricao?: string }> }>(
+        '/geral/categorias/', 'ListarCategorias', { pagina: pag, registros_por_pagina: 500 }, { conta },
+      );
+      if (r.faultstring) break;
+      const lista = r.categoria_cadastro || [];
+      if (lista.length === 0) break;
+      lista.forEach((c) => { if (c.codigo && c.descricao) mapa[c.codigo] = c.descricao; });
+      const totalPag = r.total_de_paginas || 0;
+      if (totalPag && pag >= totalPag) break;
+      if (lista.length < 500) break;
+      pag++;
+      await sleep(1000);
+    } catch {
+      break;
+    }
+  }
+  categoriasOmieCache[conta] = { mapa, time: Date.now() };
+  return mapa;
+}
+
+export async function listarCategoriasOmie(conta: ContaFiltro): Promise<Array<{ codigo: string; descricao: string }>> {
+  const mapa = await buscarCategoriasOmie(conta ?? CONTA_DEFAULT);
+  return Object.entries(mapa)
+    .map(([codigo, descricao]) => ({ codigo, descricao }))
+    .sort((a, b) => a.codigo.localeCompare(b.codigo));
+}
+
+// ===== Listagem de notas de entrada =====
+export interface NotasEntradaResult {
+  notas: Array<Record<string, unknown>>;
+  total: number;
+  pagina: number;
+  porPagina: number;
+  totalPaginas: number;
+}
+
+export async function listarNotasEntrada(
+  filtros: { mes?: number; ano?: number; nf?: string; pagina?: number },
+  conta: ContaFiltro,
+): Promise<NotasEntradaResult> {
+  const pag = filtros.pagina || 1;
+  const porPagina = 50;
+  const offset = (pag - 1) * porPagina;
+
+  let query = supabase
+    .from('notas_entrada')
+    .select(
+      'id,ncod_nf,numero_nf,serie,data_emissao,hora_emissao,emitente,nome_emitente,categoria,contas_pagar,valor_produtos,valor_nf,valor_icms,valor_ipi,valor_frete,valor_desconto,valor_total_tributos,parcelas,itens,cancelada,mes,ano,conta_omie',
+      { count: 'exact' },
+    );
+  if (filtros.nf) {
+    query = query.ilike('numero_nf', '%' + filtros.nf + '%');
+  } else {
+    if (filtros.mes) query = query.eq('mes', filtros.mes);
+    if (filtros.ano) query = query.eq('ano', filtros.ano);
+  }
+  query = filtroConta(query, conta);
+  const { nomes } = await getIgnorarFiltro(conta);
+  if (nomes.length > 0) {
+    const escaped = nomes.map((n) => '"' + String(n).replace(/"/g, '') + '"').join(',');
+    query = query.not('nome_emitente', 'in', '(' + escaped + ')');
+  }
+  query = query.order('data_emissao', { ascending: false }).range(offset, offset + porPagina - 1);
+  const { data: notas, count, error } = await query;
+  if (error) throw new Error(error.message);
+  return { notas: (notas || []) as Array<Record<string, unknown>>, total: count || 0, pagina: pag, porPagina, totalPaginas: Math.ceil((count || 0) / porPagina) };
+}
+
+// ===== Contas a pagar de uma NF (Omie) =====
+export interface TituloContaPagar {
+  numero_documento: string;
+  data_vencimento: string;
+  data_emissao: string;
+  data_previsao: string;
+  valor_documento: number;
+  status_titulo: string;
+  categorias: unknown[];
+  observacao: string;
+  codigo_categoria: string;
+  numero_parcela: string;
+  numero_documento_fiscal: string;
+  data_pagamento: string;
+  valor_pago: number;
+}
+
+export async function buscarContasPagarNF(
+  numeroNf: string,
+  cnpj: string | null,
+  dataEmissao: string | null,
+  conta: Conta,
+): Promise<TituloContaPagar[]> {
+  const titulos: TituloContaPagar[] = [];
+  const params: Record<string, unknown> = { pagina: 1, registros_por_pagina: 100, filtrar_apenas_titulos_em_aberto: 'N' };
+  if (cnpj) params.filtrar_por_cpf_cnpj = cnpj;
+  if (dataEmissao) {
+    const p = dataEmissao.split('/');
+    if (p.length === 3) {
+      const dt = new Date(parseInt(p[2]), parseInt(p[1]) - 1, parseInt(p[0]));
+      const de = new Date(dt); de.setMonth(de.getMonth() - 1);
+      const ate = new Date(dt); ate.setMonth(ate.getMonth() + 2);
+      params.filtrar_por_emissao_de = fmtD(de);
+      params.filtrar_por_emissao_ate = fmtD(ate);
+    }
+  }
+  let pag = 1;
+  const nfBusca = String(numeroNf).trim();
+  while (true) {
+    params.pagina = pag;
+    const r = await omieRequest<{ faultstring?: string; total_de_paginas?: number; conta_pagar_cadastro?: Array<Record<string, unknown>> }>(
+      '/financas/contapagar/', 'ListarContasPagar', params, { conta },
+    );
+    if (r.faultstring) break;
+    const lista = r.conta_pagar_cadastro || [];
+    if (lista.length === 0) break;
+    lista.forEach((t) => {
+      const numDoc = String(t.numero_documento || '').trim();
+      const numDocFiscal = String(t.numero_documento_fiscal || '').trim();
+      if (numDoc === nfBusca || numDocFiscal === nfBusca || numDoc.includes(nfBusca) || numDocFiscal.includes(nfBusca)) {
+        titulos.push({
+          numero_documento: String(t.numero_documento || ''),
+          data_vencimento: String(t.data_vencimento || ''),
+          data_emissao: String(t.data_emissao || ''),
+          data_previsao: String(t.data_previsao || ''),
+          valor_documento: num(t.valor_documento),
+          status_titulo: String(t.status_titulo || ''),
+          categorias: (t.categorias as unknown[]) || [],
+          observacao: String(t.observacao || ''),
+          codigo_categoria: String(t.codigo_categoria || ''),
+          numero_parcela: String(t.numero_parcela || ''),
+          numero_documento_fiscal: String(t.numero_documento_fiscal || ''),
+          data_pagamento: String(t.data_pagamento || ''),
+          valor_pago: num(t.valor_pago),
+        });
+      }
+    });
+    const totalPag = r.total_de_paginas || 0;
+    if (totalPag && pag >= totalPag) break;
+    if (lista.length < 100) break;
+    pag++;
+    await sleep(1000);
+  }
+  return titulos;
+}
+
+// ===== URL do DANFE =====
+export async function getUrlDanfe(
+  args: { ncod_nf?: string; numero_nf?: string; serie?: string },
+  conta: Conta,
+): Promise<string> {
+  let nCodNF = args.ncod_nf ? parseInt(args.ncod_nf) : null;
+  if (!nCodNF && args.numero_nf) {
+    const consulta = await omieRequest<{ nCodNF?: number; nfCadastro?: { nCodNF?: number } }>(
+      '/produtos/nfconsultar/', 'ConsultarNF', { nNF: args.numero_nf, serie: args.serie || '1', tpNF: '0', tpAmb: '1' }, { conta },
+    );
+    if (consulta?.nCodNF) nCodNF = consulta.nCodNF;
+    else if (consulta?.nfCadastro?.nCodNF) nCodNF = consulta.nfCadastro.nCodNF;
+  }
+  if (!nCodNF) throw new Error('Nao foi possivel encontrar o codigo interno da NF');
+  const r = await omieRequest<{ faultstring?: string; cUrlDanfe?: string }>(
+    '/produtos/notafiscalutil/', 'GetUrlDanfe', { nCodNF }, { conta },
+  );
+  if (r.faultstring) throw new Error(r.faultstring);
+  if (!r.cUrlDanfe) throw new Error('URL do DANFE nao disponivel');
+  return r.cUrlDanfe;
+}
+
+// ===== Backfill de enriquecimento (background) =====
+export interface BackfillStatus {
+  rodando: boolean;
+  etapa?: string;
+  total?: number;
+  processadas?: number;
+  total_no_periodo?: number;
+  candidatos?: number;
+  emitentes_preenchidos?: number;
+  categorias_preenchidas?: number;
+  consultarClientes_calls?: number;
+  ainda_null?: number;
+  updates_ok?: number;
+  updates_erro?: number;
+  ultimo_erro?: string | null;
+  erro?: string | null;
+  finalizadoEm?: string | null;
+  mes?: number;
+  ano?: number;
+}
+
+const backfillEnrStatus: Record<string, BackfillStatus> = {};
+
+export function getBackfillStatus(conta: ContaFiltro): BackfillStatus {
+  const k = conta || '__TODAS__';
+  if (!backfillEnrStatus[k]) backfillEnrStatus[k] = { rodando: false };
+  return backfillEnrStatus[k];
+}
+
+export function resetBackfillStatus(conta: ContaFiltro): void {
+  const k = conta || '__TODAS__';
+  backfillEnrStatus[k] = { rodando: false };
+}
+
+/** CNPJ (14 díg.) da chave de acesso NF-e (44 díg.). */
+function cnpjFromChaveNFe(chave: unknown): string | null {
+  if (!chave || typeof chave !== 'string') return null;
+  const d = chave.replace(/\D/g, '');
+  if (d.length !== 44) return null;
+  return d.substring(6, 20);
+}
+
+/** ConsultarCliente rápido (timeout via AbortController), sem o wrapper que dorme até 10 min. */
+async function consultarClienteRapido(params: Record<string, unknown>, conta: Conta, timeoutMs = 10000): Promise<Record<string, unknown> | null> {
+  const { appKey, appSecret } = getCredentials(conta);
+  const body = { app_key: appKey, app_secret: appSecret, call: 'ConsultarCliente', param: [params] };
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), timeoutMs);
+  try {
+    const res = await fetch('https://app.omie.com.br/api/v1/geral/clientes/', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: ctl.signal,
+    });
+    return (await res.json()) as Record<string, unknown>;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Dispara o backfill de enriquecimento em background (fire-and-forget).
+ * Retorna imediatamente; o progresso é acompanhado por getBackfillStatus.
+ */
+export function iniciarBackfillEnriquecimento(mes: number, ano: number, conta: ContaFiltro): { ok: boolean; erro?: string } {
+  const k = conta || '__TODAS__';
+  const prev = backfillEnrStatus[k];
+  if (prev && prev.rodando) return { ok: false, erro: 'Backfill ja rodando para esta conta' };
+
+  const s: BackfillStatus = {
+    rodando: true, etapa: 'iniciando', total: 0, processadas: 0, total_no_periodo: 0, candidatos: 0,
+    emitentes_preenchidos: 0, categorias_preenchidas: 0, consultarClientes_calls: 0, ainda_null: 0,
+    updates_ok: 0, updates_erro: 0, ultimo_erro: null, erro: null, finalizadoEm: null, mes, ano,
+  };
+  backfillEnrStatus[k] = s;
+  const contaConcreta: Conta = conta ?? CONTA_DEFAULT;
+
+  (async () => {
+    try {
+      s.etapa = 'buscando linhas do periodo';
+      const { data: todasRows, error } = await filtroConta(
+        supabase.from('notas_entrada').select('id,ncod_nf,numero_nf,serie,nome_emitente,categoria,emitente,complemento,parcelas,contas_pagar').eq('mes', mes).eq('ano', ano),
+        conta,
+      );
+      if (error) throw new Error(error.message);
+      const rowsAll = (todasRows || []) as Array<Record<string, unknown>>;
+      s.total_no_periodo = rowsAll.length;
+      const rows = rowsAll.filter((r) => {
+        const semNome = !r.nome_emitente || String(r.nome_emitente).trim() === '';
+        const semCat = !r.categoria || String(r.categoria).trim() === '';
+        return semNome || semCat;
+      });
+      s.total = rows.length;
+      s.candidatos = rows.length;
+      if (rows.length === 0) { s.etapa = 'finalizado (nada pra processar)'; s.rodando = false; s.finalizadoEm = new Date().toISOString(); return; }
+
+      s.etapa = 'buscando categorias Omie';
+      const categoriasMap = await buscarCategoriasOmie(contaConcreta);
+
+      // CNPJs únicos via chave NFe
+      const cnpjsUnicos = new Set<string>();
+      rows.forEach((r) => {
+        const compl = (r.complemento || {}) as Record<string, unknown>;
+        const cnpj = cnpjFromChaveNFe(compl.cChaveNFe);
+        if (cnpj) cnpjsUnicos.add(cnpj);
+      });
+
+      const cnpjNomeMap: Record<string, string> = {};
+      const cnpjArr = [...cnpjsUnicos];
+      s.etapa = 'buscando fornecedores em Clientes_Omie';
+      for (const cnpj of cnpjArr) {
+        if (backfillEnrStatus[k] !== s) return;
+        const fmt = fmtCnpjBR(cnpj);
+        try {
+          const { data } = await supabase.from('Clientes_Omie').select('id,nome').filter('cpf/cnpj', 'eq', fmt).limit(1);
+          if (data && data[0] && data[0].nome) cnpjNomeMap[cnpj] = String(data[0].nome);
+        } catch { /* segue */ }
+      }
+
+      s.etapa = 'consultando fornecedores no Omie via CNPJ';
+      const cnpjFaltantes = cnpjArr.filter((c) => !cnpjNomeMap[c]);
+      for (const cnpj of cnpjFaltantes) {
+        if (backfillEnrStatus[k] !== s) return;
+        try {
+          const r = await consultarClienteRapido({ cnpj_cpf: fmtCnpjBR(cnpj) }, contaConcreta, 10000);
+          s.consultarClientes_calls = (s.consultarClientes_calls || 0) + 1;
+          if (r && !r.faultstring) {
+            const nome = (r.razao_social || r.nome_fantasia) as string | undefined;
+            if (nome) cnpjNomeMap[cnpj] = nome;
+          }
+          await sleep(500);
+        } catch {
+          s.consultarClientes_calls = (s.consultarClientes_calls || 0) + 1;
+          await sleep(500);
+        }
+      }
+
+      s.etapa = 'atualizando linhas';
+      for (const r of rows) {
+        if (backfillEnrStatus[k] !== s) return;
+        const updates: Record<string, unknown> = {};
+        const compl = (r.complemento || {}) as Record<string, unknown>;
+        const parcelas = (r.parcelas as Array<Record<string, unknown>>) || [];
+        const parc0 = parcelas[0] || {};
+        const codCat = (compl.cCodCateg || parc0.cCodCateg) as string | undefined;
+        const chave = (compl.cChaveNFe as string) || null;
+        const cnpj = cnpjFromChaveNFe(chave);
+        const semCategoria = !r.categoria || String(r.categoria).trim() === '';
+        const semNome = !r.nome_emitente || String(r.nome_emitente).trim() === '';
+
+        if (semCategoria && codCat && categoriasMap[codCat]) updates.categoria = categoriasMap[codCat];
+
+        if (semNome && cnpj && cnpjNomeMap[cnpj]) {
+          updates.nome_emitente = cnpjNomeMap[cnpj];
+          updates.emitente = Object.assign({}, (r.emitente as object) || {}, { cnpj_cpf: fmtCnpjBR(cnpj), xNome: cnpjNomeMap[cnpj], cChaveNFe: chave });
+        } else if (cnpj) {
+          const emitExistente = (r.emitente || {}) as Record<string, unknown>;
+          if (!emitExistente.cnpj_cpf) updates.emitente = Object.assign({}, emitExistente, { cnpj_cpf: fmtCnpjBR(cnpj), cChaveNFe: chave });
+        }
+
+        if (updates.categoria) s.categorias_preenchidas = (s.categorias_preenchidas || 0) + 1;
+        if (updates.nome_emitente) s.emitentes_preenchidos = (s.emitentes_preenchidos || 0) + 1;
+        if (!updates.categoria && !updates.nome_emitente && !updates.emitente) s.ainda_null = (s.ainda_null || 0) + 1;
+
+        if (Object.keys(updates).length > 0) {
+          const { error: upErr, data: upData } = await supabase.from('notas_entrada').update(updates).eq('id', r.id as number).select('id');
+          if (upErr) { s.updates_erro = (s.updates_erro || 0) + 1; s.ultimo_erro = upErr.message; }
+          else if (!upData || upData.length === 0) { s.updates_erro = (s.updates_erro || 0) + 1; s.ultimo_erro = 'update 0 rows (RLS?) id=' + r.id; }
+          else s.updates_ok = (s.updates_ok || 0) + 1;
+        }
+        s.processadas = (s.processadas || 0) + 1;
+      }
+
+      s.etapa = 'finalizado';
+      s.rodando = false;
+      s.finalizadoEm = new Date().toISOString();
+    } catch (e) {
+      s.erro = (e as Error).message;
+      s.rodando = false;
+      s.finalizadoEm = new Date().toISOString();
+    }
+  })();
+
+  return { ok: true };
+}
