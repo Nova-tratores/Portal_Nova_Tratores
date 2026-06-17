@@ -7,7 +7,7 @@ interface Secao { secao: string; ordem: number; figuras: number; thumb?: string 
 interface Modelo { slug: string; nome: string; image_url: string | null; figuras?: number }
 
 // Mascote do assistente (mecânico Nova Tratores). Se não existir no storage, cai no ícone.
-const MASCOTE_IMG = (process.env.NEXT_PUBLIC_SUPABASE_URL || "") + "/storage/v1/object/public/catalogo/mascote.png";
+const MASCOTE_IMG = (process.env.NEXT_PUBLIC_SUPABASE_URL || "") + "/storage/v1/object/public/catalogo/mascote_final.png";
 
 // Quando embutido no fluxo de adicionar peças, recebe onSelecionarPeca; senão, copia o código.
 export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecionarPeca?: (p: { code: string; name: string }) => void; userName?: string }) {
@@ -174,8 +174,8 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
           <div style={{ position: "absolute", inset: 0, background: "#fff", zIndex: 10, overflow: "auto" }}>
             <div style={{ maxWidth: 780, margin: "0 auto", padding: "22px 20px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-                <div style={{ width: 48, height: 48, borderRadius: 12, background: mascoteErro ? "linear-gradient(135deg,#7c3aed,#6d28d9)" : "#f1f5f9", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, overflow: "hidden", flexShrink: 0 }}>
-                  {!mascoteErro ? <img src={MASCOTE_IMG} alt="Assistente" onError={() => setMascoteErro(true)} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <i className="fas fa-robot" />}
+                <div className={mascoteErro ? "" : (roboLoading ? "mascote-think" : "mascote-anim")} style={{ width: 64, height: 64, borderRadius: 14, background: mascoteErro ? "linear-gradient(135deg,#7c3aed,#6d28d9)" : "transparent", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>
+                  {!mascoteErro ? <img src={MASCOTE_IMG} alt="Assistente" onError={() => setMascoteErro(true)} style={{ width: "100%", height: "100%", objectFit: "contain" }} /> : <i className="fas fa-robot" />}
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 17, fontWeight: 800, display: "flex", alignItems: "center", gap: 8 }}>

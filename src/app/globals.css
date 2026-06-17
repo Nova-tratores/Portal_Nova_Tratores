@@ -3848,3 +3848,24 @@ body {
   .os-total-breakdown { flex-wrap: wrap; gap: 8px; }
   .os-summary-total { font-size: 18px; }
 }
+
+/* ===== Mascote do Assistente (animações) ===== */
+/* Idle vivo: flutua + respira + dá uma "saltadinha" animada a cada ciclo */
+@keyframes mascoteIdle {
+  0%   { transform: translateY(0) rotate(0deg) scale(1); }
+  14%  { transform: translateY(-5px) rotate(-3deg) scale(1.02); }
+  28%  { transform: translateY(0) rotate(0deg) scale(1); }
+  42%  { transform: translateY(-3px) rotate(3deg) scale(1.015); }
+  56%  { transform: translateY(0) rotate(0deg) scale(1); }
+  70%  { transform: translateY(-8px) rotate(-7deg) scale(1.06); }   /* hop animado */
+  78%  { transform: translateY(0) rotate(5deg) scale(0.99); }
+  86%  { transform: translateY(-3px) rotate(-2deg) scale(1.01); }
+  100% { transform: translateY(0) rotate(0deg) scale(1); }
+}
+@keyframes mascoteThink {
+  0%, 100% { transform: translateY(0) rotate(0deg) scale(1); }
+  20%      { transform: translateY(-5px) rotate(-10deg) scale(1.05); }
+  60%      { transform: translateY(-5px) rotate(10deg) scale(1.05); }
+}
+.mascote-anim  { animation: mascoteIdle 4.8s ease-in-out infinite; transform-origin: center bottom; }
+.mascote-think { animation: mascoteThink 0.65s ease-in-out infinite; transform-origin: center bottom; }

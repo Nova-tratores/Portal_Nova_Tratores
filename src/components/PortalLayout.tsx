@@ -5,6 +5,7 @@ import { usePermissoes } from '@/hooks/usePermissoes'
 import { useChat } from '@/hooks/useChat'
 import { useNotificacoes } from '@/hooks/useNotificacoes'
 import { usePathname, useRouter } from 'next/navigation'
+import TratorinoChat from '@/components/TratorinoChat'
 import {
   LogOut, Settings, ClipboardList, Wrench, FileText,
   DollarSign, Package, Menu, X, User as UserIcon,
@@ -962,6 +963,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       }}>
         {children}
       </main>
+
+      {/* Assistente Tratorino (flutuante, global) */}
+      <TratorinoChat />
 
       {/* ===== CHAT PANEL ===== */}
       <ChatPanel
