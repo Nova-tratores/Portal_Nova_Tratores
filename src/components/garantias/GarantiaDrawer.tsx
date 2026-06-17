@@ -1,8 +1,8 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   X, Loader2, ExternalLink, Package, ShieldCheck, Factory, Send,
-  AlertTriangle, CheckCircle2, XCircle, Save, History, FileWarning, MapPin,
+  AlertTriangle, CheckCircle2, XCircle, Save, History, FileWarning, MapPin, RefreshCw,
 } from 'lucide-react';
 import type { GarantiaDetalhe, Montadora, ChecklistField } from '@/lib/garantias/types';
 import { STATUS_LABEL, STATUS_COR } from '@/lib/garantias/constants';
@@ -80,7 +80,10 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState('');
   const [erro, setErro] = useState('');
+  const [aviso, setAviso] = useState('');
   const [verTimeline, setVerTimeline] = useState(false);
+  // Garante que a auto-sincronização com a OS roda só uma vez por garantia
+  const autoSyncRef = useRef<string | null>(null);
 
   // Estado editável (análise)
   const [respostas, setRespostas] = useState<Record<string, unknown>>({});
@@ -129,6 +132,53 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
   useEffect(() => {
     carregar();
   }, [carregar]);
+
+  // Re-sincroniza peças + horas + km a partir da OS de origem.
+  // silent=true: usado no auto-sync ao abrir (não mostra mensagem/spinner).
+  const sincronizarOS = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      const silent = opts?.silent;
+      if (!silent) { setBusy('sincronizar'); setErro(''); setAviso(''); }
+      try {
+        const res = await fetch(`/api/garantias/${garantiaId}/sincronizar-os`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ator: userName }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (!silent) setErro(data.error || 'Falha ao sincronizar com a OS.');
+          return;
+        }
+        if (data.changed) {
+          await carregar();
+          onSaved();
+          if (!silent) setAviso(`Atualizado da OS: ${data.qtd_pecas} peça(s) · ${data.horas}h / ${data.km} km.`);
+        } else if (!silent) {
+          setAviso('Já estava atualizado com a OS.');
+        }
+      } catch {
+        if (!silent) setErro('Erro de conexão ao sincronizar.');
+      } finally {
+        if (!silent) setBusy('');
+      }
+    },
+    [garantiaId, userName, carregar, onSaved],
+  );
+
+  // Auto-sincroniza ao abrir, uma vez por garantia, nas fases editáveis (antes
+  // do envio à fábrica). O PPV (conectado ao POS) é a fonte da verdade das
+  // peças, então mantemos peças/horas/km sempre espelhando a OS. Depois do
+  // envio, a foto fica congelada (usa-se o botão manual se precisar refazer).
+  useEffect(() => {
+    if (!g) return;
+    if (autoSyncRef.current === g.id) return;
+    autoSyncRef.current = g.id;
+    const editavel = g.status === 'em_analise' || g.status === 'bo_tecnico';
+    if (editavel) {
+      sincronizarOS({ silent: true });
+    }
+  }, [g, sincronizarOS]);
 
   async function uploadChecklistFile(file: File): Promise<string> {
     const fd = new FormData();
@@ -368,6 +418,29 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
 
               {/* Peças selecionadas pelo técnico */}
               <Secao titulo={`Peças solicitadas (${g.pecas.length})`} icone={<Package size={14} />}>
+                {!finalizada && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <button
+                      type="button"
+                      onClick={() => sincronizarOS()}
+                      disabled={busy === 'sincronizar'}
+                      title="Repuxa peças, horas e km direto da OS (PPV, requisições e peças manuais)"
+                      style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                        padding: '6px 10px', borderRadius: 7,
+                        border: '1px solid var(--portal-border)',
+                        background: 'var(--portal-bg-input)',
+                        color: 'var(--portal-text-secondary)',
+                        fontSize: 11, fontWeight: 600,
+                        cursor: busy === 'sincronizar' ? 'default' : 'pointer',
+                      }}
+                    >
+                      {busy === 'sincronizar' ? <Loader2 size={11} className="spin" /> : <RefreshCw size={11} />}
+                      Atualizar peças e horas da OS
+                    </button>
+                    {aviso && <span style={{ fontSize: 11, color: '#16a34a' }}>{aviso}</span>}
+                  </div>
+                )}
                 {g.pecas.length === 0 ? (
                   <span style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>Nenhuma peça vinculada.</span>
                 ) : (
