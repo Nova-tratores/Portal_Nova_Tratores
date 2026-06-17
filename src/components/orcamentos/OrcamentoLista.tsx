@@ -111,7 +111,26 @@ export default function OrcamentoLista({ onNovo, onEditar }: Props) {
 
         alert(`OS ${result.novaOsId} criada com sucesso!${result.ppvGerado ? ` PPV ${result.ppvGerado} gerado.` : ''}`)
       } else {
-        // Gerar PPV avulso
+        // Gerar PPV avulso — se o cliente do orçamento NÃO estiver cadastrado no banco, usa NOVA TRATORES
+        const docOrc = String(orc.cliente_documento || '').replace(/\D/g, '')
+        const nomeOrc = (orc.cliente_nome || '').trim()
+        let clientePPV = nomeOrc || 'NOVA TRATORES'
+        try {
+          // busca pelo NOME (o banco guarda o CNPJ formatado, então buscar por dígitos falharia)
+          const rc = await fetch(`/api/ppv/clientes?termo=${encodeURIComponent(nomeOrc || orc.cliente_documento || '')}`)
+          const cls = rc.ok ? await rc.json() : []
+          const bate = Array.isArray(cls) ? cls.find((c: any) => {
+            const cd = String(c.documento || '').replace(/\D/g, '')
+            if (docOrc && cd) return cd === docOrc
+            const cn = (c.nome || '').toLowerCase().trim()
+            const no = nomeOrc.toLowerCase()
+            return !!cn && (cn.includes(no) || no.includes(cn))
+          }) : null
+          clientePPV = bate ? (bate.nome || nomeOrc) : 'NOVA TRATORES'
+        } catch { clientePPV = nomeOrc || 'NOVA TRATORES' }
+        const usouFallback = clientePPV === 'NOVA TRATORES' && !!nomeOrc && nomeOrc.toUpperCase() !== 'NOVA TRATORES'
+        const obsPPV = `Ref. Orçamento ${orc.numero}` + (usouFallback ? ` (cliente "${nomeOrc}" não cadastrado — emitido em Nova Tratores)` : '')
+
         const res = await fetch('/api/ppv/pedidos', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -119,8 +138,8 @@ export default function OrcamentoLista({ onNovo, onEditar }: Props) {
             tipoPedido: 'Pedido',
             motivoSaida: 'Venda Balcão',
             tecnico: tecnicoGerar,
-            cliente: orc.cliente_nome,
-            observacao: `Ref. Orçamento ${orc.numero}`,
+            cliente: clientePPV,
+            observacao: obsPPV,
             valorTotal: orc.total || 0,
             userName: orc.criado_por || 'Sistema',
             produtosSelecionados: (orc.itens || []).filter((i: any) => i.descricao).map((i: any) => ({
@@ -133,7 +152,7 @@ export default function OrcamentoLista({ onNovo, onEditar }: Props) {
         })
         const result = await res.json()
         if (!res.ok) throw new Error(result.erro || result.error || 'Erro ao criar PPV')
-        alert(`Pedido ${result.id} criado com sucesso!`)
+        alert(`Pedido ${result.id} criado com sucesso!` + (usouFallback ? `\nCliente "${nomeOrc}" não estava cadastrado — emitido em Nova Tratores.` : ''))
       }
       setGerarModal(null)
       setTecnicoGerar('')
@@ -304,7 +323,7 @@ export default function OrcamentoLista({ onNovo, onEditar }: Props) {
             {listaFiltrada.map(item => {
               const sc = statusColors[item.status] || statusColors.ativo
               return (
-                <tr key={item.id} style={{ borderBottom: '1px solid #f5f5f5', transition: '0.15s' }}
+                <tr key={item.id} onClick={() => onEditar(item.id)} title="Clique para editar" style={{ borderBottom: '1px solid #f5f5f5', transition: '0.15s', cursor: 'pointer' }}
                   onMouseEnter={e => (e.currentTarget.style.background = '#fafafa')}
                   onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
                 >
@@ -320,7 +339,7 @@ export default function OrcamentoLista({ onNovo, onEditar }: Props) {
                   <td style={{ ...tdStyle, fontWeight: 600 }}>{item.cliente_nome}</td>
                   <td style={{ ...tdStyle, color: '#737373' }}>{item.cliente_cidade || '—'}</td>
                   <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 700 }}>R$ {fmt(item.total)}</td>
-                  <td style={{ ...tdStyle, textAlign: 'center' }}>
+                  <td style={{ ...tdStyle, textAlign: 'center' }} onClick={e => e.stopPropagation()}>
                     <select
                       value={item.status}
                       onChange={e => alterarStatus(item.id, e.target.value)}
@@ -341,7 +360,7 @@ export default function OrcamentoLista({ onNovo, onEditar }: Props) {
                     {new Date(item.created_at).toLocaleDateString('pt-BR')}
                   </td>
                   <td style={{ ...tdStyle, color: '#737373', fontSize: 12 }}>{item.criado_por || '—'}</td>
-                  <td style={{ ...tdStyle, textAlign: 'center' }}>
+                  <td style={{ ...tdStyle, textAlign: 'center' }} onClick={e => e.stopPropagation()}>
                     <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
                       <button onClick={() => verPDF(item.id)} title="Ver PDF" style={actionBtn}>
                         <Eye size={15} color="#737373" />
