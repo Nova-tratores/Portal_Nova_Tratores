@@ -10,6 +10,7 @@ import {
   notificarTecnico,
   notificarGarantistas,
 } from '@/lib/garantias/server';
+import { listarPecasDaOS } from '@/lib/garantias/os-pecas';
 
 // POST /api/garantias/criar-manual
 // Garantista cria uma garantia a partir de uma OS existente — pra casos onde
@@ -111,46 +112,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Falha ao criar garantia.' }, { status: 500 });
   }
 
-  // 6) Incluir peças do PPV (best-effort)
+  // 6) Incluir peças da OS (PPV + requisições + PecasInfo) — best-effort
   let qtdPecasCriadas = 0;
   if (incluirPecasPPV) {
-    const ppvIds = String(os.ID_PPV || '')
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (ppvIds.length > 0) {
-      const { data: itens } = await supabase
-        .from('movimentacoes')
-        .select('CodProduto, Descricao, Qtde, Preco, TipoMovimento, Id_PPV')
-        .in('Id_PPV', ppvIds);
-      const resumo: Record<string, { descricao: string; qtde: number; totalFin: number; ppv: string }> = {};
-      for (const item of (itens || []) as Array<{ CodProduto?: string; Descricao?: string; Qtde?: string; Preco?: string; TipoMovimento?: string; Id_PPV?: string }>) {
-        const cod = String(item.CodProduto || '');
-        if (!cod) continue;
-        const tipo = String(item.TipoMovimento || '').toLowerCase();
-        const preco = parseFloat(item.Preco || '0');
-        let qtd = Math.abs(parseFloat(item.Qtde || '0'));
-        if (tipo.includes('devolu')) qtd = -qtd;
-        if (!resumo[cod]) resumo[cod] = { descricao: item.Descricao || cod, qtde: 0, totalFin: 0, ppv: String(item.Id_PPV || '') };
-        resumo[cod].qtde += qtd;
-        resumo[cod].totalFin += preco * qtd;
-      }
-      const pecasParaInsert = Object.entries(resumo)
-        .filter(([, p]) => p.qtde !== 0)
-        .map(([cod, p]) => ({
-          garantia_id: garantia.id,
-          cod_produto: cod || null,
-          descricao: p.descricao,
-          quantidade: p.qtde,
-          preco_unitario: p.qtde !== 0 ? p.totalFin / p.qtde : 0,
-          origem: 'ppv' as const,
-          fonte_ppv_id: p.ppv || null,
-        }));
-      if (pecasParaInsert.length > 0) {
-        const { error: errPecas } = await supabase.from(TBL_GAR_PECAS).insert(pecasParaInsert);
-        if (!errPecas) qtdPecasCriadas = pecasParaInsert.length;
-        else console.warn('[criar-manual] falha ao inserir peças:', errPecas.message);
-      }
+    const pecasOS = await listarPecasDaOS(idOrdem);
+    const pecasParaInsert = pecasOS.map((p) => ({
+      garantia_id: garantia.id,
+      cod_produto: p.cod_produto,
+      descricao: p.descricao,
+      quantidade: p.quantidade,
+      preco_unitario: p.preco_unitario,
+      origem: p.origem,
+      fonte_ppv_id: p.fonte_ppv_id,
+    }));
+    if (pecasParaInsert.length > 0) {
+      const { error: errPecas } = await supabase.from(TBL_GAR_PECAS).insert(pecasParaInsert);
+      if (!errPecas) qtdPecasCriadas = pecasParaInsert.length;
+      else console.warn('[criar-manual] falha ao inserir peças:', errPecas.message);
     }
   }
 
