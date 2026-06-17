@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { TRATORINO_PERSONA, TRATORINO_CONHECIMENTO } from "@/lib/assistente/conhecimento";
-
-const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
+import { getIA, chamarIA } from "@/lib/assistente/ia";
 
 // Rótulos dos módulos do portal (iguais aos de /admin) — pra dizer ao usuário o que ele acessa
 const MOD_LABELS: Record<string, string> = {
@@ -147,6 +146,20 @@ const TOOLS = [
   {
     type: "function",
     function: {
+      name: "consultar_projeto",
+      description: "Consulta os PROJETOS e já cruza com o CONTROLE DE REVISÕES do trator. Cada projeto é uma máquina/trator vendido, identificado por modelo + número de CHASSI (ex.: '6075 MDI07502AN0002581'), ligado ao CLIENTE pelo CPF/CNPJ do último FATURAMENTO. O retorno traz, por projeto, o cliente E as revisões (quais já foram feitas, a última e a próxima pendente). Use pra: descobrir de QUEM é um projeto/chassi, LISTAR os projetos/máquinas de um cliente, ou ver as revisões de um trator. Informe 'projeto' (nome ou chassi) OU 'cliente' (nome ou CPF/CNPJ).",
+      parameters: {
+        type: "object",
+        properties: {
+          projeto: { type: "string", description: "Nome ou número de chassi do projeto a buscar." },
+          cliente: { type: "string", description: "Nome ou CPF/CNPJ do cliente, pra listar os projetos/máquinas dele." },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "usuarios_portal",
       description: "(Somente administradores) Informações sobre os usuários do portal. Use quando perguntarem QUANTOS usuários existem, QUEM são, suas funções, ou o HISTÓRICO de ações de um usuário. acao=contar (total/ativos/inativos), acao=listar (lista com nome e função), acao=historico (últimas ações de um usuário, exige o nome).",
       parameters: {
@@ -168,7 +181,7 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
     const isAdmin = ctx?.isAdmin === true;
     const REQ_MOD: Record<string, string[]> = {
       kit_revisao: ["ppv", "orcamentos"], buscar_pecas: ["ppv", "orcamentos"], explorar_catalogo: ["ppv", "orcamentos"],
-      historico_cliente: ["clientes", "pos", "ppv"],
+      historico_cliente: ["clientes", "pos", "ppv"], consultar_projeto: ["clientes", "pos", "ppv", "orcamentos", "revisoes"],
       propor_orcamento: ["orcamentos"], propor_ppv: ["ppv"], propor_os: ["pos"], propor_requisicao: ["requisicoes"],
     };
     const need = REQ_MOD[name];
@@ -206,7 +219,7 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
       const q = ((args.consulta || "") + (args.modelo ? " " + args.modelo : "")).trim();
       const r = await fetch(`${origin}/api/catalogo?acao=robo&q=${encodeURIComponent(q)}`);
       const d = r.ok ? await r.json() : { grupos: [] };
-      const grupos = (d.grupos || []).slice(0, 15).map((g: any) => ({ codigo: g.code, nome: g.name, qtd: g.qtd, tratores: (g.tratores || []).map((t: any) => t.modelo) }));
+      const grupos = (d.grupos || []).slice(0, 10).map((g: any) => ({ codigo: g.code, nome: g.name, qtd: g.qtd, tratores: (g.tratores || []).map((t: any) => t.modelo) }));
       return { total: grupos.length, pecas: grupos };
     }
     if (name === "explorar_catalogo") {
@@ -266,6 +279,66 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
         });
       }
       return { encontrado: true, cliente: args.nome, total_os: os.length, fazendas: Object.values(fazendas), pasta_cliente: "/clientes" };
+    }
+    if (name === "consultar_projeto") {
+      const SB = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+      const SK = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+      const H = { apikey: SK, authorization: `Bearer ${SK}` };
+      const lp = (s: any) => String(s || "").replace(/[%,()*]/g, " ").trim();
+      const SELP = "codigo,nome,empresa,cnpj_cpf_ultimo,cliente_nome_ultimo";
+      const get = (u: string) => fetch(u, { headers: H }).then((r) => (r.ok ? r.json() : [])).catch(() => []);
+
+      // Controle de revisões (tabela "tratores") — cruza pelo CHASSI que está no nome do projeto
+      const REV = ["50h", "300h", "600h", "900h", "1200h", "1500h", "1800h", "2100h", "2400h", "2700h", "3000h"];
+      const extrairChassi = (nome: string) => {
+        const toks = String(nome || "").toUpperCase().match(/[A-Z0-9]{6,}/g) || [];
+        return toks.sort((a, b) => ((b.match(/\d/g) || []).length - (a.match(/\d/g) || []).length) || (b.length - a.length))[0] || "";
+      };
+      const resumoRev = (t: any) => {
+        const feitas = REV.filter((h) => t[h + " Data"]).map((h) => ({ rev: h, data: t[h + " Data"], horimetro: t[h + " Horimetro"] || null }));
+        const proxima = REV.find((h) => !t[h + " Data"]) || null;
+        return { entrega: t.Entrega || null, inspecao: t["Inspecao Data"] || null, total_feitas: feitas.length, ultima_feita: feitas[feitas.length - 1] || null, proxima_pendente: proxima, feitas };
+      };
+      const cruzarRevisoes = async (projetos: any[]) => {
+        const chassisDe: Record<string, string> = {};
+        for (const p of projetos) chassisDe[p.codigo] = extrairChassi(p.nome);
+        const lista = [...new Set(Object.values(chassisDe).filter(Boolean))];
+        const revMap: Record<string, any> = {};
+        if (lista.length) {
+          // ilike (tolera espaços no fim do chassi); chave normalizada (trim + upper)
+          const orQ = lista.map((c) => `Chassis.ilike.*${encodeURIComponent(c)}*`).join(",");
+          const tr: any[] = await get(`${SB}/rest/v1/tratores?select=*&or=(${orQ})`);
+          for (const t of tr) revMap[String(t.Chassis || "").trim().toUpperCase()] = t;
+        }
+        return projetos.map((p) => {
+          const ch = chassisDe[p.codigo];
+          const t = ch ? revMap[ch] : null;
+          return { ...p, chassi: ch || null, revisoes: t ? resumoRev(t) : null };
+        });
+      };
+
+      // Buscar por projeto/chassi → de quem é + controle de revisões
+      if (args.projeto) {
+        const q = lp(args.projeto);
+        const r: any[] = await get(`${SB}/rest/v1/portal_nt_projetos_PRINCIPAL?select=${SELP}&nome=ilike.*${encodeURIComponent(q)}*&limit=12`);
+        if (!r.length) return { encontrado: false, mensagem: `Não achei nenhum projeto/chassi parecido com "${args.projeto}".` };
+        const base = r.map((p) => ({ projeto: p.nome, codigo: p.codigo, empresa: p.empresa, cliente: p.cliente_nome_ultimo || null, cnpj_cpf: p.cnpj_cpf_ultimo || null, faturado: !!p.cnpj_cpf_ultimo, pasta_cliente: "/clientes" }));
+        return { encontrado: true, total: r.length, projetos: await cruzarRevisoes(base) };
+      }
+      // Buscar por cliente → quais projetos/máquinas são dele (+ revisões)
+      if (args.cliente) {
+        const q = lp(args.cliente);
+        const r: any[] = await get(`${SB}/rest/v1/portal_nt_projetos_PRINCIPAL?select=${SELP}&or=(cliente_nome_ultimo.ilike.*${encodeURIComponent(q)}*,cnpj_cpf_ultimo.ilike.*${encodeURIComponent(q)}*)&limit=30`);
+        if (!r.length) return { encontrado: false, mensagem: `Não achei projetos faturados para "${args.cliente}".` };
+        const base = r.map((p) => ({ projeto: p.nome, codigo: p.codigo, empresa: p.empresa, cnpj_cpf: p.cnpj_cpf_ultimo || null }));
+        return { encontrado: true, cliente: r[0].cliente_nome_ultimo || args.cliente, total: r.length, projetos: await cruzarRevisoes(base), pasta_cliente: "/clientes" };
+      }
+      // Sem filtro → total
+      const rc = await fetch(`${SB}/rest/v1/portal_nt_projetos_PRINCIPAL?select=codigo`, { headers: { ...H, Prefer: "count=exact" }, method: "HEAD" });
+      const total = (rc.headers.get("content-range") || "/?").split("/")[1];
+      const comCli = await fetch(`${SB}/rest/v1/portal_nt_projetos_PRINCIPAL?select=codigo&cnpj_cpf_ultimo=not.is.null`, { headers: { ...H, Prefer: "count=exact" }, method: "HEAD" });
+      const totalCli = (comCli.headers.get("content-range") || "/?").split("/")[1];
+      return { total_projetos: total, com_cliente_vinculado: totalCli, mensagem: "Me diz um projeto/chassi ou um cliente que eu busco. Cada projeto é ligado ao cliente pelo CPF/CNPJ do último faturamento." };
     }
     if (name === "propor_orcamento" || name === "propor_ppv") {
       const tipo = name === "propor_ppv" ? "ppv" : "orcamento";
@@ -383,14 +456,6 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
         else cliente = String(args.cliente).toUpperCase();
       }
 
-      // GATE de campos obrigatórios — não propõe (nem cria) sem eles, pra não quebrar o fluxo
-      const motivo = String(args.obs || "").trim();
-      const faltando: string[] = [];
-      if (!tipo) faltando.push("o tipo (Peças, Ferramenta, Almoxarifado, ...)");
-      if (!setor) faltando.push("o setor destino (Trator-Loja, Trator-Cliente, Oficina ou Comercial)");
-      if (!solicitante) faltando.push("o solicitante (quem pediu)");
-      if (!motivo) faltando.push("o motivo (observações: por que precisa)");
-      if (setor === "Trator-Cliente" && !cliente) faltando.push("o cliente ou a OS (setor Trator-Cliente exige o cliente)");
       // Tipos que dependem de campos que o chat não coleta — manda preencher no formulário pra não inserir quebrado
       const EXTRA: Record<string, string> = {
         "Ferramenta": "a destinação da ferramenta (uso pessoal ou geral)",
@@ -402,8 +467,24 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
       if (tipo && EXTRA[tipo]) {
         return { precisa: "campos_extra", mensagem: `Requisição do tipo "${tipo}" precisa de ${EXTRA[tipo]}, que é melhor preencher direto no formulário de Requisições (menu Requisições > Nova). Quer que eu monte os outros campos pra você só completar lá?` };
       }
-      if (faltando.length) {
-        return { precisa: "campos", mensagem: `Pra criar a requisição ainda falta: ${faltando.join("; ")}. Pode me passar?` };
+
+      // GATE de campos obrigatórios — PERGUNTA tudo que falta ANTES de criar, mostrando as opções REAIS dos dropdowns
+      const motivo = String(args.obs || "").trim();
+      const faltam: string[] = [];
+      if (!tipo) faltam.push(`o **tipo** — escolha uma destas opções: ${TIPOS_REQ.join(", ")}`);
+      if (!setor) faltam.push(`o **setor destino** — escolha uma: ${SETORES_REQ.join(", ")}`);
+      if (!solicitante) {
+        const us: any[] = await fetch(`${SB}/rest/v1/financeiro_usu?select=nome&ativo=eq.true&order=nome`, { headers: H }).then((r) => (r.ok ? r.json() : [])).catch(() => []);
+        faltam.push(`quem é o **solicitante** — tem que ser um destes: ${us.map((u) => u.nome).join(", ")}`);
+      }
+      if (!motivo) faltam.push("o **motivo** (observações) — por que essa requisição é necessária");
+      if (setor === "Trator-Cliente" && !cliente) faltam.push("o **cliente** ou o número da **OS** (o setor Trator-Cliente exige o cliente)");
+      if (faltam.length) {
+        return {
+          precisa: "campos",
+          faltam,
+          mensagem: `Antes de criar a requisição preciso confirmar alguns campos (só escolha entre as opções que já existem, não invente):\n- ${faltam.join("\n- ")}\n\nMe passa esses dados, por favor.`,
+        };
       }
 
       const obs = args.cobrar_cliente ? `COBRAR DO CLIENTE — ${motivo}` : motivo;
@@ -458,12 +539,6 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
   return { erro: "ferramenta desconhecida" };
 }
 
-async function groq(key: string, body: any) {
-  const r = await fetch(GROQ_URL, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` }, body: JSON.stringify(body) });
-  if (!r.ok) throw new Error("groq " + r.status + " " + (await r.text()).slice(0, 200));
-  return r.json();
-}
-
 // Moderação: termos claramente impróprios (sexuais/ofensivos) que não aparecem no dia a dia de peças/tratores.
 // Conservador de propósito pra não bloquear conversa normal. Tira acento antes de testar.
 const REGEX_IMPROPRIO = /\b(sexo|sexual|sexuais|transar|transando|nudes?|pelado|pelada|pornografia|porno|porno|porn|buceta|boceta|xoxota|piroca|caralho|punheta|punhetinha|gozada|gozando|tesao|putaria|siririca|vagina|penis|orgasmo|ninfeta|gostosa|gostoso|safadeza|cantada|puta|viado|corno|masturb\w*|fod\w*|fud\w*|tarad\w*)\b/;
@@ -474,7 +549,7 @@ function mensagemImpropria(texto: string): boolean {
 const AVISO_IMPROPRIO = "Opa, não posso falar sobre isso e apaguei sua mensagem. Por favor, não escreva esse tipo de coisa aqui — este é o chat de trabalho da Nova Tratores. Se precisar de algo do portal, é só pedir.";
 
 export async function POST(req: NextRequest) {
-  const key = process.env.GROQ_API_KEY;
+  const ia = getIA();
   let messages: { role: string; content: string }[] = [];
   let userName = "", userId = "", isAdmin = false, modulos: string[] = [];
   try {
@@ -493,8 +568,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ bloqueado: true, reply: AVISO_IMPROPRIO });
   }
 
-  if (!key) {
-    return NextResponse.json({ reply: "Opa! Ainda não estou ligado na IA — falta configurar a chave do Groq (GROQ_API_KEY). Avisa o pessoal do TI." });
+  if (!ia.key) {
+    return NextResponse.json({ reply: "Opa! Ainda não estou ligado na IA — falta configurar a chave (OPENAI_API_KEY ou GROQ_API_KEY). Avisa o pessoal do TI." });
   }
 
   // Contexto de permissões — Tratorilson só fala dos módulos que a pessoa tem acesso
@@ -510,11 +585,14 @@ export async function POST(req: NextRequest) {
 
   const sys = `Hoje é ${dataHoje}, e agora são ${horaAgora} (horário de Brasília). Use isso se perguntarem a data/hora.\n\n` +
     TRATORINO_PERSONA + "\n\n" + TRATORINO_CONHECIMENTO +
-    "\n\nVOCÊ TEM FERRAMENTAS para consultar dados reais do portal: explorar a estrutura dos catálogos dos tratores (tratores, sistemas e figuras), buscar peças, kit de revisão, histórico de cliente, informações de usuários (admin) e propor criação de orçamento/PPV/OS/requisição. " +
+    "\n\nVOCÊ TEM FERRAMENTAS para consultar dados reais do portal: explorar a estrutura dos catálogos dos tratores (tratores, sistemas e figuras), buscar peças, kit de revisão, histórico de cliente, consultar projetos (cada projeto é uma máquina/chassi, ligada ao cliente do último faturamento), informações de usuários (admin) e propor criação de orçamento/PPV/OS/requisição. " +
+    "Sobre PROJETOS: se perguntarem de quem é um projeto/chassi, ou quais máquinas/projetos são de um cliente, USE consultar_projeto — ele já traz junto o CONTROLE DE REVISÕES do trator (revisões feitas, a última e a PRÓXIMA pendente). Informe as revisões também quando fizer sentido. O vínculo projeto→cliente é pelo CPF/CNPJ do último faturamento; se um projeto ainda não foi faturado, ele não tem cliente vinculado (diga isso, não invente). Se o chassi não estiver no controle de revisões, diga que não há registro de revisões. " +
     "Você conhece o catálogo de TODOS os tratores: se perguntarem o que tem no catálogo de um trator, quais sistemas ou figuras ele tem, USE explorar_catalogo. " +
     "Quando der pra responder com dados, USE a ferramenta e traga a informação pronta — não mande o usuário fazer manualmente. " +
-    "Ao listar peças, mostre código, descrição e quantidade. " +
+    "FORMATO DAS RESPOSTAS: seja claro, organizado e enxuto. Use **negrito** pra destacar (códigos, nomes, totais), listas com '- ' quando ajudar, e frases curtas. Comece com uma frase curta de contexto, não com uma parede de texto. " +
+    "AO LISTAR PEÇAS: mostre no máximo 6 a 8 itens MAIS RELEVANTES, um por linha no formato '- `código` — Nome (preço, se houver)'. DESCARTE itens claramente fora do contexto (numa busca de 'motor', ignore coisas como 'motor do limpa-vidros', 'etiqueta', 'chicote'); foque na peça que a pessoa quer. Se vierem muitos resultados, diga quantos achou no total, mostre só os principais e PERGUNTE como filtrar (qual peça específica, ou qual sistema). Nunca despeje uma lista grande e crua. " +
     "No HISTÓRICO de cliente: separe por FAZENDA (cada CNPJ é uma fazenda) e mostre o endereço de cada uma; destaque o serviço mais recente; e SEMPRE apresente os links (PDF da OS, NF, PPV, requisição, pasta do cliente) como links clicáveis no formato markdown [texto](url).\n\n" +
+    "AO CRIAR REQUISIÇÃO: reúna TODOS os campos obrigatórios (título, tipo, setor, solicitante e motivo) ANTES de montar a proposta. Se a ferramenta avisar que falta algo, PERGUNTE ao usuário mostrando as OPÇÕES VÁLIDAS que ela retornou (os tipos, os setores e a lista de solicitantes) — esses campos são dropdowns, então escolha sempre um valor que JÁ EXISTE, nunca invente. Só monte a proposta de requisição quando tiver todos os obrigatórios. \n\n" +
     "LIBERDADE: pode raciocinar e fazer suposições razoáveis a partir do contexto e dos dados das ferramentas — quando for suposição, deixe claro (ex.: 'provavelmente', 'imagino que'). Antes de dizer que não sabe algo do portal, TENTE usar uma ferramenta para descobrir. Mas dados concretos (números, códigos, preços, nomes, quantidades) só com base nas ferramentas/dados reais; nunca invente.\n\n" +
     `CONTROLE DE ACESSO: o usuário atual é "${userName || "sem nome"}" e tem acesso aos módulos: ${modsAcesso}. Você só pode ajudar e falar sobre os módulos a que ele tem acesso. Se ele perguntar sobre um módulo que NÃO está nessa lista, diga educadamente que ele não tem acesso a esse módulo e que fale com um administrador — não dê a informação nem ensine a usar. ` +
     (isAdmin
@@ -523,15 +601,14 @@ export async function POST(req: NextRequest) {
 
   const limpos = messages
     .filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim())
-    .slice(-12)
-    .map((m) => ({ role: m.role, content: String(m.content).slice(0, 2000) }));
+    .slice(-8)
+    .map((m) => ({ role: m.role, content: String(m.content).slice(0, 1500) }));
 
-  const model = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
   const convo: any[] = [{ role: "system", content: sys }, ...limpos];
 
   try {
     for (let step = 0; step < 3; step++) {
-      const j = await groq(key, { model, temperature: 0.3, max_tokens: 900, messages: convo, tools: TOOLS, tool_choice: "auto" });
+      const j = await chamarIA({ temperature: 0.3, max_tokens: 600, messages: convo, tools: TOOLS, tool_choice: "auto" });
       const m = j?.choices?.[0]?.message;
       if (m?.tool_calls?.length) {
         convo.push(m);
@@ -551,9 +628,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ reply: (m?.content || "").trim() || "Não consegui formular a resposta. Pode reformular?" });
     }
     // se ainda quis ferramenta no último passo, força uma resposta final
-    const fim = await groq(key, { model, temperature: 0.3, max_tokens: 900, messages: convo });
+    const fim = await chamarIA({ temperature: 0.3, max_tokens: 600, messages: convo });
     return NextResponse.json({ reply: (fim?.choices?.[0]?.message?.content || "").trim() || "Não consegui finalizar. Tenta reformular?" });
   } catch (e: any) {
-    return NextResponse.json({ reply: "Tive um problema pra responder agora. Tenta de novo daqui a pouco?", erro: e?.message });
+    const msg = String(e?.message || "");
+    if (msg.includes(" 429") || msg.toLowerCase().includes("rate limit") || msg.toLowerCase().includes("quota")) {
+      const porDia = msg.includes("per day") || msg.includes("TPD");
+      return NextResponse.json({
+        reply: porDia
+          ? "Puxa, atingi meu limite diário de uso da IA por hoje. Ele renova automaticamente amanhã. Se precisar de mais, o pessoal do TI pode aumentar o plano do Groq."
+          : "Estou recebendo muitas mensagens ao mesmo tempo. Espera uns segundinhos e manda de novo, por favor.",
+        erro: msg,
+      });
+    }
+    return NextResponse.json({ reply: "Tive um problema pra responder agora. Tenta de novo daqui a pouco?", erro: msg });
   }
 }

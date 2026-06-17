@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useRef, useEffect, useCallback } from "react";
 
-const MASCOTE_IMG = (process.env.NEXT_PUBLIC_SUPABASE_URL || "") + "/storage/v1/object/public/catalogo/mascote_final.png";
+const MASCOTE_IMG = (process.env.NEXT_PUBLIC_SUPABASE_URL || "") + "/storage/v1/object/public/catalogo/MascoteAdulto.png";
 
 interface Msg { role: "user" | "assistant"; content: string; proposta?: any; feito?: boolean; abrirUrl?: string; moderacao?: boolean }
 
@@ -10,16 +10,22 @@ const LAUNCHER = 132;
 const WIN_W = 384, WIN_H = 600;
 const SAUDACAO: Msg = { role: "assistant", content: "Oi! Eu sou o Tratorilson, o mecânico da Nova Tratores.\nPosso te ajudar com o portal: peças, catálogo, ordens, PPV, orçamentos, requisições… O que você precisa?" };
 
-// Renderiza texto com links markdown [texto](url) como links clicáveis
+// Renderiza markdown leve: **negrito**, `código`, e links [texto](url) — preservando quebras de linha
 function renderConteudo(text: string): Array<string | React.ReactElement> {
   const out: Array<string | React.ReactElement> = [];
-  const re = /\[([^\]]+)\]\(([^)]+)\)/g;
+  const re = /\*\*([^*]+)\*\*|`([^`]+)`|\[([^\]]+)\]\(([^)]+)\)/g;
   let last = 0; let m: RegExpExecArray | null; let k = 0;
   while ((m = re.exec(text)) !== null) {
     if (m.index > last) out.push(text.slice(last, m.index));
-    const url = m[2];
-    const blank = url.startsWith("/api/") || url.startsWith("http");
-    out.push(<a key={k++} href={url} target={blank ? "_blank" : "_self"} rel="noreferrer" style={{ color: "#dc2626", fontWeight: 700, textDecoration: "underline" }}>{m[1]}</a>);
+    if (m[1] !== undefined) {
+      out.push(<strong key={k++} style={{ fontWeight: 800 }}>{m[1]}</strong>);
+    } else if (m[2] !== undefined) {
+      out.push(<code key={k++} style={{ background: "#f1f5f9", color: "#dc2626", padding: "1px 6px", borderRadius: 5, fontSize: "0.92em", fontWeight: 700 }}>{m[2]}</code>);
+    } else {
+      const url = m[4];
+      const blank = url.startsWith("/api/") || url.startsWith("http");
+      out.push(<a key={k++} href={url} target={blank ? "_blank" : "_self"} rel="noreferrer" style={{ color: "#dc2626", fontWeight: 700, textDecoration: "underline" }}>{m[3]}</a>);
+    }
     last = m.index + m[0].length;
   }
   if (last < text.length) out.push(text.slice(last));

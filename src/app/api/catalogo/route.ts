@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { getIA, chamarIA } from "@/lib/assistente/ia";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -9,30 +10,26 @@ const supabase = createClient(
 // limpa caracteres que quebram o filtro .or do PostgREST
 const limpo = (s: string) => s.replace(/[%,()*]/g, " ").trim();
 
-// Interpreta a pergunta com Groq (se GROQ_API_KEY existir): extrai trator + termos + códigos.
+// Interpreta a pergunta com a IA (OpenAI/Groq, se houver chave): extrai trator + termos + códigos.
 // Retorna null se não houver chave ou se falhar (cai pra heurística local).
 async function interpretarGroq(query: string, modelosNomes: string[]): Promise<{ modelo: string | null; termos: string[]; codigos: string[] } | null> {
-  const key = process.env.GROQ_API_KEY;
-  if (!key) return null;
+  if (!getIA().key) return null;
   const sys = `Você ajuda a achar peças de tratores Mahindra num catálogo de peças.
 Tratores disponíveis: ${modelosNomes.join(", ")}.
 Dada a pergunta do usuário, responda APENAS um JSON válido:
 {"modelo": "<nome EXATO de um trator da lista, ou null se não citado>", "termos": ["<palavra-chave de nome de peça em português, COM acentos corretos>"], "codigos": ["<código de peça citado pelo usuário, se houver>"]}
-Regras: expanda sinônimos de peças (ex.: junta/vedação/retentor, bomba d'água, vela de aquecimento). Corrija erros de digitação. Use 1 a 6 termos curtos (nomes de peça, não frases). NÃO invente códigos.`;
+Regras:
+- O PRIMEIRO termo deve ser a PEÇA principal que a pessoa quer. Em "correia do motor", a peça é "correia" (motor é só o conjunto/local). Não coloque palavras genéricas de local (motor, trator, cabine) como termo PRINCIPAL quando houver uma peça específica.
+- CORRIJA erros de digitação comuns do português: carreia→correia, parafso→parafuso, mangeira→mangueira, rolamneto→rolamento, junda→junta, filtor→filtro, etc.
+- Expanda sinônimos (junta/vedação/retentor, bomba d'água, vela de aquecimento, correia/correia em V).
+- Use 1 a 5 termos de UMA palavra cada (nunca frases). Ex.: pergunta "me fala o código da carreia do motor do 86-110" → {"modelo":"86-110","termos":["correia","motor"],"codigos":[]}. COM acentos. NÃO invente códigos.`;
   try {
-    const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-      body: JSON.stringify({
-        model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
-        temperature: 0.2,
-        max_tokens: 300,
-        response_format: { type: "json_object" },
-        messages: [{ role: "system", content: sys }, { role: "user", content: query }],
-      }),
+    const j = await chamarIA({
+      temperature: 0.2,
+      max_tokens: 300,
+      response_format: { type: "json_object" },
+      messages: [{ role: "system", content: sys }, { role: "user", content: query }],
     });
-    if (!r.ok) return null;
-    const j = await r.json();
     const p = JSON.parse(j?.choices?.[0]?.message?.content || "{}");
     const modelo = typeof p.modelo === "string" && modelosNomes.includes(p.modelo) ? p.modelo : null;
     const termos = Array.isArray(p.termos) ? p.termos.filter((t: any) => typeof t === "string" && t.trim().length >= 2).map((t: string) => t.trim()).slice(0, 8) : [];
@@ -148,14 +145,19 @@ export async function GET(req: NextRequest) {
         const codeTok = (raw.match(/[A-Za-z0-9./-]{5,}/g) || []).find((t: string) => (t.match(/[0-9]/g) || []).length >= 3);
         if (codeTok) interp = { modelo: modeloDet, termos: [], codigos: [codeTok] };
         else {
-          const STOP = new Set(["preciso", "quero", "queria", "dos", "das", "para", "pra", "por", "com", "uma", "peca", "peça", "pecas", "peças", "trator", "manda", "achar", "ver", "mostrar", "mostra", "qual", "onde", "esta", "está", "que", "tem", "the", "agua"]);
+          const STOP = new Set(["preciso", "quero", "queria", "dos", "das", "para", "pra", "por", "com", "uma", "peca", "peça", "pecas", "peças", "trator", "manda", "achar", "ver", "mostrar", "mostra", "qual", "onde", "esta", "está", "que", "tem", "the", "agua", "codigo", "código", "fala", "diz"]);
+          // correções de digitação mais comuns (rede de segurança quando a IA está fora)
+          const CORR: Record<string, string> = { carreia: "correia", coreia: "correia", correa: "correia", parafso: "parafuso", parafuzo: "parafuso", mangeira: "mangueira", manguera: "mangueira", rolamneto: "rolamento", rolameto: "rolamento", junda: "junta", filtor: "filtro", oleo: "óleo", retetor: "retentor", vedacao: "vedação" };
           const modLow = (modeloDet || "").toLowerCase();
-          interp = { modelo: modeloDet, termos: limpo(ql).split(/\s+/).filter((w) => w.length >= 3 && !STOP.has(w) && !modLow.includes(w)), codigos: [] };
+          interp = { modelo: modeloDet, termos: limpo(ql).split(/\s+/).filter((w) => w.length >= 3 && !STOP.has(w) && !modLow.includes(w)).map((w) => CORR[w] || w), codigos: [] };
         }
       }
 
       const termosShow = [...interp.termos, ...interp.codigos];
-      const termosLimpos = interp.termos.map((t) => limpo(t)).filter((t) => t.length >= 2);
+      // Quebra os termos em PALAVRAS (a IA às vezes manda "correia do motor" como frase) e remove conectores.
+      // A ordem é preservada: a peça principal (1ª palavra significativa) fica em primeiro.
+      const CONECT = new Set(["do", "da", "de", "dos", "das", "com", "para", "pra", "no", "na", "nos", "nas", "e", "ou", "em"]);
+      const termosLimpos = [...new Set(interp.termos.flatMap((t) => limpo(t).split(/\s+/)).map((w) => w.trim()).filter((w) => w.length >= 3 && !CONECT.has(w)))];
       const codigosLimpos = interp.codigos.map((c) => limpo(c)).filter((c) => c.length >= 3);
       if (termosLimpos.length === 0 && codigosLimpos.length === 0) {
         return NextResponse.json({ modelo: interp.modelo, termos: termosShow, grupos: [], ia: usouIA });
@@ -169,16 +171,27 @@ export async function GET(req: NextRequest) {
         if (interp.modelo) q = q.eq("modelo", interp.modelo);
         pecas = (await q).data || [];
       } else {
-        // busca por nome: AND (todas as palavras) e, se vier vazio, OR (qualquer)
-        const buscar = async (and: boolean) => {
+        // Busca em camadas: 1) AND (todas as palavras) → 2) só o termo PRINCIPAL → 3) OR (qualquer).
+        // Isso evita que um termo genérico (ex.: "motor") soterre a peça específica (ex.: "correia").
+        const buscarAnd = async () => {
           let q = supabase.from("catalogo_pecas").select(SEL).limit(200);
           if (interp.modelo) q = q.eq("modelo", interp.modelo);
-          if (and) for (const t of termosLimpos) q = q.ilike("name", `%${t}%`);
-          else q = q.or(termosLimpos.map((t) => `name.ilike.%${t}%`).join(","));
+          for (const t of termosLimpos) q = q.ilike("name", `%${t}%`);
           return (await q).data || [];
         };
-        pecas = await buscar(true);
-        if (pecas.length === 0) pecas = await buscar(false);
+        const buscarUm = async (t: string) => {
+          let q = supabase.from("catalogo_pecas").select(SEL).ilike("name", `%${t}%`).limit(200);
+          if (interp.modelo) q = q.eq("modelo", interp.modelo);
+          return (await q).data || [];
+        };
+        const buscarOr = async () => {
+          let q = supabase.from("catalogo_pecas").select(SEL).or(termosLimpos.map((t) => `name.ilike.%${t}%`).join(",")).limit(200);
+          if (interp.modelo) q = q.eq("modelo", interp.modelo);
+          return (await q).data || [];
+        };
+        pecas = await buscarAnd();
+        if (pecas.length === 0 && termosLimpos.length > 1) pecas = await buscarUm(termosLimpos[0]); // só a peça principal
+        if (pecas.length === 0) pecas = await buscarOr();
       }
 
       const figIds = [...new Set(pecas.map((p) => p.figura_id))];
@@ -199,7 +212,20 @@ export async function GET(req: NextRequest) {
           g.tratores.push({ modelo, secao: fig ? fig.secao : "", figura_code: fig ? fig.code : "", figura_id: p.figura_id });
         }
       }
-      const lista = [...grupos.values()].sort((a, b) => b.tratores.length - a.tratores.length);
+      // Ranking: prioriza quem casa com o termo PRINCIPAL (e melhor ainda se começa com ele), depois nº de tratores
+      const principal = (termosLimpos[0] || "").toLowerCase();
+      const rel = (nome: string) => {
+        const n = (nome || "").toLowerCase();
+        if (!principal) return 2;
+        if (n.startsWith(principal)) return 0;
+        if (n.includes(principal)) return 1;
+        return 2;
+      };
+      const lista = [...grupos.values()].sort((a, b) => {
+        const ra = rel(a.name), rb = rel(b.name);
+        if (ra !== rb) return ra - rb;
+        return b.tratores.length - a.tratores.length;
+      });
       return NextResponse.json({ modelo: interp.modelo, termos: termosShow, grupos: lista, ia: usouIA });
     }
 

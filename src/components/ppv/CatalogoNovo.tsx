@@ -7,7 +7,7 @@ interface Secao { secao: string; ordem: number; figuras: number; thumb?: string 
 interface Modelo { slug: string; nome: string; image_url: string | null; figuras?: number }
 
 // Mascote do assistente (mecânico Nova Tratores). Se não existir no storage, cai no ícone.
-const MASCOTE_IMG = (process.env.NEXT_PUBLIC_SUPABASE_URL || "") + "/storage/v1/object/public/catalogo/mascote_final.png";
+const MASCOTE_IMG = (process.env.NEXT_PUBLIC_SUPABASE_URL || "") + "/storage/v1/object/public/catalogo/MascoteAdulto.png";
 
 // Quando embutido no fluxo de adicionar peças, recebe onSelecionarPeca; senão, copia o código.
 export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecionarPeca?: (p: { code: string; name: string }) => void; userName?: string }) {
