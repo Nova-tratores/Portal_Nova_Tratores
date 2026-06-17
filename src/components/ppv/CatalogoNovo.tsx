@@ -6,6 +6,9 @@ interface Figura { id: string; code: string; name: string; secao: string; thumb_
 interface Secao { secao: string; ordem: number; figuras: number; thumb?: string | null }
 interface Modelo { slug: string; nome: string; image_url: string | null; figuras?: number }
 
+// Mascote do assistente (mecânico Nova Tratores). Se não existir no storage, cai no ícone.
+const MASCOTE_IMG = (process.env.NEXT_PUBLIC_SUPABASE_URL || "") + "/storage/v1/object/public/catalogo/mascote.png";
+
 // Quando embutido no fluxo de adicionar peças, recebe onSelecionarPeca; senão, copia o código.
 export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecionarPeca?: (p: { code: string; name: string }) => void; userName?: string }) {
   const [modelos, setModelos] = useState<Modelo[]>([]);
@@ -21,9 +24,10 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
   const [imgDim, setImgDim] = useState<{ w: number; h: number }>({ w: 1, h: 1 });
   const [toast, setToast] = useState("");
   const [imgErro, setImgErro] = useState<Record<string, boolean>>({});
+  const [mascoteErro, setMascoteErro] = useState(false);
   const [roboOn, setRoboOn] = useState(false);
   const [roboQ, setRoboQ] = useState("");
-  const [roboData, setRoboData] = useState<{ modelo: string | null; termos: string[]; pecas: Peca[] } | null>(null);
+  const [roboData, setRoboData] = useState<{ ia?: boolean; modelo: string | null; termos: string[]; grupos: { code: string; name: string; qtd: number | null; unit: string | null; tratores: { modelo: string; secao: string; figura_code: string; figura_id: string }[] }[] } | null>(null);
   const [roboLoading, setRoboLoading] = useState(false);
   // Carrinho (só no modo avulso — sem onSelecionarPeca)
   const [cart, setCart] = useState<{ code: string; name: string; qty: number }[]>([]);
@@ -78,8 +82,8 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
     const q = roboQ.trim();
     if (q.length < 2) return;
     setRoboLoading(true); setRoboData(null);
-    try { const r = await fetch(`/api/catalogo?acao=robo&q=${encodeURIComponent(q)}`); setRoboData(r.ok ? await r.json() : { modelo: null, termos: [], pecas: [] }); }
-    catch { setRoboData({ modelo: null, termos: [], pecas: [] }); }
+    try { const r = await fetch(`/api/catalogo?acao=robo&q=${encodeURIComponent(q)}`); setRoboData(r.ok ? await r.json() : { modelo: null, termos: [], grupos: [] }); }
+    catch { setRoboData({ modelo: null, termos: [], grupos: [] }); }
     setRoboLoading(false);
   }, [roboQ]);
 
@@ -170,9 +174,14 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
           <div style={{ position: "absolute", inset: 0, background: "#fff", zIndex: 10, overflow: "auto" }}>
             <div style={{ maxWidth: 780, margin: "0 auto", padding: "22px 20px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-                <div style={{ width: 46, height: 46, borderRadius: 12, background: "linear-gradient(135deg,#7c3aed,#6d28d9)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}><i className="fas fa-robot" /></div>
+                <div style={{ width: 48, height: 48, borderRadius: 12, background: mascoteErro ? "linear-gradient(135deg,#7c3aed,#6d28d9)" : "#f1f5f9", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, overflow: "hidden", flexShrink: 0 }}>
+                  {!mascoteErro ? <img src={MASCOTE_IMG} alt="Assistente" onError={() => setMascoteErro(true)} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <i className="fas fa-robot" />}
+                </div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 17, fontWeight: 800 }}>Assistente de Peças</div>
+                  <div style={{ fontSize: 17, fontWeight: 800, display: "flex", alignItems: "center", gap: 8 }}>
+                    Assistente de Peças
+                    {roboData?.ia && <span style={{ fontSize: 10, fontWeight: 800, color: "#7c3aed", background: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 20, padding: "2px 8px" }}>✨ IA</span>}
+                  </div>
                   <div style={{ fontSize: 12.5, color: "#94a3b8" }}>Descreva a peça que você precisa, com suas palavras.</div>
                 </div>
                 <button onClick={() => setRoboOn(false)} style={{ border: "none", background: "#f1f5f9", borderRadius: 9, width: 34, height: 34, cursor: "pointer", color: "#475569" }}><i className="fas fa-times" /></button>
@@ -186,21 +195,29 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
               {roboLoading && <div style={{ padding: 24, textAlign: "center", color: "#64748b" }}>Procurando…</div>}
               {roboData && (
                 <div>
-                  <div style={{ fontSize: 12.5, color: "#64748b", marginBottom: 10 }}>
+                  <div style={{ fontSize: 12.5, color: "#64748b", marginBottom: 12 }}>
                     {roboData.modelo ? <b>Trator: {roboData.modelo} · </b> : null}
-                    {roboData.pecas.length} peça(s){roboData.termos.length ? ` para “${roboData.termos.join(" ")}”` : ""}
+                    {roboData.grupos.length} peça(s){roboData.termos.length ? ` para “${roboData.termos.join(" ")}”` : ""}
                   </div>
-                  {roboData.pecas.length === 0 ? (
-                    <div style={{ padding: 24, textAlign: "center", color: "#94a3b8" }}>Não achei nada. Tente outras palavras ou cite outro trator.</div>
-                  ) : roboData.pecas.map((p) => (
-                    <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 8px", borderBottom: "1px solid #f1f5f9" }}>
-                      <code style={{ fontSize: 13, fontWeight: 800, color: "#dc2626", background: "#fef2f2", padding: "3px 8px", borderRadius: 6, whiteSpace: "nowrap" }}>{p.code}</code>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 14, fontWeight: 600 }}>{p.name}</div>
-                        {p.figura && <button onClick={() => { setRoboOn(false); abrirFigura(p.figura_id!); }} style={{ border: "none", background: "transparent", padding: 0, cursor: "pointer", fontSize: 11.5, color: "#2563eb" }}>{p.figura.modelo} · {p.figura.secao} · {p.figura.code} →</button>}
+                  {roboData.grupos.length === 0 ? (
+                    <div style={{ padding: 24, textAlign: "center", color: "#94a3b8" }}>Não achei nada. Tente o código ou outras palavras.</div>
+                  ) : roboData.grupos.map((g) => (
+                    <div key={g.code} style={{ padding: "12px 8px", borderBottom: "1px solid #f1f5f9" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <code style={{ fontSize: 13, fontWeight: 800, color: "#dc2626", background: "#fef2f2", padding: "3px 8px", borderRadius: 6, whiteSpace: "nowrap" }}>{g.code}</code>
+                        <div style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 600 }}>{g.name}</div>
+                        <span style={{ fontSize: 12, color: "#64748b", whiteSpace: "nowrap" }}>{g.qtd} {g.unit}</span>
+                        <button onClick={() => addPeca({ code: g.code, name: g.name })} title={onSelecionarPeca ? "Adicionar" : "Adicionar ao carrinho"} style={{ border: "none", background: "#dc2626", color: "#fff", borderRadius: 8, width: 30, height: 30, cursor: "pointer", flexShrink: 0 }}><i className="fas fa-plus" /></button>
                       </div>
-                      <span style={{ fontSize: 12, color: "#64748b", whiteSpace: "nowrap" }}>{p.qtd} {p.unit}</span>
-                      <button onClick={() => addPeca({ code: p.code, name: p.name })} title={onSelecionarPeca ? "Adicionar" : "Copiar código"} style={{ border: "none", background: "#dc2626", color: "#fff", borderRadius: 8, width: 30, height: 30, cursor: "pointer", flexShrink: 0 }}><i className="fas fa-plus" /></button>
+                      {/* Tratores que usam essa peça */}
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8, paddingLeft: 2 }}>
+                        <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 600, alignSelf: "center" }}>{g.tratores.length === 1 ? "Trator:" : `Usada em ${g.tratores.length} tratores:`}</span>
+                        {g.tratores.map((t, i) => (
+                          <button key={i} onClick={() => { setRoboOn(false); abrirFigura(t.figura_id); }} title={`${t.secao} · ${t.figura_code}`} style={{ display: "inline-flex", alignItems: "center", gap: 5, border: "1px solid #e2e8f0", background: "#f8fafc", borderRadius: 20, padding: "3px 10px", fontSize: 11.5, fontWeight: 700, color: "#1e293b", cursor: "pointer" }}>
+                            <i className="fas fa-tractor" style={{ fontSize: 10, color: "#dc2626" }} /> {t.modelo}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   ))}
                 </div>

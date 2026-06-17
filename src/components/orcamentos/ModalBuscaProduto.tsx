@@ -84,7 +84,7 @@ export default function ModalBuscaProdutoOrc({ open, onClose, onSelect }: Props)
           <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1e293b', margin: 0 }}>Buscar Produto</h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <button onClick={() => setVerCatalogo(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 9, border: '1px solid #fecaca', background: verCatalogo ? '#dc2626' : '#fff', color: verCatalogo ? '#fff' : '#dc2626', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-              <i className="fas fa-book-open" /> Catálogo Jivo
+              <i className="fas fa-book-open" /> Catálogos
             </button>
             <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 24, color: '#94a3b8', cursor: 'pointer' }}>&times;</button>
           </div>

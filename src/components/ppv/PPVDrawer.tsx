@@ -33,7 +33,7 @@ export default function PPVDrawer({
   onModalProdDisplayChange, onSetModalOS,
   modalClienteNome, onDirty,
 }: Props) {
-  const { tecnicos, productCache, showToast } = usePPV();
+  const { tecnicos, productCache, showToast, opcoesRevisao } = usePPV();
   const { userProfile } = useAuth();
 
   const [details, setDetails] = useState<PPVDetalhes | null>(null);
@@ -55,6 +55,9 @@ export default function PPVDrawer({
   const [listaPPVAbertos, setListaPPVAbertos] = useState<Array<{ id: string; cliente: string; status: string }>>([]);
   const [pedidoOmie, setPedidoOmie] = useState("");
   const [qtdExtra, setQtdExtra] = useState(1);
+  const [revTrator, setRevTrator] = useState("");
+  const [revHoras, setRevHoras] = useState("");
+  const [importandoKit, setImportandoKit] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [addingExtra, setAddingExtra] = useState(false);
   const [gerando, setGerando] = useState(false);
@@ -205,6 +208,23 @@ export default function PPVDrawer({
       onDirty?.();
     } catch (e) { showToast("error", e instanceof Error ? e.message : "Erro"); }
     setAddingExtra(false);
+  }
+
+  async function importarKitDrawer() {
+    if (!ppvId || !revTrator || !revHoras) { showToast("error", "Selecione Modelo e Horas"); return; }
+    setImportandoKit(true);
+    try {
+      const itens = await api.buscarKitRevisao(revTrator, revHoras);
+      let d: any = null;
+      for (const x of itens) {
+        d = await api.registrarMovimentacao({ id: ppvId, codigo: x.codigo, descricao: x.descricao, quantidade: x.quantidade, preco: x.preco, tecnico: details?.tecnico || "", tipoMovimento: "Saída", userName: userProfile?.nome || "" });
+      }
+      if (d) setDetails(d);
+      showToast("success", `Kit importado: ${itens.length} ${itens.length === 1 ? "item" : "itens"}`);
+      setRevTrator(""); setRevHoras("");
+      onDirty?.();
+    } catch (e) { showToast("error", e instanceof Error ? e.message : "Erro ao importar kit"); }
+    setImportandoKit(false);
   }
 
   async function salvarPrecoItem(codigo: string) {
@@ -471,6 +491,26 @@ export default function PPVDrawer({
                   {/* ── Itens / Materiais ── */}
                   <div className="ppv-card">
                     <div className="ppv-card-title"><i className="fas fa-boxes" /> Itens &amp; Materiais</div>
+
+                    {/* Importar Kit de Revisão */}
+                    <label><i className="fas fa-tools" style={{ marginRight: 6 }} />Kit de Revisão</label>
+                    <div style={{ display: "flex", gap: 10, alignItems: "flex-end", marginBottom: 14 }}>
+                      <div style={{ flex: 1 }}>
+                        <select value={revTrator} onChange={(e) => { setRevTrator(e.target.value); setRevHoras(""); }} style={{ marginBottom: 0 }}>
+                          <option value="">-- Modelo --</option>
+                          {Object.keys(opcoesRevisao || {}).sort().map((m) => <option key={m} value={m}>{m}</option>)}
+                        </select>
+                      </div>
+                      <div style={{ width: 110 }}>
+                        <select value={revHoras} onChange={(e) => setRevHoras(e.target.value)} disabled={!revTrator} style={{ marginBottom: 0 }}>
+                          <option value="">-- Horas --</option>
+                          {((opcoesRevisao && opcoesRevisao[revTrator]) || []).map((h: string) => <option key={h} value={h}>{h}</option>)}
+                        </select>
+                      </div>
+                      <button type="button" onClick={importarKitDrawer} disabled={importandoKit || !revTrator || !revHoras} className="ppv-btn-save" style={{ padding: "10px 16px", whiteSpace: "nowrap", fontSize: 13, background: "#0d9488" }}>
+                        {importandoKit ? <i className="fas fa-spinner fa-spin" /> : <><i className="fas fa-download" /> Importar</>}
+                      </button>
+                    </div>
 
                     {/* Adicionar item */}
                     <label>Adicionar Produto</label>

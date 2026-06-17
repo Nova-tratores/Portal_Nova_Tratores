@@ -121,7 +121,7 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
           <div className="flex items-center gap-3">
             {mode !== "edit" && (
               <button onClick={() => setVerCatalogo((v) => !v)} className={`flex items-center gap-2 rounded-md border px-3.5 py-1.5 text-sm font-bold transition-colors ${verCatalogo ? "border-red-600 bg-red-600 text-white" : "border-red-200 bg-white text-red-600 hover:bg-red-50"}`}>
-                <i className="fas fa-book-open" /> Catálogo Jivo
+                <i className="fas fa-book-open" /> Catálogos
               </button>
             )}
             <button onClick={onClose} className="border-none bg-transparent text-2xl text-slate-400 transition-colors hover:text-red-500">&times;</button>
