@@ -4,7 +4,8 @@ import ClienteAutocomplete from "./ClienteAutocomplete";
 import ProjetoAutocomplete from "./ProjetoAutocomplete";
 import TecnicoSelect from "./TecnicoSelect";
 import StarsRating from "./StarsRating";
-import { inserirRegistro, atualizarRegistro, buscarClienteInfo, upsertClienteInfo } from "@/lib/feedbacks/api";
+import MiniMapaCliente from "./MiniMapaCliente";
+import { inserirRegistro, atualizarRegistro, buscarClienteInfo, upsertClienteInfo, buscarUltimasOSPorCliente, type UltimaOS } from "@/lib/feedbacks/api";
 import { useAuditLog } from "@/hooks/useAuditLog";
 import {
   clienteKey, TAGS_CLIENTE, TAG_NAO_CONTATAR,
@@ -55,6 +56,22 @@ const STATE_VAZIO: FormState = {
   servico: "", data_servico: "", status_cliente: "", nota: null, feedback: "", nps: "", melhoria: "",
   ultimo_servico: "", motivo: "", prioridade: "", acao: "", sem_resposta: false, revisao_confirmada: "",
 };
+
+// Normaliza data da OS (ISO ou DD/MM/YYYY) para o formato YYYY-MM-DD do <input type="date">.
+function isoDate(s: string | null | undefined): string {
+  if (!s) return "";
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  return "";
+}
+
+function fmtDataBR(s: string | null | undefined): string {
+  const iso = isoDate(s);
+  if (!iso) return s || "—";
+  const [y, mo, d] = iso.split("-");
+  return `${d}/${mo}/${y}`;
+}
 
 function paraForm(r?: FeedbackRegistro | null, prefill?: Partial<FeedbackRegistro>): FormState {
   const src = { ...STATE_VAZIO, ...(r || {}), ...(prefill || {}) } as Record<string, unknown>;
@@ -124,6 +141,8 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
   // Tags do cliente (checkboxes) — carregadas de feedback_clientes_info ao abrir.
   const [tagsCliente, setTagsCliente] = useState<string[]>([]);
   const tagsIniciais = useRef<string[]>([]);
+  // Última OS do cliente — usada pra pré-preencher técnico/último serviço.
+  const [ultimaOS, setUltimaOS] = useState<UltimaOS | null>(null);
   const { log } = useAuditLog();
 
   useEffect(() => {
@@ -132,6 +151,7 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
       setErro(null);
       setTagsCliente([]);
       tagsIniciais.current = [];
+      setUltimaOS(null);
       const codigo = (registro?.codigo_omie || prefill?.codigo_omie) ?? null;
       const nome = registro?.nome || prefill?.nome || "";
       if (nome) {
@@ -142,9 +162,24 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
             tagsIniciais.current = t;
           })
           .catch(() => { /* sem info ainda — começa vazio */ });
+
+        // Pré-preenche técnico (CRM/RFM) e último serviço (RFM) com a última OS
+        // do cliente — só quando o campo está vazio (não sobrescreve o já salvo).
+        buscarUltimasOSPorCliente([nome])
+          .then((mapa) => {
+            const os = mapa[nome.trim()];
+            if (!os) return;
+            setUltimaOS(os);
+            setForm((f) => ({
+              ...f,
+              tecnico: f.tecnico || os.tecnico || "",
+              ultimo_servico: tipo === "rfm" ? (f.ultimo_servico || isoDate(os.data)) : f.ultimo_servico,
+            }));
+          })
+          .catch(() => { /* sem OS — segue sem pré-preencher */ });
       }
     }
-  }, [aberto, registro, prefill]);
+  }, [aberto, registro, prefill, tipo]);
 
   if (!aberto) return null;
 
@@ -280,11 +315,23 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
           <Row>
             <Field label="Técnico">
               <TecnicoSelect valor={form.tecnico} onChange={(v) => upd("tecnico", v)} />
+              {ultimaOS && (ultimaOS.tecnico || ultimaOS.data) && (
+                <div style={hintOSStyle}>
+                  Última OS: {ultimaOS.tecnico || "técnico não informado"}
+                  {ultimaOS.data ? ` · ${fmtDataBR(ultimaOS.data)}` : ""}
+                  {ultimaOS.tipo ? ` · ${ultimaOS.tipo}` : ""}
+                </div>
+              )}
             </Field>
             <Field label="Data do contato">
               <input type="date" value={form.data_contato} onChange={(e) => upd("data_contato", e.target.value)} style={inputStyle} />
             </Field>
           </Row>
+
+          {/* Localização da propriedade — mostra o ponto cadastrado e permite alterar via lat/long */}
+          <Field label="Localização da propriedade">
+            <MiniMapaCliente codigoOmie={form.codigo_omie || null} nome={form.nome} cor={corCabec} />
+          </Field>
 
           {/* Tags do cliente — marcam pendências/perfil; sincronizam com o Omie (Fase 2) */}
           <Field label="Tags do cliente">
@@ -500,4 +547,7 @@ const btnPrimaryStyle: React.CSSProperties = {
 const erroStyle: React.CSSProperties = {
   background: "#fee2e2", color: "#991b1b", padding: "10px 14px",
   borderRadius: 10, fontSize: 13, marginBottom: 14,
+};
+const hintOSStyle: React.CSSProperties = {
+  fontSize: 11, color: "var(--portal-text-muted)", marginTop: 5, fontStyle: "italic",
 };

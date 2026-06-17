@@ -362,3 +362,54 @@ export async function listarTecnicos(): Promise<string[]> {
   if (!res.ok) return [];
   return res.json();
 }
+
+// -----------------------------------------------------------------------------
+// Localização do cliente (portal_nt_clientes_PRINCIPAL.lat/lng)
+// Mesma tabela/colunas do mapa de clientes do Portal. Identificamos o cliente
+// pelo código Omie (= id_omie). A escrita passa pela rota oficial do mapa
+// (PUT /api/mapa/clientes), que usa service role no servidor.
+// -----------------------------------------------------------------------------
+export interface LocalizacaoCliente {
+  id: number;                 // PK da tabela (necessária pra gravar)
+  lat: number | null;
+  lng: number | null;
+  cidade: string | null;
+  endereco: string | null;
+  bairro: string | null;
+  estado: string | null;
+}
+
+export async function buscarLocalizacaoCliente(codigoOmie: string): Promise<LocalizacaoCliente | null> {
+  if (!codigoOmie) return null;
+  const { data, error } = await supabase
+    .from("portal_nt_clientes_PRINCIPAL")
+    .select("id, lat, lng, latitude, longitude, cidade, endereco, bairro, estado")
+    .eq("id_omie", codigoOmie)
+    .limit(1)
+    .maybeSingle();
+  if (error) throw wrapErr(error);
+  if (!data) return null;
+  const row = data as Record<string, unknown>;
+  const num = (v: unknown) => (v != null && v !== "" ? Number(v) : null);
+  return {
+    id: Number(row.id),
+    lat: num(row.lat ?? row.latitude),
+    lng: num(row.lng ?? row.longitude),
+    cidade: (row.cidade as string) || null,
+    endereco: (row.endereco as string) || null,
+    bairro: (row.bairro as string) || null,
+    estado: (row.estado as string) || null,
+  };
+}
+
+export async function salvarLocalizacaoCliente(id: number, lat: number, lng: number): Promise<void> {
+  const res = await fetch("/api/mapa/clientes", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, lat, lng }),
+  });
+  if (!res.ok) {
+    const j = await res.json().catch(() => ({}));
+    throw new Error((j as { error?: string }).error || `Falha ao salvar localização (HTTP ${res.status})`);
+  }
+}
