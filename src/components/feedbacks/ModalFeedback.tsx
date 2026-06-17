@@ -1,12 +1,14 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ClienteAutocomplete from "./ClienteAutocomplete";
 import ProjetoAutocomplete from "./ProjetoAutocomplete";
 import TecnicoSelect from "./TecnicoSelect";
 import StarsRating from "./StarsRating";
-import { inserirRegistro, atualizarRegistro } from "@/lib/feedbacks/api";
-import type {
-  FeedbackRegistro, Melhoria, NPS, PrioridadeRFM, StatusCliente, TipoFeedback,
+import { inserirRegistro, atualizarRegistro, buscarClienteInfo, upsertClienteInfo } from "@/lib/feedbacks/api";
+import { useAuditLog } from "@/hooks/useAuditLog";
+import {
+  clienteKey, TAGS_CLIENTE, TAG_NAO_CONTATAR,
+  type FeedbackRegistro, type Melhoria, type NPS, type PrioridadeRFM, type StatusCliente, type TipoFeedback,
 } from "@/lib/feedbacks/types";
 
 interface Props {
@@ -119,15 +121,36 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
   const [form, setForm] = useState<FormState>(() => paraForm(registro, prefill));
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  // Tags do cliente (checkboxes) — carregadas de feedback_clientes_info ao abrir.
+  const [tagsCliente, setTagsCliente] = useState<string[]>([]);
+  const tagsIniciais = useRef<string[]>([]);
+  const { log } = useAuditLog();
 
   useEffect(() => {
     if (aberto) {
       setForm(paraForm(registro, prefill));
       setErro(null);
+      setTagsCliente([]);
+      tagsIniciais.current = [];
+      const codigo = (registro?.codigo_omie || prefill?.codigo_omie) ?? null;
+      const nome = registro?.nome || prefill?.nome || "";
+      if (nome) {
+        buscarClienteInfo(clienteKey(codigo, nome))
+          .then((info) => {
+            const t = (info?.tags as string[] | undefined) || [];
+            setTagsCliente(t);
+            tagsIniciais.current = t;
+          })
+          .catch(() => { /* sem info ainda — começa vazio */ });
+      }
     }
   }, [aberto, registro, prefill]);
 
   if (!aberto) return null;
+
+  const toggleTag = (tag: string) => {
+    setTagsCliente((prev) => prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]);
+  };
 
   const upd = <K extends keyof FormState>(k: K, v: FormState[K]) => {
     setForm((f) => ({ ...f, [k]: v }));
@@ -158,6 +181,23 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
       const r = editando
         ? await atualizarRegistro(registro!.id, payload)
         : await inserirRegistro(payload);
+
+      // Salva as tags do cliente (se mudaram) + auditoria. Não bloqueia o save.
+      const mudouTags = JSON.stringify([...tagsCliente].sort()) !== JSON.stringify([...tagsIniciais.current].sort());
+      if (mudouTags) {
+        const codigo = (payload.codigo_omie ?? null) as string | null;
+        const nome = payload.nome || form.nome;
+        const key = clienteKey(codigo, nome);
+        try {
+          await upsertClienteInfo({ cliente_key: key, codigo_omie: codigo, nome, tags: tagsCliente });
+          void log({
+            sistema: "feedbacks", acao: "tags_cliente", entidade: "cliente",
+            entidade_id: key, entidade_label: nome,
+            detalhes: { de: tagsIniciais.current, para: tagsCliente },
+          });
+        } catch { /* tags são best-effort — não derruba o atendimento */ }
+      }
+
       onSalvo(r);
       onFechar();
     } catch (e) {
@@ -245,6 +285,32 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
               <input type="date" value={form.data_contato} onChange={(e) => upd("data_contato", e.target.value)} style={inputStyle} />
             </Field>
           </Row>
+
+          {/* Tags do cliente — marcam pendências/perfil; sincronizam com o Omie (Fase 2) */}
+          <Field label="Tags do cliente">
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {TAGS_CLIENTE.map((t) => {
+                const marcada = tagsCliente.includes(t.tag);
+                return (
+                  <label key={t.tag} title={t.tag} style={{
+                    display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer",
+                    fontSize: 12, fontWeight: 600, padding: "5px 10px", borderRadius: 8,
+                    border: `1.5px solid ${marcada ? t.cor : "var(--portal-border)"}`,
+                    background: marcada ? `${t.cor}1a` : "var(--portal-bg-card)",
+                    color: marcada ? t.cor : "var(--portal-text-secondary)",
+                  }}>
+                    <input type="checkbox" checked={marcada} onChange={() => toggleTag(t.tag)} style={{ accentColor: t.cor }} />
+                    {t.label}
+                  </label>
+                );
+              })}
+            </div>
+            {tagsCliente.includes(TAG_NAO_CONTATAR) && (
+              <div style={{ fontSize: 11, color: "#991b1b", marginTop: 6, fontWeight: 600 }}>
+                💀 Cliente marcado como &quot;não contatar&quot;.
+              </div>
+            )}
+          </Field>
 
           {tipo === "crm" ? (
             <>

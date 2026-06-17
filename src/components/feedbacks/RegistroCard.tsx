@@ -1,12 +1,16 @@
 "use client";
 import { useState } from "react";
-import type { FeedbackRegistro, StatusAtendimento } from "@/lib/feedbacks/types";
+import { TAG_NAO_CONTATAR, type FeedbackRegistro, type StatusAtendimento } from "@/lib/feedbacks/types";
 import type { UltimaOS } from "@/lib/feedbacks/api";
+
+const TAG_PENDENCIA = "!!#Pendências Cadastrais#!!";
 
 interface Props {
   registro: FeedbackRegistro;
   // Última OS (oficina) do cliente — quem foi o último técnico e quando.
   ultimaOS?: UltimaOS | null;
+  // Tags do cliente (de feedback_clientes_info) — para ícones e a caveira.
+  clienteTags?: string[];
   onEditar?: (r: FeedbackRegistro) => void;
   onExcluir?: (r: FeedbackRegistro) => void;
   // Muda o status de atendimento do registro (concluir, reabrir, sem-resposta…).
@@ -15,6 +19,8 @@ interface Props {
   onArquivar?: (r: FeedbackRegistro) => void;
   // Abre o histórico completo do cliente (OS, pedidos, requisições).
   onVerHistorico?: (r: FeedbackRegistro) => void;
+  // 💀 Caveira: alterna "não contatar" no cliente.
+  onCaveira?: (r: FeedbackRegistro) => void;
 }
 
 // Horas decorridas desde aberto_em (negativo se aberto_em for futuro)
@@ -58,7 +64,7 @@ function corPrioridade(p: string | null): { bg: string; fg: string } {
   }
 }
 
-export default function RegistroCard({ registro: r, ultimaOS, onEditar, onExcluir, onMudarAtendimento, onArquivar, onVerHistorico }: Props) {
+export default function RegistroCard({ registro: r, ultimaOS, clienteTags, onEditar, onExcluir, onMudarAtendimento, onArquivar, onVerHistorico, onCaveira }: Props) {
   const isCrm = r.tipo === "crm";
   const corStatusObj = isCrm ? corStatus(r.status_cliente) : corPrioridade(r.prioridade);
   const emAtendimento = r.status_atendimento === "aberto" || r.status_atendimento === "em_andamento";
@@ -69,6 +75,10 @@ export default function RegistroCard({ registro: r, ultimaOS, onEditar, onExclui
   const restantesSemResp = bloqueadoSemResposta ? Math.ceil(24 - (horasAberto || 0)) : 0;
   const [hover, setHover] = useState(false);
   const clicavel = !!onVerHistorico;
+  const tags = clienteTags || [];
+  const naoContatar = tags.includes(TAG_NAO_CONTATAR);
+  // Falta info cadastral: sem e-mail e sem telefone, ou marcado com pendência cadastral.
+  const faltaInfo = (!r.email && !r.telefone) || tags.includes(TAG_PENDENCIA);
 
   return (
     <article
@@ -118,6 +128,8 @@ export default function RegistroCard({ registro: r, ultimaOS, onEditar, onExclui
       <header style={cardHeader}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            {naoContatar && <span title="Cliente marcado como 'não contatar'" style={{ fontSize: 14 }}>💀</span>}
+            {faltaInfo && <span title="Faltam informações cadastrais (sem contato e/ou pendência cadastral)" style={{ fontSize: 13 }}>⚠️</span>}
             <h3 style={tituloStyle}>{r.nome}</h3>
             {r.origem_dados && <span style={origemBadgeStyle(r.origem_dados)}>{r.origem_dados}</span>}
           </div>
@@ -247,11 +259,21 @@ export default function RegistroCard({ registro: r, ultimaOS, onEditar, onExclui
         </div>
       )}
 
-      {(onEditar || onExcluir) && (
+      {(onEditar || onExcluir || onCaveira) && (
         <footer style={footerStyle} onClick={(e) => e.stopPropagation()}>
           {onEditar && (
             <button onClick={() => onEditar(r)} style={btnAcao("#fef3c7", "#92400e")} type="button">
               📝 Preencher atendimento
+            </button>
+          )}
+          {onCaveira && (
+            <button
+              onClick={() => onCaveira(r)}
+              style={btnAcao(naoContatar ? "#d1fae5" : "#1f2937", naoContatar ? "#065f46" : "#fff")}
+              type="button"
+              title={naoContatar ? "Reativar contato com este cliente" : "Marcar cliente como 'não contatar' (não vale a pena)"}
+            >
+              {naoContatar ? "↩ Reativar contato" : "💀 Não contatar"}
             </button>
           )}
           {onExcluir && (

@@ -82,8 +82,27 @@ export interface ClienteInfo {
   email: string | null;
   funcionarios: Funcionario[];
   fazendas: Fazenda[];
+  tags: string[];          // tags do cliente (sincronizam com Omie na Fase 2)
   atualizado_em: string;
 }
+
+// Tag especial da "caveira": cliente que não vale a pena contatar.
+export const TAG_NAO_CONTATAR = "Não contatar";
+
+// Tags disponíveis como checkbox no atendimento. `tag` = string exata (igual ao
+// Omie, p/ a Fase 2). As de "atendimento" vêm primeiro; depois qualidade e tipo.
+export const TAGS_CLIENTE: { tag: string; label: string; cor: string }[] = [
+  { tag: "!!#Pendências Cadastrais#!!", label: "Pendência cadastral", cor: "#dc2626" },
+  { tag: "Cliente Chato",               label: "Cliente chato",        cor: "#b45309" },
+  { tag: "Cliente Não Confiável",       label: "Não confiável",        cor: "#991b1b" },
+  { tag: "Consulta de Restrição",       label: "Consulta de restrição", cor: "#7c3aed" },
+  { tag: "Ouro",                        label: "Ouro (bom cliente)",   cor: "#ca8a04" },
+  { tag: "Amarelo",                     label: "Atenção",              cor: "#f59e0b" },
+  { tag: "Transportadora",              label: "Transportadora",       cor: "#0369a1" },
+  { tag: "Posto de Combustível",        label: "Posto de combustível", cor: "#0369a1" },
+  { tag: "Banco",                       label: "Banco",                cor: "#0369a1" },
+  { tag: "Alimentação",                 label: "Alimentação",          cor: "#0369a1" },
+];
 
 export interface Oportunidade {
   id: number;
