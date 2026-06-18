@@ -267,6 +267,10 @@ export async function POST(req: NextRequest) {
       const codPedido = event.codigo_pedido || 0;
       if (codPedido) {
         const result = await processarPV(codPedido, acc);
+        // Gera o card na hora: a NF de peça pode completar uma OS vinculada (sync-os)
+        // ou ser uma venda de peças avulsa (sync-pecas). Os syncs respeitam corte/vínculo.
+        await fetch(`${req.nextUrl.origin}/api/financeiro/sync-os`, { method: "POST" }).catch(() => {});
+        await fetch(`${req.nextUrl.origin}/api/financeiro/sync-pecas?dias=1`, { method: "POST" }).catch(() => {});
         return NextResponse.json({ ok: true, tipo: "nfe", ...result });
       }
     }
@@ -276,6 +280,8 @@ export async function POST(req: NextRequest) {
       const codOS = event.nCodOS || event.codigo || 0;
       if (codOS) {
         const result = await processarOS(codOS, acc);
+        // Gera o card do financeiro na hora (sync respeita corte/vínculo/idempotência)
+        await fetch(`${req.nextUrl.origin}/api/financeiro/sync-os`, { method: "POST" }).catch(() => {});
         return NextResponse.json({ ok: true, tipo: "nfse", ...result });
       }
     }

@@ -172,6 +172,23 @@ const TOOLS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "consultar_financeiro",
+      description: "Consulta dados REAIS do módulo Financeiro (chamados de NF / boletos — tabela Chamado_NF). Use para perguntas como 'quantos chamados estão em aguardando vencimento', 'tem algo vencido/atrasado?', 'resumo do financeiro', 'quais chamados do cliente X'. acao=resumo (contagem por fase e por setor + vencidos + valor total em aberto); acao=por_status (informe o status); acao=vencidos (boletos vencidos ou atrasados); acao=por_cliente (informe o nome do cliente). Pode filtrar por setor: 'oficina' (Pós-Vendas) ou 'pecas' (Peças).",
+      parameters: {
+        type: "object",
+        properties: {
+          acao: { type: "string", enum: ["resumo", "por_status", "vencidos", "por_cliente"], description: "resumo = visão geral; por_status = filtra por fase; vencidos = atrasados; por_cliente = de um cliente." },
+          status: { type: "string", enum: ["gerar_boleto", "enviar_cliente", "aguardando_vencimento", "pago", "vencido", "sem_boleto", "concluido"], description: "Fase (obrigatório quando acao=por_status)." },
+          cliente: { type: "string", description: "Nome do cliente (obrigatório quando acao=por_cliente)." },
+          setor: { type: "string", enum: ["oficina", "pecas"], description: "Filtro opcional por setor." },
+        },
+        required: ["acao"],
+      },
+    },
+  },
 ];
 
 async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin?: boolean; pode?: (m: string) => boolean }) {
@@ -183,6 +200,7 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
       kit_revisao: ["ppv", "orcamentos"], buscar_pecas: ["ppv", "orcamentos"], explorar_catalogo: ["ppv", "orcamentos"],
       historico_cliente: ["clientes", "pos", "ppv"], consultar_projeto: ["clientes", "pos", "ppv", "orcamentos", "revisoes"],
       propor_orcamento: ["orcamentos"], propor_ppv: ["ppv"], propor_os: ["pos"], propor_requisicao: ["requisicoes"],
+      consultar_financeiro: ["financeiro"],
     };
     const need = REQ_MOD[name];
     if (need && !need.some((mod) => pode(mod))) {
@@ -533,6 +551,56 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
       }
       return { erro: "ação inválida" };
     }
+
+    if (name === "consultar_financeiro") {
+      const SB = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+      const SK = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+      const H = { apikey: SK, authorization: `Bearer ${SK}` };
+      const STATUS_LABEL: Record<string, string> = { gerar_boleto: "Gerar Boleto", enviar_cliente: "Enviar ao Cliente", aguardando_vencimento: "Aguardando Vencimento", pago: "Pago", vencido: "Vencido", sem_boleto: "Cliente Sem Boleto", validar_pix: "Validar Recebimento", concluido: "Concluído" };
+      const setorLabel = (s: any) => (s === "pecas" ? "Peças" : "Oficina");
+      const hoje = new Date().toISOString().slice(0, 10);
+      const setorFiltro = args.setor === "pecas" ? "&setor_destino=eq.pecas" : args.setor === "oficina" ? "&setor_destino=not.eq.pecas" : "";
+      const sel = "select=id,nom_cliente,status,setor_destino,valor_servico,vencimento_boleto,num_nf_servico,num_nf_peca,forma_pagamento";
+      const get = (q: string) => fetch(`${SB}/rest/v1/Chamado_NF?${q}`, { headers: H }).then((r) => (r.ok ? r.json() : [])).catch(() => []) as Promise<any[]>;
+
+      if (args.acao === "resumo") {
+        const rows = await get(`${sel}&status=neq.concluido${setorFiltro}&limit=5000`);
+        const porStatus: Record<string, number> = {};
+        const porSetor = { oficina: 0, pecas: 0 };
+        let valorTotal = 0;
+        for (const r of rows) {
+          porStatus[r.status] = (porStatus[r.status] || 0) + 1;
+          porSetor[r.setor_destino === "pecas" ? "pecas" : "oficina"]++;
+          valorTotal += Number(r.valor_servico || 0);
+        }
+        const vencidos = rows.filter((r) => r.status === "vencido" || (r.status === "aguardando_vencimento" && r.vencimento_boleto && r.vencimento_boleto < hoje)).length;
+        return {
+          total_abertos: rows.length,
+          por_fase: Object.entries(porStatus).map(([s, n]) => ({ fase: STATUS_LABEL[s] || s, quantidade: n })),
+          por_setor: { Oficina: porSetor.oficina, Pecas: porSetor.pecas },
+          vencidos_ou_atrasados: vencidos,
+          valor_total_aberto: valorTotal,
+        };
+      }
+      if (args.acao === "por_status") {
+        if (!args.status) return { precisa: "status", mensagem: "De qual fase? (ex.: aguardando_vencimento, vencido, pago)" };
+        const rows = await get(`${sel}&status=eq.${args.status}${setorFiltro}&order=id.desc&limit=200`);
+        return { fase: STATUS_LABEL[args.status] || args.status, total: rows.length, exemplos: rows.slice(0, 8).map((r) => ({ id: r.id, cliente: r.nom_cliente, setor: setorLabel(r.setor_destino), valor: r.valor_servico, vencimento: r.vencimento_boleto })) };
+      }
+      if (args.acao === "vencidos") {
+        const venc = await get(`${sel}&status=eq.vencido${setorFiltro}&order=vencimento_boleto.asc&limit=200`);
+        const atras = await get(`${sel}&status=eq.aguardando_vencimento&vencimento_boleto=lt.${hoje}${setorFiltro}&order=vencimento_boleto.asc&limit=200`);
+        const all = [...venc, ...atras];
+        return { total: all.length, itens: all.slice(0, 10).map((r) => ({ id: r.id, cliente: r.nom_cliente, setor: setorLabel(r.setor_destino), valor: r.valor_servico, vencimento: r.vencimento_boleto, fase: STATUS_LABEL[r.status] || r.status })) };
+      }
+      if (args.acao === "por_cliente") {
+        const cli = String(args.cliente || "").replace(/[%,()*]/g, " ").trim();
+        if (!cli) return { precisa: "cliente", mensagem: "De qual cliente?" };
+        const rows = await get(`${sel}&nom_cliente=ilike.*${encodeURIComponent(cli)}*${setorFiltro}&order=id.desc&limit=100`);
+        return { cliente: args.cliente, total: rows.length, chamados: rows.slice(0, 12).map((r) => ({ id: r.id, cliente: r.nom_cliente, fase: STATUS_LABEL[r.status] || r.status, setor: setorLabel(r.setor_destino), valor: r.valor_servico, vencimento: r.vencimento_boleto, nf: [r.num_nf_servico && `S ${r.num_nf_servico}`, r.num_nf_peca && `P ${r.num_nf_peca}`].filter(Boolean).join(" / ") })) };
+      }
+      return { erro: "ação inválida" };
+    }
   } catch (e: any) {
     return { erro: e?.message || "falha na ferramenta" };
   }
@@ -588,6 +656,7 @@ export async function POST(req: NextRequest) {
     "\n\nVOCÊ TEM FERRAMENTAS para consultar dados reais do portal: explorar a estrutura dos catálogos dos tratores (tratores, sistemas e figuras), buscar peças, kit de revisão, histórico de cliente, consultar projetos (cada projeto é uma máquina/chassi, ligada ao cliente do último faturamento), informações de usuários (admin) e propor criação de orçamento/PPV/OS/requisição. " +
     "Sobre PROJETOS: se perguntarem de quem é um projeto/chassi, ou quais máquinas/projetos são de um cliente, USE consultar_projeto — ele já traz junto o CONTROLE DE REVISÕES do trator (revisões feitas, a última e a PRÓXIMA pendente). Informe as revisões também quando fizer sentido. O vínculo projeto→cliente é pelo CPF/CNPJ do último faturamento; se um projeto ainda não foi faturado, ele não tem cliente vinculado (diga isso, não invente). Se o chassi não estiver no controle de revisões, diga que não há registro de revisões. " +
     "Você conhece o catálogo de TODOS os tratores: se perguntarem o que tem no catálogo de um trator, quais sistemas ou figuras ele tem, USE explorar_catalogo. " +
+    "FINANCEIRO: se perguntarem sobre chamados de NF/boletos, quantidades por fase, o que está vencido/atrasado, valores em aberto, ou os chamados de um cliente, USE consultar_financeiro (acao=resumo, por_status, vencidos ou por_cliente; dá pra filtrar por setor oficina ou pecas). Apresente valores em reais e de forma organizada. " +
     "Quando der pra responder com dados, USE a ferramenta e traga a informação pronta — não mande o usuário fazer manualmente. " +
     "FORMATO DAS RESPOSTAS: seja claro, organizado e enxuto. Use **negrito** pra destacar (códigos, nomes, totais), listas com '- ' quando ajudar, e frases curtas. Comece com uma frase curta de contexto, não com uma parede de texto. " +
     "AO LISTAR PEÇAS: mostre no máximo 6 a 8 itens MAIS RELEVANTES, um por linha no formato '- `código` — Nome (preço, se houver)'. DESCARTE itens claramente fora do contexto (numa busca de 'motor', ignore coisas como 'motor do limpa-vidros', 'etiqueta', 'chicote'); foque na peça que a pessoa quer. Se vierem muitos resultados, diga quantos achou no total, mostre só os principais e PERGUNTE como filtrar (qual peça específica, ou qual sistema). Nunca despeje uma lista grande e crua. " +

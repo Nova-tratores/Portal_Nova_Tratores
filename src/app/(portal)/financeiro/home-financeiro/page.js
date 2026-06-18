@@ -217,7 +217,7 @@ function HomeFinanceiroContent() {
    const tbl = getCardTable(tarefaSelecionada);
    (async () => {
      const { data: logs } = await supabase.from('audit_log')
-       .select('created_at, acao, user_id, detalhes')
+       .select('created_at, acao, user_id, user_nome, detalhes')
        .eq('entidade', tbl).eq('entidade_id', String(tarefaSelecionada.id))
        .order('created_at', { ascending: false }).limit(40);
      const ids = [...new Set((logs || []).map(l => l.user_id).filter(Boolean))];
@@ -226,7 +226,7 @@ function HomeFinanceiroContent() {
        const { data: us } = await supabase.from('financeiro_usu').select('id, nome').in('id', ids);
        nomes = Object.fromEntries((us || []).map(u => [u.id, u.nome]));
      }
-     setCardLogs((logs || []).map(l => ({ ...l, nome: nomes[l.user_id] || 'Usuário' })));
+     setCardLogs((logs || []).map(l => ({ ...l, nome: l.user_nome || nomes[l.user_id] || 'Usuário' })));
    })();
  }, [tarefaSelecionada?.id]);
 

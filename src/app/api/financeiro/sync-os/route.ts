@@ -18,6 +18,11 @@ const ACCS: Acc[] = [
 ];
 const accPorNome = (nome: string) => ACCS.find(a => a.name === nome) || ACCS[0];
 
+// Só gera card para notas faturadas a partir desta data (ignora histórico antigo)
+const DATA_CORTE = process.env.SYNC_FINANCEIRO_DESDE || "2026-06-18";
+// user_id "do sistema" para registrar criações automáticas no audit_log
+const SISTEMA_UID = "00000000-0000-0000-0000-000000000000";
+
 async function omieCall(ep: string, call: string, param: Record<string, unknown>, acc: Acc): Promise<any> {
   const res = await fetch(`${OMIE_BASE}${ep}`, {
     method: "POST", headers: { "Content-Type": "application/json" },
@@ -54,7 +59,7 @@ async function parcelasOS(codOS: number, acc: Acc): Promise<{ datas: string[]; q
 }
 
 // Parcelas (ISO) do PV via ConsultarPedido (por número, com fallback por código)
-async function parcelasPV(numPedido: string, codPedido: number | null, acc: Acc): Promise<{ datas: string[]; valor: number; numNF: string; danfe: string | null; codCli: number | null }> {
+async function parcelasPV(numPedido: string, codPedido: number | null, acc: Acc): Promise<{ datas: string[]; valor: number; numNF: string; danfe: string | null; codCli: number | null; faturado: boolean; existe: boolean }> {
   let pv: any = null;
   try {
     const r: any = await omieCall("/produtos/pedido/", "ConsultarPedido", codPedido ? { codigo_pedido: codPedido } : { numero_pedido: numPedido }, acc);
@@ -68,7 +73,8 @@ async function parcelasPV(numPedido: string, codPedido: number | null, acc: Acc)
   const valor = pv?.total_pedido?.valor_total_pedido || 0;
   const numNF = String(pv?.lista_nfe?.[0]?.numero_nfe || pv?.frete?.numero_nota_fiscal || "");
   const codCli = pv?.cabecalho?.codigo_cliente ?? null;
-  return { datas, valor, numNF, danfe: null, codCli };
+  const faturado = pv?.infoCadastro?.faturado === "S";
+  return { datas, valor, numNF, danfe: null, codCli, faturado, existe: !!pv };
 }
 
 async function cnpjCliente(codCli: number | null, acc: Acc): Promise<string> {
@@ -94,19 +100,20 @@ async function handler(req: NextRequest) {
   const dryRun = req.nextUrl.searchParams.get("dryRun") === "1" || req.nextUrl.searchParams.get("dry") === "1";
 
   const relatorio: any[] = [];
-  const porEmpresa: Record<string, { candidatas: number; criados: number; jaExistiam: number; semPedido: number }> = {};
-  let criados = 0, jaExistiam = 0, candidatas = 0, semPedido = 0;
+  const porEmpresa: Record<string, { candidatas: number; criados: number; jaExistiam: number; semPedido: number; aguardandoPV: number }> = {};
+  let criados = 0, jaExistiam = 0, candidatas = 0, semPedido = 0, aguardandoPV = 0;
 
   try {
     for (const acc of ACCS) {
-      porEmpresa[acc.name] = { candidatas: 0, criados: 0, jaExistiam: 0, semPedido: 0 };
+      porEmpresa[acc.name] = { candidatas: 0, criados: 0, jaExistiam: 0, semPedido: 0, aguardandoPV: 0 };
 
-      // OS faturadas, com NFS-e e com "Nº do Pedido do Cliente"
+      // OS faturadas (a partir do corte), com NFS-e e com "Nº do Pedido do Cliente"
       const { data: oss } = await supabase.from("portal_nt_clientes_os")
         .select("num_os, cod_os, empresa, cod_cli, cliente_nome, num_pedido_cli, num_nf, link_nf, valor_total")
         .eq("empresa", acc.name).eq("faturada", true).eq("cancelada", false)
         .not("num_nf", "is", null).neq("num_nf", "")
         .not("num_pedido_cli", "is", null).neq("num_pedido_cli", "")
+        .gte("data_faturamento", DATA_CORTE)
         .order("data_faturamento", { ascending: false })
         .limit(limite);
 
@@ -114,26 +121,38 @@ async function handler(req: NextRequest) {
         candidatas++;
         porEmpresa[acc.name].candidatas++;
 
-        // idempotência por OS
-        const { data: existe } = await supabase.from("Chamado_NF")
-          .select("id").eq("omie_num_os", String(os.num_os)).eq("omie_empresa", acc.name).maybeSingle();
-        if (existe) { jaExistiam++; porEmpresa[acc.name].jaExistiam++; continue; }
-
         // Pedido de venda (número + empresa) a partir do campo da OS
         const { num: pvNum, empresa: pvEmp } = parsePedidoCliente(os.num_pedido_cli, acc.name);
         const accPV = accPorNome(pvEmp);
 
-        // Dados do PV no banco (NF de peça, valor, código)
+        // idempotência: já existe card desta OS? ou um card de peças do mesmo PV?
+        const { data: jaOS } = await supabase.from("Chamado_NF").select("id").eq("omie_num_os", String(os.num_os)).eq("omie_empresa", acc.name).limit(1);
+        let jaPV: any[] | null = null;
+        if (pvNum) { const { data } = await supabase.from("Chamado_NF").select("id").eq("omie_num_pedido", pvNum).eq("omie_empresa", pvEmp).limit(1); jaPV = data; }
+        if ((jaOS && jaOS.length) || (jaPV && jaPV.length)) { jaExistiam++; porEmpresa[acc.name].jaExistiam++; continue; }
+
+        // Dados do PV no banco (NF de peça, valor, código, faturado)
         let pvRow: any = null;
         if (pvNum) {
           const { data } = await supabase.from("portal_nt_clientes_pv")
-            .select("num_pedido, cod_pedido, numero_nf, link_nf, valor_total, cod_cli")
+            .select("num_pedido, cod_pedido, numero_nf, link_nf, valor_total, cod_cli, faturado, cancelado")
             .eq("empresa", pvEmp).eq("num_pedido", pvNum).maybeSingle();
           pvRow = data;
         }
 
         // Parcelas/condição: PV (principal) e OS (prioriza se as datas diferem)
-        const pvParc = pvNum ? await parcelasPV(pvNum, pvRow?.cod_pedido ?? null, accPV) : { datas: [], valor: 0, numNF: "", danfe: null, codCli: null };
+        const pvParc = pvNum ? await parcelasPV(pvNum, pvRow?.cod_pedido ?? null, accPV) : { datas: [], valor: 0, numNF: "", danfe: null, codCli: null, faturado: false, existe: false };
+
+        // VÍNCULO: se a OS referencia um Pedido de Venda, esse PV TEM que estar faturado.
+        // Só gera o card quando AS DUAS notas (serviço + peça) já saíram.
+        if (pvNum) {
+          const pvFaturado = pvRow ? pvRow.faturado === true : pvParc.faturado;
+          if (!pvFaturado) {
+            aguardandoPV++; porEmpresa[acc.name].aguardandoPV++;
+            relatorio.push({ empresa: acc.name, os: os.num_os, pv: pvNum, pv_empresa: pvEmp, aguardando: "PV ainda não faturado" });
+            continue;
+          }
+        }
         const osParc = await parcelasOS(os.cod_os, acc);
         const datasDiferem = osParc.datas.length > 0 &&
           (osParc.datas.length !== pvParc.datas.length || JSON.stringify(osParc.datas) !== JSON.stringify(pvParc.datas));
@@ -182,17 +201,23 @@ async function handler(req: NextRequest) {
         });
 
         if (!dryRun) {
-          const { error } = await supabase.from("Chamado_NF").insert([row]);
-          if (!error) { criados++; porEmpresa[acc.name].criados++; }
-          else relatorio[relatorio.length - 1].erro = error.message;
+          const { data: ins, error } = await supabase.from("Chamado_NF").insert([row]).select("id").maybeSingle();
+          if (!error && ins) {
+            criados++; porEmpresa[acc.name].criados++;
+            await supabase.from("audit_log").insert([{
+              user_id: SISTEMA_UID, user_nome: "Sistema (Omie)", sistema: "financeiro", acao: "criar",
+              entidade: "Chamado_NF", entidade_id: String(ins.id), entidade_label: `NF #${ins.id} - ${os.cliente_nome || ""}`,
+              detalhes: { origem: "omie_os", os: os.num_os, pedido: pvNum, empresa: acc.name, valor },
+            }]);
+          } else if (error) relatorio[relatorio.length - 1].erro = error.message;
         }
         await new Promise(r => setTimeout(r, 220));
       }
     }
 
     return NextResponse.json({
-      sucesso: true, dryRun,
-      candidatas, criados, jaExistiam, semPedidoVinculado: semPedido,
+      sucesso: true, dryRun, desde: DATA_CORTE,
+      candidatas, criados, jaExistiam, semPedidoVinculado: semPedido, aguardandoPV,
       por_empresa: porEmpresa,
       itens: relatorio,
     });

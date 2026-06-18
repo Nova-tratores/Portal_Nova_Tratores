@@ -25,6 +25,19 @@ const NUCLEO_PECAS = "revenda de pecas balcao"; // núcleo robusto (sem acento/@
 
 const BUCKET_ANEXOS = "anexos";
 
+// Só gera card para notas faturadas a partir desta data (ignora histórico antigo)
+const DATA_CORTE = process.env.SYNC_FINANCEIRO_DESDE || "2026-06-18";
+// user_id "do sistema" para registrar criações automáticas no audit_log
+const SISTEMA_UID = "00000000-0000-0000-0000-000000000000";
+
+// PV tem OS vinculada? (procura uma OS cujo "Nº do Pedido do Cliente" referencia este pedido)
+async function temOSVinculada(pvNum: string): Promise<boolean> {
+  if (!pvNum) return false;
+  const { data } = await supabase.from("portal_nt_clientes_os")
+    .select("num_pedido_cli").ilike("num_pedido_cli", `%${pvNum}%`).limit(30);
+  return (data || []).some((o: any) => ((String(o.num_pedido_cli).match(/\d+/g) || []) as string[]).includes(String(pvNum)));
+}
+
 async function omieCall(ep: string, call: string, param: Record<string, unknown>, acc: Acc): Promise<any> {
   const res = await fetch(`${OMIE_BASE}${ep}`, {
     method: "POST", headers: { "Content-Type": "application/json" },
@@ -152,7 +165,10 @@ async function handler(req: NextRequest) {
   const dryRun = req.nextUrl.searchParams.get("dryRun") === "1" || req.nextUrl.searchParams.get("dry") === "1";
 
   const hoje = new Date();
-  const de = new Date(hoje.getTime() - dias * 86400000);
+  let de = new Date(hoje.getTime() - dias * 86400000);
+  // Nunca antes do corte (ignora histórico antigo — só gera de agora em diante)
+  const corte = new Date(`${DATA_CORTE}T00:00:00`);
+  if (de < corte) de = corte;
   const fmt = (d: Date) => `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 
   const relatorio: any[] = [];
@@ -199,10 +215,17 @@ async function handler(req: NextRequest) {
           porEmpresa[acc.name].candidatos++;
           const numPedido = String(pv.cabecalho.numero_pedido);
 
-          // idempotência
-          const { data: existe } = await supabase.from("Chamado_NF")
-            .select("id").eq("omie_num_pedido", numPedido).eq("omie_empresa", acc.name).maybeSingle();
-          if (existe) { jaExistiam++; porEmpresa[acc.name].jaExistiam++; continue; }
+          // VÍNCULO: se este PV tem uma OS vinculada, NÃO cria card só com a NF de peça —
+          // o sync de OS gera o card combinado (serviço + peça) quando as duas estiverem faturadas.
+          if (await temOSVinculada(numPedido)) {
+            relatorio.push({ empresa: acc.name, pedido: numPedido, pulado: "tem OS vinculada (card sai pelo sync de OS)" });
+            continue;
+          }
+
+          // idempotência (1 card por pedido/empresa)
+          const { data: existeArr } = await supabase.from("Chamado_NF")
+            .select("id").eq("omie_num_pedido", numPedido).eq("omie_empresa", acc.name).limit(1);
+          if (existeArr && existeArr.length) { jaExistiam++; porEmpresa[acc.name].jaExistiam++; continue; }
 
           // garante parcelas/total — consulta completa se ainda não temos
           if (!(pvFull?.lista_parcelas || pvFull?.parcelas)) {
@@ -241,9 +264,15 @@ async function handler(req: NextRequest) {
           relatorio.push({ empresa: acc.name, pedido: numPedido, cliente: cli.nome, cnpj: cli.cnpj, nf: nf.num, anexo: !!nf.url, ...cond, valor });
 
           if (!dryRun) {
-            const { error } = await supabase.from("Chamado_NF").insert([row]);
-            if (!error) { criados++; porEmpresa[acc.name].criados++; }
-            else relatorio[relatorio.length - 1].erro = error.message;
+            const { data: ins, error } = await supabase.from("Chamado_NF").insert([row]).select("id").maybeSingle();
+            if (!error && ins) {
+              criados++; porEmpresa[acc.name].criados++;
+              await supabase.from("audit_log").insert([{
+                user_id: SISTEMA_UID, user_nome: "Sistema (Omie)", sistema: "financeiro", acao: "criar",
+                entidade: "Chamado_NF", entidade_id: String(ins.id), entidade_label: `NF #${ins.id} - ${cli.nome || ""}`,
+                detalhes: { origem: "omie_pecas", pedido: numPedido, empresa: acc.name, valor },
+              }]);
+            } else if (error) relatorio[relatorio.length - 1].erro = error.message;
           }
           await new Promise(r => setTimeout(r, 200));
         }

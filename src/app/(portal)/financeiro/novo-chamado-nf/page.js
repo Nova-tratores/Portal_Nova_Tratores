@@ -109,7 +109,7 @@ export default function NovoChamadoNF() {
           valoresParcelasObj[`valor_parcela${i}`] = i <= qtd ? valorPorParcela : 0;
       }
 
-      const { error } = await supabase.from('Chamado_NF').insert([{
+      const { data: ins, error } = await supabase.from('Chamado_NF').insert([{
         ...formData,
         ...valoresParcelasObj,
         setor: 'Financeiro',
@@ -120,10 +120,10 @@ export default function NovoChamadoNF() {
         comprovante_pagamento: urlComp,
         vencimento_boleto: vencimentoFinal,
         datas_parcelas: datasFinal
-      }])
+      }]).select('id').maybeSingle()
 
       if (error) throw error
-      auditLog({ sistema: 'financeiro', acao: 'criar', entidade: 'Chamado_NF', entidade_label: `NF ${formData.nom_cliente} - R$ ${formData.valor_servico}`, detalhes: { cliente: formData.nom_cliente, valor: formData.valor_servico, forma_pagamento: formData.forma_pagamento } })
+      auditLog({ sistema: 'financeiro', acao: 'criar', entidade: 'Chamado_NF', entidade_id: ins ? String(ins.id) : undefined, entidade_label: `NF #${ins?.id || ''} - ${formData.nom_cliente}`, detalhes: { cliente: formData.nom_cliente, valor: formData.valor_servico, forma_pagamento: formData.forma_pagamento } })
       notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} criou faturamento`, `Cliente: ${formData.nom_cliente} — R$ ${formData.valor_servico}`, '/financeiro')
       alert("Faturamento registrado com sucesso.");
       router.push('/financeiro')
