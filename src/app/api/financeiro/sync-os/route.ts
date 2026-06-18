@@ -37,14 +37,24 @@ async function notificarCard(origin: string, setor: string, cliente: string) {
   } catch { /* ignore */ }
 }
 
-async function omieCall(ep: string, call: string, param: Record<string, unknown>, acc: Acc): Promise<any> {
+async function omieCall(ep: string, call: string, param: Record<string, unknown>, acc: Acc, tentativa = 0): Promise<any> {
   const res = await fetch(`${OMIE_BASE}${ep}`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ call, app_key: acc.key, app_secret: acc.secret, param: [param] }),
   });
-  if (res.status === 429) { await new Promise(r => setTimeout(r, 60000)); return omieCall(ep, call, param, acc); }
+  if (res.status === 429 && tentativa < 2) { await new Promise(r => setTimeout(r, 60000)); return omieCall(ep, call, param, acc, tentativa + 1); }
   const data = await res.json().catch(() => ({}));
-  if (data?.faultstring) throw new Error(data.faultstring);
+  if (data?.faultstring) {
+    const fs = String(data.faultstring);
+    // "Consumo redundante" do Omie: espera o tempo sugerido e tenta de novo
+    if (/redundante|redundant/i.test(fs) && tentativa < 2) {
+      const m = fs.match(/(\d+)\s*segundo/i);
+      const seg = Math.min((m ? parseInt(m[1], 10) : 30) + 2, 70);
+      await new Promise(r => setTimeout(r, seg * 1000));
+      return omieCall(ep, call, param, acc, tentativa + 1);
+    }
+    throw new Error(fs);
+  }
   return data;
 }
 
@@ -73,7 +83,7 @@ async function parcelasOS(codOS: number, acc: Acc): Promise<{ datas: string[]; q
 }
 
 // Parcelas (ISO) do PV via ConsultarPedido (por número, com fallback por código)
-async function parcelasPV(numPedido: string, codPedido: number | null, acc: Acc): Promise<{ datas: string[]; valor: number; numNF: string; danfe: string | null; codCli: number | null; faturado: boolean; existe: boolean }> {
+async function parcelasPV(numPedido: string, codPedido: number | null, acc: Acc): Promise<{ datas: string[]; valor: number; numNF: string; danfe: string | null; codCli: number | null; codPedido: number | null; faturado: boolean; existe: boolean }> {
   let pv: any = null;
   try {
     const r: any = await omieCall("/produtos/pedido/", "ConsultarPedido", codPedido ? { codigo_pedido: codPedido } : { numero_pedido: numPedido }, acc);
@@ -87,8 +97,9 @@ async function parcelasPV(numPedido: string, codPedido: number | null, acc: Acc)
   const valor = pv?.total_pedido?.valor_total_pedido || 0;
   const numNF = String(pv?.lista_nfe?.[0]?.numero_nfe || pv?.frete?.numero_nota_fiscal || "");
   const codCli = pv?.cabecalho?.codigo_cliente ?? null;
+  const codPed = pv?.cabecalho?.codigo_pedido ?? null;
   const faturado = pv?.infoCadastro?.faturado === "S";
-  return { datas, valor, numNF, danfe: null, codCli, faturado, existe: !!pv };
+  return { datas, valor, numNF, danfe: null, codCli, codPedido: codPed, faturado, existe: !!pv };
 }
 
 async function dadosCliente(codCli: number | null, acc: Acc): Promise<{ nome: string; cnpj: string }> {
@@ -104,14 +115,18 @@ async function dadosCliente(codCli: number | null, acc: Acc): Promise<{ nome: st
 }
 
 const BUCKET = "anexos";
-async function baixarEAnexar(url: string, path: string): Promise<string | null> {
+// pdfApenas = true: só guarda se for PDF de verdade (evita guardar HTML de portal).
+// pdfApenas = false: guarda qualquer conteúdo (ex.: XML da NFS-e).
+async function baixarEAnexar(url: string, path: string, pdfApenas = true): Promise<string | null> {
   try {
     const res = await fetch(url);
     if (!res.ok) return null;
     const buffer = Buffer.from(await res.arrayBuffer());
     if (buffer.length < 100) return null;
     const ehPdf = buffer.slice(0, 5).toString("latin1").startsWith("%PDF");
-    const { error } = await supabase.storage.from(BUCKET).upload(path, buffer, { contentType: ehPdf ? "application/pdf" : (res.headers.get("content-type") || "application/octet-stream"), upsert: true });
+    if (pdfApenas && !ehPdf) return null;
+    const ct = ehPdf ? "application/pdf" : (path.endsWith(".xml") ? "application/xml" : (res.headers.get("content-type") || "application/octet-stream"));
+    const { error } = await supabase.storage.from(BUCKET).upload(path, buffer, { contentType: ct, upsert: true });
     if (error) return null;
     const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(path);
     return pub.publicUrl;
@@ -119,22 +134,29 @@ async function baixarEAnexar(url: string, path: string): Promise<string | null> 
 }
 
 // NFS-e da OS via StatusOS (número + PDF). O ListarOS NÃO traz o número confiável.
-async function nfseDaOS(codOS: number, numOS: string, empKey: string, acc: Acc): Promise<{ num: string; url: string | null }> {
+async function nfseDaOS(codOS: number, numOS: string, empKey: string, acc: Acc): Promise<{ num: string; url: string | null; raw: any }> {
   try {
     const st: any = await omieCall("/servicos/os/", "StatusOS", { nCodOS: codOS }, acc);
     const nfse = (st?.ListaRpsNfse || [])[0];
-    if (!nfse) return { num: "", url: null };
+    if (!nfse) return { num: "", url: null, raw: null };
     const num = String(nfse.nNfse || "");
-    const danfe = nfse.danfe || nfse.cUrlNfse || "";
-    const url = danfe ? await baixarEAnexar(danfe, `os/${empKey}/os_${numOS}/nfse_${num || numOS}.pdf`) : null;
-    return { num, url };
-  } catch { return { num: "", url: null }; }
+    let url: string | null = null;
+    // 1) PDF (DANFE), quando a prefeitura/Omie fornece
+    const pdf = nfse.danfe || nfse.cUrlDanfe || "";
+    if (pdf) url = await baixarEAnexar(pdf, `os/${empKey}/os_${numOS}/nfse_${num || numOS}.pdf`);
+    // 2) XML oficial da NFS-e (baixa e guarda estático — não re-chama o Omie ao abrir)
+    if (!url && nfse.xml_distr) url = await baixarEAnexar(nfse.xml_distr, `os/${empKey}/os_${numOS}/nfse_${num || numOS}.xml`, false);
+    // 3) link de portal da prefeitura, se vier
+    if (!url) url = nfse.cUrlNfse || nfse.cLinkNFSe || nfse.cLinkImpressao || null;
+    return { num, url, raw: nfse };
+  } catch { return { num: "", url: null, raw: null }; }
 }
 
-// NF-e do PV (peça): número + PDF via StatusPedido
-async function nfePedido(numPedido: string, empKey: string, acc: Acc): Promise<{ num: string; url: string | null }> {
+// NF-e do PV (peça): número + PDF via StatusPedido. O Omie exige o codigo_pedido (interno).
+async function nfePedido(numPedido: string, codPedido: number | null, empKey: string, acc: Acc): Promise<{ num: string; url: string | null }> {
+  if (!codPedido && !numPedido) return { num: "", url: null };
   try {
-    const st: any = await omieCall("/produtos/pedido/", "StatusPedido", { numero_pedido: numPedido }, acc);
+    const st: any = await omieCall("/produtos/pedido/", "StatusPedido", codPedido ? { codigo_pedido: codPedido } : { numero_pedido: numPedido }, acc);
     const nfe = (st?.ListaNfe || [])[0];
     if (!nfe) return { num: "", url: null };
     const num = String(nfe.numero_nfe || "");
@@ -149,6 +171,91 @@ function condicao(datas: string[]) {
   return { forma_pagamento: "Boleto Parcelado", qtd_parcelas: qtd, vencimento_boleto: datas[0], datas_parcelas: datas.slice(1).join(", ") };
 }
 
+// Processa UMA OS específica (ConsultarOS) — pra debug (?os=NNNN), webhook (?codOS=) e tempo real.
+// `consulta` = { cNumOS } ou { nCodOS }.
+async function processarOSnum(consulta: Record<string, unknown>, label: string, dryRun: boolean, desde: string, origin: string) {
+  const debug: any = { os: label, tentativas: [] };
+  for (const acc of ACCS) {
+    let osData: any = null;
+    try {
+      osData = await omieCall("/servicos/os/", "ConsultarOS", consulta, acc);
+    } catch (e: any) {
+      debug.tentativas.push(`${acc.name}: ${String(e?.message || "").slice(0, 70)}`);
+      continue;
+    }
+    const cab = osData?.Cabecalho || {};
+    const info = osData?.InfoCadastro || {};
+    const adic = osData?.InformacoesAdicionais || {};
+    const empKey = acc.name.replace(/ /g, "_");
+    debug.empresa = acc.name;
+    debug.faturada = info.cFaturada; debug.cancelada = info.cCancelada;
+    debug.dDtInc = info.dDtInc; debug.dDtAlt = info.dDtAlt; debug.dDtFat = info.dDtFat;
+
+    if (info.cFaturada !== "S" || info.cCancelada === "S") { debug.resultado = "OS não está faturada (ou cancelada)"; return debug; }
+
+    const dtFatISO = dataBRtoISO(info.dDtFat);
+    debug.dDtFat_iso = dtFatISO; debug.corte = desde;
+    if (dtFatISO && dtFatISO < desde) { debug.resultado = `OS faturada ANTES do corte ${desde} — não cria (use ?desde= mais antigo pra testar)`; return debug; }
+
+    const numOS = String(cab.cNumOS);
+    const nfse = await nfseDaOS(cab.nCodOS, numOS, empKey, acc);
+    debug.nfse_num = nfse.num; debug.nfse_pdf = !!nfse.url; debug.nfse_url = nfse.url;
+    if (dryRun) debug.nfse_raw = nfse.raw; // campos brutos da NFS-e (pra achar o link certo)
+    if (!nfse.num) { debug.resultado = "NFS-e ainda não emitida (StatusOS sem nota) — aguardando autorização da prefeitura"; return debug; }
+
+    const pedCli = cab.cNumPedCli || adic.cNumPedido || adic.cNumContrato || "";
+    debug.pedido_cliente = pedCli;
+    const { num: pvNum, empresa: pvEmp } = parsePedidoCliente(pedCli, acc.name);
+    debug.pv = pvNum; debug.pv_empresa = pvEmp;
+    const accPV = accPorNome(pvEmp);
+
+    const { data: jaOS } = await supabase.from("Chamado_NF").select("id").eq("omie_num_os", numOS).eq("omie_empresa", acc.name).limit(1);
+    if (jaOS && jaOS.length) {
+      if (!dryRun) { debug.resultado = "Já existe card desta OS"; return debug; }
+      debug.ja_existe = true; // no dryRun, segue mostrando o que seria criado
+    }
+
+    const pvParc = pvNum ? await parcelasPV(pvNum, null, accPV) : { datas: [] as string[], valor: 0, numNF: "", danfe: null, codCli: null, codPedido: null, faturado: false, existe: false };
+    debug.pv_faturado = pvParc.faturado;
+    if (pvNum && !pvParc.faturado) { debug.resultado = `Peça (PV ${pvNum}) ainda NÃO faturada — não cria; espera as duas notas`; return debug; }
+
+    const osParc = await parcelasOS(cab.nCodOS, acc);
+    const datasDiferem = osParc.datas.length > 0 && (osParc.datas.length !== pvParc.datas.length || JSON.stringify(osParc.datas) !== JSON.stringify(pvParc.datas));
+    const datasFinais = datasDiferem ? osParc.datas : (pvParc.datas.length ? pvParc.datas : osParc.datas);
+    const cond = condicao(datasFinais);
+    const nfPeca = pvNum ? await nfePedido(pvNum, pvParc.codPedido, empKey, accPV) : { num: "", url: null };
+    const numNFPeca = nfPeca.num || pvParc.numNF || "";
+    const valorOS = Number(cab.nValorTotal || 0);
+    const valorPV = Number(pvParc.valor || 0);
+    const valor = valorOS + valorPV;
+    const cli = await dadosCliente(cab.nCodCli, acc);
+    // Prioriza a NFS-e que o portal JÁ baixou (módulo Clientes), depois o link do StatusOS
+    const { data: osRow } = await supabase.from("portal_nt_clientes_os").select("link_nf").eq("num_os", numOS).eq("empresa", acc.name).maybeSingle();
+    const anexoServico = (osRow?.link_nf && String(osRow.link_nf).trim()) || nfse.url;
+    debug.anexo_servico_origem = osRow?.link_nf ? "portal_nt_clientes_os.link_nf" : (nfse.url ? "StatusOS" : "nenhum");
+    Object.assign(debug, { cliente: cli.nome, nf_servico: nfse.num, nf_peca: numNFPeca, anexo_servico: anexoServico, valor_os: valorOS, valor_pv: valorPV, valor_total: valor, parcelas_de: datasDiferem ? "OS" : "PV", ...cond });
+
+    const row: Record<string, unknown> = {
+      nom_cliente: cli.nome, cnpj_cliente: cli.cnpj, valor_servico: valor,
+      num_nf_servico: nfse.num, anexo_nf_servico: anexoServico, num_nf_peca: numNFPeca, anexo_nf_peca: nfPeca.url,
+      forma_pagamento: cond.forma_pagamento, qtd_parcelas: cond.qtd_parcelas, vencimento_boleto: cond.vencimento_boleto, datas_parcelas: cond.datas_parcelas,
+      setor: "Financeiro", status: "gerar_boleto", tarefa: "Gerar Boleto", setor_destino: "oficina", origem: "omie_os",
+      omie_num_os: numOS, omie_num_pedido: pvNum || null, omie_empresa: acc.name,
+      obs: `Gerado do Omie — OS ${numOS} (${acc.name}). Pedido cliente: ${pedCli || "(sem)"} → PV ${pvNum || "(sem)"} (${pvEmp}).${anexoServico ? "" : " ATENCAO: a NFS-e desta OS nao veio em PDF do Omie (NFS-e municipal) - anexe a nota de servico manualmente."}`,
+    };
+
+    if (dryRun) { debug.resultado = "OK — criaria o card"; debug.row = row; return debug; }
+    const { data: ins, error } = await supabase.from("Chamado_NF").insert([row]).select("id").maybeSingle();
+    if (error) { debug.resultado = "Erro ao inserir: " + error.message; return debug; }
+    await supabase.from("audit_log").insert([{ user_id: SISTEMA_UID, user_nome: "Sistema (Omie)", sistema: "financeiro", acao: "criar", entidade: "Chamado_NF", entidade_id: String(ins!.id), entidade_label: `NF #${ins!.id} - ${cli.nome || ""}`, detalhes: { origem: "omie_os", os: numOS, pedido: pvNum, empresa: acc.name, valor } }]);
+    await notificarCard(origin, "Pós-Vendas", cli.nome || "");
+    debug.resultado = `Card criado (#${ins!.id})`; debug.card_id = ins!.id;
+    return debug;
+  }
+  debug.resultado = "OS não encontrada em nenhuma empresa";
+  return debug;
+}
+
 async function handler(req: NextRequest) {
   const limite = parseInt(req.nextUrl.searchParams.get("limite") || "300");
   // Janela de busca por data de CADASTRO da OS (larga, pra pegar OS antigas faturadas agora).
@@ -157,11 +264,21 @@ async function handler(req: NextRequest) {
   const dryRun = req.nextUrl.searchParams.get("dryRun") === "1" || req.nextUrl.searchParams.get("dry") === "1";
   const desde = req.nextUrl.searchParams.get("desde") || DATA_CORTE; // corte por data de faturamento
 
+  // Modo OS específica (debug/webhook): ?os=5043 (número) ou ?codOS=123 (código interno)
+  const osParam = req.nextUrl.searchParams.get("os");
+  const codOSParam = req.nextUrl.searchParams.get("codOS");
+  if (osParam || codOSParam) {
+    const consulta = codOSParam ? { nCodOS: Number(codOSParam) } : { cNumOS: String(osParam).trim() };
+    try { return NextResponse.json({ sucesso: true, ...(await processarOSnum(consulta, codOSParam || String(osParam), dryRun, desde, req.nextUrl.origin)) }); }
+    catch (e) { return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 }); }
+  }
+
   const hoje = new Date();
   const de = new Date(hoje.getTime() - dias * 86400000);
   const fmt = (d: Date) => `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 
   const relatorio: any[] = [];
+  const amostra: any[] = [];
   const porEmpresa: Record<string, { faturadas: number; no_periodo: number; com_nfse: number; aguardando_nfse: number; candidatas: number; criados: number; jaExistiam: number; semPedido: number; aguardandoPV: number }> = {};
   let criados = 0, jaExistiam = 0, candidatas = 0, semPedido = 0, aguardandoPV = 0;
   const MAX_STATUS = parseInt(req.nextUrl.searchParams.get("maxStatus") || "120"); // teto de chamadas StatusOS por empresa
@@ -179,6 +296,7 @@ async function handler(req: NextRequest) {
           r = await omieCall("/servicos/os/", "ListarOS", {
             pagina: pag, registros_por_pagina: 100,
             filtrar_por_data_de: fmt(de), filtrar_por_data_ate: fmt(hoje),
+            filtrar_apenas_alteracao: "S", // faturar = alterar a OS → pega faturadas hoje mesmo sendo antigas
           }, acc);
         } catch (e: any) {
           // Omie lança erro quando a faixa não tem registros — trata como "vazio"
@@ -195,6 +313,10 @@ async function handler(req: NextRequest) {
           if (info.cFaturada !== "S" || info.cCancelada === "S") continue;
           porEmpresa[acc.name].faturadas++;
 
+          if (dryRun && amostra.length < 12) {
+            amostra.push({ empresa: acc.name, os: String(cab.cNumOS), dDtInc: info.dDtInc, dDtAlt: info.dDtAlt, dDtFat: info.dDtFat, pedido_cliente: cab.cNumPedCli || adic.cNumPedido || adic.cNumContrato || "" });
+          }
+
           // corte por data de faturamento (antes de chamar StatusOS, pra não estourar a API)
           const dtFatISO = dataBRtoISO(info.dDtFat);
           if (dtFatISO && dtFatISO < desde) continue;
@@ -208,7 +330,9 @@ async function handler(req: NextRequest) {
           if (!nfse.num) { porEmpresa[acc.name].aguardando_nfse++; continue; } // NFS-e ainda não emitida
           porEmpresa[acc.name].com_nfse++;
           const numNFSe = nfse.num;
-          const anexoServico = nfse.url;
+          // Prioriza a NFS-e que o portal já baixou (módulo Clientes)
+          const { data: osRow } = await supabase.from("portal_nt_clientes_os").select("link_nf").eq("num_os", numOS).eq("empresa", acc.name).maybeSingle();
+          const anexoServico = (osRow?.link_nf && String(osRow.link_nf).trim()) || nfse.url;
 
           const pedCli = cab.cNumPedCli || adic.cNumPedido || adic.cNumContrato || "";
           candidatas++; porEmpresa[acc.name].candidatas++;
@@ -225,7 +349,7 @@ async function handler(req: NextRequest) {
 
           // VÍNCULO: se a OS aponta um Pedido de Venda no campo, esse PV PRECISA estar faturado.
           // Se faturou só a OS e a peça (PV) ainda não, NÃO cria — espera as duas notas.
-          const pvParc = pvNum ? await parcelasPV(pvNum, null, accPV) : { datas: [] as string[], valor: 0, numNF: "", danfe: null, codCli: null, faturado: false, existe: false };
+          const pvParc = pvNum ? await parcelasPV(pvNum, null, accPV) : { datas: [] as string[], valor: 0, numNF: "", danfe: null, codCli: null, codPedido: null, faturado: false, existe: false };
           if (pvNum && !pvParc.faturado) {
             aguardandoPV++; porEmpresa[acc.name].aguardandoPV++;
             relatorio.push({ empresa: acc.name, os: numOS, pv: pvNum, pv_empresa: pvEmp, aguardando: "PV (peça) ainda não faturado" });
@@ -241,7 +365,7 @@ async function handler(req: NextRequest) {
           const cond = condicao(datasFinais);
 
           // NF de peça (PV): número + PDF via StatusPedido
-          const nfPeca = pvNum ? await nfePedido(pvNum, empKey, accPV) : { num: "", url: null };
+          const nfPeca = pvNum ? await nfePedido(pvNum, pvParc.codPedido, empKey, accPV) : { num: "", url: null };
           const numNFPeca = nfPeca.num || pvParc.numNF || "";
 
           // Valores: soma NF serviço (OS) + NF peça (PV)
@@ -272,7 +396,7 @@ async function handler(req: NextRequest) {
             omie_num_os: numOS,
             omie_num_pedido: pvNum || null,
             omie_empresa: acc.name,
-            obs: `Gerado do Omie — OS ${numOS} (${acc.name}). Pedido cliente: ${pedCli || "(sem)"} → PV ${pvNum || "(sem)"} (${pvEmp}). Parcelas: ${datasDiferem ? "OS (priorizado)" : "PV"}.`,
+            obs: `Gerado do Omie — OS ${numOS} (${acc.name}). Pedido cliente: ${pedCli || "(sem)"} → PV ${pvNum || "(sem)"} (${pvEmp}). Parcelas: ${datasDiferem ? "OS (priorizado)" : "PV"}.${anexoServico ? "" : " ATENCAO: NFS-e sem PDF do Omie - anexe a nota de servico manualmente."}`,
           };
 
           relatorio.push({
@@ -304,6 +428,7 @@ async function handler(req: NextRequest) {
       sucesso: true, dryRun, desde,
       candidatas, criados, jaExistiam, semPedidoVinculado: semPedido, aguardandoPV,
       por_empresa: porEmpresa,
+      amostra: dryRun ? amostra : undefined,
       itens: relatorio,
     });
   } catch (e) {

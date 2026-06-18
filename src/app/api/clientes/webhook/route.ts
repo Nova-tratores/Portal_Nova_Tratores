@@ -291,8 +291,8 @@ export async function POST(req: NextRequest) {
       const codOS = event.nCodOS || event.codigo || 0;
       if (codOS) {
         const result = await processarOS(codOS, acc);
-        // Gera o card do financeiro na hora (sync respeita corte/vínculo/idempotência)
-        await fetch(`${req.nextUrl.origin}/api/financeiro/sync-os`, { method: "POST" }).catch(() => {});
+        // Gera o card do financeiro na hora, processando ESTA OS específica (não varre a lista)
+        await fetch(`${req.nextUrl.origin}/api/financeiro/sync-os?codOS=${codOS}`, { method: "POST" }).catch(() => {});
         return NextResponse.json({ ok: true, tipo: "nfse", ...result });
       }
     }

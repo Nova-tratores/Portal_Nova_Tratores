@@ -52,7 +52,7 @@ export async function register(): Promise<void> {
   // É o backup do webhook (tempo real); aqui no Railway substitui os crons do vercel.json.
   const base = `http://127.0.0.1:${process.env.PORT || 3000}`;
   const rodarSyncFinanceiro = async () => {
-    for (const path of ['/api/financeiro/sync-os', '/api/financeiro/sync-pecas?dias=3']) {
+    for (const path of ['/api/financeiro/sync-os', '/api/financeiro/sync-pecas?dias=3', '/api/financeiro/lembrete-nf-servico']) {
       try { await fetch(`${base}${path}`, { method: 'POST' }); } catch (e) { log('sync financeiro falhou: ' + (e as Error).message); }
     }
   };

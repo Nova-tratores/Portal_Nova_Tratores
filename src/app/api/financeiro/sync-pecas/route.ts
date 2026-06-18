@@ -52,14 +52,23 @@ async function temOSVinculada(pvNum: string): Promise<boolean> {
   return (data || []).some((o: any) => ((String(o.num_pedido_cli).match(/\d+/g) || []) as string[]).includes(String(pvNum)));
 }
 
-async function omieCall(ep: string, call: string, param: Record<string, unknown>, acc: Acc): Promise<any> {
+async function omieCall(ep: string, call: string, param: Record<string, unknown>, acc: Acc, tentativa = 0): Promise<any> {
   const res = await fetch(`${OMIE_BASE}${ep}`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ call, app_key: acc.key, app_secret: acc.secret, param: [param] }),
   });
-  if (res.status === 429) { await new Promise(r => setTimeout(r, 60000)); return omieCall(ep, call, param, acc); }
+  if (res.status === 429 && tentativa < 2) { await new Promise(r => setTimeout(r, 60000)); return omieCall(ep, call, param, acc, tentativa + 1); }
   const data = await res.json().catch(() => ({}));
-  if (data?.faultstring) throw new Error(data.faultstring);
+  if (data?.faultstring) {
+    const fs = String(data.faultstring);
+    if (/redundante|redundant/i.test(fs) && tentativa < 2) {
+      const m = fs.match(/(\d+)\s*segundo/i);
+      const seg = Math.min((m ? parseInt(m[1], 10) : 30) + 2, 70);
+      await new Promise(r => setTimeout(r, seg * 1000));
+      return omieCall(ep, call, param, acc, tentativa + 1);
+    }
+    throw new Error(fs);
+  }
   return data;
 }
 
