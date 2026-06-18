@@ -221,10 +221,21 @@ async function processarPV(codPedido: number, acc: Acc) {
   return { num_pedido: cab.numero_pedido, faturado: info.faturado === "S" };
 }
 
+// Registro em memória dos últimos webhooks recebidos (pra diagnóstico via /status)
+type WebhookLog = { recebido_em: string; topic: string; appKey: string; ping: boolean };
+function registrarWebhook(info: WebhookLog) {
+  const g = globalThis as unknown as { __omieWebhookLog?: WebhookLog[] };
+  if (!g.__omieWebhookLog) g.__omieWebhookLog = [];
+  g.__omieWebhookLog.unshift(info);
+  if (g.__omieWebhookLog.length > 30) g.__omieWebhookLog.length = 30;
+}
+
 // ====================== ROUTE ======================
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+
+    registrarWebhook({ recebido_em: new Date().toISOString(), topic: String(body.topic || (body.ping ? "ping" : "")), appKey: String(body.appKey || body.app_key || ""), ping: body.ping === "omie" });
 
     // Ping de validacao do Omie
     if (body.ping === "omie") {

@@ -198,10 +198,16 @@ async function handler(req: NextRequest) {
 
       let pag = 1, totPag = 1, processados = 0;
       while (pag <= totPag && processados < limite) {
-        const r: any = await omieCall("/produtos/pedido/", "ListarPedidos", {
-          pagina: pag, registros_por_pagina: 100,
-          filtrar_por_data_de: fmt(de), filtrar_por_data_ate: fmt(hoje),
-        }, acc);
+        let r: any;
+        try {
+          r = await omieCall("/produtos/pedido/", "ListarPedidos", {
+            pagina: pag, registros_por_pagina: 100,
+            filtrar_por_data_de: fmt(de), filtrar_por_data_ate: fmt(hoje),
+          }, acc);
+        } catch (e: any) {
+          if (String(e?.message || "").toLowerCase().includes("não existem registros")) break;
+          throw e;
+        }
         totPag = r?.total_de_paginas || 1;
 
         for (const pv of r?.pedido_venda_produto || []) {

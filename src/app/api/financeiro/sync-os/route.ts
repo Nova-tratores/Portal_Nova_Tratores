@@ -148,14 +148,14 @@ function condicao(datas: string[]) {
 
 async function handler(req: NextRequest) {
   const limite = parseInt(req.nextUrl.searchParams.get("limite") || "300");
-  const dias = parseInt(req.nextUrl.searchParams.get("dias") || "45");
+  // Janela de busca por data de CADASTRO da OS (larga, pra pegar OS antigas faturadas agora).
+  // O corte de "de agora em diante" é aplicado pela data de FATURAMENTO (dDtFat) abaixo.
+  const dias = parseInt(req.nextUrl.searchParams.get("dias") || "120");
   const dryRun = req.nextUrl.searchParams.get("dryRun") === "1" || req.nextUrl.searchParams.get("dry") === "1";
-  const desde = req.nextUrl.searchParams.get("desde") || DATA_CORTE; // override de corte p/ testes
+  const desde = req.nextUrl.searchParams.get("desde") || DATA_CORTE; // corte por data de faturamento
 
   const hoje = new Date();
-  let de = new Date(hoje.getTime() - dias * 86400000);
-  const corte = new Date(`${desde}T00:00:00`);
-  if (de < corte) de = corte;
+  const de = new Date(hoje.getTime() - dias * 86400000);
   const fmt = (d: Date) => `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 
   const relatorio: any[] = [];
@@ -169,10 +169,17 @@ async function handler(req: NextRequest) {
 
       let pag = 1, totPag = 1, processadas = 0;
       while (pag <= totPag && processadas < limite) {
-        const r: any = await omieCall("/servicos/os/", "ListarOS", {
-          pagina: pag, registros_por_pagina: 100,
-          filtrar_por_data_de: fmt(de), filtrar_por_data_ate: fmt(hoje),
-        }, acc);
+        let r: any;
+        try {
+          r = await omieCall("/servicos/os/", "ListarOS", {
+            pagina: pag, registros_por_pagina: 100,
+            filtrar_por_data_de: fmt(de), filtrar_por_data_ate: fmt(hoje),
+          }, acc);
+        } catch (e: any) {
+          // Omie lança erro quando a faixa não tem registros — trata como "vazio"
+          if (String(e?.message || "").toLowerCase().includes("não existem registros")) break;
+          throw e;
+        }
         totPag = r?.total_de_paginas || 1;
 
         for (const os of r?.osCadastro || []) {
