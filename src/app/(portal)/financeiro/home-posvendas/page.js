@@ -81,9 +81,9 @@ function HomePosVendasContent() {
       const out = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(out.error || 'Falha na sincronização');
       const det = Object.entries(out.por_empresa || {})
-        .map(([emp, v]) => `${emp}: faturadas ${v.faturadas ?? '-'} / com NFS-e ${v.com_nfse ?? '-'} / candidatas ${v.candidatas ?? '-'} / aguardando peça ${v.aguardandoPV ?? '-'}`)
+        .map(([emp, v]) => `${emp}:\n  faturadas ${v.faturadas ?? '-'} | no período ${v.no_periodo ?? '-'}\n  com NFS-e ${v.com_nfse ?? '-'} | aguardando NFS-e ${v.aguardando_nfse ?? '-'}\n  candidatas ${v.candidatas ?? '-'} | aguardando peça ${v.aguardandoPV ?? '-'}`)
         .join('\n');
-      alert(`Sincronização de OS (Omie):\n\nNovos cards criados: ${out.criados}\nJá existiam: ${out.jaExistiam}\nAguardando peça (PV): ${out.aguardandoPV ?? 0}\nOS candidatas: ${out.candidatas}\n\nPor empresa:\n${det}`);
+      alert(`Sincronização de OS (Omie):\n\nNovos cards criados: ${out.criados}\nJá existiam: ${out.jaExistiam}\nOS candidatas: ${out.candidatas}\n\nPor empresa:\n${det}`);
       carregarDados();
     } catch (e) { alert('Erro ao sincronizar: ' + e.message); }
     finally { setSincOS(false); }

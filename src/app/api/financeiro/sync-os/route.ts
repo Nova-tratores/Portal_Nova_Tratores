@@ -118,14 +118,17 @@ async function baixarEAnexar(url: string, path: string): Promise<string | null> 
   } catch { return null; }
 }
 
-// NFS-e da OS (número já vem do ListarOS; aqui pega o PDF via StatusOS)
-async function nfseLinkOS(codOS: number, numOS: string, empKey: string, acc: Acc): Promise<string | null> {
+// NFS-e da OS via StatusOS (número + PDF). O ListarOS NÃO traz o número confiável.
+async function nfseDaOS(codOS: number, numOS: string, empKey: string, acc: Acc): Promise<{ num: string; url: string | null }> {
   try {
     const st: any = await omieCall("/servicos/os/", "StatusOS", { nCodOS: codOS }, acc);
     const nfse = (st?.ListaRpsNfse || [])[0];
-    const danfe = nfse?.danfe || nfse?.cUrlNfse || "";
-    return danfe ? await baixarEAnexar(danfe, `os/${empKey}/os_${numOS}/nfse_${numOS}.pdf`) : null;
-  } catch { return null; }
+    if (!nfse) return { num: "", url: null };
+    const num = String(nfse.nNfse || "");
+    const danfe = nfse.danfe || nfse.cUrlNfse || "";
+    const url = danfe ? await baixarEAnexar(danfe, `os/${empKey}/os_${numOS}/nfse_${num || numOS}.pdf`) : null;
+    return { num, url };
+  } catch { return { num: "", url: null }; }
 }
 
 // NF-e do PV (peça): número + PDF via StatusPedido
@@ -159,16 +162,18 @@ async function handler(req: NextRequest) {
   const fmt = (d: Date) => `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 
   const relatorio: any[] = [];
-  const porEmpresa: Record<string, { faturadas: number; com_nfse: number; candidatas: number; criados: number; jaExistiam: number; semPedido: number; aguardandoPV: number }> = {};
+  const porEmpresa: Record<string, { faturadas: number; no_periodo: number; com_nfse: number; aguardando_nfse: number; candidatas: number; criados: number; jaExistiam: number; semPedido: number; aguardandoPV: number }> = {};
   let criados = 0, jaExistiam = 0, candidatas = 0, semPedido = 0, aguardandoPV = 0;
+  const MAX_STATUS = parseInt(req.nextUrl.searchParams.get("maxStatus") || "120"); // teto de chamadas StatusOS por empresa
 
   try {
     for (const acc of ACCS) {
-      porEmpresa[acc.name] = { faturadas: 0, com_nfse: 0, candidatas: 0, criados: 0, jaExistiam: 0, semPedido: 0, aguardandoPV: 0 };
+      porEmpresa[acc.name] = { faturadas: 0, no_periodo: 0, com_nfse: 0, aguardando_nfse: 0, candidatas: 0, criados: 0, jaExistiam: 0, semPedido: 0, aguardandoPV: 0 };
       const empKey = acc.name.replace(/ /g, "_");
+      let statusCalls = 0;
 
       let pag = 1, totPag = 1, processadas = 0;
-      while (pag <= totPag && processadas < limite) {
+      while (pag <= totPag && processadas < limite && statusCalls < MAX_STATUS) {
         let r: any;
         try {
           r = await omieCall("/servicos/os/", "ListarOS", {
@@ -190,15 +195,21 @@ async function handler(req: NextRequest) {
           if (info.cFaturada !== "S" || info.cCancelada === "S") continue;
           porEmpresa[acc.name].faturadas++;
 
-          const numNFSe = info.nNumNFSe ? String(info.nNumNFSe) : "";
-          if (!numNFSe) continue; // precisa ter NFS-e emitida
-          porEmpresa[acc.name].com_nfse++;
-
-          // corte por data de faturamento
+          // corte por data de faturamento (antes de chamar StatusOS, pra não estourar a API)
           const dtFatISO = dataBRtoISO(info.dDtFat);
           if (dtFatISO && dtFatISO < desde) continue;
+          porEmpresa[acc.name].no_periodo++;
+          if (statusCalls >= MAX_STATUS) break;
 
           const numOS = String(cab.cNumOS);
+          // NFS-e via StatusOS (o ListarOS não traz o número confiável)
+          statusCalls++;
+          const nfse = await nfseDaOS(cab.nCodOS, numOS, empKey, acc);
+          if (!nfse.num) { porEmpresa[acc.name].aguardando_nfse++; continue; } // NFS-e ainda não emitida
+          porEmpresa[acc.name].com_nfse++;
+          const numNFSe = nfse.num;
+          const anexoServico = nfse.url;
+
           const pedCli = cab.cNumPedCli || adic.cNumPedido || adic.cNumContrato || "";
           candidatas++; porEmpresa[acc.name].candidatas++;
 
@@ -229,8 +240,7 @@ async function handler(req: NextRequest) {
           const datasFinais = datasDiferem ? osParc.datas : (pvParc.datas.length ? pvParc.datas : osParc.datas);
           const cond = condicao(datasFinais);
 
-          // NFs (links em PDF) e números
-          const anexoServico = await nfseLinkOS(cab.nCodOS, numOS, empKey, acc);
+          // NF de peça (PV): número + PDF via StatusPedido
           const nfPeca = pvNum ? await nfePedido(pvNum, empKey, accPV) : { num: "", url: null };
           const numNFPeca = nfPeca.num || pvParc.numNF || "";
 
