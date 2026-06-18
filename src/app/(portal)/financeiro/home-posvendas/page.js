@@ -80,7 +80,10 @@ function HomePosVendasContent() {
       const r = await fetch('/api/financeiro/sync-os', { method: 'POST' });
       const out = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(out.error || 'Falha na sincronização');
-      alert(`Sincronização de OS (Omie):\n\nNovos cards criados: ${out.criados}\nJá existiam: ${out.jaExistiam}\nOS candidatas: ${out.candidatas}`);
+      const det = Object.entries(out.por_empresa || {})
+        .map(([emp, v]) => `${emp}: faturadas ${v.faturadas ?? '-'} / com NFS-e ${v.com_nfse ?? '-'} / candidatas ${v.candidatas ?? '-'} / aguardando peça ${v.aguardandoPV ?? '-'}`)
+        .join('\n');
+      alert(`Sincronização de OS (Omie):\n\nNovos cards criados: ${out.criados}\nJá existiam: ${out.jaExistiam}\nAguardando peça (PV): ${out.aguardandoPV ?? 0}\nOS candidatas: ${out.candidatas}\n\nPor empresa:\n${det}`);
       carregarDados();
     } catch (e) { alert('Erro ao sincronizar: ' + e.message); }
     finally { setSincOS(false); }
