@@ -23,6 +23,20 @@ const DATA_CORTE = process.env.SYNC_FINANCEIRO_DESDE || "2026-06-18";
 // user_id "do sistema" para registrar criações automáticas no audit_log
 const SISTEMA_UID = "00000000-0000-0000-0000-000000000000";
 
+// Notifica (admins + quem tem acesso ao financeiro) que um card foi criado pelo sistema
+async function notificarCard(origin: string, setor: string, cliente: string) {
+  try {
+    await fetch(`${origin}/api/financeiro/notificar`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        titulo: `Novo card no financeiro — ${setor}`,
+        descricao: `Gerado automaticamente do Omie${cliente ? ` — ${cliente}` : ""}.`,
+        link: "/financeiro",
+      }),
+    });
+  } catch { /* ignore */ }
+}
+
 async function omieCall(ep: string, call: string, param: Record<string, unknown>, acc: Acc): Promise<any> {
   const res = await fetch(`${OMIE_BASE}${ep}`, {
     method: "POST", headers: { "Content-Type": "application/json" },
@@ -209,6 +223,7 @@ async function handler(req: NextRequest) {
               entidade: "Chamado_NF", entidade_id: String(ins.id), entidade_label: `NF #${ins.id} - ${os.cliente_nome || ""}`,
               detalhes: { origem: "omie_os", os: os.num_os, pedido: pvNum, empresa: acc.name, valor },
             }]);
+            await notificarCard(req.nextUrl.origin, "Pós-Vendas", os.cliente_nome || "");
           } else if (error) relatorio[relatorio.length - 1].erro = error.message;
         }
         await new Promise(r => setTimeout(r, 220));
