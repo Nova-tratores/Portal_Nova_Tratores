@@ -91,16 +91,53 @@ async function parcelasPV(numPedido: string, codPedido: number | null, acc: Acc)
   return { datas, valor, numNF, danfe: null, codCli, faturado, existe: !!pv };
 }
 
-async function cnpjCliente(codCli: number | null, acc: Acc): Promise<string> {
-  if (!codCli) return "";
+async function dadosCliente(codCli: number | null, acc: Acc): Promise<{ nome: string; cnpj: string }> {
+  if (!codCli) return { nome: "", cnpj: "" };
   try {
-    const { data } = await supabase.from("portal_nt_clientes_cadastro_omie").select("cnpj_cpf").eq("cod_cli", codCli).maybeSingle();
-    if (data?.cnpj_cpf) return String(data.cnpj_cpf).trim();
+    const { data } = await supabase.from("portal_nt_clientes_cadastro_omie").select("nome_fantasia, razao_social, cnpj_cpf").eq("cod_cli", codCli).maybeSingle();
+    if (data) return { nome: (data.nome_fantasia || data.razao_social || "").trim(), cnpj: String(data.cnpj_cpf || "").trim() };
   } catch { /* ignore */ }
   try {
     const c: any = await omieCall("/geral/clientes/", "ConsultarCliente", { codigo_cliente_omie: codCli }, acc);
-    return String(c?.cnpj_cpf || "").trim();
-  } catch { return ""; }
+    return { nome: String(c?.nome_fantasia || c?.razao_social || "").trim(), cnpj: String(c?.cnpj_cpf || "").trim() };
+  } catch { return { nome: "", cnpj: "" }; }
+}
+
+const BUCKET = "anexos";
+async function baixarEAnexar(url: string, path: string): Promise<string | null> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const buffer = Buffer.from(await res.arrayBuffer());
+    if (buffer.length < 100) return null;
+    const ehPdf = buffer.slice(0, 5).toString("latin1").startsWith("%PDF");
+    const { error } = await supabase.storage.from(BUCKET).upload(path, buffer, { contentType: ehPdf ? "application/pdf" : (res.headers.get("content-type") || "application/octet-stream"), upsert: true });
+    if (error) return null;
+    const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(path);
+    return pub.publicUrl;
+  } catch { return null; }
+}
+
+// NFS-e da OS (número já vem do ListarOS; aqui pega o PDF via StatusOS)
+async function nfseLinkOS(codOS: number, numOS: string, empKey: string, acc: Acc): Promise<string | null> {
+  try {
+    const st: any = await omieCall("/servicos/os/", "StatusOS", { nCodOS: codOS }, acc);
+    const nfse = (st?.ListaRpsNfse || [])[0];
+    const danfe = nfse?.danfe || nfse?.cUrlNfse || "";
+    return danfe ? await baixarEAnexar(danfe, `os/${empKey}/os_${numOS}/nfse_${numOS}.pdf`) : null;
+  } catch { return null; }
+}
+
+// NF-e do PV (peça): número + PDF via StatusPedido
+async function nfePedido(numPedido: string, empKey: string, acc: Acc): Promise<{ num: string; url: string | null }> {
+  try {
+    const st: any = await omieCall("/produtos/pedido/", "StatusPedido", { numero_pedido: numPedido }, acc);
+    const nfe = (st?.ListaNfe || [])[0];
+    if (!nfe) return { num: "", url: null };
+    const num = String(nfe.numero_nfe || "");
+    const url = nfe.danfe ? await baixarEAnexar(nfe.danfe, `os/${empKey}/pv_${numPedido}/danfe_${num || numPedido}.pdf`) : null;
+    return { num, url };
+  } catch { return { num: "", url: null }; }
 }
 
 function condicao(datas: string[]) {
@@ -111,134 +148,138 @@ function condicao(datas: string[]) {
 
 async function handler(req: NextRequest) {
   const limite = parseInt(req.nextUrl.searchParams.get("limite") || "300");
+  const dias = parseInt(req.nextUrl.searchParams.get("dias") || "45");
   const dryRun = req.nextUrl.searchParams.get("dryRun") === "1" || req.nextUrl.searchParams.get("dry") === "1";
   const desde = req.nextUrl.searchParams.get("desde") || DATA_CORTE; // override de corte p/ testes
 
+  const hoje = new Date();
+  let de = new Date(hoje.getTime() - dias * 86400000);
+  const corte = new Date(`${desde}T00:00:00`);
+  if (de < corte) de = corte;
+  const fmt = (d: Date) => `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+
   const relatorio: any[] = [];
-  const porEmpresa: Record<string, { candidatas: number; criados: number; jaExistiam: number; semPedido: number; aguardandoPV: number }> = {};
-  const diagnostico: Record<string, any> = {};
+  const porEmpresa: Record<string, { faturadas: number; com_nfse: number; candidatas: number; criados: number; jaExistiam: number; semPedido: number; aguardandoPV: number }> = {};
   let criados = 0, jaExistiam = 0, candidatas = 0, semPedido = 0, aguardandoPV = 0;
 
   try {
     for (const acc of ACCS) {
-      porEmpresa[acc.name] = { candidatas: 0, criados: 0, jaExistiam: 0, semPedido: 0, aguardandoPV: 0 };
+      porEmpresa[acc.name] = { faturadas: 0, com_nfse: 0, candidatas: 0, criados: 0, jaExistiam: 0, semPedido: 0, aguardandoPV: 0 };
+      const empKey = acc.name.replace(/ /g, "_");
 
-      // Diagnóstico: onde a contagem zera (só no dryRun)
-      if (dryRun) {
-        const base = () => supabase.from("portal_nt_clientes_os").select("id", { count: "exact", head: true }).eq("empresa", acc.name).eq("faturada", true).eq("cancelada", false);
-        const cFat = (await base()).count || 0;
-        const cNF = (await base().not("num_nf", "is", null).neq("num_nf", "")).count || 0;
-        const cPed = (await base().not("num_pedido_cli", "is", null).neq("num_pedido_cli", "")).count || 0;
-        const cPer = (await base().not("num_nf", "is", null).neq("num_nf", "").not("num_pedido_cli", "is", null).neq("num_pedido_cli", "").gte("data_faturamento", desde)).count || 0;
-        diagnostico[acc.name] = { faturadas: cFat, com_nfse: cNF, com_pedido_cliente: cPed, completas_no_periodo: cPer };
-      }
+      let pag = 1, totPag = 1, processadas = 0;
+      while (pag <= totPag && processadas < limite) {
+        const r: any = await omieCall("/servicos/os/", "ListarOS", {
+          pagina: pag, registros_por_pagina: 100,
+          filtrar_por_data_de: fmt(de), filtrar_por_data_ate: fmt(hoje),
+        }, acc);
+        totPag = r?.total_de_paginas || 1;
 
-      // OS faturadas (a partir do corte), com NFS-e e com "Nº do Pedido do Cliente"
-      const { data: oss } = await supabase.from("portal_nt_clientes_os")
-        .select("num_os, cod_os, empresa, cod_cli, cliente_nome, num_pedido_cli, num_nf, link_nf, valor_total")
-        .eq("empresa", acc.name).eq("faturada", true).eq("cancelada", false)
-        .not("num_nf", "is", null).neq("num_nf", "")
-        .not("num_pedido_cli", "is", null).neq("num_pedido_cli", "")
-        .gte("data_faturamento", desde)
-        .order("data_faturamento", { ascending: false })
-        .limit(limite);
+        for (const os of r?.osCadastro || []) {
+          processadas++;
+          const cab = os?.Cabecalho || {};
+          const info = os?.InfoCadastro || {};
+          const adic = os?.InformacoesAdicionais || {};
+          if (info.cFaturada !== "S" || info.cCancelada === "S") continue;
+          porEmpresa[acc.name].faturadas++;
 
-      for (const os of oss || []) {
-        candidatas++;
-        porEmpresa[acc.name].candidatas++;
+          const numNFSe = info.nNumNFSe ? String(info.nNumNFSe) : "";
+          if (!numNFSe) continue; // precisa ter NFS-e emitida
+          porEmpresa[acc.name].com_nfse++;
 
-        // Pedido de venda (número + empresa) a partir do campo da OS
-        const { num: pvNum, empresa: pvEmp } = parsePedidoCliente(os.num_pedido_cli, acc.name);
-        const accPV = accPorNome(pvEmp);
+          // corte por data de faturamento
+          const dtFatISO = dataBRtoISO(info.dDtFat);
+          if (dtFatISO && dtFatISO < desde) continue;
 
-        // idempotência: já existe card desta OS? ou um card de peças do mesmo PV?
-        const { data: jaOS } = await supabase.from("Chamado_NF").select("id").eq("omie_num_os", String(os.num_os)).eq("omie_empresa", acc.name).limit(1);
-        let jaPV: any[] | null = null;
-        if (pvNum) { const { data } = await supabase.from("Chamado_NF").select("id").eq("omie_num_pedido", pvNum).eq("omie_empresa", pvEmp).limit(1); jaPV = data; }
-        if ((jaOS && jaOS.length) || (jaPV && jaPV.length)) { jaExistiam++; porEmpresa[acc.name].jaExistiam++; continue; }
+          const numOS = String(cab.cNumOS);
+          const pedCli = cab.cNumPedCli || adic.cNumPedido || adic.cNumContrato || "";
+          candidatas++; porEmpresa[acc.name].candidatas++;
 
-        // Dados do PV no banco (NF de peça, valor, código, faturado)
-        let pvRow: any = null;
-        if (pvNum) {
-          const { data } = await supabase.from("portal_nt_clientes_pv")
-            .select("num_pedido, cod_pedido, numero_nf, link_nf, valor_total, cod_cli, faturado, cancelado")
-            .eq("empresa", pvEmp).eq("num_pedido", pvNum).maybeSingle();
-          pvRow = data;
-        }
+          // Pedido de venda vinculado (número + empresa) a partir do campo da OS
+          const { num: pvNum, empresa: pvEmp } = parsePedidoCliente(pedCli, acc.name);
+          const accPV = accPorNome(pvEmp);
 
-        // Parcelas/condição: PV (principal) e OS (prioriza se as datas diferem)
-        const pvParc = pvNum ? await parcelasPV(pvNum, pvRow?.cod_pedido ?? null, accPV) : { datas: [], valor: 0, numNF: "", danfe: null, codCli: null, faturado: false, existe: false };
+          // idempotência: card desta OS, ou card de peças do mesmo PV
+          const { data: jaOS } = await supabase.from("Chamado_NF").select("id").eq("omie_num_os", numOS).eq("omie_empresa", acc.name).limit(1);
+          let jaPV: any[] | null = null;
+          if (pvNum) { const { data } = await supabase.from("Chamado_NF").select("id").eq("omie_num_pedido", pvNum).eq("omie_empresa", pvEmp).limit(1); jaPV = data; }
+          if ((jaOS && jaOS.length) || (jaPV && jaPV.length)) { jaExistiam++; porEmpresa[acc.name].jaExistiam++; continue; }
 
-        // VÍNCULO: se a OS referencia um Pedido de Venda, esse PV TEM que estar faturado.
-        // Só gera o card quando AS DUAS notas (serviço + peça) já saíram.
-        if (pvNum) {
-          const pvFaturado = pvRow ? pvRow.faturado === true : pvParc.faturado;
-          if (!pvFaturado) {
+          // VÍNCULO: se a OS aponta um Pedido de Venda no campo, esse PV PRECISA estar faturado.
+          // Se faturou só a OS e a peça (PV) ainda não, NÃO cria — espera as duas notas.
+          const pvParc = pvNum ? await parcelasPV(pvNum, null, accPV) : { datas: [] as string[], valor: 0, numNF: "", danfe: null, codCli: null, faturado: false, existe: false };
+          if (pvNum && !pvParc.faturado) {
             aguardandoPV++; porEmpresa[acc.name].aguardandoPV++;
-            relatorio.push({ empresa: acc.name, os: os.num_os, pv: pvNum, pv_empresa: pvEmp, aguardando: "PV ainda não faturado" });
+            relatorio.push({ empresa: acc.name, os: numOS, pv: pvNum, pv_empresa: pvEmp, aguardando: "PV (peça) ainda não faturado" });
             continue;
           }
+          if (!pvNum) { semPedido++; porEmpresa[acc.name].semPedido++; }
+
+          // Parcelas: PV (principal) e OS (prioriza se as datas diferem — "Número de Parcelas" da OS)
+          const osParc = await parcelasOS(cab.nCodOS, acc);
+          const datasDiferem = osParc.datas.length > 0 &&
+            (osParc.datas.length !== pvParc.datas.length || JSON.stringify(osParc.datas) !== JSON.stringify(pvParc.datas));
+          const datasFinais = datasDiferem ? osParc.datas : (pvParc.datas.length ? pvParc.datas : osParc.datas);
+          const cond = condicao(datasFinais);
+
+          // NFs (links em PDF) e números
+          const anexoServico = await nfseLinkOS(cab.nCodOS, numOS, empKey, acc);
+          const nfPeca = pvNum ? await nfePedido(pvNum, empKey, accPV) : { num: "", url: null };
+          const numNFPeca = nfPeca.num || pvParc.numNF || "";
+
+          // Valores: soma NF serviço (OS) + NF peça (PV)
+          const valorOS = Number(cab.nValorTotal || 0);
+          const valorPV = Number(pvParc.valor || 0);
+          const valor = valorOS + valorPV;
+
+          // Cliente (nome + CNPJ)
+          const cli = await dadosCliente(cab.nCodCli, acc);
+
+          const row: Record<string, unknown> = {
+            nom_cliente: cli.nome,
+            cnpj_cliente: cli.cnpj,
+            valor_servico: valor,
+            num_nf_servico: numNFSe,
+            anexo_nf_servico: anexoServico,
+            num_nf_peca: numNFPeca,
+            anexo_nf_peca: nfPeca.url,
+            forma_pagamento: cond.forma_pagamento,
+            qtd_parcelas: cond.qtd_parcelas,
+            vencimento_boleto: cond.vencimento_boleto,
+            datas_parcelas: cond.datas_parcelas,
+            setor: "Financeiro",
+            status: "gerar_boleto",
+            tarefa: "Gerar Boleto",
+            setor_destino: "oficina",
+            origem: "omie_os",
+            omie_num_os: numOS,
+            omie_num_pedido: pvNum || null,
+            omie_empresa: acc.name,
+            obs: `Gerado do Omie — OS ${numOS} (${acc.name}). Pedido cliente: ${pedCli || "(sem)"} → PV ${pvNum || "(sem)"} (${pvEmp}). Parcelas: ${datasDiferem ? "OS (priorizado)" : "PV"}.`,
+          };
+
+          relatorio.push({
+            empresa: acc.name, os: numOS, pedido_cliente: pedCli, pv: pvNum, pv_empresa: pvEmp,
+            nf_servico: numNFSe, nf_peca: numNFPeca, valor_os: valorOS, valor_pv: valorPV, valor_total: valor,
+            parcelas_de: datasDiferem ? "OS" : "PV", ...cond,
+          });
+
+          if (!dryRun) {
+            const { data: ins, error } = await supabase.from("Chamado_NF").insert([row]).select("id").maybeSingle();
+            if (!error && ins) {
+              criados++; porEmpresa[acc.name].criados++;
+              await supabase.from("audit_log").insert([{
+                user_id: SISTEMA_UID, user_nome: "Sistema (Omie)", sistema: "financeiro", acao: "criar",
+                entidade: "Chamado_NF", entidade_id: String(ins.id), entidade_label: `NF #${ins.id} - ${cli.nome || ""}`,
+                detalhes: { origem: "omie_os", os: numOS, pedido: pvNum, empresa: acc.name, valor },
+              }]);
+              await notificarCard(req.nextUrl.origin, "Pós-Vendas", cli.nome || "");
+            } else if (error) relatorio[relatorio.length - 1].erro = error.message;
+          }
+          await new Promise(r => setTimeout(r, 220));
         }
-        const osParc = await parcelasOS(os.cod_os, acc);
-        const datasDiferem = osParc.datas.length > 0 &&
-          (osParc.datas.length !== pvParc.datas.length || JSON.stringify(osParc.datas) !== JSON.stringify(pvParc.datas));
-        const datasFinais = datasDiferem ? osParc.datas : (pvParc.datas.length ? pvParc.datas : osParc.datas);
-        const cond = condicao(datasFinais);
-
-        // Valores: soma NF serviço (OS) + NF peça (PV)
-        const valorOS = Number(os.valor_total || 0);
-        const valorPV = Number(pvRow?.valor_total ?? pvParc.valor ?? 0);
-        const valor = valorOS + valorPV;
-
-        const numNFPeca = String(pvRow?.numero_nf || pvParc.numNF || "");
-        const anexoPeca = pvRow?.link_nf || null;
-        if (!pvNum || (!pvRow && !pvParc.datas.length && !numNFPeca)) { semPedido++; porEmpresa[acc.name].semPedido++; }
-
-        const codCli = os.cod_cli || pvRow?.cod_cli || pvParc.codCli || null;
-        const cnpj = await cnpjCliente(codCli, acc);
-
-        const row: Record<string, unknown> = {
-          nom_cliente: os.cliente_nome || "",
-          cnpj_cliente: cnpj,
-          valor_servico: valor,
-          num_nf_servico: String(os.num_nf || ""),
-          anexo_nf_servico: os.link_nf || null,
-          num_nf_peca: numNFPeca,
-          anexo_nf_peca: anexoPeca,
-          forma_pagamento: cond.forma_pagamento,
-          qtd_parcelas: cond.qtd_parcelas,
-          vencimento_boleto: cond.vencimento_boleto,
-          datas_parcelas: cond.datas_parcelas,
-          setor: "Financeiro",
-          status: "gerar_boleto",
-          tarefa: "Gerar Boleto",
-          setor_destino: "oficina",
-          origem: "omie_os",
-          omie_num_os: String(os.num_os),
-          omie_num_pedido: pvNum || null,
-          omie_empresa: acc.name,
-          obs: `Gerado do Omie — OS ${os.num_os} (${acc.name}). Pedido cliente: ${os.num_pedido_cli} → PV ${pvNum || "?"} (${pvEmp}). Parcelas: ${datasDiferem ? "OS (priorizado)" : "PV"}.`,
-        };
-
-        relatorio.push({
-          empresa: acc.name, os: os.num_os, pedido_cliente: os.num_pedido_cli, pv: pvNum, pv_empresa: pvEmp,
-          nf_servico: os.num_nf, nf_peca: numNFPeca, valor_os: valorOS, valor_pv: valorPV, valor_total: valor,
-          parcelas_de: datasDiferem ? "OS" : "PV", ...cond,
-        });
-
-        if (!dryRun) {
-          const { data: ins, error } = await supabase.from("Chamado_NF").insert([row]).select("id").maybeSingle();
-          if (!error && ins) {
-            criados++; porEmpresa[acc.name].criados++;
-            await supabase.from("audit_log").insert([{
-              user_id: SISTEMA_UID, user_nome: "Sistema (Omie)", sistema: "financeiro", acao: "criar",
-              entidade: "Chamado_NF", entidade_id: String(ins.id), entidade_label: `NF #${ins.id} - ${os.cliente_nome || ""}`,
-              detalhes: { origem: "omie_os", os: os.num_os, pedido: pvNum, empresa: acc.name, valor },
-            }]);
-            await notificarCard(req.nextUrl.origin, "Pós-Vendas", os.cliente_nome || "");
-          } else if (error) relatorio[relatorio.length - 1].erro = error.message;
-        }
-        await new Promise(r => setTimeout(r, 220));
+        pag++;
+        if (pag <= totPag) await new Promise(r => setTimeout(r, 300));
       }
     }
 
@@ -246,7 +287,6 @@ async function handler(req: NextRequest) {
       sucesso: true, dryRun, desde,
       candidatas, criados, jaExistiam, semPedidoVinculado: semPedido, aguardandoPV,
       por_empresa: porEmpresa,
-      diagnostico: dryRun ? diagnostico : undefined,
       itens: relatorio,
     });
   } catch (e) {
