@@ -4,8 +4,10 @@ import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
+import { usePermissoes } from '@/hooks/usePermissoes'
 import { useAuditLog } from '@/hooks/useAuditLog'
 import { notificarAdminsClient } from '@/hooks/useNotificarAdmins'
+import { autoEnviarENotificar } from '@/lib/financeiro/envioBoleto'
 import { marcarMinhaAcao } from '@/components/financeiro/NotificationSystem'
 import { EnviarParaOmieBox } from '@/components/financeiro/OmieContaPagar'
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
@@ -79,7 +81,9 @@ export default function HomeFinanceiro() {
 
 function HomeFinanceiroContent() {
  const { userProfile } = useAuth();
+ const { isAdmin } = usePermissoes(userProfile?.id);
  const { log: auditLog } = useAuditLog();
+ const isFinanceiro = userProfile?.funcao === 'Financeiro'; // financeiro pode marcar pago sem comprovante
  const [showNovoMenu, setShowNovoMenu] = useState(false);
  const [tarefaSelecionada, setTarefaSelecionada] = useState(null);
  const [listaBoletos, setListaBoletos] = useState([]); const [listaSemBoleto, setListaSemBoleto] = useState([]); const [listaPagar, setListaPagar] = useState([]); const [listaRH, setListaRH] = useState([]);
@@ -194,6 +198,19 @@ function HomeFinanceiroContent() {
  };
  const getCardTable = (t) => t.gTipo === 'pagar' ? 'finan_pagar' : t.gTipo === 'receber' ? 'finan_receber' : t.gTipo === 'rh' ? 'finan_rh' : 'Chamado_NF';
 
+ // Excluir card — somente admin
+ const excluirCard = async (t) => {
+   if (!isAdmin || !t) return;
+   if (!window.confirm(`Excluir definitivamente "${getCardLabel(t)}"? Esta ação não pode ser desfeita.`)) return;
+   const table = getCardTable(t);
+   const { error } = await supabase.from(table).delete().eq('id', t.id);
+   if (error) { alert('Erro ao excluir: ' + error.message); return; }
+   auditLog({ sistema: 'financeiro', acao: 'excluir', entidade: table, entidade_id: String(t.id), entidade_label: getCardLabel(t) });
+   notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} excluiu ${getCardLabel(t)}`, null, `/financeiro/home-financeiro`)
+   setTarefaSelecionada(null);
+   carregarDados();
+ };
+
  // Histórico (audit_log) do card aberto — o que cada usuário fez NELE
  useEffect(() => {
    if (!tarefaSelecionada) { setCardLogs([]); return; }
@@ -248,6 +265,7 @@ function HomeFinanceiroContent() {
       if (updateData.status === 'enviar_cliente') {
         notificarMovimento('Chamado_NF', t, 'enviar_cliente', `${getCardLabel(t)} — Boleto anexado, enviar ao cliente`);
         notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} anexou boleto em ${getCardLabel(t)}`, `Card movido para Enviar ao Cliente`, `/financeiro/home-financeiro`)
+        dispararEnvioAuto({ ...t, ...updateData });
         alert("Boleto anexado! Card movido para Enviar ao Cliente.");
       } else {
         notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} atualizou arquivo em ${getCardLabel(t)}`, `Campo: ${field}`, `/financeiro/home-financeiro`)
@@ -277,8 +295,19 @@ function HomeFinanceiroContent() {
 
     auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'enviar_cliente', acao_desc: 'Boleto gerado e enviado ao Pós-Vendas' } });
     notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} gerou boleto — ${getCardLabel(t)}`, `Enviado ao Pós-Vendas`, `/financeiro/home-financeiro`)
+    dispararEnvioAuto({ ...t, status: 'enviar_cliente', anexo_boleto: data.publicUrl });
     alert("Tarefa enviada ao Pós-Vendas!"); setTarefaSelecionada(null); carregarDados();
   } catch (err) { alert("Erro: " + err.message); }
+ };
+
+ // Envio automático do boleto conforme a preferência salva — notifica sucesso/erro
+ const dispararEnvioAuto = (card) => {
+   autoEnviarENotificar({
+     card,
+     remetente: userProfile?.nome,
+     userId: userProfile?.id,
+     audit: ({ acao, detalhes }) => auditLog({ sistema: 'financeiro', acao, entidade: 'Chamado_NF', entidade_id: String(card.id), entidade_label: getCardLabel(card), detalhes }),
+   });
  };
 
  const handleMoverParaPago = async (t) => {
@@ -550,7 +579,12 @@ function HomeFinanceiroContent() {
 
       <div style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--portal-bg-card)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', borderBottom: '1px solid var(--portal-border)', flexShrink: 0 }}>
         <button onClick={() => setTarefaSelecionada(null)} className="btn-back-light"><ArrowLeft size={16}/> VOLTAR AO PAINEL</button>
-        <button onClick={() => setTarefaSelecionada(null)} style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', cursor:'pointer', padding:'8px 12px', display: 'flex', alignItems: 'center', gap: '6px', color: '#dc2626', fontSize: '13px', fontWeight: '600', transition: '0.2s' }} title="Fechar"><X size={18}/> Fechar</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {isAdmin && (
+            <button onClick={() => excluirCard(tarefaSelecionada)} style={{ background: '#dc2626', border: '1px solid #dc2626', borderRadius: '10px', cursor:'pointer', padding:'8px 12px', display: 'flex', alignItems: 'center', gap: '6px', color: '#fff', fontSize: '13px', fontWeight: '600', transition: '0.2s' }} title="Excluir card (somente admin)"><Trash2 size={16}/> Excluir</button>
+          )}
+          <button onClick={() => setTarefaSelecionada(null)} style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', cursor:'pointer', padding:'8px 12px', display: 'flex', alignItems: 'center', gap: '6px', color: '#dc2626', fontSize: '13px', fontWeight: '600', transition: '0.2s' }} title="Fechar"><X size={18}/> Fechar</button>
+        </div>
       </div>
       <div style={{ padding: '30px 60px 60px', overflowY: 'auto', flex: 1, color: 'var(--portal-text)' }}>
 
@@ -882,6 +916,7 @@ function HomeFinanceiroContent() {
                               await supabase.from(table).update(updateData).eq('id', tarefaSelecionada.id);
                               if (updateData.status === 'enviar_cliente') {
                                 notificarMovimento('Chamado_NF', tarefaSelecionada, 'enviar_cliente', `${getCardLabel(tarefaSelecionada)} — Boleto anexado, enviar ao cliente`);
+                                dispararEnvioAuto({ ...tarefaSelecionada, ...updateData });
                                 alert("Boleto anexado! Card movido para Enviar ao Cliente.");
                               }
                               setTarefaSelecionada({ ...tarefaSelecionada, anexo_boleto: novasUrls.join(', '), ...(updateData.status ? { status: updateData.status } : {}) });
@@ -1004,8 +1039,8 @@ function HomeFinanceiroContent() {
                 </div>
             )}
 
-            {(isCashOrCardType || tarefaSelecionada.status === 'validar_pix' || (tarefaSelecionada.status === 'aguardando_vencimento' && (tarefaSelecionada.isTarefaPagamentoRealizado || isBoleto30))) && (
-                <button onClick={() => handleMoverParaPago(tarefaSelecionada)} style={btnSuccessBeautified}>
+            {(isCashOrCardType || tarefaSelecionada.status === 'validar_pix' || (tarefaSelecionada.status === 'aguardando_vencimento' && (tarefaSelecionada.isTarefaPagamentoRealizado || isBoleto30 || isFinanceiro))) && (
+                <button onClick={() => { if (tarefaSelecionada.isTarefaPagamentoRealizado || tarefaSelecionada.comprovante_pagamento || isBoleto30 || isCashOrCardType || window.confirm('Marcar como PAGO mesmo sem comprovante anexado?')) handleMoverParaPago(tarefaSelecionada); }} style={btnSuccessBeautified}>
                     <CheckCircle size={24}/> CONCLUÍDO-MOVER PARA PAGO
                 </button>
             )}

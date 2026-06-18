@@ -6,7 +6,7 @@ import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
 import { useAuditLog } from '@/hooks/useAuditLog'
 import { useAuth } from '@/hooks/useAuth'
 import { notificarAdminsClient } from '@/hooks/useNotificarAdmins'
-import { FileText, Calendar, CreditCard, User, Hash, CheckCircle, Upload, Paperclip, X } from 'lucide-react'
+import { FileText, Calendar, CreditCard, User, Hash, CheckCircle, Upload, Paperclip, X, Mail, MessageCircle } from 'lucide-react'
 
 export default function NovoChamadoNF() {
   const { log: auditLog } = useAuditLog()
@@ -18,10 +18,11 @@ export default function NovoChamadoNF() {
   const router = useRouter()
 
   const [formData, setFormData] = useState({
-    nom_cliente: '', valor_servico: '', num_nf_servico: '', num_nf_peca: '',
+    nom_cliente: '', cnpj_cliente: '', valor_servico: '', num_nf_servico: '', num_nf_peca: '',
     forma_pagamento: '', tarefa: '', tarefa_destinatario: '', obs: '',
     qtd_parcelas: 1
   })
+  const [prefCliente, setPrefCliente] = useState(null)   // preferência de envio do cliente selecionado
 
   const [datasParcelas, setDatasParcelas] = useState(['', '', '', '', ''])
   const [fileServico, setFileServico] = useState(null)
@@ -62,6 +63,18 @@ export default function NovoChamadoNF() {
     }, 300)
     return () => clearTimeout(t)
   }, [formData.nom_cliente, cliShow])
+
+  // Preferência de envio do boleto do cliente selecionado (puxa da tabela EnvioBoleto)
+  useEffect(() => {
+    const doc = (formData.cnpj_cliente || '').trim()
+    if (!doc) { setPrefCliente(null); return }
+    let ativo = true
+    ;(async () => {
+      const { data } = await supabase.from('EnvioBoleto').select('*').eq('cnpj_cpf', doc).maybeSingle()
+      if (ativo) setPrefCliente(data || null)
+    })()
+    return () => { ativo = false }
+  }, [formData.cnpj_cliente])
 
   const uploadFile = async (file, path) => {
     if (!file) return null
@@ -175,12 +188,21 @@ export default function NovoChamadoNF() {
                 {cliShow && cliRes.length > 0 && (
                   <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, maxHeight: '220px', overflowY: 'auto', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 50 }}>
                     {cliRes.map((c, i) => (
-                      <div key={i} onMouseDown={() => { setFormData(f => ({ ...f, nom_cliente: c.nome })); setCliShow(false); setCliRes([]); }}
+                      <div key={i} onMouseDown={() => { setFormData(f => ({ ...f, nom_cliente: c.nome, cnpj_cliente: c.documento || '' })); setCliShow(false); setCliRes([]); }}
                         style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid #f1f5f9' }}>
                         <div style={{ fontSize: '13.5px', fontWeight: '600', color: '#1e293b' }}>{c.nome}</div>
                         <div style={{ fontSize: '11.5px', color: '#94a3b8' }}>{c.documento}{c.cidade ? ` · ${c.cidade}` : ''}</div>
                       </div>
                     ))}
+                  </div>
+                )}
+                {prefCliente && (
+                  <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12.5px', color: '#16a34a', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '8px 12px' }}>
+                    {prefCliente.metodo === 'email' ? <Mail size={15} /> : <MessageCircle size={15} />}
+                    <span style={{ color: '#15803d' }}>
+                      Prefere receber por <strong>{prefCliente.metodo === 'email' ? 'Email' : 'WhatsApp'}</strong>
+                      {' · '}{prefCliente.metodo === 'email' ? (prefCliente.email || '') : (prefCliente.whatsapp || '')}
+                    </span>
                   </div>
                 )}
               </Field>

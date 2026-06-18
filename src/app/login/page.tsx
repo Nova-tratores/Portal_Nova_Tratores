@@ -304,6 +304,7 @@ export default function LoginPage() {
                     <option value="">Selecione sua função</option>
                     <option value="Financeiro">Financeiro</option>
                     <option value="Pós-Vendas">Pós-Vendas</option>
+                    <option value="Peças">Peças</option>
                     <option value="Vendas">Vendas</option>
                     <option value="Técnico">Técnico</option>
                     <option value="Diretoria">Diretoria</option>

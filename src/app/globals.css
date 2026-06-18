@@ -3910,3 +3910,14 @@ body {
 .notif-item { animation: notifIn .22s ease both; }
 .notif-item .notif-ava { transition: transform .18s ease; }
 .notif-item:hover .notif-ava { transform: scale(1.08); }
+
+/* Sem moldura/grade de foco. No mouse não mostra nada (fica só a animação de hover).
+   No teclado, um BRILHO suave arredondado (sem "grade" preta). */
+button:focus, a:focus, [role="button"]:focus, [tabindex]:focus { outline: none; }
+button:focus-visible, a:focus-visible, [role="button"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.22);
+}
+
+/* Showcase rotativo de sistemas no dashboard */
+@keyframes showcaseIn { from { opacity: 0; transform: translateX(28px) scale(0.98); } to { opacity: 1; transform: translateX(0) scale(1); } }

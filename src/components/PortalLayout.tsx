@@ -11,7 +11,8 @@ import {
   DollarSign, Package, Menu, X, User as UserIcon,
   LayoutDashboard, Bell, ChevronRight, ChevronDown, Activity, Lock, MessageCircle,
   CheckCheck, Trash2, ExternalLink, Calendar, Users, Calculator, BarChart3, Eye, Camera, Wheat, Megaphone,
-  Sun, Moon, Volume2, Check, MapPin, ShieldCheck, Building, SlidersHorizontal, AlertCircle, Headset
+  Sun, Moon, Volume2, Check, MapPin, ShieldCheck, Building, SlidersHorizontal, AlertCircle, Headset,
+  LayoutGrid, List, CircleDot
 } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -177,6 +178,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const lastChatNotifIdRef = useRef<string | null>(null)
   const lastSysNotifIdRef = useRef<string | null>(null)
   const bellRef = useRef<HTMLDivElement>(null)
+  const notifBtnRef = useRef<HTMLButtonElement>(null)
   const pathname = usePathname()
   const [avisosPendentes, setAvisosPendentes] = useState<{ id: string; titulo: string; conteudo: string; prioridade: string; criado_por_nome: string }[]>([])
   const [confirmando, setConfirmando] = useState(false)
@@ -232,6 +234,17 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   // ===== Perfil (dentro das Configurações) =====
   const [configTab, setConfigTab] = useState<'perfil' | 'aparencia' | 'som'>('perfil')
   const [perfilNome, setPerfilNome] = useState('')
+  // Modelo de exibição do dashboard (sincroniza com a chave que o Dashboard lê)
+  const [dashView, setDashView] = useState<string>('grade')
+  useEffect(() => {
+    if (!userProfile?.id) return
+    const v = localStorage.getItem(`portal-viewmode-${userProfile.id}`)
+    if (v) setDashView(v)
+  }, [userProfile?.id])
+  const alterarDashView = (modo: string) => {
+    setDashView(modo)
+    if (userProfile?.id) localStorage.setItem(`portal-viewmode-${userProfile.id}`, modo)
+  }
   const [novaSenha, setNovaSenha] = useState('')
   const [novaSenha2, setNovaSenha2] = useState('')
   const [perfilBusy, setPerfilBusy] = useState(false)
@@ -323,7 +336,10 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   // Fechar dropdown do sino + menu cascata ao clicar fora
   useEffect(() => {
     const handle = (e: MouseEvent) => {
-      if (bellRef.current && !bellRef.current.contains(e.target as Node)) { setBellOpen(false); setTopMenuOpen(false) }
+      const t = e.target as Node
+      const inMenu = bellRef.current && bellRef.current.contains(t)
+      const inNotifBtn = notifBtnRef.current && notifBtnRef.current.contains(t)
+      if (!inMenu && !inNotifBtn) { setBellOpen(false); setTopMenuOpen(false) }
     }
     document.addEventListener('mousedown', handle)
     return () => document.removeEventListener('mousedown', handle)
@@ -523,10 +539,58 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         {/* Right: chat + sino + user */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
 
-          {/* ===== MENU CASCATA (Chat, Notificações, Lembretes, Configurações) + dropdown do sino ===== */}
-          <div ref={bellRef} style={{ position: 'relative' }}>
+          {/* Ícone Chat */}
+          <button
+            onClick={() => setChatOpen(true)}
+            title="Chat"
+            style={{
+              position: 'relative', background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)',
+              color: 'var(--portal-text-secondary)', cursor: 'pointer', padding: '11px', borderRadius: '12px',
+              display: 'flex', alignItems: 'center', transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--portal-bg-hover)'; e.currentTarget.style.color = '#dc2626' }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--portal-bg-secondary)'; e.currentTarget.style.color = 'var(--portal-text-secondary)' }}
+          >
+            <MessageCircle size={20} />
+            {chatData.totalNaoLidas > 0 && (
+              <span style={{
+                position: 'absolute', top: '-5px', right: '-5px', minWidth: 18, height: 18, borderRadius: 9,
+                background: '#dc2626', color: '#fff', fontSize: 10, fontWeight: 700,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px', border: '2px solid var(--portal-header-bg)'
+              }}>{chatData.totalNaoLidas > 99 ? '99+' : chatData.totalNaoLidas}</span>
+            )}
+          </button>
+
+          {/* Ícone Notificações */}
+          <button
+            ref={notifBtnRef}
+            onClick={() => { setBellOpen((o) => !o); setTopMenuOpen(false) }}
+            title="Notificações"
+            style={{
+              position: 'relative', background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)',
+              color: 'var(--portal-text-secondary)', cursor: 'pointer', padding: '11px', borderRadius: '12px',
+              display: 'flex', alignItems: 'center', transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--portal-bg-hover)'; e.currentTarget.style.color = '#dc2626' }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--portal-bg-secondary)'; e.currentTarget.style.color = 'var(--portal-text-secondary)' }}
+          >
+            <Bell size={20} className={notifData.naoLidas > 0 ? 'bell-ring' : ''} />
+            {notifData.naoLidas > 0 && (
+              <span className="notif-badge-pulse" style={{
+                position: 'absolute', top: '-5px', right: '-5px', minWidth: 18, height: 18, borderRadius: 9,
+                background: '#dc2626', color: '#fff', fontSize: 10, fontWeight: 700,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px', border: '2px solid var(--portal-header-bg)'
+              }}>{notifData.naoLidas > 99 ? '99+' : notifData.naoLidas}</span>
+            )}
+          </button>
+
+          {/* ===== MENU CASCATA (Lembretes, Configurações) + dropdown do sino ===== */}
+          <div ref={bellRef} style={{ position: 'relative' }}
+            onMouseEnter={() => { if (!bellOpen) setTopMenuOpen(true) }}
+            onMouseLeave={() => setTopMenuOpen(false)}
+          >
             <button
-              onClick={() => setTopMenuOpen((o) => !o)}
+              onClick={() => { if (!bellOpen) setTopMenuOpen(true) }}
               style={{
                 position: 'relative',
                 background: 'linear-gradient(135deg, #ef4444, #dc2626)', border: 'none', color: '#fff',
@@ -537,18 +601,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               onMouseEnter={(e) => { e.currentTarget.style.boxShadow = '0 6px 18px rgba(220,38,38,0.35)' }}
               onMouseLeave={(e) => { e.currentTarget.style.boxShadow = '0 4px 12px rgba(220,38,38,0.25)' }}
             >
-              <Menu size={20} className={totalBell > 0 ? 'bell-ring' : ''} />
+              <Menu size={20} />
               <span>Menu</span>
               <ChevronDown size={14} style={{ transform: topMenuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
-              {totalBell > 0 && (
-                <div className="notif-badge-pulse" style={{
-                  position: 'absolute', top: '-6px', right: '-6px',
-                  minWidth: '20px', height: '20px', borderRadius: '10px',
-                  background: '#fff', color: '#dc2626', fontSize: '11px', fontWeight: 700,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px',
-                  border: '2px solid #dc2626', boxShadow: '0 2px 6px rgba(220,38,38,0.4)'
-                }}>{totalBell > 99 ? '99+' : totalBell}</div>
-              )}
             </button>
 
             {/* Dropdown do menu cascata */}
@@ -573,15 +628,17 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               )
               return (
                 <div style={{
-                  position: 'absolute', right: 0, top: 'calc(100% + 10px)', zIndex: 10001,
-                  minWidth: 260, background: 'var(--portal-bg-card)', borderRadius: 14,
+                  position: 'absolute', right: 0, top: '100%', paddingTop: 8, zIndex: 10001,
+                  minWidth: 260,
+                }}>
+                 <div style={{
+                  background: 'var(--portal-bg-card)', borderRadius: 14,
                   border: '1px solid var(--portal-border)', boxShadow: '0 16px 40px rgba(0,0,0,0.18)',
                   padding: 6, display: 'flex', flexDirection: 'column', gap: 2
-                }}>
-                  {item(<MessageCircle size={18} />, 'Chat', () => setChatOpen(true), chatData.totalNaoLidas)}
-                  {item(<Bell size={18} />, 'Notificações', () => setBellOpen(true), notifData.naoLidas)}
+                 }}>
                   {item(<Calendar size={18} />, 'Lembretes', () => setLembretesOpen(true))}
                   {item(<Settings size={18} />, 'Configurações', () => { setConfigTab('perfil'); setConfigOpen(true) })}
+                 </div>
                 </div>
               )
             })()}
@@ -1188,6 +1245,35 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                   </div>
                 </button>
               </div>
+
+              {/* MODELO DE EXIBIÇÃO DO DASHBOARD */}
+              <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--portal-text-secondary)', letterSpacing: '1px', display: 'block', margin: '26px 0 12px' }}>
+                MODELO DO DASHBOARD
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                {[
+                  { id: 'omie', label: 'Estilo Omie', icon: <LayoutDashboard size={18} />, desc: 'Tiles coloridos por categoria' },
+                  { id: 'grade', label: 'Grade', icon: <LayoutGrid size={18} />, desc: 'Grupos com cards' },
+                  { id: 'lista', label: 'Lista', icon: <List size={18} />, desc: 'Lista compacta' },
+                ].map(m => {
+                  const ativo = dashView === m.id
+                  return (
+                    <button key={m.id} onClick={() => alterarDashView(m.id)} style={{
+                      padding: '14px', borderRadius: '12px', border: ativo ? '2px solid #dc2626' : '2px solid var(--portal-border)',
+                      background: 'var(--portal-bg-card)', cursor: 'pointer', textAlign: 'left',
+                      display: 'flex', alignItems: 'center', gap: '12px', transition: 'all .2s',
+                    }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 9, background: ativo ? '#fef2f2' : 'var(--portal-bg-secondary)', color: ativo ? '#dc2626' : 'var(--portal-text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{m.icon}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--portal-text)' }}>{m.label}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--portal-text-secondary)' }}>{m.desc}</div>
+                      </div>
+                      {ativo && <Check size={16} color="#dc2626" strokeWidth={3} />}
+                    </button>
+                  )
+                })}
+              </div>
+              <p style={{ fontSize: '11px', color: 'var(--portal-text-faint)', marginTop: '10px' }}>Aplica ao abrir o Dashboard.</p>
             </div>
             )}
 

@@ -20,10 +20,10 @@ import { labelSetor, ehDoSetor } from '@/lib/financeiro/setor'
 
 const FORMAS_BOLETO = ['Pix', 'Dinheiro', 'Boleto 30 dias', 'Boleto Parcelado', 'Cartão a vista', 'Cartão Parcelado', 'Cheque'];
 
-// Pós-Vendas vê tudo (Oficina + Peças). O badge no card mostra o setor de cada um.
-const SETOR_PAINEL = 'todos';
+// Setor deste painel: 'pecas' (Peças Balcão).
+const SETOR_PAINEL = 'pecas';
 
-const setorBadgeStyle = { position: 'absolute', top: '10px', right: '10px', zIndex: 2, fontSize: '10px', fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase', padding: '3px 9px', borderRadius: '8px', background: '#eef2ff', color: '#4f46e5', border: '1px solid #c7d2fe' };
+const setorBadgeStyle = { position: 'absolute', top: '10px', right: '10px', zIndex: 2, fontSize: '10px', fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase', padding: '3px 9px', borderRadius: '8px', background: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa' };
 const METODOS_PAGAR = ['Boleto', 'Boleto Parcelado', 'Pix', 'Cartão de Crédito', 'Cartão de Débito', 'Dinheiro', 'Transferência', 'Carnê ISS'];
 
 function AttachmentTag({ label, fileUrl, onUpload, disabled = false }) {
@@ -72,18 +72,18 @@ function HomePosVendasContent() {
   const [listaPagar, setListaPagar] = useState([]);
   const [listaRH, setListaRH] = useState([]);
   const [showNovoMenu, setShowNovoMenu] = useState(false);
-  const [sincOS, setSincOS] = useState(false);
-  const sincronizarOS = async () => {
-    if (sincOS) return;
-    setSincOS(true);
+  const [sincPecas, setSincPecas] = useState(false);
+  const sincronizarPecas = async () => {
+    if (sincPecas) return;
+    setSincPecas(true);
     try {
-      const r = await fetch('/api/financeiro/sync-os', { method: 'POST' });
+      const r = await fetch('/api/financeiro/sync-pecas', { method: 'POST' });
       const out = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(out.error || 'Falha na sincronização');
-      alert(`Sincronização de OS (Omie):\n\nNovos cards criados: ${out.criados}\nJá existiam: ${out.jaExistiam}\nOS candidatas: ${out.candidatas}`);
+      alert(`Sincronização de Peças (Omie):\n\nNovos cards criados: ${out.criados}\nJá existiam: ${out.jaExistiam}\nCandidatos encontrados: ${out.candidatos}`);
       carregarDados();
     } catch (e) { alert('Erro ao sincronizar: ' + e.message); }
-    finally { setSincOS(false); }
+    finally { setSincPecas(false); }
   };
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -140,7 +140,7 @@ function HomePosVendasContent() {
 
   useEffect(() => {
     const channel = supabase
-      .channel('home_pv_realtime')
+      .channel('home_pecas_realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'Chamado_NF' }, () => carregarDados())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'finan_pagar' }, () => carregarDados())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'finan_rh' }, () => carregarDados())
@@ -182,7 +182,7 @@ function HomePosVendasContent() {
     const { error } = await supabase.from(table).delete().eq('id', t.id);
     if (error) { alert('Erro ao excluir: ' + error.message); return; }
     auditLog({ sistema: 'financeiro', acao: 'excluir', entidade: table, entidade_id: String(t.id), entidade_label: getCardLabel(t) });
-    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} excluiu ${getCardLabel(t)}`, null, `/financeiro/home-posvendas`)
+    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} excluiu ${getCardLabel(t)}`, null, `/financeiro/home-pecas`)
     setTarefaSelecionada(null);
     carregarDados();
   };
@@ -211,7 +211,7 @@ function HomePosVendasContent() {
     await supabase.from(table).update({ [field]: value }).eq('id', t.id);
     await auditLog({ sistema: 'financeiro', acao: 'editar', entidade: table, entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { campo: field, valor: value } });
     carregarCardLogs(t);
-    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} alterou ${getCardLabel(t)}`, `Campo: ${field}`, `/financeiro/home-posvendas`)
+    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} alterou ${getCardLabel(t)}`, `Campo: ${field}`, `/financeiro/home-pecas`)
     carregarDados();
     if(tarefaSelecionada) setTarefaSelecionada(prev => ({ ...prev, [field]: value }));
   };
@@ -227,7 +227,7 @@ function HomePosVendasContent() {
 
       await supabase.from(table).update({ [field]: linkData.publicUrl }).eq('id', t.id);
       auditLog({ sistema: 'financeiro', acao: 'upload', entidade: table, entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { campo: field, arquivo: file.name } });
-      notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} enviou arquivo em ${getCardLabel(t)}`, `Campo: ${field}`, `/financeiro/home-posvendas`)
+      notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} enviou arquivo em ${getCardLabel(t)}`, `Campo: ${field}`, `/financeiro/home-pecas`)
       alert("Arquivo atualizado!");
       carregarDados();
       if(tarefaSelecionada) setTarefaSelecionada(prev => ({ ...prev, [field]: linkData.publicUrl }));
@@ -238,7 +238,7 @@ function HomePosVendasContent() {
     notificarMovimento('Chamado_NF', t, 'vencido', `${getCardLabel(t)} — Recobrança concluída`);
     await supabase.from('Chamado_NF').update({ status: 'vencido', tarefa: 'Cliente Recobrado (Aguardando Financeiro)' }).eq('id', t.id);
     auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'vencido', acao_desc: 'Recobrança concluída - aguardando Financeiro' } });
-    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} concluiu recobrança — ${getCardLabel(t)}`, null, `/financeiro/home-posvendas`)
+    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} concluiu recobrança — ${getCardLabel(t)}`, null, `/financeiro/home-pecas`)
     alert(`Cobranca registrada!`); setTarefaSelecionada(null); carregarDados();
   };
 
@@ -246,7 +246,7 @@ function HomePosVendasContent() {
     notificarMovimento('Chamado_NF', t, 'aguardando_vencimento', `${getCardLabel(t)} — Boleto enviado ao cliente`);
     await supabase.from('Chamado_NF').update({ status: 'aguardando_vencimento', tarefa: 'Aguardando Vencimento' }).eq('id', t.id);
     auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'aguardando_vencimento', acao_desc: 'Boleto enviado ao cliente' } });
-    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} enviou boleto ao cliente — ${getCardLabel(t)}`, null, `/financeiro/home-posvendas`)
+    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} enviou boleto ao cliente — ${getCardLabel(t)}`, null, `/financeiro/home-pecas`)
     alert("Boleto enviado!"); setTarefaSelecionada(null); carregarDados();
   };
 
@@ -254,7 +254,7 @@ function HomePosVendasContent() {
     notificarMovimento('Chamado_NF', t, 'sem_boleto', `${getCardLabel(t)} — Movido para Cliente Sem Boleto`);
     await supabase.from('Chamado_NF').update({ status: 'sem_boleto', tarefa: 'Cliente Sem Boleto' }).eq('id', t.id);
     auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'sem_boleto', acao_desc: 'Movido para Cliente Sem Boleto' } });
-    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} moveu ${getCardLabel(t)} para Sem Boleto`, null, `/financeiro/home-posvendas`)
+    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} moveu ${getCardLabel(t)} para Sem Boleto`, null, `/financeiro/home-pecas`)
     carregarDados();
   };
 
@@ -262,7 +262,7 @@ function HomePosVendasContent() {
     notificarMovimento('Chamado_NF', t, 'pago', `${getCardLabel(t)} — Pagamento confirmado`);
     await supabase.from('Chamado_NF').update({ status: 'pago', tarefa: 'Pagamento Confirmado' }).eq('id', t.id);
     auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'pago', acao_desc: 'Pagamento confirmado' } });
-    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} confirmou pagamento — ${getCardLabel(t)}`, null, `/financeiro/home-posvendas`)
+    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} confirmou pagamento — ${getCardLabel(t)}`, null, `/financeiro/home-pecas`)
     alert("Confirmado!"); setTarefaSelecionada(null); carregarDados();
   };
 
@@ -309,12 +309,12 @@ function HomePosVendasContent() {
   return (
     <div style={{ fontFamily: 'Inter, sans-serif' }}>
       <FinanceiroNav>
-        <button onClick={sincronizarOS} disabled={sincOS} title="Buscar ordens de serviço faturadas (com NF) no Omie e gerar os chamados" style={{
-          background: 'var(--portal-bg-secondary)', color: '#4f46e5',
-          border: '1px solid #c7d2fe', padding: '8px 14px', borderRadius: '8px', fontWeight: '700',
-          cursor: sincOS ? 'default' : 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', marginRight: '8px', transition: '0.2s',
+        <button onClick={sincronizarPecas} disabled={sincPecas} title="Buscar pedidos de venda faturados (categoria Peças) no Omie e gerar os chamados" style={{
+          background: 'var(--portal-bg-secondary)', color: '#c2410c',
+          border: '1px solid #fed7aa', padding: '8px 14px', borderRadius: '8px', fontWeight: '700',
+          cursor: sincPecas ? 'default' : 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', marginRight: '8px', transition: '0.2s',
         }}>
-          <RefreshCw size={14} /> {sincOS ? 'SINCRONIZANDO…' : 'SINCRONIZAR OMIE'}
+          <RefreshCw size={14} className={sincPecas ? 'spin' : ''} /> {sincPecas ? 'SINCRONIZANDO…' : 'SINCRONIZAR OMIE'}
         </button>
         <div style={{ position: 'relative' }}>
           <button onClick={() => setShowNovoMenu(s => !s)} style={{
@@ -389,7 +389,7 @@ function HomePosVendasContent() {
         )
       })()}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '30px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px' }}>
           {/* COLUNA FATURAMENTO (FILTRADA: SEM PIX, APENAS ENVIAR OU COBRAR) */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <div style={colHeaderStyle}>TAREFA FATURAMENTO</div>
@@ -427,85 +427,6 @@ function HomePosVendasContent() {
                   </div>
                 </div>
               ))}
-          </div>
-
-          {/* COLUNA REQUISICOES / A PAGAR */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <div style={colHeaderStyle}>REQUISICOES</div>
-              {listaPagar.map((t) => {
-                const aguardando = t.status === 'aguardando_omie'
-                const refData = t.aguardando_omie_desde || t.criado_em
-                const diasParado = aguardando && refData
-                  ? Math.floor((Date.now() - new Date(refData).getTime()) / 86400000)
-                  : 0
-                const vencido = aguardando && diasParado >= 30
-                return (
-                <div
-                  key={`pag-${t.id}`}
-                  onClick={() => setTarefaSelecionada(t)}
-                  className="task-card"
-                  style={aguardando ? { border: `2px solid ${vencido ? '#dc2626' : '#f59e0b'}`, borderRadius: '12px' } : undefined}
-                >
-                  {aguardando && (
-                    <div style={{
-                      background: vencido ? '#fef2f2' : '#fef3c7',
-                      color: vencido ? '#b91c1c' : '#92400e',
-                      borderBottom: `1px solid ${vencido ? '#fca5a5' : '#fcd34d'}`,
-                      padding: '6px 12px', fontSize: '11px', fontWeight: 700,
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px',
-                      letterSpacing: '0.4px', textTransform: 'uppercase',
-                    }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                        {vencido ? <AlertCircle size={12} /> : <Send size={12} />}
-                        Aguardando envio Omie
-                      </span>
-                      <span>{diasParado}d parado</span>
-                    </div>
-                  )}
-                  <div style={{ background: 'var(--portal-bg-card)', padding: '25px', borderBottom: '1px solid var(--portal-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{fontSize: '10px', color: 'var(--portal-text-secondary)', letterSpacing:'1px', marginBottom: '8px', textTransform:'uppercase'}}>{t.metodo || 'Despesa'}</div>
-                      <span style={{fontSize:'18px', color:'var(--portal-text)', display:'block', lineHeight: '1.2'}}>{t.fornecedor?.toUpperCase()}</span>
-                      {(getRequisicoes(t).filter(r => r.numero).length > 0 || t.anexo_requisicao) && (
-                        <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                          {t.anexo_requisicao && t.anexo_requisicao.split(',').filter(u => u.trim()).map((_, i) => (
-                            <span key={`old-${i}`} style={{ background: '#fef3c7', color: '#92400e', fontSize: '10px', fontWeight: '600', padding: '4px 8px', border: '1px solid #fcd34d', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}><Paperclip size={10}/> Req {i + 1}</span>
-                          ))}
-                          {getRequisicoes(t).filter(r => r.numero).map((req, i) => (
-                            <span key={i} style={{ background: '#fef2f2', color: '#dc2626', fontSize: '10px', fontWeight: '600', padding: '4px 8px', border: '1px solid #fca5a5', borderRadius: '4px' }}>#{req.numero}</span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    <div
-                      title={t.omie_cod_lancamento ? `Lançado no Omie nº ${t.omie_cod_lancamento}` : 'Clique no card para validar e enviar ao Omie'}
-                      style={{
-                        flexShrink: 0,
-                        display: 'flex', alignItems: 'center', gap: '5px',
-                        background: t.omie_cod_lancamento ? '#dcfce7' : '#eff6ff',
-                        border: `1px solid ${t.omie_cod_lancamento ? '#86efac' : '#bfdbfe'}`,
-                        color: t.omie_cod_lancamento ? '#15803d' : '#2563eb',
-                        fontSize: '10px', fontWeight: 700, letterSpacing: '0.5px',
-                        padding: '6px 10px', borderRadius: '8px', whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {t.omie_cod_lancamento ? <CheckCircle size={11} /> : <Send size={11} />}
-                      OMIE
-                    </div>
-                  </div>
-                  <div style={{ padding: '25px', background: 'var(--portal-bg-secondary)' }}>
-                    <div style={{display:'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom:'15px'}}>
-                      <div style={cardMetaStyle}><CreditCard size={13}/> {t.metodo?.toUpperCase() || 'DESPESA'}</div>
-                      <div style={cardMetaStyle}><Calendar size={13}/> {formatarDataBR(t.data_vencimento)}</div>
-                    </div>
-                    {t.metodo === 'Carnê ISS' && (
-                      <div style={{ marginBottom: '10px', display: 'inline-block', background: '#fef3c7', color: '#92400e', fontSize: '11px', fontWeight: '700', padding: '4px 10px', borderRadius: '6px', border: '1px solid #fcd34d', letterSpacing: '0.5px' }}>CARNÊ ISS</div>
-                    )}
-                    <div style={{fontSize:'26px', color: 'var(--portal-text)'}}>{formatarMoeda(t.valor)}</div>
-                  </div>
-                </div>
-                )
-              })}
           </div>
 
           {/* COLUNA CLIENTE SEM BOLETO */}

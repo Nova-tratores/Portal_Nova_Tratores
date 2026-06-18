@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
 import { formatarDataBR, formatarMoeda } from '@/lib/financeiro/utils'
 import {
-  FileText, Download, Search, Calendar, Hash, FilterX, Eye, ChevronDown
+  FileText, Download, Search, FilterX, Eye, ChevronDown
 } from 'lucide-react'
 
 // --- TELA DE CARREGAMENTO ---
@@ -70,9 +70,7 @@ export default function HistoricoPagar() {
   const [loading, setLoading] = useState(true)
 
   // ESTADOS PARA FILTROS
-  const [filtroForn, setFiltroForn] = useState('')
-  const [filtroNota, setFiltroNota] = useState('')
-  const [filtroData, setFiltroData] = useState('')
+  const [filtroBusca, setFiltroBusca] = useState('')
   const [mesesAbertos, setMesesAbertos] = useState({})
 
   const router = useRouter()
@@ -95,14 +93,23 @@ export default function HistoricoPagar() {
 
   // LÓGICA DE FILTRAGEM (MOSTRA TUDO SE VAZIO)
   const listaFiltrada = lista.filter(item => {
-    const matchForn = !filtroForn || item.fornecedor?.toLowerCase().includes(filtroForn.toLowerCase());
-    const matchNota = !filtroNota || item.numero_NF?.toString().includes(filtroNota);
-    const matchData = !filtroData || item.data_vencimento === filtroData;
-    return matchForn && matchNota && matchData;
+    const q = filtroBusca.trim().toLowerCase();
+    if (!q) return true;
+    const campos = [
+      item.fornecedor,
+      item.numero_NF,
+      item.data_vencimento,
+      formatarDataBR(item.data_vencimento),
+      item.metodo,
+      item.valor,
+      `#${item.id}`,
+      item.id,
+    ];
+    return campos.some(v => v != null && String(v).toLowerCase().includes(q));
   })
 
   const limparFiltros = () => {
-    setFiltroForn(''); setFiltroNota(''); setFiltroData('');
+    setFiltroBusca('');
   }
 
   // AGRUPA POR MÊS/ANO do vencimento — mês atual aberto, anteriores em cascata
@@ -134,33 +141,19 @@ export default function HistoricoPagar() {
 
         {/* BARRA DE FILTROS */}
         <div style={{ display: 'flex', gap: '15px', marginBottom: '30px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-            <div style={filterGroup}>
-                <label style={filterLabel}>FILTRAR FORNECEDOR</label>
+            <div style={{ ...filterGroup, flex: '1 1 460px', maxWidth: '640px' }}>
+                <label style={filterLabel}>BUSCAR DESPESA</label>
                 <div style={{ position: 'relative' }}>
                     <Search size={18} style={filterIcon} />
-                    <input type="text" placeholder="Nome do fornecedor..." value={filtroForn} onChange={(e) => setFiltroForn(e.target.value)} style={filterInput} />
+                    <input type="text" placeholder="Buscar por fornecedor, nº da nota, vencimento, método ou ID..." value={filtroBusca} onChange={(e) => setFiltroBusca(e.target.value)} style={filterInput} />
                 </div>
             </div>
 
-            <div style={filterGroup}>
-                <label style={filterLabel}>Nº NOTA FISCAL</label>
-                <div style={{ position: 'relative' }}>
-                    <Hash size={18} style={filterIcon} />
-                    <input type="text" placeholder="Número da nota..." value={filtroNota} onChange={(e) => setFiltroNota(e.target.value)} style={filterInput} />
-                </div>
-            </div>
-
-            <div style={filterGroup}>
-                <label style={filterLabel}>DATA VENCIMENTO</label>
-                <div style={{ position: 'relative' }}>
-                    <Calendar size={18} style={filterIcon} />
-                    <input type="date" value={filtroData} onChange={(e) => setFiltroData(e.target.value)} style={filterInput} />
-                </div>
-            </div>
-
-            <button onClick={limparFiltros} style={btnLimpar}>
-                <FilterX size={18} /> LIMPAR FILTROS
-            </button>
+            {filtroBusca && (
+              <button onClick={limparFiltros} style={btnLimpar}>
+                  <FilterX size={18} /> LIMPAR
+              </button>
+            )}
         </div>
 
         {/* DESPESAS POR MÊS — mês atual aberto, anteriores em cascata */}

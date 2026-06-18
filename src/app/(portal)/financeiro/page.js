@@ -15,6 +15,8 @@ export default function FinanceiroEntryPage() {
     if (!temAcesso('financeiro')) return
     if (userProfile.funcao === 'Financeiro') {
       router.replace('/financeiro/home-financeiro')
+    } else if (userProfile.funcao === 'Peças') {
+      router.replace('/financeiro/home-pecas')
     } else {
       router.replace('/financeiro/home-posvendas')
     }

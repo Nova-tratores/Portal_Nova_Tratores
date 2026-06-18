@@ -4,13 +4,16 @@ import { supabase } from '@/lib/supabase'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
+import { usePermissoes } from '@/hooks/usePermissoes'
+import { useAuditLog } from '@/hooks/useAuditLog'
 import { notificarAdminsClient } from '@/hooks/useNotificarAdmins'
+import { autoEnviarENotificar } from '@/lib/financeiro/envioBoleto'
 import { formatarDataBR, formatarMoeda, calcTempo } from '@/lib/financeiro/utils'
 import { STATUS_CONFIG_NF as STATUS_CONFIG } from '@/lib/financeiro/constants'
 import {
   X, PlusCircle, FileText, Download,
   CheckCircle, Upload, Send,
-  Calendar, CreditCard, Hash, ArrowLeft,
+  Calendar, CreditCard, ArrowLeft,
   CheckCheck, Eye, ClipboardList, Search, Trash2, RefreshCw, AlertCircle, Lock, DollarSign, Barcode, Check, Clock
 } from 'lucide-react'
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
@@ -19,12 +22,14 @@ import { marcarMinhaAcao } from '@/components/financeiro/NotificationSystem'
 // --- COMPONENTE KANBAN PRINCIPAL ---
 export default function KanbanFinanceiro() {
 const { userProfile } = useAuth()
+const { isAdmin } = usePermissoes(userProfile?.id)
+const { log: auditLog } = useAuditLog()
+const isFinanceiro = userProfile?.funcao === 'Financeiro' // financeiro pode marcar pago sem comprovante
 const [chamados, setChamados] = useState([]);
 const [tarefaSelecionada, setTarefaSelecionada] = useState(null);
+const [cardLogs, setCardLogs] = useState([]);   // histórico (audit_log) do card aberto
 
-const [filtroCliente, setFiltroCliente] = useState('');
-const [filtroNF, setFiltroNF] = useState('');
-const [filtroData, setFiltroData] = useState('');
+const [filtroBusca, setFiltroBusca] = useState('');
 
 const [fileBoleto, setFileBoleto] = useState(null);
 const carregarTimeoutRef = useRef(null);
@@ -185,12 +190,56 @@ useEffect(() => {
   if (userProfile) carregarDados()
 }, [userProfile]);
 
+// Histórico (audit_log) do card aberto — o que cada usuário fez NELE
+const carregarCardLogs = async (id) => {
+  if (!id) { setCardLogs([]); return; }
+  const { data: logs } = await supabase.from('audit_log')
+    .select('created_at, acao, user_id, user_nome, detalhes')
+    .eq('entidade', 'Chamado_NF').eq('entidade_id', String(id))
+    .order('created_at', { ascending: false }).limit(40);
+  const ids = [...new Set((logs || []).map(l => l.user_id).filter(Boolean))];
+  let nomes = {};
+  if (ids.length) {
+    const { data: us } = await supabase.from('financeiro_usu').select('id, nome').in('id', ids);
+    nomes = Object.fromEntries((us || []).map(u => [u.id, u.nome]));
+  }
+  setCardLogs((logs || []).map(l => ({ ...l, nome: l.user_nome || nomes[l.user_id] || 'Usuário' })));
+};
+useEffect(() => { carregarCardLogs(tarefaSelecionada?.id); }, [tarefaSelecionada?.id]);
+
 const handleUpdateField = async (id, field, value) => {
       if (tarefaSelecionada?.status === 'concluido') return;
       // só age se houve MUDANÇA real (evita notificar ao só clicar/sair do campo)
       if (tarefaSelecionada && String(tarefaSelecionada.id) === String(id) && String(tarefaSelecionada[field] ?? '') === String(value ?? '')) return;
       await supabase.from('Chamado_NF').update({ [field]: value }).eq('id', id);
       notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} alterou NF #${id}`, `Campo: ${field}`, `/financeiro/kanban-financeiro`)
+      await auditLog({ sistema: 'financeiro', acao: 'editar', entidade: 'Chamado_NF', entidade_id: String(id), entidade_label: `NF #${id} - ${tarefaSelecionada?.nom_cliente || ''}`, detalhes: { campo: field, valor: value } });
+      carregarCardLogs(id);
+      carregarDados();
+};
+
+// Envio automático do boleto conforme a preferência salva — notifica sucesso/erro
+const dispararEnvioAuto = (card) => {
+  autoEnviarENotificar({
+    card,
+    remetente: userProfile?.nome,
+    userId: userProfile?.id,
+    audit: ({ acao, detalhes }) => {
+      auditLog({ sistema: 'financeiro', acao, entidade: 'Chamado_NF', entidade_id: String(card.id), entidade_label: `NF #${card.id} - ${card.nom_cliente || ''}`, detalhes });
+      carregarCardLogs(card.id);
+    },
+  });
+};
+
+// Excluir card — somente admin
+const excluirCard = async (t) => {
+      if (!isAdmin || !t) return;
+      if (!window.confirm(`Excluir definitivamente o card de ${t.nom_cliente || ('NF #' + t.id)}? Esta ação não pode ser desfeita.`)) return;
+      const { error } = await supabase.from('Chamado_NF').delete().eq('id', t.id);
+      if (error) { alert('Erro ao excluir: ' + error.message); return; }
+      await auditLog({ sistema: 'financeiro', acao: 'excluir', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: `NF #${t.id} - ${t.nom_cliente || ''}` });
+      notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} excluiu NF #${t.id}`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban-financeiro`)
+      setTarefaSelecionada(null);
       carregarDados();
 };
 
@@ -221,6 +270,7 @@ const handleUpdateFileDirect = async (id, field, file) => {
         if (updateData.status === 'enviar_cliente' && tarefaSelecionada) {
           notificarMovimento(tarefaSelecionada, 'enviar_cliente', `NF #${id} - ${tarefaSelecionada.nom_cliente || ''} — Boleto anexado, enviar ao cliente`);
           notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} anexou boleto NF #${id}`, `Cliente: ${tarefaSelecionada.nom_cliente || ''}`, `/financeiro/kanban-financeiro`)
+          dispararEnvioAuto({ ...tarefaSelecionada, ...updateData });
         } else {
           notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} atualizou arquivo NF #${id}`, `Campo: ${field}`, `/financeiro/kanban-financeiro`)
         }
@@ -241,6 +291,8 @@ const handleActionMoveStatus = async (t, newStatus) => {
       if (!error) {
           supabase.from('Chamado_NF').update({ status_changed_at: now }).eq('id', t.id).catch(() => {});
           notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} moveu NF #${t.id} → ${newStatus}`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban-financeiro`)
+          await auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: `NF #${t.id} - ${t.nom_cliente || ''}`, detalhes: { de: t.status, para: newStatus } });
+          carregarCardLogs(t.id);
           alert(newStatus === 'concluido' ? "Card Concluido!" : "Card movido!");
           carregarDados();
       }
@@ -318,14 +370,24 @@ const handleGerarBoletoFaturamentoFinal = async (id, fileArg) => {
     await supabase.from('Chamado_NF').update(updateData).eq('id', id);
     supabase.from('Chamado_NF').update({ status_changed_at: new Date().toISOString() }).eq('id', id).catch(() => {});
     notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} gerou boleto NF #${id}`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban-financeiro`)
+    dispararEnvioAuto({ ...t, ...updateData });
     setTarefaSelecionada(null); carregarDados();
 };
 
 const chamadosFiltrados = chamados.filter(c => {
-      const matchCliente = c.nom_cliente?.toLowerCase().includes(filtroCliente.toLowerCase());
-      const matchNF = !filtroNF || (String(c.num_nf_servico).includes(filtroNF) || String(c.num_nf_peca).includes(filtroNF));
-      const matchData = filtroData ? c.vencimento_boleto === filtroData : true;
-      return matchCliente && matchNF && matchData;
+      const q = filtroBusca.trim().toLowerCase();
+      if (!q) return true;
+      const campos = [
+        c.nom_cliente,
+        c.num_nf_servico,
+        c.num_nf_peca,
+        c.vencimento_boleto,
+        formatarDataBR(c.vencimento_boleto),
+        c.forma_pagamento,
+        `#${c.id}`,
+        c.id,
+      ];
+      return campos.some(v => v != null && String(v).toLowerCase().includes(q));
 });
 
 // --- LOGICAS CONDICIONAIS ---
@@ -341,25 +403,17 @@ return (
     <main style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px - 56px)', overflow: 'hidden' }}>
       <header style={{ padding: '20px 32px 16px' }}>
       <div style={{ display:'flex', gap:'12px', alignItems:'center', flexWrap:'wrap' }}>
-          <div style={{ position: 'relative', flex: '1 1 300px', maxWidth: '360px' }}>
-              <Search size={16} style={{ ...iconFilterStyle, left: '12px' }} title="Pesquisar por nome do cliente" />
-              <input type="text" placeholder="Filtrar Cliente..." value={filtroCliente} onChange={e => setFiltroCliente(e.target.value)} style={{...inputFilterStyle, fontSize:'13px', padding:'10px 12px 10px 36px'}} />
-          </div>
-          <div style={{ position: 'relative', flex: '0 1 180px' }}>
-              <Hash size={16} style={{ ...iconFilterStyle, left: '12px' }} title="Filtrar por número da nota" />
-              <input type="text" placeholder="Nº Nota..." value={filtroNF} onChange={e => setFiltroNF(e.target.value)} style={{...inputFilterStyle, fontSize:'13px', padding:'10px 12px 10px 36px'}} />
-          </div>
-          <div style={{ position: 'relative', flex: '0 1 200px' }}>
-              <Calendar size={16} style={{ ...iconFilterStyle, left: '12px' }} title="Filtrar por data de vencimento" />
-              <input type="date" value={filtroData} onChange={e => setFiltroData(e.target.value)} style={{...inputFilterStyle, fontSize:'13px', padding:'10px 12px 10px 36px'}} />
-              {filtroData && <X size={14} onClick={() => setFiltroData('')} style={{position:'absolute', right: '10px', top: '50%', transform:'translateY(-50%)', cursor:'pointer', color:'var(--portal-text-muted)'}} title="Limpar filtro" />}
+          <div style={{ position: 'relative', flex: '1 1 420px', maxWidth: '560px' }}>
+              <Search size={16} style={{ ...iconFilterStyle, left: '12px' }} title="Buscar" />
+              <input type="text" placeholder="Buscar por cliente, nº da nota, vencimento, condição ou ID..." value={filtroBusca} onChange={e => setFiltroBusca(e.target.value)} style={{...inputFilterStyle, fontSize:'13px', padding:'10px 36px 10px 36px'}} />
+              {filtroBusca && <X size={14} onClick={() => setFiltroBusca('')} style={{position:'absolute', right: '10px', top: '50%', transform:'translateY(-50%)', cursor:'pointer', color:'var(--portal-text-muted)'}} title="Limpar busca" />}
           </div>
       </div>
       </header>
 
       <div style={{ flex: 1, display: 'flex', gap: '16px', overflowX: 'auto', overflowY: 'hidden', padding: '0 24px 24px 24px', boxSizing: 'border-box' }}>
       {colunas.map(col => (
-        <div key={col.id} style={{ minWidth: '280px', flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <div key={col.id} style={{ width: '300px', flex: '0 0 300px', display: 'flex', flexDirection: 'column' }}>
         <h3 style={colTitleStyle}>{col.titulo}</h3>
 
         <div style={colWrapperStyle}>
@@ -468,7 +522,12 @@ return (
 
         <div style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--portal-bg-card)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', borderBottom: '1px solid var(--portal-border)', flexShrink: 0 }}>
           <button onClick={() => setTarefaSelecionada(null)} className="btn-back" title="Voltar para a visualização do quadro"><ArrowLeft size={18}/> VOLTAR AO PAINEL</button>
-          <button onClick={() => setTarefaSelecionada(null)} style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', cursor:'pointer', padding:'8px 12px', display: 'flex', alignItems: 'center', gap: '6px', color: '#dc2626', fontSize: '13px', fontWeight: '600', transition: '0.2s' }} title="Fechar"><X size={18}/> Fechar</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {isAdmin && (
+              <button onClick={() => excluirCard(tarefaSelecionada)} style={{ background: '#dc2626', border: '1px solid #dc2626', borderRadius: '10px', cursor:'pointer', padding:'8px 12px', display: 'flex', alignItems: 'center', gap: '6px', color: '#fff', fontSize: '13px', fontWeight: '600', transition: '0.2s' }} title="Excluir card (somente admin)"><Trash2 size={16}/> Excluir</button>
+            )}
+            <button onClick={() => setTarefaSelecionada(null)} style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', cursor:'pointer', padding:'8px 12px', display: 'flex', alignItems: 'center', gap: '6px', color: '#dc2626', fontSize: '13px', fontWeight: '600', transition: '0.2s' }} title="Fechar"><X size={18}/> Fechar</button>
+          </div>
         </div>
         <div style={{ flex: 1, padding: '30px 60px 60px', overflowY: 'auto' }}>
 
@@ -511,10 +570,12 @@ return (
                 }}
               >
                 <option value="Pix">Pix</option>
+                <option value="Dinheiro">Dinheiro</option>
                 <option value="Boleto 30 dias">Boleto 30 dias</option>
                 <option value="Boleto Parcelado">Boleto Parcelado</option>
                 <option value="Cartão a vista">Cartão a vista</option>
                 <option value="Cartão Parcelado">Cartão Parcelado</option>
+                <option value="Cheque">Cheque</option>
               </select>
             </div>
             <div style={fieldBoxModal}>
@@ -727,6 +788,7 @@ return (
                         await supabase.from('Chamado_NF').update(updateData).eq('id', tarefaSelecionada.id);
                         if (updateData.status === 'enviar_cliente') {
                           notificarMovimento(tarefaSelecionada, 'enviar_cliente', `NF #${tarefaSelecionada.id} - ${tarefaSelecionada.nom_cliente || ''} — Boleto anexado, enviar ao cliente`);
+                          dispararEnvioAuto({ ...tarefaSelecionada, ...updateData });
                         }
                         setTarefaSelecionada({ ...tarefaSelecionada, anexo_boleto: novasUrls.join(', '), ...(updateData.status ? { status: updateData.status } : {}) });
                         carregarDados();
@@ -767,6 +829,34 @@ return (
               />
             </div>
           )}
+
+          {/* HISTÓRICO DESTE CARD — o que foi alterado, quem alterou, data e hora */}
+          <div style={{ marginTop:'40px', background:'var(--portal-bg-secondary)', border:'1px solid var(--portal-border)', borderRadius:'16px', padding:'24px' }}>
+            <label style={{ ...labelModalStyle, marginBottom:'14px', fontSize:'13px', color:'var(--portal-text-secondary)', display:'flex', alignItems:'center', gap:'8px' }}>
+              <Clock size={15}/> Histórico deste card
+            </label>
+            {cardLogs.length === 0 ? (
+              <p style={{ fontSize:'13px', color:'var(--portal-text-secondary)', margin:0 }}>Nenhuma alteração registrada ainda.</p>
+            ) : (
+              <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+                {cardLogs.map((l, i) => {
+                  const det = l.detalhes && typeof l.detalhes === 'object'
+                    ? Object.entries(l.detalhes).map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`).join(' · ')
+                    : '';
+                  return (
+                    <div key={i} style={{ display:'flex', gap:'12px', alignItems:'flex-start', padding:'12px 14px', background:'var(--portal-bg-card)', borderRadius:'10px', border:'1px solid var(--portal-border)' }}>
+                      <div style={{ width:'8px', height:'8px', borderRadius:'50%', background:'#dc2626', marginTop:'6px', flexShrink:0 }} />
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:'13.5px', fontWeight:'600', color:'var(--portal-text)' }}>{l.nome} <span style={{ fontWeight:'400', color:'var(--portal-text-secondary)' }}>— {l.acao}</span></div>
+                        {det && <div style={{ fontSize:'12px', color:'var(--portal-text-secondary)', marginTop:'2px', wordBreak:'break-word' }}>{det}</div>}
+                      </div>
+                      <div style={{ fontSize:'11.5px', color:'#94a3b8', whiteSpace:'nowrap' }}>{new Date(l.created_at).toLocaleString('pt-BR')}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
           {/* Mover para Pago ou Voltar ao fluxo — só no modal para sem_boleto */}
           {tarefaSelecionada.status === 'sem_boleto' && (
@@ -877,6 +967,13 @@ return (
               {tarefaSelecionada.status === 'aguardando_vencimento' && isPixOuCartaoVista && tarefaSelecionada.comprovante_pagamento && (
                 <button onClick={() => handleActionMoveStatus(tarefaSelecionada, 'pago')} style={btnActionGreen}>
                   <CheckCheck size={20}/> PAGAMENTO CONFIRMADO — MOVER PARA PAGO
+                </button>
+              )}
+
+              {/* FINANCEIRO: pode marcar como pago sem comprovante anexado */}
+              {tarefaSelecionada.status === 'aguardando_vencimento' && isFinanceiro && !tarefaSelecionada.comprovante_pagamento && !tarefaSelecionada.isPagamentoRealizado && (
+                <button onClick={() => { if (window.confirm('Marcar como PAGO mesmo sem comprovante anexado?')) handleActionMoveStatus(tarefaSelecionada, 'pago') }} style={btnActionGreen}>
+                  <CheckCheck size={20}/> MARCAR COMO PAGO (SEM COMPROVANTE)
                 </button>
               )}
 

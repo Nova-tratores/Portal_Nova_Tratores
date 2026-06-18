@@ -28,9 +28,9 @@ const STATUS_CONFIG = {
 
 const FORMAS_BOLETO = ['Pix', 'Dinheiro', 'Boleto 30 dias', 'Boleto Parcelado', 'Cartão a vista', 'Cartão Parcelado', 'Cheque'];
 
-// Pós-Vendas vê tudo (Oficina + Peças). O badge no card mostra o setor de cada um.
-const SETOR_KANBAN = 'todos';
-const setorBadgeStyle = { display: 'inline-flex', alignItems: 'center', fontSize: '10px', fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase', padding: '3px 9px', borderRadius: '8px', background: '#eef2ff', color: '#4f46e5', border: '1px solid #c7d2fe' };
+// Setor deste kanban: 'pecas' (Peças Balcão).
+const SETOR_KANBAN = 'pecas';
+const setorBadgeStyle = { display: 'inline-flex', alignItems: 'center', fontSize: '10px', fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase', padding: '3px 9px', borderRadius: '8px', background: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa' };
 
 // FinanceiroSubNav removido — agora usa componente compartilhado FinanceiroNav
 
@@ -165,7 +165,7 @@ export default function Kanban() {
 
  useEffect(() => {
   const channel = supabase
-   .channel('kanban_pv_realtime')
+   .channel('kanban_pecas_realtime')
    .on('postgres_changes', { event: '*', schema: 'public', table: 'Chamado_NF' }, carregarComDebounce)
    .subscribe();
   return () => { supabase.removeChannel(channel); if (carregarTimeoutRef.current) clearTimeout(carregarTimeoutRef.current); };
@@ -192,7 +192,7 @@ export default function Kanban() {
     // só age se houve MUDANÇA real (evita registrar/notificar ao só clicar e sair do campo)
     if (tarefaSelecionada && String(tarefaSelecionada.id) === String(id) && String(tarefaSelecionada[field] ?? '') === String(value ?? '')) return;
     await supabase.from('Chamado_NF').update({ [field]: value }).eq('id', id);
-    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} alterou NF #${id}`, `Campo: ${field}`, `/financeiro/kanban`)
+    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} alterou NF #${id}`, `Campo: ${field}`, `/financeiro/kanban-pecas`)
     await auditLog({ sistema: 'financeiro', acao: 'editar', entidade: 'Chamado_NF', entidade_id: String(id), entidade_label: `NF #${id} - ${tarefaSelecionada?.nom_cliente || ''}`, detalhes: { campo: field, valor: value } });
     carregarCardLogs(id);
     carregarDados();
@@ -227,7 +227,7 @@ export default function Kanban() {
         tarefa: 'Pagamento Realizado'
       }).eq('id', t.id);
 
-      notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} anexou comprovante NF #${t.id}`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban`)
+      notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} anexou comprovante NF #${t.id}`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban-pecas`)
       alert("Comprovante anexado! Tarefa enviada ao Financeiro.");
       carregarDados();
       if (tarefaSelecionada) setTarefaSelecionada(prev => ({ ...prev, comprovante_pagamento: linkData.publicUrl, tarefa: 'Pagamento Realizado' }));
@@ -236,7 +236,7 @@ export default function Kanban() {
 
  const handleConfirmarEnvioPV = async (t) => {
     await supabase.from('Chamado_NF').update({ status: 'aguardando_vencimento', tarefa: 'Aguardando Vencimento' }).eq('id', t.id);
-    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} enviou boleto ao cliente`, `NF #${t.id} — ${t.nom_cliente || ''}`, `/financeiro/kanban`)
+    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} enviou boleto ao cliente`, `NF #${t.id} — ${t.nom_cliente || ''}`, `/financeiro/kanban-pecas`)
     alert("Card movido para Aguardando Vencimento!");
     setTarefaSelecionada(null);
     carregarDados();
@@ -244,7 +244,7 @@ export default function Kanban() {
 
  const handleMoverSemBoleto = async (t) => {
     await supabase.from('Chamado_NF').update({ status: 'sem_boleto', tarefa: 'Cliente Sem Boleto' }).eq('id', t.id);
-    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} moveu NF #${t.id} para Sem Boleto`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban`)
+    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} moveu NF #${t.id} para Sem Boleto`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban-pecas`)
     carregarDados();
  };
 
@@ -255,20 +255,20 @@ export default function Kanban() {
     const { error } = await supabase.from('Chamado_NF').delete().eq('id', t.id);
     if (error) { alert('Erro ao excluir: ' + error.message); return; }
     await auditLog({ sistema: 'financeiro', acao: 'excluir', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: `NF #${t.id} - ${t.nom_cliente || ''}` });
-    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} excluiu NF #${t.id}`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban`)
+    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} excluiu NF #${t.id}`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban-pecas`)
     setTarefaSelecionada(null);
     carregarDados();
  };
 
  const handleVoltarFluxo = async (t) => {
     await supabase.from('Chamado_NF').update({ status: 'gerar_boleto', tarefa: 'Gerar Boleto' }).eq('id', t.id);
-    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} devolveu NF #${t.id} ao fluxo`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban`)
+    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} devolveu NF #${t.id} ao fluxo`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban-pecas`)
     carregarDados();
  };
 
  const handleMoverParaPago = async (t) => {
     await supabase.from('Chamado_NF').update({ status: 'pago', tarefa: 'Pagamento Confirmado' }).eq('id', t.id);
-    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} confirmou pagamento NF #${t.id}`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban`)
+    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} confirmou pagamento NF #${t.id}`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban-pecas`)
     carregarDados();
  };
 

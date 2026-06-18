@@ -11,7 +11,7 @@ import {
   BarChart3, Users, Package, ClipboardCheck, AlertTriangle,
   CheckCircle2, Map, RefreshCw, Database, X, Check, Calculator, Eye, Camera, Wheat, Megaphone, TrendingUp, Server,
   FolderPlus, Pencil, Trash2, FolderOpen, MapPin, ShieldCheck, Building,
-  Star, LayoutGrid, List, CircleDot, AlertCircle, Headset
+  Star, LayoutGrid, List, CircleDot, AlertCircle, Headset, LayoutDashboard
 } from 'lucide-react'
 
 interface SystemCard {
@@ -116,7 +116,7 @@ interface CardFolder {
   cardIds: string[]
 }
 
-type ViewMode = 'grade' | 'lista' | 'circular'
+type ViewMode = 'grade' | 'lista' | 'circular' | 'omie'
 type FavFilter = 'so-favoritos' | 'todos' | 'ocultar'
 
 const defaultFolders: CardFolder[] = []
@@ -146,6 +146,8 @@ export default function DashboardPage() {
   const [foldersLoaded, setFoldersLoaded] = useState(false)
   const [favoritos, setFavoritos] = useState<string[]>([])
   const [viewMode, setViewMode] = useState<ViewMode>('grade')
+  const [omieGroup, setOmieGroup] = useState<string | null>(null)  // categoria aberta no modo Omie
+  const [showcaseIdx, setShowcaseIdx] = useState(0)  // índice do showcase rotativo de sistemas
   const [favFilter, setFavFilter] = useState<FavFilter>('ocultar')
   const [openGroups, setOpenGroups] = useState<string[]>([])
 
@@ -300,6 +302,13 @@ export default function DashboardPage() {
     return modulo ? temAcesso(modulo) : true
   }), [temAcesso])
 
+  // Showcase rotativo: passa de sistema em sistema sozinho
+  useEffect(() => {
+    if (allowedSystems.length < 2) return
+    const t = setInterval(() => setShowcaseIdx(i => (i + 1) % allowedSystems.length), 3800)
+    return () => clearInterval(t)
+  }, [allowedSystems.length])
+
   const searchLower = searchTerm.toLowerCase()
   const filteredSystems = useMemo(() => allowedSystems.filter(s =>
     s.name.toLowerCase().includes(searchLower) ||
@@ -442,87 +451,6 @@ export default function DashboardPage() {
 
   return (
     <div style={{ padding: '20px 28px', background: 'var(--portal-bg)', minHeight: '100%' }}>
-      {/* Greeting */}
-      <div style={{ marginBottom: '20px' }} className="animate-fade-in">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div>
-            <h2 style={{ fontSize: '26px', fontWeight: '800', color: 'var(--portal-text)', marginBottom: '4px' }}>
-              {greeting()}, <span className="gradient-text">{userProfile?.nome?.split(' ')[0] || 'Usuário'}</span>
-            </h2>
-            <p style={{ color: '#a3a3a3', fontSize: '15px', fontWeight: '400' }}>
-              Acesse seus sistemas e acompanhe as atividades
-            </p>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <button
-              onClick={() => setShowSync(true)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '6px',
-                padding: '10px 16px', borderRadius: '12px',
-                background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-                cursor: 'pointer', color: '#a3a3a3', fontSize: '13px', fontWeight: '500',
-                transition: 'all 0.2s'
-              }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = '#fecaca'; e.currentTarget.style.color = '#dc2626' }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = '#f0f0f0'; e.currentTarget.style.color = '#a3a3a3' }}
-            >
-              <RefreshCw size={15} />
-              Sync
-            </button>
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: '8px',
-              padding: '10px 18px', borderRadius: '12px',
-              background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
-            }}>
-              <Clock size={16} color="#a3a3a3" />
-              <span style={{ fontSize: '14px', color: '#737373', fontWeight: '500', fontVariantNumeric: 'tabular-nums' }}>
-                {currentTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px',
-        marginBottom: '24px'
-      }}>
-        {[
-          { icon: <BarChart3 size={20} />, label: 'Sistemas', value: String(allowedSystems.length) },
-          { icon: <Users size={20} />, label: 'Função', value: userProfile?.funcao || '-' },
-          { icon: <Activity size={20} />, label: 'Acessos Hoje', value: recentLogs.filter(l => new Date(l.created_at).toDateString() === new Date().toDateString()).length.toString() },
-          { icon: <Clock size={20} />, label: 'Último Acesso', value: recentLogs[0] ? new Date(recentLogs[0].created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '-' }
-        ].map((stat, i) => (
-          <div key={i} style={{
-            padding: '14px 18px', borderRadius: '14px',
-            background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
-            boxShadow: '0 1px 3px var(--portal-shadow)',
-            animation: `fadeIn 0.6s ease-out ${i * 0.1}s both`
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{
-                width: '36px', height: '36px', borderRadius: '10px',
-                background: '#fef2f2', display: 'flex',
-                alignItems: 'center', justifyContent: 'center', color: '#dc2626'
-              }}>
-                {stat.icon}
-              </div>
-              <div>
-                <p style={{ fontSize: '11px', color: '#a3a3a3', fontWeight: '600', letterSpacing: '1px', marginBottom: '2px' }}>
-                  {stat.label.toUpperCase()}
-                </p>
-                <p style={{ fontSize: '18px', fontWeight: '700', color: 'var(--portal-text)' }}>
-                  {stat.value}
-                </p>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
       {/* Breadcrumb quando dentro de uma pasta */}
       {activeFolder !== 'todos' && !editingFolder && (
         <div style={{
@@ -627,25 +555,8 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Search + Filtros + View modes */}
+      {/* Filtros + View modes + Busca */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
-        <div style={{
-          width: '4px', height: '24px', borderRadius: '2px',
-          background: 'linear-gradient(180deg, #dc2626, #b91c1c)'
-        }} />
-        <h3 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--portal-text)' }}>
-          {favFilter === 'so-favoritos' ? 'Favoritos' : 'Sistemas'}
-        </h3>
-        <span style={{
-          fontSize: '12px', fontWeight: '600', color: '#a3a3a3',
-          background: 'var(--portal-bg-secondary)', padding: '4px 12px',
-          borderRadius: '20px'
-        }}>
-          {displayedSystems.length}
-        </span>
-
-        <div style={{ flex: 1 }} />
-
         {/* Filtro de favoritos (3 estados) */}
         <div style={{ display: 'flex', gap: '2px', background: 'var(--portal-bg-secondary)', borderRadius: '10px', padding: '3px' }}>
           {([
@@ -679,8 +590,8 @@ export default function DashboardPage() {
         <div style={{ display: 'flex', gap: '4px', background: 'var(--portal-bg-secondary)', borderRadius: '10px', padding: '3px' }}>
           {([
             { mode: 'grade' as ViewMode, icon: <LayoutGrid size={15} />, title: 'Grade' },
+            { mode: 'omie' as ViewMode, icon: <LayoutDashboard size={15} />, title: 'Estilo Omie' },
             { mode: 'lista' as ViewMode, icon: <List size={15} />, title: 'Lista' },
-            { mode: 'circular' as ViewMode, icon: <CircleDot size={15} />, title: 'Circular' },
           ]).map(v => (
             <button
               key={v.mode}
@@ -747,13 +658,25 @@ export default function DashboardPage() {
             {favoritosSystems.map(system => (
               <div key={system.id} onClick={() => openSystem(system)} style={{
                 display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px 7px 8px',
-                borderRadius: 10, cursor: 'pointer', background: 'var(--portal-bg-card)',
-                border: '1px solid var(--portal-border)', transition: 'all .15s',
+                borderRadius: 10, cursor: 'pointer', background: 'transparent',
+                border: 'none', transition: 'transform .2s cubic-bezier(.34,1.56,.64,1), box-shadow .2s, background .2s',
               }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = `${system.color}60`; e.currentTarget.style.transform = 'translateY(-1px)' }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = ''; e.currentTarget.style.transform = '' }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.transform = 'translateY(-3px) scale(1.05)'
+                  e.currentTarget.style.boxShadow = `0 10px 22px ${system.color}33`
+                  e.currentTarget.style.background = `${system.color}12`
+                  const ic = e.currentTarget.firstElementChild as HTMLElement | null
+                  if (ic) ic.style.transform = 'rotate(-6deg) scale(1.08)'
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.transform = ''
+                  e.currentTarget.style.boxShadow = ''
+                  e.currentTarget.style.background = 'transparent'
+                  const ic = e.currentTarget.firstElementChild as HTMLElement | null
+                  if (ic) ic.style.transform = ''
+                }}
               >
-                <div style={{ width: 32, height: 32, borderRadius: 9, background: system.gradient, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 9, background: system.gradient, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0, transition: 'transform .2s cubic-bezier(.34,1.56,.64,1)' }}>
                   {system.icon}
                 </div>
                 <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--portal-text)', whiteSpace: 'nowrap' }}>{system.name}</span>
@@ -775,6 +698,86 @@ export default function DashboardPage() {
       )}
 
       {/* ══ GRADE ══ */}
+      {/* ══ OMIE (tiles coloridos por categoria) ══ */}
+      {viewMode === 'omie' && (
+        <div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 14 }}>
+            {groupedDisplayed.map((group) => {
+              const gc = group.config
+              const ativo = omieGroup === group.key
+              return (
+                <button key={group.key} onClick={() => setOmieGroup(ativo ? null : group.key)} style={{
+                  border: 'none', borderRadius: 18, padding: '20px', cursor: 'pointer', textAlign: 'left',
+                  background: gc.gradient, color: '#fff', minHeight: 148,
+                  display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 16,
+                  boxShadow: ativo ? `0 14px 32px ${gc.color}55` : `0 6px 18px ${gc.color}33`,
+                  transform: ativo ? 'translateY(-3px)' : 'none', transition: 'all .2s',
+                  outline: ativo ? '3px solid rgba(255,255,255,0.9)' : 'none', outlineOffset: '-3px',
+                }}
+                  onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)' }}
+                  onMouseLeave={e => { if (!ativo) e.currentTarget.style.transform = 'none' }}
+                >
+                  <div style={{ width: 46, height: 46, borderRadius: 12, background: 'rgba(255,255,255,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{gc.icon}</div>
+                  <div>
+                    <div style={{ fontSize: 18, fontWeight: 800, lineHeight: 1.15 }}>{gc.label}</div>
+                    <div style={{ fontSize: 12.5, opacity: 0.92, marginTop: 4 }}>{group.items.length} sistema{group.items.length !== 1 ? 's' : ''}</div>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+
+          {omieGroup && (() => {
+            const group = groupedDisplayed.find(g => g.key === omieGroup)
+            if (!group) return null
+            const gc = group.config
+            return (
+              <div style={{ marginTop: 22, background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 18, padding: 18, boxShadow: '0 1px 4px rgba(0,0,0,0.04)', animation: 'fadeIn 0.25s ease-out both' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                  <div style={{ width: 34, height: 34, borderRadius: 9, background: gc.gradient, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>{gc.icon}</div>
+                  <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--portal-text)' }}>{gc.label}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: gc.color, background: `${gc.color}12`, padding: '2px 8px', borderRadius: 6 }}>{group.items.length}</span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 10 }}>
+                  {group.items.map((system, i) => {
+                    const isFav = favoritos.includes(system.id)
+                    return (
+                      <div key={system.id} style={{
+                        borderRadius: 14, overflow: 'hidden', cursor: 'pointer', position: 'relative',
+                        background: 'var(--portal-bg)', border: '1px solid var(--portal-border)',
+                        transition: 'all 0.2s', animation: `fadeIn 0.3s ease-out ${i * 0.04}s both`,
+                      }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = `${gc.color}50`; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = `0 8px 20px ${gc.color}12` }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = ''; e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '' }}
+                      >
+                        <div style={{ height: 3, background: gc.gradient }} />
+                        <button onClick={(e) => { e.stopPropagation(); toggleFavorito(system.id) }} className="fav-btn" style={{
+                          position: 'absolute', top: 12, right: 10, zIndex: 2, width: 26, height: 26, borderRadius: 6, border: 'none',
+                          background: isFav ? '#FEF3C7' : 'transparent', cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: isFav ? 1 : 0, transition: 'opacity .2s',
+                        }}>
+                          <Star size={13} fill={isFav ? '#F59E0B' : 'none'} color={isFav ? '#F59E0B' : '#d4d4d4'} />
+                        </button>
+                        <div onClick={() => editingFolder ? toggleCardInFolder(editingFolder, system.id) : openSystem(system)} style={{ padding: '11px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <div style={{ width: 38, height: 38, borderRadius: 10, background: system.gradient, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0 }}>
+                            {system.icon}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--portal-text)', marginBottom: 2 }}>{system.name}</div>
+                            <div style={{ fontSize: 11, color: 'var(--portal-text-secondary)', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{system.description}</div>
+                          </div>
+                          {system.external && <ChevronRight size={13} color="#d4d4d4" style={{ flexShrink: 0 }} />}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })()}
+        </div>
+      )}
+
       {viewMode === 'grade' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
           {groupedDisplayed.map((group) => {
@@ -868,351 +871,76 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ══ LISTA ══ */}
+      {/* ══ LISTA (plana, sem agrupar) ══ */}
       {viewMode === 'lista' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-          {groupedDisplayed.map((group) => {
-            const isOpen = openGroups.includes(group.key)
-            const gc = group.config
+        <div style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 14, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+          {displayedSystems.map((system, i) => {
+            const isFav = favoritos.includes(system.id)
+            const gc = DASH_GROUPS[system.group] || DASH_GROUPS.outros
             return (
-              <div key={group.key} style={{
-                borderRadius: 14, overflow: 'hidden',
-                border: `1px solid var(--portal-border)`,
-                background: 'var(--portal-bg-card)',
-                transition: 'all 0.2s',
-              }}>
-                <div
-                  onClick={() => toggleGroup(group.key)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px',
-                    cursor: 'pointer', borderBottom: isOpen ? `1px solid var(--portal-border)` : 'none',
-                    background: isOpen ? `${gc.color}06` : 'transparent',
-                    transition: 'background 0.15s',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.background = `${gc.color}06` }}
-                  onMouseLeave={e => { if (!isOpen) e.currentTarget.style.background = 'transparent' }}
-                >
-                  <div style={{ width: 4, height: 22, borderRadius: 2, background: gc.color, flexShrink: 0 }} />
-                  <div style={{ width: 30, height: 30, borderRadius: 8, background: gc.gradient, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0 }}>
-                    {gc.icon}
-                  </div>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text)', flex: 1 }}>{gc.label}</span>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: gc.color, background: `${gc.color}12`, padding: '2px 8px', borderRadius: 6 }}>{group.items.length}</span>
-                  <ChevronRight size={14} color={gc.color} style={{ transition: 'transform 0.2s', transform: isOpen ? 'rotate(90deg)' : 'rotate(0)', flexShrink: 0 }} />
+              <div key={system.id} onClick={() => editingFolder ? toggleCardInFolder(editingFolder, system.id) : openSystem(system)} style={{
+                display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px',
+                borderBottom: i < displayedSystems.length - 1 ? '1px solid var(--portal-border)' : 'none',
+                cursor: 'pointer', transition: 'background .15s', background: 'transparent',
+              }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'var(--portal-bg-secondary)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+              >
+                <div style={{ width: 36, height: 36, borderRadius: 9, background: system.gradient, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0 }}>
+                  {system.icon}
                 </div>
-                <div style={{
-                  maxHeight: isOpen ? 2000 : 0, opacity: isOpen ? 1 : 0,
-                  overflow: 'hidden', transition: 'max-height 0.3s ease, opacity 0.2s ease',
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--portal-text)' }}>{system.name}</div>
+                  <div style={{ fontSize: 11.5, color: '#a3a3a3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{system.description}</div>
+                </div>
+                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: gc.color, background: `${gc.color}10`, padding: '3px 8px', borderRadius: 4, flexShrink: 0 }}>{system.tag}</span>
+                <button onClick={(e) => { e.stopPropagation(); toggleFavorito(system.id) }} style={{
+                  width: 24, height: 24, borderRadius: 6, border: 'none',
+                  background: isFav ? '#FEF3C7' : 'transparent', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                 }}>
-                  {group.items.map((system, i) => {
-                    const isFav = favoritos.includes(system.id)
-                    return (
-                      <div key={system.id} onClick={() => editingFolder ? toggleCardInFolder(editingFolder, system.id) : openSystem(system)} style={{
-                        display: 'flex', alignItems: 'center', gap: 12, padding: '11px 16px',
-                        borderBottom: i < group.items.length - 1 ? '1px solid var(--portal-border)' : 'none',
-                        cursor: 'pointer', transition: 'background .15s', background: 'transparent',
-                        borderLeft: `3px solid ${gc.color}20`,
-                      }}
-                        onMouseEnter={e => { e.currentTarget.style.background = `${gc.color}05`; e.currentTarget.style.borderLeftColor = gc.color }}
-                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderLeftColor = `${gc.color}20` }}
-                      >
-                        <div style={{ width: 32, height: 32, borderRadius: 8, background: system.gradient, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0 }}>
-                          {system.icon}
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--portal-text)' }}>{system.name}</div>
-                          <div style={{ fontSize: 11, color: '#a3a3a3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{system.description}</div>
-                        </div>
-                        <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: gc.color, background: `${gc.color}10`, padding: '3px 8px', borderRadius: 4, flexShrink: 0 }}>{system.tag}</span>
-                        <button onClick={(e) => { e.stopPropagation(); toggleFavorito(system.id) }} style={{
-                          width: 24, height: 24, borderRadius: 6, border: 'none',
-                          background: isFav ? '#FEF3C7' : 'transparent', cursor: 'pointer',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                        }}>
-                          <Star size={12} fill={isFav ? '#F59E0B' : 'none'} color={isFav ? '#F59E0B' : '#e5e5e5'} />
-                        </button>
-                      </div>
-                    )
-                  })}
-                </div>
+                  <Star size={12} fill={isFav ? '#F59E0B' : 'none'} color={isFav ? '#F59E0B' : '#e5e5e5'} />
+                </button>
               </div>
             )
           })}
+          {displayedSystems.length === 0 && <div style={{ padding: 30, textAlign: 'center', color: '#a3a3a3', fontSize: 13 }}>Nenhum sistema.</div>}
         </div>
       )}
 
-      {/* ══ CIRCULAR ══ */}
-      {viewMode === 'circular' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
-          {groupedDisplayed.map((group) => {
-            const isOpen = openGroups.includes(group.key)
-            const gc = group.config
-            return (
-              <div key={group.key} style={{
-                borderRadius: 20, overflow: 'hidden',
-                background: isOpen ? `${gc.color}06` : 'var(--portal-bg-card)',
-                border: `1px solid ${isOpen ? gc.color + '30' : 'var(--portal-border)'}`,
-                transition: 'all 0.25s ease', textAlign: 'center',
-                gridColumn: group.items.length >= 6 ? 'span 2' : 'span 1',
-              }}>
-                <div
-                  onClick={() => toggleGroup(group.key)}
-                  style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                    cursor: 'pointer', padding: '20px 16px 12px',
-                  }}
-                >
-                  <div style={{
-                    width: 56, height: 56, borderRadius: '50%',
-                    background: gc.gradient,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    color: '#fff', boxShadow: `0 6px 20px ${gc.color}30`,
-                    transition: 'transform 0.2s',
-                    transform: isOpen ? 'scale(1.08)' : 'scale(1)',
-                    border: `3px solid var(--portal-bg-card, #fff)`,
-                  }}>
-                    {gc.icon}
-                  </div>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text)' }}>{gc.label}</span>
-                  <span style={{ fontSize: 10, fontWeight: 600, color: gc.color }}>{group.items.length} sistemas</span>
-                </div>
-                <div style={{
-                  maxHeight: isOpen ? 2000 : 0, opacity: isOpen ? 1 : 0,
-                  overflow: 'hidden', transition: 'max-height 0.3s ease, opacity 0.2s ease',
-                }}>
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: group.items.length <= 3 ? `repeat(${group.items.length}, 1fr)` : group.items.length <= 6 ? 'repeat(3, 1fr)' : 'repeat(4, 1fr)',
-                    gap: '8px 4px', padding: '4px 12px 20px', justifyItems: 'center',
-                  }}>
-                    {group.items.map((system) => {
-                      const isFav = favoritos.includes(system.id)
-                      return (
-                        <div key={system.id} onClick={() => editingFolder ? toggleCardInFolder(editingFolder, system.id) : openSystem(system)} style={{
-                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                          cursor: 'pointer', padding: '8px 4px', borderRadius: 12,
-                          transition: 'background 0.15s', width: '100%', position: 'relative',
-                        }}
-                          onMouseEnter={e => { e.currentTarget.style.background = `${gc.color}0A` }}
-                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
-                        >
-                          {isFav && <Star size={10} fill="#F59E0B" color="#F59E0B" style={{ position: 'absolute', top: 4, right: 8, zIndex: 2 }} />}
-                          <div style={{
-                            width: 52, height: 52, borderRadius: '50%',
-                            background: system.gradient, display: 'flex',
-                            alignItems: 'center', justifyContent: 'center', color: '#fff',
-                            boxShadow: `0 4px 12px ${gc.color}20`,
-                            transition: 'transform .2s', border: '3px solid var(--portal-bg-card, #fff)',
-                          }}
-                            onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.12)' }}
-                            onMouseLeave={e => { e.currentTarget.style.transform = '' }}
-                            onContextMenu={e => { e.preventDefault(); toggleFavorito(system.id) }}
-                          >
-                            {system.icon}
-                          </div>
-                          <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--portal-text)', lineHeight: 1.2, maxWidth: 80, textAlign: 'center' }}>{system.name}</span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
 
       <style>{`.fav-btn { opacity: 0 !important; } div:hover > .fav-btn { opacity: 1 !important; }`}</style>
 
-      {/* Minhas Tarefas */}
-      <div style={{ marginTop: '28px' }}>
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          marginBottom: '14px'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{
-              width: '4px', height: '24px', borderRadius: '2px',
-              background: 'linear-gradient(180deg, #dc2626, #b91c1c)'
-            }} />
-            <h3 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--portal-text)' }}>
-              Minhas Tarefas
-            </h3>
-            {minhasTarefas.length > 0 && (
-              <span style={{
-                fontSize: '11px', fontWeight: '700', color: '#fff',
-                background: '#dc2626', padding: '2px 10px', borderRadius: '10px'
-              }}>
-                {minhasTarefas.length}
-              </span>
-            )}
-          </div>
-          <button
-            onClick={() => router.push('/tarefas')}
-            style={{
-              background: 'none', border: 'none', color: '#dc2626',
-              fontSize: '13px', fontWeight: '600', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: '4px'
-            }}
-          >
-            Ver todas <ChevronRight size={16} />
-          </button>
-        </div>
-
-        {tarefasLoading ? (
-          <div style={{
-            padding: '40px', textAlign: 'center', borderRadius: '16px',
-            background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)'
-          }}>
-            <p style={{ color: '#a3a3a3', fontSize: '13px' }}>Carregando tarefas...</p>
-          </div>
-        ) : minhasTarefas.length === 0 ? (
-          <div style={{
-            padding: '40px', textAlign: 'center', borderRadius: '16px',
-            background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
-          }}>
-            <ClipboardCheck size={36} color="#e5e5e5" style={{ margin: '0 auto 12px', display: 'block' }} />
-            <p style={{ color: '#a3a3a3', fontSize: '14px', margin: 0 }}>Nenhuma tarefa pendente</p>
-          </div>
-        ) : (
-          <div style={{
-            borderRadius: '16px', overflow: 'hidden',
-            background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
-          }}>
-            {minhasTarefas.map((t: any, i: number) => {
-              const isAtrasada = t.computed_status === 'atrasada'
-              const hasDue = !!t.prazo
-              const priorityColors: Record<number, string> = { 0: '#a3a3a3', 1: '#3b82f6', 2: '#f59e0b', 3: '#f97316', 4: '#ef4444', 5: '#dc2626' }
-              const priorityLabels: Record<number, string> = { 0: '', 1: 'Baixa', 2: 'Normal', 3: 'Alta', 4: 'Urgente', 5: 'Crítica' }
-              const dueDate = hasDue ? new Date(t.prazo) : null
-              const now = new Date()
-              const diffDays = dueDate ? Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null
-
-              return (
-                <div
-                  key={t.id}
-                  onClick={() => router.push('/tarefas')}
-                  style={{
-                    padding: '13px 20px',
-                    display: 'flex', alignItems: 'center', gap: '16px',
-                    borderBottom: i < minhasTarefas.length - 1 ? '1px solid #f5f5f5' : 'none',
-                    borderLeft: `3px solid ${isAtrasada ? '#ef4444' : '#f59e0b'}`,
-                    cursor: 'pointer', transition: 'background 0.15s',
-                    background: isAtrasada ? '#fffbfb' : 'transparent'
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = '#fafafa' }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = isAtrasada ? '#fffbfb' : 'transparent' }}
-                >
-                  {/* Ícone status */}
-                  <div style={{
-                    width: '36px', height: '36px', borderRadius: '10px',
-                    background: isAtrasada ? '#fef2f2' : '#fffbeb',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    flexShrink: 0
-                  }}>
-                    {isAtrasada
-                      ? <AlertTriangle size={18} color="#ef4444" />
-                      : <Clock size={18} color="#f59e0b" />
-                    }
-                  </div>
-
-                  {/* Conteúdo */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{
-                      fontSize: '14px', fontWeight: '500', color: 'var(--portal-text)',
-                      margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
-                    }}>
-                      {t.titulo}
-                    </p>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px' }}>
-                      {t.criador && (
-                        <span style={{ fontSize: '12px', color: '#a3a3a3' }}>
-                          de {t.criador.nome}
-                        </span>
-                      )}
-                      {t.prioridade > 0 && (
-                        <span style={{
-                          fontSize: '10px', fontWeight: '600',
-                          color: priorityColors[t.prioridade] || '#a3a3a3',
-                          textTransform: 'uppercase'
-                        }}>
-                          {priorityLabels[t.prioridade]}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Data */}
-                  {hasDue && (
-                    <div style={{
-                      textAlign: 'right', flexShrink: 0
-                    }}>
-                      <p style={{
-                        fontSize: '12px', fontWeight: '600', margin: 0,
-                        color: isAtrasada ? '#ef4444' : diffDays !== null && diffDays <= 1 ? '#f59e0b' : '#737373'
-                      }}>
-                        {dueDate!.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
-                      </p>
-                      <p style={{
-                        fontSize: '10px', color: isAtrasada ? '#ef4444' : '#a3a3a3',
-                        margin: '2px 0 0 0', fontWeight: isAtrasada ? '600' : '400'
-                      }}>
-                        {isAtrasada ? `${Math.abs(diffDays!)} dia(s) atrás` : diffDays === 0 ? 'Hoje' : diffDays === 1 ? 'Amanhã' : `${diffDays} dias`}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Recent Activity */}
-      {recentLogs.length > 0 && (
-        <div style={{ marginTop: '28px' }}>
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: '12px',
-            marginBottom: '14px'
-          }}>
-            <div style={{
-              width: '4px', height: '24px', borderRadius: '2px',
-              background: 'linear-gradient(180deg, #ef4444, #dc2626)'
-            }} />
-            <h3 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--portal-text)' }}>
-              Atividade Recente
-            </h3>
-          </div>
-
-          <div style={{
-            borderRadius: '16px', overflow: 'hidden',
-            background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
-            boxShadow: '0 1px 3px var(--portal-shadow)'
-          }}>
-            {recentLogs.map((log, i) => (
-              <div key={log.id || i} style={{
-                padding: '13px 20px',
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                borderBottom: i < recentLogs.length - 1 ? '1px solid #f5f5f5' : 'none'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <Activity size={16} color="#a3a3a3" />
-                  <span style={{ fontSize: '13px', color: '#525252', fontWeight: '500' }}>
-                    Acessou <span style={{ color: '#dc2626', fontWeight: '600' }}>{log.sistema}</span>
-                  </span>
-                </div>
-                <span style={{ fontSize: '12px', color: '#d4d4d4' }}>
-                  {new Date(log.created_at).toLocaleString('pt-BR', {
-                    day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
-                  })}
-                </span>
+      {/* ══ Showcase rotativo de sistemas ══ */}
+      {allowedSystems.length > 0 && (() => {
+        const sys = allowedSystems[showcaseIdx % allowedSystems.length]
+        if (!sys) return null
+        return (
+          <div style={{ marginTop: '28px' }}>
+            <div key={showcaseIdx} onClick={() => openSystem(sys)} style={{
+              position: 'relative', overflow: 'hidden', cursor: 'pointer',
+              borderRadius: 20, padding: '26px 30px', minHeight: 116,
+              background: sys.gradient, color: '#fff',
+              boxShadow: `0 14px 34px ${sys.color}40`,
+              animation: 'showcaseIn .55s ease both',
+              display: 'flex', alignItems: 'center', gap: 22,
+            }}>
+              <div style={{ width: 68, height: 68, borderRadius: 18, background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                {sys.icon}
               </div>
-            ))}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: 1.5, opacity: 0.85, textTransform: 'uppercase' }}>{sys.tag}</div>
+                <div style={{ fontSize: 23, fontWeight: 800, lineHeight: 1.1, marginTop: 4 }}>{sys.name}</div>
+                <div style={{ fontSize: 13.5, opacity: 0.92, marginTop: 6, maxWidth: 640, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sys.description}</div>
+              </div>
+              <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.85, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
+                {(showcaseIdx % allowedSystems.length) + 1} / {allowedSystems.length}
+              </div>
+              <ChevronRight size={26} style={{ flexShrink: 0, opacity: 0.85 }} />
+            </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* Modal Sync Omie */}
       {showSync && (
@@ -1380,14 +1108,24 @@ export default function DashboardPage() {
       {/* Footer */}
       <div style={{
         marginTop: '36px', paddingTop: '20px',
-        borderTop: '1px solid #f0f0f0',
+        borderTop: '1px solid var(--portal-border)',
         textAlign: 'center'
       }}>
-        <p
-          style={{ fontSize: '12px', color: '#d4d4d4', fontWeight: '500', cursor: 'default' }}
-          onDoubleClick={() => setShowSync(true)}
-          title=""
+        <button
+          onClick={() => setShowSync(true)}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: '8px',
+            padding: '10px 20px', borderRadius: '12px', marginBottom: '14px',
+            background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
+            cursor: 'pointer', color: 'var(--portal-text-secondary)', fontSize: '13px', fontWeight: '600',
+            transition: 'all 0.2s'
+          }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = '#fecaca'; e.currentTarget.style.color = '#dc2626' }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--portal-border)'; e.currentTarget.style.color = 'var(--portal-text-secondary)' }}
         >
+          <RefreshCw size={15} /> Sincronizar com Omie
+        </button>
+        <p style={{ fontSize: '12px', color: '#d4d4d4', fontWeight: '500', cursor: 'default' }}>
           Nova Tratores &copy; {new Date().getFullYear()} &mdash; Portal Corporativo v1.0
         </p>
       </div>

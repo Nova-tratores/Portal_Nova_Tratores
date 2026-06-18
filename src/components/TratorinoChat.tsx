@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useRef, useEffect, useCallback } from "react";
 
-const MASCOTE_IMG = (process.env.NEXT_PUBLIC_SUPABASE_URL || "") + "/storage/v1/object/public/catalogo/MascoteAdulto.png";
+const MASCOTE_IMG = (process.env.NEXT_PUBLIC_SUPABASE_URL || "") + "/storage/v1/object/public/catalogo/mascote2-removebg-preview.png";
 
 interface Msg { role: "user" | "assistant"; content: string; proposta?: any; feito?: boolean; abrirUrl?: string; moderacao?: boolean }
 
