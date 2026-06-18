@@ -112,14 +112,26 @@ function condicao(datas: string[]) {
 async function handler(req: NextRequest) {
   const limite = parseInt(req.nextUrl.searchParams.get("limite") || "300");
   const dryRun = req.nextUrl.searchParams.get("dryRun") === "1" || req.nextUrl.searchParams.get("dry") === "1";
+  const desde = req.nextUrl.searchParams.get("desde") || DATA_CORTE; // override de corte p/ testes
 
   const relatorio: any[] = [];
   const porEmpresa: Record<string, { candidatas: number; criados: number; jaExistiam: number; semPedido: number; aguardandoPV: number }> = {};
+  const diagnostico: Record<string, any> = {};
   let criados = 0, jaExistiam = 0, candidatas = 0, semPedido = 0, aguardandoPV = 0;
 
   try {
     for (const acc of ACCS) {
       porEmpresa[acc.name] = { candidatas: 0, criados: 0, jaExistiam: 0, semPedido: 0, aguardandoPV: 0 };
+
+      // Diagnóstico: onde a contagem zera (só no dryRun)
+      if (dryRun) {
+        const base = () => supabase.from("portal_nt_clientes_os").select("id", { count: "exact", head: true }).eq("empresa", acc.name).eq("faturada", true).eq("cancelada", false);
+        const cFat = (await base()).count || 0;
+        const cNF = (await base().not("num_nf", "is", null).neq("num_nf", "")).count || 0;
+        const cPed = (await base().not("num_pedido_cli", "is", null).neq("num_pedido_cli", "")).count || 0;
+        const cPer = (await base().not("num_nf", "is", null).neq("num_nf", "").not("num_pedido_cli", "is", null).neq("num_pedido_cli", "").gte("data_faturamento", desde)).count || 0;
+        diagnostico[acc.name] = { faturadas: cFat, com_nfse: cNF, com_pedido_cliente: cPed, completas_no_periodo: cPer };
+      }
 
       // OS faturadas (a partir do corte), com NFS-e e com "Nº do Pedido do Cliente"
       const { data: oss } = await supabase.from("portal_nt_clientes_os")
@@ -127,7 +139,7 @@ async function handler(req: NextRequest) {
         .eq("empresa", acc.name).eq("faturada", true).eq("cancelada", false)
         .not("num_nf", "is", null).neq("num_nf", "")
         .not("num_pedido_cli", "is", null).neq("num_pedido_cli", "")
-        .gte("data_faturamento", DATA_CORTE)
+        .gte("data_faturamento", desde)
         .order("data_faturamento", { ascending: false })
         .limit(limite);
 
@@ -231,9 +243,10 @@ async function handler(req: NextRequest) {
     }
 
     return NextResponse.json({
-      sucesso: true, dryRun, desde: DATA_CORTE,
+      sucesso: true, dryRun, desde,
       candidatas, criados, jaExistiam, semPedidoVinculado: semPedido, aguardandoPV,
       por_empresa: porEmpresa,
+      diagnostico: dryRun ? diagnostico : undefined,
       itens: relatorio,
     });
   } catch (e) {

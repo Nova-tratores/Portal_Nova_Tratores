@@ -48,5 +48,17 @@ export async function register(): Promise<void> {
   };
   agendarBackfillDiario();
 
-  log('schedulers registrados (sync-incremental 3h, backfill-cmc 06:00 UTC)');
+  // Financeiro: gera os cards do Omie (OS + Peças) a cada 5 min.
+  // É o backup do webhook (tempo real); aqui no Railway substitui os crons do vercel.json.
+  const base = `http://127.0.0.1:${process.env.PORT || 3000}`;
+  const rodarSyncFinanceiro = async () => {
+    for (const path of ['/api/financeiro/sync-os', '/api/financeiro/sync-pecas?dias=3']) {
+      try { await fetch(`${base}${path}`, { method: 'POST' }); } catch (e) { log('sync financeiro falhou: ' + (e as Error).message); }
+    }
+  };
+  const CINCO_MIN = 5 * 60 * 1000;
+  setInterval(() => { rodarSyncFinanceiro().catch(() => {}); }, CINCO_MIN);
+  setTimeout(() => { rodarSyncFinanceiro().catch(() => {}); }, 60 * 1000); // 1ª rodada ~1min após o boot
+
+  log('schedulers registrados (sync-incremental 3h, backfill-cmc 06:00 UTC, financeiro 5min)');
 }

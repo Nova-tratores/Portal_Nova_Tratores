@@ -11,14 +11,6 @@
     {
       "path": "/api/pos/cron/sync-omie",
       "schedule": "0 */3 * * *"
-    },
-    {
-      "path": "/api/financeiro/sync-pecas?dias=3",
-      "schedule": "*/5 * * * *"
-    },
-    {
-      "path": "/api/financeiro/sync-os",
-      "schedule": "*/5 * * * *"
     }
   ]
 }
