@@ -140,14 +140,10 @@ async function nfseDaOS(codOS: number, numOS: string, empKey: string, acc: Acc):
     const nfse = (st?.ListaRpsNfse || [])[0];
     if (!nfse) return { num: "", url: null, raw: null };
     const num = String(nfse.nNfse || "");
+    // SOMENTE o PDF real da NFS-e. Se o Omie não der PDF, fica vazio (anexo manual no card).
     let url: string | null = null;
-    // 1) PDF (DANFE), quando a prefeitura/Omie fornece
-    const pdf = nfse.danfe || nfse.cUrlDanfe || "";
-    if (pdf) url = await baixarEAnexar(pdf, `os/${empKey}/os_${numOS}/nfse_${num || numOS}.pdf`);
-    // 2) XML oficial da NFS-e (baixa e guarda estático — não re-chama o Omie ao abrir)
-    if (!url && nfse.xml_distr) url = await baixarEAnexar(nfse.xml_distr, `os/${empKey}/os_${numOS}/nfse_${num || numOS}.xml`, false);
-    // 3) link de portal da prefeitura, se vier
-    if (!url) url = nfse.cUrlNfse || nfse.cLinkNFSe || nfse.cLinkImpressao || null;
+    const pdf = nfse.danfe || nfse.cUrlDanfe || nfse.cUrlNfse || "";
+    if (pdf) url = await baixarEAnexar(pdf, `os/${empKey}/os_${numOS}/nfse_${num || numOS}.pdf`); // pdfApenas=true: só guarda se for PDF
     return { num, url, raw: nfse };
   } catch { return { num: "", url: null, raw: null }; }
 }

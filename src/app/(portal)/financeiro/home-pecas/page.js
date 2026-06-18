@@ -679,7 +679,7 @@ function HomePosVendasContent() {
                               </div>
                             </div>
                             <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
-                              {(tarefaSelecionada.anexo_nf_servico || (!tarefaSelecionada.num_nf_peca && !tarefaSelecionada.anexo_nf_peca)) && (
+                              {(tarefaSelecionada.anexo_nf_servico || tarefaSelecionada.num_nf_servico || (!tarefaSelecionada.num_nf_peca && !tarefaSelecionada.anexo_nf_peca)) && (
                                 <AttachmentTag label="NF SERVICO" fileUrl={tarefaSelecionada.anexo_nf_servico} onUpload={f => handleUpdateFileDirect(tarefaSelecionada, 'anexo_nf_servico', f)} />
                               )}
                               {(tarefaSelecionada.anexo_nf_peca || (!tarefaSelecionada.num_nf_servico && !tarefaSelecionada.anexo_nf_servico)) && (
