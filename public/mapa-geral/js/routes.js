@@ -22,12 +22,48 @@ const Routes = {
         return min + ' min';
     },
 
+    // Detecta paradas (ignição desligada + parado por >=5min) a partir das posições
+    _detectarParadas(posicoes) {
+        const paradas = [];
+        let ini = null;
+        for (const pos of posicoes) {
+            const parado = (pos.ignicao === 0 || pos.ignicao === false) && (!pos.velocidade || pos.velocidade === 0);
+            if (parado) {
+                if (!ini) ini = pos;
+            } else if (ini) {
+                const dur = Math.round((new Date(pos.dt_posicao).getTime() - new Date(ini.dt_posicao).getTime()) / 60000);
+                if (dur >= 5) paradas.push({ lat: ini.latitude, lng: ini.longitude, inicio: ini.dt_posicao, fim: pos.dt_posicao, duracao_min: dur });
+                ini = null;
+            }
+        }
+        if (ini) {
+            const dur = Math.round((Date.now() - new Date(ini.dt_posicao).getTime()) / 60000);
+            if (dur >= 5) paradas.push({ lat: ini.latitude, lng: ini.longitude, inicio: ini.dt_posicao, fim: null, duracao_min: dur });
+        }
+        return paradas;
+    },
+
+    // Busca a rota do dia via /api/pos/rastreamento (posições por adesao_id) e
+    // devolve no formato { pontos, paradas } que o restante do código espera.
+    async _fetchRotaDia(placa, data) {
+        const v = (App.state.veiculos || []).find(x => x.placa === placa);
+        if (!v || v.id == null) return { pontos: [], paradas: [] };
+        const raw = await Utils.fetchJson(`/api/pos/rastreamento?acao=posicoes&adesao_id=${v.id}&data=${data}&limit=5000`);
+        const arr = (Array.isArray(raw) ? raw : [])
+            .filter(p => p.latitude && p.longitude)
+            .sort((a, b) => new Date(a.dt_posicao).getTime() - new Date(b.dt_posicao).getTime());
+        return {
+            pontos: arr.map(p => ({ latitude: p.latitude, longitude: p.longitude, dt_posicao: p.dt_posicao })),
+            paradas: this._detectarParadas(arr),
+        };
+    },
+
     async loadRouteWithClients(placa, data = null, clientes = []) {
         if (!data) data = new Date().toISOString().split('T')[0];
         Utils.toast(`Carregando rota ${placa}...`, 'info');
 
         try {
-            const resp = await Utils.fetchJson(`/api/rota-dia?placa=${placa}&data=${data}`);
+            const resp = await this._fetchRotaDia(placa, data);
 
             this.clearRoute();
             MapCore.rotasLayer.clearLayers();
@@ -245,7 +281,7 @@ const Routes = {
         Utils.toast(`Carregando rota ${placa}...`, 'info');
 
         try {
-            const resp = await Utils.fetchJson(`/api/rota-dia?placa=${placa}&data=${data}`);
+            const resp = await this._fetchRotaDia(placa, data);
 
             this.clearRoute();
             MapCore.rotasLayer.clearLayers();

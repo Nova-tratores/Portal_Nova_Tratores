@@ -235,7 +235,7 @@ export default function Kanban() {
  });
 
  if (loading) return (
-   <div style={{ minHeight: 'calc(100vh - 64px)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Montserrat, sans-serif' }}>
+   <div style={{ minHeight: 'calc(100vh - 64px)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif' }}>
      <p style={{ color: 'var(--portal-text-secondary)', fontSize: '18px', letterSpacing: '2px' }}>Carregando Kanban...</p>
    </div>
  )
@@ -248,7 +248,7 @@ export default function Kanban() {
  const valorIndividual = tarefaSelecionada ? (tarefaSelecionada.valor_servico / (tarefaSelecionada.qtd_parcelas || 1)) : 0;
 
  return (
-  <div style={{ minHeight: 'calc(100vh - 64px)', fontFamily: 'Montserrat, sans-serif' }}>
+  <div style={{ minHeight: 'calc(100vh - 64px)', fontFamily: 'Inter, sans-serif' }}>
    <FinanceiroNav />
 
    <main style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px - 56px)', overflow: 'hidden' }}>
@@ -587,7 +587,7 @@ export default function Kanban() {
    <style jsx global>{`
     .kanban-card { background: var(--portal-bg-card); border: 1px solid var(--portal-border); border-radius: 20px; cursor: pointer; transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1); overflow: hidden; margin-bottom: 5px; flex-shrink: 0; }
     .kanban-card:hover { transform: translateY(-6px); box-shadow: 0 12px 30px rgba(0,0,0,0.08); border-color: var(--portal-border); }
-    .btn-back { background: transparent; color: var(--portal-text-secondary); border: 1px solid var(--portal-border); padding: 12px 28px; border-radius: 14px; cursor: pointer; display: flex; align-items: center; gap: 10px; font-size:14px; transition: 0.2s; font-family: Montserrat, sans-serif; }
+    .btn-back { background: transparent; color: var(--portal-text-secondary); border: 1px solid var(--portal-border); padding: 12px 28px; border-radius: 14px; cursor: pointer; display: flex; align-items: center; gap: 10px; font-size:14px; transition: 0.2s; font-family: Inter, sans-serif; }
     .btn-back:hover { background: var(--portal-bg-secondary); color: var(--portal-text); }
     ::-webkit-scrollbar { width: 8px; height: 12px; }
     ::-webkit-scrollbar-track { background: var(--portal-bg-secondary); }
@@ -622,11 +622,11 @@ const cascadeLabelStyle = { fontSize: '12px', color: 'var(--portal-text-secondar
 const inputCascadeStyle = { background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: '8px', color: 'var(--portal-text)', padding: '8px 12px', fontSize: '14px', outline: 'none' };
 const cascadeValueStyle = { fontSize: '18px', color: 'var(--portal-text)', fontWeight: '500' };
 
-const inputFilterStyle = { padding: '16px 20px 16px 52px', width: '100%', borderRadius: '14px', border: '1px solid var(--portal-border)', outline: 'none', background:'var(--portal-bg-card)', color:'var(--portal-text)', fontSize: '18px', boxSizing: 'border-box', fontFamily: 'Montserrat, sans-serif' };
+const inputFilterStyle = { padding: '16px 20px 16px 52px', width: '100%', borderRadius: '14px', border: '1px solid var(--portal-border)', outline: 'none', background:'var(--portal-bg-card)', color:'var(--portal-text)', fontSize: '18px', boxSizing: 'border-box', fontFamily: 'Inter, sans-serif' };
 const iconFilterStyle = { position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--portal-text-secondary)', zIndex: 10 };
 const cardInfoStyle = { display:'flex', alignItems:'center', gap:'12px', color:'var(--portal-text-secondary)', fontSize:'15px', marginBottom:'10px' };
 const miniTagStyle = { background:'var(--portal-bg-secondary)', padding:'10px 15px', borderRadius:'12px', fontSize:'12px', color:'var(--portal-text-secondary)', display:'inline-flex', alignItems:'center', gap:'8px', border:'1px solid var(--portal-border)' };
-const inputStyleModal = { width: '100%', padding: '20px', border: '1px solid var(--portal-border)', borderRadius: '15px', outline: 'none', background:'var(--portal-bg-card)', color:'var(--portal-text)', fontSize: '18px', boxSizing: 'border-box', fontFamily: 'Montserrat, sans-serif' };
+const inputStyleModal = { width: '100%', padding: '20px', border: '1px solid var(--portal-border)', borderRadius: '15px', outline: 'none', background:'var(--portal-bg-card)', color:'var(--portal-text)', fontSize: '18px', boxSizing: 'border-box', fontFamily: 'Inter, sans-serif' };
 const labelModalStyle = { fontSize:'14px', color:'var(--portal-text-secondary)', letterSpacing:'1px', textTransform:'uppercase', marginBottom:'10px', display:'block' };
 const pModalStyle = { fontSize:'32px', color:'var(--portal-text)', margin:'0' };
 const fieldBoxModal = { border: '1px solid var(--portal-border)', padding: '25px', borderRadius: '22px', background: '#fef2f2', flex: 1 };

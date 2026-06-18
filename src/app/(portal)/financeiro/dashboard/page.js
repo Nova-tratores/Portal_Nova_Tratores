@@ -12,8 +12,8 @@ import {
 
 function LoadingScreen() {
   return (
-    <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <h1 style={{ color: '#fff', fontFamily: 'Montserrat, sans-serif', fontWeight: '300', fontSize: '24px', letterSpacing: '4px', textTransform: 'uppercase', textAlign: 'center' }}>
+    <div style={{ position: 'fixed', inset: 0, background: '#f7f8fa', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <h1 style={{ color: '#94a3b8', fontFamily: 'Inter, sans-serif', fontWeight: '300', fontSize: '24px', letterSpacing: '4px', textTransform: 'uppercase', textAlign: 'center' }}>
         Relatorio NF <br />
         <span style={{ fontSize: '28px', fontWeight: '400' }}>Nova Tratores</span>
       </h1>
@@ -176,9 +176,9 @@ export default function Dashboard() {
   if (loading) return <LoadingScreen />
 
   if (erro) return (
-    <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '16px' }}>
-      <h1 style={{ color: '#ef4444', fontFamily: 'Montserrat, sans-serif', fontWeight: '300', fontSize: '18px', letterSpacing: '2px', textTransform: 'uppercase', textAlign: 'center', maxWidth: '600px' }}>{erro}</h1>
-      <button onClick={() => window.location.reload()} style={{ color: '#fff', background: 'transparent', border: '0.5px solid #fff', padding: '10px 24px', fontFamily: 'Montserrat', fontSize: '12px', letterSpacing: '2px', cursor: 'pointer' }}>TENTAR NOVAMENTE</button>
+    <div style={{ position: 'fixed', inset: 0, background: '#f7f8fa', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '16px' }}>
+      <h1 style={{ color: '#ef4444', fontFamily: 'Inter, sans-serif', fontWeight: '300', fontSize: '18px', letterSpacing: '2px', textTransform: 'uppercase', textAlign: 'center', maxWidth: '600px' }}>{erro}</h1>
+      <button onClick={() => window.location.reload()} style={{ color: '#fff', background: 'transparent', border: '0.5px solid #fff', padding: '10px 24px', fontFamily: 'Inter', fontSize: '12px', letterSpacing: '2px', cursor: 'pointer' }}>TENTAR NOVAMENTE</button>
     </div>
   )
 
@@ -200,12 +200,12 @@ export default function Dashboard() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f4f4f4', fontFamily: 'Montserrat, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#f4f4f4', fontFamily: 'Inter, sans-serif' }}>
       <FinanceiroNav>
         <button
           onClick={handleImprimir}
           className="no-print"
-          style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#1a1a1a', color: '#fff', border: 'none', borderRadius: '10px', padding: '8px 16px', cursor: 'pointer', fontSize: '11px', letterSpacing: '1px', textTransform: 'uppercase', fontFamily: 'Montserrat, sans-serif' }}
+          style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#1a1a1a', color: '#fff', border: 'none', borderRadius: '10px', padding: '8px 16px', cursor: 'pointer', fontSize: '11px', letterSpacing: '1px', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif' }}
         >
           <Printer size={14} />
           Imprimir
@@ -262,13 +262,13 @@ export default function Dashboard() {
                     value={filtroTexto}
                     onChange={e => setFiltroTexto(e.target.value)}
                     placeholder="Tarefa, setor, forma de pagamento..."
-                    style={{ width: '100%', padding: '10px 12px 10px 34px', border: '0.5px solid #e2e8f0', borderRadius: '10px', fontSize: '13px', fontFamily: 'Montserrat', outline: 'none', boxSizing: 'border-box' }}
+                    style={{ width: '100%', padding: '10px 12px 10px 34px', border: '0.5px solid #e2e8f0', borderRadius: '10px', fontSize: '13px', fontFamily: 'Inter', outline: 'none', boxSizing: 'border-box' }}
                   />
                 </div>
               </div>
               <div style={{ minWidth: '160px' }}>
                 <label style={{ fontSize: '10px', letterSpacing: '1px', color: '#9e9e9e', display: 'block', marginBottom: '6px' }}>STATUS</label>
-                <select value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)} style={{ width: '100%', padding: '10px 12px', border: '0.5px solid #e2e8f0', borderRadius: '10px', fontSize: '13px', fontFamily: 'Montserrat', outline: 'none', background: '#fff', cursor: 'pointer' }}>
+                <select value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)} style={{ width: '100%', padding: '10px 12px', border: '0.5px solid #e2e8f0', borderRadius: '10px', fontSize: '13px', fontFamily: 'Inter', outline: 'none', background: '#fff', cursor: 'pointer' }}>
                   <option value="todos">Todos</option>
                   {Object.entries(STATUS_LABELS_FILTER).map(([key, label]) => (
                     <option key={key} value={key}>{label}</option>
@@ -277,14 +277,14 @@ export default function Dashboard() {
               </div>
               <div style={{ minWidth: '140px' }}>
                 <label style={{ fontSize: '10px', letterSpacing: '1px', color: '#9e9e9e', display: 'block', marginBottom: '6px' }}>VENCIMENTO DE</label>
-                <input type="date" value={filtroDataInicio} onChange={e => setFiltroDataInicio(e.target.value)} style={{ width: '100%', padding: '10px 12px', border: '0.5px solid #e2e8f0', borderRadius: '10px', fontSize: '13px', fontFamily: 'Montserrat', outline: 'none', boxSizing: 'border-box' }} />
+                <input type="date" value={filtroDataInicio} onChange={e => setFiltroDataInicio(e.target.value)} style={{ width: '100%', padding: '10px 12px', border: '0.5px solid #e2e8f0', borderRadius: '10px', fontSize: '13px', fontFamily: 'Inter', outline: 'none', boxSizing: 'border-box' }} />
               </div>
               <div style={{ minWidth: '140px' }}>
                 <label style={{ fontSize: '10px', letterSpacing: '1px', color: '#9e9e9e', display: 'block', marginBottom: '6px' }}>VENCIMENTO ATE</label>
-                <input type="date" value={filtroDataFim} onChange={e => setFiltroDataFim(e.target.value)} style={{ width: '100%', padding: '10px 12px', border: '0.5px solid #e2e8f0', borderRadius: '10px', fontSize: '13px', fontFamily: 'Montserrat', outline: 'none', boxSizing: 'border-box' }} />
+                <input type="date" value={filtroDataFim} onChange={e => setFiltroDataFim(e.target.value)} style={{ width: '100%', padding: '10px 12px', border: '0.5px solid #e2e8f0', borderRadius: '10px', fontSize: '13px', fontFamily: 'Inter', outline: 'none', boxSizing: 'border-box' }} />
               </div>
               {temFiltroAtivo && (
-                <button onClick={limparFiltros} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#ef444415', color: '#ef4444', border: 'none', borderRadius: '10px', padding: '10px 16px', cursor: 'pointer', fontSize: '12px', fontFamily: 'Montserrat', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>
+                <button onClick={limparFiltros} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#ef444415', color: '#ef4444', border: 'none', borderRadius: '10px', padding: '10px 16px', cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>
                   <X size={14} /> Limpar
                 </button>
               )}

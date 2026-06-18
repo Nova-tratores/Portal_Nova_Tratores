@@ -39,6 +39,7 @@ export async function buscarPPVPorId(id: string): Promise<PPVDetalhes | null> {
     usuEmail: String(getValorInsensivel(d, "email_usuario") || ""),
     osId: String(getValorInsensivel(d, "Id_Os") || ""),
     tipoPedido: String(getValorInsensivel(d, "Tipo_Pedido") || "Pedido"),
+    projeto: String(getValorInsensivel(d, "Projeto") || ""),
     produtos: [],
     devolucoes: [],
   };

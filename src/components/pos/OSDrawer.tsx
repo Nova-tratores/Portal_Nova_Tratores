@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { VALOR_HORA, VALOR_KM, TEXT_TEMPLATE, PHASES } from "@/lib/pos/constants";
-import type { ClienteOption, ClienteDados, Produto } from "@/lib/pos/types";
+import type { ClienteOption, ClienteDados, Produto, AlimentacaoItem } from "@/lib/pos/types";
 import SearchModal from "./SearchModal";
 import LogPanel from "./LogPanel";
 import OSGarantiaInfo from "@/components/garantias/OSGarantiaInfo";
@@ -115,9 +115,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   const [gerarPPV, setGerarPPV] = useState(false);
   const [servicoOficina, setServicoOficina] = useState(false);
   const [servicoInterno, setServicoInterno] = useState(false);
-  const [alimentacaoTecnico, setAlimentacaoTecnico] = useState(false);
-  const [alimentacaoValor, setAlimentacaoValor] = useState(0);
-  const [alimentacaoNoPdf, setAlimentacaoNoPdf] = useState(false);
+  const internoOriginalRef = useRef(false);
+  const [alimentacoes, setAlimentacoes] = useState<AlimentacaoItem[]>([]);
   const [enviandoOmie, setEnviandoOmie] = useState(false);
   const [showDescontos, setShowDescontos] = useState(false);
   const [dadosTecnico, setDadosTecnico] = useState<any>(null);
@@ -324,6 +323,21 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
     }
   }, []);
 
+  const concluirLembrete = useCallback(async (id: number) => {
+    if (!osId) { alert("Salve a OS antes de concluir o lembrete."); return; }
+    if (!confirm(`Concluir este lembrete e registrar que foi resolvido na OS ${osId}?`)) return;
+    try {
+      await fetch(`/api/pos/lembretes/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ concluido: true, concluido_por: userName, concluido_em_ordem: String(osId) }),
+      });
+      setLembretes((prev) => prev.filter((l) => l.id !== id));
+    } catch {
+      alert("Erro ao concluir lembrete.");
+    }
+  }, [osId, userName]);
+
   const selectCliente = useCallback(async (chave: string) => {
     setClienteChave(chave);
     if (!chave) return;
@@ -350,29 +364,37 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
 
   const enviarParaOmie = useCallback(async () => {
     if (!osId) return;
-    if (!confirm("Deseja enviar esta OS para o Omie?")) return;
+    if (!confirm(servicoInterno
+      ? "Concluir esta ordem interna?\n\n• A OS NÃO vai para o Omie.\n• Se houver peças, a remessa delas é gerada no Omie."
+      : "Deseja enviar esta OS para o Omie?")) return;
     setEnviandoOmie(true);
     try {
       const res = await fetch(`/api/pos/ordens/${osId}/omie`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userName }) });
       const result = await res.json();
       if (result.sucesso) {
-        let msg = `OS enviada para o Omie com sucesso!\nNº Omie: ${result.cNumOS}`;
-        if (result.pedidoVenda) msg += `\nPedido de Venda nº ${result.pedidoVenda}`;
-        if (result.pedidoVendaErro) msg += `\nErro no Pedido de Venda: ${result.pedidoVendaErro}`;
+        let msg: string;
+        if (result.interna) {
+          msg = "Ordem interna concluída!";
+          msg += result.cNumOS ? `\nRemessa de peças no Omie nº ${result.cNumOS}` : "\n(sem peças — nenhuma remessa gerada)";
+        } else {
+          msg = `OS enviada para o Omie com sucesso!\nNº Omie: ${result.cNumOS}`;
+          if (result.pedidoVenda) msg += `\nPedido de Venda nº ${result.pedidoVenda}`;
+        }
+        if (result.pedidoVendaErro) msg += `\nErro na remessa de peças: ${result.pedidoVendaErro}`;
         alert(msg);
-        setOrdemOmie(String(result.nCodOS));
+        if (result.cNumOS) setOrdemOmie(String(result.cNumOS));
         setStatus("Concluída");
         setLogRefreshKey((k) => k + 1);
         onSaved?.();
       } else {
-        alert(`Erro ao enviar para o Omie:\n${result.erro}`);
+        alert(`Erro ao ${servicoInterno ? "concluir a ordem interna" : "enviar para o Omie"}:\n${result.erro}`);
       }
     } catch (err) {
-      alert("Erro de conexão ao enviar para o Omie.");
+      alert(`Erro de conexão ao ${servicoInterno ? "concluir a ordem" : "enviar para o Omie"}.`);
       console.error(err);
     }
     setEnviandoOmie(false);
-  }, [osId, onSaved]);
+  }, [osId, onSaved, servicoInterno, userName]);
 
   const salvar = useCallback(async () => {
     if (mode === "create" && !clienteChave) { alert("Selecione o Cliente"); return; }
@@ -402,9 +424,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
       gerarPPV: mode === "create" && tipoServico === "Revisão" && gerarPPV,
       servicoOficina,
       servicoInterno,
-      alimentacaoTecnico,
-      alimentacaoValor: alimentacaoTecnico ? alimentacaoValor : 0,
-      alimentacaoNoPdf: alimentacaoTecnico ? alimentacaoNoPdf : false,
+      alimentacoes: alimentacoes.filter(a => (a.valor || 0) > 0),
       userName,
     };
     try {
@@ -419,6 +439,12 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
       }
       setSaving(false);
       setLogRefreshKey((k) => k + 1);
+      // Avisa quando a ordem muda de externa↔interna (ela migra de aba no kanban)
+      if (mode === "edit" && servicoInterno !== internoOriginalRef.current) {
+        alert(servicoInterno
+          ? "Ordem marcada como INTERNA — movida para a aba \"Internas\"."
+          : "Ordem voltou a ser EXTERNA — movida para a aba \"Externas\".");
+      }
       onClose();
       onSaved();
     } catch (err) {
@@ -429,7 +455,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   }, [mode, osId, clienteChave, clienteInfo, tecnico1, tecnico2, tipoServico, revisao, projeto,
       servSolicitado, qtdHoras, qtdKm, ppv, status, ordemOmie, motivoCancel, descValor,
       descHoraValor, descKmValor, relatorioTecnico, previsaoExecucao, previsaoFaturamento, dataFimServico, servicoNumero,
-      gerarPPV, servicoOficina, servicoInterno, alimentacaoTecnico, alimentacaoValor, alimentacaoNoPdf, horaInicioExec, horaChegada, horaFimExec, onClose, onSaved]);
+      gerarPPV, servicoOficina, servicoInterno, alimentacoes, horaInicioExec, horaChegada, horaFimExec, onClose, onSaved]);
 
   // ── Reset form to defaults ──
   const resetForm = useCallback(() => {
@@ -450,7 +476,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
     setLembretes([]); setEditingLembreteId(null);
     setServicoOficina(false);
     setServicoInterno(false);
-    setAlimentacaoTecnico(false); setAlimentacaoValor(0); setAlimentacaoNoPdf(false);
+    setAlimentacoes([]);
   }, []);
 
   // ── Effects ──
@@ -506,9 +532,20 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
           setRequisicoes(d.infoRequisicoes || []);
           setServicoOficina(!!d.servicoOficina);
           setServicoInterno(!!d.servicoInterno);
-          setAlimentacaoTecnico(!!d.alimentacaoTecnico);
-          setAlimentacaoValor(parseFloat(d.alimentacaoValor || 0));
-          setAlimentacaoNoPdf(!!d.alimentacaoNoPdf);
+          internoOriginalRef.current = !!d.servicoInterno;
+          // Alimentações: usa o array novo; se vazio mas houver valor antigo, migra p/ 1 linha
+          if (Array.isArray(d.alimentacoes) && d.alimentacoes.length > 0) {
+            setAlimentacoes(d.alimentacoes.map((a: any) => ({
+              data: typeof a?.data === 'string' ? a.data.slice(0, 10) : '',
+              valor: parseFloat(a?.valor) || 0,
+              tecnicos: Array.isArray(a?.tecnicos) ? a.tecnicos.filter(Boolean).slice(0, 2) : [],
+              no_pdf: !!a?.no_pdf,
+            })));
+          } else if (d.alimentacaoTecnico && parseFloat(d.alimentacaoValor || 0) > 0) {
+            setAlimentacoes([{ data: (d.Data || '').slice(0, 10), valor: parseFloat(d.alimentacaoValor || 0), tecnicos: [d.tecnicoResponsavel || ''].filter(Boolean), no_pdf: !!d.alimentacaoNoPdf }]);
+          } else {
+            setAlimentacoes([]);
+          }
           setDadosTecnico(d.dadosTecnico || null);
           setShowDescontos(dv > 0 || dh > 0 || dk > 0);
           if (d.ppv) loadPPV(d.ppv);
@@ -562,7 +599,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                         });
                       }
                     }}>
-                      <i className="fas fa-print" /> Imprimir
+                      <i className="fas fa-print" /> {servicoInterno ? "Comprovante" : "Imprimir"}
                     </button>
                     <button className="os-btn-ghost" onClick={() => setShowLogs(!showLogs)}>
                       <i className="fas fa-history" /> Log
@@ -671,22 +708,23 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                             Endereço será salvo como: Nova Tratores - Piraju (SP)
                           </div>
                         )}
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, color: servicoInterno ? '#1E3A5F' : 'var(--portal-text-secondary)' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, cursor: 'pointer', padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${servicoInterno ? '#7C3AED' : 'var(--portal-border)'}`, background: servicoInterno ? '#F3E8FF' : 'var(--portal-bg-secondary)' }}>
                           <input
                             type="checkbox"
                             checked={servicoInterno}
                             onChange={(e) => setServicoInterno(e.target.checked)}
-                            style={{ width: 16, height: 16, accentColor: '#1E3A5F' }}
+                            style={{ width: 18, height: 18, accentColor: '#7C3AED', flexShrink: 0 }}
                           />
-                          <i className="fas fa-tools" style={{ fontSize: 14 }} />
-                          Serviço interno
+                          <i className="fas fa-tools" style={{ fontSize: 15, color: servicoInterno ? '#7C3AED' : 'var(--portal-text-secondary)', flexShrink: 0 }} />
+                          <span style={{ fontSize: 13.5, fontWeight: 700, color: servicoInterno ? '#6D28D9' : 'var(--portal-text)' }}>
+                            Ordem interna
+                            <span style={{ display: 'block', fontSize: 11, fontWeight: 500, color: servicoInterno ? '#7C3AED' : 'var(--portal-text-secondary)', marginTop: 2 }}>
+                              {servicoInterno
+                                ? 'Não vai pro Omie — fica na aba Internas (peças só por remessa).'
+                                : 'Marque pra tratar como interna (vai pra aba Internas e não envia ao Omie).'}
+                            </span>
+                          </span>
                         </label>
-                        {servicoInterno && (
-                          <div style={{ fontSize: 11, color: '#1E3A5F', marginTop: 4, background: '#DBEAFE', padding: '4px 8px', borderRadius: 4 }}>
-                            <i className="fas fa-info-circle" style={{ marginRight: 4 }} />
-                            Peças serão enviadas como Remessa no Omie (sem pedido de venda)
-                          </div>
-                        )}
                       </div>
                     )}
                   </div>
@@ -713,9 +751,16 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                       ) : (
                         <>
                           <div className="os-lembrete-alert-text">{l.lembrete}</div>
-                          <button className="os-lembrete-edit-btn" onClick={() => { setEditingLembreteId(l.id); setEditingLembreteText(l.lembrete); }}>
-                            <i className="fas fa-pen" style={{ marginRight: 4 }} /> Editar
-                          </button>
+                          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                            <button className="os-lembrete-edit-btn" onClick={() => { setEditingLembreteId(l.id); setEditingLembreteText(l.lembrete); }}>
+                              <i className="fas fa-pen" style={{ marginRight: 4 }} /> Editar
+                            </button>
+                            {osId && (
+                              <button className="os-lembrete-edit-btn" style={{ background: "#10B981", color: "#fff", borderColor: "#10B981" }} onClick={() => concluirLembrete(l.id)}>
+                                <i className="fas fa-check" style={{ marginRight: 4 }} /> Concluir
+                              </button>
+                            )}
+                          </div>
                         </>
                       )}
                     </div>
@@ -760,10 +805,13 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                           )}
                         </div>
                       )}
-                      {!ordemOmie && (
-                        <button className="os-btn-omie" onClick={enviarParaOmie} disabled={enviandoOmie}>
+                      {!ordemOmie && !(servicoInterno && status === "Concluída") && (
+                        <button className="os-btn-omie" onClick={enviarParaOmie} disabled={enviandoOmie}
+                          style={servicoInterno ? { background: '#7C3AED' } : undefined}>
                           {enviandoOmie ? (
-                            <><div className="spinner-inner" style={S_SPINNER_OMIE} /> Enviando...</>
+                            <><div className="spinner-inner" style={S_SPINNER_OMIE} /> {servicoInterno ? 'Concluindo...' : 'Enviando...'}</>
+                          ) : servicoInterno ? (
+                            <><i className="fas fa-clipboard-check" /> Concluir Ordem Interna</>
                           ) : (
                             <><i className="fas fa-cloud-upload-alt" /> Enviar para Omie</>
                           )}
@@ -771,7 +819,12 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                       )}
                       {ordemOmie && (
                         <div className="os-omie-badge">
-                          <i className="fas fa-check-circle" /> Enviado para Omie (ID: {ordemOmie})
+                          <i className="fas fa-check-circle" /> {servicoInterno ? 'Remessa gerada' : 'Enviado para Omie'} (ID: {ordemOmie})
+                        </div>
+                      )}
+                      {!ordemOmie && servicoInterno && status === "Concluída" && (
+                        <div className="os-omie-badge" style={{ background: '#F3E8FF', color: '#6D28D9', borderColor: '#C4B5FD' }}>
+                          <i className="fas fa-check-circle" /> Ordem interna concluída (sem peças)
                         </div>
                       )}
                     </div>
@@ -1104,31 +1157,70 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                         <input type="date" value={previsaoFaturamento} onChange={(e) => setPrevisaoFaturamento(e.target.value)} style={{ padding: '6px 8px', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 13, width: '100%' }} />
                       </div>
                     </div>
-                    {/* Alimentação do Técnico */}
-                    <div style={{ marginTop: 10, padding: '10px 12px', background: alimentacaoTecnico ? '#FFFBEB' : 'var(--portal-bg-secondary)', border: `1px solid ${alimentacaoTecnico ? '#FCD34D' : 'var(--portal-border)'}`, borderRadius: 8 }}>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#1E3A5F' }}>
-                        <input type="checkbox" checked={alimentacaoTecnico} onChange={(e) => setAlimentacaoTecnico(e.target.checked)} style={{ accentColor: '#D97706', width: 16, height: 16 }} />
-                        <i className="fas fa-utensils" style={{ color: '#D97706', fontSize: 12 }} />
-                        Alimentação do técnico
-                      </label>
-                      {alimentacaoTecnico && (
-                        <div style={{ marginTop: 8, display: 'flex', gap: 12, alignItems: 'center' }}>
-                          <div style={{ flex: 1 }}>
-                            <label style={{ fontSize: 11, color: 'var(--portal-text-secondary)', margin: 0 }}>Valor (R$)</label>
-                            <input type="number" min={0} step={0.01} value={alimentacaoValor || ''} onChange={(e) => setAlimentacaoValor(parseFloat(e.target.value) || 0)} placeholder="0,00" style={{ padding: '6px 8px', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 13, width: '100%' }} />
+                    {/* Alimentação do Técnico (várias, sem limite) */}
+                    <div style={{ marginTop: 10, padding: '10px 12px', background: alimentacoes.length ? '#FFFBEB' : 'var(--portal-bg-secondary)', border: `1px solid ${alimentacoes.length ? '#FCD34D' : 'var(--portal-border)'}`, borderRadius: 8 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: '#1E3A5F' }}>
+                          <i className="fas fa-utensils" style={{ color: '#D97706', fontSize: 12 }} />
+                          Alimentação do técnico
+                          {alimentacoes.length > 0 && (
+                            <span style={{ fontSize: 11, color: '#92400E', fontWeight: 700 }}>· {alimentacoes.length} · R$ {alimentacoes.reduce((s, a) => s + (a.valor || 0), 0).toFixed(2)}</span>
+                          )}
+                        </span>
+                        <button type="button" onClick={() => setAlimentacoes(prev => [...prev, { data: new Date().toISOString().slice(0, 10), valor: 0, tecnicos: [tecnico1].filter(Boolean), no_pdf: false }])}
+                          style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', borderRadius: 6, border: 'none', background: '#D97706', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                          <i className="fas fa-plus" style={{ fontSize: 10 }} /> Adicionar
+                        </button>
+                      </div>
+
+                      {alimentacoes.length === 0 && (
+                        <div style={{ marginTop: 6, fontSize: 11, color: 'var(--portal-text-muted)', fontStyle: 'italic' }}>
+                          Nenhuma alimentação. Clique em &quot;Adicionar&quot;.
+                        </div>
+                      )}
+
+                      {alimentacoes.map((a, i) => {
+                        const upd = (patch: Partial<AlimentacaoItem>) => setAlimentacoes(prev => prev.map((x, idx) => idx === i ? { ...x, ...patch } : x))
+                        const sel = a.tecnicos.length >= 2 ? 'ambos' : (a.tecnicos[0] && a.tecnicos[0] === tecnico2 ? 'tec2' : 'tec1')
+                        const opts: { k: 'tec1' | 'tec2' | 'ambos'; label: string; on: boolean }[] = [
+                          { k: 'tec1', label: 'Téc 1', on: !!tecnico1 },
+                          { k: 'tec2', label: 'Téc 2', on: !!tecnico2 },
+                          { k: 'ambos', label: 'Ambos', on: !!tecnico2 },
+                        ]
+                        return (
+                          <div key={i} style={{ marginTop: 8, padding: 8, background: '#fff', border: '1px solid #FCD34D', borderRadius: 6, display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                            <div style={{ width: 130 }}>
+                              <label style={{ fontSize: 10, color: 'var(--portal-text-secondary)', margin: 0 }}>Data</label>
+                              <input type="date" value={a.data} onChange={(e) => upd({ data: e.target.value })} style={{ padding: '6px 8px', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 13, width: '100%' }} />
+                            </div>
+                            <div style={{ width: 96 }}>
+                              <label style={{ fontSize: 10, color: 'var(--portal-text-secondary)', margin: 0 }}>Valor (R$)</label>
+                              <input type="number" min={0} step={0.01} value={a.valor || ''} onChange={(e) => upd({ valor: parseFloat(e.target.value) || 0 })} placeholder="0,00" style={{ padding: '6px 8px', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 13, width: '100%' }} />
+                            </div>
+                            <div>
+                              <label style={{ fontSize: 10, color: 'var(--portal-text-secondary)', margin: 0, display: 'block' }}>Técnico(s)</label>
+                              <div style={{ display: 'flex', gap: 3 }}>
+                                {opts.map(opt => (
+                                  <button key={opt.k} type="button" disabled={!opt.on}
+                                    onClick={() => upd({ tecnicos: opt.k === 'ambos' ? [tecnico1, tecnico2].filter(Boolean) : opt.k === 'tec2' ? [tecnico2].filter(Boolean) : [tecnico1].filter(Boolean) })}
+                                    style={{ padding: '6px 9px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: opt.on ? 'pointer' : 'not-allowed',
+                                      border: sel === opt.k ? '1px solid #D97706' : '1px solid #E5E7EB',
+                                      background: sel === opt.k ? '#FEF3C7' : '#fff', color: sel === opt.k ? '#92400E' : '#9CA3AF', opacity: opt.on ? 1 : 0.4 }}>
+                                    {opt.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', fontSize: 12, color: a.no_pdf ? '#DC2626' : 'var(--portal-text-secondary)', paddingBottom: 6 }}>
+                              <input type="checkbox" checked={a.no_pdf} onChange={(e) => upd({ no_pdf: e.target.checked })} style={{ accentColor: '#DC2626', width: 14, height: 14 }} />
+                              Mostrar no PDF
+                            </label>
+                            <button type="button" onClick={() => setAlimentacoes(prev => prev.filter((_, idx) => idx !== i))} title="Remover" style={{ marginLeft: 'auto', width: 28, height: 28, borderRadius: 6, border: '1px solid #FECACA', background: '#FEF2F2', color: '#DC2626', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end' }}>
+                              <i className="fas fa-times" style={{ fontSize: 12 }} />
+                            </button>
                           </div>
-                          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12, color: alimentacaoNoPdf ? '#DC2626' : 'var(--portal-text-secondary)', marginTop: 16 }}>
-                            <input type="checkbox" checked={alimentacaoNoPdf} onChange={(e) => setAlimentacaoNoPdf(e.target.checked)} style={{ accentColor: '#DC2626', width: 14, height: 14 }} />
-                            Mostrar no PDF
-                          </label>
-                        </div>
-                      )}
-                      {alimentacaoTecnico && !alimentacaoNoPdf && (
-                        <div style={{ marginTop: 6, fontSize: 10, color: 'var(--portal-text-muted)', fontStyle: 'italic' }}>
-                          <i className="fas fa-eye-slash" style={{ marginRight: 4 }} />
-                          Valor oculto no PDF do cliente
-                        </div>
-                      )}
+                        )
+                      })}
                     </div>
 
                     {diasExecucao.length > 0 && (() => {

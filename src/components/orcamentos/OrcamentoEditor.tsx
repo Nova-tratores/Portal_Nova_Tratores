@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { Plus, Trash2, Search, Printer, ToggleLeft, ToggleRight, Package, Wrench, ArrowLeft, Users, Save, List } from 'lucide-react'
 import ModalBuscaProdutoOrc from './ModalBuscaProduto'
 import ModalBuscaClienteOrc from './ModalBuscaCliente'
+import ModalImportarKit from './ModalImportarKit'
 
 type TipoOrcamento = 'pecas' | 'mao-de-obra' | 'completo'
 
@@ -59,6 +60,9 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar }: Props)
   // Modal busca produto
   const [modalOpen, setModalOpen] = useState(false)
   const [linhaAlvo, setLinhaAlvo] = useState<number | null>(null)
+
+  // Modal importar kit
+  const [modalKitOpen, setModalKitOpen] = useState(false)
 
   // Gerando PDF / Salvando
   const [gerando, setGerando] = useState(false)
@@ -159,6 +163,14 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar }: Props)
   function selecionarCliente(nome: string, documento: string, endereco: string, cidade: string) {
     setCliente({ nome, documento, endereco, cidade })
     setClienteManual(false)
+  }
+
+  function importarKit(produtos: { codigo: string; descricao: string; quantidade: number; preco: number }[], horas: number) {
+    setItens(produtos.map(p => ({ codigo: p.codigo, descricao: p.descricao, quantidade: p.quantidade, preco: p.preco })))
+    if (horas > 0 && (tipo === 'completo' || tipo === 'mao-de-obra')) {
+      setQuantidadeHoras(horas)
+      setIncluirMaoObra(true)
+    }
   }
 
   function handleTabUltimaColuna(e: React.KeyboardEvent, idx: number) {
@@ -644,13 +656,22 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar }: Props)
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           }}>
             <span style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>Peças / Produtos</span>
-            <button onClick={adicionarLinha} style={{
-              display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',
-              borderRadius: 8, border: '1px solid #fecaca', background: '#fef2f2',
-              color: '#dc2626', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-            }}>
-              <Plus size={14} /> Linha
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setModalKitOpen(true)} style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',
+                borderRadius: 8, border: '1px solid #bfdbfe', background: '#eff6ff',
+                color: '#1d4ed8', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              }}>
+                <Package size={14} /> Importar Kit
+              </button>
+              <button onClick={adicionarLinha} style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',
+                borderRadius: 8, border: '1px solid #fecaca', background: '#fef2f2',
+                color: '#dc2626', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              }}>
+                <Plus size={14} /> Linha
+              </button>
+            </div>
           </div>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -880,6 +901,11 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar }: Props)
         open={modalClienteOpen}
         onClose={() => setModalClienteOpen(false)}
         onSelect={selecionarCliente}
+      />
+      <ModalImportarKit
+        open={modalKitOpen}
+        onClose={() => setModalKitOpen(false)}
+        onImportar={importarKit}
       />
     </div>
   )

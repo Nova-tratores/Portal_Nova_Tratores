@@ -8,8 +8,8 @@ import { FileText, CheckCircle, Download, Search } from 'lucide-react'
 
 function LoadingScreen() {
   return (
-    <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <h1 style={{ color: '#fff', fontFamily: 'Montserrat, sans-serif', fontWeight: '300', fontSize: '24px', letterSpacing: '4px', textTransform: 'uppercase', textAlign: 'center' }}>
+    <div style={{ position: 'fixed', inset: 0, background: '#f7f8fa', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <h1 style={{ color: '#94a3b8', fontFamily: 'Inter, sans-serif', fontWeight: '300', fontSize: '24px', letterSpacing: '4px', textTransform: 'uppercase', textAlign: 'center' }}>
             Histórico Recebimentos <br />
             <span style={{ fontSize: '28px', fontWeight: '400' }}>Nova Tratores</span>
         </h1>
@@ -47,7 +47,7 @@ export default function HistoricoReceber() {
   if (loading) return <LoadingScreen />
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f4f4f4', fontFamily: 'Montserrat, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#f4f4f4', fontFamily: 'Inter, sans-serif' }}>
       <FinanceiroNav />
 
       <main style={{ padding: '24px 32px' }}>

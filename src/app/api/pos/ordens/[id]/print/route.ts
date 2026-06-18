@@ -26,6 +26,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const revisao = (safeGet(row, "Revisao") as string) || "";
   const projeto = (safeGet(row, "Projeto") as string) || "-";
   const status = (safeGet(row, "Status") as string) || "-";
+  const servicoInterno = !!safeGet(row, "Servico_Interno");
   const data = formatarDataBR(safeGet(row, "Data") as string);
   const servSolicitado = (safeGet(row, "Serv_Solicitado") as string) || "-";
   const servRealizado = (safeGet(row, "Serv_Realizado") as string) || "";
@@ -45,10 +46,21 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const vHoras = qtdHoras * configPrint.valor_hora;
   const vKm = qtdKm * configPrint.valor_km;
 
-  // Alimentação
+  // Alimentação (várias). Mostra no PDF só os itens com no_pdf=true; com a data.
   const alimentacaoTecnico = !!safeGet(row, "Alimentacao_Tecnico");
   const alimentacaoValor = parseFloat(String(safeGet(row, "Alimentacao_Valor") || 0));
   const alimentacaoNoPdf = !!safeGet(row, "Alimentacao_No_PDF");
+  const alimentacoesArr = Array.isArray(safeGet(row, "Alimentacoes")) ? (safeGet(row, "Alimentacoes") as any[]) : [];
+  const fmtDataAlim = (d: string) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d || "")); return m ? `${m[3]}/${m[2]}/${m[1]}` : ""; };
+  let alimentacaoRows = "";
+  if (alimentacoesArr.length > 0) {
+    alimentacaoRows = alimentacoesArr
+      .filter((a) => a?.no_pdf && (parseFloat(a?.valor) || 0) > 0)
+      .map((a) => `<tr><td>Alimentação Técnico${a.data ? ` (${fmtDataAlim(a.data)})` : ""}</td><td style="text-align:center">—</td><td style="text-align:right">R$ ${(parseFloat(a.valor) || 0).toFixed(2)}</td></tr>`)
+      .join("");
+  } else if (alimentacaoTecnico && alimentacaoNoPdf && alimentacaoValor > 0) {
+    alimentacaoRows = `<tr><td>Alimentação Técnico</td><td style="text-align:center">—</td><td style="text-align:right">R$ ${alimentacaoValor.toFixed(2)}</td></tr>`;
+  }
 
   // Produtos (PPV)
   const ppvId = safeGet(row, "ID_PPV") as string;
@@ -158,25 +170,30 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (descontoKm > 0) descontoRows.push(`<tr class="discount"><td>Desconto KM</td><td style="text-align:center">—</td><td style="text-align:right">- R$ ${descontoKm.toFixed(2)}</td></tr>`);
   if (desconto > 0) descontoRows.push(`<tr class="discount"><td>Desconto Geral</td><td style="text-align:center">—</td><td style="text-align:right">- R$ ${desconto.toFixed(2)}</td></tr>`);
 
+  // Tema: ordem interna usa roxo (comprovante de conclusão), externa usa azul (OS)
+  const tema = servicoInterno
+    ? { cor: "#7C3AED", clara: "#C4B5FD", titulo: "Comprovante de Conclusão", sub: "Ordem Interna — Uso Interno" }
+    : { cor: "#1E3A5F", clara: "#93C5FD", titulo: "Ordem de Serviço", sub: "Ordem de Serviço — Pós-Vendas" };
+
   const html = `<!DOCTYPE html>
-<html lang="pt-BR"><head><meta charset="UTF-8"><title>OS ${id} - ${cliente}</title>
+<html lang="pt-BR"><head><meta charset="UTF-8"><title>${servicoInterno ? "Comprovante Interno" : "OS"} ${id} - ${cliente}</title>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
 <style>
   @page { margin: 0.8cm; size: A4; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'Montserrat', sans-serif; font-size: 9pt; color: #111; margin: 0; padding: 16px; line-height: 1.4; }
 
-  .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 12px; border-bottom: 2.5px solid #1E3A5F; margin-bottom: 14px; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 12px; border-bottom: 2.5px solid ${tema.cor}; margin-bottom: 14px; }
   .company-name { font-size: 20pt; font-weight: 900; text-transform: uppercase; color: #000; letter-spacing: 1px; }
   .company-sub { font-size: 8pt; color: #555; margin-top: 2px; line-height: 1.5; }
   .doc-box { text-align: right; }
-  .doc-label { font-size: 7pt; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: #1E3A5F; }
+  .doc-label { font-size: 7pt; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: ${tema.cor}; }
   .doc-number { font-size: 28pt; font-weight: 900; color: #000; line-height: 1; }
   .doc-meta { font-size: 8pt; color: #555; margin-top: 4px; }
-  .doc-status { display: inline-block; font-size: 7pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 10px; border: 1.5px solid #1E3A5F; color: #1E3A5F; margin-top: 5px; }
+  .doc-status { display: inline-block; font-size: 7pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 10px; border: 1.5px solid ${tema.cor}; color: ${tema.cor}; margin-top: 5px; }
 
   .section { margin-bottom: 12px; }
-  .section-title { font-size: 7pt; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; color: #1E3A5F; margin-bottom: 6px; padding-bottom: 3px; border-bottom: 1px solid #93C5FD; }
+  .section-title { font-size: 7pt; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; color: ${tema.cor}; margin-bottom: 6px; padding-bottom: 3px; border-bottom: 1px solid ${tema.clara}; }
 
   .info-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 2px 20px; }
   .info-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 20px; }
@@ -196,11 +213,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   .cost-table td { padding: 6px 8px; border-bottom: 1px solid #e5e5e5; font-size: 9pt; color: #222; }
   .cost-table tr.discount td { color: #C41E2A; }
 
-  .total-row { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 10px; padding-top: 10px; border-top: 2.5px solid #1E3A5F; }
+  .total-row { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 10px; padding-top: 10px; border-top: 2.5px solid ${tema.cor}; }
   .total-sub { font-size: 8pt; color: #888; margin-bottom: 2px; }
   .total-sub span { margin-right: 12px; }
-  .total-lbl { font-size: 8pt; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #1E3A5F; }
-  .total-val { font-size: 22pt; font-weight: 900; color: #1E3A5F; }
+  .total-lbl { font-size: 8pt; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: ${tema.cor}; }
+  .total-val { font-size: 22pt; font-weight: 900; color: ${tema.cor}; }
 
   .cancel-reason { margin-top: 8px; padding: 8px 10px; background: #FEE2E2; border: 1px solid #FECACA; color: #991B1B; font-size: 9pt; }
 
@@ -213,15 +230,20 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   <div class="header">
     <div>
       <div class="company-name">Nova Tratores</div>
-      <div class="company-sub">Ordem de Serviço &mdash; Pós-Vendas</div>
+      <div class="company-sub">${tema.sub}</div>
     </div>
     <div class="doc-box">
-      <div class="doc-label">Ordem de Serviço</div>
+      <div class="doc-label">${tema.titulo}</div>
       <div class="doc-number">${id}</div>
       <div class="doc-meta">${data}</div>
       <div class="doc-status">${status}</div>
     </div>
   </div>
+
+  ${servicoInterno ? `<div style="margin:0 0 14px;padding:12px 18px;background:#F3E8FF;border:1px solid #C4B5FD;border-left:5px solid #7C3AED;border-radius:8px">
+    <div style="font-size:16px;font-weight:900;color:#6D28D9;letter-spacing:0.5px">COMPROVANTE DE CONCLUSÃO — ORDEM INTERNA</div>
+    <div style="font-size:12px;color:#6B21A8;margin-top:3px">Uso interno — a OS não é enviada ao Omie.${ordemOmie ? ` Remessa de peças no Omie: <b>${ordemOmie}</b>.` : " Sem peças vinculadas."}</div>
+  </div>` : ""}
 
   <div class="section">
     <div class="section-title">Cliente</div>
@@ -258,7 +280,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         <div class="val">${projeto}</div>
       </div>
       ${ordemOmie ? `<div class="field">
-        <div class="lbl">Nº Omie</div>
+        <div class="lbl">${servicoInterno ? "Remessa de Peças (Omie)" : "Nº Omie"}</div>
         <div class="val">${ordemOmie}</div>
       </div>` : ""}
       ${previsaoExec ? `<div class="field">
@@ -301,7 +323,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         <tr><td>Deslocamento</td><td style="text-align:center">${qtdKm} km</td><td style="text-align:right">R$ ${vKm.toFixed(2)}</td></tr>
         ${totalPecas > 0 ? `<tr><td>Peças / Materiais</td><td style="text-align:center">—</td><td style="text-align:right">R$ ${totalPecas.toFixed(2)}</td></tr>` : ""}
         ${totalReq > 0 ? `<tr><td>Requisições</td><td style="text-align:center">—</td><td style="text-align:right">R$ ${totalReq.toFixed(2)}</td></tr>` : ""}
-        ${alimentacaoTecnico && alimentacaoNoPdf && alimentacaoValor > 0 ? `<tr><td>Alimentação Técnico</td><td style="text-align:center">—</td><td style="text-align:right">R$ ${alimentacaoValor.toFixed(2)}</td></tr>` : ""}
+        ${alimentacaoRows}
         ${descontoRows.join("")}
       </tbody>
     </table>

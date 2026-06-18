@@ -80,6 +80,7 @@ function AtividadesPageInner() {
       const { data } = await supabase
         .from('financeiro_usu')
         .select('id, nome')
+        .eq('ativo', true)
         .order('nome')
       if (data) {
         setUsuarios(data.map(d => ({ id: d.id, nome: d.nome })))

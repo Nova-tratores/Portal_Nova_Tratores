@@ -11,14 +11,13 @@ import Header from "@/components/ppv/Header";
 import Toast from "@/components/ppv/Toast";
 import GlobalLoader from "@/components/ppv/GlobalLoader";
 import PhaseView from "@/components/ppv/PhaseView";
+import CatalogoNovo from "@/components/ppv/CatalogoNovo";
 import FormNovoLancamento from "@/components/ppv/FormNovoLancamento";
 import PPVDrawer from "@/components/ppv/PPVDrawer";
 import ModalBuscaCliente from "@/components/ppv/ModalBuscaCliente";
 import ModalBuscaOS from "@/components/ppv/ModalBuscaOS";
 import ModalBuscaProduto from "@/components/ppv/ModalBuscaProduto";
 import ModalProdutoManual from "@/components/ppv/ModalProdutoManual";
-import CatalogoPecas from "@/components/ppv/CatalogoPecas";
-import RastreioEncomendas from "@/components/ppv/RastreioEncomendas";
 import ModalRevisoes from "@/components/ppv/ModalRevisoes";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 
@@ -33,7 +32,7 @@ function PPVApp() {
   // Tabs e filtros
   const [activeTab, setActiveTab] = useState("kanbanTab");
   const [searchFilter, setSearchFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("ATIVOS");
+  const [tipoFilter, setTipoFilter] = useState("TODOS");
   const [tecnicoFilter, setTecnicoFilter] = useState("");
   const [clienteFilter, setClienteFilter] = useState("");
   const [activePhase, setActivePhase] = useState("");
@@ -95,6 +94,33 @@ function PPVApp() {
   const [syncingProdutos, setSyncingProdutos] = useState(false);
   const [showGerenciarKits, setShowGerenciarKits] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
+
+  // Menu cascata da topbar
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onDoc(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [menuOpen]);
+
+  async function syncPrecosOmie() {
+    setSyncingProdutos(true);
+    setSyncResult(null);
+    try {
+      const res = await fetch('/api/ppv/sync-produtos', { method: 'POST' });
+      const data = await res.json();
+      setSyncResult(data.sucesso ? `Sincronizado! ${data.total} produtos atualizados.` : `Erro: ${data.erro || 'Falha na sincronização'}`);
+    } catch {
+      setSyncResult('Erro de conexão ao sincronizar produtos.');
+    } finally {
+      setSyncingProdutos(false);
+      setTimeout(() => setSyncResult(null), 6000);
+    }
+  }
 
   // Form fields
   const [clienteValue, setClienteValue] = useState("");
@@ -179,18 +205,18 @@ function PPVApp() {
     carregarKanban();
   }
 
-  // Filtro combinado: status + técnico + cliente
+  // Filtro combinado: tipo (Pedido/Remessa) + técnico + cliente. Mostra todos os status.
   const filteredKanban = kanbanItems.filter((item) => {
-    const st = (item.status || "").toLowerCase();
-    const terminal = st.includes("concluída") || st.includes("concluida") || st.includes("cancelada") || st.includes("fechado") || st.includes("cancelado");
-    if (statusFilter === "ATIVOS" && terminal) return false;
-    if (statusFilter === "FECHADOS" && !terminal) return false;
+    const isRem = (item.tipo || "").toLowerCase().includes("remessa") || (item.tipo || "").toUpperCase() === "REM";
+    if (tipoFilter === "PEDIDO" && isRem) return false;
+    if (tipoFilter === "REMESSA" && !isRem) return false;
     if (tecnicoFilter && item.tecnico !== tecnicoFilter) return false;
     if (clienteFilter && item.cliente !== clienteFilter) return false;
     return true;
   });
 
-  const bgPattern = { backgroundImage: "radial-gradient(#E8C4A8 1px, transparent 1px)", backgroundSize: "24px 24px" };
+  // Fundo igual ao POS: superfície neutra clara, sem o padrão pontilhado.
+  const bgPattern = { background: "var(--portal-bg, #f1f5f9)" };
 
   return (
     <div className="flex flex-col overflow-hidden font-[Poppins] text-[14px] text-slate-800" style={{ height: "calc(100vh - 84px)" }}>
@@ -207,91 +233,71 @@ function PPVApp() {
           <span className="ppv-topbar-title">NOVA <span style={{ fontWeight: 400 }}>PPV</span></span>
         </div>
 
-        {/* Nav tabs */}
-        <div className="ppv-topbar-nav">
-          <button
-            className={`ppv-topbar-nav-btn ${activeTab === "kanbanTab" ? "active" : ""}`}
-            onClick={() => setActiveTab("kanbanTab")}
-          >
-            <i className="fas fa-th-large" /> Gestão
-          </button>
+        {/* Ações à direita: Novo Lançamento + Menu cascata */}
+        <div className="ppv-topbar-actions">
           <button
             className={`ppv-topbar-nav-btn ${activeTab === "formTab" ? "active" : ""}`}
             onClick={() => setActiveTab("formTab")}
           >
             <i className="fas fa-plus-circle" /> Novo Lançamento
           </button>
-          <button
-            className={`ppv-topbar-nav-btn ${activeTab === "catalogoTab" ? "active" : ""}`}
-            onClick={() => setActiveTab("catalogoTab")}
-          >
-            <i className="fas fa-cogs" /> Catálogo
-          </button>
-          <button
-            className={`ppv-topbar-nav-btn ${activeTab === "rastreioTab" ? "active" : ""}`}
-            onClick={() => setActiveTab("rastreioTab")}
-          >
-            <i className="fas fa-truck" /> Rastreio
-          </button>
-        </div>
 
-        {/* Action buttons */}
-        <div className="ppv-topbar-actions">
-          <button
-            className="ppv-topbar-action-btn"
-            onClick={() => { setProdutoManualEdit(null); setProdutoManualOpen(true); }}
-          >
-            <i className="fas fa-box-open" /> Criar Produto
+          <div style={{ position: "relative" }} ref={menuRef}>
+          <button className="ppv-topbar-action-btn" onClick={() => setMenuOpen((o) => !o)}>
+            <i className="fas fa-bars" /> Menu
+            <i className="fas fa-chevron-down" style={{ fontSize: 10, marginLeft: 6, transform: menuOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
           </button>
-          <button
-            className="ppv-topbar-action-btn secondary"
-            onClick={() => handleBuscaProduto("edit")}
-          >
-            <i className="fas fa-edit" /> Editar Produto
-          </button>
-          <button
-            className="ppv-topbar-action-btn secondary"
-            onClick={() => setShowGerenciarKits(true)}
-          >
-            <i className="fas fa-tools" /> Gerenciar Kits
-          </button>
-          <button
-            className="ppv-topbar-action-btn secondary"
-            disabled={syncingProdutos}
-            onClick={async () => {
-              setSyncingProdutos(true);
-              setSyncResult(null);
-              try {
-                const res = await fetch('/api/ppv/sync-produtos', { method: 'POST' });
-                const data = await res.json();
-                if (data.sucesso) {
-                  setSyncResult(`Sincronizado! ${data.total} produtos atualizados.`);
-                } else {
-                  setSyncResult(`Erro: ${data.erro || 'Falha na sincronização'}`);
-                }
-              } catch {
-                setSyncResult('Erro de conexão ao sincronizar produtos.');
-              } finally {
-                setSyncingProdutos(false);
-                setTimeout(() => setSyncResult(null), 6000);
-              }
-            }}
-            style={{ position: 'relative' }}
-          >
-            <i className={`fas fa-sync-alt ${syncingProdutos ? 'fa-spin' : ''}`} />
-            {syncingProdutos ? ' Sincronizando...' : ' Sync Preços Omie'}
-            {syncResult && (
-              <span style={{
-                position: 'absolute', top: '110%', right: 0, whiteSpace: 'nowrap',
-                background: syncResult.startsWith('Erro') ? '#FEE2E2' : '#D1FAE5',
-                color: syncResult.startsWith('Erro') ? '#DC2626' : '#065F46',
-                fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 6,
-                boxShadow: '0 2px 8px rgba(0,0,0,0.1)', zIndex: 50,
+
+          {menuOpen && (() => {
+            const item = (icon: string, label: string, onClick: () => void, opts?: { active?: boolean; disabled?: boolean; danger?: boolean }) => (
+              <button
+                disabled={opts?.disabled}
+                onClick={() => { onClick(); setMenuOpen(false); }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 11, padding: "10px 12px", width: "100%",
+                  border: "none", borderRadius: 8, cursor: opts?.disabled ? "not-allowed" : "pointer",
+                  background: opts?.active ? "var(--ppv-primary-light, #FEF2F2)" : "transparent",
+                  color: opts?.active ? "var(--ppv-primary)" : "var(--ppv-text)",
+                  fontSize: 13, fontWeight: 600, textAlign: "left", fontFamily: "'Poppins', sans-serif",
+                  opacity: opts?.disabled ? 0.6 : 1, transition: "background 0.12s",
+                }}
+                onMouseEnter={(e) => { if (!opts?.disabled && !opts?.active) e.currentTarget.style.background = "#F1F5F9"; }}
+                onMouseLeave={(e) => { if (!opts?.active) e.currentTarget.style.background = "transparent"; }}
+              >
+                <i className={`fas ${icon}`} style={{ width: 16, textAlign: "center", color: opts?.active ? "var(--ppv-primary)" : "var(--ppv-accent)" }} />
+                {label}
+              </button>
+            );
+            return (
+              <div style={{
+                position: "absolute", right: 0, top: "calc(100% + 8px)", zIndex: 100,
+                minWidth: 240, background: "#fff", borderRadius: 12,
+                border: "1px solid var(--ppv-border-light)", boxShadow: "0 12px 32px rgba(0,0,0,0.16)",
+                padding: 6, display: "flex", flexDirection: "column", gap: 2,
               }}>
-                {syncResult}
-              </span>
-            )}
-          </button>
+                {item("fa-th-large", "Gestão (Kanban)", () => setActiveTab("kanbanTab"), { active: activeTab === "kanbanTab" })}
+                {item("fa-cogs", "Catálogo", () => setActiveTab("catalogoTab"), { active: activeTab === "catalogoTab" })}
+                <div style={{ height: 1, background: "var(--ppv-border-light)", margin: "4px 8px" }} />
+                {item("fa-box-open", "Criar Produto", () => { setProdutoManualEdit(null); setProdutoManualOpen(true); })}
+                {item("fa-edit", "Editar Produto", () => handleBuscaProduto("edit"))}
+                {item("fa-tools", "Gerenciar Kits", () => setShowGerenciarKits(true))}
+                {item(`fa-sync-alt ${syncingProdutos ? "fa-spin" : ""}`, syncingProdutos ? "Sincronizando..." : "Sync Preços Omie", syncPrecosOmie, { disabled: syncingProdutos })}
+              </div>
+            );
+          })()}
+
+          {syncResult && (
+            <span style={{
+              position: 'absolute', top: '110%', right: 0, whiteSpace: 'nowrap',
+              background: syncResult.startsWith('Erro') ? '#FEE2E2' : '#D1FAE5',
+              color: syncResult.startsWith('Erro') ? '#DC2626' : '#065F46',
+              fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 6,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.1)', zIndex: 50,
+            }}>
+              {syncResult}
+            </span>
+          )}
+          </div>
         </div>
       </div>
 
@@ -300,13 +306,11 @@ function PPVApp() {
         {activeTab === "kanbanTab" && (
           <Header
             searchFilter={searchFilter} onSearchChange={setSearchFilter}
-            statusFilter={statusFilter} onStatusFilterChange={setStatusFilter}
+            tipoFilter={tipoFilter} onTipoFilterChange={setTipoFilter}
             tecnicoFilter={tecnicoFilter} onTecnicoFilterChange={setTecnicoFilter}
             tecnicos={tecnicos}
             clienteFilter={clienteFilter} onClienteFilterChange={setClienteFilter}
             clientes={clientesUnicos}
-            orders={filteredKanban}
-            activePhase={activePhase} onPhaseChange={setActivePhase}
           />
         )}
 
@@ -317,14 +321,8 @@ function PPVApp() {
         )}
 
         {activeTab === "catalogoTab" && (
-          <div className="flex-1 overflow-hidden bg-red-950 p-5">
-            <CatalogoPecas />
-          </div>
-        )}
-
-        {activeTab === "rastreioTab" && (
-          <div className="flex-1 overflow-hidden" style={bgPattern}>
-            <RastreioEncomendas />
+          <div className="flex-1 overflow-hidden p-4" style={bgPattern}>
+            <CatalogoNovo userName={userProfile?.nome || ""} />
           </div>
         )}
 

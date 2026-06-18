@@ -74,6 +74,114 @@ export async function deletarRegistro(id: number): Promise<void> {
 }
 
 // -----------------------------------------------------------------------------
+// Última OS (oficina) por cliente — pra mostrar nos cards de CRM/RFM quem foi o
+// último técnico que fez serviço e quando. Usa Ordem_Servico (Portal interno),
+// única fonte com nome de técnico (Os_Tecnico). Match por nome do cliente
+// (exato, trim) — best-effort, mesma convenção do resto do módulo.
+// -----------------------------------------------------------------------------
+export interface UltimaOS {
+  tecnico: string | null;
+  data: string | null;   // string original (ISO ou DD/MM/YYYY)
+  tipo: string | null;
+}
+
+function tsData(s: string | null | undefined): number {
+  if (!s) return 0;
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? 0 : d.getTime();
+  }
+  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:[ T](\d{2}):(\d{2}))?/);
+  if (!m) return 0;
+  const [, dd, mm, yyyy, hh = "0", min = "0"] = m;
+  return new Date(Number(yyyy), Number(mm) - 1, Number(dd), Number(hh), Number(min)).getTime();
+}
+
+export async function buscarUltimasOSPorCliente(nomes: string[]): Promise<Record<string, UltimaOS>> {
+  const unicos = Array.from(new Set(nomes.map((n) => (n || "").trim()).filter(Boolean)));
+  if (!unicos.length) return {};
+  const acc: Record<string, { ts: number; os: UltimaOS }> = {};
+  // Em lotes pra não estourar o tamanho da URL do filtro `in`.
+  const LOTE = 50;
+  for (let i = 0; i < unicos.length; i += LOTE) {
+    const lote = unicos.slice(i, i + LOTE);
+    const { data, error } = await supabase
+      .from("Ordem_Servico")
+      .select("Os_Cliente, Os_Tecnico, Os_Tecnico2, Data, Data_Fim_Servico, Tipo_Servico")
+      .in("Os_Cliente", lote);
+    if (error) throw wrapErr(error);
+    for (const o of (data || []) as Array<Record<string, string | null>>) {
+      const cli = (o.Os_Cliente || "").trim();
+      if (!cli) continue;
+      const ts = Math.max(tsData(o.Data_Fim_Servico), tsData(o.Data));
+      const atual = acc[cli];
+      if (!atual || ts > atual.ts) {
+        acc[cli] = {
+          ts,
+          os: {
+            tecnico: o.Os_Tecnico || o.Os_Tecnico2 || null,
+            data: o.Data_Fim_Servico || o.Data || null,
+            tipo: o.Tipo_Servico || null,
+          },
+        };
+      }
+    }
+  }
+  const out: Record<string, UltimaOS> = {};
+  for (const k of Object.keys(acc)) out[k] = acc[k].os;
+  return out;
+}
+
+// -----------------------------------------------------------------------------
+// Histórico do cliente — agrega OS, Pedidos de Venda e Requisições do banco.
+// OS/PV: tabelas por cliente (cod_cli = código Omie). Requisições: por nome.
+// Best-effort: cada fonte falha de forma isolada (não derruba as outras).
+// -----------------------------------------------------------------------------
+export interface HistOS {
+  num_os: string | null; empresa: string | null; data_inclusao: string | null;
+  data_faturamento: string | null; etapa: string | null; status: string | null;
+  valor_total: number | null; descricao: string | null; servicos: string | null; num_nf: string | null;
+}
+export interface HistPV {
+  num_pedido: string | null; empresa: string | null; data_inclusao: string | null;
+  etapa: string | null; valor_total: number | null; faturado: string | null; numero_nf: string | null;
+}
+export interface HistReq {
+  id: number; titulo: string | null; tipo: string | null; data: string | null;
+  status: string | null; fornecedor: string | null; valor_despeza: number | null; ordem_servico: string | null;
+}
+export interface HistoricoCliente { os: HistOS[]; pv: HistPV[]; requisicoes: HistReq[] }
+
+export async function buscarHistoricoCliente(codigoOmie: string | null, nome: string): Promise<HistoricoCliente> {
+  const out: HistoricoCliente = { os: [], pv: [], requisicoes: [] };
+  const tarefas: PromiseLike<unknown>[] = [];
+  if (codigoOmie) {
+    tarefas.push(
+      supabase.from("portal_nt_clientes_os")
+        .select("num_os, empresa, data_inclusao, data_faturamento, etapa, status, valor_total, descricao, servicos, num_nf")
+        .eq("cod_cli", codigoOmie).order("data_inclusao", { ascending: false }).limit(100)
+        .then(({ data }) => { out.os = (data || []) as HistOS[]; })
+    );
+    tarefas.push(
+      supabase.from("portal_nt_clientes_pv")
+        .select("num_pedido, empresa, data_inclusao, etapa, valor_total, faturado, numero_nf")
+        .eq("cod_cli", codigoOmie).order("data_inclusao", { ascending: false }).limit(100)
+        .then(({ data }) => { out.pv = (data || []) as HistPV[]; })
+    );
+  }
+  if (nome && nome.trim().length >= 3) {
+    tarefas.push(
+      supabase.from("Requisicao")
+        .select("id, titulo, tipo, data, status, fornecedor, valor_despeza, ordem_servico")
+        .ilike("cliente", `%${nome.trim()}%`).order("id", { ascending: false }).limit(100)
+        .then(({ data }) => { out.requisicoes = (data || []) as HistReq[]; })
+    );
+  }
+  await Promise.allSettled(tarefas);
+  return out;
+}
+
+// -----------------------------------------------------------------------------
 // feedback_clientes_info
 // -----------------------------------------------------------------------------
 export async function listarClientesInfo(): Promise<ClienteInfo[]> {
@@ -83,6 +191,16 @@ export async function listarClientesInfo(): Promise<ClienteInfo[]> {
     .order("atualizado_em", { ascending: false });
   if (error) throw wrapErr(error);
   return (data || []) as ClienteInfo[];
+}
+
+export async function buscarClienteInfo(clienteKey: string): Promise<ClienteInfo | null> {
+  const { data, error } = await supabase
+    .from("feedback_clientes_info")
+    .select("*")
+    .eq("cliente_key", clienteKey)
+    .maybeSingle();
+  if (error) throw wrapErr(error);
+  return (data as ClienteInfo | null) ?? null;
 }
 
 export async function upsertClienteInfo(

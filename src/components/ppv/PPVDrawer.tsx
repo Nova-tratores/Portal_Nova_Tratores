@@ -33,7 +33,7 @@ export default function PPVDrawer({
   onModalProdDisplayChange, onSetModalOS,
   modalClienteNome, onDirty,
 }: Props) {
-  const { tecnicos, productCache, showToast } = usePPV();
+  const { tecnicos, productCache, showToast, opcoesRevisao } = usePPV();
   const { userProfile } = useAuth();
 
   const [details, setDetails] = useState<PPVDetalhes | null>(null);
@@ -44,6 +44,7 @@ export default function PPVDrawer({
   const [clienteEndereco, setClienteEndereco] = useState("");
   const [clienteCidade, setClienteCidade] = useState("");
   const [tipoPedido, setTipoPedido] = useState("Pedido");
+  const [projeto, setProjeto] = useState("");
   const [motivoSaida, setMotivoSaida] = useState("Venda Balcão");
   const [observacao, setObservacao] = useState("");
   const [motivoCancelamento, setMotivoCancelamento] = useState("");
@@ -54,6 +55,9 @@ export default function PPVDrawer({
   const [listaPPVAbertos, setListaPPVAbertos] = useState<Array<{ id: string; cliente: string; status: string }>>([]);
   const [pedidoOmie, setPedidoOmie] = useState("");
   const [qtdExtra, setQtdExtra] = useState(1);
+  const [revTrator, setRevTrator] = useState("");
+  const [revHoras, setRevHoras] = useState("");
+  const [importandoKit, setImportandoKit] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [addingExtra, setAddingExtra] = useState(false);
   const [gerando, setGerando] = useState(false);
@@ -109,6 +113,7 @@ export default function PPVDrawer({
       setTecnico(d.tecnico || "");
       setCliente(d.cliente || "");
       setTipoPedido(d.tipoPedido || "Pedido");
+      setProjeto(d.projeto || "");
       setMotivoSaida(d.motivoSaida || "Venda Balcão");
       setObservacao(d.observacao || "");
       setMotivoCancelamento(d.motivoCancelamento || "");
@@ -178,7 +183,7 @@ export default function PPVDrawer({
     setSalvando(true);
     try {
       await api.editarPedido({
-        id: ppvId!, status, observacao, tecnico, cliente, motivoCancelamento, pedidoOmie, osId: modalOSId, tipoPedido, motivoSaida, userName: userProfile?.nome || "",
+        id: ppvId!, status, observacao, tecnico, cliente, motivoCancelamento, pedidoOmie, osId: modalOSId, tipoPedido, projeto, motivoSaida, userName: userProfile?.nome || "",
         substitutoTipo: temSubstituto ? substitutoTipo : null,
         substitutoId: temSubstituto ? substitutoId : null,
         desconto,
@@ -203,6 +208,23 @@ export default function PPVDrawer({
       onDirty?.();
     } catch (e) { showToast("error", e instanceof Error ? e.message : "Erro"); }
     setAddingExtra(false);
+  }
+
+  async function importarKitDrawer() {
+    if (!ppvId || !revTrator || !revHoras) { showToast("error", "Selecione Modelo e Horas"); return; }
+    setImportandoKit(true);
+    try {
+      const itens = await api.buscarKitRevisao(revTrator, revHoras);
+      let d: any = null;
+      for (const x of itens) {
+        d = await api.registrarMovimentacao({ id: ppvId, codigo: x.codigo, descricao: x.descricao, quantidade: x.quantidade, preco: x.preco, tecnico: details?.tecnico || "", tipoMovimento: "Saída", userName: userProfile?.nome || "" });
+      }
+      if (d) setDetails(d);
+      showToast("success", `Kit importado: ${itens.length} ${itens.length === 1 ? "item" : "itens"}`);
+      setRevTrator(""); setRevHoras("");
+      onDirty?.();
+    } catch (e) { showToast("error", e instanceof Error ? e.message : "Erro ao importar kit"); }
+    setImportandoKit(false);
   }
 
   async function salvarPrecoItem(codigo: string) {
@@ -272,6 +294,16 @@ export default function PPVDrawer({
             <div className="ppv-drawer-header">
               <div className="ppv-drawer-header-left">
                 <span className="ppv-drawer-header-title">#{ppvId}</span>
+                <span style={{
+                  fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.5px",
+                  padding: "4px 12px", borderRadius: 6,
+                  background: tipoPedido === "Remessa" ? "#E0E7FF" : "#FEF3C7",
+                  color: tipoPedido === "Remessa" ? "#3730A3" : "#92400E",
+                  border: `1px solid ${tipoPedido === "Remessa" ? "#C7D2FE" : "#FDE68A"}`,
+                }}>
+                  <i className={`fas ${tipoPedido === "Remessa" ? "fa-dolly" : "fa-file-invoice-dollar"}`} style={{ marginRight: 5 }} />
+                  {tipoPedido === "Remessa" ? "Remessa" : "Pedido de Venda"}
+                </span>
                 <span style={{
                   fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px",
                   padding: "4px 12px", borderRadius: 6,
@@ -364,6 +396,24 @@ export default function PPVDrawer({
                         )}
                       </div>
                     )}
+                    {!pedidoOmie ? (
+                      <button
+                        className="ppv-btn-omie"
+                        style={{ width: "100%", marginTop: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+                        onClick={enviarOmie}
+                        disabled={enviandoOmie}
+                      >
+                        {enviandoOmie ? (
+                          <><i className="fas fa-spinner fa-spin" /> Enviando...</>
+                        ) : (
+                          <><i className="fas fa-cloud-upload-alt" /> Enviar para Omie</>
+                        )}
+                      </button>
+                    ) : (
+                      <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 10, background: "#ECFDF5", border: "1px solid #A7F3D0", color: "#047857", fontWeight: 700, fontSize: 13 }}>
+                        <i className="fas fa-check-circle" /> Enviado para Omie (Pedido: {pedidoOmie})
+                      </div>
+                    )}
                   </div>
 
                   {/* ── Cliente ── */}
@@ -421,6 +471,15 @@ export default function PPVDrawer({
                         <input type="text" value={modalOSDisplay} readOnly placeholder="Clique para vincular OS..." onClick={onBuscaOS} style={{ cursor: "pointer", fontWeight: 600, marginBottom: 0 }} />
                       </div>
                     </div>
+                    <div className="ppv-row">
+                      <div style={{ flex: 1 }}>
+                        <label>Projeto</label>
+                        <input type="text" value={projeto} onChange={(e) => setProjeto(e.target.value)}
+                          placeholder={modalOSId ? "Deixe vazio para usar o da OS" : "Nome do projeto..."}
+                          style={{ marginBottom: 0, fontWeight: 600 }} />
+                      </div>
+                      <div style={{ flex: 1 }} />
+                    </div>
                   </div>
 
                   {/* ── Observações ── */}
@@ -432,6 +491,26 @@ export default function PPVDrawer({
                   {/* ── Itens / Materiais ── */}
                   <div className="ppv-card">
                     <div className="ppv-card-title"><i className="fas fa-boxes" /> Itens &amp; Materiais</div>
+
+                    {/* Importar Kit de Revisão */}
+                    <label><i className="fas fa-tools" style={{ marginRight: 6 }} />Kit de Revisão</label>
+                    <div style={{ display: "flex", gap: 10, alignItems: "flex-end", marginBottom: 14 }}>
+                      <div style={{ flex: 1 }}>
+                        <select value={revTrator} onChange={(e) => { setRevTrator(e.target.value); setRevHoras(""); }} style={{ marginBottom: 0 }}>
+                          <option value="">-- Modelo --</option>
+                          {Object.keys(opcoesRevisao || {}).sort().map((m) => <option key={m} value={m}>{m}</option>)}
+                        </select>
+                      </div>
+                      <div style={{ width: 110 }}>
+                        <select value={revHoras} onChange={(e) => setRevHoras(e.target.value)} disabled={!revTrator} style={{ marginBottom: 0 }}>
+                          <option value="">-- Horas --</option>
+                          {((opcoesRevisao && opcoesRevisao[revTrator]) || []).map((h: string) => <option key={h} value={h}>{h}</option>)}
+                        </select>
+                      </div>
+                      <button type="button" onClick={importarKitDrawer} disabled={importandoKit || !revTrator || !revHoras} className="ppv-btn-save" style={{ padding: "10px 16px", whiteSpace: "nowrap", fontSize: 13, background: "#0d9488" }}>
+                        {importandoKit ? <i className="fas fa-spinner fa-spin" /> : <><i className="fas fa-download" /> Importar</>}
+                      </button>
+                    </div>
 
                     {/* Adicionar item */}
                     <label>Adicionar Produto</label>
@@ -599,19 +678,6 @@ export default function PPVDrawer({
                 {/* ── Footer ── */}
                 <div className="ppv-drawer-footer">
                   <button className="ppv-btn-cancel" onClick={onClose}>Cancelar</button>
-                  {!pedidoOmie && status !== "Concluída" && status !== "Cancelada" && (
-                    <button
-                      className="ppv-btn-omie"
-                      onClick={enviarOmie}
-                      disabled={enviandoOmie}
-                    >
-                      {enviandoOmie ? (
-                        <><i className="fas fa-spinner fa-spin" /> Enviando...</>
-                      ) : (
-                        <><i className="fas fa-paper-plane" /> Enviar para Omie</>
-                      )}
-                    </button>
-                  )}
                   <button className="ppv-btn-save" onClick={salvar} disabled={salvando}>
                     {salvando ? "Salvando..." : "Salvar Alterações"}
                   </button>

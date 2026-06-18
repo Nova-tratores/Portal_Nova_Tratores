@@ -405,7 +405,7 @@ function montarObsOS(os: Record<string, unknown>): string {
 }
 
 // --- Função principal: criar OS no Omie ---
-export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean; nCodOS?: number; cNumOS?: string; erro?: string; pedidoVenda?: string; pedidoVendaErro?: string }> {
+export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean; nCodOS?: number; cNumOS?: string; erro?: string; pedidoVenda?: string; pedidoVendaErro?: string; interna?: boolean }> {
   if (!OMIE_APP_KEY || !OMIE_APP_SECRET) {
     return { sucesso: false, erro: "Credenciais Omie não configuradas" };
   }
@@ -432,6 +432,56 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
   }
 
   try {
+    // Serviço interno: conclui no portal SEM enviar a OS ao Omie.
+    // Se tiver peça (PPV), gera só a remessa das peças no Omie. Sem peça, só conclui.
+    if (os.Servico_Interno) {
+      if (String(os.Status || "") === "Concluída") {
+        return { sucesso: false, erro: "Ordem interna já concluída." };
+      }
+      const ppvIds = String(os.ID_PPV || "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      const numeros: string[] = [];
+      const erros: string[] = [];
+      for (const ppvId of ppvIds) {
+        try {
+          const r = await enviarPPVParaOmie(ppvId, { remessa: true });
+          if (r.sucesso && r.numeroPedido) numeros.push(r.numeroPedido);
+          else if (r.erro) erros.push(`${ppvId}: ${r.erro}`);
+        } catch (e) {
+          erros.push(`${ppvId}: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+      // Tinha peça mas a remessa falhou em todas → não conclui (erro real do Omie).
+      if (ppvIds.length > 0 && numeros.length === 0) {
+        return { sucesso: false, erro: erros.join(" | ") || "Falha ao gerar remessa no Omie." };
+      }
+
+      const remessaNum = numeros.join(", ");
+      // Conclui a OS no portal (sem enviar a OS ao Omie); grava a remessa quando houver.
+      await supabase
+        .from(TBL_OS)
+        .update({ Status: "Concluída", ...(remessaNum ? { Ordem_Omie: remessaNum, id_omie: remessaNum } : {}) })
+        .eq("Id_Ordem", idOrdem);
+
+      if (ppvIds.length > 0) {
+        try {
+          await fecharPPVsVinculados(ppvIds, idOrdem);
+        } catch (e) {
+          console.error(`[Omie] Erro ao fechar PPVs vinculados ${idOrdem}:`, e);
+        }
+      }
+      console.log(`[Omie] ✓ ${idOrdem} interna concluída ${remessaNum ? `(remessa ${remessaNum})` : "(sem peças)"}`);
+      return {
+        sucesso: true,
+        interna: true,
+        cNumOS: remessaNum || undefined,
+        pedidoVendaErro: erros.length ? erros.join(" | ") : undefined,
+      };
+    }
+
     const { nCodCli, email: emailCliente } = await buscarNcodCli(os.Cnpj_Cliente);
     const nCodProj = await buscarNcodProj(String(os.Projeto || ""));
     const nCodVend = await buscarNcodVend(String(os.Os_Tecnico || ""), String(os.Os_Tecnico2 || ""));

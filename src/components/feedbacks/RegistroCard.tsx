@@ -1,12 +1,26 @@
 "use client";
-import type { FeedbackRegistro, StatusAtendimento } from "@/lib/feedbacks/types";
+import { useState } from "react";
+import { TAG_NAO_CONTATAR, type FeedbackRegistro, type StatusAtendimento } from "@/lib/feedbacks/types";
+import type { UltimaOS } from "@/lib/feedbacks/api";
+
+const TAG_PENDENCIA = "!!#Pendências Cadastrais#!!";
 
 interface Props {
   registro: FeedbackRegistro;
+  // Última OS (oficina) do cliente — quem foi o último técnico e quando.
+  ultimaOS?: UltimaOS | null;
+  // Tags do cliente (de feedback_clientes_info) — para ícones e a caveira.
+  clienteTags?: string[];
   onEditar?: (r: FeedbackRegistro) => void;
   onExcluir?: (r: FeedbackRegistro) => void;
   // Muda o status de atendimento do registro (concluir, reabrir, sem-resposta…).
   onMudarAtendimento?: (r: FeedbackRegistro, novo: StatusAtendimento) => void;
+  // Arquiva o atendimento com justificativa (cliente que não vale a pena).
+  onArquivar?: (r: FeedbackRegistro) => void;
+  // Abre o histórico completo do cliente (OS, pedidos, requisições).
+  onVerHistorico?: (r: FeedbackRegistro) => void;
+  // 💀 Caveira: alterna "não contatar" no cliente.
+  onCaveira?: (r: FeedbackRegistro) => void;
 }
 
 // Horas decorridas desde aberto_em (negativo se aberto_em for futuro)
@@ -50,7 +64,7 @@ function corPrioridade(p: string | null): { bg: string; fg: string } {
   }
 }
 
-export default function RegistroCard({ registro: r, onEditar, onExcluir, onMudarAtendimento }: Props) {
+export default function RegistroCard({ registro: r, ultimaOS, clienteTags, onEditar, onExcluir, onMudarAtendimento, onArquivar, onVerHistorico, onCaveira }: Props) {
   const isCrm = r.tipo === "crm";
   const corStatusObj = isCrm ? corStatus(r.status_cliente) : corPrioridade(r.prioridade);
   const emAtendimento = r.status_atendimento === "aberto" || r.status_atendimento === "em_andamento";
@@ -59,25 +73,63 @@ export default function RegistroCard({ registro: r, onEditar, onExcluir, onMudar
   // "Sem resposta" só libera 24h após o início do atendimento (mesma regra do modal).
   const bloqueadoSemResposta = horasAberto !== null && horasAberto < 24;
   const restantesSemResp = bloqueadoSemResposta ? Math.ceil(24 - (horasAberto || 0)) : 0;
+  const [hover, setHover] = useState(false);
+  const clicavel = !!onVerHistorico;
+  const tags = clienteTags || [];
+  const naoContatar = tags.includes(TAG_NAO_CONTATAR);
+  // Falta info cadastral: sem e-mail e sem telefone, ou marcado com pendência cadastral.
+  const faltaInfo = (!r.email && !r.telefone) || tags.includes(TAG_PENDENCIA);
 
   return (
-    <article style={{ ...cardStyle, ...(atrasado ? { borderColor: "#dc2626", borderWidth: 2 } : {}) }}>
-      {emAtendimento && (
-        <div style={atendimentoBannerStyle(atrasado)}>
-          <span>
-            {atrasado ? "⚠️" : "🟢"} Em atendimento por <strong>{r.atendente_nome || "—"}</strong>
-            {horasAberto !== null && ` · há ${fmtTempoDecorrido(horasAberto)}`}
-          </span>
-          {atrasado && (
-            <span style={{ fontSize: 10, fontWeight: 700, color: "#991b1b" }}>
-              ATUALIZE COM DETALHES
-            </span>
-          )}
-        </div>
+    <article
+      onClick={onVerHistorico ? () => onVerHistorico(r) : undefined}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      title={clicavel ? "Clique para ver o histórico do cliente (OS, pedidos, requisições)" : undefined}
+      style={{
+        ...cardStyle,
+        ...(atrasado ? { borderColor: "#dc2626", borderWidth: 2 } : {}),
+        position: "relative",
+        ...(clicavel ? { cursor: "pointer" } : {}),
+        ...(clicavel && hover ? { boxShadow: "0 6px 18px rgba(3,105,161,0.18)", borderColor: "#0ea5e9", transform: "translateY(-1px)" } : {}),
+        transition: "box-shadow .15s, transform .15s, border-color .15s",
+      }}
+    >
+      {clicavel && hover && (
+        <span style={{ position: "absolute", top: 8, right: 10, fontSize: 10, fontWeight: 700, color: "#0369a1", background: "#e0f2fe", borderRadius: 8, padding: "2px 8px", zIndex: 1 }}>
+          📜 ver histórico
+        </span>
       )}
+      {(r.atendente_nome || r.status_atendimento === "arquivado") && (() => {
+        // Banner conforme o status do atendimento.
+        let bg = "#d1fae5", fg = "#065f46", txt = "🟢 Em atendimento por";
+        if (r.status_atendimento === "arquivado") {
+          bg = "#e5e7eb"; fg = "#374151"; txt = r.atendente_nome ? "🗄️ Arquivado por" : "🗄️ Arquivado";
+        } else if (emAtendimento) {
+          if (atrasado) { bg = "#fee2e2"; fg = "#991b1b"; txt = "⚠️ Em atendimento por"; }
+        } else if (r.status_atendimento === "concluido") {
+          bg = "#f3f4f6"; fg = "#374151"; txt = "✓ Concluído por";
+        } else if (r.status_atendimento === "sem_resposta") {
+          bg = "#fee2e2"; fg = "#991b1b"; txt = "📵 Sem resposta — atendido por";
+        }
+        return (
+          <div style={{ ...atendimentoBannerBase, background: bg, color: fg, flexDirection: "column", alignItems: "flex-start" }}>
+            <span>
+              {txt}{r.atendente_nome ? <> <strong>{r.atendente_nome}</strong></> : null}
+              {emAtendimento && horasAberto !== null && ` · há ${fmtTempoDecorrido(horasAberto)}`}
+              {atrasado && <strong style={{ marginLeft: 8, color: "#991b1b" }}>· ATUALIZE COM DETALHES</strong>}
+            </span>
+            {r.status_atendimento === "arquivado" && r.arquivado_motivo && (
+              <span style={{ fontStyle: "italic", opacity: 0.85 }}>Motivo: {r.arquivado_motivo}</span>
+            )}
+          </div>
+        );
+      })()}
       <header style={cardHeader}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            {naoContatar && <span title="Cliente marcado como 'não contatar'" style={{ fontSize: 14 }}>💀</span>}
+            {faltaInfo && <span title="Faltam informações cadastrais (sem contato e/ou pendência cadastral)" style={{ fontSize: 13 }}>⚠️</span>}
             <h3 style={tituloStyle}>{r.nome}</h3>
             {r.origem_dados && <span style={origemBadgeStyle(r.origem_dados)}>{r.origem_dados}</span>}
           </div>
@@ -135,6 +187,15 @@ export default function RegistroCard({ registro: r, onEditar, onExcluir, onMudar
         {isCrm && r.melhoria && <Detail label="Melhoria" val={r.melhoria} />}
       </div>
 
+      {ultimaOS && (ultimaOS.tecnico || ultimaOS.data) && (
+        <div style={ultimaOSStyle}>
+          🔧 <strong>Último serviço:</strong>{" "}
+          {ultimaOS.tecnico || "técnico não informado"}
+          {ultimaOS.data ? ` · ${fmtData(ultimaOS.data)}` : ""}
+          {ultimaOS.tipo ? ` · ${ultimaOS.tipo}` : ""}
+        </div>
+      )}
+
       {(isCrm ? r.feedback : r.motivo) && (
         <blockquote style={citaStyle}>
           {isCrm ? r.feedback : r.motivo}
@@ -148,7 +209,13 @@ export default function RegistroCard({ registro: r, onEditar, onExcluir, onMudar
       )}
 
       {onMudarAtendimento && (
-        <div style={acoesAtendimentoStyle}>
+        <div style={acoesAtendimentoStyle} onClick={(e) => e.stopPropagation()}>
+          {r.status_atendimento === "arquivado" ? (
+            <button onClick={() => onMudarAtendimento(r, "em_andamento")} style={btnAcao("#e5e7eb", "#374151")} type="button">
+              ♻️ Desarquivar
+            </button>
+          ) : (
+          <>
           {/* Concluir / Reabrir */}
           {r.status_atendimento === "concluido" ? (
             <button onClick={() => onMudarAtendimento(r, "em_andamento")} style={btnAcao("#f3f4f6", "#525252")} type="button">
@@ -182,14 +249,31 @@ export default function RegistroCard({ registro: r, onEditar, onExcluir, onMudar
               )}
             </div>
           )}
+          {onArquivar && (
+            <button onClick={() => onArquivar(r)} style={btnAcao("#e5e7eb", "#374151")} type="button" title="Arquivar este atendimento (com justificativa)">
+              🗄️ Arquivar
+            </button>
+          )}
+          </>
+          )}
         </div>
       )}
 
-      {(onEditar || onExcluir) && (
-        <footer style={footerStyle}>
+      {(onEditar || onExcluir || onCaveira) && (
+        <footer style={footerStyle} onClick={(e) => e.stopPropagation()}>
           {onEditar && (
             <button onClick={() => onEditar(r)} style={btnAcao("#fef3c7", "#92400e")} type="button">
-              ✎ Editar
+              📝 Preencher atendimento
+            </button>
+          )}
+          {onCaveira && (
+            <button
+              onClick={() => onCaveira(r)}
+              style={btnAcao(naoContatar ? "#d1fae5" : "#1f2937", naoContatar ? "#065f46" : "#fff")}
+              type="button"
+              title={naoContatar ? "Reativar contato com este cliente" : "Marcar cliente como 'não contatar' (não vale a pena)"}
+            >
+              {naoContatar ? "↩ Reativar contato" : "💀 Não contatar"}
             </button>
           )}
           {onExcluir && (
@@ -224,22 +308,18 @@ const cardStyle: React.CSSProperties = {
   fontFamily: "Inter, sans-serif",
   display: "flex", flexDirection: "column", gap: 10,
 };
-function atendimentoBannerStyle(atrasado: boolean): React.CSSProperties {
-  return {
-    margin: "-16px -16px 0",
-    padding: "8px 14px",
-    background: atrasado ? "#fee2e2" : "#d1fae5",
-    color: atrasado ? "#991b1b" : "#065f46",
-    fontSize: 11,
-    fontWeight: 600,
-    borderRadius: "12px 12px 0 0",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 8,
-    flexWrap: "wrap",
-  };
-}
+const atendimentoBannerBase: React.CSSProperties = {
+  margin: "-16px -16px 0",
+  padding: "8px 14px",
+  fontSize: 11,
+  fontWeight: 600,
+  borderRadius: "12px 12px 0 0",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 8,
+  flexWrap: "wrap",
+};
 const cardHeader: React.CSSProperties = {
   display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8,
 };
@@ -291,6 +371,11 @@ const citaStyle: React.CSSProperties = {
 };
 const footerStyle: React.CSSProperties = {
   display: "flex", gap: 6, paddingTop: 8, borderTop: "1px solid #f5f5f5",
+};
+const ultimaOSStyle: React.CSSProperties = {
+  fontSize: 11.5, color: "var(--portal-text-secondary)",
+  background: "#f9fafb", border: "1px solid #eee",
+  borderRadius: 6, padding: "6px 10px",
 };
 const acoesAtendimentoStyle: React.CSSProperties = {
   display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "wrap",

@@ -100,6 +100,7 @@ export function useChat(userId: string | undefined): UseChatReturn {
     const { data } = await supabase
       .from('financeiro_usu')
       .select('id, nome, avatar_url, funcao')
+      .eq('ativo', true)
       .order('nome')
     setTodosUsuarios(data || [])
   }, [])

@@ -187,6 +187,8 @@ useEffect(() => {
 
 const handleUpdateField = async (id, field, value) => {
       if (tarefaSelecionada?.status === 'concluido') return;
+      // só age se houve MUDANÇA real (evita notificar ao só clicar/sair do campo)
+      if (tarefaSelecionada && String(tarefaSelecionada.id) === String(id) && String(tarefaSelecionada[field] ?? '') === String(value ?? '')) return;
       await supabase.from('Chamado_NF').update({ [field]: value }).eq('id', id);
       notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} alterou NF #${id}`, `Campo: ${field}`, `/financeiro/kanban-financeiro`)
       carregarDados();
@@ -333,7 +335,7 @@ const isBoletoParcelado = tarefaSelecionada?.forma_pagamento === 'Boleto Parcela
 const isCartaoParcelado = tarefaSelecionada?.forma_pagamento === 'Cartão Parcelado';
 
 return (
-    <div style={{ minHeight: 'calc(100vh - 64px)', fontFamily: 'Montserrat, sans-serif', background: 'var(--portal-bg-secondary)' }}>
+    <div style={{ minHeight: 'calc(100vh - 64px)', fontFamily: 'Inter, sans-serif', background: 'var(--portal-bg-secondary)' }}>
     <FinanceiroNav />
 
     <main style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px - 56px)', overflow: 'hidden' }}>
@@ -462,7 +464,7 @@ return (
     {/* --- MODAL DETALHES --- */}
     {tarefaSelecionada && (
       <div onClick={(e) => { if (e.target === e.currentTarget) setTarefaSelecionada(null); }} style={{ position: 'fixed', inset: 0, background: 'var(--portal-bg-card)', backdropFilter: 'blur(15px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ background: 'var(--portal-bg-card)', width: '1100px', maxWidth: '98%', maxHeight: '95vh', borderRadius: '0px', overflow:'hidden', boxShadow: '0 40px 100px rgba(47, 54, 64, 0.1)', border: '1px solid var(--portal-border)', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ background: 'var(--portal-bg-card)', width: '1100px', maxWidth: '98%', maxHeight: '95vh', borderRadius: '16px', overflow:'hidden', boxShadow: '0 40px 100px rgba(47, 54, 64, 0.1)', border: '1px solid var(--portal-border)', display: 'flex', flexDirection: 'column' }}>
 
         <div style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--portal-bg-card)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', borderBottom: '1px solid var(--portal-border)', flexShrink: 0 }}>
           <button onClick={() => setTarefaSelecionada(null)} className="btn-back" title="Voltar para a visualização do quadro"><ArrowLeft size={18}/> VOLTAR AO PAINEL</button>
@@ -754,7 +756,7 @@ return (
                   border:'1px solid var(--portal-border)', borderRadius:'12px', outline:'none',
                   background: tarefaSelecionada.status === 'concluido' ? 'var(--portal-bg-secondary)' : 'var(--portal-bg-card)',
                   color:'var(--portal-text)', fontSize:'15px', lineHeight:'1.6',
-                  fontFamily:'Montserrat, sans-serif', resize:'vertical', boxSizing:'border-box',
+                  fontFamily:'Inter, sans-serif', resize:'vertical', boxSizing:'border-box',
                   transition:'border-color 0.2s',
                 }}
                 onFocus={e => { if (tarefaSelecionada.status !== 'concluido') e.target.style.borderColor = 'var(--portal-text-muted)' }}
@@ -952,7 +954,7 @@ function AttachmentTag({ icon, label, fileUrl, onUpload, disabled = false, onRem
 }
 
 // --- ESTILOS AUXILIARES ---
-const colWrapperStyle = { flex: 1, display: 'flex', flexDirection: 'column', gap: '0px', overflowY: 'auto', padding: '12px', background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: '0px' };
+const colWrapperStyle = { flex: 1, display: 'flex', flexDirection: 'column', gap: '0px', overflowY: 'auto', padding: '12px', background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: '14px', boxShadow: '0 1px 3px rgba(16,24,40,0.05)' };
 const colTitleStyle = { textAlign: 'center', fontSize: '13px', color:'var(--portal-text-secondary)', fontWeight:'600', marginBottom:'16px', textTransform:'uppercase', letterSpacing:'1.5px', padding: '12px 8px', borderBottom: '1px solid var(--portal-border)' };
 const btnActionRed = { flex: 1, background: 'transparent', color: '#c0392b', border: '1px solid #c0392b', padding: '22px', borderRadius: '0px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' , gap: '15px', fontSize: '15px', textTransform:'uppercase', letterSpacing:'2px' };
 const btnActionGreen = { flex: 1, background: 'transparent', color: '#27ae60', border: '1px solid #27ae60', padding: '22px', borderRadius: '0px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px', fontSize: '15px', textTransform:'uppercase', letterSpacing:'2px' };

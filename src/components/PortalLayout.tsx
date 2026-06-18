@@ -5,12 +5,13 @@ import { usePermissoes } from '@/hooks/usePermissoes'
 import { useChat } from '@/hooks/useChat'
 import { useNotificacoes } from '@/hooks/useNotificacoes'
 import { usePathname, useRouter } from 'next/navigation'
+import TratorinoChat from '@/components/TratorinoChat'
 import {
   LogOut, Settings, ClipboardList, Wrench, FileText,
   DollarSign, Package, Menu, X, User as UserIcon,
-  LayoutDashboard, Bell, ChevronRight, Activity, Lock, MessageCircle,
+  LayoutDashboard, Bell, ChevronRight, ChevronDown, Activity, Lock, MessageCircle,
   CheckCheck, Trash2, ExternalLink, Calendar, Users, Calculator, BarChart3, Eye, Camera, Wheat, Megaphone,
-  Sun, Moon, Volume2, Check, MapPin, ShieldCheck, Building, SlidersHorizontal
+  Sun, Moon, Volume2, Check, MapPin, ShieldCheck, Building, SlidersHorizontal, AlertCircle, Headset
 } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -18,6 +19,8 @@ import ChatPanel from './chat/ChatPanel'
 import LembretesPanel from './lembretes/LembretesPanel'
 import LembreteAlerta from './lembretes/LembreteAlerta'
 import NotifPrefsModal from './notif/NotifPrefsModal'
+import OpaLembrete from './opa/OpaLembrete'
+import SatLembrete from './sat/SatLembrete'
 
 interface NavItem {
   id: string
@@ -26,179 +29,80 @@ interface NavItem {
   icon: React.ReactNode
   tag: string
   gradient: string
+  group: string
   external?: boolean
 }
 
+const GROUP_CONFIG: Record<string, { label: string; color: string; gradient: string }> = {
+  geral:      { label: '',            color: '#dc2626', gradient: 'linear-gradient(135deg, #dc2626, #b91c1c)' },
+  servicos:   { label: 'SERVIÇOS',    color: '#0EA5E9', gradient: 'linear-gradient(135deg, #0EA5E9, #0369A1)' },
+  pecas:      { label: 'PEÇAS',       color: '#F97316', gradient: 'linear-gradient(135deg, #F97316, #EA580C)' },
+  financeiro: { label: 'FINANCEIRO',  color: '#10B981', gradient: 'linear-gradient(135deg, #10B981, #059669)' },
+  comercial:  { label: 'COMERCIAL',   color: '#8B5CF6', gradient: 'linear-gradient(135deg, #8B5CF6, #7C3AED)' },
+  estoque:    { label: 'ESTOQUE',     color: '#DC2626', gradient: 'linear-gradient(135deg, #DC2626, #991B1B)' },
+  outros:     { label: 'OUTROS',      color: '#6B7280', gradient: 'linear-gradient(135deg, #6B7280, #4B5563)' },
+}
+
+const GROUP_ORDER = ['geral', 'servicos', 'pecas', 'financeiro', 'comercial', 'estoque', 'outros']
+
 const navItems: NavItem[] = [
-  {
-    id: 'dashboard',
-    name: 'Dashboard',
-    href: '/dashboard',
-    icon: <LayoutDashboard size={18} />,
-    tag: 'INÍCIO',
-    gradient: 'linear-gradient(135deg, #dc2626, #b91c1c)'
-  },
-  {
-    id: 'financeiro',
-    name: 'Financeiro',
-    href: '/financeiro',
-    icon: <DollarSign size={18} />,
-    tag: 'FINANÇAS',
-    gradient: 'linear-gradient(135deg, #dc2626, #b91c1c)'
-  },
-  {
-    id: 'requisicoes',
-    name: 'Requisições',
-    href: '/requisicoes',
-    icon: <ClipboardList size={18} />,
-    tag: 'COMPRAS',
-    gradient: 'linear-gradient(135deg, #ef4444, #dc2626)'
-  },
-  {
-    id: 'revisoes',
-    name: 'Controle de Revisões',
-    href: '/revisoes',
-    icon: <Wrench size={18} />,
-    tag: 'MANUTENÇÃO',
-    gradient: 'linear-gradient(135deg, #b91c1c, #991b1b)'
-  },
-  {
-    id: 'pos',
-    name: 'Pós-Vendas (OS)',
-    href: '/pos',
-    icon: <Settings size={18} />,
-    tag: 'SERVIÇOS',
-    gradient: 'linear-gradient(135deg, #dc2626, #991b1b)'
-  },
-  {
-    id: 'ppv',
-    name: 'Peças (Pedido de Venda)',
-    href: '/ppv',
-    icon: <Package size={18} />,
-    tag: 'PEÇAS',
-    gradient: 'linear-gradient(135deg, #ef4444, #b91c1c)'
-  },
-  {
-    id: 'garantias',
-    name: 'Garantias',
-    href: '/garantias',
-    icon: <ShieldCheck size={18} />,
-    tag: 'GARANTIAS',
-    gradient: 'linear-gradient(135deg, #dc2626, #7f1d1d)'
-  },
-  {
-    id: 'propostas',
-    name: 'Proposta Comercial',
-    href: '/propostas',
-    icon: <FileText size={18} />,
-    tag: 'VENDAS',
-    gradient: 'linear-gradient(135deg, #991b1b, #7f1d1d)'
-  },
-  {
-    id: 'feedbacks',
-    name: 'Feedbacks & CRM',
-    href: '/feedbacks',
-    icon: <Megaphone size={18} />,
-    tag: 'CRM',
-    gradient: 'linear-gradient(135deg, #dc2626, #b91c1c)'
-  },
-  {
-    id: 'orcamentos',
-    name: 'Orçamentos',
-    href: '/orcamentos',
-    icon: <Calculator size={18} />,
-    tag: 'ORÇAMENTOS',
-    gradient: 'linear-gradient(135deg, #dc2626, #ef4444)'
-  },
-  {
-    id: 'atividades',
-    name: 'Atividades',
-    href: '/atividades',
-    icon: <Activity size={18} />,
-    tag: 'LOGS',
-    gradient: 'linear-gradient(135deg, #dc2626, #991b1b)'
-  },
-  {
-    id: 'clientes',
-    name: 'Clientes',
-    href: '/clientes',
-    icon: <Building size={18} />,
-    tag: 'CLIENTES',
-    gradient: 'linear-gradient(135deg, #dc2626, #991b1b)'
-  },
-  {
-    id: 'mapa-geral',
-    name: 'Mapeamento Tecnico',
-    href: '/mapa-geral',
-    icon: <MapPin size={18} />,
-    tag: 'MAPA',
-    gradient: 'linear-gradient(135deg, #b91c1c, #991b1b)'
-  },
-  {
-    id: 'mecanicos',
-    name: 'Janela Mecanico',
-    href: '/mecanicos',
-    icon: <Users size={18} />,
-    tag: 'TECNICOS',
-    gradient: 'linear-gradient(135deg, #1d4ed8, #3b82f6)'
-  },
-  {
-    id: 'fotos-tecnicos',
-    name: 'Fotos Técnicos',
-    href: '/fotos-tecnicos',
-    icon: <Camera size={18} />,
-    tag: 'FOTOS',
-    gradient: 'linear-gradient(135deg, #7C3AED, #5B21B6)'
-  },
-  {
-    id: 'consulta-estoque',
-    name: 'Visual Estoque',
-    href: '/estoque',
-    icon: <BarChart3 size={18} />,
-    tag: 'ESTOQUE',
-    gradient: 'linear-gradient(135deg, #ef4444, #991b1b)'
-  },
-  {
-    id: 'consulta-omie',
-    name: 'Consulta Omie',
-    href: 'https://produtos.novatratores.com',
-    icon: <Eye size={18} />,
-    tag: 'SHOWROOM',
-    gradient: 'linear-gradient(135deg, #b91c1c, #7f1d1d)',
-    external: true
-  },
-  {
-    id: 'dashboard-agro',
-    name: 'Dashboard Agro',
-    href: 'https://dashboard-agro-sp-production.up.railway.app/',
-    icon: <Wheat size={18} />,
-    tag: 'AGRO',
-    gradient: 'linear-gradient(135deg, #22c55e, #15803d)',
-    external: true
-  },
-  {
-    id: 'dre',
-    name: 'DRE Financeiro',
-    href: 'https://financeiro-omie-production-ce7e.up.railway.app/dre',
-    icon: <DollarSign size={18} />,
-    tag: 'DRE',
-    gradient: 'linear-gradient(135deg, #0ea5e9, #0369a1)',
-    external: true
-  }
+  // Geral
+  { id: 'dashboard', name: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={18} />, tag: 'INÍCIO', gradient: '', group: 'geral' },
+
+  // Serviços (azul claro)
+  { id: 'pos', name: 'Pós-Vendas (OS)', href: '/pos', icon: <Settings size={18} />, tag: 'OS', gradient: '', group: 'servicos' },
+  { id: 'garantias', name: 'Garantias', href: '/garantias', icon: <ShieldCheck size={18} />, tag: 'GARANTIAS', gradient: '', group: 'servicos' },
+  { id: 'revisoes', name: 'Controle de Revisões', href: '/revisoes', icon: <Wrench size={18} />, tag: 'MANUTENÇÃO', gradient: '', group: 'servicos' },
+  { id: 'mecanicos', name: 'Janela Mecânico', href: '/mecanicos', icon: <Users size={18} />, tag: 'TÉCNICOS', gradient: '', group: 'servicos' },
+  { id: 'sat', name: 'SAT Digital', href: '/sat', icon: <Headset size={18} />, tag: 'ATENDIMENTO', gradient: '', group: 'servicos' },
+  { id: 'mapa-geral', name: 'Mapeamento Técnico', href: '/mapa-geral', icon: <MapPin size={18} />, tag: 'MAPA', gradient: '', group: 'servicos' },
+  { id: 'fotos-tecnicos', name: 'Fotos Técnicos', href: '/fotos-tecnicos', icon: <Camera size={18} />, tag: 'FOTOS', gradient: '', group: 'servicos' },
+  { id: 'lousa', name: 'Lousa Virtual', href: '/lousa', icon: <Calendar size={18} />, tag: 'AGENDA', gradient: '', group: 'servicos' },
+
+  // Peças (laranja)
+  { id: 'ppv', name: 'Peças (Pedido de Venda)', href: '/ppv', icon: <Package size={18} />, tag: 'PEÇAS', gradient: '', group: 'pecas' },
+  { id: 'orcamentos', name: 'Orçamentos', href: '/orcamentos', icon: <Calculator size={18} />, tag: 'ORÇAMENTOS', gradient: '', group: 'pecas' },
+  { id: 'requisicoes', name: 'Requisições', href: '/requisicoes', icon: <ClipboardList size={18} />, tag: 'COMPRAS', gradient: '', group: 'pecas' },
+
+  // Financeiro (verde)
+  { id: 'financeiro', name: 'Financeiro', href: '/financeiro', icon: <DollarSign size={18} />, tag: 'FINANÇAS', gradient: '', group: 'financeiro' },
+  { id: 'dre', name: 'DRE Financeiro', href: '/dre-financeiro', icon: <DollarSign size={18} />, tag: 'DRE', gradient: '', group: 'financeiro' },
+
+  // Comercial (roxo)
+  { id: 'propostas', name: 'Proposta Comercial', href: '/propostas', icon: <FileText size={18} />, tag: 'VENDAS', gradient: '', group: 'comercial' },
+  { id: 'feedbacks', name: 'Feedbacks & CRM', href: '/feedbacks', icon: <Megaphone size={18} />, tag: 'CRM', gradient: '', group: 'comercial' },
+  { id: 'clientes', name: 'Clientes', href: '/clientes', icon: <Building size={18} />, tag: 'CLIENTES', gradient: '', group: 'comercial' },
+  { id: 'supervisor-vendas', name: 'Supervisor Vendas', href: '/supervisor-vendas', icon: <SlidersHorizontal size={18} />, tag: 'VENDAS', gradient: '', group: 'comercial' },
+
+  // Estoque (vermelho)
+  { id: 'consulta-estoque', name: 'Visual Estoque', href: '/visual-estoque', icon: <BarChart3 size={18} />, tag: 'VISUAL', gradient: '', group: 'estoque' },
+  { id: 'consulta-omie', name: 'Consulta Estoque', href: '/estoque', icon: <Eye size={18} />, tag: 'CONSULTA', gradient: '', group: 'estoque' },
+
+  // Outros (cinza)
+  { id: 'opa', name: 'Opa', href: '/opa', icon: <AlertCircle size={18} />, tag: 'OCORRÊNCIAS', gradient: '', group: 'outros' },
+  { id: 'atividades', name: 'Atividades', href: '/atividades', icon: <Activity size={18} />, tag: 'LOGS', gradient: '', group: 'outros' },
+  { id: 'dashboard-agro', name: 'Dashboard Agro', href: 'https://dashboard-agro-sp-production.up.railway.app/', icon: <Wheat size={18} />, tag: 'AGRO', gradient: '', group: 'outros', external: true },
 ]
 
-// Ícone por tipo de notificação
-const NOTIF_ICONS: Record<string, string> = {
-  chat: '💬',
-  financeiro: '💰',
-  requisicao: '📋',
-  revisao: '🔧',
-  pos: '⚙️',
-  ppv: '🛡️',
-  garantia: '🛡️',
-  proposta: '📄',
-  admin: '🔒',
-  sistema: '🔔',
+// Ícone por tipo de notificação (lucide — sem emojis)
+const NOTIF_ICONS: Record<string, import('react').ReactNode> = {
+  chat: <MessageCircle size={18} />,
+  financeiro: <DollarSign size={18} />,
+  requisicao: <ClipboardList size={18} />,
+  revisao: <Wrench size={18} />,
+  pos: <Settings size={18} />,
+  ppv: <Package size={18} />,
+  garantia: <ShieldCheck size={18} />,
+  proposta: <FileText size={18} />,
+  admin: <Lock size={18} />,
+  sistema: <Bell size={18} />,
+}
+
+// Cor de acento por tipo de notificação
+const NOTIF_COLORS: Record<string, string> = {
+  chat: '#3b82f6', financeiro: '#10b981', requisicao: '#f97316', revisao: '#0ea5e9',
+  pos: '#0ea5e9', ppv: '#f97316', garantia: '#0ea5e9', proposta: '#8b5cf6',
+  admin: '#dc2626', sistema: '#6b7280',
 }
 
 const timeAgo = (date: string) => {
@@ -258,8 +162,8 @@ const SONS_NOTIFICACAO = [
 ]
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
-  const { userProfile, loading, handleLogout } = useAuth()
-  const { isAdmin, temAcesso, loading: loadingPerm } = usePermissoes(userProfile?.id)
+  const { userProfile, setUserProfile, loading, handleLogout } = useAuth()
+  const { permissoes, isAdmin, temAcesso, loading: loadingPerm } = usePermissoes(userProfile?.id)
   const chatData = useChat(userProfile?.id)
   const notifData = useNotificacoes(userProfile?.id)
   const router = useRouter()
@@ -267,6 +171,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const [chatOpen, setChatOpen] = useState(false)
   const [lembretesOpen, setLembretesOpen] = useState(false)
   const [bellOpen, setBellOpen] = useState(false)
+  const [topMenuOpen, setTopMenuOpen] = useState(false)
   const [notifPrefsOpen, setNotifPrefsOpen] = useState(false)
   const [toasts, setToasts] = useState<{ id: string; chatId?: string; titulo: string; avatar: string | null; preview: string; tipo: string; link?: string; timestamp: number }[]>([])
   const lastChatNotifIdRef = useRef<string | null>(null)
@@ -324,6 +229,52 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     }
   }
 
+  // ===== Perfil (dentro das Configurações) =====
+  const [configTab, setConfigTab] = useState<'perfil' | 'aparencia' | 'som'>('perfil')
+  const [perfilNome, setPerfilNome] = useState('')
+  const [novaSenha, setNovaSenha] = useState('')
+  const [novaSenha2, setNovaSenha2] = useState('')
+  const [perfilBusy, setPerfilBusy] = useState(false)
+  const [perfilMsg, setPerfilMsg] = useState<{ tipo: 'ok' | 'err'; texto: string } | null>(null)
+  const avatarInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => { if (userProfile?.nome) setPerfilNome(userProfile.nome) }, [userProfile?.nome])
+
+  const salvarNome = async () => {
+    if (!userProfile?.id || !perfilNome.trim()) return
+    setPerfilBusy(true); setPerfilMsg(null)
+    const { error } = await supabase.from('financeiro_usu').update({ nome: perfilNome.trim() }).eq('id', userProfile.id)
+    if (error) setPerfilMsg({ tipo: 'err', texto: 'Erro ao salvar o nome.' })
+    else { setUserProfile(p => p ? { ...p, nome: perfilNome.trim() } : p); setPerfilMsg({ tipo: 'ok', texto: 'Nome atualizado!' }) }
+    setPerfilBusy(false)
+  }
+
+  const uploadAvatar = async (file: File) => {
+    if (!userProfile?.id) return
+    setPerfilBusy(true); setPerfilMsg(null)
+    try {
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+      const path = `avatares/${userProfile.id}-${Date.now()}.${ext}`
+      const { error: upErr } = await supabase.storage.from('anexos').upload(path, file, { upsert: true })
+      if (upErr) throw upErr
+      const url = supabase.storage.from('anexos').getPublicUrl(path).data.publicUrl
+      await supabase.from('financeiro_usu').update({ avatar_url: url }).eq('id', userProfile.id)
+      setUserProfile(p => p ? { ...p, avatar_url: url } : p)
+      setPerfilMsg({ tipo: 'ok', texto: 'Foto atualizada!' })
+    } catch { setPerfilMsg({ tipo: 'err', texto: 'Erro ao enviar a foto.' }) }
+    setPerfilBusy(false)
+  }
+
+  const trocarSenha = async () => {
+    if (novaSenha.length < 6) { setPerfilMsg({ tipo: 'err', texto: 'A senha precisa de ao menos 6 caracteres.' }); return }
+    if (novaSenha !== novaSenha2) { setPerfilMsg({ tipo: 'err', texto: 'As senhas não coincidem.' }); return }
+    setPerfilBusy(true); setPerfilMsg(null)
+    const { error } = await supabase.auth.updateUser({ password: novaSenha })
+    if (error) setPerfilMsg({ tipo: 'err', texto: 'Erro ao alterar senha: ' + error.message })
+    else { setNovaSenha(''); setNovaSenha2(''); setPerfilMsg({ tipo: 'ok', texto: 'Senha alterada com sucesso!' }) }
+    setPerfilBusy(false)
+  }
+
   // Carregar avisos não confirmados + realtime
   useEffect(() => {
     if (!userProfile?.id) return
@@ -369,29 +320,10 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const limparNotifRef = useRef(chatData.limparNotificacao)
   limparNotifRef.current = chatData.limparNotificacao
 
-  // Abrir link externo com token portal (bypass auth)
-  const openExternalWithAuth = useCallback(async (href: string) => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (session) {
-      const ts = Date.now().toString()
-      // Gerar HMAC via API route (funciona em http e https)
-      const res = await fetch('/api/portal-token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ts })
-      })
-      const { hash } = await res.json()
-      const sep = href.includes('?') ? '&' : '?'
-      window.open(`${href}${sep}portal_token=${hash}&portal_ts=${ts}&portal_user=${encodeURIComponent(session.user.email || '')}`, '_blank')
-    } else {
-      window.open(href, '_blank')
-    }
-  }, [])
-
-  // Fechar dropdown do sino ao clicar fora
+  // Fechar dropdown do sino + menu cascata ao clicar fora
   useEffect(() => {
     const handle = (e: MouseEvent) => {
-      if (bellRef.current && !bellRef.current.contains(e.target as Node)) setBellOpen(false)
+      if (bellRef.current && !bellRef.current.contains(e.target as Node)) { setBellOpen(false); setTopMenuOpen(false) }
     }
     document.addEventListener('mousedown', handle)
     return () => document.removeEventListener('mousedown', handle)
@@ -490,9 +422,18 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const totalBell = notifData.naoLidas + chatData.totalNaoLidas
 
   const filteredNavItems = useMemo(() => navItems.filter(item => {
-    if (item.id === 'dashboard') return true
+    if (item.id === 'dashboard' || item.id === 'opa' || item.id === 'sat') return true
     return temAcesso(item.id)
   }), [temAcesso])
+
+  const groupedNav = useMemo(() => {
+    const groups: { key: string; config: typeof GROUP_CONFIG[string]; items: NavItem[] }[] = []
+    for (const gk of GROUP_ORDER) {
+      const items = filteredNavItems.filter(i => i.group === gk)
+      if (items.length > 0) groups.push({ key: gk, config: GROUP_CONFIG[gk], items })
+    }
+    return groups
+  }, [filteredNavItems])
 
   // Items mesclados para o dropdown do sino
   const bellItems = useMemo(() => [
@@ -502,7 +443,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       return {
         id: 'chat-' + c.id,
         chatId: c.id,
-        icone: '💬',
+        icone: 'chat',
         titulo: c.tipo === 'grupo' ? (c.nome || 'Grupo') : (outro?.nome || 'Chat'),
         descricao: c.nao_lidas + (c.nao_lidas === 1 ? ' mensagem nova' : ' mensagens novas'),
         tempo: c.ultima_mensagem?.created_at || c.updated_at,
@@ -515,7 +456,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     ...notifData.notificacoes.slice(0, 20).map(n => ({
       id: n.id,
       chatId: null as string | null,
-      icone: NOTIF_ICONS[n.tipo] || '🔔',
+      icone: NOTIF_ICONS[n.tipo] || <Bell size={18} />,
       titulo: n.titulo,
       descricao: n.descricao || '',
       tempo: n.created_at,
@@ -582,104 +523,68 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         {/* Right: chat + sino + user */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
 
-          {/* Chat button — fundo vermelho */}
-          <button
-            onClick={() => setChatOpen(true)}
-            style={{
-              position: 'relative',
-              background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
-              border: 'none',
-              color: '#fff',
-              cursor: 'pointer', padding: '12px 22px',
-              borderRadius: '12px', transition: 'all 0.2s',
-              display: 'flex', alignItems: 'center', gap: '9px',
-              fontSize: '14px', fontWeight: '600',
-              boxShadow: '0 4px 12px rgba(220,38,38,0.25)'
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.boxShadow = '0 6px 18px rgba(220,38,38,0.35)' }}
-            onMouseLeave={(e) => { e.currentTarget.style.boxShadow = '0 4px 12px rgba(220,38,38,0.25)' }}
-            title="Mensagens"
-          >
-            <MessageCircle size={20} />
-            <span>Chat</span>
-            {chatData.totalNaoLidas > 0 && (
-              <span style={{
-                minWidth: '22px', height: '22px', borderRadius: '11px',
-                background: '#fff', color: '#dc2626', fontSize: '12px',
-                fontWeight: '700', display: 'flex', alignItems: 'center',
-                justifyContent: 'center', padding: '0 6px',
-              }}>
-                {chatData.totalNaoLidas > 99 ? '99+' : chatData.totalNaoLidas}
-              </span>
-            )}
-          </button>
-
-          {/* Lembretes button */}
-          <button
-            onClick={() => setLembretesOpen(true)}
-            style={{
-              position: 'relative',
-              background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
-              color: 'var(--portal-text-secondary)', cursor: 'pointer', padding: '10px',
-              borderRadius: '12px', transition: 'all 0.2s',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: `0 1px 3px var(--portal-shadow)`
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#fecaca'; e.currentTarget.style.color = '#dc2626' }}
-            onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--portal-border)'; e.currentTarget.style.color = 'var(--portal-text-secondary)' }}
-            title="Lembretes"
-          >
-            <Calendar size={20} />
-          </button>
-
-          {/* Config button */}
-          <button
-            onClick={() => setConfigOpen(true)}
-            style={{
-              position: 'relative',
-              background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
-              color: 'var(--portal-text-secondary)', cursor: 'pointer', padding: '10px',
-              borderRadius: '12px', transition: 'all 0.2s',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: `0 1px 3px var(--portal-shadow)`
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#fecaca'; e.currentTarget.style.color = '#dc2626' }}
-            onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--portal-border)'; e.currentTarget.style.color = 'var(--portal-text-secondary)' }}
-            title="Configurações"
-          >
-            <Settings size={20} />
-          </button>
-
-          {/* ===== SINO / CENTRAL DE NOTIFICAÇÕES ===== */}
+          {/* ===== MENU CASCATA (Chat, Notificações, Lembretes, Configurações) + dropdown do sino ===== */}
           <div ref={bellRef} style={{ position: 'relative' }}>
             <button
-              onClick={() => setBellOpen(!bellOpen)}
+              onClick={() => setTopMenuOpen((o) => !o)}
               style={{
                 position: 'relative',
-                background: 'linear-gradient(135deg, #ef4444, #dc2626)',
-                border: 'none',
-                color: '#fff',
-                cursor: 'pointer', padding: '12px',
-                borderRadius: '12px', transition: 'all 0.2s',
-                boxShadow: '0 4px 12px rgba(220,38,38,0.2)'
+                background: 'linear-gradient(135deg, #ef4444, #dc2626)', border: 'none', color: '#fff',
+                cursor: 'pointer', padding: '12px 18px', borderRadius: '12px', transition: 'all 0.2s',
+                display: 'flex', alignItems: 'center', gap: '9px', fontSize: '14px', fontWeight: 600,
+                boxShadow: '0 4px 12px rgba(220,38,38,0.25)'
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.boxShadow = '0 6px 18px rgba(220,38,38,0.3)' }}
-              onMouseLeave={(e) => { e.currentTarget.style.boxShadow = '0 4px 12px rgba(220,38,38,0.2)' }}
+              onMouseEnter={(e) => { e.currentTarget.style.boxShadow = '0 6px 18px rgba(220,38,38,0.35)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.boxShadow = '0 4px 12px rgba(220,38,38,0.25)' }}
             >
-              <Bell size={22} className={totalBell > 0 ? 'bell-ring' : ''} />
+              <Menu size={20} className={totalBell > 0 ? 'bell-ring' : ''} />
+              <span>Menu</span>
+              <ChevronDown size={14} style={{ transform: topMenuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
               {totalBell > 0 && (
                 <div className="notif-badge-pulse" style={{
-                  position: 'absolute', top: '-2px', right: '-4px',
+                  position: 'absolute', top: '-6px', right: '-6px',
                   minWidth: '20px', height: '20px', borderRadius: '10px',
-                  background: '#fff', color: '#dc2626', fontSize: '11px',
-                  fontWeight: '700', display: 'flex', alignItems: 'center',
-                  justifyContent: 'center', padding: '0 5px',
+                  background: '#fff', color: '#dc2626', fontSize: '11px', fontWeight: 700,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px',
                   border: '2px solid #dc2626', boxShadow: '0 2px 6px rgba(220,38,38,0.4)'
-                }}>
-                  {totalBell > 99 ? '99+' : totalBell}
-                </div>
+                }}>{totalBell > 99 ? '99+' : totalBell}</div>
               )}
             </button>
+
+            {/* Dropdown do menu cascata */}
+            {topMenuOpen && (() => {
+              const item = (icone: React.ReactNode, label: string, onClick: () => void, badge?: number) => (
+                <button
+                  onClick={() => { onClick(); setTopMenuOpen(false) }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '12px', padding: '11px 14px', width: '100%',
+                    border: 'none', borderRadius: '10px', cursor: 'pointer', background: 'transparent',
+                    color: 'var(--portal-text)', fontSize: '14px', fontWeight: 600, textAlign: 'left', transition: 'background 0.12s'
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--portal-bg-hover)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <span style={{ width: 20, display: 'flex', justifyContent: 'center', color: '#dc2626' }}>{icone}</span>
+                  <span style={{ flex: 1 }}>{label}</span>
+                  {!!badge && badge > 0 && (
+                    <span style={{ minWidth: 20, height: 20, borderRadius: 10, background: '#dc2626', color: '#fff', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 6px' }}>{badge > 99 ? '99+' : badge}</span>
+                  )}
+                </button>
+              )
+              return (
+                <div style={{
+                  position: 'absolute', right: 0, top: 'calc(100% + 10px)', zIndex: 10001,
+                  minWidth: 260, background: 'var(--portal-bg-card)', borderRadius: 14,
+                  border: '1px solid var(--portal-border)', boxShadow: '0 16px 40px rgba(0,0,0,0.18)',
+                  padding: 6, display: 'flex', flexDirection: 'column', gap: 2
+                }}>
+                  {item(<MessageCircle size={18} />, 'Chat', () => setChatOpen(true), chatData.totalNaoLidas)}
+                  {item(<Bell size={18} />, 'Notificações', () => setBellOpen(true), notifData.naoLidas)}
+                  {item(<Calendar size={18} />, 'Lembretes', () => setLembretesOpen(true))}
+                  {item(<Settings size={18} />, 'Configurações', () => { setConfigTab('perfil'); setConfigOpen(true) })}
+                </div>
+              )
+            })()}
 
             {/* Dropdown do sino */}
             {bellOpen && (
@@ -764,9 +669,12 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                       <p style={{ color: 'var(--portal-text-faint)', fontSize: '12px', marginTop: '4px' }}>Você está em dia!</p>
                     </div>
                   ) : (
-                    bellItems.map(item => (
+                    bellItems.map(item => {
+                      const cor = NOTIF_COLORS[item.tipo] || '#dc2626'
+                      return (
                       <div
                         key={item.id}
+                        className="notif-item"
                         onClick={() => {
                           if (item.tipo === 'chat' && item.chatId) {
                             setChatOpen(true)
@@ -779,28 +687,28 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                         }}
                         style={{
                           display: 'flex', alignItems: 'center', gap: '14px',
-                          padding: '14px 24px', cursor: 'pointer',
-                          background: item.lida ? 'transparent' : 'var(--portal-bg-hover)',
+                          padding: '14px 22px 14px 24px', cursor: 'pointer',
+                          background: 'transparent', position: 'relative',
                           borderBottom: `1px solid var(--portal-border)`,
-                          transition: 'background 0.15s'
+                          transition: 'background 0.18s ease'
                         }}
                         onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--portal-bg-secondary)' }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = item.lida ? 'transparent' : 'var(--portal-bg-hover)' }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
                       >
+                        {/* Acento lateral (não lida) */}
+                        {!item.lida && <div style={{ position: 'absolute', left: 0, top: 8, bottom: 8, width: 3, background: cor, borderRadius: '0 3px 3px 0' }} />}
                         {/* Ícone */}
-                        <div style={{
+                        <div className="notif-ava" style={{
                           width: '42px', height: '42px', borderRadius: '12px',
-                          background: item.tipo === 'chat'
-                            ? (item.lida ? 'var(--portal-bg-secondary)' : 'linear-gradient(135deg, #3b82f6, #2563eb)')
-                            : (item.lida ? 'var(--portal-bg-secondary)' : 'var(--portal-bg-hover)'),
+                          background: item.tipo === 'chat' && !item.lida ? 'linear-gradient(135deg, #3b82f6, #2563eb)' : `${cor}1a`,
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: '18px', flexShrink: 0,
+                          flexShrink: 0,
                           boxShadow: !item.lida && item.tipo === 'chat' ? '0 4px 12px rgba(59,130,246,0.25)' : 'none'
                         }}>
                           {item.tipo === 'chat' ? (
-                            <MessageCircle size={18} color={item.lida ? 'var(--portal-text-muted)' : '#fff'} />
+                            <MessageCircle size={18} color={!item.lida ? '#fff' : cor} />
                           ) : (
-                            <span>{item.icone}</span>
+                            <span style={{ display: 'flex', color: cor }}>{item.icone}</span>
                           )}
                         </div>
 
@@ -837,19 +745,23 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                           {timeAgo(item.tempo)}
                         </span>
                       </div>
-                    ))
+                      )
+                    })
                   )}
                 </div>
               </div>
             )}
           </div>
 
-          {/* User — fundo vermelho */}
-          <div style={{
+          {/* User — fundo vermelho (clique abre Perfil) */}
+          <div
+            onClick={() => { setConfigTab('perfil'); setConfigOpen(true) }}
+            title="Meu perfil"
+            style={{
             display: 'flex', alignItems: 'center', gap: '12px',
             padding: '8px 18px 8px 8px', borderRadius: '14px',
             background: 'linear-gradient(135deg, #b91c1c, #991b1b)',
-            boxShadow: '0 4px 12px rgba(153,27,27,0.2)'
+            boxShadow: '0 4px 12px rgba(153,27,27,0.2)', cursor: 'pointer'
           }}>
             <div style={{
               width: '42px', height: '42px', borderRadius: '12px', overflow: 'hidden',
@@ -921,60 +833,64 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
           {/* Navigation - scrollável */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px', minHeight: 0 }}>
-          <p style={{
-            fontSize: '10px', fontWeight: '700', color: '#a3a3a3',
-            letterSpacing: '2px', marginBottom: '10px', paddingLeft: '4px'
-          }}>
-            SISTEMAS
-          </p>
-          {filteredNavItems.map((item) => {
-            const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
-            return (
-              <Link
-                key={item.id}
-                href={item.external ? '#' : item.href}
-                target={item.external ? undefined : undefined}
-                rel={item.external ? 'noopener noreferrer' : undefined}
-                onClick={(e) => {
-                  setSidebarOpen(false)
-                  if (item.external) {
-                    e.preventDefault()
-                    if (['consulta-estoque', 'consulta-omie'].includes(item.id)) {
-                      openExternalWithAuth(item.href)
-                    } else {
-                      window.open(item.href, '_blank')
-                    }
-                  }
-                }}
-                style={{
-                  width: '100%', display: 'flex', alignItems: 'center', gap: '10px',
-                  padding: '10px 12px', borderRadius: '10px', border: 'none',
-                  background: isActive ? 'var(--portal-bg-hover)' : 'transparent',
-                  color: isActive ? '#dc2626' : 'var(--portal-text-secondary)',
-                  cursor: 'pointer', fontSize: '13px', fontWeight: isActive ? '600' : '500',
-                  fontFamily: 'Inter', transition: 'all 0.2s', textAlign: 'left' as const,
-                  marginBottom: '2px', textDecoration: 'none'
-                }}
-                onMouseEnter={(e) => {
-                  if (!isActive) { e.currentTarget.style.background = 'var(--portal-bg-hover)'; e.currentTarget.style.color = '#dc2626' }
-                }}
-                onMouseLeave={(e) => {
-                  if (!isActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--portal-text-secondary)' }
-                }}
-              >
-                <div style={{
-                  width: '30px', height: '30px', borderRadius: '8px',
-                  background: isActive ? item.gradient : 'var(--portal-bg-secondary)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  flexShrink: 0, transition: 'all 0.2s'
+          {groupedNav.map((group) => (
+            <div key={group.key} style={{ marginBottom: group.key === 'geral' ? 4 : 8 }}>
+              {group.config.label && (
+                <p style={{
+                  fontSize: '9px', fontWeight: '800', color: group.config.color,
+                  letterSpacing: '2px', margin: '14px 0 6px', paddingLeft: '4px',
+                  display: 'flex', alignItems: 'center', gap: 6,
                 }}>
-                  <span style={{ color: isActive ? '#fff' : 'var(--portal-text-muted)', display: 'flex' }}>{item.icon}</span>
-                </div>
-                <span style={{ flex: 1 }}>{item.name}</span>
-                {isActive && <ChevronRight size={14} style={{ color: '#dc2626' }} />}
-              </Link>
-            )
-          })}
+                  <span style={{ width: 12, height: 2, borderRadius: 1, background: group.config.color, opacity: 0.4 }} />
+                  {group.config.label}
+                </p>
+              )}
+              {group.items.map((item) => {
+                const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
+                const gc = group.config
+                return (
+                  <Link
+                    key={item.id}
+                    href={item.external ? '#' : item.href}
+                    onClick={(e) => {
+                      setSidebarOpen(false)
+                      if (item.external) {
+                        e.preventDefault()
+                        window.open(item.href, '_blank')
+                      }
+                    }}
+                    style={{
+                      width: '100%', display: 'flex', alignItems: 'center', gap: '10px',
+                      padding: '10px 12px', borderRadius: '10px', border: 'none',
+                      background: isActive ? `${gc.color}12` : 'transparent',
+                      color: isActive ? gc.color : 'var(--portal-text-secondary)',
+                      cursor: 'pointer', fontSize: '13px', fontWeight: isActive ? '600' : '500',
+                      fontFamily: 'Inter', transition: 'all 0.2s', textAlign: 'left' as const,
+                      marginBottom: '2px', textDecoration: 'none'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isActive) { e.currentTarget.style.background = `${gc.color}0A`; e.currentTarget.style.color = gc.color }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--portal-text-secondary)' }
+                    }}
+                  >
+                    <div style={{
+                      width: '30px', height: '30px', borderRadius: '8px',
+                      background: isActive ? gc.gradient : 'var(--portal-bg-secondary)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      flexShrink: 0, transition: 'all 0.2s'
+                    }}>
+                      <span style={{ color: isActive ? '#fff' : 'var(--portal-text-muted)', display: 'flex' }}>{item.icon}</span>
+                    </div>
+                    <span style={{ flex: 1 }}>{item.name}</span>
+                    {item.external && <ExternalLink size={11} style={{ color: 'var(--portal-text-muted)', opacity: 0.5 }} />}
+                    {isActive && !item.external && <ChevronRight size={14} style={{ color: gc.color }} />}
+                  </Link>
+                )
+              })}
+            </div>
+          ))}
 
           {/* Admin */}
           {isAdmin && (
@@ -1059,6 +975,16 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         {children}
       </main>
 
+      {/* Assistente Tratorilson (flutuante, global) — só aparece pra quem tem acesso */}
+      {temAcesso('tratorilson') && (
+        <TratorinoChat
+          userName={userProfile?.nome || ''}
+          userId={userProfile?.id || ''}
+          isAdmin={isAdmin}
+          modulos={permissoes?.modulos_permitidos || []}
+        />
+      )}
+
       {/* ===== CHAT PANEL ===== */}
       <ChatPanel
         open={chatOpen}
@@ -1078,22 +1004,24 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         />
       )}
 
-      {/* ===== MODAL CONFIGURAÇÕES ===== */}
+      {/* ===== PAINEL LATERAL CONFIGURAÇÕES ===== */}
       {configOpen && (
         <div
           onClick={(e) => { if (e.target === e.currentTarget) setConfigOpen(false) }}
           style={{
             position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-            backdropFilter: 'blur(8px)', zIndex: 55000,
-            display: 'flex', alignItems: 'center', justifyContent: 'center'
+            backdropFilter: 'blur(6px)', zIndex: 55000,
+            display: 'flex', justifyContent: 'flex-end'
           }}
         >
+          <style>{`@keyframes cfgSlideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}`}</style>
           <div style={{
-            background: 'var(--portal-bg-card)', borderRadius: '24px', width: '480px',
-            padding: '40px', boxShadow: '0 25px 60px rgba(0,0,0,0.15)'
+            background: 'var(--portal-bg-card)', width: '440px', maxWidth: '96vw', height: '100%',
+            boxShadow: '-8px 0 40px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column',
+            animation: 'cfgSlideIn 0.25s ease-out'
           }}>
             {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '22px 26px', borderBottom: '1px solid var(--portal-border)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <div style={{
                   width: '44px', height: '44px', borderRadius: '12px',
@@ -1116,8 +1044,101 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               </button>
             </div>
 
-            {/* Tema */}
-            <div style={{ marginBottom: '28px' }}>
+            {/* Abas */}
+            <div style={{ display: 'flex', gap: '6px', padding: '14px 20px', borderBottom: '1px solid var(--portal-border)' }}>
+              {([
+                { id: 'perfil', label: 'Perfil', icon: <UserIcon size={15} /> },
+                { id: 'aparencia', label: 'Aparência', icon: <Sun size={15} /> },
+                { id: 'som', label: 'Som', icon: <Volume2 size={15} /> },
+              ] as const).map(t => {
+                const active = configTab === t.id
+                return (
+                  <button key={t.id} onClick={() => { setConfigTab(t.id); setPerfilMsg(null) }} style={{
+                    display: 'flex', alignItems: 'center', gap: '7px', padding: '9px 16px', borderRadius: '10px',
+                    border: active ? '1.5px solid #dc2626' : '1.5px solid var(--portal-border)',
+                    background: active ? 'var(--portal-bg-hover)' : 'transparent',
+                    color: active ? '#dc2626' : 'var(--portal-text-secondary)',
+                    fontSize: '13px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s'
+                  }}>
+                    {t.icon} {t.label}
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Conteúdo */}
+            <div style={{ flex: 1, overflow: 'auto', padding: '24px 26px' }}>
+
+            {perfilMsg && (
+              <div style={{
+                marginBottom: '16px', padding: '10px 14px', borderRadius: '10px', fontSize: '13px', fontWeight: 600,
+                background: perfilMsg.tipo === 'ok' ? '#ECFDF5' : '#FEF2F2',
+                color: perfilMsg.tipo === 'ok' ? '#059669' : '#DC2626',
+                border: `1px solid ${perfilMsg.tipo === 'ok' ? '#A7F3D0' : '#FECACA'}`
+              }}>{perfilMsg.texto}</div>
+            )}
+
+            {/* ===== ABA PERFIL ===== */}
+            {configTab === 'perfil' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                {/* Foto */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                  <div style={{ width: '72px', height: '72px', borderRadius: '50%', overflow: 'hidden', background: 'linear-gradient(135deg, #b91c1c, #991b1b)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    {userProfile?.avatar_url
+                      ? <img src={userProfile.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      : <UserIcon size={32} color="#fff" />}
+                  </div>
+                  <div>
+                    <input ref={avatarInputRef} type="file" accept="image/*" style={{ display: 'none' }}
+                      onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadAvatar(f) }} />
+                    <button onClick={() => avatarInputRef.current?.click()} disabled={perfilBusy} style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '9px 16px', borderRadius: '10px',
+                      border: '1.5px solid var(--portal-border)', background: 'var(--portal-bg-secondary)',
+                      color: 'var(--portal-text)', fontSize: '13px', fontWeight: 700, cursor: 'pointer'
+                    }}>
+                      <Camera size={15} /> Trocar foto
+                    </button>
+                    <div style={{ fontSize: '11px', color: 'var(--portal-text-muted)', marginTop: '6px' }}>{userProfile?.funcao || ''}</div>
+                  </div>
+                </div>
+
+                {/* Nome */}
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--portal-text-secondary)', letterSpacing: '0.5px', display: 'block', marginBottom: '8px' }}>NOME</label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input value={perfilNome} onChange={(e) => setPerfilNome(e.target.value)} style={{
+                      flex: 1, padding: '11px 14px', borderRadius: '10px', border: '1.5px solid var(--portal-border)',
+                      background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: '14px', outline: 'none'
+                    }} />
+                    <button onClick={salvarNome} disabled={perfilBusy || !perfilNome.trim()} style={{
+                      padding: '0 18px', borderRadius: '10px', border: 'none', background: '#dc2626', color: '#fff',
+                      fontSize: '13px', fontWeight: 700, cursor: (perfilBusy || !perfilNome.trim()) ? 'not-allowed' : 'pointer', opacity: (perfilBusy || !perfilNome.trim()) ? 0.6 : 1
+                    }}>Salvar</button>
+                  </div>
+                </div>
+
+                {/* Trocar senha */}
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--portal-text-secondary)', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}><Lock size={13} /> ALTERAR SENHA</label>
+                  <input type="password" value={novaSenha} onChange={(e) => setNovaSenha(e.target.value)} placeholder="Nova senha (mín. 6)" style={{
+                    width: '100%', padding: '11px 14px', borderRadius: '10px', border: '1.5px solid var(--portal-border)',
+                    background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: '14px', outline: 'none', marginBottom: '8px'
+                  }} />
+                  <input type="password" value={novaSenha2} onChange={(e) => setNovaSenha2(e.target.value)} placeholder="Confirmar nova senha" style={{
+                    width: '100%', padding: '11px 14px', borderRadius: '10px', border: '1.5px solid var(--portal-border)',
+                    background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: '14px', outline: 'none', marginBottom: '10px'
+                  }} />
+                  <button onClick={trocarSenha} disabled={perfilBusy || !novaSenha || !novaSenha2} style={{
+                    width: '100%', padding: '11px', borderRadius: '10px', border: 'none', background: '#1a1a1a', color: '#fff',
+                    fontSize: '13px', fontWeight: 700, cursor: (perfilBusy || !novaSenha || !novaSenha2) ? 'not-allowed' : 'pointer', opacity: (perfilBusy || !novaSenha || !novaSenha2) ? 0.6 : 1
+                  }}>Alterar senha</button>
+                </div>
+              </div>
+            )}
+
+            {/* ===== ABA APARÊNCIA (TEMA) ===== */}
+            {configTab === 'aparencia' && (
+            <div>
               <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--portal-text-secondary)', letterSpacing: '1px', display: 'block', marginBottom: '12px' }}>
                 TEMA DO PORTAL
               </label>
@@ -1168,8 +1189,10 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                 </button>
               </div>
             </div>
+            )}
 
-            {/* Sons */}
+            {/* ===== ABA SOM ===== */}
+            {configTab === 'som' && (
             <div>
               <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--portal-text-secondary)', letterSpacing: '1px', display: 'block', marginBottom: '12px' }}>
                 SOM DE NOTIFICAÇÃO
@@ -1217,11 +1240,24 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                 })}
               </div>
             </div>
+            )}
+
+            </div>{/* fim conteúdo */}
           </div>
         </div>
       )}
 
       {userProfile?.id && <LembreteAlerta userId={userProfile.id} />}
+
+      {/* ===== CARDS FLUTUANTES "OPA" ===== */}
+      {userProfile?.id && (
+        <OpaLembrete userId={userProfile.id} userName={userProfile.nome || ''} isAdmin={isAdmin} />
+      )}
+
+      {/* ===== CARDS FLUTUANTES "SAT" (só Pós-Vendas) ===== */}
+      {userProfile?.id && (permissoes?.categoria === 'Pós Vendas' || isAdmin) && (
+        <SatLembrete userId={userProfile.id} userName={userProfile.nome || ''} />
+      )}
 
       {/* ===== POPUP AVISO BLOQUEANTE ===== */}
       {avisosPendentes.length > 0 && (
@@ -1344,7 +1380,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                   ) : isChat ? (
                     <MessageCircle size={20} color="#fff" />
                   ) : (
-                    <span>{NOTIF_ICONS[t.tipo] || '🔔'}</span>
+                    <span style={{ display: 'flex', color: 'var(--portal-text-secondary)' }}>{NOTIF_ICONS[t.tipo] || <Bell size={18} />}</span>
                   )}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>

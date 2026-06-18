@@ -49,6 +49,12 @@ export default function LoginPage() {
   const router = useRouter()
 
   useEffect(() => {
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('inativo') === '1') {
+      setError('Usuário inativo. Contate o administrador.')
+    }
+  }, [])
+
+  useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session) {
         const redir = getRedirectTo();
@@ -135,6 +141,14 @@ export default function LoginPage() {
     } else {
       const { data: loginData, error: authError } = await supabase.auth.signInWithPassword({ email, password })
       if (!authError && loginData?.user) {
+        // Bloquear usuário inativado
+        const { data: perfil } = await supabase.from('financeiro_usu').select('ativo').eq('id', loginData.user.id).single()
+        if (perfil && perfil.ativo === false) {
+          await supabase.auth.signOut()
+          setError('Usuário inativo. Contate o administrador.')
+          setLoading(false)
+          return
+        }
         // Atualizar email no perfil (popula usuários antigos)
         await supabase.from('financeiro_usu').update({ email }).eq('id', loginData.user.id)
         const redir = getRedirectTo() || '/dashboard';

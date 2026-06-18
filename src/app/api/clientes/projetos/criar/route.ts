@@ -13,7 +13,7 @@ const OMIE_ACCOUNTS: Record<string, { key: string; secret: string }> = {
   "Castro Peças": { key: "2730028269969", secret: "dc270bf5348b40d3ed1398ef70beb628" },
 };
 
-async function omieCall<T>(endpoint: string, call: string, param: Record<string, unknown>, empresa: string): Promise<T> {
+async function omieCall<T>(endpoint: string, call: string, param: Record<string, unknown>, empresa: string, tentativa = 1): Promise<T> {
   const acc = OMIE_ACCOUNTS[empresa];
   if (!acc) throw new Error(`Empresa desconhecida: ${empresa}`);
 
@@ -24,11 +24,29 @@ async function omieCall<T>(endpoint: string, call: string, param: Record<string,
     param: [param],
   };
 
-  const response = await fetch(`${OMIE_BASE_URL}${endpoint}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  // Timeout pra não pendurar a requisição se o Omie travar a resposta.
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 25000);
+  let response: Response;
+  try {
+    response = await fetch(`${OMIE_BASE_URL}${endpoint}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: ctrl.signal,
+    });
+  } catch (e: any) {
+    if (e?.name === "AbortError") throw new Error("O Omie demorou demais para responder (timeout de 25s). Tente novamente.");
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+
+  // Rate limit do Omie: tenta de novo poucas vezes, com espera curta.
+  if (response.status === 429 && tentativa < 3) {
+    await new Promise((r) => setTimeout(r, tentativa * 8000));
+    return omieCall(endpoint, call, param, empresa, tentativa + 1);
+  }
 
   const data = await response.json();
   if (data?.faultstring) {
@@ -54,10 +72,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Empresa inválida. Use 'Nova Tratores' ou 'Castro Peças'" }, { status: 400 });
     }
 
+    // Omie exige um código de integração único (codInt), máx. 20 caracteres.
+    // Slug curto do nome + timestamp em base36 (compacto) pra não colidir.
+    const slug = (nome.trim().toUpperCase().replace(/[^A-Z0-9]+/g, "").slice(0, 10)) || "PROJ";
+    const codInt = `${slug}-${Date.now().toString(36).toUpperCase()}`.slice(0, 20);
+
     const res = await omieCall<OmieIncluirProjetoResponse>(
       "/geral/projetos/",
       "IncluirProjeto",
-      { descricao: { nome: nome.trim() } },
+      { codInt, nome: nome.trim(), inativo: "N" },
       empresa
     );
 

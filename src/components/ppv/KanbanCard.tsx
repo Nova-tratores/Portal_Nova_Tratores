@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import type { KanbanItem } from "@/lib/ppv/types";
 import { normalizarStatus, formatarDataFrontend, formatarMoeda } from "@/lib/ppv/utils";
 import { STATUS_COLORS, STATUS_OPTIONS, type StatusKey } from "@/lib/ppv/constants";
+import { useClienteEtiquetas } from "@/hooks/useClienteEtiquetas";
 
 interface KanbanCardProps {
   item: KanbanItem;
@@ -21,6 +22,8 @@ export default function KanbanCard({ item, onClick, onStatusChange }: KanbanCard
   const dataFmt = formatarDataFrontend(item.data);
 
   const bgCard = statusNorm === "Concluída" ? "#ecfdf5" : statusNorm === "Cancelada" ? "#fef2f2" : "#FFFAF5";
+  const { getEtiquetas } = useClienteEtiquetas();
+  const etiquetasCli = getEtiquetas(item.cliente || '');
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -101,8 +104,11 @@ export default function KanbanCard({ item, onClick, onStatusChange }: KanbanCard
         </div>
       </div>
 
-      <div className="mb-2 text-sm font-semibold leading-snug text-slate-800">
-        {item.cliente || "Sem Cliente"}
+      <div className="mb-2 text-sm font-semibold leading-snug text-slate-800" style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+        <span>{item.cliente || "Sem Cliente"}</span>
+        {etiquetasCli.map(e => (
+          <span key={e.id} style={{ display: "inline-block", padding: "1px 6px", borderRadius: 8, fontSize: 9, fontWeight: 700, background: e.cor, color: "#fff", lineHeight: "14px" }}>{e.nome}</span>
+        ))}
       </div>
 
       <div className="mt-2.5 flex flex-wrap gap-1.5 border-t border-dashed border-orange-200/60 pt-2.5">

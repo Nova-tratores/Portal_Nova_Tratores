@@ -29,6 +29,10 @@ export default function NovoPagarReceber() {
   const [filesBoleto, setFilesBoleto] = useState([])
   const [filesReq, setFilesReq] = useState([])
 
+  // Prestador autônomo (RPA) — não emite nota fiscal nem boleto.
+  // Quando marcado, dispensa NF e boleto na validação de envio ao Omie.
+  const [autonomoSemNota, setAutonomoSemNota] = useState(false)
+
   // Requisições do financeiro (carregadas uma vez)
   const [reqsFinanceiro, setReqsFinanceiro] = useState([])
   const [buscaNota, setBuscaNota] = useState('')
@@ -319,6 +323,10 @@ export default function NovoPagarReceber() {
         anexo_requisicao: reqs,
         is_requisicao: true,
         status: 'financeiro',
+        // Prestador autônomo (RPA): dispensa NF e boleto na validação do Omie
+        autonomo_sem_nota: autonomoSemNota,
+        // Quem registrou a conta no portal (vai pra observação do Omie)
+        criado_por: userProfile?.nome || null,
         // Rascunho sempre — o envio ao Omie acontece pelo painel após validação
         status_envio: 'rascunho',
         // Pré-preenchimento Omie (sugestões salvas para o painel já abrir prontas)
@@ -361,12 +369,12 @@ export default function NovoPagarReceber() {
 
   if (pageLoading) return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <p style={{ color: '#6b7280', fontSize: '16px', letterSpacing: '2px', fontFamily: 'Montserrat, sans-serif' }}>Carregando...</p>
+      <p style={{ color: '#6b7280', fontSize: '16px', letterSpacing: '2px', fontFamily: 'Inter, sans-serif' }}>Carregando...</p>
     </div>
   )
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'Montserrat, sans-serif', color: '#1e293b' }}>
+    <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'Inter, sans-serif', color: '#1e293b' }}>
       <FinanceiroNav />
 
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '32px 20px' }}>
@@ -559,7 +567,7 @@ export default function NovoPagarReceber() {
                   <div style={{ position:'absolute', top:'100%', left:0, right:0, maxHeight:'220px', overflowY:'auto', background:'#fff', border:'1px solid #e5e7eb', borderRadius:'0 0 8px 8px', boxShadow:'0 4px 12px rgba(0,0,0,0.08)', zIndex:10 }}>
                     {fornecedores.filter(f => f.nome.toLowerCase().includes(buscaFornecedor.toLowerCase())).map(f => (
                       <div key={f.id} tabIndex={0} onMouseDown={e => e.preventDefault()} onClick={() => { setBuscaFornecedor(f.nome); setFormData({...formData, entidade: f.nome}); setShowFornecedorList(false); }}
-                        style={{ padding:'10px 14px', cursor:'pointer', fontSize:'14px', color:'#1e293b', borderBottom:'1px solid #f3f4f6', fontFamily:'Montserrat, sans-serif' }}
+                        style={{ padding:'10px 14px', cursor:'pointer', fontSize:'14px', color:'#1e293b', borderBottom:'1px solid #f3f4f6', fontFamily:'Inter, sans-serif' }}
                         onMouseEnter={e => e.currentTarget.style.background = '#f1f5f9'}
                         onMouseLeave={e => e.currentTarget.style.background = '#fff'}
                       >{f.nome}</div>
@@ -587,8 +595,8 @@ export default function NovoPagarReceber() {
               </select>
             </Field>
 
-            {/* NF — não exige para Carnê ISS */}
-            {formData.metodo !== 'Carnê ISS' && (
+            {/* NF — não exige para Carnê ISS nem para prestador autônomo */}
+            {formData.metodo !== 'Carnê ISS' && !autonomoSemNota && (
             <Field label="Numero da Nota Fiscal" icon={<Hash size={18} />}>
               <input
                 placeholder="000.000.000"
@@ -707,6 +715,30 @@ export default function NovoPagarReceber() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '24px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
               <label style={{ ...labelStyle, marginBottom: '0' }}>Documentacao</label>
 
+              {/* Prestador autônomo (RPA) — dispensa NF e boleto */}
+              <label style={{
+                display: 'flex', alignItems: 'flex-start', gap: '10px',
+                padding: '12px 16px', cursor: 'pointer',
+                background: autonomoSemNota ? '#fffbeb' : '#f8fafc',
+                border: `1px solid ${autonomoSemNota ? '#fcd34d' : '#e5e7eb'}`,
+                borderRadius: '10px', transition: '0.2s'
+              }}>
+                <input
+                  type="checkbox"
+                  checked={autonomoSemNota}
+                  onChange={e => setAutonomoSemNota(e.target.checked)}
+                  style={{ marginTop: '2px', width: '16px', height: '16px', cursor: 'pointer', accentColor: '#d97706' }}
+                />
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: '600', color: '#1e293b' }}>
+                    Prestador autônomo (sem nota fiscal)
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                    Dispensa nota fiscal e boleto para enviar ao Omie (ex.: RPA / autônomo).
+                  </div>
+                </div>
+              </label>
+
               {/* NF auto importada */}
               {nfAutoUrl && (
                 <div style={{
@@ -724,9 +756,9 @@ export default function NovoPagarReceber() {
                 </div>
               )}
 
-              {/* NF manual — só aparece se não tem auto */}
-              {!nfAutoUrl && formData.metodo !== 'Carnê ISS' && (
-                <FileUploadBtn file={fileNFServ} onSelect={setFileNFServ} label="Nota Fiscal Principal" required />
+              {/* NF manual — só aparece se não tem auto e não é autônomo */}
+              {!nfAutoUrl && formData.metodo !== 'Carnê ISS' && !autonomoSemNota && (
+                <FileUploadBtn file={fileNFServ} onSelect={setFileNFServ} label="Nota Fiscal Principal" />
               )}
 
               {/* Anexos importados das requisições */}
@@ -810,7 +842,7 @@ export default function NovoPagarReceber() {
               justifyContent: 'center',
               gap: '10px',
               transition: '0.2s',
-              fontFamily: 'Montserrat, sans-serif'
+              fontFamily: 'Inter, sans-serif'
             }}>
               {loading ? 'Processando...' : <><CheckCircle size={18} /> Salvar Rascunho e Abrir no Painel</>}
             </button>
@@ -873,13 +905,13 @@ function FileUploadBtn({ file, onSelect, label, required, isMulti, filesReq, set
           <X size={16} />
         </span>
       )}
-      <input type="file" required={required && !file} hidden onChange={(e) => onSelect(e.target.files[0])} />
+      <input type="file" hidden onChange={(e) => onSelect(e.target.files[0])} />
     </label>
   )
 }
 
 // --- ESTILOS ---
 const labelStyle = { display: 'block', fontSize: '12px', fontWeight: '600', color: '#6b7280', marginBottom: '6px', letterSpacing: '0.5px', textTransform: 'uppercase' };
-const inputStyle = { width: '100%', padding: '12px 14px', borderRadius: '8px', border: '1px solid #e5e7eb', outline: 'none', background: '#ffffff', color: '#1e293b', fontSize: '15px', boxSizing: 'border-box', fontFamily: 'Montserrat, sans-serif', transition: '0.2s' };
+const inputStyle = { width: '100%', padding: '12px 14px', borderRadius: '8px', border: '1px solid #e5e7eb', outline: 'none', background: '#ffffff', color: '#1e293b', fontSize: '15px', boxSizing: 'border-box', fontFamily: 'Inter, sans-serif', transition: '0.2s' };
 const inputIconStyle = { ...inputStyle, paddingLeft: '42px' };
 const selectStyle = { ...inputIconStyle, appearance: 'none', cursor: 'pointer' };

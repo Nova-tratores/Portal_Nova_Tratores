@@ -33,7 +33,11 @@ async function downloadAndStore(url: string, path: string): Promise<string | nul
     const buffer = Buffer.from(await res.arrayBuffer());
     if (buffer.length < 100) return null;
     const ct = res.headers.get("content-type") || "application/pdf";
-    const { error } = await supabase.storage.from(BUCKET).upload(path, buffer, { contentType: ct, upsert: true });
+    // Só guarda PDF de verdade. NFS-e Nacional devolve a URL de um portal (SPA em HTML);
+    // baixar no servidor traz só o formulário em branco. Retorna null pra guardar a URL.
+    const ehPdf = buffer.slice(0, 5).toString("latin1").startsWith("%PDF") || ct.toLowerCase().includes("application/pdf");
+    if (!ehPdf) return null;
+    const { error } = await supabase.storage.from(BUCKET).upload(path, buffer, { contentType: "application/pdf", upsert: true });
     if (error) return null;
     const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(path);
     return pub.publicUrl;

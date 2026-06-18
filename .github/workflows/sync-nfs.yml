@@ -1,0 +1,51 @@
+name: Sync NFs (Pastas Clientes)
+
+# Agenda o sync de NF do Omie, já que o portal roda no Railway
+# e os crons do vercel.json NÃO são executados lá.
+# Roda 1x por madrugada e repete o sync de NF em lotes até zerar o backlog.
+
+on:
+  schedule:
+    - cron: '0 6 * * *'    # 06:00 UTC = 03:00 de Brasília (madrugada)
+  workflow_dispatch: {}      # permite rodar manualmente pelo botão "Run workflow"
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      PORTAL_URL: https://portalnovatratores-production.up.railway.app
+    steps:
+      - name: Sincronizar OS/PV/NF recentes
+        continue-on-error: true
+        run: |
+          curl -fsS --max-time 900 "$PORTAL_URL/api/clientes/sync-recente" \
+            -o /dev/null -w "sync-recente: HTTP %{http_code}\n"
+
+      - name: Baixar/vincular TODAS as NFs faltantes (em lotes até zerar)
+        run: |
+          set -e
+          # Repete o sync-nfs em lotes. Cada chamada processa as OS/PV faturadas
+          # que ainda não têm link_nf; quando não sobra nada, as chamadas ficam
+          # rápidas e o loop encerra. Limite alto de iterações como trava de segurança.
+          for i in $(seq 1 20); do
+            echo "── Lote $i ──"
+            HTTP=$(curl -s --max-time 1500 -X POST \
+              "$PORTAL_URL/api/clientes/sync-nfs?limite=1000" \
+              -o /tmp/nf.json -w "%{http_code}")
+            echo "HTTP $HTTP"
+            cat /tmp/nf.json | head -c 800; echo
+
+            if [ "$HTTP" != "200" ]; then
+              echo "Falha HTTP — encerrando."
+              break
+            fi
+            # Se nenhuma NF foi vinculada neste lote, acabou o backlog → para.
+            if grep -qE '"(os_com_nf|pv_com_nf)":[1-9]' /tmp/nf.json; then
+              echo "Lote vinculou NFs — continua."
+            else
+              echo "Nenhuma NF nova neste lote — backlog zerado. Encerrando."
+              break
+            fi
+            sleep 5
+          done

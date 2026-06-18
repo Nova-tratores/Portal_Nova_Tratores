@@ -36,6 +36,7 @@ export async function POST(req: NextRequest) {
     const { data: usuarios } = await supabase
       .from("financeiro_usu")
       .select("id, funcao")
+      .eq("ativo", true)
       .in("id", destinatariosIds);
 
     if (usuarios) {

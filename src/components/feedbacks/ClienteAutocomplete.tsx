@@ -16,6 +16,10 @@ export default function ClienteAutocomplete({ valor, onChange, onSelecionar, pla
   const [buscando, setBuscando] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Só busca/abre o dropdown quando o usuário REALMENTE digita. Assim, ao abrir
+  // o card com o cliente já preenchido (preencher atendimento), não fica
+  // reabrindo a lista de seleção toda hora.
+  const usuarioDigitou = useRef(false);
 
   const buscar = useCallback(async (q: string) => {
     if (!q || q.trim().length < 2) {
@@ -35,6 +39,8 @@ export default function ClienteAutocomplete({ valor, onChange, onSelecionar, pla
   }, []);
 
   useEffect(() => {
+    // Pré-preenchido (edição / vindo de oportunidade) — não dispara busca nem abre.
+    if (!usuarioDigitou.current) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => void buscar(valor), 300);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
@@ -55,7 +61,7 @@ export default function ClienteAutocomplete({ valor, onChange, onSelecionar, pla
       <input
         type="text"
         value={valor}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => { usuarioDigitou.current = true; onChange(e.target.value); }}
         onFocus={() => resultados.length > 0 && setAberto(true)}
         placeholder={placeholder ?? "Digite nome, razão social ou CNPJ para buscar no Omie..."}
         style={inputStyle}
@@ -72,6 +78,7 @@ export default function ClienteAutocomplete({ valor, onChange, onSelecionar, pla
               key={c.id_omie}
               type="button"
               onClick={() => {
+                usuarioDigitou.current = false; // mudança de nome ao selecionar não reabre a lista
                 onSelecionar(c);
                 setAberto(false);
               }}

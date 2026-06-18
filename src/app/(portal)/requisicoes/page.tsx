@@ -122,7 +122,7 @@ function RequisicoesPageInner() {
 
       const [allReqs, resUser, resVei] = await Promise.all([
         buscarTodasReqs(),
-        supabase.from('financeiro_usu').select('*').order('nome', { ascending: true }),
+        supabase.from('financeiro_usu').select('*').eq('ativo', true).order('nome', { ascending: true }),
         supabase.from('SupaPlacas').select('*').order('NumPlaca', { ascending: true })
       ]);
 
@@ -156,7 +156,7 @@ function RequisicoesPageInner() {
   const handleUpdateReq = useCallback(async (id: number, dados: Record<string, unknown>) => {
     setRequisicoes(prev => prev.map(r => r.id === id ? { ...r, ...dados } : r));
     const { error } = await supabase.from('Requisicao').update(dados).eq('id', id);
-    if (error) { console.error('[Requisições] Erro ao atualizar:', error); carregarDados(true); return }
+    if (error) { console.error('[Requisições] Erro ao atualizar:', error?.message, error?.code, error?.details, error?.hint); carregarDados(true); return }
     auditLog({ sistema: 'requisicoes', acao: 'editar', entidade: 'requisicao', entidade_id: String(id), detalhes: dados });
     // Marca que esse card foi editado (notificação só ao fechar)
     cardsEditadosRef.current.add(id);

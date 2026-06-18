@@ -50,12 +50,12 @@ export default function NovoChamadoRH() {
 
   if (pageLoading) return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <p style={{ color: '#6b7280', fontSize: '16px', letterSpacing: '2px', fontFamily: 'Montserrat, sans-serif' }}>Carregando...</p>
+      <p style={{ color: '#6b7280', fontSize: '16px', letterSpacing: '2px', fontFamily: 'Inter, sans-serif' }}>Carregando...</p>
     </div>
   )
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'Montserrat, sans-serif', color: '#1e293b' }}>
+    <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'Inter, sans-serif', color: '#1e293b' }}>
       <FinanceiroNav />
 
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '32px 20px' }}>
@@ -109,7 +109,7 @@ export default function NovoChamadoRH() {
               justifyContent: 'center',
               gap: '10px',
               transition: '0.2s',
-              fontFamily: 'Montserrat, sans-serif'
+              fontFamily: 'Inter, sans-serif'
             }}>
               {enviando ? 'Processando...' : <><CheckCircle size={18} /> Criar Chamado Interno</>}
             </button>
@@ -135,6 +135,6 @@ function Field({ label, icon, children }) {
 
 // --- ESTILOS ---
 const labelStyle = { display: 'block', fontSize: '12px', fontWeight: '600', color: '#6b7280', marginBottom: '6px', letterSpacing: '0.5px', textTransform: 'uppercase' };
-const inputStyle = { width: '100%', padding: '12px 14px', borderRadius: '8px', border: '1px solid #e5e7eb', outline: 'none', background: '#ffffff', color: '#1e293b', fontSize: '15px', boxSizing: 'border-box', fontFamily: 'Montserrat, sans-serif', transition: '0.2s' };
+const inputStyle = { width: '100%', padding: '12px 14px', borderRadius: '8px', border: '1px solid #e5e7eb', outline: 'none', background: '#ffffff', color: '#1e293b', fontSize: '15px', boxSizing: 'border-box', fontFamily: 'Inter, sans-serif', transition: '0.2s' };
 const inputIconStyle = { ...inputStyle, paddingLeft: '42px' };
 const selectStyle = { ...inputIconStyle, appearance: 'none', cursor: 'pointer' };

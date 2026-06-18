@@ -27,8 +27,20 @@ export default function NovoChamadoNF() {
   const [fileServico, setFileServico] = useState(null)
   const [filePeca, setFilePeca] = useState(null)
   const [fileComprovante, setFileComprovante] = useState(null)
+  const [valorDisplay, setValorDisplay] = useState('')   // valor formatado (R$ 0,00)
+  const [cliRes, setCliRes] = useState([])               // sugestões de cliente do banco
+  const [cliShow, setCliShow] = useState(false)
 
-  const exigeComprovante = ['Pix', 'Cartão a vista', 'Cartão Parcelado', 'Cheque'].includes(formData.forma_pagamento);
+  // Campo monetário: formata os dígitos como moeda (vírgula automática)
+  const onValor = (raw) => {
+    const digits = String(raw).replace(/\D/g, '')
+    if (!digits) { setValorDisplay(''); setFormData(f => ({ ...f, valor_servico: '' })); return }
+    const num = parseInt(digits, 10) / 100
+    setValorDisplay(num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
+    setFormData(f => ({ ...f, valor_servico: String(num) }))
+  }
+
+  const exigeComprovante = ['Pix', 'Dinheiro', 'Cartão a vista', 'Cartão Parcelado', 'Cheque'].includes(formData.forma_pagamento);
 
   useEffect(() => {
     async function load() {
@@ -40,6 +52,16 @@ export default function NovoChamadoNF() {
     }
     load()
   }, [router])
+
+  // Busca cliente no banco (autocomplete)
+  useEffect(() => {
+    const q = (formData.nom_cliente || '').trim()
+    if (!cliShow || q.length < 2) { setCliRes([]); return }
+    const t = setTimeout(async () => {
+      try { const r = await fetch(`/api/ppv/clientes?termo=${encodeURIComponent(q)}`); setCliRes(r.ok ? await r.json() : []) } catch { setCliRes([]) }
+    }, 300)
+    return () => clearTimeout(t)
+  }, [formData.nom_cliente, cliShow])
 
   const uploadFile = async (file, path) => {
     if (!file) return null
@@ -99,12 +121,12 @@ export default function NovoChamadoNF() {
 
   if (pageLoading) return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <p style={{ color: '#6b7280', fontSize: '16px', letterSpacing: '2px', fontFamily: 'Montserrat, sans-serif' }}>Carregando...</p>
+      <p style={{ color: '#6b7280', fontSize: '16px', letterSpacing: '2px', fontFamily: 'Inter, sans-serif' }}>Carregando...</p>
     </div>
   )
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'Montserrat, sans-serif', color: '#1e293b' }}>
+    <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'Inter, sans-serif', color: '#1e293b' }}>
       <FinanceiroNav />
 
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '32px 20px' }}>
@@ -146,10 +168,24 @@ export default function NovoChamadoNF() {
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
               <Field label="Nome do Cliente" icon={<User size={18} />}>
-                <input type="text" placeholder="Nome completo" required style={inputIconStyle} onChange={(e) => setFormData({ ...formData, nom_cliente: e.target.value })} />
+                <input type="text" placeholder="Buscar cliente no banco..." required autoComplete="off" value={formData.nom_cliente} style={inputIconStyle}
+                  onChange={(e) => { setFormData({ ...formData, nom_cliente: e.target.value }); setCliShow(true); }}
+                  onFocus={() => setCliShow(true)}
+                  onBlur={() => setTimeout(() => setCliShow(false), 150)} />
+                {cliShow && cliRes.length > 0 && (
+                  <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, maxHeight: '220px', overflowY: 'auto', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 50 }}>
+                    {cliRes.map((c, i) => (
+                      <div key={i} onMouseDown={() => { setFormData(f => ({ ...f, nom_cliente: c.nome })); setCliShow(false); setCliRes([]); }}
+                        style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid #f1f5f9' }}>
+                        <div style={{ fontSize: '13.5px', fontWeight: '600', color: '#1e293b' }}>{c.nome}</div>
+                        <div style={{ fontSize: '11.5px', color: '#94a3b8' }}>{c.documento}{c.cidade ? ` · ${c.cidade}` : ''}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </Field>
               <Field label="Valor Total" icon={<Hash size={18} />}>
-                <input type="number" step="0.01" placeholder="0,00" required style={inputIconStyle} onChange={(e) => setFormData({ ...formData, valor_servico: e.target.value })} />
+                <input type="text" inputMode="numeric" placeholder="0,00" required value={valorDisplay} style={inputIconStyle} onChange={(e) => onValor(e.target.value)} />
               </Field>
             </div>
 
@@ -157,6 +193,7 @@ export default function NovoChamadoNF() {
               <select required style={selectStyle} onChange={(e) => setFormData({ ...formData, forma_pagamento: e.target.value })}>
                 <option value="">Selecione...</option>
                 <option value="Pix">A vista no Pix</option>
+                <option value="Dinheiro">Dinheiro</option>
                 <option value="Boleto 30 dias">Boleto 30 dias</option>
                 <option value="Boleto Parcelado">Boleto Parcelado</option>
                 <option value="Cartão a vista">Cartao a vista</option>
@@ -174,7 +211,7 @@ export default function NovoChamadoNF() {
             )}
 
             {/* DATAS SIMPLES */}
-            {(formData.forma_pagamento === 'Pix' || formData.forma_pagamento === 'Boleto 30 dias' || formData.forma_pagamento === 'Cartão a vista' || formData.forma_pagamento === 'Cheque') && (
+            {(formData.forma_pagamento === 'Pix' || formData.forma_pagamento === 'Dinheiro' || formData.forma_pagamento === 'Boleto 30 dias' || formData.forma_pagamento === 'Cartão a vista' || formData.forma_pagamento === 'Cheque') && (
               <Field label="Data de Vencimento / Referencia" icon={<Calendar size={18} />}>
                 <input type="date" required style={inputIconStyle} onChange={(e) => {
                   const d = [...datasParcelas]; d[0] = e.target.value; setDatasParcelas(d);
@@ -226,7 +263,7 @@ export default function NovoChamadoNF() {
               justifyContent: 'center',
               gap: '10px',
               transition: '0.2s',
-              fontFamily: 'Montserrat, sans-serif'
+              fontFamily: 'Inter, sans-serif'
             }}>
               {loading ? 'Processando...' : <><CheckCircle size={18} /> Registrar Faturamento</>}
             </button>
@@ -276,6 +313,6 @@ function FileUploadBtn({ file, onSelect, label, accent, required }) {
 
 // --- ESTILOS ---
 const labelStyle = { display: 'block', fontSize: '12px', fontWeight: '600', color: '#6b7280', marginBottom: '6px', letterSpacing: '0.5px', textTransform: 'uppercase' };
-const inputStyle = { width: '100%', padding: '12px 14px', borderRadius: '8px', border: '1px solid #e5e7eb', outline: 'none', background: '#ffffff', color: '#1e293b', fontSize: '15px', boxSizing: 'border-box', fontFamily: 'Montserrat, sans-serif', transition: '0.2s' };
+const inputStyle = { width: '100%', padding: '12px 14px', borderRadius: '8px', border: '1px solid #e5e7eb', outline: 'none', background: '#ffffff', color: '#1e293b', fontSize: '15px', boxSizing: 'border-box', fontFamily: 'Inter, sans-serif', transition: '0.2s' };
 const inputIconStyle = { ...inputStyle, paddingLeft: '42px' };
 const selectStyle = { ...inputIconStyle, appearance: 'none', cursor: 'pointer' };

@@ -87,10 +87,10 @@ function ConfiguracoesContent() {
     } catch (err) { alert("Erro: " + err.message) } finally { setUpdating(false) }
   }
 
-  if (loading) return <div style={{background:'#000', height:'100vh', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontFamily:'Montserrat'}}>CARREGANDO...</div>
+  if (loading) return <div style={{background:'#f7f8fa', height:'100vh', display:'flex', alignItems:'center', justifyContent:'center', color:'#94a3b8', fontFamily:'Inter'}}>CARREGANDO...</div>
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f4f4f4', fontFamily: 'Montserrat, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#f4f4f4', fontFamily: 'Inter, sans-serif' }}>
       <FinanceiroNav />
 
       <div style={{ padding: '24px 32px' }}>
@@ -192,4 +192,4 @@ export default function Configuracoes() {
 const tabBtnStyle = { width: '100%', padding: '20px 25px', border: 'none', borderRadius: '18px', textAlign: 'left', fontWeight: '700', cursor: 'pointer', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '15px', transition: '0.3s' }
 const inputGroup = { display: 'flex', flexDirection: 'column', gap: '10px' }
 const labelStyle = { fontSize: '10px', fontWeight: '900', color: '#94a3b8', letterSpacing: '1px' }
-const inputStyle = { width: '100%', padding: '18px', borderRadius: '15px', border: '1px solid #cbd5e1', outline: 'none', fontFamily: 'Montserrat', fontSize: '15px', background: '#fff', color: '#000' }
+const inputStyle = { width: '100%', padding: '18px', borderRadius: '15px', border: '1px solid #cbd5e1', outline: 'none', fontFamily: 'Inter', fontSize: '15px', background: '#fff', color: '#000' }

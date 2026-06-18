@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Poppins:wght@300;400;500;600;700;800&display=swap');
+@import './estilo-portal.css';
 @import "tailwindcss";
 
 @theme inline {
@@ -3848,3 +3849,64 @@ body {
   .os-total-breakdown { flex-wrap: wrap; gap: 8px; }
   .os-summary-total { font-size: 18px; }
 }
+
+/* ===== Mascote do Assistente (animações) ===== */
+/* Idle vivo: flutua + respira + dá uma "saltadinha" animada a cada ciclo */
+@keyframes mascoteIdle {
+  0%   { transform: translateY(0) rotate(0deg) scale(1); }
+  14%  { transform: translateY(-5px) rotate(-3deg) scale(1.02); }
+  28%  { transform: translateY(0) rotate(0deg) scale(1); }
+  42%  { transform: translateY(-3px) rotate(3deg) scale(1.015); }
+  56%  { transform: translateY(0) rotate(0deg) scale(1); }
+  70%  { transform: translateY(-8px) rotate(-7deg) scale(1.06); }   /* hop animado */
+  78%  { transform: translateY(0) rotate(5deg) scale(0.99); }
+  86%  { transform: translateY(-3px) rotate(-2deg) scale(1.01); }
+  100% { transform: translateY(0) rotate(0deg) scale(1); }
+}
+@keyframes mascoteThink {
+  0%, 100% { transform: translateY(0) rotate(0deg) scale(1); }
+  20%      { transform: translateY(-5px) rotate(-10deg) scale(1.05); }
+  60%      { transform: translateY(-5px) rotate(10deg) scale(1.05); }
+}
+.mascote-anim  { animation: mascoteIdle 4.8s ease-in-out infinite; transform-origin: center bottom; }
+.mascote-think { animation: mascoteThink 0.65s ease-in-out infinite; transform-origin: center bottom; }
+
+/* Cards de tarefa do Financeiro (home-financeiro) — padrão Estilo Portal */
+.task-card-grid {
+  background: var(--portal-bg-card);
+  border: 1px solid var(--portal-border);
+  border-radius: 14px;
+  overflow: hidden;
+  margin-bottom: 14px;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(16,24,40,.05);
+  transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+.task-card-grid:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 26px rgba(16,24,40,.10);
+  border-color: var(--portal-border-hover);
+}
+
+/* Cards de Kanban do Financeiro — padrão Estilo Portal */
+.kanban-card {
+  background: var(--portal-bg-card);
+  border: 1px solid var(--portal-border);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 12px;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(16,24,40,.05);
+  transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+.kanban-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 26px rgba(16,24,40,.10);
+  border-color: var(--portal-border-hover);
+}
+
+/* Animações do painel de notificações (Estilo Portal) */
+@keyframes notifIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+.notif-item { animation: notifIn .22s ease both; }
+.notif-item .notif-ava { transition: transform .18s ease; }
+.notif-item:hover .notif-ava { transform: scale(1.08); }

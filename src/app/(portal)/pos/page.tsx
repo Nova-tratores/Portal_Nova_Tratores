@@ -7,7 +7,6 @@ import SemPermissao from "@/components/SemPermissao";
 import Header from "@/components/pos/Header";
 import PhaseAccordion from "@/components/pos/PhaseAccordion";
 import OSDrawer from "@/components/pos/OSDrawer";
-import ClientDrawer from "@/components/pos/ClientDrawer";
 import LembretesDrawer from "@/components/pos/LembretesDrawer";
 import LoadingIndicator from "@/components/pos/LoadingIndicator";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
@@ -27,7 +26,6 @@ function PosPageInner() {
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [drawerMode, setDrawerMode] = useState<"create" | "edit">("create");
   const [selectedOsId, setSelectedOsId] = useState<string | null>(null);
-  const [clientDrawerVisible, setClientDrawerVisible] = useState(false);
   const [lembretesVisible, setLembretesVisible] = useState(false);
 
   const fetchOrders = useCallback(async (signal?: AbortSignal) => {
@@ -191,9 +189,7 @@ function PosPageInner() {
         searchTerm={searchTerm}
         onSearch={setSearchTerm}
         onNewOS={handleNewOS}
-        onNewClient={() => setClientDrawerVisible(true)}
         onGenerateReport={handleGenerateReport}
-        onSync={handleSync}
         onLembretes={() => setLembretesVisible(true)}
         tecnicos={tecnicos}
         valorHora={valorHora}
@@ -225,16 +221,8 @@ function PosPageInner() {
       <LembretesDrawer
         visible={lembretesVisible}
         clientes={clientes}
+        userName={userProfile?.nome || ""}
         onClose={() => setLembretesVisible(false)}
-      />
-
-      <ClientDrawer
-        visible={clientDrawerVisible}
-        onClose={() => setClientDrawerVisible(false)}
-        onSaved={() => {
-          setClientDrawerVisible(false);
-          fetchClientes();
-        }}
       />
     </div>
   );

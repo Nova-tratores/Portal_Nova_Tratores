@@ -82,6 +82,7 @@ export interface PPVDetalhes {
   usuEmail: string;
   osId: string;
   tipoPedido: string;
+  projeto: string;
   produtos: ProdutoDetalhe[];
   devolucoes: Devolucao[];
 }
@@ -108,6 +109,7 @@ export interface DadosFormulario {
   tipoPedido: string;
   motivoSaida: string;
   osId: string;
+  projeto: string;
   tecnico: string;
   cliente: string;
   observacao: string;
@@ -126,6 +128,7 @@ export interface DadosEdicao {
   osId: string;
   tipoPedido: string;
   motivoSaida: string;
+  projeto: string;
 }
 
 export interface DadosMovimentacao {

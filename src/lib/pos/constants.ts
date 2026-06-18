@@ -13,6 +13,8 @@ export const TBL_REQ_ATT = "Atualizar_Req";
 export const TBL_REV_PRONTAS = "Revisoes_Pronta";
 export const TBL_METRICAS = "tecnico_metricas";
 export const TBL_LEMBRETES = "lembretes_clientes";
+export const TBL_LOUSA = "lousa_servicos";
+export const TBL_LOUSA_CONFIG = "lousa_config";
 
 // Mapa de status POS → PPV (1:1, PPV acompanha POS)
 export const POS_TO_PPV_STATUS: Record<string, string> = {

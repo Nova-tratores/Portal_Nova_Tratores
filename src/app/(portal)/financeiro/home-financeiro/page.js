@@ -56,14 +56,14 @@ const inputCascadeStyle = { background: 'var(--portal-bg-secondary)', border: '1
 const cascadeValueStyle = { fontSize: '18px', color: 'var(--portal-text)', fontWeight: '500' };
 const dropItemStyle_Container = { position:'absolute', top:'60px', right: 0, background:'var(--portal-bg-card)', zIndex:2000, width:'250px', border:'0.5px solid var(--portal-border)', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' };
 const dropItemStyle = { padding:'15px 20px', cursor:'pointer', color:'var(--portal-text)', borderBottom:'0.5px solid var(--portal-border)', fontSize:'14px', fontWeight: '600' };
-const colWrapperStyle = { padding: '20px', background: 'var(--portal-bg-card)', border: '0.5px solid var(--portal-border)' };
-const colTitleStyle = { textAlign: 'center', fontSize: '22px', color:'var(--portal-text)', fontWeight:'500', marginBottom:'30px', textTransform:'uppercase' };
-const miniTagStyle = { background: 'var(--portal-bg-secondary)', padding: '4px 10px', color: 'var(--portal-text-secondary)', fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px', border: '0.5px solid var(--portal-border)', fontWeight: '600' };
+const colWrapperStyle = { padding: '18px', background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: '16px', boxShadow: '0 1px 3px rgba(16,24,40,0.05)' };
+const colTitleStyle = { textAlign: 'center', fontSize: '14px', color:'var(--portal-text-secondary)', fontWeight:'700', marginBottom:'20px', textTransform:'uppercase', letterSpacing: '1px' };
+const miniTagStyle = { background: 'var(--portal-bg-secondary)', padding: '5px 11px', color: 'var(--portal-text-secondary)', fontSize: '12.5px', display: 'inline-flex', alignItems: 'center', gap: '6px', border: '1px solid var(--portal-border)', borderRadius: '8px', fontWeight: '600' };
 const labelMStyle = { fontSize:'14px', color:'var(--portal-text-secondary)', textTransform:'uppercase', fontWeight: '500', marginBottom: '8px', display: 'block' };
 const pModalStyle = { fontSize:'24px', color:'var(--portal-text)', margin: 0, fontWeight: '400' };
 const fieldBoxModal = { border: '1px solid var(--portal-border)', padding: '30px', background: 'var(--portal-bg-card)', flex: 1, borderRadius: '15px' };
 const fieldBoxInner = { padding: '15px 10px', borderBottom: '1px solid var(--portal-border)' };
-const inputStyleLight = { width: '100%', padding: '15px', border: '1px solid var(--portal-border)', outline: 'none', background:'var(--portal-bg-card)', color:'var(--portal-text)', fontSize: '18px', fontFamily: 'Montserrat, sans-serif' };
+const inputStyleLight = { width: '100%', padding: '15px', border: '1px solid var(--portal-border)', outline: 'none', background:'var(--portal-bg-card)', color:'var(--portal-text)', fontSize: '18px', fontFamily: 'Inter, sans-serif' };
 const miniActionBtn = { background: 'transparent', border: 'none', padding: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', transition: '0.2s', borderRadius: '8px' };
 const btnPrimaryBeautified = { background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)', color:'#ffffff', border:'none', padding:'18px 40px', borderRadius:'15px', cursor:'pointer', fontSize: '14px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 10px 20px rgba(14, 165, 233, 0.2)', transition: '0.3s' };
 const btnSuccessBeautified = { flex: 1, background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color:'#ffffff', border:'none', padding:'25px', borderRadius:'15px', cursor:'pointer', fontSize: '18px', fontWeight: '600', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px', boxShadow: '0 10px 20px rgba(16, 185, 129, 0.2)', transition: '0.3s' };
@@ -71,7 +71,7 @@ const zoomBtnStyle = { background: 'transparent', border: 'none', cursor: 'point
 
 export default function HomeFinanceiro() {
   return (
-    <Suspense fallback={<div style={{ padding: '60px', textAlign: 'center', color: 'var(--portal-text-secondary)', fontFamily: 'Montserrat, sans-serif' }}>Carregando...</div>}>
+    <Suspense fallback={<div style={{ padding: '60px', textAlign: 'center', color: 'var(--portal-text-secondary)', fontFamily: 'Inter, sans-serif' }}>Carregando...</div>}>
       <HomeFinanceiroContent />
     </Suspense>
   )
@@ -85,6 +85,7 @@ function HomeFinanceiroContent() {
  const [listaBoletos, setListaBoletos] = useState([]); const [listaSemBoleto, setListaSemBoleto] = useState([]); const [listaPagar, setListaPagar] = useState([]); const [listaRH, setListaRH] = useState([]);
  const [fileBoleto, setFileBoleto] = useState(null);
  const [zoom, setZoom] = useState(1);
+ const [cardLogs, setCardLogs] = useState([]);   // histórico (audit_log) do card aberto
  const router = useRouter();
  const searchParams = useSearchParams();
 
@@ -193,7 +194,28 @@ function HomeFinanceiroContent() {
  };
  const getCardTable = (t) => t.gTipo === 'pagar' ? 'finan_pagar' : t.gTipo === 'receber' ? 'finan_receber' : t.gTipo === 'rh' ? 'finan_rh' : 'Chamado_NF';
 
+ // Histórico (audit_log) do card aberto — o que cada usuário fez NELE
+ useEffect(() => {
+   if (!tarefaSelecionada) { setCardLogs([]); return; }
+   const tbl = getCardTable(tarefaSelecionada);
+   (async () => {
+     const { data: logs } = await supabase.from('audit_log')
+       .select('created_at, acao, user_id, detalhes')
+       .eq('entidade', tbl).eq('entidade_id', String(tarefaSelecionada.id))
+       .order('created_at', { ascending: false }).limit(40);
+     const ids = [...new Set((logs || []).map(l => l.user_id).filter(Boolean))];
+     let nomes = {};
+     if (ids.length) {
+       const { data: us } = await supabase.from('financeiro_usu').select('id, nome').in('id', ids);
+       nomes = Object.fromEntries((us || []).map(u => [u.id, u.nome]));
+     }
+     setCardLogs((logs || []).map(l => ({ ...l, nome: nomes[l.user_id] || 'Usuário' })));
+   })();
+ }, [tarefaSelecionada?.id]);
+
  const handleUpdateField = async (t, field, value) => {
+    // só age se houve MUDANÇA real (evita notificar ao só clicar/sair do campo)
+    if (String(t[field] ?? '') === String(value ?? '')) return;
     const table = getCardTable(t);
     await supabase.from(table).update({ [field]: value }).eq('id', t.id);
     auditLog({ sistema: 'financeiro', acao: 'editar', entidade: table, entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { campo: field, valor: value } });
@@ -355,7 +377,7 @@ function HomeFinanceiroContent() {
  const valorIndividual = tarefaSelecionada ? (tarefaSelecionada.valor_servico / (tarefaSelecionada.qtd_parcelas || 1)) : 0;
 
  return (
-  <div style={{ fontFamily: 'Montserrat, sans-serif' }}>
+  <div style={{ fontFamily: 'Inter, sans-serif' }}>
    <FinanceiroNav>
       <div style={{ display: 'flex', alignItems: 'center', background: 'var(--portal-bg-secondary)', borderRadius: '8px', padding: '4px 10px', gap: '6px' }}>
         <button onClick={() => setZoom(prev => Math.max(0.5, prev - 0.1))} style={zoomBtnStyle} title="Diminuir zoom"><ZoomOut size={15} color="#737373" /></button>
@@ -378,12 +400,9 @@ function HomeFinanceiroContent() {
           <div onClick={() => router.push('/financeiro/novo-chamado-nf')} style={{ padding:'12px 16px', cursor:'pointer', color:'var(--portal-text)', borderBottom:'1px solid var(--portal-bg-secondary)', fontSize:'13px', fontWeight: '600', transition: '0.15s' }}
             onMouseEnter={e => e.currentTarget.style.background='#fef2f2'}
             onMouseLeave={e => e.currentTarget.style.background='transparent'}>Boleto</div>
-          <div onClick={() => router.push('/financeiro/novo-pagar-receber?tipo=pagar')} style={{ padding:'12px 16px', cursor:'pointer', color:'var(--portal-text)', borderBottom:'1px solid var(--portal-bg-secondary)', fontSize:'13px', fontWeight: '600', transition: '0.15s' }}
+          <div onClick={() => router.push('/financeiro/novo-pagar-receber?tipo=pagar')} style={{ padding:'12px 16px', cursor:'pointer', color:'var(--portal-text)', fontSize:'13px', fontWeight: '600', transition: '0.15s' }}
             onMouseEnter={e => e.currentTarget.style.background='#fef2f2'}
             onMouseLeave={e => e.currentTarget.style.background='transparent'}>Pagar</div>
-          <div onClick={() => router.push('/financeiro/novo-chamado-rh')} style={{ padding:'12px 16px', cursor:'pointer', color:'#dc2626', fontSize:'13px', fontWeight: '600', transition: '0.15s' }}
-            onMouseEnter={e => e.currentTarget.style.background='#fef2f2'}
-            onMouseLeave={e => e.currentTarget.style.background='transparent'}>RH</div>
          </div>
         )}
       </div>
@@ -393,7 +412,7 @@ function HomeFinanceiroContent() {
 
     <div style={{
         display: 'grid',
-        gridTemplateColumns: '1fr 1fr 1fr 1fr',
+        gridTemplateColumns: '1fr 1fr 1fr',
         gap: '30px',
         transform: `scale(${zoom})`,
         transformOrigin: 'top left',
@@ -523,22 +542,6 @@ function HomeFinanceiroContent() {
        </div>
       </div>
 
-      <div style={colWrapperStyle}>
-       <div style={colTitleStyle}>RH</div>
-       <div style={{ display: 'flex', flexDirection: 'column', gap: '0px', borderTop: '0.5px solid var(--portal-border)' }}>
-        {listaRH.map((t, idx) => (
-         <div key={`rh-${t.id}-${idx}`} onClick={() => setTarefaSelecionada(t)} className="task-card-grid">
-          <div style={{padding:'24px', background: 'var(--portal-bg-secondary)', borderLeft: '6px solid #8b5cf6', borderBottom: '0.5px solid var(--portal-border)'}}>
-            <h4 style={{fontSize:'18px', color:'var(--portal-text)', fontWeight:'500'}}>{t.funcionario?.toUpperCase()}</h4>
-            <div style={{fontSize:'14px', color:'#0ea5e9', marginTop:'10px', textTransform:'uppercase', letterSpacing:'1px', fontWeight: '500'}}>{t.setor}</div>
-          </div>
-          <div style={{padding:'24px', background:'var(--portal-bg-card)', borderBottom: '0.5px solid var(--portal-border)'}}>
-             <div style={{fontSize:'14px', color:'var(--portal-text-secondary)', fontWeight:'400'}}>{t.titulo}</div>
-          </div>
-         </div>
-        ))}
-       </div>
-      </div>
     </div>
 
    {tarefaSelecionada && (
@@ -619,7 +622,7 @@ function HomeFinanceiroContent() {
                 <div style={fieldBoxInner}>
                     <label style={{...labelMStyle, display:'flex', alignItems:'center', gap:'8px', marginBottom:'14px'}}>DESCRIÇÃO / OBSERVAÇÕES</label>
                     <textarea
-                        style={{...inputStyleLight, minHeight:'180px', resize:'vertical', lineHeight:'1.7', fontSize:'15px', padding:'18px 20px', fontFamily:'Montserrat, sans-serif'}}
+                        style={{...inputStyleLight, minHeight:'180px', resize:'vertical', lineHeight:'1.7', fontSize:'15px', padding:'18px 20px', fontFamily:'Inter, sans-serif'}}
                         defaultValue={tarefaSelecionada.motivo}
                         onBlur={e => handleUpdateField(tarefaSelecionada, 'motivo', e.target.value)}
                         placeholder="Detalhes do pagamento, observações relevantes..."
@@ -1024,6 +1027,30 @@ function HomeFinanceiroContent() {
                 </button>
             )}
         </div>
+
+        {/* HISTÓRICO DESTE CARD — o que cada usuário fez nele */}
+        {cardLogs.length > 0 && (
+          <div style={{ marginTop: '40px', borderTop: '1px solid var(--portal-border)', paddingTop: '24px' }}>
+            <label style={labelMStyle}>Histórico deste card</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '14px' }}>
+              {cardLogs.map((l, i) => {
+                const det = l.detalhes && typeof l.detalhes === 'object'
+                  ? Object.entries(l.detalhes).map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`).join(' · ')
+                  : '';
+                return (
+                  <div key={i} style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', padding: '12px 14px', background: 'var(--portal-bg-secondary)', borderRadius: '10px', border: '1px solid var(--portal-border)' }}>
+                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#dc2626', marginTop: '6px', flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '13.5px', fontWeight: '600', color: 'var(--portal-text)' }}>{l.nome} <span style={{ fontWeight: '400', color: 'var(--portal-text-secondary)' }}>— {l.acao}</span></div>
+                      {det && <div style={{ fontSize: '12px', color: 'var(--portal-text-secondary)', marginTop: '2px', wordBreak: 'break-word' }}>{det}</div>}
+                    </div>
+                    <div style={{ fontSize: '11.5px', color: '#94a3b8', whiteSpace: 'nowrap' }}>{new Date(l.created_at).toLocaleString('pt-BR')}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
      </div>
@@ -1032,9 +1059,10 @@ function HomeFinanceiroContent() {
 
    </div>{/* fim padding wrapper */}
    <style jsx global>{`
-    .task-card-grid { background: var(--portal-bg-card); border: 0.5px solid var(--portal-border); cursor: pointer; transition: 0.3s; overflow: hidden; margin-bottom: 15px; }
-    .task-card-grid:hover { transform: translateY(-4px); box-shadow: 0 10px 20px rgba(0,0,0,0.04); border-color: #0ea5e9; }
-    .btn-back-light { background: var(--portal-bg-card); color: var(--portal-text-secondary); border: 0.5px solid var(--portal-border); padding: 10px 24px; border-radius: 0px; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.3s; font-size:15px; }
+    .task-card-grid { background: var(--portal-bg-card); border: 1px solid var(--portal-border); border-radius: 14px; cursor: pointer; transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; overflow: hidden; margin-bottom: 14px; box-shadow: 0 1px 2px rgba(16,24,40,.05); }
+    .task-card-grid:hover { transform: translateY(-2px); box-shadow: 0 12px 26px rgba(16,24,40,.10); border-color: var(--portal-border-hover); }
+    .btn-back-light { background: var(--portal-bg-card); color: var(--portal-text-secondary); border: 1px solid var(--portal-border); padding: 9px 16px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s; font-size:13px; font-weight:600; }
+    .btn-back-light:hover { background: var(--portal-bg-secondary); color: var(--portal-text); }
     ::placeholder { color: var(--portal-text-secondary); }
     ::-webkit-scrollbar { width: 8px; height: 12px; }
     ::-webkit-scrollbar-thumb { background: var(--portal-border); border-radius: 10px; }

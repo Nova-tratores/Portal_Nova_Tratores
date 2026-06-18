@@ -10,6 +10,7 @@ interface UserProfile {
   avatar_url: string
   tema?: string
   som_notificacao?: string
+  ativo?: boolean
 }
 
 export function useAuth() {
@@ -29,7 +30,14 @@ export function useAuth() {
           .select('*')
           .eq('id', session.user.id)
           .single()
-        if (!cancelled) setUserProfile(prof)
+        if (cancelled) return
+        // Usuário inativado: bloquear acesso
+        if (prof && prof.ativo === false) {
+          await supabase.auth.signOut()
+          router.push('/login?inativo=1')
+          return
+        }
+        setUserProfile(prof)
       } catch {
         if (!cancelled) router.push('/login')
       } finally {
@@ -45,5 +53,5 @@ export function useAuth() {
     router.push('/login')
   }
 
-  return { userProfile, loading, handleLogout, router }
+  return { userProfile, setUserProfile, loading, handleLogout, router }
 }

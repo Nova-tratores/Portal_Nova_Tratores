@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation'
 import {
   Shield, Users, Check, X, Search, ChevronDown, ChevronUp, ArrowLeft,
   User as UserIcon, Lock, Unlock, Wrench, UserPlus, Eye, EyeOff,
-  Activity, Clock, Settings, ClipboardList, DollarSign, FileText, Mail
+  Activity, Clock, Settings, ClipboardList, DollarSign, FileText, Mail, Ban, RotateCcw
 } from 'lucide-react'
 
 const MODULOS = [
@@ -24,14 +24,17 @@ const MODULOS = [
   { id: 'garantias', label: 'Garantias', color: '#0ea5e9' },
   { id: 'mecanicos', label: 'Janela Mecânicos', color: '#1d4ed8' },
   { id: 'mapa', label: 'Mapeamento Técnico', color: '#b91c1c' },
+  { id: 'opa', label: 'Opa (Ocorrências)', color: '#dc2626' },
   { id: 'orcamentos', label: 'Orçamentos', color: '#ef4444' },
   { id: 'painel-mecanicos', label: 'Painel Mecânicos', color: '#3b82f6' },
   { id: 'ppv', label: 'Peças (PPV)', color: '#ef4444' },
   { id: 'pos', label: 'Pós-Vendas (OS)', color: '#dc2626' },
   { id: 'propostas', label: 'Proposta Comercial', color: '#991b1b' },
   { id: 'requisicoes', label: 'Requisições', color: '#ef4444' },
+  { id: 'sat', label: 'SAT Digital', color: '#0ea5e9' },
   { id: 'supervisor-vendas', label: 'Supervisor Vendas', color: '#dc2626' },
   { id: 'tarefas', label: 'Tarefas', color: '#dc2626' },
+  { id: 'tratorilson', label: 'Tratorilson (Chat IA)', color: '#ef4444' },
 ]
 
 const CATEGORIAS = ['Pós Vendas', 'Peças', 'Comercial', 'Financeiro']
@@ -99,6 +102,7 @@ interface Usuario {
   funcao: string
   avatar_url: string
   email: string
+  ativo?: boolean
 }
 
 interface Permissao {
@@ -209,7 +213,7 @@ export default function AdminPage() {
   }, [loadingPerm, isAdmin, userProfile, router])
 
   const carregar = async () => {
-    const { data: users } = await supabase.from('financeiro_usu').select('id, nome, funcao, avatar_url, email').order('nome')
+    const { data: users } = await supabase.from('financeiro_usu').select('id, nome, funcao, avatar_url, email, ativo').order('nome')
     setUsuarios(users || [])
 
     const { data: perms } = await supabase.from('portal_permissoes').select('*')
@@ -312,6 +316,20 @@ export default function AdminPage() {
     salvar(userId, { modulos_permitidos: hasAll ? [] : allModulos })
   }
 
+  // Inativar / reativar usuário (soft-delete em financeiro_usu)
+  const toggleAtivo = async (userId: string, novo: boolean) => {
+    if (userId === userProfile?.id) return // não pode inativar a própria conta
+    setSaving(userId)
+    setUsuarios(prev => prev.map(u => u.id === userId ? { ...u, ativo: novo } : u))
+    const { error } = await supabase.from('financeiro_usu').update({ ativo: novo }).eq('id', userId)
+    if (error) {
+      // reverte
+      setUsuarios(prev => prev.map(u => u.id === userId ? { ...u, ativo: !novo } : u))
+      alert('Erro ao alterar status: ' + error.message)
+    }
+    setSaving(null)
+  }
+
   const criarUsuario = async () => {
     if (!novoNome.trim() || !novoEmail.trim()) { setCriarErro('Nome e email são obrigatórios'); return }
     if (novoSenha.length < 6) { setCriarErro('Senha deve ter no mínimo 6 caracteres'); return }
@@ -345,11 +363,13 @@ export default function AdminPage() {
     setNovoModulos(prev => prev.includes(modId) ? prev.filter(m => m !== modId) : [...prev, modId])
   }
 
-  const filteredUsuarios = usuarios.filter(u =>
+  const matchBusca = (u: Usuario) =>
     u.nome.toLowerCase().includes(search.toLowerCase()) ||
     u.funcao?.toLowerCase().includes(search.toLowerCase()) ||
     u.email?.toLowerCase().includes(search.toLowerCase())
-  )
+  // ativo === false é inativo; true/undefined = ativo (antes de rodar o SQL todos são ativos)
+  const filteredUsuarios = usuarios.filter(u => u.ativo !== false && matchBusca(u))
+  const inativosFiltrados = usuarios.filter(u => u.ativo === false && matchBusca(u))
 
   if (loadingPerm || loading) {
     return (
@@ -628,7 +648,7 @@ export default function AdminPage() {
       }}>
         {/* Table Header */}
         <div style={{
-          display: 'grid', gridTemplateColumns: '260px 120px 150px 1fr 200px 80px 100px',
+          display: 'grid', gridTemplateColumns: '260px 120px 150px 1fr 200px 80px 130px',
           padding: '16px 24px', background: 'var(--portal-bg-secondary)', borderBottom: '1px solid var(--portal-border)',
           fontSize: '11px', fontWeight: '700', color: '#a3a3a3', letterSpacing: '1px'
         }}>
@@ -652,7 +672,7 @@ export default function AdminPage() {
             <div
               key={user.id}
               style={{
-                display: 'grid', gridTemplateColumns: '260px 120px 150px 1fr 200px 80px 100px',
+                display: 'grid', gridTemplateColumns: '260px 120px 150px 1fr 200px 80px 130px',
                 padding: '16px 24px', borderBottom: '1px solid #f5f5f5',
                 alignItems: 'center', transition: '0.15s',
                 opacity: isSaving ? 0.6 : 1,
@@ -791,8 +811,8 @@ export default function AdminPage() {
                 </button>
               </div>
 
-              {/* Resetar Senha */}
-              <div style={{ textAlign: 'center' }}>
+              {/* Ações */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center' }}>
                 <button
                   onClick={() => {
                     if (!user.email) { alert('Usuário sem email cadastrado'); return }
@@ -802,7 +822,7 @@ export default function AdminPage() {
                   }}
                   title={user.email ? `Resetar senha de ${user.email}` : 'Sem email'}
                   style={{
-                    padding: '6px 12px', borderRadius: '8px',
+                    padding: '6px 12px', borderRadius: '8px', width: '100%', justifyContent: 'center',
                     border: '1px solid #e5e5e5', background: 'var(--portal-bg-secondary)',
                     color: '#525252', fontSize: '11px', fontWeight: '600',
                     cursor: 'pointer', transition: '0.15s',
@@ -810,6 +830,20 @@ export default function AdminPage() {
                   }}
                 >
                   <Mail size={13} /> Resetar
+                </button>
+                <button
+                  onClick={() => { if (!isMe && confirm(`Inativar ${user.nome}? Ele não conseguirá entrar e some das listas, mas os dados ficam.`)) toggleAtivo(user.id, false) }}
+                  disabled={isMe}
+                  title={isMe ? 'Você não pode inativar a própria conta' : `Inativar ${user.nome}`}
+                  style={{
+                    padding: '6px 12px', borderRadius: '8px', width: '100%', justifyContent: 'center',
+                    border: '1px solid #fecaca', background: '#fef2f2',
+                    color: '#dc2626', fontSize: '11px', fontWeight: '600',
+                    cursor: isMe ? 'not-allowed' : 'pointer', transition: '0.15s', opacity: isMe ? 0.5 : 1,
+                    display: 'inline-flex', alignItems: 'center', gap: '4px'
+                  }}
+                >
+                  <Ban size={13} /> Inativar
                 </button>
               </div>
             </div>
@@ -822,6 +856,50 @@ export default function AdminPage() {
           </div>
         )}
       </div>
+
+      {/* ===== Seção: Usuários Inativos ===== */}
+      {inativosFiltrados.length > 0 && (
+        <div style={{ marginTop: 28 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <Ban size={16} color="#a3a3a3" />
+            <h3 style={{ fontSize: 15, fontWeight: 800, color: 'var(--portal-text-secondary)', margin: 0 }}>
+              Inativos
+            </h3>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#a3a3a3', background: 'var(--portal-bg-secondary)', padding: '2px 10px', borderRadius: 10 }}>
+              {inativosFiltrados.length}
+            </span>
+          </div>
+          <div style={{ borderRadius: 16, overflow: 'hidden', background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)' }}>
+            {inativosFiltrados.map(user => {
+              const isSaving = saving === user.id
+              return (
+                <div key={user.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px', borderBottom: '1px solid #f5f5f5', opacity: isSaving ? 0.6 : 0.85 }}>
+                  <div style={{ width: 34, height: 34, borderRadius: 9, overflow: 'hidden', background: '#e5e5e5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, filter: 'grayscale(1)' }}>
+                    {user.avatar_url ? <img src={user.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={16} color="#fff" />}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--portal-text-secondary)', margin: 0 }}>
+                      {user.nome} <span style={{ fontSize: 10, fontWeight: 700, color: '#a3a3a3', background: 'var(--portal-bg-secondary)', padding: '1px 7px', borderRadius: 5, marginLeft: 6 }}>INATIVO</span>
+                    </p>
+                    <p style={{ fontSize: 11, color: '#a3a3a3', margin: 0 }}>{user.funcao}{user.email ? ` · ${user.email}` : ''}</p>
+                  </div>
+                  <button
+                    onClick={() => toggleAtivo(user.id, true)}
+                    title={`Reativar ${user.nome}`}
+                    style={{
+                      padding: '7px 14px', borderRadius: 9, border: '1px solid #bbf7d0', background: '#f0fdf4',
+                      color: '#16a34a', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                    }}
+                  >
+                    <RotateCcw size={14} /> Reativar
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Modal de Atividades do Usuário */}
       {selectedUser && (() => {

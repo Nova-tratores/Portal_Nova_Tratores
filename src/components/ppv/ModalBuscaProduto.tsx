@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import type { ProdutoBusca } from "@/lib/ppv/types";
 import { api } from "@/lib/ppv/api";
 import { usePPV } from "@/lib/ppv/PPVContext";
+import CatalogoNovo from "@/components/ppv/CatalogoNovo";
 
 interface Props {
   open: boolean;
@@ -19,6 +20,7 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
   const [resultados, setResultados] = useState<ProdutoBusca[]>([]);
   const [buscando, setBuscando] = useState(false);
   const [mensagem, setMensagem] = useState("Digite para pesquisar produtos...");
+  const [verCatalogo, setVerCatalogo] = useState(false);
   const [editandoPreco, setEditandoPreco] = useState<{ idx: number; valor: string } | null>(null);
   const [salvandoPreco, setSalvandoPreco] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -29,6 +31,7 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
     if (open) {
       setTermo("");
       setResultados([]);
+      setVerCatalogo(false);
       setMensagem("Digite para pesquisar produtos...");
       setTimeout(() => inputRef.current?.focus(), 200);
     }
@@ -112,11 +115,23 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
 
   return (
     <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-red-900/60 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="flex h-[550px] w-[800px] flex-col rounded-lg bg-[#FFFAF5] shadow-2xl">
+      <div className={`flex flex-col rounded-lg bg-[#FFFAF5] shadow-2xl ${verCatalogo ? "h-[88vh] w-[1060px] max-w-[96vw]" : "h-[550px] w-[800px]"}`}>
         <div className="flex items-center justify-between rounded-t-lg border-b border-orange-200/60 bg-[#FFFAF5] px-10 py-5">
           <h2 className="text-xl font-bold text-slate-800">{mode === "edit" ? "Editar Produto Manual" : "Pesquisar Produto"}</h2>
-          <button onClick={onClose} className="border-none bg-transparent text-2xl text-slate-400 transition-colors hover:text-red-500">&times;</button>
+          <div className="flex items-center gap-3">
+            {mode !== "edit" && (
+              <button onClick={() => setVerCatalogo((v) => !v)} className={`flex items-center gap-2 rounded-md border px-3.5 py-1.5 text-sm font-bold transition-colors ${verCatalogo ? "border-red-600 bg-red-600 text-white" : "border-red-200 bg-white text-red-600 hover:bg-red-50"}`}>
+                <i className="fas fa-book-open" /> Catálogos
+              </button>
+            )}
+            <button onClick={onClose} className="border-none bg-transparent text-2xl text-slate-400 transition-colors hover:text-red-500">&times;</button>
+          </div>
         </div>
+        {verCatalogo ? (
+          <div className="flex-1 overflow-hidden p-3" style={{ minHeight: 0 }}>
+            <CatalogoNovo onSelecionarPeca={(p) => { setVerCatalogo(false); setTermo(p.code); buscar(p.code); }} />
+          </div>
+        ) : (
         <div className="flex-1 overflow-y-auto bg-[#FFFAF5] px-10 py-7">
           <div className="relative mb-3">
             <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-red-400" />
@@ -255,6 +270,7 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
             </table>
           </div>
         </div>
+        )}
       </div>
     </div>
   );

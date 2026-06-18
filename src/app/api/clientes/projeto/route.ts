@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
     const osDoProj: any[] = [];
     while (hasMore) {
       const { data } = await supabase.from("portal_nt_clientes_os")
-        .select("num_os, cod_os, cod_cli, empresa, data_previsao, data_inclusao, data_faturamento, valor_total, status, faturada, cancelada, num_nf, link_nf, num_pedido_cli, vendedor, cidade, descricao, servicos")
+        .select("num_os, cod_os, cod_cli, empresa, data_previsao, data_inclusao, data_faturamento, valor_total, status, faturada, cancelada, num_nf, link_nf, pdf_anexo, num_pedido_cli, vendedor, cidade, descricao, servicos")
         .eq("empresa", empresa).eq("projeto", nome)
         .order("data_previsao", { ascending: false })
         .range(from, from + PAGE - 1);
@@ -193,12 +193,30 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // ─── REQUISICOES: do banco Requisicao ───
-    const { data: reqData } = await supabase.from("Requisicao")
-      .select("id, titulo, tipo, solicitante, status, valor_despeza, created_at, obs, Chassis_Modelo, projeto_nome, projeto_codigo, fornecedor, numero_nota")
-      .eq("projeto_nome", nome)
-      .order("created_at", { ascending: false });
-    const requisicoes = reqData || [];
+    // ─── REQUISICOES: por projeto OU pelo final do chassi mencionado ───
+    // (principalmente no campo Chassis_Modelo, preenchido quando o tipo é "Trator-Cliente";
+    //  também procura em obs e titulo). Marca como veio (projeto/chassi) e qual final bateu.
+    const reqSelect = "id, titulo, tipo, solicitante, status, valor_despeza, created_at, obs, Chassis_Modelo, projeto_nome, projeto_codigo, fornecedor, numero_nota";
+    const reqMap = new Map<number, any>();
+
+    const { data: reqPorProj } = await supabase.from("Requisicao").select(reqSelect).eq("projeto_nome", nome);
+    for (const r of reqPorProj || []) reqMap.set(r.id, { ...r, match: "projeto" });
+
+    const finaisReq = [...new Set(allChassis.map((ch: string) => (ch || "").slice(-6)).filter((f: string) => f && f.length >= 5))];
+    if (finaisReq.length > 0) {
+      const cols = ["Chassis_Modelo", "obs", "titulo"];
+      const orC = finaisReq.flatMap((f: string) => cols.map(c => `${c}.ilike.%${f}%`)).join(",");
+      const { data: reqPorChassi } = await supabase.from("Requisicao").select(reqSelect).or(orC);
+      for (const r of reqPorChassi || []) {
+        const blob = `${r.Chassis_Modelo || ""} ${r.obs || ""} ${r.titulo || ""}`.toLowerCase();
+        const finalBatido = finaisReq.find((f: string) => blob.includes(f.toLowerCase())) || "";
+        const existente = reqMap.get(r.id);
+        if (existente) existente.match_chassis = finalBatido;
+        else reqMap.set(r.id, { ...r, match: "chassi", match_chassis: finalBatido });
+      }
+    }
+    const requisicoes = Array.from(reqMap.values())
+      .sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
 
     // ─── REVISOES: do banco tratores, matchando por chassis ───
     let revisoes: any[] = [];

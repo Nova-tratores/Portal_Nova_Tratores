@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import type { Oportunidade, PrioridadeOportunidade } from "@/lib/feedbacks/types";
 import { origemDaOportunidade } from "@/lib/feedbacks/origem";
 
@@ -12,31 +13,47 @@ interface Props {
   op: Oportunidade;
   onAtender: (op: Oportunidade) => void;
   onDispensar: (op: Oportunidade) => void;
+  onVerHistorico?: (op: Oportunidade) => void;
 }
 
-export default function OportunidadeCard({ op, onAtender, onDispensar }: Props) {
+export default function OportunidadeCard({ op, onAtender, onDispensar, onVerHistorico }: Props) {
   const cor = CORES_PRIORIDADE[op.prioridade];
   const detalhes = renderizarDetalhes(op);
   const origem = origemDaOportunidade(op);
 
   const disabled = op.status !== "aberta";
+  const [hover, setHover] = useState(false);
+  const clicavel = !!onVerHistorico;
 
   return (
     <article
+      onClick={onVerHistorico ? () => onVerHistorico(op) : undefined}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      title={clicavel ? "Clique para ver o histórico do cliente (OS, pedidos, requisições)" : undefined}
       style={{
+        position: "relative",
         background: "var(--portal-bg-card)",
         border: "1px solid var(--portal-border)",
         borderLeft: `4px solid ${cor.fg}`,
         borderRadius: 12,
         padding: "14px 16px",
-        boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+        boxShadow: clicavel && hover ? "0 6px 18px rgba(3,105,161,0.18)" : "0 1px 3px rgba(0,0,0,0.04)",
         display: "flex",
         flexDirection: "column",
         gap: 10,
         fontFamily: "Inter, sans-serif",
         opacity: disabled ? 0.65 : 1,
+        cursor: clicavel ? "pointer" : "default",
+        transform: clicavel && hover ? "translateY(-1px)" : "none",
+        transition: "box-shadow .15s, transform .15s",
       }}
     >
+      {clicavel && hover && (
+        <span style={{ position: "absolute", top: 8, right: 10, fontSize: 10, fontWeight: 700, color: "#0369a1", background: "#e0f2fe", borderRadius: 8, padding: "2px 8px", zIndex: 1 }}>
+          📜 ver histórico
+        </span>
+      )}
       <header style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: "var(--portal-text)", lineHeight: 1.3 }}>
@@ -94,7 +111,7 @@ export default function OportunidadeCard({ op, onAtender, onDispensar }: Props) 
       })()}
 
       {op.status === "aberta" && (
-        <footer style={{ display: "flex", gap: 6, marginTop: 4 }}>
+        <footer style={{ display: "flex", gap: 6, marginTop: 4 }} onClick={(e) => e.stopPropagation()}>
           <button
             onClick={() => onAtender(op)}
             style={btnStyle("#10b981", "#fff")}
@@ -247,6 +264,13 @@ function renderizarDetalhes(op: Oportunidade): string {
         ? new Date(d.data_estimada).toLocaleDateString("pt-BR")
         : "";
       const atrasada = d.atrasada ? " (ATRASADA)" : "";
+      // 1ª revisão de garantia estimada por TEMPO (trator recém-entregue).
+      if (d.base_estimativa === "tempo_primeira") {
+        const entrega = typeof d.entrega_data === "string"
+          ? new Date(d.entrega_data).toLocaleDateString("pt-BR")
+          : "";
+        return `1ª revisão de garantia (${alvo}) — prevista para ${data}${atrasada}.${entrega ? ` Trator entregue em ${entrega}.` : ""}`;
+      }
       const horas = d.media_horas_dia ? `${d.media_horas_dia}h/dia` : "";
       return `Revisão ${alvo} estimada para ${data}${atrasada}. Uso médio: ${horas}.`;
     }
@@ -271,6 +295,15 @@ function renderizarDetalhes(op: Oportunidade): string {
     case "R5_pecas": {
       const meses = d.meses_sem_pedido as number | undefined;
       return `Última compra de peça há ${meses} meses. Oferecer reposição ou kit de manutenção.`;
+    }
+    case "R6_fora_garantia": {
+      const tipo = (d.tipo as string | undefined) || "Equipamento";
+      const venda = typeof d.data_venda === "string" ? new Date(d.data_venda).toLocaleDateString("pt-BR") : "";
+      const fim = typeof d.fim_garantia === "string" ? new Date(d.fim_garantia).toLocaleDateString("pt-BR") : "";
+      const meses = d.garantia_meses as number | undefined;
+      const anos = meses ? Math.round(meses / 12) : undefined;
+      const prazo = anos ? `${anos} ano${anos > 1 ? "s" : ""}` : `${meses} meses`;
+      return `${tipo} fora de garantia${venda ? ` — vendido em ${venda}` : ""}. Garantia de ${prazo} venceu${fim ? ` em ${fim}` : ""}. Oferecer revisão paga / garantia estendida.`;
     }
     case "R4_followup": {
       const dias = d.dias_desde_ultimo as number | undefined;

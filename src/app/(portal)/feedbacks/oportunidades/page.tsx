@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import KanbanOportunidades from "@/components/feedbacks/KanbanOportunidades";
+import ModalHistoricoCliente from "@/components/feedbacks/ModalHistoricoCliente";
 import { buscarClientePorOmieId, buscarClientesOmie, inserirRegistro, listarOportunidades } from "@/lib/feedbacks/api";
 import { origemDaOportunidade } from "@/lib/feedbacks/origem";
 import type { FeedbackRegistro, Oportunidade, RegraOportunidade, StatusOportunidade, TipoFeedback } from "@/lib/feedbacks/types";
@@ -12,12 +13,14 @@ import type { FeedbackRegistro, Oportunidade, RegraOportunidade, StatusOportunid
 // - R3 up-sell          → RFM (cliente esfriado, motivar venda)
 // - R4 follow-up        → CRM (confirmar satisfacao do servico anterior)
 // - R5 venda de pecas   → RFM (cliente sem comprar peca ha tempo)
+// - R6 fora de garantia → RFM (oferecer revisao paga / garantia estendida)
 const TIPO_PADRAO_POR_REGRA: Record<RegraOportunidade, TipoFeedback> = {
   R1_revisao:  "crm",
   R2_sem_os:   "rfm",
   R3_upsell:   "rfm",
   R4_followup: "crm",
   R5_pecas:    "rfm",
+  R6_fora_garantia: "rfm",
 };
 
 function prefillDoOportunidade(op: Oportunidade): Partial<FeedbackRegistro> {
@@ -65,6 +68,7 @@ export default function OportunidadesPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [comoFuncionaAberto, setComoFuncionaAberto] = useState(false);
+  const [histAlvo, setHistAlvo] = useState<{ nome: string; codigoOmie: string | null } | null>(null);
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -341,9 +345,16 @@ export default function OportunidadesPage() {
           oportunidades={ops}
           onAtender={handleAtender}
           onDispensar={handleDispensar}
+          onVerHistorico={(op) => setHistAlvo({ nome: op.cliente_nome, codigoOmie: op.codigo_omie })}
         />
       )}
 
+      <ModalHistoricoCliente
+        aberto={!!histAlvo}
+        nome={histAlvo?.nome || ""}
+        codigoOmie={histAlvo?.codigoOmie ?? null}
+        onFechar={() => setHistAlvo(null)}
+      />
     </div>
   );
 }
