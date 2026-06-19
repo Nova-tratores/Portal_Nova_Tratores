@@ -44,7 +44,8 @@ export type AnexoCategoria =
   | 'pendencia_pedido'
   | 'pendencia_resposta'
   | 'retorno_fabrica'
-  | 'envio_fabrica';
+  | 'envio_fabrica'
+  | 'foto_garantista';
 
 // --- Checklist configurável por montadora -----------------------------------
 export type ChecklistFieldTipo =

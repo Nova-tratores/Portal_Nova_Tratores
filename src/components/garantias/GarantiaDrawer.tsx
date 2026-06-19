@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   X, Loader2, ExternalLink, Package, ShieldCheck, Factory, Send,
-  AlertTriangle, CheckCircle2, XCircle, Save, History, FileWarning, MapPin, RefreshCw,
+  AlertTriangle, CheckCircle2, XCircle, Save, History, FileWarning, MapPin, RefreshCw, ImagePlus,
 } from 'lucide-react';
 import type { GarantiaDetalhe, Montadora, ChecklistField } from '@/lib/garantias/types';
 import { STATUS_LABEL, STATUS_COR } from '@/lib/garantias/constants';
@@ -11,6 +11,7 @@ import { fmtDataHora, fmtMoeda, diasEntre } from '@/lib/garantias/format';
 import ChecklistRenderer from './ChecklistRenderer';
 import MontadoraPicker from './MontadoraPicker';
 import GarantiaFotosOS from './GarantiaFotosOS';
+import GarantiaFotosGarantista from './GarantiaFotosGarantista';
 import GarantiaAnexos from './GarantiaAnexos';
 import ValoresComparativo from './ValoresComparativo';
 import GarantiaTimeline from './GarantiaTimeline';
@@ -466,6 +467,18 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
               {/* Fotos da OS */}
               <Secao titulo="Fotos da OS (para enviar à fábrica)" icone={<Package size={14} />}>
                 <GarantiaFotosOS osId={g.id_ordem} />
+              </Secao>
+
+              {/* Fotos do garantista — útil quando a garantia foi criada
+                  manualmente e a OS não tem fotos do relatório do técnico */}
+              <Secao titulo="Fotos da garantia (adicionadas pelo garantista)" icone={<ImagePlus size={14} />}>
+                <GarantiaFotosGarantista
+                  garantiaId={g.id}
+                  fotos={g.anexos.filter((a) => a.categoria === 'foto_garantista')}
+                  enviadoPor={userName}
+                  onChange={carregar}
+                  readOnly={finalizada}
+                />
               </Secao>
 
               {/* Pendência aberta (aguardando técnico) */}
