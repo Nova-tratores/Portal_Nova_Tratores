@@ -15,7 +15,7 @@ async function handler(req: NextRequest) {
 
     // OS faturadas na pasta, a partir do corte, SEM a NF de serviço (link_nf vazio)
     const { data: osPend } = await supabase.from("portal_nt_clientes_os")
-      .select("num_os, empresa, cliente_nome, data_faturamento")
+      .select("num_os, empresa, cliente_nome, data_faturamento, num_pedido_cli")
       .eq("faturada", true).eq("cancelada", false)
       .or("link_nf.is.null,link_nf.eq.")
       .gte("data_faturamento", corte)
@@ -30,6 +30,27 @@ async function handler(req: NextRequest) {
       const carded = new Set((cards || []).map((c: any) => String(c.omie_num_os)));
       lista = lista.filter((o: any) => !carded.has(String(o.num_os)));
     }
+
+    // Não cobra OS cujo PV de peça vinculado ainda NÃO foi faturado — nesse caso o
+    // serviço está esperando a PEÇA ser faturada, não a NFS-e. Só cobra quando as duas
+    // notas estão prontas (PV faturado) ou quando é serviço sem vínculo de peça.
+    // O num_pedido_cli pode vir "4056 CASTRO", "REM 3477", "Interno"... então extrai os
+    // dígitos (igual o parsePedidoCliente do sync-os). Se há PV referenciado, só cobra
+    // quando ele estiver CONFIRMADAMENTE faturado na pasta (qualquer empresa).
+    const pvNumDe = (pc: any): string => (String(pc || "").match(/\d+/g) || []).join("");
+    const pvsVinc = [...new Set(lista.map((o: any) => pvNumDe(o.num_pedido_cli)).filter(Boolean))] as string[];
+    const pvFaturado = new Map<string, boolean>();
+    if (pvsVinc.length) {
+      const { data: pvs } = await supabase.from("portal_nt_clientes_pv").select("num_pedido, faturado").in("num_pedido", pvsVinc);
+      for (const pv of pvs || []) pvFaturado.set(String(pv.num_pedido), !!pv.faturado);
+    }
+    lista = lista.filter((o: any) => {
+      const num = pvNumDe(o.num_pedido_cli);
+      // tem PV referenciado → só cobra se ele estiver faturado; senão (não faturado ou
+      // não localizado) espera. Sem PV referenciado → serviço puro, cobra a NFS-e.
+      if (num) return pvFaturado.get(num) === true;
+      return true;
+    });
 
     if (lista.length === 0) return NextResponse.json({ pendentes: 0 });
 
