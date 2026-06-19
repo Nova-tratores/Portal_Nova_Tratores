@@ -90,10 +90,91 @@ export async function GET(req: NextRequest) {
       }
       const todosPVs = Array.from(pvMap.values());
 
+      // -------- Enriquecer com o FINANCEIRO (boleto + NFs) e o PDF do POS/PPV --------
+      const osNums = [...new Set((ordens || []).map((o: any) => String(o.num_os)).filter(Boolean))];
+      const pvNums = [...new Set(todosPVs.map((p: any) => String(p.num_pedido)).filter(Boolean))];
+      let cards: any[] = [];
+      if (osNums.length || pvNums.length) {
+        const ors: string[] = [];
+        if (osNums.length) ors.push(`omie_num_os.in.(${osNums.join(",")})`);
+        if (pvNums.length) ors.push(`omie_num_pedido.in.(${pvNums.join(",")})`);
+        const { data: ch } = await supabase
+          .from("Chamado_NF")
+          .select("omie_num_os, omie_num_pedido, omie_empresa, anexo_boleto, anexo_nf_servico, anexo_nf_peca, num_nf_servico, num_nf_peca, status, valor_servico, setor_destino")
+          .or(ors.join(","));
+        cards = ch || [];
+      }
+      const cardPorOS = new Map<string, any>();
+      const cardPorPV = new Map<string, any>();
+      for (const c of cards) {
+        if (c.omie_num_os) cardPorOS.set(String(c.omie_num_os), c);
+        if (c.omie_num_pedido) cardPorPV.set(String(c.omie_num_pedido), c);
+      }
+
+      // -------- Mapear o POS (Ordem_Servico_Tecnicos) e o PPV (pedidos) ORIGINAIS --------
+      // Toda OS/PV do Omie nasceu de um POS/PPV no portal. Linkamos o documento real
+      // (não a remontagem do /api/clientes/print) via Ordem_Omie / pedido_omie.
+      const posPorOS = new Map<string, string>(); // num_os -> Id_Ordem
+      const ppvPorPV = new Map<string, string>(); // num_pedido -> id_pedido
+      if (osNums.length) {
+        const { data: poss } = await supabase
+          .from("Ordem_Servico_Tecnicos")
+          .select("Id_Ordem, Ordem_Omie")
+          .in("Ordem_Omie", osNums);
+        for (const p of poss || []) {
+          if (p.Ordem_Omie != null) posPorOS.set(String(p.Ordem_Omie), String(p.Id_Ordem));
+        }
+      }
+      if (pvNums.length) {
+        const { data: peds } = await supabase
+          .from("pedidos")
+          .select("id_pedido, pedido_omie")
+          .in("pedido_omie", pvNums);
+        for (const p of peds || []) {
+          if (p.pedido_omie != null) ppvPorPV.set(String(p.pedido_omie), String(p.id_pedido));
+        }
+      }
+
+      const fin = (c: any) => c ? {
+        boleto: c.anexo_boleto || null,
+        nf_servico: c.anexo_nf_servico || null,
+        nf_peca: c.anexo_nf_peca || null,
+        num_nf_servico: c.num_nf_servico || null,
+        num_nf_peca: c.num_nf_peca || null,
+        status: c.status || null,
+        valor: c.valor_servico || null,
+        categoria: c.setor_destino === "pecas" ? "Peças" : "Oficina",
+      } : null;
+      const origin = req.nextUrl.origin;
+      const reconstrOS = (o: any) => o.cod_os ? `${origin}/api/clientes/print?tipo=os&cod=${o.cod_os}&empresa=${encodeURIComponent(empresa)}` : null;
+      const reconstrPV = (p: any) => p.cod_pedido ? `${origin}/api/clientes/print?tipo=pv&cod=${p.cod_pedido}&empresa=${encodeURIComponent(p.empresa || empresa)}` : null;
+      const ordensEnr = (ordens || []).map((o: any) => {
+        const idOrdem = posPorOS.get(String(o.num_os)) || null;
+        return {
+          ...o,
+          financeiro: fin(cardPorOS.get(String(o.num_os))),
+          // documento REAL do POS quando existe; senão a remontagem do Omie
+          pos_id: idOrdem,
+          pos_pdf: idOrdem ? `${origin}/api/pos/ordens/${idOrdem}/print` : reconstrOS(o),
+          pos_real: !!idOrdem,
+        };
+      });
+      const pvsEnr = todosPVs.map((p: any) => {
+        const idPedido = ppvPorPV.get(String(p.num_pedido)) || null;
+        return {
+          ...p,
+          financeiro: fin(cardPorPV.get(String(p.num_pedido))),
+          // documento REAL do PPV quando existe; senão a remontagem do Omie
+          ppv_id: idPedido,
+          pv_pdf: idPedido ? `${origin}/api/ppv/pdf?id=${idPedido}` : reconstrPV(p),
+          ppv_real: !!idPedido,
+        };
+      });
+
       return NextResponse.json({
         cliente,
-        ordens: ordens || [],
-        pedidos: todosPVs,
+        ordens: ordensEnr,
+        pedidos: pvsEnr,
       });
     }
 

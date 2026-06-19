@@ -18,12 +18,19 @@ interface OrdemServico {
   cancelada: boolean; faturada: boolean; num_pedido_cli: string; vendedor: string
   cidade: string; contrato: string; projeto: string; num_nf: string; link_nf: string
   descricao: string; servicos: any[]; obs: string; dados_adic: string; pdf_anexo?: string
+  pos_pdf?: string | null; pos_id?: string | null; pos_real?: boolean; financeiro?: FinanceiroDoc | null
+}
+interface FinanceiroDoc {
+  boleto: string | null; nf_servico: string | null; nf_peca: string | null
+  num_nf_servico: string | null; num_nf_peca: string | null
+  status: string | null; valor: number | null; categoria: string
 }
 interface PedidoVenda {
   num_pedido: string; cod_pedido: number; empresa: string; cod_cli: number
   cliente_nome: string; data_previsao: string | null; data_inclusao: string | null
   etapa: string; valor_total: number; cancelado: boolean; faturado: boolean
   numero_nf: string; link_nf: string; itens: any[]; observacoes: string; pdf_anexo?: string
+  pv_pdf?: string | null; ppv_id?: string | null; ppv_real?: boolean; financeiro?: FinanceiroDoc | null
 }
 
 function formatCurrency(v: number) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }
@@ -353,10 +360,23 @@ function ClientesPageInner() {
     } catch { setAnexErro('Erro de conexão com o servidor') }
     setAnexando(false)
   }
-  const filtered = clientes.filter(c => {
+  const filtradosRaw = clientes.filter(c => {
     const matchSearch = !search || [c.razao_social, c.nome_fantasia, c.cnpj_cpf, c.cidade, ...(c.projetos || [])].some(f => (f || '').toLowerCase().includes(search.toLowerCase()))
     return matchSearch && (!empresaFilter || c.empresa === empresaFilter)
   })
+  // Deduplica por CNPJ/CPF (não pode aparecer o mesmo cliente 2x). Mantém o registro mais completo.
+  const filtered = (() => {
+    const porDoc = new Map<string, Cliente>()
+    const semDoc: Cliente[] = []
+    const peso = (c: Cliente) => (Number(c.total_valor || 0) * 1000) + Number(c.total_os || 0)
+    for (const c of filtradosRaw) {
+      const doc = (c.cnpj_cpf || '').replace(/\D/g, '')
+      if (!doc) { semDoc.push(c); continue }
+      const ex = porDoc.get(doc)
+      if (!ex || peso(c) > peso(ex)) porDoc.set(doc, c)
+    }
+    return [...porDoc.values(), ...semDoc]
+  })()
   const empresas = [...new Set(clientes.map(c => c.empresa))]
   const findAllPVs = (ref: string): PedidoVenda[] => { if (!ref || !/^\d+$/.test(ref)) return []; return pedidos.filter(pv => pv.num_pedido === ref) }
   const classifyRef = (ref: string) => {
@@ -707,8 +727,8 @@ function ClientesPageInner() {
                             <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 2 }}>{formatDate(pv.data_previsao)}</div>
                           </div>
                           <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                            <a href={`/api/clientes/print?tipo=pv&cod=${pv.cod_pedido}&empresa=${encodeURIComponent(pv.empresa)}`}
-                              target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                            <a href={pv.pv_pdf || `/api/clientes/print?tipo=pv&cod=${pv.cod_pedido}&empresa=${encodeURIComponent(pv.empresa)}`}
+                              target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title={pv.ppv_real ? 'Abrir PPV original' : 'Imprimir PV'}
                               style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', textDecoration: 'none', color: '#374151' }}>
                               <Printer size={16} />
                             </a>
@@ -875,7 +895,7 @@ function ClientesPageInner() {
                     {[
                       { l: 'Vendedor', v: os.vendedor || '-' },
                       { l: 'Cidade', v: os.cidade || cli.cidade || '-' },
-                      { l: 'NF', v: os.num_nf || '-' },
+                      { l: 'NF', v: os.num_nf || os.financeiro?.num_nf_servico || '-' },
                     ].map((f, i) => (
                       <div key={i} style={{ padding: '12px 16px', borderRadius: 10, border: '1px solid #E5E7EB', background: '#F9FAFB' }}>
                         <div style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>{f.l}</div>
@@ -938,26 +958,32 @@ function ClientesPageInner() {
 
                   {/* Botoes de acao */}
                   <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', paddingTop: 8, borderTop: '1px solid #F3F4F6' }}>
-                    <a href={`/api/clientes/print?tipo=os&cod=${os.cod_os}&empresa=${encodeURIComponent(os.empresa)}`}
+                    <a href={os.pos_pdf || `/api/clientes/print?tipo=os&cod=${os.cod_os}&empresa=${encodeURIComponent(os.empresa)}`}
                       target="_blank" rel="noopener noreferrer"
                       style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: '1px solid #E5E7EB', borderRadius: 10, background: '#fff', color: '#374151', fontSize: 14, textDecoration: 'none', fontWeight: 600 }}>
-                      <Printer size={16} /> Imprimir OS
+                      <Printer size={16} /> {os.pos_real ? 'Abrir POS' : 'Imprimir OS'}
                     </a>
-                    {os.link_nf && (
-                      <a href={os.link_nf} target="_blank" rel="noopener noreferrer"
+                    {(os.link_nf || os.financeiro?.nf_servico) && (
+                      <a href={os.link_nf || os.financeiro?.nf_servico || undefined} target="_blank" rel="noopener noreferrer"
                         style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: 'none', borderRadius: 10, background: '#111827', color: '#fff', fontSize: 14, textDecoration: 'none', fontWeight: 600 }}>
-                        <Download size={16} /> Baixar NF
+                        <Download size={16} /> NF Serviço{os.financeiro?.num_nf_servico ? ` ${os.financeiro.num_nf_servico}` : ''}
                       </a>
                     )}
+                    {(os.financeiro?.boleto || '').split(',').map(s => s.trim()).filter(Boolean).map((b: string, bi: number, arr: string[]) => (
+                      <a key={bi} href={b} target="_blank" rel="noopener noreferrer"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: 'none', borderRadius: 10, background: '#059669', color: '#fff', fontSize: 14, textDecoration: 'none', fontWeight: 600 }}>
+                        <Download size={16} /> Boleto{arr.length > 1 ? ` ${bi + 1}` : ''}
+                      </a>
+                    ))}
                     {pvs.map(pv => (
                       <span key={pv.num_pedido} style={{ display: 'contents' }}>
-                        <a href={`/api/clientes/print?tipo=pv&cod=${pv.cod_pedido}&empresa=${encodeURIComponent(pv.empresa)}`}
+                        <a href={pv.pv_pdf || `/api/clientes/print?tipo=pv&cod=${pv.cod_pedido}&empresa=${encodeURIComponent(pv.empresa)}`}
                           target="_blank" rel="noopener noreferrer"
                           style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: '1px solid #E5E7EB', borderRadius: 10, background: '#fff', color: '#374151', fontSize: 14, textDecoration: 'none', fontWeight: 600 }}>
-                          <Printer size={16} /> PV {pv.num_pedido}
+                          <Printer size={16} /> {pv.ppv_real ? 'Abrir PPV' : 'PV'} {pv.num_pedido}
                         </a>
-                        {pv.link_nf && (
-                          <a href={pv.link_nf} target="_blank" rel="noopener noreferrer"
+                        {(pv.link_nf || os.financeiro?.nf_peca) && (
+                          <a href={pv.link_nf || os.financeiro?.nf_peca || undefined} target="_blank" rel="noopener noreferrer"
                             style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: 'none', borderRadius: 10, background: '#111827', color: '#fff', fontSize: 14, textDecoration: 'none', fontWeight: 600 }}>
                             <Download size={16} /> NF PV {pv.num_pedido}
                           </a>
@@ -1604,49 +1630,40 @@ function ClientesPageInner() {
 
   // ============ LISTA DE CLIENTES ============
   return (
-    <div style={{ padding: '32px 40px', maxWidth: 1400, margin: '0 auto' }}>
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 28 }}>
-        <div>
-          <h1 style={{ fontSize: 26, color: '#111827', fontWeight: 700, margin: 0, letterSpacing: -0.5 }}>Clientes</h1>
-          <p style={{ fontSize: 14, color: '#6B7280', margin: '4px 0 0' }}>{clientes.length} clientes cadastrados</p>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {syncStatus && (
-            <span style={{ fontSize: 13, color: '#6B7280', display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#F9FAFB', borderRadius: 8, border: '1px solid #E5E7EB' }}>
-              {syncing && <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />}
-              {syncStatus}
-            </span>
-          )}
-          <button onClick={() => { setCriarErro(''); setFormCli({ ...FORM_CLI_VAZIO }); setShowCriarCliente(true) }}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 16px', height: 40, borderRadius: 8, border: 'none', background: 'linear-gradient(135deg, #2563EB, #1D4ED8)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-            <Plus size={15} /> Criar Cliente
-          </button>
-          <button onClick={() => { setCriarErro(''); setProjNome(''); setShowCriarProjeto(true) }}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 16px', height: 40, borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', color: '#374151', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-            <FolderOpen size={15} /> Criar Projeto
-          </button>
-          <button onClick={syncBackground} disabled={syncing} title="Sincronizar"
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', color: '#6B7280', cursor: syncing ? 'not-allowed' : 'pointer' }}>
-            <RefreshCw size={16} style={syncing ? { animation: 'spin 1s linear infinite' } : {}} />
-          </button>
-        </div>
-        <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
-      </div>
-
-      <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+    <div style={{ padding: '16px 32px 32px', width: '100%', boxSizing: 'border-box' }}>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 18, flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', flex: 1, minWidth: 260 }}>
-          <Search size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }} />
+          <Search size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--portal-text-secondary)' }} />
           <input type="text" placeholder="Buscar por nome, CNPJ, cidade, projeto..."
             value={search} onChange={ev => setSearch(ev.target.value)}
-            style={{ width: '100%', padding: '11px 14px 11px 40px', borderRadius: 10, border: '1px solid #E5E7EB', color: '#111827', fontSize: 14, outline: 'none', background: '#fff', boxSizing: 'border-box' }} />
+            style={{ width: '100%', padding: '12px 14px 12px 40px', borderRadius: 12, border: '1px solid var(--portal-border)', color: 'var(--portal-text)', fontSize: 14, outline: 'none', background: 'var(--portal-bg-card)', boxSizing: 'border-box' }} />
         </div>
         {empresas.length > 1 && (
           <select value={empresaFilter} onChange={ev => setEmpresaFilter(ev.target.value)}
-            style={{ padding: '11px 16px', borderRadius: 10, border: '1px solid #E5E7EB', color: '#374151', fontSize: 13, cursor: 'pointer', outline: 'none', background: '#fff' }}>
+            style={{ padding: '12px 16px', borderRadius: 12, border: '1px solid var(--portal-border)', color: 'var(--portal-text)', fontSize: 13, cursor: 'pointer', outline: 'none', background: 'var(--portal-bg-card)' }}>
             <option value="">Todas empresas</option>
             {empresas.map(emp => <option key={emp} value={emp}>{emp}</option>)}
           </select>
         )}
+        {syncStatus && (
+          <span style={{ fontSize: 13, color: 'var(--portal-text-secondary)', display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', background: 'var(--portal-bg-secondary)', borderRadius: 10, border: '1px solid var(--portal-border)' }}>
+            {syncing && <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />}
+            {syncStatus}
+          </span>
+        )}
+        <button onClick={() => { setCriarErro(''); setFormCli({ ...FORM_CLI_VAZIO }); setShowCriarCliente(true) }}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 16px', height: 44, borderRadius: 12, border: 'none', background: 'linear-gradient(135deg, #dc2626, #b91c1c)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+          <Plus size={15} /> Criar Cliente
+        </button>
+        <button onClick={() => { setCriarErro(''); setProjNome(''); setShowCriarProjeto(true) }}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 16px', height: 44, borderRadius: 12, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+          <FolderOpen size={15} /> Criar Projeto
+        </button>
+        <button onClick={syncBackground} disabled={syncing} title="Sincronizar"
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 44, height: 44, borderRadius: 12, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text-secondary)', cursor: syncing ? 'not-allowed' : 'pointer' }}>
+          <RefreshCw size={16} style={syncing ? { animation: 'spin 1s linear infinite' } : {}} />
+        </button>
+        <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
       </div>
 
       {loading ? (
@@ -1659,11 +1676,11 @@ function ClientesPageInner() {
           {clientes.length === 0 ? 'Nenhum cliente. Sincronizacao em andamento...' : 'Nenhum cliente encontrado'}
         </div>
       ) : (
-        <div style={{ border: '1px solid #E5E7EB', borderRadius: 12, overflow: 'hidden', background: '#fff' }}>
+        <div style={{ border: '1px solid var(--portal-border)', borderRadius: 14, overflow: 'hidden', background: 'var(--portal-bg-card)', boxShadow: '0 1px 3px var(--portal-shadow)' }}>
           <div style={{
             display: 'grid', gridTemplateColumns: '44px 1fr 160px 140px 70px 120px 110px 24px',
-            padding: '12px 20px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB',
-            fontSize: 11, color: '#6B7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.5, alignItems: 'center'
+            padding: '12px 20px', background: 'var(--portal-bg-secondary)', borderBottom: '1px solid var(--portal-border)',
+            fontSize: 11, color: 'var(--portal-text-secondary)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.5, alignItems: 'center'
           }}>
             <span>#</span><span>Cliente</span><span>CNPJ / CPF</span><span>Cidade</span>
             <span style={{ textAlign: 'center' }}>OS</span><span style={{ textAlign: 'right' }}>Valor Total</span><span>Empresa</span><span></span>
@@ -1673,15 +1690,15 @@ function ClientesPageInner() {
             <div key={`${cli.cod_cli}-${cli.empresa}`} onClick={() => abrirDetalhe(cli)}
               style={{
                 display: 'grid', gridTemplateColumns: '44px 1fr 160px 140px 70px 120px 110px 24px',
-                padding: '14px 20px', borderBottom: '1px solid #F3F4F6', alignItems: 'center', cursor: 'pointer',
-                fontSize: 14, color: '#111827', transition: 'background 0.15s'
+                padding: '14px 20px', borderBottom: '1px solid var(--portal-border)', alignItems: 'center', cursor: 'pointer',
+                fontSize: 14, color: 'var(--portal-text)', transition: 'background 0.15s'
               }}
-              onMouseEnter={ev => { ev.currentTarget.style.background = '#F9FAFB' }}
+              onMouseEnter={ev => { ev.currentTarget.style.background = 'var(--portal-bg-hover)' }}
               onMouseLeave={ev => { ev.currentTarget.style.background = 'transparent' }}>
-              <span style={{ color: '#D1D5DB', fontSize: 12, fontWeight: 500 }}>{idx + 1}</span>
+              <span style={{ color: 'var(--portal-text-muted)', fontSize: 12, fontWeight: 500 }}>{idx + 1}</span>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 14, color: '#111827', fontWeight: 600 }}>{cli.nome_fantasia || cli.razao_social}</span>
+                  <span style={{ fontSize: 14, color: 'var(--portal-text)', fontWeight: 600 }}>{cli.nome_fantasia || cli.razao_social}</span>
                   {(etiquetasMapa[cli.cnpj_cpf?.replace(/\D/g, '')] || []).map(e => (
                     <span key={e.id} style={{
                       display: 'inline-block', padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700,
@@ -1690,20 +1707,20 @@ function ClientesPageInner() {
                   ))}
                 </div>
                 {cli.nome_fantasia && cli.razao_social && cli.nome_fantasia !== cli.razao_social && (
-                  <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 1 }}>{cli.razao_social}</div>
+                  <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginTop: 1 }}>{cli.razao_social}</div>
                 )}
               </div>
-              <span style={{ fontSize: 12, color: '#6B7280', fontFamily: 'monospace' }}>{formatCNPJ(cli.cnpj_cpf)}</span>
-              <span style={{ fontSize: 13, color: '#6B7280' }}>{cli.cidade ? `${cli.cidade}/${cli.estado}` : '-'}</span>
-              <span style={{ textAlign: 'center', fontWeight: 700, fontSize: 14, color: '#374151' }}>{cli.total_os}</span>
-              <span style={{ textAlign: 'right', fontSize: 14, fontWeight: 600, color: '#374151' }}>{cli.total_valor > 0 ? formatCurrency(cli.total_valor) : '-'}</span>
-              <span style={{ fontSize: 12, color: '#9CA3AF' }}>{cli.empresa}</span>
-              <ChevronRight size={16} color="#D1D5DB" />
+              <span style={{ fontSize: 12, color: 'var(--portal-text-secondary)', fontFamily: 'monospace' }}>{formatCNPJ(cli.cnpj_cpf)}</span>
+              <span style={{ fontSize: 13, color: 'var(--portal-text-secondary)' }}>{cli.cidade ? `${cli.cidade}/${cli.estado}` : '-'}</span>
+              <span style={{ textAlign: 'center', fontWeight: 700, fontSize: 14, color: 'var(--portal-text)' }}>{cli.total_os}</span>
+              <span style={{ textAlign: 'right', fontSize: 14, fontWeight: 600, color: 'var(--portal-text)' }}>{cli.total_valor > 0 ? formatCurrency(cli.total_valor) : '-'}</span>
+              <span style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>{cli.empresa}</span>
+              <ChevronRight size={16} color="var(--portal-text-muted)" />
             </div>
           ))}
 
           {filtered.length > 200 && (
-            <div style={{ padding: 14, textAlign: 'center', fontSize: 13, color: '#6B7280', background: '#F9FAFB' }}>
+            <div style={{ padding: 14, textAlign: 'center', fontSize: 13, color: 'var(--portal-text-secondary)', background: 'var(--portal-bg-secondary)' }}>
               Mostrando 200 de {filtered.length} clientes. Use a busca para filtrar.
             </div>
           )}

@@ -48,17 +48,33 @@ export async function register(): Promise<void> {
   };
   agendarBackfillDiario();
 
-  // Financeiro: gera os cards do Omie (OS + Peças) a cada 5 min.
-  // É o backup do webhook (tempo real); aqui no Railway substitui os crons do vercel.json.
   const base = `http://127.0.0.1:${process.env.PORT || 3000}`;
-  const rodarSyncFinanceiro = async () => {
-    for (const path of ['/api/financeiro/sync-os', '/api/financeiro/sync-pecas?dias=3', '/api/financeiro/lembrete-nf-servico']) {
-      try { await fetch(`${base}${path}`, { method: 'POST' }); } catch (e) { log('sync financeiro falhou: ' + (e as Error).message); }
-    }
-  };
   const CINCO_MIN = 5 * 60 * 1000;
-  setInterval(() => { rodarSyncFinanceiro().catch(() => {}); }, CINCO_MIN);
-  setTimeout(() => { rodarSyncFinanceiro().catch(() => {}); }, 60 * 1000); // 1ª rodada ~1min após o boot
 
-  log('schedulers registrados (sync-incremental 3h, backfill-cmc 06:00 UTC, financeiro 5min)');
+  // Financeiro: gera os cards do Omie (OS + Peças) a cada 5 min.
+  // DESLIGADO por padrão — só liga com SYNC_FINANCEIRO_AUTO=on. Enquanto OFF,
+  // nenhum card é criado sozinho (criação manual continua pelos endpoints).
+  if (process.env.SYNC_FINANCEIRO_AUTO === 'on') {
+    const rodarSyncFinanceiro = async () => {
+      for (const path of ['/api/financeiro/sync-os', '/api/financeiro/sync-pecas?dias=3', '/api/financeiro/lembrete-nf-servico']) {
+        try { await fetch(`${base}${path}`, { method: 'POST' }); } catch (e) { log('sync financeiro falhou: ' + (e as Error).message); }
+      }
+    };
+    setInterval(() => { rodarSyncFinanceiro().catch(() => {}); }, CINCO_MIN);
+    setTimeout(() => { rodarSyncFinanceiro().catch(() => {}); }, 60 * 1000); // 1ª rodada ~1min após o boot
+    log('financeiro auto-sync LIGADO (SYNC_FINANCEIRO_AUTO=on)');
+  } else {
+    log('financeiro auto-sync DESLIGADO (defina SYNC_FINANCEIRO_AUTO=on para ligar)');
+  }
+
+  // Pasta Cliente: vigia OS/PV/NFs novas (alteradas na última 1h) a cada 5 min.
+  // SÓ atualiza as tabelas da pasta (portal_nt_clientes_*) + baixa as NFs — NÃO cria
+  // card no financeiro. É o que garante a NF aparecer sozinha na pasta do cliente.
+  const rodarSyncClientes = async () => {
+    try { await fetch(`${base}/api/clientes/sync-recente`); } catch (e) { log('sync-recente clientes falhou: ' + (e as Error).message); }
+  };
+  setInterval(() => { rodarSyncClientes().catch(() => {}); }, CINCO_MIN);
+  setTimeout(() => { rodarSyncClientes().catch(() => {}); }, 90 * 1000); // 1ª rodada ~1min30 após o boot
+
+  log('schedulers registrados (sync-incremental 3h, backfill-cmc 06:00 UTC, financeiro 5min, pasta-cliente 5min)');
 }
