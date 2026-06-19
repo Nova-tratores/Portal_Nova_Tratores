@@ -32,7 +32,7 @@ export interface HttpError extends Error {
   http?: number;
   correcaoId?: number | null;
 }
-function httpErr(status: number, msg: string): HttpError {
+export function httpErr(status: number, msg: string): HttpError {
   const e = new Error(msg) as HttpError;
   e.http = status;
   return e;
