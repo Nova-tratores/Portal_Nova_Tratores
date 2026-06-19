@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
 import { TBL_OS, PHASES } from "@/lib/pos/constants";
 import { formatarDataBR, safeGet } from "@/lib/pos/utils";
+import { OS_BADGE_LABEL, STATUS_COR } from "@/lib/garantias/constants";
+import type { GarantiaStatus } from "@/lib/garantias/types";
 
 const FASES_EXCLUIDAS = new Set(["Concluída", "Cancelada"]);
 
@@ -88,6 +90,28 @@ export async function GET(request: NextRequest) {
     });
   }
 
+  // Garantias por OS — mostra um escudo na coluna OS. Guarda a garantia mais
+  // recente de cada OS (status atual). A cor/label vêm do mapa OS_BADGE_LABEL.
+  const garPorOS: Record<string, { label: string; cor: string; numero: string }> = {};
+  const osIds = rows.map((o) => o.id).filter(Boolean);
+  if (osIds.length > 0) {
+    const { data: gars } = await supabase
+      .from("garantias")
+      .select("id_ordem, status, numero, created_at")
+      .in("id_ordem", osIds)
+      .order("created_at", { ascending: false });
+    for (const g of (gars || []) as Array<{ id_ordem: string; status: GarantiaStatus; numero: string }>) {
+      const os = String(g.id_ordem);
+      if (garPorOS[os]) continue; // já guardada a mais recente (ordenado desc)
+      garPorOS[os] = {
+        label: OS_BADGE_LABEL[g.status] || "Garantia",
+        cor: STATUS_COR[g.status] || "#64748B",
+        numero: g.numero,
+      };
+    }
+  }
+  const totalEmGarantia = rows.filter((o) => garPorOS[o.id]).length;
+
   const totalGeral = rows.reduce((s, o) => s + o.total, 0);
 
   // Subtítulo do filtro
@@ -118,7 +142,13 @@ export async function GET(request: NextRequest) {
       <table>
         <thead><tr><th>OS</th><th>Data</th><th>Cliente</th><th>Técnico</th><th>Projeto</th><th>Tipo</th><th>Descrição do Serviço</th><th>PPV</th><th>HR</th><th>KM</th><th style="text-align:right">Total</th></tr></thead>
         <tbody>
-          ${items.map((r) => `<tr><td><b>${r.id}</b></td><td>${r.data}</td><td>${r.cliente}</td><td>${r.tecnico}</td><td>${r.projeto || "-"}</td><td>${r.tipo}</td><td class="desc-col">${r.descricaoServico || "-"}</td><td>${r.ppv || "-"}</td><td>${r.horas}</td><td>${r.km}</td><td style="text-align:right;font-weight:600">R$ ${r.total.toFixed(2)}</td></tr>`).join("")}
+          ${items.map((r) => {
+            const gar = garPorOS[r.id];
+            const garBadge = gar
+              ? `<span class="gar-badge" style="background:${gar.cor}1a;color:${gar.cor};border:1px solid ${gar.cor}66" title="${gar.numero} — ${gar.label}">🛡️</span>`
+              : "";
+            return `<tr><td><b>${r.id}</b>${garBadge}</td><td>${r.data}</td><td>${r.cliente}</td><td>${r.tecnico}</td><td>${r.projeto || "-"}</td><td>${r.tipo}</td><td class="desc-col">${r.descricaoServico || "-"}</td><td>${r.ppv || "-"}</td><td>${r.horas}</td><td>${r.km}</td><td style="text-align:right;font-weight:600">R$ ${r.total.toFixed(2)}</td></tr>`;
+          }).join("")}
         </tbody>
       </table>
     </div>`;
@@ -147,6 +177,9 @@ export async function GET(request: NextRequest) {
   td { padding: 5px 8px; border-bottom: 1px solid #F1F5F9; font-size: 9pt; }
   tr:nth-child(even) { background: #FAFBFC; }
   .desc-col { max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .gar-badge { display: inline-block; margin-left: 5px; padding: 0 5px; border-radius: 8px; font-size: 8pt; line-height: 1.5; vertical-align: middle; font-weight: 700; }
+  .summary-box.gar-box { background: #EEF2FF; border-color: #C7D2FE; }
+  .summary-box.gar-box .num { color: #6366F1; }
   .total-bar { margin-top: 20px; padding: 14px 20px; background: #1E293B; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; color: white; }
   .total-bar .lbl { font-size: 10pt; font-weight: 700; }
   .total-bar .val { font-size: 20pt; font-weight: 900; }
@@ -155,13 +188,14 @@ export async function GET(request: NextRequest) {
 <script>window.onload = function() { window.print(); }</script>
 </head><body>
 <h1>Nova Tratores - Ordens em Aberto</h1>
-<div class="info">Gerado em: ${new Date().toLocaleDateString("pt-BR")} &nbsp;|&nbsp; ${rows.length} ordens${subtituloTexto}</div>
+<div class="info">Gerado em: ${new Date().toLocaleDateString("pt-BR")} &nbsp;|&nbsp; ${rows.length} ordens${totalEmGarantia > 0 ? ` &nbsp;|&nbsp; 🛡️ ${totalEmGarantia} em garantia` : ""}${subtituloTexto}</div>
 <div class="summary">
   ${Object.entries(agrupado).map(([fase, items]) => {
     const cor = CORES_FASE[fase] || "#64748B";
     return `<div class="summary-box"><div class="num" style="color:${cor}">${items.length}</div><div class="lbl">${fase.length > 20 ? fase.substring(0, 18) + "..." : fase}</div></div>`;
   }).join("")}
   <div class="summary-box highlight"><div class="num">${rows.length}</div><div class="lbl">Total em Aberto</div></div>
+  ${totalEmGarantia > 0 ? `<div class="summary-box gar-box"><div class="num">${totalEmGarantia}</div><div class="lbl">🛡️ Em Garantia</div></div>` : ""}
 </div>
 ${tabelasPorFase}
 <div class="total-bar">
