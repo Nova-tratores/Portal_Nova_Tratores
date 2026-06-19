@@ -321,7 +321,8 @@ export default function AjustesDashboardPage() {
             <Kpi label="Ja corrigidos" valor={fmtNum(jaCorrigidos)} cor="#047857" />
           </div>
 
-          {/* Resumo da semana anterior: pendente (Fase 2/5) */}
+          {/* Resumo da semana anterior (recebimentos pendentes, pedidos abertos, estoque negativo) */}
+          {conta && <ResumoSemana key={conta} conta={conta} contaParam={contaParam} />}
 
           {/* Ações em lote */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
@@ -425,6 +426,68 @@ function Kpi({ label, valor, cor }: { label: string; valor: string; cor?: string
     <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 14 }}>
       <div style={{ fontSize: '.65rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '.4px' }}>{label}</div>
       <div style={{ fontSize: '1.5rem', fontWeight: 700, marginTop: 4, color: cor || '#1e293b' }}>{valor}</div>
+    </div>
+  );
+}
+
+// ---------- resumo da semana anterior ----------
+interface ResumoPayload {
+  periodo?: { de?: string; ate?: string; deISO?: string; ateISO?: string };
+  recebimentos?: { erro?: string; totalNaoProcessados?: number; totalComSinalGarantia?: number; totalItensRisco?: number };
+  pedidos?: { erro?: string; total?: number };
+  negativos?: { erro?: string; semDados?: boolean; rodando?: boolean; totalNegativos?: number; totalSuspeitas?: number; geradoEm?: string; cachedEm?: string };
+}
+function ResumoSemana({ conta, contaParam }: { conta: string; contaParam: string }) {
+  const [d, setD] = useState<ResumoPayload | null>(null);
+  const [erro, setErro] = useState('');
+  useEffect(() => {
+    let vivo = true;
+    fetch(`/api/ajustes/home-resumo?${contaParam.replace(/^&/, '')}`)
+      .then((r) => r.json())
+      .then((j) => {
+        if (!vivo) return;
+        if (j.erro) setErro(j.erro);
+        else setD(j);
+      })
+      .catch((e) => vivo && setErro(e.message));
+    return () => {
+      vivo = false;
+    };
+  }, [conta, contaParam]);
+
+  const rc = d?.recebimentos;
+  const pd = d?.pedidos;
+  const ng = d?.negativos;
+  const card: React.CSSProperties = { display: 'block', border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, textDecoration: 'none', color: 'inherit' };
+  const lbl: React.CSSProperties = { fontSize: '.62rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '.4px' };
+  const big = (cor?: string): React.CSSProperties => ({ fontSize: '1.4rem', fontWeight: 700, marginTop: 4, color: cor || '#1e293b' });
+  const sub: React.CSSProperties = { fontSize: '.68rem', color: '#64748b', marginTop: 2 };
+
+  return (
+    <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 14, marginBottom: 18 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+        <h2 style={{ fontSize: '.75rem', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '.4px' }}>Resumo da semana anterior</h2>
+        {d?.periodo && <span style={{ fontSize: '.7rem', color: '#94a3b8' }}>({d.periodo.de} a {d.periodo.ate})</span>}
+        {erro && <span style={{ fontSize: '.7rem', color: '#dc2626', marginLeft: 'auto' }}>{erro}</span>}
+        {!d && !erro && <span style={{ fontSize: '.7rem', color: '#94a3b8', marginLeft: 'auto' }}>carregando…</span>}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+        <Link href="/ajustes/recebimentos" style={card}>
+          <div style={lbl}>Recebimentos pendentes</div>
+          <div style={big(rc?.totalNaoProcessados ? '#b45309' : undefined)}>{rc?.erro ? '—' : rc?.totalNaoProcessados ?? '—'}</div>
+          <div style={sub}>{rc?.erro ? rc.erro : [rc?.totalComSinalGarantia ? `${rc.totalComSinalGarantia} c/ sinal garantia` : '', rc?.totalItensRisco ? `${rc.totalItensRisco} itens risco` : ''].filter(Boolean).join(' · ') || 'NFs nao processadas'}</div>
+        </Link>
+        <Link href="/ajustes/pedidos" style={card}>
+          <div style={lbl}>Pedidos abertos</div>
+          <div style={big()}>{pd?.erro ? '—' : pd?.total ?? '—'}</div>
+          <div style={sub}>{pd?.erro ? pd.erro : 'pedidos abertos na semana'}</div>
+        </Link>
+        <Link href="/ajustes/negativos" style={card}>
+          <div style={lbl}>Estoque negativo</div>
+          <div style={big(ng?.totalNegativos ? '#b91c1c' : undefined)}>{ng?.semDados || ng?.erro ? '—' : ng?.totalNegativos ?? '—'}</div>
+          <div style={sub}>{ng?.semDados ? (ng.rodando ? 'varredura em andamento…' : 'sem varredura recente') : ng?.erro ? ng.erro : (ng?.totalSuspeitas ? `${ng.totalSuspeitas} suspeitas` : 'produtos negativos')}</div>
+        </Link>
+      </div>
     </div>
   );
 }
