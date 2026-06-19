@@ -3,6 +3,7 @@
 // (Clientes, Projeto, Tecnicos_Appsheet).
 
 import { supabase } from "@/lib/supabase";
+import { TAGS_CLIENTE, TAG_NAO_CONTATAR } from "./types";
 import type {
   ClienteInfo,
   ClienteOmie,
@@ -412,4 +413,57 @@ export async function salvarLocalizacaoCliente(id: number, lat: number, lng: num
     const j = await res.json().catch(() => ({}));
     throw new Error((j as { error?: string }).error || `Falha ao salvar localização (HTTP ${res.status})`);
   }
+}
+
+// -----------------------------------------------------------------------------
+// Cadastro do cliente no Omie (Fase 2) — telefones/fax/endereço, tags e inativo.
+// Passa pela rota /api/feedbacks/cliente-omie (AlterarCliente, server-side).
+// -----------------------------------------------------------------------------
+export interface CadastroOmieDados {
+  telefone1: string; telefone2: string; fax: string; email: string;
+  endereco: string; numero: string; complemento: string;
+  bairro: string; cidade: string; estado: string; cep: string;
+}
+export interface CadastroOmie {
+  empresa: string;
+  nome_fantasia: string;
+  razao_social: string;
+  inativo: boolean;
+  tags: string[];
+  cadastro: CadastroOmieDados;
+}
+
+// Conjunto de tags que o módulo gerencia (pra não apagar tags do Omie fora dele).
+const TAGS_GERENCIADAS = [...TAGS_CLIENTE.map((t) => t.tag), TAG_NAO_CONTATAR];
+
+export async function buscarCadastroOmie(codigoOmie: string): Promise<CadastroOmie> {
+  const res = await fetch(`/api/feedbacks/cliente-omie?codigo_omie=${encodeURIComponent(codigoOmie)}`);
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((j as { error?: string }).error || `Falha ao ler cadastro Omie (HTTP ${res.status})`);
+  return j as CadastroOmie;
+}
+
+async function patchClienteOmie(payload: Record<string, unknown>): Promise<{ tags?: string[] }> {
+  const res = await fetch("/api/feedbacks/cliente-omie", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((j as { error?: string }).error || `Falha ao gravar no Omie (HTTP ${res.status})`);
+  return j as { tags?: string[] };
+}
+
+export async function salvarCadastroOmie(codigoOmie: string, cadastro: CadastroOmieDados): Promise<void> {
+  await patchClienteOmie({ codigo_omie: codigoOmie, cadastro });
+}
+
+// Mescla as tags gerenciadas pelo módulo com as que já existem no Omie.
+export async function sincronizarTagsOmie(codigoOmie: string, tags: string[]): Promise<string[]> {
+  const r = await patchClienteOmie({ codigo_omie: codigoOmie, tags, tags_gerenciadas: TAGS_GERENCIADAS });
+  return r.tags || tags;
+}
+
+export async function definirInativoOmie(codigoOmie: string, inativo: boolean): Promise<void> {
+  await patchClienteOmie({ codigo_omie: codigoOmie, inativo: inativo ? "S" : "N" });
 }

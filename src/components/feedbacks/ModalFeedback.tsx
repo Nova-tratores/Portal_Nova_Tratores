@@ -5,7 +5,8 @@ import ProjetoAutocomplete from "./ProjetoAutocomplete";
 import TecnicoSelect from "./TecnicoSelect";
 import StarsRating from "./StarsRating";
 import MiniMapaCliente from "./MiniMapaCliente";
-import { inserirRegistro, atualizarRegistro, buscarClienteInfo, upsertClienteInfo, buscarUltimasOSPorCliente, type UltimaOS } from "@/lib/feedbacks/api";
+import CadastroOmieSecao from "./CadastroOmieSecao";
+import { inserirRegistro, atualizarRegistro, buscarClienteInfo, upsertClienteInfo, buscarUltimasOSPorCliente, sincronizarTagsOmie, type UltimaOS } from "@/lib/feedbacks/api";
 import { useAuditLog } from "@/hooks/useAuditLog";
 import {
   clienteKey, TAGS_CLIENTE, TAG_NAO_CONTATAR,
@@ -230,6 +231,15 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
             entidade_id: key, entidade_label: nome,
             detalhes: { de: tagsIniciais.current, para: tagsCliente },
           });
+          // Fase 2: espelha as tags no cadastro do Omie (read+merge no servidor).
+          if (codigo) {
+            sincronizarTagsOmie(codigo, tagsCliente)
+              .then(() => log({
+                sistema: "feedbacks", acao: "tags_omie", entidade: "cliente",
+                entidade_id: key, entidade_label: nome, detalhes: { tags: tagsCliente },
+              }))
+              .catch(() => { /* Omie é best-effort — tags já ficaram salvas no Portal */ });
+          }
         } catch { /* tags são best-effort — não derruba o atendimento */ }
       }
 
@@ -332,6 +342,11 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
           <Field label="Localização da propriedade">
             <MiniMapaCliente codigoOmie={form.codigo_omie || null} nome={form.nome} cor={corCabec} />
           </Field>
+
+          {/* Dados cadastrais (telefones/fax/endereço) — gravam direto no Omie */}
+          <div style={{ marginBottom: 14 }}>
+            <CadastroOmieSecao codigoOmie={form.codigo_omie || null} nome={form.nome} cor={corCabec} />
+          </div>
 
           {/* Tags do cliente — marcam pendências/perfil; sincronizam com o Omie (Fase 2) */}
           <Field label="Tags do cliente">
