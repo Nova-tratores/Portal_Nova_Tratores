@@ -1,7 +1,7 @@
 "use client";
-import { useState } from "react";
 import type { Oportunidade, PrioridadeOportunidade } from "@/lib/feedbacks/types";
 import { origemDaOportunidade } from "@/lib/feedbacks/origem";
+import styles from "./feedbacks.module.css";
 
 const CORES_PRIORIDADE: Record<PrioridadeOportunidade, { bg: string; fg: string }> = {
   Urgente: { bg: "#fef2f2", fg: "#b91c1c" },
@@ -22,38 +22,23 @@ export default function OportunidadeCard({ op, onAtender, onDispensar, onVerHist
   const origem = origemDaOportunidade(op);
 
   const disabled = op.status !== "aberta";
-  const [hover, setHover] = useState(false);
   const clicavel = !!onVerHistorico;
 
   return (
     <article
       onClick={onVerHistorico ? () => onVerHistorico(op) : undefined}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
+      className={`${styles.card} ${clicavel ? styles.clickable : ""}`}
       title={clicavel ? "Clique para ver o histórico do cliente (OS, pedidos, requisições)" : undefined}
       style={{
-        position: "relative",
-        background: "var(--portal-bg-card)",
-        border: "1px solid var(--portal-border)",
-        borderLeft: `4px solid ${cor.fg}`,
-        borderRadius: 12,
-        padding: "14px 16px",
-        boxShadow: clicavel && hover ? "0 6px 18px rgba(3,105,161,0.18)" : "0 1px 3px rgba(0,0,0,0.04)",
+        ["--fb-accent" as string]: cor.fg,
+        padding: "16px 16px 14px",
         display: "flex",
         flexDirection: "column",
         gap: 10,
-        fontFamily: "Inter, sans-serif",
         opacity: disabled ? 0.65 : 1,
-        cursor: clicavel ? "pointer" : "default",
-        transform: clicavel && hover ? "translateY(-1px)" : "none",
-        transition: "box-shadow .15s, transform .15s",
       }}
     >
-      {clicavel && hover && (
-        <span style={{ position: "absolute", top: 8, right: 10, fontSize: 10, fontWeight: 700, color: "#0369a1", background: "#e0f2fe", borderRadius: 8, padding: "2px 8px", zIndex: 1 }}>
-          📜 ver histórico
-        </span>
-      )}
+      {clicavel && <span className={styles.hint}>📜 ver histórico</span>}
       <header style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: "var(--portal-text)", lineHeight: 1.3 }}>
@@ -63,19 +48,7 @@ export default function OportunidadeCard({ op, onAtender, onDispensar, onVerHist
             <span style={origemBadgeStyle(origem)}>{origem}</span>
           </div>
         </div>
-        <span
-          style={{
-            fontSize: 10,
-            fontWeight: 700,
-            padding: "3px 8px",
-            borderRadius: 8,
-            background: cor.bg,
-            color: cor.fg,
-            textTransform: "uppercase",
-            letterSpacing: 0.3,
-            whiteSpace: "nowrap",
-          }}
-        >
+        <span className={styles.pill} style={{ background: cor.bg, color: cor.fg, textTransform: "uppercase" }}>
           {op.prioridade}
         </span>
       </header>
@@ -114,14 +87,16 @@ export default function OportunidadeCard({ op, onAtender, onDispensar, onVerHist
         <footer style={{ display: "flex", gap: 6, marginTop: 4 }} onClick={(e) => e.stopPropagation()}>
           <button
             onClick={() => onAtender(op)}
-            style={btnStyle("#10b981", "#fff")}
+            className={styles.actBtn}
+            style={{ flex: 1, background: "#10b981", color: "#fff" }}
             title="Entrar em contato com o cliente — marca como atendida"
           >
             ✓ Atender
           </button>
           <button
             onClick={() => onDispensar(op)}
-            style={btnStyle("#f3f4f6", "#525252")}
+            className={styles.actBtn}
+            style={{ flex: 1, background: "#f3f4f6", color: "#525252" }}
             title="Descartar essa oportunidade — não interessa ou cliente já foi atendido por outro caminho"
           >
             ✕ Dispensar
@@ -150,22 +125,6 @@ function origemBadgeStyle(origem: string): React.CSSProperties {
   return {
     fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 5,
     background: bg, color: fg, textTransform: "uppercase", letterSpacing: 0.3,
-  };
-}
-
-function btnStyle(bg: string, fg: string): React.CSSProperties {
-  return {
-    flex: 1,
-    padding: "8px 6px",
-    border: "none",
-    borderRadius: 8,
-    background: bg,
-    color: fg,
-    fontSize: 12,
-    fontWeight: 600,
-    cursor: "pointer",
-    transition: "filter 0.15s",
-    fontFamily: "Inter, sans-serif",
   };
 }
 

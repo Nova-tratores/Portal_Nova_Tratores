@@ -2,6 +2,7 @@
 import { useMemo, useState } from "react";
 import OportunidadeCard from "./OportunidadeCard";
 import type { Oportunidade, RegraOportunidade } from "@/lib/feedbacks/types";
+import styles from "./feedbacks.module.css";
 
 // Quantos cards mostrar por coluna inicialmente, e o passo de "Ver mais".
 const PAGE_SIZE = 10;
@@ -140,21 +141,16 @@ export default function KanbanOportunidades({ oportunidades, onAtender, onDispen
               minHeight: 200,
             }}
           >
-            <header
-              style={{
-                padding: "6px 8px",
-                borderBottom: `2px solid ${c.cor}`,
-                paddingBottom: 10,
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+            <header className={styles.kcolHead} style={{ ["--fb-accent" as string]: c.cor }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ fontSize: 18 }}>{c.emoji}</span>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, fontWeight: 800, color: "var(--portal-text)", textTransform: "uppercase", letterSpacing: 0.5 }}>
                     {c.titulo}
                   </div>
-                  <div style={{ fontSize: 11, color: "var(--portal-text-secondary)", marginTop: 2 }}>
-                    {cards.length} oportunidades{urgentes > 0 && ` · ${urgentes} urgente${urgentes > 1 ? "s" : ""}`}
+                  <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 4 }}>
+                    <span className={styles.pill} style={{ background: `${c.cor}1a`, color: c.cor }}>{cards.length} oport.</span>
+                    {urgentes > 0 && <span className={styles.pill} style={{ background: "#fee2e2", color: "#991b1b" }}>{urgentes} urgente{urgentes > 1 ? "s" : ""}</span>}
                   </div>
                 </div>
               </div>

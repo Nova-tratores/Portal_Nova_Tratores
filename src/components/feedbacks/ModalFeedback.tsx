@@ -254,6 +254,9 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
 
   const titulo = `${editando ? "Editar" : "Novo"} ${tipo === "crm" ? "feedback CRM" : "registro RFM"}`;
   const corCabec = tipo === "crm" ? "#dc2626" : "#f59e0b";
+  const headerBg = tipo === "crm"
+    ? "linear-gradient(135deg, #dc2626, #b91c1c)"
+    : "linear-gradient(135deg, #f59e0b, #d97706)";
 
   return (
     <div style={overlayStyle} onClick={onFechar}>
@@ -266,7 +269,7 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
-            background: corCabec,
+            background: headerBg,
             color: "#fff",
             borderRadius: "14px 14px 0 0",
           }}

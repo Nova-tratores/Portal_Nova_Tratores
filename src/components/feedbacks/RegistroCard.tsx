@@ -1,7 +1,7 @@
 "use client";
-import { useState } from "react";
 import { TAG_NAO_CONTATAR, type FeedbackRegistro, type StatusAtendimento } from "@/lib/feedbacks/types";
 import type { UltimaOS } from "@/lib/feedbacks/api";
+import styles from "./feedbacks.module.css";
 
 const TAG_PENDENCIA = "!!#Pendências Cadastrais#!!";
 
@@ -73,33 +73,26 @@ export default function RegistroCard({ registro: r, ultimaOS, clienteTags, onEdi
   // "Sem resposta" só libera 24h após o início do atendimento (mesma regra do modal).
   const bloqueadoSemResposta = horasAberto !== null && horasAberto < 24;
   const restantesSemResp = bloqueadoSemResposta ? Math.ceil(24 - (horasAberto || 0)) : 0;
-  const [hover, setHover] = useState(false);
   const clicavel = !!onVerHistorico;
   const tags = clienteTags || [];
   const naoContatar = tags.includes(TAG_NAO_CONTATAR);
   // Falta info cadastral: sem e-mail e sem telefone, ou marcado com pendência cadastral.
   const faltaInfo = (!r.email && !r.telefone) || tags.includes(TAG_PENDENCIA);
+  // Cor de acento da faixa do topo: CRM vermelho, RFM laranja; atrasado força vermelho.
+  const acento = atrasado ? "#dc2626" : isCrm ? "#dc2626" : "#f59e0b";
 
   return (
     <article
       onClick={onVerHistorico ? () => onVerHistorico(r) : undefined}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
+      className={`${styles.card} ${clicavel ? styles.clickable : ""}`}
       title={clicavel ? "Clique para ver o histórico do cliente (OS, pedidos, requisições)" : undefined}
       style={{
         ...cardStyle,
-        ...(atrasado ? { borderColor: "#dc2626", borderWidth: 2 } : {}),
-        position: "relative",
-        ...(clicavel ? { cursor: "pointer" } : {}),
-        ...(clicavel && hover ? { boxShadow: "0 6px 18px rgba(3,105,161,0.18)", borderColor: "#0ea5e9", transform: "translateY(-1px)" } : {}),
-        transition: "box-shadow .15s, transform .15s, border-color .15s",
+        ["--fb-accent" as string]: acento,
+        ...(atrasado ? { borderColor: "#fca5a5" } : {}),
       }}
     >
-      {clicavel && hover && (
-        <span style={{ position: "absolute", top: 8, right: 10, fontSize: 10, fontWeight: 700, color: "#0369a1", background: "#e0f2fe", borderRadius: 8, padding: "2px 8px", zIndex: 1 }}>
-          📜 ver histórico
-        </span>
-      )}
+      {clicavel && <span className={styles.hint}>📜 ver histórico</span>}
       {(r.atendente_nome || r.status_atendimento === "arquivado") && (() => {
         // Banner conforme o status do atendimento.
         let bg = "#d1fae5", fg = "#065f46", txt = "🟢 Em atendimento por";
@@ -150,27 +143,17 @@ export default function RegistroCard({ registro: r, ultimaOS, clienteTags, onEdi
             {r.codigo_omie && <span> · Omie #{r.codigo_omie}</span>}
           </div>
         </div>
-        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
           {(isCrm ? r.status_cliente : r.prioridade) && (
-            <span
-              style={{
-                fontSize: 10, fontWeight: 700, padding: "3px 9px", borderRadius: 8,
-                background: corStatusObj.bg, color: corStatusObj.fg,
-                textTransform: "uppercase", letterSpacing: 0.3,
-              }}
-            >
+            <span className={styles.pill} style={{ background: corStatusObj.bg, color: corStatusObj.fg, textTransform: "uppercase" }}>
               {isCrm ? r.status_cliente : r.prioridade}
             </span>
           )}
           {!isCrm && r.sem_resposta && (
-            <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 9px", borderRadius: 8, background: "#fee2e2", color: "#991b1b" }}>
-              SEM RESPOSTA
-            </span>
+            <span className={styles.pill} style={{ background: "#fee2e2", color: "#991b1b" }}>SEM RESPOSTA</span>
           )}
           {r.status_atendimento === "sem_resposta" && (
-            <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 9px", borderRadius: 8, background: "#fee2e2", color: "#991b1b" }}>
-              NÃO RESPONDEU
-            </span>
+            <span className={styles.pill} style={{ background: "#fee2e2", color: "#991b1b" }}>NÃO RESPONDEU</span>
           )}
         </div>
       </header>
@@ -300,20 +283,15 @@ function Detail({ label, val }: { label: string; val: string | number | null | u
 }
 
 const cardStyle: React.CSSProperties = {
-  background: "var(--portal-bg-card)",
-  border: "1px solid var(--portal-border)",
-  borderRadius: 12,
-  padding: 16,
-  boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
   fontFamily: "Inter, sans-serif",
   display: "flex", flexDirection: "column", gap: 10,
 };
 const atendimentoBannerBase: React.CSSProperties = {
   margin: "-16px -16px 0",
-  padding: "8px 14px",
+  padding: "9px 14px 8px",
   fontSize: 11,
   fontWeight: 600,
-  borderRadius: "12px 12px 0 0",
+  borderRadius: 0,
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
