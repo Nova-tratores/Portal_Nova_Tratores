@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 
 const MODULOS = [
+  { id: 'ajustes', label: 'Ajustes Estoque', color: '#991b1b' },
   { id: 'avisos', label: 'Avisos', color: '#dc2626' },
   { id: 'clientes', label: 'Clientes', color: '#dc2626' },
   { id: 'visual-estoque', label: 'Consulta Omie', color: '#7f1d1d' },
