@@ -57,9 +57,10 @@ export default function TimelineRegistros({ registros, onEditar }: Props) {
               style={{
                 background: "var(--portal-bg-card)",
                 border: "1px solid var(--portal-border)",
-                borderLeft: `3px solid ${isCrm ? "#dc2626" : "#f59e0b"}`,
-                borderRadius: 10,
-                padding: "10px 14px",
+                borderLeft: `4px solid ${isCrm ? "#dc2626" : "#f59e0b"}`,
+                borderRadius: 12,
+                padding: "12px 16px",
+                boxShadow: "0 1px 2px rgba(16,24,40,0.04), 0 6px 16px -10px rgba(16,24,40,0.14)",
               }}
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 6 }}>
@@ -161,7 +162,7 @@ function statusAtendimentoChip(status: string | null | undefined): React.ReactNo
 
 function Chip({ children, color = "#f3f4f6", textColor = "var(--portal-text-secondary)" }: { children: React.ReactNode; color?: string; textColor?: string }) {
   return (
-    <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 5, background: color, color: textColor, fontWeight: 600 }}>
+    <span style={{ fontSize: 10, padding: "3px 10px", borderRadius: 999, background: color, color: textColor, fontWeight: 700, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.5)" }}>
       {children}
     </span>
   );

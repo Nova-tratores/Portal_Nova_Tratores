@@ -429,8 +429,9 @@ const topoStyle: React.CSSProperties = {
   display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
 };
 const badgeStyle: React.CSSProperties = {
-  fontSize: 12, fontWeight: 600, padding: "5px 12px", borderRadius: 8,
+  fontSize: 12, fontWeight: 700, padding: "5px 13px", borderRadius: 999,
   background: "#fef2f2", color: "#b91c1c",
+  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.5)",
 };
 const btnPrimario: React.CSSProperties = {
   padding: "9px 18px",

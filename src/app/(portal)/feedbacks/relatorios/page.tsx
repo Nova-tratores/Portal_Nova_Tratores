@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { listarRegistros } from "@/lib/feedbacks/api";
 import type { FeedbackRegistro, TipoFeedback } from "@/lib/feedbacks/types";
+import styles from "@/components/feedbacks/feedbacks.module.css";
 
 type Fonte = "todos" | TipoFeedback;
 type View = "geral" | "dia" | "atendentes";
@@ -308,20 +309,20 @@ export default function RelatoriosPage() {
         <>
           {/* Cards de totais */}
           <div style={statsGrid}>
-            <StatCard icon="📊" label="Total" value={filtradas.length} />
-            <StatCard icon="🔴" label="CRM" value={filtradas.filter((r) => r.tipo === "crm").length} />
-            <StatCard icon="🟡" label="RFM" value={filtradas.filter((r) => r.tipo === "rfm").length} />
-            <StatCard icon="★" label="Nota média" value={(() => {
+            <StatCard icon="📊" label="Total" value={filtradas.length} cor="#475569" />
+            <StatCard icon="🔴" label="CRM" value={filtradas.filter((r) => r.tipo === "crm").length} cor="#dc2626" />
+            <StatCard icon="🟡" label="RFM" value={filtradas.filter((r) => r.tipo === "rfm").length} cor="#f59e0b" />
+            <StatCard icon="★" label="Nota média" cor="#ca8a04" value={(() => {
               const notas = filtradas.map((r) => r.nota).filter((n): n is number => n !== null && n !== undefined);
               return notas.length ? (Math.round((notas.reduce((a, b) => a + b, 0) / notas.length) * 10) / 10).toString() : "—";
             })()} />
-            <StatCard icon="😊" label="% Satisfeitos" value={(() => {
+            <StatCard icon="😊" label="% Satisfeitos" cor="#10b981" value={(() => {
               const comStatus = filtradas.filter((r) => r.status_cliente);
               if (!comStatus.length) return "—";
               const sat = comStatus.filter((r) => r.status_cliente === "Satisfeito").length;
               return `${Math.round((sat / comStatus.length) * 100)}%`;
             })()} />
-            <StatCard icon="🔧" label="Retornos de serviço" value={retornosServico.length} />
+            <StatCard icon="🔧" label="Retornos de serviço" value={retornosServico.length} cor="#0369a1" />
           </div>
 
           {/* Ranking de Atendentes — quem trabalhou os contatos/oportunidades */}
@@ -453,7 +454,7 @@ export default function RelatoriosPage() {
               {statsAtendenteDet.map((s) => {
                 const taxa = s.sete > 0 ? Math.round((s.respondeu / s.sete) * 100) : 0;
                 return (
-                  <div key={s.atendente} style={atendenteCard}>
+                  <div key={s.atendente} className={styles.atendCard}>
                     <div style={{ fontSize: 15, fontWeight: 800, color: "var(--portal-text)", marginBottom: 10, textAlign: "center" }}>
                       🎧 {s.atendente}
                     </div>
@@ -527,11 +528,11 @@ function FiltroCampo({ label, children }: { label: string; children: React.React
     </div>
   );
 }
-function StatCard({ icon, label, value }: { icon: string; label: string; value: string | number }) {
+function StatCard({ icon, label, value, cor = "#dc2626" }: { icon: string; label: string; value: string | number; cor?: string }) {
   return (
-    <div style={{ background: "var(--portal-bg-card)", border: "1px solid var(--portal-border)", borderRadius: 10, padding: "14px 16px" }}>
+    <div className={styles.statCard} style={{ ["--fb-accent" as string]: cor }}>
       <div style={{ fontSize: 11, color: "var(--portal-text-muted)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4 }}>{icon} {label}</div>
-      <div style={{ fontSize: 22, fontWeight: 800, color: "var(--portal-text)" }}>{value}</div>
+      <div style={{ fontSize: 24, fontWeight: 800, color: "var(--portal-text)" }}>{value}</div>
     </div>
   );
 }
@@ -573,16 +574,12 @@ function NumBloco({ n, label, cor }: { n: number; label: string; cor: string }) 
 }
 function PillResp({ bg, fg, children }: { bg: string; fg: string; children: React.ReactNode }) {
   return (
-    <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 8, background: bg, color: fg }}>{children}</span>
+    <span className={styles.pill} style={{ background: bg, color: fg, fontSize: 11 }}>{children}</span>
   );
 }
 
 const atendentesGrid: React.CSSProperties = {
   display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 14,
-};
-const atendenteCard: React.CSSProperties = {
-  background: "var(--portal-bg-card)", border: "1px solid var(--portal-border)",
-  borderRadius: 14, padding: 16, boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
 };
 const topoStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 16 };
 const pillsStyle: React.CSSProperties = { display: "flex", gap: 6, marginBottom: 16 };
