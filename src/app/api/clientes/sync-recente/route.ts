@@ -50,14 +50,18 @@ async function downloadNF(url: string, path: string): Promise<string> {
 }
 
 // GET /api/clientes/sync-recente — busca OS e PV alterados nos ultimos 60 minutos
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const origin = new URL(req.url).origin;
     const agora = new Date();
     const umHoraAtras = new Date(agora.getTime() - 60 * 60 * 1000);
     const dataHoje = agora.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
     const anoAtual = String(agora.getFullYear());
 
     const resultado: Record<string, { os_novas: number; pv_novos: number; nfs: number }> = {};
+    // OS faturadas vistas neste ciclo → geram card no financeiro (cirúrgico, via sync-os?codOS).
+    const osFaturadasCod = new Set<number>();
+    let houvePVFaturado = false;
 
     for (const acc of ACCS) {
       let osNovas = 0, pvNovos = 0, nfs = 0;
@@ -101,6 +105,7 @@ export async function GET() {
               updated_at: new Date().toISOString(),
             }, { onConflict: "num_os,empresa" });
             osNovas++;
+            if (info.cFaturada === "S" && info.cCancelada !== "S") osFaturadasCod.add(cab.nCodOS);
           }
           pag++;
           if (pag <= totPag) await new Promise(r => setTimeout(r, 300));
@@ -139,6 +144,7 @@ export async function GET() {
               updated_at: new Date().toISOString(),
             }, { onConflict: "num_pedido,empresa" });
             pvNovos++;
+            if (info.faturado === "S" && info.cancelado !== "S") houvePVFaturado = true;
           }
           pag++;
           if (pag <= totPag) await new Promise(r => setTimeout(r, 300));
@@ -206,7 +212,19 @@ export async function GET() {
       console.log(`[sync-recente] ${acc.name}: ${osNovas} OS, ${pvNovos} PV, ${nfs} NFs`);
     }
 
-    return NextResponse.json({ sucesso: true, resultado, timestamp: new Date().toISOString() });
+    // ---- Cria os cards do financeiro das OS/PV faturadas vistas agora ----
+    // Cirúrgico: só estas OS (sync-os?codOS) + peças do dia. sync-os/sync-pecas são
+    // idempotentes (não duplicam) e respeitam o corte de data. É o que mantém a pasta
+    // e o financeiro juntos mesmo sem o webhook do Omie (que não alcança o localhost).
+    let cardsDisparados = 0;
+    for (const cod of osFaturadasCod) {
+      try { await fetch(`${origin}/api/financeiro/sync-os?codOS=${cod}`, { method: "POST" }); cardsDisparados++; } catch {}
+    }
+    if (houvePVFaturado) {
+      try { await fetch(`${origin}/api/financeiro/sync-pecas?dias=1`, { method: "POST" }); } catch {}
+    }
+
+    return NextResponse.json({ sucesso: true, resultado, cards_financeiro_disparados: cardsDisparados, timestamp: new Date().toISOString() });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }

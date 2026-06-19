@@ -278,12 +278,10 @@ export async function POST(req: NextRequest) {
       const codPedido = event.codigo_pedido || 0;
       if (codPedido) {
         const result = await processarPV(codPedido, acc);
-        // Card no financeiro só se a criação automática estiver LIGADA (SYNC_FINANCEIRO_AUTO=on).
-        // A pasta do cliente (processarPV acima) é sempre atualizada.
-        if (process.env.SYNC_FINANCEIRO_AUTO === "on") {
-          await fetch(`${req.nextUrl.origin}/api/financeiro/sync-os`, { method: "POST" }).catch(() => {});
-          await fetch(`${req.nextUrl.origin}/api/financeiro/sync-pecas?dias=1`, { method: "POST" }).catch(() => {});
-        }
+        // Webhook = criação em TEMPO REAL (só a nota que faturou). A pasta do cliente
+        // (processarPV acima) também é atualizada. O scanner de 5 min segue desligado.
+        await fetch(`${req.nextUrl.origin}/api/financeiro/sync-os`, { method: "POST" }).catch(() => {});
+        await fetch(`${req.nextUrl.origin}/api/financeiro/sync-pecas?dias=1`, { method: "POST" }).catch(() => {});
         return NextResponse.json({ ok: true, tipo: "nfe", ...result });
       }
     }
@@ -293,11 +291,9 @@ export async function POST(req: NextRequest) {
       const codOS = event.nCodOS || event.codigo || 0;
       if (codOS) {
         const result = await processarOS(codOS, acc);
-        // Card no financeiro só se a criação automática estiver LIGADA (SYNC_FINANCEIRO_AUTO=on).
-        // A pasta do cliente (processarOS acima) é sempre atualizada.
-        if (process.env.SYNC_FINANCEIRO_AUTO === "on") {
-          await fetch(`${req.nextUrl.origin}/api/financeiro/sync-os?codOS=${codOS}`, { method: "POST" }).catch(() => {});
-        }
+        // Webhook = criação em TEMPO REAL desta OS específica. A pasta do cliente
+        // (processarOS acima) também é atualizada. O scanner de 5 min segue desligado.
+        await fetch(`${req.nextUrl.origin}/api/financeiro/sync-os?codOS=${codOS}`, { method: "POST" }).catch(() => {});
         return NextResponse.json({ ok: true, tipo: "nfse", ...result });
       }
     }

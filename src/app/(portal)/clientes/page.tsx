@@ -90,6 +90,7 @@ function ClientesPageInner() {
   const [loadingDetalhe, setLoadingDetalhe] = useState(false)
   const [expandedOS, setExpandedOS] = useState<string | null>(null)
   const [modalOS, setModalOS] = useState<OrdemServico | null>(null)
+  const [anexNfOS, setAnexNfOS] = useState(false)
   const [modalProjeto, setModalProjeto] = useState<string | null>(null)
   const [modalProjetoData, setModalProjetoData] = useState<any>(null)
   const [modalProjetoLoading, setModalProjetoLoading] = useState(false)
@@ -359,6 +360,29 @@ function ClientesPageInner() {
       await abrirDetalhe(selectedCliente)
     } catch { setAnexErro('Erro de conexão com o servidor') }
     setAnexando(false)
+  }
+  // Anexa a NF de serviço (NFS-e que o Omie não dá em PDF) direto na OS da pasta.
+  // Ao salvar, dispara a criação do card no financeiro se o serviço ficar completo.
+  const anexarNFservicoNaOS = async (os: OrdemServico, file: File) => {
+    if (!selectedCliente) return
+    setAnexNfOS(true)
+    try {
+      const path = `clientes/${os.empresa.replace(/ /g, '_')}/os-${os.num_os}-nfserv-${Date.now()}.pdf`
+      const { error: upErr } = await supabase.storage.from('anexos').upload(path, file, { upsert: true })
+      if (upErr) { alert('Falha ao subir o PDF da NF de serviço.'); setAnexNfOS(false); return }
+      const pdf_url = supabase.storage.from('anexos').getPublicUrl(path).data.publicUrl
+      const res = await fetch('/api/clientes/anexar-nf', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tipo: 'os', num: os.num_os, empresa: os.empresa, pdf_url }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) { alert(data.error || 'Erro ao anexar a NF.'); setAnexNfOS(false); return }
+      const r = String(data.card?.resultado || '')
+      await abrirDetalhe(selectedCliente)
+      setModalOS(null)
+      alert(`NF de serviço anexada na pasta.${r.includes('Card criado') ? ' ✅ Card criado no financeiro!' : r.includes('Aguardando') ? ' Ainda falta outra nota pra liberar o card.' : ''}`)
+    } catch { alert('Erro de conexão.') }
+    setAnexNfOS(false)
   }
   const filtradosRaw = clientes.filter(c => {
     const matchSearch = !search || [c.razao_social, c.nome_fantasia, c.cnpj_cpf, c.cidade, ...(c.projetos || [])].some(f => (f || '').toLowerCase().includes(search.toLowerCase()))
@@ -963,6 +987,13 @@ function ClientesPageInner() {
                       style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: '1px solid #E5E7EB', borderRadius: 10, background: '#fff', color: '#374151', fontSize: 14, textDecoration: 'none', fontWeight: 600 }}>
                       <Printer size={16} /> {os.pos_real ? 'Abrir POS' : 'Imprimir OS'}
                     </a>
+                    {os.faturada && !os.link_nf && !os.financeiro?.nf_servico && (
+                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: '1px solid #F59E0B', borderRadius: 10, background: '#FFFBEB', color: '#B45309', fontSize: 14, fontWeight: 700, cursor: anexNfOS ? 'wait' : 'pointer' }}>
+                        <Upload size={16} /> {anexNfOS ? 'Enviando...' : 'Anexar NF de serviço'}
+                        <input type="file" accept="application/pdf" style={{ display: 'none' }} disabled={anexNfOS}
+                          onChange={e => { const f = e.target.files?.[0]; if (f) anexarNFservicoNaOS(os, f) }} />
+                      </label>
+                    )}
                     {(os.link_nf || os.financeiro?.nf_servico) && (
                       <a href={os.link_nf || os.financeiro?.nf_servico || undefined} target="_blank" rel="noopener noreferrer"
                         style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: 'none', borderRadius: 10, background: '#111827', color: '#fff', fontSize: 14, textDecoration: 'none', fontWeight: 600 }}>

@@ -24,7 +24,7 @@ const DATA_CORTE = process.env.SYNC_FINANCEIRO_DESDE || "2026-06-18";
 const SISTEMA_UID = "00000000-0000-0000-0000-000000000000";
 
 // Notifica (admins + quem tem acesso ao financeiro) que um card foi criado pelo sistema
-async function notificarCard(origin: string, setor: string, cliente: string) {
+async function notificarCard(origin: string, setor: string, cliente: string, opts?: { numOS?: string; semNfsePdf?: boolean }) {
   try {
     await fetch(`${origin}/api/financeiro/notificar`, {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -34,6 +34,18 @@ async function notificarCard(origin: string, setor: string, cliente: string) {
         link: "/financeiro",
       }),
     });
+    // NFS-e emitida mas SEM PDF (NFS-e municipal): avisa o Pós-Vendas pra anexar a nota manualmente.
+    if (opts?.semNfsePdf) {
+      await fetch(`${origin}/api/financeiro/notificar`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          titulo: `⚠️ NFS-e sem PDF — anexe a nota de serviço${opts.numOS ? ` (OS ${opts.numOS})` : ""}`,
+          descricao: `A NFS-e${opts.numOS ? ` da OS ${opts.numOS}` : ""}${cliente ? ` — ${cliente}` : ""} foi emitida, mas o Omie não forneceu o PDF (NFS-e municipal). Anexe a nota de serviço manualmente no card.`,
+          link: "/financeiro",
+          alvo: "posvendas",
+        }),
+      });
+    }
   } catch { /* ignore */ }
 }
 
@@ -231,6 +243,19 @@ async function processarOSnum(consulta: Record<string, unknown>, label: string, 
     debug.anexo_servico_origem = osRow?.link_nf ? "portal_nt_clientes_os.link_nf" : (nfse.url ? "StatusOS" : "nenhum");
     Object.assign(debug, { cliente: cli.nome, nf_servico: nfse.num, nf_peca: numNFPeca, anexo_servico: anexoServico, valor_os: valorOS, valor_pv: valorPV, valor_total: valor, parcelas_de: datasDiferem ? "OS" : "PV", ...cond });
 
+    // Gate de COMPLETUDE: o card só nasce quando o serviço está COMPLETO na pasta.
+    // Precisa da NF de serviço (NFS-e) e, se houver peça vinculada, da NF de peça (DANFE).
+    // Enquanto faltar, NÃO cria — o serviço fica na pasta aguardando o anexo (o lembrete
+    // cobra o Pós-Vendas). Ao anexar a NF na pasta, este sync roda de novo e cria o card.
+    const faltaServico = !anexoServico;
+    const faltaPeca = !!pvNum && !nfPeca.url;
+    if (faltaServico || faltaPeca) {
+      debug.aguardando_nf = true;
+      debug.falta_servico = faltaServico; debug.falta_peca = faltaPeca;
+      debug.resultado = `Aguardando ${[faltaServico && "NF de serviço (NFS-e)", faltaPeca && "NF de peça (DANFE)"].filter(Boolean).join(" e ")} na pasta do cliente — card NÃO criado ainda`;
+      return debug;
+    }
+
     const row: Record<string, unknown> = {
       nom_cliente: cli.nome, cnpj_cliente: cli.cnpj, valor_servico: valor,
       num_nf_servico: nfse.num, anexo_nf_servico: anexoServico, num_nf_peca: numNFPeca, anexo_nf_peca: nfPeca.url,
@@ -244,7 +269,7 @@ async function processarOSnum(consulta: Record<string, unknown>, label: string, 
     const { data: ins, error } = await supabase.from("Chamado_NF").insert([row]).select("id").maybeSingle();
     if (error) { debug.resultado = "Erro ao inserir: " + error.message; return debug; }
     await supabase.from("audit_log").insert([{ user_id: SISTEMA_UID, user_nome: "Sistema (Omie)", sistema: "financeiro", acao: "criar", entidade: "Chamado_NF", entidade_id: String(ins!.id), entidade_label: `NF #${ins!.id} - ${cli.nome || ""}`, detalhes: { origem: "omie_os", os: numOS, pedido: pvNum, empresa: acc.name, valor } }]);
-    await notificarCard(origin, "Pós-Vendas", cli.nome || "");
+    await notificarCard(origin, "Pós-Vendas", cli.nome || "", { numOS, semNfsePdf: !anexoServico });
     debug.resultado = `Card criado (#${ins!.id})`; debug.card_id = ins!.id;
     return debug;
   }
@@ -372,6 +397,13 @@ async function handler(req: NextRequest) {
           // Cliente (nome + CNPJ)
           const cli = await dadosCliente(cab.nCodCli, acc);
 
+          // Gate de COMPLETUDE: só cria quando o serviço está completo na pasta
+          // (NF de serviço + NF de peça quando houver). Senão, fica aguardando o anexo.
+          if (!anexoServico || (!!pvNum && !nfPeca.url)) {
+            relatorio.push({ empresa: acc.name, os: numOS, pv: pvNum, aguardando: `${!anexoServico ? "NF de serviço" : ""}${(!anexoServico && !!pvNum && !nfPeca.url) ? " + " : ""}${(!!pvNum && !nfPeca.url) ? "NF de peça" : ""} na pasta do cliente` });
+            continue;
+          }
+
           const row: Record<string, unknown> = {
             nom_cliente: cli.nome,
             cnpj_cliente: cli.cnpj,
@@ -410,7 +442,7 @@ async function handler(req: NextRequest) {
                 entidade: "Chamado_NF", entidade_id: String(ins.id), entidade_label: `NF #${ins.id} - ${cli.nome || ""}`,
                 detalhes: { origem: "omie_os", os: numOS, pedido: pvNum, empresa: acc.name, valor },
               }]);
-              await notificarCard(req.nextUrl.origin, "Pós-Vendas", cli.nome || "");
+              await notificarCard(req.nextUrl.origin, "Pós-Vendas", cli.nome || "", { numOS, semNfsePdf: !anexoServico });
             } else if (error) relatorio[relatorio.length - 1].erro = error.message;
           }
           await new Promise(r => setTimeout(r, 220));
