@@ -3,7 +3,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import RegistroCard from "./RegistroCard";
 import ModalFeedback from "./ModalFeedback";
 import ModalHistoricoCliente from "./ModalHistoricoCliente";
-import { atualizarRegistro, buscarUltimasOSPorCliente, deletarRegistro, listarRegistros, listarClientesInfo, upsertClienteInfo, type UltimaOS } from "@/lib/feedbacks/api";
+import ModalConfirmarCaveira from "./ModalConfirmarCaveira";
+import { atualizarRegistro, buscarUltimasOSPorCliente, deletarRegistro, listarRegistros, listarClientesInfo, upsertClienteInfo, definirInativoOmie, type UltimaOS } from "@/lib/feedbacks/api";
 import { clienteKey, TAG_NAO_CONTATAR, type ClienteInfo, type FeedbackRegistro, type StatusAtendimento, type TipoFeedback } from "@/lib/feedbacks/types";
 import { useAuditLog } from "@/hooks/useAuditLog";
 
@@ -88,6 +89,9 @@ export default function ListaRegistros({ tipo }: Props) {
   const [histAlvo, setHistAlvo] = useState<{ nome: string; codigoOmie: string | null } | null>(null);
   // Info/tags por cliente (feedback_clientes_info) — ícones e caveira.
   const [infoPorKey, setInfoPorKey] = useState<Record<string, ClienteInfo>>({});
+  // Caveira: registro alvo da confirmação expressiva (marcar/inativar).
+  const [caveiraAlvo, setCaveiraAlvo] = useState<FeedbackRegistro | null>(null);
+  const [caveiraProcessando, setCaveiraProcessando] = useState(false);
   const { log } = useAuditLog();
 
   const carregar = useCallback(async () => {
@@ -193,19 +197,54 @@ export default function ListaRegistros({ tipo }: Props) {
       setErro(e instanceof Error ? e.message : String(e));
     }
   }
-  // 💀 Caveira: alterna a tag "não contatar" no cliente (Portal). Auditado.
-  async function handleCaveira(r: FeedbackRegistro) {
+  // 💀 Caveira: marcar abre a confirmação expressiva (pode inativar no Omie);
+  // se já estiver marcado, o clique reativa o contato.
+  function handleCaveira(r: FeedbackRegistro) {
+    const jaMarcado = ((infoPorKey[clienteKey(r.codigo_omie, r.nome)]?.tags as string[] | undefined) || []).includes(TAG_NAO_CONTATAR);
+    if (jaMarcado) { void handleReativar(r); return; }
+    setCaveiraAlvo(r);
+  }
+
+  // Marca "não contatar" no Portal e, opcionalmente, inativa o cadastro no Omie. Auditado.
+  async function aplicarNaoContatar(r: FeedbackRegistro, inativarOmie: boolean) {
     const key = clienteKey(r.codigo_omie, r.nome);
     const atual = (infoPorKey[key]?.tags as string[] | undefined) || [];
-    const jaMarcado = atual.includes(TAG_NAO_CONTATAR);
-    if (!jaMarcado && !confirm(`Marcar "${r.nome}" como NÃO CONTATAR?\n\nO cliente some da lista de pendentes. (Inativar no Omie virá na próxima fase.)`)) return;
-    const novas = jaMarcado ? atual.filter((t) => t !== TAG_NAO_CONTATAR) : [...atual, TAG_NAO_CONTATAR];
+    const novas = atual.includes(TAG_NAO_CONTATAR) ? atual : [...atual, TAG_NAO_CONTATAR];
+    setCaveiraProcessando(true);
     try {
+      if (inativarOmie && r.codigo_omie) await definirInativoOmie(r.codigo_omie, true);
       const salvo = await upsertClienteInfo({ cliente_key: key, codigo_omie: r.codigo_omie, nome: r.nome, tags: novas });
       setInfoPorKey((prev) => ({ ...prev, [key]: salvo }));
       void log({
-        sistema: "feedbacks", acao: jaMarcado ? "reativar_contato" : "nao_contatar",
-        entidade: "cliente", entidade_id: key, entidade_label: r.nome, detalhes: { tag: TAG_NAO_CONTATAR },
+        sistema: "feedbacks", acao: inativarOmie ? "inativar_omie" : "nao_contatar",
+        entidade: "cliente", entidade_id: key, entidade_label: r.nome,
+        detalhes: { tag: TAG_NAO_CONTATAR, inativou_omie: inativarOmie },
+      });
+      setCaveiraAlvo(null);
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCaveiraProcessando(false);
+    }
+  }
+
+  // Reativa o contato: remove a tag e (se houver código) reativa o cadastro no Omie. Auditado.
+  async function handleReativar(r: FeedbackRegistro) {
+    const key = clienteKey(r.codigo_omie, r.nome);
+    const atual = (infoPorKey[key]?.tags as string[] | undefined) || [];
+    const temOmie = !!r.codigo_omie;
+    const msg = temOmie
+      ? `Reativar contato com "${r.nome}"?\n\nRemove "Não contatar" e reativa o cadastro no Omie.`
+      : `Reativar contato com "${r.nome}"?\n\nRemove a marca "Não contatar".`;
+    if (!confirm(msg)) return;
+    const novas = atual.filter((t) => t !== TAG_NAO_CONTATAR);
+    try {
+      if (temOmie) await definirInativoOmie(r.codigo_omie as string, false);
+      const salvo = await upsertClienteInfo({ cliente_key: key, codigo_omie: r.codigo_omie, nome: r.nome, tags: novas });
+      setInfoPorKey((prev) => ({ ...prev, [key]: salvo }));
+      void log({
+        sistema: "feedbacks", acao: "reativar_contato", entidade: "cliente",
+        entidade_id: key, entidade_label: r.nome, detalhes: { reativou_omie: temOmie },
       });
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
@@ -360,6 +399,16 @@ export default function ListaRegistros({ tipo }: Props) {
         nome={histAlvo?.nome || ""}
         codigoOmie={histAlvo?.codigoOmie ?? null}
         onFechar={() => setHistAlvo(null)}
+      />
+
+      <ModalConfirmarCaveira
+        aberto={!!caveiraAlvo}
+        nome={caveiraAlvo?.nome || ""}
+        codigoOmie={caveiraAlvo?.codigo_omie ?? null}
+        processando={caveiraProcessando}
+        onFechar={() => { if (!caveiraProcessando) setCaveiraAlvo(null); }}
+        onApenasNaoContatar={() => { if (caveiraAlvo) void aplicarNaoContatar(caveiraAlvo, false); }}
+        onInativarOmie={() => { if (caveiraAlvo) void aplicarNaoContatar(caveiraAlvo, true); }}
       />
     </div>
   );
