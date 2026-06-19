@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
 import { TBL_OS, PHASES } from "@/lib/pos/constants";
 import { formatarDataBR, safeGet } from "@/lib/pos/utils";
-import { OS_BADGE_LABEL, STATUS_COR } from "@/lib/garantias/constants";
+import { OS_BADGE_LABEL } from "@/lib/garantias/constants";
 import type { GarantiaStatus } from "@/lib/garantias/types";
+
+// Escudo outline, sem cor — marca discreta de "OS em garantia" no relatório,
+// no mesmo tom neutro do texto pra ficar conciso com o resto do documento.
+const ESCUDO_SVG = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1.5px"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`;
 
 const FASES_EXCLUIDAS = new Set(["Concluída", "Cancelada"]);
 
@@ -91,8 +95,8 @@ export async function GET(request: NextRequest) {
   }
 
   // Garantias por OS — mostra um escudo na coluna OS. Guarda a garantia mais
-  // recente de cada OS (status atual). A cor/label vêm do mapa OS_BADGE_LABEL.
-  const garPorOS: Record<string, { label: string; cor: string; numero: string }> = {};
+  // recente de cada OS (status atual, exibido no tooltip).
+  const garPorOS: Record<string, { label: string; numero: string }> = {};
   const osIds = rows.map((o) => o.id).filter(Boolean);
   if (osIds.length > 0) {
     const { data: gars } = await supabase
@@ -105,7 +109,6 @@ export async function GET(request: NextRequest) {
       if (garPorOS[os]) continue; // já guardada a mais recente (ordenado desc)
       garPorOS[os] = {
         label: OS_BADGE_LABEL[g.status] || "Garantia",
-        cor: STATUS_COR[g.status] || "#64748B",
         numero: g.numero,
       };
     }
@@ -145,7 +148,7 @@ export async function GET(request: NextRequest) {
           ${items.map((r) => {
             const gar = garPorOS[r.id];
             const garBadge = gar
-              ? `<span class="gar-badge" style="background:${gar.cor}1a;color:${gar.cor};border:1px solid ${gar.cor}66" title="${gar.numero} — ${gar.label}">🛡️</span>`
+              ? `<span class="gar-mark" title="${gar.numero} — ${gar.label}">${ESCUDO_SVG}</span>`
               : "";
             return `<tr><td><b>${r.id}</b>${garBadge}</td><td>${r.data}</td><td>${r.cliente}</td><td>${r.tecnico}</td><td>${r.projeto || "-"}</td><td>${r.tipo}</td><td class="desc-col">${r.descricaoServico || "-"}</td><td>${r.ppv || "-"}</td><td>${r.horas}</td><td>${r.km}</td><td style="text-align:right;font-weight:600">R$ ${r.total.toFixed(2)}</td></tr>`;
           }).join("")}
@@ -177,9 +180,8 @@ export async function GET(request: NextRequest) {
   td { padding: 5px 8px; border-bottom: 1px solid #F1F5F9; font-size: 9pt; }
   tr:nth-child(even) { background: #FAFBFC; }
   .desc-col { max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .gar-badge { display: inline-block; margin-left: 5px; padding: 0 5px; border-radius: 8px; font-size: 8pt; line-height: 1.5; vertical-align: middle; font-weight: 700; }
-  .summary-box.gar-box { background: #EEF2FF; border-color: #C7D2FE; }
-  .summary-box.gar-box .num { color: #6366F1; }
+  .gar-mark { margin-left: 5px; }
+  .gar-mark svg { display: inline-block; }
   .total-bar { margin-top: 20px; padding: 14px 20px; background: #1E293B; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; color: white; }
   .total-bar .lbl { font-size: 10pt; font-weight: 700; }
   .total-bar .val { font-size: 20pt; font-weight: 900; }
@@ -188,14 +190,14 @@ export async function GET(request: NextRequest) {
 <script>window.onload = function() { window.print(); }</script>
 </head><body>
 <h1>Nova Tratores - Ordens em Aberto</h1>
-<div class="info">Gerado em: ${new Date().toLocaleDateString("pt-BR")} &nbsp;|&nbsp; ${rows.length} ordens${totalEmGarantia > 0 ? ` &nbsp;|&nbsp; 🛡️ ${totalEmGarantia} em garantia` : ""}${subtituloTexto}</div>
+<div class="info">Gerado em: ${new Date().toLocaleDateString("pt-BR")} &nbsp;|&nbsp; ${rows.length} ordens${totalEmGarantia > 0 ? ` &nbsp;|&nbsp; ${ESCUDO_SVG} ${totalEmGarantia} em garantia` : ""}${subtituloTexto}</div>
 <div class="summary">
   ${Object.entries(agrupado).map(([fase, items]) => {
     const cor = CORES_FASE[fase] || "#64748B";
     return `<div class="summary-box"><div class="num" style="color:${cor}">${items.length}</div><div class="lbl">${fase.length > 20 ? fase.substring(0, 18) + "..." : fase}</div></div>`;
   }).join("")}
   <div class="summary-box highlight"><div class="num">${rows.length}</div><div class="lbl">Total em Aberto</div></div>
-  ${totalEmGarantia > 0 ? `<div class="summary-box gar-box"><div class="num">${totalEmGarantia}</div><div class="lbl">🛡️ Em Garantia</div></div>` : ""}
+  ${totalEmGarantia > 0 ? `<div class="summary-box"><div class="num">${totalEmGarantia}</div><div class="lbl">${ESCUDO_SVG} Em Garantia</div></div>` : ""}
 </div>
 ${tabelasPorFase}
 <div class="total-bar">
