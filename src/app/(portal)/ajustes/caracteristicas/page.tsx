@@ -257,7 +257,7 @@ export default function CaracteristicasPage() {
     }
   }, [setMsg]);
 
-  if (!permLoading && userProfile && !temAcesso('ajustes')) return <SemPermissao />;
+  if (!permLoading && userProfile && !temAcesso('ajustes:caracteristicas')) return <SemPermissao />;
 
   const colunas = dados.colunas || [];
   const totalProdutos = (dados.produtos || []).length;

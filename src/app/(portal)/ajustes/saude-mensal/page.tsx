@@ -77,7 +77,7 @@ export default function SaudeMensalPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conta, mes]);
 
-  if (!permLoading && userProfile && !temAcesso('ajustes')) return <SemPermissao />;
+  if (!permLoading && userProfile && !temAcesso('ajustes:saude-mensal')) return <SemPermissao />;
 
   const k = dados?.kpis;
   const meses = dados?.meses || [];

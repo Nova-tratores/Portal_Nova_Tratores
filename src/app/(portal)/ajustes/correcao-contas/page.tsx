@@ -195,7 +195,7 @@ export default function CorrecaoContasPage() {
     setSort((s) => s.key === key ? { key, dir: -s.dir } : { key, dir: 1 });
   }, []);
 
-  if (!permLoading && userProfile && !temAcesso('ajustes')) return <SemPermissao />;
+  if (!permLoading && userProfile && !temAcesso('ajustes:correcao-contas')) return <SemPermissao />;
 
   const TOP = 30;
   const topRanking = ranking.slice(0, TOP);

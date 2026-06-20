@@ -50,7 +50,7 @@ export default function PedidosAntigosPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (!permLoading && userProfile && !temAcesso('ajustes')) return <SemPermissao />;
+  if (!permLoading && userProfile && !temAcesso('ajustes:pedidos')) return <SemPermissao />;
 
   const peds = dados?.pedidos || [];
   // agrupa por criador (lista ja vem ordenada por criador)

@@ -321,7 +321,7 @@ export default function InventarioPage() {
     buscaTimer.current = setTimeout(() => carregarProdutos(), 350);
   }, [carregarProdutos]);
 
-  if (!permLoading && userProfile && !temAcesso('ajustes')) return <SemPermissao />;
+  if (!permLoading && userProfile && !temAcesso('ajustes:inventario')) return <SemPermissao />;
 
   const hoje = hojeISO();
   const vencidos = produtos.filter((p) => p.ativo && p.proxima_contagem && String(p.proxima_contagem) <= hoje).length;

@@ -105,7 +105,7 @@ export default function AjustesHistoricoPage() {
     }
   }, []);
 
-  if (!permLoading && userProfile && !temAcesso('ajustes')) return <SemPermissao />;
+  if (!permLoading && userProfile && !temAcesso('ajustes:historico')) return <SemPermissao />;
 
   return (
     <div style={{ maxWidth: 1400, margin: '0 auto', padding: '20px 24px' }}>

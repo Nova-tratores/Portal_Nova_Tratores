@@ -440,8 +440,10 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
   const filteredNavItems = useMemo(() => navItems.filter(item => {
     if (item.id === 'dashboard' || item.id === 'opa' || item.id === 'sat') return true
-    return temAcesso(item.id)
-  }), [temAcesso])
+    if (temAcesso(item.id)) return true
+    // Visibilidade quando o usuário tem permissão por sub-página (ex.: 'ajustes:inventario')
+    return (permissoes?.modulos_permitidos || []).some(m => m.startsWith(item.id + ':'))
+  }), [temAcesso, permissoes])
 
   const groupedNav = useMemo(() => {
     const groups: { key: string; config: typeof GROUP_CONFIG[string]; items: NavItem[] }[] = []

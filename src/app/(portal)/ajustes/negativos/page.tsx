@@ -233,7 +233,7 @@ export default function EstoqueNegativoPage() {
     }
   }, [cmcEdit, localSel, dataEdit, conta, criadoPor]);
 
-  if (!permLoading && userProfile && !temAcesso('ajustes')) return <SemPermissao />;
+  if (!permLoading && userProfile && !temAcesso('ajustes:negativos')) return <SemPermissao />;
 
   const jaCorrigidos = (dados?.produtos || []).filter((p) => p.jaCorrigido).length + corrigidosExtra;
 

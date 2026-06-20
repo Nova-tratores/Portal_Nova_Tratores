@@ -113,7 +113,7 @@ export default function NotasPage() {
     }
   }, [contaParam]);
 
-  if (!permLoading && userProfile && !temAcesso('ajustes')) return <SemPermissao />;
+  if (!permLoading && userProfile && !temAcesso('ajustes:notas')) return <SemPermissao />;
 
   const tabStyle = (ativo: boolean): React.CSSProperties => ({
     padding: '8px 16px', fontSize: '.85rem', fontWeight: 500, background: 'none', border: 'none',

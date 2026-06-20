@@ -86,7 +86,7 @@ const tdStyle: React.CSSProperties = { padding: '8px 10px', borderBottom: '1px s
 
 export default function AjustesDashboardPage() {
   const { userProfile } = useAuth();
-  const { temAcesso, loading: permLoading } = usePermissoes(userProfile?.id);
+  const { temAcesso, isAdmin, permissoes, loading: permLoading } = usePermissoes(userProfile?.id);
   const { conta, contaParam } = useConta();
   const criadoPor = userProfile?.nome || 'portal';
 
@@ -249,7 +249,19 @@ export default function AjustesDashboardPage() {
     setSelecionados(novo);
   }, [dados, resultados, podeAplicar]);
 
-  if (!permLoading && userProfile && !temAcesso('ajustes')) return <SemPermissao />;
+  if (!permLoading && userProfile && !temAcesso('ajustes:dashboard')) {
+    // Sem o dashboard, mas com acesso a outra(s) pagina(s): nao bloqueia seco —
+    // o submenu (layout) lista o que ele pode abrir.
+    const temAlgumAjuste = isAdmin || (permissoes?.modulos_permitidos || []).some((m) => m.startsWith('ajustes:'));
+    if (temAlgumAjuste) {
+      return (
+        <div style={{ maxWidth: 1100, margin: '0 auto', padding: '40px 24px', color: '#64748b', fontSize: '.9rem' }}>
+          Selecione uma página no menu acima.
+        </div>
+      );
+    }
+    return <SemPermissao />;
+  }
 
   const jaCorrigidos = (dados?.produtos || []).filter((p) => p.jaCorrigido).length + corrigidosExtra;
   const cfg = dados?.config;
