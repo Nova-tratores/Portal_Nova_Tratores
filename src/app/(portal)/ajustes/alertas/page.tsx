@@ -210,7 +210,7 @@ export default function AlertasPage() {
     if (!verif.rodando) stopVerifTimer();
   }, [verif.rodando, pollVerif, stopVerifTimer]);
 
-  if (!permLoading && userProfile && !temAcesso('ajustes')) return <SemPermissao />;
+  if (!permLoading && userProfile && !temAcesso('ajustes:alertas')) return <SemPermissao />;
 
   const porTipo: Record<string, number> = { negativo: 0, cmc_queda: 0, recebimento_garantia: 0, suspeita_empresa_errada: 0, pedido_parado: 0 };
   for (const a of alertas) { if (a.tipo && porTipo[a.tipo] != null) porTipo[a.tipo]++; }

@@ -121,7 +121,7 @@ export default function RelatorioContagemPage() {
     URL.revokeObjectURL(url);
   }, [dados, conta]);
 
-  if (!permLoading && userProfile && !temAcesso('ajustes')) return <SemPermissao />;
+  if (!permLoading && userProfile && !temAcesso('ajustes:inventario')) return <SemPermissao />;
 
   const linhas = dados?.linhas || [];
 

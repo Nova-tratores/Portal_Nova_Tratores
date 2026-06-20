@@ -165,7 +165,7 @@ export default function PedidosPage() {
     else window.location.href = url;
   }, [conta, contaParam, de, ate]);
 
-  if (!permLoading && userProfile && !temAcesso('ajustes')) return <SemPermissao />;
+  if (!permLoading && userProfile && !temAcesso('ajustes:pedidos')) return <SemPermissao />;
 
   const peds = dados?.pedidos || [];
   const corStatusEnc = (s?: string) => s === 'aplicado' ? { background: '#d1fae5', color: '#065f46' } : s === 'parcial' ? { background: '#fef3c7', color: '#92400e' } : s === 'erro' ? { background: '#fee2e2', color: '#991b1b' } : { background: '#f1f5f9', color: '#334155' };

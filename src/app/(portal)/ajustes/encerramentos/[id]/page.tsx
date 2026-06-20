@@ -67,7 +67,7 @@ export default function EncerramentoDetalhePage() {
     if (id) carregar(id);
   }, [id, carregar]);
 
-  if (!permLoading && userProfile && !temAcesso('ajustes')) return <SemPermissao />;
+  if (!permLoading && userProfile && !temAcesso('ajustes:pedidos')) return <SemPermissao />;
 
   if (carregando) return <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>Carregando…</div>;
   if (erro || !e) return (

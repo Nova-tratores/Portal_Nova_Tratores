@@ -214,7 +214,7 @@ export default function MahindraPage() {
     }
   }, [conta, contaParam, mes, file, criadoPor, poll, pararPoll]);
 
-  if (!permLoading && userProfile && !temAcesso('ajustes')) return <SemPermissao />;
+  if (!permLoading && userProfile && !temAcesso('ajustes:mahindra')) return <SemPermissao />;
 
   const resumo = status?.resumo || null;
 

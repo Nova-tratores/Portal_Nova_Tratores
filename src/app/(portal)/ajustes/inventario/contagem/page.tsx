@@ -128,7 +128,7 @@ export default function ContagemPage() {
     }
   }, [qtdEdit, contador, userProfile, carregar]);
 
-  if (!permLoading && userProfile && !temAcesso('ajustes')) return <SemPermissao />;
+  if (!permLoading && userProfile && !temAcesso('ajustes:inventario-contagem')) return <SemPermissao />;
 
   const conciliadas = tarefas.filter((t) => t.status === 'conciliada').length;
   const pendentesFreeze = tarefas.filter((t) => t.status === 'pendente').length;

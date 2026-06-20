@@ -9,9 +9,11 @@ import {
   User as UserIcon, Lock, Unlock, Wrench, UserPlus, Eye, EyeOff,
   Activity, Clock, Settings, ClipboardList, DollarSign, FileText, Mail, Ban, RotateCcw
 } from 'lucide-react'
+import { PAGINAS_AJUSTES } from '@/app/(portal)/ajustes/paginas'
 
 const MODULOS = [
-  { id: 'ajustes', label: 'Ajustes Estoque', color: '#991b1b' },
+  // Modulo Ajustes: permissao por pagina (chave 'ajustes:<x>') — preparado p/ etapa 2
+  ...PAGINAS_AJUSTES.map((p) => ({ id: p.key, label: 'Ajustes · ' + p.label, color: '#991b1b' })),
   { id: 'avisos', label: 'Avisos', color: '#dc2626' },
   { id: 'clientes', label: 'Clientes', color: '#dc2626' },
   { id: 'visual-estoque', label: 'Consulta Omie', color: '#7f1d1d' },

@@ -149,7 +149,7 @@ export default function RecebimentosPage() {
     setResultados((s) => ({ ...s, [reck]: res }));
   }, []);
 
-  if (!permLoading && userProfile && !temAcesso('ajustes')) return <SemPermissao />;
+  if (!permLoading && userProfile && !temAcesso('ajustes:recebimentos')) return <SemPermissao />;
 
   return (
     <div style={{ maxWidth: 1300, margin: '0 auto', padding: '20px 24px' }}>
