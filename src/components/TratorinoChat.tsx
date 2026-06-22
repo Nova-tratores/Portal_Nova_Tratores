@@ -8,7 +8,10 @@ interface Msg { role: "user" | "assistant"; content: string; proposta?: any; fei
 const FONTE = "'Montserrat', sans-serif";
 const LAUNCHER = 132;
 const WIN_W = 384, WIN_H = 600;
-const SAUDACAO: Msg = { role: "assistant", content: "Oi! Eu sou o Tratorilson, o mecânico da Nova Tratores.\nPosso te ajudar com o portal: peças, catálogo, ordens, PPV, orçamentos, requisições… O que você precisa?" };
+const SAUDACAO: Msg = { role: "assistant", content: "Opa, tudo bem? Eu sou o Tratorilson, da Nova Tratores.\nTô aqui pra te dar uma mão com o portal — peças, catálogo, ordens, PPV, orçamentos, requisições... É só me dizer o que você precisa." };
+
+// Sugestões rápidas (aparecem na saudação)
+const SUGESTOES = ["Buscar uma peça", "Criar um orçamento", "Ver requisições", "Histórico de um cliente"];
 
 // Renderiza markdown leve: **negrito**, `código`, e links [texto](url) — preservando quebras de linha
 function renderConteudo(text: string): Array<string | React.ReactElement> {
@@ -45,6 +48,7 @@ export default function TratorinoChat({ userName = "", userId = "", isAdmin = fa
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const [winPos, setWinPos] = useState<{ x: number; y: number } | null>(null);
   const [hover, setHover] = useState(false);
+  const [fixado, setFixado] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const posRef = useRef(pos); posRef.current = pos;
@@ -57,6 +61,14 @@ export default function TratorinoChat({ userName = "", userId = "", isAdmin = fa
       if (s) { setPos(JSON.parse(s)); return; }
     } catch {}
     setPos({ x: window.innerWidth - LAUNCHER - 14, y: Math.round(window.innerHeight / 2 - LAUNCHER / 2) });
+  }, []);
+
+  // Preferência "fixado" (encostado ao canto) — persistida
+  useEffect(() => {
+    try { if (localStorage.getItem("tratorilson_fixado") === "1") setFixado(true); } catch {}
+  }, []);
+  const toggleFixar = useCallback(() => {
+    setFixado((f) => { const nv = !f; try { localStorage.setItem("tratorilson_fixado", nv ? "1" : "0"); } catch {} return nv; });
   }, []);
 
   useEffect(() => { if (open) setTimeout(() => inputRef.current?.focus(), 150); }, [open]);
@@ -107,9 +119,9 @@ export default function TratorinoChat({ userName = "", userId = "", isAdmin = fa
   };
   const wUp = () => { wDrag.current.down = false; };
 
-  const enviar = useCallback(async (e?: React.FormEvent) => {
+  const enviar = useCallback(async (e?: React.FormEvent, textoDireto?: string) => {
     e?.preventDefault();
-    const texto = input.trim();
+    const texto = (textoDireto ?? input).trim();
     if (!texto || loading) return;
     const base = msgs;
     const novas = [...msgs, { role: "user" as const, content: texto }];
@@ -201,9 +213,9 @@ export default function TratorinoChat({ userName = "", userId = "", isAdmin = fa
 
       {/* Janela de chat */}
       {open && winPos && (
-        <div className="trt-win trt-noprint" style={{ position: "fixed", left: winPos.x, top: winPos.y, zIndex: 59000, width: WIN_W, maxWidth: "calc(100vw - 16px)", height: WIN_H, maxHeight: "calc(100vh - 16px)", background: "#fff", borderRadius: 20, boxShadow: "0 24px 70px rgba(15,23,42,0.32)", display: "flex", flexDirection: "column", overflow: "hidden", border: "1px solid #e9ecf2", fontFamily: FONTE }}>
+        <div className="trt-win trt-noprint" style={{ position: "fixed", ...(fixado ? { right: 16, bottom: 16 } : { left: winPos.x, top: winPos.y }), zIndex: 59000, width: WIN_W, maxWidth: "calc(100vw - 16px)", height: WIN_H, maxHeight: "calc(100vh - 16px)", background: "#fff", borderRadius: 20, boxShadow: "0 24px 70px rgba(15,23,42,0.32)", display: "flex", flexDirection: "column", overflow: "hidden", border: "1px solid #e9ecf2", fontFamily: FONTE }}>
           {/* Header (arrastável) */}
-          <div onPointerDown={wDown} onPointerMove={wMove} onPointerUp={wUp} style={{ background: "linear-gradient(135deg, #ef4444 0%, #b91c1c 60%, #7f1d1d 100%)", padding: "13px 14px", display: "flex", alignItems: "center", gap: 11, cursor: "grab", touchAction: "none", position: "relative" }}>
+          <div onPointerDown={fixado ? undefined : wDown} onPointerMove={fixado ? undefined : wMove} onPointerUp={fixado ? undefined : wUp} style={{ background: "linear-gradient(135deg, #ef4444 0%, #b91c1c 60%, #7f1d1d 100%)", padding: "13px 14px", display: "flex", alignItems: "center", gap: 11, cursor: fixado ? "default" : "grab", touchAction: "none", position: "relative" }}>
             <div style={{ width: 44, height: 44, borderRadius: "50%", background: "rgba(255,255,255,0.16)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <Avatar size={40} anim />
             </div>
@@ -214,6 +226,7 @@ export default function TratorinoChat({ userName = "", userId = "", isAdmin = fa
                 Assistente de IA · online
               </div>
             </div>
+            <button onClick={toggleFixar} title={fixado ? "Desafixar (voltar a flutuar)" : "Fixar no canto"} className="trt-icon-btn" style={{ marginRight: 4, background: fixado ? "rgba(255,255,255,0.34)" : "rgba(255,255,255,0.16)" }}><i className="fas fa-thumbtack" /></button>
             <button onClick={() => { setMsgs([SAUDACAO]); setInput(""); }} title="Limpar conversa" className="trt-icon-btn" style={{ marginRight: 4 }}><i className="fas fa-trash" /></button>
             <button onClick={() => setOpen(false)} title="Fechar" className="trt-icon-btn"><i className="fas fa-times" /></button>
           </div>
@@ -278,6 +291,21 @@ export default function TratorinoChat({ userName = "", userId = "", isAdmin = fa
                 )}
               </div>
             ))}
+            {msgs.length === 1 && !loading && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 2 }}>
+                {SUGESTOES.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => enviar(undefined, s)}
+                    style={{ border: "1px solid #fecaca", background: "#fff", color: "#b91c1c", padding: "8px 13px", borderRadius: 14, fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: FONTE, boxShadow: "0 1px 4px rgba(15,23,42,0.05)", transition: "all .15s" }}
+                    onMouseEnter={(ev) => { ev.currentTarget.style.background = "#fef2f2"; ev.currentTarget.style.borderColor = "#fca5a5"; }}
+                    onMouseLeave={(ev) => { ev.currentTarget.style.background = "#fff"; ev.currentTarget.style.borderColor = "#fecaca"; }}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
             {loading && (
               <div style={{ display: "flex", justifyContent: "flex-start" }}>
                 <div style={{ padding: "12px 16px", borderRadius: 16, borderBottomLeftRadius: 5, background: "#fff", border: "1px solid #e8edf3", display: "flex", alignItems: "center", gap: 5, boxShadow: "0 2px 8px rgba(15,23,42,0.05)" }}>
