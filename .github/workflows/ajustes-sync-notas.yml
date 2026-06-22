@@ -1,0 +1,24 @@
+name: Ajustes - Sync Notas de Saida (incremental)
+
+# Espelha as notas fiscais de saida (NF-e produto + NFS-e servico) do Omie no
+# Supabase (portal_nt_notas_saida) para a busca em /ajustes/notas ser instantanea.
+# Janela movel (ultimos ~90 dias) -> pega notas novas e cancelamentos recentes.
+# O Portal roda no Railway (vercel.json nao dispara cron), por isso GitHub Action.
+# Requer os secrets do GitHub: PORTAL_URL e CRON_SECRET.
+
+on:
+  schedule:
+    - cron: '17 */3 * * *'   # a cada 3h (minuto 17 p/ nao cair no :00)
+  workflow_dispatch: {}        # permite rodar manualmente pelo botao "Run workflow"
+
+jobs:
+  sync-notas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Disparar sync incremental das notas de saida
+        run: |
+          curl -fsS --max-time 800 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/ajustes/cron/sync-notas" \
+            -w "\nsync-notas: HTTP %{http_code}\n"

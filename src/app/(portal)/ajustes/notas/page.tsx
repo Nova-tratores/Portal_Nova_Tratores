@@ -1,7 +1,7 @@
 'use client';
 // Notas fiscais de saida (Fase 2). Portado de notas.ejs + public/notas.js.
 // Busca NF-e de venda por numero ou por cliente e abre o DANFE PDF oficial da Omie.
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
@@ -17,6 +17,7 @@ interface Nota {
   clienteNome?: string | null; clienteDoc?: string | null; qtdeItens?: number;
 }
 interface NotasPayload { total?: number; notas?: Nota[]; erro?: string; aviso?: string | null }
+interface ClienteSug { codigo: number | string; nome: string; doc?: string | null }
 
 // ---------- helpers ----------
 const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -52,7 +53,8 @@ export default function NotasPage() {
   const [numero, setNumero] = useState('');
   const [numeroAte, setNumeroAte] = useState('');
   const [cliente, setCliente] = useState('');
-  const [de, setDe] = useState(isoDefault(-3));
+  const [clienteCodigo, setClienteCodigo] = useState<string | null>(null);
+  const [de, setDe] = useState(isoDefault(-12));
   const [ate, setAte] = useState(isoDefault(0));
 
   const [dados, setDados] = useState<NotasPayload | null>(null);
@@ -60,6 +62,35 @@ export default function NotasPage() {
   const [statusMsg, setStatusMsg] = useState('');
   const [erro, setErro] = useState('');
   const [danfeId, setDanfeId] = useState<string | null>(null);
+
+  // ---- autocomplete de clientes (le do Supabase) ----
+  const [sugestoes, setSugestoes] = useState<ClienteSug[]>([]);
+  const [showSug, setShowSug] = useState(false);
+  const buscaIdRef = useRef(0);
+
+  useEffect(() => {
+    // não sugere quando já há um cliente selecionado (código fixado) ou termo curto
+    if (!conta || clienteCodigo || cliente.trim().length < 2) { setSugestoes([]); return; }
+    const termo = cliente.trim();
+    const id = ++buscaIdRef.current;
+    const t = setTimeout(async () => {
+      try {
+        const r = await fetch(`/api/ajustes/notas/clientes?conta=${encodeURIComponent(conta)}&q=${encodeURIComponent(termo)}`);
+        const d = await r.json();
+        if (id !== buscaIdRef.current) return; // resposta obsoleta
+        setSugestoes(Array.isArray(d.clientes) ? d.clientes : []);
+        setShowSug(true);
+      } catch { /* ignora */ }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [cliente, clienteCodigo, conta]);
+
+  const selecionarCliente = useCallback((c: ClienteSug) => {
+    setCliente(c.nome);
+    setClienteCodigo(String(c.codigo));
+    setSugestoes([]);
+    setShowSug(false);
+  }, []);
 
   const executar = useCallback(async (qsExtra: string) => {
     if (!conta) return;
@@ -85,18 +116,21 @@ export default function NotasPage() {
     if (!num) { setErro('Informe o numero da NF.'); return; }
     let qs = '&modo=numero&tipo=' + tipoFiltro + '&numero=' + encodeURIComponent(num);
     if (numeroAte.trim()) qs += '&numeroAte=' + encodeURIComponent(numeroAte.trim());
-    setStatusMsg('buscando nota(s) no Omie...');
+    setStatusMsg('buscando…');
     executar(qs);
   }, [numero, numeroAte, tipoFiltro, executar]);
 
   const buscarPorCliente = useCallback(() => {
+    setShowSug(false);
     let qs = '&modo=cliente&tipo=' + tipoFiltro;
-    if (cliente.trim()) qs += '&cliente=' + encodeURIComponent(cliente.trim());
+    if (clienteCodigo) qs += '&clienteCodigo=' + encodeURIComponent(clienteCodigo);
+    else if (cliente.trim()) qs += '&cliente=' + encodeURIComponent(cliente.trim());
+    // janela só vale quando NÃO é cliente específico (servidor ignora p/ código/doc)
     if (de) qs += '&de=' + encodeURIComponent(de);
     if (ate) qs += '&ate=' + encodeURIComponent(ate);
-    setStatusMsg('buscando notas no Omie... (a janela pode levar 1-2 min)');
+    setStatusMsg('buscando…');
     executar(qs);
-  }, [cliente, de, ate, tipoFiltro, executar]);
+  }, [cliente, clienteCodigo, de, ate, tipoFiltro, executar]);
 
   const abrirDanfe = useCallback(async (n: Nota) => {
     if (n.nCodNF == null || n.nCodNF === '') return;
@@ -169,9 +203,37 @@ export default function NotasPage() {
           ) : (
             <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 16, marginBottom: 16 }}>
               <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
-                <div style={{ flex: 1, minWidth: 220 }}>
+                <div style={{ flex: 1, minWidth: 220, position: 'relative' }}>
                   <label style={{ display: 'block', fontSize: '.65rem', color: '#64748b', marginBottom: 2 }}>Cliente (nome ou CNPJ/CPF)</label>
-                  <input type="text" placeholder="ex: JOAO DA SILVA ou 12345678000199" value={cliente} onChange={(e) => setCliente(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && buscarPorCliente()} style={{ border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 8px', fontSize: '.82rem', width: '100%' }} />
+                  <input
+                    type="text"
+                    placeholder="comece a digitar o nome do cliente..."
+                    value={cliente}
+                    autoComplete="off"
+                    onChange={(e) => { setCliente(e.target.value); setClienteCodigo(null); }}
+                    onFocus={() => { if (sugestoes.length) setShowSug(true); }}
+                    onBlur={() => setTimeout(() => setShowSug(false), 150)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { setShowSug(false); buscarPorCliente(); } else if (e.key === 'Escape') setShowSug(false); }}
+                    style={{ border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 8px', fontSize: '.82rem', width: '100%' }}
+                  />
+                  {clienteCodigo && (
+                    <span style={{ position: 'absolute', right: 8, top: 26, fontSize: '.62rem', color: '#16a34a', fontWeight: 600 }}>✓ cod {clienteCodigo}</span>
+                  )}
+                  {showSug && sugestoes.length > 0 && (
+                    <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, marginTop: 2, maxHeight: 280, overflowY: 'auto', boxShadow: '0 6px 18px rgba(0,0,0,.08)' }}>
+                      {sugestoes.map((c) => (
+                        <button
+                          key={String(c.codigo)}
+                          type="button"
+                          onMouseDown={(e) => { e.preventDefault(); selecionarCliente(c); }}
+                          style={{ display: 'block', width: '100%', textAlign: 'left', padding: '7px 10px', border: 'none', borderBottom: '1px solid #f1f5f9', background: '#fff', cursor: 'pointer', fontSize: '.8rem' }}
+                        >
+                          <span style={{ color: '#1e293b' }}>{c.nome}</span>
+                          <span style={{ marginLeft: 8, fontSize: '.68rem', color: '#94a3b8', fontFamily: 'monospace' }}>{fmtDoc(c.doc)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '.65rem', color: '#64748b', marginBottom: 2 }}>Emissao de</label>
@@ -183,7 +245,7 @@ export default function NotasPage() {
                 </div>
                 <button onClick={buscarPorCliente} disabled={carregando} style={{ padding: '7px 16px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: carregando ? 'wait' : 'pointer', opacity: carregando ? 0.6 : 1 }}>Buscar</button>
               </div>
-              <p style={{ fontSize: '.72rem', color: '#94a3b8', marginTop: 8 }}>Nome faz busca parcial (contem). CNPJ/CPF completo usa filtro exato na Omie. Sem texto, lista todas as NFs da janela.</p>
+              <p style={{ fontSize: '.72rem', color: '#94a3b8', marginTop: 8 }}>Selecione um cliente da lista para ver <b>todas</b> as notas dele (ignora o periodo). Digitando nome/CNPJ sem selecionar, filtra dentro do periodo. As notas vem do nosso banco (sync do Omie).</p>
             </div>
           )}
 

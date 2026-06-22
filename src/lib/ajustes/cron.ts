@@ -19,6 +19,15 @@ import { obterPedidos, listarPedidosEnriquecidos, listarPedidosAntigosTodasConta
 import { gerarPDFPedidos } from './pdf-pedidos';
 import { gerarCicloEFreeze } from './inventario';
 import { enviarEmail, parseDestinatarios } from './email';
+import { syncNotasTodasContas } from './notas-sync';
+
+/** Sync incremental das notas de saida (NF-e + NFS-e) -> Supabase, todas as contas. */
+export async function cronSyncNotasSaida(): Promise<any> {
+  return syncNotasTodasContas({
+    modo: 'incremental',
+    onProgress: (m: string) => console.log('[cron sync-notas]', m),
+  });
+}
 
 /** Verificação diária: varre as contas e gera alertas (cmc_alertas). */
 export async function cronVerificacaoDiaria(): Promise<any> {
