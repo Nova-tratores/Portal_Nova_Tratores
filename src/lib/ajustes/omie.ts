@@ -682,8 +682,9 @@ export async function alterarRecebimentoItens(conta: Conta, args: Record<string,
         cPisCusto:        toSN(c.cPisCusto),
         cCofinsCusto:     toSN(c.cCofinsCusto),
         cFreteCusto:      toSN(c.cFreteCusto),
-        cSeguroCusto:     toSN(c.cSeguroCusto),
-        cOutrasDespCusto: toSN(c.cOutrasDespCusto)
+        cSeguroCusto:     toSN(c.cSeguroCusto)
+        // OBS: o Omie NAO aceita a tag cOutrasDespCusto em itensCustoEstoque
+        // (ERROR: Tag [COUTRASDESPCUSTO] nao faz parte da estrutura). Removida.
       };
     }
     return bloco;

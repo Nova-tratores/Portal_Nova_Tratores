@@ -135,6 +135,8 @@ export function montarCustoEstoque(): Record<string, 'S' | 'N'> {
     .split(/[,\s]+/)
     .filter(Boolean);
   const has = (k: string): 'S' | 'N' => (lista.includes(k) ? 'S' : 'N');
+  // OBS: 'OUTRAS' nao tem tag valida no itensCustoEstoque do Omie
+  // (cOutrasDespCusto e' rejeitada). Opcoes validas: ICMS, ICMS_ST, IPI, PIS, COFINS, FRETE, SEGURO.
   return {
     cIcmsCusto: has('ICMS'),
     cIcmsStCusto: has('ICMS_ST'),
@@ -143,7 +145,6 @@ export function montarCustoEstoque(): Record<string, 'S' | 'N'> {
     cCofinsCusto: has('COFINS'),
     cFreteCusto: has('FRETE'),
     cSeguroCusto: has('SEGURO'),
-    cOutrasDespCusto: has('OUTRAS'),
   };
 }
 
