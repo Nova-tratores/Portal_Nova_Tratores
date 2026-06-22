@@ -13,8 +13,8 @@ import ContaSelector from '@/components/estoque/ContaSelector';
 import { supabase } from '@/lib/supabase';
 
 interface Usuario { id: string; nome: string; funcao?: string | null }
-const TIPO_LABEL: Record<string, string> = { pecas: 'Peças', pecas_garantia: 'Peças (garantia)', almoxarifado: 'Almoxarifado', maquinas: 'Máquinas' };
-const TIPO_COR: Record<string, string> = { pecas: '#475569', pecas_garantia: '#b45309', almoxarifado: '#0e7490', maquinas: '#7c3aed' };
+const TIPO_LABEL: Record<string, string> = { pecas: 'Peças', pecas_garantia: 'Peças (garantia)', almoxarifado: 'Almoxarifado', combustivel: 'Combustível', maquinas: 'Máquinas' };
+const TIPO_COR: Record<string, string> = { pecas: '#475569', pecas_garantia: '#b45309', almoxarifado: '#0e7490', combustivel: '#ca8a04', maquinas: '#7c3aed' };
 
 // ---------- tipos do payload ----------
 interface ItemReceb {

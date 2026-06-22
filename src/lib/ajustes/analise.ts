@@ -31,20 +31,24 @@ import { hoje, addMeses, addDias, fmtBR, parseAnyDate } from './dates';
 import type { Conta } from './conta';
 
 const RE_NATUREZA_GARANTIA = /garantia|conserto|reparo|assist[eê]ncia t[eé]cnica/i;
-// keywords de almoxarifado/uso e consumo (espelha RECEB_KW_ALMOX de lib/estoque/recebimentos.ts)
-const RECEB_KW_ALMOX = ['combust', 'almoxarif', 'lubrific', 'oleo', 'óleo', 'graxa', 'diesel', 'arla', 'uso e consumo', 'expediente'];
+// combustivel e' um tipo PROPRIO (responsavel distinto do almoxarifado geral).
+const RECEB_KW_COMBUSTIVEL = ['combust', 'diesel', 'gasolina', 'etanol', 'alcool', 'álcool', 'arla'];
+const RECEB_KW_ALMOX = ['almoxarif', 'lubrific', 'oleo', 'óleo', 'graxa', 'uso e consumo', 'expediente'];
 
 // Classifica um recebimento (shape de lib/ajustes/omie.normalizarRecebimento) em 1
-// dos 4 tipos. Heuristica defensiva: na duvida 'pecas'. (Sem separacao de maquinas
+// dos 5 tipos. Heuristica defensiva: na duvida 'pecas'. (Sem separacao de maquinas
 // nessa fonte -> 'maquinas' nao e auto-detectado aqui; segue disponivel no mapa.)
+// Precedencia: garantia > combustivel > almoxarifado > pecas.
 function classificarTipoReceb(rec: any, sinalGarantia: boolean): string {
   if (sinalGarantia) return 'pecas_garantia';
   const itens = Array.isArray(rec.itens) ? rec.itens : [];
+  let almox = false;
   for (const it of itens) {
     const desc = String(it.descricaoProduto || '').toLowerCase();
-    if (RECEB_KW_ALMOX.some((k) => desc.includes(k))) return 'almoxarifado';
+    if (RECEB_KW_COMBUSTIVEL.some((k) => desc.includes(k))) return 'combustivel';
+    if (RECEB_KW_ALMOX.some((k) => desc.includes(k))) almox = true;
   }
-  return 'pecas';
+  return almox ? 'almoxarifado' : 'pecas';
 }
 
 function num(v: any): number { return Number(v == null ? 0 : v) || 0; }
