@@ -31,6 +31,21 @@ import { hoje, addMeses, addDias, fmtBR, parseAnyDate } from './dates';
 import type { Conta } from './conta';
 
 const RE_NATUREZA_GARANTIA = /garantia|conserto|reparo|assist[eê]ncia t[eé]cnica/i;
+// keywords de almoxarifado/uso e consumo (espelha RECEB_KW_ALMOX de lib/estoque/recebimentos.ts)
+const RECEB_KW_ALMOX = ['combust', 'almoxarif', 'lubrific', 'oleo', 'óleo', 'graxa', 'diesel', 'arla', 'uso e consumo', 'expediente'];
+
+// Classifica um recebimento (shape de lib/ajustes/omie.normalizarRecebimento) em 1
+// dos 4 tipos. Heuristica defensiva: na duvida 'pecas'. (Sem separacao de maquinas
+// nessa fonte -> 'maquinas' nao e auto-detectado aqui; segue disponivel no mapa.)
+function classificarTipoReceb(rec: any, sinalGarantia: boolean): string {
+  if (sinalGarantia) return 'pecas_garantia';
+  const itens = Array.isArray(rec.itens) ? rec.itens : [];
+  for (const it of itens) {
+    const desc = String(it.descricaoProduto || '').toLowerCase();
+    if (RECEB_KW_ALMOX.some((k) => desc.includes(k))) return 'almoxarifado';
+  }
+  return 'pecas';
+}
 
 function num(v: any): number { return Number(v == null ? 0 : v) || 0; }
 function ts(d: any): number { const x = parseAnyDate(d); return x ? x.getTime() : 0; }
@@ -458,7 +473,7 @@ export async function analisarRecebimentosPendentes(conta: Conta, opts: any = {}
   }
   const pendentes = naoProcessados.map(r => {
     const sinal = sinalGarantia(r);
-    return { ...r, sinal, temSinalGarantia: !!sinal };
+    return { ...r, sinal, temSinalGarantia: !!sinal, tipo: classificarTipoReceb(r, !!sinal) };
   });
   const comSinal = pendentes.filter(r => r.temSinalGarantia);
 

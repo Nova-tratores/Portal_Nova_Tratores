@@ -215,12 +215,10 @@ export async function aplicarUmaCorrecao(body: CorrecaoBody, criadoPor?: string)
   if (!contaConfigurada(conta)) throw new Error(`Conta "${body.conta}" sem credenciais Omie configuradas`);
   const codigoProduto = body.codigoProduto != null ? Number(body.codigoProduto) : null;
   const codigoIntegracao = body.codigoIntegracao != null ? String(body.codigoIntegracao) : null;
-  const codLocalInput = body.codLocal != null ? Number(body.codLocal) : null;
+  const codLocalInput = body.codLocal != null && body.codLocal !== '' ? Number(body.codLocal) : null;
   const novoCMC = Number(body.novoCMC);
 
   if (!codigoProduto && !codigoIntegracao) throw new Error('informe codigoProduto ou codigoIntegracao');
-  if (codLocalInput == null || !Number.isFinite(codLocalInput)) throw new Error('informe codLocal (codigo do local de estoque)');
-  const codLocal = codLocalInput;
   if (!(novoCMC > 0)) throw new Error('novoCMC deve ser > 0');
 
   // Pre-flight: garante que a tabela de auditoria existe E está com o schema atual
@@ -244,6 +242,11 @@ export async function aplicarUmaCorrecao(body: CorrecaoBody, criadoPor?: string)
     idProd = p.codigoProduto;
     if (!descricao) descricao = p.descricao;
   }
+
+  // codLocal: usa o informado, ou resolve AO VIVO o local de maior saldo físico.
+  const codLocal = codLocalInput != null && Number.isFinite(codLocalInput)
+    ? codLocalInput
+    : await resolverLocalAjuste(conta, idProd);
 
   // Guard de duplo clique: já existe correção recente igual?
   try {
