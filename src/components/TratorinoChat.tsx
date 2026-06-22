@@ -172,11 +172,13 @@ export default function TratorinoChat({ userName = "", userId = "", isAdmin = fa
         .trt-scroll::-webkit-scrollbar-thumb { background: #d4dae3; border-radius: 8px; }
         .trt-icon-btn { border: none; background: rgba(255,255,255,0.16); color: #fff; width: 32px; height: 32px; border-radius: 9px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background .15s; }
         .trt-icon-btn:hover { background: rgba(255,255,255,0.32); }
+        @media print { .trt-noprint { display: none !important; } }
       `}</style>
 
       {/* Mascote flutuante (arrastável; clique abre) */}
       {!open && pos && (
         <div
+          className="trt-noprint"
           onPointerDown={lDown} onPointerMove={lMove} onPointerUp={lUp}
           onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
           title="Arraste para mover · clique para falar com o Tratorilson"
@@ -199,7 +201,7 @@ export default function TratorinoChat({ userName = "", userId = "", isAdmin = fa
 
       {/* Janela de chat */}
       {open && winPos && (
-        <div className="trt-win" style={{ position: "fixed", left: winPos.x, top: winPos.y, zIndex: 59000, width: WIN_W, maxWidth: "calc(100vw - 16px)", height: WIN_H, maxHeight: "calc(100vh - 16px)", background: "#fff", borderRadius: 20, boxShadow: "0 24px 70px rgba(15,23,42,0.32)", display: "flex", flexDirection: "column", overflow: "hidden", border: "1px solid #e9ecf2", fontFamily: FONTE }}>
+        <div className="trt-win trt-noprint" style={{ position: "fixed", left: winPos.x, top: winPos.y, zIndex: 59000, width: WIN_W, maxWidth: "calc(100vw - 16px)", height: WIN_H, maxHeight: "calc(100vh - 16px)", background: "#fff", borderRadius: 20, boxShadow: "0 24px 70px rgba(15,23,42,0.32)", display: "flex", flexDirection: "column", overflow: "hidden", border: "1px solid #e9ecf2", fontFamily: FONTE }}>
           {/* Header (arrastável) */}
           <div onPointerDown={wDown} onPointerMove={wMove} onPointerUp={wUp} style={{ background: "linear-gradient(135deg, #ef4444 0%, #b91c1c 60%, #7f1d1d 100%)", padding: "13px 14px", display: "flex", alignItems: "center", gap: 11, cursor: "grab", touchAction: "none", position: "relative" }}>
             <div style={{ width: 44, height: 44, borderRadius: "50%", background: "rgba(255,255,255,0.16)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>

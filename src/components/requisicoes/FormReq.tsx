@@ -433,6 +433,77 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
                   <input placeholder="Ex: VALTRA BM110 - CHASSIS 123456" value={formData.Chassis_Modelo} onChange={e => setFormData({...formData, Chassis_Modelo: e.target.value.toUpperCase()})} className={inputStyle} />
                 </div>
               )}
+              <div className="mt-3">
+                <label className={labelStyle}>Hodometro / Horimetro</label>
+                <input placeholder="Ex: 12.500 km / 3.400 h" value={formData.hodometro} onChange={e => setFormData({...formData, hodometro: e.target.value})} className={inputStyle} />
+              </div>
+              <div ref={osRef} className="relative mt-3">
+                <label className={labelStyle}>Ordem de Serviço</label>
+                <div
+                  className={`${inputStyle} cursor-pointer flex items-center justify-between`}
+                  onClick={() => setOsDropdownOpen(!osDropdownOpen)}
+                >
+                  <span className={formData.ordem_servico ? 'text-zinc-900' : 'text-zinc-400'}>
+                    {formData.ordem_servico
+                      ? `OS ${formData.ordem_servico} - ${ordensAbertas.find(o => String(o.Id_Ordem) === formData.ordem_servico)?.Os_Cliente || ''}`
+                      : 'Selecione a O.S...'}
+                  </span>
+                  <svg className="w-4 h-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                </div>
+                {osDropdownOpen && (
+                  <div className="absolute z-50 mt-1 w-full bg-white border border-zinc-200 rounded-xl shadow-xl max-h-64 overflow-auto">
+                    <div className="sticky top-0 bg-white p-2 border-b border-zinc-100">
+                      <input
+                        autoFocus
+                        placeholder="Buscar por OS, cliente ou técnico..."
+                        value={osBusca}
+                        onChange={e => setOsBusca(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-zinc-200 text-sm outline-none focus:border-red-400"
+                      />
+                    </div>
+                    {formData.ordem_servico && (
+                      <button
+                        type="button"
+                        onClick={() => { setFormData(p => ({...p, ordem_servico: ''})); setOsDropdownOpen(false); setOsBusca(''); }}
+                        className="w-full px-4 py-2 text-left text-sm text-red-500 hover:bg-red-50 border-b border-zinc-100"
+                      >
+                        ✕ Remover seleção
+                      </button>
+                    )}
+                    {ordensAbertas
+                      .filter(o => {
+                        if (!osBusca.trim()) return true;
+                        const q = osBusca.toLowerCase();
+                        return String(o.Id_Ordem).toLowerCase().includes(q) || (o.Os_Cliente || '').toLowerCase().includes(q) || (o.Os_Tecnico || '').toLowerCase().includes(q);
+                      })
+                      .map(o => (
+                        <button
+                          type="button"
+                          key={o.Id_Ordem}
+                          onClick={() => {
+                            setFormData(p => ({...p, ordem_servico: String(o.Id_Ordem)}));
+                            setOsDropdownOpen(false);
+                            setOsBusca('');
+                          }}
+                          className={`w-full px-4 py-3 text-left hover:bg-zinc-50 border-b border-zinc-50 ${formData.ordem_servico === String(o.Id_Ordem) ? 'bg-red-50' : ''}`}
+                        >
+                          <span className="font-bold text-sm text-zinc-800">OS {o.Id_Ordem}</span>
+                          <span className="text-xs text-zinc-500 ml-2">{o.Os_Cliente}</span>
+                          <span className="text-xs text-zinc-400 ml-2">({o.Os_Tecnico})</span>
+                          <span className="text-[10px] text-zinc-400 ml-2 uppercase">{o.Status}</span>
+                        </button>
+                      ))
+                    }
+                    {ordensAbertas.filter(o => {
+                      if (!osBusca.trim()) return true;
+                      const q = osBusca.toLowerCase();
+                      return String(o.Id_Ordem).toLowerCase().includes(q) || (o.Os_Cliente || '').toLowerCase().includes(q) || (o.Os_Tecnico || '').toLowerCase().includes(q);
+                    }).length === 0 && (
+                      <p className="px-4 py-3 text-sm text-zinc-400 text-center">Nenhuma O.S. encontrada</p>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

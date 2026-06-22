@@ -8,8 +8,11 @@ import {
   Store, ArrowRight, Gauge,
   Receipt, Eye, ExternalLink, Car,
   Plus, CheckCheck, Building2, User, Cpu,
-  Package, CreditCard, Upload, Check
+  Package, CreditCard, Upload, Check, Lock, ShieldCheck, ShieldAlert
 } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { usePermissoes } from '@/hooks/usePermissoes';
+import { isValorAlto, buscarAutorizacaoAtiva, criarPedidoPermissao, consumirAutorizacao, parseValorBR, LIMITE_BLOQUEIO, type Autorizacao } from '@/lib/requisicoes/autorizacao';
 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxyIatVqhjdeBeo4PYNWr992vCsPpvEEjOxabWB7mz5JRJ7BroxnvR8CRIcXIgTfLSm/exec';
 const DEPARTAMENTOS = ["Trator-Loja", "Trator-Cliente", "Oficina", "Comercial"];
@@ -30,6 +33,23 @@ function parseMoeda(valorFmt: string): string {
 export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, aberto = false, onFechar }: { req: any, onUpdate: any, onPrint: any, dadosCompartilhados?: any, aberto?: boolean, onFechar?: () => void }) {
   const [modalAberto, setModalAberto] = useState(aberto);
   const [modalCotacaoAberto, setModalCotacaoAberto] = useState(false);
+
+  // ── Bloqueio de valor alto (precisa de permissão de Dev) ──
+  const { userProfile } = useAuth();
+  const { isDev } = usePermissoes(userProfile?.id);
+  const [autoriz, setAutoriz] = useState<Autorizacao | null>(null);
+  const [pedirOpen, setPedirOpen] = useState(false);
+  const [motivoPedido, setMotivoPedido] = useState('');
+  const [enviandoPedido, setEnviandoPedido] = useState(false);
+  const valorAlto = isValorAlto(req);
+  const bloqueada = valorAlto && !isDev && !autoriz;
+
+  useEffect(() => {
+    if (!valorAlto || isDev) { setAutoriz(null); return; }
+    let ativo = true;
+    buscarAutorizacaoAtiva(req.id).then(a => { if (ativo) setAutoriz(a); });
+    return () => { ativo = false; };
+  }, [req.id, valorAlto, isDev]);
   const [localData, setLocalData] = useState(() => ({
     ...req,
     quem_ferramenta: req.quem_ferramenta || req.ferramenta_quem || ""
@@ -191,13 +211,41 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
   }, [req.status, req.enviado_financeiro_data, req.id]);
 
   const persist = useCallback((name: string, value: any) => {
+    // Requisição de valor alto bloqueada: abre o pedido de permissão em vez de gravar
+    if (bloqueada) { setPedirOpen(true); return; }
     setLocalData((prev: any) => {
       if (prev[name] === value) return prev;
       return { ...prev, [name]: value };
     });
     if (req[name] === value) return;
     onUpdate(req.id, { [name]: value });
-  }, [req.id, req, onUpdate]);
+    // Permissão concedida vale para UMA alteração: consome e volta a bloquear
+    if (autoriz && valorAlto && !isDev) {
+      consumirAutorizacao(autoriz.id);
+      setAutoriz(null);
+    }
+  }, [req.id, req, onUpdate, bloqueada, autoriz, valorAlto, isDev]);
+
+  const enviarPedidoPermissao = useCallback(async () => {
+    const motivo = motivoPedido.trim();
+    if (!motivo) return;
+    setEnviandoPedido(true);
+    try {
+      await criarPedidoPermissao({ requisicaoId: req.id, solicitanteId: userProfile?.id, solicitanteNome: userProfile?.nome, motivo });
+      const { data: devs } = await supabase.from('portal_permissoes').select('user_id').eq('is_dev', true);
+      if (devs && devs.length) {
+        await supabase.from('portal_notificacoes').insert(devs.map((d: any) => ({
+          user_id: d.user_id, tipo: 'requisicao',
+          titulo: `${userProfile?.nome || 'Alguém'} pediu permissão p/ alterar a Req #${req.id}`,
+          descricao: motivo, link: '/requisicoes',
+        })));
+      }
+    } catch (e) { console.error('Erro ao pedir permissão', e); }
+    setEnviandoPedido(false);
+    setPedirOpen(false);
+    setMotivoPedido('');
+    alert('Pedido enviado! Um Dev vai analisar.');
+  }, [motivoPedido, req.id, userProfile?.id, userProfile?.nome]);
 
   const setField = useCallback((name: string, value: any) => {
     setLocalData((prev: any) => ({ ...prev, [name]: value }));
@@ -407,8 +455,58 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
               <button onClick={fecharModal} className="w-10 h-10 flex items-center justify-center rounded-lg bg-white border border-zinc-200 text-zinc-500 hover:bg-red-500 hover:text-white hover:border-red-500 transition-all shrink-0"><X size={18}/></button>
             </div>
 
+            {/* MODAL — Pedir permissão ao Dev */}
+            {pedirOpen && (
+              <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={e => { if (e.target === e.currentTarget) setPedirOpen(false); }}>
+                <div className="bg-white rounded-2xl shadow-xl border border-zinc-200 w-full max-w-md overflow-hidden">
+                  <div className="px-6 py-4 border-b border-zinc-200 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center text-red-600"><Lock size={18} /></div>
+                    <div>
+                      <h3 className="text-base font-bold text-zinc-900">Pedir permissão ao Dev</h3>
+                      <p className="text-xs text-zinc-400">Requisição #{req.id} — valor alto</p>
+                    </div>
+                  </div>
+                  <div className="p-6">
+                    <label className="text-xs font-bold text-zinc-500 uppercase block mb-2">O que pretende alterar?</label>
+                    <textarea value={motivoPedido} onChange={e => setMotivoPedido(e.target.value)} rows={4} placeholder="Explique a alteração que precisa de fazer..." className="w-full px-3 py-2.5 rounded-xl border border-zinc-200 text-sm outline-none focus:border-red-400 resize-none" />
+                    <div className="flex gap-3 mt-4">
+                      <button onClick={() => setPedirOpen(false)} className="flex-1 py-2.5 rounded-xl border border-zinc-200 text-zinc-600 text-sm font-semibold hover:bg-zinc-50">Cancelar</button>
+                      <button onClick={enviarPedidoPermissao} disabled={!motivoPedido.trim() || enviandoPedido} className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-bold hover:bg-red-700 disabled:opacity-50">{enviandoPedido ? 'A enviar...' : 'Enviar pedido'}</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* CONTEÚDO — Scroll único */}
             <div className="flex-1 overflow-y-auto px-8 py-6 space-y-6">
+
+              {/* ── BLOQUEIO DE VALOR ALTO ── */}
+              {valorAlto && (
+                bloqueada ? (
+                  <div className="flex items-center gap-3 p-4 rounded-xl border border-red-200 bg-red-50">
+                    <Lock size={20} className="text-red-600 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-red-700">Requisição bloqueada — valor acima de R$ {LIMITE_BLOQUEIO},00</p>
+                      <p className="text-xs text-red-600">Para alterar, peça permissão a um Dev. A impressão continua disponível.</p>
+                    </div>
+                    <button onClick={() => setPedirOpen(true)} className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-4 py-2 rounded-lg whitespace-nowrap shrink-0">Pedir permissão</button>
+                  </div>
+                ) : autoriz ? (
+                  <div className="flex items-center gap-3 p-4 rounded-xl border border-emerald-200 bg-emerald-50">
+                    <ShieldCheck size={20} className="text-emerald-600 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-emerald-700">Permissão concedida{autoriz.dev_nome ? ` por ${autoriz.dev_nome}` : ''}</p>
+                      <p className="text-xs text-emerald-600">Válida para UMA alteração — depois volta a bloquear.</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3 p-3 rounded-xl border border-amber-200 bg-amber-50">
+                    <ShieldAlert size={18} className="text-amber-600 shrink-0" />
+                    <p className="text-xs font-semibold text-amber-700">Valor alto — como Dev, pode editar livremente.</p>
+                  </div>
+                )
+              )}
 
               {/* ── DADOS ── */}
               <div className="grid grid-cols-[1fr_180px] gap-4">
@@ -632,7 +730,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                           inputMode="decimal"
                           value={valorCobradoFmt}
                           onChange={e => setValorCobradoFmt(formatarMoeda(e.target.value))}
-                          onBlur={() => { const raw = parseMoeda(valorCobradoFmt); persist('valor_cobrado_cliente', raw); }}
+                          onBlur={() => { const raw = parseMoeda(valorCobradoFmt); if (parseValorBR(raw) !== parseValorBR(req.valor_cobrado_cliente)) persist('valor_cobrado_cliente', raw); }}
                           className={`${inputBase} pl-10 font-semibold`}
                           placeholder="0,00"
                         />
@@ -753,7 +851,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                       inputMode="decimal"
                       value={valorDespesaFmt}
                       onChange={e => setValorDespesaFmt(formatarMoeda(e.target.value))}
-                      onBlur={() => { const raw = parseMoeda(valorDespesaFmt); persist('valor_despeza', raw); }}
+                      onBlur={() => { const raw = parseMoeda(valorDespesaFmt); if (parseValorBR(raw) !== parseValorBR(req.valor_despeza)) persist('valor_despeza', raw); }}
                       className="w-full text-xl font-bold text-red-700 bg-white border border-red-200 rounded-lg px-3 py-2 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/20 transition-all placeholder:text-red-200"
                       placeholder="0,00"
                     />

@@ -154,6 +154,7 @@ export default function TemplatePDF({ req }: { req: any, onUpdate?: any, onPrint
           const isTratorLoja = req.setor === 'Trator-Loja';
           const isTratorCliente = req.setor === 'Trator-Cliente';
           const isFerramenta = req.tipo === 'Ferramenta';
+          const isOficina = req.setor === 'Oficina';
           const temInfoVeiculo = isVeicular || isTratorAbast || isTratorLoja || isTratorCliente || isFerramenta;
           if (!temInfoVeiculo) return null;
           return (
@@ -165,22 +166,26 @@ export default function TemplatePDF({ req }: { req: any, onUpdate?: any, onPrint
                       <label className="text-[10px] font-black block mb-1">Equipamento / Veículo (Placa)</label>
                       <span className="text-[14px] font-bold">{placaVeiculo}</span>
                     </div>
-                    <div className="p-3">
+                    <div className={`p-3 ${isOficina ? 'col-span-2' : ''}`}>
                       <label className="text-[10px] font-black block mb-1">KM / Horas</label>
                       <span className="text-[14px] font-bold">{req.hodometro || '---'}</span>
                     </div>
-                    <div className="p-3">
-                      <label className="text-[10px] font-black block mb-1">Chassis / Modelo</label>
-                      <span className="text-[14px] font-bold">{req.Chassis_Modelo || '---'}</span>
-                    </div>
+                    {!isOficina && (
+                      <div className="p-3">
+                        <label className="text-[10px] font-black block mb-1">Chassis / Modelo</label>
+                        <span className="text-[14px] font-bold">{req.Chassis_Modelo || '---'}</span>
+                      </div>
+                    )}
                   </>
                 ) : isFerramenta ? (
                   <>
-                    <div className="p-3 col-span-3">
-                      <label className="text-[10px] font-black block mb-1">Referência Técnica / Modelo / Chassis</label>
-                      <span className="text-[14px] font-bold">{req.Chassis_Modelo || '---'}</span>
-                    </div>
-                    <div className="p-3">
+                    {!isOficina && (
+                      <div className="p-3 col-span-3">
+                        <label className="text-[10px] font-black block mb-1">Referência Técnica / Modelo / Chassis</label>
+                        <span className="text-[14px] font-bold">{req.Chassis_Modelo || '---'}</span>
+                      </div>
+                    )}
+                    <div className={`p-3 ${isOficina ? 'col-span-4' : ''}`}>
                       <label className="text-[10px] font-black block mb-1">Destinação</label>
                       <span className="text-[14px] font-bold">{req.quem_ferramenta || req.ferramenta_quem || '---'}</span>
                     </div>
@@ -191,11 +196,13 @@ export default function TemplatePDF({ req }: { req: any, onUpdate?: any, onPrint
                       <label className="text-[10px] font-black block mb-1">Chassis / Modelo</label>
                       <span className="text-[14px] font-bold">{req.Chassis_Modelo || '---'}</span>
                     </div>
-                    <div className="p-3">
-                      <label className="text-[10px] font-black block mb-1">Hodômetro / Horímetro</label>
-                      <span className="text-[14px] font-bold">{req.hodometro || '---'}</span>
-                    </div>
-                    <div className="p-3">
+                    {!isTratorCliente && (
+                      <div className="p-3">
+                        <label className="text-[10px] font-black block mb-1">Hodômetro / Horímetro</label>
+                        <span className="text-[14px] font-bold">{req.hodometro || '---'}</span>
+                      </div>
+                    )}
+                    <div className={`p-3 ${isTratorCliente ? 'col-span-2' : ''}`}>
                       <label className="text-[10px] font-black block mb-1">Ordem Serv.</label>
                       <span className="text-[14px] font-bold">{req.ordem_servico || '---'}</span>
                     </div>

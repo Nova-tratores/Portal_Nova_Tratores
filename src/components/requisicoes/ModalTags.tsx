@@ -9,9 +9,9 @@ interface Props { open: boolean; onClose: () => void }
 const CORES = ['#dc2626', '#ea580c', '#d97706', '#16a34a', '#0891b2', '#2563eb', '#7c3aed', '#be185d', '#64748b', '#1e293b'];
 
 const GRUPOS = [
-  { value: 'categoria', label: 'Categoria de Peça', icon: '🔩', color: '#ea580c' },
-  { value: 'sistema', label: 'Sistema', icon: '⚙️', color: '#2563eb' },
-  { value: 'geral', label: 'Geral', icon: '📋', color: '#64748b' },
+  { value: 'categoria', label: 'Categoria de Peça', color: '#ea580c' },
+  { value: 'sistema', label: 'Sistema', color: '#2563eb' },
+  { value: 'geral', label: 'Geral', color: '#64748b' },
 ];
 
 export default function ModalTags({ open, onClose }: Props) {
@@ -36,8 +36,13 @@ export default function ModalTags({ open, onClose }: Props) {
   useEffect(() => { if (open) carregar(); }, [open, carregar]);
 
   const criar = async () => {
-    if (!novoNome.trim()) return;
-    await supabase.from('requisicao_tags').insert({ nome: novoNome.trim().toUpperCase(), cor: novoCor, grupo: novoGrupo });
+    const nome = novoNome.trim().toUpperCase();
+    if (!nome) return;
+    if (tags.some(t => (t.nome || '').trim().toUpperCase() === nome)) {
+      alert('Já existe uma tag com esse nome.');
+      return;
+    }
+    await supabase.from('requisicao_tags').insert({ nome, cor: novoCor, grupo: novoGrupo });
     setNovoNome('');
     setNovoCor(CORES[0]);
     carregar();
@@ -45,7 +50,12 @@ export default function ModalTags({ open, onClose }: Props) {
 
   const salvarEdicao = async () => {
     if (!editando || !editNome.trim()) return;
-    await supabase.from('requisicao_tags').update({ nome: editNome.trim().toUpperCase(), cor: editCor, grupo: editGrupo }).eq('id', editando.id);
+    const nome = editNome.trim().toUpperCase();
+    if (tags.some(t => t.id !== editando.id && (t.nome || '').trim().toUpperCase() === nome)) {
+      alert('Já existe uma tag com esse nome.');
+      return;
+    }
+    await supabase.from('requisicao_tags').update({ nome, cor: editCor, grupo: editGrupo }).eq('id', editando.id);
     setEditando(null);
     carregar();
   };
@@ -103,7 +113,7 @@ export default function ModalTags({ open, onClose }: Props) {
               <label style={{ fontSize: 11, fontWeight: 700, color: '#64748B', display: 'block', marginBottom: 4 }}>GRUPO</label>
               <select value={novoGrupo} onChange={e => setNovoGrupo(e.target.value)}
                 style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid #E2E8F0', fontSize: 13, fontWeight: 600, background: '#fff' }}>
-                {GRUPOS.map(g => <option key={g.value} value={g.value}>{g.icon} {g.label}</option>)}
+                {GRUPOS.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
               </select>
             </div>
             <button onClick={criar}
@@ -129,7 +139,6 @@ export default function ModalTags({ open, onClose }: Props) {
                 <div key={grupo.value}>
                   <button onClick={() => toggleGrupo(grupo.value)}
                     style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 12px', background: '#F8FAFC', borderRadius: 10, border: '1px solid #E2E8F0', cursor: 'pointer', marginBottom: gruposAbertos[grupo.value] ? 6 : 0 }}>
-                    <span style={{ fontSize: 16 }}>{grupo.icon}</span>
                     <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: grupo.color, textAlign: 'left', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                       {grupo.label}
                     </span>

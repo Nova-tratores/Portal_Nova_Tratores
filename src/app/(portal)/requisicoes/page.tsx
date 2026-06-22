@@ -17,11 +17,13 @@ import {
   LayoutDashboard, Users2, Box, Activity, Trash2, Plus, X, Car, Bell, Info, CheckCheck, Edit3, FileText, Printer, Tag
 } from 'lucide-react';
 import ModalTags from '@/components/requisicoes/ModalTags';
+import PainelDev from '@/components/requisicoes/PainelDev';
 
 const ABAS_VALIDAS = new Set(['kanban', 'usuarios', 'veiculos', 'fornecedores', 'relatorio', 'lixeira', 'form_usuario', 'form_veiculo']);
 
 function RequisicoesPageInner() {
   const { userProfile } = useAuth();
+  const { isDev } = usePermissoes(userProfile?.id);
   const { log: auditLog } = useAuditLog();
   const userName = userProfile?.nome || 'Alguém';
   const searchParams = useSearchParams();
@@ -557,26 +559,6 @@ function RequisicoesPageInner() {
               <Tag size={16} />
               Tags
             </button>
-            <button
-              onClick={() => { setShowNotifModal(true); setContadorNotif(0); }}
-              style={{
-                position: 'relative', padding: '8px 14px', borderRadius: '10px',
-                background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
-                color: 'var(--portal-text-secondary)', fontSize: '13px', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: '6px', fontFamily: 'Inter'
-              }}
-            >
-              <Bell size={16} />
-              Alertas
-              {contadorNotif > 0 && (
-                <span style={{
-                  position: 'absolute', top: '-6px', right: '-6px',
-                  width: '18px', height: '18px', borderRadius: '50%',
-                  background: '#dc2626', color: '#fff', fontSize: '10px', fontWeight: '700',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center'
-                }}>{contadorNotif}</span>
-              )}
-            </button>
           </div>
         </div>
 
@@ -798,23 +780,8 @@ function RequisicoesPageInner() {
             <div>
               <div className="flex justify-between items-center mb-8">
                 <div>
-                  <p className="text-sm text-zinc-500">Requisições excluídas — restaure ou apague definitivamente</p>
+                  <p className="text-sm text-zinc-500">Requisições excluídas — restaure quando necessário</p>
                 </div>
-                {lixeiraCount > 0 && (
-                  <button
-                    onClick={async () => {
-                      if (!confirm('Apagar TODAS as requisições da lixeira permanentemente?')) return;
-                      const ids = requisicoes.filter(r => r.status === 'lixeira').map(r => r.id);
-                      await supabase.from('Requisicao').delete().in('id', ids);
-                      auditLog({ sistema: 'requisicoes', acao: 'deletar', entidade: 'requisicao', detalhes: { quantidade: ids.length, tipo: 'esvaziar_lixeira' } });
-                      notificarUsuariosReq('requisicao', `${userName} esvaziou a lixeira`, `${ids.length} requisições excluídas`, '/requisicoes');
-                      carregarDados(true);
-                    }}
-                    className="bg-red-50 hover:bg-red-600 border border-red-200 text-red-600 hover:text-white px-5 py-2.5 rounded-xl font-semibold text-xs uppercase tracking-wider flex items-center gap-2 transition-all"
-                  >
-                    <Trash2 size={14} /> Esvaziar Lixeira
-                  </button>
-                )}
               </div>
 
               {lixeiraCount === 0 ? (
@@ -854,19 +821,6 @@ function RequisicoesPageInner() {
                         >
                           <Activity size={14} /> Restaurar
                         </button>
-                        <button
-                          onClick={async () => {
-                            if (!confirm(`Excluir a requisição #${r.id} permanentemente?`)) return;
-                            await supabase.from('Requisicao').delete().eq('id', r.id);
-                            setRequisicoes(prev => prev.filter(x => x.id !== r.id));
-                            auditLog({ sistema: 'requisicoes', acao: 'deletar', entidade: 'requisicao', entidade_id: String(r.id), entidade_label: r.titulo });
-                            notificarUsuariosReq('requisicao', `${userName} excluiu requisição #${r.id}`, r.titulo || '', '/requisicoes');
-                          }}
-                          className="w-10 h-10 flex items-center justify-center rounded-xl bg-red-50 hover:bg-red-600 border border-red-200 text-red-500 hover:text-white transition-all"
-                          title="Excluir permanentemente"
-                        >
-                          <X size={14} />
-                        </button>
                       </div>
                     </div>
                   ))}
@@ -876,6 +830,9 @@ function RequisicoesPageInner() {
           )}
         </div>
       )}
+
+      {/* Painel do Dev (só visível para Devs) */}
+      {isDev && userProfile && <PainelDev devId={userProfile.id} devNome={userProfile.nome} />}
 
       {/* FAB - Nova Requisição */}
       <button

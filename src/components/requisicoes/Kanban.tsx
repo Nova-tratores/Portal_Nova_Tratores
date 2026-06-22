@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import CardCapaReq from './CardCapaReq';
 import { supabase } from '@/lib/supabase';
-import { Search, Calendar, Building2, X, Layout, UserCircle, Layers, SlidersHorizontal, Receipt, FileDown } from 'lucide-react';
+import { Search, Calendar, Building2, X, Layout, UserCircle, Layers, SlidersHorizontal, Receipt, FileDown, Info } from 'lucide-react';
 
 const LISTA_FORNECEDORES_CADASTRADOS = ["Rodrigo Torneiro (Panda)"];
 
@@ -21,13 +21,8 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado }
     };
     fetchDados();
   }, []);
-  const [filtroID, setFiltroID] = useState('');
-  const [filtroTitulo, setFiltroTitulo] = useState('');
-  const [filtroFornecedor, setFiltroFornecedor] = useState('');
-  const [filtroMes, setFiltroMes] = useState('');
-  const [filtroSolicitante, setFiltroSolicitante] = useState('');
-  const [filtroTipo, setFiltroTipo] = useState('');
-  const [filtroNota, setFiltroNota] = useState('');
+  const [filtroBusca, setFiltroBusca] = useState('');
+  const [filtroData, setFiltroData] = useState('');
   const [filtroFornAguardando, setFiltroFornAguardando] = useState('');
   const [filtroTecnicoPedido, setFiltroTecnicoPedido] = useState('');
   const [colunaArrastando, setColunaArrastando] = useState<string | null>(null);
@@ -58,22 +53,6 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado }
     }
     setColunaArrastando(null);
   };
-
-  const solicitantesParaFiltro = useMemo(() => {
-    const nomes = requisicoes.map((r: any) => r.solicitante).filter(Boolean);
-    return Array.from(new Set(nomes)).sort();
-  }, [requisicoes]);
-
-  const tiposParaFiltro = useMemo(() => {
-    const excluir = ['boleto', 'dinheiro'];
-    const tipos = requisicoes.map((r: any) => r.tipo).filter((t: string) => t && !excluir.includes(t.toLowerCase()));
-    return Array.from(new Set(tipos)).sort();
-  }, [requisicoes]);
-
-  const fornecedoresParaFiltro = useMemo(() => {
-    const doBanco = requisicoes.map((r: any) => r.fornecedor).filter(Boolean);
-    return Array.from(new Set([...LISTA_FORNECEDORES_CADASTRADOS, ...doBanco])).sort();
-  }, [requisicoes]);
 
   // Fornecedores por coluna de status (agrupa + conta)
   const contarFornecedoresPorStatus = (status: string) => {
@@ -112,33 +91,37 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado }
       .map(([nome, v]) => ({ nome, qtd: v.qtd, originais: [...v.originais] }));
   }, [requisicoes, dadosCompartilhados?.usuarios]);
 
-  const mesesDisponiveis = useMemo(() => {
-    const lista = requisicoes.map((r: any) => {
-      if (!r.data) return null;
-      const date = new Date(r.data);
-      return {
-        valor: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`,
-        label: date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
-      };
-    }).filter(Boolean);
-    return Array.from(new Map(lista.map((m: any) => [m.valor, m])).values());
-  }, [requisicoes]);
+  // Mapa email -> nome (para pesquisar técnico pelo nome, mesmo que guardado como email)
+  const nomePorEmail = useMemo(() => {
+    const m: Record<string, string> = {};
+    (dadosCompartilhados?.usuarios || []).forEach((u: any) => { if (u.email) m[u.email.trim().toLowerCase()] = u.nome; });
+    return m;
+  }, [dadosCompartilhados?.usuarios]);
+  const nomeSolicitante = useCallback((s: string) => {
+    if (s && s.includes('@')) return nomePorEmail[s.trim().toLowerCase()] || s;
+    return s || '';
+  }, [nomePorEmail]);
 
   const filtradas = useMemo(() => {
+    const q = filtroBusca.trim().toLowerCase();
     return requisicoes.filter((r: any) => {
-      const matchID = filtroID ? r.id.toString().includes(filtroID) : true;
-      const matchTitulo = filtroTitulo ? r.titulo?.toLowerCase().includes(filtroTitulo.toLowerCase()) : true;
-      const matchForn = filtroFornecedor ? r.fornecedor === filtroFornecedor : true;
-      const matchMes = filtroMes ? r.data?.startsWith(filtroMes) : true;
-      const matchSolic = filtroSolicitante ? r.solicitante === filtroSolicitante : true;
-      const matchTipo = filtroTipo ? r.tipo === filtroTipo : true;
-      const matchNota = filtroNota ? (r.numero_nota || '').toLowerCase().includes(filtroNota.toLowerCase()) : true;
-      return matchID && matchTitulo && matchForn && matchMes && matchSolic && matchTipo && matchNota;
+      const matchData = filtroData ? (r.data || '').startsWith(filtroData) : true;
+      if (!q) return matchData;
+      const alvo = [
+        String(r.id || ''),
+        r.titulo || '',
+        r.fornecedor || '',
+        r.numero_nota || '',
+        r.solicitante || '',
+        nomeSolicitante(r.solicitante),
+        r.tipo || '',
+      ].join(' ').toLowerCase();
+      return matchData && alvo.includes(q);
     });
-  }, [requisicoes, filtroID, filtroTitulo, filtroFornecedor, filtroMes, filtroSolicitante, filtroTipo, filtroNota]);
+  }, [requisicoes, filtroBusca, filtroData, nomeSolicitante]);
 
-  const temFiltroAtivo = filtroID || filtroTitulo || filtroFornecedor || filtroMes || filtroSolicitante || filtroTipo || filtroNota;
-  const limparFiltros = () => { setFiltroID(''); setFiltroTitulo(''); setFiltroFornecedor(''); setFiltroMes(''); setFiltroSolicitante(''); setFiltroTipo(''); setFiltroNota(''); setFiltroFornAguardando(''); setFiltroTecnicoPedido(''); };
+  const temFiltroAtivo = filtroBusca || filtroData;
+  const limparFiltros = () => { setFiltroBusca(''); setFiltroData(''); setFiltroFornAguardando(''); setFiltroTecnicoPedido(''); };
   const resultCount = filtradas.filter((r: any) => r.status !== 'lixeira').length;
 
   const gerarPdfCobranca = async (fornecedor?: string) => {
@@ -261,62 +244,42 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado }
       <div className="w-full px-6 pt-4 pb-2">
         <div className="flex items-center gap-2 flex-wrap">
 
-          {/* Busca por ID */}
-          <div className="relative">
-            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-red-500 pointer-events-none"/>
-            <input type="text" inputMode="numeric" placeholder="Nº ID" value={filtroID} onChange={e => setFiltroID(e.target.value.replace(/\D/g, ''))} className={`${inputInline} pl-8 w-[100px] text-center font-semibold`} />
-            {filtroID && <button onClick={() => setFiltroID('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-red-500"><X size={12}/></button>}
-          </div>
-
-          {/* Busca por título */}
-          <div className="relative flex-1 min-w-[200px] max-w-[320px]">
-            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"/>
-            <input type="text" placeholder="Buscar título..." value={filtroTitulo} onChange={e => setFiltroTitulo(e.target.value)} className={`${inputInline} pl-8 w-full`} />
+          {/* BUSCA UNIFICADA (pesquisa em vários campos) */}
+          <div className="relative flex-1 min-w-[260px] max-w-[460px] group">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-red-500 pointer-events-none"/>
+            <input
+              type="text"
+              placeholder="Pesquisar requisição..."
+              value={filtroBusca}
+              onChange={e => setFiltroBusca(e.target.value)}
+              className={`${inputInline} pl-9 pr-8 w-full ${filtroBusca ? '!border-red-400 !bg-red-50' : ''}`}
+            />
+            {filtroBusca
+              ? <button onClick={() => setFiltroBusca('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-red-500"><X size={13}/></button>
+              : <Info size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-300 pointer-events-none"/>
+            }
+            {/* Tooltip ao passar o rato — mostra os campos pesquisáveis */}
+            <div className="absolute left-0 top-full mt-1.5 z-30 hidden group-hover:block pointer-events-none">
+              <div className="bg-zinc-900 text-white text-[11px] leading-relaxed rounded-lg px-3 py-2 shadow-xl whitespace-nowrap">
+                <p className="font-bold text-red-300 mb-0.5">Pesquise por:</p>
+                <p>Nº ID · Título · Fornecedor · Nº da Nota · Solicitante · Tipo</p>
+              </div>
+            </div>
           </div>
 
           {/* Separador */}
           <div className="w-px h-5 bg-zinc-200" />
 
-          {/* Técnico */}
-          <div className="relative">
-            <UserCircle size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"/>
-            <select value={filtroSolicitante} onChange={e => setFiltroSolicitante(e.target.value)} className={`${selectInline} pl-7 ${filtroSolicitante ? '!border-red-400 !bg-red-50 !text-red-700' : ''}`}>
-              <option value="">Técnico</option>
-              {solicitantesParaFiltro.map((s: any) => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-
-          {/* Tipo */}
-          <div className="relative">
-            <Layers size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"/>
-            <select value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)} className={`${selectInline} pl-7 ${filtroTipo ? '!border-red-400 !bg-red-50 !text-red-700' : ''}`}>
-              <option value="">Tipo</option>
-              {tiposParaFiltro.map((t: any) => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-
-          {/* Fornecedor */}
-          <div className="relative">
-            <Building2 size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"/>
-            <select value={filtroFornecedor} onChange={e => setFiltroFornecedor(e.target.value)} className={`${selectInline} pl-7 ${filtroFornecedor ? '!border-red-400 !bg-red-50 !text-red-700' : ''}`}>
-              <option value="">Fornecedor</option>
-              {fornecedoresParaFiltro.map((f: any) => <option key={f} value={f}>{f}</option>)}
-            </select>
-          </div>
-
-          {/* Período */}
-          <div className="relative">
-            <Calendar size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"/>
-            <select value={filtroMes} onChange={e => setFiltroMes(e.target.value)} className={`${selectInline} pl-7 ${filtroMes ? '!border-red-400 !bg-red-50 !text-red-700' : ''}`}>
-              <option value="">Período</option>
-              {mesesDisponiveis.map((m: any) => <option key={m.valor} value={m.valor}>{m.label.toUpperCase()}</option>)}
-            </select>
-          </div>
-
-          {/* Nº Nota */}
-          <div className="relative">
-            <Receipt size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"/>
-            <input type="text" placeholder="Nº Nota" value={filtroNota} onChange={e => setFiltroNota(e.target.value)} className={`${inputInline} pl-8 w-[110px]`} />
+          {/* Data exata */}
+          <div className="relative" title="Pesquisar por data exata">
+            <Calendar size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none z-10"/>
+            <input
+              type="date"
+              value={filtroData}
+              onChange={e => setFiltroData(e.target.value)}
+              className={`${inputInline} pl-7 pr-2 ${filtroData ? '!border-red-400 !bg-red-50 !text-red-700' : ''}`}
+            />
+            {filtroData && <button onClick={() => setFiltroData('')} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-red-500 bg-white"><X size={12}/></button>}
           </div>
 
           {/* Contador + Limpar */}

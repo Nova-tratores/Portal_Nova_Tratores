@@ -6,6 +6,7 @@ interface Permissoes {
   id: string
   user_id: string
   is_admin: boolean
+  is_dev?: boolean
   categoria: string
   modulos_permitidos: string[]
 }
@@ -46,11 +47,12 @@ export function usePermissoes(userId: string | undefined) {
   const isEffectivelyLoading = loading || (!!userId && userId !== fetchedId.current)
 
   const isAdmin = permissoes?.is_admin === true
+  const isDev = permissoes?.is_dev === true
 
   const temAcesso = (modulo: string): boolean => {
     if (isAdmin) return true
     return permissoes?.modulos_permitidos?.includes(modulo) ?? false
   }
 
-  return { permissoes, isAdmin, temAcesso, loading: isEffectivelyLoading }
+  return { permissoes, isAdmin, isDev, temAcesso, loading: isEffectivelyLoading }
 }

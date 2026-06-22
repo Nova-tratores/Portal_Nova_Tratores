@@ -4,14 +4,16 @@ import dynamic from 'next/dynamic';
 import {
   Calendar, UserCircle, Briefcase,
   HardHat, ClipboardList, Printer, Trash2,
-  Receipt, Paperclip, Building2, Tag, BadgeCheck
+  Receipt, Paperclip, Building2, Tag, BadgeCheck, Clock
 } from 'lucide-react';
+import HistoricoModal from './HistoricoModal';
 
 // Carrega CardReq completo só quando o modal abre
 const CardReq = dynamic(() => import('./CardReq'), { ssr: false });
 
 export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhados, onCardFechado }: any) {
   const [modalAberto, setModalAberto] = useState(false);
+  const [histAberto, setHistAberto] = useState(false);
 
   const veioDoApp = req.origem === 'app_tecnico' || req.obs?.includes('[APPSHEET_ID:');
 
@@ -68,17 +70,18 @@ export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhado
         className={`bg-white border rounded-2xl p-6 hover:border-red-500 hover:shadow-lg transition-all cursor-grab group mb-5 active:cursor-grabbing border-l-[6px] relative overflow-hidden ${veioDoApp ? 'border-red-500 border-l-blue-600 shadow-md shadow-blue-900/10' : 'border-zinc-200 border-l-zinc-400'}`}
       >
         {veioDoApp && (
-          <div className="absolute top-0 left-0 bg-red-600 text-white text-xs font-black px-3 py-1 rounded-br-xl flex items-center gap-1 uppercase tracking-tighter z-10">
+          <div className="absolute top-0 left-0 bg-red-600 text-white text-xs font-black px-3 py-1 rounded-br-xl flex items-center gap-1 uppercase tracking-tighter z-10" title="Requisição criada pelo técnico através do aplicativo">
             <HardHat size={10} /> TÉCNICO (APP)
           </div>
         )}
 
         <div className="absolute top-6 right-6 flex gap-2">
-          <button onClick={(e) => { e.stopPropagation(); setModalAberto(true); }} className="p-3 rounded-xl bg-zinc-100 text-red-600 hover:bg-red-600 hover:text-white transition-all opacity-0 group-hover:opacity-100" title="Mapa de Cotações"><ClipboardList size={16} /></button>
-          <button onClick={handlePrintClick} className="p-3 rounded-xl bg-zinc-100 text-zinc-500 hover:bg-red-600 hover:text-white transition-all opacity-0 group-hover:opacity-100"><Printer size={16} /></button>
+          <button onClick={(e) => { e.stopPropagation(); setModalAberto(true); }} className="p-3 rounded-xl bg-zinc-100 text-red-600 hover:bg-red-600 hover:text-white transition-all opacity-0 group-hover:opacity-100" title="Abrir requisição / Mapa de Cotações"><ClipboardList size={16} /></button>
+          <button onClick={(e) => { e.stopPropagation(); setHistAberto(true); }} className="p-3 rounded-xl bg-zinc-100 text-zinc-500 hover:bg-zinc-800 hover:text-white transition-all opacity-0 group-hover:opacity-100" title="Histórico da requisição"><Clock size={16} /></button>
+          <button onClick={handlePrintClick} className="p-3 rounded-xl bg-zinc-100 text-zinc-500 hover:bg-red-600 hover:text-white transition-all opacity-0 group-hover:opacity-100" title="Imprimir requisição"><Printer size={16} /></button>
         </div>
 
-        <button onClick={handleTrash} className="absolute bottom-6 right-6 p-3 rounded-xl bg-zinc-100 text-zinc-500 hover:bg-red-600 hover:text-white transition-all opacity-0 group-hover:opacity-100"><Trash2 size={16} /></button>
+        <button onClick={handleTrash} className="absolute bottom-6 right-6 p-3 rounded-xl bg-zinc-100 text-zinc-500 hover:bg-red-600 hover:text-white transition-all opacity-0 group-hover:opacity-100" title="Mover para a lixeira"><Trash2 size={16} /></button>
 
         <div className="flex items-start gap-4 mb-5 mt-2">
           <div className={`min-w-[50px] h-[50px] rounded-xl flex items-center justify-center ${veioDoApp ? 'bg-red-500/15 text-red-600' : 'bg-zinc-50 text-zinc-500'}`}>
@@ -141,7 +144,7 @@ export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhado
 
         <div className="mt-4 flex justify-start items-center gap-3">
           <div className="text-[18px] font-bold text-zinc-900 tracking-tighter"><span className="text-xs text-zinc-400 mr-1 italic font-normal">R$</span>{req.valor_despeza || '0,00'}</div>
-          {(req.foto_nf || req.recibo_fornecedor) && <div className="flex gap-1 ml-auto">{req.foto_nf && <Receipt size={14} className="text-red-600" />}{req.recibo_fornecedor && <Paperclip size={14} className="text-zinc-400" />}</div>}
+          {(req.foto_nf || req.recibo_fornecedor) && <div className="flex gap-1 ml-auto">{req.foto_nf && <Receipt size={14} className="text-red-600" aria-label="Nota fiscal (NF) anexada"><title>Nota fiscal (NF) anexada</title></Receipt>}{req.recibo_fornecedor && <Paperclip size={14} className="text-zinc-400" aria-label="Recibo do fornecedor anexado"><title>Recibo do fornecedor anexado</title></Paperclip>}</div>}
         </div>
       </div>
 
@@ -156,6 +159,8 @@ export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhado
           onFechar={() => { setModalAberto(false); onCardFechado?.(req.id); }}
         />
       )}
+
+      <HistoricoModal reqId={req.id} titulo={req.titulo} open={histAberto} onClose={() => setHistAberto(false)} />
     </>
   );
 }
