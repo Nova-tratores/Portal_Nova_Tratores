@@ -46,8 +46,9 @@ export function usePermissoes(userId: string | undefined) {
   // Se userId mudou mas o effect ainda não rodou, considerar como loading
   const isEffectivelyLoading = loading || (!!userId && userId !== fetchedId.current)
 
-  const isAdmin = permissoes?.is_admin === true
   const isDev = permissoes?.is_dev === true
+  // Dev tem todos os acessos de Admin (e mais)
+  const isAdmin = permissoes?.is_admin === true || isDev
 
   const temAcesso = (modulo: string): boolean => {
     if (isAdmin) return true
