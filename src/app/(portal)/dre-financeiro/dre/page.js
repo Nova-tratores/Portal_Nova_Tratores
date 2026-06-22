@@ -62,6 +62,65 @@ function cor(v) {
   return 'text-slate-500'
 }
 
+// ---------------------------------------------------------------------------
+// Unidades de periodo (mes / trimestre / ano) a partir da lista de meses
+// "YYYY-MM". Cada unidade carrega as chaves de mes que a compoem, para a
+// agregacao posterior. Ordenadas cronologicamente.
+// ---------------------------------------------------------------------------
+function unidadesDeMeses(meses, unidade) {
+  const lista = (meses || []).slice().sort()
+  if (unidade === 'mes') {
+    return lista.map((k) => ({ key: k, label: rotuloMes(k), meses: [k] }))
+  }
+  if (unidade === 'ano') {
+    const mapa = {}
+    lista.forEach((k) => { const a = k.split('-')[0]; (mapa[a] = mapa[a] || []).push(k) })
+    return Object.keys(mapa).sort().map((a) => ({ key: a, label: a, meses: mapa[a] }))
+  }
+  // trimestre
+  const mapa = {}
+  lista.forEach((k) => {
+    const p = k.split('-'); const ano = p[0]; const q = Math.floor((parseInt(p[1]) - 1) / 3) + 1
+    const key = ano + '-T' + q
+    if (!mapa[key]) mapa[key] = { key, label: 'T' + q + '/' + ano.slice(2), meses: [] }
+    mapa[key].meses.push(k)
+  })
+  return Object.keys(mapa).sort().map((key) => mapa[key])
+}
+
+// Janelas moveis de 12 meses (uma por mes-fim), para a Peca B no modo 12M.
+function janelas12M(meses) {
+  const lista = (meses || []).slice().sort()
+  return lista.map((fim, i) => ({
+    key: fim,
+    label: rotuloMes(fim),
+    meses: lista.slice(Math.max(0, i - 11), i + 1),
+  }))
+}
+
+// Soma um por_mes sobre um conjunto de chaves de mes.
+function somaPorMeses(porMes, chaves) {
+  if (!porMes) return 0
+  let s = 0
+  ;(chaves || []).forEach((k) => { s += porMes[k] || 0 })
+  return s
+}
+
+// Agrega as 5 linhas do DRE (em R$) para um conjunto de meses, a partir da
+// arvore consolidada. Reconcilia com o grafico/KPIs:
+//   ReceitaLiquida = LucroBruto + |CMV| ; Resultado = LucroBruto - |Despesas|.
+function agregarDRE(consolidado, chaves) {
+  const lb = (consolidado && consolidado['1. Lucro Bruto']) || {}
+  const grupoCustos = (lb.grupos && lb.grupos['21. Custos']) || {}
+  const desp = (consolidado && consolidado['2. Despesas']) || {}
+  const lucroBruto = somaPorMeses(lb.por_mes, chaves)
+  const cmv = Math.abs(somaPorMeses(grupoCustos.por_mes, chaves))
+  const despesas = Math.abs(somaPorMeses(desp.por_mes, chaves))
+  const receita = lucroBruto + cmv
+  const resultado = lucroBruto - despesas
+  return { receita, cmv, lucroBruto, despesas, resultado }
+}
+
 // Defaults: jan/2023 ate mes anterior ao atual (igual setupDefaults da fonte)
 function defaultsPeriodo() {
   const hoje = new Date()
@@ -119,6 +178,12 @@ export default function DrePage() {
   const [mostrarCategorias, setMostrarCategorias] = useState(false)
   const [mostrarMeses, setMostrarMeses] = useState(true)
 
+  // --- Painel de resultado (Cascata + Margens + Resumo) ---------------------
+  const [dreUnidade, setDreUnidade] = useState('trimestre') // 'mes' | 'trimestre' | 'ano'
+  const [drePeriodoSel, setDrePeriodoSel] = useState(null)   // chave da unidade focada (cascata + resumo)
+  const [dreComparar, setDreComparar] = useState('anterior') // 'anterior' | 'ano_anterior'
+  const [margem12M, setMargem12M] = useState(false)          // Peca B: janela movel de 12 meses
+
   // Cache de denominadores (Receita Liquida Operacional) por escopo
   const [rl, setRl] = useState(null)
 
@@ -134,8 +199,10 @@ export default function DrePage() {
   const [ordemModal, setOrdemModal] = useState({ campo: 'valor', dir: 'desc' })
 
   // Refs de canvas + instancias Chart.js
-  const chartRef = useRef(null)
-  const chartInst = useRef(null)
+  const cascataRef = useRef(null)
+  const cascataInst = useRef(null)
+  const margemRef = useRef(null)
+  const margemInst = useRef(null)
   const despesasRef = useRef(null)
   const despesasInst = useRef(null)
   const treemapRef = useRef(null)
@@ -212,6 +279,16 @@ export default function DrePage() {
   useEffect(() => {
     if (dados) setRl(calcularReceitaLiquida(dados))
   }, [dados, calcularReceitaLiquida])
+
+  // Unidades de periodo do painel de resultado (cascata + resumo)
+  const dreUnidades = useCallback(() => unidadesDeMeses(dados?.meses, dreUnidade), [dados, dreUnidade])
+
+  // Quando dados/unidade mudam, foca a ultima unidade disponivel (se a atual sumiu)
+  useEffect(() => {
+    const us = unidadesDeMeses(dados?.meses, dreUnidade)
+    if (!us.length) { if (drePeriodoSel !== null) setDrePeriodoSel(null); return }
+    if (!us.some((u) => u.key === drePeriodoSel)) setDrePeriodoSel(us[us.length - 1].key)
+  }, [dados, dreUnidade, drePeriodoSel])
 
   // Formatadores que respeitam o modo (rs / pct). Retornam string ou JSX-marker.
   const fmtValorTexto = useCallback((v, denominador) => {
@@ -332,43 +409,148 @@ export default function DrePage() {
   }
 
   // =========================================================================
-  // Grafico de evolucao mensal (port fiel de renderGrafico)
+  // PECA A — Cascata (waterfall) do periodo focado.
+  // Sequencia: Receita Liquida -> (-)CMV -> (=)Lucro Bruto -> (-)Despesas
+  // -> (=)Resultado. Barras de total ancoram no zero; deducoes flutuam entre
+  // o acumulado anterior e o novo acumulado. Usa barras FLUTUANTES nativas do
+  // Chart.js (data: [lo, hi]) — assim o sinal do acumulado nao quebra o
+  // empilhamento (que separaria positivos e negativos). Um plugin inline
+  // desenha rotulos (R$ + % da receita) e conectores tracejados.
   // =========================================================================
   useEffect(() => {
-    if (!chartReady || !dados || !chartRef.current || !window.Chart) return
-    const colunas = colunasAtuais()
-    const labels = colunas.map(rotuloColuna)
-    const agrega = (porMes) => colunas.map((k) => valorPorColuna(porMes, k))
-    const grupoCustos = (dados.consolidado['1. Lucro Bruto'] || {}).grupos && (dados.consolidado['1. Lucro Bruto'] || {}).grupos['21. Custos']
-    const cmv = agrega(grupoCustos ? grupoCustos.por_mes : {}).map((v) => Math.abs(v))
-    const lucroBruto = agrega((dados.consolidado['1. Lucro Bruto'] || {}).por_mes || {})
-    const despesas = agrega((dados.consolidado['2. Despesas'] || {}).por_mes || {}).map((v) => Math.abs(v))
-    // Receita Liquida = Lucro Bruto + CMV (reconcilia com a linha de Resultado)
-    const receita = lucroBruto.map((lb, i) => lb + cmv[i])
-    const resultado = lucroBruto.map((lb, i) => lb - despesas[i])
+    if (!chartReady || !dados || !cascataRef.current || !window.Chart) return
+    const us = unidadesDeMeses(dados.meses, dreUnidade)
+    const sel = us.find((u) => u.key === drePeriodoSel) || us[us.length - 1]
+    if (!sel) { if (cascataInst.current) { cascataInst.current.destroy(); cascataInst.current = null } return }
+    const a = agregarDRE(dados.consolidado, sel.meses)
+    const rec = a.receita || 0
+    const lb = a.lucroBruto, res = a.resultado
 
-    if (chartInst.current) chartInst.current.destroy()
-    chartInst.current = new window.Chart(chartRef.current.getContext('2d'), {
+    // Cada barra: faixa [lo, hi]; `valor` e o delta exibido (deducoes negativas);
+    // `acc` e o nivel acumulado na aresta direita (origem do conector).
+    const verde = '#0ea5e9', azul = '#1e3a8a', coral = '#f97316', neg = '#dc2626'
+    const barras = [
+      { label: 'Receita Líquida', lo: 0, hi: rec, valor: rec, acc: rec, color: verde },
+      { label: '(−) CMV', lo: lb, hi: rec, valor: -a.cmv, acc: lb, color: coral },
+      { label: '(=) Lucro Bruto', lo: Math.min(0, lb), hi: Math.max(0, lb), valor: lb, acc: lb, color: azul },
+      { label: '(−) Despesas', lo: Math.min(lb, res), hi: Math.max(lb, res), valor: -a.despesas, acc: res, color: coral },
+      { label: '(=) Resultado', lo: Math.min(0, res), hi: Math.max(0, res), valor: res, acc: res, color: res >= 0 ? azul : neg },
+    ]
+    const labels = barras.map((b) => b.label)
+    const dataFaixas = barras.map((b) => [b.lo, b.hi])
+    const cores = barras.map((b) => b.color)
+
+    // Plugin inline: rotulos (R$ + %RL) acima de cada barra + conectores.
+    const pluginRotulos = {
+      id: 'cascataRotulos',
+      afterDatasetsDraw(chart) {
+        const { ctx } = chart
+        const meta = chart.getDatasetMeta(0)
+        if (!meta || !meta.data) return
+        ctx.save()
+        // conectores tracejados: nivel acumulado da barra i ate a barra i+1
+        ctx.setLineDash([4, 3]); ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1
+        for (let i = 0; i < barras.length - 1; i++) {
+          const el = meta.data[i], elNext = meta.data[i + 1]
+          if (!el || !elNext) continue
+          const yAcc = chart.scales.y.getPixelForValue(barras[i].acc)
+          ctx.beginPath()
+          ctx.moveTo(el.x - el.width / 2, yAcc)
+          ctx.lineTo(elNext.x + elNext.width / 2, yAcc)
+          ctx.stroke()
+        }
+        ctx.setLineDash([])
+        // rotulos: R$ (negrito) + % da receita, acima do topo de cada barra
+        ctx.textAlign = 'center'
+        barras.forEach((b, i) => {
+          const el = meta.data[i]; if (!el) return
+          const yTopo = chart.scales.y.getPixelForValue(b.hi)
+          const pct = rec ? (b.valor / rec) * 100 : 0
+          ctx.font = '700 11px sans-serif'; ctx.fillStyle = '#0f172a'
+          ctx.fillText(fmtBRLs(b.valor), el.x, yTopo - 17)
+          if (rec) { ctx.font = '600 10px sans-serif'; ctx.fillStyle = '#64748b'; ctx.fillText(pct.toFixed(0) + '%', el.x, yTopo - 5) }
+        })
+        ctx.restore()
+      },
+    }
+
+    if (cascataInst.current) cascataInst.current.destroy()
+    cascataInst.current = new window.Chart(cascataRef.current.getContext('2d'), {
+      type: 'bar',
+      data: { labels, datasets: [{ data: dataFaixas, backgroundColor: cores, borderWidth: 0, borderRadius: 3 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        layout: { padding: { top: 30 } },
+        scales: {
+          x: { grid: { display: false } },
+          y: { ticks: { callback: (v) => fmtBRLs(v) }, grid: { color: (c) => (c.tick && c.tick.value === 0 ? '#94a3b8' : '#f1f5f9') } },
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              title: (items) => items[0].label,
+              label: (item) => {
+                const b = barras[item.dataIndex]
+                const pct = rec ? (b.valor / rec) * 100 : 0
+                return fmtBRL(b.valor) + (rec ? ' · ' + pct.toFixed(1) + '% da receita' : '')
+              },
+            },
+          },
+        },
+      },
+      plugins: [pluginRotulos],
+    })
+  }, [chartReady, dados, dreUnidade, drePeriodoSel])
+
+  // =========================================================================
+  // PECA B — Linha de margens % ao longo do tempo.
+  // Margem Bruta % (solida) e Margem Liquida % (tracejada), por unidade
+  // (trimestre/ano) ou por janela movel de 12 meses. Linha de referencia no
+  // zero. Eixo secundario opcional fica a cargo do usuario; aqui mantemos
+  // apenas as duas margens para leitura limpa da rentabilidade.
+  // =========================================================================
+  useEffect(() => {
+    if (!chartReady || !dados || !margemRef.current || !window.Chart) return
+    const us = margem12M ? janelas12M(dados.meses) : unidadesDeMeses(dados.meses, dreUnidade)
+    const labels = us.map((u) => u.label)
+    const margemBruta = us.map((u) => {
+      const a = agregarDRE(dados.consolidado, u.meses)
+      return a.receita ? (a.lucroBruto / a.receita) * 100 : null
+    })
+    const margemLiquida = us.map((u) => {
+      const a = agregarDRE(dados.consolidado, u.meses)
+      return a.receita ? (a.resultado / a.receita) * 100 : null
+    })
+
+    if (margemInst.current) margemInst.current.destroy()
+    margemInst.current = new window.Chart(margemRef.current.getContext('2d'), {
+      type: 'line',
       data: {
         labels,
         datasets: [
-          { type: 'bar', label: 'Receita Líquida', data: receita, backgroundColor: 'rgba(16,185,129,0.6)', borderColor: '#059669', borderWidth: 1 },
-          { type: 'bar', label: 'CMV', data: cmv, backgroundColor: 'rgba(249,115,22,0.6)', borderColor: '#ea580c', borderWidth: 1 },
-          { type: 'bar', label: 'Despesas', data: despesas, backgroundColor: 'rgba(239,68,68,0.6)', borderColor: '#dc2626', borderWidth: 1 },
-          { type: 'line', label: 'Resultado', data: resultado, borderColor: '#1e293b', backgroundColor: '#ffffff', borderWidth: 2, pointRadius: 5, tension: 0.2 },
+          { label: 'Margem Bruta %', data: margemBruta, borderColor: '#1e3a8a', backgroundColor: '#1e3a8a', borderWidth: 2, pointRadius: 2, tension: 0.2, spanGaps: true },
+          { label: 'Margem Líquida %', data: margemLiquida, borderColor: '#dc2626', backgroundColor: '#dc2626', borderWidth: 2, borderDash: [5, 4], pointRadius: 2, tension: 0.2, spanGaps: true },
         ],
       },
       options: {
         responsive: true, maintainAspectRatio: false,
         interaction: { mode: 'index', intersect: false },
-        scales: { y: { ticks: { callback: (v) => fmtBRLs(v) } } },
+        scales: {
+          x: { grid: { display: false } },
+          y: {
+            ticks: { callback: (v) => v + '%' },
+            grid: { color: (c) => (c.tick && c.tick.value === 0 ? '#94a3b8' : '#f1f5f9') },
+          },
+        },
         plugins: {
-          tooltip: { callbacks: { label: (item) => item.dataset.label + ': ' + fmtBRL(item.raw) } },
+          legend: { position: 'bottom', labels: { boxWidth: 18, font: { size: 11 } } },
+          tooltip: { callbacks: { label: (item) => item.dataset.label + ': ' + (item.raw == null ? '—' : item.raw.toFixed(1) + '%') } },
         },
       },
     })
     setGraficoInfo((dados.meses || []).length + ' meses')
-  }, [chartReady, dados, granularidade, colunasAtuais, rotuloColuna, valorPorColuna])
+  }, [chartReady, dados, dreUnidade, margem12M])
 
   // =========================================================================
   // Teto de leitura do grafico de despesas (clamp IQR) — port fiel
@@ -1011,6 +1193,45 @@ export default function DrePage() {
   const linhasTabela = construirLinhasTabela()
   const colunas = colunasAtuais()
 
+  // =========================================================================
+  // PECA C — Resumo DRE do periodo focado: 5 linhas com R$, AV% (vertical,
+  // sobre a receita liquida) e AH% (horizontal, vs. periodo de comparacao).
+  // Comparacao: unidade imediatamente anterior, ou mesma unidade do ano
+  // anterior (4 trimestres / 12 meses / 1 ano atras).
+  // =========================================================================
+  const resumo = (() => {
+    if (!dados) return null
+    const us = unidadesDeMeses(dados.meses, dreUnidade)
+    if (!us.length) return null
+    const idx = Math.max(0, us.findIndex((u) => u.key === drePeriodoSel))
+    const sel = us[idx] || us[us.length - 1]
+    const selIdx = us.indexOf(sel)
+    const passo = dreComparar === 'ano_anterior'
+      ? (dreUnidade === 'mes' ? 12 : dreUnidade === 'trimestre' ? 4 : 1)
+      : 1
+    const cmp = us[selIdx - passo] || null
+    const aSel = agregarDRE(dados.consolidado, sel.meses)
+    const aCmp = cmp ? agregarDRE(dados.consolidado, cmp.meses) : null
+    const rec = aSel.receita || 0
+    const av = (v) => (rec ? (v / rec) * 100 : null)
+    const ah = (atual, ant) => (ant ? ((atual - ant) / Math.abs(ant)) * 100 : null)
+    const linha = (label, valor, sub, antVal) => ({
+      label, valor, sub,
+      av: av(valor),
+      ah: aCmp ? ah(valor, antVal) : null,
+    })
+    return {
+      sel, cmp,
+      linhas: [
+        linha('Receita Líquida', aSel.receita, false, aCmp?.receita),
+        linha('(−) CMV', -aSel.cmv, false, aCmp ? -aCmp.cmv : null),
+        linha('(=) Lucro Bruto', aSel.lucroBruto, true, aCmp?.lucroBruto),
+        linha('(−) Despesas', -aSel.despesas, false, aCmp ? -aCmp.despesas : null),
+        linha('(=) Resultado', aSel.resultado, true, aCmp?.resultado),
+      ],
+    }
+  })()
+
   // Movimentos filtrados/ordenados do modal (para a tabela)
   const modalFiltro = filtrarModal(modalBusca)
   const modalLista = ordenarModal(modalFiltro.list)
@@ -1130,14 +1351,92 @@ export default function DrePage() {
         </div>
       </div>
 
-      {/* Chart de evolucao mensal */}
+      {/* Seletor compartilhado do painel de resultado (Cascata + Resumo) */}
+      <div className="bg-white border border-slate-200 rounded-lg px-3 py-2 mb-4 flex items-center gap-2 flex-wrap text-xs text-slate-600">
+        <span className="uppercase tracking-wide text-slate-500">Período de análise</span>
+        <div className="inline-flex rounded border border-slate-300 overflow-hidden" title="Unidade do período para a cascata e o resumo">
+          {[['mes', 'Mês'], ['trimestre', 'Trimestre'], ['ano', 'Ano']].map(([k, lbl], i) => (
+            <button key={k} onClick={() => setDreUnidade(k)}
+              className={(i ? 'border-l border-slate-300 ' : '') + 'px-3 py-1 ' + (dreUnidade === k ? tgAtivo : tgInativo)}>{lbl}</button>
+          ))}
+        </div>
+        <select value={drePeriodoSel || ''} onChange={(e) => setDrePeriodoSel(e.target.value)}
+          className="border border-slate-300 rounded px-2 py-1">
+          {dreUnidades().map((u) => (<option key={u.key} value={u.key}>{u.label}</option>))}
+        </select>
+        <span className="ml-1 text-slate-500">comparar com</span>
+        <div className="inline-flex rounded border border-slate-300 overflow-hidden" title="Base da análise horizontal (AH%)">
+          <button onClick={() => setDreComparar('anterior')}
+            className={'px-3 py-1 ' + (dreComparar === 'anterior' ? tgAtivo : tgInativo)}>Período anterior</button>
+          <button onClick={() => setDreComparar('ano_anterior')}
+            className={'px-3 py-1 border-l border-slate-300 ' + (dreComparar === 'ano_anterior' ? tgAtivo : tgInativo)}>Ano anterior</button>
+        </div>
+        {resumo && resumo.cmp && (
+          <span className="text-[10px] text-slate-400">{resumo.sel.label} vs {resumo.cmp.label}</span>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+        {/* PECA A — Cascata do resultado */}
+        <div className="bg-white border border-slate-200 rounded-lg p-3">
+          <div className="text-xs uppercase tracking-wide text-slate-500 mb-1">
+            Cascata do resultado{resumo ? ' — ' + resumo.sel.label : ''}
+          </div>
+          <div style={{ height: 300, position: 'relative' }}>
+            <canvas ref={cascataRef}></canvas>
+          </div>
+        </div>
+
+        {/* PECA C — Resumo DRE (R$, AV%, AH%) */}
+        <div className="bg-white border border-slate-200 rounded-lg p-3">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-xs uppercase tracking-wide text-slate-500">Resumo DRE</div>
+            <div className="text-[10px] text-slate-400">
+              AV% = sobre receita líquida · AH% = vs {dreComparar === 'ano_anterior' ? 'ano anterior' : 'período anterior'}
+            </div>
+          </div>
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-slate-500 border-b border-slate-200">
+                <th className="text-left py-1 font-medium">Linha</th>
+                <th className="text-right py-1 font-medium">R$</th>
+                <th className="text-right py-1 font-medium">AV%</th>
+                <th className="text-right py-1 font-medium">AH%</th>
+              </tr>
+            </thead>
+            <tbody>
+              {resumo ? resumo.linhas.map((l) => (
+                <tr key={l.label} className={'border-b border-slate-100 ' + (l.sub ? 'font-bold text-slate-800' : 'text-slate-600')}>
+                  <td className="py-1.5">{l.label}</td>
+                  <td className={'py-1.5 text-right tabular-nums ' + cor(l.valor)}>{fmtBRL(l.valor)}</td>
+                  <td className="py-1.5 text-right text-slate-500 tabular-nums">{l.av == null ? '—' : l.av.toFixed(1) + '%'}</td>
+                  <td className={'py-1.5 text-right tabular-nums ' + (l.ah == null ? 'text-slate-400' : l.ah >= 0 ? 'text-emerald-700' : 'text-red-700')}>
+                    {l.ah == null ? '—' : (l.ah >= 0 ? '+' : '') + l.ah.toFixed(1) + '%'}
+                  </td>
+                </tr>
+              )) : (
+                <tr><td colSpan={4} className="py-4 text-center text-slate-400">Sem dados.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* PECA B — Evolucao das margens (%) */}
       <div className="bg-white border border-slate-200 rounded-lg p-3 mb-4">
         <div className="flex items-center justify-between mb-1">
-          <div className="text-xs uppercase tracking-wide text-slate-500">Evolucao mensal (consolidado)</div>
-          <div className="text-[10px] text-slate-400">{graficoInfo}</div>
+          <div className="text-xs uppercase tracking-wide text-slate-500">
+            Evolução das margens (%) — por {margem12M ? '12 meses móveis' : (dreUnidade === 'mes' ? 'mês' : dreUnidade === 'trimestre' ? 'trimestre' : 'ano')}
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-[10px] flex items-center gap-1" title="Suaviza a sazonalidade somando os últimos 12 meses em cada ponto">
+              <input type="checkbox" checked={margem12M} onChange={(e) => setMargem12M(e.target.checked)} /> 12M móvel
+            </label>
+            <div className="text-[10px] text-slate-400">{graficoInfo}</div>
+          </div>
         </div>
         <div style={{ height: 260, position: 'relative' }}>
-          <canvas ref={chartRef}></canvas>
+          <canvas ref={margemRef}></canvas>
         </div>
       </div>
 

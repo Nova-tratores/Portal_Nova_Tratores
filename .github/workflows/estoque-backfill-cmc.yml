@@ -1,0 +1,23 @@
+name: Estoque - Backfill CMC (diário)
+
+# Enriquece o CMC (cmc_unitario) das vendas_itens que ainda não têm custo.
+# Necessário porque o portal roda no Railway e o vercel.json não dispara cron.
+# Substitui o agendarBackfillCMCDiario do monolito.
+# Requer os secrets do GitHub: PORTAL_URL e CRON_SECRET.
+
+on:
+  schedule:
+    - cron: '0 6 * * *'    # 06:00 UTC = 03:00 de Brasília (madrugada)
+  workflow_dispatch: {}      # permite rodar manualmente pelo botão "Run workflow"
+
+jobs:
+  backfill-cmc:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Disparar backfill de CMC
+        run: |
+          curl -fsS --max-time 600 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/estoque/cron/backfill-cmc" \
+            -w "\nbackfill-cmc: HTTP %{http_code}\n"

@@ -1,0 +1,23 @@
+name: Estoque - Sync incremental (mês atual)
+
+# Sincroniza vendas + OS do mês atual (todas as contas) para manter o
+# dashboard de estoque quente sem depender de alguém abrir a UI.
+# Necessário porque o portal roda no Railway e o vercel.json não dispara cron.
+# Requer os secrets do GitHub: PORTAL_URL e CRON_SECRET.
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'   # a cada 30 minutos
+  workflow_dispatch: {}        # permite rodar manualmente
+
+jobs:
+  sync-incremental:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Disparar sync incremental
+        run: |
+          curl -fsS --max-time 600 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/estoque/cron/sync-incremental" \
+            -w "\nsync-incremental: HTTP %{http_code}\n"

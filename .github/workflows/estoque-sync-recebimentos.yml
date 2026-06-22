@@ -1,0 +1,23 @@
+name: Estoque - Sync recebimentos NF-e
+
+# Sincroniza os recebimentos de NF-e do Omie (ListarRecebimentos ->
+# recebimentos_nfe) para todas as contas, em janela comercial.
+# Necessário porque o portal roda no Railway e o vercel.json não dispara cron.
+# Requer os secrets do GitHub: PORTAL_URL e CRON_SECRET.
+
+on:
+  schedule:
+    - cron: '*/15 9-22 * * *'   # a cada 15 min, das 09h às 22h UTC (06h-19h BRT)
+  workflow_dispatch: {}          # permite rodar manualmente
+
+jobs:
+  sync-recebimentos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Disparar sync de recebimentos
+        run: |
+          curl -fsS --max-time 600 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/estoque/cron/sync-recebimentos" \
+            -w "\nsync-recebimentos: HTTP %{http_code}\n"
