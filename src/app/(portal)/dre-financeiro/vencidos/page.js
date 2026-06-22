@@ -174,6 +174,7 @@ export default function VencidosPage() {
   const [carregando, setCarregando] = useState(true)
   const [tab, setTab] = useState('lista')        // 'lista' | 'terceiro'
   const [faixaFiltro, setFaixaFiltro] = useState(null) // null = todas; senao '1-30' etc.
+  const [ultimos180, setUltimos180] = useState(false) // false = todos; true = últimos 180 dias
   const [sortCol, setSortCol] = useState('atraso')     // empresa|nome|doc|venc|atraso|valor
   const [sortDir, setSortDir] = useState('desc')       // asc|desc
 
@@ -249,6 +250,7 @@ export default function VencidosPage() {
     if (!dados) return []
     let lista = dados.titulos.slice()
     if (faixaFiltro) lista = lista.filter((t) => t.faixa === faixaFiltro)
+    if (ultimos180) lista = lista.filter((t) => Number(t.dias_atraso) <= 180)
     const dir = sortDir === 'asc' ? 1 : -1
     lista.sort((a, b) => {
       const va = sortVal(a, sortCol), vb = sortVal(b, sortCol)
@@ -259,7 +261,7 @@ export default function VencidosPage() {
       return r * dir
     })
     return lista
-  }, [dados, faixaFiltro, sortCol, sortDir])
+  }, [dados, faixaFiltro, ultimos180, sortCol, sortDir])
 
   // =========================================================================
   // Modal: produtos + comentarios (port fiel de carregarProdutos/Comentarios)
@@ -349,7 +351,7 @@ export default function VencidosPage() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = 'vencidos_' + tipo + (faixaFiltro ? '_' + faixaFiltro : '') + '.csv'
+    a.download = 'vencidos_' + tipo + (faixaFiltro ? '_' + faixaFiltro : '') + (ultimos180 ? '_ult180' : '') + '.csv'
     document.body.appendChild(a); a.click(); document.body.removeChild(a)
     URL.revokeObjectURL(url)
   }
@@ -366,6 +368,7 @@ export default function VencidosPage() {
     const contaTxt = (conta === 'todas' || !conta) ? 'Todas as empresas' : empresaLabel(conta)
     const tipoTxt = tipo === 'receber' ? 'A receber' : (tipo === 'ambos' ? 'Pagar + Receber' : 'A pagar')
     const faixaTxt = faixaFiltro ? (' · Faixa: ' + (LABEL_FAIXA[faixaFiltro] || faixaFiltro)) : ''
+    const periodoTxt = ultimos180 ? ' · Últimos 180 dias' : ''
 
     const rows = lista.map((t) => '<tr>' +
       '<td>' + esc(empresaLabel(t.conta_omie)) + '</td>' +
@@ -389,7 +392,7 @@ export default function VencidosPage() {
       '@media print{body{margin:10mm} .noprint{display:none}}' +
       '</style></head><body>' +
       '<h1>⚠️ Títulos Vencidos</h1>' +
-      '<div class="sub">' + esc(contaTxt) + ' · ' + esc(tipoTxt) + esc(faixaTxt) + ' · Gerado em ' + dataStr + '</div>' +
+      '<div class="sub">' + esc(contaTxt) + ' · ' + esc(tipoTxt) + esc(faixaTxt) + esc(periodoTxt) + ' · Gerado em ' + dataStr + '</div>' +
       '<div class="tot"><div>Total em aberto: <b>' + fmtBRLfull(totalAberto) + '</b></div><div>Títulos: <b style="color:#1e293b">' + lista.length + '</b></div></div>' +
       '<table><thead><tr><th>Empresa</th><th>Terceiro</th><th>Documento</th><th>Grupo</th>' +
       '<th class="r">Vencimento</th><th class="r">Atraso</th><th class="r">Valor em aberto</th></tr></thead>' +
@@ -441,7 +444,9 @@ export default function VencidosPage() {
   // =========================================================================
   // "Por terceiro": agrupa (port fiel de renderTerceiro)
   // =========================================================================
-  const base = (dados && faixaFiltro) ? dados.titulos.filter((t) => t.faixa === faixaFiltro) : (dados ? dados.titulos : [])
+  const base = (dados ? dados.titulos : [])
+    .filter((t) => !faixaFiltro || t.faixa === faixaFiltro)
+    .filter((t) => !ultimos180 || Number(t.dias_atraso) <= 180)
   let grupos = []
   let maxTotal = 1
   if (tab === 'terceiro') {
@@ -543,6 +548,15 @@ export default function VencidosPage() {
         })}
       </div>
 
+      <div className="flex flex-wrap items-center gap-3 mb-6">
+        <button type="button" onClick={() => setUltimos180((cur) => !cur)}
+          className={'px-3 py-2 rounded-lg border transition text-sm font-semibold ' +
+            (ultimos180 ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100')}>
+          {ultimos180 ? 'Últimos 180 dias (ativo)' : 'Filtrar últimos 180 dias'}
+        </button>
+        {ultimos180 ? <div className="text-sm text-slate-500">Mostrando apenas títulos vencidos até 180 dias atrás.</div> : null}
+      </div>
+
       {/* Conteudo da aba */}
       <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
         {carregando ? (
@@ -555,6 +569,7 @@ export default function VencidosPage() {
             <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 text-sm text-slate-600">
               <b>{grupos.length}</b> terceiro{grupos.length !== 1 ? 's' : ''}
               {faixaFiltro ? ' · faixa ' + LABEL_FAIXA[faixaFiltro] : ''}
+              {ultimos180 ? ' · últimos 180 dias' : ''}
               {' · clique para ver os títulos'}
             </div>
             {grupos.length === 0 ? (
@@ -613,7 +628,8 @@ export default function VencidosPage() {
           <>
             <div className="flex items-center justify-between px-4 py-2 bg-slate-50 border-b border-slate-200 text-sm">
               <div className="text-slate-600"><b>{lista.length}</b> título{lista.length !== 1 ? 's' : ''}
-                {faixaFiltro ? ' · faixa ' + LABEL_FAIXA[faixaFiltro] : ''}</div>
+                {faixaFiltro ? ' · faixa ' + LABEL_FAIXA[faixaFiltro] : ''}
+                {ultimos180 ? ' · últimos 180 dias' : ''}</div>
               <div className="text-slate-600">Total: <b className="text-red-700">{fmtBRLfull(totalFiltro)}</b></div>
             </div>
             {lista.length === 0 ? (
