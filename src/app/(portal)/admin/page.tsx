@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation'
 import {
   Shield, Users, Check, X, Search, ChevronDown, ChevronUp, ArrowLeft,
   User as UserIcon, Lock, Unlock, Wrench, UserPlus, Eye, EyeOff,
-  Activity, Clock, Settings, ClipboardList, DollarSign, FileText, Mail, Ban, RotateCcw, Code2
+  Activity, Clock, Settings, ClipboardList, DollarSign, FileText, Mail, Ban, RotateCcw
 } from 'lucide-react'
 import { PAGINAS_AJUSTES } from '@/app/(portal)/ajustes/paginas'
 
@@ -718,39 +718,35 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* Nível de acesso: Usuário / Admin / Dev */}
-              <div style={{ display: 'flex', gap: '3px', background: '#f5f5f5', padding: '3px', borderRadius: '10px' }}>
-                {([
-                  { key: 'usuario', label: 'USUÁRIO', icon: <Unlock size={13} />, bg: '#fff', fg: '#737373' },
-                  { key: 'admin', label: 'ADMIN', icon: <Shield size={13} />, bg: '#fef3c7', fg: '#d97706' },
-                  { key: 'dev', label: 'DEV', icon: <Code2 size={13} />, bg: '#1e293b', fg: '#fff' },
-                ]).map(opt => {
-                  const nivelAtual = perm?.is_dev ? 'dev' : perm?.is_admin ? 'admin' : 'usuario'
-                  const ativo = nivelAtual === opt.key
-                  const devLock = !isDev && (opt.key === 'dev' || nivelAtual === 'dev')
-                  const bloqueado = isMe || devLock
-                  return (
-                    <button
-                      key={opt.key}
-                      onClick={() => { if (!bloqueado && !ativo) setNivel(user.id, opt.key) }}
-                      disabled={bloqueado}
-                      title={devLock ? 'Só um Dev pode atribuir/alterar o papel Dev' : (isMe ? 'Não pode alterar o seu próprio nível' : '')}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: '5px',
-                        padding: '5px 10px', borderRadius: '8px', border: 'none',
-                        background: ativo ? opt.bg : 'transparent',
-                        color: ativo ? opt.fg : '#bdbdbd',
-                        boxShadow: ativo ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
-                        fontSize: '11px', fontWeight: '700',
-                        cursor: bloqueado ? 'not-allowed' : (ativo ? 'default' : 'pointer'),
-                        opacity: bloqueado && !ativo ? 0.35 : 1, transition: '0.2s'
-                      }}
-                    >
-                      {opt.icon} {opt.label}
-                    </button>
-                  )
-                })}
-              </div>
+              {/* Nível de acesso: Usuário / Admin / Dev (dropdown) */}
+              {(() => {
+                const nivelAtual = perm?.is_dev ? 'dev' : perm?.is_admin ? 'admin' : 'usuario'
+                const devLock = !isDev && nivelAtual === 'dev'
+                const bloqueado = isMe || devLock
+                const cor = nivelAtual === 'dev'
+                  ? { bg: '#1e293b', fg: '#fff', bd: '#1e293b' }
+                  : nivelAtual === 'admin'
+                    ? { bg: '#fef3c7', fg: '#d97706', bd: '#fde68a' }
+                    : { bg: '#fff', fg: '#737373', bd: '#e5e5e5' }
+                return (
+                  <select
+                    value={nivelAtual}
+                    onChange={(e) => { if (!bloqueado) setNivel(user.id, e.target.value) }}
+                    disabled={bloqueado}
+                    title={isMe ? 'Não pode alterar o seu próprio nível' : (devLock ? 'Só um Dev pode alterar um Dev' : '')}
+                    style={{
+                      padding: '6px 12px', borderRadius: '8px', border: `1px solid ${cor.bd}`,
+                      background: cor.bg, color: cor.fg, fontSize: '12px', fontWeight: '700',
+                      cursor: bloqueado ? 'not-allowed' : 'pointer', outline: 'none',
+                      opacity: bloqueado ? 0.8 : 1
+                    }}
+                  >
+                    <option value="usuario" style={{ background: '#fff', color: '#111' }}>Usuário</option>
+                    <option value="admin" style={{ background: '#fff', color: '#111' }}>Admin</option>
+                    {(isDev || perm?.is_dev) && <option value="dev" style={{ background: '#fff', color: '#111' }}>Dev</option>}
+                  </select>
+                )
+              })()}
 
               {/* Categoria */}
               <div>
