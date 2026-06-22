@@ -14,6 +14,8 @@ import { PAGINAS_AJUSTES } from '@/app/(portal)/ajustes/paginas'
 const MODULOS = [
   // Modulo Ajustes: permissao por pagina (chave 'ajustes:<x>') — preparado p/ etapa 2
   ...PAGINAS_AJUSTES.map((p) => ({ id: p.key, label: 'Ajustes · ' + p.label, color: '#991b1b' })),
+  // Permissao granular de ACAO (nao e' pagina): encerrar pedido informalmente.
+  { id: 'ajustes:pedidos:encerrar', label: 'Ajustes · Pedidos — Encerrar informal', color: '#7f1d1d' },
   { id: 'avisos', label: 'Avisos', color: '#dc2626' },
   { id: 'clientes', label: 'Clientes', color: '#dc2626' },
   { id: 'visual-estoque', label: 'Consulta Omie', color: '#7f1d1d' },

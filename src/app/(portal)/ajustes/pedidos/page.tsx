@@ -2,9 +2,10 @@
 // Pedidos de venda abertos + encerramento informal. Portado de pedidos.ejs +
 // public/pedidos.js. Consome /api/ajustes/pedidos{,/encerrar-informal,/csv,/pdf}
 // e /api/ajustes/encerramentos-informais.
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
@@ -57,6 +58,25 @@ function isoOffset(dias: number): string {
 const thStyle: React.CSSProperties = { background: '#f8fafc', color: '#475569', fontSize: '.65rem', textTransform: 'uppercase', letterSpacing: '.4px', padding: '8px 10px', textAlign: 'left', borderBottom: '1px solid #e2e8f0', fontWeight: 600, whiteSpace: 'nowrap' };
 const tdStyle: React.CSSProperties = { padding: '8px 10px', borderBottom: '1px solid #f1f5f9', color: '#334155', fontSize: '.82rem' };
 
+// Acessores de coluna (ordenacao + filtro) da tabela de pedidos abertos. Numeros
+// ordenam por subtracao; strings por localeCompare. Datas BR viram timestamp.
+const ACESSO: Record<string, (p: Pedido) => string | number> = {
+  numero: (p) => p.numero || '',
+  inclusao: (p) => { const m = /(\d{2})\/(\d{2})\/(\d{4})/.exec(p.dataInclusao || p.dataPrevisao || ''); return m ? new Date(+m[3], +m[2] - 1, +m[1]).getTime() : 0; },
+  dias: (p) => diasDesdeBR(p.dataInclusao || p.dataPrevisao) ?? -1,
+  parado: (p) => p.diasParadoEtapa != null ? p.diasParadoEtapa : (diasDesdeBR(p.dataAlteracao || p.dataInclusao) ?? -1),
+  cliente: (p) => p.nomeCliente || ('cli #' + (p.codigoCliente || '')),
+  criadoPor: (p) => p.criadoPorNome || p.criadoPorLogin || '',
+  etapa: (p) => p.etapaNome || p.etapa || '',
+  itens: (p) => (p.itens || []).length,
+  valor: (p) => p.valorTotal || 0,
+};
+// Cabecalho clicavel (ordena) — esq. e dir.
+const thSort: React.CSSProperties = { ...thStyle, cursor: 'pointer', userSelect: 'none' };
+const thSortR: React.CSSProperties = { ...thStyle, cursor: 'pointer', userSelect: 'none', textAlign: 'right' };
+const thFiltroStyle: React.CSSProperties = { background: '#f8fafc', padding: '0 6px 6px', borderBottom: '1px solid #e2e8f0' };
+const filtroInput: React.CSSProperties = { width: '100%', minWidth: 60, border: '1px solid #cbd5e1', borderRadius: 4, padding: '3px 6px', fontSize: '.72rem', fontWeight: 400 };
+
 export default function PedidosPage() {
   const { userProfile } = useAuth();
   const { temAcesso, loading: permLoading } = usePermissoes(userProfile?.id);
@@ -78,6 +98,20 @@ export default function PedidosPage() {
   const [razao, setRazao] = useState('');
   const [modalStatus, setModalStatus] = useState('');
   const [aplicando, setAplicando] = useState(false);
+
+  // permissao granular pra encerrar (alem do acesso a pagina)
+  const podeEncerrarInformal = temAcesso('ajustes:pedidos:encerrar');
+
+  // popup de detalhes (read-only) ao clicar na linha
+  const [detalheSel, setDetalheSel] = useState<Pedido | null>(null);
+
+  // ordenacao + filtro da tabela de abertos
+  const [ordem, setOrdem] = useState<{ col: string; dir: 'asc' | 'desc' } | null>(null);
+  const [filtros, setFiltros] = useState<Record<string, string>>({});
+  const toggleOrdem = useCallback((col: string) => {
+    setOrdem((o) => (o && o.col === col ? (o.dir === 'asc' ? { col, dir: 'desc' } : null) : { col, dir: 'asc' }));
+  }, []);
+  const setaCol = (col: string) => (ordem?.col === col ? (ordem.dir === 'asc' ? ' ▲' : ' ▼') : '');
 
   const buscarAbertos = useCallback(async (force: boolean) => {
     if (!conta) return;
@@ -134,8 +168,10 @@ export default function PedidosPage() {
     if (!confirm(`Encerrar o pedido #${pedidoSel.numero || pedidoSel.idPedido} informalmente?\n\nIsso vai BAIXAR o estoque de ${(pedidoSel.itens || []).length} item(ns), gravar a razao na obs do pedido e CANCELAR o pedido no Omie. Confirmar?`)) return;
     setAplicando(true); setModalStatus('aplicando...');
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const resp = await fetch('/api/ajustes/pedidos/encerrar-informal', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token ?? ''}` },
         body: JSON.stringify({ conta, idPedido: pedidoSel.idPedido, numeroPedido: pedidoSel.numero, razao: r, criadoPor }),
       });
       const d = await resp.json();
@@ -165,9 +201,32 @@ export default function PedidosPage() {
     else window.location.href = url;
   }, [conta, contaParam, de, ate]);
 
+  const peds = useMemo(() => dados?.pedidos || [], [dados]);
+  // aplica filtros de texto e ordenacao sobre a lista de abertos
+  const pedsView = useMemo(() => {
+    let arr = peds.slice();
+    for (const [col, termo] of Object.entries(filtros)) {
+      const t = (termo || '').trim().toLowerCase();
+      if (!t) continue;
+      const acc = ACESSO[col];
+      if (!acc) continue;
+      arr = arr.filter((p) => String(acc(p)).toLowerCase().includes(t));
+    }
+    if (ordem) {
+      const acc = ACESSO[ordem.col];
+      if (acc) {
+        arr = arr.slice().sort((a, b) => {
+          const va = acc(a), vb = acc(b);
+          const c = (typeof va === 'number' && typeof vb === 'number') ? va - vb : String(va).localeCompare(String(vb), 'pt-BR');
+          return ordem.dir === 'asc' ? c : -c;
+        });
+      }
+    }
+    return arr;
+  }, [peds, filtros, ordem]);
+
   if (!permLoading && userProfile && !temAcesso('ajustes:pedidos')) return <SemPermissao />;
 
-  const peds = dados?.pedidos || [];
   const corStatusEnc = (s?: string) => s === 'aplicado' ? { background: '#d1fae5', color: '#065f46' } : s === 'parcial' ? { background: '#fef3c7', color: '#92400e' } : s === 'erro' ? { background: '#fee2e2', color: '#991b1b' } : { background: '#f1f5f9', color: '#334155' };
 
   return (
@@ -234,16 +293,28 @@ export default function PedidosPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>
-                    <th style={thStyle}>Numero</th>
-                    <th style={thStyle}>Inclusao</th>
-                    <th style={{ ...thStyle, textAlign: 'right' }}>Dias</th>
-                    <th style={{ ...thStyle, textAlign: 'right' }}>Parado</th>
-                    <th style={thStyle}>Cliente</th>
-                    <th style={thStyle}>Criado por</th>
-                    <th style={thStyle}>Etapa</th>
-                    <th style={{ ...thStyle, textAlign: 'right' }}>Itens</th>
-                    <th style={{ ...thStyle, textAlign: 'right' }}>Valor</th>
+                    <th style={thSort} onClick={() => toggleOrdem('numero')}>Numero{setaCol('numero')}</th>
+                    <th style={thSort} onClick={() => toggleOrdem('inclusao')}>Inclusao{setaCol('inclusao')}</th>
+                    <th style={thSortR} onClick={() => toggleOrdem('dias')}>Dias{setaCol('dias')}</th>
+                    <th style={thSortR} onClick={() => toggleOrdem('parado')}>Parado{setaCol('parado')}</th>
+                    <th style={thSort} onClick={() => toggleOrdem('cliente')}>Cliente{setaCol('cliente')}</th>
+                    <th style={thSort} onClick={() => toggleOrdem('criadoPor')}>Criado por{setaCol('criadoPor')}</th>
+                    <th style={thSort} onClick={() => toggleOrdem('etapa')}>Etapa{setaCol('etapa')}</th>
+                    <th style={thSortR} onClick={() => toggleOrdem('itens')}>Itens{setaCol('itens')}</th>
+                    <th style={thSortR} onClick={() => toggleOrdem('valor')}>Valor{setaCol('valor')}</th>
                     <th style={{ ...thStyle, textAlign: 'right' }}>Acao</th>
+                  </tr>
+                  <tr>
+                    <th style={thFiltroStyle}><input value={filtros.numero || ''} onChange={(e) => setFiltros((f) => ({ ...f, numero: e.target.value }))} placeholder="filtrar…" style={filtroInput} /></th>
+                    <th style={thFiltroStyle}></th>
+                    <th style={thFiltroStyle}></th>
+                    <th style={thFiltroStyle}></th>
+                    <th style={thFiltroStyle}><input value={filtros.cliente || ''} onChange={(e) => setFiltros((f) => ({ ...f, cliente: e.target.value }))} placeholder="filtrar…" style={filtroInput} /></th>
+                    <th style={thFiltroStyle}><input value={filtros.criadoPor || ''} onChange={(e) => setFiltros((f) => ({ ...f, criadoPor: e.target.value }))} placeholder="filtrar…" style={filtroInput} /></th>
+                    <th style={thFiltroStyle}><input value={filtros.etapa || ''} onChange={(e) => setFiltros((f) => ({ ...f, etapa: e.target.value }))} placeholder="filtrar…" style={filtroInput} /></th>
+                    <th style={thFiltroStyle}></th>
+                    <th style={thFiltroStyle}></th>
+                    <th style={thFiltroStyle}></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -251,15 +322,18 @@ export default function PedidosPage() {
                     <tr><td colSpan={10} style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>Clique em <b>Buscar</b> para listar os pedidos abertos.</td></tr>
                   ) : peds.length === 0 ? (
                     <tr><td colSpan={10} style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>Nenhum pedido ativo na janela.</td></tr>
+                  ) : pedsView.length === 0 ? (
+                    <tr><td colSpan={10} style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>Nenhum pedido corresponde ao filtro.</td></tr>
                   ) : (
-                    peds.map((p, i) => {
+                    pedsView.map((p, i) => {
                       const dias = p.diasParadoEtapa != null ? diasDesdeBR(p.dataInclusao || p.dataPrevisao) : diasDesdeBR(p.dataInclusao || p.dataPrevisao);
                       const corDias = dias != null && dias >= 30 ? { color: '#b91c1c', fontWeight: 600 } : dias != null && dias >= 15 ? { color: '#b45309' } : {};
                       const parado = p.diasParadoEtapa != null ? p.diasParadoEtapa : diasDesdeBR(p.dataAlteracao || p.dataInclusao);
                       const corParado = parado != null && parado >= 30 ? { color: '#b91c1c', fontWeight: 600 } : parado != null && parado >= 15 ? { color: '#b45309' } : {};
-                      const podeEncerrar = p.idPedido != null && (p.itens || []).length > 0;
+                      const temItens = p.idPedido != null && (p.itens || []).length > 0;
+                      const podeEncerrar = temItens && podeEncerrarInformal;
                       return (
-                        <tr key={p.idPedido ?? i} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <tr key={p.idPedido ?? i} onClick={() => setDetalheSel(p)} style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }} title="Ver detalhes do pedido">
                           <td style={{ ...tdStyle, fontFamily: 'monospace' }}>{p.numero || '?'}</td>
                           <td style={{ ...tdStyle, fontSize: '.72rem' }}>{p.dataInclusao || p.dataPrevisao || ''}</td>
                           <td style={{ ...tdStyle, textAlign: 'right', fontSize: '.72rem', ...corDias }}>{dias != null ? dias : '-'}</td>
@@ -270,7 +344,7 @@ export default function PedidosPage() {
                           <td style={{ ...tdStyle, textAlign: 'right' }}>{(p.itens || []).length}</td>
                           <td style={{ ...tdStyle, textAlign: 'right' }}>{fmtBRL(p.valorTotal)}</td>
                           <td style={{ ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' }}>
-                            <button onClick={() => abrirModal(p)} disabled={!podeEncerrar} style={{ padding: '3px 8px', fontSize: '.72rem', border: 'none', borderRadius: 4, cursor: podeEncerrar ? 'pointer' : 'not-allowed', background: podeEncerrar ? '#dc2626' : '#e2e8f0', color: podeEncerrar ? '#fff' : '#94a3b8' }}>Encerrar informal</button>
+                            <button onClick={(e) => { e.stopPropagation(); abrirModal(p); }} disabled={!podeEncerrar} title={!podeEncerrarInformal ? 'Voce nao tem permissao para encerrar' : (!temItens ? 'pedido sem itens' : '')} style={{ padding: '3px 8px', fontSize: '.72rem', border: 'none', borderRadius: 4, cursor: podeEncerrar ? 'pointer' : 'not-allowed', background: podeEncerrar ? '#dc2626' : '#e2e8f0', color: podeEncerrar ? '#fff' : '#94a3b8' }}>Encerrar informal</button>
                           </td>
                         </tr>
                       );
@@ -368,7 +442,60 @@ export default function PedidosPage() {
             <div style={{ borderTop: '1px solid #e2e8f0', padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: '.72rem', color: modalStatus.startsWith('✔') || modalStatus.startsWith('⚠') ? '#047857' : '#64748b', marginRight: 'auto' }}>{modalStatus}</span>
               <button onClick={fecharModal} style={{ padding: '6px 14px', fontSize: '.82rem', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={confirmar} disabled={aplicando} style={{ padding: '6px 14px', fontSize: '.82rem', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, cursor: aplicando ? 'wait' : 'pointer', opacity: aplicando ? 0.6 : 1 }}>Encerrar informalmente</button>
+              <button onClick={confirmar} disabled={aplicando || !podeEncerrarInformal} title={!podeEncerrarInformal ? 'Voce nao tem permissao para encerrar' : ''} style={{ padding: '6px 14px', fontSize: '.82rem', background: podeEncerrarInformal ? '#dc2626' : '#e2e8f0', color: podeEncerrarInformal ? '#fff' : '#94a3b8', border: 'none', borderRadius: 6, cursor: !podeEncerrarInformal ? 'not-allowed' : (aplicando ? 'wait' : 'pointer'), opacity: aplicando ? 0.6 : 1 }}>Encerrar informalmente</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Popup de detalhes (read-only) */}
+      {detalheSel && (
+        <div onClick={() => setDetalheSel(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 10, width: '100%', maxWidth: 760, maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 40px rgba(0,0,0,.25)' }}>
+            <div style={{ borderBottom: '1px solid #e2e8f0', padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ fontWeight: 600, color: '#1e293b', fontSize: '.95rem', margin: 0 }}>Pedido #{detalheSel.numero || detalheSel.idPedido}</h2>
+              <button onClick={() => setDetalheSel(null)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', lineHeight: 1, color: '#64748b', cursor: 'pointer' }}>×</button>
+            </div>
+            <div style={{ padding: 18, overflowY: 'auto', fontSize: '.82rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 18px', marginBottom: 12, fontSize: '.76rem', color: '#475569' }}>
+                <div>Cliente: <b>{detalheSel.nomeCliente || ('#' + (detalheSel.codigoCliente || '?'))}</b></div>
+                <div>Etapa: <b>{detalheSel.etapaNome || detalheSel.etapa || '?'}</b></div>
+                <div>Criado por: <b>{detalheSel.criadoPorNome || detalheSel.criadoPorLogin || '-'}</b></div>
+                <div>Alterado por: <b>{detalheSel.alteradoPorNome || detalheSel.alteradoPorLogin || '-'}</b></div>
+                <div>Inclusao: <b>{detalheSel.dataInclusao || '?'}</b></div>
+                <div>Previsao: <b>{detalheSel.dataPrevisao || '?'}</b></div>
+                <div>Dias parado na etapa: <b>{detalheSel.diasParadoEtapa != null ? detalheSel.diasParadoEtapa : '-'}</b></div>
+                <div>Valor total: <b>{fmtBRL(detalheSel.valorTotal)}</b></div>
+              </div>
+              <h3 style={{ fontWeight: 600, color: '#334155', marginBottom: 4, fontSize: '.82rem' }}>Itens ({(detalheSel.itens || []).length})</h3>
+              <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #e2e8f0', borderRadius: 6 }}>
+                <thead><tr>
+                  <th style={{ ...thStyle, fontSize: '.62rem', padding: '4px 8px' }}>Codigo</th>
+                  <th style={{ ...thStyle, fontSize: '.62rem', padding: '4px 8px' }}>Descricao</th>
+                  <th style={{ ...thStyle, fontSize: '.62rem', padding: '4px 8px', textAlign: 'right' }}>Qtde</th>
+                  <th style={{ ...thStyle, fontSize: '.62rem', padding: '4px 8px', textAlign: 'right' }}>Vlr unit</th>
+                  <th style={{ ...thStyle, fontSize: '.62rem', padding: '4px 8px' }}>Local</th>
+                </tr></thead>
+                <tbody>
+                  {(detalheSel.itens || []).length === 0 ? (
+                    <tr><td colSpan={5} style={{ ...tdStyle, color: '#94a3b8' }}>(sem itens)</td></tr>
+                  ) : (detalheSel.itens || []).map((it, i) => (
+                    <tr key={i}>
+                      <td style={{ ...tdStyle, fontFamily: 'monospace', fontSize: '.72rem', padding: '4px 8px' }}>{it.codigo || it.idProduto || '?'}</td>
+                      <td style={{ ...tdStyle, fontSize: '.72rem', padding: '4px 8px' }}>{it.descricao || ''}</td>
+                      <td style={{ ...tdStyle, textAlign: 'right', fontSize: '.72rem', padding: '4px 8px' }}>{fmtNum(it.qtde, 0)}</td>
+                      <td style={{ ...tdStyle, textAlign: 'right', fontSize: '.72rem', padding: '4px 8px' }}>{fmtBRL(it.valorUnit)}</td>
+                      <td style={{ ...tdStyle, fontSize: '.72rem', padding: '4px 8px' }}>{it.codLocalEstoque || '(padrao)'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ borderTop: '1px solid #e2e8f0', padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button onClick={() => setDetalheSel(null)} style={{ padding: '6px 14px', fontSize: '.82rem', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 6, cursor: 'pointer', marginLeft: 'auto' }}>Fechar</button>
+              {podeEncerrarInformal && (detalheSel.itens || []).length > 0 && (
+                <button onClick={() => { const p = detalheSel; setDetalheSel(null); abrirModal(p); }} style={{ padding: '6px 14px', fontSize: '.82rem', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Encerrar informal</button>
+              )}
             </div>
           </div>
         </div>
