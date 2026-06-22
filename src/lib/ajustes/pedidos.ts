@@ -50,12 +50,20 @@ export async function obterMapaUsuarios(conta: Conta): Promise<Record<string, st
   if (hit) return hit.valor;
   let arr: any[] = [];
   try { arr = await listarUsuarios(conta); } catch (e) { console.warn('[usuarios]', (e as Error).message); }
+  // Diagnostico temporario: o Omie nao documenta de forma consistente o shape do
+  // usuario nem o que `uInc` (criadoPorLogin) realmente contem (login/email/codigo).
+  // Logamos o 1o objeto pra confirmar os nomes de campo e ajustar as chaves abaixo.
+  if ((arr || []).length) console.log('[usuarios] amostra:', JSON.stringify(arr[0]));
   const map: Record<string, string> = {};
+  const por = (k: any, nome: string) => { if (k != null && k !== '') map[String(k).toUpperCase()] = nome; };
   for (const u of (arr || [])) {
-    const login = u.cLogin || u.login || u.cUsuario || u.usuario;
-    if (!login) continue;
-    const nome = u.cNome || u.nome || u.cNomeCompleto || u.nomeCompleto || login;
-    map[String(login).toUpperCase()] = nome;
+    const nome = u.cNome || u.nome || u.cNomeCompleto || u.nomeCompleto || u.cLogin || u.login || null;
+    if (!nome) continue;
+    // `uInc` pode vir como login, email OU codigo numerico — indexamos sob todas
+    // as chaves identificadoras plausiveis pra garantir o casamento no lookup.
+    por(u.cLogin, nome); por(u.login, nome); por(u.cUsuario, nome); por(u.usuario, nome);
+    por(u.cEmail, nome); por(u.email, nome);
+    por(u.nCodigo, nome); por(u.codigo, nome); por(u.nCod, nome); por(u.cCodigo, nome); por(u.nCodVendedor, nome);
   }
   cache.set(chave, map, 43200); // 12h
   return map;

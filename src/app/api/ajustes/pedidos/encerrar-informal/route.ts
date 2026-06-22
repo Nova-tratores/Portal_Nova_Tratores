@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta, CONTA_DEFAULT } from '@/lib/ajustes/conta';
 import { encerrarPedidoInformal } from '@/lib/ajustes/pedidos';
+import { exigirPermissao } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -11,6 +12,8 @@ export const maxDuration = 300;
 // cancela -> log de auditoria). Body: { conta, idPedido, numeroPedido?, razao, criadoPor? }.
 export async function POST(req: NextRequest) {
   try {
+    // Acao destrutiva e irreversivel: exige permissao no servidor (nao confiar so no front).
+    const user = await exigirPermissao(req, 'ajustes:pedidos:encerrar');
     const b = (await req.json().catch(() => ({}))) as any;
     const conta = parseConta(b?.conta ?? req.nextUrl.searchParams.get('conta')) ?? CONTA_DEFAULT;
     const out = await encerrarPedidoInformal({
@@ -18,7 +21,7 @@ export async function POST(req: NextRequest) {
       idPedido: b?.idPedido ?? null,
       numeroPedido: b?.numeroPedido ?? null,
       razao: b?.razao ?? '',
-      criadoPor: b?.criadoPor,
+      criadoPor: b?.criadoPor || user.email || user.id,
     });
     return NextResponse.json(out);
   } catch (e) {

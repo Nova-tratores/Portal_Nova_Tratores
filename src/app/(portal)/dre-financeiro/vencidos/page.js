@@ -120,10 +120,12 @@ const CORES_FAIXA = {
   '31-60': 'bg-orange-50 border-orange-300 text-orange-800',
   '61-90': 'bg-red-50 border-red-300 text-red-800',
   '90+': 'bg-red-100 border-red-400 text-red-900',
+  'ult180': 'bg-slate-50 border-slate-300 text-slate-700',
 }
 const LABEL_FAIXA = {
   '1-30': '1 a 30 dias', '31-60': '31 a 60 dias',
   '61-90': '61 a 90 dias', '90+': 'Mais de 90 dias',
+  'ult180': 'Últimos 180 dias',
 }
 
 // Definicao das colunas da tabela (ordenaveis, com tooltip)
@@ -248,7 +250,10 @@ export default function VencidosPage() {
   const titulosFiltrados = useCallback(() => {
     if (!dados) return []
     let lista = dados.titulos.slice()
-    if (faixaFiltro) lista = lista.filter((t) => t.faixa === faixaFiltro)
+    if (faixaFiltro) {
+      if (faixaFiltro === 'ult180') lista = lista.filter((t) => Number(t.dias_atraso) <= 180)
+      else lista = lista.filter((t) => t.faixa === faixaFiltro)
+    }
     const dir = sortDir === 'asc' ? 1 : -1
     lista.sort((a, b) => {
       const va = sortVal(a, sortCol), vb = sortVal(b, sortCol)
@@ -366,6 +371,7 @@ export default function VencidosPage() {
     const contaTxt = (conta === 'todas' || !conta) ? 'Todas as empresas' : empresaLabel(conta)
     const tipoTxt = tipo === 'receber' ? 'A receber' : (tipo === 'ambos' ? 'Pagar + Receber' : 'A pagar')
     const faixaTxt = faixaFiltro ? (' · Faixa: ' + (LABEL_FAIXA[faixaFiltro] || faixaFiltro)) : ''
+    const periodoTxt = faixaFiltro === 'ult180' ? ' · Últimos 180 dias' : ''
 
     const rows = lista.map((t) => '<tr>' +
       '<td>' + esc(empresaLabel(t.conta_omie)) + '</td>' +
@@ -389,7 +395,7 @@ export default function VencidosPage() {
       '@media print{body{margin:10mm} .noprint{display:none}}' +
       '</style></head><body>' +
       '<h1>⚠️ Títulos Vencidos</h1>' +
-      '<div class="sub">' + esc(contaTxt) + ' · ' + esc(tipoTxt) + esc(faixaTxt) + ' · Gerado em ' + dataStr + '</div>' +
+      '<div class="sub">' + esc(contaTxt) + ' · ' + esc(tipoTxt) + esc(faixaTxt) + esc(periodoTxt) + ' · Gerado em ' + dataStr + '</div>' +
       '<div class="tot"><div>Total em aberto: <b>' + fmtBRLfull(totalAberto) + '</b></div><div>Títulos: <b style="color:#1e293b">' + lista.length + '</b></div></div>' +
       '<table><thead><tr><th>Empresa</th><th>Terceiro</th><th>Documento</th><th>Grupo</th>' +
       '<th class="r">Vencimento</th><th class="r">Atraso</th><th class="r">Valor em aberto</th></tr></thead>' +
@@ -441,7 +447,12 @@ export default function VencidosPage() {
   // =========================================================================
   // "Por terceiro": agrupa (port fiel de renderTerceiro)
   // =========================================================================
-  const base = (dados && faixaFiltro) ? dados.titulos.filter((t) => t.faixa === faixaFiltro) : (dados ? dados.titulos : [])
+  const base = (dados ? dados.titulos : [])
+    .filter((t) => {
+      if (!faixaFiltro) return true
+      if (faixaFiltro === 'ult180') return Number(t.dias_atraso) <= 180
+      return t.faixa === faixaFiltro
+    })
   let grupos = []
   let maxTotal = 1
   if (tab === 'terceiro') {
@@ -527,20 +538,27 @@ export default function VencidosPage() {
       </div>
 
       {/* Faixas de atraso (clicaveis: filtram a lista) */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        {dados && dados.faixas.map((f) => {
-          const ativo = faixaFiltro === f.faixa
-          const cls = CORES_FAIXA[f.faixa] || 'bg-slate-50 border-slate-300 text-slate-700'
-          const ring = ativo ? 'ring-2 ring-offset-1 ring-slate-700' : ''
-          return (
-            <button key={f.faixa} type="button" onClick={() => clicarFaixa(f.faixa)}
-              className={'text-left p-3 rounded-lg border ' + cls + ' ' + ring + ' hover:shadow transition'}>
-              <div className="text-xs font-semibold uppercase tracking-wide">{LABEL_FAIXA[f.faixa]}</div>
-              <div className="text-2xl font-bold mt-1">{fmtBRL(f.total)}</div>
-              <div className="text-xs opacity-80">{f.count} título{f.count !== 1 ? 's' : ''}</div>
-            </button>
-          )
-        })}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+        {dados && (() => {
+          const extra = {
+            faixa: 'ult180',
+            total: (dados.titulos || []).reduce((sum, t) => sum + (Number(t.dias_atraso) <= 180 ? Number(t.valor_aberto) || 0 : 0), 0),
+            count: (dados.titulos || []).filter((t) => Number(t.dias_atraso) <= 180).length,
+          }
+          return [...dados.faixas, extra].map((f) => {
+            const ativo = faixaFiltro === f.faixa
+            const cls = CORES_FAIXA[f.faixa] || 'bg-slate-50 border-slate-300 text-slate-700'
+            const ring = ativo ? 'ring-2 ring-offset-1 ring-slate-700' : ''
+            return (
+              <button key={f.faixa} type="button" onClick={() => clicarFaixa(f.faixa)}
+                className={'text-left p-3 rounded-lg border ' + cls + ' ' + ring + ' hover:shadow transition'}>
+                <div className="text-xs font-semibold uppercase tracking-wide">{LABEL_FAIXA[f.faixa]}</div>
+                <div className="text-2xl font-bold mt-1">{fmtBRL(f.total)}</div>
+                <div className="text-xs opacity-80">{f.count} título{f.count !== 1 ? 's' : ''}</div>
+              </button>
+            )
+          })
+        })()}
       </div>
 
       {/* Conteudo da aba */}

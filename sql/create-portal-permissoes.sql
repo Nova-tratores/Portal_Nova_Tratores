@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS portal_permissoes (
 
 -- Categorias válidas: 'Pós Vendas', 'Peças', 'Comercial', 'Financeiro'
 -- Módulos válidos: 'financeiro', 'requisicoes', 'revisoes', 'pos', 'ppv', 'propostas', 'atividades'
+--   Páginas de Ajustes: 'ajustes:<pagina>' (ver src/app/(portal)/ajustes/paginas.ts)
+--   Ações granulares: 'ajustes:pedidos:encerrar' (autoriza Encerrar Informal em /ajustes/pedidos)
 
 -- Index para busca rápida por user_id
 CREATE INDEX IF NOT EXISTS idx_portal_permissoes_user_id ON portal_permissoes(user_id);
