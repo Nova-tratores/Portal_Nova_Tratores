@@ -263,23 +263,57 @@ async function buscarCategorias(conta) {
 // Mapa codigo_cliente_omie -> nome (fantasia ou razao social).
 // Usado para resolver o nome da contraparte ja que ListarContasPagar/Receber
 // retornam apenas codigo_cliente_fornecedor, sem o nome.
+//
+// Retorna { mapa, completo }. `completo` e' FALSE quando a paginacao foi
+// interrompida por erro (mapa parcial). O caller NUNCA deve gravar nomes a
+// partir de um mapa incompleto: faria UPSERT com nome=null e apagaria nomes
+// que ja estavam corretos (bug que zerou ~10k linhas no sync de 22/06).
 async function buscarClientesFornecedores(conta) {
   const mapa = {};
   let pag = 1;
+  let completo = true;
   while (true) {
     let r;
     try {
-      r = await omieRequest('/geral/clientes/', 'ListarClientesResumido', {
-        pagina: pag,
-        registros_por_pagina: PAGE_SIZE,
-        apenas_importado_api: 'N'
-      }, conta);
+      // Retry de pagina alem do retry interno do omieRequest (rede/rate-limit):
+      // cobre um erro pontual sem abortar a coleta inteira.
+      let tentativaPag = 0;
+      for (;;) {
+        try {
+          r = await omieRequest('/geral/clientes/', 'ListarClientesResumido', {
+            pagina: pag,
+            registros_por_pagina: PAGE_SIZE,
+            apenas_importado_api: 'N'
+          }, conta);
+          break;
+        } catch (e) {
+          if (e.faultstring && /n[aã]o.*registros|ERROR/i.test(e.faultstring)) throw e;
+          if (tentativaPag >= 2) throw e;
+          tentativaPag++;
+          console.log(`[clientes ${conta}] pag ${pag} falhou (${e.message}) - retry ${tentativaPag}/2`);
+          await sleep(3000);
+        }
+      }
     } catch (e) {
+      // "Nao existem registros" = fim normal (mapa completo). Qualquer outro
+      // erro = paginacao interrompida -> mapa parcial -> marca incompleto.
       if (e.faultstring && /n[aã]o.*registros|ERROR/i.test(e.faultstring)) break;
-      console.log(`[omie ${conta}] ListarClientesResumido falhou: ${e.message}`);
-      return mapa;
+      console.log(`[clientes ${conta}] ListarClientesResumido falhou (mapa PARCIAL): ${e.message}`);
+      completo = false;
+      break;
     }
-    const lista = r.clientes_cadastro_resumido || r.clientes_cadastro || [];
+    // Defensivo: se a Omie mudar a chave da lista, infere o primeiro array da
+    // resposta em vez de devolver mapa vazio silenciosamente.
+    let lista = r.clientes_cadastro_resumido || r.clientes_cadastro;
+    if (!Array.isArray(lista)) {
+      const arrKey = r && typeof r === 'object' ? Object.keys(r).find(k => Array.isArray(r[k])) : null;
+      if (arrKey) {
+        console.log(`[clientes ${conta}] chave de lista inferida: "${arrKey}"`);
+        lista = r[arrKey];
+      } else {
+        lista = [];
+      }
+    }
     if (lista.length === 0) break;
     lista.forEach(c => {
       const cod = c.codigo_cliente || c.codigo_cliente_omie;
@@ -296,7 +330,7 @@ async function buscarClientesFornecedores(conta) {
     pag++;
     await sleep(1000);
   }
-  return mapa;
+  return { mapa, completo };
 }
 
 async function buscarDepartamentos(conta) {
@@ -542,12 +576,21 @@ async function sincronizarTitulos(conta, deStr, ateStr, tipo) {
     logId = log?.id;
 
     s.etapa = 'mapas (categorias / departamentos / contrapartes)';
-    const [mapaCat, mapaDep, mapaContra] = await Promise.all([
+    const [mapaCat, mapaDep, contrapartes] = await Promise.all([
       buscarCategorias(conta).catch(e => { console.log(`categorias: ${e.message}`); return {}; }),
       buscarDepartamentos(conta).catch(e => { console.log(`departamentos: ${e.message}`); return {}; }),
-      buscarClientesFornecedores(conta).catch(e => { console.log(`contrapartes: ${e.message}`); return {}; })
+      buscarClientesFornecedores(conta).catch(e => { console.log(`contrapartes: ${e.message}`); return { mapa: {}, completo: false }; })
     ]);
-    console.log(`[sync ${tipo} ${conta}] categorias: ${Object.keys(mapaCat).length}, departamentos: ${Object.keys(mapaDep).length}, contrapartes: ${Object.keys(mapaContra).length}`);
+    const mapaContra = contrapartes.mapa || {};
+    console.log(`[sync ${tipo} ${conta}] categorias: ${Object.keys(mapaCat).length}, departamentos: ${Object.keys(mapaDep).length}, contrapartes: ${Object.keys(mapaContra).length} (completo=${contrapartes.completo})`);
+
+    // GUARD: nunca gravar a partir de um mapa de contrapartes vazio/incompleto.
+    // O upsert reescreve a linha inteira; com mapa ruim, nome_fornecedor/
+    // nome_cliente iriam para null e APAGARIAM nomes ja corretos. Melhor abortar
+    // (fail-safe) e tentar de novo no proximo ciclo do que corromper a coluna.
+    if (!contrapartes.completo || Object.keys(mapaContra).length === 0) {
+      throw new Error(`mapa de contrapartes incompleto (completo=${contrapartes.completo}, itens=${Object.keys(mapaContra).length}) - sync abortado para nao apagar nomes`);
+    }
 
     // Alarga a janela: usuario pediu janela de vencimento, mas a API so filtra
     // por emissao. Pegamos emissoes 24 meses antes do inicio do vencimento ate
@@ -641,6 +684,76 @@ async function sincronizarTitulos(conta, deStr, ateStr, tipo) {
 // retorna 0 produtos silenciosamente (HTTP 200, total_de_registros=0).
 // ~12 paginas de 500 -> ~30s, vs ~1h30 da versao por ConsultarProduto.
 // =============================================================================
+// =============================================================================
+// Backfill dos nomes de contraparte (nome_fornecedor / nome_cliente) nas linhas
+// que ficaram null (ex.: as ~10k corrompidas pelo bug do mapa parcial no sync).
+// Reusa buscarClientesFornecedores ENDURECIDO: se o mapa vier incompleto/vazio,
+// PULA a conta (nao "repara" gravando null). Faz UPDATE somente onde o nome
+// esta null, agrupado por codigo_cliente_fornecedor (1 query por fornecedor
+// distinto). Nunca reescreve a linha inteira nem toca em nomes ja preenchidos.
+// =============================================================================
+async function backfillNomesContas(conta, tipo = 'ambos') {
+  if (!supabaseAdmin) throw new Error('Supabase nao configurado');
+  const tipos = tipo === 'ambos' ? ['pagar', 'receber'] : [tipo];
+  const contasIds = conta === 'todas' ? getContasOmie().map(c => c.id) : [conta];
+  const resumo = [];
+
+  for (const c of contasIds) {
+    const contaLabel = labelConta(c);
+    const { mapa, completo } = await buscarClientesFornecedores(c);
+    if (!completo || Object.keys(mapa).length === 0) {
+      console.log(`[backfill-nomes ${c}] mapa de contrapartes incompleto/vazio (completo=${completo}, itens=${Object.keys(mapa).length}) - PULANDO conta`);
+      resumo.push({ conta: c, pulado: true, motivo: 'mapa de contrapartes incompleto' });
+      continue;
+    }
+
+    for (const t of tipos) {
+      const cfg = CONFIG[t];
+      const colNome = cfg.colunaNome;
+
+      // 1) coleta codigos distintos de contraparte com nome ainda null
+      const codigosNulos = new Set();
+      let off = 0;
+      while (true) {
+        const { data, error } = await supabaseAdmin
+          .from(cfg.tabela)
+          .select('codigo_cliente_fornecedor')
+          .eq('conta_omie', contaLabel)
+          .is(colNome, null)
+          .not('codigo_cliente_fornecedor', 'is', null)
+          .range(off, off + 999);
+        if (error) throw new Error(`select ${cfg.tabela}: ${error.message}`);
+        if (!data || data.length === 0) break;
+        data.forEach(r => { if (r.codigo_cliente_fornecedor != null) codigosNulos.add(r.codigo_cliente_fornecedor); });
+        if (data.length < 1000) break;
+        off += 1000;
+      }
+
+      // 2) so atualiza os que conseguimos resolver no mapa
+      const alvos = [...codigosNulos].filter(cod => mapa[cod]);
+      console.log(`[backfill-nomes ${c} ${t}] ${codigosNulos.size} codigos com nome null, ${alvos.length} resolviveis pelo mapa`);
+
+      let atualizados = 0, erros = 0;
+      const CHUNK = 20;
+      for (let i = 0; i < alvos.length; i += CHUNK) {
+        const slice = alvos.slice(i, i + CHUNK);
+        await Promise.all(slice.map(cod =>
+          supabaseAdmin.from(cfg.tabela)
+            .update({ [colNome]: mapa[cod] })
+            .eq('conta_omie', contaLabel)
+            .eq('codigo_cliente_fornecedor', cod)
+            .is(colNome, null)              // so preenche o que ainda esta null
+            .then(res => res.error ? erros++ : atualizados++)
+        ));
+      }
+      console.log(`[backfill-nomes ${c} ${t}] ok - ${atualizados} fornecedores atualizados, ${erros} erros`);
+      resumo.push({ conta: c, tipo: t, codigosNulos: codigosNulos.size, resolviveis: alvos.length, fornecedoresAtualizados: atualizados, erros });
+    }
+  }
+  console.log(`[backfill-nomes] concluido: ${JSON.stringify(resumo)}`);
+  return { ok: true, resumo };
+}
+
 async function backfillModeloProdutos(conta, opts = {}) {
   if (!supabaseAdmin) throw new Error('Supabase nao configurado');
   const soVazios = opts.soVazios !== false;
@@ -1007,6 +1120,8 @@ module.exports = {
   sincronizarTudo,
   buscarMovimentos,
   aplicarBaixas,
+  buscarClientesFornecedores,
+  backfillNomesContas,
   backfillModeloProdutos,
   sincronizarClientes,
   EMPRESAS_GRUPO_CNPJ,
