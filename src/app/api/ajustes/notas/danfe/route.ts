@@ -4,8 +4,8 @@ import { urlDanfe } from '@/lib/ajustes/notas';
 
 export const dynamic = 'force-dynamic';
 
-// URL do DANFE PDF (GetUrlDanfe). Por padrão retorna { url } (o front abre);
-// com ?redirect=1 redireciona direto para o PDF.
+// URL do PDF da nota (DANFE de NF-e ou PDF da NFS-e via tipo=servico). Por
+// padrão retorna { url } (o front abre); com ?redirect=1 redireciona direto.
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const conta = parseConta(sp.get('conta')) ?? CONTA_DEFAULT;
@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ erro: 'informe nCodNF' }, { status: 400 });
   }
   try {
-    const { url, validadeAte } = await urlDanfe(conta, nCodNF);
+    const { url, validadeAte } = await urlDanfe(conta, nCodNF, sp.get('tipo') || 'produto');
     if (sp.get('redirect') === '1') return NextResponse.redirect(url);
     return NextResponse.json({ url, validadeAte });
   } catch (e) {

@@ -11,12 +11,12 @@ import ContaSelector from '@/components/estoque/ContaSelector';
 
 // ---------- tipos ----------
 interface Nota {
-  numero?: string | null; serie?: string | null; nCodNF?: number | string | null;
+  tipo?: 'produto' | 'servico'; numero?: string | null; serie?: string | null; nCodNF?: number | string | null;
   chaveNFe?: string | null; dataEmissao?: string | null; valorNF?: number;
   cancelada?: boolean; clienteCodigo?: number | string | null;
   clienteNome?: string | null; clienteDoc?: string | null; qtdeItens?: number;
 }
-interface NotasPayload { total?: number; notas?: Nota[]; erro?: string }
+interface NotasPayload { total?: number; notas?: Nota[]; erro?: string; aviso?: string | null }
 
 // ---------- helpers ----------
 const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -40,6 +40,7 @@ const thStyle: React.CSSProperties = { background: '#f8fafc', color: '#475569', 
 const tdStyle: React.CSSProperties = { padding: '8px 10px', borderBottom: '1px solid #f1f5f9', color: '#334155', fontSize: '.82rem' };
 
 type Modo = 'numero' | 'cliente';
+type TipoFiltro = 'todas' | 'produto' | 'servico';
 
 export default function NotasPage() {
   const { userProfile } = useAuth();
@@ -47,6 +48,7 @@ export default function NotasPage() {
   const { conta, contaParam } = useConta();
 
   const [modo, setModo] = useState<Modo>('numero');
+  const [tipoFiltro, setTipoFiltro] = useState<TipoFiltro>('todas');
   const [numero, setNumero] = useState('');
   const [numeroAte, setNumeroAte] = useState('');
   const [cliente, setCliente] = useState('');
@@ -81,33 +83,33 @@ export default function NotasPage() {
   const buscarPorNumero = useCallback(() => {
     const num = numero.trim();
     if (!num) { setErro('Informe o numero da NF.'); return; }
-    let qs = '&modo=numero&numero=' + encodeURIComponent(num);
+    let qs = '&modo=numero&tipo=' + tipoFiltro + '&numero=' + encodeURIComponent(num);
     if (numeroAte.trim()) qs += '&numeroAte=' + encodeURIComponent(numeroAte.trim());
-    setStatusMsg('buscando NF(s) no Omie...');
+    setStatusMsg('buscando nota(s) no Omie...');
     executar(qs);
-  }, [numero, numeroAte, executar]);
+  }, [numero, numeroAte, tipoFiltro, executar]);
 
   const buscarPorCliente = useCallback(() => {
-    let qs = '&modo=cliente';
+    let qs = '&modo=cliente&tipo=' + tipoFiltro;
     if (cliente.trim()) qs += '&cliente=' + encodeURIComponent(cliente.trim());
     if (de) qs += '&de=' + encodeURIComponent(de);
     if (ate) qs += '&ate=' + encodeURIComponent(ate);
-    setStatusMsg('buscando NFs no Omie... (a janela pode levar 1-2 min)');
+    setStatusMsg('buscando notas no Omie... (a janela pode levar 1-2 min)');
     executar(qs);
-  }, [cliente, de, ate, executar]);
+  }, [cliente, de, ate, tipoFiltro, executar]);
 
   const abrirDanfe = useCallback(async (n: Nota) => {
     if (n.nCodNF == null || n.nCodNF === '') return;
-    const key = String(n.nCodNF);
+    const key = (n.tipo || 'produto') + ':' + String(n.nCodNF);
     setDanfeId(key);
     try {
-      const qs = contaParam.replace(/^&/, '') + '&nCodNF=' + encodeURIComponent(String(n.nCodNF));
+      const qs = contaParam.replace(/^&/, '') + '&tipo=' + (n.tipo || 'produto') + '&nCodNF=' + encodeURIComponent(String(n.nCodNF));
       const r = await fetch(`/api/ajustes/notas/danfe?${qs}`);
       const d = await r.json();
       if (d.url) window.open(d.url, '_blank');
-      else alert('Nao foi possivel obter o DANFE: ' + (d.erro || 'sem URL'));
+      else alert('Nao foi possivel obter o PDF: ' + (d.erro || 'sem URL'));
     } catch (ex) {
-      alert('Erro ao obter DANFE: ' + (ex as Error).message);
+      alert('Erro ao obter PDF: ' + (ex as Error).message);
     } finally {
       setDanfeId(null);
     }
@@ -128,7 +130,7 @@ export default function NotasPage() {
         <div>
           <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>Notas fiscais de saida</h1>
           <p style={{ color: '#64748b', fontSize: '.82rem', maxWidth: 720 }}>
-            Conta <b>{conta ? conta.toUpperCase() : '—'}</b> · Busque NF-e de venda por <b>numero</b> ou por <b>cliente</b> e abra/imprima o <b>DANFE</b> oficial (PDF da Omie).
+            Conta <b>{conta ? conta.toUpperCase() : '—'}</b> · Busque <b>NF-e de venda</b> e <b>NFS-e de servico</b> por <b>numero</b> ou por <b>cliente</b> e abra/imprima o documento oficial (PDF da Omie).
           </p>
         </div>
         <div style={{ marginLeft: 'auto' }}><ContaSelector /></div>
@@ -186,9 +188,17 @@ export default function NotasPage() {
           )}
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, fontSize: '.72rem' }}>
-            <span style={{ color: '#64748b' }}>{carregando ? 'Carregando…' : statusMsg}</span>
+            <label style={{ color: '#64748b' }}>Tipo:</label>
+            <select value={tipoFiltro} onChange={(e) => setTipoFiltro(e.target.value as TipoFiltro)} style={{ border: '1px solid #cbd5e1', borderRadius: 6, padding: '4px 8px', fontSize: '.72rem' }}>
+              <option value="todas">Todas (NF-e + NFS-e)</option>
+              <option value="produto">Somente NF-e (produto)</option>
+              <option value="servico">Somente NFS-e (servico)</option>
+            </select>
+            <span style={{ color: '#64748b', marginLeft: 8 }}>{carregando ? 'Carregando…' : statusMsg}</span>
             {dados && <span style={{ marginLeft: 'auto', color: '#64748b' }}>{notas.length} nota(s) encontrada(s)</span>}
           </div>
+
+          {dados?.aviso && <div style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', borderRadius: 8, padding: '8px 14px', marginBottom: 12, fontSize: '.78rem' }}>{dados.aviso}</div>}
 
           {erro && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: '.82rem' }}>{erro}</div>}
 
@@ -196,26 +206,33 @@ export default function NotasPage() {
             {!dados ? (
               <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8', fontSize: '.85rem' }}>Informe um numero ou um cliente e clique em <b>Buscar</b>.</div>
             ) : notas.length === 0 ? (
-              <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8', fontSize: '.85rem' }}>Nenhuma NF encontrada para os filtros informados.</div>
+              <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8', fontSize: '.85rem' }}>Nenhuma nota encontrada para os filtros informados.</div>
             ) : (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr>
-                      <th style={thStyle}>NF / serie</th>
+                      <th style={thStyle}>Tipo</th>
+                      <th style={thStyle}>Numero / serie</th>
                       <th style={thStyle}>Emissao</th>
                       <th style={thStyle}>Cliente</th>
                       <th style={{ ...thStyle, textAlign: 'right' }}>Valor</th>
                       <th style={{ ...thStyle, textAlign: 'center' }}>Status</th>
-                      <th style={{ ...thStyle, textAlign: 'right' }}>DANFE</th>
+                      <th style={{ ...thStyle, textAlign: 'right' }}>Documento</th>
                     </tr>
                   </thead>
                   <tbody>
                     {notas.map((n, i) => {
-                      const temDanfe = n.nCodNF != null && n.nCodNF !== '';
-                      const key = String(n.nCodNF);
+                      const ehServico = n.tipo === 'servico';
+                      const temDoc = n.nCodNF != null && n.nCodNF !== '';
+                      const key = (n.tipo || 'produto') + ':' + String(n.nCodNF);
                       return (
                         <tr key={i} style={{ borderTop: '1px solid #f1f5f9', opacity: n.cancelada ? 0.6 : 1 }}>
+                          <td style={tdStyle}>
+                            {ehServico
+                              ? <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: '.68rem', background: '#ede9fe', color: '#6d28d9' }}>NFS-e</span>
+                              : <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: '.68rem', background: '#dbeafe', color: '#1d4ed8' }}>NF-e</span>}
+                          </td>
                           <td style={{ ...tdStyle, fontWeight: 500 }}>{n.numero || '-'}{n.serie && <span style={{ color: '#94a3b8', fontSize: '.72rem' }}> / {n.serie}</span>}</td>
                           <td style={{ ...tdStyle, color: '#475569' }}>{n.dataEmissao || '-'}</td>
                           <td style={tdStyle}>
@@ -229,12 +246,12 @@ export default function NotasPage() {
                               : <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: '.68rem', background: '#d1fae5', color: '#047857' }}>OK</span>}
                           </td>
                           <td style={{ ...tdStyle, textAlign: 'right' }}>
-                            {temDanfe ? (
+                            {temDoc ? (
                               <button onClick={() => abrirDanfe(n)} disabled={danfeId === key} style={{ padding: '5px 12px', fontSize: '.72rem', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, cursor: danfeId === key ? 'wait' : 'pointer', opacity: danfeId === key ? 0.6 : 1 }}>
-                                {danfeId === key ? 'abrindo...' : 'DANFE / imprimir'}
+                                {danfeId === key ? 'abrindo...' : (ehServico ? 'NFS-e / imprimir' : 'DANFE / imprimir')}
                               </button>
                             ) : (
-                              <span style={{ fontSize: '.72rem', color: '#94a3b8' }} title="NF sem codigo interno (nCodNF)">sem DANFE</span>
+                              <span style={{ fontSize: '.72rem', color: '#94a3b8' }} title="nota sem codigo interno (nCodNF)">sem PDF</span>
                             )}
                           </td>
                         </tr>
