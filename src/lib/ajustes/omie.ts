@@ -739,8 +739,9 @@ export async function alterarRecebimentoItens(conta: Conta, args: Record<string,
   if (idReceb == null && chaveNFe == null) throw new Error('informe idReceb ou chaveNFe');
   if (!Array.isArray(itens) || itens.length === 0) throw new Error('informe itens a editar');
   const ide: Record<string, any> = {};
+  // Omie aceita APENAS um identificador (nIdReceb OU cChaveNfe), nunca os dois.
   if (idReceb != null) ide.nIdReceb = Number(idReceb) || idReceb;
-  if (chaveNFe) ide.cChaveNfe = String(chaveNFe);
+  else if (chaveNFe) ide.cChaveNfe = String(chaveNFe);
   const itensRecebimentoEditar = itens.map((it: any) => {
     const ajustes: Record<string, any> = {};
     if (it.cCFOPEntrada) ajustes.cCFOPEntrada = String(it.cCFOPEntrada);
@@ -787,8 +788,9 @@ export async function concluirRecebimento(conta: Conta, args: Record<string, any
   if (idReceb == null && chaveNFe == null) throw new Error('informe idReceb ou chaveNFe');
   const cEtapa = String(etapa || process.env.RECEBIMENTO_ETAPA_CONCLUIDO || '60');
   const params: Record<string, any> = { cEtapa };
+  // Omie aceita APENAS um identificador (nIdReceb OU cChaveNfe), nunca os dois.
   if (idReceb != null) params.nIdReceb = Number(idReceb) || idReceb;
-  if (chaveNFe) params.cChaveNfe = String(chaveNFe);
+  else if (chaveNFe) params.cChaveNfe = String(chaveNFe);
   const data = await omieRequest('/produtos/recebimentonfe/', 'ConcluirRecebimento', params, conta);
   return { ok: true, idReceb: data && (data.nIdReceb ?? idReceb), codStatus: data && (data.cCodStatus ?? data.codigo_status), descStatus: data && (data.cDescStatus ?? data.descricao_status), rawRequest: params, rawResponse: data };
 }
@@ -797,7 +799,7 @@ export async function alterarEtapaRecebimento(conta: Conta, args: Record<string,
   const { idReceb, chaveNFe, etapa } = args;
   const params: Record<string, any> = { cEtapa: String(etapa) };
   if (idReceb != null) params.nIdReceb = Number(idReceb) || idReceb;
-  if (chaveNFe) params.cChaveNfe = String(chaveNFe);
+  else if (chaveNFe) params.cChaveNfe = String(chaveNFe);
   return omieRequest('/produtos/recebimentonfe/', 'AlterarEtapaRecebimento', params, conta);
 }
 
@@ -805,7 +807,7 @@ export async function reverterRecebimento(conta: Conta, args: Record<string, any
   const { idReceb, chaveNFe, etapa } = args;
   const params: Record<string, any> = { cEtapa: String(etapa || '40') };
   if (idReceb != null) params.nIdReceb = Number(idReceb) || idReceb;
-  if (chaveNFe) params.cChaveNfe = String(chaveNFe);
+  else if (chaveNFe) params.cChaveNfe = String(chaveNFe);
   return omieRequest('/produtos/recebimentonfe/', 'ReverterRecebimento', params, conta);
 }
 
