@@ -6,6 +6,7 @@ import type { ClienteOption, ClienteDados, Produto, AlimentacaoItem } from "@/li
 import SearchModal from "./SearchModal";
 import LogPanel from "./LogPanel";
 import OSGarantiaInfo from "@/components/garantias/OSGarantiaInfo";
+import OSorcamentosInfo from "@/components/pos/OSorcamentosInfo";
 
 interface OSDrawerProps {
   visible: boolean;
@@ -104,6 +105,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   const [totalPecas, setTotalPecas] = useState(0);
   const [saving, setSaving] = useState(false);
   const [loadingData, setLoadingData] = useState(false);
+  // Incrementado após importar um orçamento → força recarregar os dados da OS
+  const [reloadKey, setReloadKey] = useState(0);
   const [showProjModal, setShowProjModal] = useState(false);
   const [showRevModal, setShowRevModal] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
@@ -565,7 +568,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
     }
 
     return () => ac.abort();
-  }, [visible, mode, osId, loadPPV, resetForm]);
+  }, [visible, mode, osId, loadPPV, resetForm, reloadKey]);
 
   // ── Early return ──
   if (!visible) return null;
@@ -835,6 +838,14 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                     <div className="os-card">
                       <div className="os-card-title"><i className="fas fa-shield-halved" /> Garantia</div>
                       <OSGarantiaInfo osId={osId} />
+                    </div>
+                  )}
+
+                  {/* ── Orçamentos vinculados ── */}
+                  {mode === "edit" && osId && (
+                    <div className="os-card">
+                      <div className="os-card-title"><i className="fas fa-file-invoice-dollar" /> Orçamentos</div>
+                      <OSorcamentosInfo osId={osId} userName={userName || ""} onImported={() => setReloadKey((k) => k + 1)} />
                     </div>
                   )}
 

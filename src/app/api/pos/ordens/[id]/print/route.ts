@@ -158,6 +158,64 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     }
   }
 
+  // Orçamentos vinculados (módulo Orçamentos)
+  let orcamentosHtml = "";
+  {
+    const { data: orcs } = await supabase
+      .from("orcamentos")
+      .select("numero, status, observacao, validade, itens, mao_obra, deslocamento, total, created_at")
+      .eq("ordem_servico", idOs)
+      .order("id", { ascending: false });
+    if (orcs && orcs.length > 0) {
+      const stLabel: Record<string, string> = { rascunho: "Rascunho", ativo: "Ativo", aprovado: "Aprovado", rejeitado: "Rejeitado", expirado: "Expirado", concluido: "Concluído" };
+      const esc = (s: string) => String(s || "").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const blocos = orcs.map((o) => {
+        const dias = Number(o.validade) || 0;
+        const expirado = !!(o.created_at && dias && new Date(o.created_at).getTime() + dias * 86400000 < Date.now());
+        const label = expirado && o.status !== "concluido" && o.status !== "rejeitado" ? "Expirado" : (stLabel[o.status] || o.status);
+        const itens: Array<{ codigo?: string; descricao?: string; quantidade?: number; preco?: number }> = Array.isArray(o.itens) ? o.itens : [];
+        const horas = Number(o.mao_obra?.horas) || 0;
+        const km = Number(o.deslocamento?.km) || 0;
+        const obs = String(o.observacao || "").trim();
+        const itensTable = itens.length > 0
+          ? `<table class="cost-table" style="margin-top:5px">
+              <thead><tr><th>Código</th><th>Descrição</th><th style="text-align:center">Qtde</th><th style="text-align:right">Unitário</th><th style="text-align:right">Total</th></tr></thead>
+              <tbody>${itens.map((it) => `<tr><td>${esc(it.codigo || "—")}</td><td>${esc(it.descricao || "")}</td><td style="text-align:center">${it.quantidade || 1}</td><td style="text-align:right">R$ ${(Number(it.preco) || 0).toFixed(2)}</td><td style="text-align:right">R$ ${((Number(it.preco) || 0) * (Number(it.quantidade) || 1)).toFixed(2)}</td></tr>`).join("")}</tbody>
+            </table>`
+          : "";
+        // HR e KM em destaque (com valor em R$). Usa as taxas do próprio orçamento.
+        const vh = Number(o.mao_obra?.valorHora) || configPrint.valor_hora;
+        const vk = Number(o.deslocamento?.valorKm) || configPrint.valor_km;
+        const card = (titulo: string, principal: string, rs: number) =>
+          `<div style="flex:1;background:#F1F5F9;border:1px solid #E2E8F0;border-radius:5px;padding:6px 10px">
+            <div style="font-size:6.5pt;color:#888;text-transform:uppercase;font-weight:700;letter-spacing:0.5px">${titulo}</div>
+            <div style="font-size:11pt;font-weight:800;color:#000">${principal}<span style="font-size:8pt;font-weight:600;color:#555"> · R$ ${rs.toFixed(2)}</span></div>
+          </div>`;
+        const hkCards = [
+          horas > 0 ? card("Horas Trabalhadas", `${horas}h`, horas * vh) : "",
+          km > 0 ? card("Deslocamento (KM)", `${km} km`, km * vk) : "",
+        ].filter(Boolean).join("");
+        const hkHtml = hkCards ? `<div style="display:flex;gap:8px;margin-top:6px">${hkCards}</div>` : "";
+        return `
+          <div style="margin-bottom:10px;padding:8px 10px;border:1px solid #ddd;border-radius:6px">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+              <div style="font-weight:800;color:#000">Orçamento ${esc(o.numero)} <span style="font-weight:600;color:#555;font-size:8pt">· ${esc(label)}</span></div>
+              <div style="font-weight:800">R$ ${(Number(o.total) || 0).toFixed(2)}</div>
+            </div>
+            ${hkHtml}
+            ${itensTable}
+            ${obs ? `<div style="margin-top:5px;font-size:8.5pt;color:#222"><b>Obs.:</b> ${esc(obs)}</div>` : ""}
+          </div>`;
+      }).join("");
+      orcamentosHtml = `
+        <div class="section">
+          <div class="section-title">Orçamentos Vinculados</div>
+          ${blocos}
+        </div>
+        <hr class="sep">`;
+    }
+  }
+
   // Status badge color
   const statusColor = status.includes("Exec") ? "#92400E" : status === "Concluída" ? "#065F46" : status === "Cancelada" ? "#991B1B" : "#1E3A5F";
   const statusBg = status.includes("Exec") ? "#FEF3C7" : status === "Concluída" ? "#D1FAE5" : status === "Cancelada" ? "#FEE2E2" : "#E8E0D0";
@@ -311,6 +369,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   ${ppvHtml}
   ${produtosHtml}
   ${reqHtml}
+  ${orcamentosHtml}
 
   ${motivoCancel ? `<div class="cancel-reason">Motivo do Cancelamento: ${motivoCancel}</div>` : ""}
 
