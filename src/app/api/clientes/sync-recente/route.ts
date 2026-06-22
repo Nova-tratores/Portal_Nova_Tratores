@@ -13,15 +13,21 @@ const ACCS: Acc[] = [
   { name: "Castro Pecas", key: "2730028269969", secret: "dc270bf5348b40d3ed1398ef70beb628" },
 ];
 
-async function omieCall(ep: string, call: string, param: Record<string, unknown>, acc: Acc) {
+async function omieCall(ep: string, call: string, param: Record<string, unknown>, acc: Acc, tentativa = 0): Promise<any> {
   const res = await fetch(`${OMIE_BASE}${ep}`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ call, app_key: acc.key, app_secret: acc.secret, param: [param] }),
   });
-  if (res.status === 429) { await new Promise(r => setTimeout(r, 60000)); return omieCall(ep, call, param, acc); }
+  if (res.status === 429 && tentativa < 2) { await new Promise(r => setTimeout(r, 60000)); return omieCall(ep, call, param, acc, tentativa + 1); }
   const data = await res.json().catch(() => ({}));
   if (data?.faultstring) {
     if (data.faultstring.includes("existem registros")) return {};
+    // "Consumo redundante detectado. Aguarde X segundos" — espera e tenta de novo
+    if (/redundante|REDUNDANT/i.test(data.faultstring) && tentativa < 2) {
+      const seg = parseInt((data.faultstring.match(/(\d+)\s*segundo/) || [])[1] || "3");
+      await new Promise(r => setTimeout(r, (seg + 1) * 1000));
+      return omieCall(ep, call, param, acc, tentativa + 1);
+    }
     throw new Error(data.faultstring);
   }
   return data;
@@ -49,6 +55,40 @@ async function downloadNF(url: string, path: string): Promise<string> {
   } catch { return url; }
 }
 
+// Mapa nCodVend -> nome do vendedor (ListarVendedores), pra preencher o vendedor da OS.
+async function carregarVendedores(acc: Acc): Promise<Map<number, string>> {
+  const map = new Map<number, string>();
+  let pag = 1, totPag = 1;
+  while (pag <= totPag) {
+    try {
+      const r: any = await omieCall("/geral/vendedores/", "ListarVendedores", { pagina: pag, registros_por_pagina: 200 }, acc);
+      if (pag === 1) totPag = r?.total_de_paginas || 1;
+      for (const v of r?.cadastro || []) map.set(v.codigo, v.nome);
+    } catch { break; }
+    pag++;
+    if (pag <= totPag) await new Promise(r => setTimeout(r, 250));
+  }
+  return map;
+}
+
+// Cache persistente no processo (sobrevive entre requisições do sync-recente).
+const vendedorCache = new Map<string, string>();
+// Resolve o nome do vendedor: tenta a lista (rápido) e, se faltar, busca por código
+// no Omie (ConsultarVendedor) — robusto mesmo se a lista falhar ou não trouxer o código.
+async function resolverVendedor(nCodVend: number, vendMap: Map<number, string>, acc: Acc): Promise<string> {
+  if (!nCodVend) return "";
+  const daLista = vendMap.get(nCodVend);
+  if (daLista) return daLista;
+  const key = `${acc.name}:${nCodVend}`;
+  if (vendedorCache.has(key)) return vendedorCache.get(key) || "";
+  try {
+    const v: any = await omieCall("/geral/vendedores/", "ConsultarVendedor", { codigo: nCodVend }, acc);
+    const nome = v?.nome || "";
+    vendedorCache.set(key, nome);
+    return nome;
+  } catch { return ""; }
+}
+
 // GET /api/clientes/sync-recente — busca OS e PV alterados nos ultimos 60 minutos
 export async function GET(req: Request) {
   try {
@@ -66,6 +106,7 @@ export async function GET(req: Request) {
     for (const acc of ACCS) {
       let osNovas = 0, pvNovos = 0, nfs = 0;
       const empKey = acc.name.replace(/ /g, "_");
+      const vendMap = await carregarVendedores(acc);
 
       // Buscar OS do dia atual (pega criadas e alteradas hoje)
       try {
@@ -87,7 +128,9 @@ export async function GET(req: Request) {
             let status = ETAPA_OS[cab.cEtapa] || cab.cEtapa;
             if (info.cCancelada === "S") status = "Cancelada";
 
-            await supabase.from("portal_nt_clientes_os").upsert({
+            const vendedorNome = await resolverVendedor(cab.nCodVend, vendMap, acc);
+
+            const linhaOS: Record<string, unknown> = {
               num_os: cab.cNumOS, cod_os: cab.nCodOS, empresa: acc.name,
               cod_cli: cab.nCodCli, etapa: cab.cEtapa,
               data_previsao: parseData(cab.dDtPrevisao),
@@ -96,14 +139,18 @@ export async function GET(req: Request) {
               valor_total: cab.nValorTotal, status,
               cancelada: info.cCancelada === "S", faturada: info.cFaturada === "S",
               num_pedido_cli: cab.cNumPedCli || adicional?.cNumPedido || "",
-              vendedor: "", cod_vendedor: cab.nCodVend,
+              cod_vendedor: cab.nCodVend,
               cidade: adicional?.cCidPrestServ || "",
               contrato: adicional?.cNumContrato || "",
               descricao: servs.find((s: any) => s.cDescServ)?.cDescServ || "",
               servicos: JSON.stringify(servs.map((s: any) => ({ cod: s.nCodServico, qtd: s.nQtde, valor: s.nValUnit, desc: s.cDescServ || "" }))),
               obs: os.Observacoes?.cObsOS || "",
               updated_at: new Date().toISOString(),
-            }, { onConflict: "num_os,empresa" });
+            };
+            // Só grava o vendedor quando resolvi um nome — NUNCA sobrescreve um nome
+            // bom com vazio (evita clobber sob REDUNDANT / runs concorrentes).
+            if (vendedorNome) linhaOS.vendedor = vendedorNome;
+            await supabase.from("portal_nt_clientes_os").upsert(linhaOS, { onConflict: "num_os,empresa" });
             osNovas++;
             if (info.cFaturada === "S" && info.cCancelada !== "S") osFaturadasCod.add(cab.nCodOS);
           }

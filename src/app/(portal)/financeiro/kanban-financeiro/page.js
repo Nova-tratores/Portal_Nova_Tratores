@@ -109,6 +109,19 @@ const carregarDados = async () => {
       });
     }
 
+    // --- AUTO-MOVE: gerar_boleto com vencimento passado -> vencido ---
+    const gerarBoletoVencido = (data || []).filter(c =>
+      c.status === 'gerar_boleto' &&
+      c.vencimento_boleto && new Date(c.vencimento_boleto + 'T00:00:00') < hoje
+    );
+    if (gerarBoletoVencido.length > 0) {
+      await Promise.all(gerarBoletoVencido.map(c => supabase.from('Chamado_NF').update({ status: 'vencido', tarefa: 'Cobrar Cliente (Vencido sem boleto)' }).eq('id', c.id)));
+      gerarBoletoVencido.forEach(c => {
+        const idx = (data || []).findIndex(d => d.id === c.id);
+        if (idx !== -1) data[idx] = { ...data[idx], status: 'vencido', tarefa: 'Cobrar Cliente (Vencido sem boleto)' };
+      });
+    }
+
     // --- HELPER: calcula estado de cada parcela ---
     const calcParcelas = (c) => {
       const qtd = parseInt(c.qtd_parcelas || 1);
@@ -411,6 +424,36 @@ return (
       </div>
       </header>
 
+      {filtroBusca.trim() ? (
+      <div style={{ flex: 1, overflowY: 'auto', padding: '0 24px 24px 24px' }}>
+        <div style={{ fontSize: '13px', color: 'var(--portal-text-muted)', marginBottom: '12px' }}>{chamadosFiltrados.length} resultado{chamadosFiltrados.length !== 1 ? 's' : ''}</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '14px' }}>
+          {chamadosFiltrados.map((t, idx) => {
+            const statusLabel = { gerar_boleto: 'GERAR BOLETO', validar_pix: 'VALIDAR PIX', enviar_cliente: 'ENVIAR CLIENTE', aguardando_vencimento: 'AGUARDANDO', sem_boleto: 'SEM BOLETO', pago: 'PAGO', vencido: 'VENCIDO', concluido: 'CONCLUÍDO' }[t.status] || t.status
+            const statusColor = t.status === 'vencido' ? '#ef4444' : t.status === 'pago' || t.status === 'concluido' ? '#22c55e' : t.status === 'gerar_boleto' ? '#3b82f6' : '#d97706'
+            return (
+              <div key={`${t.id}-${idx}`} className="kanban-card" onClick={() => setTarefaSelecionada(t)} style={{
+                background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: '12px',
+                borderLeft: `4px solid ${statusColor}`, cursor: 'pointer', overflow: 'hidden',
+              }}>
+                <div style={{ padding: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                    <h4 style={{ margin: 0, fontSize: '15px', fontWeight: '500', color: 'var(--portal-text)', flex: 1 }}>{t.nom_cliente?.toUpperCase()}</h4>
+                    <span style={{ fontSize: '10px', fontWeight: '700', padding: '2px 8px', borderRadius: '6px', background: `${statusColor}15`, color: statusColor, whiteSpace: 'nowrap' }}>{statusLabel}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '12px', fontSize: '12px', color: 'var(--portal-text-secondary)', flexWrap: 'wrap' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><CreditCard size={12} />{t.forma_pagamento}</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Calendar size={12} />{formatarDataBR(t.vencimento_boleto)}</span>
+                  </div>
+                  <div style={{ fontSize: '20px', fontWeight: '500', color: 'var(--portal-text)', marginTop: '8px' }}>{formatarMoeda(t.valor_exibicao)}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--portal-text-muted)', marginTop: '4px' }}>ID #{t.id}</div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+      ) : (
       <div style={{ flex: 1, display: 'flex', gap: '16px', overflowX: 'auto', overflowY: 'hidden', padding: '0 24px 24px 24px', boxSizing: 'border-box' }}>
       {colunas.map(col => (
         <div key={col.id} style={{ width: '300px', flex: '0 0 300px', display: 'flex', flexDirection: 'column' }}>
@@ -513,6 +556,7 @@ return (
         </div>
       ))}
       </div>
+      )}
     </main>
 
     {/* --- MODAL DETALHES --- */}

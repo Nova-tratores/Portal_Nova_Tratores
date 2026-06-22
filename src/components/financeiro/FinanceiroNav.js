@@ -23,6 +23,7 @@ const LINKS_FINANCEIRO = [
   { label: 'Painel', href: '/financeiro/home-financeiro', icon: 'painel' },
   { label: 'Kanban', href: '/financeiro/kanban-financeiro', icon: 'kanban' },
   { label: 'Despesas', href: '/financeiro/historico-pagar', icon: 'pagar' },
+  { label: 'Vencidos', href: '/financeiro/vencidos', icon: 'vencidos' },
   { label: 'Relatorio', href: '/financeiro/relatorio-pagar', icon: 'dashboard' },
 ]
 
@@ -30,12 +31,14 @@ const LINKS_POSVENDAS = [
   { label: 'Painel', href: '/financeiro/home-posvendas', icon: 'painel' },
   { label: 'Kanban', href: '/financeiro/kanban', icon: 'kanban' },
   { label: 'Despesas', href: '/financeiro/historico-pagar', icon: 'pagar' },
+  { label: 'Vencidos', href: '/financeiro/vencidos', icon: 'vencidos' },
 ]
 
 const LINKS_PECAS = [
   { label: 'Painel', href: '/financeiro/home-pecas', icon: 'painel' },
   { label: 'Kanban', href: '/financeiro/kanban-pecas', icon: 'kanban' },
   { label: 'Despesas', href: '/financeiro/historico-pagar', icon: 'pagar' },
+  { label: 'Vencidos', href: '/financeiro/vencidos', icon: 'vencidos' },
 ]
 
 export default function FinanceiroNav({ children }) {

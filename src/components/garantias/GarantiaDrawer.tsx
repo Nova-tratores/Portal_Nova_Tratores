@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   X, Loader2, ExternalLink, Package, ShieldCheck, Factory, Send,
   AlertTriangle, CheckCircle2, XCircle, Save, History, FileWarning, MapPin, RefreshCw, ImagePlus,
+  Mail, ChevronDown, ChevronUp, FileText, Download,
 } from 'lucide-react';
 import type { GarantiaDetalhe, Montadora, ChecklistField } from '@/lib/garantias/types';
 import { STATUS_LABEL, STATUS_COR } from '@/lib/garantias/constants';
@@ -103,6 +104,12 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
   // Recusa interna (em_analise)
   const [recusaTexto, setRecusaTexto] = useState('');
   const [mostrarRecusa, setMostrarRecusa] = useState(false);
+
+  // Emails do chassi
+  const [emailsAberto, setEmailsAberto] = useState(false);
+  const [emailsList, setEmailsList] = useState<any[] | null>(null);
+  const [emailsLoading, setEmailsLoading] = useState(false);
+  const [emailModal, setEmailModal] = useState<any | null>(null);
 
   const carregar = useCallback(async () => {
     try {
@@ -416,6 +423,157 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                   <ExternalLink size={13} /> Abrir OS no Pós-Vendas
                 </a>
               </Secao>
+
+              {/* Emails do chassi */}
+              {g.chassis && (
+                <div style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 12, overflow: 'hidden' }}>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const opening = !emailsAberto;
+                      setEmailsAberto(opening);
+                      if (opening && emailsList === null) {
+                        setEmailsLoading(true);
+                        try {
+                          const res = await fetch(`/api/garantias/emails?chassis=${encodeURIComponent(g.chassis || '')}`);
+                          const data = await res.json();
+                          setEmailsList(data.emails || []);
+                        } catch { setEmailsList([]); }
+                        setEmailsLoading(false);
+                      }
+                    }}
+                    style={{
+                      width: '100%', display: 'flex', alignItems: 'center', gap: 6,
+                      padding: 14, border: 'none', background: 'none', cursor: 'pointer',
+                      fontSize: 12, fontWeight: 700, color: 'var(--portal-text-muted)',
+                      textTransform: 'uppercase', letterSpacing: 0.4,
+                    }}
+                  >
+                    <Mail size={14} />
+                    Emails do Trator
+                    {emailsList !== null && (
+                      <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 8, background: emailsList.length > 0 ? '#EFF6FF' : 'var(--portal-bg-secondary)', color: emailsList.length > 0 ? '#2563EB' : 'var(--portal-text-muted)', fontWeight: 700 }}>
+                        {emailsList.length}
+                      </span>
+                    )}
+                    <span style={{ marginLeft: 'auto' }}>
+                      {emailsAberto ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    </span>
+                  </button>
+                  {emailsAberto && (
+                    <div style={{ padding: '0 14px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {emailsLoading ? (
+                        <div style={{ textAlign: 'center', padding: 16, color: 'var(--portal-text-muted)', fontSize: 12 }}>
+                          <Loader2 size={16} className="spin" />
+                        </div>
+                      ) : !emailsList || emailsList.length === 0 ? (
+                        <div style={{ padding: 12, textAlign: 'center', fontSize: 12, color: 'var(--portal-text-muted)' }}>
+                          Nenhum email encontrado para este chassi.
+                        </div>
+                      ) : (
+                        emailsList.map((e: any, ei: number) => (
+                          <div
+                            key={ei}
+                            onClick={() => setEmailModal(e)}
+                            style={{
+                              padding: '10px 12px', border: '1px solid var(--portal-border)', borderRadius: 8,
+                              background: 'var(--portal-bg-secondary)', cursor: 'pointer', transition: 'all 0.1s',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+                                <span style={{
+                                  fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 4, flexShrink: 0,
+                                  background: e.tipo === 'revisao' ? '#ECFDF5' : '#EFF6FF',
+                                  color: e.tipo === 'revisao' ? '#059669' : '#2563EB',
+                                }}>
+                                  {e.tipo === 'revisao' ? 'REV' : 'GAR'}
+                                </span>
+                                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--portal-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {e.assunto}
+                                </span>
+                              </div>
+                              <span style={{ fontSize: 10, color: 'var(--portal-text-muted)', flexShrink: 0 }}>
+                                {e.data ? new Date(e.data).toLocaleDateString('pt-BR') : '-'}
+                              </span>
+                            </div>
+                            {e.de && <div style={{ fontSize: 11, color: 'var(--portal-text-muted)', marginTop: 3 }}>De: {e.de}</div>}
+                            {e.anexos?.length > 0 && (
+                              <div style={{ fontSize: 10, color: '#0ea5e9', marginTop: 3, fontWeight: 600 }}>
+                                {e.anexos.length} anexo{e.anexos.length > 1 ? 's' : ''}
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Modal de email */}
+              {emailModal && (
+                <div
+                  onClick={(ev) => { if (ev.target === ev.currentTarget) setEmailModal(null); }}
+                  style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 10003, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+                >
+                  <div style={{ background: 'var(--portal-bg-card)', borderRadius: 16, width: '100%', maxWidth: 560, maxHeight: '80vh', overflow: 'auto', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                          <span style={{
+                            fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4,
+                            background: emailModal.tipo === 'revisao' ? '#ECFDF5' : '#EFF6FF',
+                            color: emailModal.tipo === 'revisao' ? '#059669' : '#2563EB',
+                          }}>
+                            {emailModal.tipo === 'revisao' ? 'REVISÃO' : 'GARANTIA'}
+                          </span>
+                          <span style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>
+                            {emailModal.data ? new Date(emailModal.data).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
+                          </span>
+                        </div>
+                        <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--portal-text)' }}>{emailModal.assunto}</h3>
+                        {emailModal.de && <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginTop: 4 }}>De: {emailModal.de}</div>}
+                      </div>
+                      <button onClick={() => setEmailModal(null)} style={{ background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 8, padding: 6, cursor: 'pointer', flexShrink: 0 }}>
+                        <X size={14} color="var(--portal-text-secondary)" />
+                      </button>
+                    </div>
+
+                    {emailModal.corpo && (
+                      <div style={{ padding: 14, background: 'var(--portal-bg-secondary)', borderRadius: 10, border: '1px solid var(--portal-border)', fontSize: 13, color: 'var(--portal-text-secondary)', lineHeight: 1.7, whiteSpace: 'pre-wrap', marginBottom: 14, maxHeight: 300, overflow: 'auto' }}>
+                        {emailModal.corpo}
+                      </div>
+                    )}
+
+                    {emailModal.anexos?.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>Anexos</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {emailModal.anexos.map((a: any, ai: number) => (
+                            <a
+                              key={ai}
+                              href={a.url || a.link || a.part || '#'}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px',
+                                borderRadius: 8, border: '1px solid rgba(59,130,246,0.15)',
+                                background: 'rgba(59,130,246,0.04)', textDecoration: 'none',
+                                fontSize: 13, color: '#3b82f6', fontWeight: 500,
+                              }}
+                            >
+                              <FileText size={14} />
+                              {a.nome || a.filename || `Anexo ${ai + 1}`}
+                              <Download size={12} style={{ marginLeft: 'auto', opacity: 0.5 }} />
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Peças selecionadas pelo técnico */}
               <Secao titulo={`Peças solicitadas (${g.pecas.length})`} icone={<Package size={14} />}>

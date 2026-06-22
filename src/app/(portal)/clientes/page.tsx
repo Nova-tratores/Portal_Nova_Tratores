@@ -19,6 +19,11 @@ interface OrdemServico {
   cidade: string; contrato: string; projeto: string; num_nf: string; link_nf: string
   descricao: string; servicos: any[]; obs: string; dados_adic: string; pdf_anexo?: string
   pos_pdf?: string | null; pos_id?: string | null; pos_real?: boolean; financeiro?: FinanceiroDoc | null
+  nf_substituicoes?: SubstituicaoNF[]
+}
+interface SubstituicaoNF {
+  nf_tipo: 'servico' | 'peca'; num_antigo: string | null; num_novo: string
+  por: string; por_id: string | null; em: string
 }
 interface FinanceiroDoc {
   boleto: string | null; nf_servico: string | null; nf_peca: string | null
@@ -31,6 +36,7 @@ interface PedidoVenda {
   etapa: string; valor_total: number; cancelado: boolean; faturado: boolean
   numero_nf: string; link_nf: string; itens: any[]; observacoes: string; pdf_anexo?: string
   pv_pdf?: string | null; ppv_id?: string | null; ppv_real?: boolean; financeiro?: FinanceiroDoc | null
+  nf_substituicoes?: SubstituicaoNF[]
 }
 
 function formatCurrency(v: number) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }
@@ -39,6 +45,8 @@ function formatDate(d: string | null) {
   const date = new Date(d + 'T00:00:00')
   return date.toLocaleDateString('pt-BR')
 }
+const REVISOES_HORAS = ['50h','300h','600h','900h','1200h','1500h','1800h','2100h','2400h','2700h','3000h']
+
 function formatCNPJ(v: string) {
   if (!v) return ''
   const n = v.replace(/\D/g, '')
@@ -91,6 +99,8 @@ function ClientesPageInner() {
   const [expandedOS, setExpandedOS] = useState<string | null>(null)
   const [modalOS, setModalOS] = useState<OrdemServico | null>(null)
   const [anexNfOS, setAnexNfOS] = useState(false)
+  const [subNF, setSubNF] = useState<{ osNum: string; empresa: string; nf_tipo: 'servico' | 'peca'; num_antigo: string; num_novo: string } | null>(null)
+  const [subSalvando, setSubSalvando] = useState(false)
   const [modalProjeto, setModalProjeto] = useState<string | null>(null)
   const [modalProjetoData, setModalProjetoData] = useState<any>(null)
   const [modalProjetoLoading, setModalProjetoLoading] = useState(false)
@@ -98,9 +108,14 @@ function ClientesPageInner() {
   const [donoAberto, setDonoAberto] = useState<number | null>(null)
   const [servicoModalOS, setServicoModalOS] = useState<string | null>(null)
   const [pedidoModalNum, setPedidoModalNum] = useState<string | null>(null)
+  const [reqModal, setReqModal] = useState<any | null>(null)
+  const [revModal, setRevModal] = useState<any | null>(null)
   const [emailsData, setEmailsData] = useState<Record<string, any[]>>({})
   const [loadingEmails, setLoadingEmails] = useState<string | null>(null)
   const [lembretesCliente, setLembretesCliente] = useState<any[]>([])
+  const [osColuna, setOsColuna] = useState<'todas' | 'ativas' | 'faturadas' | 'canceladas'>('todas')
+  const [osFiltroTipo, setOsFiltroTipo] = useState<string>('')
+  const [osBuscaNF, setOsBuscaNF] = useState('')
 
   // Criar cliente / projeto (no Omie + local)
   const EMPRESAS_OMIE = ['Nova Tratores', 'Castro Peças']
@@ -384,6 +399,26 @@ function ClientesPageInner() {
     } catch { alert('Erro de conexão.') }
     setAnexNfOS(false)
   }
+  // Marca uma NF (serviço/peça) como substituída na OS da pasta (nº antigo -> novo + histórico).
+  const salvarSubstituicao = async () => {
+    if (!subNF || !subNF.num_novo.trim() || !selectedCliente) return
+    setSubSalvando(true)
+    let usuario = '', usuarioId = ''
+    try { const { data } = await supabase.auth.getUser(); usuario = data.user?.email || ''; usuarioId = data.user?.id || '' } catch {}
+    try {
+      const res = await fetch('/api/clientes/substituir-nf', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tipo: 'os', num: subNF.osNum, empresa: subNF.empresa, nf_tipo: subNF.nf_tipo, num_antigo: subNF.num_antigo.trim() || null, num_novo: subNF.num_novo.trim(), usuario, usuarioId }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) { alert(data.error || 'Erro ao registrar substituição.'); setSubSalvando(false); return }
+      setSubNF(null)
+      await abrirDetalhe(selectedCliente)
+      setModalOS(null)
+      alert('Substituição registrada no histórico da OS.')
+    } catch { alert('Erro de conexão.') }
+    setSubSalvando(false)
+  }
   const filtradosRaw = clientes.filter(c => {
     const matchSearch = !search || [c.razao_social, c.nome_fantasia, c.cnpj_cpf, c.cidade, ...(c.projetos || [])].some(f => (f || '').toLowerCase().includes(search.toLowerCase()))
     return matchSearch && (!empresaFilter || c.empresa === empresaFilter)
@@ -422,152 +457,142 @@ function ClientesPageInner() {
     const pvsSemOS = pedidos.filter(pv => !ordens.some(os => /^\d+$/.test(os.num_pedido_cli) && os.num_pedido_cli === pv.num_pedido))
 
     return (
-      <div style={{ padding: '32px 40px', maxWidth: 1400, margin: '0 auto' }}>
+      <div style={{ padding: '20px 32px 48px', width: '100%', boxSizing: 'border-box' }}>
         <button onClick={() => setSelectedCliente(null)}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', fontSize: 13, padding: '4px 0', marginBottom: 20 }}>
+          style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', fontSize: 13, padding: '4px 0', marginBottom: 18 }}>
           <ArrowLeft size={16} /> Voltar para lista
         </button>
 
-        {/* HEADER CLIENTE */}
-        <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #E5E7EB', marginBottom: 24, overflow: 'hidden' }}>
-          <div style={{ padding: '24px 28px', background: 'linear-gradient(135deg, #1E3A5F 0%, #2563EB 100%)', color: '#fff' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 24, fontWeight: 700 }}>{cli.nome_fantasia || cli.razao_social}</span>
-              {etiquetasCliente.map(e => (
-                <span key={e.id} style={{
-                  display: 'inline-block', padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700,
-                  background: e.cor, color: '#fff', letterSpacing: 0.3, border: '1px solid rgba(255,255,255,0.3)'
-                }}>{e.nome}</span>
-              ))}
-            </div>
-            {cli.nome_fantasia && cli.razao_social && cli.nome_fantasia !== cli.razao_social && (
-              <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>{cli.razao_social}</div>
-            )}
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)' }}>
-            {[
-              { l: 'CNPJ / CPF', v: cli.cnpj_cpf ? formatCNPJ(cli.cnpj_cpf) : '-', icon: Hash },
-              { l: 'Cidade', v: cli.cidade ? `${cli.cidade}/${cli.estado}` : '-', icon: MapPin },
-              { l: 'Telefone', v: cli.telefone || '-', icon: User },
-              { l: 'Email', v: cli.email || '-', icon: FileText },
-              { l: 'Empresa', v: cli.empresa, icon: FolderOpen },
-            ].map((f, i) => (
-              <div key={i} style={{ padding: '16px 20px', borderRight: i < 4 ? '1px solid #F3F4F6' : 'none' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, fontWeight: 600 }}>
-                  <f.icon size={12} /> {f.l}
+        <div style={{ display: 'grid', gridTemplateColumns: '320px minmax(0, 1fr)', gap: 24, alignItems: 'start' }}>
+          {/* ===================== SIDEBAR ===================== */}
+          <aside style={{ position: 'sticky', top: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Card do cliente */}
+            <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #E5E7EB', overflow: 'hidden', boxShadow: '0 1px 3px rgba(16,24,40,0.06)' }}>
+              <div style={{ padding: '20px', background: 'linear-gradient(135deg, #991b1b 0%, #dc2626 100%)', color: '#fff' }}>
+                <div style={{ width: 46, height: 46, borderRadius: 12, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                  <User size={22} color="#fff" />
                 </div>
-                <div style={{ fontSize: 14, color: '#111827', fontWeight: 500 }}>{f.v}</div>
+                <div style={{ fontSize: 17, fontWeight: 800, lineHeight: 1.25 }}>{cli.nome_fantasia || cli.razao_social}</div>
+                {cli.nome_fantasia && cli.razao_social && cli.nome_fantasia !== cli.razao_social && (
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>{cli.razao_social}</div>
+                )}
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 12, padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)' }}>
+                  <FolderOpen size={11} /> {cli.empresa}
+                </span>
               </div>
-            ))}
-          </div>
-          {cli.projetos && cli.projetos.length > 0 && (
-            <div style={{ padding: '14px 20px', borderTop: '1px solid #F3F4F6', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-              <span style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Projetos:</span>
-              {cli.projetos.map(p => (
-                <button key={p} onClick={() => abrirModalProjeto(p, cli.empresa)}
-                  style={{ fontSize: 13, color: '#2563EB', padding: '5px 14px', border: '1px solid #BFDBFE', borderRadius: 8, background: '#EFF6FF', cursor: 'pointer', fontWeight: 600 }}>
-                  {p}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* ETIQUETAS + DESCRIÇÃO */}
-        <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #E5E7EB', marginBottom: 20, padding: '20px 24px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 700, color: '#111827' }}>
-              <Tag size={16} color="#2563EB" /> Etiquetas
-            </div>
-            <button onClick={() => setModalEtiqueta(!modalEtiqueta)}
-              style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#6B7280', border: '1px solid #E5E7EB', borderRadius: 8, padding: '6px 12px', background: '#fff', cursor: 'pointer', fontWeight: 600 }}>
-              <Plus size={14} /> Gerenciar
-            </button>
-          </div>
-
-          {/* Etiquetas atribuídas */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: etiquetasCliente.length > 0 ? 12 : 0 }}>
-            {etiquetasCliente.map(e => (
-              <span key={e.id} style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                padding: '6px 14px', borderRadius: 20, fontSize: 13, fontWeight: 700,
-                background: e.cor, color: '#fff', letterSpacing: 0.3
-              }}>
-                {e.nome}
-                <button onClick={() => cli.cnpj_cpf && toggleEtiqueta(cli.cnpj_cpf, e.id, true)}
-                  style={{ background: 'rgba(255,255,255,0.3)', border: 'none', borderRadius: '50%', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}>
-                  <X size={10} color="#fff" />
-                </button>
-              </span>
-            ))}
-            {etiquetasCliente.length === 0 && (
-              <span style={{ fontSize: 13, color: '#9CA3AF', fontStyle: 'italic' }}>Nenhuma etiqueta atribuída</span>
-            )}
-          </div>
-
-          {/* Modal de gerenciamento de etiquetas */}
-          {modalEtiqueta && (
-            <div style={{ marginTop: 12, padding: 16, background: '#F9FAFB', borderRadius: 12, border: '1px solid #E5E7EB' }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>
-                Adicionar / Remover Etiquetas
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-                {todasEtiquetas.map(e => {
-                  const ativo = etiquetasCliente.some(ec => ec.id === e.id)
-                  return (
-                    <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <button onClick={() => cli.cnpj_cpf && toggleEtiqueta(cli.cnpj_cpf, e.id, ativo)}
-                        style={{
-                          padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                          border: ativo ? `2px solid ${e.cor}` : '2px solid #D1D5DB',
-                          background: ativo ? e.cor : '#fff',
-                          color: ativo ? '#fff' : '#6B7280',
-                          transition: 'all .15s'
-                        }}>
-                        {e.nome}
-                      </button>
-                      <button onClick={() => excluirEtiqueta(e.id)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#D1D5DB', padding: 2, display: 'flex' }}
-                        title="Excluir etiqueta">
-                        <Trash2 size={12} />
-                      </button>
+              <div style={{ padding: '6px 0' }}>
+                {[
+                  { l: 'CNPJ / CPF', v: cli.cnpj_cpf ? formatCNPJ(cli.cnpj_cpf) : '-', icon: Hash },
+                  { l: 'Cidade', v: cli.cidade ? `${cli.cidade}/${cli.estado}` : '-', icon: MapPin },
+                  { l: 'Telefone', v: cli.telefone || '-', icon: User },
+                  { l: 'Email', v: cli.email || '-', icon: Mail },
+                ].map((f, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '9px 18px' }}>
+                    <f.icon size={15} color="#9CA3AF" style={{ marginTop: 2, flexShrink: 0 }} />
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 10, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700 }}>{f.l}</div>
+                      <div style={{ fontSize: 13, color: '#111827', fontWeight: 500, wordBreak: 'break-word' }}>{f.v}</div>
                     </div>
-                  )
-                })}
+                  </div>
+                ))}
               </div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <input value={novaEtiquetaNome} onChange={ev => setNovaEtiquetaNome(ev.target.value)}
-                  placeholder="Nova etiqueta..."
-                  style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 13, outline: 'none' }}
-                  onKeyDown={ev => ev.key === 'Enter' && criarEtiqueta()} />
-                <input type="color" value={novaEtiquetaCor} onChange={ev => setNovaEtiquetaCor(ev.target.value)}
-                  style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid #E5E7EB', cursor: 'pointer', padding: 2 }} />
-                <button onClick={criarEtiqueta}
-                  style={{ padding: '8px 16px', borderRadius: 8, background: '#2563EB', color: '#fff', border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                  Criar
+            </div>
+
+            {/* Etiquetas (compacto) */}
+            <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #E5E7EB', padding: '14px 16px', boxShadow: '0 1px 3px rgba(16,24,40,0.06)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                  <Tag size={14} color="#2563EB" /> Etiquetas
+                </div>
+                <button onClick={() => setModalEtiqueta(!modalEtiqueta)} title="Gerenciar etiquetas"
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 7, border: '1px solid #E5E7EB', background: modalEtiqueta ? '#EFF6FF' : '#fff', color: '#2563EB', cursor: 'pointer' }}>
+                  <Plus size={15} />
                 </button>
               </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {etiquetasCliente.map(e => (
+                  <span key={e.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 16, fontSize: 12, fontWeight: 700, background: e.cor, color: '#fff' }}>
+                    {e.nome}
+                    <button onClick={() => cli.cnpj_cpf && toggleEtiqueta(cli.cnpj_cpf, e.id, true)}
+                      style={{ background: 'rgba(255,255,255,0.3)', border: 'none', borderRadius: '50%', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}>
+                      <X size={9} color="#fff" />
+                    </button>
+                  </span>
+                ))}
+                {etiquetasCliente.length === 0 && !modalEtiqueta && (
+                  <span style={{ fontSize: 12, color: '#9CA3AF', fontStyle: 'italic' }}>Sem etiquetas. Clique + para marcar.</span>
+                )}
+              </div>
+              {modalEtiqueta && (
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #F3F4F6' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                    {todasEtiquetas.map(e => {
+                      const ativo = etiquetasCliente.some(ec => ec.id === e.id)
+                      return (
+                        <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                          <button onClick={() => cli.cnpj_cpf && toggleEtiqueta(cli.cnpj_cpf, e.id, ativo)}
+                            style={{ padding: '4px 11px', borderRadius: 16, fontSize: 11, fontWeight: 700, cursor: 'pointer', border: ativo ? `2px solid ${e.cor}` : '2px solid #D1D5DB', background: ativo ? e.cor : '#fff', color: ativo ? '#fff' : '#6B7280', transition: 'all .15s' }}>
+                            {e.nome}
+                          </button>
+                          <button onClick={() => excluirEtiqueta(e.id)} title="Excluir etiqueta"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#D1D5DB', padding: 1, display: 'flex' }}>
+                            <Trash2 size={11} />
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <input value={novaEtiquetaNome} onChange={ev => setNovaEtiquetaNome(ev.target.value)} placeholder="Nova..."
+                      style={{ flex: 1, minWidth: 0, padding: '7px 10px', borderRadius: 7, border: '1px solid #E5E7EB', fontSize: 12, outline: 'none' }}
+                      onKeyDown={ev => ev.key === 'Enter' && criarEtiqueta()} />
+                    <input type="color" value={novaEtiquetaCor} onChange={ev => setNovaEtiquetaCor(ev.target.value)}
+                      style={{ width: 32, height: 32, borderRadius: 7, border: '1px solid #E5E7EB', cursor: 'pointer', padding: 2, flexShrink: 0 }} />
+                    <button onClick={criarEtiqueta}
+                      style={{ padding: '7px 12px', borderRadius: 7, background: '#2563EB', color: '#fff', border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
+                      Criar
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
 
-          {/* Descrição */}
-          <div style={{ marginTop: 16 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
-              Descrição / Observações
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
+            {/* Projetos */}
+            {cli.projetos && cli.projetos.length > 0 && (
+              <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #E5E7EB', padding: '14px 16px', boxShadow: '0 1px 3px rgba(16,24,40,0.06)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 10 }}>
+                  <FolderOpen size={14} color="#2563EB" /> Projetos ({cli.projetos.length})
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {cli.projetos.map(p => (
+                    <button key={p} onClick={() => abrirModalProjeto(p, cli.empresa)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 7, width: '100%', textAlign: 'left', fontSize: 12.5, color: '#1D4ED8', padding: '8px 10px', border: '1px solid #BFDBFE', borderRadius: 8, background: '#EFF6FF', cursor: 'pointer', fontWeight: 600 }}>
+                      <Hash size={12} style={{ flexShrink: 0 }} /><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Observações */}
+            <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #E5E7EB', padding: '14px 16px', boxShadow: '0 1px 3px rgba(16,24,40,0.06)' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8 }}>
+                Observações
+              </div>
               <textarea value={descricaoLocal} onChange={ev => setDescricaoLocal(ev.target.value)}
-                placeholder="Adicione observações sobre este cliente..."
-                style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid #E5E7EB', fontSize: 14, outline: 'none', resize: 'vertical', minHeight: 60, fontFamily: 'inherit', color: '#111827' }} />
+                placeholder="Anote algo sobre este cliente..."
+                style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', borderRadius: 10, border: '1px solid #E5E7EB', fontSize: 13, outline: 'none', resize: 'vertical', minHeight: 56, fontFamily: 'inherit', color: '#111827' }} />
               {descricaoLocal !== descricaoCliente && (
                 <button onClick={() => cli.cnpj_cpf && salvarDescricao(cli.cnpj_cpf)} disabled={salvandoDesc}
-                  style={{ alignSelf: 'flex-end', display: 'flex', alignItems: 'center', gap: 4, padding: '8px 16px', borderRadius: 8, background: '#059669', color: '#fff', border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                  style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px', borderRadius: 8, background: '#059669', color: '#fff', border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                   <Save size={14} /> Salvar
                 </button>
               )}
             </div>
-          </div>
-        </div>
+          </aside>
+
+          {/* ===================== COLUNA PRINCIPAL ===================== */}
+          <main style={{ display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0 }}>
 
         {/* LEMBRETES DO CLIENTE */}
         {lembretesCliente.length > 0 && (
@@ -630,20 +655,57 @@ function ClientesPageInner() {
           </div>
         ) : (
           <>
-            {/* RESUMO CARDS */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 28 }}>
+            {/* RESUMO + FILTROS */}
+            {(() => {
+              const classifyOS = (os: OrdemServico) => {
+                const txt = (os.descricao || '').toLowerCase() + ' ' + (typeof os.servicos === 'string' ? os.servicos : JSON.stringify(os.servicos || [])).toLowerCase()
+                if (/revis[aã]o|cheque.*h|check.*h|\d+\s*h\b/.test(txt)) return 'revisao'
+                if (/garantia/.test(txt)) return 'garantia'
+                return 'manutencao'
+              }
+              const extractChassis = (os: OrdemServico) => {
+                const servs = typeof os.servicos === 'string' ? JSON.parse(os.servicos) : (os.servicos || [])
+                for (const s of servs) { const m = (s.desc || '').match(/Chassis:\s*([^|]+)/i); if (m) return m[1].trim() }
+                return ''
+              }
+              const extractModelo = (os: OrdemServico) => {
+                const servs = typeof os.servicos === 'string' ? JSON.parse(os.servicos) : (os.servicos || [])
+                for (const s of servs) { const m = (s.desc || '').match(/Modelo:\s*([^|]+)/i); if (m) return m[1].trim() }
+                return ''
+              }
+              const maquinas = [...new Set(ordens.map(os => extractModelo(os)).filter(Boolean))]
+
+              const ordensFiltradas = ordens.filter(os => {
+                if (osColuna === 'ativas' && (os.faturada || os.cancelada)) return false
+                if (osColuna === 'faturadas' && !os.faturada) return false
+                if (osColuna === 'canceladas' && !os.cancelada) return false
+                if (osFiltroTipo === 'revisao' && classifyOS(os) !== 'revisao') return false
+                if (osFiltroTipo === 'manutencao' && classifyOS(os) !== 'manutencao') return false
+                if (osFiltroTipo === 'garantia' && classifyOS(os) !== 'garantia') return false
+                if (osFiltroTipo === 'com_nf' && !os.num_nf && !os.financeiro?.num_nf_servico) return false
+                if (osFiltroTipo === 'sem_nf' && (os.num_nf || os.financeiro?.num_nf_servico)) return false
+                if (osFiltroTipo.startsWith('maq:') && extractModelo(os) !== osFiltroTipo.slice(4)) return false
+                if (osBuscaNF) {
+                  const q = osBuscaNF.toLowerCase()
+                  const nfs = [os.num_nf, os.financeiro?.num_nf_servico, os.financeiro?.num_nf_peca, os.num_os, os.num_pedido_cli].filter(Boolean).join(' ').toLowerCase()
+                  if (!nfs.includes(q)) return false
+                }
+                return true
+              })
+
+              return (<>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
               {[
-                { l: 'Total OS', v: String(ordens.length), bg: '#EFF6FF', c: '#2563EB', b: '#BFDBFE', icon: ClipboardList },
-                { l: 'Ativas', v: String(totalAtivas), bg: '#FFF7ED', c: '#EA580C', b: '#FED7AA', icon: Wrench },
-                { l: 'Faturadas', v: String(totalFaturadas), bg: '#ECFDF5', c: '#059669', b: '#A7F3D0', icon: FileText },
-                { l: 'Valor OS', v: formatCurrency(totalValorOS), bg: '#F5F3FF', c: '#7C3AED', b: '#C4B5FD', icon: Package },
-                { l: 'Valor PV', v: formatCurrency(totalValorPV), bg: '#FEF2F2', c: '#DC2626', b: '#FECACA', icon: Package },
+                { l: 'OS', v: String(ordens.length), c: '#2563EB' },
+                { l: 'Ativas', v: String(totalAtivas), c: '#EA580C' },
+                { l: 'Faturadas', v: String(totalFaturadas), c: '#059669' },
+                { l: 'Canceladas', v: String(totalCanceladas), c: '#DC2626' },
+                { l: 'Valor OS', v: formatCurrency(totalValorOS), c: '#7C3AED' },
+                { l: 'Valor PV', v: formatCurrency(totalValorPV), c: '#DC2626' },
               ].map((c, i) => (
-                <div key={i} style={{ padding: '16px 20px', borderRadius: 12, background: c.bg, border: `1px solid ${c.b}` }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
-                    <c.icon size={13} color={c.c} /> {c.l}
-                  </div>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: c.c }}>{c.v}</div>
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 8, background: '#F9FAFB', border: '1px solid #E5E7EB' }}>
+                  <span style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 600 }}>{c.l}</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: c.c }}>{c.v}</span>
                 </div>
               ))}
             </div>
@@ -652,70 +714,142 @@ function ClientesPageInner() {
               <div style={{ padding: 60, textAlign: 'center', color: '#9CA3AF', fontSize: 15 }}>Nenhuma ordem de servico encontrada</div>
             ) : (
               <div>
-                {/* TITULO SECAO */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, gap: 10 }}>
+                {/* TITULO + FILTROS */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 10 }}>
                   <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Wrench size={18} color="#2563EB" /> Ordens de Servico ({ordens.length})
+                    <Wrench size={18} color="#DC2626" /> Ordens de Servico ({ordensFiltradas.length})
                   </div>
                   <button onClick={() => abrirAnexar('os')}
-                    style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px', borderRadius: 8, border: '1px solid #BFDBFE', background: '#EFF6FF', color: '#1D4ED8', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                    style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px', borderRadius: 8, border: '1px solid #FECACA', background: '#FEF2F2', color: '#DC2626', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
                     <Plus size={14} /> Anexar OS
                   </button>
                 </div>
 
+                {/* Abas de coluna */}
+                <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
+                  {([
+                    { id: 'todas', label: 'Todas', count: ordens.length },
+                    { id: 'ativas', label: 'Ativas', count: totalAtivas },
+                    { id: 'faturadas', label: 'Faturadas', count: totalFaturadas },
+                    { id: 'canceladas', label: 'Canceladas', count: totalCanceladas },
+                  ] as const).map(tab => (
+                    <button key={tab.id} onClick={() => setOsColuna(tab.id)}
+                      style={{
+                        padding: '6px 14px', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                        background: osColuna === tab.id ? '#111827' : '#F3F4F6',
+                        color: osColuna === tab.id ? '#fff' : '#6B7280',
+                        transition: 'all 0.15s',
+                      }}>
+                      {tab.label} <span style={{ opacity: 0.7, marginLeft: 4 }}>{tab.count}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Filtros */}
+                <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <select
+                    value={osFiltroTipo}
+                    onChange={e => setOsFiltroTipo(e.target.value)}
+                    style={{
+                      padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                      border: osFiltroTipo ? '1px solid #DC2626' : '1px solid #E5E7EB',
+                      background: osFiltroTipo ? '#FEF2F2' : '#fff',
+                      color: osFiltroTipo ? '#DC2626' : '#6B7280',
+                      outline: 'none',
+                    }}>
+                    <option value="">Tipo de serviço</option>
+                    <option value="revisao">Revisão</option>
+                    <option value="manutencao">Manutenção</option>
+                    <option value="garantia">Garantia</option>
+                    <option value="com_nf">Com NF</option>
+                    <option value="sem_nf">Sem NF</option>
+                  </select>
+                  {maquinas.length > 0 && (
+                    <select
+                      value={osFiltroTipo.startsWith('maq:') ? osFiltroTipo : ''}
+                      onChange={e => setOsFiltroTipo(e.target.value)}
+                      style={{
+                        padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                        border: osFiltroTipo.startsWith('maq:') ? '1px solid #DC2626' : '1px solid #E5E7EB',
+                        background: osFiltroTipo.startsWith('maq:') ? '#FEF2F2' : '#fff',
+                        color: osFiltroTipo.startsWith('maq:') ? '#DC2626' : '#6B7280',
+                        outline: 'none',
+                      }}>
+                      <option value="">Máquina</option>
+                      {maquinas.map(m => <option key={m} value={`maq:${m}`}>{m}</option>)}
+                    </select>
+                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 8, border: osBuscaNF ? '1px solid #DC2626' : '1px solid #E5E7EB', background: osBuscaNF ? '#FEF2F2' : '#fff' }}>
+                    <Search size={13} color={osBuscaNF ? '#DC2626' : '#9CA3AF'} />
+                    <input
+                      type="text" placeholder="Buscar NF, OS..."
+                      value={osBuscaNF} onChange={e => setOsBuscaNF(e.target.value)}
+                      style={{ border: 'none', outline: 'none', background: 'none', fontSize: 12, width: 130, color: '#111827' }}
+                    />
+                    {osBuscaNF && <X size={12} onClick={() => setOsBuscaNF('')} style={{ cursor: 'pointer', color: '#9CA3AF' }} />}
+                  </div>
+                </div>
+
                 {/* OS COMO CARDS */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 28 }}>
-                  {ordens.map((os) => {
+                {ordensFiltradas.length === 0 ? (
+                  <div style={{ padding: 40, textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>Nenhuma OS com esses filtros</div>
+                ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 12, marginBottom: 28 }}>
+                  {ordensFiltradas.map((os, oi) => {
                     const servicos = typeof os.servicos === 'string' ? JSON.parse(os.servicos) : (os.servicos || [])
                     const solicitacao = (() => { const d = servicos.map((s: any) => s.desc || '').join('|'); const m = d.match(/Solicita[çc][ãa]o[^:]*:\s*([^|]+)/i); return m ? m[1].trim() : '' })()
                     const ref = classifyRef(os.num_pedido_cli)
                     const numRef = ref.tipo === 'pv' ? os.num_pedido_cli : ''
+                    const acc = os.cancelada ? '#DC2626' : os.faturada ? '#10B981' : '#F59E0B'
 
                     return (
-                      <div key={os.num_os} onClick={() => setModalOS(os)}
+                      <div key={os.num_os} className="cli-card" onClick={() => setModalOS(os)}
                         style={{
-                          display: 'flex', alignItems: 'center', gap: 16, padding: '16px 20px',
-                          border: '1px solid #E5E7EB', borderRadius: 12, background: '#fff', cursor: 'pointer',
-                          transition: 'all 0.15s', boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                          position: 'relative', display: 'flex', flexDirection: 'column', gap: 8,
+                          padding: '13px 16px 13px 20px', border: '1px solid #E5E7EB', borderRadius: 12,
+                          background: '#fff', cursor: 'pointer', transition: 'all 0.15s',
+                          boxShadow: '0 1px 2px rgba(16,24,40,0.04)', overflow: 'hidden',
+                          animationDelay: `${Math.min(oi * 30, 300)}ms`,
                         }}
-                        onMouseEnter={ev => { ev.currentTarget.style.borderColor = '#2563EB'; ev.currentTarget.style.boxShadow = '0 4px 12px rgba(37,99,235,0.08)' }}
-                        onMouseLeave={ev => { ev.currentTarget.style.borderColor = '#E5E7EB'; ev.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,0.03)' }}>
-                        <div style={{
-                          width: 44, height: 44, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                          background: os.cancelada ? '#FEF2F2' : os.faturada ? '#ECFDF5' : '#EFF6FF',
-                        }}>
-                          <Wrench size={20} color={os.cancelada ? '#DC2626' : os.faturada ? '#059669' : '#2563EB'} />
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>OS {os.num_os}</span>
-                            {numRef && <span style={{ fontSize: 13, color: '#6B7280' }}>/ PV {numRef}</span>}
-                            <span style={{
-                              fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 5,
-                              background: os.cancelada ? '#FEF2F2' : os.faturada ? '#ECFDF5' : '#FFF7ED',
-                              color: os.cancelada ? '#DC2626' : os.faturada ? '#059669' : '#EA580C',
-                              border: `1px solid ${os.cancelada ? '#FECACA' : os.faturada ? '#A7F3D0' : '#FED7AA'}`,
-                            }}>{os.status}</span>
+                        onMouseEnter={ev => { ev.currentTarget.style.borderColor = '#CBD5E1'; ev.currentTarget.style.boxShadow = '0 6px 16px rgba(16,24,40,0.09)'; ev.currentTarget.style.transform = 'translateY(-1px)' }}
+                        onMouseLeave={ev => { ev.currentTarget.style.borderColor = '#E5E7EB'; ev.currentTarget.style.boxShadow = '0 1px 2px rgba(16,24,40,0.04)'; ev.currentTarget.style.transform = 'none' }}>
+                        {/* barra de status na lateral */}
+                        <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: acc }} />
+
+                        {/* topo: OS / PV + valor */}
+                        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+                          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}>
+                            <span style={{ fontSize: 15, fontWeight: 800, color: '#0F172A', whiteSpace: 'nowrap' }}>OS {os.num_os}</span>
+                            {numRef && <span style={{ fontSize: 12, color: '#94A3B8', fontWeight: 600, whiteSpace: 'nowrap' }}>PV {numRef}</span>}
                           </div>
-                          <div style={{ fontSize: 13, color: '#6B7280', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {solicitacao || os.descricao || 'Sem descricao'}
+                          <span style={{ fontSize: 15, fontWeight: 800, color: '#0F172A', flexShrink: 0 }}>{formatCurrency(os.valor_total || 0)}</span>
+                        </div>
+
+                        {/* descrição */}
+                        <div style={{ fontSize: 12.5, color: '#64748B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.4 }}>
+                          {solicitacao || os.descricao || 'Sem descrição'}
+                        </div>
+
+                        {/* rodapé: status + data + pdf */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, color: acc, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                            <span style={{ width: 7, height: 7, borderRadius: '50%', background: acc, flexShrink: 0 }} />{os.status}
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+                            {os.pdf_anexo && (
+                              <a href={os.pdf_anexo} target="_blank" rel="noopener noreferrer" onClick={ev => ev.stopPropagation()} title="PDF anexado"
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: '#2563EB', textDecoration: 'none' }}>
+                                <FileText size={12} /> PDF
+                              </a>
+                            )}
+                            <span style={{ fontSize: 12, color: '#94A3B8', fontWeight: 500 }}>{formatDate(os.data_previsao)}</span>
                           </div>
                         </div>
-                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                          <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>{formatCurrency(os.valor_total || 0)}</div>
-                          <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 2 }}>{formatDate(os.data_previsao)}</div>
-                        </div>
-                        {os.pdf_anexo && (
-                          <a href={os.pdf_anexo} target="_blank" rel="noopener noreferrer" onClick={ev => ev.stopPropagation()} title="PDF anexado"
-                            style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', borderRadius: 7, border: '1px solid #BFDBFE', background: '#EFF6FF', color: '#1D4ED8', fontSize: 11, fontWeight: 700, textDecoration: 'none', flexShrink: 0 }}>
-                            <FileText size={13} /> PDF
-                          </a>
-                        )}
-                        <ChevronRight size={18} color="#D1D5DB" style={{ flexShrink: 0 }} />
                       </div>
                     )
                   })}
                 </div>
+                )}
 
                 {/* PVs sem OS */}
                 <div>
@@ -729,45 +863,49 @@ function ClientesPageInner() {
                     </button>
                   </div>
                   {pvsSemOS.length > 0 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {pvsSemOS.map(pv => (
-                        <div key={pv.num_pedido}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 12 }}>
+                      {pvsSemOS.map((pv, pi) => (
+                        <div key={pv.num_pedido} className="cli-card"
                           style={{
-                            display: 'flex', alignItems: 'center', gap: 16, padding: '14px 20px',
-                            border: '1px solid #E5E7EB', borderRadius: 12, background: '#fff',
+                            position: 'relative', display: 'flex', flexDirection: 'column', gap: 8,
+                            padding: '13px 16px 13px 20px', border: '1px solid #E5E7EB', borderRadius: 12,
+                            background: '#fff', boxShadow: '0 1px 2px rgba(16,24,40,0.04)', overflow: 'hidden',
+                            animationDelay: `${Math.min(pi * 30, 300)}ms`,
                           }}>
-                          <div style={{ width: 44, height: 44, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: '#FFF7ED' }}>
-                            <Package size={20} color="#EA580C" />
-                          </div>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <span style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>PV {pv.num_pedido}</span>
-                              <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 5, background: '#F9FAFB', color: '#6B7280', border: '1px solid #E5E7EB' }}>{pv.etapa}</span>
+                          <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: '#EA580C' }} />
+
+                          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}>
+                              <span style={{ fontSize: 15, fontWeight: 800, color: '#0F172A', whiteSpace: 'nowrap' }}>PV {pv.num_pedido}</span>
+                              {pv.numero_nf && <span style={{ fontSize: 12, color: '#94A3B8', fontWeight: 600, whiteSpace: 'nowrap' }}>NF {pv.numero_nf}</span>}
                             </div>
-                            {pv.numero_nf && <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>NF {pv.numero_nf}</div>}
+                            <span style={{ fontSize: 15, fontWeight: 800, color: '#0F172A', flexShrink: 0 }}>{formatCurrency(pv.valor_total || 0)}</span>
                           </div>
-                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                            <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>{formatCurrency(pv.valor_total || 0)}</div>
-                            <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 2 }}>{formatDate(pv.data_previsao)}</div>
-                          </div>
-                          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                            <a href={pv.pv_pdf || `/api/clientes/print?tipo=pv&cod=${pv.cod_pedido}&empresa=${encodeURIComponent(pv.empresa)}`}
-                              target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title={pv.ppv_real ? 'Abrir PPV original' : 'Imprimir PV'}
-                              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', textDecoration: 'none', color: '#374151' }}>
-                              <Printer size={16} />
-                            </a>
-                            {pv.link_nf && (
-                              <a href={pv.link_nf} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 8, border: 'none', background: '#111827', textDecoration: 'none', color: '#fff' }}>
-                                <Download size={16} />
+
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, color: '#EA580C', textTransform: 'uppercase', letterSpacing: 0.3, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#EA580C', flexShrink: 0 }} />{pv.etapa}
+                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                              <span style={{ fontSize: 12, color: '#94A3B8', fontWeight: 500 }}>{formatDate(pv.data_previsao)}</span>
+                              <a href={pv.pv_pdf || `/api/clientes/print?tipo=pv&cod=${pv.cod_pedido}&empresa=${encodeURIComponent(pv.empresa)}`}
+                                target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title={pv.ppv_real ? 'Abrir PPV original' : 'Imprimir PV'}
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 7, border: '1px solid #E5E7EB', background: '#fff', textDecoration: 'none', color: '#475569' }}>
+                                <Printer size={15} />
                               </a>
-                            )}
-                            {pv.pdf_anexo && (
-                              <a href={pv.pdf_anexo} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="PDF anexado"
-                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 8, border: '1px solid #FED7AA', background: '#FFF7ED', textDecoration: 'none', color: '#EA580C' }}>
-                                <FileText size={16} />
-                              </a>
-                            )}
+                              {pv.link_nf && (
+                                <a href={pv.link_nf} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Baixar NF"
+                                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 7, border: 'none', background: '#0F172A', textDecoration: 'none', color: '#fff' }}>
+                                  <Download size={15} />
+                                </a>
+                              )}
+                              {pv.pdf_anexo && (
+                                <a href={pv.pdf_anexo} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="PDF anexado"
+                                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 7, border: '1px solid #FED7AA', background: '#FFF7ED', textDecoration: 'none', color: '#EA580C' }}>
+                                  <FileText size={15} />
+                                </a>
+                              )}
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -777,6 +915,59 @@ function ClientesPageInner() {
               </div>
             )}
           </>
+            )})()}
+          </>
+        )}
+          </main>
+        </div>
+
+        {/* ========== MODAL: MARCAR NF SUBSTITUÍDA ========== */}
+        {subNF && (
+          <div onClick={e => { if (e.target === e.currentTarget && !subSalvando) setSubNF(null) }}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 10001, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <div style={{ background: '#fff', borderRadius: 16, width: 440, maxWidth: '95vw', padding: 26 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <h2 style={{ fontSize: 19, fontWeight: 800, color: '#111827', margin: 0 }}>Marcar NF como substituída</h2>
+                <button onClick={() => setSubNF(null)} style={{ background: '#F3F4F6', border: 'none', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><X size={16} color="#6B7280" /></button>
+              </div>
+              <p style={{ fontSize: 13, color: '#6B7280', margin: '0 0 18px' }}>
+                OS {subNF.osNum}. Registra a troca (nº antigo → novo) no histórico. O cancelamento/emissão da nota em si é feito no Omie.
+              </p>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={lblModal}>QUAL NOTA</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {([['servico', 'Serviço'], ['peca', 'Peça']] as const).map(([v, lbl]) => (
+                    <button key={v} onClick={() => setSubNF({ ...subNF, nf_tipo: v })}
+                      style={{ flex: 1, padding: '9px 0', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                        border: subNF.nf_tipo === v ? '2px solid #2563EB' : '1px solid #E5E7EB',
+                        background: subNF.nf_tipo === v ? '#EFF6FF' : '#fff', color: subNF.nf_tipo === v ? '#1D4ED8' : '#6B7280' }}>
+                      {lbl}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={lblModal}>Nº DA NF ANTIGA (cancelada)</label>
+                <input value={subNF.num_antigo} onChange={e => setSubNF({ ...subNF, num_antigo: e.target.value })} placeholder="Ex: 0002067" style={inpModal} />
+              </div>
+
+              <div style={{ marginBottom: 20 }}>
+                <label style={lblModal}>Nº DA NF NOVA (substituta) *</label>
+                <input value={subNF.num_novo} onChange={e => setSubNF({ ...subNF, num_novo: e.target.value })} autoFocus placeholder="Ex: 0002071" onKeyDown={e => { if (e.key === 'Enter' && subNF.num_novo.trim()) salvarSubstituicao() }} style={inpModal} />
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <button onClick={() => setSubNF(null)} disabled={subSalvando}
+                  style={{ padding: '10px 18px', borderRadius: 10, border: '1px solid #E5E7EB', background: '#fff', color: '#374151', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+                <button onClick={salvarSubstituicao} disabled={subSalvando || !subNF.num_novo.trim()}
+                  style={{ padding: '10px 18px', borderRadius: 10, border: 'none', background: subNF.num_novo.trim() ? '#2563EB' : '#9CA3AF', color: '#fff', fontSize: 14, fontWeight: 700, cursor: subSalvando ? 'wait' : 'pointer' }}>
+                  {subSalvando ? 'Salvando...' : 'Registrar substituição'}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* ========== MODAL ANEXAR OS/PV ========== */}
@@ -859,13 +1050,13 @@ function ClientesPageInner() {
           const pvs = ref.tipo === 'pv' ? findAllPVs(os.num_pedido_cli) : []
 
           return (
-            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            <div className="cli-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               onClick={() => setModalOS(null)}>
-              <div style={{ background: '#fff', borderRadius: 16, width: '92%', maxWidth: 800, maxHeight: '90vh', overflow: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.25)' }}
+              <div className="cli-modal" style={{ background: '#fff', borderRadius: 16, width: '92%', maxWidth: 860, maxHeight: '90vh', overflow: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.25)' }}
                 onClick={e => e.stopPropagation()}>
 
-                {/* Header azul */}
-                <div style={{ padding: '24px 28px', background: 'linear-gradient(135deg, #1E3A5F 0%, #2563EB 100%)', borderRadius: '16px 16px 0 0', color: '#fff', position: 'relative' }}>
+                {/* Header */}
+                <div style={{ padding: '24px 28px', background: 'linear-gradient(135deg, #991b1b 0%, #dc2626 100%)', borderRadius: '16px 16px 0 0', color: '#fff', position: 'relative' }}>
                   <button onClick={() => setModalOS(null)}
                     style={{ position: 'absolute', top: 16, right: 16, background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8, padding: '6px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
                     <X size={18} color="#fff" />
@@ -902,10 +1093,10 @@ function ClientesPageInner() {
                   {/* Info grid */}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 24 }}>
                     {[
-                      { l: 'Valor Total', v: formatCurrency(os.valor_total || 0), bg: '#F5F3FF', c: '#7C3AED', b: '#C4B5FD' },
-                      { l: 'Data Previsao', v: formatDate(os.data_previsao), bg: '#EFF6FF', c: '#2563EB', b: '#BFDBFE' },
+                      { l: 'Valor Total', v: formatCurrency(os.valor_total || 0), bg: '#F3F4F6', c: '#111827', b: '#E5E7EB' },
+                      { l: 'Data Previsao', v: formatDate(os.data_previsao), bg: '#F9FAFB', c: '#374151', b: '#E5E7EB' },
                       { l: 'Data Inclusao', v: formatDate(os.data_inclusao), bg: '#F9FAFB', c: '#374151', b: '#E5E7EB' },
-                      { l: 'Faturamento', v: formatDate(os.data_faturamento), bg: os.faturada ? '#ECFDF5' : '#F9FAFB', c: os.faturada ? '#059669' : '#9CA3AF', b: os.faturada ? '#A7F3D0' : '#E5E7EB' },
+                      { l: 'Faturamento', v: formatDate(os.data_faturamento), bg: os.faturada ? '#ECFDF5' : '#F9FAFB', c: os.faturada ? '#047857' : '#9CA3AF', b: os.faturada ? '#A7F3D0' : '#E5E7EB' },
                     ].map((c, i) => (
                       <div key={i} style={{ padding: '14px 16px', borderRadius: 10, background: c.bg, border: `1px solid ${c.b}` }}>
                         <div style={{ fontSize: 11, color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>{c.l}</div>
@@ -928,11 +1119,26 @@ function ClientesPageInner() {
                     ))}
                   </div>
 
+                  {/* Selo: NF substituída */}
+                  {Array.isArray(os.nf_substituicoes) && os.nf_substituicoes.length > 0 && (
+                    <div style={{ marginBottom: 24, padding: '12px 16px', borderRadius: 10, background: '#FEF3C7', border: '1px solid #FCD34D' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 800, color: '#92400E', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6 }}>
+                        <RefreshCw size={14} /> NF substituída
+                      </div>
+                      {os.nf_substituicoes.map((s, i) => (
+                        <div key={i} style={{ fontSize: 13, color: '#92400E', lineHeight: 1.5 }}>
+                          NF de {s.nf_tipo === 'peca' ? 'peça' : 'serviço'}: <b>{s.num_antigo || '—'}</b> → <b>{s.num_novo}</b>
+                          <span style={{ color: '#B45309' }}> · {s.por || '—'}{s.em ? ` · ${new Date(s.em).toLocaleDateString('pt-BR')}` : ''}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   {/* Solicitacao */}
                   {solicitacao && (
                     <div style={{ marginBottom: 24 }}>
                       <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Solicitacao</div>
-                      <div style={{ padding: '14px 18px', borderRadius: 10, background: '#F0F4FF', border: '1px solid #BFDBFE', fontSize: 14, color: '#1E3A5F', lineHeight: 1.6 }}>
+                      <div style={{ padding: '14px 18px', borderRadius: 10, background: '#F9FAFB', border: '1px solid #E5E7EB', fontSize: 14, color: '#1F2937', lineHeight: 1.6 }}>
                         {solicitacao}
                       </div>
                     </div>
@@ -994,6 +1200,10 @@ function ClientesPageInner() {
                           onChange={e => { const f = e.target.files?.[0]; if (f) anexarNFservicoNaOS(os, f) }} />
                       </label>
                     )}
+                    <button onClick={() => setSubNF({ osNum: os.num_os, empresa: os.empresa, nf_tipo: 'servico', num_antigo: os.num_nf || os.financeiro?.num_nf_servico || '', num_novo: '' })}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: '1px solid #E5E7EB', borderRadius: 10, background: '#fff', color: '#374151', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+                      <RefreshCw size={16} /> NF substituída
+                    </button>
                     {(os.link_nf || os.financeiro?.nf_servico) && (
                       <a href={os.link_nf || os.financeiro?.nf_servico || undefined} target="_blank" rel="noopener noreferrer"
                         style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: 'none', borderRadius: 10, background: '#111827', color: '#fff', fontSize: 14, textDecoration: 'none', fontWeight: 600 }}>
@@ -1030,13 +1240,13 @@ function ClientesPageInner() {
 
         {/* MODAL PROJETO */}
         {modalProjeto && (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          <div className="cli-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             onClick={() => setModalProjeto(null)}>
-            <div style={{ background: '#F9FAFB', borderRadius: 16, width: '95%', maxWidth: 1100, maxHeight: '92vh', overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column' }}
+            <div className="cli-modal" style={{ background: '#F9FAFB', borderRadius: 16, width: '95%', maxWidth: 1100, maxHeight: '92vh', overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column' }}
               onClick={ev => ev.stopPropagation()}>
 
               {/* Header gradient */}
-              <div style={{ padding: '20px 28px', background: 'linear-gradient(135deg, #1E3A5F 0%, #2563EB 100%)', color: '#fff', position: 'relative', flexShrink: 0 }}>
+              <div style={{ padding: '20px 28px', background: 'linear-gradient(135deg, #991b1b 0%, #dc2626 100%)', color: '#fff', position: 'relative', flexShrink: 0 }}>
                 <button onClick={() => setModalProjeto(null)}
                   style={{ position: 'absolute', top: 14, right: 14, background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8, padding: '6px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
                   <X size={18} color="#fff" />
@@ -1072,8 +1282,6 @@ function ClientesPageInner() {
                 const revList: any[] = d.revisoes || []
                 const emailsList = d.emails_por_chassis || {}
                 const totalEmails = Object.values(emailsList).reduce((s: number, arr: any) => s + (arr?.length || 0), 0)
-                const REVISOES_HORAS = ['50h','300h','600h','900h','1200h','1500h','1800h','2100h','2400h','2700h','3000h']
-
                 // OS indexada por número (tem vendedor e num_pedido_cli)
                 const osPorNum = new Map<string, any>()
                 for (const os of osProj) osPorNum.set(String(os.num_os), os)
@@ -1094,10 +1302,17 @@ function ClientesPageInner() {
                 const pvPorNum = new Map<string, any>()
                 for (const pv of pvsProj) pvPorNum.set(String(pv.num_pedido), pv)
                 const pecasDoPv = (num: string) => pecasList.filter((p: any) => String(p.num_pv) === String(num))
-                // Peças agrupadas por pedido (junta os itens do mesmo PV)
+                // PVs vinculados a OS (via num_pedido_cli)
+                const pvsVinculados = new Set<string>()
+                for (const os of osProj) {
+                  const ref = String(os.num_pedido_cli || '').trim()
+                  if (/^\d+$/.test(ref)) pvsVinculados.add(ref)
+                }
+                // Peças avulsas = PVs que NÃO estão vinculados a nenhuma OS
                 const pecasAgrupadas = (() => {
                   const m = new Map<string, { num_pv: string; itens: any[]; valor: number; qtd: number; cliente: string; data: string }>()
                   for (const p of pecasList) {
+                    if (pvsVinculados.has(String(p.num_pv))) continue
                     const k = String(p.num_pv)
                     const e = m.get(k) || { num_pv: p.num_pv, itens: [] as any[], valor: 0, qtd: 0, cliente: p.cliente, data: p.data }
                     e.itens.push(p); e.valor += p.valor_total || 0; e.qtd += Number(p.quantidade) || 0
@@ -1110,7 +1325,7 @@ function ClientesPageInner() {
                   { id: 'resumo', label: 'Resumo', icon: ClipboardList, count: null },
                   { id: 'donos', label: 'Donos', icon: Users, count: donosList.length },
                   { id: 'servicos', label: 'Servicos', icon: Wrench, count: servicosList.length },
-                  { id: 'pecas', label: 'Pecas', icon: Package, count: pecasList.length },
+                  { id: 'pecas', label: 'Peças Avulsas', icon: Package, count: pecasAgrupadas.reduce((s, g) => s + g.itens.length, 0) },
                   { id: 'requisicoes', label: 'Requisicoes', icon: ClipboardList, count: reqList.length },
                   { id: 'revisoes', label: 'Revisoes', icon: CheckCircle, count: revList.length },
                   { id: 'garantias', label: 'Garantias', icon: Shield, count: totalEmails },
@@ -1258,35 +1473,56 @@ function ClientesPageInner() {
                           {servicosAgrupados.length === 0 ? (
                             <div style={{ padding: 40, textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>Nenhum servico encontrado</div>
                           ) : (
-                            <div style={{ border: '1px solid #E5E7EB', borderRadius: 10, overflow: 'hidden', background: '#fff' }}>
-                              <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 140px 110px 100px', padding: '10px 16px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB', fontSize: 11, color: '#6B7280', textTransform: 'uppercase', fontWeight: 600 }}>
-                                <span>OS</span><span>Servicos</span><span>Cliente</span><span style={{ textAlign: 'right' }}>Valor</span><span>Data</span>
-                              </div>
-                              {servicosAgrupados.map((g: any, gi: number) => (
-                                <div key={gi} onClick={() => setServicoModalOS(String(g.num_os))} title="Ver detalhes da OS"
-                                  style={{ display: 'grid', gridTemplateColumns: '90px 1fr 140px 110px 100px', padding: '12px 16px', borderBottom: `1px solid ${ln2}`, fontSize: 13, color: '#374151', alignItems: 'center', cursor: 'pointer' }}
-                                  onMouseEnter={e => { e.currentTarget.style.background = '#F8FAFF' }}
-                                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
-                                  <span style={{ fontWeight: 700, color: '#2563EB' }}>OS {g.num_os}</span>
-                                  <span style={{ color: '#374151', fontSize: 12 }}>
-                                    {g.linhas.length} {g.linhas.length === 1 ? 'serviço' : 'serviços'}
-                                    <span style={{ color: '#9CA3AF' }}> — {(g.linhas[0]?.desc || '').slice(0, 60)}{(g.linhas[0]?.desc || '').length > 60 ? '…' : ''}</span>
-                                  </span>
-                                  <span style={{ color: '#6B7280', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.cliente || '-'}</span>
-                                  <span style={{ textAlign: 'right', fontWeight: 700 }}>{formatCurrency(g.valor || 0)}</span>
-                                  <span style={{ fontSize: 12, color: '#9CA3AF' }}>{formatDate(g.data)}</span>
-                                </div>
-                              ))}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                              {servicosAgrupados.map((g: any, gi: number) => {
+                                const os = osPorNum.get(String(g.num_os))
+                                const pvRef = String(os?.num_pedido_cli || '').trim()
+                                const temPV = /^\d+$/.test(pvRef)
+                                const pecasDoServ = temPV ? pecasList.filter((p: any) => String(p.num_pv) === pvRef) : []
+                                const valorPecas = pecasDoServ.reduce((s: number, p: any) => s + (p.valor_total || 0), 0)
+                                return (
+                                  <div key={gi} onClick={() => setServicoModalOS(String(g.num_os))}
+                                    style={{ border: '1px solid #E5E7EB', borderRadius: 10, background: '#fff', cursor: 'pointer', overflow: 'hidden', transition: 'all 0.15s' }}
+                                    onMouseEnter={e => { e.currentTarget.style.borderColor = '#BFDBFE'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(37,99,235,0.08)' }}
+                                    onMouseLeave={e => { e.currentTarget.style.borderColor = '#E5E7EB'; e.currentTarget.style.boxShadow = 'none' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', gap: 12 }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+                                        <Wrench size={15} color="#2563EB" style={{ flexShrink: 0 }} />
+                                        <span style={{ fontWeight: 700, color: '#2563EB', fontSize: 13, flexShrink: 0 }}>OS {g.num_os}</span>
+                                        {temPV && <span style={{ fontSize: 11, color: '#EA580C', fontWeight: 600, flexShrink: 0 }}>+ PV {pvRef}</span>}
+                                        <span style={{ color: '#6B7280', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.cliente || '-'}</span>
+                                      </div>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
+                                        <span style={{ fontSize: 12, color: '#9CA3AF' }}>{formatDate(g.data)}</span>
+                                        <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>{formatCurrency((g.valor || 0) + valorPecas)}</span>
+                                      </div>
+                                    </div>
+                                    {/* Detalhes: serviços + peças */}
+                                    <div style={{ padding: '0 16px 10px', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                      <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 5, background: '#EFF6FF', color: '#2563EB', fontWeight: 600 }}>
+                                        {g.linhas.length} serviço{g.linhas.length !== 1 ? 's' : ''} · {formatCurrency(g.valor || 0)}
+                                      </span>
+                                      {pecasDoServ.length > 0 && (
+                                        <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 5, background: '#FFF7ED', color: '#EA580C', fontWeight: 600 }}>
+                                          {pecasDoServ.length} peça{pecasDoServ.length !== 1 ? 's' : ''} · {formatCurrency(valorPecas)}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                )
+                              })}
                             </div>
                           )}
                         </div>
                       )}
 
-                      {/* ─── PECAS ─── */}
+                      {/* ─── PECAS (avulsas — não vinculadas a OS) ─── */}
                       {projetoTab === 'pecas' && (
                         <div>
                           {pecasAgrupadas.length === 0 ? (
-                            <div style={{ padding: 40, textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>Nenhuma peca encontrada</div>
+                            <div style={{ padding: 40, textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>
+                              Nenhuma peça avulsa. Peças vinculadas a OS aparecem na aba Serviços.
+                            </div>
                           ) : (
                             <div style={{ border: '1px solid #E5E7EB', borderRadius: 10, overflow: 'hidden', background: '#fff' }}>
                               <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 140px 80px 120px', padding: '10px 16px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB', fontSize: 11, color: '#6B7280', textTransform: 'uppercase', fontWeight: 600 }}>
@@ -1329,28 +1565,24 @@ function ClientesPageInner() {
                                 }
                                 const sc = statusColor[r.status] || statusColor.pedido
                                 return (
-                                  <div key={ri} style={{ padding: '14px 18px', border: `1px solid ${r.match_chassis ? '#BFDBFE' : '#E5E7EB'}`, borderRadius: 10, background: '#fff' }}>
+                                  <div key={ri} onClick={() => setReqModal(r)}
+                                    style={{ padding: '14px 18px', border: `1px solid ${r.match_chassis ? '#BFDBFE' : '#E5E7EB'}`, borderRadius: 10, background: '#fff', cursor: 'pointer', transition: 'all 0.15s' }}
+                                    onMouseEnter={e => { e.currentTarget.style.borderColor = '#CBD5E1'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)' }}
+                                    onMouseLeave={e => { e.currentTarget.style.borderColor = r.match_chassis ? '#BFDBFE' : '#E5E7EB'; e.currentTarget.style.boxShadow = 'none' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                                         <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>#{r.id}</span>
                                         <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 5, background: sc.bg, color: sc.c, border: `1px solid ${sc.b}` }}>{r.status}</span>
                                         <span style={{ fontSize: 12, padding: '2px 8px', borderRadius: 5, background: '#F3F4F6', color: '#6B7280' }}>{r.tipo}</span>
-                                        {r.match === 'chassi' && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 5, background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE' }}>achada pelo chassi</span>}
                                       </div>
-                                      <span style={{ fontSize: 12, color: '#9CA3AF' }}>{r.created_at ? new Date(r.created_at).toLocaleDateString('pt-BR') : '-'}</span>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        {r.valor_despeza && parseFloat(r.valor_despeza) > 0 && <span style={{ fontSize: 13, color: '#059669', fontWeight: 700 }}>{formatCurrency(parseFloat(r.valor_despeza))}</span>}
+                                        <ChevronRight size={15} color="#C4C9D2" />
+                                      </div>
                                     </div>
                                     <div style={{ fontSize: 13, color: '#374151' }}>{r.titulo || '-'}</div>
-                                    {r.Chassis_Modelo && (
-                                      <div style={{ fontSize: 12, color: '#374151', marginTop: 5, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                                        <Hash size={12} color="#2563EB" />
-                                        <span style={{ fontFamily: 'monospace' }}>{r.Chassis_Modelo}</span>
-                                        {r.match_chassis && <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 4, background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE' }}>final {r.match_chassis}</span>}
-                                      </div>
-                                    )}
-                                    <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 4, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-                                      <span>Solicitante: {r.solicitante || '-'}</span>
-                                      {r.fornecedor && <span>Fornecedor: {r.fornecedor}</span>}
-                                      {r.valor_despeza && parseFloat(r.valor_despeza) > 0 && <span style={{ color: '#059669', fontWeight: 600 }}>{formatCurrency(parseFloat(r.valor_despeza))}</span>}
+                                    <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 4 }}>
+                                      {r.solicitante || '-'} · {r.created_at ? new Date(r.created_at).toLocaleDateString('pt-BR') : '-'}
                                     </div>
                                   </div>
                                 )
@@ -1371,15 +1603,21 @@ function ClientesPageInner() {
                                 const revisoesDone = REVISOES_HORAS.filter(h => t[`${h} Data`])
                                 const proximaRevisao = REVISOES_HORAS.find(h => !t[`${h} Data`])
                                 return (
-                                  <div key={ti} style={{ border: '1px solid #E5E7EB', borderRadius: 12, background: '#fff', overflow: 'hidden' }}>
+                                  <div key={ti} onClick={() => setRevModal(t)}
+                                    style={{ border: '1px solid #E5E7EB', borderRadius: 12, background: '#fff', overflow: 'hidden', cursor: 'pointer', transition: 'all 0.15s' }}
+                                    onMouseEnter={e => { e.currentTarget.style.borderColor = '#CBD5E1'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)' }}
+                                    onMouseLeave={e => { e.currentTarget.style.borderColor = '#E5E7EB'; e.currentTarget.style.boxShadow = 'none' }}>
                                     <div style={{ padding: '14px 20px', borderBottom: '1px solid #F3F4F6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                       <div>
                                         <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>{t.Modelo || '-'}</div>
                                         <div style={{ fontSize: 13, color: '#6B7280', marginTop: 2 }}>Chassis: <span style={{ fontFamily: 'monospace' }}>{t.Chassis || '-'}</span> — Cliente: {t.Cliente || '-'}</div>
                                       </div>
-                                      <div style={{ textAlign: 'right' }}>
-                                        <div style={{ fontSize: 13, fontWeight: 600, color: '#059669' }}>{revisoesDone.length}/{REVISOES_HORAS.length} revisoes</div>
-                                        {proximaRevisao && <div style={{ fontSize: 11, color: '#EA580C' }}>Proxima: {proximaRevisao}</div>}
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                        <div style={{ textAlign: 'right' }}>
+                                          <div style={{ fontSize: 13, fontWeight: 600, color: '#059669' }}>{revisoesDone.length}/{REVISOES_HORAS.length} revisoes</div>
+                                          {proximaRevisao && <div style={{ fontSize: 11, color: '#EA580C' }}>Proxima: {proximaRevisao}</div>}
+                                        </div>
+                                        <ChevronRight size={16} color="#C4C9D2" />
                                       </div>
                                     </div>
                                     <div style={{ padding: '14px 20px', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -1474,7 +1712,7 @@ function ClientesPageInner() {
                           style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', backdropFilter: 'blur(4px)', zIndex: 10002, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
                           <div style={{ background: '#fff', borderRadius: 18, width: 720, maxWidth: '96vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 60px rgba(0,0,0,0.3)' }}>
                             {/* Header */}
-                            <div style={{ background: 'linear-gradient(135deg, #2563EB, #1D4ED8)', padding: '22px 26px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+                            <div style={{ background: 'linear-gradient(135deg, #991b1b, #dc2626)', padding: '22px 26px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                                 <div style={{ width: 46, height: 46, borderRadius: 12, background: 'rgba(255,255,255,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Wrench size={22} color="#fff" /></div>
                                 <div>
@@ -1694,7 +1932,15 @@ function ClientesPageInner() {
           style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 44, height: 44, borderRadius: 12, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text-secondary)', cursor: syncing ? 'not-allowed' : 'pointer' }}>
           <RefreshCw size={16} style={syncing ? { animation: 'spin 1s linear infinite' } : {}} />
         </button>
-        <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
+        <style>{`
+          @keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
+          @keyframes fadeUp { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: translateY(0) } }
+          @keyframes slideIn { from { opacity: 0; transform: scale(0.96) translateY(10px) } to { opacity: 1; transform: scale(1) translateY(0) } }
+          @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+          .cli-card { animation: fadeUp 0.35s ease-out both }
+          .cli-modal { animation: slideIn 0.25s ease-out }
+          .cli-overlay { animation: fadeIn 0.2s ease-out }
+        `}</style>
       </div>
 
       {loading ? (
@@ -1850,6 +2096,140 @@ function ClientesPageInner() {
               <button onClick={criarProjeto} disabled={criando || !projNome.trim()} style={{ padding: '11px 24px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #2563EB, #1D4ED8)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: (criando || !projNome.trim()) ? 'not-allowed' : 'pointer', opacity: (criando || !projNome.trim()) ? 0.6 : 1, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <FolderOpen size={15} /> {criando ? 'Criando...' : 'Criar Projeto'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== Modal Requisição Detalhe ===== */}
+      {reqModal && (
+        <div className="cli-overlay" onClick={e => { if (e.target === e.currentTarget) setReqModal(null) }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 10001, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div className="cli-modal" style={{ background: '#fff', borderRadius: 16, width: 520, maxWidth: '95vw', maxHeight: '90vh', overflow: 'auto' }}>
+            <div style={{ background: 'linear-gradient(135deg, #991b1b 0%, #dc2626 100%)', padding: '22px 28px', borderRadius: '16px 16px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#fff' }}>Requisição #{reqModal.id}</div>
+                <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 2 }}>{reqModal.titulo || '-'}</div>
+              </div>
+              <button onClick={() => setReqModal(null)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                <X size={16} color="#fff" />
+              </button>
+            </div>
+            <div style={{ padding: '24px 28px' }}>
+              {(() => {
+                const statusColor: Record<string, { bg: string; c: string; b: string }> = {
+                  pedido: { bg: '#FFF7ED', c: '#EA580C', b: '#FED7AA' },
+                  completa: { bg: '#ECFDF5', c: '#059669', b: '#A7F3D0' },
+                  aguardando: { bg: '#EFF6FF', c: '#2563EB', b: '#BFDBFE' },
+                  financeiro: { bg: '#F5F3FF', c: '#7C3AED', b: '#C4B5FD' },
+                  lixeira: { bg: '#FEF2F2', c: '#DC2626', b: '#FECACA' },
+                }
+                const sc = statusColor[reqModal.status] || statusColor.pedido
+                const fields = [
+                  { l: 'Status', v: reqModal.status, badge: true, sc },
+                  { l: 'Tipo', v: reqModal.tipo },
+                  { l: 'Solicitante', v: reqModal.solicitante },
+                  { l: 'Fornecedor', v: reqModal.fornecedor },
+                  { l: 'Chassis/Modelo', v: reqModal.Chassis_Modelo, mono: true },
+                  { l: 'Projeto', v: reqModal.projeto_nome ? `${reqModal.projeto_nome} (${reqModal.projeto_codigo || ''})` : null },
+                  { l: 'Nota Fiscal', v: reqModal.numero_nota },
+                  { l: 'Valor', v: reqModal.valor_despeza && parseFloat(reqModal.valor_despeza) > 0 ? formatCurrency(parseFloat(reqModal.valor_despeza)) : null, green: true },
+                  { l: 'Data', v: reqModal.created_at ? new Date(reqModal.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }) : null },
+                ]
+                return (
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 24px' }}>
+                      {fields.filter(f => f.v).map((f, i) => (
+                        <div key={i}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', marginBottom: 4 }}>{f.l}</div>
+                          {f.badge ? (
+                            <span style={{ fontSize: 13, fontWeight: 700, padding: '3px 10px', borderRadius: 6, background: f.sc!.bg, color: f.sc!.c, border: `1px solid ${f.sc!.b}` }}>{f.v}</span>
+                          ) : (
+                            <div style={{ fontSize: 14, fontWeight: 600, color: f.green ? '#059669' : '#111827', fontFamily: f.mono ? 'monospace' : undefined }}>{f.v}</div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    {reqModal.obs && (
+                      <div style={{ marginTop: 20, padding: 16, background: '#F9FAFB', borderRadius: 10, border: '1px solid #F3F4F6' }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', marginBottom: 6 }}>Observações</div>
+                        <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{reqModal.obs}</div>
+                      </div>
+                    )}
+                  </>
+                )
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== Modal Revisão Detalhe ===== */}
+      {revModal && (
+        <div className="cli-overlay" onClick={e => { if (e.target === e.currentTarget) setRevModal(null) }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 10001, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div className="cli-modal" style={{ background: '#fff', borderRadius: 16, width: 560, maxWidth: '95vw', maxHeight: '90vh', overflow: 'auto' }}>
+            <div style={{ background: 'linear-gradient(135deg, #991b1b 0%, #dc2626 100%)', padding: '22px 28px', borderRadius: '16px 16px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#fff' }}>{revModal.Modelo || 'Trator'}</div>
+                <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 2 }}>
+                  Chassis: {revModal.Chassis || '-'} — {revModal.Cliente || '-'}
+                </div>
+              </div>
+              <button onClick={() => setRevModal(null)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                <X size={16} color="#fff" />
+              </button>
+            </div>
+            <div style={{ padding: '24px 28px' }}>
+              {(revModal.Entrega || revModal["Inspecao Data"]) && (
+                <div style={{ display: 'flex', gap: 20, marginBottom: 20, flexWrap: 'wrap' }}>
+                  {revModal.Entrega && (
+                    <div style={{ padding: '10px 16px', background: '#EFF6FF', borderRadius: 10, border: '1px solid #BFDBFE' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#2563EB', marginBottom: 2 }}>ENTREGA</div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: '#1E40AF' }}>{revModal.Entrega}</div>
+                    </div>
+                  )}
+                  {revModal["Inspecao Data"] && (
+                    <div style={{ padding: '10px 16px', background: '#FFF7ED', borderRadius: 10, border: '1px solid #FED7AA' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#EA580C', marginBottom: 2 }}>INSPEÇÃO</div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: '#C2410C' }}>{revModal["Inspecao Data"]}{revModal["Inspecao Horimetro"] ? ` — ${revModal["Inspecao Horimetro"]}h` : ''}</div>
+                    </div>
+                  )}
+                </div>
+              )}
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 12 }}>Histórico de Revisões</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {REVISOES_HORAS.map(h => {
+                  const data = revModal[`${h} Data`]
+                  const horim = revModal[`${h} Horimetro`]
+                  const done = !!data
+                  return (
+                    <div key={h} style={{
+                      display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', borderRadius: 10,
+                      background: done ? '#ECFDF5' : '#F9FAFB', border: `1px solid ${done ? '#A7F3D0' : '#E5E7EB'}`,
+                    }}>
+                      <div style={{
+                        width: 40, height: 40, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        background: done ? '#059669' : '#E5E7EB', color: done ? '#fff' : '#9CA3AF', fontSize: 11, fontWeight: 800,
+                      }}>
+                        {done ? <CheckCircle size={18} /> : h.replace('h', '')}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: done ? '#059669' : '#9CA3AF' }}>{h}</div>
+                        {done ? (
+                          <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
+                            Realizada em <strong style={{ color: '#374151' }}>{data}</strong>
+                            {horim ? <> — Horímetro: <strong style={{ color: '#374151' }}>{horim}h</strong></> : ''}
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: 12, color: '#D1D5DB', marginTop: 2 }}>Pendente</div>
+                        )}
+                      </div>
+                      {done && <CheckCircle size={16} color="#059669" />}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           </div>
         </div>

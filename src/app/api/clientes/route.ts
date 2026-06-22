@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+// A pasta do cliente precisa SEMPRE ler dados frescos do banco — sem o cache de
+// fetch/rota do Next (que deixava o detalhe mostrando dado velho, ex. vendedor).
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
@@ -179,12 +185,12 @@ export async function GET(req: NextRequest) {
     }
 
     // -------- Lista de clientes com ranking + projetos --------
-    const osCounts = await fetchAll<{ cod_cli: number; empresa: string; valor_total: number; cancelada: boolean }>(
-      "portal_nt_clientes_os", "cod_cli, empresa, valor_total, cancelada"
+    const osCounts = await fetchAll<{ cod_cli: number; empresa: string; valor_total: number; cancelada: boolean; faturada: boolean; data_faturamento: string | null }>(
+      "portal_nt_clientes_os", "cod_cli, empresa, valor_total, cancelada, faturada, data_faturamento"
     );
 
     // Agrupar por cod_cli + empresa
-    const ranking = new Map<string, { cod_cli: number; empresa: string; total_os: number; total_valor: number; os_ativas: number }>();
+    const ranking = new Map<string, { cod_cli: number; empresa: string; total_os: number; total_valor: number; os_ativas: number; ultimo_faturamento: string | null }>();
     for (const os of osCounts) {
       const key = `${os.cod_cli}|${os.empresa}`;
       const entry = ranking.get(key) || {
@@ -193,10 +199,17 @@ export async function GET(req: NextRequest) {
         total_os: 0,
         total_valor: 0,
         os_ativas: 0,
+        ultimo_faturamento: null as string | null,
       };
       entry.total_os++;
       entry.total_valor += os.valor_total || 0;
       if (!os.cancelada) entry.os_ativas++;
+      // Última data de faturamento (mais recente) — só OS faturadas e não canceladas
+      if (os.faturada && !os.cancelada && os.data_faturamento) {
+        if (!entry.ultimo_faturamento || os.data_faturamento > entry.ultimo_faturamento) {
+          entry.ultimo_faturamento = os.data_faturamento;
+        }
+      }
       ranking.set(key, entry);
     }
 
@@ -233,11 +246,22 @@ export async function GET(req: NextRequest) {
         total_os: rank?.total_os || 0,
         total_valor: rank?.total_valor || 0,
         os_ativas: rank?.os_ativas || 0,
+        ultimo_faturamento: rank?.ultimo_faturamento || null,
         projetos,
       };
     });
 
-    resultado.sort((a, b) => b.total_os - a.total_os);
+    // Ordena pelo faturamento mais recente (cliente faturado mais recentemente no topo).
+    // Quem nunca faturou vai pro fim, desempatando por nº de OS.
+    resultado.sort((a, b) => {
+      if (a.ultimo_faturamento && b.ultimo_faturamento) {
+        if (a.ultimo_faturamento !== b.ultimo_faturamento) return a.ultimo_faturamento > b.ultimo_faturamento ? -1 : 1;
+        return b.total_os - a.total_os;
+      }
+      if (a.ultimo_faturamento) return -1;
+      if (b.ultimo_faturamento) return 1;
+      return b.total_os - a.total_os;
+    });
 
     return NextResponse.json({ clientes: resultado });
   } catch (e) {
