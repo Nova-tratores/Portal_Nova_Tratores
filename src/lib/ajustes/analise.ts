@@ -35,20 +35,28 @@ const RE_NATUREZA_GARANTIA = /garantia|conserto|reparo|assist[eê]ncia t[eé]cni
 const RECEB_KW_COMBUSTIVEL = ['combust', 'diesel', 'gasolina', 'etanol', 'alcool', 'álcool', 'arla'];
 const RECEB_KW_ALMOX = ['almoxarif', 'lubrific', 'oleo', 'óleo', 'graxa', 'uso e consumo', 'expediente'];
 
+// Item de linha >= este valor (R$) classifica o recebimento como 'maquinas'.
+// Maquina = item caro (ignora o total da nota; pedidao de pecas baratas nao conta).
+const LIMIAR_ITEM_MAQUINA = 10000;
+
 // Classifica um recebimento (shape de lib/ajustes/omie.normalizarRecebimento) em 1
-// dos 5 tipos. Heuristica defensiva: na duvida 'pecas'. (Sem separacao de maquinas
-// nessa fonte -> 'maquinas' nao e auto-detectado aqui; segue disponivel no mapa.)
-// Precedencia: garantia > combustivel > almoxarifado > pecas.
+// dos 5 tipos. Heuristica defensiva: na duvida 'pecas'.
+// Precedencia: garantia > combustivel > almoxarifado > maquinas(item >= 10k) > pecas.
 function classificarTipoReceb(rec: any, sinalGarantia: boolean): string {
   if (sinalGarantia) return 'pecas_garantia';
   const itens = Array.isArray(rec.itens) ? rec.itens : [];
   let almox = false;
+  let maxItem = 0;
   for (const it of itens) {
     const desc = String(it.descricaoProduto || '').toLowerCase();
     if (RECEB_KW_COMBUSTIVEL.some((k) => desc.includes(k))) return 'combustivel';
     if (RECEB_KW_ALMOX.some((k) => desc.includes(k))) almox = true;
+    const v = num(it.valTotalItem) || num(it.precoUnit) * num(it.qtde);
+    if (v > maxItem) maxItem = v;
   }
-  return almox ? 'almoxarifado' : 'pecas';
+  if (almox) return 'almoxarifado';
+  if (maxItem >= LIMIAR_ITEM_MAQUINA) return 'maquinas';
+  return 'pecas';
 }
 
 function num(v: any): number { return Number(v == null ? 0 : v) || 0; }
