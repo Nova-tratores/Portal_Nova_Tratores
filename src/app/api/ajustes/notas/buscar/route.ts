@@ -12,6 +12,7 @@ export async function GET(req: NextRequest) {
   try {
     const out = await buscarNotas(conta, {
       modo: sp.get('modo') || 'numero',
+      tipo: sp.get('tipo') || 'todas',
       numero: sp.get('numero') || '',
       numeroAte: sp.get('numeroAte') || '',
       de: sp.get('de') || '',

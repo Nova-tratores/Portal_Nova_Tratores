@@ -548,6 +548,90 @@ export async function obterUrlDanfe(conta: Conta, nCodNF: any): Promise<any> {
 }
 
 // =============================================================================
+// Notas fiscais de SERVICO (NFS-e) - /servicos/nfse/ -> ListarNFSEs.
+// API e estrutura proprias (nao e' a mesma da NF-e de produto). O PDF vem de
+// /servicos/osdocs/ -> ObterNFSe (usa o nCodNF como nIdNf). Estrutura validada
+// em runtime (NOVA): item tem sub-objetos Cabecalho/Emissao/Valores/...; o
+// Cabecalho ja traz cRazaoDestinatario (nome do cliente) e a data fica em
+// Emissao.cDataEmissao. Normalizacao defensiva ("[DEBUG omie ListarNFSEs]").
+// =============================================================================
+export function normalizarNFSe(nf: any): any {
+  if (!nf || typeof nf !== 'object') return null;
+  const cab = nf.Cabecalho || nf.cabecalho || nf.cabec || {};
+  const pick = (...objs: any[]) => objs.find(o => o && typeof o === 'object') || {};
+  const emis = pick(nf.Emissao, nf.emissao);
+  const vals = pick(nf.Valores, nf.valores);
+
+  const numero = cab.nNumeroNFSe ?? nf.nNumeroNFSe ?? cab.cNumero ?? cab.nNumero ?? null;
+  // nCodNF = id interno do documento (serve de nIdNf no ObterNFSe / PDF)
+  const nCodNF = cab.nCodNF ?? nf.nCodNF ?? cab.nIdNF ?? nf.nIdNF ?? null;
+  const serie = cab.cSerieNFSe ?? nf.cSerieNFSe ?? cab.cSerie ?? null;
+  const dataEmissao = cab.cDataEmissao ?? nf.cDataEmissao ?? emis.dEmissao ?? emis.cDataEmissao ?? cab.dEmissao ?? null;
+  const valorNF = num(cab.nValorNFSe ?? nf.nValorNFSe ?? vals.nValorServico ?? vals.nValorTotalNF ?? vals.nValorNFSe);
+  const status = String(cab.cStatusNFSe ?? nf.cStatusNFSe ?? cab.cStatus ?? '').toUpperCase();
+  // cStatusNFSe: C=Cancelada, F=Faturada (emitida), N=Nao faturada
+  const cancelada = status === 'C' || !!(nf.Cancelamento && (nf.Cancelamento.dCancelamento || nf.Cancelamento.cMotivo));
+  const clienteCodigo = cab.nCodigoCliente ?? nf.nCodigoCliente ?? cab.nCodCli ?? null;
+  const docCnpj = cab.cCNPJDestinatario ?? nf.cCNPJDestinatario ?? null;
+  const docCpf = cab.cCPFDestinatario ?? nf.cCPFDestinatario ?? null;
+  const clienteDoc = (docCnpj && String(docCnpj).replace(/\D/g, '')) || (docCpf && String(docCpf).replace(/\D/g, '')) || null;
+  const clienteNome = cab.cRazaoDestinatario ?? cab.cRazaoSocial ?? cab.cNomeCliente ?? nf.cRazaoDestinatario ?? null;
+
+  return {
+    tipo: 'servico',
+    numero: numero != null ? String(numero) : null,
+    nCodNF: nCodNF != null ? (Number(nCodNF) || nCodNF) : null,
+    serie: serie != null ? String(serie) : null,
+    chaveNFe: null,
+    dataEmissao: dataEmissao || null,
+    valorNF,
+    clienteCodigo: clienteCodigo != null ? (Number(clienteCodigo) || clienteCodigo) : null,
+    clienteNome: clienteNome != null ? String(clienteNome) : null,
+    clienteDoc: clienteDoc || null,
+    cancelada: !!cancelada,
+    raw: nf
+  };
+}
+
+// Busca NFS-e com filtros nativos do ListarNFSEs. filtros aceita:
+// { nNumeroNFSe, dEmiInicial, dEmiFinal, nCodigoCliente, cCNPJDestinatario,
+//   cCPFDestinatario }. Tudo opcional; vazios sao omitidos. Retorna array
+// normalizado (normalizarNFSe) - inclui nCodNF p/ o PDF e codigo do cliente.
+export async function buscarNotasServico(conta: Conta, filtros: Record<string, any> = {}, opts: Record<string, any> = {}): Promise<any[]> {
+  const base: Record<string, any> = {};
+  if (filtros.nNumeroNFSe != null && filtros.nNumeroNFSe !== '') base.nNumeroNFSe = String(filtros.nNumeroNFSe);
+  if (filtros.dEmiInicial) base.dEmiInicial = filtros.dEmiInicial;
+  if (filtros.dEmiFinal) base.dEmiFinal = filtros.dEmiFinal;
+  if (filtros.nCodigoCliente != null && filtros.nCodigoCliente !== '') base.nCodigoCliente = Number(filtros.nCodigoCliente);
+  if (filtros.cCNPJDestinatario) base.cCNPJDestinatario = String(filtros.cCNPJDestinatario);
+  if (filtros.cCPFDestinatario) base.cCPFDestinatario = String(filtros.cCPFDestinatario);
+  const { itens } = await paginarOmie('/servicos/nfse/', 'ListarNFSEs', base, conta, {
+    paginaKey: 'nPagina', regKey: 'nRegPorPagina', regValue: 100,
+    totalKeys: ['nTotPaginas', 'total_de_paginas', 'nTotalPaginas'],
+    listaKeys: ['nfseEncontradas', 'nfseLista', 'nfse_encontradas', 'lista', 'cadastros'],
+    debugTag: 'ListarNFSEs',
+    onPagina: (lista, pag, tot) => {
+      if (opts.onProgress) opts.onProgress(`ListarNFSEs pag ${pag}/${tot || '?'}: ${lista.length} NFS-e`);
+    }
+  });
+  return itens.map(normalizarNFSe).filter(Boolean);
+}
+
+// Obtem a URL do PDF de uma NFS-e a partir do codigo interno (nCodNF, usado como
+// nIdNf). /servicos/osdocs/ -> ObterNFSe. Retorna { url, validadeAte, xml, prefeitura }.
+export async function obterUrlNFSePdf(conta: Conta, nCodNF: any): Promise<any> {
+  if (nCodNF == null || nCodNF === '') throw new Error('informe o nCodNF da NFS-e');
+  const r = await omieRequest('/servicos/osdocs/', 'ObterNFSe', { nIdNf: Number(nCodNF) || nCodNF }, conta);
+  const url = r && (r.cPdfNFSe || r.cUrlNFSe || r.cPdf || r.url);
+  if (!url) {
+    throw omieError('Omie nao retornou o PDF da NFS-e', {
+      faultstring: (r && (r.cDescStatus || r.cDesStatus)) || 'sem cPdfNFSe na resposta'
+    });
+  }
+  return { url: String(url), validadeAte: null, xml: r.cXmlNFSe || null, prefeitura: r.cUrlNFSe || null, raw: r };
+}
+
+// =============================================================================
 // Recebimento de NF-e (NFs de fornecedor ainda nao processadas em nota de entrada)
 // /produtos/recebimentonfe/ -> ListarRecebimentos / ConsultarRecebimento.
 // Estrutura observada: { recebimentos:[{ cabec:{cNumeroNFe,cChaveNFe,cEtapa,
