@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta, CONTA_DEFAULT } from '@/lib/ajustes/conta';
-import { obterRecebimentosPendentes } from '@/lib/ajustes/recebimentos';
+import { obterRecebimentosPendentes, enriquecerResponsaveis } from '@/lib/ajustes/recebimentos';
 import { fmtBR, parseAnyDate, hoje, addMeses } from '@/lib/ajustes/dates';
 
 export const dynamic = 'force-dynamic';
@@ -17,6 +17,8 @@ export async function GET(req: NextRequest) {
   const dtDe = de && ate && parseAnyDate(de) ? (parseAnyDate(de) as Date) : addMeses(dtAte, -6);
   try {
     const out = await obterRecebimentosPendentes(conta, fmtBR(dtDe), fmtBR(dtAte), force);
+    // responsavel resolvido SEMPRE fresco (fora do cache da analise) p/ refletir transferencias
+    await enriquecerResponsaveis(conta, out?.recebimentos || []);
     return NextResponse.json(out);
   } catch (e) {
     return NextResponse.json({ erro: (e as Error).message }, { status: 500 });

@@ -10,6 +10,11 @@ import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
+import { supabase } from '@/lib/supabase';
+
+interface Usuario { id: string; nome: string; funcao?: string | null }
+const TIPO_LABEL: Record<string, string> = { pecas: 'Peças', pecas_garantia: 'Peças (garantia)', almoxarifado: 'Almoxarifado', maquinas: 'Máquinas' };
+const TIPO_COR: Record<string, string> = { pecas: '#475569', pecas_garantia: '#b45309', almoxarifado: '#0e7490', maquinas: '#7c3aed' };
 
 // ---------- tipos do payload ----------
 interface ItemReceb {
@@ -51,6 +56,10 @@ interface Recebimento {
   temItemNovo?: boolean;
   temItemRisco?: boolean;
   maiorImpactoPct?: number;
+  tipo?: string | null;
+  responsavelUserId?: string | null;
+  responsavelNome?: string | null;
+  responsavelAutomatico?: boolean;
 }
 interface RecebPayload {
   dataDeBR?: string; dataAteBR?: string; fonte?: string; cachedEm?: string; duracaoMs?: number;
@@ -109,9 +118,21 @@ export default function RecebimentosPage() {
   const [statusMsg, setStatusMsg] = useState('');
   const [erro, setErro] = useState('');
   const [resultados, setResultados] = useState<Record<string, ResultadoCard>>({});
+  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  const [soMinhas, setSoMinhas] = useState(false);
 
   // modal "dar entrada"
   const [modalReceb, setModalReceb] = useState<Recebimento | null>(null);
+
+  // carrega usuarios reais do Portal (financeiro_usu) p/ atribuir/transferir
+  useEffect(() => {
+    supabase
+      .from('financeiro_usu')
+      .select('id,nome,funcao')
+      .eq('ativo', true)
+      .order('nome')
+      .then(({ data }) => setUsuarios((data as Usuario[]) || []));
+  }, []);
 
   const buscar = useCallback(async (force: boolean) => {
     if (!conta) return;
@@ -148,6 +169,27 @@ export default function RecebimentosPage() {
   const onEntradaConcluida = useCallback((reck: string, res: ResultadoCard) => {
     setResultados((s) => ({ ...s, [reck]: res }));
   }, []);
+
+  // transferencia de responsavel (persiste em recebimento_meta + atualiza UI)
+  const onResponsavelChange = useCallback(async (r: Recebimento, userId: string | null) => {
+    if (!conta || r.idReceb == null) return;
+    const u = userId ? usuarios.find((x) => x.id === userId) || null : null;
+    const nome = u ? u.nome : null;
+    // otimista
+    setDados((d) => {
+      if (!d) return d;
+      const recs = (d.recebimentos || []).map((x) =>
+        x.idReceb === r.idReceb ? { ...x, responsavelUserId: userId, responsavelNome: nome, responsavelAutomatico: false } : x,
+      );
+      return { ...d, recebimentos: recs };
+    });
+    try {
+      await fetch(`/api/ajustes/recebimentos/${r.idReceb}/responsavel?conta=${encodeURIComponent(conta)}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, userNome: nome }),
+      });
+    } catch { /* silencioso: a UI ja atualizou; recarregar reflete o estado real */ }
+  }, [conta, usuarios]);
 
   if (!permLoading && userProfile && !temAcesso('ajustes:recebimentos')) return <SemPermissao />;
 
@@ -187,6 +229,12 @@ export default function RecebimentosPage() {
         <>
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 14, fontSize: '.72rem' }}>
             <span style={{ padding: '3px 8px', borderRadius: 6, background: '#f1f5f9', border: '1px solid #e2e8f0', color: '#475569' }}>Detecta natureza ~ garantia/conserto/reparo e CFOPs de garantia</span>
+            {userProfile?.id && (
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer', color: '#475569' }}>
+                <input type="checkbox" checked={soMinhas} onChange={(e) => setSoMinhas(e.target.checked)} />
+                Só as minhas
+              </label>
+            )}
             <span style={{ marginLeft: 'auto', color: '#64748b' }}>{carregando ? 'Carregando…' : statusMsg}</span>
           </div>
 
@@ -202,13 +250,24 @@ export default function RecebimentosPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {!dados ? (
               <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 40, textAlign: 'center', color: '#94a3b8' }}>Clique em <b>Buscar</b> para listar os recebimentos pendentes.</div>
-            ) : (dados.recebimentos || []).length === 0 ? (
-              <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 40, textAlign: 'center', color: '#059669' }}>Nenhuma NF-e pendente nesse periodo. 🎉</div>
-            ) : (
-              dados.recebimentos!.map((r) => (
-                <CardReceb key={recKey(r)} r={r} resultado={resultados[recKey(r)]} onAbrir={() => setModalReceb(r)} />
-              ))
-            )}
+            ) : (() => {
+              const lista = (dados.recebimentos || []).filter(
+                (r) => !soMinhas || (userProfile?.id && r.responsavelUserId === userProfile.id),
+              );
+              if (lista.length === 0) {
+                return <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 40, textAlign: 'center', color: '#059669' }}>{soMinhas ? 'Nenhuma NF-e atribuída a você nesse período.' : 'Nenhuma NF-e pendente nesse periodo. 🎉'}</div>;
+              }
+              return lista.map((r) => (
+                <CardReceb
+                  key={recKey(r)}
+                  r={r}
+                  resultado={resultados[recKey(r)]}
+                  usuarios={usuarios}
+                  onAbrir={() => setModalReceb(r)}
+                  onResponsavelChange={(uid) => onResponsavelChange(r, uid)}
+                />
+              ));
+            })()}
           </div>
         </>
       )}
@@ -218,6 +277,8 @@ export default function RecebimentosPage() {
           r={modalReceb}
           conta={conta}
           criadoPor={criadoPor}
+          userId={userProfile?.id || null}
+          userNome={userProfile?.nome || null}
           onClose={() => setModalReceb(null)}
           onConcluido={onEntradaConcluida}
         />
@@ -235,7 +296,10 @@ function Kpi({ label, valor, cor }: { label: string; valor: string; cor?: string
   );
 }
 
-function CardReceb({ r, resultado, onAbrir }: { r: Recebimento; resultado?: ResultadoCard; onAbrir: () => void }) {
+function CardReceb({ r, resultado, usuarios, onAbrir, onResponsavelChange }: {
+  r: Recebimento; resultado?: ResultadoCard; usuarios: Usuario[];
+  onAbrir: () => void; onResponsavelChange: (userId: string | null) => void;
+}) {
   const temSinal = !!r.temSinalGarantia;
   const borda = r.temItemRisco ? '#fca5a5' : (r.temItemNovo && temSinal ? '#fcd34d' : (temSinal ? '#fde68a' : '#e2e8f0'));
   const headerBg = r.temItemRisco ? '#fef2f2' : (temSinal ? '#fffbeb' : '#f8fafc');
@@ -246,6 +310,7 @@ function CardReceb({ r, resultado, onAbrir }: { r: Recebimento; resultado?: Resu
         <span style={{ fontWeight: 600, color: '#1e293b' }}>NF {r.numeroNFe || '?'}{r.serieNFe ? `/${r.serieNFe}` : ''}</span>
         <span style={{ fontSize: '.85rem', color: '#475569' }}>{r.fornecedorNome || ''}</span>
         {r.naturezaOperacao && <span style={{ fontSize: '.7rem', padding: '2px 8px', borderRadius: 6, background: '#e2e8f0', color: '#475569' }}>{r.naturezaOperacao}</span>}
+        {r.tipo && <span style={{ fontSize: '.7rem', padding: '2px 8px', borderRadius: 6, background: '#fff', border: `1px solid ${TIPO_COR[r.tipo] || '#cbd5e1'}`, color: TIPO_COR[r.tipo] || '#475569', fontWeight: 600 }}>{TIPO_LABEL[r.tipo] || r.tipo}</span>}
         <span style={{ fontSize: '.72rem', color: '#64748b' }}>emissao {r.dataEmissao || ''}</span>
         <span style={{ fontSize: '.72rem', color: '#64748b' }}>total {fmtBRL(r.valorNFe)}</span>
         {r.etapa && <span style={{ fontSize: '.72rem', color: '#94a3b8' }}>etapa {r.etapa}</span>}
@@ -257,6 +322,18 @@ function CardReceb({ r, resultado, onAbrir }: { r: Recebimento; resultado?: Resu
           <span style={{ fontSize: '.7rem', padding: '2px 8px', borderRadius: 6, background: '#fde68a', color: '#92400e' }}>vai criar produto novo</span>
         ) : null}
         <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }} title={r.responsavelAutomatico ? 'Responsável padrão (pelo tipo). Troque para transferir.' : 'Responsável (transferível)'}>
+            <span style={{ fontSize: '.62rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.4px' }}>resp.</span>
+            <select
+              value={r.responsavelUserId || ''}
+              onChange={(e) => onResponsavelChange(e.target.value || null)}
+              style={{ fontSize: '.72rem', border: '1px solid #cbd5e1', borderRadius: 6, padding: '3px 6px', background: '#fff', color: '#334155', maxWidth: 170 }}
+            >
+              <option value="">(ninguém)</option>
+              {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
+            </select>
+            {r.responsavelAutomatico && r.responsavelUserId && <span style={{ fontSize: '.6rem', color: '#94a3b8' }}>auto</span>}
+          </span>
           {resultado ? (
             <span style={{ fontSize: '.72rem', color: resultado.tipo === 'ok' ? '#047857' : '#dc2626' }}>{resultado.texto}</span>
           ) : (
@@ -329,9 +406,14 @@ function CardReceb({ r, resultado, onAbrir }: { r: Recebimento; resultado?: Resu
   );
 }
 
+// itens que vao baixar o CMC (precisam de correcao apos a entrada)
+function itensEmRisco(r: Recebimento): ItemReceb[] {
+  return (r.itens || []).filter((it) => it.alerta && it.idProduto && (it.cmcAtual || 0) > 0);
+}
+
 // ---------- modal "dar entrada" ----------
-function ModalEntrada({ r, conta, criadoPor, onClose, onConcluido }: {
-  r: Recebimento; conta: string; criadoPor: string;
+function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConcluido }: {
+  r: Recebimento; conta: string; criadoPor: string; userId: string | null; userNome: string | null;
   onClose: () => void; onConcluido: (reck: string, res: ResultadoCard) => void;
 }) {
   const [naoFin, setNaoFin] = useState<boolean>(!!r.temSinalGarantia); // garantia: nao gera contas a pagar por padrao
@@ -344,6 +426,17 @@ function ModalEntrada({ r, conta, criadoPor, onClose, onConcluido }: {
   });
   const [enviando, setEnviando] = useState(false);
   const [statusModal, setStatusModal] = useState('');
+
+  // 2a fase: correcao do CMC distorcido por garantia
+  const [fase, setFase] = useState<'entrada' | 'correcao'>('entrada');
+  const riscos = itensEmRisco(r);
+  const [cmcAlvo, setCmcAlvo] = useState<Record<number, string>>(() => {
+    const init: Record<number, string> = {};
+    riscos.forEach((it, i) => { init[i] = String(it.cmcAtual ?? ''); });
+    return init;
+  });
+  const [corrResult, setCorrResult] = useState<Record<number, ResultadoCard>>({});
+  const [corrigindo, setCorrigindo] = useState(false);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -375,13 +468,21 @@ function ModalEntrada({ r, conta, criadoPor, onClose, onConcluido }: {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           conta, idReceb: r.idReceb, chaveNFe: r.chaveNFe,
-          itens, naoGerarFinanceiro: naoFin, naoGerarMovEstoque: naoMov, criadoPor,
+          itens, naoGerarFinanceiro: naoFin, naoGerarMovEstoque: naoMov,
+          criadoPor, userId, userNome, tipo: r.tipo, numeroNFe: r.numeroNFe,
         }),
       });
       const d = await resp.json();
       if (d.ok) {
         onConcluido(recKey(r), { tipo: 'ok', texto: `✔ entrada processada${d.ajustado ? ' (com ajustes)' : ''}${d.descStatus ? ' · ' + d.descStatus : ''}` });
-        onClose();
+        if (riscos.length > 0) {
+          // mantem o modal aberto p/ corrigir o CMC que acabou de baixar
+          setEnviando(false);
+          setStatusModal('entrada processada. Reveja a correção do custo abaixo.');
+          setFase('correcao');
+        } else {
+          onClose();
+        }
       } else {
         setEnviando(false);
         setStatusModal('');
@@ -394,6 +495,36 @@ function ModalEntrada({ r, conta, criadoPor, onClose, onConcluido }: {
     }
   };
 
+  const corrigirCustos = async () => {
+    setCorrigindo(true);
+    for (let i = 0; i < riscos.length; i++) {
+      if (corrResult[i]?.tipo === 'ok') continue; // ja corrigido
+      const it = riscos[i];
+      const novoCMC = Number(cmcAlvo[i]);
+      if (!(novoCMC > 0)) { setCorrResult((s) => ({ ...s, [i]: { tipo: 'erro', texto: 'CMC inválido' } })); continue; }
+      setStatusModal(`corrigindo ${i + 1}/${riscos.length}: ${it.descricaoProduto || it.codigoProdutoInt || it.idProduto}...`);
+      try {
+        const resp = await fetch(`/api/ajustes/recebimentos/${r.idReceb}/corrigir-custo?conta=${encodeURIComponent(conta)}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            codigoProduto: it.idProduto, novoCMC, cmcSugerido: novoCMC,
+            cfopOrigem: it.cfop, nfOrigemNumero: r.numeroNFe, custoGarantiaUnit: it.precoUnit,
+            origemCorrecao: 'garantia', criadoPor, userId, userNome, tipo: r.tipo, numeroNFe: r.numeroNFe,
+            obs: `Entrada via integracao Portal por ${userNome || criadoPor}. CMC restaurado apos NF de garantia ${r.numeroNFe || ''}.`,
+          }),
+        });
+        const d = await resp.json();
+        if (d.ok) setCorrResult((s) => ({ ...s, [i]: { tipo: 'ok', texto: `✔ ${fmtBRL(d.cmcAnterior)} → ${fmtBRL(d.cmcAplicado)}${d.duplicado ? ' (já feito)' : ''}` } }));
+        else setCorrResult((s) => ({ ...s, [i]: { tipo: 'erro', texto: d.erro || 'falhou' } }));
+      } catch (ex) {
+        setCorrResult((s) => ({ ...s, [i]: { tipo: 'erro', texto: (ex as Error).message } }));
+      }
+      if (i < riscos.length - 1) await new Promise((res) => setTimeout(res, 1000)); // throttle Omie
+    }
+    setCorrigindo(false);
+    setStatusModal('correções concluídas.');
+  };
+
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 10, width: '100%', maxWidth: 920, maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 40px rgba(0,0,0,.25)' }}>
@@ -402,6 +533,7 @@ function ModalEntrada({ r, conta, criadoPor, onClose, onConcluido }: {
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', lineHeight: 1, color: '#64748b', cursor: 'pointer' }}>×</button>
         </div>
         <div style={{ padding: 18, overflowY: 'auto', fontSize: '.82rem' }}>
+          {fase === 'entrada' && (<>
           <div style={{ fontSize: '.74rem', color: '#475569', marginBottom: 12 }}>
             Natureza: <b>{r.naturezaOperacao || '-'}</b> · etapa {r.etapa || '?'} · total {fmtBRL(r.valorNFe)}. Concluir essa NF processa ela no Omie (igual processar la).
           </div>
@@ -461,13 +593,61 @@ function ModalEntrada({ r, conta, criadoPor, onClose, onConcluido }: {
             </table>
           </div>
           <div style={{ fontSize: '.7rem', color: '#94a3b8', marginTop: 8 }}>Deixe um CFOP de entrada em branco para o Omie decidir aquele item.</div>
+          </>)}
+
+          {fase === 'correcao' && (<>
+            <div style={{ fontSize: '.74rem', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 6, padding: 8, marginBottom: 12, color: '#065f46' }}>
+              ✔ <b>Entrada processada no Omie.</b> Os itens abaixo baixaram o CMC (entrada de garantia). Reveja o <b>CMC a restaurar</b> (= CMC anterior) e clique em <b>Corrigir custo</b> — isso aplica um ajuste no Omie e fica registrado como feito por você.
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #e2e8f0', borderRadius: 6 }}>
+                <thead>
+                  <tr>
+                    <th style={mTh}>Produto</th>
+                    <th style={{ ...mTh, textAlign: 'right' }}>CMC distorcido</th>
+                    <th style={{ ...mTh, textAlign: 'right' }}>CMC a restaurar</th>
+                    <th style={mTh}>Resultado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {riscos.map((it, i) => (
+                    <tr key={i}>
+                      <td style={mTd}>
+                        {it.descricaoProduto || it.codigoProdutoInt || '?'}
+                        {it.idProduto ? <span style={{ fontFamily: 'monospace', fontSize: '.6rem', color: '#94a3b8' }}> #{it.idProduto}</span> : null}
+                      </td>
+                      <td style={{ ...mTd, textAlign: 'right', color: '#b91c1c' }}>{fmtBRL(it.cmcProjetado)}</td>
+                      <td style={{ ...mTd, textAlign: 'right' }}>
+                        <input type="number" step="0.01" value={cmcAlvo[i] ?? ''} onChange={(e) => setCmcAlvo((s) => ({ ...s, [i]: e.target.value }))}
+                          disabled={corrResult[i]?.tipo === 'ok'}
+                          style={{ border: '1px solid #cbd5e1', borderRadius: 4, padding: '2px 6px', width: 100, textAlign: 'right', fontSize: '.72rem' }} />
+                      </td>
+                      <td style={{ ...mTd, fontSize: '.72rem', color: corrResult[i]?.tipo === 'ok' ? '#047857' : (corrResult[i]?.tipo === 'erro' ? '#dc2626' : '#94a3b8') }}>{corrResult[i]?.texto || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ fontSize: '.7rem', color: '#94a3b8', marginTop: 8 }}>O ajuste é aplicado no local de maior saldo do produto (resolvido automaticamente).</div>
+          </>)}
         </div>
         <div style={{ borderTop: '1px solid #e2e8f0', padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: '.72rem', color: '#64748b', marginRight: 'auto' }}>{statusModal}</span>
-          <button onClick={onClose} style={{ padding: '6px 14px', fontSize: '.82rem', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Cancelar</button>
-          <button onClick={confirmar} disabled={enviando} style={{ padding: '6px 14px', fontSize: '.82rem', background: '#059669', color: '#fff', border: 'none', borderRadius: 6, cursor: enviando ? 'wait' : 'pointer', opacity: enviando ? 0.6 : 1 }}>
-            {enviando ? 'processando...' : 'Confirmar — dar entrada'}
-          </button>
+          {fase === 'entrada' ? (
+            <>
+              <button onClick={onClose} style={{ padding: '6px 14px', fontSize: '.82rem', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={confirmar} disabled={enviando} style={{ padding: '6px 14px', fontSize: '.82rem', background: '#059669', color: '#fff', border: 'none', borderRadius: 6, cursor: enviando ? 'wait' : 'pointer', opacity: enviando ? 0.6 : 1 }}>
+                {enviando ? 'processando...' : 'Confirmar — dar entrada'}
+              </button>
+            </>
+          ) : (
+            <>
+              <button onClick={onClose} style={{ padding: '6px 14px', fontSize: '.82rem', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Fechar (sem corrigir)</button>
+              <button onClick={corrigirCustos} disabled={corrigindo} style={{ padding: '6px 14px', fontSize: '.82rem', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, cursor: corrigindo ? 'wait' : 'pointer', opacity: corrigindo ? 0.6 : 1 }}>
+                {corrigindo ? 'corrigindo...' : `Corrigir custo (${riscos.length})`}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
