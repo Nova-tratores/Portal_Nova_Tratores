@@ -1,0 +1,23 @@
+name: DRE Financeiro - Sync contas (pagar/receber)
+
+# Sincroniza contas a pagar/receber de todas as contas Omie sem depender de
+# alguem clicar "Sincronizar" na UI. Necessario porque o portal roda no Railway
+# e o vercel.json nao dispara cron.
+# Requer os secrets do GitHub: PORTAL_URL e CRON_SECRET.
+
+on:
+  schedule:
+    - cron: '13 */3 * * *'   # a cada 3 horas (minuto 13 para evitar congestao)
+  workflow_dispatch: {}        # permite rodar manualmente
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Disparar sync DRE Financeiro
+        run: |
+          curl -fsS --max-time 600 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/dre-financeiro/cron/sync" \
+            -w "\ndre-sync: HTTP %{http_code}\n"

@@ -18,6 +18,7 @@ export async function GET(req: NextRequest) {
       de: sp.get('de') || '',
       ate: sp.get('ate') || '',
       cliente: sp.get('cliente') || '',
+      clienteCodigo: sp.get('clienteCodigo') || '',
     });
     return NextResponse.json(out);
   } catch (e) {
