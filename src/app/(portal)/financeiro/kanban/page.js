@@ -62,7 +62,7 @@ export default function Kanban() {
 
  const carregarDados = async () => {
   try {
-    const { data } = await supabase.from('Chamado_NF').select('*').neq('status', 'concluido').order('id', { ascending: false });
+    const { data } = await supabase.from('Chamado_NF').select('*').neq('status', 'concluido').neq('status', 'excluido').order('id', { ascending: false });
     const hoje = new Date(); hoje.setHours(0,0,0,0);
 
     // ─── AUTO-MOVE: Boleto 30 dias vencido → pago (salva no banco) ────────────
@@ -264,8 +264,8 @@ export default function Kanban() {
  // Excluir card — somente admin
  const excluirCard = async (t) => {
     if (!isAdmin || !t) return;
-    if (!window.confirm(`Excluir definitivamente o card de ${t.nom_cliente || ('NF #' + t.id)}? Esta ação não pode ser desfeita.`)) return;
-    const { error } = await supabase.from('Chamado_NF').delete().eq('id', t.id);
+    if (!window.confirm(`Tem certeza que deseja excluir o card #${t.id} de ${t.nom_cliente || '-'}?\n\nO card será removido do painel e o sync NÃO vai recriar ele.`)) return;
+    const { error } = await supabase.from('Chamado_NF').update({ status: 'excluido' }).eq('id', t.id);
     if (error) { alert('Erro ao excluir: ' + error.message); return; }
     await auditLog({ sistema: 'financeiro', acao: 'excluir', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: `NF #${t.id} - ${t.nom_cliente || ''}` });
     notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} excluiu NF #${t.id}`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban`)
