@@ -34,7 +34,10 @@
 Objetivo: Tratorilson **atende clientes no WhatsApp** (revisão / manutenção / peças / vendedor / outros), recolhe dados e (futuro) cria OS/PPV no portal.
 - **Spec detalhada do "modo cliente": `docs/tratorilson-whatsapp.md`** (ler isto!).
 - ✅ **ENVIO testado e a funcionar** (Meta Cloud API, com o número de **TESTE** da Meta).
-- ❌ **Falta:** webhook (receber mensagens) + ligação ao cérebro do Tratorilson + **deploy no Railway** (o webhook precisa de URL público; `localhost` não serve).
+- ✅ **Webhook construído** (1ª versão): `src/app/api/whatsapp/webhook/route.ts` (GET verifica, POST recebe) + `src/lib/whatsapp.ts` (enviar + responderCliente, ligado à IA). Persona do modo cliente: `PERSONA_CLIENTE_WHATSAPP` em `src/lib/assistente/conhecimento.ts`.
+  - Memória de conversa é **em memória do processo** (reinicia no redeploy) — TODO: persistir no Supabase.
+  - Esta 1ª versão **conversa e recolhe dados / dá contactos**; ainda NÃO cria OS/PPV nem agenda (próximo passo).
+- ⏳ **Falta para testar:** configurar o **webhook na Meta** (URL pública do Railway + verify token) e ter um **token válido** (o de teste expira ~24h).
 - Credenciais usadas no teste (TEMPORÁRIAS): número de teste da Meta, Phone number ID e token temporário (~24h).
 - **Para produção:** ligar o **NÚMERO REAL** da empresa ao mesmo app Meta + gerar **TOKEN PERMANENTE** (System User) e atualizar as variáveis no Railway. **O código não muda** — só as credenciais.
 

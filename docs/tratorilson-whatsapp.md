@@ -66,7 +66,20 @@ Recolhe: **chassi, horímetro, localização** (parecido com a revisão).
 - **Conhecimento** (fluxo, perguntas, regras, números, lógica dos kits): pode ser ensinado já.
 - **Ações** (criar OS/PPV, importar kit, ver técnico no calendário, calcular KM, ler fotos/vídeos): ferramentas a construir aos poucos. Algumas já existem (propor criar OS/PPV).
 
+## Orçamento
+- Assim que o Tratorilson gerar o orçamento, **por enquanto envia direto ao cliente**.
+- **Futuro:** adicionar uma etapa em que um **Dev aprova** antes de enviar (a definir onde/como).
+
+## Estado do código (1ª versão)
+- Webhook: `src/app/api/whatsapp/webhook/route.ts`
+- Envio + cérebro: `src/lib/whatsapp.ts` (usa `chamarIA` de `src/lib/assistente/ia.ts`)
+- Persona modo cliente: `PERSONA_CLIENTE_WHATSAPP` em `src/lib/assistente/conhecimento.ts`
+- Já faz: conversa, menu, recolhe dados, dá contactos (Zezo/Fernando).
+- Ainda NÃO faz: criar OS/PPV, importar kit, agendar técnico, calcular distância, ler fotos/vídeos.
+
 ## A acrescentar (futuro)
+- Ações no portal: criar OS/PPV, importar kit por horas, agendar técnico por dia, calcular distância à loja.
+- Aprovação de Dev antes de enviar o orçamento.
+- Memória de conversa persistente (Supabase) em vez de em memória.
 - Como identificar o cliente por nome+sobrenome (treino fino).
-- Instruções para a deteção de problemas por fotos/vídeos (Manutenção).
-- Detalhes do agendamento por técnico/dia.
+- Deteção de problemas por fotos/vídeos (Manutenção).
