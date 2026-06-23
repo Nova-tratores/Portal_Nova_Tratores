@@ -78,21 +78,6 @@ const carregarDados = async () => {
       });
     }
 
-    // --- AUTO-MOVE: Pix/Cartão a vista em gerar_boleto -> aguardando_vencimento (não usa boleto) ---
-    const pixCartaoEmGerar = (data || []).filter(c =>
-      (c.status === 'gerar_boleto' || c.status === 'validar_pix') &&
-      ['Pix', 'Cartão a vista'].includes(c.forma_pagamento)
-    );
-    if (pixCartaoEmGerar.length > 0) {
-      await Promise.all(pixCartaoEmGerar.map(c =>
-        supabase.from('Chamado_NF').update({ status: 'aguardando_vencimento', tarefa: 'Aguardando Pagamento', setor: 'Financeiro' }).eq('id', c.id)
-      ));
-      pixCartaoEmGerar.forEach(c => {
-        const idx = (data || []).findIndex(d => d.id === c.id);
-        if (idx !== -1) data[idx] = { ...data[idx], status: 'aguardando_vencimento', tarefa: 'Aguardando Pagamento', setor: 'Financeiro' };
-      });
-    }
-
     // --- AUTO-MOVE: Boleto 30 dias vencido -> pago ---
     const paraAutoPago = (data || []).filter(c =>
       c.status === 'aguardando_vencimento' &&
@@ -984,24 +969,18 @@ return (
                 </div>
               )}
 
-              {/* PIX / Cartão à Vista preso em gerar_boleto: avançar direto */}
+              {/* PIX / Cartão à Vista em gerar_boleto: mostrar ação de mover para pago */}
               {(tarefaSelecionada.status === 'gerar_boleto' || tarefaSelecionada.status === 'validar_pix') && isPixOuCartaoVista && (
                 <div style={{flex: 1, background:'rgba(34, 197, 94, 0.04)', padding:'30px', borderRadius:'16px', border:'2px dashed #22c55e', textAlign:'center'}}>
                   <div style={{fontSize:'14px', color:'#6B7280', marginBottom:'16px'}}>
-                    <strong>{tarefaSelecionada.forma_pagamento}</strong> não precisa de boleto.
-                    {tarefaSelecionada.comprovante_pagamento ? ' Comprovante já anexado!' : ' Anexe o comprovante acima e mova para pago.'}
+                    <strong>{tarefaSelecionada.forma_pagamento}</strong> — não precisa de boleto.
+                    {tarefaSelecionada.comprovante_pagamento ? ' Comprovante anexado ✓' : ' Anexe o comprovante de pagamento acima.'}
                   </div>
-                  <div style={{display:'flex', gap:'12px', justifyContent:'center'}}>
-                    {tarefaSelecionada.comprovante_pagamento ? (
-                      <button onClick={() => handleActionMoveStatus(tarefaSelecionada, 'pago')} style={btnActionGreen}>
-                        <CheckCheck size={20}/> MOVER DIRETO PARA PAGO
-                      </button>
-                    ) : (
-                      <button onClick={() => handleActionMoveStatus(tarefaSelecionada, 'aguardando_vencimento')} style={btnActionBlue}>
-                        <Clock size={20}/> MOVER PARA AGUARDANDO PAGAMENTO
-                      </button>
-                    )}
-                  </div>
+                  {tarefaSelecionada.comprovante_pagamento && (
+                    <button onClick={() => handleActionMoveStatus(tarefaSelecionada, 'pago')} style={btnActionGreen}>
+                      <CheckCheck size={20}/> CONFIRMAR PAGAMENTO — MOVER PARA PAGO
+                    </button>
+                  )}
                 </div>
               )}
 

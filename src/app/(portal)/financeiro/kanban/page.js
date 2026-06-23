@@ -65,21 +65,6 @@ export default function Kanban() {
     const { data } = await supabase.from('Chamado_NF').select('*').neq('status', 'concluido').order('id', { ascending: false });
     const hoje = new Date(); hoje.setHours(0,0,0,0);
 
-    // ─── AUTO-MOVE: Pix/Cartão a vista em gerar_boleto → aguardando_vencimento ──
-    const pixCartaoEmGerar = (data || []).filter(c =>
-      (c.status === 'gerar_boleto' || c.status === 'validar_pix') &&
-      ['Pix', 'Cartão a vista'].includes(c.forma_pagamento)
-    );
-    if (pixCartaoEmGerar.length > 0) {
-      await Promise.all(pixCartaoEmGerar.map(c =>
-        supabase.from('Chamado_NF').update({ status: 'aguardando_vencimento', tarefa: 'Aguardando Pagamento', setor: 'Financeiro' }).eq('id', c.id)
-      ));
-      pixCartaoEmGerar.forEach(c => {
-        const idx = (data || []).findIndex(d => d.id === c.id);
-        if (idx !== -1) data[idx] = { ...data[idx], status: 'aguardando_vencimento', tarefa: 'Aguardando Pagamento', setor: 'Financeiro' };
-      });
-    }
-
     // ─── AUTO-MOVE: Boleto 30 dias vencido → pago (salva no banco) ────────────
     const paraAutoPago = (data || []).filter(c =>
       c.status === 'aguardando_vencimento' &&
