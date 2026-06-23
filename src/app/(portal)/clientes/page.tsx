@@ -1893,6 +1893,140 @@ function ClientesPageInner() {
             </div>
           </div>
         )}
+
+        {/* ===== Modal Requisição Detalhe ===== */}
+        {reqModal && (
+          <div className="cli-overlay" onClick={e => { if (e.target === e.currentTarget) setReqModal(null) }}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 10001, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <div className="cli-modal" style={{ background: '#fff', borderRadius: 16, width: 520, maxWidth: '95vw', maxHeight: '90vh', overflow: 'auto' }}>
+              <div style={{ background: 'linear-gradient(135deg, #991b1b 0%, #dc2626 100%)', padding: '22px 28px', borderRadius: '16px 16px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: '#fff' }}>Requisição #{reqModal.id}</div>
+                  <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 2 }}>{reqModal.titulo || '-'}</div>
+                </div>
+                <button onClick={() => setReqModal(null)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                  <X size={16} color="#fff" />
+                </button>
+              </div>
+              <div style={{ padding: '24px 28px' }}>
+                {(() => {
+                  const statusColor: Record<string, { bg: string; c: string; b: string }> = {
+                    pedido: { bg: '#FFF7ED', c: '#EA580C', b: '#FED7AA' },
+                    completa: { bg: '#ECFDF5', c: '#059669', b: '#A7F3D0' },
+                    aguardando: { bg: '#EFF6FF', c: '#2563EB', b: '#BFDBFE' },
+                    financeiro: { bg: '#F5F3FF', c: '#7C3AED', b: '#C4B5FD' },
+                    lixeira: { bg: '#FEF2F2', c: '#DC2626', b: '#FECACA' },
+                  }
+                  const sc = statusColor[reqModal.status] || statusColor.pedido
+                  const fields = [
+                    { l: 'Status', v: reqModal.status, badge: true, sc },
+                    { l: 'Tipo', v: reqModal.tipo },
+                    { l: 'Solicitante', v: reqModal.solicitante },
+                    { l: 'Fornecedor', v: reqModal.fornecedor },
+                    { l: 'Chassis/Modelo', v: reqModal.Chassis_Modelo, mono: true },
+                    { l: 'Projeto', v: reqModal.projeto_nome ? `${reqModal.projeto_nome} (${reqModal.projeto_codigo || ''})` : null },
+                    { l: 'Nota Fiscal', v: reqModal.numero_nota },
+                    { l: 'Valor', v: reqModal.valor_despeza && parseFloat(reqModal.valor_despeza) > 0 ? formatCurrency(parseFloat(reqModal.valor_despeza)) : null, green: true },
+                    { l: 'Data', v: reqModal.created_at ? new Date(reqModal.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }) : null },
+                  ]
+                  return (
+                    <>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 24px' }}>
+                        {fields.filter(f => f.v).map((f, i) => (
+                          <div key={i}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', marginBottom: 4 }}>{f.l}</div>
+                            {f.badge ? (
+                              <span style={{ fontSize: 13, fontWeight: 700, padding: '3px 10px', borderRadius: 6, background: f.sc!.bg, color: f.sc!.c, border: `1px solid ${f.sc!.b}` }}>{f.v}</span>
+                            ) : (
+                              <div style={{ fontSize: 14, fontWeight: 600, color: f.green ? '#059669' : '#111827', fontFamily: f.mono ? 'monospace' : undefined }}>{f.v}</div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      {reqModal.obs && (
+                        <div style={{ marginTop: 20, padding: 16, background: '#F9FAFB', borderRadius: 10, border: '1px solid #F3F4F6' }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', marginBottom: 6 }}>Observações</div>
+                          <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{reqModal.obs}</div>
+                        </div>
+                      )}
+                    </>
+                  )
+                })()}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ===== Modal Revisão Detalhe ===== */}
+        {revModal && (
+          <div className="cli-overlay" onClick={e => { if (e.target === e.currentTarget) setRevModal(null) }}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 10001, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <div className="cli-modal" style={{ background: '#fff', borderRadius: 16, width: 560, maxWidth: '95vw', maxHeight: '90vh', overflow: 'auto' }}>
+              <div style={{ background: 'linear-gradient(135deg, #991b1b 0%, #dc2626 100%)', padding: '22px 28px', borderRadius: '16px 16px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: '#fff' }}>{revModal.Modelo || 'Trator'}</div>
+                  <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 2 }}>
+                    Chassis: {revModal.Chassis || '-'} — {revModal.Cliente || '-'}
+                  </div>
+                </div>
+                <button onClick={() => setRevModal(null)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                  <X size={16} color="#fff" />
+                </button>
+              </div>
+              <div style={{ padding: '24px 28px' }}>
+                {(revModal.Entrega || revModal["Inspecao Data"]) && (
+                  <div style={{ display: 'flex', gap: 20, marginBottom: 20, flexWrap: 'wrap' }}>
+                    {revModal.Entrega && (
+                      <div style={{ padding: '10px 16px', background: '#EFF6FF', borderRadius: 10, border: '1px solid #BFDBFE' }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#2563EB', marginBottom: 2 }}>ENTREGA</div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: '#1E40AF' }}>{revModal.Entrega}</div>
+                      </div>
+                    )}
+                    {revModal["Inspecao Data"] && (
+                      <div style={{ padding: '10px 16px', background: '#FFF7ED', borderRadius: 10, border: '1px solid #FED7AA' }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#EA580C', marginBottom: 2 }}>INSPEÇÃO</div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: '#C2410C' }}>{revModal["Inspecao Data"]}{revModal["Inspecao Horimetro"] ? ` — ${revModal["Inspecao Horimetro"]}h` : ''}</div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 12 }}>Histórico de Revisões</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {REVISOES_HORAS.map(h => {
+                    const data = revModal[`${h} Data`]
+                    const horim = revModal[`${h} Horimetro`]
+                    const done = !!data
+                    return (
+                      <div key={h} style={{
+                        display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', borderRadius: 10,
+                        background: done ? '#ECFDF5' : '#F9FAFB', border: `1px solid ${done ? '#A7F3D0' : '#E5E7EB'}`,
+                      }}>
+                        <div style={{
+                          width: 40, height: 40, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          background: done ? '#059669' : '#E5E7EB', color: done ? '#fff' : '#9CA3AF', fontSize: 11, fontWeight: 800,
+                        }}>
+                          {done ? <CheckCircle size={18} /> : h.replace('h', '')}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: done ? '#059669' : '#9CA3AF' }}>{h}</div>
+                          {done ? (
+                            <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
+                              Realizada em <strong style={{ color: '#374151' }}>{data}</strong>
+                              {horim ? <> — Horímetro: <strong style={{ color: '#374151' }}>{horim}h</strong></> : ''}
+                            </div>
+                          ) : (
+                            <div style={{ fontSize: 12, color: '#D1D5DB', marginTop: 2 }}>Pendente</div>
+                          )}
+                        </div>
+                        {done && <CheckCircle size={16} color="#059669" />}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     )
   }
@@ -2101,139 +2235,6 @@ function ClientesPageInner() {
         </div>
       )}
 
-      {/* ===== Modal Requisição Detalhe ===== */}
-      {reqModal && (
-        <div className="cli-overlay" onClick={e => { if (e.target === e.currentTarget) setReqModal(null) }}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 10001, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div className="cli-modal" style={{ background: '#fff', borderRadius: 16, width: 520, maxWidth: '95vw', maxHeight: '90vh', overflow: 'auto' }}>
-            <div style={{ background: 'linear-gradient(135deg, #991b1b 0%, #dc2626 100%)', padding: '22px 28px', borderRadius: '16px 16px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: '#fff' }}>Requisição #{reqModal.id}</div>
-                <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 2 }}>{reqModal.titulo || '-'}</div>
-              </div>
-              <button onClick={() => setReqModal(null)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                <X size={16} color="#fff" />
-              </button>
-            </div>
-            <div style={{ padding: '24px 28px' }}>
-              {(() => {
-                const statusColor: Record<string, { bg: string; c: string; b: string }> = {
-                  pedido: { bg: '#FFF7ED', c: '#EA580C', b: '#FED7AA' },
-                  completa: { bg: '#ECFDF5', c: '#059669', b: '#A7F3D0' },
-                  aguardando: { bg: '#EFF6FF', c: '#2563EB', b: '#BFDBFE' },
-                  financeiro: { bg: '#F5F3FF', c: '#7C3AED', b: '#C4B5FD' },
-                  lixeira: { bg: '#FEF2F2', c: '#DC2626', b: '#FECACA' },
-                }
-                const sc = statusColor[reqModal.status] || statusColor.pedido
-                const fields = [
-                  { l: 'Status', v: reqModal.status, badge: true, sc },
-                  { l: 'Tipo', v: reqModal.tipo },
-                  { l: 'Solicitante', v: reqModal.solicitante },
-                  { l: 'Fornecedor', v: reqModal.fornecedor },
-                  { l: 'Chassis/Modelo', v: reqModal.Chassis_Modelo, mono: true },
-                  { l: 'Projeto', v: reqModal.projeto_nome ? `${reqModal.projeto_nome} (${reqModal.projeto_codigo || ''})` : null },
-                  { l: 'Nota Fiscal', v: reqModal.numero_nota },
-                  { l: 'Valor', v: reqModal.valor_despeza && parseFloat(reqModal.valor_despeza) > 0 ? formatCurrency(parseFloat(reqModal.valor_despeza)) : null, green: true },
-                  { l: 'Data', v: reqModal.created_at ? new Date(reqModal.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }) : null },
-                ]
-                return (
-                  <>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 24px' }}>
-                      {fields.filter(f => f.v).map((f, i) => (
-                        <div key={i}>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', marginBottom: 4 }}>{f.l}</div>
-                          {f.badge ? (
-                            <span style={{ fontSize: 13, fontWeight: 700, padding: '3px 10px', borderRadius: 6, background: f.sc!.bg, color: f.sc!.c, border: `1px solid ${f.sc!.b}` }}>{f.v}</span>
-                          ) : (
-                            <div style={{ fontSize: 14, fontWeight: 600, color: f.green ? '#059669' : '#111827', fontFamily: f.mono ? 'monospace' : undefined }}>{f.v}</div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                    {reqModal.obs && (
-                      <div style={{ marginTop: 20, padding: 16, background: '#F9FAFB', borderRadius: 10, border: '1px solid #F3F4F6' }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', marginBottom: 6 }}>Observações</div>
-                        <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{reqModal.obs}</div>
-                      </div>
-                    )}
-                  </>
-                )
-              })()}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ===== Modal Revisão Detalhe ===== */}
-      {revModal && (
-        <div className="cli-overlay" onClick={e => { if (e.target === e.currentTarget) setRevModal(null) }}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 10001, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div className="cli-modal" style={{ background: '#fff', borderRadius: 16, width: 560, maxWidth: '95vw', maxHeight: '90vh', overflow: 'auto' }}>
-            <div style={{ background: 'linear-gradient(135deg, #991b1b 0%, #dc2626 100%)', padding: '22px 28px', borderRadius: '16px 16px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: '#fff' }}>{revModal.Modelo || 'Trator'}</div>
-                <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 2 }}>
-                  Chassis: {revModal.Chassis || '-'} — {revModal.Cliente || '-'}
-                </div>
-              </div>
-              <button onClick={() => setRevModal(null)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                <X size={16} color="#fff" />
-              </button>
-            </div>
-            <div style={{ padding: '24px 28px' }}>
-              {(revModal.Entrega || revModal["Inspecao Data"]) && (
-                <div style={{ display: 'flex', gap: 20, marginBottom: 20, flexWrap: 'wrap' }}>
-                  {revModal.Entrega && (
-                    <div style={{ padding: '10px 16px', background: '#EFF6FF', borderRadius: 10, border: '1px solid #BFDBFE' }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: '#2563EB', marginBottom: 2 }}>ENTREGA</div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: '#1E40AF' }}>{revModal.Entrega}</div>
-                    </div>
-                  )}
-                  {revModal["Inspecao Data"] && (
-                    <div style={{ padding: '10px 16px', background: '#FFF7ED', borderRadius: 10, border: '1px solid #FED7AA' }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: '#EA580C', marginBottom: 2 }}>INSPEÇÃO</div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: '#C2410C' }}>{revModal["Inspecao Data"]}{revModal["Inspecao Horimetro"] ? ` — ${revModal["Inspecao Horimetro"]}h` : ''}</div>
-                    </div>
-                  )}
-                </div>
-              )}
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 12 }}>Histórico de Revisões</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {REVISOES_HORAS.map(h => {
-                  const data = revModal[`${h} Data`]
-                  const horim = revModal[`${h} Horimetro`]
-                  const done = !!data
-                  return (
-                    <div key={h} style={{
-                      display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', borderRadius: 10,
-                      background: done ? '#ECFDF5' : '#F9FAFB', border: `1px solid ${done ? '#A7F3D0' : '#E5E7EB'}`,
-                    }}>
-                      <div style={{
-                        width: 40, height: 40, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        background: done ? '#059669' : '#E5E7EB', color: done ? '#fff' : '#9CA3AF', fontSize: 11, fontWeight: 800,
-                      }}>
-                        {done ? <CheckCircle size={18} /> : h.replace('h', '')}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: done ? '#059669' : '#9CA3AF' }}>{h}</div>
-                        {done ? (
-                          <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
-                            Realizada em <strong style={{ color: '#374151' }}>{data}</strong>
-                            {horim ? <> — Horímetro: <strong style={{ color: '#374151' }}>{horim}h</strong></> : ''}
-                          </div>
-                        ) : (
-                          <div style={{ fontSize: 12, color: '#D1D5DB', marginTop: 2 }}>Pendente</div>
-                        )}
-                      </div>
-                      {done && <CheckCircle size={16} color="#059669" />}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
