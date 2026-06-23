@@ -7,6 +7,7 @@ import { getContasOmie } from './conta';
 import { enriquecerCMCLote } from './cmc-admin';
 import { buscarESalvarItensOmie } from './vendas-sync';
 import { obterTotalOS } from './os';
+import { sincronizarProdutos, sincronizarApenasEstoque } from './produtos-sync';
 
 /**
  * Backfill diário de CMC: para cada conta, enriquece vendas_itens sem
@@ -48,6 +49,39 @@ export async function cronSyncIncremental(): Promise<Record<string, unknown>> {
       resultado[c.id] = { itens: itens.length, totalOS };
     } catch (e) {
       resultado[c.id] = { erro: (e as Error).message };
+    }
+  }
+  return resultado;
+}
+
+/**
+ * Sync COMPLETO da tabela `produtos` (famílias + produtos + estoque) por conta.
+ * Porta o cron diário do app externo "Visual Estoque" — é a fonte que alimenta
+ * /visual-estoque. Job longo: rodar 1x/dia de madrugada.
+ */
+export async function cronSyncProdutos(): Promise<Record<string, unknown>> {
+  const resultado: Record<string, unknown> = {};
+  for (const c of getContasOmie()) {
+    try {
+      resultado[c.id] = await sincronizarProdutos(c.id);
+    } catch (e) {
+      resultado[c.id] = { ok: false, erro: (e as Error).message };
+    }
+  }
+  return resultado;
+}
+
+/**
+ * Sync RÁPIDO: só atualiza estoque/cmc/valor_estoque das linhas já existentes em
+ * `produtos`. Mantém o saldo do pátio fresco entre os syncs completos.
+ */
+export async function cronSyncEstoque(): Promise<Record<string, unknown>> {
+  const resultado: Record<string, unknown> = {};
+  for (const c of getContasOmie()) {
+    try {
+      resultado[c.id] = await sincronizarApenasEstoque(c.id);
+    } catch (e) {
+      resultado[c.id] = { ok: false, erro: (e as Error).message };
     }
   }
   return resultado;

@@ -1,0 +1,24 @@
+name: Estoque - Sync completo de produtos (diário)
+
+# Sync COMPLETO da tabela `produtos` (famílias + produtos + posição de estoque)
+# para todas as contas. Porta o cron diário do app externo "Visual Estoque" —
+# é a fonte que alimenta /visual-estoque (pátio, showroom, alertas).
+# Necessário porque o portal roda no Railway e o vercel.json não dispara cron.
+# Requer os secrets do GitHub: PORTAL_URL e CRON_SECRET.
+
+on:
+  schedule:
+    - cron: '0 6 * * *'    # 06:00 UTC = 03:00 BRT (madrugada), igual ao externo
+  workflow_dispatch: {}      # permite rodar manualmente
+
+jobs:
+  sync-produtos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Disparar sync completo de produtos
+        run: |
+          curl -fsS --max-time 1800 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/estoque/cron/sync-produtos" \
+            -w "\nsync-produtos: HTTP %{http_code}\n"
