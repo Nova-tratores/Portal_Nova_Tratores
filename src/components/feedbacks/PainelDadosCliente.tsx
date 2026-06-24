@@ -221,10 +221,11 @@ const PainelDadosCliente = forwardRef<PainelDadosClienteHandle, Props>(function 
 
     if (tagsMudou) {
       try {
+        // Portal sempre (idempotente) e, se houver código, grava no Omie de fato.
         await upsertClienteInfo({ cliente_key: chave, codigo_omie: codigoOmie, nome, tags });
+        if (codigoOmie) await sincronizarTagsOmie(codigoOmie, tags);
         void log({ sistema: "feedbacks", acao: "tags_cliente", entidade: "cliente", entidade_id: chave, entidade_label: nome, detalhes: { de: baseTags, para: tags } });
-        if (codigoOmie) sincronizarTagsOmie(codigoOmie, tags).catch(() => { /* Omie best-effort */ });
-        setBaseTags(tags);
+        setBaseTags(tags); // só marca como salvo quando Portal + Omie deram certo
       } catch (e) { falhas.push("tags: " + (e instanceof Error ? e.message : String(e))); }
     }
 

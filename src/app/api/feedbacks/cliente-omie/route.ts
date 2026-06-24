@@ -79,6 +79,7 @@ async function resolverEmpresa(codigoOmie: number): Promise<string | null> {
 interface OmieClienteRaw {
   codigo_cliente_omie?: number;
   razao_social?: string; nome_fantasia?: string;
+  cnpj_cpf?: string; pessoa_fisica?: string;
   telefone1_ddd?: string; telefone1_numero?: string;
   telefone2_ddd?: string; telefone2_numero?: string;
   fax_ddd?: string; fax_numero?: string;
@@ -167,9 +168,28 @@ export async function PATCH(req: NextRequest) {
     const tagsDesejadas: string[] | undefined = Array.isArray(body.tags) ? body.tags : undefined;
     const inativo: string | undefined = body.inativo === "S" || body.inativo === "N" ? body.inativo : undefined;
 
+    const temAlteracao = cadastro !== undefined || tagsDesejadas !== undefined || inativo !== undefined;
+    if (!temAlteracao) return NextResponse.json({ error: "Nada para alterar." }, { status: 400 });
+
     const param: Record<string, unknown> = { codigo_cliente_omie: cod };
 
-    // --- Dados cadastrais (telefones / fax / endereço) ---
+    // O Omie REVALIDA os campos obrigatórios no AlterarCliente (Estado, e-mail,
+    // etc.), mesmo que a gente só queira mudar tags/inativo. Então buscamos o
+    // cadastro atual e REENVIAMOS o cadastro completo junto — senão recusa com
+    // "É obrigatório o preenchimento de ...". Cliente com cadastro incompleto no
+    // Omie (sem e-mail/Estado) só grava depois de completar pela seção de dados.
+    const atual = await omieCall<OmieClienteRaw>("ConsultarCliente", { codigo_cliente_omie: cod }, empresa);
+    const camposEcho: (keyof OmieClienteRaw)[] = [
+      "razao_social", "nome_fantasia", "cnpj_cpf", "pessoa_fisica", "email",
+      "telefone1_ddd", "telefone1_numero",
+      "endereco", "endereco_numero", "complemento", "bairro", "cidade", "estado", "cep",
+    ];
+    for (const k of camposEcho) {
+      const v = atual[k];
+      if (typeof v === "string" && v !== "") param[k] = v;
+    }
+
+    // --- Dados cadastrais (sobrescrevem o echo acima quando o usuário enviou) ---
     if (cadastro) {
       if (cadastro.telefone1 !== undefined) { const { ddd, num } = parseTelefone(cadastro.telefone1); param.telefone1_ddd = ddd; param.telefone1_numero = num; }
       if (cadastro.telefone2 !== undefined) { const { ddd, num } = parseTelefone(cadastro.telefone2); param.telefone2_ddd = ddd; param.telefone2_numero = num; }
@@ -185,12 +205,9 @@ export async function PATCH(req: NextRequest) {
     }
 
     // --- Tags: preserva as estruturais do Omie (Cliente/Fornecedor/Funcionário)
-    //     e aplica exatamente o conjunto que o painel mandou pro resto. Assim
-    //     tags criadas entram e tags desmarcadas saem. O painel sempre manda
-    //     todas as tags de conteúdo atuais + as mudanças, então nada se perde. ---
+    //     e aplica exatamente o conjunto que o painel mandou pro resto. ---
     let tagsFinais: string[] | undefined;
     if (tagsDesejadas) {
-      const atual = await omieCall<OmieClienteRaw>("ConsultarCliente", { codigo_cliente_omie: cod }, empresa);
       const preservadas = tagsDoOmie(atual).filter((t) => TAGS_ESTRUTURAIS.includes(t));
       tagsFinais = Array.from(new Set([...preservadas, ...tagsDesejadas]));
       param.tags = tagsFinais.map((t) => ({ tag: t }));
@@ -198,9 +215,6 @@ export async function PATCH(req: NextRequest) {
 
     // --- Inativar / reativar ---
     if (inativo !== undefined) param.inativo = inativo;
-
-    const temAlteracao = Object.keys(param).length > 1;
-    if (!temAlteracao) return NextResponse.json({ error: "Nada para alterar." }, { status: 400 });
 
     await omieCall("AlterarCliente", param, empresa);
 
