@@ -3,7 +3,9 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
-import { ChevronRight, Package, MapPin, Eye } from 'lucide-react'
+import { ChevronRight, Package, MapPin, Eye, Archive, ImagePlus, Images } from 'lucide-react'
+import { useAtalhoDuplo } from '@/lib/visual-estoque/useAtalhoDuplo'
+import MenuImagem from '@/components/visual-estoque/MenuImagem'
 
 const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -46,6 +48,7 @@ const AMB_CONFIG: Record<string, { label: string; color: string }> = {
   patio: { label: 'Pátio', color: '#2563EB' },
   showroom: { label: 'Showroom', color: '#7C3AED' },
   oficina: { label: 'Oficina', color: '#6B7280' },
+  oficina2: { label: 'Oficina 2', color: '#6B7280' },
   barracao: { label: 'Barracão', color: '#059669' },
   fartura: { label: 'Fartura', color: '#D97706' },
   demonstracao: { label: 'Demonstração', color: '#DC2626' },
@@ -62,15 +65,111 @@ export default function PatioPage() {
   const [famAberta, setFamAberta] = useState<string | null>(null)
   const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null)
   const [dragging, setDragging] = useState<{ maq: Maquina; startX: number; startY: number; curX: number; curY: number } | null>(null)
+  const [menuImagem, setMenuImagem] = useState(false)
+  const [buscandoLote, setBuscandoLote] = useState(false)
+  const [zonas, setZonas] = useState<Record<string, { x: number; y: number; w: number; h: number }>>({})
+  const [editZonas, setEditZonas] = useState(false)
   const zonesRef = useRef<Record<string, HTMLDivElement | null>>({})
+  const mapaRef = useRef<HTMLDivElement | null>(null)
 
-  useEffect(() => {
+  const recarregar = useCallback(() => {
     setLoading(true)
     fetch(`/api/visual-estoque/produtos?modo=patio&conta=${conta}`)
       .then(r => r.json())
       .then(d => { setData(d); setLoading(false) })
       .catch(() => setLoading(false))
   }, [conta])
+
+  useEffect(() => { recarregar() }, [recarregar])
+
+  // Carrega config de zonas do mapa (1x).
+  useEffect(() => {
+    fetch('/api/visual-estoque/mapa-config?id=default')
+      .then(r => r.json())
+      .then(z => { if (z && typeof z === 'object') setZonas(z) })
+      .catch(() => {})
+  }, [])
+
+  // Atalho secreto QQ: abre o menu de imagem da máquina selecionada.
+  useAtalhoDuplo('q', () => { if (selecionada) setMenuImagem(true) })
+
+  // Atalho secreto EE: liga/desliga edição de zonas; ao desligar, persiste.
+  const salvarZonas = useCallback((z: Record<string, { x: number; y: number; w: number; h: number }>) => {
+    fetch('/api/visual-estoque/mapa-config?id=default', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(z),
+    }).catch(() => {})
+  }, [])
+  useAtalhoDuplo('e', () => {
+    setEditZonas(prev => {
+      if (prev) salvarZonas(zonas)
+      return !prev
+    })
+  })
+
+  // Drag de uma zona (mover ou redimensionar pelo canto) em coordenadas % do mapa.
+  const handleZonaDrag = useCallback((e: React.MouseEvent, ambiente: string, modo: 'mover' | 'resize') => {
+    e.preventDefault(); e.stopPropagation()
+    const mapa = mapaRef.current
+    if (!mapa) return
+    const rect = mapa.getBoundingClientRect()
+    const z0 = zonas[ambiente]
+    const startX = e.clientX, startY = e.clientY
+    const onMove = (ev: MouseEvent) => {
+      const dxPct = ((ev.clientX - startX) / rect.width) * 100
+      const dyPct = ((ev.clientY - startY) / rect.height) * 100
+      setZonas(prev => {
+        const z = prev[ambiente]; if (!z) return prev
+        const novo = modo === 'mover'
+          ? { ...z, x: Math.max(0, Math.min(98, z0.x + dxPct)), y: Math.max(0, Math.min(98, z0.y + dyPct)) }
+          : { ...z, w: Math.max(8, Math.min(100, z0.w + dxPct)), h: Math.max(8, Math.min(100, z0.h + dyPct)) }
+        return { ...prev, [ambiente]: novo }
+      })
+    }
+    const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp) }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [zonas])
+
+  // Atualiza um campo da máquina selecionada no estado local (após mudar imagem/tamanho).
+  const patchSelecionada = useCallback((patch: Partial<Maquina>) => {
+    setSelecionada(prev => prev ? { ...prev, ...patch } : prev)
+    setData(prev => {
+      if (!prev) return prev
+      const novo = { ...prev.ambientes }
+      for (const k of Object.keys(novo)) {
+        novo[k] = novo[k].map(m => m.codigo_produto === selecionada?.codigo_produto ? { ...m, ...patch } : m)
+      }
+      return { ...prev, ambientes: novo }
+    })
+  }, [selecionada])
+
+  async function arquivar() {
+    if (!selecionada) return
+    await fetch('/api/visual-estoque/produtos/arquivar', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ codigo_produto: selecionada.codigo_produto, arquivado: true }),
+    })
+    setSelecionada(null)
+    recarregar()
+  }
+
+  async function buscarImagensLote() {
+    setBuscandoLote(true)
+    try {
+      let restantes = Infinity
+      // Chama em loop (cada request processa um lote limitado) até zerar ou falhar.
+      for (let i = 0; i < 30 && restantes > 0; i++) {
+        const r = await fetch('/api/visual-estoque/buscar-imagens-lote', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ limite: 15 }),
+        })
+        const d = await r.json()
+        if (!d.ok) break
+        restantes = d.restantes ?? 0
+        if ((d.processados ?? 0) === 0) break
+      }
+      recarregar()
+    } finally { setBuscandoLote(false) }
+  }
 
   const handleDragStart = useCallback((e: React.MouseEvent, maq: Maquina) => {
     e.preventDefault()
@@ -145,22 +244,35 @@ export default function PatioPage() {
   })
   const familias = Array.from(famMap.entries()).sort((a, b) => a[0].localeCompare(b[0]))
 
-  const renderZone = (ambiente: string, style: React.CSSProperties) => {
+  const renderZone = (ambiente: string, fallback: React.CSSProperties) => {
     const maquinas = data?.ambientes[ambiente] || []
     const cfg = AMB_CONFIG[ambiente] || { label: ambiente, color: '#6B7280' }
+    const z = zonas[ambiente]
+    const style: React.CSSProperties = z
+      ? { left: `${z.x}%`, top: `${z.y}%`, width: `${z.w}%`, height: `${z.h}%` }
+      : fallback
 
     return (
       <div
         ref={el => { zonesRef.current[ambiente] = el }}
         style={{
           position: 'absolute', ...style, borderRadius: 8,
-          border: `2px dashed ${cfg.color}40`, background: `${cfg.color}08`,
-          overflow: 'visible',
+          border: editZonas ? `2px solid ${cfg.color}` : `2px dashed ${cfg.color}40`,
+          background: `${cfg.color}08`, overflow: 'visible',
         }}
       >
-        <div style={{ position: 'absolute', top: 4, left: 8, fontSize: 9, fontWeight: 800, color: `${cfg.color}90`, textTransform: 'uppercase', letterSpacing: 1 }}>
+        <div
+          onMouseDown={editZonas && z ? (e) => handleZonaDrag(e, ambiente, 'mover') : undefined}
+          style={{ position: 'absolute', top: 4, left: 8, fontSize: 9, fontWeight: 800, color: `${cfg.color}90`, textTransform: 'uppercase', letterSpacing: 1, cursor: editZonas ? 'move' : 'default' }}
+        >
           {cfg.label}
         </div>
+        {editZonas && z && (
+          <div
+            onMouseDown={(e) => handleZonaDrag(e, ambiente, 'resize')}
+            style={{ position: 'absolute', right: -6, bottom: -6, width: 14, height: 14, borderRadius: 4, background: cfg.color, cursor: 'nwse-resize', zIndex: 30 }}
+          />
+        )}
         {maquinas.map(m => (
           <div
             key={m.codigo_produto}
@@ -237,7 +349,14 @@ export default function PatioPage() {
             <span style={{ color: '#9CA3AF', fontSize: 10, fontWeight: 600 }}>Capital/mês</span>
           </div>
 
-          <div style={{ marginLeft: 'auto' }}>
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button onClick={buscarImagensLote} disabled={buscandoLote} title="Buscar imagens das máquinas sem foto" style={{
+              padding: '6px 12px', borderRadius: 8, border: '1px solid var(--portal-border, #e5e5e5)',
+              fontSize: 11, fontWeight: 600, background: '#fff', cursor: buscandoLote ? 'wait' : 'pointer',
+              display: 'flex', alignItems: 'center', gap: 6, color: '#6B7280',
+            }}>
+              <Images size={13} /> {buscandoLote ? 'Buscando...' : 'Imagens'}
+            </button>
             <select value={conta} onChange={e => setConta(e.target.value)} style={{
               padding: '6px 12px', borderRadius: 8, border: '1px solid var(--portal-border, #e5e5e5)',
               fontSize: 11, fontWeight: 600, background: '#fff', cursor: 'pointer',
@@ -249,12 +368,17 @@ export default function PatioPage() {
           </div>
         </div>
 
+        {editZonas && (
+          <div style={{ padding: '6px 16px', background: '#FEF2F2', color: '#DC2626', fontSize: 11, fontWeight: 700, textAlign: 'center' }}>
+            Modo edição de zonas — arraste o título para mover, o canto para redimensionar. Pressione E E novamente para salvar.
+          </div>
+        )}
         {loading ? (
           <div style={{ padding: 80, textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>Carregando pátio...</div>
         ) : (
           <>
             {/* Mapa principal */}
-            <div style={{ position: 'relative', width: '100%', paddingBottom: '80%', margin: '16px 0' }}>
+            <div ref={mapaRef} style={{ position: 'relative', width: '100%', paddingBottom: '80%', margin: '16px 0' }}>
               {/* Ruas */}
               <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 20, background: '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#9CA3AF', fontWeight: 700, letterSpacing: 1 }}>
                 R. Hermes Corrêa de Carvalho
@@ -270,6 +394,7 @@ export default function PatioPage() {
               {renderZone('patio', { left: '2%', top: '4%', width: '44%', height: '94%' })}
               {renderZone('showroom', { left: '47%', top: '34%', width: '40%', height: '64%' })}
               {renderZone('oficina', { left: '47%', top: '4%', width: '51%', height: '29%' })}
+              {zonas.oficina2 && renderZone('oficina2', { left: '88%', top: '34%', width: '11%', height: '64%' })}
             </div>
 
             {/* Ambientes externos */}
@@ -442,6 +567,23 @@ export default function PatioPage() {
               <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 8, background: '#F3F4F6', display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: '#6B7280' }}>
                 <MapPin size={14} /> {AMB_CONFIG[selecionada.ambiente]?.label || selecionada.ambiente}
               </div>
+
+              <div style={{ marginTop: 14, display: 'flex', gap: 8 }}>
+                <button onClick={() => setMenuImagem(true)} style={{
+                  flex: 1, padding: '10px', borderRadius: 8, border: '1px solid var(--portal-border, #e5e5e5)',
+                  background: '#fff', cursor: 'pointer', fontSize: 11, fontWeight: 600, color: '#6B7280',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                }}>
+                  <ImagePlus size={14} /> Imagem
+                </button>
+                <button onClick={arquivar} style={{
+                  flex: 1, padding: '10px', borderRadius: 8, border: '1px solid #FECACA',
+                  background: '#FEF2F2', cursor: 'pointer', fontSize: 11, fontWeight: 600, color: '#DC2626',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                }}>
+                  <Archive size={14} /> Arquivar
+                </button>
+              </div>
             </div>
           ) : (
             <div style={{ padding: 32, textAlign: 'center', color: '#D1D5DB', fontSize: 12 }}>
@@ -451,6 +593,20 @@ export default function PatioPage() {
           )}
         </div>
       </div>
+
+      {/* Menu de imagem (atalho QQ ou botão Imagem) */}
+      {menuImagem && selecionada && (
+        <MenuImagem
+          item={{ id: selecionada.codigo_produto, descricao: selecionada.descricao, imagem_url: selecionada.imagem_url, img_tamanho: selecionada.img_tamanho }}
+          endpointImagem="/api/visual-estoque/imagem"
+          chaveId="codigo_produto"
+          endpointTamanho="/api/visual-estoque/mover"
+          montarBodyTamanho={(t) => ({ codigo_produto: selecionada.codigo_produto, ambiente: selecionada.ambiente, pos_x: selecionada.pos_x, pos_y: selecionada.pos_y, img_tamanho: t })}
+          onClose={() => setMenuImagem(false)}
+          onImagemAlterada={(url) => patchSelecionada({ imagem_url: url })}
+          onTamanhoAlterado={(t) => patchSelecionada({ img_tamanho: t })}
+        />
+      )}
     </div>
   )
 }

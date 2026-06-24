@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@supabase/auth-ui-react": "^0.4.7",
@@ -17,6 +19,7 @@
     "@zxing/browser": "^0.2.0",
     "@zxing/library": "^0.22.0",
     "exceljs": "^4.4.0",
+    "frappe-gantt": "^1.2.2",
     "imapflow": "^1.2.15",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",
@@ -46,6 +49,7 @@
     "eslint-config-next": "16.1.6",
     "pdf2json": "^4.0.3",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^2.1.9"
   }
 }

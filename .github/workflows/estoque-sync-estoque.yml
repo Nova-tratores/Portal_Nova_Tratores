@@ -1,0 +1,23 @@
+name: Estoque - Sync rápido de saldo (a cada 3h)
+
+# Atualiza estoque/cmc/valor_estoque das linhas já existentes em `produtos`,
+# mantendo o saldo do pátio fresco entre os syncs completos diários.
+# Necessário porque o portal roda no Railway e o vercel.json não dispara cron.
+# Requer os secrets do GitHub: PORTAL_URL e CRON_SECRET.
+
+on:
+  schedule:
+    - cron: '0 */3 * * *'   # a cada 3 horas
+  workflow_dispatch: {}       # permite rodar manualmente
+
+jobs:
+  sync-estoque:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Disparar sync rápido de saldo
+        run: |
+          curl -fsS --max-time 900 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/estoque/cron/sync-estoque" \
+            -w "\nsync-estoque: HTTP %{http_code}\n"

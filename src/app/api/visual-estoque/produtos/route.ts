@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { buscarProdutosEnriquecidos, agruparFamilias, buscarPecasPorTipo } from "@/lib/visual-estoque/data";
+import { buscarProdutosEnriquecidos, agruparFamilias, buscarPecasPorTipo, buscarMaquinasDemonstracao, autoDistribuir } from "@/lib/visual-estoque/data";
 
 export async function GET(req: NextRequest) {
   const conta = req.nextUrl.searchParams.get("conta") || undefined;
@@ -37,12 +37,21 @@ export async function GET(req: NextRequest) {
 
     if (modo === "patio") {
       const maquinas = produtos.filter(p => p.tipo !== "Peças" && p.estoque > 0);
-      const ambientes: Record<string, typeof maquinas> = {};
+      const demonstracao = await buscarMaquinasDemonstracao(conta);
+
+      const ambientes: Record<string, typeof maquinas> = {
+        patio: [], showroom: [], oficina: [], oficina2: [], barracao: [], fartura: [], demonstracao: [],
+      };
       for (const m of maquinas) {
-        const amb = m.ambiente || "patio";
-        if (!ambientes[amb]) ambientes[amb] = [];
+        // 'showroom' é o ambiente padrão para máquinas sem ambiente definido.
+        const amb = m.ambiente && ambientes[m.ambiente] ? m.ambiente : "showroom";
         ambientes[amb].push(m);
       }
+      ambientes.demonstracao = demonstracao;
+
+      // Distribui posições automáticas por ambiente para quem não tem pos salvo.
+      for (const amb of Object.keys(ambientes)) autoDistribuir(ambientes[amb]);
+
       const familias = agruparFamilias(maquinas);
       return NextResponse.json({ ambientes, familias, total: maquinas.length });
     }
