@@ -18,12 +18,16 @@ export interface Autorizacao {
   consumido_em: string | null;
 }
 
-// Converte "1.550,00" / "1550,00" / "1550" em número
+// Converte "1.550,00" / "1550,00" / "1550" / "1550.00" em número
 export function parseValorBR(v: any): number {
   if (v === null || v === undefined || v === '') return 0;
-  const s = String(v).trim().replace(/\./g, '').replace(',', '.');
-  const n = parseFloat(s);
-  return isNaN(n) ? 0 : n;
+  const s = String(v).trim();
+  if (s.includes(',')) {
+    // Formato BR: ponto = milhar, vírgula = decimal
+    return parseFloat(s.replace(/\./g, '').replace(',', '.')) || 0;
+  }
+  // Formato numérico/americano: ponto = decimal
+  return parseFloat(s) || 0;
 }
 
 // A requisição é de "valor alto" (acima do limite)?
