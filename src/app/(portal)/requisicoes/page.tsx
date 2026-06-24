@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { filtrarDestinatarios } from '@/lib/notif/prefs';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
@@ -177,15 +178,14 @@ function RequisicoesPageInner() {
     try {
       const { data: permissoes } = await supabase
         .from('portal_permissoes')
-        .select('user_id, is_admin, modulos_permitidos');
+        .select('user_id, is_admin, modulos_permitidos, categoria, notif_silenciado');
       if (!permissoes || permissoes.length === 0) return;
-      const usuariosComAcesso = permissoes.filter(
-        (p: any) => p.is_admin
-      );
-      if (usuariosComAcesso.length === 0) return;
+      // Respeita as preferências de silenciar (módulo 'requisicoes').
+      const ids = filtrarDestinatarios('requisicoes', permissoes.filter((p: any) => p.is_admin));
+      if (ids.length === 0) return;
       await supabase.from('portal_notificacoes').insert(
-        usuariosComAcesso.map((a: { user_id: string }) => ({
-          user_id: a.user_id,
+        ids.map((user_id) => ({
+          user_id,
           tipo,
           titulo,
           descricao: descricao || null,

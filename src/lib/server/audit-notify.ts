@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { filtrarDestinatarios, type PrefsDestinatario } from "@/lib/notif/prefs";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -46,7 +47,7 @@ export async function notificarAdmins(params: {
   try {
     const { data: admins } = await supabase
       .from("portal_permissoes")
-      .select("user_id")
+      .select("user_id, categoria, notif_silenciado")
       .eq("is_admin", true);
 
     if (!admins || admins.length === 0) return;
@@ -62,19 +63,20 @@ export async function notificarAdmins(params: {
       if (usu && usu.length > 0) excludeId = usu[0].id;
     }
 
-    const destinatarios = admins
-      .filter((a) => a.user_id !== excludeId)
-      .map((a) => ({
-        user_id: a.user_id,
-        tipo: params.tipo,
-        titulo: params.titulo,
-        descricao: params.descricao || null,
-        link: params.link || null,
-      }));
+    // Respeita as preferências de silenciar (módulo = params.tipo).
+    const elegiveis = (admins as PrefsDestinatario[]).filter((a) => a.user_id !== excludeId);
+    const ids = filtrarDestinatarios(params.tipo, elegiveis);
+    if (ids.length === 0) return;
 
-    if (destinatarios.length > 0) {
-      await supabase.from("portal_notificacoes").insert(destinatarios);
-    }
+    const destinatarios = ids.map((user_id) => ({
+      user_id,
+      tipo: params.tipo,
+      titulo: params.titulo,
+      descricao: params.descricao || null,
+      link: params.link || null,
+    }));
+
+    await supabase.from("portal_notificacoes").insert(destinatarios);
   } catch (e) {
     console.error("[Notificar] Erro:", e);
   }

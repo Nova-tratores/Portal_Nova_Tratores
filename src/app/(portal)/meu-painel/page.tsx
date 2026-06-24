@@ -2,6 +2,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
+import { filtrarDestinatarios } from '@/lib/notif/prefs'
 import {
   Calendar, Package, Clock, Navigation, MapPin,
   Plus, X, Send, FileText, AlertTriangle, ChevronRight, ChevronLeft,
@@ -255,11 +256,14 @@ export default function MeuPainelPage() {
   // ─── Notificar admins ─────────────────────────────────────────
   const notificarAdmins = async (tipo: string, titulo: string, descricao?: string) => {
     try {
-      const { data: admins } = await supabase.from('portal_permissoes').select('user_id').eq('is_admin', true)
+      const { data: admins } = await supabase.from('portal_permissoes').select('user_id, categoria, notif_silenciado').eq('is_admin', true)
       if (!admins || admins.length === 0) return
+      // Respeita as preferências de silenciar (módulo = tipo).
+      const ids = filtrarDestinatarios(tipo, admins)
+      if (ids.length === 0) return
       await supabase.from('portal_notificacoes').insert(
-        admins.map((a: { user_id: string }) => ({
-          user_id: a.user_id, tipo, titulo,
+        ids.map((user_id) => ({
+          user_id, tipo, titulo,
           descricao: descricao || null,
           link: '/painel-mecanicos',
         }))

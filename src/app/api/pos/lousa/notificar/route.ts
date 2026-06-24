@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { TBL_LOUSA, TBL_LOUSA_CONFIG, TBL_OS, TBL_PEDIDOS } from "@/lib/pos/constants";
+import { podeNotificar } from "@/lib/notif/prefs";
 
 const CRON_SECRET = process.env.CRON_SECRET || "";
 
@@ -64,6 +65,16 @@ export async function GET(req: NextRequest) {
   // Montar descrição
   const linhas = ordensComPPV.map((o: any) => `OS ${o.Id_Ordem} — ${o.Os_Cliente}`);
   const descricao = `${ordensComPPV.length} OS com pedido de peças (PPV) na agenda de hoje:\n${linhas.join("\n")}`;
+
+  // Respeita as preferências de silenciar do destinatário (módulo 'pos')
+  const { data: pref } = await supabase
+    .from("portal_permissoes")
+    .select("categoria, notif_silenciado")
+    .eq("user_id", config.notificar_user_id)
+    .maybeSingle();
+  if (!podeNotificar("pos", pref?.notif_silenciado, pref?.categoria)) {
+    return NextResponse.json({ msg: "Destinatário silenciou notificações de Pós-Vendas", notificados: 0 });
+  }
 
   // Enviar notificação
   await supabase.from("portal_notificacoes").insert({

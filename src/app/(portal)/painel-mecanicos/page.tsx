@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import { supabase } from '@/lib/supabase'
+import { filtrarDestinatarios } from '@/lib/notif/prefs'
 import BlocoVisaoGeral from '@/components/painel-mecanicos/BlocoVisaoGeral'
 import BlocoAgenda from '@/components/painel-mecanicos/BlocoAgenda'
 import BlocoAlertas, { type Alerta } from '@/components/painel-mecanicos/BlocoAlertas'
@@ -117,7 +118,7 @@ function PainelMecanicosPage() {
   const ordensPorTecnico = useMemo(() => { const m: Record<string, OrdemServico[]> = {}; tecnicos.forEach(tec => { m[tec.tecnico_nome] = ordens.filter(o => o.Status !== 'Concluída' && o.Status !== 'Cancelada' && (nomesBatem(tec.tecnico_nome, o.Os_Tecnico) || nomesBatem(tec.tecnico_nome, o.Os_Tecnico2))) }); return m }, [tecnicos, ordens])
 
   const notificarAdmins = async (tipo: string, titulo: string, descricao?: string, link?: string) => {
-    try { const { data: admins } = await supabase.from('portal_permissoes').select('user_id').eq('is_admin', true); if (!admins || admins.length === 0) return; await supabase.from('portal_notificacoes').insert(admins.map((a: { user_id: string }) => ({ user_id: a.user_id, tipo, titulo, descricao: descricao || null, link: link || '/painel-mecanicos' }))) } catch { }
+    try { const { data: admins } = await supabase.from('portal_permissoes').select('user_id, categoria, notif_silenciado').eq('is_admin', true); if (!admins || admins.length === 0) return; const ids = filtrarDestinatarios(tipo, admins); if (ids.length === 0) return; await supabase.from('portal_notificacoes').insert(ids.map((user_id) => ({ user_id, tipo, titulo, descricao: descricao || null, link: link || '/painel-mecanicos' }))) } catch { }
   }
   const aprovarRequisicao = async (reqId: number) => { await supabase.from('mecanico_requisicoes').update({ status: 'aprovada', data_aprovacao: new Date().toISOString() }).eq('id', reqId); const req = reqsMecanico.find(r => r.id === reqId); if (req) { await supabase.from('mecanico_notificacoes').insert({ tecnico_nome: req.tecnico_nome, tipo: 'requisicao', titulo: 'Requisição aprovada', descricao: `Sua requisição "${req.material_solicitado}" foi aprovada.`, link: '', lida: false }); await notificarAdmins('pos', `Requisição aprovada - ${req.tecnico_nome}`, `Material: ${req.material_solicitado}`) }; carregar() }
   const recusarRequisicao = async (reqId: number) => { if (!confirm('Recusar esta requisição?')) return; const req = reqsMecanico.find(r => r.id === reqId); await supabase.from('mecanico_requisicoes').update({ status: 'recusada' }).eq('id', reqId); if (req) { await supabase.from('mecanico_notificacoes').insert({ tecnico_nome: req.tecnico_nome, tipo: 'requisicao', titulo: 'Requisição recusada', descricao: `Sua requisição "${req.material_solicitado}" foi recusada.`, link: '', lida: false }) }; carregar() }

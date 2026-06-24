@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
+import { filtrarDestinatarios } from "@/lib/notif/prefs";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissoes } from "@/hooks/usePermissoes";
 import SemPermissao from "@/components/SemPermissao";
@@ -426,12 +427,15 @@ function DashboardAgrupadoInner() {
     try {
       const { data: admins } = await supabase
         .from("portal_permissoes")
-        .select("user_id")
+        .select("user_id, categoria, notif_silenciado")
         .eq("is_admin", true);
       if (!admins || admins.length === 0) return;
+      // Respeita as preferências de silenciar (módulo 'revisoes').
+      const ids = filtrarDestinatarios("revisoes", admins);
+      if (ids.length === 0) return;
       await supabase.from("portal_notificacoes").insert(
-        admins.map((a: { user_id: string }) => ({
-          user_id: a.user_id,
+        ids.map((user_id) => ({
+          user_id,
           tipo: "revisao",
           titulo,
           descricao,

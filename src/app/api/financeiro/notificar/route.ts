@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { podeNotificar } from "@/lib/notif/prefs";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -17,7 +18,7 @@ export async function POST(req: NextRequest) {
   // Buscar permissões + função do usuário
   const { data: permissoes } = await supabase
     .from("portal_permissoes")
-    .select("user_id, is_admin, modulos_permitidos");
+    .select("user_id, is_admin, modulos_permitidos, categoria, notif_silenciado");
 
   if (!permissoes || permissoes.length === 0) {
     return NextResponse.json({ notificados: 0 });
@@ -51,6 +52,13 @@ export async function POST(req: NextRequest) {
       }
     }
   }
+
+  // Respeita as preferências de silenciar do destinatário (módulo 'financeiro')
+  const prefMap = new Map((permissoes || []).map((p) => [p.user_id, p]));
+  destinatariosIds = destinatariosIds.filter((id) => {
+    const p = prefMap.get(id);
+    return podeNotificar("financeiro", p?.notif_silenciado, p?.categoria);
+  });
 
   if (destinatariosIds.length === 0) {
     return NextResponse.json({ notificados: 0 });

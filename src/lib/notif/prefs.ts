@@ -64,3 +64,29 @@ export function podeNotificar(
   if (obrigatorios.has(modulo)) return true;
   return !(silenciados || []).includes(modulo);
 }
+
+// Linha de portal_permissoes com o necessário pra decidir o envio.
+export interface PrefsDestinatario {
+  user_id: string;
+  categoria?: string | null;
+  notif_silenciado?: string[] | null;
+}
+
+// Helper central: dado um módulo e as linhas de portal_permissoes dos candidatos
+// (com user_id, categoria, notif_silenciado), devolve os user_id que devem
+// receber a notificação — respeitando o silenciamento. Sem duplicatas.
+// IMPORTANTE: `modulo` é o ID do módulo silenciável (ex: 'requisicoes',
+// 'revisoes', 'garantias'), que pode diferir do `tipo` salvo na notificação
+// (ex: 'requisicao', 'revisao', 'garantia').
+export function filtrarDestinatarios(
+  modulo: string,
+  pessoas: PrefsDestinatario[] | null | undefined,
+): string[] {
+  return Array.from(
+    new Set(
+      (pessoas || [])
+        .filter((p) => p.user_id && podeNotificar(modulo, p.notif_silenciado, p.categoria))
+        .map((p) => p.user_id),
+    ),
+  );
+}
