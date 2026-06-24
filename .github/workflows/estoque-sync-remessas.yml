@@ -1,0 +1,22 @@
+name: Estoque - Sync remessas (Visual Estoque)
+
+# Sincroniza remessas, movimentação por produto (demonstração) e outras entradas
+# do Omie para o Supabase (fontes da tela Remessas do Visual Estoque), todas as
+# contas. Requer os secrets do GitHub: PORTAL_URL e CRON_SECRET.
+
+on:
+  schedule:
+    - cron: '0 7,16 * * *'   # 04h e 13h BRT
+  workflow_dispatch: {}        # permite rodar manualmente
+
+jobs:
+  sync-remessas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Disparar sync de remessas
+        run: |
+          curl -fsS --max-time 1200 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/estoque/cron/sync-remessas" \
+            -w "\nsync-remessas: HTTP %{http_code}\n"
