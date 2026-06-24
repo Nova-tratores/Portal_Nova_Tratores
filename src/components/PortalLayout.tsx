@@ -12,7 +12,7 @@ import {
   LayoutDashboard, Bell, ChevronRight, ChevronDown, Activity, Lock, MessageCircle,
   CheckCheck, Trash2, ExternalLink, Calendar, Users, Calculator, BarChart3, Eye, Camera, Wheat, Megaphone,
   Sun, Moon, Volume2, Check, MapPin, ShieldCheck, Building, SlidersHorizontal, AlertCircle, Headset,
-  LayoutGrid, List, CircleDot
+  LayoutGrid, List, CircleDot, GanttChartSquare
 } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -59,6 +59,7 @@ const navItems: NavItem[] = [
   { id: 'mapa-geral', name: 'Mapeamento Técnico', href: '/mapa-geral', icon: <MapPin size={18} />, tag: 'MAPA', gradient: '', group: 'servicos' },
   { id: 'fotos-tecnicos', name: 'Fotos Técnicos', href: '/fotos-tecnicos', icon: <Camera size={18} />, tag: 'FOTOS', gradient: '', group: 'servicos' },
   { id: 'lousa', name: 'Lousa Virtual', href: '/lousa', icon: <Calendar size={18} />, tag: 'AGENDA', gradient: '', group: 'servicos' },
+  { id: 'cronograma', name: 'Cronograma', href: '/cronograma', icon: <GanttChartSquare size={18} />, tag: 'GANTT', gradient: '', group: 'servicos' },
 
   // Peças (laranja)
   { id: 'ppv', name: 'Peças (Pedido de Venda)', href: '/ppv', icon: <Package size={18} />, tag: 'PEÇAS', gradient: '', group: 'pecas' },
