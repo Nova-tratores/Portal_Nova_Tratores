@@ -26,6 +26,16 @@ function fmt(v: number) {
   return v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function esc(s: string) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function rich(text: string) {
+  return esc(text)
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\n/g, "<br>");
+}
+
 function gerarHTML(dados: BodyOrc) {
   const emissaoDate = dados.dataEmissao ? new Date(dados.dataEmissao) : new Date();
   const dataEmissao = emissaoDate.toLocaleDateString("pt-BR");
@@ -42,7 +52,7 @@ function gerarHTML(dados: BodyOrc) {
     <tr>
       <td style="text-align:center; color:#999; font-weight:700;">${idx + 1}</td>
       <td style="font-weight:600;">${item.codigo || "-"}</td>
-      <td>${item.descricao}</td>
+      <td>${rich(item.descricao)}</td>
       <td style="text-align:center;">${item.quantidade}</td>
       <td style="text-align:right;">R$ ${fmt(item.preco)}</td>
       <td style="text-align:right; font-weight:700;">R$ ${fmt(item.quantidade * item.preco)}</td>
@@ -125,7 +135,8 @@ function gerarHTML(dados: BodyOrc) {
   .val { font-size: 9pt; color: #111; font-weight: 500; }
   .val-name { font-size: 12pt; font-weight: 800; color: #000; text-transform: uppercase; letter-spacing: 0.3px; }
 
-  .obs-box { border: 1px solid #ddd; padding: 10px 12px; font-size: 9pt; white-space: pre-wrap; font-family: 'Montserrat', sans-serif; color: #222; line-height: 1.5; }
+  .obs-box { border: 1px solid #ddd; padding: 10px 12px; font-size: 9pt; font-family: 'Montserrat', sans-serif; color: #222; line-height: 1.5; }
+  .obs-box strong { background: #FEF9C3; padding: 0 2px; }
 
   table { width: 100%; border-collapse: collapse; }
   .cost-table th { text-align: left; font-size: 7pt; font-weight: 800; color: #000; text-transform: uppercase; letter-spacing: 0.5px; padding: 6px 8px; border-bottom: 2px solid #000; }
@@ -170,7 +181,7 @@ function gerarHTML(dados: BodyOrc) {
   ${dados.observacao ? `
   <div class="section">
     <div class="section-title">Observações</div>
-    <div class="obs-box">${dados.observacao}</div>
+    <div class="obs-box">${rich(dados.observacao!)}</div>
   </div>` : ""}
 
   ${dados.itens.length > 0 ? `

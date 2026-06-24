@@ -625,12 +625,13 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar }: Props)
         {/* Obs e validade */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 16 }}>
           <div>
-            <label style={labelStyle}>Observação</label>
-            <input
+            <label style={labelStyle}>Observação <span style={{ fontSize: 10, color: '#9CA3AF', fontWeight: 400 }}>( **texto** = negrito )</span></label>
+            <textarea
               value={observacao}
               onChange={e => setObservacao(e.target.value)}
-              placeholder="Obs. do orçamento..."
-              style={inputStyle}
+              placeholder="Obs. do orçamento... Use **texto** para grifo/negrito"
+              rows={3}
+              style={{ ...inputStyle, resize: 'vertical' as const, minHeight: 42, fontFamily: 'inherit' }}
             />
           </div>
           <div>
