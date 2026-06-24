@@ -203,13 +203,10 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
 
       // 2) Atendimento. Usa o id já salvo (se houver) pra não inserir duplicado num retry.
       const payload = formParaPayload(tipo, form) as Partial<FeedbackRegistro>;
-      if (registro?.status_atendimento === "aberto" || registro?.status_atendimento === "em_andamento") {
-        if (form.sem_resposta) {
-          payload.status_atendimento = "sem_resposta";
-        } else {
-          payload.status_atendimento = "concluido";
-          payload.concluido_em = new Date().toISOString();
-        }
+      // Salvar NÃO conclui o atendimento — concluir é ação explícita (botão "Concluir"
+      // no card). Só marca "sem resposta" se o usuário marcou o checkbox.
+      if ((registro?.status_atendimento === "aberto" || registro?.status_atendimento === "em_andamento") && form.sem_resposta) {
+        payload.status_atendimento = "sem_resposta";
       }
       const idExistente = savedIdRef.current;
       const r = idExistente
@@ -220,9 +217,7 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
       onSalvo(r);
 
       // Log do atendimento (mesma chave do cliente, agrupa com cadastro/tags).
-      const acaoLog = payload.status_atendimento === "concluido" ? "atendimento_concluido"
-        : payload.status_atendimento === "sem_resposta" ? "atendimento_sem_resposta"
-        : "atendimento_salvo";
+      const acaoLog = payload.status_atendimento === "sem_resposta" ? "atendimento_sem_resposta" : "atendimento_salvo";
       void log({
         sistema: "feedbacks", acao: acaoLog, entidade: "cliente",
         entidade_id: clienteKey(form.codigo_omie || null, form.nome), entidade_label: form.nome,

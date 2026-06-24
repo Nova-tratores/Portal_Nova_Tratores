@@ -31,11 +31,6 @@ function parseTelefone(tel?: string): { ddd: string; num: string } {
   return { ddd: d.slice(0, 2), num: d.slice(2) };
 }
 
-function fmtTelefone(ddd?: string, num?: string): string {
-  if (!num) return "";
-  return ddd ? `(${ddd}) ${num}` : String(num);
-}
-
 async function omieCall<T>(call: string, param: Record<string, unknown>, empresa: string, tentativa = 1): Promise<T> {
   const acc = OMIE_ACCOUNTS[empresa];
   if (!acc) throw new Error(`Empresa desconhecida: ${empresa}`);
@@ -98,37 +93,56 @@ function tagsDoOmie(cli: OmieClienteRaw): string[] {
   return (cli.tags || []).map((t) => t?.tag).filter((t): t is string => !!t);
 }
 
-function normalizar(cli: OmieClienteRaw, empresa: string) {
-  return {
-    empresa,
-    nome_fantasia: cli.nome_fantasia || "",
-    razao_social: cli.razao_social || "",
-    inativo: cli.inativo === "S",
-    tags: tagsDoOmie(cli),
-    cadastro: {
-      telefone1: fmtTelefone(cli.telefone1_ddd, cli.telefone1_numero),
-      telefone2: fmtTelefone(cli.telefone2_ddd, cli.telefone2_numero),
-      fax: fmtTelefone(cli.fax_ddd, cli.fax_numero),
-      email: cli.email || "",
-      endereco: cli.endereco || "",
-      numero: cli.endereco_numero || "",
-      complemento: cli.complemento || "",
-      bairro: cli.bairro || "",
-      cidade: cli.cidade || "",
-      estado: cli.estado || "",
-      cep: cli.cep || "",
-    },
-  };
+// Parse das tags armazenadas como texto JSON (ex.: [{"tag":"Cliente"}]).
+function parseTags(raw: unknown): string[] {
+  try {
+    const arr = typeof raw === "string" ? JSON.parse(raw) : raw;
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .map((t) => (t && typeof t === "object" ? (t as { tag?: string }).tag : t))
+      .filter((t): t is string => typeof t === "string" && !!t);
+  } catch {
+    return [];
+  }
 }
 
+// LEITURA: vem do Supabase (tabela já sincronizada), NÃO do Omie — a API do Omie
+// trava com muitas requisições. A gravação (PATCH) é que vai no Omie.
 export async function GET(req: NextRequest) {
   const cod = Number(req.nextUrl.searchParams.get("codigo_omie") || "");
   if (!cod) return NextResponse.json({ error: "codigo_omie é obrigatório" }, { status: 400 });
   try {
-    const empresa = await resolverEmpresa(cod);
-    if (!empresa) return NextResponse.json({ error: "Cliente sem cadastro Omie vinculado no Portal." }, { status: 404 });
-    const cli = await omieCall<OmieClienteRaw>("ConsultarCliente", { codigo_cliente_omie: cod }, empresa);
-    return NextResponse.json(normalizar(cli, empresa));
+    const { data, error } = await supabase
+      .from("portal_nt_clientes_cadastro_omie")
+      .select("empresa, razao_social, nome_fantasia, email, telefone, endereco, bairro, cidade, estado, cep, inativo, tags")
+      .eq("cod_cli", cod)
+      .limit(1)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) return NextResponse.json({ error: "Cliente sem cadastro Omie vinculado no Portal." }, { status: 404 });
+    const row = data as Record<string, unknown>;
+    return NextResponse.json({
+      empresa: (row.empresa as string) || "",
+      nome_fantasia: (row.nome_fantasia as string) || "",
+      razao_social: (row.razao_social as string) || "",
+      inativo: row.inativo === "S",
+      tags: parseTags(row.tags),
+      cadastro: {
+        // telefone2/fax/numero/complemento não ficam no Supabase — só no Omie.
+        // Aparecem vazios aqui; ao salvar, vão pro Omie normalmente.
+        telefone1: (row.telefone as string) || "",
+        telefone2: "",
+        fax: "",
+        email: (row.email as string) || "",
+        endereco: (row.endereco as string) || "",
+        numero: "",
+        complemento: "",
+        bairro: (row.bairro as string) || "",
+        cidade: (row.cidade as string) || "",
+        estado: (row.estado as string) || "",
+        cep: (row.cep as string) || "",
+      },
+    });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 502 });
   }
