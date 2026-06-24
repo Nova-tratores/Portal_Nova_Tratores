@@ -163,7 +163,7 @@ function RequisicoesPageInner() {
     auditLog({ sistema: 'requisicoes', acao: 'editar', entidade: 'requisicao', entidade_id: String(id), detalhes: dados });
     // Marca que esse card foi editado (notificação só ao fechar)
     cardsEditadosRef.current.add(id);
-  }, [carregarDados])
+  }, [carregarDados, auditLog])
 
   const handleCardFechado = useCallback((id: number) => {
     if (cardsEditadosRef.current.has(id)) {

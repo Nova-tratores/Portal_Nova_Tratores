@@ -8,11 +8,12 @@ import {
   Store, ArrowRight, Gauge,
   Receipt, Eye, ExternalLink, Car,
   Plus, CheckCheck, Building2, User, Cpu,
-  Package, CreditCard, Upload, Check, Lock, ShieldCheck, ShieldAlert
+  Package, CreditCard, Upload, Check, Lock, ShieldCheck, ShieldAlert, Clock
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import { isValorAlto, buscarAutorizacaoAtiva, criarPedidoPermissao, consumirAutorizacao, parseValorBR, LIMITE_BLOQUEIO, type Autorizacao } from '@/lib/requisicoes/autorizacao';
+import HistoricoModal from './HistoricoModal';
 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxyIatVqhjdeBeo4PYNWr992vCsPpvEEjOxabWB7mz5JRJ7BroxnvR8CRIcXIgTfLSm/exec';
 const DEPARTAMENTOS = ["Trator-Loja", "Trator-Cliente", "Oficina", "Comercial"];
@@ -33,6 +34,7 @@ function parseMoeda(valorFmt: string): string {
 export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, aberto = false, onFechar }: { req: any, onUpdate: any, onPrint: any, dadosCompartilhados?: any, aberto?: boolean, onFechar?: () => void }) {
   const [modalAberto, setModalAberto] = useState(aberto);
   const [modalCotacaoAberto, setModalCotacaoAberto] = useState(false);
+  const [histAberto, setHistAberto] = useState(false);
 
   // ── Bloqueio de valor alto (precisa de permissão de Dev) ──
   const { userProfile } = useAuth();
@@ -451,6 +453,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                   {nomeExibicao && <span className="text-xs text-zinc-400">· {nomeExibicao}</span>}
                 </div>
               </div>
+              <button onClick={() => setHistAberto(true)} className="w-10 h-10 flex items-center justify-center rounded-lg bg-white border border-zinc-200 text-zinc-500 hover:bg-zinc-800 hover:text-white hover:border-zinc-800 transition-all shrink-0" title="Histórico"><Clock size={16}/></button>
               <button onClick={handlePrint} className="w-10 h-10 flex items-center justify-center rounded-lg bg-white border border-zinc-200 text-zinc-500 hover:bg-red-600 hover:text-white hover:border-red-600 transition-all shrink-0" title="Imprimir"><Printer size={16}/></button>
               <button onClick={fecharModal} className="w-10 h-10 flex items-center justify-center rounded-lg bg-white border border-zinc-200 text-zinc-500 hover:bg-red-500 hover:text-white hover:border-red-500 transition-all shrink-0"><X size={18}/></button>
             </div>
@@ -908,6 +911,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
           </div>
         </div>
       )}
+      <HistoricoModal reqId={req.id} titulo={req.titulo} open={histAberto} onClose={() => setHistAberto(false)} />
     </div>
   );
 }
