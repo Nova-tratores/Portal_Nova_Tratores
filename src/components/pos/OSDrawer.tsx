@@ -6,7 +6,6 @@ import type { ClienteOption, ClienteDados, Produto, AlimentacaoItem } from "@/li
 import SearchModal from "./SearchModal";
 import LogPanel from "./LogPanel";
 import OSGarantiaInfo from "@/components/garantias/OSGarantiaInfo";
-import OSorcamentosInfo from "@/components/pos/OSorcamentosInfo";
 
 interface OSDrawerProps {
   visible: boolean;
@@ -841,13 +840,6 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                     </div>
                   )}
 
-                  {/* ── Orçamentos vinculados ── */}
-                  {mode === "edit" && osId && (
-                    <div className="os-card">
-                      <div className="os-card-title"><i className="fas fa-file-invoice-dollar" /> Orçamentos</div>
-                      <OSorcamentosInfo osId={osId} userName={userName || ""} onImported={() => setReloadKey((k) => k + 1)} />
-                    </div>
-                  )}
 
                   {/* ── Relatório Técnico ── */}
                   {mode === "edit" && relatorioTecnico && (
