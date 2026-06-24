@@ -215,6 +215,26 @@ export async function upsertClienteInfo(
   return data as ClienteInfo;
 }
 
+// Registra um equipamento/trator na pasta do cliente (feedback_clientes_info).
+// Não duplica se já estiver lá. Best-effort: se a coluna `equipamentos` ainda
+// não existir (migration não rodada), não derruba o fluxo do atendimento.
+export async function registrarEquipamentoCliente(
+  clienteKey: string, codigoOmie: string | null, nome: string, equipamento: string
+): Promise<void> {
+  const equip = (equipamento || "").trim();
+  if (!equip) return;
+  try {
+    const info = await buscarClienteInfo(clienteKey);
+    const atuais = (info?.equipamentos as string[] | undefined) || [];
+    const norm = (s: string) => s.trim().toUpperCase();
+    if (atuais.some((e) => norm(e) === norm(equip))) return; // já existe
+    await upsertClienteInfo({
+      cliente_key: clienteKey, codigo_omie: codigoOmie, nome,
+      equipamentos: [...atuais, equip],
+    });
+  } catch { /* coluna pode não existir ainda — silencioso */ }
+}
+
 // -----------------------------------------------------------------------------
 // feedback_oportunidades
 // -----------------------------------------------------------------------------

@@ -275,6 +275,29 @@ export default function ClientesPage() {
                   <Stat icon="★" label="Nota média" value={selecionada.notaMedia !== null ? String(selecionada.notaMedia) : "—"} />
                 </div>
 
+                {/* Equipamentos do cliente — pasta (equipamentos) + os preenchidos nos atendimentos */}
+                {(() => {
+                  const norm = (s: string) => s.trim().toUpperCase();
+                  const lista = Array.from(new Map(
+                    [...(infoSelecionada?.equipamentos || []), ...selecionada.registros.map((r) => r.trator || "")]
+                      .map((e) => (e || "").trim()).filter(Boolean)
+                      .map((e) => [norm(e), e] as [string, string])
+                  ).values());
+                  if (lista.length === 0) return null;
+                  return (
+                    <div style={{ marginBottom: 20 }}>
+                      <SecaoTitulo>🚜 Equipamentos ({lista.length})</SecaoTitulo>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+                        {lista.map((e) => (
+                          <span key={e} style={{ fontSize: 12, fontWeight: 600, padding: "6px 12px", borderRadius: 8, background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0" }}>
+                            🚜 {e}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Funcionários + Fazendas */}
                 {infoSelecionada && (infoSelecionada.funcionarios.length > 0 || infoSelecionada.fazendas.length > 0) && (
                   <div style={infoExtraStyle}>

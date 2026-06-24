@@ -83,6 +83,7 @@ export interface ClienteInfo {
   funcionarios: Funcionario[];
   fazendas: Fazenda[];
   tags: string[];          // tags do cliente (sincronizam com Omie na Fase 2)
+  equipamentos: string[];  // equipamentos/tratores do cliente (registrados nos atendimentos)
   atualizado_em: string;
 }
 

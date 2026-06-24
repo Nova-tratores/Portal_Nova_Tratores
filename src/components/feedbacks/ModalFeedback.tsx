@@ -6,7 +6,7 @@ import TecnicoSelect from "./TecnicoSelect";
 import StarsRating from "./StarsRating";
 import PainelDadosCliente, { type PainelDadosClienteHandle } from "./PainelDadosCliente";
 import LogAcoesCliente from "./LogAcoesCliente";
-import { inserirRegistro, atualizarRegistro, buscarUltimasOSPorCliente, type UltimaOS } from "@/lib/feedbacks/api";
+import { inserirRegistro, atualizarRegistro, buscarUltimasOSPorCliente, registrarEquipamentoCliente, type UltimaOS } from "@/lib/feedbacks/api";
 import { corTipo, gradTipo } from "@/lib/feedbacks/cores";
 import { useAuditLog } from "@/hooks/useAuditLog";
 import {
@@ -223,6 +223,13 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
         entidade_id: clienteKey(form.codigo_omie || null, form.nome), entidade_label: form.nome,
         detalhes: { tipo, novo, status: payload.status_atendimento ?? r.status_atendimento ?? null },
       });
+
+      // Registra o equipamento/trator preenchido na pasta do cliente (sem duplicar).
+      if (form.trator.trim()) {
+        void registrarEquipamentoCliente(
+          clienteKey(form.codigo_omie || null, form.nome), form.codigo_omie || null, form.nome, form.trator,
+        );
+      }
 
       // 3) Se os dados do cliente falharam, mantém o modal aberto pra tentar de novo
       //    (o atendimento já foi salvo; novo clique só atualiza, sem duplicar).
