@@ -31,7 +31,7 @@ function parseTelefone(tel?: string): { ddd: string; num: string } {
   return { ddd: d.slice(0, 2), num: d.slice(2) };
 }
 
-async function omieCall<T>(call: string, param: Record<string, unknown>, empresa: string, tentativa = 1): Promise<T> {
+async function omieCall<T>(endpoint: string, call: string, param: Record<string, unknown>, empresa: string, tentativa = 1): Promise<T> {
   const acc = OMIE_ACCOUNTS[empresa];
   if (!acc) throw new Error(`Empresa desconhecida: ${empresa}`);
   const payload = { call, app_key: acc.key, app_secret: acc.secret, param: [param] };
@@ -40,7 +40,7 @@ async function omieCall<T>(call: string, param: Record<string, unknown>, empresa
   const timer = setTimeout(() => ctrl.abort(), 25000);
   let response: Response;
   try {
-    response = await fetch(`${OMIE_BASE_URL}/geral/clientes/`, {
+    response = await fetch(`${OMIE_BASE_URL}${endpoint}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -55,7 +55,7 @@ async function omieCall<T>(call: string, param: Record<string, unknown>, empresa
 
   if (response.status === 429 && tentativa < 3) {
     await new Promise((r) => setTimeout(r, tentativa * 8000));
-    return omieCall(call, param, empresa, tentativa + 1);
+    return omieCall(endpoint, call, param, empresa, tentativa + 1);
   }
   const data = await response.json();
   if (data?.faultstring) throw new Error(`Omie [${data.faultcode}]: ${data.faultstring}`);
@@ -88,10 +88,6 @@ interface OmieClienteRaw {
   bairro?: string; cidade?: string; estado?: string; cep?: string;
   inativo?: string;
   tags?: Array<{ tag?: string }>;
-}
-
-function tagsDoOmie(cli: OmieClienteRaw): string[] {
-  return (cli.tags || []).map((t) => t?.tag).filter((t): t is string => !!t);
 }
 
 // Parse das tags armazenadas como texto JSON (ex.: [{"tag":"Cliente"}]).
@@ -171,52 +167,54 @@ export async function PATCH(req: NextRequest) {
     const temAlteracao = cadastro !== undefined || tagsDesejadas !== undefined || inativo !== undefined;
     if (!temAlteracao) return NextResponse.json({ error: "Nada para alterar." }, { status: 400 });
 
-    const param: Record<string, unknown> = { codigo_cliente_omie: cod };
-
+    // === Cadastro e/ou inativar → AlterarCliente ===
     // O Omie REVALIDA os campos obrigatórios no AlterarCliente (Estado, e-mail,
-    // etc.), mesmo que a gente só queira mudar tags/inativo. Então buscamos o
-    // cadastro atual e REENVIAMOS o cadastro completo junto — senão recusa com
-    // "É obrigatório o preenchimento de ...". Cliente com cadastro incompleto no
-    // Omie (sem e-mail/Estado) só grava depois de completar pela seção de dados.
-    const atual = await omieCall<OmieClienteRaw>("ConsultarCliente", { codigo_cliente_omie: cod }, empresa);
-    const camposEcho: (keyof OmieClienteRaw)[] = [
-      "razao_social", "nome_fantasia", "cnpj_cpf", "pessoa_fisica", "email",
-      "telefone1_ddd", "telefone1_numero",
-      "endereco", "endereco_numero", "complemento", "bairro", "cidade", "estado", "cep",
-    ];
-    for (const k of camposEcho) {
-      const v = atual[k];
-      if (typeof v === "string" && v !== "") param[k] = v;
+    // etc.). Então buscamos o cadastro atual e REENVIAMOS o cadastro completo —
+    // senão recusa com "É obrigatório o preenchimento de ...". (Cliente com
+    // cadastro incompleto no Omie só grava depois de completar pela seção de dados.)
+    if (cadastro !== undefined || inativo !== undefined) {
+      const param: Record<string, unknown> = { codigo_cliente_omie: cod };
+      const atual = await omieCall<OmieClienteRaw>("/geral/clientes/", "ConsultarCliente", { codigo_cliente_omie: cod }, empresa);
+      const camposEcho: (keyof OmieClienteRaw)[] = [
+        "razao_social", "nome_fantasia", "cnpj_cpf", "pessoa_fisica", "email",
+        "telefone1_ddd", "telefone1_numero",
+        "endereco", "endereco_numero", "complemento", "bairro", "cidade", "estado", "cep",
+      ];
+      for (const k of camposEcho) {
+        const v = atual[k];
+        if (typeof v === "string" && v !== "") param[k] = v;
+      }
+      if (cadastro) {
+        if (cadastro.telefone1 !== undefined) { const { ddd, num } = parseTelefone(cadastro.telefone1); param.telefone1_ddd = ddd; param.telefone1_numero = num; }
+        if (cadastro.telefone2 !== undefined) { const { ddd, num } = parseTelefone(cadastro.telefone2); param.telefone2_ddd = ddd; param.telefone2_numero = num; }
+        if (cadastro.fax !== undefined) { const { ddd, num } = parseTelefone(cadastro.fax); param.fax_ddd = ddd; param.fax_numero = num; }
+        if (cadastro.email !== undefined) param.email = cadastro.email.trim();
+        if (cadastro.endereco !== undefined) param.endereco = cadastro.endereco.trim();
+        if (cadastro.numero !== undefined) param.endereco_numero = String(cadastro.numero).trim();
+        if (cadastro.complemento !== undefined) param.complemento = cadastro.complemento.trim();
+        if (cadastro.bairro !== undefined) param.bairro = cadastro.bairro.trim();
+        if (cadastro.cidade !== undefined) param.cidade = cadastro.cidade.trim();
+        if (cadastro.estado !== undefined) param.estado = cadastro.estado.trim().toUpperCase().slice(0, 2);
+        if (cadastro.cep !== undefined) param.cep = soDigitos(cadastro.cep);
+      }
+      if (inativo !== undefined) param.inativo = inativo;
+      await omieCall("/geral/clientes/", "AlterarCliente", param, empresa);
     }
 
-    // --- Dados cadastrais (sobrescrevem o echo acima quando o usuário enviou) ---
-    if (cadastro) {
-      if (cadastro.telefone1 !== undefined) { const { ddd, num } = parseTelefone(cadastro.telefone1); param.telefone1_ddd = ddd; param.telefone1_numero = num; }
-      if (cadastro.telefone2 !== undefined) { const { ddd, num } = parseTelefone(cadastro.telefone2); param.telefone2_ddd = ddd; param.telefone2_numero = num; }
-      if (cadastro.fax !== undefined) { const { ddd, num } = parseTelefone(cadastro.fax); param.fax_ddd = ddd; param.fax_numero = num; }
-      if (cadastro.email !== undefined) param.email = cadastro.email.trim();
-      if (cadastro.endereco !== undefined) param.endereco = cadastro.endereco.trim();
-      if (cadastro.numero !== undefined) param.endereco_numero = String(cadastro.numero).trim();
-      if (cadastro.complemento !== undefined) param.complemento = cadastro.complemento.trim();
-      if (cadastro.bairro !== undefined) param.bairro = cadastro.bairro.trim();
-      if (cadastro.cidade !== undefined) param.cidade = cadastro.cidade.trim();
-      if (cadastro.estado !== undefined) param.estado = cadastro.estado.trim().toUpperCase().slice(0, 2);
-      if (cadastro.cep !== undefined) param.cep = soDigitos(cadastro.cep);
-    }
-
-    // --- Tags: preserva as estruturais do Omie (Cliente/Fornecedor/Funcionário)
-    //     e aplica exatamente o conjunto que o painel mandou pro resto. ---
+    // === Tags → endpoint dedicado /geral/clientetag/ (Incluir + Excluir por diff) ===
+    // AlterarCliente é aditivo nas tags (não remove). O clientetag remove de fato
+    // e não exige o cadastro completo. Preserva as estruturais (Cliente/Forn./Func.).
     let tagsFinais: string[] | undefined;
     if (tagsDesejadas) {
-      const preservadas = tagsDoOmie(atual).filter((t) => TAGS_ESTRUTURAIS.includes(t));
-      tagsFinais = Array.from(new Set([...preservadas, ...tagsDesejadas]));
-      param.tags = tagsFinais.map((t) => ({ tag: t }));
+      const lista = await omieCall<{ tagsLista?: Array<{ tag?: string }> }>("/geral/clientetag/", "ListarTags", { nCodCliente: cod }, empresa);
+      const atuais = (lista.tagsLista || []).map((t) => t?.tag).filter((t): t is string => !!t);
+      const desejadas = new Set(tagsDesejadas);
+      const incluir = tagsDesejadas.filter((t) => !atuais.includes(t));
+      const remover = atuais.filter((t) => !desejadas.has(t) && !TAGS_ESTRUTURAIS.includes(t));
+      if (incluir.length) await omieCall("/geral/clientetag/", "IncluirTags", { nCodCliente: cod, tags: incluir.map((t) => ({ tag: t })) }, empresa);
+      if (remover.length) await omieCall("/geral/clientetag/", "ExcluirTags", { nCodCliente: cod, tags: remover.map((t) => ({ tag: t })) }, empresa);
+      tagsFinais = Array.from(new Set([...atuais.filter((t) => !remover.includes(t)), ...tagsDesejadas]));
     }
-
-    // --- Inativar / reativar ---
-    if (inativo !== undefined) param.inativo = inativo;
-
-    await omieCall("AlterarCliente", param, empresa);
 
     // Espelha localmente (best-effort) pra refletir sem esperar o webhook.
     const espelho: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -228,6 +226,7 @@ export async function PATCH(req: NextRequest) {
     if (cadastro?.estado !== undefined) espelho.estado = cadastro.estado.trim().toUpperCase().slice(0, 2) || null;
     if (cadastro?.cep !== undefined) espelho.cep = soDigitos(cadastro.cep) || null;
     if (inativo !== undefined) espelho.inativo = inativo;
+    if (tagsFinais) espelho.tags = JSON.stringify(tagsFinais.map((t) => ({ tag: t })));
     if (Object.keys(espelho).length > 1) {
       await supabase.from("portal_nt_clientes_cadastro_omie").update(espelho).eq("cod_cli", cod).then(() => {}, () => {});
     }
