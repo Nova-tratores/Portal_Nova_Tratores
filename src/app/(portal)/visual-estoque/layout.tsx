@@ -1,12 +1,16 @@
 'use client'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { LayoutDashboard, ShoppingBag, MapPin, AlertTriangle } from 'lucide-react'
+import { LayoutDashboard, ShoppingBag, MapPin, AlertTriangle, Percent, FileInput, Send, Truck } from 'lucide-react'
 
 const tabs = [
   { href: '/visual-estoque', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/visual-estoque/showroom', label: 'Showroom', icon: ShoppingBag },
   { href: '/visual-estoque/patio', label: 'Pátio', icon: MapPin },
+  { href: '/visual-estoque/frota', label: 'Frota', icon: Truck },
+  { href: '/visual-estoque/remessas', label: 'Remessas', icon: Send },
+  { href: '/visual-estoque/notas-entrada', label: 'Notas de Entrada', icon: FileInput },
+  { href: '/visual-estoque/margens', label: 'Margens', icon: Percent },
   { href: '/visual-estoque/alertas', label: 'Alertas', icon: AlertTriangle },
 ]
 

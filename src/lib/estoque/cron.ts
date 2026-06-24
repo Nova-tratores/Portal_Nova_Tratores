@@ -8,6 +8,7 @@ import { enriquecerCMCLote } from './cmc-admin';
 import { buscarESalvarItensOmie } from './vendas-sync';
 import { obterTotalOS } from './os';
 import { sincronizarProdutos, sincronizarApenasEstoque } from './produtos-sync';
+import { sincronizarRemessas, sincronizarMovimentacao, sincronizarOutrasEntradas, cruzarDevolucoes } from '../visual-estoque/remessas-sync';
 
 /**
  * Backfill diário de CMC: para cada conta, enriquece vendas_itens sem
@@ -80,6 +81,28 @@ export async function cronSyncEstoque(): Promise<Record<string, unknown>> {
   for (const c of getContasOmie()) {
     try {
       resultado[c.id] = await sincronizarApenasEstoque(c.id);
+    } catch (e) {
+      resultado[c.id] = { ok: false, erro: (e as Error).message };
+    }
+  }
+  return resultado;
+}
+
+/**
+ * Sync das fontes da tela Remessas do Visual Estoque (remessas ->
+ * movimentacao_produtos pendentes -> outras_entradas), por conta. Porta os syncs
+ * de remessa/movimentação/outras-entradas do app externo "Visual Estoque".
+ * Job médio: rodar 1-2x/dia.
+ */
+export async function cronSyncRemessas(): Promise<Record<string, unknown>> {
+  const resultado: Record<string, unknown> = {};
+  for (const c of getContasOmie()) {
+    try {
+      const remessas = await sincronizarRemessas(c.id);
+      const movimentacao = await sincronizarMovimentacao(c.id);
+      const outrasEntradas = await sincronizarOutrasEntradas(c.id);
+      const devolucoes = await cruzarDevolucoes(c.id);
+      resultado[c.id] = { remessas, movimentacao, outrasEntradas, devolucoes };
     } catch (e) {
       resultado[c.id] = { ok: false, erro: (e as Error).message };
     }
