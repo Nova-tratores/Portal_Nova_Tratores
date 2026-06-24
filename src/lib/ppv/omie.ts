@@ -427,15 +427,14 @@ export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: bool
         data_previsao: formatarDataOmie(),
         etapa: "10",
         quantidade_itens: det.length,
-        // Cenário fiscal de remessa (não fatura) — configurado por conta
         ...(isRemessa && acc.cenarioRemessa ? { codigo_cenario_impostos: acc.cenarioRemessa } : {}),
+        ...(nCodProj ? { codigo_projeto: nCodProj } : {}),
       },
       informacoes_adicionais: {
         codigo_categoria: OMIE_COD_CATEG_VENDA,
         ...(acc.codCC ? { codigo_conta_corrente: acc.codCC } : {}),
         codVend: nCodVend || undefined,
         numero_contrato: idPPV,
-        ...(nCodProj ? { codigo_projeto: nCodProj } : {}),
       },
       det,
     };
