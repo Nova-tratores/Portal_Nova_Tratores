@@ -18,32 +18,6 @@ async function osEhInterna(osId: string): Promise<boolean> {
   } catch { return false; }
 }
 
-// Lookup do código do projeto no Omie pelo nome (igual ao POS).
-const cacheProjetosPPV = new Map<string, number>();
-async function buscarNcodProj(projeto: string, key: string, secret: string): Promise<number> {
-  const norm = (projeto || "").trim();
-  if (!norm) return 0;
-  const cacheKey = `${key}::${norm}`;
-  if (cacheProjetosPPV.has(cacheKey)) return cacheProjetosPPV.get(cacheKey)!;
-  let pagina = 1;
-  let totalPaginas = 1;
-  while (pagina <= totalPaginas) {
-    try {
-      const result = await omieCall<{ cadastro?: Array<{ codigo: number; nome: string }>; total_de_paginas?: number }>(
-        "/geral/projetos/", "ListarProjetos", { pagina, registros_por_pagina: 50 }, key, secret
-      );
-      if (pagina === 1 && result.total_de_paginas) totalPaginas = result.total_de_paginas;
-      for (const p of result.cadastro || []) {
-        if (p.nome === norm || p.nome.includes(norm) || norm.includes(p.nome)) {
-          cacheProjetosPPV.set(cacheKey, p.codigo);
-          return p.codigo;
-        }
-      }
-    } catch { return 0; }
-    pagina++;
-  }
-  return 0;
-}
 
 // --- Contas Omie ---
 interface OmieAccount {
@@ -412,9 +386,6 @@ export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: bool
       });
     }
 
-    // Projeto (copiado da OS) → código do projeto no Omie
-    const nCodProj = await buscarNcodProj(String(detalhes.projeto || ""), acc.key, acc.secret);
-
     // Remessa e Pedido de Venda ficam AMBOS na área de Pedidos do Omie (IncluirPedido).
     // A diferença é só o Cenário Fiscal: a remessa usa um cenário de remessa (não fatura).
     const prefixoIntegracao = isRemessa ? `RM-${idPPV}` : `PV-${idPPV}`;
@@ -428,7 +399,6 @@ export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: bool
         etapa: "10",
         quantidade_itens: det.length,
         ...(isRemessa && acc.cenarioRemessa ? { codigo_cenario_impostos: acc.cenarioRemessa } : {}),
-        ...(nCodProj ? { codigo_projeto: nCodProj } : {}),
       },
       informacoes_adicionais: {
         codigo_categoria: OMIE_COD_CATEG_VENDA,
