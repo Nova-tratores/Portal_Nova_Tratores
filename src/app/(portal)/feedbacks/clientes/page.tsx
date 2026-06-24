@@ -4,7 +4,7 @@ import TimelineRegistros from "@/components/feedbacks/TimelineRegistros";
 import ModalPerfilCliente from "@/components/feedbacks/ModalPerfilCliente";
 import ModalFeedback from "@/components/feedbacks/ModalFeedback";
 import { listarClientesInfo, listarRegistros } from "@/lib/feedbacks/api";
-import { clienteKey } from "@/lib/feedbacks/types";
+import { clienteKey, TAGS_CLIENTE, TAG_NAO_CONTATAR } from "@/lib/feedbacks/types";
 import type { ClienteInfo, FeedbackRegistro } from "@/lib/feedbacks/types";
 
 interface ClienteAgregado {
@@ -89,6 +89,21 @@ function StatusBolinha({ nota }: { nota: number | null }) {
     else cor = "#dc2626";
   }
   return <div style={{ width: 8, height: 8, borderRadius: 4, background: cor, flexShrink: 0 }} />;
+}
+
+// Pílula de tag — cor da lista padrão; tags criadas usam cor neutra.
+function TagPill({ tag }: { tag: string }) {
+  const def = TAGS_CLIENTE.find((x) => x.tag === tag);
+  const cor = def?.cor || (tag === TAG_NAO_CONTATAR ? "#991b1b" : "#475569");
+  const label = def?.label || (tag === TAG_NAO_CONTATAR ? "Não contatar" : tag);
+  return (
+    <span style={{
+      fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 999,
+      background: `${cor}1a`, color: cor, border: `1px solid ${cor}55`,
+    }}>
+      {tag === TAG_NAO_CONTATAR ? "💀 " : ""}{label}
+    </span>
+  );
 }
 
 export default function ClientesPage() {
@@ -241,6 +256,11 @@ export default function ClientesPage() {
                       {infoSelecionada?.cidade && <span>📍 {infoSelecionada.cidade}</span>}
                       {infoSelecionada?.email && <span>✉ {infoSelecionada.email}</span>}
                     </div>
+                    {infoSelecionada && infoSelecionada.tags.length > 0 && (
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+                        {infoSelecionada.tags.map((t) => <TagPill key={t} tag={t} />)}
+                      </div>
+                    )}
                   </div>
                   <button onClick={() => setModalPerfilAberto(true)} style={btnPrimario}>
                     ✎ Editar perfil
