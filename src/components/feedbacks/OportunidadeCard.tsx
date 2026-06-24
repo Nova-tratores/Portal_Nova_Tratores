@@ -91,7 +91,7 @@ export default function OportunidadeCard({ op, onAtender, onDispensar, onVerHist
             style={{ flex: 1, background: "#10b981", color: "#fff" }}
             title="Entrar em contato com o cliente — marca como atendida"
           >
-            ✓ Atender
+            Atender
           </button>
           <button
             onClick={() => onDispensar(op)}
@@ -99,7 +99,7 @@ export default function OportunidadeCard({ op, onAtender, onDispensar, onVerHist
             style={{ flex: 1, background: "#f3f4f6", color: "#525252" }}
             title="Descartar essa oportunidade — não interessa ou cliente já foi atendido por outro caminho"
           >
-            ✕ Dispensar
+            Dispensar
           </button>
         </footer>
       )}

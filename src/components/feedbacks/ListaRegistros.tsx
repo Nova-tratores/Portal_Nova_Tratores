@@ -4,7 +4,7 @@ import RegistroCard from "./RegistroCard";
 import ModalFeedback from "./ModalFeedback";
 import ModalHistoricoCliente from "./ModalHistoricoCliente";
 import ModalConfirmarCaveira from "./ModalConfirmarCaveira";
-import { atualizarRegistro, buscarUltimasOSPorCliente, deletarRegistro, listarRegistros, listarClientesInfo, upsertClienteInfo, definirInativoOmie, type UltimaOS } from "@/lib/feedbacks/api";
+import { atualizarRegistro, buscarUltimasOSPorCliente, listarRegistros, listarClientesInfo, upsertClienteInfo, definirInativoOmie, type UltimaOS } from "@/lib/feedbacks/api";
 import { clienteKey, TAG_NAO_CONTATAR, type ClienteInfo, type FeedbackRegistro, type StatusAtendimento, type TipoFeedback } from "@/lib/feedbacks/types";
 import { useAuditLog } from "@/hooks/useAuditLog";
 
@@ -139,7 +139,7 @@ export default function ListaRegistros({ tipo }: Props) {
     return Array.from(set).sort();
   }, [rows]);
 
-  const titulo = tipo === "crm" ? "🔴 CRM — Clientes Recentes" : "🟡 RFM — Clientes Inativos";
+  const titulo = tipo === "crm" ? "🔴 CRM — Clientes Recentes" : "🟣 RFM — Clientes Inativos";
 
   function abrirNovo() {
     setRegistroEdit(null);
@@ -148,15 +148,6 @@ export default function ListaRegistros({ tipo }: Props) {
   function abrirEdit(r: FeedbackRegistro) {
     setRegistroEdit(r);
     setModalAberto(true);
-  }
-  async function handleExcluir(r: FeedbackRegistro) {
-    if (!confirm(`Excluir registro de "${r.nome}"?`)) return;
-    try {
-      await deletarRegistro(r.id);
-      setRows((prev) => prev.filter((x) => x.id !== r.id));
-    } catch (e) {
-      setErro(e instanceof Error ? e.message : String(e));
-    }
   }
   function handleSalvo(salvo: FeedbackRegistro) {
     setRows((prev) => {
@@ -179,6 +170,14 @@ export default function ListaRegistros({ tipo }: Props) {
       };
       const salvo = await atualizarRegistro(r.id, payload);
       handleSalvo(salvo);
+      const acaoLog = novo === "concluido" ? "atendimento_concluido"
+        : novo === "sem_resposta" ? "atendimento_sem_resposta"
+        : "atendimento_reaberto";
+      void log({
+        sistema: "feedbacks", acao: acaoLog, entidade: "cliente",
+        entidade_id: clienteKey(r.codigo_omie, r.nome), entidade_label: r.nome,
+        detalhes: { status: novo },
+      });
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
     }
@@ -193,6 +192,11 @@ export default function ListaRegistros({ tipo }: Props) {
         arquivado_motivo: motivo || "(sem motivo)",
       });
       handleSalvo(salvo);
+      void log({
+        sistema: "feedbacks", acao: "atendimento_arquivado", entidade: "cliente",
+        entidade_id: clienteKey(r.codigo_omie, r.nome), entidade_label: r.nome,
+        detalhes: { motivo: motivo || "(sem motivo)" },
+      });
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
     }
@@ -263,7 +267,7 @@ export default function ListaRegistros({ tipo }: Props) {
           {filtrosVisivel ? "▴ Esconder filtros" : "▾ Filtros avançados"}
         </button>
         <button onClick={abrirNovo} style={btnPrimario}>
-          + Novo {tipo === "crm" ? "feedback" : "registro"}
+          Novo {tipo === "crm" ? "feedback" : "registro"}
         </button>
       </div>
 
@@ -375,12 +379,10 @@ export default function ListaRegistros({ tipo }: Props) {
               registro={r}
               ultimaOS={ultimasOS[(r.nome || "").trim()] || null}
               onEditar={abrirEdit}
-              onExcluir={handleExcluir}
               onMudarAtendimento={handleMudarAtendimento}
               onArquivar={handleArquivar}
               onVerHistorico={(reg) => setHistAlvo({ nome: reg.nome, codigoOmie: reg.codigo_omie })}
               clienteTags={tagsDe(r)}
-              onCaveira={handleCaveira}
             />
           ))}
         </div>
@@ -392,6 +394,8 @@ export default function ListaRegistros({ tipo }: Props) {
         registro={registroEdit}
         onFechar={() => setModalAberto(false)}
         onSalvo={handleSalvo}
+        onCaveira={handleCaveira}
+        clienteNaoContatar={registroEdit ? tagsDe(registroEdit).includes(TAG_NAO_CONTATAR) : false}
       />
 
       <ModalHistoricoCliente
@@ -410,6 +414,7 @@ export default function ListaRegistros({ tipo }: Props) {
         onApenasNaoContatar={() => { if (caveiraAlvo) void aplicarNaoContatar(caveiraAlvo, false); }}
         onInativarOmie={() => { if (caveiraAlvo) void aplicarNaoContatar(caveiraAlvo, true); }}
       />
+
     </div>
   );
 }

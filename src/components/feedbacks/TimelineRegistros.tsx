@@ -1,5 +1,6 @@
 "use client";
 import type { FeedbackRegistro } from "@/lib/feedbacks/types";
+import { COR_CRM, COR_CRM_BG, COR_CRM_FG, COR_RFM, COR_RFM_BG, COR_RFM_FG } from "@/lib/feedbacks/cores";
 
 interface Props {
   registros: FeedbackRegistro[];
@@ -48,8 +49,8 @@ export default function TimelineRegistros({ registros, onEditar }: Props) {
                 left: -25,
                 top: 8,
                 width: 14, height: 14, borderRadius: 7,
-                background: isCrm ? "#dc2626" : "#f59e0b",
-                boxShadow: `0 0 0 3px ${isCrm ? "#fef2f2" : "#fef3c7"}`,
+                background: isCrm ? COR_CRM : COR_RFM,
+                boxShadow: `0 0 0 3px ${isCrm ? COR_CRM_BG : COR_RFM_BG}`,
               }}
             />
 
@@ -57,7 +58,7 @@ export default function TimelineRegistros({ registros, onEditar }: Props) {
               style={{
                 background: "var(--portal-bg-card)",
                 border: "1px solid var(--portal-border)",
-                borderLeft: `4px solid ${isCrm ? "#dc2626" : "#f59e0b"}`,
+                borderLeft: `4px solid ${isCrm ? COR_CRM : COR_RFM}`,
                 borderRadius: 12,
                 padding: "12px 16px",
                 boxShadow: "0 1px 2px rgba(16,24,40,0.04), 0 6px 16px -10px rgba(16,24,40,0.14)",
@@ -68,8 +69,8 @@ export default function TimelineRegistros({ registros, onEditar }: Props) {
                   <span
                     style={{
                       fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 6,
-                      background: isCrm ? "#fef2f2" : "#fef3c7",
-                      color: isCrm ? "#b91c1c" : "#92400e",
+                      background: isCrm ? COR_CRM_BG : COR_RFM_BG,
+                      color: isCrm ? COR_CRM_FG : COR_RFM_FG,
                       textTransform: "uppercase", letterSpacing: 0.3,
                     }}
                   >

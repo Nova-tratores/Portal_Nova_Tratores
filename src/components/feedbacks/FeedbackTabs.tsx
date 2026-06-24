@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import styles from "./feedbacks.module.css";
+import { COR_RFM } from "@/lib/feedbacks/cores";
 
 interface Tab {
   href: string;
@@ -11,7 +12,7 @@ interface Tab {
 
 const TABS: Tab[] = [
   { href: "/feedbacks/crm",            label: "CRM",                      cor: "#dc2626" },
-  { href: "/feedbacks/rfm",            label: "RFM",                      cor: "#f59e0b" },
+  { href: "/feedbacks/rfm",            label: "RFM",                      cor: COR_RFM },
   { href: "/feedbacks/clientes",       label: "Histórico de atendimentos", cor: "#475569" },
   { href: "/feedbacks/relatorios",     label: "Relatórios",               cor: "#0369a1" },
   { href: "/feedbacks/agenda",         label: "Agenda",                   cor: "#8b5cf6" },

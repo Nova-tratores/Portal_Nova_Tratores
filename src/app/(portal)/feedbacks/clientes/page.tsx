@@ -173,7 +173,7 @@ export default function ClientesPage() {
                       </span>
                     </div>
                     <div style={{ fontSize: 10, color: "var(--portal-text-muted)", paddingLeft: 16 }}>
-                      {c.totalCrm}🔴 · {c.totalRfm}🟡
+                      {c.totalCrm}🔴 · {c.totalRfm}🟣
                       {c.notaMedia !== null && ` · ★ ${c.notaMedia}`}
                       {c.codigoOmie && ` · #${c.codigoOmie}`}
                     </div>
@@ -218,7 +218,7 @@ export default function ClientesPage() {
                 <div style={statsGrid}>
                   <Stat icon="📊" label="Total" value={String(selecionada.totalRegistros)} />
                   <Stat icon="🔴" label="CRM" value={String(selecionada.totalCrm)} />
-                  <Stat icon="🟡" label="RFM" value={String(selecionada.totalRfm)} />
+                  <Stat icon="🟣" label="RFM" value={String(selecionada.totalRfm)} />
                   <Stat icon="★" label="Nota média" value={selecionada.notaMedia !== null ? String(selecionada.notaMedia) : "—"} />
                 </div>
 

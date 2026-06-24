@@ -233,7 +233,7 @@
   left: 0;
   right: 0;
   height: 4px;
-  background: linear-gradient(90deg, #dc2626, #f59e0b);
+  background: linear-gradient(90deg, #dc2626, #6366f1);
 }
 .atendCard:hover {
   transform: translateY(-4px);

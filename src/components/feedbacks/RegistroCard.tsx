@@ -1,6 +1,7 @@
 "use client";
 import { TAG_NAO_CONTATAR, type FeedbackRegistro, type StatusAtendimento } from "@/lib/feedbacks/types";
 import type { UltimaOS } from "@/lib/feedbacks/api";
+import { COR_CRM, COR_RFM } from "@/lib/feedbacks/cores";
 import styles from "./feedbacks.module.css";
 
 const TAG_PENDENCIA = "!!#Pendências Cadastrais#!!";
@@ -12,15 +13,12 @@ interface Props {
   // Tags do cliente (de feedback_clientes_info) — para ícones e a caveira.
   clienteTags?: string[];
   onEditar?: (r: FeedbackRegistro) => void;
-  onExcluir?: (r: FeedbackRegistro) => void;
-  // Muda o status de atendimento do registro (concluir, reabrir, sem-resposta…).
+  // Muda o status de atendimento do registro (concluir, reabrir, desarquivar…).
   onMudarAtendimento?: (r: FeedbackRegistro, novo: StatusAtendimento) => void;
   // Arquiva o atendimento com justificativa (cliente que não vale a pena).
   onArquivar?: (r: FeedbackRegistro) => void;
   // Abre o histórico completo do cliente (OS, pedidos, requisições).
   onVerHistorico?: (r: FeedbackRegistro) => void;
-  // 💀 Caveira: alterna "não contatar" no cliente.
-  onCaveira?: (r: FeedbackRegistro) => void;
 }
 
 // Horas decorridas desde aberto_em (negativo se aberto_em for futuro)
@@ -64,22 +62,19 @@ function corPrioridade(p: string | null): { bg: string; fg: string } {
   }
 }
 
-export default function RegistroCard({ registro: r, ultimaOS, clienteTags, onEditar, onExcluir, onMudarAtendimento, onArquivar, onVerHistorico, onCaveira }: Props) {
+export default function RegistroCard({ registro: r, ultimaOS, clienteTags, onEditar, onMudarAtendimento, onArquivar, onVerHistorico }: Props) {
   const isCrm = r.tipo === "crm";
   const corStatusObj = isCrm ? corStatus(r.status_cliente) : corPrioridade(r.prioridade);
   const emAtendimento = r.status_atendimento === "aberto" || r.status_atendimento === "em_andamento";
   const horasAberto = horasDesde(r.aberto_em);
   const atrasado = emAtendimento && horasAberto !== null && horasAberto >= 24;
-  // "Sem resposta" só libera 24h após o início do atendimento (mesma regra do modal).
-  const bloqueadoSemResposta = horasAberto !== null && horasAberto < 24;
-  const restantesSemResp = bloqueadoSemResposta ? Math.ceil(24 - (horasAberto || 0)) : 0;
   const clicavel = !!onVerHistorico;
   const tags = clienteTags || [];
   const naoContatar = tags.includes(TAG_NAO_CONTATAR);
   // Falta info cadastral: sem e-mail e sem telefone, ou marcado com pendência cadastral.
   const faltaInfo = (!r.email && !r.telefone) || tags.includes(TAG_PENDENCIA);
   // Cor de acento da faixa do topo: CRM vermelho, RFM laranja; atrasado força vermelho.
-  const acento = atrasado ? "#dc2626" : isCrm ? "#dc2626" : "#f59e0b";
+  const acento = atrasado ? COR_CRM : isCrm ? COR_CRM : COR_RFM;
 
   return (
     <article
@@ -195,46 +190,30 @@ export default function RegistroCard({ registro: r, ultimaOS, clienteTags, onEdi
         <div style={acoesAtendimentoStyle} onClick={(e) => e.stopPropagation()}>
           {r.status_atendimento === "arquivado" ? (
             <button onClick={() => onMudarAtendimento(r, "em_andamento")} style={btnAcao("#e5e7eb", "#374151")} type="button">
-              ♻️ Desarquivar
+              Desarquivar
             </button>
           ) : (
           <>
           {/* Concluir / Reabrir */}
           {r.status_atendimento === "concluido" ? (
             <button onClick={() => onMudarAtendimento(r, "em_andamento")} style={btnAcao("#f3f4f6", "#525252")} type="button">
-              ↩️ Reabrir
+              Reabrir
             </button>
           ) : (
             <button onClick={() => onMudarAtendimento(r, "concluido")} style={btnAcao("#d1fae5", "#065f46")} type="button">
-              ✅ Concluir
+              Concluir
             </button>
           )}
-          {/* Sem resposta / Respondeu */}
-          {r.status_atendimento === "sem_resposta" ? (
+          {/* Respondeu — só pra reverter quando está sem resposta. Marcar
+              "sem resposta" agora é dentro de "Preencher atendimento". */}
+          {r.status_atendimento === "sem_resposta" && (
             <button onClick={() => onMudarAtendimento(r, "em_andamento")} style={btnAcao("#d1fae5", "#065f46")} type="button">
-              🔔 Respondeu
+              Respondeu
             </button>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <button
-                onClick={() => onMudarAtendimento(r, "sem_resposta")}
-                disabled={bloqueadoSemResposta}
-                title={bloqueadoSemResposta ? `Disponível em ${restantesSemResp}h (após 24h do início do atendimento)` : "Marcar que o cliente não respondeu"}
-                style={{ ...btnAcao("#fee2e2", "#991b1b"), opacity: bloqueadoSemResposta ? 0.5 : 1, cursor: bloqueadoSemResposta ? "not-allowed" : "pointer" }}
-                type="button"
-              >
-                📵 Sem resposta
-              </button>
-              {bloqueadoSemResposta && (
-                <span style={{ fontSize: 10, color: "#92400e", fontStyle: "italic" }}>
-                  disponível em {restantesSemResp}h
-                </span>
-              )}
-            </div>
           )}
           {onArquivar && (
             <button onClick={() => onArquivar(r)} style={btnAcao("#e5e7eb", "#374151")} type="button" title="Arquivar este atendimento (com justificativa)">
-              🗄️ Arquivar
+              Arquivar
             </button>
           )}
           </>
@@ -242,28 +221,11 @@ export default function RegistroCard({ registro: r, ultimaOS, clienteTags, onEdi
         </div>
       )}
 
-      {(onEditar || onExcluir || onCaveira) && (
+      {onEditar && (
         <footer style={footerStyle} onClick={(e) => e.stopPropagation()}>
-          {onEditar && (
-            <button onClick={() => onEditar(r)} style={btnAcao("#fef3c7", "#92400e")} type="button">
-              📝 Preencher atendimento
-            </button>
-          )}
-          {onCaveira && (
-            <button
-              onClick={() => onCaveira(r)}
-              style={btnAcao(naoContatar ? "#d1fae5" : "#1f2937", naoContatar ? "#065f46" : "#fff")}
-              type="button"
-              title={naoContatar ? "Reativar contato com este cliente" : "Marcar cliente como 'não contatar' (não vale a pena)"}
-            >
-              {naoContatar ? "↩ Reativar contato" : "💀 Não contatar"}
-            </button>
-          )}
-          {onExcluir && (
-            <button onClick={() => onExcluir(r)} style={btnAcao("#fee2e2", "#991b1b")} type="button">
-              🗑 Excluir
-            </button>
-          )}
+          <button onClick={() => onEditar(r)} style={btnAcao("#fef3c7", "#92400e")} type="button">
+            Preencher atendimento
+          </button>
         </footer>
       )}
     </article>

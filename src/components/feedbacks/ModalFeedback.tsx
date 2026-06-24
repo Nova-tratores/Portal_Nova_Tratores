@@ -4,12 +4,13 @@ import ClienteAutocomplete from "./ClienteAutocomplete";
 import ProjetoAutocomplete from "./ProjetoAutocomplete";
 import TecnicoSelect from "./TecnicoSelect";
 import StarsRating from "./StarsRating";
-import MiniMapaCliente from "./MiniMapaCliente";
-import CadastroOmieSecao from "./CadastroOmieSecao";
-import { inserirRegistro, atualizarRegistro, buscarClienteInfo, upsertClienteInfo, buscarUltimasOSPorCliente, sincronizarTagsOmie, type UltimaOS } from "@/lib/feedbacks/api";
+import PainelDadosCliente, { type PainelDadosClienteHandle } from "./PainelDadosCliente";
+import LogAcoesCliente from "./LogAcoesCliente";
+import { inserirRegistro, atualizarRegistro, buscarUltimasOSPorCliente, type UltimaOS } from "@/lib/feedbacks/api";
+import { corTipo, gradTipo } from "@/lib/feedbacks/cores";
 import { useAuditLog } from "@/hooks/useAuditLog";
 import {
-  clienteKey, TAGS_CLIENTE, TAG_NAO_CONTATAR,
+  clienteKey,
   type FeedbackRegistro, type Melhoria, type NPS, type PrioridadeRFM, type StatusCliente, type TipoFeedback,
 } from "@/lib/feedbacks/types";
 
@@ -20,6 +21,9 @@ interface Props {
   prefill?: Partial<FeedbackRegistro>;   // preencher campos ao abrir (ex: vindo de oportunidade)
   onFechar: () => void;
   onSalvo: (r: FeedbackRegistro) => void;
+  // 💀 Caveira (não contatar) — disparada de dentro do modal. Só no modo edição.
+  onCaveira?: (r: FeedbackRegistro) => void;
+  clienteNaoContatar?: boolean;
 }
 
 const STATUS_CLIENTE_OPCOES: StatusCliente[] = ["Satisfeito", "Neutro", "Insatisfeito", "Aguardando"];
@@ -135,35 +139,29 @@ function formParaPayload(tipo: TipoFeedback, form: FormState): Partial<FeedbackR
   };
 }
 
-export default function ModalFeedback({ tipo, aberto, registro, prefill, onFechar, onSalvo }: Props) {
+export default function ModalFeedback({ tipo, aberto, registro, prefill, onFechar, onSalvo, onCaveira, clienteNaoContatar }: Props) {
   const [form, setForm] = useState<FormState>(() => paraForm(registro, prefill));
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
-  // Tags do cliente (checkboxes) — carregadas de feedback_clientes_info ao abrir.
-  const [tagsCliente, setTagsCliente] = useState<string[]>([]);
-  const tagsIniciais = useRef<string[]>([]);
   // Última OS do cliente — usada pra pré-preencher técnico/último serviço.
   const [ultimaOS, setUltimaOS] = useState<UltimaOS | null>(null);
+  // Painel "Log" (histórico de ações) — toggle no rodapé, igual ao POS.
+  const [showLog, setShowLog] = useState(false);
   const { log } = useAuditLog();
+  // Painel de dados do cliente (coluna direita) — salvo junto pelo botão único.
+  const painelRef = useRef<PainelDadosClienteHandle>(null);
+  // Id do registro já salvo nesta sessão do modal (evita inserir duplicado em retry).
+  const savedIdRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (aberto) {
       setForm(paraForm(registro, prefill));
       setErro(null);
-      setTagsCliente([]);
-      tagsIniciais.current = [];
       setUltimaOS(null);
-      const codigo = (registro?.codigo_omie || prefill?.codigo_omie) ?? null;
+      setShowLog(false);
+      savedIdRef.current = registro?.id ?? null;
       const nome = registro?.nome || prefill?.nome || "";
       if (nome) {
-        buscarClienteInfo(clienteKey(codigo, nome))
-          .then((info) => {
-            const t = (info?.tags as string[] | undefined) || [];
-            setTagsCliente(t);
-            tagsIniciais.current = t;
-          })
-          .catch(() => { /* sem info ainda — começa vazio */ });
-
         // Pré-preenche técnico (CRM/RFM) e último serviço (RFM) com a última OS
         // do cliente — só quando o campo está vazio (não sobrescreve o já salvo).
         buscarUltimasOSPorCliente([nome])
@@ -184,16 +182,13 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
 
   if (!aberto) return null;
 
-  const toggleTag = (tag: string) => {
-    setTagsCliente((prev) => prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]);
-  };
-
   const upd = <K extends keyof FormState>(k: K, v: FormState[K]) => {
     setForm((f) => ({ ...f, [k]: v }));
   };
 
   const editando = Boolean(registro?.id);
 
+  // Botão único: salva o atendimento (esquerda) E os dados do cliente (direita).
   async function handleSalvar() {
     if (!form.nome.trim()) {
       setErro("Nome do cliente é obrigatório");
@@ -202,10 +197,12 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
     setSalvando(true);
     setErro(null);
     try {
+      // 1) Dados do cliente (Omie/mapa/tags) — idempotente, então roda primeiro
+      //    e pode ser repetido em retry sem efeito colateral.
+      const painelRes = await painelRef.current?.salvar();
+
+      // 2) Atendimento. Usa o id já salvo (se houver) pra não inserir duplicado num retry.
       const payload = formParaPayload(tipo, form) as Partial<FeedbackRegistro>;
-      // Se está editando um atendimento aberto e o usuário marcou sem_resposta,
-      // marca o status_atendimento como sem_resposta. Senão, fecha como concluido.
-      // Vale para CRM e RFM (ambos têm o campo "Cliente não respondeu").
       if (registro?.status_atendimento === "aberto" || registro?.status_atendimento === "em_andamento") {
         if (form.sem_resposta) {
           payload.status_atendimento = "sem_resposta";
@@ -214,36 +211,30 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
           payload.concluido_em = new Date().toISOString();
         }
       }
-      const r = editando
-        ? await atualizarRegistro(registro!.id, payload)
+      const idExistente = savedIdRef.current;
+      const r = idExistente
+        ? await atualizarRegistro(idExistente, payload)
         : await inserirRegistro(payload);
-
-      // Salva as tags do cliente (se mudaram) + auditoria. Não bloqueia o save.
-      const mudouTags = JSON.stringify([...tagsCliente].sort()) !== JSON.stringify([...tagsIniciais.current].sort());
-      if (mudouTags) {
-        const codigo = (payload.codigo_omie ?? null) as string | null;
-        const nome = payload.nome || form.nome;
-        const key = clienteKey(codigo, nome);
-        try {
-          await upsertClienteInfo({ cliente_key: key, codigo_omie: codigo, nome, tags: tagsCliente });
-          void log({
-            sistema: "feedbacks", acao: "tags_cliente", entidade: "cliente",
-            entidade_id: key, entidade_label: nome,
-            detalhes: { de: tagsIniciais.current, para: tagsCliente },
-          });
-          // Fase 2: espelha as tags no cadastro do Omie (read+merge no servidor).
-          if (codigo) {
-            sincronizarTagsOmie(codigo, tagsCliente)
-              .then(() => log({
-                sistema: "feedbacks", acao: "tags_omie", entidade: "cliente",
-                entidade_id: key, entidade_label: nome, detalhes: { tags: tagsCliente },
-              }))
-              .catch(() => { /* Omie é best-effort — tags já ficaram salvas no Portal */ });
-          }
-        } catch { /* tags são best-effort — não derruba o atendimento */ }
-      }
-
+      const novo = !idExistente;
+      savedIdRef.current = r.id;
       onSalvo(r);
+
+      // Log do atendimento (mesma chave do cliente, agrupa com cadastro/tags).
+      const acaoLog = payload.status_atendimento === "concluido" ? "atendimento_concluido"
+        : payload.status_atendimento === "sem_resposta" ? "atendimento_sem_resposta"
+        : "atendimento_salvo";
+      void log({
+        sistema: "feedbacks", acao: acaoLog, entidade: "cliente",
+        entidade_id: clienteKey(form.codigo_omie || null, form.nome), entidade_label: form.nome,
+        detalhes: { tipo, novo, status: payload.status_atendimento ?? r.status_atendimento ?? null },
+      });
+
+      // 3) Se os dados do cliente falharam, mantém o modal aberto pra tentar de novo
+      //    (o atendimento já foi salvo; novo clique só atualiza, sem duplicar).
+      if (painelRes && !painelRes.ok) {
+        setErro("Atendimento salvo. Dados do cliente falharam: " + painelRes.erros.join(" · "));
+        return;
+      }
       onFechar();
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
@@ -253,14 +244,13 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
   }
 
   const titulo = `${editando ? "Editar" : "Novo"} ${tipo === "crm" ? "feedback CRM" : "registro RFM"}`;
-  const corCabec = tipo === "crm" ? "#dc2626" : "#f59e0b";
-  const headerBg = tipo === "crm"
-    ? "linear-gradient(135deg, #dc2626, #b91c1c)"
-    : "linear-gradient(135deg, #f59e0b, #d97706)";
+  const corCabec = corTipo(tipo);
+  const headerBg = gradTipo(tipo);
 
   return (
     <div style={overlayStyle} onClick={onFechar}>
-      <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
+      <div style={wrapperStyle} onClick={(e) => e.stopPropagation()}>
+      <div style={{ ...modalStyle, ...(showLog ? { borderTopRightRadius: 0, borderBottomRightRadius: 0 } : {}) }}>
         {/* Header */}
         <header
           style={{
@@ -271,23 +261,38 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
             alignItems: "center",
             background: headerBg,
             color: "#fff",
-            borderRadius: "14px 14px 0 0",
+            borderRadius: showLog ? "14px 0 0 0" : "14px 14px 0 0",
           }}
         >
-          <div>
+          <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.85, textTransform: "uppercase", letterSpacing: 0.8 }}>
               ● Integrado ao Omie
             </div>
             <h2 style={{ fontSize: 18, fontWeight: 800, margin: "4px 0 0" }}>{titulo}</h2>
           </div>
-          <button onClick={onFechar} style={btnFecharStyle}>✕</button>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
+            {form.nome && (
+              <button
+                type="button"
+                onClick={() => setShowLog((v) => !v)}
+                title="Histórico de ações deste cliente"
+                style={{ background: showLog ? "rgba(255,255,255,0.32)" : "rgba(255,255,255,0.18)", color: "#fff", border: "none", borderRadius: 8, padding: "7px 12px", fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
+              >
+                <i className="fas fa-history" /> Log
+              </button>
+            )}
+            <button onClick={onFechar} style={btnFecharStyle}>✕</button>
+          </div>
         </header>
 
-        {/* Body */}
-        <div style={bodyStyle}>
+        {/* Body — dividido ao meio: esquerda atendimento, direita dados do cliente */}
+        <div style={splitBody}>
+          {/* Coluna ESQUERDA — atendimento */}
+          <div style={colLeft}>
           {erro && <div style={erroStyle}>{erro}</div>}
+          <div style={colTitulo}>📝 Atendimento</div>
 
-          {/* Identificação do cliente — comum */}
+          {/* Identificação do cliente */}
           <section>
             <Label>Cliente *</Label>
             <ClienteAutocomplete
@@ -304,18 +309,6 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
               }}
             />
           </section>
-
-          <Row>
-            <Field label="Telefone">
-              <input type="text" value={form.telefone} onChange={(e) => upd("telefone", e.target.value)} style={inputStyle} />
-            </Field>
-            <Field label="E-mail">
-              <input type="email" value={form.email} onChange={(e) => upd("email", e.target.value)} style={inputStyle} />
-            </Field>
-            <Field label="Código Omie">
-              <input type="text" value={form.codigo_omie} readOnly style={{ ...inputStyle, background: "#fafafa", color: "var(--portal-text-muted)" }} />
-            </Field>
-          </Row>
 
           <Field label="Equipamento (modelo / chassi)">
             <ProjetoAutocomplete
@@ -340,42 +333,6 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
               <input type="date" value={form.data_contato} onChange={(e) => upd("data_contato", e.target.value)} style={inputStyle} />
             </Field>
           </Row>
-
-          {/* Localização da propriedade — mostra o ponto cadastrado e permite alterar via lat/long */}
-          <Field label="Localização da propriedade">
-            <MiniMapaCliente codigoOmie={form.codigo_omie || null} nome={form.nome} cor={corCabec} />
-          </Field>
-
-          {/* Dados cadastrais (telefones/fax/endereço) — gravam direto no Omie */}
-          <div style={{ marginBottom: 14 }}>
-            <CadastroOmieSecao codigoOmie={form.codigo_omie || null} nome={form.nome} cor={corCabec} />
-          </div>
-
-          {/* Tags do cliente — marcam pendências/perfil; sincronizam com o Omie (Fase 2) */}
-          <Field label="Tags do cliente">
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {TAGS_CLIENTE.map((t) => {
-                const marcada = tagsCliente.includes(t.tag);
-                return (
-                  <label key={t.tag} title={t.tag} style={{
-                    display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer",
-                    fontSize: 12, fontWeight: 600, padding: "5px 10px", borderRadius: 8,
-                    border: `1.5px solid ${marcada ? t.cor : "var(--portal-border)"}`,
-                    background: marcada ? `${t.cor}1a` : "var(--portal-bg-card)",
-                    color: marcada ? t.cor : "var(--portal-text-secondary)",
-                  }}>
-                    <input type="checkbox" checked={marcada} onChange={() => toggleTag(t.tag)} style={{ accentColor: t.cor }} />
-                    {t.label}
-                  </label>
-                );
-              })}
-            </div>
-            {tagsCliente.includes(TAG_NAO_CONTATAR) && (
-              <div style={{ fontSize: 11, color: "#991b1b", marginTop: 6, fontWeight: 600 }}>
-                💀 Cliente marcado como &quot;não contatar&quot;.
-              </div>
-            )}
-          </Field>
 
           {tipo === "crm" ? (
             <>
@@ -454,15 +411,38 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
               </Row>
             </>
           )}
+          </div>
+
+          {/* Coluna DIREITA — dados do cliente (Omie + mapa + tags) */}
+          <div style={colRight}>
+            <PainelDadosCliente ref={painelRef} codigoOmie={form.codigo_omie || null} nome={form.nome} cor={corCabec} mostrarBotaoSalvar={false} />
+          </div>
         </div>
 
         {/* Footer */}
         <footer style={footerStyle}>
-          <button onClick={onFechar} style={btnGhostStyle} disabled={salvando}>Cancelar</button>
-          <button onClick={handleSalvar} disabled={salvando} style={{ ...btnPrimaryStyle, opacity: salvando ? 0.6 : 1, cursor: salvando ? "wait" : "pointer" }}>
-            {salvando ? "Salvando…" : (editando ? "Salvar alterações" : "Cadastrar")}
-          </button>
+          {editando && onCaveira ? (
+            <button
+              onClick={() => onCaveira(registro!)}
+              type="button"
+              disabled={salvando}
+              title={clienteNaoContatar ? "Reativar contato com este cliente" : "Marcar cliente como 'não contatar' (não vale a pena)"}
+              style={{ ...btnCaveiraStyle, background: clienteNaoContatar ? "#d1fae5" : "#1f2937", color: clienteNaoContatar ? "#065f46" : "#fff" }}
+            >
+              {clienteNaoContatar ? "Reativar contato" : "Não contatar"}
+            </button>
+          ) : <span />}
+          <div style={{ display: "flex", gap: 10 }}>
+            <button onClick={onFechar} style={btnGhostStyle} disabled={salvando}>Cancelar</button>
+            <button onClick={handleSalvar} disabled={salvando} style={{ ...btnPrimaryStyle, opacity: salvando ? 0.6 : 1, cursor: salvando ? "wait" : "pointer" }}>
+              {salvando ? "Salvando…" : "Salvar atendimento + dados"}
+            </button>
+          </div>
         </footer>
+      </div>
+
+      {/* Histórico de ações (log) — painel lateral à direita, igual ao POS */}
+      <LogAcoesCliente codigoOmie={form.codigo_omie || null} nome={form.nome} visible={showLog} />
       </div>
     </div>
   );
@@ -528,15 +508,36 @@ const overlayStyle: React.CSSProperties = {
   display: "flex", alignItems: "center", justifyContent: "center",
   zIndex: 9999, padding: 16, fontFamily: "Inter, sans-serif",
 };
+// Agrupa modal + painel de log lado a lado (igual ao container do POS).
+const wrapperStyle: React.CSSProperties = {
+  display: "flex", alignItems: "stretch", maxHeight: "92vh", maxWidth: "100%",
+};
 const modalStyle: React.CSSProperties = {
-  background: "#fff", width: "100%", maxWidth: 760, maxHeight: "92vh",
+  background: "#fff", flex: "1 1 1080px", maxWidth: 1080, minWidth: 0, maxHeight: "92vh",
   borderRadius: 14, display: "flex", flexDirection: "column",
   boxShadow: "0 25px 60px rgba(0,0,0,0.3)", overflow: "hidden",
 };
-const bodyStyle: React.CSSProperties = { padding: 24, overflowY: "auto", flex: 1 };
+// Corpo dividido em duas colunas (atendimento | dados do cliente).
+const splitBody: React.CSSProperties = {
+  display: "flex", flex: 1, minHeight: 0, alignItems: "stretch",
+};
+const colLeft: React.CSSProperties = {
+  flex: "1 1 0", minWidth: 0, padding: 24, overflowY: "auto",
+  borderRight: "1px solid var(--portal-border)",
+};
+const colRight: React.CSSProperties = {
+  flex: "1 1 0", minWidth: 0, padding: 20, overflowY: "auto", background: "#f8fafc",
+};
+const colTitulo: React.CSSProperties = {
+  fontSize: 13, fontWeight: 800, color: "var(--portal-text)", marginBottom: 14,
+};
 const footerStyle: React.CSSProperties = {
   padding: "14px 24px", borderTop: "1px solid var(--portal-border)",
-  display: "flex", justifyContent: "flex-end", gap: 10, background: "#fafafa",
+  display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, background: "#fafafa", flexWrap: "wrap",
+};
+const btnCaveiraStyle: React.CSSProperties = {
+  padding: "10px 18px", border: "none", borderRadius: 10,
+  fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "Inter, sans-serif",
 };
 const inputStyle: React.CSSProperties = {
   width: "100%", padding: "10px 14px",

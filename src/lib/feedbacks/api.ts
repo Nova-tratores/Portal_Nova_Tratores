@@ -3,7 +3,6 @@
 // (Clientes, Projeto, Tecnicos_Appsheet).
 
 import { supabase } from "@/lib/supabase";
-import { TAGS_CLIENTE, TAG_NAO_CONTATAR } from "./types";
 import type {
   ClienteInfo,
   ClienteOmie,
@@ -433,9 +432,6 @@ export interface CadastroOmie {
   cadastro: CadastroOmieDados;
 }
 
-// Conjunto de tags que o módulo gerencia (pra não apagar tags do Omie fora dele).
-const TAGS_GERENCIADAS = [...TAGS_CLIENTE.map((t) => t.tag), TAG_NAO_CONTATAR];
-
 export async function buscarCadastroOmie(codigoOmie: string): Promise<CadastroOmie> {
   const res = await fetch(`/api/feedbacks/cliente-omie?codigo_omie=${encodeURIComponent(codigoOmie)}`);
   const j = await res.json().catch(() => ({}));
@@ -458,12 +454,37 @@ export async function salvarCadastroOmie(codigoOmie: string, cadastro: CadastroO
   await patchClienteOmie({ codigo_omie: codigoOmie, cadastro });
 }
 
-// Mescla as tags gerenciadas pelo módulo com as que já existem no Omie.
+// Grava as tags no Omie. O servidor preserva as tags estruturais (Cliente/
+// Fornecedor/Funcionário) e aplica o resto conforme o conjunto enviado.
 export async function sincronizarTagsOmie(codigoOmie: string, tags: string[]): Promise<string[]> {
-  const r = await patchClienteOmie({ codigo_omie: codigoOmie, tags, tags_gerenciadas: TAGS_GERENCIADAS });
+  const r = await patchClienteOmie({ codigo_omie: codigoOmie, tags });
   return r.tags || tags;
 }
 
 export async function definirInativoOmie(codigoOmie: string, inativo: boolean): Promise<void> {
   await patchClienteOmie({ codigo_omie: codigoOmie, inativo: inativo ? "S" : "N" });
+}
+
+// -----------------------------------------------------------------------------
+// Histórico de ações (audit_log) do cliente — alimenta o painel de log no card,
+// no mesmo espírito do log do POS.
+// -----------------------------------------------------------------------------
+export interface LogAcao {
+  id: number;
+  acao: string;
+  user_nome: string | null;
+  created_at: string;
+  detalhes: Record<string, unknown> | null;
+}
+
+export async function buscarLogsCliente(clienteKey: string): Promise<LogAcao[]> {
+  const { data, error } = await supabase
+    .from("audit_log")
+    .select("id, acao, user_nome, created_at, detalhes")
+    .eq("sistema", "feedbacks")
+    .eq("entidade_id", clienteKey)
+    .order("id", { ascending: false })
+    .limit(100);
+  if (error) throw wrapErr(error);
+  return (data || []) as LogAcao[];
 }

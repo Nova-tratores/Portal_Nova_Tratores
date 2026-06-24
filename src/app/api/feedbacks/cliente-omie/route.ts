@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { TAGS_ESTRUTURAIS } from "@/lib/feedbacks/types";
 
 // -----------------------------------------------------------------------------
 // Gravação no cadastro do cliente no Omie (Fase 2 do módulo de feedbacks):
@@ -169,15 +170,14 @@ export async function PATCH(req: NextRequest) {
       if (cadastro.cep !== undefined) param.cep = soDigitos(cadastro.cep);
     }
 
-    // --- Tags (read + merge: preserva tags do Omie fora do nosso conjunto) ---
+    // --- Tags: preserva as estruturais do Omie (Cliente/Fornecedor/Funcionário)
+    //     e aplica exatamente o conjunto que o painel mandou pro resto. Assim
+    //     tags criadas entram e tags desmarcadas saem. O painel sempre manda
+    //     todas as tags de conteúdo atuais + as mudanças, então nada se perde. ---
     let tagsFinais: string[] | undefined;
     if (tagsDesejadas) {
       const atual = await omieCall<OmieClienteRaw>("ConsultarCliente", { codigo_cliente_omie: cod }, empresa);
-      const atuais = tagsDoOmie(atual);
-      const gerenciadas: string[] = Array.isArray(body.tags_gerenciadas) ? body.tags_gerenciadas : [];
-      const preservadas = gerenciadas.length
-        ? atuais.filter((t) => !gerenciadas.includes(t))
-        : atuais.filter((t) => !tagsDesejadas.includes(t)); // fallback: une
+      const preservadas = tagsDoOmie(atual).filter((t) => TAGS_ESTRUTURAIS.includes(t));
       tagsFinais = Array.from(new Set([...preservadas, ...tagsDesejadas]));
       param.tags = tagsFinais.map((t) => ({ tag: t }));
     }

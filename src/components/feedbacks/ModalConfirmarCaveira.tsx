@@ -74,7 +74,7 @@ export default function ModalConfirmarCaveira({
                 disabled={processando || !confirmado}
                 style={{ ...btnPerigo, opacity: processando || !confirmado ? 0.5 : 1, cursor: processando || !confirmado ? "default" : "pointer" }}
               >
-                {processando ? "Inativando…" : "💀 Inativar no Omie"}
+                {processando ? "Inativando…" : "Inativar no Omie"}
               </button>
             )}
           </div>

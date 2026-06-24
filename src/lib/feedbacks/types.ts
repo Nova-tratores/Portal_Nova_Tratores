@@ -102,7 +102,15 @@ export const TAGS_CLIENTE: { tag: string; label: string; cor: string }[] = [
   { tag: "Posto de Combustível",        label: "Posto de combustível", cor: "#0369a1" },
   { tag: "Banco",                       label: "Banco",                cor: "#0369a1" },
   { tag: "Alimentação",                 label: "Alimentação",          cor: "#0369a1" },
+  // Segmento / ramo do cliente
+  { tag: "Agricultor",                  label: "Agricultor",           cor: "#16a34a" },
+  { tag: "Pecuarista",                  label: "Pecuarista",           cor: "#65a30d" },
+  { tag: "Lazer",                       label: "Lazer (barco/recreio)", cor: "#0891b2" },
 ];
+
+// Tags estruturais/automáticas do Omie (relação) — nunca editadas pelo módulo;
+// são sempre preservadas no merge ao gravar as tags de volta no Omie.
+export const TAGS_ESTRUTURAIS = ["Cliente", "Fornecedor", "Funcionário"];
 
 export interface Oportunidade {
   id: number;

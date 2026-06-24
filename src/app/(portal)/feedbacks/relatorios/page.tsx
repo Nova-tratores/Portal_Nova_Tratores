@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { listarRegistros } from "@/lib/feedbacks/api";
 import type { FeedbackRegistro, TipoFeedback } from "@/lib/feedbacks/types";
 import styles from "@/components/feedbacks/feedbacks.module.css";
+import { COR_RFM, COR_CRM_BG, COR_CRM_FG, COR_RFM_BG, COR_RFM_FG } from "@/lib/feedbacks/cores";
 
 type Fonte = "todos" | TipoFeedback;
 type View = "geral" | "dia" | "atendentes";
@@ -246,11 +247,11 @@ export default function RelatoriosPage() {
         </h1>
         {view === "atendentes" ? (
           <button onClick={baixarCSVAtendentes} style={btnPrimario}>
-            ⬇ Exportar atendentes ({statsAtendenteDet.length})
+            Exportar atendentes ({statsAtendenteDet.length})
           </button>
         ) : (
           <button onClick={() => baixarCSV(filtradas, `relatorio-feedbacks-${new Date().toISOString().slice(0,10)}.csv`)} style={btnPrimario}>
-            ⬇ Exportar CSV ({filtradas.length})
+            Exportar CSV ({filtradas.length})
           </button>
         )}
       </div>
@@ -259,7 +260,7 @@ export default function RelatoriosPage() {
       <div style={pillsStyle}>
         {[
           { v: "geral", label: "Geral" },
-          { v: "atendentes", label: "🎧 Atendentes" },
+          { v: "atendentes", label: "Atendentes" },
           { v: "dia",   label: "Por dia" },
         ].map((p) => (
           <button
@@ -311,7 +312,7 @@ export default function RelatoriosPage() {
           <div style={statsGrid}>
             <StatCard icon="📊" label="Total" value={filtradas.length} cor="#475569" />
             <StatCard icon="🔴" label="CRM" value={filtradas.filter((r) => r.tipo === "crm").length} cor="#dc2626" />
-            <StatCard icon="🟡" label="RFM" value={filtradas.filter((r) => r.tipo === "rfm").length} cor="#f59e0b" />
+            <StatCard icon="🟣" label="RFM" value={filtradas.filter((r) => r.tipo === "rfm").length} cor={COR_RFM} />
             <StatCard icon="★" label="Nota média" cor="#ca8a04" value={(() => {
               const notas = filtradas.map((r) => r.nota).filter((n): n is number => n !== null && n !== undefined);
               return notas.length ? (Math.round((notas.reduce((a, b) => a + b, 0) / notas.length) * 10) / 10).toString() : "—";
@@ -558,8 +559,8 @@ function badgePctStyle(pct: number): React.CSSProperties {
 function tipoBadge(tipo: TipoFeedback): React.CSSProperties {
   return {
     fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 6,
-    background: tipo === "crm" ? "#fef2f2" : "#fef3c7",
-    color: tipo === "crm" ? "#b91c1c" : "#92400e",
+    background: tipo === "crm" ? COR_CRM_BG : COR_RFM_BG,
+    color: tipo === "crm" ? COR_CRM_FG : COR_RFM_FG,
     letterSpacing: 0.3, display: "inline-block",
   };
 }
