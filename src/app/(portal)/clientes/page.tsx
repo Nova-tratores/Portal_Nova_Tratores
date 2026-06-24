@@ -437,7 +437,13 @@ function ClientesPageInner() {
     return [...porDoc.values(), ...semDoc]
   })()
   const empresas = [...new Set(clientes.map(c => c.empresa))]
-  const findAllPVs = (ref: string): PedidoVenda[] => { if (!ref || !/^\d+$/.test(ref)) return []; return pedidos.filter(pv => pv.num_pedido === ref) }
+  const findAllPVs = (ref: string): PedidoVenda[] => {
+    if (!ref) return []
+    if (/^\d+$/.test(ref)) return pedidos.filter(pv => pv.num_pedido === ref)
+    const m = ref.match(/^REM\s*(\d+)$/i)
+    if (m) return pedidos.filter(pv => pv.num_pedido === m[1])
+    return []
+  }
   const classifyRef = (ref: string) => {
     if (!ref) return { tipo: 'texto' as const, label: '' }
     if (/^\d+$/.test(ref)) return { tipo: 'pv' as const, label: `Pedido de Venda ${ref}` }
@@ -800,6 +806,7 @@ function ClientesPageInner() {
                     const solicitacao = (() => { const d = servicos.map((s: any) => s.desc || '').join('|'); const m = d.match(/Solicita[çc][ãa]o[^:]*:\s*([^|]+)/i); return m ? m[1].trim() : '' })()
                     const ref = classifyRef(os.num_pedido_cli)
                     const numRef = ref.tipo === 'pv' ? os.num_pedido_cli : ''
+                    const remRef = ref.tipo === 'remessa' ? os.num_pedido_cli : ''
                     const acc = os.cancelada ? '#DC2626' : os.faturada ? '#10B981' : '#F59E0B'
 
                     return (
@@ -818,9 +825,10 @@ function ClientesPageInner() {
 
                         {/* topo: OS / PV + valor */}
                         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-                          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                             <span style={{ fontSize: 15, fontWeight: 800, color: '#0F172A', whiteSpace: 'nowrap' }}>OS {os.num_os}</span>
                             {numRef && <span style={{ fontSize: 12, color: '#94A3B8', fontWeight: 600, whiteSpace: 'nowrap' }}>PV {numRef}</span>}
+                            {remRef && <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 5, background: '#FFF7ED', color: '#EA580C', border: '1px solid #FED7AA', whiteSpace: 'nowrap' }}>{ref.label}</span>}
                           </div>
                           <span style={{ fontSize: 15, fontWeight: 800, color: '#0F172A', flexShrink: 0 }}>{formatCurrency(os.valor_total || 0)}</span>
                         </div>
@@ -1047,7 +1055,7 @@ function ClientesPageInner() {
           const servicos = typeof os.servicos === 'string' ? JSON.parse(os.servicos) : (os.servicos || [])
           const solicitacao = (() => { const d = servicos.map((s: any) => s.desc || '').join('|'); const m = d.match(/Solicita[çc][ãa]o[^:]*:\s*([^|]+)/i); return m ? m[1].trim() : '' })()
           const ref = classifyRef(os.num_pedido_cli)
-          const pvs = ref.tipo === 'pv' ? findAllPVs(os.num_pedido_cli) : []
+          const pvs = (ref.tipo === 'pv' || ref.tipo === 'remessa') ? findAllPVs(os.num_pedido_cli) : []
 
           return (
             <div className="cli-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}

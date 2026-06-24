@@ -68,10 +68,14 @@ export async function GET(req: NextRequest) {
         .order("data_previsao", { ascending: false });
 
       // Buscar PVs vinculados (via num_pedido_cli das OS)
-      // Só buscar quando num_pedido_cli é puramente numérico (ex: "6561")
-      // Ignorar textos como "Interno", "REM 3477", "Frota", "Montagem Implemento"
+      // Aceita numérico puro (PV) e "REM XXXX" (remessa)
       const numPedidos = [...new Set(
-        (ordens || []).map(o => o.num_pedido_cli).filter(v => v && /^\d+$/.test(v))
+        (ordens || []).map(o => {
+          const ref = (o.num_pedido_cli || '').trim()
+          if (/^\d+$/.test(ref)) return ref
+          const m = ref.match(/^REM\s*(\d+)$/i)
+          return m ? m[1] : null
+        }).filter(Boolean) as string[]
       )];
 
       let pedidos: any[] = [];

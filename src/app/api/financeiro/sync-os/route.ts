@@ -201,6 +201,15 @@ async function processarOSnum(consulta: Record<string, unknown>, label: string, 
 
     if (info.cFaturada !== "S" || info.cCancelada === "S") { debug.resultado = "OS não está faturada (ou cancelada)"; return debug; }
 
+    // OS interna (Conta Corrente = INTERNO) não gera card financeiro
+    const deps: any[] = osData?.Departamentos || [];
+    const contaCorrente = deps[0]?.cContaCorrente || adic.cContaCorrente || cab.cContaCorrente || "";
+    debug.conta_corrente = contaCorrente;
+    if (String(contaCorrente).toUpperCase().includes("INTERNO")) {
+      debug.resultado = "OS interna (Conta Corrente INTERNO) — não cria card financeiro";
+      return debug;
+    }
+
     const dtFatISO = dataBRtoISO(info.dDtFat);
     debug.dDtFat_iso = dtFatISO; debug.corte = desde;
     if (dtFatISO && dtFatISO < desde) { debug.resultado = `OS faturada ANTES do corte ${desde} — não cria (use ?desde= mais antigo pra testar)`; return debug; }
@@ -332,6 +341,12 @@ async function handler(req: NextRequest) {
           const info = os?.InfoCadastro || {};
           const adic = os?.InformacoesAdicionais || {};
           if (info.cFaturada !== "S" || info.cCancelada === "S") continue;
+
+          // OS interna (Conta Corrente = INTERNO) — pula, não gera card financeiro
+          const deps: any[] = os?.Departamentos || [];
+          const cc = deps[0]?.cContaCorrente || adic.cContaCorrente || cab.cContaCorrente || "";
+          if (String(cc).toUpperCase().includes("INTERNO")) continue;
+
           porEmpresa[acc.name].faturadas++;
 
           if (dryRun && amostra.length < 12) {
