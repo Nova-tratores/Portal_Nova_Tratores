@@ -56,6 +56,31 @@ function agregar(registros: FeedbackRegistro[]): ClienteAgregado[] {
   return Array.from(map.values()).sort((a, b) => b.ultimaData.localeCompare(a.ultimaData));
 }
 
+type Ordem = "recente" | "atendidos" | "nome" | "melhor_nota" | "pior_nota";
+const ORDENS: { v: Ordem; label: string }[] = [
+  { v: "recente", label: "Mais recente" },
+  { v: "atendidos", label: "Mais atendidos" },
+  { v: "nome", label: "Nome (A–Z)" },
+  { v: "melhor_nota", label: "Melhor nota" },
+  { v: "pior_nota", label: "Pior nota" },
+];
+function ordenar(lista: ClienteAgregado[], ordem: Ordem): ClienteAgregado[] {
+  const arr = [...lista];
+  switch (ordem) {
+    case "atendidos":
+      return arr.sort((a, b) => b.totalRegistros - a.totalRegistros || a.nome.localeCompare(b.nome, "pt-BR", { sensitivity: "base" }));
+    case "nome":
+      return arr.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR", { sensitivity: "base" }));
+    case "melhor_nota":
+      return arr.sort((a, b) => (b.notaMedia ?? -1) - (a.notaMedia ?? -1) || b.ultimaData.localeCompare(a.ultimaData));
+    case "pior_nota":
+      return arr.sort((a, b) => (a.notaMedia ?? 99) - (b.notaMedia ?? 99) || b.ultimaData.localeCompare(a.ultimaData));
+    case "recente":
+    default:
+      return arr.sort((a, b) => b.ultimaData.localeCompare(a.ultimaData));
+  }
+}
+
 function StatusBolinha({ nota }: { nota: number | null }) {
   let cor = "#a3a3a3";
   if (nota !== null) {
@@ -72,6 +97,7 @@ export default function ClientesPage() {
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [filtro, setFiltro] = useState("");
+  const [ordem, setOrdem] = useState<Ordem>("recente");
   const [selecionadaKey, setSelecionadaKey] = useState<string | null>(null);
 
   const [modalPerfilAberto, setModalPerfilAberto] = useState(false);
@@ -107,9 +133,11 @@ export default function ClientesPage() {
 
   const filtrados = useMemo(() => {
     const q = filtro.trim().toLowerCase();
-    if (!q) return agregados;
-    return agregados.filter((c) => c.nome.toLowerCase().includes(q) || (c.codigoOmie || "").includes(q));
-  }, [agregados, filtro]);
+    const base = q
+      ? agregados.filter((c) => c.nome.toLowerCase().includes(q) || (c.codigoOmie || "").includes(q))
+      : agregados;
+    return ordenar(base, ordem);
+  }, [agregados, filtro, ordem]);
 
   const selecionada = selecionadaKey ? agregados.find((c) => c.key === selecionadaKey) : null;
   const infoSelecionada = selecionadaKey ? infoPorKey.get(selecionadaKey) : null;
@@ -150,6 +178,11 @@ export default function ClientesPage() {
               placeholder="🔍 Buscar cliente…"
               style={inputBuscaStyle}
             />
+            <select value={ordem} onChange={(e) => setOrdem(e.target.value as Ordem)} style={selectOrdemStyle}>
+              {ORDENS.map((o) => (
+                <option key={o.v} value={o.v}>Ordenar: {o.label}</option>
+              ))}
+            </select>
             <div style={{ fontSize: 11, color: "var(--portal-text-muted)", padding: "6px 4px", marginBottom: 4 }}>
               {filtrados.length} de {agregados.length} clientes
             </div>
@@ -347,6 +380,12 @@ const inputBuscaStyle: React.CSSProperties = {
   border: "1.5px solid var(--portal-border)", borderRadius: 10,
   fontSize: 13, background: "var(--portal-bg-card)", color: "var(--portal-text)",
   fontFamily: "Inter, sans-serif", outline: "none",
+};
+const selectOrdemStyle: React.CSSProperties = {
+  width: "100%", padding: "8px 12px", marginBottom: 4,
+  border: "1.5px solid var(--portal-border)", borderRadius: 10,
+  fontSize: 12, fontWeight: 600, background: "var(--portal-bg-card)", color: "var(--portal-text-secondary)",
+  fontFamily: "Inter, sans-serif", outline: "none", cursor: "pointer",
 };
 const clienteItemStyle: React.CSSProperties = {
   display: "block", width: "100%", textAlign: "left",
