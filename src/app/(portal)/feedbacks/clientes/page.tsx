@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import TimelineRegistros from "@/components/feedbacks/TimelineRegistros";
 import ModalPerfilCliente from "@/components/feedbacks/ModalPerfilCliente";
 import ModalFeedback from "@/components/feedbacks/ModalFeedback";
@@ -137,6 +137,27 @@ export default function ClientesPage() {
   }, []);
 
   useEffect(() => { void carregar(); }, [carregar]);
+
+  // Deep-link vindo da pasta do cliente (ou de outro lugar):
+  //   ?registro=<id>  -> abre o modal daquele atendimento (e seleciona o cliente)
+  //   ?cliente=<key>  -> seleciona o cliente (omie_<codigo> | nome_<NOME>)
+  const deepLinkAplicado = useRef(false);
+  useEffect(() => {
+    if (deepLinkAplicado.current || registros.length === 0) return;
+    const sp = new URLSearchParams(window.location.search);
+    const clienteParam = sp.get("cliente");
+    const registroParam = sp.get("registro");
+    if (clienteParam) setSelecionadaKey(clienteParam);
+    if (registroParam) {
+      const reg = registros.find((r) => String(r.id) === registroParam);
+      if (reg) {
+        if (!clienteParam) setSelecionadaKey(clienteKey(reg.codigo_omie, reg.nome));
+        setRegistroEdit(reg);
+        setModalRegistroAberto(true);
+      }
+    }
+    deepLinkAplicado.current = true;
+  }, [registros]);
 
   const agregados = useMemo(() => agregar(registros), [registros]);
 

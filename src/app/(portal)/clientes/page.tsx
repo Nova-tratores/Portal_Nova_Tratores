@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import { supabase } from '@/lib/supabase'
@@ -114,6 +115,7 @@ function ClientesPageInner() {
   const [loadingEmails, setLoadingEmails] = useState<string | null>(null)
   const [lembretesCliente, setLembretesCliente] = useState<any[]>([])
   const [feedbacksCliente, setFeedbacksCliente] = useState<any[]>([])
+  const router = useRouter()
   const [osColuna, setOsColuna] = useState<'todas' | 'ativas' | 'faturadas' | 'canceladas'>('todas')
   const [osFiltroTipo, setOsFiltroTipo] = useState<string>('')
   const [osBuscaNF, setOsBuscaNF] = useState('')
@@ -623,7 +625,12 @@ function ClientesPageInner() {
                     const statusLabel: Record<string, string> = { concluido: 'Concluído', aberto: 'Aberto', em_andamento: 'Em andamento', sem_resposta: 'Sem resposta', arquivado: 'Arquivado' }
                     const dataTxt = f.data_contato ? formatDate(f.data_contato) : (f.criado_em ? new Date(f.criado_em).toLocaleDateString('pt-BR') : '—')
                     return (
-                      <div key={f.id} style={{ border: '1px solid #F3F4F6', borderLeft: `3px solid ${cor}`, borderRadius: 8, padding: '8px 10px', background: '#FCFCFD' }}>
+                      <div key={f.id}
+                        onClick={() => router.push(`/feedbacks/clientes?registro=${f.id}`)}
+                        title="Abrir este feedback no módulo Feedbacks & CRM"
+                        onMouseEnter={e => { e.currentTarget.style.background = '#F5F3FF' }}
+                        onMouseLeave={e => { e.currentTarget.style.background = '#FCFCFD' }}
+                        style={{ border: '1px solid #F3F4F6', borderLeft: `3px solid ${cor}`, borderRadius: 8, padding: '8px 10px', background: '#FCFCFD', cursor: 'pointer', transition: 'background .15s' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: texto ? 3 : 0, flexWrap: 'wrap' }}>
                           <span style={{ fontSize: 10, fontWeight: 800, color: cor, background: corBg, padding: '1px 7px', borderRadius: 10, letterSpacing: 0.3 }}>{crm ? 'CRM' : 'RFM'}</span>
                           <span style={{ fontSize: 11, color: '#6B7280', fontWeight: 600 }}>{dataTxt}</span>
