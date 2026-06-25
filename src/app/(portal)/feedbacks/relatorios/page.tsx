@@ -49,32 +49,69 @@ function dataRef(r: FeedbackRegistro): string {
   return r.data_contato || r.data_servico || r.ultimo_servico || r.criado_em;
 }
 
+const CSV_SEP = ";"; // Excel pt-BR usa ; como separador de colunas
+
 function escapeCSV(v: unknown): string {
   if (v === null || v === undefined) return "";
   const s = String(v);
-  if (s.includes(",") || s.includes('"') || s.includes("\n")) {
+  if (s.includes(CSV_SEP) || s.includes('"') || s.includes("\n") || s.includes("\r")) {
     return `"${s.replace(/"/g, '""')}"`;
   }
   return s;
 }
 
+// Data ISO (YYYY-MM-DD...) -> DD/MM/AAAA. Se não parecer data, devolve como está.
+function fmtDataCSV(d: string | null | undefined): string {
+  if (!d) return "";
+  const m = String(d).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : String(d);
+}
+
+// Monta o CSV: BOM (Excel lê UTF-8) + separador ; + quebras \r\n.
+function montarCSV(headers: string[], linhas: (string | number)[][]): string {
+  const corpo = [headers, ...linhas]
+    .map((row) => row.map(escapeCSV).join(CSV_SEP))
+    .join("\r\n");
+  return "﻿" + corpo;
+}
+
 function gerarCSV(rows: FeedbackRegistro[]): string {
   const headers = [
-    "id","tipo","nome","telefone","trator","tecnico","codigo_omie","data_contato",
-    "servico","data_servico","status_cliente","nota","feedback","nps","melhoria",
-    "ultimo_servico","motivo","prioridade","acao","sem_resposta","revisao_confirmada",
-    "criado_em",
+    "Tipo", "Cliente", "Telefone", "Trator", "Técnico", "Cód. Omie", "Data do contato",
+    "Serviço", "Data do serviço", "Satisfação", "Nota", "Feedback", "NPS", "Melhoria",
+    "Último serviço", "Motivo", "Prioridade", "Ação", "Sem resposta", "Revisão confirmada",
+    "Atendente", "Status", "Criado em",
   ];
-  const linhas = [headers.join(",")];
-  for (const r of rows) {
-    linhas.push(headers.map((h) => escapeCSV((r as unknown as Record<string, unknown>)[h])).join(","));
-  }
-  return linhas.join("\n");
+  const linhas: (string | number)[][] = rows.map((r) => [
+    r.tipo.toUpperCase(),
+    r.nome || "",
+    r.telefone || "",
+    r.trator || "",
+    r.tecnico || "",
+    r.codigo_omie || "",
+    fmtDataCSV(r.data_contato),
+    r.servico || "",
+    fmtDataCSV(r.data_servico),
+    r.status_cliente || "",
+    r.nota ?? "",
+    r.feedback || "",
+    r.nps || "",
+    r.melhoria || "",
+    fmtDataCSV(r.ultimo_servico),
+    r.motivo || "",
+    r.prioridade || "",
+    r.acao || "",
+    r.sem_resposta ? "Sim" : "Não",
+    fmtDataCSV(r.revisao_confirmada),
+    r.atendente_nome || "",
+    (r.status_atendimento || "").replace(/_/g, " "),
+    fmtDataCSV(r.criado_em),
+  ]);
+  return montarCSV(headers, linhas);
 }
 
 function baixarCSV(rows: FeedbackRegistro[], nome: string) {
-  const csv = "﻿" + gerarCSV(rows);  // BOM para Excel BR
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const blob = new Blob([gerarCSV(rows)], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url; a.download = nome; a.click();
@@ -229,13 +266,11 @@ export default function RelatoriosPage() {
   }, [registros, fonte]);
 
   function baixarCSVAtendentes() {
-    const headers = ["atendente", "contatos_hoje", "contatos_ontem", "contatos_7d", "respondeu_7d", "positiva_crm_7d", "negativa_crm_7d", "gerou_servico_7d", "nao_gerou_7d"];
-    const linhas = [headers.join(",")];
-    for (const s of statsAtendenteDet) {
-      linhas.push([escapeCSV(s.atendente), s.hoje, s.ontem, s.sete, s.respondeu, s.positiva, s.negativa, s.gerouServico, s.sete - s.gerouServico].join(","));
-    }
-    const csv = "﻿" + linhas.join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const headers = ["Atendente", "Contatos hoje", "Contatos ontem", "Contatos 7 dias", "Respondeu (7d)", "Positiva CRM (7d)", "Negativa CRM (7d)", "Gerou serviço (7d)", "Não gerou (7d)"];
+    const linhas: (string | number)[][] = statsAtendenteDet.map((s) => [
+      s.atendente, s.hoje, s.ontem, s.sete, s.respondeu, s.positiva, s.negativa, s.gerouServico, s.sete - s.gerouServico,
+    ]);
+    const blob = new Blob([montarCSV(headers, linhas)], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url; a.download = `relatorio-atendentes-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
