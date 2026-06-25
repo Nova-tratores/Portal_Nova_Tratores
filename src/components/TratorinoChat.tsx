@@ -152,7 +152,7 @@ export default function TratorinoChat({ userName = "", userId = "", isAdmin = fa
     try {
       const r = await fetch("/api/assistente/executar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ proposta, userName }) });
       const j = await r.json();
-      if (r.ok) { const L: any = { orcamento: "Orçamento", ppv: "PPV", os: "OS", requisicao: "Requisição" }; setMsgs((ms) => [...ms, { role: "assistant", content: `Pronto! ${L[proposta.tipo] || ""} ${j.numero || ""} criado.`, abrirUrl: j.abrirUrl }]); }
+      if (r.ok) { const L: any = { orcamento: "Orçamento", ppv: "PPV", os: "OS", requisicao: "Requisição" }; const extra = j.ppv ? ` PPV ${j.ppv} vinculado gerado.` : ""; setMsgs((ms) => [...ms, { role: "assistant", content: `Pronto! ${L[proposta.tipo] || ""} ${j.numero || ""} criado.${extra}`, abrirUrl: j.abrirUrl }]); }
       else setMsgs((ms) => [...ms, { role: "assistant", content: `Não consegui criar: ${j.error || "erro"}` }]);
     } catch { setMsgs((ms) => [...ms, { role: "assistant", content: "Erro de conexão ao criar." }]); }
     setLoading(false);
@@ -248,7 +248,7 @@ export default function TratorinoChat({ userName = "", userId = "", isAdmin = fa
                 </div>
 
                 {m.abrirUrl && (
-                  <a href={m.abrirUrl} style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 15px", borderRadius: 11, background: "linear-gradient(135deg, #0ea5a4, #0d9488)", color: "#fff", textDecoration: "none", fontSize: 13, fontWeight: 700, boxShadow: "0 4px 12px rgba(13,148,136,0.3)" }}><i className="fas fa-up-right-from-square" /> Abrir / Imprimir</a>
+                  <a href={m.abrirUrl} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 15px", borderRadius: 11, background: "linear-gradient(135deg, #0ea5a4, #0d9488)", color: "#fff", textDecoration: "none", fontSize: 13, fontWeight: 700, boxShadow: "0 4px 12px rgba(13,148,136,0.3)" }}><i className="fas fa-up-right-from-square" /> Abrir / Imprimir</a>
                 )}
 
                 {m.proposta && !m.feito && (

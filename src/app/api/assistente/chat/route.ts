@@ -1,6 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { TRATORINO_PERSONA, TRATORINO_CONHECIMENTO } from "@/lib/assistente/conhecimento";
 import { getIA, chamarIA } from "@/lib/assistente/ia";
+import { geocodificar, rotaDaOficina } from "@/lib/pos/ors";
+
+// Extrai coordenadas (lat,lng) de um link do Google Maps ou texto. Resolve links encurtados (segue o redirect).
+async function coordsDoLink(texto: string): Promise<{ lat: number; lng: number } | null> {
+  const t = String(texto || "").trim();
+  const re = /(-?\d{1,3}\.\d{3,}),\s*(-?\d{1,3}\.\d{3,})/; // lat,lng com pelo menos 3 casas decimais
+  const m1 = t.match(re);
+  if (m1) return { lat: parseFloat(m1[1]), lng: parseFloat(m1[2]) };
+  if (/^https?:\/\//i.test(t)) {
+    try {
+      const res = await fetch(t, { redirect: "follow" });
+      const body = await res.text().catch(() => "");
+      const hay = (res.url || "") + " " + body.slice(0, 8000);
+      const m2 = hay.match(re);
+      if (m2) return { lat: parseFloat(m2[1]), lng: parseFloat(m2[2]) };
+    } catch {}
+  }
+  return null;
+}
 
 // Rótulos dos módulos do portal (iguais aos de /admin) — pra dizer ao usuário o que ele acessa
 const MOD_LABELS: Record<string, string> = {
@@ -26,6 +45,20 @@ const TOOLS = [
           horas: { type: "string", description: "Intervalo de horas da revisão, ex.: 50, 250, 500" },
         },
         required: ["modelo", "horas"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "buscar_plano_revisao",
+      description: "Busca os PLANOS DE REVISÃO prontos do POS — o ESCOPO/descrição do que cada revisão inclui (ex.: 'Revisão de 600 horas - troca de óleo do motor, filtros...'). Use quando perguntarem o que vai/o que tem numa revisão de X horas, ou pra preencher o Plano de Revisão de uma OS. Para a LISTA DE PEÇAS com códigos/preços do kit, use kit_revisao. Informe o termo (ex.: '600 horas', '50h', '9500S 3000').",
+      parameters: {
+        type: "object",
+        properties: {
+          termo: { type: "string", description: "Termo de busca do plano, ex.: '600 horas', '50', '9500S 3000'." },
+        },
+        required: ["termo"],
       },
     },
   },
@@ -93,14 +126,22 @@ const TOOLS = [
     type: "function",
     function: {
       name: "propor_os",
-      description: "Monta uma PROPOSTA de Ordem de Serviço (OS) — não cria ainda. Use quando o usuário pedir para CRIAR/ABRIR uma OS. Informe o cliente e o serviço solicitado; técnico e tipo são opcionais. O usuário confirma num botão.",
+      description: "Monta uma PROPOSTA de Ordem de Serviço (OS) — não cria ainda. Use quando o usuário pedir para CRIAR/ABRIR uma OS. Informe o cliente e o serviço. Técnico, tipo, horas e km são opcionais. Se o serviço envolver PEÇAS, passe a lista em 'pecas' — será gerado automaticamente um PPV de peças VINCULADO à OS. Sem peças, sai só a OS (mão de obra/visita). O usuário confirma num botão.",
       parameters: {
         type: "object",
         properties: {
           cliente: { type: "string", description: "Nome ou CNPJ do cliente" },
-          servico: { type: "string", description: "Serviço solicitado / descrição do problema" },
-          tecnico: { type: "string", description: "Técnico responsável (opcional)" },
+          servico: { type: "string", description: "A solicitação de serviço — SÓ o que o cliente pediu (ex.: 'troca da bucha do pivô'). Se o usuário puser o serviço ENTRE ASPAS, use EXATAMENTE o texto entre aspas, sem o nome do cliente/técnico. NÃO escreva o modelo da descrição — o sistema coloca isso no campo 'Solicitação do cliente' do template padrão." },
+          tecnico: { type: "string", description: "Técnico responsável — só o nome (ex.: Danilo). É casado com a lista real de técnicos do POS. Opcional." },
+          projeto: { type: "string", description: "Projeto/equipamento existente — pode ser só o FINAL do chassi, o modelo ou o número. É casado com um projeto do banco. Opcional." },
           tipoServico: { type: "string", description: "Tipo de serviço, ex.: Revisão, Garantia, Manutenção (opcional)" },
+          revisao: { type: "string", description: "Plano de revisão (texto do plano encontrado em buscar_plano_revisao). Se informado, a OS vira tipo Revisão. Opcional." },
+          trator: { type: "string", description: "Modelo do trator (ex.: 6075, 9500S, Jivo 2025). Em revisão, o sistema usa isso + as horas pra IMPORTAR o kit de peças automaticamente." },
+          horas: { type: "number", description: "Horas de mão de obra (opcional — em revisão é preenchido automaticamente pela regra da casa)" },
+          km: { type: "number", description: "Km de deslocamento (opcional — se mandarem a localização, é calculado automaticamente)" },
+          localizacao: { type: "string", description: "Link de localização do Google Maps (ou 'lat,lng', ou endereço). O sistema calcula o km de IDA E VOLTA da oficina (Piraju) até o local e preenche o deslocamento. Opcional." },
+          data: { type: "string", description: "Data de execução no formato AAAA-MM-DD. SÓ informe se o usuário DISSER uma data (ex.: 'amanhã', 'dia 25') — converta pra AAAA-MM-DD. Se ele não falar data, NÃO mande este campo (o sistema usa a data de hoje)." },
+          pecas: { type: "array", description: "Peças do serviço — se houver, gera um PPV vinculado à OS. Opcional.", items: { type: "object", properties: { codigo: { type: "string" }, descricao: { type: "string" }, quantidade: { type: "number" } } } },
         },
         required: ["cliente", "servico"],
       },
@@ -110,7 +151,7 @@ const TOOLS = [
     type: "function",
     function: {
       name: "propor_requisicao",
-      description: "Monta uma PROPOSTA de Requisição — não cria ainda. Use quando o usuário pedir para CRIAR/FAZER uma requisição. NÃO invente valores: tipo e setor têm opções fixas (escolha a que mais se encaixa); solicitante deve ser o nome de uma pessoa real (será conferido na lista). Se a peça quebrou/é para o trator de um cliente, use setor 'Trator-Cliente' e informe a 'ordem' (a OS traz cliente e chassis sozinha). Campos OBRIGATÓRIOS: titulo, tipo, setor, solicitante e obs (o motivo). Se faltar algum, a ferramenta vai te dizer o que perguntar ao usuário — NÃO crie sem eles.",
+      description: "Monta uma PROPOSTA de Requisição — não cria ainda. Use quando o usuário pedir para CRIAR/FAZER uma requisição. NÃO invente valores: tipo e setor têm opções fixas (escolha a que mais se encaixa); solicitante deve ser o nome de uma pessoa real (será conferido na lista). Se a peça quebrou/é para o trator de um cliente, use setor 'Trator-Cliente' e informe a 'ordem' (a OS traz cliente e chassis sozinha). Conforme o tipo, alguns campos a mais: Ferramenta → 'quem_ferramenta' (Uso Pessoal/Geral); Abastecimento (Trator/Quadri/Veicular) → 'litros'; Veicular → 'veiculo' (placa). Campos OBRIGATÓRIOS base: titulo, tipo, setor, solicitante e obs. A ferramenta avisa o que faltar (mostrando as opções) — NÃO crie sem eles.",
       parameters: {
         type: "object",
         properties: {
@@ -121,7 +162,14 @@ const TOOLS = [
           obs: { type: "string", description: "Motivo/explicação da requisição — POR QUE precisa (ex.: quebrou com o cliente usando). OBRIGATÓRIO." },
           ordem: { type: "string", description: "Número da OS a vincular, quando a requisição é para um serviço/cliente. A OS traz o cliente e o chassis automaticamente." },
           cliente: { type: "string", description: "Nome do cliente, quando for Trator-Cliente e NÃO houver OS pra vincular." },
+          projeto: { type: "string", description: "Projeto/equipamento (final do chassi, modelo ou número) — casado com projeto existente. Opcional." },
           cobrar_cliente: { type: "boolean", description: "true se for para cobrar do cliente." },
+          custo: { type: "number", description: "Custo real da peça/serviço (R$). Em Trator-Cliente é OBRIGATÓRIO — o valor cobrado do cliente é calculado como custo + 20% (× 1,20)." },
+          valor_cliente: { type: "number", description: "Valor cobrado do cliente (R$) já pronto — use só se o usuário der o valor final direto (senão informe 'custo' que o sistema calcula custo + 20%)." },
+          quem_ferramenta: { type: "string", enum: ["Uso Pessoal", "Geral"], description: "Só p/ tipo Ferramenta: destinação (Uso Pessoal ou Geral)." },
+          litros: { type: "number", description: "Só p/ tipos de Abastecimento: litros de combustível." },
+          veiculo: { type: "string", description: "Só p/ tipos Veicular: a placa do veículo (casada com a lista de placas)." },
+          hodometro: { type: "string", description: "Hodômetro/horímetro (opcional, p/ veicular ou trator-loja)." },
         },
         required: ["titulo", "tipo", "setor", "solicitante", "obs"],
       },
@@ -189,15 +237,48 @@ const TOOLS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "ensinar",
+      description: "(Só administradores) GUARDA uma regra/fato novo na MEMÓRIA do Tratorilson. Use quando o usuário ENSINAR algo pra você lembrar sempre (ex.: 'lembre que spray vai em Insumo Infra', 'a revisão de 50h é cortesia', 'o cliente X paga só por boleto'). Guarde a regra de forma clara e curta. Depois de guardar, confirme.",
+      parameters: { type: "object", properties: { conteudo: { type: "string", description: "A regra/fato a guardar, claro e direto." } }, required: ["conteudo"] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "listar_memoria",
+      description: "Lista o que o Tratorilson já APRENDEU (as regras guardadas na memória, com o número de cada uma). Use quando perguntarem 'o que você sabe/aprendeu', ou antes de alterar/esquecer uma regra (pra achar o número dela).",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "atualizar_memoria",
+      description: "(Só administradores) ALTERA uma regra já guardada na memória. Informe o número (id) OU um termo de busca pra achar a regra, e o novo conteúdo. Se não tiver o id, use 'busca' com palavras da regra.",
+      parameters: { type: "object", properties: { id: { type: "number", description: "Número da regra (de listar_memoria)." }, busca: { type: "string", description: "Termo pra achar a regra, se não tiver o id." }, conteudo: { type: "string", description: "O novo conteúdo da regra." } }, required: ["conteudo"] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "esquecer_memoria",
+      description: "(Só administradores) REMOVE (desativa) uma regra da memória. Informe o número (id) OU um termo de busca pra achar a regra.",
+      parameters: { type: "object", properties: { id: { type: "number", description: "Número da regra." }, busca: { type: "string", description: "Termo pra achar a regra, se não tiver o id." } } },
+    },
+  },
 ];
 
-async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin?: boolean; pode?: (m: string) => boolean }) {
+async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin?: boolean; pode?: (m: string) => boolean; userName?: string }) {
   try {
     // Gate de acesso: cada ferramenta exige o módulo correspondente (admin passa em tudo)
     const pode = typeof ctx?.pode === "function" ? ctx.pode : () => true;
     const isAdmin = ctx?.isAdmin === true;
     const REQ_MOD: Record<string, string[]> = {
       kit_revisao: ["ppv", "orcamentos"], buscar_pecas: ["ppv", "orcamentos"], explorar_catalogo: ["ppv", "orcamentos"],
+      buscar_plano_revisao: ["pos", "ppv", "orcamentos", "revisoes"],
       historico_cliente: ["clientes", "pos", "ppv"], consultar_projeto: ["clientes", "pos", "ppv", "orcamentos", "revisoes"],
       propor_orcamento: ["orcamentos"], propor_ppv: ["ppv"], propor_os: ["pos"], propor_requisicao: ["requisicoes"],
       consultar_financeiro: ["financeiro"],
@@ -232,6 +313,13 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
       const r = await fetch(`${origin}/api/ppv/revisoes?trator=${encodeURIComponent(row.Trator)}&horas=${encodeURIComponent(row.Horas)}`);
       const itens: any[] = r.ok ? await r.json() : [];
       return { encontrado: true, modelo: args.modelo, kit: `${row.Trator} ${row.Horas}`, total: itens.length, pecas: itens.map((i: any) => ({ codigo: i.codigo, descricao: i.descricao, qtd: i.quantidade, preco: i.preco })) };
+    }
+    if (name === "buscar_plano_revisao") {
+      const termo = String(args.termo || "").trim();
+      const r = await fetch(`${origin}/api/pos/buscas/revisoes?termo=${encodeURIComponent(termo)}`);
+      const d: any[] = r.ok ? await r.json() : [];
+      if (!d.length) return { encontrado: false, mensagem: `Não achei plano de revisão pra "${termo}". Tenta só o número de horas (ex.: 600).` };
+      return { encontrado: true, total: d.length, planos: d.slice(0, 8).map((p) => ({ id: p.id, plano: p.descricao })) };
     }
     if (name === "buscar_pecas") {
       const q = ((args.consulta || "") + (args.modelo ? " " + args.modelo : "")).trim();
@@ -400,17 +488,167 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
       }
       if (!cliente) return { precisa: "cliente", mensagem: `Não achei o cliente "${args.cliente}". Confirma o nome exato ou o CNPJ?` };
       if (!args.servico) return { precisa: "servico", mensagem: "Qual o serviço solicitado dessa OS?" };
-      const dados = {
+
+      const normT = (s: any) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
+
+      // TÉCNICO: casa com a lista real de técnicos do POS (mesmo dropdown do POS/PPV)
+      let tecnicoMatch = "";
+      if (args.tecnico) {
+        try {
+          const rt = await fetch(`${origin}/api/pos/tecnicos`);
+          const tecs: string[] = rt.ok ? await rt.json() : [];
+          const q = normT(args.tecnico);
+          tecnicoMatch = tecs.find((t) => normT(t) === q)
+            || tecs.find((t) => normT(t).includes(q))
+            || tecs.find((t) => q.split(/\s+/).some((p) => p.length >= 3 && normT(t).includes(p)))
+            || "";
+        } catch {}
+        if (!tecnicoMatch) tecnicoMatch = String(args.tecnico); // fallback: usa o nome dito
+      }
+
+      // PROJETO/EQUIPAMENTO: casa com um projeto existente (pelo final do chassi, modelo ou número)
+      let projetoNome = "", modeloProj = "", chassisProj = "";
+      if (args.projeto) {
+        try {
+          const rp = await fetch(`${origin}/api/pos/buscas/projetos?termo=${encodeURIComponent(String(args.projeto))}`);
+          const projs: any[] = rp.ok ? await rp.json() : [];
+          if (projs[0]) {
+            projetoNome = projs[0].nome || "";
+            const partes = projetoNome.trim().split(/\s+/);
+            modeloProj = partes[0] || "";
+            chassisProj = partes.slice(1).join(" ") || "";
+          }
+        } catch {}
+        if (!projetoNome) return { precisa: "projeto", mensagem: `Não achei um projeto/equipamento com "${args.projeto}". Confirma o final do chassi ou o modelo?` };
+      }
+
+      // Resolve peças (código/descrição/preço). Se houver, a OS gera um PPV vinculado.
+      const SB = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+      const SK = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+      const pecas: any[] = [];
+      for (const it of (args.pecas || [])) {
+        let codigo = String(it.codigo || "").trim();
+        let descricao = it.descricao || "";
+        if (!codigo && descricao) {
+          const rs = await fetch(`${origin}/api/catalogo?acao=busca&q=${encodeURIComponent(descricao)}`);
+          const ds = rs.ok ? await rs.json() : [];
+          if (ds[0]) { codigo = ds[0].code; descricao = ds[0].name; }
+        }
+        if (!codigo) continue;
+        let preco = 0;
+        try {
+          const rp = await fetch(`${SB}/rest/v1/Produtos_Completos?Codigo_Produto=eq.${encodeURIComponent(codigo)}&select=Descricao_Produto,Preco_Venda&limit=1`, { headers: { apikey: SK, authorization: `Bearer ${SK}` } });
+          const pp = rp.ok ? await rp.json() : [];
+          if (pp[0]) { preco = parseFloat(String(pp[0].Preco_Venda || 0)) || 0; if (pp[0].Descricao_Produto) descricao = pp[0].Descricao_Produto; }
+        } catch {}
+        pecas.push({ codigo, descricao: descricao || codigo, quantidade: Number(it.quantidade) || 1, preco });
+      }
+
+      let km = Number(args.km) || 0;
+      // LOCALIZAÇÃO: link do Maps / coords / endereço → calcula km de IDA E VOLTA (oficina → local → oficina)
+      let kmCalculado = false;
+      if (args.localizacao) {
+        try {
+          let coords = await coordsDoLink(String(args.localizacao));
+          if (!coords) coords = await geocodificar(String(args.localizacao) + ", Brasil");
+          if (coords) {
+            const rota = await rotaDaOficina(coords.lat, coords.lng);
+            if (rota) { km = Math.round(rota.distancia_km * 2 * 10) / 10; kmCalculado = true; }
+          }
+        } catch {}
+      }
+      const planoRevisao = String(args.revisao || "").trim();
+      const ehRevisao = !!planoRevisao;
+      const hrev = ehRevisao ? parseInt((planoRevisao.match(/(\d{2,4})\s*horas?/i) || [])[1] || "0", 10) : 0;
+      const trator = String(args.trator || "").trim();
+
+      // REVISÃO: importa o KIT DE PEÇAS automaticamente pelo trator + horas (mesma lógica do kit_revisao)
+      if (ehRevisao && trator && hrev) {
+        try {
+          const rc = await fetch(`${SB}/rest/v1/revisoes?select=Trator,Cod_Trator,Horas`, { headers: { apikey: SK, authorization: `Bearer ${SK}` } });
+          const rows: any[] = rc.ok ? await rc.json() : [];
+          const digitsOf = (s: any): string[] => (String(s || "").toUpperCase().match(/\d{3,}/g) || []);
+          const userDig = digitsOf(trator);
+          const alvoH = `${hrev}H`;
+          const row = rows.find((r) => {
+            const h = String(r.Horas || "").toUpperCase().replace(/\s/g, "");
+            const tDig = digitsOf(r.Trator).concat(digitsOf(r.Cod_Trator));
+            return h === alvoH && tDig.some((d: string) => userDig.includes(d));
+          });
+          if (row) {
+            const rk = await fetch(`${origin}/api/ppv/revisoes?trator=${encodeURIComponent(row.Trator)}&horas=${encodeURIComponent(row.Horas)}`);
+            const kit: any[] = rk.ok ? await rk.json() : [];
+            for (const k of (Array.isArray(kit) ? kit : [])) {
+              const cod = String(k.codigo || "").trim();
+              if (!cod || pecas.some((p) => p.codigo === cod)) continue;
+              pecas.push({ codigo: cod, descricao: k.descricao || cod, quantidade: Number(k.quantidade) || 1, preco: Number(k.preco) || 0 });
+            }
+          }
+        } catch {}
+      }
+      // Revisão sem trator e sem peças → pede o trator pra importar o kit
+      if (ehRevisao && !trator && pecas.length === 0) {
+        return { precisa: "trator", mensagem: "Qual o modelo do trator? Preciso dele pra importar o kit de peças da revisão (ex.: 6075, 9500S, Jivo 2025)." };
+      }
+
+      // Regra da casa para HORAS de serviço por revisão (quando não vier horas explícitas):
+      //  - 50h e 900h  → 2h, MAS com desconto de 2h (cortesia de fábrica, não cobra mão de obra)
+      //  - 1200h e 2400h → 6h
+      //  - demais revisões → 3h
+      let horas = Number(args.horas) || 0;
+      let descontoHoraValor = 0;
+      let cortesia = false;
+      if (ehRevisao && !horas) {
+        if (hrev === 50 || hrev === 900) { horas = 2; cortesia = true; }
+        else if (hrev === 1200 || hrev === 2400) horas = 6;
+        else horas = 3;
+        if (cortesia) {
+          let valorHora = 0;
+          try {
+            const rc = await fetch(`${SB}/rest/v1/configuracoes_pos?id=eq.1&select=valor_hora`, { headers: { apikey: SK, authorization: `Bearer ${SK}` } });
+            const cc = rc.ok ? await rc.json() : [];
+            valorHora = parseFloat(String(cc[0]?.valor_hora || 0)) || 0;
+          } catch {}
+          descontoHoraValor = 2 * valorHora; // desconta as 2h
+        }
+      }
+
+      // Descrição no MODELO padrão do POS — não reescreve tudo: o serviço pedido entra após "Solicitação do cliente".
+      // Modelo/Chassis vêm do projeto (igual o POS faz ao escolher o equipamento); se não houver projeto, usa o trator.
+      const modeloDesc = modeloProj || trator || "";
+      const servicoSolicitado = `Modelo: ${modeloDesc}\nChassis: ${chassisProj}\nHorimetro: \n\nSolicitação do cliente: ${args.servico}\nServiço Realizado: `;
+
+      // Data/hora de execução = data e hora de CRIAÇÃO (só troca a data se o usuário informar)
+      const agoraOS = new Date();
+      const hojeISO = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(agoraOS); // AAAA-MM-DD
+      const horaNow = agoraOS.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" });
+      const dataExec = /^\d{4}-\d{2}-\d{2}$/.test(String(args.data || "")) ? String(args.data) : hojeISO;
+
+      const dados: any = {
         nomeCliente: cliente.nome, cpfCliente: cliente.documento || "", enderecoCliente: cliente.endereco || "", cidadeCliente: cliente.cidade || "",
-        tecnicoResponsavel: args.tecnico || "", tipoServico: args.tipoServico || "Serviço", servicoSolicitado: args.servico,
+        tecnicoResponsavel: tecnicoMatch, tipoServico: args.tipoServico || (ehRevisao ? "Revisão" : "Serviço"), servicoSolicitado,
+        projeto: projetoNome, revisao: planoRevisao, qtdHoras: horas, qtdKm: km, descontoHora: descontoHoraValor, gerarPPV: pecas.length > 0,
+        previsaoExecucao: dataExec, horaInicioExec: horaNow,
       };
-      const resumo = [
+      const totalPecas = pecas.reduce((s, p) => s + p.quantidade * p.preco, 0);
+      const resumo: any[] = [
         { label: "Cliente", valor: cliente.nome },
-        { label: "Técnico", valor: args.tecnico || "(a definir)" },
+        { label: "Técnico", valor: tecnicoMatch || "(a definir)" },
         { label: "Tipo", valor: dados.tipoServico },
         { label: "Serviço", valor: args.servico },
       ];
-      return { proposta: { tipo: "os", titulo: `OS para ${cliente.nome}`, resumo, dados } };
+      if (projetoNome) resumo.push({ label: "Projeto", valor: projetoNome });
+      if (ehRevisao) resumo.push({ label: "Plano revisão", valor: planoRevisao });
+      if (trator) resumo.push({ label: "Trator", valor: trator });
+      if (horas) resumo.push({ label: "Mão de obra", valor: `${horas}h${cortesia ? " (cortesia de fábrica — não cobra)" : ""}` });
+      if (descontoHoraValor) resumo.push({ label: "Desconto", valor: `-R$ ${descontoHoraValor.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (2h cortesia)` });
+      if (km) resumo.push({ label: "Deslocamento", valor: `${km} km${kmCalculado ? " (ida e volta, via Maps)" : ""}` });
+      resumo.push({ label: "Data execução", valor: `${dataExec.split("-").reverse().join("/")} ${horaNow}` });
+      if (pecas.length) {
+        resumo.push({ label: "Peças", valor: `${pecas.length} ${pecas.length === 1 ? "item" : "itens"} — R$ ${totalPecas.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` });
+        resumo.push({ label: "PPV", valor: "será gerado vinculado à OS" });
+      }
+      return { proposta: { tipo: "os", titulo: `OS para ${cliente.nome}`, resumo, dados, pecas } };
     }
     if (name === "propor_requisicao") {
       if (!args.titulo) return { precisa: "titulo", mensagem: "Qual o título/descrição da requisição?" };
@@ -474,19 +712,49 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
         else cliente = String(args.cliente).toUpperCase();
       }
 
-      // Tipos que dependem de campos que o chat não coleta — manda preencher no formulário pra não inserir quebrado
-      const EXTRA: Record<string, string> = {
-        "Ferramenta": "a destinação da ferramenta (uso pessoal ou geral)",
-        "Veicular Abastecimento": "o veículo/placa e os litros",
-        "Veicular Manutenção": "o veículo/placa",
-        "Trator Abastecimento": "os litros de combustível",
-        "Quadri Abastecimento": "os litros de combustível",
-      };
-      if (tipo && EXTRA[tipo]) {
-        return { precisa: "campos_extra", mensagem: `Requisição do tipo "${tipo}" precisa de ${EXTRA[tipo]}, que é melhor preencher direto no formulário de Requisições (menu Requisições > Nova). Quer que eu monte os outros campos pra você só completar lá?` };
+      // Ferramenta: destinação (Uso Pessoal / Geral)
+      let quemFerramenta = "";
+      if (tipo === "Ferramenta") {
+        const qf = norm(args.quem_ferramenta);
+        if (qf.includes("pessoal")) quemFerramenta = "Uso Pessoal";
+        else if (qf.includes("geral")) quemFerramenta = "Geral";
       }
 
-      // GATE de campos obrigatórios — PERGUNTA tudo que falta ANTES de criar, mostrando as opções REAIS dos dropdowns
+      // Abastecimento: litros de combustível; hodômetro (opcional)
+      const ehAbastecimento = ["Trator Abastecimento", "Quadri Abastecimento", "Veicular Abastecimento"].includes(tipo);
+      const litros = (args.litros != null && String(args.litros).trim() !== "") ? String(args.litros).trim() : "";
+      const hodometro = String(args.hodometro || "").trim();
+
+      // Veicular: casa a placa na lista (SupaPlacas)
+      const ehVeicular = ["Veicular Abastecimento", "Veicular Manutenção"].includes(tipo);
+      let veiculoId = "", veiculoPlaca = "", placasLista: string[] = [];
+      if (ehVeicular) {
+        const vs: any[] = await fetch(`${SB}/rest/v1/SupaPlacas?select=IdPlaca,NumPlaca&order=NumPlaca`, { headers: H }).then((r) => (r.ok ? r.json() : [])).catch(() => []);
+        placasLista = vs.map((v) => v.NumPlaca);
+        if (args.veiculo) {
+          const q = norm(args.veiculo).replace(/[^a-z0-9]/g, "");
+          const v = vs.find((x) => norm(x.NumPlaca).replace(/[^a-z0-9]/g, "") === q) || vs.find((x) => norm(x.NumPlaca).replace(/[^a-z0-9]/g, "").includes(q));
+          if (v) { veiculoId = String(v.IdPlaca); veiculoPlaca = v.NumPlaca; }
+        }
+      }
+
+      // Projeto/Chassis direto (casa com projeto existente; se não achar, vira texto livre do chassi/modelo)
+      let projeto_codigo = "", projeto_nome = "";
+      if (args.projeto) {
+        const q = String(args.projeto).replace(/[%,()*]/g, " ").trim();
+        const pr: any[] = await fetch(`${SB}/rest/v1/portal_nt_projetos_PRINCIPAL?select=codigo,nome&nome=ilike.*${encodeURIComponent(q)}*&limit=1`, { headers: H }).then((r) => (r.ok ? r.json() : [])).catch(() => []);
+        if (pr[0]) { projeto_codigo = String(pr[0].codigo); projeto_nome = pr[0].nome; if (!Chassis_Modelo) Chassis_Modelo = pr[0].nome; }
+        else if (!Chassis_Modelo) Chassis_Modelo = String(args.projeto).toUpperCase();
+      }
+
+      // Valor cobrado do cliente = custo real + 20% (× 1,20). Se vier o valor final direto, usa ele.
+      const custoReal = (args.custo != null && String(args.custo).trim() !== "") ? parseFloat(String(args.custo).replace(",", ".").replace(/[^\d.]/g, "")) : NaN;
+      const temCusto = !isNaN(custoReal) && custoReal > 0;
+      let valorCliente = "";
+      if (temCusto) valorCliente = (Math.round(custoReal * 1.2 * 100) / 100).toFixed(2);
+      else if (args.valor_cliente != null && String(args.valor_cliente).trim() !== "") valorCliente = String(args.valor_cliente).trim();
+
+      // GATE de campos obrigatórios — PERGUNTA tudo que falta ANTES de criar, mostrando as opções REAIS
       const motivo = String(args.obs || "").trim();
       const faltam: string[] = [];
       if (!tipo) faltam.push(`o **tipo** — escolha uma destas opções: ${TIPOS_REQ.join(", ")}`);
@@ -496,7 +764,18 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
         faltam.push(`quem é o **solicitante** — tem que ser um destes: ${us.map((u) => u.nome).join(", ")}`);
       }
       if (!motivo) faltam.push("o **motivo** (observações) — por que essa requisição é necessária");
-      if (setor === "Trator-Cliente" && !cliente) faltam.push("o **cliente** ou o número da **OS** (o setor Trator-Cliente exige o cliente)");
+      // Trator-Cliente: cliente, OS, projeto/chassi e custo (p/ calcular o valor cobrado = custo + 20%) são OBRIGATÓRIOS
+      if (setor === "Trator-Cliente") {
+        if (!cliente) faltam.push("o **cliente** (ou o número da **OS**, que já traz o cliente)");
+        if (!ordem_servico) faltam.push("a **ordem de serviço (OS)**");
+        if (!Chassis_Modelo && !projeto_codigo) faltam.push("o **projeto/chassi** do trator");
+        if (!temCusto) faltam.push("o **custo real** da peça (o valor cobrado do cliente = custo + 20%)");
+      }
+      // Trator-Loja: só o chassi e modelo
+      if (setor === "Trator-Loja" && !Chassis_Modelo) faltam.push("o **chassi e modelo** do trator");
+      if (tipo === "Ferramenta" && !quemFerramenta) faltam.push("a **destinação da ferramenta** — Uso Pessoal ou Geral");
+      if (ehAbastecimento && !litros) faltam.push("os **litros de combustível**");
+      if (ehVeicular && !veiculoId) faltam.push(`o **veículo/placa**${placasLista.length ? ` — opções: ${placasLista.join(", ")}` : ""}`);
       if (faltam.length) {
         return {
           precisa: "campos",
@@ -505,13 +784,19 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
         };
       }
 
-      const obs = args.cobrar_cliente ? `COBRAR DO CLIENTE — ${motivo}` : motivo;
+      const obs = (args.cobrar_cliente || valorCliente) ? `COBRAR DO CLIENTE — ${motivo}` : motivo;
 
       const dados: any = { titulo: String(args.titulo).toUpperCase(), tipo, setor, solicitante, data: hoje, status: "pedido", empresa: "NOVA TRATORES MÁQUINAS AGRÍCOLAS LTDA", endereco_empr: "AVENIDA SÃO SEBASTIÃO, 1065 | Piraju - SP" };
       if (ordem_servico) dados.ordem_servico = ordem_servico;
       if (cliente) dados.cliente = cliente;
       if (cliente_cnpj) dados.cliente_cnpj = cliente_cnpj;
       if (Chassis_Modelo) dados.Chassis_Modelo = Chassis_Modelo;
+      if (projeto_codigo) { dados.projeto_codigo = projeto_codigo; dados.projeto_nome = projeto_nome; }
+      if (quemFerramenta) dados.quem_ferramenta = quemFerramenta;
+      if (litros) dados.litros_combustivel = litros;
+      if (veiculoId) dados.veiculo = veiculoId;
+      if (hodometro) dados.hodometro = hodometro;
+      if (valorCliente) dados.valor_cobrado_cliente = valorCliente;
       if (obs) dados.obs = obs;
 
       const resumo = [
@@ -523,7 +808,14 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
       ];
       if (cliente) resumo.push({ label: "Cliente", valor: cliente });
       if (ordem_servico) resumo.push({ label: "OS", valor: ordem_servico });
-      if (Chassis_Modelo) resumo.push({ label: "Chassis", valor: Chassis_Modelo });
+      if (projeto_nome) resumo.push({ label: "Projeto", valor: projeto_nome });
+      if (Chassis_Modelo && !projeto_nome) resumo.push({ label: "Chassis", valor: Chassis_Modelo });
+      if (quemFerramenta) resumo.push({ label: "Destinação", valor: quemFerramenta });
+      if (veiculoPlaca) resumo.push({ label: "Veículo", valor: veiculoPlaca });
+      if (hodometro) resumo.push({ label: "Hodômetro", valor: hodometro });
+      if (litros) resumo.push({ label: "Litros", valor: litros });
+      if (temCusto) resumo.push({ label: "Custo real", valor: `R$ ${custoReal.toFixed(2)}` });
+      if (valorCliente) resumo.push({ label: "Valor cobrado", valor: `R$ ${valorCliente}${temCusto ? " (custo + 20%)" : ""}` });
       if (obs) resumo.push({ label: "Motivo", valor: obs });
       return { proposta: { tipo: "requisicao", titulo: dados.titulo, resumo, dados } };
     }
@@ -601,6 +893,64 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
       }
       return { erro: "ação inválida" };
     }
+    // ===== MEMÓRIA APRENDIDA =====
+    if (name === "ensinar" || name === "atualizar_memoria" || name === "esquecer_memoria" || name === "listar_memoria") {
+      const SB = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+      const SK = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+      const H = { apikey: SK, authorization: `Bearer ${SK}`, "Content-Type": "application/json" } as Record<string, string>;
+      const TBL = `${SB}/rest/v1/tratorilson_memoria`;
+      const semTabela = "A memória ainda não foi configurada no banco (falta rodar o SQL create-tratorilson-memoria.sql). Avise o TI.";
+
+      // Escritas são só para administradores
+      if (name !== "listar_memoria" && !isAdmin) {
+        return { sem_acesso: true, mensagem: "Só administradores podem ensinar/alterar a memória do Tratorilson. Diga isso ao usuário, com gentileza." };
+      }
+
+      const acharPorBusca = async (busca: string): Promise<any | null> => {
+        const q = String(busca || "").replace(/[%,()*]/g, " ").trim();
+        if (!q) return null;
+        const r = await fetch(`${TBL}?ativo=eq.true&conteudo=ilike.*${encodeURIComponent(q)}*&select=id,conteudo&limit=1`, { headers: H });
+        if (!r.ok) return null;
+        const d = await r.json().catch(() => []);
+        return d[0] || null;
+      };
+
+      if (name === "listar_memoria") {
+        const r = await fetch(`${TBL}?ativo=eq.true&select=id,conteudo&order=id.asc`, { headers: H });
+        if (!r.ok) return { erro: semTabela };
+        const d: any[] = await r.json().catch(() => []);
+        return { total: d.length, memoria: d.map((m) => ({ id: m.id, regra: m.conteudo })) };
+      }
+
+      if (name === "ensinar") {
+        const conteudo = String(args.conteudo || "").trim();
+        if (!conteudo) return { precisa: "conteudo", mensagem: "O que você quer que eu guarde na memória?" };
+        const r = await fetch(TBL, { method: "POST", headers: { ...H, Prefer: "return=representation" }, body: JSON.stringify({ conteudo, criado_por: ctx?.userName || "" }) });
+        if (!r.ok) return { erro: semTabela };
+        const d = await r.json().catch(() => []);
+        return { ok: true, id: d?.[0]?.id, mensagem: "Regra guardada na memória. Vou seguir isso a partir de agora." };
+      }
+
+      if (name === "atualizar_memoria") {
+        const conteudo = String(args.conteudo || "").trim();
+        if (!conteudo) return { precisa: "conteudo", mensagem: "Qual o novo conteúdo da regra?" };
+        let id = args.id;
+        if (!id && args.busca) { const m = await acharPorBusca(args.busca); if (m) id = m.id; }
+        if (!id) return { precisa: "id", mensagem: "Não achei qual regra alterar. Me diz o número (use listar_memoria) ou descreve melhor." };
+        const r = await fetch(`${TBL}?id=eq.${encodeURIComponent(String(id))}`, { method: "PATCH", headers: H, body: JSON.stringify({ conteudo, updated_at: new Date().toISOString() }) });
+        if (!r.ok) return { erro: semTabela };
+        return { ok: true, id, mensagem: "Regra atualizada na memória." };
+      }
+
+      if (name === "esquecer_memoria") {
+        let id = args.id;
+        if (!id && args.busca) { const m = await acharPorBusca(args.busca); if (m) id = m.id; }
+        if (!id) return { precisa: "id", mensagem: "Qual regra você quer que eu esqueça? Diz o número (listar_memoria) ou descreve." };
+        const r = await fetch(`${TBL}?id=eq.${encodeURIComponent(String(id))}`, { method: "PATCH", headers: H, body: JSON.stringify({ ativo: false, updated_at: new Date().toISOString() }) });
+        if (!r.ok) return { erro: semTabela };
+        return { ok: true, id, mensagem: "Esqueci essa regra (removida da memória)." };
+      }
+    }
   } catch (e: any) {
     return { erro: e?.message || "falha na ferramenta" };
   }
@@ -642,7 +992,7 @@ export async function POST(req: NextRequest) {
 
   // Contexto de permissões — Tratorilson só fala dos módulos que a pessoa tem acesso
   const pode = (mod: string) => isAdmin || modulos.includes(mod);
-  const ctx = { isAdmin, pode };
+  const ctx = { isAdmin, pode, userName };
   const modsAcesso = isAdmin
     ? "TODOS os módulos (é administrador)"
     : (modulos.length ? modulos.map((m) => MOD_LABELS[m] || m).join(", ") : "nenhum módulo específico");
@@ -661,19 +1011,34 @@ export async function POST(req: NextRequest) {
     "FORMATO DAS RESPOSTAS: seja claro, organizado e enxuto. Use **negrito** pra destacar (códigos, nomes, totais), listas com '- ' quando ajudar, e frases curtas. Comece com uma frase curta de contexto, não com uma parede de texto. " +
     "AO LISTAR PEÇAS: mostre no máximo 6 a 8 itens MAIS RELEVANTES, um por linha no formato '- `código` — Nome (preço, se houver)'. DESCARTE itens claramente fora do contexto (numa busca de 'motor', ignore coisas como 'motor do limpa-vidros', 'etiqueta', 'chicote'); foque na peça que a pessoa quer. Se vierem muitos resultados, diga quantos achou no total, mostre só os principais e PERGUNTE como filtrar (qual peça específica, ou qual sistema). Nunca despeje uma lista grande e crua. " +
     "No HISTÓRICO de cliente: separe por FAZENDA (cada CNPJ é uma fazenda) e mostre o endereço de cada uma; destaque o serviço mais recente; e SEMPRE apresente os links (PDF da OS, NF, PPV, requisição, pasta do cliente) como links clicáveis no formato markdown [texto](url).\n\n" +
-    "AO CRIAR REQUISIÇÃO: reúna TODOS os campos obrigatórios (título, tipo, setor, solicitante e motivo) ANTES de montar a proposta. Se a ferramenta avisar que falta algo, PERGUNTE ao usuário mostrando as OPÇÕES VÁLIDAS que ela retornou (os tipos, os setores e a lista de solicitantes) — esses campos são dropdowns, então escolha sempre um valor que JÁ EXISTE, nunca invente. Só monte a proposta de requisição quando tiver todos os obrigatórios. \n\n" +
+    "REVISÕES: existem PLANOS DE REVISÃO prontos (o escopo de cada revisão — 50h, 300h, 600h...). Se perguntarem o que tem/o que vai numa revisão de X horas, USE buscar_plano_revisao (escopo) e, se quiserem as peças com código/preço, kit_revisao. Ao ABRIR UMA OS DE REVISÃO: busque o plano com buscar_plano_revisao e chame propor_os passando 'revisao' (o plano), 'servico' e 'trator' (o modelo). O SISTEMA JÁ IMPORTA O KIT DE PEÇAS da revisão sozinho (pelo trator + horas) e gera o PPV vinculado — NÃO precisa montar 'pecas' à mão nem chamar kit_revisao pra isso. Se o usuário não disser o trator, pergunte (é obrigatório pra importar o kit). HORAS DE SERVIÇO da revisão (o sistema já preenche sozinho, não precisa informar): revisão de 50h e 900h = 2h mas com desconto de 2h (cortesia da fábrica, não cobra mão de obra); 1200h e 2400h = 6h; todas as outras = 3h.\n\n" +
+    "AO ABRIR OS (Ordem de Serviço): se o serviço envolve TROCA/USO DE PEÇAS, inclua as peças em 'pecas' no propor_os — isso já gera um PPV de peças VINCULADO à OS automaticamente. Se for só mão de obra/visita, abra a OS sem peças. Para um pedido só de peças (sem serviço), use propor_ppv (PPV avulso). TÉCNICO: passe só o primeiro nome (ex.: 'Danilo') — o sistema casa com o técnico real. PROJETO/EQUIPAMENTO: se o usuário citar (mesmo só o final do chassi), passe em 'projeto' — o sistema casa com o projeto existente e preenche modelo/chassis. DESCRIÇÃO: NUNCA reescreva o texto todo — passe em 'servico' APENAS o que o cliente pediu; o sistema encaixa no campo 'Solicitação do cliente' do modelo padrão. O que o usuário colocar ENTRE ASPAS é exatamente a solicitação de serviço (ex.: faça uma OS pro cliente X, técnico Danilo, \"troca da bucha do pivô\" → servico = \"troca da bucha do pivô\"). LOCALIZAÇÃO: se o usuário mandar um link de localização do Google Maps (ou um endereço), passe em 'localizacao' — o sistema calcula sozinho o km de IDA E VOLTA da oficina até o local e preenche o deslocamento. DATA: a data/hora de execução já fica a de hoje automaticamente — só passe 'data' (AAAA-MM-DD) se o usuário falar outra data. Depois de criar, aparece o botão 'Abrir / Imprimir' que já abre a OS pronta pra impressão.\n\n" +
+    "AO CRIAR REQUISIÇÃO: EXTRAIA da frase do usuário tudo que der e JÁ CHAME propor_requisicao — NÃO fique perguntando o que dá pra deduzir. A própria ferramenta avisa o que faltar. Como interpretar a frase: o que vão COMPRAR/precisa = título + tipo (peça de máquina → 'Peças'; consumível/material de oficina ou infra — tinta, spray, lixa, cola, material de limpeza, EPI, etc. → 'Insumo Infra'); 'para o FULANO' / 'o FULANO pediu' = solicitante; 'do cliente X' / 'do trator do X' = cliente (e setor 'Trator-Cliente'); 'trator NNNN' / chassi = projeto; 'porque/pois ...' = motivo (obs). Ex.: 'requisição pra comprar uma bomba hidráulica pro trator 6118 do José Adilson, que queimou, para o Gabriel' → titulo='Bomba hidráulica trator 6118', tipo='Peças', setor='Trator-Cliente', cliente='José Adilson', projeto='6118', solicitante='Gabriel', obs='a bomba hidráulica queimou'. Por SETOR: Trator-Cliente exige cliente, OS, projeto/chassi e o CUSTO REAL da peça (passe em 'custo' — o valor cobrado do cliente é calculado sozinho como custo + 20%); Trator-Loja exige o chassi e modelo (passe em 'projeto'); Oficina e Comercial são simples (só os campos base). Só PERGUNTE (mostrando as opções válidas que a ferramenta retornar) quando ela disser que falta algo obrigatório. Tipo/setor/solicitante são dropdowns — sempre um valor que JÁ EXISTE, nunca invente. \n\n" +
     "LIBERDADE: pode raciocinar e fazer suposições razoáveis a partir do contexto e dos dados das ferramentas — quando for suposição, deixe claro (ex.: 'provavelmente', 'imagino que'). Antes de dizer que não sabe algo do portal, TENTE usar uma ferramenta para descobrir. Mas dados concretos (números, códigos, preços, nomes, quantidades) só com base nas ferramentas/dados reais; nunca invente.\n\n" +
     `CONTROLE DE ACESSO: o usuário atual é "${userName || "sem nome"}" e tem acesso aos módulos: ${modsAcesso}. Você só pode ajudar e falar sobre os módulos a que ele tem acesso. Se ele perguntar sobre um módulo que NÃO está nessa lista, diga educadamente que ele não tem acesso a esse módulo e que fale com um administrador — não dê a informação nem ensine a usar. ` +
     (isAdmin
       ? "Ele é ADMINISTRADOR: pode ver dados administrativos, incluindo quantidade, lista e histórico de usuários do portal."
       : "Ele NÃO é administrador: NÃO forneça dados administrativos (lista de usuários, permissões, histórico de outros usuários) — diga que isso é só para administradores.");
 
+  // Memória aprendida — instrução fixa + as regras que a equipe ensinou (injetadas no prompt)
+  const memInstr = "\n\nMEMÓRIA: você pode ser ENSINADO. Quando um ADMIN te ensinar uma regra/fato pra lembrar sempre ('lembre que...', 'de agora em diante...', 'a regra é...'), use a ferramenta 'ensinar' pra guardar (e confirme). Pra ver o que já sabe use 'listar_memoria'; pra mudar uma regra, 'atualizar_memoria'; pra remover, 'esquecer_memoria'. SIGA sempre as regras da memória abaixo.";
+  let memTexto = "";
+  try {
+    const SBm = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+    const SKm = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+    const rm = await fetch(`${SBm}/rest/v1/tratorilson_memoria?ativo=eq.true&select=id,conteudo&order=id.asc`, { headers: { apikey: SKm, authorization: `Bearer ${SKm}` } });
+    if (rm.ok) {
+      const ms: any[] = await rm.json().catch(() => []);
+      if (ms.length) memTexto = "\n\nREGRAS APRENDIDAS (siga-as):\n" + ms.map((m) => `- [#${m.id}] ${m.conteudo}`).join("\n");
+    }
+  } catch {}
+
   const limpos = messages
     .filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim())
     .slice(-8)
     .map((m) => ({ role: m.role, content: String(m.content).slice(0, 1500) }));
 
-  const convo: any[] = [{ role: "system", content: sys }, ...limpos];
+  const convo: any[] = [{ role: "system", content: sys + memInstr + memTexto }, ...limpos];
 
   try {
     for (let step = 0; step < 3; step++) {

@@ -4,8 +4,9 @@ import { TBL_OS, TBL_ITENS, TBL_REQ_SOL, TBL_REQ_ATT, TBL_PEDIDOS } from "@/lib/
 import { getConfigPOS } from "@/lib/pos/config";
 import { formatarDataBR, safeGet } from "@/lib/pos/utils";
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: idOs } = await params;
+  const autoPrint = req.nextUrl.searchParams.get("auto") === "1";
 
   const { data: res } = await supabase.from(TBL_OS).select("*").eq("Id_Ordem", idOs).limit(1);
   if (!res || !res.length) {
@@ -342,7 +343,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
 </body></html>`;
 
-  return new NextResponse(html, {
+  // ?auto=1 → abre a janela de impressão automaticamente ao carregar (usado pelo Tratorilson)
+  const finalHtml = autoPrint
+    ? html.replace("</body></html>", "<script>window.onload=function(){setTimeout(function(){window.print()},350)}</script></body></html>")
+    : html;
+
+  return new NextResponse(finalHtml, {
     headers: { "Content-Type": "text/html; charset=utf-8" },
   });
 }

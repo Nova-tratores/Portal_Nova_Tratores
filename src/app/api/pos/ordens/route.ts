@@ -285,7 +285,7 @@ async function buscarProdutosPorPPV(idPPVInput: string) {
     .filter((p) => p.qtde !== 0);
 }
 
-async function calcularTotais(dados: { qtdHoras: number; qtdKm: number; ppv: string; descontoValor: number }) {
+async function calcularTotais(dados: { qtdHoras: number; qtdKm: number; ppv: string; descontoValor: number; descontoHora?: number; descontoKm?: number }) {
   const config = await getConfigPOS();
   const produtos = await buscarProdutosPorPPV(dados.ppv);
   let vPecas = 0;
@@ -301,7 +301,8 @@ async function calcularTotais(dados: { qtdHoras: number; qtdKm: number; ppv: str
     }
   }
   const subtotal = vHoras + vKm + vPecas + vReq;
-  const desc = dados.descontoValor || 0;
+  // Desconto = geral + desconto de hora + desconto de km (todos em R$)
+  const desc = (dados.descontoValor || 0) + (dados.descontoHora || 0) + (dados.descontoKm || 0);
   return { total: subtotal - desc, subtotal, vHoras, vKm, vPecas, vReq, vHorasRaw: vHoras, vKmRaw: vKm, vPecasRaw: vPecas };
 }
 
@@ -385,7 +386,7 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const c = await calcularTotais({ qtdHoras: parseFloat(dados.qtdHoras || 0), qtdKm: parseFloat(dados.qtdKm || 0), ppv: ppvFinal, descontoValor: parseFloat(dados.descontoValor || 0) });
+  const c = await calcularTotais({ qtdHoras: parseFloat(dados.qtdHoras || 0), qtdKm: parseFloat(dados.qtdKm || 0), ppv: ppvFinal, descontoValor: parseFloat(dados.descontoValor || 0), descontoHora: parseFloat(dados.descontoHora || 0), descontoKm: parseFloat(dados.descontoKm || 0) });
   const configPost = await getConfigPOS();
 
   const baseInsert: Record<string, unknown> = {

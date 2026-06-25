@@ -170,6 +170,16 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const { permissoes, isAdmin, temAcesso, loading: loadingPerm } = usePermissoes(userProfile?.id)
   const chatData = useChat(userProfile?.id)
   const notifData = useNotificacoes(userProfile?.id)
+
+  // Onde o Tratorilson aparece: 'flutuante' (ícone móvel) ou 'chat' (conversa fixa no painel de Mensagens)
+  const [tratorilsonLocal, setTratorilsonLocal] = useState<'flutuante' | 'chat'>('flutuante')
+  useEffect(() => {
+    try { const v = localStorage.getItem('tratorilson_local'); if (v === 'chat' || v === 'flutuante') setTratorilsonLocal(v) } catch {}
+  }, [])
+  const mudarTratorilsonLocal = useCallback((v: 'flutuante' | 'chat') => {
+    setTratorilsonLocal(v)
+    try { localStorage.setItem('tratorilson_local', v) } catch {}
+  }, [])
   const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
@@ -1037,8 +1047,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         {children}
       </main>
 
-      {/* Assistente Tratorilson (flutuante, global) — só aparece pra quem tem acesso */}
-      {temAcesso('tratorilson') && (
+      {/* Assistente Tratorilson (flutuante, global) — só no modo flutuante e pra quem tem acesso */}
+      {temAcesso('tratorilson') && tratorilsonLocal === 'flutuante' && (
         <TratorinoChat
           userName={userProfile?.nome || ''}
           userId={userProfile?.id || ''}
@@ -1055,6 +1065,10 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         userId={userProfile?.id}
         userProfile={userProfile}
         isAdmin={isAdmin}
+        modulos={permissoes?.modulos_permitidos || []}
+        tratorilsonHabilitado={temAcesso('tratorilson')}
+        tratorilsonLocal={tratorilsonLocal}
+        onChangeTratorilsonLocal={mudarTratorilsonLocal}
       />
 
       {userProfile?.id && (

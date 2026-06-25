@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, tipo: proposta.tipo, id: j.id, numero: j.numero || j.id, abrirUrl });
     }
 
-    // OS (POS)
+    // OS (POS) — com PPV vinculado quando há peças
     if (proposta.tipo === "os") {
       const r = await fetch(`${origin}/api/pos/ordens`, {
         method: "POST",
@@ -43,7 +43,24 @@ export async function POST(req: NextRequest) {
       const j = await r.json();
       if (!j?.success) return NextResponse.json({ error: j?.erro || "Erro ao criar OS." }, { status: 500 });
       const id = j.novaOsId;
-      return NextResponse.json({ ok: true, tipo: "os", id, numero: id, abrirUrl: `/pos?id=${encodeURIComponent(id)}` });
+
+      // Se gerou o PPV vinculado, lança as peças como movimentações nele
+      const pecas = Array.isArray(proposta.pecas) ? proposta.pecas : [];
+      if (j.ppvGerado && pecas.length) {
+        for (const it of pecas) {
+          if (!it.descricao && !it.codigo) continue;
+          await fetch(`${origin}/api/ppv/movimentacoes`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              id: j.ppvGerado, codigo: it.codigo || "", descricao: it.descricao,
+              quantidade: it.quantidade || 1, preco: it.preco || 0,
+              tipoMovimento: "Saída", tecnico: proposta.dados?.tecnicoResponsavel || quem, userName: quem,
+            }),
+          });
+        }
+      }
+      return NextResponse.json({ ok: true, tipo: "os", id, numero: id, abrirUrl: `/api/pos/ordens/${encodeURIComponent(id)}/print?auto=1`, ppv: j.ppvGerado || undefined });
     }
 
     // Requisição

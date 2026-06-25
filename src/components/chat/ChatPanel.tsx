@@ -4,8 +4,11 @@ import { UseChatReturn, Chat, Mensagem } from '@/hooks/useChat'
 import {
   X, Search, Plus, Send, Paperclip, Mic, Square,
   ArrowLeft, Image as ImageIcon, FileText, Play, Pause,
-  CheckCheck, Check, Users, User as UserIcon, MessageCircle
+  CheckCheck, Check, Users, User as UserIcon, MessageCircle, Settings
 } from 'lucide-react'
+import TratorilsonRoom from './TratorilsonRoom'
+
+const MASCOTE_IMG = (process.env.NEXT_PUBLIC_SUPABASE_URL || '') + '/storage/v1/object/public/catalogo/mascote2-removebg-preview.png'
 
 // ==================== TYPES ====================
 
@@ -16,6 +19,10 @@ interface ChatPanelProps {
   userId: string | undefined
   userProfile: { id: string; nome: string; avatar_url: string; funcao: string } | null
   isAdmin: boolean
+  modulos?: string[]
+  tratorilsonHabilitado?: boolean
+  tratorilsonLocal?: 'flutuante' | 'chat'
+  onChangeTratorilsonLocal?: (v: 'flutuante' | 'chat') => void
 }
 
 // ==================== HELPERS ====================
@@ -67,7 +74,9 @@ const getLastMsgPreview = (msg: Mensagem | null) => {
 
 // ==================== MAIN COMPONENT ====================
 
-export default function ChatPanel({ open, onClose, chat, userId, userProfile, isAdmin }: ChatPanelProps) {
+export default function ChatPanel({ open, onClose, chat, userId, userProfile, isAdmin, modulos = [], tratorilsonHabilitado = false, tratorilsonLocal = 'flutuante', onChangeTratorilsonLocal }: ChatPanelProps) {
+  const [tratorilsonAtivo, setTratorilsonAtivo] = useState(false)
+  const [modoMenu, setModoMenu] = useState(false)
   const [search, setSearch] = useState('')
   const [msgText, setMsgText] = useState('')
   const [novoChat, setNovoChat] = useState(false)
@@ -107,8 +116,13 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
 
   // Reset mobile view when chat changes
   useEffect(() => {
-    if (chat.chatAtivo) setMobileView('room')
+    if (chat.chatAtivo) { setMobileView('room'); setTratorilsonAtivo(false) }
   }, [chat.chatAtivo])
+
+  // Se trocar pro modo flutuante, fecha a conversa do Tratorilson aberta no painel
+  useEffect(() => {
+    if (tratorilsonLocal !== 'chat') setTratorilsonAtivo(false)
+  }, [tratorilsonLocal])
 
   // ==================== CHAT HELPERS ====================
 
@@ -293,6 +307,42 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
         }}>
           <MessageCircle size={22} />
           <h2 style={{ fontSize: '17px', fontWeight: '700', flex: 1 }}>Mensagens</h2>
+          {tratorilsonHabilitado && (
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={() => setModoMenu(v => !v)}
+                title="Tratorilson"
+                style={{
+                  background: modoMenu ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.2)', border: 'none', color: '#fff',
+                  width: '34px', height: '34px', borderRadius: '10px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'
+                }}
+              >
+                <Settings size={18} />
+              </button>
+              {modoMenu && (
+                <>
+                  <div onClick={() => setModoMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 1 }} />
+                  <div style={{ position: 'absolute', top: 42, right: 0, background: 'var(--portal-bg-card)', borderRadius: 12, boxShadow: '0 12px 34px rgba(0,0,0,0.28)', overflow: 'hidden', zIndex: 2, minWidth: 224 }}>
+                    <div style={{ padding: '11px 14px 8px', fontSize: 10.5, fontWeight: 800, letterSpacing: 0.6, color: 'var(--portal-text-muted)' }}>EXIBIR O TRATORILSON COMO</div>
+                    {([
+                      { k: 'chat', ic: 'fa-comment-dots', label: 'Conversa fixa no chat' },
+                      { k: 'flutuante', ic: 'fa-robot', label: 'Ícone flutuante' },
+                    ] as const).map(o => (
+                      <button
+                        key={o.k}
+                        onClick={() => { onChangeTratorilsonLocal?.(o.k); setModoMenu(false); if (o.k === 'flutuante') setTratorilsonAtivo(false) }}
+                        style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', padding: '12px 14px', border: 'none', borderTop: '1px solid var(--portal-border)', background: tratorilsonLocal === o.k ? '#fef2f2' : 'transparent', color: tratorilsonLocal === o.k ? '#b91c1c' : 'var(--portal-text)', fontWeight: tratorilsonLocal === o.k ? 800 : 600, fontSize: 13, cursor: 'pointer', textAlign: 'left' }}
+                      >
+                        <i className={`fas ${o.ic}`} style={{ width: 16, textAlign: 'center', color: tratorilsonLocal === o.k ? '#dc2626' : '#94a3b8' }} /> {o.label}
+                        {tratorilsonLocal === o.k && <Check size={15} style={{ marginLeft: 'auto', color: '#dc2626' }} />}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
           <button
             onClick={() => { setNovoChat(true); setNovoChatTipo('individual'); setSelectedUsers([]) }}
             style={{
@@ -327,8 +377,8 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
 
           {/* ===== LEFT: CHAT LIST ===== */}
           <div style={{
-            width: chat.chatAtivo ? '340px' : '100%',
-            borderRight: chat.chatAtivo ? `1px solid var(--portal-border)` : 'none',
+            width: (chat.chatAtivo || tratorilsonAtivo) ? '340px' : '100%',
+            borderRight: (chat.chatAtivo || tratorilsonAtivo) ? `1px solid var(--portal-border)` : 'none',
             display: 'flex', flexDirection: 'column',
             background: 'var(--portal-bg-card)', flexShrink: 0,
             ...(mobileView === 'room' ? { display: 'none' } : {})
@@ -358,6 +408,31 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
 
             {/* Chat items */}
             <div style={{ flex: 1, overflowY: 'auto' }}>
+              {/* Tratorilson fixo no topo (quando no modo "conversa no chat") */}
+              {tratorilsonHabilitado && tratorilsonLocal === 'chat' && (
+                <div
+                  onClick={() => { setTratorilsonAtivo(true); chat.setChatAtivo(null); setMobileView('room') }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', cursor: 'pointer',
+                    background: tratorilsonAtivo ? '#fef2f2' : 'transparent',
+                    borderLeft: tratorilsonAtivo ? '3px solid #dc2626' : '3px solid transparent',
+                    borderBottom: '1px solid var(--portal-border)', transition: 'all 0.15s'
+                  }}
+                  onMouseEnter={e => { if (!tratorilsonAtivo) e.currentTarget.style.background = 'var(--portal-bg-secondary)' }}
+                  onMouseLeave={e => { if (!tratorilsonAtivo) e.currentTarget.style.background = 'transparent' }}
+                >
+                  <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'linear-gradient(135deg, #ef4444, #b91c1c)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+                    <img src={MASCOTE_IMG} alt="Tratorilson" style={{ width: '100%', height: '100%', objectFit: 'contain' }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: '3px' }}>
+                      <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--portal-text)' }}>Tratorilson</span>
+                      <span style={{ fontSize: 9.5, fontWeight: 800, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', padding: '1px 6px', borderRadius: 6 }}>IA</span>
+                    </div>
+                    <span style={{ fontSize: '12px', color: 'var(--portal-text-muted)' }}>Assistente · sempre disponível</span>
+                  </div>
+                </div>
+              )}
               {chat.loading ? (
                 <div style={{ padding: '40px', textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: '13px' }}>
                   Carregando conversas...
@@ -461,7 +536,15 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
           </div>
 
           {/* ===== RIGHT: CHAT ROOM ===== */}
-          {chat.chatAtivo && chatAtual ? (
+          {tratorilsonAtivo ? (
+            <TratorilsonRoom
+              userName={userProfile?.nome || ''}
+              userId={userId || ''}
+              isAdmin={isAdmin}
+              modulos={modulos}
+              onBack={() => { setTratorilsonAtivo(false); setMobileView('list') }}
+            />
+          ) : chat.chatAtivo && chatAtual ? (
             <div style={{
               flex: 1, display: 'flex', flexDirection: 'column',
               background: '#f5f5f0',
@@ -1103,7 +1186,7 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
         @media (min-width: 769px) {
           .chat-back-btn { display: none !important; }
           .chat-sidebar {
-            ${chat.chatAtivo ? 'display: flex !important;' : ''}
+            ${(chat.chatAtivo || tratorilsonAtivo) ? 'display: flex !important;' : ''}
           }
           .chat-room { display: flex !important; }
         }
