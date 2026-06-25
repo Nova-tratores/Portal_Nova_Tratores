@@ -20,7 +20,7 @@ interface ItemOrc {
 //  - Peças (itens) viram movimentações de Saída no PPV vinculado à OS
 //    (cria um PPV novo se a OS ainda não tiver).
 //  - Recalcula o Valor_Total da OS (mesma fórmula do PATCH da OS).
-//  - Marca o orçamento como concluído e vinculado à OS.
+//  - Marca o orçamento como aprovado e vinculado à OS.
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
@@ -134,10 +134,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .update({ Qtd_HR: horas, Qtd_KM: km, Serv_Solicitado: servSolic, Valor_Total: total })
     .eq("Id_Ordem", osId);
 
-  // 7) Marca o orçamento como concluído e vinculado
+  // 7) Marca o orçamento como aprovado (virou serviço) e vinculado à OS
   await supabase
     .from("orcamentos")
-    .update({ status: "concluido", ordem_servico: osId, updated_at: new Date().toISOString() })
+    .update({ status: "aprovado", ordem_servico: osId, updated_at: new Date().toISOString() })
     .eq("id", id);
 
   return NextResponse.json({

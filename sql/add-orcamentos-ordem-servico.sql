@@ -3,7 +3,7 @@
 -- Permite anexar um orçamento (módulo Orçamentos) a uma OS no POS, exibir o
 -- conteúdo do orçamento na OS e importar peças/horas/km/observação.
 -- Uma OS pode ter vários orçamentos (cada orçamento aponta para uma OS).
--- O status do orçamento é texto livre; a importação usa o valor 'concluido'.
+-- O status do orçamento é texto livre; ao importar/aprovar pela OS vira 'aprovado'.
 -- =============================================================================
 
 ALTER TABLE orcamentos

@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
 
 // POST /api/orcamentos/[id]/concluir
-// Marca o orçamento como concluído (status='concluido').
+// Marca o orçamento como aprovado (status='aprovado') — status reconhecido pelo
+// módulo de Orçamentos (aparece como "Aprovado" na lista).
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { error } = await supabase
     .from("orcamentos")
-    .update({ status: "concluido", updated_at: new Date().toISOString() })
+    .update({ status: "aprovado", updated_at: new Date().toISOString() })
     .eq("id", id);
   if (error) {
     console.error("[orcamentos concluir]", error.message);

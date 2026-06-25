@@ -85,7 +85,7 @@ export default function OSorcamentosInfo({ osId, userName, onImported }: { osId:
   }
 
   async function importar(o: OrcamentoVinc) {
-    if (!confirm(`Importar o orçamento ${o.numero} para esta OS?\n\nHoras e KM vão SUBSTITUIR os valores da OS, as peças entram no PPV e o orçamento é marcado como concluído.`)) return;
+    if (!confirm(`Importar o orçamento ${o.numero} para esta OS?\n\nHoras e KM vão SUBSTITUIR os valores da OS, as peças entram no PPV e o orçamento é marcado como aprovado.`)) return;
     setBusy(`importar-${o.id}`);
     setAviso("");
     try {
@@ -118,7 +118,8 @@ export default function OSorcamentosInfo({ osId, userName, onImported }: { osId:
           const sb = statusBadge(o.status, o.expirado);
           const horas = o.mao_obra?.horas || 0;
           const km = o.deslocamento?.km || 0;
-          const concluido = o.status === "concluido";
+          // aprovado/rejeitado são terminais — não mostra o botão "Aprovar"
+          const finalizado = o.status === "aprovado" || o.status === "rejeitado";
           return (
             <div key={o.id} style={{ border: "1px solid var(--portal-border, #e5e7eb)", borderLeft: `4px solid ${sb.color}`, borderRadius: 10, padding: 12, display: "flex", flexDirection: "column", gap: 8, background: "var(--portal-bg-card, #fff)" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
@@ -169,15 +170,16 @@ export default function OSorcamentosInfo({ osId, userName, onImported }: { osId:
                   {busy === `importar-${o.id}` ? <Loader2 size={12} className="spin" /> : <Download size={12} />}
                   Importar p/ OS e PPV
                 </button>
-                {!concluido && (
+                {!finalizado && (
                   <button
                     type="button"
                     onClick={() => concluir(o.id)}
                     disabled={!!busy}
+                    title="Marca o orçamento como aprovado, sem importar"
                     style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 10px", borderRadius: 7, border: "1px solid var(--portal-border)", background: "var(--portal-bg-input)", color: "var(--portal-text-secondary)", fontSize: 11, fontWeight: 600, cursor: busy ? "default" : "pointer" }}
                   >
                     {busy === `concluir-${o.id}` ? <Loader2 size={12} className="spin" /> : <CheckCircle2 size={12} />}
-                    Concluir
+                    Aprovar
                   </button>
                 )}
                 <a href={`/orcamentos?id=${o.id}`} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#0ea5e9", fontWeight: 600 }}>
