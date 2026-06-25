@@ -1466,6 +1466,63 @@ async function calcularMargem(conta, meses, gran, desde) {
 }
 
 // =============================================================================
+// API: margens por familia CRUZADAS por mes (familia x YYYY-MM)
+// Diferente de calcularMargem (que mantem familia e mes como dimensoes
+// separadas), aqui cada familia carrega um por_mes { 'YYYY-MM': {receita, cmv} }
+// para que o front possa reagregar por mes/trimestre/ano e ratear despesas.
+// Receita = valor_total, CMV = cmc_unitario x quantidade. Base de competencia.
+// =============================================================================
+async function calcularMargensPorFamilia(conta, desde, ate) {
+  const contaSlug = conta === 'todas' ? null : String(conta).toLowerCase();
+
+  // Lista de (ano, mes) no intervalo desde..ate (ambos 'YYYY-MM').
+  const mesesList = [];
+  if (/^\d{4}-\d{2}$/.test(String(desde)) && /^\d{4}-\d{2}$/.test(String(ate))) {
+    const [ya, ma] = desde.split('-').map(Number);
+    const [yb, mb] = ate.split('-').map(Number);
+    let y = ya, m = ma;
+    while (y < yb || (y === yb && m <= mb)) {
+      mesesList.push({ ano: y, mes: m });
+      m++; if (m > 12) { m = 1; y++; }
+    }
+  }
+  if (!mesesList.length) return { meses: [], familias: [] };
+
+  const dataRaw = await selectPaginado(() => {
+    let q = supabase.from('vendas_itens')
+      .select('valor_total,quantidade,cmc_unitario,mes,ano,familia,conta_omie,numero_pedido');
+    const orFilter = mesesList.map(m => `and(ano.eq.${m.ano},mes.eq.${m.mes})`).join(',');
+    q = q.or(orFilter);
+    if (contaSlug) q = q.ilike('conta_omie', contaSlug);
+    return q;
+  });
+  const invalidos = await carregarPedidosInvalidos();
+  const data = dataRaw.filter(v => !pedidoEhInvalido(invalidos, v.conta_omie, v.numero_pedido));
+
+  const porFamilia = {};
+  const setMeses = new Set();
+  data.forEach(r => {
+    const fam = familiaNormalizada(r.familia);
+    if (fam === null) return;
+    const receita = Number(r.valor_total) || 0;
+    const cmv = (Number(r.cmc_unitario) || 0) * (Number(r.quantidade) || 0);
+    const k = r.ano + '-' + String(r.mes).padStart(2, '0');
+    setMeses.add(k);
+    if (!porFamilia[fam]) porFamilia[fam] = { familia: fam, por_mes: {}, totais: { receita: 0, cmv: 0 } };
+    const f = porFamilia[fam];
+    if (!f.por_mes[k]) f.por_mes[k] = { receita: 0, cmv: 0 };
+    f.por_mes[k].receita += receita;
+    f.por_mes[k].cmv += cmv;
+    f.totais.receita += receita;
+    f.totais.cmv += cmv;
+  });
+
+  const arrFamilias = Object.values(porFamilia).sort((a, b) => b.totais.receita - a.totais.receita);
+  const arrMeses = Array.from(setMeses).sort();
+  return { meses: arrMeses, familias: arrFamilias };
+}
+
+// =============================================================================
 // Enriquecimento de cmc_unitario historico em vendas_itens
 // =============================================================================
 // vendas_itens.cmc_unitario vem do projeto omie-consulta-estoque (popula via
@@ -1930,6 +1987,7 @@ module.exports = {
   mesesEntre,
   rotuloBucket,
   calcularMargem,
+  calcularMargensPorFamilia,
 
   // CMC historico
   CMC_HISTORICO_STATE,

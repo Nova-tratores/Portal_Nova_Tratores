@@ -22,7 +22,7 @@
 // e SemPermissao por consistencia com o padrao do portal.
 // =============================================================================
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
@@ -106,6 +106,15 @@ function somaPorMeses(porMes, chaves) {
   return s
 }
 
+// Soma um campo (ex.: 'receita'/'cmv') de um por_mes cujos valores sao objetos,
+// sobre um conjunto de chaves de mes. Usado na aba "Margens por Familia".
+function somaCampoPorMeses(porMes, chaves, campo) {
+  if (!porMes) return 0
+  let s = 0
+  ;(chaves || []).forEach((k) => { const c = porMes[k]; if (c) s += c[campo] || 0 })
+  return s
+}
+
 // Agrega as 5 linhas do DRE (em R$) para um conjunto de meses, a partir da
 // arvore consolidada. Reconcilia com o grafico/KPIs:
 //   ReceitaLiquida = LucroBruto + |CMV| ; Resultado = LucroBruto - |Despesas|.
@@ -183,6 +192,15 @@ export default function DrePage() {
   const [drePeriodoSel, setDrePeriodoSel] = useState(null)   // chave da unidade focada (cascata + resumo)
   const [dreComparar, setDreComparar] = useState('anterior') // 'anterior' | 'ano_anterior'
   const [margem12M, setMargem12M] = useState(false)          // Peca B: janela movel de 12 meses
+
+  // --- Abas da tela (Consolidado / Margens por Familia) ---------------------
+  const [aba, setAba] = useState('consolidado')              // 'consolidado' | 'familias'
+  const [dadosFam, setDadosFam] = useState(null)             // { meses, familias } da rota margens-familia
+  const [carregandoFam, setCarregandoFam] = useState(false)
+  const [erroFam, setErroFam] = useState('')
+  const [metricaFam, setMetricaFam] = useState('liquida')    // 'bruta' | 'liquida' (grafico)
+  const famChartRef = useRef(null)
+  const famChartInst = useRef(null)
 
   // Cache de denominadores (Receita Liquida Operacional) por escopo
   const [rl, setRl] = useState(null)
@@ -282,6 +300,63 @@ export default function DrePage() {
 
   // Unidades de periodo do painel de resultado (cascata + resumo)
   const dreUnidades = useCallback(() => unidadesDeMeses(dados?.meses, dreUnidade), [dados, dreUnidade])
+
+  // Carga lazy da aba "Margens por Familia": so busca quando a aba e aberta.
+  useEffect(() => {
+    if (aba !== 'familias' || !desde || !ate) return
+    setCarregandoFam(true); setErroFam('')
+    // conta=todas: o DRE desta tela e SEMPRE consolidado (NOVA+CASTRO), entao a
+    // receita por familia tem de cobrir as duas empresas para casar com as
+    // despesas consolidadas usadas no rateio da margem liquida.
+    fetch('/api/dre-financeiro/margens-familia?conta=todas&desde=' + desde + '&ate=' + ate)
+      .then((r) => r.json())
+      .then((d) => {
+        setCarregandoFam(false)
+        if (d.erro) { setErroFam(d.erro); setDadosFam(null); return }
+        setDadosFam(d)
+      })
+      .catch((e) => { setCarregandoFam(false); setErroFam(e.message); setDadosFam(null) })
+  }, [aba, desde, ate])
+
+  // Modelo da aba "Margens por Familia": cruza familia x unidade de periodo
+  // (mes/trimestre/ano via dreUnidade), com margem bruta (receita-CMV) e margem
+  // liquida (lucro bruto - despesas do periodo RATEADAS pela receita da familia).
+  const famModel = useMemo(() => {
+    if (!dadosFam || !dadosFam.familias || !dadosFam.familias.length) return null
+    const unidades = unidadesDeMeses(dadosFam.meses, dreUnidade)
+    const despPorMes = (dados && dados.consolidado && dados.consolidado['2. Despesas'] && dados.consolidado['2. Despesas'].por_mes) || {}
+    // Por coluna (unidade): receita total de todas as familias + despesas do periodo.
+    const colInfo = unidades.map((u) => ({
+      key: u.key, label: u.label, meses: u.meses,
+      receitaTotal: dadosFam.familias.reduce((s, f) => s + somaCampoPorMeses(f.por_mes, u.meses, 'receita'), 0),
+      despesas: Math.abs(somaPorMeses(despPorMes, u.meses)),
+    }))
+    function celula(receita, cmv, c) {
+      const lucroBruto = receita - cmv
+      const margemBruta = receita > 0 ? (lucroBruto / receita) * 100 : null
+      const despesaRateada = c.receitaTotal > 0 ? c.despesas * (receita / c.receitaTotal) : 0
+      const lucroLiq = lucroBruto - despesaRateada
+      const margemLiq = receita > 0 ? (lucroLiq / receita) * 100 : null
+      return { key: c.key, receita, cmv, lucroBruto, margemBruta, despesaRateada, lucroLiq, margemLiq }
+    }
+    const linhas = dadosFam.familias.map((f) => ({
+      familia: f.familia,
+      totReceita: f.totais.receita,
+      cels: colInfo.map((c) => celula(
+        somaCampoPorMeses(f.por_mes, c.meses, 'receita'),
+        somaCampoPorMeses(f.por_mes, c.meses, 'cmv'), c)),
+    }))
+    const totalCels = colInfo.map((c) => {
+      const cmv = dadosFam.familias.reduce((s, f) => s + somaCampoPorMeses(f.por_mes, c.meses, 'cmv'), 0)
+      // Na linha total, a despesa "rateada" e a despesa total do periodo.
+      const cel = celula(c.receitaTotal, cmv, c)
+      cel.despesaRateada = c.despesas
+      cel.lucroLiq = cel.lucroBruto - c.despesas
+      cel.margemLiq = c.receitaTotal > 0 ? (cel.lucroLiq / c.receitaTotal) * 100 : null
+      return cel
+    })
+    return { colInfo, linhas, totalCels }
+  }, [dadosFam, dados, dreUnidade])
 
   // Quando dados/unidade mudam, foca a ultima unidade disponivel (se a atual sumiu)
   useEffect(() => {
@@ -551,6 +626,61 @@ export default function DrePage() {
     })
     setGraficoInfo((dados.meses || []).length + ' meses')
   }, [chartReady, dados, dreUnidade, margem12M])
+
+  // =========================================================================
+  // Grafico da aba "Margens por Familia": evolucao da margem (bruta OU liquida,
+  // conforme metricaFam) por unidade de periodo, 1 linha por familia top-6 (por
+  // receita) + "Outros" agregado.
+  // =========================================================================
+  useEffect(() => {
+    if (aba !== 'familias' || !chartReady || !famChartRef.current || !window.Chart) return
+    const model = famModel
+    if (!model || !model.colInfo.length) {
+      if (famChartInst.current) { famChartInst.current.destroy(); famChartInst.current = null }
+      return
+    }
+    const labels = model.colInfo.map((c) => c.label)
+    const campoPct = metricaFam === 'bruta' ? 'margemBruta' : 'margemLiq'
+    const campoLucro = metricaFam === 'bruta' ? 'lucroBruto' : 'lucroLiq'
+    const TOP = 6
+    const ordenadas = model.linhas.slice().sort((a, b) => b.totReceita - a.totReceita)
+    const top = ordenadas.slice(0, TOP)
+    const resto = ordenadas.slice(TOP)
+    const datasets = top.map((ln, i) => ({
+      label: ln.familia,
+      data: ln.cels.map((c) => c[campoPct]),
+      borderColor: PALETA[i % PALETA.length], backgroundColor: PALETA[i % PALETA.length],
+      borderWidth: 2, pointRadius: 2, tension: 0.2, spanGaps: true,
+    }))
+    if (resto.length) {
+      const data = model.colInfo.map((c, idx) => {
+        let receita = 0, lucro = 0
+        resto.forEach((ln) => { const cel = ln.cels[idx]; receita += cel.receita; lucro += cel[campoLucro] })
+        return receita > 0 ? (lucro / receita) * 100 : null
+      })
+      datasets.push({ label: 'Outros', data, borderColor: '#94a3b8', backgroundColor: '#94a3b8', borderWidth: 2, borderDash: [5, 4], pointRadius: 2, tension: 0.2, spanGaps: true })
+    }
+    if (famChartInst.current) famChartInst.current.destroy()
+    famChartInst.current = new window.Chart(famChartRef.current.getContext('2d'), {
+      type: 'line',
+      data: { labels, datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        scales: {
+          x: { grid: { display: false } },
+          y: { ticks: { callback: (v) => v + '%' }, grid: { color: (c) => (c.tick && c.tick.value === 0 ? '#94a3b8' : '#f1f5f9') } },
+        },
+        plugins: {
+          legend: { position: 'bottom', labels: { boxWidth: 18, font: { size: 11 } } },
+          tooltip: { callbacks: { label: (item) => item.dataset.label + ': ' + (item.raw == null ? '—' : item.raw.toFixed(1) + '%') } },
+        },
+      },
+    })
+    // Cleanup: o canvas da aba familias desmonta ao trocar de aba; destruir a
+    // instancia evita um Chart preso a um canvas destacado (vazamento).
+    return () => { if (famChartInst.current) { famChartInst.current.destroy(); famChartInst.current = null } }
+  }, [aba, chartReady, famModel, metricaFam])
 
   // =========================================================================
   // Teto de leitura do grafico de despesas (clamp IQR) — port fiel
@@ -1323,6 +1453,17 @@ export default function DrePage() {
         </div>
       </div>
 
+      {/* Barra de abas (Consolidado / Margens por Familia) */}
+      <div className="flex items-center gap-1 border-b border-slate-200 mb-3">
+        {[['consolidado', 'Consolidado'], ['familias', 'Margens por Família']].map(([k, lbl]) => (
+          <button key={k} onClick={() => setAba(k)}
+            className={'px-4 py-2 text-sm font-medium -mb-px border-b-2 ' +
+              (aba === k ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700')}>{lbl}</button>
+        ))}
+      </div>
+
+      {aba === 'consolidado' && (
+      <>
       <div className="text-xs text-slate-500 mb-3">{status}</div>
 
       {/* KPIs Consolidado */}
@@ -1588,6 +1729,19 @@ export default function DrePage() {
             title="Re-busca tudo do Omie ignorando o cache. Use quando suspeitar de dados desatualizados.">Atualizar do Omie</button>
         </div>
       )}
+      </>
+      )}
+
+      {/* ===================== ABA: Margens por Familia ===================== */}
+      {aba === 'familias' && (
+        <FamiliasTab
+          dadosFam={dadosFam} carregandoFam={carregandoFam} erroFam={erroFam}
+          regime={regime} dreUnidade={dreUnidade} setDreUnidade={setDreUnidade}
+          metricaFam={metricaFam} setMetricaFam={setMetricaFam}
+          famModel={famModel} famChartRef={famChartRef}
+          tgAtivo={tgAtivo} tgInativo={tgInativo}
+        />
+      )}
 
       {/* Modal de drill-down */}
       {modalAberto && (
@@ -1681,6 +1835,117 @@ export default function DrePage() {
             </div>
           </div>
         </div>
+      )}
+    </>
+  )
+}
+
+// =============================================================================
+// Aba "Margens por Familia": tabela (familia x periodo, margem bruta + liquida)
+// + grafico de evolucao. Recebe o modelo ja calculado (famModel) e o ref do
+// canvas (o efeito do grafico vive no componente pai e usa esse ref).
+// =============================================================================
+function FamiliasTab({ dadosFam, carregandoFam, erroFam, regime, dreUnidade, setDreUnidade,
+  metricaFam, setMetricaFam, famModel, famChartRef, tgAtivo, tgInativo }) {
+  const model = famModel
+
+  const COL_FAM_PX = 200
+  const COL_PER_PX = 110
+
+  return (
+    <>
+      {/* Controles: unidade de periodo (mes/trimestre/ano) */}
+      <div className="bg-white border border-slate-200 rounded-lg px-3 py-2 mb-4 flex items-center gap-2 flex-wrap text-xs text-slate-600">
+        <span className="uppercase tracking-wide text-slate-500">Período</span>
+        <div className="inline-flex rounded border border-slate-300 overflow-hidden" title="Unidade do período para a tabela e o gráfico">
+          {[['mes', 'Mês'], ['trimestre', 'Trimestre'], ['ano', 'Ano']].map(([k, lbl], i) => (
+            <button key={k} onClick={() => setDreUnidade(k)}
+              className={(i ? 'border-l border-slate-300 ' : '') + 'px-3 py-1 ' + (dreUnidade === k ? tgAtivo : tgInativo)}>{lbl}</button>
+          ))}
+        </div>
+        <span className="ml-3 text-[11px] text-slate-400">
+          Margem bruta = (receita − CMV) / receita · Margem líquida = (lucro bruto − despesas rateadas pela receita) / receita
+        </span>
+        {regime === 'omie' && (
+          <span className="ml-auto text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5">
+            Receita/CMV por família vêm de vendas_itens (competência); as despesas seguem o regime carregado.
+          </span>
+        )}
+      </div>
+
+      {carregandoFam && <div className="text-xs text-slate-500 mb-3">Carregando margens por família…</div>}
+      {erroFam && <div className="text-xs text-red-600 mb-3">Erro: {erroFam}</div>}
+      {!carregandoFam && !erroFam && (!model || !model.linhas.length) && (
+        <div className="text-xs text-slate-500 mb-3">Sem vendas no período selecionado.</div>
+      )}
+
+      {model && model.linhas.length > 0 && (
+        <>
+          {/* Tabela: familia x periodo (MB% em cima, ML% embaixo) */}
+          <div className="bg-white border border-slate-200 rounded-lg overflow-hidden mb-4">
+            <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wide text-slate-600 flex items-center justify-between">
+              <span>Margens por família</span>
+              <span className="text-[10px] normal-case text-slate-400">linha de cima: margem bruta % · linha de baixo: margem líquida %</span>
+            </div>
+            <div className="overflow-auto" style={{ maxHeight: '70vh' }}>
+              <table className="text-xs" style={{ tableLayout: 'fixed', minWidth: COL_FAM_PX + model.colInfo.length * COL_PER_PX }}>
+                <thead className="bg-slate-50 text-slate-600">
+                  <tr>
+                    <th className="text-left px-2 py-2 sticky left-0 bg-slate-50 z-10"
+                      style={{ width: COL_FAM_PX, minWidth: COL_FAM_PX }}>Família</th>
+                    {model.colInfo.map((c) => (
+                      <th key={c.key} className="text-right px-2 py-2 whitespace-nowrap" style={{ width: COL_PER_PX }}>{c.label}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {model.linhas.map((ln) => (
+                    <tr key={ln.familia} className="border-b border-slate-100 hover:bg-slate-50">
+                      <td className="px-2 py-1 sticky left-0 bg-white truncate" title={ln.familia}
+                        style={{ width: COL_FAM_PX, minWidth: COL_FAM_PX }}>{ln.familia}</td>
+                      {ln.cels.map((cel) => (
+                        <td key={cel.key} className="px-2 py-1 text-right tabular-nums"
+                          title={'Receita ' + fmtBRL(cel.receita) + ' · Lucro bruto ' + fmtBRL(cel.lucroBruto) + ' · Lucro líquido ' + fmtBRL(cel.lucroLiq)}>
+                          <div className={cor(cel.margemBruta)}>{cel.margemBruta == null ? '—' : cel.margemBruta.toFixed(1) + '%'}</div>
+                          <div className={'text-[10px] ' + cor(cel.margemLiq)}>{cel.margemLiq == null ? '—' : cel.margemLiq.toFixed(1) + '%'}</div>
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                  {/* Linha total */}
+                  <tr className="border-t-2 border-slate-300 font-bold bg-slate-50">
+                    <td className="px-2 py-1 sticky left-0 bg-slate-50" style={{ width: COL_FAM_PX, minWidth: COL_FAM_PX }}>Total</td>
+                    {model.totalCels.map((cel) => (
+                      <td key={cel.key} className="px-2 py-1 text-right tabular-nums"
+                        title={'Receita ' + fmtBRL(cel.receita) + ' · Despesas ' + fmtBRL(cel.despesaRateada)}>
+                        <div className={cor(cel.margemBruta)}>{cel.margemBruta == null ? '—' : cel.margemBruta.toFixed(1) + '%'}</div>
+                        <div className={'text-[10px] ' + cor(cel.margemLiq)}>{cel.margemLiq == null ? '—' : cel.margemLiq.toFixed(1) + '%'}</div>
+                      </td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Grafico de evolucao das margens por familia */}
+          <div className="bg-white border border-slate-200 rounded-lg p-3 mb-4">
+            <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+              <div className="text-xs uppercase tracking-wide text-slate-500">
+                Evolução da margem {metricaFam === 'bruta' ? 'bruta' : 'líquida'} por família (top 6 + Outros)
+              </div>
+              <div className="inline-flex rounded border border-slate-300 overflow-hidden text-xs">
+                <button onClick={() => setMetricaFam('bruta')}
+                  className={'px-3 py-1 ' + (metricaFam === 'bruta' ? tgAtivo : tgInativo)}>Margem Bruta %</button>
+                <button onClick={() => setMetricaFam('liquida')}
+                  className={'px-3 py-1 border-l border-slate-300 ' + (metricaFam === 'liquida' ? tgAtivo : tgInativo)}>Margem Líquida %</button>
+              </div>
+            </div>
+            <div style={{ height: 320, position: 'relative' }}>
+              <canvas ref={famChartRef}></canvas>
+            </div>
+          </div>
+        </>
       )}
     </>
   )
