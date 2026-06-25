@@ -460,7 +460,7 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar }: Props)
   // TELA DO EDITOR
   // ============================
   return (
-    <div style={{ padding: '32px 40px', maxWidth: 1200, margin: '0 auto', fontFamily: "'Poppins', sans-serif" }}>
+    <div style={{ padding: '32px 40px', width: '100%', fontFamily: "'Poppins', sans-serif" }}>
       {/* Toast */}
       {toast && (
         <div style={{

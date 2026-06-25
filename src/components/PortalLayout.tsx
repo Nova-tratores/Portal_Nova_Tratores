@@ -19,6 +19,7 @@ import { supabase } from '@/lib/supabase'
 import ChatPanel from './chat/ChatPanel'
 import LembretesPanel from './lembretes/LembretesPanel'
 import LembreteAlerta from './lembretes/LembreteAlerta'
+import OrcamentoVencidoAlerta from './orcamentos/OrcamentoVencidoAlerta'
 import NotifPrefsModal from './notif/NotifPrefsModal'
 import OpaLembrete from './opa/OpaLembrete'
 import SatLembrete from './sat/SatLembrete'
@@ -1338,6 +1339,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       )}
 
       {userProfile?.id && <LembreteAlerta userId={userProfile.id} />}
+
+      {userProfile?.nome && <OrcamentoVencidoAlerta userName={userProfile.nome} />}
 
       {/* ===== CARDS FLUTUANTES "OPA" ===== */}
       {userProfile?.id && (

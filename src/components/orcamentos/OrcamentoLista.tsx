@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Search, FileText, Edit3, Trash2, Eye, Plus, FilterX, Package, Wrench, ClipboardList, ShoppingCart } from 'lucide-react'
+import { Search, FileText, Trash2, Plus, FilterX, Package, Wrench, Send, Printer } from 'lucide-react'
 
 interface Orcamento {
   id: number
@@ -27,11 +27,20 @@ export default function OrcamentoLista({ onNovo, onEditar }: Props) {
   const [busca, setBusca] = useState('')
   const [filtroTipo, setFiltroTipo] = useState('')
   const [filtroStatus, setFiltroStatus] = useState('')
-  const [gerarModal, setGerarModal] = useState<{ tipo: 'os' | 'ppv'; id: number } | null>(null)
+  const [gerarModal, setGerarModal] = useState<{ id: number; tipoOrc: string } | null>(null)
   const [tecnicoGerar, setTecnicoGerar] = useState('')
+  const [tecnicos, setTecnicos] = useState<string[]>([])
   const [gerando, setGerando] = useState(false)
 
   useEffect(() => { carregar() }, [])
+
+  // Lista de técnicos — mesma fonte do POS/PPV
+  useEffect(() => {
+    fetch('/api/pos/tecnicos')
+      .then(r => r.ok ? r.json() : [])
+      .then(d => { if (Array.isArray(d)) setTecnicos(d) })
+      .catch(() => {})
+  }, [])
 
   async function carregar() {
     setLoading(true)
@@ -61,7 +70,13 @@ export default function OrcamentoLista({ onNovo, onEditar }: Props) {
       const { data: orc } = await supabase.from('orcamentos').select('*').eq('id', gerarModal.id).single()
       if (!orc) throw new Error('Orçamento não encontrado')
 
-      if (gerarModal.tipo === 'os') {
+      // Roteamento pelo tipo do orçamento:
+      //  - peças       → só PPV
+      //  - mão de obra → só OS (POS)
+      //  - completo    → OS (POS) + PPV vinculado (o gerarPPV abaixo cuida disso quando há peças)
+      const gerarOS = gerarModal.tipoOrc !== 'pecas'
+
+      if (gerarOS) {
         const horas = orc.mao_obra?.horas || 0
         const km = orc.deslocamento?.km || 0
         const itensDesc = (orc.itens || []).map((i: any) => `${i.quantidade}x ${i.descricao}`).join(', ')
@@ -221,7 +236,7 @@ export default function OrcamentoLista({ onNovo, onEditar }: Props) {
   }
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: 1200, margin: '0 auto', fontFamily: "'Poppins', sans-serif" }}>
+    <div style={{ padding: '32px 40px', width: '100%', fontFamily: "'Poppins', sans-serif" }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
         <div>
@@ -362,17 +377,15 @@ export default function OrcamentoLista({ onNovo, onEditar }: Props) {
                   <td style={{ ...tdStyle, color: '#737373', fontSize: 12 }}>{item.criado_por || '—'}</td>
                   <td style={{ ...tdStyle, textAlign: 'center' }} onClick={e => e.stopPropagation()}>
                     <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
-                      <button onClick={() => verPDF(item.id)} title="Ver PDF" style={actionBtn}>
-                        <Eye size={15} color="#737373" />
+                      <button
+                        onClick={() => { setTecnicoGerar(''); setGerarModal({ id: item.id, tipoOrc: item.tipo }) }}
+                        title={item.tipo === 'pecas' ? 'Gerar Pedido (PPV)' : item.tipo === 'mao-de-obra' ? 'Enviar p/ POS (gera OS)' : 'Enviar p/ POS (gera OS + PPV)'}
+                        style={actionBtn}
+                      >
+                        <Send size={15} color="#1d4ed8" />
                       </button>
-                      <button onClick={() => onEditar(item.id)} title="Editar" style={actionBtn}>
-                        <Edit3 size={15} color="#737373" />
-                      </button>
-                      <button onClick={() => { setTecnicoGerar(''); setGerarModal({ tipo: 'os', id: item.id }) }} title="Gerar OS" style={actionBtn}>
-                        <ClipboardList size={15} color="#1d4ed8" />
-                      </button>
-                      <button onClick={() => { setTecnicoGerar(''); setGerarModal({ tipo: 'ppv', id: item.id }) }} title="Gerar Pedido (PPV)" style={actionBtn}>
-                        <ShoppingCart size={15} color="#16a34a" />
+                      <button onClick={() => verPDF(item.id)} title="Imprimir" style={actionBtn}>
+                        <Printer size={15} color="#737373" />
                       </button>
                       <button onClick={() => excluir(item.id)} title="Excluir" style={actionBtn}>
                         <Trash2 size={15} color="#ef4444" />
@@ -410,30 +423,33 @@ export default function OrcamentoLista({ onNovo, onEditar }: Props) {
             boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
           }}>
             <h3 style={{ fontSize: 18, fontWeight: 800, color: '#1a1a1a', margin: '0 0 6px' }}>
-              {gerarModal.tipo === 'os' ? 'Gerar Ordem de Serviço' : 'Gerar Pedido de Venda'}
+              {gerarModal.tipoOrc === 'pecas' ? 'Gerar Pedido de Venda' : gerarModal.tipoOrc === 'mao-de-obra' ? 'Gerar Ordem de Serviço' : 'Enviar para o POS'}
             </h3>
             <p style={{ fontSize: 13, color: '#737373', margin: '0 0 20px' }}>
-              {gerarModal.tipo === 'os'
-                ? 'Uma OS será criada no POS com os dados deste orçamento. Se tiver peças, um PPV será gerado automaticamente.'
-                : 'Um pedido será criado no PPV com os itens deste orçamento.'}
+              {gerarModal.tipoOrc === 'pecas'
+                ? 'Um pedido será criado no PPV com os itens deste orçamento.'
+                : gerarModal.tipoOrc === 'mao-de-obra'
+                ? 'Uma OS será criada no POS com os dados deste orçamento.'
+                : 'Uma OS será criada no POS e um PPV vinculado será gerado com as peças deste orçamento.'}
             </p>
             <div style={{ marginBottom: 20 }}>
               <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#737373', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
                 Técnico Responsável <span style={{ color: '#dc2626' }}>*</span>
               </label>
-              <input
-                type="text"
+              <select
                 value={tecnicoGerar}
                 onChange={e => setTecnicoGerar(e.target.value)}
-                placeholder="Nome do técnico..."
                 autoFocus
                 style={{
                   width: '100%', padding: '10px 14px', borderRadius: 10,
                   border: '1px solid #e5e5e5', fontSize: 14, outline: 'none',
-                  fontFamily: "'Poppins', sans-serif",
+                  fontFamily: "'Poppins', sans-serif", cursor: 'pointer',
+                  background: '#fff', color: tecnicoGerar ? '#1a1a1a' : '#a3a3a3',
                 }}
-                onKeyDown={e => { if (e.key === 'Enter' && tecnicoGerar.trim()) confirmarGerar() }}
-              />
+              >
+                <option value="">Selecione o técnico...</option>
+                {tecnicos.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
             </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button
@@ -451,14 +467,14 @@ export default function OrcamentoLista({ onNovo, onEditar }: Props) {
                 disabled={gerando || !tecnicoGerar.trim()}
                 style={{
                   padding: '10px 24px', borderRadius: 10, border: 'none',
-                  background: gerarModal.tipo === 'os'
-                    ? 'linear-gradient(135deg, #1d4ed8, #1e40af)'
-                    : 'linear-gradient(135deg, #16a34a, #15803d)',
+                  background: gerarModal.tipoOrc === 'pecas'
+                    ? 'linear-gradient(135deg, #16a34a, #15803d)'
+                    : 'linear-gradient(135deg, #1d4ed8, #1e40af)',
                   color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
                   opacity: gerando || !tecnicoGerar.trim() ? 0.5 : 1,
                 }}
               >
-                {gerando ? 'Gerando...' : gerarModal.tipo === 'os' ? 'Gerar OS' : 'Gerar PPV'}
+                {gerando ? 'Gerando...' : gerarModal.tipoOrc === 'pecas' ? 'Gerar PPV' : gerarModal.tipoOrc === 'mao-de-obra' ? 'Gerar OS' : 'Enviar p/ POS'}
               </button>
             </div>
           </div>
