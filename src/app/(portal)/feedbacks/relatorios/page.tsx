@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { listarRegistros } from "@/lib/feedbacks/api";
 import type { FeedbackRegistro, TipoFeedback } from "@/lib/feedbacks/types";
 import styles from "@/components/feedbacks/feedbacks.module.css";
@@ -89,6 +90,8 @@ export default function RelatoriosPage() {
   const [dataDe, setDataDe] = useState("");
   const [dataAte, setDataAte] = useState("");
   const [diaEscolhido, setDiaEscolhido] = useState(() => new Date().toISOString().slice(0, 10));
+  const [atendenteAberto, setAtendenteAberto] = useState<string | null>(null);
+  const router = useRouter();
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -455,7 +458,10 @@ export default function RelatoriosPage() {
               {statsAtendenteDet.map((s) => {
                 const taxa = s.sete > 0 ? Math.round((s.respondeu / s.sete) * 100) : 0;
                 return (
-                  <div key={s.atendente} className={styles.atendCard}>
+                  <div key={s.atendente} className={styles.atendCard}
+                    onClick={() => setAtendenteAberto(s.atendente)}
+                    title="Ver todos os atendimentos deste atendente"
+                    style={{ cursor: "pointer" }}>
                     <div style={{ fontSize: 15, fontWeight: 800, color: "var(--portal-text)", marginBottom: 10, textAlign: "center" }}>
                       🎧 {s.atendente}
                     </div>
@@ -517,6 +523,52 @@ export default function RelatoriosPage() {
           </div>
         </div>
       )}
+
+      {/* Modal: todos os atendimentos de um atendente (clique no card) */}
+      {atendenteAberto && (() => {
+        const lista = registros
+          .filter((r) => r.atendente_nome === atendenteAberto && (fonte === "todos" || r.tipo === fonte))
+          .sort((a, b) => (dataRef(b) || "").slice(0, 10).localeCompare((dataRef(a) || "").slice(0, 10)));
+        return (
+          <div onClick={() => setAtendenteAberto(null)}
+            style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 20 }}>
+            <div onClick={(e) => e.stopPropagation()}
+              style={{ background: "var(--portal-bg-card)", borderRadius: 16, border: "1px solid var(--portal-border)", width: "min(760px, 100%)", maxHeight: "85vh", display: "flex", flexDirection: "column", boxShadow: "0 24px 60px -12px rgba(0,0,0,0.4)" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid var(--portal-border)" }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: "var(--portal-text)" }}>🎧 {atendenteAberto} — {lista.length} atendimento(s)</div>
+                <button onClick={() => setAtendenteAberto(null)} style={{ background: "none", border: "none", fontSize: 24, lineHeight: 1, cursor: "pointer", color: "var(--portal-text-muted)" }}>×</button>
+              </div>
+              <div style={{ overflowY: "auto", padding: "4px 0" }}>
+                {lista.length === 0 ? (
+                  <div style={{ padding: 40, textAlign: "center", color: "var(--portal-text-muted)", fontSize: 13 }}>Nenhum atendimento{fonte !== "todos" ? ` (fonte: ${fonte.toUpperCase()})` : ""}.</div>
+                ) : lista.map((r) => {
+                  const dataFmt = dataRef(r) ? dataRef(r).slice(0, 10).split("-").reverse().join("/") : "—";
+                  return (
+                    <div key={r.id}
+                      onClick={() => router.push(`/feedbacks/clientes?registro=${r.id}`)}
+                      title="Abrir este atendimento"
+                      style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 20px", cursor: "pointer", borderBottom: "1px solid var(--portal-border)" }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "var(--portal-bg-subtle, #f8fafc)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
+                      <span style={tipoBadge(r.tipo)}>{r.tipo.toUpperCase()}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--portal-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.nome}</div>
+                        <div style={{ fontSize: 11, color: "var(--portal-text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {r.tipo === "crm" ? (r.servico || r.feedback || "—") : (r.motivo || r.acao || "—")}
+                        </div>
+                      </div>
+                      <div style={{ textAlign: "right", flexShrink: 0 }}>
+                        <div style={{ fontSize: 11, color: "var(--portal-text-secondary)" }}>{dataFmt}</div>
+                        {r.status_atendimento && <div style={{ fontSize: 10, color: "var(--portal-text-muted)" }}>{r.status_atendimento.replace("_", " ")}</div>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
