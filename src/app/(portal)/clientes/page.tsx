@@ -113,6 +113,7 @@ function ClientesPageInner() {
   const [emailsData, setEmailsData] = useState<Record<string, any[]>>({})
   const [loadingEmails, setLoadingEmails] = useState<string | null>(null)
   const [lembretesCliente, setLembretesCliente] = useState<any[]>([])
+  const [feedbacksCliente, setFeedbacksCliente] = useState<any[]>([])
   const [osColuna, setOsColuna] = useState<'todas' | 'ativas' | 'faturadas' | 'canceladas'>('todas')
   const [osFiltroTipo, setOsFiltroTipo] = useState<string>('')
   const [osBuscaNF, setOsBuscaNF] = useState('')
@@ -316,10 +317,19 @@ function ClientesPageInner() {
   }
 
   const abrirDetalhe = async (cliente: Cliente) => {
-    setSelectedCliente(cliente); setExpandedOS(null); setModalProjeto(null); setEmailsData({}); setLoadingDetalhe(true); setLembretesCliente([]); setEtiquetasCliente([]); setDescricaoCliente(''); setDescricaoLocal(''); setModalEtiqueta(false)
+    setSelectedCliente(cliente); setExpandedOS(null); setModalProjeto(null); setEmailsData({}); setLoadingDetalhe(true); setLembretesCliente([]); setEtiquetasCliente([]); setFeedbacksCliente([]); setDescricaoCliente(''); setDescricaoLocal(''); setModalEtiqueta(false)
     try { const res = await fetch(`/api/clientes?codCli=${cliente.cod_cli}&empresa=${encodeURIComponent(cliente.empresa)}`); const data = await res.json(); setOrdens(data.ordens || [])
       setPedidos((data.pedidos || []).map((pv: any) => ({ ...pv, itens: typeof pv.itens === 'string' ? JSON.parse(pv.itens) : (pv.itens || []) })))
     } catch {} setLoadingDetalhe(false)
+    // Feedbacks/atendimentos do cliente (modulo Feedbacks & CRM) — ligados por codigo_omie = cod_cli
+    try {
+      const { data: fbs } = await supabase
+        .from('feedback_registros')
+        .select('id,tipo,data_contato,status_atendimento,nota,acao,feedback,trator,atendente_nome,criado_em')
+        .eq('codigo_omie', String(cliente.cod_cli))
+        .order('criado_em', { ascending: false })
+      setFeedbacksCliente(fbs || [])
+    } catch {}
     if (cliente.cnpj_cpf) {
       try { const res = await fetch(`/api/pos/lembretes?cnpj=${encodeURIComponent(cliente.cnpj_cpf.replace(/\D/g, ''))}`); const data = await res.json(); if (Array.isArray(data)) setLembretesCliente(data) } catch {}
       carregarEtiquetasCliente(cliente.cnpj_cpf)
@@ -593,6 +603,47 @@ function ClientesPageInner() {
                   style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px', borderRadius: 8, background: '#059669', color: '#fff', border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                   <Save size={14} /> Salvar
                 </button>
+              )}
+            </div>
+
+            {/* Feedbacks / Atendimentos (compacto) — modulo Feedbacks & CRM */}
+            <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #E5E7EB', padding: '14px 16px', boxShadow: '0 1px 3px rgba(16,24,40,0.06)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 10 }}>
+                <ClipboardList size={14} color="#7C3AED" /> Feedbacks ({feedbacksCliente.length})
+              </div>
+              {feedbacksCliente.length === 0 ? (
+                <span style={{ fontSize: 12, color: '#9CA3AF', fontStyle: 'italic' }}>Sem feedbacks registrados.</span>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {feedbacksCliente.slice(0, 6).map((f: any) => {
+                    const crm = f.tipo === 'crm'
+                    const cor = crm ? '#dc2626' : '#6366f1'
+                    const corBg = crm ? '#FEF2F2' : '#EEF2FF'
+                    const texto = (f.feedback || f.acao || '').trim()
+                    const statusLabel: Record<string, string> = { concluido: 'Concluído', aberto: 'Aberto', em_andamento: 'Em andamento', sem_resposta: 'Sem resposta', arquivado: 'Arquivado' }
+                    const dataTxt = f.data_contato ? formatDate(f.data_contato) : (f.criado_em ? new Date(f.criado_em).toLocaleDateString('pt-BR') : '—')
+                    return (
+                      <div key={f.id} style={{ border: '1px solid #F3F4F6', borderLeft: `3px solid ${cor}`, borderRadius: 8, padding: '8px 10px', background: '#FCFCFD' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: texto ? 3 : 0, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 10, fontWeight: 800, color: cor, background: corBg, padding: '1px 7px', borderRadius: 10, letterSpacing: 0.3 }}>{crm ? 'CRM' : 'RFM'}</span>
+                          <span style={{ fontSize: 11, color: '#6B7280', fontWeight: 600 }}>{dataTxt}</span>
+                          {f.status_atendimento && <span style={{ fontSize: 10, color: '#9CA3AF' }}>· {statusLabel[f.status_atendimento] || f.status_atendimento}</span>}
+                        </div>
+                        {texto && (
+                          <div style={{ fontSize: 12, color: '#374151', lineHeight: 1.35, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{texto}</div>
+                        )}
+                        {(f.nota != null || f.trator) && (
+                          <div style={{ fontSize: 10.5, color: '#9CA3AF', marginTop: 3 }}>
+                            {f.nota != null ? `Nota ${f.nota}` : ''}{f.nota != null && f.trator ? ' · ' : ''}{f.trator || ''}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                  {feedbacksCliente.length > 6 && (
+                    <span style={{ fontSize: 11, color: '#9CA3AF', fontStyle: 'italic' }}>+{feedbacksCliente.length - 6} mais</span>
+                  )}
+                </div>
               )}
             </div>
           </aside>
