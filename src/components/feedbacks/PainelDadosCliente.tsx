@@ -57,6 +57,9 @@ const PainelDadosCliente = forwardRef<PainelDadosClienteHandle, Props>(function 
   // Tags fora da lista padrão (criadas à mão ou que já existiam no Omie) — ficam
   // visíveis como checkbox além das predefinidas.
   const [extrasTags, setExtrasTags] = useState<string[]>([]);
+  // Tags estruturais do Omie (Cliente/Fornecedor/Funcionário) — exibidas só-leitura
+  // (o Omie gerencia automaticamente; não dá pra remover pela interface).
+  const [estruturais, setEstruturais] = useState<string[]>([]);
   const [novaTag, setNovaTag] = useState("");
 
   const [salvando, setSalvando] = useState(false);
@@ -75,7 +78,7 @@ const PainelDadosCliente = forwardRef<PainelDadosClienteHandle, Props>(function 
     setEmpresa(null); setRowId(null);
     setCad(CADASTRO_VAZIO); setBaseCad(CADASTRO_VAZIO);
     setLat(null); setLng(null); setLatStr(""); setLngStr(""); setBaseLoc({ lat: null, lng: null });
-    setTags([]); setBaseTags([]); setExtrasTags([]); setNovaTag("");
+    setTags([]); setBaseTags([]); setExtrasTags([]); setEstruturais([]); setNovaTag("");
 
     let portalTags: string[] = [];
     let omieTags: string[] = [];
@@ -115,6 +118,7 @@ const PainelDadosCliente = forwardRef<PainelDadosClienteHandle, Props>(function 
       setTags(atuais); setBaseTags(atuais);
       const predef = TAGS_CLIENTE.map((t) => t.tag);
       setExtrasTags(atuais.filter((t) => !predef.includes(t) && !TAGS_ESTRUTURAIS.includes(t) && t !== TAG_NAO_CONTATAR));
+      setEstruturais(omieTags.filter((t) => TAGS_ESTRUTURAIS.includes(t)));
       setCarregando(false);
     });
     return () => { vivo = false; };
@@ -333,6 +337,23 @@ const PainelDadosCliente = forwardRef<PainelDadosClienteHandle, Props>(function 
               {TAGS_CLIENTE.map((t) => renderTagPill(t.tag, t.label, t.cor))}
               {extrasTags.map((t) => renderTagPill(t, t, "#475569", () => removerExtra(t)))}
             </div>
+
+            {/* Tags estruturais do Omie (Cliente/Fornecedor/Funcionário) — só-leitura */}
+            {estruturais.length > 0 && (
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontSize: 11, color: "var(--portal-text-muted)", textTransform: "uppercase", letterSpacing: 0.4, fontWeight: 700, marginBottom: 6 }}>
+                  Do Omie (automáticas)
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {estruturais.map((t) => (
+                    <span key={t} title="Tag estrutural do Omie — gerenciada automaticamente, não editável aqui"
+                      style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 999, border: "1.5px solid var(--portal-border)", background: "var(--portal-bg-subtle, #f1f5f9)", color: "var(--portal-text-secondary)" }}>
+                      🔒 {t}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Criar nova tag */}
             <div style={{ display: "flex", gap: 8, marginTop: 12 }}>

@@ -46,6 +46,13 @@ function formatDate(d: string | null) {
   const date = new Date(d + 'T00:00:00')
   return date.toLocaleDateString('pt-BR')
 }
+// Tags do Omie (espelho portal_nt_clientes_cadastro_omie.tags) — string JSON [{tag:"X"}]
+function parseOmieTags(raw: any): string[] {
+  try {
+    const arr = typeof raw === 'string' ? JSON.parse(raw) : (raw || [])
+    return (Array.isArray(arr) ? arr : []).map((t: any) => (typeof t === 'string' ? t : t?.tag)).filter(Boolean)
+  } catch { return [] }
+}
 const REVISOES_HORAS = ['50h','300h','600h','900h','1200h','1500h','1800h','2100h','2400h','2700h','3000h']
 
 function formatCNPJ(v: string) {
@@ -115,6 +122,7 @@ function ClientesPageInner() {
   const [loadingEmails, setLoadingEmails] = useState<string | null>(null)
   const [lembretesCliente, setLembretesCliente] = useState<any[]>([])
   const [feedbacksCliente, setFeedbacksCliente] = useState<any[]>([])
+  const [tagsOmieCliente, setTagsOmieCliente] = useState<string[]>([])
   const router = useRouter()
   const [osColuna, setOsColuna] = useState<'todas' | 'ativas' | 'faturadas' | 'canceladas'>('todas')
   const [osFiltroTipo, setOsFiltroTipo] = useState<string>('')
@@ -319,7 +327,7 @@ function ClientesPageInner() {
   }
 
   const abrirDetalhe = async (cliente: Cliente) => {
-    setSelectedCliente(cliente); setExpandedOS(null); setModalProjeto(null); setEmailsData({}); setLoadingDetalhe(true); setLembretesCliente([]); setEtiquetasCliente([]); setFeedbacksCliente([]); setDescricaoCliente(''); setDescricaoLocal(''); setModalEtiqueta(false)
+    setSelectedCliente(cliente); setExpandedOS(null); setModalProjeto(null); setEmailsData({}); setLoadingDetalhe(true); setLembretesCliente([]); setEtiquetasCliente([]); setFeedbacksCliente([]); setTagsOmieCliente([]); setDescricaoCliente(''); setDescricaoLocal(''); setModalEtiqueta(false)
     try { const res = await fetch(`/api/clientes?codCli=${cliente.cod_cli}&empresa=${encodeURIComponent(cliente.empresa)}`); const data = await res.json(); setOrdens(data.ordens || [])
       setPedidos((data.pedidos || []).map((pv: any) => ({ ...pv, itens: typeof pv.itens === 'string' ? JSON.parse(pv.itens) : (pv.itens || []) })))
     } catch {} setLoadingDetalhe(false)
@@ -331,6 +339,16 @@ function ClientesPageInner() {
         .eq('codigo_omie', String(cliente.cod_cli))
         .order('criado_em', { ascending: false })
       setFeedbacksCliente(fbs || [])
+    } catch {}
+    // Tags do Omie (mesmas do modulo Feedback) — espelho em portal_nt_clientes_cadastro_omie
+    try {
+      const { data: cad } = await supabase
+        .from('portal_nt_clientes_cadastro_omie')
+        .select('tags')
+        .eq('cod_cli', cliente.cod_cli)
+        .eq('empresa', cliente.empresa)
+        .maybeSingle()
+      setTagsOmieCliente(parseOmieTags(cad?.tags))
     } catch {}
     if (cliente.cnpj_cpf) {
       try { const res = await fetch(`/api/pos/lembretes?cnpj=${encodeURIComponent(cliente.cnpj_cpf.replace(/\D/g, ''))}`); const data = await res.json(); if (Array.isArray(data)) setLembretesCliente(data) } catch {}
@@ -537,7 +555,14 @@ function ClientesPageInner() {
                     </button>
                   </span>
                 ))}
-                {etiquetasCliente.length === 0 && !modalEtiqueta && (
+                {/* Tags do Omie (mesmas do modulo Feedback) — so-leitura */}
+                {tagsOmieCliente.map(t => (
+                  <span key={`omie-${t}`} title="Tag do Omie (sincronizada pelo modulo Feedback)"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 16, fontSize: 12, fontWeight: 700, background: '#EEF2FF', color: '#4338CA', border: '1px solid #C7D2FE' }}>
+                    <Tag size={10} /> {t}
+                  </span>
+                ))}
+                {etiquetasCliente.length === 0 && tagsOmieCliente.length === 0 && !modalEtiqueta && (
                   <span style={{ fontSize: 12, color: '#9CA3AF', fontStyle: 'italic' }}>Sem etiquetas. Clique + para marcar.</span>
                 )}
               </div>
