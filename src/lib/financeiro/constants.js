@@ -30,6 +30,21 @@ export const STATUS_RH = {
   CONCLUIDO: 'concluido',
 }
 
+// ─── COMPROVANTE OBRIGATÓRIO PARA "PAGO" ─────────────────────────────────────
+// Formas de pagamento que SÓ podem ir para "Pago" com o comprovante anexado.
+// Para esses, ninguém pode pular (nem Financeiro nem Admin). Os demais (Dinheiro,
+// Boletos) não exigem. Obs.: os comprovantes das PARCELAS de boleto parcelado têm
+// regra própria (o Financeiro pode pular) e NÃO entram nesta lista.
+export const FORMAS_EXIGEM_COMPROVANTE_PAGO = ['Pix', 'Cheque', 'Cartão a vista', 'Cartão Parcelado']
+
+export function exigeComprovantePago(formaPagamento) {
+  return FORMAS_EXIGEM_COMPROVANTE_PAGO.includes(formaPagamento)
+}
+
+export function temComprovantePago(tarefa) {
+  return !!(tarefa && (tarefa.comprovante_pagamento || tarefa.comprovante_pagamento_p1))
+}
+
 // Configuração visual por status (cores para kanban)
 export const STATUS_CONFIG_NF = {
   gerar_boleto:          { label: 'GERAR BOLETO',          bg: '#eff6ff', color: '#3b82f6', border: '#bfdbfe' },

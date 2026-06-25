@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { exigeComprovantePago, temComprovantePago } from '@/lib/financeiro/constants'
 import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
@@ -267,6 +268,10 @@ export default function Kanban() {
  };
 
  const handleMoverParaPago = async (t) => {
+    if (exigeComprovantePago(t.forma_pagamento) && !temComprovantePago(t)) {
+      alert('Este método de pagamento exige o comprovante anexado para mover para Pago.');
+      return;
+    }
     await supabase.from('Chamado_NF').update({ status: 'pago', tarefa: 'Pagamento Confirmado' }).eq('id', t.id);
     notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} confirmou pagamento NF #${t.id}`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban-pecas`)
     carregarDados();
@@ -561,8 +566,8 @@ export default function Kanban() {
             </div>
           </div>
 
-          {/* BOLETO DO FINANCEIRO — esconde para sem_boleto */}
-          {tarefaSelecionada.status !== 'sem_boleto' && (
+          {/* BOLETO DO FINANCEIRO — esconde para sem_boleto e para Pix/Cheque/Cartões (não geram boleto) */}
+          {!exigeComprovantePago(tarefaSelecionada.forma_pagamento) && tarefaSelecionada.status !== 'sem_boleto' && (
           <div style={{ background: tarefaSelecionada.anexo_boleto ? '#eff6ff' : '#fef2f2', border: `1px solid ${tarefaSelecionada.anexo_boleto ? '#bfdbfe' : '#fecaca'}`, borderRadius:'22px', padding:'24px', display:'flex', flexDirection:'column', gap:'12px' }}>
             <label style={{...labelModalStyle, margin:0, color: tarefaSelecionada.anexo_boleto ? '#3b82f6' : '#dc2626', display:'flex', alignItems:'center', gap:'8px'}}>
               {tarefaSelecionada.anexo_boleto ? <CheckCircle size={16} color="#3b82f6"/> : <Calendar size={16} color="#dc2626"/>}
@@ -664,7 +669,7 @@ export default function Kanban() {
             </>
           )}
 
-          {tarefaSelecionada.status === 'aguardando_vencimento' && (
+          {(tarefaSelecionada.status === 'aguardando_vencimento' || (exigeComprovantePago(tarefaSelecionada.forma_pagamento) && tarefaSelecionada.status !== 'pago' && tarefaSelecionada.status !== 'concluido')) && (
             <div style={{background:'#eff6ff', padding:'40px', borderRadius:'24px', border:'1px solid #bfdbfe'}}>
                 <label style={{...labelModalStyle, color:'#3b82f6', fontSize: '16px'}}>COMPROVANTE DE PAGAMENTO</label>
                 <p style={{color: 'var(--portal-text-secondary)', marginBottom: '25px', fontSize: '14px'}}>

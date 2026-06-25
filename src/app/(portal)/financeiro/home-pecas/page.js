@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState, useRef, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
+import { exigeComprovantePago, temComprovantePago } from '@/lib/financeiro/constants'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
@@ -259,6 +260,10 @@ function HomePosVendasContent() {
   };
 
   const handleMoverParaPago = async (t) => {
+    if (exigeComprovantePago(t.forma_pagamento) && !temComprovantePago(t)) {
+      alert('Este método de pagamento exige o comprovante anexado para mover para Pago.');
+      return;
+    }
     notificarMovimento('Chamado_NF', t, 'pago', `${getCardLabel(t)} — Pagamento confirmado`);
     await supabase.from('Chamado_NF').update({ status: 'pago', tarefa: 'Pagamento Confirmado' }).eq('id', t.id);
     auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'pago', acao_desc: 'Pagamento confirmado' } });
@@ -685,14 +690,14 @@ function HomePosVendasContent() {
                               {(tarefaSelecionada.anexo_nf_peca || (!tarefaSelecionada.num_nf_servico && !tarefaSelecionada.anexo_nf_servico)) && (
                                 <AttachmentTag label="NF PECA" fileUrl={tarefaSelecionada.anexo_nf_peca} onUpload={f => handleUpdateFileDirect(tarefaSelecionada, 'anexo_nf_peca', f)} />
                               )}
-                              {tarefaSelecionada.comprovante_pagamento && (
+                              {((exigeComprovantePago(tarefaSelecionada.forma_pagamento) && !isParcelamento) || tarefaSelecionada.comprovante_pagamento) && (
                                 <AttachmentTag label="COMPROVANTE PAGAMENTO" fileUrl={tarefaSelecionada.comprovante_pagamento} onUpload={f => handleUpdateFileDirect(tarefaSelecionada, 'comprovante_pagamento', f)} />
                               )}
                             </div>
                           </div>
 
-                          {/* COLUNA: BOLETO DEVOLVIDO PELO FINANCEIRO — só mostra se NÃO for Pix/Cartão à vista e NÃO for sem_boleto */}
-                          {!isPixOuCartaoVista && tarefaSelecionada.status !== 'sem_boleto' && (
+                          {/* COLUNA: BOLETO DEVOLVIDO PELO FINANCEIRO — não mostra para Pix/Cheque/Cartões (não geram boleto) nem sem_boleto */}
+                          {!exigeComprovantePago(tarefaSelecionada.forma_pagamento) && tarefaSelecionada.status !== 'sem_boleto' && (
                           <div style={{ background: tarefaSelecionada.anexo_boleto ? '#eff6ff' : '#fef2f2', border: `1px solid ${tarefaSelecionada.anexo_boleto ? '#bfdbfe' : '#fecaca'}`, borderRadius:'22px', padding:'30px' }}>
                             <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'20px' }}>
                               <div style={{ width:'36px', height:'36px', borderRadius:'50%', background: tarefaSelecionada.anexo_boleto ? '#dbeafe' : '#fee2e2', display:'flex', alignItems:'center', justifyContent:'center' }}>

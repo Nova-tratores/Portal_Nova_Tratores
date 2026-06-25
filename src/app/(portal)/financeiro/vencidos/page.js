@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { exigeComprovantePago, temComprovantePago } from '@/lib/financeiro/constants'
 import { useAuth } from '@/hooks/useAuth'
 import { formatarDataBR, formatarMoeda } from '@/lib/financeiro/utils'
 import { notificarAdminsClient } from '@/hooks/useNotificarAdmins'
@@ -108,6 +109,10 @@ export default function VencidosPage() {
   }
 
   const handleMarcarPago = async (t) => {
+    if (exigeComprovantePago(t.forma_pagamento) && !temComprovantePago(t)) {
+      alert('Este método de pagamento exige o comprovante anexado para mover para Pago.')
+      return
+    }
     notificarMovimento(t, 'pago', `NF #${t.id} - ${t.nom_cliente || ''} — Marcado como pago`)
     await supabase.from('Chamado_NF').update({
       status: 'pago',

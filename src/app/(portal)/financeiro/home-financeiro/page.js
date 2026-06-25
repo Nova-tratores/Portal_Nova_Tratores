@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState, useRef, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
+import { exigeComprovantePago, temComprovantePago } from '@/lib/financeiro/constants'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
@@ -311,6 +312,10 @@ function HomeFinanceiroContent() {
  };
 
  const handleMoverParaPago = async (t) => {
+    if (exigeComprovantePago(t.forma_pagamento) && !temComprovantePago(t)) {
+      alert('Este método de pagamento exige o comprovante anexado para mover para Pago.');
+      return;
+    }
     notificarMovimento('Chamado_NF', t, 'pago', `${getCardLabel(t)} — Pagamento confirmado`);
     await supabase.from('Chamado_NF').update({ status: 'pago', tarefa: 'Pagamento Confirmado' }).eq('id', t.id);
     auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'pago', acao_desc: 'Pagamento confirmado' } });
@@ -1040,7 +1045,11 @@ function HomeFinanceiroContent() {
             )}
 
             {(isCashOrCardType || tarefaSelecionada.status === 'validar_pix' || (tarefaSelecionada.status === 'aguardando_vencimento' && (tarefaSelecionada.isTarefaPagamentoRealizado || isBoleto30 || isFinanceiro))) && (
-                <button onClick={() => { if (tarefaSelecionada.isTarefaPagamentoRealizado || tarefaSelecionada.comprovante_pagamento || isBoleto30 || isCashOrCardType || window.confirm('Marcar como PAGO mesmo sem comprovante anexado?')) handleMoverParaPago(tarefaSelecionada); }} style={btnSuccessBeautified}>
+                <button onClick={() => {
+                  const precisaComp = exigeComprovantePago(tarefaSelecionada.forma_pagamento);
+                  if (precisaComp && !temComprovantePago(tarefaSelecionada)) { alert('Este método de pagamento exige o comprovante anexado para mover para Pago.'); return; }
+                  if (precisaComp || tarefaSelecionada.isTarefaPagamentoRealizado || tarefaSelecionada.comprovante_pagamento || isBoleto30 || window.confirm('Marcar como PAGO mesmo sem comprovante anexado?')) handleMoverParaPago(tarefaSelecionada);
+                }} style={btnSuccessBeautified}>
                     <CheckCircle size={24}/> CONCLUÍDO-MOVER PARA PAGO
                 </button>
             )}

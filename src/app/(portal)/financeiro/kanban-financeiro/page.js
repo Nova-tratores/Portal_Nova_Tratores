@@ -9,7 +9,7 @@ import { useAuditLog } from '@/hooks/useAuditLog'
 import { notificarAdminsClient } from '@/hooks/useNotificarAdmins'
 import { autoEnviarENotificar } from '@/lib/financeiro/envioBoleto'
 import { formatarDataBR, formatarMoeda, calcTempo } from '@/lib/financeiro/utils'
-import { STATUS_CONFIG_NF as STATUS_CONFIG } from '@/lib/financeiro/constants'
+import { STATUS_CONFIG_NF as STATUS_CONFIG, exigeComprovantePago, temComprovantePago } from '@/lib/financeiro/constants'
 import {
   X, PlusCircle, FileText, Download,
   CheckCircle, Upload, Send,
@@ -298,6 +298,10 @@ const handleUpdateFileDirect = async (id, field, file) => {
 };
 
 const handleActionMoveStatus = async (t, newStatus) => {
+      if (newStatus === 'pago' && exigeComprovantePago(t.forma_pagamento) && !temComprovantePago(t)) {
+        alert('Este método de pagamento exige o comprovante anexado para mover para Pago.');
+        return;
+      }
       notificarMovimento(t, newStatus);
       const now = new Date().toISOString();
       const { error } = await supabase.from('Chamado_NF').update({ status: newStatus }).eq('id', t.id);
@@ -405,6 +409,7 @@ const chamadosFiltrados = chamados.filter(c => {
 
 // --- LOGICAS CONDICIONAIS ---
 const isPixOuCartaoVista = tarefaSelecionada && ['Pix', 'Cartão a vista'].includes(tarefaSelecionada.forma_pagamento);
+const isCheque = tarefaSelecionada?.forma_pagamento === 'Cheque';
 const isBoleto30 = tarefaSelecionada && tarefaSelecionada.forma_pagamento === 'Boleto 30 dias';
 const isBoletoParcelado = tarefaSelecionada?.forma_pagamento === 'Boleto Parcelado';
 const isCartaoParcelado = tarefaSelecionada?.forma_pagamento === 'Cartão Parcelado';
@@ -787,7 +792,7 @@ return (
                 {(tarefaSelecionada.anexo_nf_peca || (!tarefaSelecionada.num_nf_servico && !tarefaSelecionada.anexo_nf_servico)) && (
                   <AttachmentTag icon={<ClipboardList size={18} />} label="NF PECA" fileUrl={tarefaSelecionada.anexo_nf_peca} onUpload={(file) => handleUpdateFileDirect(tarefaSelecionada.id, 'anexo_nf_peca', file)} disabled={tarefaSelecionada.status === 'concluido'} />
                 )}
-                {(isPixOuCartaoVista || tarefaSelecionada.status === 'aguardando_vencimento' || tarefaSelecionada.comprovante_pagamento) && (
+                {(isPixOuCartaoVista || isCheque || tarefaSelecionada.status === 'aguardando_vencimento' || tarefaSelecionada.comprovante_pagamento) && (
                   <AttachmentTag icon={<CheckCircle size={18} />} label="COMPROVANTE" fileUrl={tarefaSelecionada.comprovante_pagamento} onUpload={(file) => handleUpdateFileDirect(tarefaSelecionada.id, 'comprovante_pagamento', file)} disabled={tarefaSelecionada.status === 'concluido'} onRemove={() => { if(confirm('Remover comprovante de pagamento?')) handleUpdateField(tarefaSelecionada.id, 'comprovante_pagamento', null); }} />
                 )}
               </div>
@@ -922,7 +927,7 @@ return (
 
           <div style={{marginTop:'60px', display:'flex', gap:'20px'}}>
               {/* BLOCO DE PROCESSAMENTO */}
-              {(tarefaSelecionada.status === 'gerar_boleto' || tarefaSelecionada.status === 'validar_pix') && !isPixOuCartaoVista && (
+              {(tarefaSelecionada.status === 'gerar_boleto' || tarefaSelecionada.status === 'validar_pix') && !isPixOuCartaoVista && !isCheque && (
                 <div style={{flex: 1, background:'rgba(79, 70, 229, 0.03)', padding:'40px', borderRadius:'24px', border:'2px dashed #4f46e5'}}>
                     <label style={{...labelModalStyle, color:'#4f46e5', fontSize: '15px', fontWeight:'700'}}>ANEXAR BOLETO FINAL E PROCESSAR</label>
                     <div style={{display:'flex', gap:'30px', marginTop:'25px', alignItems: 'center'}}>
@@ -969,8 +974,8 @@ return (
                 </div>
               )}
 
-              {/* PIX / Cartão à Vista em gerar_boleto: mostrar ação de mover para pago */}
-              {(tarefaSelecionada.status === 'gerar_boleto' || tarefaSelecionada.status === 'validar_pix') && isPixOuCartaoVista && (
+              {/* PIX / Cartão à Vista / Cheque em gerar_boleto: mostrar ação de mover para pago */}
+              {(tarefaSelecionada.status === 'gerar_boleto' || tarefaSelecionada.status === 'validar_pix') && (isPixOuCartaoVista || isCheque) && (
                 <div style={{flex: 1, background:'rgba(34, 197, 94, 0.04)', padding:'30px', borderRadius:'16px', border:'2px dashed #22c55e', textAlign:'center'}}>
                   <div style={{fontSize:'14px', color:'#6B7280', marginBottom:'16px'}}>
                     <strong>{tarefaSelecionada.forma_pagamento}</strong> — não precisa de boleto.
@@ -1022,15 +1027,15 @@ return (
                 </>
               )}
 
-              {/* PIX / Cartão à Vista com comprovante -> pago */}
-              {tarefaSelecionada.status === 'aguardando_vencimento' && isPixOuCartaoVista && tarefaSelecionada.comprovante_pagamento && (
+              {/* PIX / Cartão à Vista / Cheque com comprovante -> pago */}
+              {tarefaSelecionada.status === 'aguardando_vencimento' && (isPixOuCartaoVista || isCheque) && tarefaSelecionada.comprovante_pagamento && (
                 <button onClick={() => handleActionMoveStatus(tarefaSelecionada, 'pago')} style={btnActionGreen}>
                   <CheckCheck size={20}/> PAGAMENTO CONFIRMADO — MOVER PARA PAGO
                 </button>
               )}
 
-              {/* FINANCEIRO: pode marcar como pago sem comprovante anexado */}
-              {tarefaSelecionada.status === 'aguardando_vencimento' && isFinanceiro && !tarefaSelecionada.comprovante_pagamento && !tarefaSelecionada.isPagamentoRealizado && (
+              {/* FINANCEIRO: pode marcar como pago sem comprovante — exceto Pix/Cheque/Cartões (comprovante obrigatório) */}
+              {tarefaSelecionada.status === 'aguardando_vencimento' && isFinanceiro && !exigeComprovantePago(tarefaSelecionada.forma_pagamento) && !tarefaSelecionada.comprovante_pagamento && !tarefaSelecionada.isPagamentoRealizado && (
                 <button onClick={() => { if (window.confirm('Marcar como PAGO mesmo sem comprovante anexado?')) handleActionMoveStatus(tarefaSelecionada, 'pago') }} style={btnActionGreen}>
                   <CheckCheck size={20}/> MARCAR COMO PAGO (SEM COMPROVANTE)
                 </button>
