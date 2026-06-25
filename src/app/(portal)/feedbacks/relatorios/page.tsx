@@ -67,6 +67,19 @@ function fmtDataCSV(d: string | null | undefined): string {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : String(d);
 }
 
+// Tira quebras de linha e espaços repetidos pra cada célula caber numa linha só.
+function limpar(v: unknown): string {
+  if (v === null || v === undefined) return "";
+  return String(v).replace(/[\r\n]+/g, " ").replace(/\s{2,}/g, " ").trim();
+}
+
+// Força o Excel a tratar como TEXTO (sintaxe de fórmula ="..."): evita notação
+// científica em telefone/código e evita reinterpretar/encolher datas (####).
+function txtExcel(v: unknown): string {
+  const s = limpar(v);
+  return s ? `="${s}"` : "";
+}
+
 // Monta o CSV: BOM (Excel lê UTF-8) + separador ; + quebras \r\n.
 function montarCSV(headers: string[], linhas: (string | number)[][]): string {
   const corpo = [headers, ...linhas]
@@ -84,28 +97,28 @@ function gerarCSV(rows: FeedbackRegistro[]): string {
   ];
   const linhas: (string | number)[][] = rows.map((r) => [
     r.tipo.toUpperCase(),
-    r.nome || "",
-    r.telefone || "",
-    r.trator || "",
-    r.tecnico || "",
-    r.codigo_omie || "",
-    fmtDataCSV(r.data_contato),
-    r.servico || "",
-    fmtDataCSV(r.data_servico),
-    r.status_cliente || "",
+    limpar(r.nome),
+    txtExcel(r.telefone),
+    limpar(r.trator),
+    limpar(r.tecnico),
+    txtExcel(r.codigo_omie),
+    txtExcel(fmtDataCSV(r.data_contato)),
+    limpar(r.servico),
+    txtExcel(fmtDataCSV(r.data_servico)),
+    limpar(r.status_cliente),
     r.nota ?? "",
-    r.feedback || "",
-    r.nps || "",
-    r.melhoria || "",
-    fmtDataCSV(r.ultimo_servico),
-    r.motivo || "",
-    r.prioridade || "",
-    r.acao || "",
+    limpar(r.feedback),
+    limpar(r.nps),
+    limpar(r.melhoria),
+    txtExcel(fmtDataCSV(r.ultimo_servico)),
+    limpar(r.motivo),
+    limpar(r.prioridade),
+    limpar(r.acao),
     r.sem_resposta ? "Sim" : "Não",
-    fmtDataCSV(r.revisao_confirmada),
-    r.atendente_nome || "",
-    (r.status_atendimento || "").replace(/_/g, " "),
-    fmtDataCSV(r.criado_em),
+    txtExcel(fmtDataCSV(r.revisao_confirmada)),
+    limpar(r.atendente_nome),
+    limpar((r.status_atendimento || "").replace(/_/g, " ")),
+    txtExcel(fmtDataCSV(r.criado_em)),
   ]);
   return montarCSV(headers, linhas);
 }
@@ -268,7 +281,7 @@ export default function RelatoriosPage() {
   function baixarCSVAtendentes() {
     const headers = ["Atendente", "Contatos hoje", "Contatos ontem", "Contatos 7 dias", "Respondeu (7d)", "Positiva CRM (7d)", "Negativa CRM (7d)", "Gerou serviço (7d)", "Não gerou (7d)"];
     const linhas: (string | number)[][] = statsAtendenteDet.map((s) => [
-      s.atendente, s.hoje, s.ontem, s.sete, s.respondeu, s.positiva, s.negativa, s.gerouServico, s.sete - s.gerouServico,
+      limpar(s.atendente), s.hoje, s.ontem, s.sete, s.respondeu, s.positiva, s.negativa, s.gerouServico, s.sete - s.gerouServico,
     ]);
     const blob = new Blob([montarCSV(headers, linhas)], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
