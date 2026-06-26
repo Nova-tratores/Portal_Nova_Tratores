@@ -135,7 +135,7 @@ const TOOLS = [
           tecnico: { type: "string", description: "Técnico responsável — só o nome (ex.: Danilo). É casado com a lista real de técnicos do POS. Opcional." },
           projeto: { type: "string", description: "Projeto/equipamento existente — pode ser só o FINAL do chassi, o modelo ou o número. É casado com um projeto do banco. Opcional." },
           tipoServico: { type: "string", description: "Tipo de serviço, ex.: Revisão, Garantia, Manutenção (opcional)" },
-          revisao_horas: { type: "number", description: "Número de HORAS da revisão que o usuário falou (50, 300, 600, 900, 1200, 2400...). Em revisão, passe SEMPRE este número — o sistema busca o plano certo e importa o kit por ele. Não confie só no texto." },
+          revisao_horas: { type: "number", description: "Número de HORAS da revisão (50, 300, 600, 900, 1200, 2400...) quando o trator tem revisão por hora — passe o que o usuário falou. QUADRICICLO ou veículo SEM horas: NÃO passe este campo; o sistema importa o kit único do trator." },
           revisao: { type: "string", description: "Texto do plano de revisão (opcional — o sistema já busca pelo nº de horas). Use só se o usuário ditar um plano específico." },
           trator: { type: "string", description: "Modelo do trator (ex.: 6075, 9500S, Jivo 2025). Em revisão, o sistema usa isso + as horas pra IMPORTAR o kit de peças automaticamente." },
           horas: { type: "number", description: "Horas de mão de obra (opcional — em revisão é preenchido automaticamente pela regra da casa)" },
@@ -520,7 +520,7 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
             chassisProj = partes.slice(1).join(" ") || "";
           }
         } catch {}
-        if (!projetoNome) return { precisa: "projeto", mensagem: `Não achei um projeto/equipamento com "${args.projeto}". Confirma o final do chassi ou o modelo?` };
+        // Se não casar com um projeto cadastrado (ex.: quadriciclo), NÃO bloqueia — usa como modelo do kit/descrição.
       }
 
       // Resolve peças (código/descrição/preço). Se houver, a OS gera um PPV vinculado.
@@ -558,12 +558,13 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
           }
         } catch {}
       }
-      const trator = String(args.trator || "").trim();
+      // Pro kit, o modelo pode vir em 'trator' ou (fallback) no 'projeto' (ex.: quadriciclo que o modelo mandou como projeto)
+      const trator = (String(args.trator || "").trim() || String(args.projeto || "").trim());
       const revisaoHorasArg = parseInt(String(args.revisao_horas || "").replace(/\D/g, "") || "0", 10);
       let planoRevisao = String(args.revisao || "").trim();
       // Horas da revisão: prioriza o NÚMERO informado; só cai no texto do plano se não vier.
       const hrev = revisaoHorasArg || (planoRevisao ? parseInt((planoRevisao.match(/(\d{2,4})\s*horas?/i) || [])[1] || "0", 10) : 0);
-      const ehRevisao = !!(revisaoHorasArg || planoRevisao || /revis/i.test(String(args.tipoServico || "")));
+      const ehRevisao = !!(revisaoHorasArg || planoRevisao || /revis/i.test(String(args.tipoServico || "")) || /revis/i.test(String(args.servico || "")));
 
       // REVISÃO: busca o PLANO certo pelas HORAS (e trator), pra não depender do texto que o modelo escolheu
       if (ehRevisao && hrev) {
@@ -598,6 +599,34 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
               if (!cod || pecas.some((p) => p.codigo === cod)) continue;
               pecas.push({ codigo: cod, descricao: k.descricao || cod, quantidade: Number(k.quantidade) || 1, preco: Number(k.preco) || 0 });
             }
+          }
+        } catch {}
+      }
+      // REVISÃO SEM HORAS (ex.: quadriciclo, que tem um kit só): importa o kit único do trator
+      if (ehRevisao && trator && !hrev) {
+        try {
+          const rc = await fetch(`${SB}/rest/v1/revisoes?select=Trator,Cod_Trator,Horas,tipo`, { headers: { apikey: SK, authorization: `Bearer ${SK}` } });
+          const rows: any[] = rc.ok ? await rc.json() : [];
+          const dig = (s: any): string[] => (String(s || "").toUpperCase().match(/\d{3,}/g) || []);
+          const userDig = dig(trator); const normTr = normT(trator);
+          const doTrator = rows.filter((r) => String(r.tipo || "revisao") === "revisao").filter((r) => {
+            const rt = normT(r.Trator); const tDig = dig(r.Trator).concat(dig(r.Cod_Trator));
+            return rt === normTr || rt.includes(normTr) || normTr.includes(rt) || (userDig.length > 0 && tDig.some((d) => userDig.includes(d)));
+          });
+          const tratoresUnicos = [...new Set(doTrator.map((r) => r.Trator))];
+          if (doTrator.length > 1 && tratoresUnicos.length === 1) {
+            return { precisa: "horas", mensagem: `O ${tratoresUnicos[0]} tem várias revisões: ${doTrator.map((r) => r.Horas).join(", ")}. Qual delas?` };
+          }
+          const row = doTrator[0];
+          if (row) {
+            const rk = await fetch(`${origin}/api/ppv/revisoes?trator=${encodeURIComponent(row.Trator)}&horas=${encodeURIComponent(row.Horas)}`);
+            const kit: any[] = rk.ok ? await rk.json() : [];
+            for (const k of (Array.isArray(kit) ? kit : [])) {
+              const cod = String(k.codigo || "").trim();
+              if (!cod || pecas.some((p) => p.codigo === cod)) continue;
+              pecas.push({ codigo: cod, descricao: k.descricao || cod, quantidade: Number(k.quantidade) || 1, preco: Number(k.preco) || 0 });
+            }
+            if (!planoRevisao) planoRevisao = `Revisão ${row.Trator}${row.Horas && !/^\d/.test(String(row.Horas)) && !/^revis/i.test(String(row.Horas)) ? " - " + row.Horas : ""}`;
           }
         } catch {}
       }
@@ -654,7 +683,7 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
       ];
       if (projetoNome) resumo.push({ label: "Projeto", valor: projetoNome });
       if (ehRevisao) resumo.push({ label: "Plano revisão", valor: planoRevisao });
-      if (trator) resumo.push({ label: "Trator", valor: trator });
+      if (trator && ehRevisao) resumo.push({ label: "Trator", valor: trator });
       if (horas) resumo.push({ label: "Mão de obra", valor: `${horas}h${cortesia ? " (cortesia de fábrica — não cobra)" : ""}` });
       if (descontoHoraValor) resumo.push({ label: "Desconto", valor: `-R$ ${descontoHoraValor.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (2h cortesia)` });
       if (km) resumo.push({ label: "Deslocamento", valor: `${km} km${kmCalculado ? " (ida e volta, via Maps)" : ""}` });
@@ -1026,7 +1055,7 @@ export async function POST(req: NextRequest) {
     "FORMATO DAS RESPOSTAS: seja claro, organizado e enxuto. Use **negrito** pra destacar (códigos, nomes, totais), listas com '- ' quando ajudar, e frases curtas. Comece com uma frase curta de contexto, não com uma parede de texto. " +
     "AO LISTAR PEÇAS: mostre no máximo 6 a 8 itens MAIS RELEVANTES, um por linha no formato '- `código` — Nome (preço, se houver)'. DESCARTE itens claramente fora do contexto (numa busca de 'motor', ignore coisas como 'motor do limpa-vidros', 'etiqueta', 'chicote'); foque na peça que a pessoa quer. Se vierem muitos resultados, diga quantos achou no total, mostre só os principais e PERGUNTE como filtrar (qual peça específica, ou qual sistema). Nunca despeje uma lista grande e crua. " +
     "No HISTÓRICO de cliente: separe por FAZENDA (cada CNPJ é uma fazenda) e mostre o endereço de cada uma; destaque o serviço mais recente; e SEMPRE apresente os links (PDF da OS, NF, PPV, requisição, pasta do cliente) como links clicáveis no formato markdown [texto](url).\n\n" +
-    "REVISÕES: existem PLANOS DE REVISÃO prontos (o escopo de cada revisão — 50h, 300h, 600h...). Se perguntarem o que tem/o que vai numa revisão de X horas, USE buscar_plano_revisao (escopo) e, se quiserem as peças com código/preço, kit_revisao. Ao ABRIR UMA OS DE REVISÃO: chame propor_os passando 'revisao_horas' (o NÚMERO de horas que o usuário falou, ex.: 900), 'trator' (o modelo) e 'servico'. O SISTEMA busca o plano CERTO por essas horas e importa o kit de peças sozinho (gerando o PPV vinculado) — NÃO precisa montar 'pecas' à mão, nem chamar buscar_plano_revisao/kit_revisao pra criar a OS. NUNCA troque as horas que o usuário pediu (900 é 900, não 600). Se o usuário não disser o trator, pergunte (é obrigatório pra importar o kit). HORAS DE SERVIÇO da revisão (o sistema já preenche sozinho, não precisa informar): revisão de 50h e 900h = 2h mas com desconto de 2h (cortesia da fábrica, não cobra mão de obra); 1200h e 2400h = 6h; todas as outras = 3h.\n\n" +
+    "REVISÕES: existem PLANOS DE REVISÃO prontos (o escopo de cada revisão — 50h, 300h, 600h...). Se perguntarem o que tem/o que vai numa revisão de X horas, USE buscar_plano_revisao (escopo) e, se quiserem as peças com código/preço, kit_revisao. Ao ABRIR UMA OS DE REVISÃO: chame propor_os passando 'revisao_horas' (o NÚMERO de horas que o usuário falou, ex.: 900), 'trator' (o modelo) e 'servico'. O SISTEMA busca o plano CERTO por essas horas e importa o kit de peças sozinho (gerando o PPV vinculado) — NÃO precisa montar 'pecas' à mão, nem chamar buscar_plano_revisao/kit_revisao pra criar a OS. NUNCA troque as horas que o usuário pediu (900 é 900, não 600). QUADRICICLO ou veículo SEM horas de revisão: não passe 'revisao_horas'. O NOME que o usuário deu (ex.: 'quadriciclo Honda', 'Jivo', 'TC04', 'Honda') JÁ É o 'trator'. É PROIBIDO perguntar 'qual o modelo/chassi do quadriciclo' — mesmo que pareça genérico ou só a marca, CHAME propor_os IMEDIATAMENTE com esse nome em 'trator' e o 'servico'. O sistema procura o kit pelo nome; se não achar, é o PRÓPRIO SISTEMA que vai pedir mais detalhes — nunca você. Só pergunte se o usuário não disser ABSOLUTAMENTE nenhum nome. HORAS DE SERVIÇO da revisão (o sistema já preenche sozinho, não precisa informar): revisão de 50h e 900h = 2h mas com desconto de 2h (cortesia da fábrica, não cobra mão de obra); 1200h e 2400h = 6h; todas as outras = 3h.\n\n" +
     "AO ABRIR OS (Ordem de Serviço): se o serviço envolve TROCA/USO DE PEÇAS, inclua as peças em 'pecas' no propor_os — isso já gera um PPV de peças VINCULADO à OS automaticamente. Se for só mão de obra/visita, abra a OS sem peças. Para um pedido só de peças (sem serviço), use propor_ppv (PPV avulso). TÉCNICO: passe só o primeiro nome (ex.: 'Danilo') — o sistema casa com o técnico real. PROJETO/EQUIPAMENTO: se o usuário citar (mesmo só o final do chassi), passe em 'projeto' — o sistema casa com o projeto existente e preenche modelo/chassis. DESCRIÇÃO: NUNCA reescreva o texto todo — passe em 'servico' APENAS o que o cliente pediu; o sistema encaixa no campo 'Solicitação do cliente' do modelo padrão. O que o usuário colocar ENTRE ASPAS é exatamente a solicitação de serviço (ex.: faça uma OS pro cliente X, técnico Danilo, \"troca da bucha do pivô\" → servico = \"troca da bucha do pivô\"). LOCALIZAÇÃO: se o usuário mandar um link de localização do Google Maps (ou um endereço), passe em 'localizacao' — o sistema calcula sozinho o km de IDA E VOLTA da oficina até o local e preenche o deslocamento. DATA: a data/hora de execução já fica a de hoje automaticamente — só passe 'data' (AAAA-MM-DD) se o usuário falar outra data. Depois de criar, aparece o botão 'Abrir / Imprimir' que já abre a OS pronta pra impressão.\n\n" +
     "AO CRIAR REQUISIÇÃO: EXTRAIA da frase do usuário tudo que der e JÁ CHAME propor_requisicao — NÃO fique perguntando o que dá pra deduzir. A própria ferramenta avisa o que faltar. Como interpretar a frase: o que vão COMPRAR/precisa = título + tipo (peça de máquina → 'Peças'; consumível/material de oficina ou infra — tinta, spray, lixa, cola, material de limpeza, EPI, etc. → 'Insumo Infra'); 'para o FULANO' / 'o FULANO pediu' = solicitante; 'do cliente X' / 'do trator do X' = cliente (e setor 'Trator-Cliente'); 'trator NNNN' / chassi = projeto; 'porque/pois ...' = motivo (obs). Ex.: 'requisição pra comprar uma bomba hidráulica pro trator 6118 do José Adilson, que queimou, para o Gabriel' → titulo='Bomba hidráulica trator 6118', tipo='Peças', setor='Trator-Cliente', cliente='José Adilson', projeto='6118', solicitante='Gabriel', obs='a bomba hidráulica queimou'. Por SETOR: Trator-Cliente exige cliente, OS, projeto/chassi e o CUSTO REAL da peça (passe em 'custo' — o valor cobrado do cliente é calculado sozinho como custo + 20%); Trator-Loja exige o chassi e modelo (passe em 'projeto'); Oficina e Comercial são simples (só os campos base). Só PERGUNTE (mostrando as opções válidas que a ferramenta retornar) quando ela disser que falta algo obrigatório. Tipo/setor/solicitante são dropdowns — sempre um valor que JÁ EXISTE, nunca invente. \n\n" +
     "LIBERDADE: pode raciocinar e fazer suposições razoáveis a partir do contexto e dos dados das ferramentas — quando for suposição, deixe claro (ex.: 'provavelmente', 'imagino que'). Antes de dizer que não sabe algo do portal, TENTE usar uma ferramenta para descobrir. Mas dados concretos (números, códigos, preços, nomes, quantidades) só com base nas ferramentas/dados reais; nunca invente.\n\n" +
