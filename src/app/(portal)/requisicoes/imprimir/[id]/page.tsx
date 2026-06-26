@@ -69,6 +69,14 @@ export default function ImprimirRequisicao() {
     carregar();
   }, [id]);
 
+  // ?print=1 → abre a janela de impressão sozinho ao carregar (usado pelo Tratorilson). O @media print já some com o menu.
+  useEffect(() => {
+    if (req && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('print') === '1') {
+      const t = setTimeout(() => window.print(), 600);
+      return () => clearTimeout(t);
+    }
+  }, [req]);
+
   if (loading) return <div style={{ padding: 40, textAlign: 'center', fontFamily: 'sans-serif', color: '#999' }}>Carregando requisição...</div>;
   if (!req) return <div style={{ padding: 40, textAlign: 'center', fontFamily: 'sans-serif', color: '#999' }}>Requisição não encontrada.</div>;
 

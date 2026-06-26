@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
     if (proposta.tipo === "requisicao") {
       const { data, error } = await supabase.from("Requisicao").insert([{ ...proposta.dados, criado_por: quem }]).select("id").single();
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-      return NextResponse.json({ ok: true, tipo: "requisicao", id: data.id, numero: data.id, abrirUrl: `/requisicoes/imprimir/${data.id}` });
+      return NextResponse.json({ ok: true, tipo: "requisicao", id: data.id, numero: data.id, abrirUrl: `/requisicoes/imprimir/${data.id}?print=1` });
     }
 
     return NextResponse.json({ error: "Tipo não suportado." }, { status: 400 });
