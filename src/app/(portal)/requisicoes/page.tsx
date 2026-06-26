@@ -24,7 +24,16 @@ const ABAS_VALIDAS = new Set(['kanban', 'usuarios', 'veiculos', 'fornecedores', 
 
 function RequisicoesPageInner() {
   const { userProfile } = useAuth();
-  const { isDev } = usePermissoes(userProfile?.id);
+  const { isDev, pode } = usePermissoes(userProfile?.id);
+  // Permissões granulares das Requisições
+  const podeCriar = pode('requisicoes', 'criar');
+  const podeEditar = pode('requisicoes', 'editar');
+  const podeMoverFase = pode('requisicoes', 'mover_fase');
+  const podeFornecedor = pode('requisicoes', 'criar_fornecedor');
+  const podeVeiculo = pode('requisicoes', 'criar_veiculo');
+  const podeTags = pode('requisicoes', 'tags');
+  const podeExcluir = pode('requisicoes', 'excluir');
+  const podeImprimir = pode('requisicoes', 'imprimir');
   const { log: auditLog } = useAuditLog();
   const userName = userProfile?.nome || 'Alguém';
   const searchParams = useSearchParams();
@@ -348,11 +357,11 @@ function RequisicoesPageInner() {
 
   const tabs = [
     { id: 'kanban', label: 'Kanban', icon: <LayoutDashboard size={16} /> },
-    { id: 'veiculos', label: 'Veículos', icon: <Car size={16} /> },
-    { id: 'fornecedores', label: 'Fornecedores', icon: <Users2 size={16} /> },
+    podeVeiculo && { id: 'veiculos', label: 'Veículos', icon: <Car size={16} /> },
+    podeFornecedor && { id: 'fornecedores', label: 'Fornecedores', icon: <Users2 size={16} /> },
     { id: 'relatorio', label: 'Relatório', icon: <FileText size={16} /> },
-    { id: 'lixeira', label: `Lixeira${lixeiraCount > 0 ? ` (${lixeiraCount})` : ''}`, icon: <Trash2 size={16} /> },
-  ];
+    podeExcluir && { id: 'lixeira', label: `Lixeira${lixeiraCount > 0 ? ` (${lixeiraCount})` : ''}`, icon: <Trash2 size={16} /> },
+  ].filter(Boolean) as { id: string; label: string; icon: React.ReactNode }[];
 
   return (
     <div style={{ padding: '24px 32px' }}>
@@ -547,18 +556,20 @@ function RequisicoesPageInner() {
             </p>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
-            <button
-              onClick={() => setShowTagsModal(true)}
-              style={{
-                padding: '8px 14px', borderRadius: '10px',
-                background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
-                color: 'var(--portal-text-secondary)', fontSize: '13px', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: '6px', fontFamily: 'Inter'
-              }}
-            >
-              <Tag size={16} />
-              Tags
-            </button>
+            {podeTags && (
+              <button
+                onClick={() => setShowTagsModal(true)}
+                style={{
+                  padding: '8px 14px', borderRadius: '10px',
+                  background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
+                  color: 'var(--portal-text-secondary)', fontSize: '13px', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: '6px', fontFamily: 'Inter'
+                }}
+              >
+                <Tag size={16} />
+                Tags
+              </button>
+            )}
           </div>
         </div>
 
@@ -600,6 +611,10 @@ function RequisicoesPageInner() {
               onPrint={dispararImpressao}
               idDestaque={idDestaque}
               onCardFechado={handleCardFechado}
+              podeEditar={podeEditar}
+              podeMoverFase={podeMoverFase}
+              podeImprimir={podeImprimir}
+              podeExcluir={podeExcluir}
             />
           )}
 
@@ -835,6 +850,7 @@ function RequisicoesPageInner() {
       {isDev && userProfile && <PainelDev devId={userProfile.id} devNome={userProfile.nome} />}
 
       {/* FAB - Nova Requisição */}
+      {podeCriar && (
       <button
         onClick={() => setAbaAtiva(abaAtiva === 'form' ? 'kanban' : 'form')}
         style={{
@@ -851,9 +867,10 @@ function RequisicoesPageInner() {
       >
         <Plus size={24} />
       </button>
+      )}
 
       {/* Form Modal */}
-      {abaAtiva === 'form' && (
+      {podeCriar && abaAtiva === 'form' && (
         <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[100] flex items-center justify-center p-4 print:hidden">
           <div className="w-full max-w-5xl bg-white rounded-2xl border border-zinc-200 overflow-y-auto max-h-[90vh] shadow-xl">
             <FormReq onSave={async (nova: Record<string, unknown>) => {

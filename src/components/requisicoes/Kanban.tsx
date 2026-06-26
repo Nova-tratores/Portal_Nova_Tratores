@@ -6,7 +6,7 @@ import { Search, Calendar, Building2, X, Layout, UserCircle, Layers, SlidersHori
 
 const LISTA_FORNECEDORES_CADASTRADOS = ["Rodrigo Torneiro (Panda)"];
 
-export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado }: any) {
+export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, podeEditar = true, podeMoverFase = true, podeImprimir = true, podeExcluir = true }: any) {
   // Dados compartilhados - buscados UMA vez, passados para todos os cards
   const [dadosCompartilhados, setDadosCompartilhados] = useState<{ fornecedores: any[], usuarios: any[], veiculos: any[] }>({ fornecedores: [], usuarios: [], veiculos: [] });
 
@@ -43,6 +43,8 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado }
 
   const handleDrop = (e: React.DragEvent, novoStatus: string) => {
     e.preventDefault();
+    setColunaArrastando(null);
+    if (!podeMoverFase) return; // sem permissão de mover de fase
     const idRequisicao = e.dataTransfer.getData("idRequisicao");
     if (idRequisicao) {
       const updates: any = { status: novoStatus };
@@ -424,6 +426,10 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado }
                           onPrint={onPrint}
                           dadosCompartilhados={dadosCompartilhados}
                           onCardFechado={onCardFechado}
+                          podeEditar={podeEditar}
+                          podeMoverFase={podeMoverFase}
+                          podeImprimir={podeImprimir}
+                          podeExcluir={podeExcluir}
                         />
                       ))}
                       {items.length > (limitesPorColuna[col.id] || CARDS_POR_VEZ) && (
