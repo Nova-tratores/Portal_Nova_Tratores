@@ -17,7 +17,9 @@ type Tab = 'geral' | 'vendedores' | 'visitas' | 'mapa' | 'pos-vendas' | 'alertas
 
 export default function SupervisorVendasPage() {
   const { userProfile } = useAuth()
-  const { temAcesso, isAdmin, loading: loadingPerm } = usePermissoes(userProfile?.id)
+  const { temAcesso, pode, loading: loadingPerm } = usePermissoes(userProfile?.id)
+  const podeResolver = pode('supervisor-vendas', 'resolver_pos_vendas')
+  const podeCarros = pode('supervisor-vendas', 'gerenciar_carros')
   const [tab, setTab] = useState<Tab>('geral')
   const [kpis, setKpis] = useState<any>(null)
   const [vendedores, setVendedores] = useState<any[]>([])
@@ -92,11 +94,13 @@ export default function SupervisorVendasPage() {
   }, [])
 
   const resolverPosVendas = async (id: string, resolvido: boolean) => {
+    if (!podeResolver) return
     await fetch(`/api/supervisor-vendas?acao=pos_vendas_resolver&id=${id}&resolvido=${resolvido}`)
     carregar()
   }
 
   const removerCarro = async (placa: string) => {
+    if (!podeCarros) return
     if (!confirm('Remover o vínculo deste carro?')) return
     await fetch(`/api/supervisor-vendas/carros?placa=${encodeURIComponent(placa)}`, { method: 'DELETE' })
     carregar()
@@ -276,7 +280,7 @@ export default function SupervisorVendasPage() {
                 </select>
                 <span style={{ fontSize: 13, color: '#94A3B8' }}>{visitasMapa.length} visitas · {carros.length} carro{carros.length !== 1 ? 's' : ''}</span>
                 <div style={{ flex: 1 }} />
-                {isAdmin && (
+                {podeCarros && (
                   <button onClick={() => setShowVincular(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 10, background: 'linear-gradient(135deg, #dc2626, #991b1b)', color: '#fff', border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
                     <Car size={15} /> Carros
                   </button>
@@ -295,7 +299,7 @@ export default function SupervisorVendasPage() {
               )}
 
               {/* Lista de vínculos (admin) */}
-              {isAdmin && carros.length > 0 && (
+              {podeCarros && carros.length > 0 && (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
                   {carros.map((c: any) => (
                     <div key={c.placa} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderRadius: 10, background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)' }}>
@@ -344,13 +348,15 @@ export default function SupervisorVendasPage() {
                           <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text)' }}>{v.cliente_nome}</span>
                           <span style={{ fontSize: 12, color: '#64748B', marginLeft: 8 }}>{v.vendedor_nome} · {fmtData(v.data_visita)}</span>
                         </div>
-                        <button onClick={() => resolverPosVendas(v.id, !v.pos_vendas_resolvido)} style={{
-                          padding: '4px 12px', borderRadius: 6, border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                          background: v.pos_vendas_resolvido ? '#FEF3C7' : '#D1FAE5',
-                          color: v.pos_vendas_resolvido ? '#92400E' : '#065F46',
-                        }}>
-                          {v.pos_vendas_resolvido ? 'Reabrir' : 'Resolver'}
-                        </button>
+                        {podeResolver && (
+                          <button onClick={() => resolverPosVendas(v.id, !v.pos_vendas_resolvido)} style={{
+                            padding: '4px 12px', borderRadius: 6, border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                            background: v.pos_vendas_resolvido ? '#FEF3C7' : '#D1FAE5',
+                            color: v.pos_vendas_resolvido ? '#92400E' : '#065F46',
+                          }}>
+                            {v.pos_vendas_resolvido ? 'Reabrir' : 'Resolver'}
+                          </button>
+                        )}
                       </div>
                       {v.resumo && <p style={{ fontSize: 13, color: '#64748B', margin: 0 }}>{v.resumo}</p>}
                     </div>

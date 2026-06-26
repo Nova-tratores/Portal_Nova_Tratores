@@ -80,6 +80,14 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'finalizar', label: 'Finalizar (aprovar/recusar)' },
     { id: 'montadoras', label: 'Configurar montadoras' },
   ],
+  tarefas: [
+    { id: 'criar', label: 'Criar/atribuir tarefa' },
+    { id: 'concluir', label: 'Concluir/reabrir tarefa' },
+  ],
+  'supervisor-vendas': [
+    { id: 'resolver_pos_vendas', label: 'Resolver pós-venda' },
+    { id: 'gerenciar_carros', label: 'Vincular/remover carros' },
+  ],
 };
 
 export function acoesDoModulo(id: string): AcaoPermissao[] {

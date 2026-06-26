@@ -65,6 +65,9 @@ function formatDateRelative(d: string | null) {
 
 function TarefasPageInner() {
   const { userProfile } = useAuth()
+  const { pode } = usePermissoes(userProfile?.id)
+  const podeCriar = pode('tarefas', 'criar')
+  const podeConcluir = pode('tarefas', 'concluir')
   const [allTarefas, setAllTarefas] = useState<Tarefa[]>([])
   const [users, setUsers] = useState<PortalUser[]>([])
   const [loading, setLoading] = useState(true)
@@ -129,6 +132,7 @@ function TarefasPageInner() {
 
   // Marcar concluída com update otimista
   const marcarConcluida = async (id: number, done: boolean) => {
+    if (!podeConcluir) return
     setAllTarefas(prev => prev.map(t => {
       if (t.id !== id) return t
       const now = new Date()
@@ -206,15 +210,17 @@ function TarefasPageInner() {
             Concluídas
           </button>
 
-          <button onClick={() => setShowCreate(true)} style={{
-            padding: '10px 20px', borderRadius: '10px', border: 'none',
-            background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
-            color: '#fff', fontSize: '13px', fontWeight: '600', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: '8px',
-            boxShadow: '0 4px 12px rgba(220,38,38,0.25)'
-          }}>
-            <Plus size={18} /> Nova Tarefa
-          </button>
+          {podeCriar && (
+            <button onClick={() => setShowCreate(true)} style={{
+              padding: '10px 20px', borderRadius: '10px', border: 'none',
+              background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+              color: '#fff', fontSize: '13px', fontWeight: '600', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: '8px',
+              boxShadow: '0 4px 12px rgba(220,38,38,0.25)'
+            }}>
+              <Plus size={18} /> Nova Tarefa
+            </button>
+          )}
         </div>
       </div>
 
