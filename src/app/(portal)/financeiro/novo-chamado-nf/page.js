@@ -5,12 +5,15 @@ import { useRouter } from 'next/navigation'
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
 import { useAuditLog } from '@/hooks/useAuditLog'
 import { useAuth } from '@/hooks/useAuth'
+import { usePermissoes } from '@/hooks/usePermissoes'
 import { notificarAdminsClient } from '@/hooks/useNotificarAdmins'
 import { FileText, Calendar, CreditCard, User, Hash, CheckCircle, Upload, Paperclip, X, Mail, MessageCircle } from 'lucide-react'
 
 export default function NovoChamadoNF() {
   const { log: auditLog } = useAuditLog()
   const { userProfile } = useAuth()
+  const { pode } = usePermissoes(userProfile?.id)
+  const podeCriar = pode('financeiro', 'criar_chamado')
   const [todosUsuarios, setTodosUsuarios] = useState([])
   const [tipoNF, setTipoNF] = useState('')
   const [loading, setLoading] = useState(false)
@@ -88,6 +91,7 @@ export default function NovoChamadoNF() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!podeCriar) { alert('Você não tem permissão para abrir chamados.'); return }
     setLoading(true)
     try {
       const urlS = (tipoNF === 'servico' || tipoNF === 'ambas') ? await uploadFile(fileServico, 'servicos') : null
@@ -271,8 +275,8 @@ export default function NovoChamadoNF() {
               />
             </div>
 
-            <button disabled={loading} type="submit" style={{
-              background: loading ? '#e5e7eb' : '#1e293b',
+            <button disabled={loading || !podeCriar} type="submit" style={{
+              background: (loading || !podeCriar) ? '#e5e7eb' : '#1e293b',
               color: loading ? '#6b7280' : '#ffffff',
               border: 'none',
               padding: '16px',

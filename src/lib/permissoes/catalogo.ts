@@ -125,6 +125,12 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'converter_alerta', label: 'Converter alerta em ocorrência' },
     { id: 'avaliar_justificativa', label: 'Avaliar justificativa' },
   ],
+  // Financeiro: só as ações de CRIAÇÃO são granulares. O gerenciamento do
+  // kanban segue restrito a admin (isAdmin), por decisão do usuário.
+  financeiro: [
+    { id: 'criar_lancamento', label: 'Criar conta a pagar/receber' },
+    { id: 'criar_chamado', label: 'Abrir chamado (NF/RH)' },
+  ],
 };
 
 export function acoesDoModulo(id: string): AcaoPermissao[] {

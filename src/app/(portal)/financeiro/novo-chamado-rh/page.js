@@ -5,12 +5,15 @@ import { useRouter } from 'next/navigation'
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
 import { useAuditLog } from '@/hooks/useAuditLog'
 import { useAuth } from '@/hooks/useAuth'
+import { usePermissoes } from '@/hooks/usePermissoes'
 import { notificarAdminsClient } from '@/hooks/useNotificarAdmins'
 import { User, FileText, Building, CheckCircle, Tag } from 'lucide-react'
 
 export default function NovoChamadoRH() {
   const { log: auditLog } = useAuditLog()
   const { userProfile } = useAuth()
+  const { pode } = usePermissoes(userProfile?.id)
+  const podeCriar = pode('financeiro', 'criar_chamado')
   const [user, setUser] = useState(null)
   const [form, setForm] = useState({ funcionario: '', titulo: '', descricao: '', setor: '' })
   const [enviando, setEnviando] = useState(false)
@@ -29,6 +32,7 @@ export default function NovoChamadoRH() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (!podeCriar) { alert('Você não tem permissão para abrir chamados.'); return }
     setEnviando(true)
     try {
       const { error } = await supabase.from('finan_rh').insert([{
@@ -95,9 +99,9 @@ export default function NovoChamadoRH() {
               />
             </div>
 
-            <button type="submit" disabled={enviando} style={{
-              background: enviando ? '#e5e7eb' : '#1e293b',
-              color: enviando ? '#6b7280' : '#ffffff',
+            <button type="submit" disabled={enviando || !podeCriar} style={{
+              background: (enviando || !podeCriar) ? '#e5e7eb' : '#1e293b',
+              color: (enviando || !podeCriar) ? '#6b7280' : '#ffffff',
               border: 'none',
               padding: '16px',
               borderRadius: '10px',
