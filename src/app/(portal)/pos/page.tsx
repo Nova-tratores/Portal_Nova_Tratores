@@ -14,6 +14,13 @@ import type { KanbanCard, ClienteOption } from "@/lib/pos/types";
 
 function PosPageInner() {
   const { userProfile } = useAuth();
+  const { pode } = usePermissoes(userProfile?.id);
+  const podeCriar = pode('pos', 'criar');
+  const podeEditar = pode('pos', 'editar');
+  const podeMoverFase = pode('pos', 'mover_fase');
+  const podeOmie = pode('pos', 'enviar_omie');
+  const podeConcluir = pode('pos', 'concluir');
+  const podeCancelar = pode('pos', 'cancelar');
   const [orders, setOrders] = useState<KanbanCard[]>([]);
   const [clientes, setClientes] = useState<ClienteOption[]>([]);
   const [tecnicos, setTecnicos] = useState<string[]>([]);
@@ -98,6 +105,7 @@ function PosPageInner() {
   useRefreshOnFocus(fetchOrders);
 
   const handleNewOS = () => {
+    if (!podeCriar) return;
     setDrawerMode("create");
     setSelectedOsId(null);
     setDrawerVisible(true);
@@ -110,6 +118,7 @@ function PosPageInner() {
   };
 
   const handlePhaseChange = async (orderId: string, newPhase: string) => {
+    if (!podeMoverFase) { alert("Você não tem permissão para mover de fase."); return; }
     // Atualiza localmente para feedback imediato
     setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, status: newPhase } : o));
     try {
@@ -195,12 +204,13 @@ function PosPageInner() {
         valorHora={valorHora}
         valorKm={valorKm}
         onConfigSaved={(h, k) => { setValorHora(h); setValorKm(k); }}
+        podeCriar={podeCriar}
       />
       <PhaseAccordion
         orders={orders}
         searchTerm={searchTerm}
         onCardClick={handleCardClick}
-        onPhaseChange={handlePhaseChange}
+        onPhaseChange={podeMoverFase ? handlePhaseChange : undefined}
       />
 
       {drawerVisible && (
@@ -215,6 +225,10 @@ function PosPageInner() {
           onSaved={handleSaved}
           valorHora={valorHora}
           valorKm={valorKm}
+          podeEditar={podeEditar}
+          podeOmie={podeOmie}
+          podeConcluir={podeConcluir}
+          podeCancelar={podeCancelar}
         />
       )}
 

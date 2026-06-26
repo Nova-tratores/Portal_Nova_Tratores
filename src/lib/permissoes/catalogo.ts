@@ -65,6 +65,14 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'cancelar', label: 'Cancelar pedido' },
     { id: 'catalogo', label: 'Gerir catálogo de produtos' },
   ],
+  pos: [
+    { id: 'criar', label: 'Criar OS' },
+    { id: 'editar', label: 'Editar OS' },
+    { id: 'mover_fase', label: 'Mover de fase' },
+    { id: 'enviar_omie', label: 'Enviar ao Omie' },
+    { id: 'concluir', label: 'Concluir OS' },
+    { id: 'cancelar', label: 'Cancelar OS' },
+  ],
 };
 
 export function acoesDoModulo(id: string): AcaoPermissao[] {
