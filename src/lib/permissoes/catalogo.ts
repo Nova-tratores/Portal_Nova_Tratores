@@ -88,6 +88,12 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'resolver_pos_vendas', label: 'Resolver pós-venda' },
     { id: 'gerenciar_carros', label: 'Vincular/remover carros' },
   ],
+  clientes: [
+    { id: 'criar_cliente', label: 'Criar cliente' },
+    { id: 'criar_projeto', label: 'Criar projeto' },
+    { id: 'anexos', label: 'Anexar OS/PV/NF' },
+    { id: 'etiquetas', label: 'Gerir etiquetas' },
+  ],
 };
 
 export function acoesDoModulo(id: string): AcaoPermissao[] {
