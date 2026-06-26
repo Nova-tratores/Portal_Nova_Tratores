@@ -73,6 +73,13 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'concluir', label: 'Concluir OS' },
     { id: 'cancelar', label: 'Cancelar OS' },
   ],
+  garantias: [
+    { id: 'criar', label: 'Criar garantia (manual)' },
+    { id: 'analisar', label: 'Analisar / editar' },
+    { id: 'enviar_fabrica', label: 'Enviar à fábrica' },
+    { id: 'finalizar', label: 'Finalizar (aprovar/recusar)' },
+    { id: 'montadoras', label: 'Configurar montadoras' },
+  ],
 };
 
 export function acoesDoModulo(id: string): AcaoPermissao[] {

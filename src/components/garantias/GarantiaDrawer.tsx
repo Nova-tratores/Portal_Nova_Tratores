@@ -24,6 +24,9 @@ interface Props {
   userId: string;
   onClose: () => void;
   onSaved: () => void;
+  podeAnalisar?: boolean;
+  podeEnviarFabrica?: boolean;
+  podeFinalizar?: boolean;
 }
 
 function Secao({ titulo, icone, children }: { titulo: string; icone?: React.ReactNode; children: React.ReactNode }) {
@@ -77,7 +80,7 @@ const taStyle: React.CSSProperties = {
   outline: 'none',
 };
 
-export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, onSaved }: Props) {
+export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, onSaved, podeAnalisar = true, podeEnviarFabrica = true, podeFinalizar = true }: Props) {
   const [g, setG] = useState<GarantiaDetalhe | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState('');
@@ -146,6 +149,7 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
   const sincronizarOS = useCallback(
     async (opts?: { silent?: boolean }) => {
       const silent = opts?.silent;
+      if (!podeAnalisar) { if (!silent) setErro('Você não tem permissão para sincronizar com a OS.'); return; }
       if (!silent) { setBusy('sincronizar'); setErro(''); setAviso(''); }
       try {
         const res = await fetch(`/api/garantias/${garantiaId}/sincronizar-os`, {
@@ -171,7 +175,7 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
         if (!silent) setBusy('');
       }
     },
-    [garantiaId, userName, carregar, onSaved],
+    [garantiaId, userName, carregar, onSaved, podeAnalisar],
   );
 
   // Auto-sincroniza ao abrir, uma vez por garantia, nas fases editáveis (antes
@@ -198,7 +202,15 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
     return data.anexo?.url || '';
   }
 
+  // Centraliza o enforcement: cada ação do drawer mapeia pra uma permissão.
+  function acaoPermitida(acao: string): boolean {
+    if (acao === 'enviar' || acao === 'enviar_sg') return podeEnviarFabrica;
+    if (acao === 'finalizar' || acao === 'recusar_interno' || acao === 'reabrir_recusa' || acao.startsWith('cobranca_')) return podeFinalizar;
+    return podeAnalisar; // assumir, montadora, analise, pendencia, tipo_garantia, gerar_sg, atualizar_precos...
+  }
+
   async function chamar(acao: string, url: string, opts: RequestInit) {
+    if (!acaoPermitida(acao)) { setErro('Você não tem permissão para esta ação.'); return false; }
     setBusy(acao);
     setErro('');
     try {
@@ -657,7 +669,7 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
 
               {/* Assumir */}
               {g.status === 'aberta' && (
-                <button onClick={assumir} disabled={!!busy} style={btn('linear-gradient(135deg,#dc2626,#7f1d1d)', !!busy)}>
+                <button onClick={assumir} disabled={!!busy || !podeAnalisar} style={btn('linear-gradient(135deg,#dc2626,#7f1d1d)', !!busy || !podeAnalisar)}>
                   {busy === 'assumir' ? <Loader2 size={15} className="spin" /> : <ShieldCheck size={15} />}
                   Assumir análise da garantia
                 </button>
@@ -713,7 +725,7 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
               {/* Ações em análise */}
               {emAnalise && (
                 <>
-                  <button onClick={salvarAnalise} disabled={!!busy} style={btn('#475569', !!busy)}>
+                  <button onClick={salvarAnalise} disabled={!!busy || !podeAnalisar} style={btn('#475569', !!busy || !podeAnalisar)}>
                     {busy === 'analise' ? <Loader2 size={15} className="spin" /> : <Save size={15} />}
                     Salvar análise
                   </button>
@@ -742,8 +754,8 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <button
                       onClick={enviarFabrica}
-                      disabled={!!busy || !g.montadora_id || faltando.length > 0}
-                      style={{ ...btn('linear-gradient(135deg,#8b5cf6,#6d28d9)', !!busy || !g.montadora_id || faltando.length > 0), flex: 1 }}
+                      disabled={!!busy || !g.montadora_id || faltando.length > 0 || !podeEnviarFabrica}
+                      style={{ ...btn('linear-gradient(135deg,#8b5cf6,#6d28d9)', !!busy || !g.montadora_id || faltando.length > 0 || !podeEnviarFabrica), flex: 1 }}
                     >
                       {busy === 'enviar' ? <Loader2 size={15} className="spin" /> : <Send size={15} />}
                       Enviar à fábrica
@@ -1101,15 +1113,15 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button
                         onClick={() => finalizar('aprovada')}
-                        disabled={!!busy || !temRetornoFabrica}
-                        style={{ ...btn('#16a34a', !!busy || !temRetornoFabrica), flex: 1 }}
+                        disabled={!!busy || !temRetornoFabrica || !podeFinalizar}
+                        style={{ ...btn('#16a34a', !!busy || !temRetornoFabrica || !podeFinalizar), flex: 1 }}
                       >
                         <CheckCircle2 size={15} /> Aprovar
                       </button>
                       <button
                         onClick={() => finalizar('rejeitada')}
-                        disabled={!!busy || !temRetornoFabrica}
-                        style={{ ...btn('#dc2626', !!busy || !temRetornoFabrica), flex: 1 }}
+                        disabled={!!busy || !temRetornoFabrica || !podeFinalizar}
+                        style={{ ...btn('#dc2626', !!busy || !temRetornoFabrica || !podeFinalizar), flex: 1 }}
                       >
                         <XCircle size={15} /> Recusar
                       </button>
