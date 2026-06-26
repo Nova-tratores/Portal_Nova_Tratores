@@ -107,6 +107,11 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'excluir', label: 'Lixeira' },
     { id: 'sincronizar', label: 'Sincronizar Omie' },
   ],
+  avisos: [
+    { id: 'criar', label: 'Criar aviso' },
+    { id: 'editar_status', label: 'Ativar/desativar' },
+    { id: 'excluir', label: 'Excluir aviso' },
+  ],
 };
 
 export function acoesDoModulo(id: string): AcaoPermissao[] {
