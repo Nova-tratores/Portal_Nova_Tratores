@@ -7,6 +7,7 @@ import { TIPOS_PEDIDO, MOTIVOS_SAIDA } from "@/lib/ppv/constants";
 import { api } from "@/lib/ppv/api";
 import { usePPV } from "@/lib/ppv/PPVContext";
 import { useAuth } from "@/hooks/useAuth";
+import ModalImportarKit from "@/components/orcamentos/ModalImportarKit";
 
 interface Props {
   onVoltar: () => void;
@@ -25,13 +26,11 @@ export default function FormNovoLancamento({
   onVoltar, onBuscaCliente, onBuscaOS, onBuscaProduto, onSaved,
   clienteValue, osIdValue, osDisplayValue, produtoDisplay, onProdutoDisplayChange,
 }: Props) {
-  const { tecnicos, opcoesRevisao, productCache, showToast } = usePPV();
+  const { tecnicos, productCache, showToast } = usePPV();
   const { userProfile } = useAuth();
 
   const [selectedProducts, setSelectedProducts] = useState<Record<string, ProdutoSelecionado>>({});
-  const [revTrator, setRevTrator] = useState("");
-  const [revHoras, setRevHoras] = useState("");
-  const [horasOpcoes, setHorasOpcoes] = useState<string[]>([]);
+  const [kitModalOpen, setKitModalOpen] = useState(false);
   const [qtdProduto, setQtdProduto] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [importandoKit, setImportandoKit] = useState(false);
@@ -55,14 +54,6 @@ export default function FormNovoLancamento({
       setClienteCidade(res.cidade || "");
     }).catch(() => { setClienteDoc(""); setClienteCidade(""); });
   }, [clienteValue]);
-
-  function atualizarHoras(trator: string) {
-    setRevTrator(trator);
-    const opts = trator && opcoesRevisao[trator] ? opcoesRevisao[trator] : [];
-    setHorasOpcoes(opts);
-    // Quadriciclo / modelo com kit único: já seleciona, não pede horas
-    setRevHoras(opts.length === 1 ? opts[0] : "");
-  }
 
   function addProduct() {
     if (!produtoDisplay) { showToast("error", "Selecione um produto primeiro"); return; }
@@ -104,14 +95,13 @@ export default function FormNovoLancamento({
     }, 250);
   }
 
-  async function importarKit() {
-    if (!revTrator || !revHoras) { showToast("error", "Selecione Modelo e Horas"); return; }
+  function importarKitItens(produtos: { codigo: string; descricao: string; quantidade: number; preco: number }[]) {
+    if (produtos.length === 0) return;
     setImportandoKit(true);
     try {
-      const itens = await api.buscarKitRevisao(revTrator, revHoras);
       setSelectedProducts((prev) => {
         const copy = { ...prev };
-        itens.forEach((x) => {
+        produtos.forEach((x) => {
           if (copy[x.codigo]) {
             copy[x.codigo] = { ...copy[x.codigo], quantidade: copy[x.codigo].quantidade + x.quantidade, subtotal: (copy[x.codigo].quantidade + x.quantidade) * copy[x.codigo].preco };
           } else {
@@ -120,7 +110,7 @@ export default function FormNovoLancamento({
         });
         return copy;
       });
-      showToast("success", `Kit importado com ${itens.length} itens!`);
+      showToast("success", `Kit importado com ${produtos.length} ${produtos.length === 1 ? "item" : "itens"}!`);
     } catch { showToast("error", "Erro ao importar kit"); }
     setImportandoKit(false);
   }
@@ -299,35 +289,28 @@ export default function FormNovoLancamento({
 
           {/* ── Kit de Revisão ── */}
           <div className="ppv-form-section-title"><i className="fas fa-tools" /> Kit de Revisão</div>
-          <div className="ppv-form-row" style={{ alignItems: "flex-end" }}>
-            <div className="ppv-form-field" style={{ flex: 1 }}>
-              <span className="ppv-form-label">Modelo</span>
-              <select value={revTrator} onChange={(e) => atualizarHoras(e.target.value)}>
-                <option value="">-- Selecione --</option>
-                {Object.keys(opcoesRevisao).sort().map((m) => <option key={m} value={m}>{m}</option>)}
-              </select>
-            </div>
-            <div className="ppv-form-field" style={{ width: 130 }}>
-              <span className="ppv-form-label">Horas</span>
-              {revTrator && horasOpcoes.length === 1 ? (
-                <div style={{ padding: "9px 10px", borderRadius: 8, border: "1px dashed #67E8F9", background: "#ECFEFF", fontSize: 12, color: "#0891b2", textAlign: "center", whiteSpace: "nowrap" }}>
-                  <i className="fas fa-motorcycle" style={{ marginRight: 4 }} />único
-                </div>
-              ) : (
-                <select value={revHoras} onChange={(e) => setRevHoras(e.target.value)} disabled={horasOpcoes.length === 0}>
-                  <option value="">--</option>
-                  {horasOpcoes.map((h) => <option key={h} value={h}>{h}</option>)}
-                </select>
-              )}
-            </div>
-            <button
-              type="button" onClick={importarKit}
-              disabled={importandoKit || !revTrator || !revHoras}
-              className="ppv-form-btn-secondary"
-            >
-              {importandoKit ? <i className="fas fa-spinner fa-spin" /> : <><i className="fas fa-download" /> Importar Kit</>}
-            </button>
-          </div>
+          <button type="button" onClick={() => setKitModalOpen(true)} disabled={importandoKit}
+            style={{
+              width: "100%", padding: "12px 16px", borderRadius: 12,
+              border: "1px solid #99F6E4", background: "linear-gradient(135deg, #F0FDFA, #ECFEFF)",
+              cursor: importandoKit ? "not-allowed" : "pointer", opacity: importandoKit ? 0.6 : 1,
+              display: "flex", alignItems: "center", gap: 12, textAlign: "left", transition: "all .15s",
+            }}
+            onMouseEnter={(e) => { if (!importandoKit) e.currentTarget.style.boxShadow = "0 4px 14px rgba(13,148,136,0.18)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; }}>
+            <span style={{ width: 38, height: 38, borderRadius: 10, background: "linear-gradient(135deg, #0d9488, #0f766e)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", flexShrink: 0, boxShadow: "0 2px 6px rgba(13,148,136,0.35)" }}>
+              {importandoKit ? <i className="fas fa-spinner fa-spin" style={{ fontSize: 15 }} /> : <i className="fas fa-tools" style={{ fontSize: 15 }} />}
+            </span>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: "block", fontSize: 14, fontWeight: 700, color: "#0f766e" }}>
+                {importandoKit ? "Importando kit..." : "Importar Kit de Revisão"}
+              </span>
+              <span style={{ display: "block", fontSize: 11.5, color: "#5EAaa8" }}>
+                Revisão, manutenção ou quadriciclo — escolha o modelo
+              </span>
+            </span>
+            <i className="fas fa-chevron-right" style={{ fontSize: 13, color: "#0d9488", flexShrink: 0 }} />
+          </button>
 
           {/* ── Separador ── */}
           <div className="ppv-form-divider" />
@@ -458,6 +441,7 @@ export default function FormNovoLancamento({
           </div>
         </div>
       </div>
+      <ModalImportarKit open={kitModalOpen} onClose={() => setKitModalOpen(false)} onImportar={(produtos) => importarKitItens(produtos)} />
     </div>
   );
 }

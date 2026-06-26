@@ -132,7 +132,7 @@ export default function ModalImportarKit({ open, onClose, onImportar }: Props) {
             </div>
             <div>
               <h2 style={{ fontSize: 16, fontWeight: 800, color: '#1a1a1a', margin: 0 }}>Importar Kit de Revisão</h2>
-              <p style={{ fontSize: 11, color: '#a3a3a3', margin: 0 }}>Selecione um kit para popular os itens do orçamento</p>
+              <p style={{ fontSize: 11, color: '#a3a3a3', margin: 0 }}>Selecione um kit para popular os itens</p>
             </div>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 24, color: '#a3a3a3', cursor: 'pointer' }}>&times;</button>
