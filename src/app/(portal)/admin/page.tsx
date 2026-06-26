@@ -5,11 +5,12 @@ import { usePermissoes } from '@/hooks/usePermissoes'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import {
-  Shield, Users, Check, X, Search, ChevronDown, ChevronUp, ArrowLeft,
+  Shield, Users, Check, X, Search, ChevronDown, ChevronUp, ChevronRight, ArrowLeft,
   User as UserIcon, Lock, Unlock, Wrench, UserPlus, Eye, EyeOff,
   Activity, Clock, Settings, ClipboardList, DollarSign, FileText, Mail, Ban, RotateCcw
 } from 'lucide-react'
 import { PAGINAS_AJUSTES } from '@/app/(portal)/ajustes/paginas'
+import PermissoesModulos from '@/components/admin/PermissoesModulos'
 
 const MODULOS = [
   // Modulo Ajustes: permissao por pagina (chave 'ajustes:<x>') — preparado p/ etapa 2
@@ -129,6 +130,11 @@ export default function AdminPage() {
   const [permissoes, setPermissoes] = useState<Record<string, Permissao>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
+  // Quais usuários estão com o painel de permissões expandido
+  const [expandidoUsuario, setExpandidoUsuario] = useState<Set<string>>(new Set())
+  const toggleExpandirUsuario = (id: string) => setExpandidoUsuario(prev => {
+    const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n
+  })
   const [search, setSearch] = useState('')
   const [showNovoUsuario, setShowNovoUsuario] = useState(false)
   const [novoNome, setNovoNome] = useState('')
@@ -269,15 +275,6 @@ export default function AdminPage() {
     setSaving(null)
   }
 
-  const toggleModulo = (userId: string, modulo: string) => {
-    const perm = permissoes[userId]
-    const current = perm?.modulos_permitidos || []
-    const updated = current.includes(modulo)
-      ? current.filter(m => m !== modulo)
-      : [...current, modulo]
-    salvar(userId, { modulos_permitidos: updated })
-  }
-
   const toggleAdmin = (userId: string) => {
     const perm = permissoes[userId]
     salvar(userId, { is_admin: !(perm?.is_admin) })
@@ -370,10 +367,6 @@ export default function AdminPage() {
     } finally {
       setCriando(false)
     }
-  }
-
-  const toggleNovoModulo = (modId: string) => {
-    setNovoModulos(prev => prev.includes(modId) ? prev.filter(m => m !== modId) : [...prev, modId])
   }
 
   const matchBusca = (u: Usuario) =>
@@ -590,36 +583,20 @@ export default function AdminPage() {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
                 <label style={{ fontSize: '12px', fontWeight: '700', color: '#525252', letterSpacing: '0.5px' }}>MÓDULOS DE ACESSO</label>
                 <button
-                  onClick={() => setNovoModulos(prev => prev.length === MODULOS.length ? [] : MODULOS.map(m => m.id))}
+                  onClick={() => setNovoModulos(prev => MODULOS.every(m => prev.includes(m.id)) ? [] : MODULOS.map(m => m.id))}
                   style={{
                     fontSize: '11px', fontWeight: '600', color: '#dc2626', background: 'none',
                     border: 'none', cursor: 'pointer', padding: '2px 6px'
                   }}
                 >
-                  {novoModulos.length === MODULOS.length ? 'Desmarcar todos' : 'Marcar todos'}
+                  {MODULOS.every(m => novoModulos.includes(m.id)) ? 'Desmarcar todos' : 'Marcar todos'}
                 </button>
               </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                {MODULOS.map(mod => {
-                  const active = novoModulos.includes(mod.id)
-                  return (
-                    <button
-                      key={mod.id}
-                      onClick={() => toggleNovoModulo(mod.id)}
-                      style={{
-                        padding: '7px 14px', borderRadius: '10px',
-                        border: active ? '1px solid #fecaca' : '1px solid #e5e5e5',
-                        background: active ? '#fef2f2' : 'var(--portal-bg-secondary)',
-                        color: active ? '#dc2626' : '#a3a3a3',
-                        fontSize: '12px', fontWeight: '700', cursor: 'pointer',
-                        transition: '0.15s'
-                      }}
-                    >
-                      {mod.label}
-                    </button>
-                  )
-                })}
-              </div>
+              <PermissoesModulos
+                modulos={novoModulos}
+                catalogo={MODULOS}
+                onChange={setNovoModulos}
+              />
             </div>
 
             {/* Erro */}
@@ -661,14 +638,13 @@ export default function AdminPage() {
       }}>
         {/* Table Header */}
         <div style={{
-          display: 'grid', gridTemplateColumns: '260px 120px 150px 1fr 200px 80px 130px',
+          display: 'grid', gridTemplateColumns: 'minmax(240px,1fr) 120px 150px 200px 80px 130px',
           padding: '16px 24px', background: 'var(--portal-bg-secondary)', borderBottom: '1px solid var(--portal-border)',
           fontSize: '11px', fontWeight: '700', color: '#a3a3a3', letterSpacing: '1px'
         }}>
           <span>USUÁRIO</span>
           <span>ADMIN</span>
           <span>CATEGORIA</span>
-          <span>MÓDULOS PERMITIDOS</span>
           <span>APP MECÂNICOS</span>
           <span style={{ textAlign: 'center' }}>TODOS</span>
           <span style={{ textAlign: 'center' }}>AÇÕES</span>
@@ -681,40 +657,57 @@ export default function AdminPage() {
           const isMe = user.id === userProfile?.id
           const modulos = perm?.modulos_permitidos || []
 
+          const expandido = expandidoUsuario.has(user.id)
+          const qtdAcessos = new Set(modulos.map(m => m.split(':')[0])).size
+
           return (
             <div
               key={user.id}
               style={{
-                display: 'grid', gridTemplateColumns: '260px 120px 150px 1fr 200px 80px 130px',
-                padding: '16px 24px', borderBottom: '1px solid #f5f5f5',
-                alignItems: 'center', transition: '0.15s',
+                borderBottom: '1px solid #f5f5f5', transition: '0.15s',
                 opacity: isSaving ? 0.6 : 1,
-                background: perm?.is_admin ? '#fffbeb' : 'var(--portal-bg-card)'
+                background: perm?.is_admin ? '#fffbeb' : (expandido ? 'var(--portal-bg-secondary)' : 'var(--portal-bg-card)')
               }}
             >
-              {/* User Info */}
-              <div
-                style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
-                onClick={() => openUserDetail(user)}
-                title="Ver atividades deste usuário"
-              >
-                <div style={{
-                  width: '38px', height: '38px', borderRadius: '10px', overflow: 'hidden',
-                  background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
-                }}>
-                  {user.avatar_url ? (
-                    <img src={user.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  ) : (
-                    <UserIcon size={18} color="#fff" />
-                  )}
-                </div>
-                <div>
-                  <p style={{ fontSize: '14px', fontWeight: '600', color: 'var(--portal-text)', marginBottom: '1px' }}>
-                    {user.nome} {isMe && <span style={{ fontSize: '10px', color: '#a3a3a3' }}>(você)</span>}
-                  </p>
-                  <p style={{ fontSize: '11px', color: '#a3a3a3', fontWeight: '500' }}>{user.funcao}</p>
-                  {user.email && <p style={{ fontSize: '10px', color: '#b0b0b0', fontWeight: '400' }}>{user.email}</p>}
+            <div style={{
+              display: 'grid', gridTemplateColumns: 'minmax(240px,1fr) 120px 150px 200px 80px 130px',
+              padding: '16px 24px', alignItems: 'center'
+            }}>
+              {/* User Info + expandir permissões */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                <button
+                  onClick={() => toggleExpandirUsuario(user.id)}
+                  title={expandido ? 'Recolher permissões' : 'Expandir permissões'}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text-muted)', padding: 2, display: 'flex', flexShrink: 0 }}
+                >
+                  {expandido ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                </button>
+                <div
+                  style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', flex: 1, minWidth: 0 }}
+                  onClick={() => openUserDetail(user)}
+                  title="Ver atividades deste usuário"
+                >
+                  <div style={{
+                    width: '38px', height: '38px', borderRadius: '10px', overflow: 'hidden',
+                    background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                  }}>
+                    {user.avatar_url ? (
+                      <img src={user.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <UserIcon size={18} color="#fff" />
+                    )}
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ fontSize: '14px', fontWeight: '600', color: 'var(--portal-text)', marginBottom: '1px' }}>
+                      {user.nome} {isMe && <span style={{ fontSize: '10px', color: '#a3a3a3' }}>(você)</span>}
+                    </p>
+                    <p style={{ fontSize: '11px', color: '#a3a3a3', fontWeight: '500' }}>
+                      {user.funcao}
+                      {!perm?.is_admin && qtdAcessos > 0 && <span style={{ color: '#dc2626', fontWeight: 700 }}> · {qtdAcessos} módulo{qtdAcessos > 1 ? 's' : ''}</span>}
+                    </p>
+                    {user.email && <p style={{ fontSize: '10px', color: '#b0b0b0', fontWeight: '400' }}>{user.email}</p>}
+                  </div>
                 </div>
               </div>
 
@@ -767,29 +760,6 @@ export default function AdminPage() {
                 </select>
               </div>
 
-              {/* Módulos */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                {MODULOS.map(mod => {
-                  const active = modulos.includes(mod.id)
-                  return (
-                    <button
-                      key={mod.id}
-                      onClick={() => toggleModulo(user.id, mod.id)}
-                      style={{
-                        padding: '5px 12px', borderRadius: '8px',
-                        border: active ? '1px solid #fecaca' : '1px solid #e5e5e5',
-                        background: active ? '#fef2f2' : 'var(--portal-bg-secondary)',
-                        color: active ? '#dc2626' : '#a3a3a3',
-                        fontSize: '11px', fontWeight: '700', cursor: 'pointer',
-                        transition: '0.15s', letterSpacing: '0.3px'
-                      }}
-                    >
-                      {mod.label}
-                    </button>
-                  )
-                })}
-              </div>
-
               {/* App Mecânicos */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <select
@@ -827,11 +797,11 @@ export default function AdminPage() {
                     width: '36px', height: '36px', borderRadius: '10px',
                     border: 'none', cursor: 'pointer', transition: '0.15s',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto',
-                    background: modulos.length === MODULOS.length ? '#dcfce7' : '#f5f5f5',
-                    color: modulos.length === MODULOS.length ? '#16a34a' : '#a3a3a3'
+                    background: MODULOS.every(m => modulos.includes(m.id)) ? '#dcfce7' : '#f5f5f5',
+                    color: MODULOS.every(m => modulos.includes(m.id)) ? '#16a34a' : '#a3a3a3'
                   }}
                 >
-                  {modulos.length === MODULOS.length ? <Check size={18} /> : <X size={18} />}
+                  {MODULOS.every(m => modulos.includes(m.id)) ? <Check size={18} /> : <X size={18} />}
                 </button>
               </div>
 
@@ -870,6 +840,23 @@ export default function AdminPage() {
                   <Ban size={13} /> Inativar
                 </button>
               </div>
+            </div>
+
+            {expandido && (
+              <div style={{ padding: '2px 24px 18px 56px' }}>
+                {perm?.is_admin && (
+                  <div style={{ fontSize: 12, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '8px 12px', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Shield size={13} /> {perm?.is_dev ? 'Dev' : 'Admin'} já tem acesso a tudo — as marcações abaixo só valem se virar Usuário.
+                  </div>
+                )}
+                <PermissoesModulos
+                  modulos={modulos}
+                  catalogo={MODULOS}
+                  disabled={saving === user.id}
+                  onChange={(novo) => salvar(user.id, { modulos_permitidos: novo })}
+                />
+              </div>
+            )}
             </div>
           )
         })}

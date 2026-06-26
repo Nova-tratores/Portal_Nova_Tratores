@@ -8,6 +8,7 @@ import { TIPOS_PEDIDO, MOTIVOS_SAIDA, STATUS_OPTIONS, STATUS_COLORS, type Status
 import { api } from "@/lib/ppv/api";
 import { usePPV } from "@/lib/ppv/PPVContext";
 import { useAuth } from "@/hooks/useAuth";
+import { usePermissoes } from "@/hooks/usePermissoes";
 import ModalDevolucao from "./ModalDevolucao";
 import ModalImportarKit from "@/components/orcamentos/ModalImportarKit";
 
@@ -36,6 +37,10 @@ export default function PPVDrawer({
 }: Props) {
   const { tecnicos, productCache, showToast } = usePPV();
   const { userProfile } = useAuth();
+  const { pode } = usePermissoes(userProfile?.id);
+  const podeEditar = pode('ppv', 'editar');
+  const podeItem = pode('ppv', 'adicionar_item');
+  const podeOmie = pode('ppv', 'enviar_omie');
 
   const [details, setDetails] = useState<PPVDetalhes | null>(null);
   const [status, setStatus] = useState("Orçamento");
@@ -172,6 +177,7 @@ export default function PPVDrawer({
   const statusColor = STATUS_COLORS[statusNorm] || { text: "var(--portal-text-secondary)", bg: "var(--portal-bg-card)" };
 
   async function salvar() {
+    if (!podeEditar) { showToast("error", "Você não tem permissão para editar pedidos."); return; }
     const erros: string[] = [];
     if (!cliente.trim()) erros.push("Cliente");
     if (!tecnico.trim()) erros.push("Técnico");
@@ -196,6 +202,7 @@ export default function PPVDrawer({
   }
 
   async function addExtra() {
+    if (!podeItem) { showToast("error", "Sem permissão para alterar itens."); return; }
     const c = modalProdDisplay.split(" - ")[0].trim();
     if (!c || qtdExtra < 1) { showToast("error", "Dados inválidos"); return; }
     const cached = productCache[c] || { descricao: "ITEM MANUAL", preco: 0 };
@@ -211,6 +218,7 @@ export default function PPVDrawer({
   }
 
   async function importarKitItens(produtos: { codigo: string; descricao: string; quantidade: number; preco: number }[]) {
+    if (!podeItem) { showToast("error", "Sem permissão para alterar itens."); return; }
     if (!ppvId || produtos.length === 0) return;
     setImportandoKit(true);
     try {
@@ -226,6 +234,7 @@ export default function PPVDrawer({
   }
 
   async function salvarPrecoItem(codigo: string) {
+    if (!podeItem) { showToast("error", "Sem permissão para alterar itens."); return; }
     if (!ppvId) return;
     const preco = parseFloat(editandoPrecoVal.replace(",", "."));
     if (isNaN(preco) || preco < 0) { showToast("error", "Preço inválido"); return; }
@@ -242,6 +251,7 @@ export default function PPVDrawer({
   }
 
   async function confirmarDevolucao(quantidade: number) {
+    if (!podeItem) { showToast("error", "Sem permissão para alterar itens."); return; }
     if (!devolucaoProd || !ppvId) return;
     setConfirmandoDev(true);
     try {
@@ -255,6 +265,7 @@ export default function PPVDrawer({
   }
 
   async function enviarOmie() {
+    if (!podeOmie) { showToast("error", "Sem permissão para enviar ao Omie."); return; }
     if (!ppvId) return;
     setEnviandoOmie(true);
     try {
@@ -399,7 +410,7 @@ export default function PPVDrawer({
                         className="ppv-btn-omie"
                         style={{ width: "100%", marginTop: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
                         onClick={enviarOmie}
-                        disabled={enviandoOmie}
+                        disabled={enviandoOmie || !podeOmie}
                       >
                         {enviandoOmie ? (
                           <><i className="fas fa-spinner fa-spin" /> Enviando...</>
@@ -491,14 +502,14 @@ export default function PPVDrawer({
                     <div className="ppv-card-title"><i className="fas fa-boxes" /> Itens &amp; Materiais</div>
 
                     {/* Importar Kit de Revisão */}
-                    <button type="button" onClick={() => setKitModalOpen(true)} disabled={importandoKit || !ppvId}
+                    <button type="button" onClick={() => setKitModalOpen(true)} disabled={importandoKit || !ppvId || !podeItem}
                       style={{
                         width: "100%", marginBottom: 14, padding: "12px 16px", borderRadius: 12,
                         border: "1px solid #99F6E4", background: "linear-gradient(135deg, #F0FDFA, #ECFEFF)",
-                        cursor: importandoKit || !ppvId ? "not-allowed" : "pointer", opacity: importandoKit || !ppvId ? 0.6 : 1,
+                        cursor: importandoKit || !ppvId || !podeItem ? "not-allowed" : "pointer", opacity: importandoKit || !ppvId || !podeItem ? 0.6 : 1,
                         display: "flex", alignItems: "center", gap: 12, textAlign: "left", transition: "all .15s",
                       }}
-                      onMouseEnter={(e) => { if (!importandoKit && ppvId) e.currentTarget.style.boxShadow = "0 4px 14px rgba(13,148,136,0.18)"; }}
+                      onMouseEnter={(e) => { if (!importandoKit && ppvId && podeItem) e.currentTarget.style.boxShadow = "0 4px 14px rgba(13,148,136,0.18)"; }}
                       onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; }}>
                       <span style={{ width: 38, height: 38, borderRadius: 10, background: "linear-gradient(135deg, #0d9488, #0f766e)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", flexShrink: 0, boxShadow: "0 2px 6px rgba(13,148,136,0.35)" }}>
                         {importandoKit ? <i className="fas fa-spinner fa-spin" style={{ fontSize: 15 }} /> : <i className="fas fa-tools" style={{ fontSize: 15 }} />}
@@ -519,7 +530,7 @@ export default function PPVDrawer({
                     <div style={{ display: "flex", gap: 10, marginBottom: produtosComSaldo.length > 0 ? 16 : 0 }}>
                       <input type="text" value={modalProdDisplay} readOnly placeholder="Clique para buscar produto..." onClick={onBuscaProduto} style={{ cursor: "pointer", fontWeight: modalProdDisplay ? 600 : 400, flex: 1, marginBottom: 0 }} />
                       <input type="number" value={qtdExtra} onChange={(e) => setQtdExtra(parseInt(e.target.value) || 1)} min={1} style={{ width: 70, textAlign: "center", fontWeight: 700, marginBottom: 0 }} />
-                      <button type="button" onClick={addExtra} disabled={addingExtra} className="ppv-btn-save" style={{ padding: "10px 18px", whiteSpace: "nowrap", fontSize: 13 }}>
+                      <button type="button" onClick={addExtra} disabled={addingExtra || !podeItem} className="ppv-btn-save" style={{ padding: "10px 18px", whiteSpace: "nowrap", fontSize: 13 }}>
                         {addingExtra ? <i className="fas fa-spinner fa-spin" /> : <><i className="fas fa-plus" /> Adicionar</>}
                       </button>
                     </div>
@@ -680,7 +691,7 @@ export default function PPVDrawer({
                 {/* ── Footer ── */}
                 <div className="ppv-drawer-footer">
                   <button className="ppv-btn-cancel" onClick={onClose}>Cancelar</button>
-                  <button className="ppv-btn-save" onClick={salvar} disabled={salvando}>
+                  <button className="ppv-btn-save" onClick={salvar} disabled={salvando || !podeEditar}>
                     {salvando ? "Salvando..." : "Salvar Alterações"}
                   </button>
                 </div>

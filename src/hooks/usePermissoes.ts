@@ -50,10 +50,23 @@ export function usePermissoes(userId: string | undefined) {
   // Dev tem todos os acessos de Admin (e mais)
   const isAdmin = permissoes?.is_admin === true || isDev
 
+  // Acesso a um módulo (ver/entrar na página). Inclui quem tem só permissões
+  // granulares dele (ex: tem 'requisicoes:criar' mas não 'requisicoes').
   const temAcesso = (modulo: string): boolean => {
     if (isAdmin) return true
-    return permissoes?.modulos_permitidos?.includes(modulo) ?? false
+    const perms = permissoes?.modulos_permitidos ?? []
+    return perms.includes(modulo) || perms.some((p) => p.startsWith(modulo + ':'))
   }
 
-  return { permissoes, isAdmin, isDev, temAcesso, loading: isEffectivelyLoading }
+  // Permissão de uma AÇÃO do módulo. Admin → tudo; módulo puro → tudo (acesso
+  // total); 'modulo:acao' → aquela ação. Sem `acao`, equivale a temAcesso.
+  const pode = (modulo: string, acao?: string): boolean => {
+    if (isAdmin) return true
+    const perms = permissoes?.modulos_permitidos ?? []
+    if (perms.includes(modulo)) return true
+    if (!acao) return perms.some((p) => p.startsWith(modulo + ':'))
+    return perms.includes(`${modulo}:${acao}`)
+  }
+
+  return { permissoes, isAdmin, isDev, temAcesso, pode, loading: isEffectivelyLoading }
 }

@@ -18,6 +18,10 @@ interface OSDrawerProps {
   onSaved: () => void;
   valorHora?: number;
   valorKm?: number;
+  podeEditar?: boolean;
+  podeOmie?: boolean;
+  podeConcluir?: boolean;
+  podeCancelar?: boolean;
 }
 
 /* ── Inline style constants (avoid new refs each render) ── */
@@ -61,7 +65,7 @@ function horaAtualBR() {
   return `${String(br.getHours()).padStart(2, '0')}:${String(br.getMinutes()).padStart(2, '0')}`;
 }
 
-export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, userName, onClose, onSaved, valorHora: propValorHora, valorKm: propValorKm }: OSDrawerProps) {
+export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, userName, onClose, onSaved, valorHora: propValorHora, valorKm: propValorKm, podeEditar = true, podeOmie = true, podeConcluir = true, podeCancelar = true }: OSDrawerProps) {
   const VH = propValorHora ?? VALOR_HORA;
   const VK = propValorKm ?? VALOR_KM;
   const [clienteChave, setClienteChave] = useState("");
@@ -366,6 +370,10 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
 
   const enviarParaOmie = useCallback(async () => {
     if (!osId) return;
+    if (servicoInterno ? !podeConcluir : !podeOmie) {
+      alert(servicoInterno ? "Você não tem permissão para concluir ordens." : "Você não tem permissão para enviar ao Omie.");
+      return;
+    }
     if (!confirm(servicoInterno
       ? "Concluir esta ordem interna?\n\n• A OS NÃO vai para o Omie.\n• Se houver peças, a remessa delas é gerada no Omie."
       : "Deseja enviar esta OS para o Omie?")) return;
@@ -396,9 +404,11 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
       console.error(err);
     }
     setEnviandoOmie(false);
-  }, [osId, onSaved, servicoInterno, userName]);
+  }, [osId, onSaved, servicoInterno, userName, podeConcluir, podeOmie]);
 
   const salvar = useCallback(async () => {
+    if (mode === "edit" && !podeEditar) { alert("Você não tem permissão para editar esta OS."); return; }
+    if (status === "Cancelada" && !podeCancelar) { alert("Você não tem permissão para cancelar OS."); return; }
     if (mode === "create" && !clienteChave) { alert("Selecione o Cliente"); return; }
     if (status === "Cancelada" && !motivoCancel.trim()) { alert("Informe o motivo do cancelamento"); return; }
     if (status === "Cancelada" && temSubstituto && !substitutoId.trim()) { alert("Informe o ID do substituto"); return; }
@@ -457,7 +467,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   }, [mode, osId, clienteChave, clienteInfo, tecnico1, tecnico2, tipoServico, revisao, projeto,
       servSolicitado, qtdHoras, qtdKm, ppv, status, ordemOmie, motivoCancel, descValor,
       descHoraValor, descKmValor, relatorioTecnico, previsaoExecucao, previsaoFaturamento, dataFimServico, servicoNumero,
-      gerarPPV, servicoOficina, servicoInterno, alimentacoes, horaInicioExec, horaChegada, horaFimExec, onClose, onSaved]);
+      gerarPPV, servicoOficina, servicoInterno, alimentacoes, horaInicioExec, horaChegada, horaFimExec, onClose, onSaved, podeEditar, podeCancelar]);
 
   // ── Reset form to defaults ──
   const resetForm = useCallback(() => {
@@ -808,7 +818,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                         </div>
                       )}
                       {!ordemOmie && !(servicoInterno && status === "Concluída") && (
-                        <button className="os-btn-omie" onClick={enviarParaOmie} disabled={enviandoOmie}
+                        <button className="os-btn-omie" onClick={enviarParaOmie} disabled={enviandoOmie || (servicoInterno ? !podeConcluir : !podeOmie)}
                           style={servicoInterno ? { background: '#7C3AED' } : undefined}>
                           {enviandoOmie ? (
                             <><div className="spinner-inner" style={S_SPINNER_OMIE} /> {servicoInterno ? 'Concluindo...' : 'Enviando...'}</>
@@ -1616,8 +1626,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                 {/* Footer */}
                 <div className="os-footer">
                   <button className="os-btn-cancel" onClick={onClose}>Cancelar</button>
-                  <button className="os-btn-save" onClick={salvar} disabled={saving || (mode === "edit" && loadingData)}>
-                    {saving ? "Salvando..." : (mode === "edit" && loadingData) ? "Carregando..." : mode === "create" ? "Criar Ordem" : "Salvar Alterações"}
+                  <button className="os-btn-save" onClick={salvar} disabled={saving || (mode === "edit" && loadingData) || (mode === "edit" && !podeEditar)}>
+                    {saving ? "Salvando..." : (mode === "edit" && loadingData) ? "Carregando..." : mode === "create" ? "Criar Ordem" : (mode === "edit" && !podeEditar) ? "Somente leitura" : "Salvar Alterações"}
                   </button>
                 </div>
               </>

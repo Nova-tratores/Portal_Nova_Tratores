@@ -12,9 +12,10 @@ interface HeaderProps {
   valorHora: number;
   valorKm: number;
   onConfigSaved?: (valorHora: number, valorKm: number) => void;
+  podeCriar?: boolean;
 }
 
-export default function Header({ searchTerm, onSearch, onNewOS, onGenerateReport, onLembretes, tecnicos = [], valorHora, valorKm, onConfigSaved }: HeaderProps) {
+export default function Header({ searchTerm, onSearch, onNewOS, onGenerateReport, onLembretes, tecnicos = [], valorHora, valorKm, onConfigSaved, podeCriar = true }: HeaderProps) {
   const [showFiltroRelatorio, setShowFiltroRelatorio] = useState(false);
   const [filtroTecnico, setFiltroTecnico] = useState("todos");
   const [filtroTipo, setFiltroTipo] = useState("todas");
@@ -78,7 +79,7 @@ export default function Header({ searchTerm, onSearch, onNewOS, onGenerateReport
           <input type="text" className="search-input" placeholder="Pesquisar cliente ou OS..." value={searchTerm} onChange={(e) => onSearch(e.target.value)} />
         </div>
         <div className="header-actions">
-          <button className="btn-top btn-new" onClick={onNewOS}><i className="fas fa-plus" /> NOVA ORDEM</button>
+          {podeCriar && <button className="btn-top btn-new" onClick={onNewOS}><i className="fas fa-plus" /> NOVA ORDEM</button>}
 
           <div style={{ position: "relative" }} ref={menuRef}>
             <button className="btn-top btn-report" onClick={() => setMenuOpen((o) => !o)}>

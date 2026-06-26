@@ -27,9 +27,10 @@ interface Props {
   userName: string
   editarId?: number | null
   onVoltar?: () => void
+  podeEditar?: boolean
 }
 
-export default function OrcamentoEditor({ userName, editarId, onVoltar }: Props) {
+export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEditar = true }: Props) {
   // Etapa: escolha ou editor
   const [tipo, setTipo] = useState<TipoOrcamento | null>(null)
 
@@ -217,6 +218,7 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar }: Props)
 
   // Salvar (sem gerar PDF)
   async function salvar() {
+    if (!podeEditar) { showToast('Você não tem permissão para salvar orçamentos.', 'error'); return }
     if (!cliente.nome.trim()) { showToast('Informe o cliente.', 'error'); return }
     setSalvando(true)
     try {
@@ -527,14 +529,16 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar }: Props)
           }}>
             Limpar
           </button>
-          <button onClick={salvar} disabled={salvando} style={{
-            padding: '10px 20px', borderRadius: 10, border: '1px solid #e5e5e5',
-            background: '#fff', color: '#1a1a1a', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: 8, opacity: salvando ? 0.6 : 1,
-          }}>
-            <Save size={16} />
-            {salvando ? 'Salvando...' : 'Salvar'}
-          </button>
+          {podeEditar && (
+            <button onClick={salvar} disabled={salvando} style={{
+              padding: '10px 20px', borderRadius: 10, border: '1px solid #e5e5e5',
+              background: '#fff', color: '#1a1a1a', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 8, opacity: salvando ? 0.6 : 1,
+            }}>
+              <Save size={16} />
+              {salvando ? 'Salvando...' : 'Salvar'}
+            </button>
+          )}
           <button onClick={gerarPDF} disabled={gerando} style={{
             padding: '10px 24px', borderRadius: 10, border: 'none',
             background: 'linear-gradient(135deg, #dc2626, #b91c1c)',

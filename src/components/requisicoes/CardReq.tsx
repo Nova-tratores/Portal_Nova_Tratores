@@ -31,7 +31,7 @@ function parseMoeda(valorFmt: string): string {
   return valorFmt.replace(/\./g, '').replace(',', '.');
 }
 
-export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, aberto = false, onFechar }: { req: any, onUpdate: any, onPrint: any, dadosCompartilhados?: any, aberto?: boolean, onFechar?: () => void }) {
+export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, aberto = false, onFechar, podeEditar = true }: { req: any, onUpdate: any, onPrint: any, dadosCompartilhados?: any, aberto?: boolean, onFechar?: () => void, podeEditar?: boolean }) {
   const [modalAberto, setModalAberto] = useState(aberto);
   const [modalCotacaoAberto, setModalCotacaoAberto] = useState(false);
   const [histAberto, setHistAberto] = useState(false);
@@ -436,6 +436,12 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
       {modalAberto && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 print:hidden">
           <div className="bg-white w-full max-w-5xl max-h-[95vh] rounded-2xl shadow-xl border border-zinc-200 flex flex-col overflow-hidden">
+
+            {!podeEditar && (
+              <div className="px-8 py-2 bg-amber-50 border-b border-amber-200 text-amber-800 text-xs font-semibold shrink-0">
+                🔒 Modo somente leitura — você não tem permissão para editar requisições.
+              </div>
+            )}
 
             {/* HEADER */}
             <div className="px-8 py-5 border-b border-zinc-200 flex items-center gap-5 shrink-0 bg-zinc-50/50">
