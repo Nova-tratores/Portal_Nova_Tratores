@@ -9,7 +9,10 @@ export async function GET(req: NextRequest) {
   const parsed = buscaTermoSchema.safeParse({ termo });
   if (!parsed.success) return NextResponse.json([]);
 
-  const query = encodeURIComponent(parsed.data.termo.replace(/ /g, "%"));
+  // Tira acento do termo: o cadastro vem do Omie sem acento (ex.: "JOSE ADILSON"),
+  // então buscar "José" precisa virar "Jose" pra casar no ilike (que não ignora acento).
+  const termoSemAcento = parsed.data.termo.normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const query = encodeURIComponent(termoSemAcento.replace(/ /g, "%"));
   const resultados: ClienteBusca[] = [];
 
   try {
