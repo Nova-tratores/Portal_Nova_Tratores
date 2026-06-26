@@ -49,6 +49,13 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'excluir', label: 'Excluir / lixeira' },
     { id: 'imprimir', label: 'Imprimir' },
   ],
+  orcamentos: [
+    { id: 'criar', label: 'Criar orçamento' },
+    { id: 'editar', label: 'Editar orçamento' },
+    { id: 'status', label: 'Mudar status' },
+    { id: 'gerar', label: 'Gerar OS / PPV' },
+    { id: 'excluir', label: 'Excluir orçamento' },
+  ],
 };
 
 export function acoesDoModulo(id: string): AcaoPermissao[] {
