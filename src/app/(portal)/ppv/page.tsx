@@ -24,6 +24,10 @@ import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 function PPVApp() {
   const { kanbanItems, carregarKanban, atualizarKanbanLocal, toast, hideToast, globalLoading, cacheProduct, showToast, tecnicos, recarregarRevisoes } = usePPV();
   const { userProfile } = useAuth();
+  const { pode } = usePermissoes(userProfile?.id);
+  const podeCriar = pode('ppv', 'criar');
+  const podeMoverFase = pode('ppv', 'mover_fase');
+  const podeCatalogo = pode('ppv', 'catalogo');
   const searchParams = useSearchParams();
 
   // Refresh ao voltar para a aba
@@ -45,6 +49,7 @@ function PPVApp() {
 
   // Handler para trocar status via dropdown — update otimista
   const handleStatusChange = useCallback(async (id: string, newStatus: string) => {
+    if (!podeMoverFase) { showToast("error", "Você não tem permissão para mover de fase."); return; }
     // Atualiza UI imediatamente (otimista)
     atualizarKanbanLocal(id, { status: newStatus });
 
@@ -67,7 +72,7 @@ function PPVApp() {
       showToast("error", `Erro ao alterar status da PPV #${id}`);
       carregarKanban(); // reverte em caso de erro
     }
-  }, [showToast, carregarKanban, atualizarKanbanLocal]);
+  }, [showToast, carregarKanban, atualizarKanbanLocal, podeMoverFase, userProfile?.nome]);
 
   // Abrir PPV via URL (?id=PPV-0001)
   const urlPPVId = searchParams.get("id");
@@ -235,12 +240,14 @@ function PPVApp() {
 
         {/* Ações à direita: Novo Lançamento + Menu cascata */}
         <div className="ppv-topbar-actions">
-          <button
-            className={`ppv-topbar-nav-btn ${activeTab === "formTab" ? "active" : ""}`}
-            onClick={() => setActiveTab("formTab")}
-          >
-            <i className="fas fa-plus-circle" /> Novo Lançamento
-          </button>
+          {podeCriar && (
+            <button
+              className={`ppv-topbar-nav-btn ${activeTab === "formTab" ? "active" : ""}`}
+              onClick={() => setActiveTab("formTab")}
+            >
+              <i className="fas fa-plus-circle" /> Novo Lançamento
+            </button>
+          )}
 
           <div style={{ position: "relative" }} ref={menuRef}>
           <button className="ppv-topbar-action-btn" onClick={() => setMenuOpen((o) => !o)}>
@@ -276,12 +283,16 @@ function PPVApp() {
                 padding: 6, display: "flex", flexDirection: "column", gap: 2,
               }}>
                 {item("fa-th-large", "Gestão (Kanban)", () => setActiveTab("kanbanTab"), { active: activeTab === "kanbanTab" })}
-                {item("fa-cogs", "Catálogo", () => setActiveTab("catalogoTab"), { active: activeTab === "catalogoTab" })}
-                <div style={{ height: 1, background: "var(--ppv-border-light)", margin: "4px 8px" }} />
-                {item("fa-box-open", "Criar Produto", () => { setProdutoManualEdit(null); setProdutoManualOpen(true); })}
-                {item("fa-edit", "Editar Produto", () => handleBuscaProduto("edit"))}
-                {item("fa-tools", "Gerenciar Kits", () => setShowGerenciarKits(true))}
-                {item(`fa-sync-alt ${syncingProdutos ? "fa-spin" : ""}`, syncingProdutos ? "Sincronizando..." : "Sync Preços Omie", syncPrecosOmie, { disabled: syncingProdutos })}
+                {podeCatalogo && (
+                  <>
+                    {item("fa-cogs", "Catálogo", () => setActiveTab("catalogoTab"), { active: activeTab === "catalogoTab" })}
+                    <div style={{ height: 1, background: "var(--ppv-border-light)", margin: "4px 8px" }} />
+                    {item("fa-box-open", "Criar Produto", () => { setProdutoManualEdit(null); setProdutoManualOpen(true); })}
+                    {item("fa-edit", "Editar Produto", () => handleBuscaProduto("edit"))}
+                    {item("fa-tools", "Gerenciar Kits", () => setShowGerenciarKits(true))}
+                    {item(`fa-sync-alt ${syncingProdutos ? "fa-spin" : ""}`, syncingProdutos ? "Sincronizando..." : "Sync Preços Omie", syncPrecosOmie, { disabled: syncingProdutos })}
+                  </>
+                )}
               </div>
             );
           })()}

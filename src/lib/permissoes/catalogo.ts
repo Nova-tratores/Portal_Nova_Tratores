@@ -56,6 +56,15 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'gerar', label: 'Gerar OS / PPV' },
     { id: 'excluir', label: 'Excluir orçamento' },
   ],
+  ppv: [
+    { id: 'criar', label: 'Criar lançamento' },
+    { id: 'editar', label: 'Editar pedido' },
+    { id: 'mover_fase', label: 'Mover de fase' },
+    { id: 'adicionar_item', label: 'Adicionar/editar itens' },
+    { id: 'enviar_omie', label: 'Enviar ao Omie' },
+    { id: 'cancelar', label: 'Cancelar pedido' },
+    { id: 'catalogo', label: 'Gerir catálogo de produtos' },
+  ],
 };
 
 export function acoesDoModulo(id: string): AcaoPermissao[] {
