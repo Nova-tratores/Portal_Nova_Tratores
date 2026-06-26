@@ -987,7 +987,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (!ia.key) {
-    return NextResponse.json({ reply: "Opa! Ainda não estou ligado na IA — falta configurar a chave (OPENAI_API_KEY ou GROQ_API_KEY). Avisa o pessoal do TI." });
+    return NextResponse.json({ reply: "Opa! Ainda não estou ligado na IA — falta configurar a chave (OPENAI_API_KEY). Avisa o pessoal do TI." });
   }
 
   // Contexto de permissões — Tratorilson só fala dos módulos que a pessoa tem acesso
@@ -1070,7 +1070,7 @@ export async function POST(req: NextRequest) {
       const porDia = msg.includes("per day") || msg.includes("TPD");
       return NextResponse.json({
         reply: porDia
-          ? "Puxa, atingi meu limite diário de uso da IA por hoje. Ele renova automaticamente amanhã. Se precisar de mais, o pessoal do TI pode aumentar o plano do Groq."
+          ? "Puxa, atingi meu limite diário de uso da IA por hoje. Ele renova automaticamente amanhã. Se precisar de mais, o pessoal do TI pode aumentar o plano da OpenAI."
           : "Estou recebendo muitas mensagens ao mesmo tempo. Espera uns segundinhos e manda de novo, por favor.",
         erro: msg,
       });
