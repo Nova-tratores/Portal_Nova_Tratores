@@ -112,6 +112,12 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'editar_status', label: 'Ativar/desativar' },
     { id: 'excluir', label: 'Excluir aviso' },
   ],
+  mecanicos: [
+    { id: 'criar_ocorrencia', label: 'Criar ocorrência' },
+    { id: 'justificar_alerta', label: 'Justificar alerta' },
+    { id: 'converter_alerta', label: 'Converter alerta em ocorrência' },
+    { id: 'atualizar_ocorrencia', label: 'Atualizar status da ocorrência' },
+  ],
 };
 
 export function acoesDoModulo(id: string): AcaoPermissao[] {
