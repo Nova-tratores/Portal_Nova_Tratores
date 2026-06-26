@@ -61,14 +61,17 @@ export default function ModalRevisoes({ open, onClose, onSaved }: Props) {
     if (kits.length === 0) { setMsg("O trator de origem não tem kits"); return; }
     setCloning(true); setMsg("");
     try {
+      let criados = 0;
       for (const k of kits) {
-        await fetch("/api/ppv/revisoes/gerenciar", {
+        const res = await fetch("/api/ppv/revisoes/gerenciar", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ Trator: novo, Cod_Trator: cloneCod.trim(), Horas: k.Horas, tipo: k.tipo || "revisao", produtos: k.produtos }),
         });
+        if (res.ok) criados++;
       }
       await carregar(); onSaved?.();
-      setClonarDe(null); setExpandedTrator(novo);
+      if (criados === kits.length) { setClonarDe(null); setExpandedTrator(novo); }
+      else { setMsg(`Clonados ${criados} de ${kits.length} kits. Tente de novo.`); }
     } catch { setMsg("Erro ao clonar"); }
     setCloning(false);
   };

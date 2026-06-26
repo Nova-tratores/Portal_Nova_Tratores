@@ -58,7 +58,12 @@ export async function POST(req: NextRequest) {
     const { Trator, Cod_Trator, Horas, produtos, tipo } = await req.json();
     if (!Trator || !Horas) return NextResponse.json({ error: "Trator e Horas obrigatórios" }, { status: 400 });
 
-    const row = { Trator, Cod_Trator: Cod_Trator || "", Horas, tipo: tipo || "revisao", ...buildColumns(produtos || []) };
+    // A sequence do id está fora de sincronia (dados importados com id fixo), então calculamos
+    // o próximo id manualmente pra não dar "duplicate key" na inserção.
+    const { data: maxRow } = await supabase.from("revisoes").select("id").order("id", { ascending: false }).limit(1);
+    const nextId = (Number(maxRow?.[0]?.id) || 0) + 1;
+
+    const row = { id: nextId, Trator, Cod_Trator: Cod_Trator || "", Horas, tipo: tipo || "revisao", ...buildColumns(produtos || []) };
     const { data, error } = await supabase.from("revisoes").insert([row]).select().single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
