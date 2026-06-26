@@ -22,7 +22,7 @@ import ModalRevisoes from "@/components/ppv/ModalRevisoes";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 
 function PPVApp() {
-  const { kanbanItems, carregarKanban, atualizarKanbanLocal, toast, hideToast, globalLoading, cacheProduct, showToast, tecnicos } = usePPV();
+  const { kanbanItems, carregarKanban, atualizarKanbanLocal, toast, hideToast, globalLoading, cacheProduct, showToast, tecnicos, recarregarRevisoes } = usePPV();
   const { userProfile } = useAuth();
   const searchParams = useSearchParams();
 
@@ -361,7 +361,7 @@ function PPVApp() {
       <ModalBuscaOS open={buscaOSOpen} onClose={() => setBuscaOSOpen(false)} onSelect={handleSelectOS} />
       <ModalBuscaProduto open={buscaProdutoOpen} mode={buscaProdutoMode} onClose={() => setBuscaProdutoOpen(false)} onSelect={handleSelectProduto} onEditManual={handleEditManual} />
       <ModalProdutoManual open={produtoManualOpen} onClose={() => setProdutoManualOpen(false)} onSaved={() => {}} editData={produtoManualEdit} />
-      <ModalRevisoes open={showGerenciarKits} onClose={() => setShowGerenciarKits(false)} />
+      <ModalRevisoes open={showGerenciarKits} onClose={() => setShowGerenciarKits(false)} onSaved={recarregarRevisoes} />
     </div>
   );
 }

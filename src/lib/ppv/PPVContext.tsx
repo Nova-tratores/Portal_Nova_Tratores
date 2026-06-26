@@ -18,6 +18,7 @@ interface PPVContextValue {
   // Dados globais
   tecnicos: string[];
   opcoesRevisao: Record<string, string[]>;
+  recarregarRevisoes: () => Promise<void>;
   kanbanItems: KanbanItem[];
   carregarKanban: () => Promise<void>;
   atualizarKanbanLocal: (id: string, changes: Partial<KanbanItem>) => void;
@@ -79,6 +80,17 @@ export function PPVProvider({ children }: { children: ReactNode }) {
     setKanbanItems((prev) => prev.map((item) => item.id === id ? { ...item, ...changes } : item));
   }, []);
 
+  // Recarrega as opções de revisão (Modelo/Horas) — usar após mexer nos kits no gerenciador
+  const recarregarRevisoes = useCallback(async () => {
+    try {
+      const dados = await api.getDadosIniciais();
+      setTecnicos(dados.tecnicos);
+      setOpcoesRevisao(dados.opcoesRevisao);
+    } catch (e) {
+      console.error("Erro ao recarregar revisões:", e);
+    }
+  }, []);
+
   useEffect(() => {
     async function init() {
       try {
@@ -103,6 +115,7 @@ export function PPVProvider({ children }: { children: ReactNode }) {
       value={{
         tecnicos,
         opcoesRevisao,
+        recarregarRevisoes,
         kanbanItems,
         carregarKanban,
         atualizarKanbanLocal,
