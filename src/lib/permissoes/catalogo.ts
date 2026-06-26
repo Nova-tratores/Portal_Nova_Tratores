@@ -101,6 +101,12 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'lembretes', label: 'Lembretes' },
     { id: 'destinatarios', label: 'Gerir destinatários' },
   ],
+  propostas: [
+    { id: 'criar', label: 'Cadastrar (cliente/trator/implemento/proposta)' },
+    { id: 'editar', label: 'Editar cadastros' },
+    { id: 'excluir', label: 'Lixeira' },
+    { id: 'sincronizar', label: 'Sincronizar Omie' },
+  ],
 };
 
 export function acoesDoModulo(id: string): AcaoPermissao[] {

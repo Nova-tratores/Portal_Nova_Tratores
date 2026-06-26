@@ -41,6 +41,12 @@ const STATUS_ABERTO_CLI = ['Enviar Proposta', 'AGUARDANDO RESPOSTA CLIENTE', 'AG
 const STATUS_ABERTO_FAB = ['Proposta solicitada', 'Proposta Recebida', 'Pedido Feito / Aguardando Maq']
 
 function PropostaComercialPageInner() {
+  const { userProfile } = useAuth()
+  const { pode } = usePermissoes(userProfile?.id)
+  const podeCriar = pode('propostas', 'criar')
+  const podeEditar = pode('propostas', 'editar')
+  const podeExcluir = pode('propostas', 'excluir')
+  const podeSincronizar = pode('propostas', 'sincronizar')
   const { log } = useAuditLog()
   const [view, setView] = useState('clientes')
   const [modals, setModals] = useState({
@@ -54,6 +60,7 @@ function PropostaComercialPageInner() {
   const [gerando, setGerando] = useState(false)
 
   const convertToCli = (data) => {
+    if (!podeEditar) return
     setSelected(data)
     setModals({ ...modals, editFab: false, newCli: true })
     log({ sistema: 'Proposta Comercial', acao: 'converter', entidade: 'proposta_fabrica', entidade_id: String(data.id), entidade_label: data.cliente, detalhes: { acao: 'converter_para_cliente' } })
@@ -67,6 +74,7 @@ function PropostaComercialPageInner() {
   }
 
   const handleSyncOmie = async () => {
+    if (!podeSincronizar) return
     setSyncing(true)
     try {
       const res = await fetch('/api/omie/sync', { method: 'POST' })
@@ -206,24 +214,32 @@ function PropostaComercialPageInner() {
           <div className="bg-white border border-zinc-200 p-3 rounded-xl">
             <div className="flex items-center gap-2 flex-wrap">
               {/* CADASTROS */}
-              <div className="flex items-center gap-1.5 border-r border-zinc-200 pr-3 mr-1">
-                <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest mr-1">Cadastrar:</span>
-                <button onClick={() => setModals({ ...modals, client: true })} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-50 text-zinc-600 text-xs font-semibold border border-zinc-200 hover:bg-zinc-100 cursor-pointer transition-all"><Plus size={12} /> Cliente</button>
-                <button onClick={() => setModals({ ...modals, trator: true })} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-50 text-zinc-600 text-xs font-semibold border border-zinc-200 hover:bg-zinc-100 cursor-pointer transition-all"><Plus size={12} /> Trator</button>
-                <button onClick={() => setModals({ ...modals, equip: true })} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-50 text-zinc-600 text-xs font-semibold border border-zinc-200 hover:bg-zinc-100 cursor-pointer transition-all"><Plus size={12} /> Implemento</button>
-              </div>
+              {podeCriar && (
+                <div className="flex items-center gap-1.5 border-r border-zinc-200 pr-3 mr-1">
+                  <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest mr-1">Cadastrar:</span>
+                  <button onClick={() => setModals({ ...modals, client: true })} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-50 text-zinc-600 text-xs font-semibold border border-zinc-200 hover:bg-zinc-100 cursor-pointer transition-all"><Plus size={12} /> Cliente</button>
+                  <button onClick={() => setModals({ ...modals, trator: true })} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-50 text-zinc-600 text-xs font-semibold border border-zinc-200 hover:bg-zinc-100 cursor-pointer transition-all"><Plus size={12} /> Trator</button>
+                  <button onClick={() => setModals({ ...modals, equip: true })} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-50 text-zinc-600 text-xs font-semibold border border-zinc-200 hover:bg-zinc-100 cursor-pointer transition-all"><Plus size={12} /> Implemento</button>
+                </div>
+              )}
 
               {/* EDITAR */}
-              <div className="flex items-center gap-1.5 border-r border-zinc-200 pr-3 mr-1">
-                <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest mr-1">Editar:</span>
-                <button onClick={() => setModals({ ...modals, searchEditClient: true })} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-800 text-white text-xs font-semibold border-none hover:bg-zinc-700 cursor-pointer transition-all"><Pencil size={11} /> Cliente</button>
-                <button onClick={() => setModals({ ...modals, searchEditTrator: true })} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-800 text-white text-xs font-semibold border-none hover:bg-zinc-700 cursor-pointer transition-all"><Pencil size={11} /> Trator</button>
-                <button onClick={() => setModals({ ...modals, searchEditEquip: true })} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-800 text-white text-xs font-semibold border-none hover:bg-zinc-700 cursor-pointer transition-all"><Pencil size={11} /> Implemento</button>
-              </div>
+              {podeEditar && (
+                <div className="flex items-center gap-1.5 border-r border-zinc-200 pr-3 mr-1">
+                  <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest mr-1">Editar:</span>
+                  <button onClick={() => setModals({ ...modals, searchEditClient: true })} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-800 text-white text-xs font-semibold border-none hover:bg-zinc-700 cursor-pointer transition-all"><Pencil size={11} /> Cliente</button>
+                  <button onClick={() => setModals({ ...modals, searchEditTrator: true })} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-800 text-white text-xs font-semibold border-none hover:bg-zinc-700 cursor-pointer transition-all"><Pencil size={11} /> Trator</button>
+                  <button onClick={() => setModals({ ...modals, searchEditEquip: true })} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-800 text-white text-xs font-semibold border-none hover:bg-zinc-700 cursor-pointer transition-all"><Pencil size={11} /> Implemento</button>
+                </div>
+              )}
 
               {/* UTILITARIOS */}
-              <button onClick={() => setModals({ ...modals, trash: true })} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-50 text-zinc-500 text-xs font-semibold border border-zinc-200 hover:bg-red-50 hover:text-red-600 cursor-pointer transition-all"><Trash2 size={12} /> Lixeira</button>
-              <button onClick={handleSyncOmie} disabled={syncing} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-amber-50 text-amber-700 text-xs font-semibold border border-amber-200 hover:bg-amber-100 cursor-pointer transition-all disabled:opacity-50"><RefreshCw size={12} className={syncing ? 'animate-spin' : ''} /> {syncing ? 'Sincronizando...' : 'Sync Omie'}</button>
+              {podeExcluir && (
+                <button onClick={() => setModals({ ...modals, trash: true })} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-50 text-zinc-500 text-xs font-semibold border border-zinc-200 hover:bg-red-50 hover:text-red-600 cursor-pointer transition-all"><Trash2 size={12} /> Lixeira</button>
+              )}
+              {podeSincronizar && (
+                <button onClick={handleSyncOmie} disabled={syncing} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-amber-50 text-amber-700 text-xs font-semibold border border-amber-200 hover:bg-amber-100 cursor-pointer transition-all disabled:opacity-50"><RefreshCw size={12} className={syncing ? 'animate-spin' : ''} /> {syncing ? 'Sincronizando...' : 'Sync Omie'}</button>
+              )}
 
               {/* RELATORIO */}
               <button onClick={handleRelatorio} disabled={gerando} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-50 text-red-700 text-xs font-semibold border border-red-200 hover:bg-red-100 cursor-pointer transition-all disabled:opacity-50">
@@ -231,10 +247,12 @@ function PropostaComercialPageInner() {
               </button>
 
               {/* BOTAO PRINCIPAL */}
-              <button onClick={() => view === 'fabrica' ? setModals({ ...modals, newFab: true }) : setModals({ ...modals, newCli: true })}
-                className="ml-auto flex items-center gap-2 px-5 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold border-none hover:bg-red-700 cursor-pointer transition-all">
-                <Plus size={14} /> {view === 'fabrica' ? 'Novo Pedido' : 'Nova Proposta'}
-              </button>
+              {podeCriar && (
+                <button onClick={() => view === 'fabrica' ? setModals({ ...modals, newFab: true }) : setModals({ ...modals, newCli: true })}
+                  className="ml-auto flex items-center gap-2 px-5 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold border-none hover:bg-red-700 cursor-pointer transition-all">
+                  <Plus size={14} /> {view === 'fabrica' ? 'Novo Pedido' : 'Nova Proposta'}
+                </button>
+              )}
             </div>
           </div>
         </div>
