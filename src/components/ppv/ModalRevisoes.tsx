@@ -22,7 +22,7 @@ export default function ModalRevisoes({ open, onClose, onSaved }: Props) {
   const [criando, setCriando] = useState(false);
   const [msg, setMsg] = useState("");
   const [expandedTrator, setExpandedTrator] = useState<string | null>(null);
-  const [filtroTipo, setFiltroTipo] = useState<"todos" | "revisao" | "manutencao">("todos");
+  const [filtroTipo, setFiltroTipo] = useState<"todos" | "revisao" | "manutencao" | "quadriciclo">("todos");
   const [clonarDe, setClonarDe] = useState<string | null>(null);
   const [cloneNome, setCloneNome] = useState("");
   const [cloneCod, setCloneCod] = useState("");
@@ -43,7 +43,8 @@ export default function ModalRevisoes({ open, onClose, onSaved }: Props) {
     setExpandedTrator(rev.Trator);
   };
   const abrirNova = (tipo: string = "revisao") => {
-    setSelected(null); setEditTrator(""); setEditCodTrator(""); setEditHoras("");
+    setSelected(null); setEditTrator(""); setEditCodTrator("");
+    setEditHoras(tipo === "quadriciclo" ? "Revisão" : "");
     setEditTipo(tipo); setEditProdutos([{ codigo: "", quantidade: 1 }]);
     setCriando(true); setMsg(""); setClonarDe(null);
   };
@@ -81,12 +82,13 @@ export default function ModalRevisoes({ open, onClose, onSaved }: Props) {
     setEditProdutos(p => p.map((prod, idx) => idx === i ? { ...prod, [field]: value } : prod));
 
   const salvar = async () => {
-    if (!editTrator.trim() || !editHoras.trim()) { setMsg("Modelo e Nome/Horas são obrigatórios"); return; }
+    const horasFinal = editTipo === "quadriciclo" ? (editHoras.trim() || "Revisão") : editHoras.trim();
+    if (!editTrator.trim() || !horasFinal) { setMsg("Modelo e Nome/Horas são obrigatórios"); return; }
     const produtosLimpos = editProdutos.filter(p => p.codigo.trim());
     if (produtosLimpos.length === 0) { setMsg("Adicione pelo menos um produto"); return; }
     setSaving(true); setMsg("");
     try {
-      const body: any = { Trator: editTrator.trim(), Cod_Trator: editCodTrator.trim(), Horas: editHoras.trim(), tipo: editTipo, produtos: produtosLimpos };
+      const body: any = { Trator: editTrator.trim(), Cod_Trator: editCodTrator.trim(), Horas: horasFinal, tipo: editTipo, produtos: produtosLimpos };
       if (selected) body.id = selected.id;
       const res = await fetch("/api/ppv/revisoes/gerenciar", { method: selected ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const data = await res.json();
@@ -110,6 +112,7 @@ export default function ModalRevisoes({ open, onClose, onSaved }: Props) {
   const isEditing = selected || criando;
   const totalRevisoes = revisoes.filter(r => (r.tipo || "revisao") === "revisao").length;
   const totalManutencao = revisoes.filter(r => r.tipo === "manutencao").length;
+  const totalQuad = revisoes.filter(r => r.tipo === "quadriciclo").length;
 
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
@@ -123,15 +126,15 @@ export default function ModalRevisoes({ open, onClose, onSaved }: Props) {
           </div>
           <div style={{ flex: 1 }}>
             <h3 style={{ fontSize: 18, fontWeight: 800, margin: 0, color: "#1E293B" }}>Kits de Revisão & Manutenção</h3>
-            <p style={{ fontSize: 12, color: "#94A3B8", margin: 0 }}>{totalRevisoes} revisões · {totalManutencao} manutenções</p>
+            <p style={{ fontSize: 12, color: "#94A3B8", margin: 0 }}>{totalRevisoes} revisões · {totalManutencao} manutenções · {totalQuad} quadriciclos</p>
           </div>
 
           {/* Filtro tipo */}
           <div style={{ display: "flex", gap: 4, background: "#F1F5F9", borderRadius: 8, padding: 3 }}>
-            {([["todos", "Todos"], ["revisao", "Revisão"], ["manutencao", "Manutenção"]] as const).map(([k, label]) => (
+            {([["todos", "Todos"], ["revisao", "Revisão"], ["manutencao", "Manutenção"], ["quadriciclo", "Quadriciclo"]] as const).map(([k, label]) => (
               <button key={k} onClick={() => setFiltroTipo(k)}
                 style={{ padding: "6px 14px", borderRadius: 6, border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer",
-                  background: filtroTipo === k ? (k === "manutencao" ? "#7C3AED" : k === "revisao" ? "#dc2626" : "#1E293B") : "transparent",
+                  background: filtroTipo === k ? (k === "manutencao" ? "#7C3AED" : k === "quadriciclo" ? "#0891b2" : k === "revisao" ? "#dc2626" : "#1E293B") : "transparent",
                   color: filtroTipo === k ? "#fff" : "#64748B", transition: "all .15s" }}>
                 {label}
               </button>
@@ -146,6 +149,10 @@ export default function ModalRevisoes({ open, onClose, onSaved }: Props) {
             <button onClick={() => abrirNova("manutencao")}
               style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: "#7C3AED", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}>
               <i className="fas fa-plus" /> Manutenção
+            </button>
+            <button onClick={() => abrirNova("quadriciclo")}
+              style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: "#0891b2", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}>
+              <i className="fas fa-plus" /> Quadriciclo
             </button>
             <button onClick={onClose}
               style={{ width: 36, height: 36, borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#64748B" }}>
@@ -167,6 +174,7 @@ export default function ModalRevisoes({ open, onClose, onSaved }: Props) {
                 const revsDoTrator = revsFiltradas.filter(r => r.Trator === trator);
                 const temRevisao = revsDoTrator.some(r => (r.tipo || "revisao") === "revisao");
                 const temManut = revsDoTrator.some(r => r.tipo === "manutencao");
+                const temQuad = revsDoTrator.some(r => r.tipo === "quadriciclo");
                 return (
                   <div key={trator}>
                     <div onClick={() => setExpandedTrator(isOpen ? null : trator)}
@@ -180,6 +188,7 @@ export default function ModalRevisoes({ open, onClose, onSaved }: Props) {
                       <div style={{ display: "flex", gap: 4 }}>
                         {temRevisao && <span style={{ fontSize: 9, fontWeight: 700, color: "#dc2626", background: "#FEF2F2", padding: "2px 6px", borderRadius: 4 }}>REV</span>}
                         {temManut && <span style={{ fontSize: 9, fontWeight: 700, color: "#7C3AED", background: "#F5F3FF", padding: "2px 6px", borderRadius: 4 }}>MAN</span>}
+                        {temQuad && <span style={{ fontSize: 9, fontWeight: 700, color: "#0891b2", background: "#ECFEFF", padding: "2px 6px", borderRadius: 4 }}>QUAD</span>}
                       </div>
                       <button onClick={e => { e.stopPropagation(); iniciarClone(trator); }} title="Clonar este trator (todos os kits) para um novo"
                         style={{ width: 24, height: 24, borderRadius: 6, border: "none", background: "transparent", cursor: "pointer", color: "#94A3B8", display: "flex", alignItems: "center", justifyContent: "center" }}
@@ -191,6 +200,7 @@ export default function ModalRevisoes({ open, onClose, onSaved }: Props) {
                     <div style={{ maxHeight: isOpen ? 1000 : 0, overflow: "hidden", transition: "max-height .3s ease-in-out" }}>
                       {revsDoTrator.map(rev => {
                         const isManut = rev.tipo === "manutencao";
+                        const isQuad = rev.tipo === "quadriciclo";
                         const isActive = selected?.id === rev.id;
                         return (
                           <div key={rev.id} onClick={() => abrirEdicao(rev)}
@@ -199,7 +209,7 @@ export default function ModalRevisoes({ open, onClose, onSaved }: Props) {
                               borderLeft: isActive ? "3px solid #3b82f6" : "3px solid transparent",
                               display: "flex", alignItems: "center", justifyContent: "space-between", transition: "background .1s" }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <i className={isManut ? "fas fa-wrench" : "fas fa-clock"} style={{ fontSize: 11, color: isManut ? "#7C3AED" : "#94A3B8" }} />
+                              <i className={isQuad ? "fas fa-motorcycle" : isManut ? "fas fa-wrench" : "fas fa-clock"} style={{ fontSize: 11, color: isQuad ? "#0891b2" : isManut ? "#7C3AED" : "#94A3B8" }} />
                               <div>
                                 <div style={{ fontSize: 13, fontWeight: 600, color: isActive ? "#1D4ED8" : "#1E293B" }}>{rev.Horas}</div>
                                 <div style={{ fontSize: 10, color: "#94A3B8" }}>{rev.produtos.length} produtos</div>
@@ -268,6 +278,10 @@ export default function ModalRevisoes({ open, onClose, onSaved }: Props) {
                     style={{ padding: "10px 20px", borderRadius: 10, border: "none", background: "#7C3AED", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
                     <i className="fas fa-plus" /> Nova Manutenção
                   </button>
+                  <button onClick={() => abrirNova("quadriciclo")}
+                    style={{ padding: "10px 20px", borderRadius: 10, border: "none", background: "#0891b2", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+                    <i className="fas fa-plus" /> Novo Quadriciclo
+                  </button>
                 </div>
               </div>
             ) : (
@@ -286,6 +300,12 @@ export default function ModalRevisoes({ open, onClose, onSaved }: Props) {
                       fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "all .15s" }}>
                     <i className="fas fa-wrench" style={{ marginRight: 6 }} /> Manutenção (peça/serviço)
                   </button>
+                  <button onClick={() => { setEditTipo("quadriciclo"); if (!editHoras.trim()) setEditHoras("Revisão"); }}
+                    style={{ padding: "8px 18px", borderRadius: 8, border: editTipo === "quadriciclo" ? "2px solid #0891b2" : "2px solid #E2E8F0",
+                      background: editTipo === "quadriciclo" ? "#ECFEFF" : "#fff", color: editTipo === "quadriciclo" ? "#0891b2" : "#64748B",
+                      fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "all .15s" }}>
+                    <i className="fas fa-motorcycle" style={{ marginRight: 6 }} /> Quadriciclo (kit único)
+                  </button>
                 </div>
 
                 {/* Campos */}
@@ -297,16 +317,22 @@ export default function ModalRevisoes({ open, onClose, onSaved }: Props) {
                   </div>
                   <div style={{ width: 140 }}>
                     <label style={{ fontSize: 11, fontWeight: 700, color: "#64748B", display: "block", marginBottom: 4 }}>CÓDIGO</label>
-                    <input value={editCodTrator} onChange={e => setEditCodTrator(e.target.value)} placeholder="Ex: T6075"
+                    <input value={editCodTrator} onChange={e => setEditCodTrator(e.target.value)} placeholder={editTipo === "quadriciclo" ? "Ex: QM250" : "Ex: T6075"}
                       style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 14, boxSizing: "border-box" }} />
                   </div>
                   <div style={{ flex: 1 }}>
                     <label style={{ fontSize: 11, fontWeight: 700, color: "#64748B", display: "block", marginBottom: 4 }}>
-                      {editTipo === "manutencao" ? "NOME (Ex: Embreagem, Tração...)" : "HORAS (Ex: 50H, 300H...)"}
+                      {editTipo === "quadriciclo" ? "REVISÃO" : editTipo === "manutencao" ? "NOME (Ex: Embreagem, Tração...)" : "HORAS (Ex: 50H, 300H...)"}
                     </label>
-                    <input value={editHoras} onChange={e => setEditHoras(e.target.value)}
-                      placeholder={editTipo === "manutencao" ? "Ex: Embreagem" : "Ex: 300H"}
-                      style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 14, boxSizing: "border-box" }} />
+                    {editTipo === "quadriciclo" ? (
+                      <div style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: "1px dashed #67E8F9", background: "#ECFEFF", fontSize: 13, color: "#0891b2", boxSizing: "border-box", display: "flex", alignItems: "center", gap: 6 }}>
+                        <i className="fas fa-motorcycle" /> Kit único — sem horas
+                      </div>
+                    ) : (
+                      <input value={editHoras} onChange={e => setEditHoras(e.target.value)}
+                        placeholder={editTipo === "manutencao" ? "Ex: Embreagem" : "Ex: 300H"}
+                        style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 14, boxSizing: "border-box" }} />
+                    )}
                   </div>
                 </div>
 
@@ -345,9 +371,9 @@ export default function ModalRevisoes({ open, onClose, onSaved }: Props) {
 
                 <button onClick={salvar} disabled={saving}
                   style={{ marginTop: 16, width: "100%", padding: 14, borderRadius: 10, border: "none",
-                    background: saving ? "#94A3B8" : editTipo === "manutencao" ? "#7C3AED" : "#dc2626",
+                    background: saving ? "#94A3B8" : editTipo === "manutencao" ? "#7C3AED" : editTipo === "quadriciclo" ? "#0891b2" : "#dc2626",
                     color: "#fff", fontSize: 15, fontWeight: 700, cursor: saving ? "not-allowed" : "pointer", transition: "background .15s" }}>
-                  {saving ? "Salvando..." : selected ? "Salvar Alterações" : `Criar ${editTipo === "manutencao" ? "Manutenção" : "Revisão"}`}
+                  {saving ? "Salvando..." : selected ? "Salvar Alterações" : `Criar ${editTipo === "manutencao" ? "Manutenção" : editTipo === "quadriciclo" ? "Quadriciclo" : "Revisão"}`}
                 </button>
               </div>
             )}

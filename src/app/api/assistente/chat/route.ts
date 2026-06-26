@@ -609,15 +609,17 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
           const rows: any[] = rc.ok ? await rc.json() : [];
           const dig = (s: any): string[] => (String(s || "").toUpperCase().match(/\d{3,}/g) || []);
           const userDig = dig(trator); const normTr = normT(trator);
-          const doTrator = rows.filter((r) => String(r.tipo || "revisao") === "revisao").filter((r) => {
+          const doTrator = rows.filter((r) => ["revisao", "quadriciclo"].includes(String(r.tipo || "revisao"))).filter((r) => {
             const rt = normT(r.Trator); const tDig = dig(r.Trator).concat(dig(r.Cod_Trator));
             return rt === normTr || rt.includes(normTr) || normTr.includes(rt) || (userDig.length > 0 && tDig.some((d) => userDig.includes(d)));
           });
+          // Se for quadriciclo (kit único), importa direto — não pergunta horas
+          const quad = doTrator.find((r) => String(r.tipo) === "quadriciclo");
           const tratoresUnicos = [...new Set(doTrator.map((r) => r.Trator))];
-          if (doTrator.length > 1 && tratoresUnicos.length === 1) {
+          if (!quad && doTrator.length > 1 && tratoresUnicos.length === 1) {
             return { precisa: "horas", mensagem: `O ${tratoresUnicos[0]} tem várias revisões: ${doTrator.map((r) => r.Horas).join(", ")}. Qual delas?` };
           }
-          const row = doTrator[0];
+          const row = quad || doTrator[0];
           if (row) {
             const rk = await fetch(`${origin}/api/ppv/revisoes?trator=${encodeURIComponent(row.Trator)}&horas=${encodeURIComponent(row.Horas)}`);
             const kit: any[] = rk.ok ? await rk.json() : [];

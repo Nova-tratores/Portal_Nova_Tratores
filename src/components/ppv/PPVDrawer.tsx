@@ -496,17 +496,24 @@ export default function PPVDrawer({
                     <label><i className="fas fa-tools" style={{ marginRight: 6 }} />Kit de Revisão</label>
                     <div style={{ display: "flex", gap: 10, alignItems: "flex-end", marginBottom: 14 }}>
                       <div style={{ flex: 1 }}>
-                        <select value={revTrator} onChange={(e) => { setRevTrator(e.target.value); setRevHoras(""); }} style={{ marginBottom: 0 }}>
+                        <select value={revTrator} onChange={(e) => { const v = e.target.value; setRevTrator(v); const opts = (opcoesRevisao && opcoesRevisao[v]) || []; setRevHoras(opts.length === 1 ? opts[0] : ""); }} style={{ marginBottom: 0 }}>
                           <option value="">-- Modelo --</option>
                           {Object.keys(opcoesRevisao || {}).sort().map((m) => <option key={m} value={m}>{m}</option>)}
                         </select>
                       </div>
-                      <div style={{ width: 110 }}>
-                        <select value={revHoras} onChange={(e) => setRevHoras(e.target.value)} disabled={!revTrator} style={{ marginBottom: 0 }}>
-                          <option value="">-- Horas --</option>
-                          {((opcoesRevisao && opcoesRevisao[revTrator]) || []).map((h: string) => <option key={h} value={h}>{h}</option>)}
-                        </select>
-                      </div>
+                      {/* Quadriciclo / modelo com kit único: não pede horas */}
+                      {revTrator && ((opcoesRevisao && opcoesRevisao[revTrator]) || []).length === 1 ? (
+                        <div style={{ width: 110, padding: "9px 10px", borderRadius: 8, border: "1px dashed #67E8F9", background: "#ECFEFF", fontSize: 12, color: "#0891b2", textAlign: "center", whiteSpace: "nowrap" }}>
+                          <i className="fas fa-motorcycle" style={{ marginRight: 4 }} />único
+                        </div>
+                      ) : (
+                        <div style={{ width: 110 }}>
+                          <select value={revHoras} onChange={(e) => setRevHoras(e.target.value)} disabled={!revTrator} style={{ marginBottom: 0 }}>
+                            <option value="">-- Horas --</option>
+                            {((opcoesRevisao && opcoesRevisao[revTrator]) || []).map((h: string) => <option key={h} value={h}>{h}</option>)}
+                          </select>
+                        </div>
+                      )}
                       <button type="button" onClick={importarKitDrawer} disabled={importandoKit || !revTrator || !revHoras} className="ppv-btn-save" style={{ padding: "10px 16px", whiteSpace: "nowrap", fontSize: 13, background: "#0d9488" }}>
                         {importandoKit ? <i className="fas fa-spinner fa-spin" /> : <><i className="fas fa-download" /> Importar</>}
                       </button>

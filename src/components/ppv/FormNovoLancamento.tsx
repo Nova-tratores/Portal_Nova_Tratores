@@ -58,8 +58,10 @@ export default function FormNovoLancamento({
 
   function atualizarHoras(trator: string) {
     setRevTrator(trator);
-    setRevHoras("");
-    setHorasOpcoes(trator && opcoesRevisao[trator] ? opcoesRevisao[trator] : []);
+    const opts = trator && opcoesRevisao[trator] ? opcoesRevisao[trator] : [];
+    setHorasOpcoes(opts);
+    // Quadriciclo / modelo com kit único: já seleciona, não pede horas
+    setRevHoras(opts.length === 1 ? opts[0] : "");
   }
 
   function addProduct() {
@@ -307,10 +309,16 @@ export default function FormNovoLancamento({
             </div>
             <div className="ppv-form-field" style={{ width: 130 }}>
               <span className="ppv-form-label">Horas</span>
-              <select value={revHoras} onChange={(e) => setRevHoras(e.target.value)} disabled={horasOpcoes.length === 0}>
-                <option value="">--</option>
-                {horasOpcoes.map((h) => <option key={h} value={h}>{h}</option>)}
-              </select>
+              {revTrator && horasOpcoes.length === 1 ? (
+                <div style={{ padding: "9px 10px", borderRadius: 8, border: "1px dashed #67E8F9", background: "#ECFEFF", fontSize: 12, color: "#0891b2", textAlign: "center", whiteSpace: "nowrap" }}>
+                  <i className="fas fa-motorcycle" style={{ marginRight: 4 }} />único
+                </div>
+              ) : (
+                <select value={revHoras} onChange={(e) => setRevHoras(e.target.value)} disabled={horasOpcoes.length === 0}>
+                  <option value="">--</option>
+                  {horasOpcoes.map((h) => <option key={h} value={h}>{h}</option>)}
+                </select>
+              )}
             </div>
             <button
               type="button" onClick={importarKit}

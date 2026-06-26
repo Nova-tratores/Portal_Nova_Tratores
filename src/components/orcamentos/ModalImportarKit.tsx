@@ -194,10 +194,10 @@ export default function ModalImportarKit({ open, onClose, onImportar }: Props) {
                             {kit.Horas}
                             <span style={{
                               marginLeft: 8, fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4,
-                              background: kit.tipo === 'manutencao' ? '#f3e8ff' : '#fef2f2',
-                              color: kit.tipo === 'manutencao' ? '#7c3aed' : '#dc2626',
+                              background: kit.tipo === 'manutencao' ? '#f3e8ff' : kit.tipo === 'quadriciclo' ? '#ECFEFF' : '#fef2f2',
+                              color: kit.tipo === 'manutencao' ? '#7c3aed' : kit.tipo === 'quadriciclo' ? '#0891b2' : '#dc2626',
                             }}>
-                              {kit.tipo === 'manutencao' ? 'Manutenção' : 'Revisão'}
+                              {kit.tipo === 'manutencao' ? 'Manutenção' : kit.tipo === 'quadriciclo' ? 'Quadriciclo' : 'Revisão'}
                             </span>
                           </div>
                           <div style={{ fontSize: 11, color: '#a3a3a3', marginTop: 2 }}>
