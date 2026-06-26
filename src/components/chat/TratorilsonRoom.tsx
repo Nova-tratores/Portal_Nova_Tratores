@@ -66,12 +66,14 @@ export default function TratorilsonRoom({ userName = '', userId = '', isAdmin = 
   const confirmarProposta = useCallback(async (idx: number, proposta: any) => {
     setLoading(true)
     setMsgs((ms) => ms.map((m, i) => (i === idx ? { ...m, feito: true } : m)))
+    // OS e Requisição imprimem direto: pré-abre a aba JÁ no clique (preserva o gesto) e depois aponta pro print
+    const win = (proposta?.tipo === 'os' || proposta?.tipo === 'requisicao') ? window.open('', '_blank') : null
     try {
       const r = await fetch('/api/assistente/executar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ proposta, userName }) })
       const j = await r.json()
-      if (r.ok) { const L: any = { orcamento: 'Orçamento', ppv: 'PPV', os: 'OS', requisicao: 'Requisição' }; const extra = j.ppv ? ` PPV ${j.ppv} vinculado gerado.` : ''; setMsgs((ms) => [...ms, { role: 'assistant', content: `Pronto! ${L[proposta.tipo] || ''} ${j.numero || ''} criado.${extra}`, abrirUrl: j.abrirUrl }]) }
-      else setMsgs((ms) => [...ms, { role: 'assistant', content: `Não consegui criar: ${j.error || 'erro'}` }])
-    } catch { setMsgs((ms) => [...ms, { role: 'assistant', content: 'Erro de conexão ao criar.' }]) }
+      if (r.ok) { const L: any = { orcamento: 'Orçamento', ppv: 'PPV', os: 'OS', requisicao: 'Requisição' }; const extra = j.ppv ? ` PPV ${j.ppv} vinculado gerado.` : ''; setMsgs((ms) => [...ms, { role: 'assistant', content: `Pronto! ${L[proposta.tipo] || ''} ${j.numero || ''} criado.${extra}`, abrirUrl: j.abrirUrl }]); if (win) { if (j.abrirUrl) win.location.href = location.origin + j.abrirUrl; else win.close() } }
+      else { if (win) win.close(); setMsgs((ms) => [...ms, { role: 'assistant', content: `Não consegui criar: ${j.error || 'erro'}` }]) }
+    } catch { if (win) win.close(); setMsgs((ms) => [...ms, { role: 'assistant', content: 'Erro de conexão ao criar.' }]) }
     setLoading(false)
   }, [userName])
 
