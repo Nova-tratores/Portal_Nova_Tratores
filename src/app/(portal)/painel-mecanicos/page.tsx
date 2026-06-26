@@ -45,6 +45,12 @@ export default function PainelMecanicosWrapper() {
 
 function PainelMecanicosPage() {
   const { userProfile } = useAuth()
+  const { pode } = usePermissoes(userProfile?.id)
+  const podeCriarOc = pode('painel-mecanicos', 'criar_ocorrencia')
+  const podeAprovar = pode('painel-mecanicos', 'aprovar_requisicao')
+  const podeRecusar = pode('painel-mecanicos', 'recusar_requisicao')
+  const podeConverter = pode('painel-mecanicos', 'converter_alerta')
+  const podeAvaliar = pode('painel-mecanicos', 'avaliar_justificativa')
   const [tecnicos, setTecnicos] = useState<Tecnico[]>([])
   const [ordens, setOrdens] = useState<OrdemServico[]>([])
   const [alertas, setAlertas] = useState<Alerta[]>([])
@@ -120,10 +126,11 @@ function PainelMecanicosPage() {
   const notificarAdmins = async (tipo: string, titulo: string, descricao?: string, link?: string) => {
     try { const { data: admins } = await supabase.from('portal_permissoes').select('user_id, categoria, notif_silenciado').eq('is_admin', true); if (!admins || admins.length === 0) return; const ids = filtrarDestinatarios(tipo, admins); if (ids.length === 0) return; await supabase.from('portal_notificacoes').insert(ids.map((user_id) => ({ user_id, tipo, titulo, descricao: descricao || null, link: link || '/painel-mecanicos' }))) } catch { }
   }
-  const aprovarRequisicao = async (reqId: number) => { await supabase.from('mecanico_requisicoes').update({ status: 'aprovada', data_aprovacao: new Date().toISOString() }).eq('id', reqId); const req = reqsMecanico.find(r => r.id === reqId); if (req) { await supabase.from('mecanico_notificacoes').insert({ tecnico_nome: req.tecnico_nome, tipo: 'requisicao', titulo: 'Requisição aprovada', descricao: `Sua requisição "${req.material_solicitado}" foi aprovada.`, link: '', lida: false }); await notificarAdmins('pos', `Requisição aprovada - ${req.tecnico_nome}`, `Material: ${req.material_solicitado}`) }; carregar() }
-  const recusarRequisicao = async (reqId: number) => { if (!confirm('Recusar esta requisição?')) return; const req = reqsMecanico.find(r => r.id === reqId); await supabase.from('mecanico_requisicoes').update({ status: 'recusada' }).eq('id', reqId); if (req) { await supabase.from('mecanico_notificacoes').insert({ tecnico_nome: req.tecnico_nome, tipo: 'requisicao', titulo: 'Requisição recusada', descricao: `Sua requisição "${req.material_solicitado}" foi recusada.`, link: '', lida: false }) }; carregar() }
-  const salvarOcorrencia = async () => { if (!novaOcorrencia.tecnico_nome || !novaOcorrencia.descricao) return; await supabase.from('tecnico_ocorrencias').insert({ tecnico_nome: novaOcorrencia.tecnico_nome, id_ordem: novaOcorrencia.id_ordem || null, tipo: novaOcorrencia.tipo, descricao: novaOcorrencia.descricao, pontos_descontados: novaOcorrencia.pontos_descontados, data: new Date().toISOString().split('T')[0] }); const tipoLabel = (TIPO_OCORRENCIA[novaOcorrencia.tipo] || TIPO_OCORRENCIA.outros).label; await notificarAdmins('pos', `Nova ocorrência - ${novaOcorrencia.tecnico_nome}`, `${tipoLabel}: ${novaOcorrencia.descricao}${novaOcorrencia.id_ordem ? ` (OS: ${novaOcorrencia.id_ordem})` : ''} | -${novaOcorrencia.pontos_descontados} pts`); await supabase.from('mecanico_notificacoes').insert({ tecnico_nome: novaOcorrencia.tecnico_nome, tipo: 'execucao', titulo: `Ocorrência registrada: ${tipoLabel}`, descricao: `${novaOcorrencia.descricao} (-${novaOcorrencia.pontos_descontados} pts)`, link: '', lida: false }); setNovaOcorrencia({ tecnico_nome: '', id_ordem: '', tipo: 'atraso', descricao: '', pontos_descontados: 0 }); setShowOcorrenciaModal(false); carregar() }
+  const aprovarRequisicao = async (reqId: number) => { if (!podeAprovar) return; await supabase.from('mecanico_requisicoes').update({ status: 'aprovada', data_aprovacao: new Date().toISOString() }).eq('id', reqId); const req = reqsMecanico.find(r => r.id === reqId); if (req) { await supabase.from('mecanico_notificacoes').insert({ tecnico_nome: req.tecnico_nome, tipo: 'requisicao', titulo: 'Requisição aprovada', descricao: `Sua requisição "${req.material_solicitado}" foi aprovada.`, link: '', lida: false }); await notificarAdmins('pos', `Requisição aprovada - ${req.tecnico_nome}`, `Material: ${req.material_solicitado}`) }; carregar() }
+  const recusarRequisicao = async (reqId: number) => { if (!podeRecusar) return; if (!confirm('Recusar esta requisição?')) return; const req = reqsMecanico.find(r => r.id === reqId); await supabase.from('mecanico_requisicoes').update({ status: 'recusada' }).eq('id', reqId); if (req) { await supabase.from('mecanico_notificacoes').insert({ tecnico_nome: req.tecnico_nome, tipo: 'requisicao', titulo: 'Requisição recusada', descricao: `Sua requisição "${req.material_solicitado}" foi recusada.`, link: '', lida: false }) }; carregar() }
+  const salvarOcorrencia = async () => { if (!podeCriarOc) return; if (!novaOcorrencia.tecnico_nome || !novaOcorrencia.descricao) return; await supabase.from('tecnico_ocorrencias').insert({ tecnico_nome: novaOcorrencia.tecnico_nome, id_ordem: novaOcorrencia.id_ordem || null, tipo: novaOcorrencia.tipo, descricao: novaOcorrencia.descricao, pontos_descontados: novaOcorrencia.pontos_descontados, data: new Date().toISOString().split('T')[0] }); const tipoLabel = (TIPO_OCORRENCIA[novaOcorrencia.tipo] || TIPO_OCORRENCIA.outros).label; await notificarAdmins('pos', `Nova ocorrência - ${novaOcorrencia.tecnico_nome}`, `${tipoLabel}: ${novaOcorrencia.descricao}${novaOcorrencia.id_ordem ? ` (OS: ${novaOcorrencia.id_ordem})` : ''} | -${novaOcorrencia.pontos_descontados} pts`); await supabase.from('mecanico_notificacoes').insert({ tecnico_nome: novaOcorrencia.tecnico_nome, tipo: 'execucao', titulo: `Ocorrência registrada: ${tipoLabel}`, descricao: `${novaOcorrencia.descricao} (-${novaOcorrencia.pontos_descontados} pts)`, link: '', lida: false }); setNovaOcorrencia({ tecnico_nome: '', id_ordem: '', tipo: 'atraso', descricao: '', pontos_descontados: 0 }); setShowOcorrenciaModal(false); carregar() }
   const converterAlertaEmOcorrencia = async (alerta: Alerta, tipo: string, pontos: number) => {
+    if (!podeConverter) return
     // 1) Criar ocorrencia
     await supabase.from('tecnico_ocorrencias').insert({
       tecnico_nome: alerta.tecnico_nome,
@@ -150,7 +157,7 @@ function PainelMecanicosPage() {
     carregar()
   }
 
-  const avaliarJustificativa = async (id: number, aprovada: boolean) => { const just = justificativas.find(j => j.id === id); await supabase.from('tecnico_justificativas').update({ status: aprovada ? 'aprovada' : 'recusada', descontar_comissao: !aprovada, data_avaliacao: new Date().toISOString() }).eq('id', id); if (just) { await notificarAdmins('pos', `Justificativa ${aprovada ? 'aceita' : 'recusada'} - ${just.tecnico_nome}`, `${just.justificativa.substring(0, 100)}${aprovada ? ' (sem desconto)' : ' (desconta comissão)'}`); await supabase.from('mecanico_notificacoes').insert({ tecnico_nome: just.tecnico_nome, tipo: 'execucao', titulo: `Justificativa ${aprovada ? 'aceita' : 'recusada'}`, descricao: aprovada ? 'Sua justificativa foi aceita, sem desconto na comissão.' : 'Sua justificativa foi recusada, haverá desconto na comissão.', link: '', lida: false }) }; carregar() }
+  const avaliarJustificativa = async (id: number, aprovada: boolean) => { if (!podeAvaliar) return; const just = justificativas.find(j => j.id === id); await supabase.from('tecnico_justificativas').update({ status: aprovada ? 'aprovada' : 'recusada', descontar_comissao: !aprovada, data_avaliacao: new Date().toISOString() }).eq('id', id); if (just) { await notificarAdmins('pos', `Justificativa ${aprovada ? 'aceita' : 'recusada'} - ${just.tecnico_nome}`, `${just.justificativa.substring(0, 100)}${aprovada ? ' (sem desconto)' : ' (desconta comissão)'}`); await supabase.from('mecanico_notificacoes').insert({ tecnico_nome: just.tecnico_nome, tipo: 'execucao', titulo: `Justificativa ${aprovada ? 'aceita' : 'recusada'}`, descricao: aprovada ? 'Sua justificativa foi aceita, sem desconto na comissão.' : 'Sua justificativa foi recusada, haverá desconto na comissão.', link: '', lida: false }) }; carregar() }
 
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 80, color: 'var(--portal-text-muted)', gap: 10 }}>
@@ -216,9 +223,11 @@ function PainelMecanicosPage() {
             )}
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={() => setShowOcorrenciaModal(true)} style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#111827', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>
-              <AlertOctagon size={12} /> Ocorrencia
-            </button>
+            {podeCriarOc && (
+              <button onClick={() => setShowOcorrenciaModal(true)} style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#111827', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>
+                <AlertOctagon size={12} /> Ocorrencia
+              </button>
+            )}
             <button onClick={carregar} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--portal-bg-card)', color: 'var(--portal-text-secondary)', border: '1px solid var(--portal-border)', borderRadius: 6, padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}>
               <RefreshCw size={12} /> Atualizar
             </button>
@@ -228,7 +237,7 @@ function PainelMecanicosPage() {
 
         {blocoAtivo === 'visao' && <BlocoVisaoGeral tecnicos={tecnicos} ordens={ordens} caminhos={caminhos} />}
         {blocoAtivo === 'ordens' && <BlocoAgenda tecnicos={tecnicos} ordens={ordens} semanaOffset={semanaOffset} />}
-        {blocoAtivo === 'alertas' && <BlocoAlertas tecnicos={tecnicos} alertas={alertas} onRecarregar={carregar} userName={userProfile?.nome || ''} ordens={ordens} reqsMecanico={reqsMecanico} justificativas={justificativas} ocorrencias={ocorrencias} onAprovarRequisicao={aprovarRequisicao} onRecusarRequisicao={recusarRequisicao} onAvaliarJustificativa={avaliarJustificativa} onConverterOcorrencia={converterAlertaEmOcorrencia} tipoOcorrencia={TIPO_OCORRENCIA} />}
+        {blocoAtivo === 'alertas' && <BlocoAlertas tecnicos={tecnicos} alertas={alertas} onRecarregar={carregar} userName={userProfile?.nome || ''} ordens={ordens} reqsMecanico={reqsMecanico} justificativas={justificativas} ocorrencias={ocorrencias} onAprovarRequisicao={aprovarRequisicao} onRecusarRequisicao={recusarRequisicao} onAvaliarJustificativa={avaliarJustificativa} onConverterOcorrencia={converterAlertaEmOcorrencia} tipoOcorrencia={TIPO_OCORRENCIA} podeAprovar={podeAprovar} podeRecusar={podeRecusar} podeConverter={podeConverter} podeAvaliar={podeAvaliar} />}
         {blocoAtivo === 'ocorrencias' && <BlocoOcorrencias tecnicos={tecnicos} ocorrencias={ocorrencias} justificativas={justificativas} opasResolvidas={opasResolvidas} tipoOcorrencia={TIPO_OCORRENCIA} onSalvarOcorrencia={async (dados) => {
           if (!dados.tecnico_nome || !dados.descricao) return
           await supabase.from('tecnico_ocorrencias').insert({ tecnico_nome: dados.tecnico_nome, id_ordem: dados.id_ordem || null, tipo: dados.tipo, descricao: dados.descricao, pontos_descontados: dados.pontos_descontados, data: new Date().toISOString().split('T')[0] })

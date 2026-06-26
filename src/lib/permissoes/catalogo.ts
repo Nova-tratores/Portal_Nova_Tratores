@@ -118,6 +118,13 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'converter_alerta', label: 'Converter alerta em ocorrência' },
     { id: 'atualizar_ocorrencia', label: 'Atualizar status da ocorrência' },
   ],
+  'painel-mecanicos': [
+    { id: 'criar_ocorrencia', label: 'Registrar ocorrência' },
+    { id: 'aprovar_requisicao', label: 'Aprovar requisição' },
+    { id: 'recusar_requisicao', label: 'Recusar requisição' },
+    { id: 'converter_alerta', label: 'Converter alerta em ocorrência' },
+    { id: 'avaliar_justificativa', label: 'Avaliar justificativa' },
+  ],
 };
 
 export function acoesDoModulo(id: string): AcaoPermissao[] {
