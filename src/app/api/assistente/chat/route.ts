@@ -1055,6 +1055,10 @@ export async function POST(req: NextRequest) {
 
   const convo: any[] = [{ role: "system", content: sys + memInstr + memTexto }, ...limpos];
 
+  // Base p/ as ferramentas chamarem os endpoints internos /api. Na Vercel o origin é certo;
+  // no Railway/Node o origin não resolve de dentro do container, então chama a si mesmo via localhost.
+  const baseInterna = process.env.VERCEL ? req.nextUrl.origin : `http://127.0.0.1:${process.env.PORT || 3000}`;
+
   try {
     for (let step = 0; step < 3; step++) {
       const j = await chamarIA({ temperature: 0.3, max_tokens: 600, messages: convo, tools: TOOLS, tool_choice: "auto" });
@@ -1065,7 +1069,7 @@ export async function POST(req: NextRequest) {
         for (const tc of m.tool_calls) {
           let args: any = {};
           try { args = JSON.parse(tc.function?.arguments || "{}"); } catch {}
-          const result = await execTool(req.nextUrl.origin, tc.function?.name, args, ctx);
+          const result = await execTool(baseInterna, tc.function?.name, args, ctx);
           if (result?.proposta) proposta = result.proposta;
           convo.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify(result) });
         }

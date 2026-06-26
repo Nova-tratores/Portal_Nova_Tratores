@@ -12,7 +12,9 @@ export async function POST(req: NextRequest) {
   try {
     const { proposta, userName } = await req.json();
     if (!proposta?.tipo) return NextResponse.json({ error: "Proposta inválida." }, { status: 400 });
-    const origin = req.nextUrl.origin;
+    // Na Vercel o origin é certo; no Railway/Node o origin não resolve de dentro do container,
+    // então chama os endpoints internos via localhost.
+    const origin = process.env.VERCEL ? req.nextUrl.origin : `http://127.0.0.1:${process.env.PORT || 3000}`;
     const quem = userName || "Tratorilson";
 
     // Orçamento e PPV reutilizam o endpoint do carrinho do catálogo
