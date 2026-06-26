@@ -88,6 +88,12 @@ function formatarData(valor: string | undefined | null): string {
 
 function DashboardAgrupadoInner() {
   const { userProfile } = useAuth();
+  const { pode } = usePermissoes(userProfile?.id);
+  const podeTratores = pode('revisoes', 'tratores');
+  const podeEnviar = pode('revisoes', 'enviar');
+  const podeObservacoes = pode('revisoes', 'observacoes');
+  const podeLembretes = pode('revisoes', 'lembretes');
+  const podeDestinatarios = pode('revisoes', 'destinatarios');
   const { log: auditLog } = useAuditLog();
   const [tratores, setTratores] = useState<Trator[]>([]);
   const [busca, setBusca] = useState("");
@@ -213,6 +219,7 @@ function DashboardAgrupadoInner() {
   }, []);
 
   const criarLembrete = async () => {
+    if (!podeLembretes) return;
     if (!selecionado || !lembreteUsuario || !lembreteData) return;
     const usuario = usuariosPortal.find(u => u.user_id === lembreteUsuario);
     if (!usuario) return;
@@ -239,6 +246,7 @@ function DashboardAgrupadoInner() {
   };
 
   const deletarLembrete = async (id: number) => {
+    if (!podeLembretes) return;
     if (!selecionado) return;
     await fetch(`/api/revisoes/lembretes?id=${id}`, { method: "DELETE" });
     fetchLembretes(String(selecionado.ID));
@@ -351,6 +359,7 @@ function DashboardAgrupadoInner() {
   }, [tratores, busca, filtroCliente, filtroTipoObs, obsAtivasByTratorId]);
 
   const adicionarDestinatario = async () => {
+    if (!podeDestinatarios) return;
     if (!novoDestNome.trim() || !novoDestEmail.trim()) return;
     const novo: Destinatario = { nome: novoDestNome.trim(), email: novoDestEmail.trim() };
     // Atualiza UI imediatamente
@@ -366,6 +375,7 @@ function DashboardAgrupadoInner() {
   };
 
   const removerDestinatario = async (email: string) => {
+    if (!podeDestinatarios) return;
     setDestinatarios(prev => prev.filter(d => d.email !== email));
     setDestinatariosSelecionados(prev => {
       const next = new Set(prev);
@@ -385,6 +395,7 @@ function DashboardAgrupadoInner() {
   };
 
   const salvarMotor = async () => {
+    if (!podeTratores) return;
     if (!selecionado) return;
     const { error } = await supabase
       .from("tratores")
@@ -400,6 +411,7 @@ function DashboardAgrupadoInner() {
   };
 
   const salvarNovoTrator = async () => {
+    if (!podeTratores) { setMsgNovoTrator("Você não tem permissão para criar trator."); return; }
     if (!novoTrator.Modelo?.trim() || !novoTrator.Chassis?.trim() || !novoTrator.Cliente?.trim()) {
       setMsgNovoTrator("Preencha pelo menos Modelo, Chassis e Cliente.");
       return;
@@ -448,6 +460,7 @@ function DashboardAgrupadoInner() {
   };
 
   const enviarEmail = async () => {
+    if (!podeEnviar) { setMsgEnvio("Você não tem permissão para enviar revisão."); return; }
     if (!selecionado) return;
     if (!revisaoEnvio) { setMsgEnvio("Selecione a revisão."); return; }
     if (!horimetroEnvio.trim()) { setMsgEnvio("Preencha o horímetro."); return; }
@@ -555,6 +568,7 @@ function DashboardAgrupadoInner() {
   };
 
   const enviarInspecao = async () => {
+    if (!podeEnviar) { setMsgInspecao("Você não tem permissão para enviar inspeção."); return; }
     if (!selecionado) return;
     if (!nomeRemetenteInsp.trim()) { setMsgInspecao("Preencha seu nome."); return; }
     if (destinatariosInspSelecionados.size === 0) { setMsgInspecao("Selecione pelo menos um destinatário."); return; }
@@ -631,6 +645,7 @@ function DashboardAgrupadoInner() {
   };
 
   const criarObservacao = async () => {
+    if (!podeObservacoes) return;
     if (!selecionado || !obsTexto.trim()) return;
     setSalvandoObs(true);
     try {
@@ -666,6 +681,7 @@ function DashboardAgrupadoInner() {
   };
 
   const resolverObservacao = async (obs: Observacao) => {
+    if (!podeObservacoes) return;
     const res = await fetch(`/api/observacoes/${obs.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -686,6 +702,7 @@ function DashboardAgrupadoInner() {
   };
 
   const deletarObservacao = async (obs: Observacao) => {
+    if (!podeObservacoes) return;
     if (!confirm("Remover esta observação?")) return;
     const res = await fetch(`/api/observacoes/${obs.id}`, { method: "DELETE" });
     if (res.ok) {
@@ -722,12 +739,14 @@ function DashboardAgrupadoInner() {
                 {emailsCarregados && <span className="text-zinc-500 ml-3">{emails.length} emails</span>}
               </p>
             </div>
-            <button
-              onClick={() => { setShowNovoTrator(true); setNovoTrator({}); setMsgNovoTrator(""); }}
-              className="px-5 py-2.5 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors text-sm shrink-0"
-            >
-              + Novo Trator
-            </button>
+            {podeTratores && (
+              <button
+                onClick={() => { setShowNovoTrator(true); setNovoTrator({}); setMsgNovoTrator(""); }}
+                className="px-5 py-2.5 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors text-sm shrink-0"
+              >
+                + Novo Trator
+              </button>
+            )}
           </div>
 
           <div className="flex gap-3">
@@ -922,8 +941,8 @@ function DashboardAgrupadoInner() {
                   ) : (
                     <p
                       className="text-2xl font-semibold text-zinc-900 mt-0.5 cursor-pointer hover:text-red-500 transition-colors group/motor"
-                      onClick={() => { setMotorTemp(selecionado.Numero_Motor || ""); setEditandoMotor(true); }}
-                      title="Clique para editar"
+                      onClick={() => { if (!podeTratores) return; setMotorTemp(selecionado.Numero_Motor || ""); setEditandoMotor(true); }}
+                      title={podeTratores ? "Clique para editar" : undefined}
                     >
                       {selecionado.Numero_Motor || <span className="text-zinc-400">—</span>}
                       <span className="text-xs text-zinc-400 group-hover/motor:text-red-500 ml-1 font-normal">editar</span>

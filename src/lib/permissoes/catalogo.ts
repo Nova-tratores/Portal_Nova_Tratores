@@ -94,6 +94,13 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'anexos', label: 'Anexar OS/PV/NF' },
     { id: 'etiquetas', label: 'Gerir etiquetas' },
   ],
+  revisoes: [
+    { id: 'tratores', label: 'Criar/editar trator' },
+    { id: 'enviar', label: 'Enviar revisão/inspeção' },
+    { id: 'observacoes', label: 'Observações (criar/resolver/excluir)' },
+    { id: 'lembretes', label: 'Lembretes' },
+    { id: 'destinatarios', label: 'Gerir destinatários' },
+  ],
 };
 
 export function acoesDoModulo(id: string): AcaoPermissao[] {
