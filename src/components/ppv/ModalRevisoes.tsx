@@ -23,6 +23,10 @@ export default function ModalRevisoes({ open, onClose, onSaved }: Props) {
   const [msg, setMsg] = useState("");
   const [expandedTrator, setExpandedTrator] = useState<string | null>(null);
   const [filtroTipo, setFiltroTipo] = useState<"todos" | "revisao" | "manutencao">("todos");
+  const [clonarDe, setClonarDe] = useState<string | null>(null);
+  const [cloneNome, setCloneNome] = useState("");
+  const [cloneCod, setCloneCod] = useState("");
+  const [cloning, setCloning] = useState(false);
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -35,13 +39,38 @@ export default function ModalRevisoes({ open, onClose, onSaved }: Props) {
   const abrirEdicao = (rev: Revisao) => {
     setSelected(rev); setEditTrator(rev.Trator); setEditCodTrator(rev.Cod_Trator);
     setEditHoras(rev.Horas); setEditTipo(rev.tipo || "revisao");
-    setEditProdutos([...rev.produtos]); setCriando(false); setMsg("");
+    setEditProdutos([...rev.produtos]); setCriando(false); setMsg(""); setClonarDe(null);
     setExpandedTrator(rev.Trator);
   };
   const abrirNova = (tipo: string = "revisao") => {
     setSelected(null); setEditTrator(""); setEditCodTrator(""); setEditHoras("");
     setEditTipo(tipo); setEditProdutos([{ codigo: "", quantidade: 1 }]);
-    setCriando(true); setMsg("");
+    setCriando(true); setMsg(""); setClonarDe(null);
+  };
+
+  // Clonar um trator inteiro (todos os kits, todas as horas) para um novo trator
+  const iniciarClone = (trator: string) => {
+    setClonarDe(trator); setCloneNome(""); setCloneCod(""); setSelected(null); setCriando(false); setMsg("");
+  };
+  const clonarTrator = async () => {
+    if (!clonarDe) return;
+    const novo = cloneNome.trim();
+    if (!novo) { setMsg("Informe o nome do novo trator"); return; }
+    if (novo.toLowerCase() === clonarDe.toLowerCase()) { setMsg("O novo trator tem que ter um nome diferente"); return; }
+    const kits = revisoes.filter(r => r.Trator === clonarDe);
+    if (kits.length === 0) { setMsg("O trator de origem não tem kits"); return; }
+    setCloning(true); setMsg("");
+    try {
+      for (const k of kits) {
+        await fetch("/api/ppv/revisoes/gerenciar", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ Trator: novo, Cod_Trator: cloneCod.trim(), Horas: k.Horas, tipo: k.tipo || "revisao", produtos: k.produtos }),
+        });
+      }
+      await carregar(); onSaved?.();
+      setClonarDe(null); setExpandedTrator(novo);
+    } catch { setMsg("Erro ao clonar"); }
+    setCloning(false);
   };
   const addProduto = () => setEditProdutos(p => [...p, { codigo: "", quantidade: 1 }]);
   const removeProduto = (i: number) => setEditProdutos(p => p.filter((_, idx) => idx !== i));
@@ -149,6 +178,12 @@ export default function ModalRevisoes({ open, onClose, onSaved }: Props) {
                         {temRevisao && <span style={{ fontSize: 9, fontWeight: 700, color: "#dc2626", background: "#FEF2F2", padding: "2px 6px", borderRadius: 4 }}>REV</span>}
                         {temManut && <span style={{ fontSize: 9, fontWeight: 700, color: "#7C3AED", background: "#F5F3FF", padding: "2px 6px", borderRadius: 4 }}>MAN</span>}
                       </div>
+                      <button onClick={e => { e.stopPropagation(); iniciarClone(trator); }} title="Clonar este trator (todos os kits) para um novo"
+                        style={{ width: 24, height: 24, borderRadius: 6, border: "none", background: "transparent", cursor: "pointer", color: "#94A3B8", display: "flex", alignItems: "center", justifyContent: "center" }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#3b82f6" }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#94A3B8" }}>
+                        <i className="fas fa-copy" style={{ fontSize: 12 }} />
+                      </button>
                     </div>
                     <div style={{ maxHeight: isOpen ? 1000 : 0, overflow: "hidden", transition: "max-height .3s ease-in-out" }}>
                       {revsDoTrator.map(rev => {
@@ -185,7 +220,39 @@ export default function ModalRevisoes({ open, onClose, onSaved }: Props) {
 
           {/* Painel de edição */}
           <div style={{ flex: 1, overflow: "auto", padding: 28 }}>
-            {!isEditing ? (
+            {clonarDe ? (
+              <div>
+                <div style={{ marginBottom: 20, padding: "12px 16px", background: "#EFF6FF", borderRadius: 10, fontSize: 13, color: "#1E3A8A", lineHeight: 1.5 }}>
+                  <i className="fas fa-copy" style={{ marginRight: 8 }} />
+                  Clonando <b>{clonarDe}</b> — {revisoes.filter(r => r.Trator === clonarDe).length} kit(s), todas as horas. Vou criar todos no novo trator; depois é só ajustar as diferenças.
+                </div>
+                <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "#64748B", display: "block", marginBottom: 4 }}>NOVO MODELO / TRATOR</label>
+                    <input value={cloneNome} onChange={e => setCloneNome(e.target.value)} placeholder="Ex: 6080" autoFocus
+                      style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 14, boxSizing: "border-box" }} />
+                  </div>
+                  <div style={{ width: 160 }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "#64748B", display: "block", marginBottom: 4 }}>CÓDIGO (novo)</label>
+                    <input value={cloneCod} onChange={e => setCloneCod(e.target.value)} placeholder="Ex: T6080"
+                      style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 14, boxSizing: "border-box" }} />
+                  </div>
+                </div>
+                {msg && (
+                  <div style={{ marginBottom: 12, padding: "10px 16px", borderRadius: 8, background: "#FEF2F2", color: "#DC2626", fontSize: 13, fontWeight: 600 }}>{msg}</div>
+                )}
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button onClick={() => { setClonarDe(null); setMsg(""); }} disabled={cloning}
+                    style={{ padding: "14px 24px", borderRadius: 10, border: "1px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 14, fontWeight: 700, cursor: cloning ? "not-allowed" : "pointer" }}>
+                    Cancelar
+                  </button>
+                  <button onClick={clonarTrator} disabled={cloning}
+                    style={{ flex: 1, padding: 14, borderRadius: 10, border: "none", background: cloning ? "#94A3B8" : "#3b82f6", color: "#fff", fontSize: 15, fontWeight: 700, cursor: cloning ? "not-allowed" : "pointer" }}>
+                    {cloning ? "Clonando..." : `Clonar ${revisoes.filter(r => r.Trator === clonarDe).length} kit(s) para o novo trator`}
+                  </button>
+                </div>
+              </div>
+            ) : !isEditing ? (
               <div style={{ textAlign: "center", padding: 80, color: "#CBD5E1" }}>
                 <i className="fas fa-tools" style={{ fontSize: 48, marginBottom: 16, display: "block", opacity: 0.2 }} />
                 <p style={{ fontSize: 15, color: "#94A3B8" }}>Selecione um kit ou crie um novo</p>
