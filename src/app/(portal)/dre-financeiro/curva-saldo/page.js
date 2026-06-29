@@ -105,7 +105,7 @@ function carregarChartLibs() {
 
 export default function CurvaSaldoPage() {
   const { userProfile, loading } = useAuth()
-  const { temAcesso, loading: loadingPerm } = usePermissoes(userProfile?.id)
+  const { temAcesso, pode, loading: loadingPerm } = usePermissoes(userProfile?.id)
   const { conta } = useDreConta()
 
   // --- Estado de controles (espelha as vars do IIFE da fonte) ----------------
@@ -321,7 +321,7 @@ export default function CurvaSaldoPage() {
   }
 
   // --- Estados de gate de permissao (BRIEF item 1) --------------------------
-  if (!loading && !loadingPerm && userProfile && !temAcesso('financeiro')) return <SemPermissao />
+  if (!loading && !loadingPerm && userProfile && (!temAcesso('financeiro') && !pode('dre', 'curva-saldo'))) return <SemPermissao />
 
   // --- KPIs derivados (port fiel do bloco de KPIs da fonte) -----------------
   const d = dados

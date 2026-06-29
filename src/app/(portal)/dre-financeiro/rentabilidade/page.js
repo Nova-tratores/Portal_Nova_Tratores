@@ -88,7 +88,7 @@ function carregarChartLibs() {
 
 export default function RentabilidadePage() {
   const { userProfile, loading } = useAuth()
-  const { temAcesso, loading: loadingPerm } = usePermissoes(userProfile?.id)
+  const { temAcesso, pode, loading: loadingPerm } = usePermissoes(userProfile?.id)
   const { conta } = useDreConta()
 
   // Aba ativa: inicial vem de ?tab=capital|margens (default 'margens'), como no server.
@@ -118,7 +118,7 @@ export default function RentabilidadePage() {
   }
 
   // --- Gate de permissao (BRIEF item 1) -------------------------------------
-  if (!loading && !loadingPerm && userProfile && !temAcesso('financeiro')) return <SemPermissao />
+  if (!loading && !loadingPerm && userProfile && (!temAcesso('financeiro') && !pode('dre', 'rentabilidade'))) return <SemPermissao />
 
   const ativo = 'bg-slate-800 text-white'
   const inativo = 'bg-white text-slate-700 hover:bg-slate-100'

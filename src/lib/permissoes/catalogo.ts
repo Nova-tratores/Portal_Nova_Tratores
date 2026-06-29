@@ -131,6 +131,27 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'criar_lancamento', label: 'Criar conta a pagar/receber' },
     { id: 'criar_chamado', label: 'Abrir chamado (NF/RH)' },
   ],
+  // DRE Financeiro: granular POR TELA (cada ação = uma tela analítica). O id da
+  // ação é o slug da rota (/dre-financeiro/<id>). Quem tem 'financeiro' ou é
+  // admin vê todas; senão, vê só as telas liberadas. 'dre' puro = todas.
+  dre: [
+    { id: 'calendario', label: 'Calendário' },
+    { id: 'vencidos', label: 'Vencidos' },
+    { id: 'curva-saldo', label: 'Curva de Saldo' },
+    { id: 'fluxo', label: 'Fluxo' },
+    { id: 'ciclo-caixa', label: 'Ciclo de Caixa' },
+    { id: 'aderencia', label: 'Pontualidade' },
+    { id: 'dre', label: 'DRE' },
+    { id: 'analise-dre', label: 'Análise DRE' },
+    { id: 'composicao', label: 'Composição' },
+    { id: 'patrimonio', label: 'Patrimônio' },
+    { id: 'rentabilidade', label: 'Rentabilidade' },
+    { id: 'lucratividade', label: 'Lucratividade' },
+    { id: 'margens', label: 'Margens' },
+    { id: 'vendas-modelo', label: 'Vendas/Modelo' },
+    { id: 'clientes', label: 'Clientes' },
+    { id: 'monitor', label: 'Monitor' },
+  ],
 };
 
 export function acoesDoModulo(id: string): AcaoPermissao[] {

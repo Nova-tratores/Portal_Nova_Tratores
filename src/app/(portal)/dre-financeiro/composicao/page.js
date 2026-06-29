@@ -104,7 +104,7 @@ function carregarChartLibs() {
 
 export default function ComposicaoPage() {
   const { userProfile, loading } = useAuth()
-  const { temAcesso, loading: loadingPerm } = usePermissoes(userProfile?.id)
+  const { temAcesso, pode, loading: loadingPerm } = usePermissoes(userProfile?.id)
   const { conta } = useDreConta()
 
   // --- Estado de controles ---------------------------------------------------
@@ -298,7 +298,7 @@ export default function ComposicaoPage() {
   function irHoje() { const h = new Date(); setMes(h.getMonth() + 1); setAno(h.getFullYear()) }
 
   // --- Gate de permissao (BRIEF item 1) -------------------------------------
-  if (!loading && !loadingPerm && userProfile && !temAcesso('financeiro')) return <SemPermissao />
+  if (!loading && !loadingPerm && userProfile && (!temAcesso('financeiro') && !pode('dre', 'composicao'))) return <SemPermissao />
 
   // Classes dos toggles inativos (espelham a fonte).
   const inativoToggle = 'bg-white text-slate-700 hover:bg-slate-100'

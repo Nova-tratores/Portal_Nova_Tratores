@@ -165,7 +165,7 @@ function TipoBadge({ tipo }) {
 
 export default function VencidosPage() {
   const { userProfile, loading } = useAuth()
-  const { temAcesso, loading: loadingPerm } = usePermissoes(userProfile?.id)
+  const { temAcesso, pode, loading: loadingPerm } = usePermissoes(userProfile?.id)
   const { conta } = useDreConta()
 
   // --- Estado (espelha as vars do IIFE da fonte) ----------------------------
@@ -429,7 +429,7 @@ export default function VencidosPage() {
   if (loading || loadingPerm) {
     return <div className="p-8 text-center text-slate-400">Carregando...</div>
   }
-  if (userProfile && !temAcesso('financeiro')) {
+  if (userProfile && (!temAcesso('financeiro') && !pode('dre', 'vencidos'))) {
     return <SemPermissao />
   }
 

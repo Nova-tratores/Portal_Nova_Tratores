@@ -36,7 +36,7 @@ function corCcc(v) {
 
 export default function CicloCaixaDreFinanceiro() {
   const { userProfile, loading } = useAuth()
-  const { temAcesso, loading: loadingPerm } = usePermissoes(userProfile?.id)
+  const { temAcesso, pode, loading: loadingPerm } = usePermissoes(userProfile?.id)
   const { conta } = useDreConta()
 
   const [meses, setMeses] = useState('12')   // seletor de periodo (3/6/12/24)
@@ -64,7 +64,7 @@ export default function CicloCaixaDreFinanceiro() {
   useEffect(() => { carregar() }, [carregar])
 
   // Gate de permissao (espelha o layout; mantido por seguranca/padrao do portal).
-  if (!loading && !loadingPerm && userProfile && !temAcesso('financeiro')) {
+  if (!loading && !loadingPerm && userProfile && (!temAcesso('financeiro') && !pode('dre', 'ciclo-caixa'))) {
     return <SemPermissao />
   }
 

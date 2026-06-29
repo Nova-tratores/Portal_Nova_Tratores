@@ -74,9 +74,19 @@ const GRUPOS = [
 
 export default function DreFinanceiroLayout({ children }) {
   const { userProfile, loading } = useAuth()
-  const { temAcesso, loading: loadingPerm } = usePermissoes(userProfile?.id)
+  const { temAcesso, pode, loading: loadingPerm } = usePermissoes(userProfile?.id)
   const { conta, setConta, contas } = useDreConta()
   const pathname = usePathname()
+
+  // Pode ver uma TELA do DRE? Quem tem 'financeiro' (ou admin) vê todas;
+  // senão, vê só as telas liberadas via 'dre:<slug>' ('dre' puro = todas).
+  // Home e links externos (Estoque Pátio ↗) são sempre visíveis.
+  const podeVerTela = (href) => {
+    if (href === '/dre-financeiro') return true
+    if (!href.startsWith('/dre-financeiro/')) return true
+    const slug = href.slice('/dre-financeiro/'.length)
+    return temAcesso('financeiro') || pode('dre', slug)
+  }
 
   // Enquanto carrega auth/permissoes.
   if (loading || loadingPerm) {
@@ -87,8 +97,14 @@ export default function DreFinanceiroLayout({ children }) {
     )
   }
 
-  // Gate de permissao do modulo 'financeiro'.
-  if (userProfile && !temAcesso('financeiro')) {
+  // Gate de acesso ao módulo: precisa de 'financeiro' OU de alguma tela do 'dre'.
+  if (userProfile && !temAcesso('financeiro') && !temAcesso('dre')) {
+    return <SemPermissao />
+  }
+
+  // Gate por TELA (cobre acesso direto por URL — inclusive telas sem gate
+  // próprio, como 'clientes'). Home (/dre-financeiro) é sempre liberada.
+  if (userProfile && !podeVerTela(pathname)) {
     return <SemPermissao />
   }
 
@@ -134,7 +150,11 @@ export default function DreFinanceiroLayout({ children }) {
 
         {/* Linha 2: sub-navegacao agrupada por categoria (espelha o header.ejs da fonte) */}
         <nav style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-          {GRUPOS.map((grupo, gi) => (
+          {GRUPOS.map((grupo, gi) => {
+            // Esconde itens sem permissão; se o grupo ficar vazio, some inteiro.
+            const itens = grupo.itens.filter((item) => podeVerTela(item.href))
+            if (itens.length === 0) return null
+            return (
             <div
               key={grupo.label || `g${gi}`}
               style={{
@@ -151,7 +171,7 @@ export default function DreFinanceiroLayout({ children }) {
                   {grupo.label}
                 </span>
               )}
-              {grupo.itens.map((item) => {
+              {itens.map((item) => {
                 const ativo = pathname === item.href
                 const c = CORES[item.cor]
                 return (
@@ -171,7 +191,8 @@ export default function DreFinanceiroLayout({ children }) {
                 )
               })}
             </div>
-          ))}
+            )
+          })}
         </nav>
       </div>
 
