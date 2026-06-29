@@ -94,6 +94,12 @@ function FileDrop({ label, hint, file, onPick, accent = '#2563EB' }: { label: st
 }
 
 function ClientesPageInner() {
+  const { userProfile } = useAuth()
+  const { pode } = usePermissoes(userProfile?.id)
+  const podeCriarCliente = pode('clientes', 'criar_cliente')
+  const podeCriarProjeto = pode('clientes', 'criar_projeto')
+  const podeAnexos = pode('clientes', 'anexos')
+  const podeEtiquetas = pode('clientes', 'etiquetas')
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
@@ -152,6 +158,7 @@ function ClientesPageInner() {
   const [anexErro, setAnexErro] = useState('')
 
   const criarCliente = async () => {
+    if (!podeCriarCliente) { setCriarErro('Você não tem permissão para criar cliente'); return }
     if (!formCli.razao_social.trim() || !formCli.cnpj_cpf.trim()) { setCriarErro('Razão Social e CNPJ/CPF são obrigatórios'); return }
     setCriando(true); setCriarErro('')
     try {
@@ -176,6 +183,7 @@ function ClientesPageInner() {
   }
 
   const criarProjeto = async () => {
+    if (!podeCriarProjeto) { setCriarErro('Você não tem permissão para criar projeto'); return }
     if (!projNome.trim()) { setCriarErro('Nome do projeto é obrigatório'); return }
     setCriando(true); setCriarErro('')
     try {
@@ -228,6 +236,7 @@ function ClientesPageInner() {
   }, [])
 
   const toggleEtiqueta = async (cnpj: string, etiquetaId: number, ativo: boolean) => {
+    if (!podeEtiquetas) return
     await fetch('/api/clientes/etiquetas', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -238,6 +247,7 @@ function ClientesPageInner() {
   }
 
   const salvarDescricao = async (cnpj: string) => {
+    if (!podeEtiquetas) return
     setSalvandoDesc(true)
     await fetch('/api/clientes/etiquetas', {
       method: 'PATCH',
@@ -249,6 +259,7 @@ function ClientesPageInner() {
   }
 
   const criarEtiqueta = async () => {
+    if (!podeEtiquetas) return
     if (!novaEtiquetaNome.trim()) return
     await fetch('/api/clientes/etiquetas', {
       method: 'POST',
@@ -263,6 +274,7 @@ function ClientesPageInner() {
   }
 
   const excluirEtiqueta = async (id: number) => {
+    if (!podeEtiquetas) return
     if (!confirm('Excluir esta etiqueta de todos os clientes?')) return
     await fetch(`/api/clientes/etiquetas?id=${id}`, { method: 'DELETE' })
     const res = await fetch('/api/clientes/etiquetas')
@@ -358,6 +370,7 @@ function ClientesPageInner() {
 
   const abrirAnexar = (tipo: 'os' | 'pv') => { setAnexErro(''); setAnexNumero(''); setAnexFile(null); setAnexNfFile(null); setAnexPvVinc(''); setAnexPvFile(null); setAnexPvNfFile(null); setAnexInterno(false); setShowAnexar(tipo) }
   const anexarItem = async () => {
+    if (!podeAnexos) { setAnexErro('Você não tem permissão para anexar.'); return }
     if (!anexNumero.trim() || !selectedCliente || !showAnexar) return
     setAnexando(true); setAnexErro('')
     const subir = async (file: File, sufixo: string): Promise<string | null> => {
@@ -409,6 +422,7 @@ function ClientesPageInner() {
   // Anexa a NF de serviço (NFS-e que o Omie não dá em PDF) direto na OS da pasta.
   // Ao salvar, dispara a criação do card no financeiro se o serviço ficar completo.
   const anexarNFservicoNaOS = async (os: OrdemServico, file: File) => {
+    if (!podeAnexos) return
     if (!selectedCliente) return
     setAnexNfOS(true)
     try {
@@ -431,6 +445,7 @@ function ClientesPageInner() {
   }
   // Marca uma NF (serviço/peça) como substituída na OS da pasta (nº antigo -> novo + histórico).
   const salvarSubstituicao = async () => {
+    if (!podeAnexos) return
     if (!subNF || !subNF.num_novo.trim() || !selectedCliente) return
     setSubSalvando(true)
     let usuario = '', usuarioId = ''
@@ -2145,14 +2160,18 @@ function ClientesPageInner() {
             {syncStatus}
           </span>
         )}
-        <button onClick={() => { setCriarErro(''); setFormCli({ ...FORM_CLI_VAZIO }); setShowCriarCliente(true) }}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 16px', height: 44, borderRadius: 12, border: 'none', background: 'linear-gradient(135deg, #dc2626, #b91c1c)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-          <Plus size={15} /> Criar Cliente
-        </button>
-        <button onClick={() => { setCriarErro(''); setProjNome(''); setShowCriarProjeto(true) }}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 16px', height: 44, borderRadius: 12, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-          <FolderOpen size={15} /> Criar Projeto
-        </button>
+        {podeCriarCliente && (
+          <button onClick={() => { setCriarErro(''); setFormCli({ ...FORM_CLI_VAZIO }); setShowCriarCliente(true) }}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 16px', height: 44, borderRadius: 12, border: 'none', background: 'linear-gradient(135deg, #dc2626, #b91c1c)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            <Plus size={15} /> Criar Cliente
+          </button>
+        )}
+        {podeCriarProjeto && (
+          <button onClick={() => { setCriarErro(''); setProjNome(''); setShowCriarProjeto(true) }}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 16px', height: 44, borderRadius: 12, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            <FolderOpen size={15} /> Criar Projeto
+          </button>
+        )}
         <button onClick={syncBackground} disabled={syncing} title="Sincronizar"
           style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 44, height: 44, borderRadius: 12, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text-secondary)', cursor: syncing ? 'not-allowed' : 'pointer' }}>
           <RefreshCw size={16} style={syncing ? { animation: 'spin 1s linear infinite' } : {}} />

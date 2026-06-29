@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
 import { useAuditLog } from '@/hooks/useAuditLog'
 import { useAuth } from '@/hooks/useAuth'
+import { usePermissoes } from '@/hooks/usePermissoes'
 import { notificarAdminsClient } from '@/hooks/useNotificarAdmins'
 import { CamposOmieContaPagar } from '@/components/financeiro/OmieContaPagar'
 import UploadNFeXml from '@/components/financeiro/UploadNFeXml'
@@ -17,6 +18,8 @@ import {
 export default function NovoPagarReceber() {
   const { log: auditLog } = useAuditLog()
   const { userProfile } = useAuth()
+  const { pode } = usePermissoes(userProfile?.id)
+  const podeCriar = pode('financeiro', 'criar_lancamento')
   const [loading, setLoading] = useState(false)
   const [pageLoading, setPageLoading] = useState(true)
   const [fornecedores, setFornecedores] = useState([])
@@ -284,6 +287,7 @@ export default function NovoPagarReceber() {
 
   const salvar = async (e) => {
     e.preventDefault()
+    if (!podeCriar) { alert('Você não tem permissão para criar lançamentos.'); return }
     setLoading(true)
     try {
       // NF: usa a automática ou faz upload da manual
@@ -828,9 +832,9 @@ export default function NovoPagarReceber() {
               <CamposOmieContaPagar value={omieCampos} onChange={setOmieCampos} tema="form" autoOrigem={autoOrigem} contextoTexto={formData.motivo} />
             </div>
 
-            <button disabled={loading} type="submit" style={{
-              background: loading ? '#e5e7eb' : '#1e293b',
-              color: loading ? '#6b7280' : '#ffffff',
+            <button disabled={loading || !podeCriar} type="submit" style={{
+              background: (loading || !podeCriar) ? '#e5e7eb' : '#1e293b',
+              color: (loading || !podeCriar) ? '#6b7280' : '#ffffff',
               border: 'none',
               padding: '16px',
               borderRadius: '10px',

@@ -16,8 +16,14 @@ import CriarGarantiaManualModal from '@/components/garantias/CriarGarantiaManual
 
 type Aba = 'pipeline' | 'finalizadas' | 'relatorio' | 'buscar' | 'montadoras';
 
-function GarantiasPageInner({ isAdmin }: { isAdmin: boolean }) {
+function GarantiasPageInner() {
   const { userProfile } = useAuth();
+  const { pode } = usePermissoes(userProfile?.id);
+  const podeCriar = pode('garantias', 'criar');
+  const podeAnalisar = pode('garantias', 'analisar');
+  const podeEnviarFabrica = pode('garantias', 'enviar_fabrica');
+  const podeFinalizar = pode('garantias', 'finalizar');
+  const podeMontadoras = pode('garantias', 'montadoras');
   const [garantias, setGarantias] = useState<GarantiaResumo[]>([]);
   const [loading, setLoading] = useState(true);
   const [aba, setAba] = useState<Aba>('pipeline');
@@ -65,7 +71,7 @@ function GarantiasPageInner({ isAdmin }: { isAdmin: boolean }) {
     { id: 'finalizadas', label: 'Finalizadas', icone: <CheckSquare size={15} /> },
     { id: 'relatorio', label: 'Relatório', icone: <BarChart3 size={15} /> },
     { id: 'buscar', label: 'Buscar', icone: <Search size={15} /> },
-    ...(isAdmin ? [{ id: 'montadoras' as Aba, label: 'Montadoras', icone: <Factory size={15} /> }] : []),
+    ...(podeMontadoras ? [{ id: 'montadoras' as Aba, label: 'Montadoras', icone: <Factory size={15} /> }] : []),
   ];
 
   function fecharDrawer() {
@@ -101,19 +107,21 @@ function GarantiasPageInner({ isAdmin }: { isAdmin: boolean }) {
             Controle do ciclo de garantias — da solicitação do técnico ao retorno da fábrica.
           </p>
         </div>
-        <button
-          onClick={() => setCriarManualAberto(true)}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            padding: '10px 16px', borderRadius: 10, border: 'none',
-            background: 'linear-gradient(135deg,#dc2626,#7f1d1d)', color: '#fff',
-            fontSize: 13, fontWeight: 700, cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(220,38,38,0.25)',
-          }}
-          title="Criar uma garantia manualmente a partir de uma OS existente"
-        >
-          <PlusCircle size={15} /> Nova garantia
-        </button>
+        {podeCriar && (
+          <button
+            onClick={() => setCriarManualAberto(true)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '10px 16px', borderRadius: 10, border: 'none',
+              background: 'linear-gradient(135deg,#dc2626,#7f1d1d)', color: '#fff',
+              fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(220,38,38,0.25)',
+            }}
+            title="Criar uma garantia manualmente a partir de uma OS existente"
+          >
+            <PlusCircle size={15} /> Nova garantia
+          </button>
+        )}
       </div>
 
       {/* Stats */}
@@ -169,7 +177,7 @@ function GarantiasPageInner({ isAdmin }: { isAdmin: boolean }) {
       {aba === 'finalizadas' && <GarantiasHistorico onAbrir={setDrawerId} refreshKey={refreshKey} />}
       {aba === 'relatorio' && <GarantiasRelatorio refreshKey={refreshKey} />}
       {aba === 'buscar' && <GarantiaBusca onAbrir={setDrawerId} />}
-      {aba === 'montadoras' && isAdmin && <MontadorasConfig criadoPor={userProfile?.nome || ''} />}
+      {aba === 'montadoras' && podeMontadoras && <MontadorasConfig criadoPor={userProfile?.nome || ''} />}
 
       {/* Drawer */}
       {drawerId && (
@@ -179,6 +187,9 @@ function GarantiasPageInner({ isAdmin }: { isAdmin: boolean }) {
           userId={userProfile?.id || ''}
           onClose={fecharDrawer}
           onSaved={aposSalvar}
+          podeAnalisar={podeAnalisar}
+          podeEnviarFabrica={podeEnviarFabrica}
+          podeFinalizar={podeFinalizar}
         />
       )}
 
@@ -218,7 +229,7 @@ function StatCard({ label, valor, cor }: { label: string; valor: number; cor: st
 
 export default function GarantiasPage() {
   const { userProfile } = useAuth();
-  const { temAcesso, isAdmin, loading } = usePermissoes(userProfile?.id);
+  const { temAcesso, loading } = usePermissoes(userProfile?.id);
   if (!loading && userProfile && !temAcesso('garantias')) return <SemPermissao />;
-  return <GarantiasPageInner isAdmin={isAdmin} />;
+  return <GarantiasPageInner />;
 }

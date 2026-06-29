@@ -174,7 +174,11 @@ const calcHorasServicoDia = (eventos: any[]): number => {
 
 export default function MecanicosPage() {
   const { userProfile } = useAuth()
-  const { temAcesso, loading: loadingPerm } = usePermissoes(userProfile?.id)
+  const { temAcesso, pode, loading: loadingPerm } = usePermissoes(userProfile?.id)
+  const podeCriarOc = pode('mecanicos', 'criar_ocorrencia')
+  const podeJustificar = pode('mecanicos', 'justificar_alerta')
+  const podeConverter = pode('mecanicos', 'converter_alerta')
+  const podeAtualizarOc = pode('mecanicos', 'atualizar_ocorrencia')
   const searchParams = useSearchParams()
   const router = useRouter()
 
@@ -389,6 +393,7 @@ export default function MecanicosPage() {
   }
 
   const criarOcorrencia = async () => {
+    if (!podeCriarOc) return
     if (!detalhe || !novaOc.titulo.trim()) return
     setSalvando(true)
     try {
@@ -414,6 +419,7 @@ export default function MecanicosPage() {
   }
 
   const justificarAlerta = async (id: number, comentario: string) => {
+    if (!podeJustificar) return
     try {
       await fetch('/api/mecanicos', {
         method: 'POST',
@@ -427,6 +433,7 @@ export default function MecanicosPage() {
   }
 
   const alertaParaOcorrencia = async (id: number) => {
+    if (!podeConverter) return
     try {
       await fetch('/api/mecanicos', {
         method: 'POST',
@@ -440,6 +447,7 @@ export default function MecanicosPage() {
   }
 
   const justificarAlertaMesAnterior = async (id: number, comentario: string, mes: string) => {
+    if (!podeJustificar) return
     try {
       await fetch('/api/mecanicos', {
         method: 'POST',
@@ -457,6 +465,7 @@ export default function MecanicosPage() {
   }
 
   const alertaParaOcorrenciaMesAnterior = async (id: number, mes: string) => {
+    if (!podeConverter) return
     try {
       await fetch('/api/mecanicos', {
         method: 'POST',
@@ -474,6 +483,7 @@ export default function MecanicosPage() {
   }
 
   const atualizarOcorrencia = async (id: number, status: string) => {
+    if (!podeAtualizarOc) return
     try {
       await fetch('/api/mecanicos', {
         method: 'POST',
@@ -998,14 +1008,18 @@ export default function MecanicosPage() {
                               </div>
                             </div>
                           )}
-                          {isPendente && (
+                          {isPendente && (podeJustificar || podeConverter) && (
                             <div style={{ display: 'flex', gap: 6 }}>
-                              <button onClick={(e) => { e.stopPropagation(); const motivo = prompt('Motivo da justificativa:'); if (motivo !== null) justificarAlerta(a.id, motivo) }} style={btnOutline('#059669')}>
-                                <CheckCircle size={12} /> Justificar
-                              </button>
-                              <button onClick={(e) => { e.stopPropagation(); alertaParaOcorrencia(a.id) }} style={btnOutline('#DC2626')}>
-                                <AlertTriangle size={12} /> Virar Ocorrencia
-                              </button>
+                              {podeJustificar && (
+                                <button onClick={(e) => { e.stopPropagation(); const motivo = prompt('Motivo da justificativa:'); if (motivo !== null) justificarAlerta(a.id, motivo) }} style={btnOutline('#059669')}>
+                                  <CheckCircle size={12} /> Justificar
+                                </button>
+                              )}
+                              {podeConverter && (
+                                <button onClick={(e) => { e.stopPropagation(); alertaParaOcorrencia(a.id) }} style={btnOutline('#DC2626')}>
+                                  <AlertTriangle size={12} /> Virar Ocorrencia
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>
@@ -1022,12 +1036,14 @@ export default function MecanicosPage() {
         {secao === 'ocorrencias' && (
           <div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
-              <button onClick={() => setShowNovaOcorrencia(!showNovaOcorrencia)} style={{
-                padding: '7px 14px', borderRadius: 6, border: 'none', background: '#2563EB', color: '#fff',
-                fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5
-              }}>
-                <Plus size={13} /> Nova Ocorrencia
-              </button>
+              {podeCriarOc && (
+                <button onClick={() => setShowNovaOcorrencia(!showNovaOcorrencia)} style={{
+                  padding: '7px 14px', borderRadius: 6, border: 'none', background: '#2563EB', color: '#fff',
+                  fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5
+                }}>
+                  <Plus size={13} /> Nova Ocorrencia
+                </button>
+              )}
             </div>
             {showNovaOcorrencia && (
               <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8, padding: 16, marginBottom: 14 }}>
@@ -1068,7 +1084,7 @@ export default function MecanicosPage() {
                         <span style={{ fontSize: 11, color: '#9CA3AF', marginLeft: 'auto' }}>{new Date(oc.created_at).toLocaleDateString('pt-BR')}</span>
                       </div>
                       <div style={{ fontSize: 13, fontWeight: 500, color: '#111827', marginBottom: 3 }}>{oc.descricao}</div>
-                      {statusLabel === 'pendente' && (
+                      {statusLabel === 'pendente' && podeAtualizarOc && (
                         <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
                           <button onClick={() => atualizarOcorrencia(oc.id, 'resolvida')} style={btnOutline('#059669')}><CheckCircle size={11} /> Resolver</button>
                           <button onClick={() => { const motivo = prompt('Justificativa (sai da ficha do tecnico):'); if (motivo !== null) atualizarOcorrencia(oc.id, 'justificada') }} style={btnOutline('#2563EB')}><FileText size={11} /> Justificar</button>
@@ -1172,10 +1188,10 @@ export default function MecanicosPage() {
                                     <strong>{a.admin_nome || 'Admin'}:</strong> {a.admin_comentario}
                                   </div>
                                 )}
-                                {a.status === 'pendente' && (
+                                {a.status === 'pendente' && (podeJustificar || podeConverter) && (
                                   <div style={{ display: 'flex', gap: 6 }}>
-                                    <button onClick={() => { const motivo = prompt('Motivo da justificativa:'); if (motivo !== null) justificarAlertaMesAnterior(a.id, motivo, mes) }} style={btnOutline('#059669', true)}><CheckCircle size={11} /> Justificar</button>
-                                    <button onClick={() => alertaParaOcorrenciaMesAnterior(a.id, mes)} style={btnOutline('#DC2626', true)}><AlertTriangle size={11} /> Virar Ocorrencia</button>
+                                    {podeJustificar && <button onClick={() => { const motivo = prompt('Motivo da justificativa:'); if (motivo !== null) justificarAlertaMesAnterior(a.id, motivo, mes) }} style={btnOutline('#059669', true)}><CheckCircle size={11} /> Justificar</button>}
+                                    {podeConverter && <button onClick={() => alertaParaOcorrenciaMesAnterior(a.id, mes)} style={btnOutline('#DC2626', true)}><AlertTriangle size={11} /> Virar Ocorrencia</button>}
                                   </div>
                                 )}
                               </div>

@@ -73,6 +73,64 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'concluir', label: 'Concluir OS' },
     { id: 'cancelar', label: 'Cancelar OS' },
   ],
+  garantias: [
+    { id: 'criar', label: 'Criar garantia (manual)' },
+    { id: 'analisar', label: 'Analisar / editar' },
+    { id: 'enviar_fabrica', label: 'Enviar à fábrica' },
+    { id: 'finalizar', label: 'Finalizar (aprovar/recusar)' },
+    { id: 'montadoras', label: 'Configurar montadoras' },
+  ],
+  tarefas: [
+    { id: 'criar', label: 'Criar/atribuir tarefa' },
+    { id: 'concluir', label: 'Concluir/reabrir tarefa' },
+  ],
+  'supervisor-vendas': [
+    { id: 'resolver_pos_vendas', label: 'Resolver pós-venda' },
+    { id: 'gerenciar_carros', label: 'Vincular/remover carros' },
+  ],
+  clientes: [
+    { id: 'criar_cliente', label: 'Criar cliente' },
+    { id: 'criar_projeto', label: 'Criar projeto' },
+    { id: 'anexos', label: 'Anexar OS/PV/NF' },
+    { id: 'etiquetas', label: 'Gerir etiquetas' },
+  ],
+  revisoes: [
+    { id: 'tratores', label: 'Criar/editar trator' },
+    { id: 'enviar', label: 'Enviar revisão/inspeção' },
+    { id: 'observacoes', label: 'Observações (criar/resolver/excluir)' },
+    { id: 'lembretes', label: 'Lembretes' },
+    { id: 'destinatarios', label: 'Gerir destinatários' },
+  ],
+  propostas: [
+    { id: 'criar', label: 'Cadastrar (cliente/trator/implemento/proposta)' },
+    { id: 'editar', label: 'Editar cadastros' },
+    { id: 'excluir', label: 'Lixeira' },
+    { id: 'sincronizar', label: 'Sincronizar Omie' },
+  ],
+  avisos: [
+    { id: 'criar', label: 'Criar aviso' },
+    { id: 'editar_status', label: 'Ativar/desativar' },
+    { id: 'excluir', label: 'Excluir aviso' },
+  ],
+  mecanicos: [
+    { id: 'criar_ocorrencia', label: 'Criar ocorrência' },
+    { id: 'justificar_alerta', label: 'Justificar alerta' },
+    { id: 'converter_alerta', label: 'Converter alerta em ocorrência' },
+    { id: 'atualizar_ocorrencia', label: 'Atualizar status da ocorrência' },
+  ],
+  'painel-mecanicos': [
+    { id: 'criar_ocorrencia', label: 'Registrar ocorrência' },
+    { id: 'aprovar_requisicao', label: 'Aprovar requisição' },
+    { id: 'recusar_requisicao', label: 'Recusar requisição' },
+    { id: 'converter_alerta', label: 'Converter alerta em ocorrência' },
+    { id: 'avaliar_justificativa', label: 'Avaliar justificativa' },
+  ],
+  // Financeiro: só as ações de CRIAÇÃO são granulares. O gerenciamento do
+  // kanban segue restrito a admin (isAdmin), por decisão do usuário.
+  financeiro: [
+    { id: 'criar_lancamento', label: 'Criar conta a pagar/receber' },
+    { id: 'criar_chamado', label: 'Abrir chamado (NF/RH)' },
+  ],
 };
 
 export function acoesDoModulo(id: string): AcaoPermissao[] {

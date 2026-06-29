@@ -48,7 +48,10 @@ const PRIORIDADE_CONFIG: Record<string, { label: string; color: string; bg: stri
 
 export default function AvisosPage() {
   const { userProfile } = useAuth()
-  const { isAdmin, loading: loadingPerm } = usePermissoes(userProfile?.id)
+  const { isAdmin, pode, loading: loadingPerm } = usePermissoes(userProfile?.id)
+  const podeCriar = pode('avisos', 'criar')
+  const podeStatus = pode('avisos', 'editar_status')
+  const podeExcluir = pode('avisos', 'excluir')
   const [avisos, setAvisos] = useState<Aviso[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -169,6 +172,7 @@ export default function AvisosPage() {
   }
 
   const enviarAviso = async () => {
+    if (!podeCriar) return
     if (!titulo.trim() || !conteudo.trim() || !userProfile) return
     setEnviando(true)
 
@@ -250,6 +254,7 @@ export default function AvisosPage() {
   }
 
   const toggleAtivo = async (aviso: Aviso) => {
+    if (!podeStatus) return
     await supabase.from('portal_avisos').update({
       ativo: !aviso.ativo,
       updated_at: new Date().toISOString(),
@@ -258,6 +263,7 @@ export default function AvisosPage() {
   }
 
   const excluirAviso = async (id: string) => {
+    if (!podeExcluir) return
     if (!confirm('Tem certeza que deseja excluir este aviso?')) return
     await supabase.from('portal_avisos').delete().eq('id', id)
     carregar()
@@ -305,7 +311,7 @@ export default function AvisosPage() {
           <p style={{ fontSize: 14, color: '#737373', margin: 0 }}>Comunicados e avisos para toda a equipe</p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {isAdmin && (
+          {(podeCriar || podeStatus || podeExcluir) && (
             <>
               <button onClick={() => setShowInativos(!showInativos)} style={{
                 display: 'flex', alignItems: 'center', gap: 5, padding: '9px 14px', borderRadius: 8,
@@ -315,13 +321,15 @@ export default function AvisosPage() {
                 {showInativos ? <EyeOff size={14} /> : <Eye size={14} />}
                 {showInativos ? 'Ocultar inativos' : 'Ver inativos'}
               </button>
-              <button onClick={() => setShowModal(true)} style={{
-                display: 'flex', alignItems: 'center', gap: 6, padding: '10px 18px', borderRadius: 10,
-                background: '#111', color: '#fff', border: 'none',
-                fontSize: 14, fontWeight: 700, cursor: 'pointer',
-              }}>
-                <Plus size={16} /> Novo Aviso
-              </button>
+              {podeCriar && (
+                <button onClick={() => setShowModal(true)} style={{
+                  display: 'flex', alignItems: 'center', gap: 6, padding: '10px 18px', borderRadius: 10,
+                  background: '#111', color: '#fff', border: 'none',
+                  fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                }}>
+                  <Plus size={16} /> Novo Aviso
+                </button>
+              )}
             </>
           )}
         </div>
@@ -456,23 +464,27 @@ export default function AvisosPage() {
                     )}
 
                     {/* Acoes admin */}
-                    {isAdmin && (
+                    {(podeStatus || podeExcluir) && (
                       <div style={{ display: 'flex', gap: 8, marginTop: 16, paddingTop: 14, borderTop: '1px solid #f5f5f5' }}>
-                        <button onClick={(e) => { e.stopPropagation(); toggleAtivo(aviso) }} style={{
-                          display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px',
-                          borderRadius: 6, border: '1px solid #E4E4E7', background: '#fff',
-                          fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#555',
-                        }}>
-                          {aviso.ativo ? <EyeOff size={13} /> : <Eye size={13} />}
-                          {aviso.ativo ? 'Desativar' : 'Reativar'}
-                        </button>
-                        <button onClick={(e) => { e.stopPropagation(); excluirAviso(aviso.id) }} style={{
-                          display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px',
-                          borderRadius: 6, border: '1px solid #FECACA', background: '#fff',
-                          fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#DC2626',
-                        }}>
-                          <Trash2 size={13} /> Excluir
-                        </button>
+                        {podeStatus && (
+                          <button onClick={(e) => { e.stopPropagation(); toggleAtivo(aviso) }} style={{
+                            display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px',
+                            borderRadius: 6, border: '1px solid #E4E4E7', background: '#fff',
+                            fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#555',
+                          }}>
+                            {aviso.ativo ? <EyeOff size={13} /> : <Eye size={13} />}
+                            {aviso.ativo ? 'Desativar' : 'Reativar'}
+                          </button>
+                        )}
+                        {podeExcluir && (
+                          <button onClick={(e) => { e.stopPropagation(); excluirAviso(aviso.id) }} style={{
+                            display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px',
+                            borderRadius: 6, border: '1px solid #FECACA', background: '#fff',
+                            fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#DC2626',
+                          }}>
+                            <Trash2 size={13} /> Excluir
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>

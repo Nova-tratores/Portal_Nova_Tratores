@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { filtrarDestinatarios } from '@/lib/notif/prefs';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
+import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui';
 import SemPermissao from '@/components/SemPermissao';
 import { useAuditLog } from '@/hooks/useAuditLog';
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
@@ -556,20 +557,20 @@ function RequisicoesPageInner() {
             </p>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
-            {podeTags && (
-              <button
-                onClick={() => setShowTagsModal(true)}
-                style={{
-                  padding: '8px 14px', borderRadius: '10px',
-                  background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
-                  color: 'var(--portal-text-secondary)', fontSize: '13px', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', gap: '6px', fontFamily: 'Inter'
-                }}
-              >
-                <Tag size={16} />
-                Tags
-              </button>
-            )}
+            <button
+              onClick={() => setShowTagsModal(true)}
+              {...gateBtn(podeTags)}
+              style={{
+                padding: '8px 14px', borderRadius: '10px',
+                background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
+                color: 'var(--portal-text-secondary)', fontSize: '13px', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: '6px', fontFamily: 'Inter',
+                ...estiloSemPermissao(podeTags)
+              }}
+            >
+              <Tag size={16} />
+              Tags
+            </button>
           </div>
         </div>
 
@@ -850,9 +851,9 @@ function RequisicoesPageInner() {
       {isDev && userProfile && <PainelDev devId={userProfile.id} devNome={userProfile.nome} />}
 
       {/* FAB - Nova Requisição */}
-      {podeCriar && (
       <button
         onClick={() => setAbaAtiva(abaAtiva === 'form' ? 'kanban' : 'form')}
+        {...gateBtn(podeCriar)}
         style={{
           position: 'fixed', bottom: '32px', right: '32px',
           width: '56px', height: '56px',
@@ -861,13 +862,13 @@ function RequisicoesPageInner() {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           boxShadow: '0 8px 24px rgba(220,38,38,0.3)',
           cursor: 'pointer', zIndex: 110, transition: 'all 0.3s',
-          transform: abaAtiva === 'form' ? 'rotate(45deg)' : 'rotate(0deg)'
+          transform: abaAtiva === 'form' ? 'rotate(45deg)' : 'rotate(0deg)',
+          ...estiloSemPermissao(podeCriar)
         }}
         className="print:hidden"
       >
         <Plus size={24} />
       </button>
-      )}
 
       {/* Form Modal */}
       {podeCriar && abaAtiva === 'form' && (
