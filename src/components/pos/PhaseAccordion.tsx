@@ -25,10 +25,16 @@ const PHASE_COLORS: Record<string, string> = {
   "Aguardando outros": "#A855F7",
   "Executada": "#8B5CF6",
   "Relatório Concluído": "#A78BFA",
+  "Relatório Concluído - Garantia": "#0D9488",
   "Executada aguardando comercial": "#C084FC",
   "Concluída": "#10B981",
   "Cancelada": "#EF4444",
 };
+
+// Seção virtual do quadro: as ordens na fase "Relatório Concluído" que têm
+// garantia são separadas neste grupo próprio (não é um status real do banco).
+const FASE_CONCLUIDO = "Relatório Concluído";
+const FASE_CONCLUIDO_GAR = "Relatório Concluído - Garantia";
 
 const PHASE_SHORT: Record<string, string> = {
   "Orçamento": "Orçamento",
@@ -229,13 +235,21 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
     const phasesSet = new Set(PHASES);
     for (const phase of PHASES) {
       const items = filtered.filter((o) => o.status === phase);
-      if (items.length > 0) map[phase] = items;
+      if (phase === FASE_CONCLUIDO) {
+        // separa as concluídas: sem garantia ficam na fase; com garantia vão pro grupo próprio
+        const semGar = items.filter((o) => !garantiaMap[o.id]);
+        const comGar = items.filter((o) => garantiaMap[o.id]);
+        if (semGar.length > 0) map[FASE_CONCLUIDO] = semGar;
+        if (comGar.length > 0) map[FASE_CONCLUIDO_GAR] = comGar;
+      } else if (items.length > 0) {
+        map[phase] = items;
+      }
     }
     // Ordens com status desconhecido — não deixa sumir
     const orphans = filtered.filter((o) => !phasesSet.has(o.status));
     if (orphans.length > 0) map["Outros"] = orphans;
     return map;
-  }, [filtered, activePhase]);
+  }, [filtered, activePhase, garantiaMap]);
 
   // Stable click handlers per card (avoid inline arrow in .map)
   const handleCardClick = useCallback((o: KanbanCard) => onCardClick(o), [onCardClick]);

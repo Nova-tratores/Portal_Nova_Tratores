@@ -222,5 +222,5 @@ ${tabelasPorFase}
 </div>
 </body></html>`;
 
-  return new NextResponse(html, { headers: { "Content-Type": "text/html; charset=utf-8" } });
+  return new NextResponse(html, { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store, no-cache, must-revalidate" } });
 }
