@@ -11,6 +11,11 @@ const ESCUDO_SVG = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" 
 
 const FASES_EXCLUIDAS = new Set(["Concluída", "Cancelada"]);
 
+// Fase virtual: ordens na fase "Relatório Concluído" que têm garantia são
+// separadas neste grupo próprio no relatório (não é um status real do banco).
+const FASE_CONCLUIDO = "Relatório Concluído";
+const FASE_CONCLUIDO_GAR = "Relatório Concluído - Garantia";
+
 function extrairSolicitacao(texto: string): string {
   if (!texto) return "";
   const marcador = "Solicitação do cliente:";
@@ -34,6 +39,7 @@ const CORES_FASE: Record<string, string> = {
   "Aguardando outros": "#A855F7",
   "Aguardando ordem Técnico": "#0EA5E9",
   "Relatório Concluído": "#A78BFA",
+  "Relatório Concluído - Garantia": "#0D9488",
 };
 
 // Fases consideradas "atrasadas" por natureza (ordem parada esperando algo)
@@ -123,22 +129,31 @@ export async function GET(request: NextRequest) {
   if (filtroTipo === "atrasadas") subtitulos.push("Apenas ordens atrasadas");
   const subtituloTexto = subtitulos.length > 0 ? ` &nbsp;|&nbsp; ${subtitulos.join(" &nbsp;|&nbsp; ")}` : "";
 
-  // Agrupa por fase na ordem do PHASES
+  // Agrupa por fase na ordem do PHASES. A fase "Relatório Concluído" é dividida
+  // em duas: as sem garantia ficam nela, as com garantia vão pra "... - Garantia".
   const fasesAtivas = PHASES.filter((p) => !FASES_EXCLUIDAS.has(p));
   const agrupado: Record<string, typeof rows> = {};
   for (const fase of fasesAtivas) {
     const items = rows.filter((o) => o.status === fase);
-    if (items.length > 0) agrupado[fase] = items;
+    if (fase === FASE_CONCLUIDO) {
+      const semGar = items.filter((o) => !garPorOS[o.id]);
+      const comGar = items.filter((o) => garPorOS[o.id]);
+      if (semGar.length > 0) agrupado[FASE_CONCLUIDO] = semGar;
+      if (comGar.length > 0) agrupado[FASE_CONCLUIDO_GAR] = comGar;
+    } else if (items.length > 0) {
+      agrupado[fase] = items;
+    }
   }
 
   // Monta HTML das tabelas por fase
   const tabelasPorFase = Object.entries(agrupado).map(([fase, items]) => {
     const cor = CORES_FASE[fase] || "#64748B";
     const subtotal = items.reduce((s, o) => s + o.total, 0);
+    const faseNome = fase === FASE_CONCLUIDO_GAR ? `${ESCUDO_SVG} ${fase}` : fase;
     return `
     <div class="fase-group">
       <div class="fase-header" style="border-left: 4px solid ${cor};">
-        <span class="fase-nome">${fase}</span>
+        <span class="fase-nome">${faseNome}</span>
         <span class="fase-count">${items.length} ordem${items.length > 1 ? "s" : ""}</span>
         <span class="fase-subtotal">R$ ${subtotal.toFixed(2)}</span>
       </div>
@@ -194,7 +209,8 @@ export async function GET(request: NextRequest) {
 <div class="summary">
   ${Object.entries(agrupado).map(([fase, items]) => {
     const cor = CORES_FASE[fase] || "#64748B";
-    return `<div class="summary-box"><div class="num" style="color:${cor}">${items.length}</div><div class="lbl">${fase.length > 20 ? fase.substring(0, 18) + "..." : fase}</div></div>`;
+    const lbl = fase === FASE_CONCLUIDO_GAR ? `${ESCUDO_SVG} Concluído Garantia` : (fase.length > 20 ? fase.substring(0, 18) + "..." : fase);
+    return `<div class="summary-box"><div class="num" style="color:${cor}">${items.length}</div><div class="lbl">${lbl}</div></div>`;
   }).join("")}
   <div class="summary-box highlight"><div class="num">${rows.length}</div><div class="lbl">Total em Aberto</div></div>
   ${totalEmGarantia > 0 ? `<div class="summary-box"><div class="num">${totalEmGarantia}</div><div class="lbl">${ESCUDO_SVG} Em Garantia</div></div>` : ""}
