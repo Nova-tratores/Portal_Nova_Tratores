@@ -99,7 +99,7 @@ const SIM_PRESETS = [
 
 export default function LucratividadePage() {
   const { userProfile, loading } = useAuth()
-  const { temAcesso, loading: loadingPerm } = usePermissoes(userProfile?.id)
+  const { temAcesso, pode, loading: loadingPerm } = usePermissoes(userProfile?.id)
   const { conta } = useDreConta()
 
   const [chartReady, setChartReady] = useState(false)
@@ -398,7 +398,7 @@ export default function LucratividadePage() {
   }, [])
 
   // --- Gate de permissao (BRIEF item 1) -------------------------------------
-  if (!loading && !loadingPerm && userProfile && !temAcesso('financeiro')) return <SemPermissao />
+  if (!loading && !loadingPerm && userProfile && (!temAcesso('financeiro') && !pode('dre', 'lucratividade'))) return <SemPermissao />
 
   // ===== Derivados de exibicao: CAPITAL PARADO ==============================
   const cp = cpData

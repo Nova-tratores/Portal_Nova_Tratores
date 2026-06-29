@@ -131,7 +131,7 @@ function anosDisponiveis() {
 
 export default function FluxoPage() {
   const { userProfile, loading } = useAuth()
-  const { temAcesso, loading: loadingPerm } = usePermissoes(userProfile?.id)
+  const { temAcesso, pode, loading: loadingPerm } = usePermissoes(userProfile?.id)
   const { conta } = useDreConta()
 
   const ANOS_DISPONIVEIS = anosDisponiveis()
@@ -596,7 +596,7 @@ export default function FluxoPage() {
   function setView(novo) { setModo(novo) }
 
   // --- Estados de gate de permissao (BRIEF item 1) --------------------------
-  if (!loading && !loadingPerm && userProfile && !temAcesso('financeiro')) return <SemPermissao />
+  if (!loading && !loadingPerm && userProfile && (!temAcesso('financeiro') && !pode('dre', 'fluxo'))) return <SemPermissao />
 
   // Classes dos toggles (espelham ativo/inativo da fonte)
   const ativoToggle = 'bg-slate-800 text-white'

@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { usePermissoes } from "@/hooks/usePermissoes";
 import ModalDevolucao from "./ModalDevolucao";
 import ModalImportarKit from "@/components/orcamentos/ModalImportarKit";
+import { MSG_SEM_PERMISSAO } from "@/lib/permissoes/ui";
 
 interface Props {
   open: boolean;
@@ -411,6 +412,7 @@ export default function PPVDrawer({
                         style={{ width: "100%", marginTop: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
                         onClick={enviarOmie}
                         disabled={enviandoOmie || !podeOmie}
+                        title={!podeOmie ? MSG_SEM_PERMISSAO : undefined}
                       >
                         {enviandoOmie ? (
                           <><i className="fas fa-spinner fa-spin" /> Enviando...</>
@@ -503,6 +505,7 @@ export default function PPVDrawer({
 
                     {/* Importar Kit de Revisão */}
                     <button type="button" onClick={() => setKitModalOpen(true)} disabled={importandoKit || !ppvId || !podeItem}
+                      title={!podeItem ? MSG_SEM_PERMISSAO : undefined}
                       style={{
                         width: "100%", marginBottom: 14, padding: "12px 16px", borderRadius: 12,
                         border: "1px solid #99F6E4", background: "linear-gradient(135deg, #F0FDFA, #ECFEFF)",
@@ -530,7 +533,7 @@ export default function PPVDrawer({
                     <div style={{ display: "flex", gap: 10, marginBottom: produtosComSaldo.length > 0 ? 16 : 0 }}>
                       <input type="text" value={modalProdDisplay} readOnly placeholder="Clique para buscar produto..." onClick={onBuscaProduto} style={{ cursor: "pointer", fontWeight: modalProdDisplay ? 600 : 400, flex: 1, marginBottom: 0 }} />
                       <input type="number" value={qtdExtra} onChange={(e) => setQtdExtra(parseInt(e.target.value) || 1)} min={1} style={{ width: 70, textAlign: "center", fontWeight: 700, marginBottom: 0 }} />
-                      <button type="button" onClick={addExtra} disabled={addingExtra || !podeItem} className="ppv-btn-save" style={{ padding: "10px 18px", whiteSpace: "nowrap", fontSize: 13 }}>
+                      <button type="button" onClick={addExtra} disabled={addingExtra || !podeItem} title={!podeItem ? MSG_SEM_PERMISSAO : undefined} className="ppv-btn-save" style={{ padding: "10px 18px", whiteSpace: "nowrap", fontSize: 13 }}>
                         {addingExtra ? <i className="fas fa-spinner fa-spin" /> : <><i className="fas fa-plus" /> Adicionar</>}
                       </button>
                     </div>
@@ -691,7 +694,7 @@ export default function PPVDrawer({
                 {/* ── Footer ── */}
                 <div className="ppv-drawer-footer">
                   <button className="ppv-btn-cancel" onClick={onClose}>Cancelar</button>
-                  <button className="ppv-btn-save" onClick={salvar} disabled={salvando || !podeEditar}>
+                  <button className="ppv-btn-save" onClick={salvar} disabled={salvando || !podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : undefined}>
                     {salvando ? "Salvando..." : "Salvar Alterações"}
                   </button>
                 </div>

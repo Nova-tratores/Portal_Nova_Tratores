@@ -11,6 +11,7 @@ import { useAuditLog } from "@/hooks/useAuditLog";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import { EmailInspecao, INSPECAO_DESTINATARIOS_FIXOS } from "@/lib/inspecoes/types";
 import { Observacao, TipoObservacao, TIPOS_LABEL, TIPOS_LISTA } from "@/lib/observacoes/types";
+import { MSG_SEM_PERMISSAO } from "@/lib/permissoes/ui";
 
 interface EmailAttachment {
   filename: string;
@@ -739,14 +740,14 @@ function DashboardAgrupadoInner() {
                 {emailsCarregados && <span className="text-zinc-500 ml-3">{emails.length} emails</span>}
               </p>
             </div>
-            {podeTratores && (
-              <button
-                onClick={() => { setShowNovoTrator(true); setNovoTrator({}); setMsgNovoTrator(""); }}
-                className="px-5 py-2.5 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors text-sm shrink-0"
-              >
-                + Novo Trator
-              </button>
-            )}
+            <button
+              onClick={() => { setShowNovoTrator(true); setNovoTrator({}); setMsgNovoTrator(""); }}
+              disabled={!podeTratores}
+              title={!podeTratores ? MSG_SEM_PERMISSAO : undefined}
+              className="px-5 py-2.5 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors text-sm shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              + Novo Trator
+            </button>
           </div>
 
           <div className="flex gap-3">

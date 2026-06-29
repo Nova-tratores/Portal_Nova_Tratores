@@ -6,6 +6,7 @@ import SemPermissao from '@/components/SemPermissao'
 import { useAuditLog } from '@/hooks/useAuditLog'
 import { supabase } from '@/lib/supabase'
 import { Plus, Pencil, Trash2, RefreshCw, Factory, Users, FileDown } from 'lucide-react'
+import { MSG_SEM_PERMISSAO } from '@/lib/permissoes/ui'
 import dynamic from 'next/dynamic'
 
 const Kanban = dynamic(() => import('@/components/propostas/Kanban'), { ssr: false })
@@ -214,32 +215,24 @@ function PropostaComercialPageInner() {
           <div className="bg-white border border-zinc-200 p-3 rounded-xl">
             <div className="flex items-center gap-2 flex-wrap">
               {/* CADASTROS */}
-              {podeCriar && (
-                <div className="flex items-center gap-1.5 border-r border-zinc-200 pr-3 mr-1">
-                  <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest mr-1">Cadastrar:</span>
-                  <button onClick={() => setModals({ ...modals, client: true })} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-50 text-zinc-600 text-xs font-semibold border border-zinc-200 hover:bg-zinc-100 cursor-pointer transition-all"><Plus size={12} /> Cliente</button>
-                  <button onClick={() => setModals({ ...modals, trator: true })} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-50 text-zinc-600 text-xs font-semibold border border-zinc-200 hover:bg-zinc-100 cursor-pointer transition-all"><Plus size={12} /> Trator</button>
-                  <button onClick={() => setModals({ ...modals, equip: true })} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-50 text-zinc-600 text-xs font-semibold border border-zinc-200 hover:bg-zinc-100 cursor-pointer transition-all"><Plus size={12} /> Implemento</button>
-                </div>
-              )}
+              <div className="flex items-center gap-1.5 border-r border-zinc-200 pr-3 mr-1">
+                <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest mr-1">Cadastrar:</span>
+                <button onClick={() => setModals({ ...modals, client: true })} disabled={!podeCriar} title={!podeCriar ? MSG_SEM_PERMISSAO : undefined} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-50 text-zinc-600 text-xs font-semibold border border-zinc-200 hover:bg-zinc-100 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"><Plus size={12} /> Cliente</button>
+                <button onClick={() => setModals({ ...modals, trator: true })} disabled={!podeCriar} title={!podeCriar ? MSG_SEM_PERMISSAO : undefined} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-50 text-zinc-600 text-xs font-semibold border border-zinc-200 hover:bg-zinc-100 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"><Plus size={12} /> Trator</button>
+                <button onClick={() => setModals({ ...modals, equip: true })} disabled={!podeCriar} title={!podeCriar ? MSG_SEM_PERMISSAO : undefined} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-50 text-zinc-600 text-xs font-semibold border border-zinc-200 hover:bg-zinc-100 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"><Plus size={12} /> Implemento</button>
+              </div>
 
               {/* EDITAR */}
-              {podeEditar && (
-                <div className="flex items-center gap-1.5 border-r border-zinc-200 pr-3 mr-1">
-                  <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest mr-1">Editar:</span>
-                  <button onClick={() => setModals({ ...modals, searchEditClient: true })} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-800 text-white text-xs font-semibold border-none hover:bg-zinc-700 cursor-pointer transition-all"><Pencil size={11} /> Cliente</button>
-                  <button onClick={() => setModals({ ...modals, searchEditTrator: true })} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-800 text-white text-xs font-semibold border-none hover:bg-zinc-700 cursor-pointer transition-all"><Pencil size={11} /> Trator</button>
-                  <button onClick={() => setModals({ ...modals, searchEditEquip: true })} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-800 text-white text-xs font-semibold border-none hover:bg-zinc-700 cursor-pointer transition-all"><Pencil size={11} /> Implemento</button>
-                </div>
-              )}
+              <div className="flex items-center gap-1.5 border-r border-zinc-200 pr-3 mr-1">
+                <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest mr-1">Editar:</span>
+                <button onClick={() => setModals({ ...modals, searchEditClient: true })} disabled={!podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : undefined} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-800 text-white text-xs font-semibold border-none hover:bg-zinc-700 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"><Pencil size={11} /> Cliente</button>
+                <button onClick={() => setModals({ ...modals, searchEditTrator: true })} disabled={!podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : undefined} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-800 text-white text-xs font-semibold border-none hover:bg-zinc-700 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"><Pencil size={11} /> Trator</button>
+                <button onClick={() => setModals({ ...modals, searchEditEquip: true })} disabled={!podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : undefined} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-800 text-white text-xs font-semibold border-none hover:bg-zinc-700 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"><Pencil size={11} /> Implemento</button>
+              </div>
 
               {/* UTILITARIOS */}
-              {podeExcluir && (
-                <button onClick={() => setModals({ ...modals, trash: true })} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-50 text-zinc-500 text-xs font-semibold border border-zinc-200 hover:bg-red-50 hover:text-red-600 cursor-pointer transition-all"><Trash2 size={12} /> Lixeira</button>
-              )}
-              {podeSincronizar && (
-                <button onClick={handleSyncOmie} disabled={syncing} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-amber-50 text-amber-700 text-xs font-semibold border border-amber-200 hover:bg-amber-100 cursor-pointer transition-all disabled:opacity-50"><RefreshCw size={12} className={syncing ? 'animate-spin' : ''} /> {syncing ? 'Sincronizando...' : 'Sync Omie'}</button>
-              )}
+              <button onClick={() => setModals({ ...modals, trash: true })} disabled={!podeExcluir} title={!podeExcluir ? MSG_SEM_PERMISSAO : undefined} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-50 text-zinc-500 text-xs font-semibold border border-zinc-200 hover:bg-red-50 hover:text-red-600 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"><Trash2 size={12} /> Lixeira</button>
+              <button onClick={handleSyncOmie} disabled={syncing || !podeSincronizar} title={!podeSincronizar ? MSG_SEM_PERMISSAO : undefined} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-amber-50 text-amber-700 text-xs font-semibold border border-amber-200 hover:bg-amber-100 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"><RefreshCw size={12} className={syncing ? 'animate-spin' : ''} /> {syncing ? 'Sincronizando...' : 'Sync Omie'}</button>
 
               {/* RELATORIO */}
               <button onClick={handleRelatorio} disabled={gerando} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-50 text-red-700 text-xs font-semibold border border-red-200 hover:bg-red-100 cursor-pointer transition-all disabled:opacity-50">
@@ -247,12 +240,11 @@ function PropostaComercialPageInner() {
               </button>
 
               {/* BOTAO PRINCIPAL */}
-              {podeCriar && (
-                <button onClick={() => view === 'fabrica' ? setModals({ ...modals, newFab: true }) : setModals({ ...modals, newCli: true })}
-                  className="ml-auto flex items-center gap-2 px-5 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold border-none hover:bg-red-700 cursor-pointer transition-all">
-                  <Plus size={14} /> {view === 'fabrica' ? 'Novo Pedido' : 'Nova Proposta'}
-                </button>
-              )}
+              <button onClick={() => view === 'fabrica' ? setModals({ ...modals, newFab: true }) : setModals({ ...modals, newCli: true })}
+                disabled={!podeCriar} title={!podeCriar ? MSG_SEM_PERMISSAO : undefined}
+                className="ml-auto flex items-center gap-2 px-5 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold border-none hover:bg-red-700 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                <Plus size={14} /> {view === 'fabrica' ? 'Novo Pedido' : 'Nova Proposta'}
+              </button>
             </div>
           </div>
         </div>

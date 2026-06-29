@@ -26,7 +26,7 @@ const GRUPO_POR_MODULO: Record<string, string> = {
   // Comercial
   propostas: 'Comercial', feedbacks: 'Comercial', clientes: 'Comercial', 'supervisor-vendas': 'Comercial',
   // Estoque
-  'visual-estoque': 'Estoque', estoque: 'Estoque',
+  'consulta-estoque': 'Estoque', estoque: 'Estoque',
   // Outros
   opa: 'Outros', avisos: 'Outros', tarefas: 'Outros', 'dashboard-agro': 'Outros', tratorilson: 'Outros',
 };
@@ -130,6 +130,39 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
   financeiro: [
     { id: 'criar_lancamento', label: 'Criar conta a pagar/receber' },
     { id: 'criar_chamado', label: 'Abrir chamado (NF/RH)' },
+  ],
+  // DRE Financeiro: granular POR TELA (cada ação = uma tela analítica). O id da
+  // ação é o slug da rota (/dre-financeiro/<id>). Quem tem 'financeiro' ou é
+  // admin vê todas; senão, vê só as telas liberadas. 'dre' puro = todas.
+  dre: [
+    { id: 'calendario', label: 'Calendário' },
+    { id: 'vencidos', label: 'Vencidos' },
+    { id: 'curva-saldo', label: 'Curva de Saldo' },
+    { id: 'fluxo', label: 'Fluxo' },
+    { id: 'ciclo-caixa', label: 'Ciclo de Caixa' },
+    { id: 'aderencia', label: 'Pontualidade' },
+    { id: 'dre', label: 'DRE' },
+    { id: 'analise-dre', label: 'Análise DRE' },
+    { id: 'composicao', label: 'Composição' },
+    { id: 'patrimonio', label: 'Patrimônio' },
+    { id: 'rentabilidade', label: 'Rentabilidade' },
+    { id: 'lucratividade', label: 'Lucratividade' },
+    { id: 'margens', label: 'Margens' },
+    { id: 'vendas-modelo', label: 'Vendas/Modelo' },
+    { id: 'clientes', label: 'Clientes' },
+    { id: 'monitor', label: 'Monitor' },
+  ],
+  // Visual Estoque (Consulta Omie): granular POR TELA. A chave do módulo é
+  // 'consulta-estoque' (o que as páginas e o menu lateral realmente checam).
+  // A Home (/visual-estoque) é o landing e fica liberada pra quem tem o módulo.
+  'consulta-estoque': [
+    { id: 'showroom', label: 'Showroom' },
+    { id: 'patio', label: 'Pátio' },
+    { id: 'frota', label: 'Frota' },
+    { id: 'remessas', label: 'Remessas' },
+    { id: 'notas-entrada', label: 'Notas de Entrada' },
+    { id: 'margens', label: 'Margens' },
+    { id: 'alertas', label: 'Alertas' },
   ],
 };
 

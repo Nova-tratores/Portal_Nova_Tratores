@@ -6,6 +6,7 @@ import { Plus, Trash2, Search, Printer, ToggleLeft, ToggleRight, Package, Wrench
 import ModalBuscaProdutoOrc from './ModalBuscaProduto'
 import ModalBuscaClienteOrc from './ModalBuscaCliente'
 import ModalImportarKit from './ModalImportarKit'
+import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui'
 
 type TipoOrcamento = 'pecas' | 'mao-de-obra' | 'completo'
 
@@ -529,16 +530,15 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
           }}>
             Limpar
           </button>
-          {podeEditar && (
-            <button onClick={salvar} disabled={salvando} style={{
-              padding: '10px 20px', borderRadius: 10, border: '1px solid #e5e5e5',
-              background: '#fff', color: '#1a1a1a', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 8, opacity: salvando ? 0.6 : 1,
-            }}>
-              <Save size={16} />
-              {salvando ? 'Salvando...' : 'Salvar'}
-            </button>
-          )}
+          <button onClick={salvar} {...gateBtn(podeEditar, salvando)} style={{
+            padding: '10px 20px', borderRadius: 10, border: '1px solid #e5e5e5',
+            background: '#fff', color: '#1a1a1a', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 8, opacity: salvando ? 0.6 : 1,
+            ...estiloSemPermissao(podeEditar),
+          }}>
+            <Save size={16} />
+            {salvando ? 'Salvando...' : 'Salvar'}
+          </button>
           <button onClick={gerarPDF} disabled={gerando} style={{
             padding: '10px 24px', borderRadius: 10, border: 'none',
             background: 'linear-gradient(135deg, #dc2626, #b91c1c)',

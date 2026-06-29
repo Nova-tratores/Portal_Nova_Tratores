@@ -103,7 +103,7 @@ function carregarChartLibs() {
 
 export default function MargensPage() {
   const { userProfile, loading } = useAuth()
-  const { temAcesso, loading: loadingPerm } = usePermissoes(userProfile?.id)
+  const { temAcesso, pode, loading: loadingPerm } = usePermissoes(userProfile?.id)
   const { conta } = useDreConta()
 
   const [chartReady, setChartReady] = useState(false)
@@ -320,7 +320,7 @@ export default function MargensPage() {
   }, [chartReady, familia, JSON.stringify(arrMensal.map((m) => [m.rotulo, m.receita, m.cmv, m.capital, m.margem_pct]))])
 
   // --- Gate de permissao (BRIEF item 1) -------------------------------------
-  if (!loading && !loadingPerm && userProfile && !temAcesso('financeiro')) return <SemPermissao />
+  if (!loading && !loadingPerm && userProfile && (!temAcesso('financeiro') && !pode('dre', 'margens'))) return <SemPermissao />
 
   // ===== Derivados de exibicao ==============================================
   const t = dados ? dados.totais : null

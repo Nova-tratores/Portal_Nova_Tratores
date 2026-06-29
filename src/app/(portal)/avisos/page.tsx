@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import { supabase } from '@/lib/supabase'
+import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui'
 import {
   Plus, X, Paperclip, Send, Trash2, Eye, EyeOff,
   AlertTriangle, ChevronDown, ChevronUp, FileText,
@@ -321,15 +322,14 @@ export default function AvisosPage() {
                 {showInativos ? <EyeOff size={14} /> : <Eye size={14} />}
                 {showInativos ? 'Ocultar inativos' : 'Ver inativos'}
               </button>
-              {podeCriar && (
-                <button onClick={() => setShowModal(true)} style={{
-                  display: 'flex', alignItems: 'center', gap: 6, padding: '10px 18px', borderRadius: 10,
-                  background: '#111', color: '#fff', border: 'none',
-                  fontSize: 14, fontWeight: 700, cursor: 'pointer',
-                }}>
-                  <Plus size={16} /> Novo Aviso
-                </button>
-              )}
+              <button onClick={() => setShowModal(true)} {...gateBtn(podeCriar)} style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '10px 18px', borderRadius: 10,
+                background: '#111', color: '#fff', border: 'none',
+                fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                ...estiloSemPermissao(podeCriar),
+              }}>
+                <Plus size={16} /> Novo Aviso
+              </button>
             </>
           )}
         </div>
@@ -465,27 +465,25 @@ export default function AvisosPage() {
 
                     {/* Acoes admin */}
                     {(podeStatus || podeExcluir) && (
-                      <div style={{ display: 'flex', gap: 8, marginTop: 16, paddingTop: 14, borderTop: '1px solid #f5f5f5' }}>
-                        {podeStatus && (
-                          <button onClick={(e) => { e.stopPropagation(); toggleAtivo(aviso) }} style={{
-                            display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px',
-                            borderRadius: 6, border: '1px solid #E4E4E7', background: '#fff',
-                            fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#555',
-                          }}>
-                            {aviso.ativo ? <EyeOff size={13} /> : <Eye size={13} />}
-                            {aviso.ativo ? 'Desativar' : 'Reativar'}
-                          </button>
-                        )}
-                        {podeExcluir && (
-                          <button onClick={(e) => { e.stopPropagation(); excluirAviso(aviso.id) }} style={{
-                            display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px',
-                            borderRadius: 6, border: '1px solid #FECACA', background: '#fff',
-                            fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#DC2626',
-                          }}>
-                            <Trash2 size={13} /> Excluir
-                          </button>
-                        )}
-                      </div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 16, paddingTop: 14, borderTop: '1px solid #f5f5f5' }}>
+                      <button onClick={(e) => { e.stopPropagation(); toggleAtivo(aviso) }} {...gateBtn(podeStatus)} style={{
+                        display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px',
+                        borderRadius: 6, border: '1px solid #E4E4E7', background: '#fff',
+                        fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#555',
+                        ...estiloSemPermissao(podeStatus),
+                      }}>
+                        {aviso.ativo ? <EyeOff size={13} /> : <Eye size={13} />}
+                        {aviso.ativo ? 'Desativar' : 'Reativar'}
+                      </button>
+                      <button onClick={(e) => { e.stopPropagation(); excluirAviso(aviso.id) }} {...gateBtn(podeExcluir)} style={{
+                        display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px',
+                        borderRadius: 6, border: '1px solid #FECACA', background: '#fff',
+                        fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#DC2626',
+                        ...estiloSemPermissao(podeExcluir),
+                      }}>
+                        <Trash2 size={13} /> Excluir
+                      </button>
+                    </div>
                     )}
                   </div>
                 )}

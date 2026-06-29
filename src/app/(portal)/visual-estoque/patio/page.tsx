@@ -56,7 +56,7 @@ const AMB_CONFIG: Record<string, { label: string; color: string }> = {
 
 export default function PatioPage() {
   const { userProfile } = useAuth()
-  const { temAcesso, loading: pLoading } = usePermissoes(userProfile?.id)
+  const { pode, loading: pLoading } = usePermissoes(userProfile?.id)
   const [data, setData] = useState<PatioData | null>(null)
   const [loading, setLoading] = useState(true)
   const [conta, setConta] = useState('todas')
@@ -229,7 +229,7 @@ export default function PatioPage() {
     document.addEventListener('mouseup', onUp)
   }, [])
 
-  if (!pLoading && userProfile && !temAcesso('consulta-estoque')) return <SemPermissao />
+  if (!pLoading && userProfile && !pode('consulta-estoque', 'patio')) return <SemPermissao />
 
   const allMaquinas = data ? Object.values(data.ambientes).flat() : []
   const valorTotal = allMaquinas.reduce((s, m) => s + m.valor_estoque, 0)

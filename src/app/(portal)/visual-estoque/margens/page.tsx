@@ -26,7 +26,7 @@ interface Margem {
 
 export default function MargensPage() {
   const { userProfile } = useAuth()
-  const { temAcesso, loading: pLoading } = usePermissoes(userProfile?.id)
+  const { pode, loading: pLoading } = usePermissoes(userProfile?.id)
   const [produtos, setProdutos] = useState<Margem[]>([])
   const [loading, setLoading] = useState(true)
   const [conta, setConta] = useState('todas')
@@ -56,7 +56,7 @@ export default function MargensPage() {
 
   const negativas = filtrados.filter(p => p.margem_real < 0).length
 
-  if (!pLoading && userProfile && !temAcesso('consulta-estoque')) return <SemPermissao />
+  if (!pLoading && userProfile && !pode('consulta-estoque', 'margens')) return <SemPermissao />
 
   const th: React.CSSProperties = { padding: '10px 12px', fontSize: 10, fontWeight: 800, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'right', whiteSpace: 'nowrap' }
   const td: React.CSSProperties = { padding: '10px 12px', fontSize: 12, textAlign: 'right', whiteSpace: 'nowrap' }

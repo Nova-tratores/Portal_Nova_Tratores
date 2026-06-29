@@ -6,6 +6,7 @@ import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
 import { useAuditLog } from '@/hooks/useAuditLog'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
+import { MSG_SEM_PERMISSAO } from '@/lib/permissoes/ui'
 import { notificarAdminsClient } from '@/hooks/useNotificarAdmins'
 import { User, FileText, Building, CheckCircle, Tag } from 'lucide-react'
 
@@ -99,7 +100,7 @@ export default function NovoChamadoRH() {
               />
             </div>
 
-            <button type="submit" disabled={enviando || !podeCriar} style={{
+            <button type="submit" disabled={enviando || !podeCriar} title={!podeCriar ? MSG_SEM_PERMISSAO : undefined} style={{
               background: (enviando || !podeCriar) ? '#e5e7eb' : '#1e293b',
               color: (enviando || !podeCriar) ? '#6b7280' : '#ffffff',
               border: 'none',

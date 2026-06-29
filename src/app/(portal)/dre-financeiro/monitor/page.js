@@ -134,7 +134,7 @@ function hintDetalhe(a) {
 
 export default function MonitorPage() {
   const { userProfile, loading } = useAuth()
-  const { temAcesso, loading: loadingPerm } = usePermissoes(userProfile?.id)
+  const { temAcesso, pode, loading: loadingPerm } = usePermissoes(userProfile?.id)
   const { conta } = useDreConta()
 
   // --- Estado (espelha as vars/elementos do IIFE da fonte) ------------------
@@ -259,7 +259,7 @@ export default function MonitorPage() {
   if (loading || loadingPerm) {
     return <div className="p-8 text-center text-slate-400">Carregando...</div>
   }
-  if (userProfile && !temAcesso('financeiro')) {
+  if (userProfile && (!temAcesso('financeiro') && !pode('dre', 'monitor'))) {
     return <SemPermissao />
   }
 

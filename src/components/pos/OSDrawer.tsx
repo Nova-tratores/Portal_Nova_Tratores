@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { VALOR_HORA, VALOR_KM, TEXT_TEMPLATE, PHASES } from "@/lib/pos/constants";
 import type { ClienteOption, ClienteDados, Produto, AlimentacaoItem } from "@/lib/pos/types";
+import { MSG_SEM_PERMISSAO } from "@/lib/permissoes/ui";
 import SearchModal from "./SearchModal";
 import LogPanel from "./LogPanel";
 import OSGarantiaInfo from "@/components/garantias/OSGarantiaInfo";
@@ -819,6 +820,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                       )}
                       {!ordemOmie && !(servicoInterno && status === "Concluída") && (
                         <button className="os-btn-omie" onClick={enviarParaOmie} disabled={enviandoOmie || (servicoInterno ? !podeConcluir : !podeOmie)}
+                          title={(servicoInterno ? !podeConcluir : !podeOmie) ? MSG_SEM_PERMISSAO : undefined}
                           style={servicoInterno ? { background: '#7C3AED' } : undefined}>
                           {enviandoOmie ? (
                             <><div className="spinner-inner" style={S_SPINNER_OMIE} /> {servicoInterno ? 'Concluindo...' : 'Enviando...'}</>
@@ -1626,7 +1628,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                 {/* Footer */}
                 <div className="os-footer">
                   <button className="os-btn-cancel" onClick={onClose}>Cancelar</button>
-                  <button className="os-btn-save" onClick={salvar} disabled={saving || (mode === "edit" && loadingData) || (mode === "edit" && !podeEditar)}>
+                  <button className="os-btn-save" onClick={salvar} disabled={saving || (mode === "edit" && loadingData) || (mode === "edit" && !podeEditar)} title={(mode === "edit" && !podeEditar) ? MSG_SEM_PERMISSAO : undefined}>
                     {saving ? "Salvando..." : (mode === "edit" && loadingData) ? "Carregando..." : mode === "create" ? "Criar Ordem" : (mode === "edit" && !podeEditar) ? "Somente leitura" : "Salvar Alterações"}
                   </button>
                 </div>

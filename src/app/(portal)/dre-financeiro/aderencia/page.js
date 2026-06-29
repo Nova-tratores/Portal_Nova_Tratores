@@ -98,7 +98,7 @@ function carregarChartLibs() {
 
 export default function AderenciaPage() {
   const { userProfile, loading } = useAuth()
-  const { temAcesso, loading: loadingPerm } = usePermissoes(userProfile?.id)
+  const { temAcesso, pode, loading: loadingPerm } = usePermissoes(userProfile?.id)
   const { conta } = useDreConta()
 
   // --- Estado de controles (espelha as vars do IIFE da fonte) ----------------
@@ -222,7 +222,7 @@ export default function AderenciaPage() {
   }
 
   // --- Estado de gate de permissao (BRIEF item 1) ---------------------------
-  if (!loading && !loadingPerm && userProfile && !temAcesso('financeiro')) return <SemPermissao />
+  if (!loading && !loadingPerm && userProfile && (!temAcesso('financeiro') && !pode('dre', 'aderencia'))) return <SemPermissao />
 
   // --- Derivados (port fiel do bloco de KPIs / distribuicao da fonte) -------
   const t = (dados && dados.totais) || null

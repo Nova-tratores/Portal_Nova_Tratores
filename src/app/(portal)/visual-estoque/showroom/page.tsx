@@ -45,7 +45,7 @@ const badgeColors: Record<string, { bg: string; c: string }> = {
 
 export default function ShowroomPage() {
   const { userProfile } = useAuth()
-  const { temAcesso, loading: pLoading } = usePermissoes(userProfile?.id)
+  const { pode, loading: pLoading } = usePermissoes(userProfile?.id)
   const [produtos, setProdutos] = useState<Produto[]>([])
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState('')
@@ -76,7 +76,7 @@ export default function ShowroomPage() {
 
   const temFiltro = busca || filtroEstoque || filtroTipo !== 'todos'
 
-  if (!pLoading && userProfile && !temAcesso('consulta-estoque')) return <SemPermissao />
+  if (!pLoading && userProfile && !pode('consulta-estoque', 'showroom')) return <SemPermissao />
 
   return (
     <div style={{ padding: '24px 32px', maxWidth: 1400, margin: '0 auto' }}>

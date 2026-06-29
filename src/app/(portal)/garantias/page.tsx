@@ -13,6 +13,7 @@ import GarantiasRelatorio from '@/components/garantias/GarantiasRelatorio';
 import GarantiaBusca from '@/components/garantias/GarantiaBusca';
 import MontadorasConfig from '@/components/garantias/MontadorasConfig';
 import CriarGarantiaManualModal from '@/components/garantias/CriarGarantiaManualModal';
+import { gateBtn, estiloSemPermissao, MSG_SEM_PERMISSAO } from '@/lib/permissoes/ui';
 
 type Aba = 'pipeline' | 'finalizadas' | 'relatorio' | 'buscar' | 'montadoras';
 
@@ -107,21 +108,21 @@ function GarantiasPageInner() {
             Controle do ciclo de garantias — da solicitação do técnico ao retorno da fábrica.
           </p>
         </div>
-        {podeCriar && (
-          <button
-            onClick={() => setCriarManualAberto(true)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '10px 16px', borderRadius: 10, border: 'none',
-              background: 'linear-gradient(135deg,#dc2626,#7f1d1d)', color: '#fff',
-              fontSize: 13, fontWeight: 700, cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(220,38,38,0.25)',
-            }}
-            title="Criar uma garantia manualmente a partir de uma OS existente"
-          >
-            <PlusCircle size={15} /> Nova garantia
-          </button>
-        )}
+        <button
+          onClick={() => setCriarManualAberto(true)}
+          {...gateBtn(podeCriar)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '10px 16px', borderRadius: 10, border: 'none',
+            background: 'linear-gradient(135deg,#dc2626,#7f1d1d)', color: '#fff',
+            fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            boxShadow: '0 4px 12px rgba(220,38,38,0.25)',
+            ...estiloSemPermissao(podeCriar),
+          }}
+          title={podeCriar ? 'Criar uma garantia manualmente a partir de uma OS existente' : MSG_SEM_PERMISSAO}
+        >
+          <PlusCircle size={15} /> Nova garantia
+        </button>
       </div>
 
       {/* Stats */}

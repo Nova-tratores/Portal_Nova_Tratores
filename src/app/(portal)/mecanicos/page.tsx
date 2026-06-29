@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
+import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui'
 import { supabase } from '@/lib/supabase'
 import {
   Users, ArrowLeft, Wrench,
@@ -1036,14 +1037,13 @@ export default function MecanicosPage() {
         {secao === 'ocorrencias' && (
           <div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
-              {podeCriarOc && (
-                <button onClick={() => setShowNovaOcorrencia(!showNovaOcorrencia)} style={{
-                  padding: '7px 14px', borderRadius: 6, border: 'none', background: '#2563EB', color: '#fff',
-                  fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5
-                }}>
-                  <Plus size={13} /> Nova Ocorrencia
-                </button>
-              )}
+              <button onClick={() => setShowNovaOcorrencia(!showNovaOcorrencia)} {...gateBtn(podeCriarOc)} style={{
+                padding: '7px 14px', borderRadius: 6, border: 'none', background: '#2563EB', color: '#fff',
+                fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+                ...estiloSemPermissao(podeCriarOc)
+              }}>
+                <Plus size={13} /> Nova Ocorrencia
+              </button>
             </div>
             {showNovaOcorrencia && (
               <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8, padding: 16, marginBottom: 14 }}>

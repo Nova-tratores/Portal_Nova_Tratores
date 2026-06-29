@@ -46,8 +46,17 @@ function rotMes(ym) {
 
 export default function HomeDreFinanceiro() {
   const { userProfile, loading } = useAuth()
-  const { temAcesso, loading: loadingPerm } = usePermissoes(userProfile?.id)
+  const { temAcesso, pode, loading: loadingPerm } = usePermissoes(userProfile?.id)
   const { conta } = useDreConta()
+
+  // Pode ver a tela do DRE apontada por href? Quem tem 'financeiro' (ou admin)
+  // vê tudo; senão, só as telas liberadas em 'dre:<slug>'. Usado pra esconder os
+  // cards (que sao <Link> pra cada tela) — esconde tambem o KPI sensivel junto.
+  const podeVerTela = (href) => {
+    if (!href || !href.startsWith('/dre-financeiro/')) return true
+    const slug = href.slice('/dre-financeiro/'.length).split('?')[0]
+    return temAcesso('financeiro') || pode('dre', slug)
+  }
 
   const [dados, setDados] = useState(null)   // payload dos KPIs
   const [meta, setMeta] = useState('Carregando KPIs...') // texto do subtitulo (home-meta)
@@ -76,7 +85,8 @@ export default function HomeDreFinanceiro() {
   useEffect(() => { carregar(false) }, [carregar])
 
   // Gate de permissao (espelha o layout; mantido por seguranca/padrao do portal).
-  if (!loading && !loadingPerm && userProfile && !temAcesso('financeiro')) {
+  // Home liberada pra quem tem 'financeiro' OU qualquer tela do 'dre'.
+  if (!loading && !loadingPerm && userProfile && !temAcesso('financeiro') && !temAcesso('dre')) {
     return <SemPermissao />
   }
 
@@ -120,6 +130,7 @@ export default function HomeDreFinanceiro() {
       {/* KPI grid (6 cards grandes coloridos, 3x2) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8" id="home-kpis">
         {/* Patrimonio (azul) */}
+        {podeVerTela('/dre-financeiro/patrimonio') && (
         <Link href="/dre-financeiro/patrimonio" className="bg-sky-100 border-2 border-sky-300 rounded-xl p-5 hover:border-sky-500 hover:shadow-lg transition block">
           <div className="text-sm uppercase tracking-wide text-sky-900 font-extrabold">Patrimonio Operacional</div>
           <div className="text-5xl font-extrabold text-sky-900 mt-2" id="kpi-patrimonio">
@@ -130,7 +141,9 @@ export default function HomeDreFinanceiro() {
           </div>
           <div className="text-sm text-sky-700 font-bold mt-3">Ver patrimonio →</div>
         </Link>
+        )}
         {/* CCC (roxo) */}
+        {podeVerTela('/dre-financeiro/ciclo-caixa') && (
         <Link href="/dre-financeiro/ciclo-caixa" className="bg-violet-100 border-2 border-violet-300 rounded-xl p-5 hover:border-violet-500 hover:shadow-lg transition block">
           <div className="text-sm uppercase tracking-wide text-violet-900 font-extrabold">Ciclo de Caixa (CCC)</div>
           <div className={'text-5xl font-extrabold mt-2 ' + cccCor} id="kpi-ccc">
@@ -141,7 +154,9 @@ export default function HomeDreFinanceiro() {
           </div>
           <div className="text-sm text-violet-700 font-bold mt-3">Ver ciclo de caixa →</div>
         </Link>
+        )}
         {/* Resultado mes (verde) */}
+        {podeVerTela('/dre-financeiro/dre') && (
         <Link href="/dre-financeiro/dre" className="bg-emerald-100 border-2 border-emerald-300 rounded-xl p-5 hover:border-emerald-500 hover:shadow-lg transition block">
           <div className="text-sm uppercase tracking-wide text-emerald-900 font-extrabold">
             Resultado <span id="kpi-resultado-mes-rotulo">{d.mes_atual ? rotMes(d.mes_atual) : 'mes'}</span>
@@ -160,7 +175,9 @@ export default function HomeDreFinanceiro() {
           </div>
           <div className="text-sm text-emerald-700 font-bold mt-3">Ver DRE →</div>
         </Link>
+        )}
         {/* Pontualidade (rosa) */}
+        {podeVerTela('/dre-financeiro/aderencia') && (
         <Link href="/dre-financeiro/aderencia" className="bg-rose-100 border-2 border-rose-300 rounded-xl p-5 hover:border-rose-500 hover:shadow-lg transition block">
           <div className="text-sm uppercase tracking-wide text-rose-900 font-extrabold">Pontualidade ultimos 30d</div>
           <div className={'text-5xl font-extrabold mt-2 ' + aderCor} id="kpi-aderencia">
@@ -169,7 +186,9 @@ export default function HomeDreFinanceiro() {
           <div className="text-base text-rose-800 mt-3">% pago no prazo (contas a pagar)</div>
           <div className="text-sm text-rose-700 font-bold mt-3">Ver pontualidade →</div>
         </Link>
+        )}
         {/* Capital parado (laranja) */}
+        {podeVerTela('/dre-financeiro/rentabilidade?tab=capital') && (
         <Link href="/dre-financeiro/rentabilidade?tab=capital" className="bg-amber-100 border-2 border-amber-300 rounded-xl p-5 hover:border-amber-500 hover:shadow-lg transition block">
           <div className="text-sm uppercase tracking-wide text-amber-900 font-extrabold">Capital Parado em Estoque</div>
           <div className="text-5xl font-extrabold text-amber-900 mt-2" id="kpi-capital">
@@ -183,7 +202,9 @@ export default function HomeDreFinanceiro() {
           </div>
           <div className="text-sm text-amber-700 font-bold mt-3">Ver capital parado →</div>
         </Link>
+        )}
         {/* Vencimentos 7d (teal) */}
+        {podeVerTela('/dre-financeiro/calendario') && (
         <Link href="/dre-financeiro/calendario" className="bg-teal-100 border-2 border-teal-300 rounded-xl p-5 hover:border-teal-500 hover:shadow-lg transition block">
           <div className="text-sm uppercase tracking-wide text-teal-900 font-extrabold">Vencimentos proximos 7 dias</div>
           <div className="text-3xl font-extrabold mt-2 flex gap-3 items-baseline flex-wrap">
@@ -196,6 +217,7 @@ export default function HomeDreFinanceiro() {
           </div>
           <div className="text-sm text-teal-700 font-bold mt-3">Ver calendario →</div>
         </Link>
+        )}
       </div>
 
       {/* Atalhos por categoria (cards coloridos pra cada pagina) */}

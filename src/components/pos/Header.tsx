@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { gateBtn, estiloSemPermissao } from "@/lib/permissoes/ui";
 
 interface HeaderProps {
   searchTerm: string;
@@ -79,7 +80,7 @@ export default function Header({ searchTerm, onSearch, onNewOS, onGenerateReport
           <input type="text" className="search-input" placeholder="Pesquisar cliente ou OS..." value={searchTerm} onChange={(e) => onSearch(e.target.value)} />
         </div>
         <div className="header-actions">
-          {podeCriar && <button className="btn-top btn-new" onClick={onNewOS}><i className="fas fa-plus" /> NOVA ORDEM</button>}
+          <button className="btn-top btn-new" onClick={onNewOS} {...gateBtn(podeCriar)} style={estiloSemPermissao(podeCriar)}><i className="fas fa-plus" /> NOVA ORDEM</button>
 
           <div style={{ position: "relative" }} ref={menuRef}>
             <button className="btn-top btn-report" onClick={() => setMenuOpen((o) => !o)}>

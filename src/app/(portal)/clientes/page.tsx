@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
+import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui'
 import { supabase } from '@/lib/supabase'
 import SemPermissao from '@/components/SemPermissao'
 import { Search, ChevronDown, ChevronUp, ArrowLeft, RefreshCw, ChevronRight, Download, Printer, FolderOpen, X, FileText, Wrench, Calendar, MapPin, User, Hash, ClipboardList, Package, Users, Shield, CheckCircle, Clock, Mail, Bell, Tag, Plus, Trash2, Save, Upload } from 'lucide-react'
@@ -2160,18 +2161,14 @@ function ClientesPageInner() {
             {syncStatus}
           </span>
         )}
-        {podeCriarCliente && (
-          <button onClick={() => { setCriarErro(''); setFormCli({ ...FORM_CLI_VAZIO }); setShowCriarCliente(true) }}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 16px', height: 44, borderRadius: 12, border: 'none', background: 'linear-gradient(135deg, #dc2626, #b91c1c)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-            <Plus size={15} /> Criar Cliente
-          </button>
-        )}
-        {podeCriarProjeto && (
-          <button onClick={() => { setCriarErro(''); setProjNome(''); setShowCriarProjeto(true) }}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 16px', height: 44, borderRadius: 12, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-            <FolderOpen size={15} /> Criar Projeto
-          </button>
-        )}
+        <button onClick={() => { setCriarErro(''); setFormCli({ ...FORM_CLI_VAZIO }); setShowCriarCliente(true) }} {...gateBtn(podeCriarCliente)}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 16px', height: 44, borderRadius: 12, border: 'none', background: 'linear-gradient(135deg, #dc2626, #b91c1c)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', ...estiloSemPermissao(podeCriarCliente) }}>
+          <Plus size={15} /> Criar Cliente
+        </button>
+        <button onClick={() => { setCriarErro(''); setProjNome(''); setShowCriarProjeto(true) }} {...gateBtn(podeCriarProjeto)}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 16px', height: 44, borderRadius: 12, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', ...estiloSemPermissao(podeCriarProjeto) }}>
+          <FolderOpen size={15} /> Criar Projeto
+        </button>
         <button onClick={syncBackground} disabled={syncing} title="Sincronizar"
           style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 44, height: 44, borderRadius: 12, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text-secondary)', cursor: syncing ? 'not-allowed' : 'pointer' }}>
           <RefreshCw size={16} style={syncing ? { animation: 'spin 1s linear infinite' } : {}} />

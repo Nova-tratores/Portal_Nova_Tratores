@@ -17,6 +17,7 @@ import GarantiaAnexos from './GarantiaAnexos';
 import ValoresComparativo from './ValoresComparativo';
 import GarantiaTimeline from './GarantiaTimeline';
 import CobrancaCliente from './CobrancaCliente';
+import { MSG_SEM_PERMISSAO } from '@/lib/permissoes/ui';
 
 interface Props {
   garantiaId: string;
@@ -669,7 +670,7 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
 
               {/* Assumir */}
               {g.status === 'aberta' && (
-                <button onClick={assumir} disabled={!!busy || !podeAnalisar} style={btn('linear-gradient(135deg,#dc2626,#7f1d1d)', !!busy || !podeAnalisar)}>
+                <button onClick={assumir} disabled={!!busy || !podeAnalisar} title={!podeAnalisar ? MSG_SEM_PERMISSAO : undefined} style={btn('linear-gradient(135deg,#dc2626,#7f1d1d)', !!busy || !podeAnalisar)}>
                   {busy === 'assumir' ? <Loader2 size={15} className="spin" /> : <ShieldCheck size={15} />}
                   Assumir análise da garantia
                 </button>
@@ -725,7 +726,7 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
               {/* Ações em análise */}
               {emAnalise && (
                 <>
-                  <button onClick={salvarAnalise} disabled={!!busy || !podeAnalisar} style={btn('#475569', !!busy || !podeAnalisar)}>
+                  <button onClick={salvarAnalise} disabled={!!busy || !podeAnalisar} title={!podeAnalisar ? MSG_SEM_PERMISSAO : undefined} style={btn('#475569', !!busy || !podeAnalisar)}>
                     {busy === 'analise' ? <Loader2 size={15} className="spin" /> : <Save size={15} />}
                     Salvar análise
                   </button>
@@ -755,6 +756,7 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                     <button
                       onClick={enviarFabrica}
                       disabled={!!busy || !g.montadora_id || faltando.length > 0 || !podeEnviarFabrica}
+                      title={!podeEnviarFabrica ? MSG_SEM_PERMISSAO : undefined}
                       style={{ ...btn('linear-gradient(135deg,#8b5cf6,#6d28d9)', !!busy || !g.montadora_id || faltando.length > 0 || !podeEnviarFabrica), flex: 1 }}
                     >
                       {busy === 'enviar' ? <Loader2 size={15} className="spin" /> : <Send size={15} />}
@@ -1114,6 +1116,7 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                       <button
                         onClick={() => finalizar('aprovada')}
                         disabled={!!busy || !temRetornoFabrica || !podeFinalizar}
+                        title={!podeFinalizar ? MSG_SEM_PERMISSAO : undefined}
                         style={{ ...btn('#16a34a', !!busy || !temRetornoFabrica || !podeFinalizar), flex: 1 }}
                       >
                         <CheckCircle2 size={15} /> Aprovar
@@ -1121,6 +1124,7 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                       <button
                         onClick={() => finalizar('rejeitada')}
                         disabled={!!busy || !temRetornoFabrica || !podeFinalizar}
+                        title={!podeFinalizar ? MSG_SEM_PERMISSAO : undefined}
                         style={{ ...btn('#dc2626', !!busy || !temRetornoFabrica || !podeFinalizar), flex: 1 }}
                       >
                         <XCircle size={15} /> Recusar

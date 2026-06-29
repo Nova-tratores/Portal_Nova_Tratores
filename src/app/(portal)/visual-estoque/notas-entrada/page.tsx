@@ -29,7 +29,7 @@ interface Nota {
 
 export default function NotasEntradaPage() {
   const { userProfile } = useAuth()
-  const { temAcesso, loading: pLoading } = usePermissoes(userProfile?.id)
+  const { pode, loading: pLoading } = usePermissoes(userProfile?.id)
   const [notas, setNotas] = useState<Nota[]>([])
   const [loading, setLoading] = useState(true)
   const [conta, setConta] = useState('todas')
@@ -57,7 +57,7 @@ export default function NotasEntradaPage() {
   const totalValor = filtradas.reduce((s, n) => s + n.total_nfe, 0)
   const totalMaquinas = filtradas.reduce((s, n) => s + n.qtd_maquinas, 0)
 
-  if (!pLoading && userProfile && !temAcesso('consulta-estoque')) return <SemPermissao />
+  if (!pLoading && userProfile && !pode('consulta-estoque', 'notas-entrada')) return <SemPermissao />
 
   const statusCor = (s: string) => s === 'Recebida' ? { bg: '#ECFDF5', fg: '#059669' } : { bg: '#FFFBEB', fg: '#D97706' }
   const th: React.CSSProperties = { padding: '10px 12px', fontSize: 10, fontWeight: 800, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'right', whiteSpace: 'nowrap' }

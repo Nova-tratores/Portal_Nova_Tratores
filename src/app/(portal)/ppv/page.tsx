@@ -20,6 +20,7 @@ import ModalBuscaProduto from "@/components/ppv/ModalBuscaProduto";
 import ModalProdutoManual from "@/components/ppv/ModalProdutoManual";
 import ModalRevisoes from "@/components/ppv/ModalRevisoes";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
+import { MSG_SEM_PERMISSAO } from "@/lib/permissoes/ui";
 
 function PPVApp() {
   const { kanbanItems, carregarKanban, atualizarKanbanLocal, toast, hideToast, globalLoading, cacheProduct, showToast, tecnicos, recarregarRevisoes } = usePPV();
@@ -240,14 +241,14 @@ function PPVApp() {
 
         {/* Ações à direita: Novo Lançamento + Menu cascata */}
         <div className="ppv-topbar-actions">
-          {podeCriar && (
-            <button
-              className={`ppv-topbar-nav-btn ${activeTab === "formTab" ? "active" : ""}`}
-              onClick={() => setActiveTab("formTab")}
-            >
-              <i className="fas fa-plus-circle" /> Novo Lançamento
-            </button>
-          )}
+          <button
+            className={`ppv-topbar-nav-btn ${activeTab === "formTab" ? "active" : ""} disabled:opacity-50 disabled:cursor-not-allowed`}
+            onClick={() => setActiveTab("formTab")}
+            disabled={!podeCriar}
+            title={!podeCriar ? MSG_SEM_PERMISSAO : undefined}
+          >
+            <i className="fas fa-plus-circle" /> Novo Lançamento
+          </button>
 
           <div style={{ position: "relative" }} ref={menuRef}>
           <button className="ppv-topbar-action-btn" onClick={() => setMenuOpen((o) => !o)}>

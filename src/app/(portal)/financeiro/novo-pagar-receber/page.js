@@ -6,6 +6,7 @@ import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
 import { useAuditLog } from '@/hooks/useAuditLog'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
+import { MSG_SEM_PERMISSAO } from '@/lib/permissoes/ui'
 import { notificarAdminsClient } from '@/hooks/useNotificarAdmins'
 import { CamposOmieContaPagar } from '@/components/financeiro/OmieContaPagar'
 import UploadNFeXml from '@/components/financeiro/UploadNFeXml'
@@ -832,7 +833,7 @@ export default function NovoPagarReceber() {
               <CamposOmieContaPagar value={omieCampos} onChange={setOmieCampos} tema="form" autoOrigem={autoOrigem} contextoTexto={formData.motivo} />
             </div>
 
-            <button disabled={loading || !podeCriar} type="submit" style={{
+            <button disabled={loading || !podeCriar} title={!podeCriar ? MSG_SEM_PERMISSAO : undefined} type="submit" style={{
               background: (loading || !podeCriar) ? '#e5e7eb' : '#1e293b',
               color: (loading || !podeCriar) ? '#6b7280' : '#ffffff',
               border: 'none',

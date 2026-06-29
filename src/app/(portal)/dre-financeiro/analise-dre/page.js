@@ -62,7 +62,7 @@ function defaultsPeriodo() {
 
 export default function AnaliseDre() {
   const { userProfile, loading } = useAuth()
-  const { temAcesso, loading: loadingPerm } = usePermissoes(userProfile?.id)
+  const { temAcesso, pode, loading: loadingPerm } = usePermissoes(userProfile?.id)
   const { conta } = useDreConta()
 
   // ----- Estado (espelha as variaveis do IIFE do EJS) -----
@@ -719,7 +719,7 @@ export default function AnaliseDre() {
     : 'Regime Omie (ListarDRE): Receita por vencimento, CMV pela emissão, Despesas via plano de contas.'
 
   // Gate de permissao (espelha o layout; mantido por seguranca/padrao do portal).
-  if (!loading && !loadingPerm && userProfile && !temAcesso('financeiro')) {
+  if (!loading && !loadingPerm && userProfile && (!temAcesso('financeiro') && !pode('dre', 'analise-dre'))) {
     return <SemPermissao />
   }
 
