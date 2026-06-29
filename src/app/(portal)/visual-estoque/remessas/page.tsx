@@ -27,7 +27,7 @@ const statusCor = (s: string): { bg: string; fg: string } => {
 
 export default function RemessasPage() {
   const { userProfile } = useAuth()
-  const { temAcesso, loading: pLoading } = usePermissoes(userProfile?.id)
+  const { pode, loading: pLoading } = usePermissoes(userProfile?.id)
   const [aba, setAba] = useState<Aba>('remessas')
   const [rows, setRows] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -71,7 +71,7 @@ export default function RemessasPage() {
     return true
   }), [rows, aba, statusFiltro, busca])
 
-  if (!pLoading && userProfile && !temAcesso('consulta-estoque')) return <SemPermissao />
+  if (!pLoading && userProfile && !pode('consulta-estoque', 'remessas')) return <SemPermissao />
 
   const th: React.CSSProperties = { padding: '10px 12px', fontSize: 10, fontWeight: 800, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'right', whiteSpace: 'nowrap' }
   const td: React.CSSProperties = { padding: '10px 12px', fontSize: 12, textAlign: 'right', whiteSpace: 'nowrap' }

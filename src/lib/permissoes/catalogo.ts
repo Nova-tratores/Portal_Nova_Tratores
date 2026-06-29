@@ -26,7 +26,7 @@ const GRUPO_POR_MODULO: Record<string, string> = {
   // Comercial
   propostas: 'Comercial', feedbacks: 'Comercial', clientes: 'Comercial', 'supervisor-vendas': 'Comercial',
   // Estoque
-  'visual-estoque': 'Estoque', estoque: 'Estoque',
+  'consulta-estoque': 'Estoque', estoque: 'Estoque',
   // Outros
   opa: 'Outros', avisos: 'Outros', tarefas: 'Outros', 'dashboard-agro': 'Outros', tratorilson: 'Outros',
 };
@@ -151,6 +151,18 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'vendas-modelo', label: 'Vendas/Modelo' },
     { id: 'clientes', label: 'Clientes' },
     { id: 'monitor', label: 'Monitor' },
+  ],
+  // Visual Estoque (Consulta Omie): granular POR TELA. A chave do módulo é
+  // 'consulta-estoque' (o que as páginas e o menu lateral realmente checam).
+  // A Home (/visual-estoque) é o landing e fica liberada pra quem tem o módulo.
+  'consulta-estoque': [
+    { id: 'showroom', label: 'Showroom' },
+    { id: 'patio', label: 'Pátio' },
+    { id: 'frota', label: 'Frota' },
+    { id: 'remessas', label: 'Remessas' },
+    { id: 'notas-entrada', label: 'Notas de Entrada' },
+    { id: 'margens', label: 'Margens' },
+    { id: 'alertas', label: 'Alertas' },
   ],
 };
 

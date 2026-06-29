@@ -15,7 +15,7 @@ interface Produto {
 
 export default function AlertasPage() {
   const { userProfile } = useAuth()
-  const { temAcesso, loading: pLoading } = usePermissoes(userProfile?.id)
+  const { pode, loading: pLoading } = usePermissoes(userProfile?.id)
   const [semEstoque, setSemEstoque] = useState<Produto[]>([])
   const [baixoEstoque, setBaixoEstoque] = useState<Produto[]>([])
   const [loading, setLoading] = useState(true)
@@ -33,7 +33,7 @@ export default function AlertasPage() {
       .catch(() => setLoading(false))
   }, [conta])
 
-  if (!pLoading && userProfile && !temAcesso('consulta-estoque')) return <SemPermissao />
+  if (!pLoading && userProfile && !pode('consulta-estoque', 'alertas')) return <SemPermissao />
 
   return (
     <div style={{ padding: '24px 32px', maxWidth: 1200, margin: '0 auto' }}>

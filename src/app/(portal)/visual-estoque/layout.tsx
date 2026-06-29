@@ -1,6 +1,8 @@
 'use client'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
+import { useAuth } from '@/hooks/useAuth'
+import { usePermissoes } from '@/hooks/usePermissoes'
 import { LayoutDashboard, ShoppingBag, MapPin, AlertTriangle, Percent, FileInput, Send, Truck } from 'lucide-react'
 
 const tabs = [
@@ -16,6 +18,15 @@ const tabs = [
 
 export default function VisualEstoqueLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const { userProfile } = useAuth()
+  const { pode } = usePermissoes(userProfile?.id)
+
+  // Esconde da sub-nav as telas que o usuário não pode ver. A Home
+  // (/visual-estoque) é sempre visível; as sub-telas seguem pode('consulta-estoque', slug).
+  const podeVerTela = (href: string) => {
+    if (href === '/visual-estoque') return true
+    return pode('consulta-estoque', href.slice('/visual-estoque/'.length))
+  }
 
   return (
     <div style={{ minHeight: 'calc(100vh - 84px)' }}>
@@ -24,7 +35,7 @@ export default function VisualEstoqueLayout({ children }: { children: React.Reac
         borderBottom: '1px solid var(--portal-border, #e5e5e5)',
         background: 'var(--portal-bg, #fafafa)',
       }}>
-        {tabs.map(t => {
+        {tabs.filter(t => podeVerTela(t.href)).map(t => {
           const active = pathname === t.href
           return (
             <Link key={t.href} href={t.href} style={{

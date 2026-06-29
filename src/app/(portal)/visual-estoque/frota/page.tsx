@@ -61,7 +61,7 @@ const AMB: Record<string, { label: string; color: string }> = {
 
 export default function FrotaPage() {
   const { userProfile } = useAuth()
-  const { temAcesso, loading: pLoading } = usePermissoes(userProfile?.id)
+  const { pode, loading: pLoading } = usePermissoes(userProfile?.id)
   const [data, setData] = useState<FrotaData | null>(null)
   const [loading, setLoading] = useState(true)
   const [sel, setSel] = useState<Veiculo | null>(null)
@@ -170,7 +170,7 @@ export default function FrotaPage() {
     a.href = URL.createObjectURL(blob); a.download = 'frota.csv'; a.click()
   }
 
-  if (!pLoading && userProfile && !temAcesso('consulta-estoque')) return <SemPermissao />
+  if (!pLoading && userProfile && !pode('consulta-estoque', 'frota')) return <SemPermissao />
 
   const renderZone = (ambiente: string, style: React.CSSProperties) => {
     const lista = data?.ambientes[ambiente] || []

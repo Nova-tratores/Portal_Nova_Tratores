@@ -19,7 +19,7 @@ const MODULOS = [
   { id: 'ajustes:pedidos:encerrar', label: 'Ajustes · Pedidos — Encerrar informal', color: '#7f1d1d' },
   { id: 'avisos', label: 'Avisos', color: '#dc2626' },
   { id: 'clientes', label: 'Clientes', color: '#dc2626' },
-  { id: 'visual-estoque', label: 'Consulta Omie', color: '#7f1d1d' },
+  { id: 'consulta-estoque', label: 'Consulta Omie', color: '#7f1d1d' },
   { id: 'revisoes', label: 'Controle de Revisões', color: '#b91c1c' },
   { id: 'dashboard-agro', label: 'Dashboard Agro', color: '#16a34a' },
   { id: 'dre', label: 'DRE Financeiro', color: '#dc2626' },
