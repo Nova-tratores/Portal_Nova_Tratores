@@ -15,7 +15,7 @@ const PERIODOS = [12, 24, 36, 48] as const;
 
 export default function CadastroProdutoPage() {
   const { userProfile } = useAuth();
-  const { temAcesso, loading: permLoading } = usePermissoes(userProfile?.id);
+  const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
   const { contaParam } = useConta();
 
   const [codigo, setCodigo] = useState('');
@@ -70,7 +70,7 @@ export default function CadastroProdutoPage() {
     [dados, carregarHistorico],
   );
 
-  if (!permLoading && userProfile && !temAcesso('estoque')) return <SemPermissao />;
+  if (!permLoading && userProfile && !pode('estoque', 'cadastro-produto')) return <SemPermissao />;
 
   const c = dados?.custos;
 

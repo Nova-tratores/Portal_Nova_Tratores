@@ -31,7 +31,7 @@ interface RelPessoa { vendedor: string; num_os: number; num_vendas: number; valo
 
 export default function ComissaoPage() {
   const { userProfile } = useAuth();
-  const { temAcesso, loading: permLoading } = usePermissoes(userProfile?.id);
+  const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
   const { conta, contaParam } = useConta();
 
   const now = new Date();
@@ -40,7 +40,7 @@ export default function ComissaoPage() {
   const [ano, setAno] = useState(now.getFullYear());
   const [erro, setErro] = useState('');
 
-  if (!permLoading && userProfile && !temAcesso('estoque')) return <SemPermissao />;
+  if (!permLoading && userProfile && !pode('estoque', 'comissao')) return <SemPermissao />;
 
   const anos: number[] = [];
   for (let y = now.getFullYear(); y >= 2022; y--) anos.push(y);
@@ -56,7 +56,7 @@ export default function ComissaoPage() {
       </div>
 
       <div style={{ margin: '14px 0', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-        <Link href="/estoque/dashboard" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>← Dashboard</Link>
+        {pode('estoque', 'dashboard') && (<Link href="/estoque/dashboard" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>← Dashboard</Link>)}
       </div>
 
       <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap', borderBottom: '1px solid #eee', paddingBottom: 4 }}>

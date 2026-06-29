@@ -32,7 +32,7 @@ const tdStyle: React.CSSProperties = { padding: '8px 10px', borderBottom: '1px s
 
 export default function GiroEstoquePage() {
   const { userProfile } = useAuth();
-  const { temAcesso, loading: permLoading } = usePermissoes(userProfile?.id);
+  const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
   const { contaParam } = useConta();
 
   const [periodo, setPeriodo] = useState(12);
@@ -91,7 +91,7 @@ export default function GiroEstoquePage() {
     URL.revokeObjectURL(url);
   }, [resp, itensOrd]);
 
-  if (!permLoading && userProfile && !temAcesso('estoque')) return <SemPermissao />;
+  if (!permLoading && userProfile && !pode('estoque', 'giro-estoque')) return <SemPermissao />;
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 24px' }}>
@@ -105,8 +105,8 @@ export default function GiroEstoquePage() {
 
       <div style={{ margin: '14px 0', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
         <Link href="/estoque" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>← Busca</Link>
-        <Link href="/estoque/dashboard" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>→ Dashboard</Link>
-        <Link href="/estoque/curva-abc" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>→ Curva ABC</Link>
+        {pode('estoque', 'dashboard') && (<Link href="/estoque/dashboard" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>→ Dashboard</Link>)}
+        {pode('estoque', 'curva-abc') && (<Link href="/estoque/curva-abc" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>→ Curva ABC</Link>)}
       </div>
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 18, alignItems: 'flex-end', flexWrap: 'wrap' }}>

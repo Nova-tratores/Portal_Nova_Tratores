@@ -29,7 +29,7 @@ const linkBtn: React.CSSProperties = { background: 'none', border: 'none', color
 
 export default function NotasEntradaPage() {
   const { userProfile } = useAuth();
-  const { temAcesso, loading: permLoading } = usePermissoes(userProfile?.id);
+  const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
   const { conta, contaParam } = useConta();
 
   const now = new Date();
@@ -98,7 +98,7 @@ export default function NotasEntradaPage() {
 
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
-  if (!permLoading && userProfile && !temAcesso('estoque')) return <SemPermissao />;
+  if (!permLoading && userProfile && !pode('estoque', 'notas-entrada')) return <SemPermissao />;
 
   const anos: number[] = [];
   for (let y = now.getFullYear(); y >= 2023; y--) anos.push(y);
@@ -115,7 +115,7 @@ export default function NotasEntradaPage() {
 
       <div style={{ margin: '14px 0', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
         <Link href="/estoque" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>← Busca</Link>
-        <Link href="/estoque/dashboard" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>→ Dashboard</Link>
+        {pode('estoque', 'dashboard') && (<Link href="/estoque/dashboard" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>→ Dashboard</Link>)}
       </div>
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 18, alignItems: 'flex-end', flexWrap: 'wrap' }}>

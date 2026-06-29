@@ -26,7 +26,7 @@ const pre: React.CSSProperties = { background: '#0f172a', color: '#cbd5e1', padd
 
 export default function AdminEstoquePage() {
   const { userProfile } = useAuth();
-  const { temAcesso, loading: permLoading } = usePermissoes(userProfile?.id);
+  const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
   const { conta, contaParam } = useConta();
 
   const [cats, setCats] = useState<Categoria[]>([]);
@@ -122,7 +122,7 @@ export default function AdminEstoquePage() {
     }
   }, [conta, debugDe, debugAte, contaParam]);
 
-  if (!permLoading && userProfile && !temAcesso('estoque')) return <SemPermissao />;
+  if (!permLoading && userProfile && !pode('estoque', 'admin')) return <SemPermissao />;
 
   return (
     <div style={{ maxWidth: 900, margin: '0 auto', padding: '20px 24px' }}>
@@ -134,9 +134,9 @@ export default function AdminEstoquePage() {
         <ContaSelector />
       </div>
       <div style={{ margin: '14px 0 18px', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-        <Link href="/estoque/dashboard" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>← Dashboard</Link>
-        <Link href="/estoque/admin-cmc" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>Admin CMC</Link>
-        <Link href="/estoque/ignorar-clientes" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>Ignorar Clientes</Link>
+        {pode('estoque', 'dashboard') && (<Link href="/estoque/dashboard" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>← Dashboard</Link>)}
+        {pode('estoque', 'admin-cmc') && (<Link href="/estoque/admin-cmc" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>Admin CMC</Link>)}
+        {pode('estoque', 'ignorar-clientes') && (<Link href="/estoque/ignorar-clientes" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>Ignorar Clientes</Link>)}
       </div>
 
       <div style={card}>

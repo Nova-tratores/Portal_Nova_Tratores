@@ -164,6 +164,20 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'margens', label: 'Margens' },
     { id: 'alertas', label: 'Alertas' },
   ],
+  // Estoque (Visual Estoque / Consulta Omie): granular POR TELA. Chave 'estoque'
+  // (id da rota = slug). A Home (/estoque, busca de produto) é o landing.
+  estoque: [
+    { id: 'dashboard', label: 'Dashboard de Vendas' },
+    { id: 'notas-entrada', label: 'Notas de Entrada' },
+    { id: 'cadastro-produto', label: 'Cadastro de Produto' },
+    { id: 'curva-abc', label: 'Curva ABC' },
+    { id: 'giro-estoque', label: 'Giro de Estoque' },
+    { id: 'comissao', label: 'Comissão' },
+    { id: 'recebimentos', label: 'Recebimentos' },
+    { id: 'admin', label: 'Admin' },
+    { id: 'admin-cmc', label: 'Admin CMC' },
+    { id: 'ignorar-clientes', label: 'Ignorar Clientes' },
+  ],
 };
 
 export function acoesDoModulo(id: string): AcaoPermissao[] {

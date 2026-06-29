@@ -24,7 +24,7 @@ const tdStyle: React.CSSProperties = { padding: '8px 10px', borderBottom: '1px s
 
 export default function EstoqueBuscaPage() {
   const { userProfile } = useAuth();
-  const { temAcesso, loading: permLoading } = usePermissoes(userProfile?.id);
+  const { temAcesso, pode, loading: permLoading } = usePermissoes(userProfile?.id);
   const { contaParam } = useConta();
 
   const [codigo, setCodigo] = useState('');
@@ -72,7 +72,7 @@ export default function EstoqueBuscaPage() {
       <p style={{ color: '#888', fontSize: '.82rem', marginBottom: 18 }}>Consulta produtos, estoque, vendas, compras e CMC</p>
 
       <div style={{ marginBottom: 18, display: 'flex', gap: 18, flexWrap: 'wrap' }}>
-        {NAV.map((n) => (
+        {NAV.filter((n) => pode('estoque', n.href.replace('/estoque/', ''))).map((n) => (
           <Link key={n.href} href={n.href} style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>
             {n.label}
           </Link>

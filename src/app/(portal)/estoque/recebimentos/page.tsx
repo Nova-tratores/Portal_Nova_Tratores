@@ -83,7 +83,7 @@ function itemInfo(it: ItemReceb): { idProd: string; desc: string; qtd: number; v
 
 export default function RecebimentosPage() {
   const { userProfile } = useAuth();
-  const { temAcesso, loading: permLoading } = usePermissoes(userProfile?.id);
+  const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
   const { conta, contaParam } = useConta();
   const meu = userProfile?.nome || '';
 
@@ -218,7 +218,7 @@ export default function RecebimentosPage() {
     }
   };
 
-  if (!permLoading && userProfile && !temAcesso('estoque')) return <SemPermissao />;
+  if (!permLoading && userProfile && !pode('estoque', 'recebimentos')) return <SemPermissao />;
 
   const statusKey = status === 'concluido' ? 'concluidos' : 'pendentes';
   const lista = data?.recebimentos || [];
@@ -235,8 +235,8 @@ export default function RecebimentosPage() {
 
       <div style={{ margin: '14px 0', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
         <Link href="/estoque" style={navLink}>← Busca</Link>
-        <Link href="/estoque/notas-entrada" style={navLink}>Notas de Entrada</Link>
-        <Link href="/estoque/dashboard" style={navLink}>Dashboard</Link>
+        {pode('estoque', 'notas-entrada') && (<Link href="/estoque/notas-entrada" style={navLink}>Notas de Entrada</Link>)}
+        {pode('estoque', 'dashboard') && (<Link href="/estoque/dashboard" style={navLink}>Dashboard</Link>)}
       </div>
 
       {/* Abas por tipo */}

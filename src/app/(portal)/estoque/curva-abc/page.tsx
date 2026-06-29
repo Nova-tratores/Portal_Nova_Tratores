@@ -38,7 +38,7 @@ const corClasse: Record<string, string> = { A: '#16a34a', B: '#d97706', C: '#dc2
 
 export default function CurvaABCPage() {
   const { userProfile } = useAuth();
-  const { temAcesso, loading: permLoading } = usePermissoes(userProfile?.id);
+  const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
   const { contaParam } = useConta();
 
   const [tab, setTab] = useState<Tab>('abc');
@@ -105,7 +105,7 @@ export default function CurvaABCPage() {
     URL.revokeObjectURL(url);
   }, [tab, abc, inativos, itensOrd]);
 
-  if (!permLoading && userProfile && !temAcesso('estoque')) return <SemPermissao />;
+  if (!permLoading && userProfile && !pode('estoque', 'curva-abc')) return <SemPermissao />;
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 24px' }}>
@@ -119,8 +119,8 @@ export default function CurvaABCPage() {
 
       <div style={{ margin: '14px 0', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
         <Link href="/estoque" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>← Busca</Link>
-        <Link href="/estoque/dashboard" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>→ Dashboard</Link>
-        <Link href="/estoque/giro-estoque" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>→ Giro de Estoque</Link>
+        {pode('estoque', 'dashboard') && (<Link href="/estoque/dashboard" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>→ Dashboard</Link>)}
+        {pode('estoque', 'giro-estoque') && (<Link href="/estoque/giro-estoque" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>→ Giro de Estoque</Link>)}
       </div>
 
       {/* Abas */}
