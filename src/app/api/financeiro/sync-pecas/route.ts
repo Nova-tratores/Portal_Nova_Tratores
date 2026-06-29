@@ -10,10 +10,13 @@ const supabase = createClient(
 );
 
 const OMIE_BASE = "https://app.omie.com.br/api/v1";
-interface Acc { name: string; key: string; secret: string }
+// temOS: empresa que possui módulo de OS (Nova Tratores). A Castro é loja de
+// peças — não tem OS, então a checagem de "OS vinculada" NÃO pode rodar pra ela
+// (os números de pedido colidem com num_pedido_cli das OS da Nova Tratores).
+interface Acc { name: string; key: string; secret: string; temOS: boolean }
 const ACCS: Acc[] = [
-  { name: "Nova Tratores", key: process.env.OMIE_APP_KEY || "2729522270475", secret: process.env.OMIE_APP_SECRET || "113d785bb86c48d064889d4d73348131" },
-  { name: "Castro Pecas", key: "2730028269969", secret: "dc270bf5348b40d3ed1398ef70beb628" },
+  { name: "Nova Tratores", key: process.env.OMIE_APP_KEY || "2729522270475", secret: process.env.OMIE_APP_SECRET || "113d785bb86c48d064889d4d73348131", temOS: true },
+  { name: "Castro Pecas", key: "2730028269969", secret: "dc270bf5348b40d3ed1398ef70beb628", temOS: false },
 ];
 
 // Categoria-alvo (do Pedido de Venda). Match flexível pelo núcleo do texto.
@@ -246,15 +249,29 @@ async function handler(req: NextRequest) {
 
           // VÍNCULO: se este PV tem uma OS vinculada, NÃO cria card só com a NF de peça —
           // o sync de OS gera o card combinado (serviço + peça) quando as duas estiverem faturadas.
-          if (await temOSVinculada(numPedido)) {
+          // Só vale pra empresa que tem OS (Nova Tratores); a Castro nunca casa com OS.
+          if (acc.temOS && await temOSVinculada(numPedido)) {
             relatorio.push({ empresa: acc.name, pedido: numPedido, pulado: "tem OS vinculada (card sai pelo sync de OS)" });
             continue;
           }
 
           // idempotência (1 card por pedido/empresa)
           const { data: existeArr } = await supabase.from("Chamado_NF")
-            .select("id").eq("omie_num_pedido", numPedido).eq("omie_empresa", acc.name).limit(1);
-          if (existeArr && existeArr.length) { jaExistiam++; porEmpresa[acc.name].jaExistiam++; continue; }
+            .select("id, num_nf_peca, anexo_nf_peca").eq("omie_num_pedido", numPedido).eq("omie_empresa", acc.name).limit(1);
+          if (existeArr && existeArr.length) {
+            jaExistiam++; porEmpresa[acc.name].jaExistiam++;
+            // Auto-conserto: card criado antes da NF sair fica sem número/DANFE.
+            // Se a nota já saiu no Omie, completa o card agora.
+            const ex = existeArr[0] as { id: number; num_nf_peca: string | null; anexo_nf_peca: string | null };
+            if (!String(ex.num_nf_peca || "").trim()) {
+              const nf = await nfDoPedido(pv.cabecalho.codigo_pedido, numPedido, empKey, acc);
+              if (nf.num) {
+                if (!dryRun) await supabase.from("Chamado_NF").update({ num_nf_peca: nf.num, anexo_nf_peca: nf.url }).eq("id", ex.id);
+                relatorio.push({ empresa: acc.name, pedido: numPedido, atualizado_nf: nf.num, anexo: !!nf.url });
+              }
+            }
+            continue;
+          }
 
           // garante parcelas/total — consulta completa se ainda não temos
           if (!(pvFull?.lista_parcelas || pvFull?.parcelas)) {
