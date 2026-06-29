@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Search, FileText, Trash2, Plus, FilterX, Package, Wrench, Send, Printer } from 'lucide-react'
+import { gateBtn, estiloSemPermissao, MSG_SEM_PERMISSAO } from '@/lib/permissoes/ui'
 
 interface Orcamento {
   id: number
@@ -248,17 +249,16 @@ export default function OrcamentoLista({ onNovo, onEditar, podeCriar = true, pod
           <h1 style={{ fontSize: 24, fontWeight: 800, color: '#1a1a1a', margin: 0 }}>Orçamentos</h1>
           <p style={{ fontSize: 13, color: '#737373', marginTop: 4 }}>{lista.length} orçamento{lista.length !== 1 ? 's' : ''} cadastrado{lista.length !== 1 ? 's' : ''}</p>
         </div>
-        {podeCriar && (
-          <button onClick={onNovo} style={{
-            padding: '10px 24px', borderRadius: 10, border: 'none',
-            background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
-            color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: 8,
-            boxShadow: '0 4px 12px rgba(220,38,38,0.2)',
-          }}>
-            <Plus size={16} /> Novo Orçamento
-          </button>
-        )}
+        <button onClick={onNovo} {...gateBtn(podeCriar)} style={{
+          padding: '10px 24px', borderRadius: 10, border: 'none',
+          background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+          color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', gap: 8,
+          boxShadow: '0 4px 12px rgba(220,38,38,0.2)',
+          ...estiloSemPermissao(podeCriar),
+        }}>
+          <Plus size={16} /> Novo Orçamento
+        </button>
       </div>
 
       {/* Filtros */}
@@ -366,6 +366,7 @@ export default function OrcamentoLista({ onNovo, onEditar, podeCriar = true, pod
                       value={item.status}
                       onChange={e => alterarStatus(item.id, e.target.value)}
                       disabled={!podeStatus}
+                      title={!podeStatus ? MSG_SEM_PERMISSAO : undefined}
                       style={{
                         fontSize: 11, fontWeight: 700, padding: '4px 8px', borderRadius: 6,
                         background: sc.bg, color: sc.color, border: `1px solid ${sc.border}`,
@@ -385,23 +386,20 @@ export default function OrcamentoLista({ onNovo, onEditar, podeCriar = true, pod
                   <td style={{ ...tdStyle, color: '#737373', fontSize: 12 }}>{item.criado_por || '—'}</td>
                   <td style={{ ...tdStyle, textAlign: 'center' }} onClick={e => e.stopPropagation()}>
                     <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
-                      {podeGerar && (
-                        <button
-                          onClick={() => { setTecnicoGerar(''); setGerarModal({ id: item.id, tipoOrc: item.tipo }) }}
-                          title={item.tipo === 'pecas' ? 'Gerar Pedido (PPV)' : item.tipo === 'mao-de-obra' ? 'Enviar p/ POS (gera OS)' : 'Enviar p/ POS (gera OS + PPV)'}
-                          style={actionBtn}
-                        >
-                          <Send size={15} color="#1d4ed8" />
-                        </button>
-                      )}
+                      <button
+                        onClick={() => { setTecnicoGerar(''); setGerarModal({ id: item.id, tipoOrc: item.tipo }) }}
+                        disabled={!podeGerar}
+                        title={!podeGerar ? MSG_SEM_PERMISSAO : (item.tipo === 'pecas' ? 'Gerar Pedido (PPV)' : item.tipo === 'mao-de-obra' ? 'Enviar p/ POS (gera OS)' : 'Enviar p/ POS (gera OS + PPV)')}
+                        style={{ ...actionBtn, ...estiloSemPermissao(podeGerar) }}
+                      >
+                        <Send size={15} color="#1d4ed8" />
+                      </button>
                       <button onClick={() => verPDF(item.id)} title="Imprimir" style={actionBtn}>
                         <Printer size={15} color="#737373" />
                       </button>
-                      {podeExcluir && (
-                        <button onClick={() => excluir(item.id)} title="Excluir" style={actionBtn}>
-                          <Trash2 size={15} color="#ef4444" />
-                        </button>
-                      )}
+                      <button onClick={() => excluir(item.id)} {...gateBtn(podeExcluir)} title={!podeExcluir ? MSG_SEM_PERMISSAO : 'Excluir'} style={{ ...actionBtn, ...estiloSemPermissao(podeExcluir) }}>
+                        <Trash2 size={15} color="#ef4444" />
+                      </button>
                     </div>
                   </td>
                 </tr>

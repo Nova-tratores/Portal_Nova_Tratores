@@ -6,6 +6,7 @@ import {
   ChevronDown, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui'
 
 // --- Types ---
 export interface Alerta {
@@ -232,16 +233,14 @@ export default function BlocoAlertas({
                     <div style={{ fontSize: 11, fontWeight: 600, color: '#92400E', marginBottom: 3 }}>Justificativa</div>
                     {j.justificativa}
                   </div>
-                  {podeAvaliar && (
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button onClick={() => onAvaliarJustificativa(j.id, true)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, background: '#111', color: '#fff', border: 'none', borderRadius: 4, padding: '8px 0', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-                        <ThumbsUp size={13} /> Aceitar
-                      </button>
-                      <button onClick={() => onAvaliarJustificativa(j.id, false)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, background: 'var(--portal-bg-card)', color: '#DC2626', border: '1px solid #FECACA', borderRadius: 4, padding: '8px 0', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-                        <ThumbsDown size={13} /> Recusar
-                      </button>
-                    </div>
-                  )}
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button onClick={() => onAvaliarJustificativa(j.id, true)} {...gateBtn(podeAvaliar)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, background: '#111', color: '#fff', border: 'none', borderRadius: 4, padding: '8px 0', fontSize: 13, fontWeight: 700, cursor: 'pointer', ...estiloSemPermissao(podeAvaliar) }}>
+                      <ThumbsUp size={13} /> Aceitar
+                    </button>
+                    <button onClick={() => onAvaliarJustificativa(j.id, false)} {...gateBtn(podeAvaliar)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, background: 'var(--portal-bg-card)', color: '#DC2626', border: '1px solid #FECACA', borderRadius: 4, padding: '8px 0', fontSize: 13, fontWeight: 700, cursor: 'pointer', ...estiloSemPermissao(podeAvaliar) }}>
+                      <ThumbsDown size={13} /> Recusar
+                    </button>
+                  </div>
                 </div>
               )
             })}
@@ -270,8 +269,8 @@ export default function BlocoAlertas({
                   {req.quantidade && `Qtd: ${req.quantidade} · `}{req.id_ordem && `OS: ${req.id_ordem} · `}{formatDataHora(req.created_at)}
                 </div>
                 <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
-                  {podeAprovar && <button onClick={() => onAprovarRequisicao(req.id)} style={{ flex: 1, padding: '7px 0', fontSize: 13, fontWeight: 700, background: '#111', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Aprovar</button>}
-                  {podeRecusar && <button onClick={() => onRecusarRequisicao(req.id)} style={{ flex: 1, padding: '7px 0', fontSize: 13, fontWeight: 700, background: 'var(--portal-bg-card)', color: 'var(--portal-text)', border: '1px solid var(--portal-border)', borderRadius: 4, cursor: 'pointer' }}>Recusar</button>}
+                  <button onClick={() => onAprovarRequisicao(req.id)} {...gateBtn(podeAprovar)} style={{ flex: 1, padding: '7px 0', fontSize: 13, fontWeight: 700, background: '#111', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', ...estiloSemPermissao(podeAprovar) }}>Aprovar</button>
+                  <button onClick={() => onRecusarRequisicao(req.id)} {...gateBtn(podeRecusar)} style={{ flex: 1, padding: '7px 0', fontSize: 13, fontWeight: 700, background: 'var(--portal-bg-card)', color: 'var(--portal-text)', border: '1px solid var(--portal-border)', borderRadius: 4, cursor: 'pointer', ...estiloSemPermissao(podeRecusar) }}>Recusar</button>
                 </div>
               </div>
             ))}
@@ -427,13 +426,12 @@ export default function BlocoAlertas({
                           display: 'flex', alignItems: 'center', gap: 6,
                         }}><MessageSquare size={14} /> Contestar</button>
                       )}
-                      {podeConverter && (
-                        <button onClick={() => { setConverterDados({ tipo: 'atraso', pontos_descontados: 5 }); setShowConverterModal(a) }} style={{
-                          background: '#FEE2E2', color: '#DC2626', border: '1px solid #FECACA', borderRadius: 6,
-                          padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                          display: 'flex', alignItems: 'center', gap: 6,
-                        }}><AlertOctagon size={14} /> Converter em Ocorrencia</button>
-                      )}
+                      <button onClick={() => { setConverterDados({ tipo: 'atraso', pontos_descontados: 5 }); setShowConverterModal(a) }} {...gateBtn(podeConverter)} style={{
+                        background: '#FEE2E2', color: '#DC2626', border: '1px solid #FECACA', borderRadius: 6,
+                        padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        ...estiloSemPermissao(podeConverter)
+                      }}><AlertOctagon size={14} /> Converter em Ocorrencia</button>
                       <button onClick={() => fecharAlerta(a.id)} style={{
                         background: '#D1FAE5', color: '#065F46', border: '1px solid #A7F3D0', borderRadius: 6,
                         padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer',

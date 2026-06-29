@@ -6,6 +6,7 @@ import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
 import { useAuditLog } from '@/hooks/useAuditLog'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
+import { MSG_SEM_PERMISSAO } from '@/lib/permissoes/ui'
 import { notificarAdminsClient } from '@/hooks/useNotificarAdmins'
 import { FileText, Calendar, CreditCard, User, Hash, CheckCircle, Upload, Paperclip, X, Mail, MessageCircle } from 'lucide-react'
 
@@ -275,7 +276,7 @@ export default function NovoChamadoNF() {
               />
             </div>
 
-            <button disabled={loading || !podeCriar} type="submit" style={{
+            <button disabled={loading || !podeCriar} title={!podeCriar ? MSG_SEM_PERMISSAO : undefined} type="submit" style={{
               background: (loading || !podeCriar) ? '#e5e7eb' : '#1e293b',
               color: loading ? '#6b7280' : '#ffffff',
               border: 'none',

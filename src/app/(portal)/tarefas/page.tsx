@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
+import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui'
 import SemPermissao from '@/components/SemPermissao'
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
 import {
@@ -210,17 +211,16 @@ function TarefasPageInner() {
             Concluídas
           </button>
 
-          {podeCriar && (
-            <button onClick={() => setShowCreate(true)} style={{
-              padding: '10px 20px', borderRadius: '10px', border: 'none',
-              background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
-              color: '#fff', fontSize: '13px', fontWeight: '600', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: '8px',
-              boxShadow: '0 4px 12px rgba(220,38,38,0.25)'
-            }}>
-              <Plus size={18} /> Nova Tarefa
-            </button>
-          )}
+          <button onClick={() => setShowCreate(true)} {...gateBtn(podeCriar)} style={{
+            padding: '10px 20px', borderRadius: '10px', border: 'none',
+            background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+            color: '#fff', fontSize: '13px', fontWeight: '600', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: '8px',
+            boxShadow: '0 4px 12px rgba(220,38,38,0.25)',
+            ...estiloSemPermissao(podeCriar)
+          }}>
+            <Plus size={18} /> Nova Tarefa
+          </button>
         </div>
       </div>
 

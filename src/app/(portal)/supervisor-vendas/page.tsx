@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
+import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui'
 import SemPermissao from '@/components/SemPermissao'
 import {
   BarChart3, Users, MapPin, AlertTriangle, Eye, ShoppingCart,
@@ -280,11 +281,9 @@ export default function SupervisorVendasPage() {
                 </select>
                 <span style={{ fontSize: 13, color: '#94A3B8' }}>{visitasMapa.length} visitas · {carros.length} carro{carros.length !== 1 ? 's' : ''}</span>
                 <div style={{ flex: 1 }} />
-                {podeCarros && (
-                  <button onClick={() => setShowVincular(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 10, background: 'linear-gradient(135deg, #dc2626, #991b1b)', color: '#fff', border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-                    <Car size={15} /> Carros
-                  </button>
-                )}
+                <button onClick={() => setShowVincular(true)} {...gateBtn(podeCarros)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 10, background: 'linear-gradient(135deg, #dc2626, #991b1b)', color: '#fff', border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer', ...estiloSemPermissao(podeCarros) }}>
+                  <Car size={15} /> Carros
+                </button>
               </div>
 
               {carrosErro && (
@@ -348,15 +347,14 @@ export default function SupervisorVendasPage() {
                           <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text)' }}>{v.cliente_nome}</span>
                           <span style={{ fontSize: 12, color: '#64748B', marginLeft: 8 }}>{v.vendedor_nome} · {fmtData(v.data_visita)}</span>
                         </div>
-                        {podeResolver && (
-                          <button onClick={() => resolverPosVendas(v.id, !v.pos_vendas_resolvido)} style={{
-                            padding: '4px 12px', borderRadius: 6, border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                            background: v.pos_vendas_resolvido ? '#FEF3C7' : '#D1FAE5',
-                            color: v.pos_vendas_resolvido ? '#92400E' : '#065F46',
-                          }}>
-                            {v.pos_vendas_resolvido ? 'Reabrir' : 'Resolver'}
-                          </button>
-                        )}
+                        <button onClick={() => resolverPosVendas(v.id, !v.pos_vendas_resolvido)} {...gateBtn(podeResolver)} style={{
+                          padding: '4px 12px', borderRadius: 6, border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                          background: v.pos_vendas_resolvido ? '#FEF3C7' : '#D1FAE5',
+                          color: v.pos_vendas_resolvido ? '#92400E' : '#065F46',
+                          ...estiloSemPermissao(podeResolver)
+                        }}>
+                          {v.pos_vendas_resolvido ? 'Reabrir' : 'Resolver'}
+                        </button>
                       </div>
                       {v.resumo && <p style={{ fontSize: 13, color: '#64748B', margin: 0 }}>{v.resumo}</p>}
                     </div>

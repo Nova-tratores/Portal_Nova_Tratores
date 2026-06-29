@@ -3,6 +3,7 @@ import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
+import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui'
 import { supabase } from '@/lib/supabase'
 import { filtrarDestinatarios } from '@/lib/notif/prefs'
 import BlocoVisaoGeral from '@/components/painel-mecanicos/BlocoVisaoGeral'
@@ -223,11 +224,9 @@ function PainelMecanicosPage() {
             )}
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
-            {podeCriarOc && (
-              <button onClick={() => setShowOcorrenciaModal(true)} style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#111827', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>
-                <AlertOctagon size={12} /> Ocorrencia
-              </button>
-            )}
+            <button onClick={() => setShowOcorrenciaModal(true)} {...gateBtn(podeCriarOc)} style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#111827', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: 12, fontWeight: 500, cursor: 'pointer', ...estiloSemPermissao(podeCriarOc) }}>
+              <AlertOctagon size={12} /> Ocorrencia
+            </button>
             <button onClick={carregar} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--portal-bg-card)', color: 'var(--portal-text-secondary)', border: '1px solid var(--portal-border)', borderRadius: 6, padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}>
               <RefreshCw size={12} /> Atualizar
             </button>
