@@ -9,6 +9,7 @@ import { buscarESalvarItensOmie } from './vendas-sync';
 import { obterTotalOS } from './os';
 import { sincronizarProdutos, sincronizarApenasEstoque } from './produtos-sync';
 import { capturarSnapshotMensal, backfillSnapshotsHistoricos } from './cruzamento-familia';
+import { sincronizarComprasJanela } from './compras-sync';
 import { sincronizarRemessas, sincronizarMovimentacao, sincronizarOutrasEntradas, cruzarDevolucoes } from '../visual-estoque/remessas-sync';
 
 /**
@@ -105,6 +106,24 @@ export async function cronSnapshotEstoque(): Promise<Record<string, unknown>> {
       resultado[c.id] = await capturarSnapshotMensal(c.id);
     } catch (e) {
       resultado[c.id] = { erro: (e as Error).message };
+    }
+  }
+  return resultado;
+}
+
+/**
+ * Sync INCREMENTAL de compras/notas de entrada (últimos `mesesAtras` meses) por
+ * conta. Mantém `notas_entrada` fresca (NOVA + CASTRO) sem rebuild total, e
+ * atualiza o vínculo de produto (nCodProd) das notas recentes. Sequencial por
+ * conta (cada conta apaga+reescreve só a janela).
+ */
+export async function cronSyncCompras(mesesAtras = 3): Promise<Record<string, unknown>> {
+  const resultado: Record<string, unknown> = {};
+  for (const c of getContasOmie()) {
+    try {
+      resultado[c.id] = await sincronizarComprasJanela(c.id, mesesAtras);
+    } catch (e) {
+      resultado[c.id] = { ok: false, erro: (e as Error).message };
     }
   }
   return resultado;

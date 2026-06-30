@@ -213,14 +213,40 @@ async function buscarTodasContasPagar(deStr: string, ateStr: string, conta: Cont
   return todos;
 }
 
+/** Meses (mes/ano) cobertos por uma janela DD/MM/YYYY → DD/MM/YYYY, inclusive. */
+function mesesNoIntervalo(de: string, ate: string): Array<{ mes: number; ano: number }> {
+  const pd = de.split('/').map(Number); // [DD, MM, YYYY]
+  const pa = ate.split('/').map(Number);
+  let y = pd[2], m = pd[1];
+  const out: Array<{ mes: number; ano: number }> = [];
+  while (y < pa[2] || (y === pa[2] && m <= pa[1])) {
+    out.push({ mes: m, ano: y });
+    m++; if (m > 12) { m = 1; y++; }
+  }
+  return out;
+}
+
+/** Apaga só os meses da janela (incremental), preservando o histórico restante. */
+async function limparJanelaCompras(conta: Conta, de: string, ate: string): Promise<void> {
+  for (const { mes, ano } of mesesNoIntervalo(de, ate)) {
+    await supabase.from('compras_itens').delete().eq('conta_omie', conta).eq('ano', ano).eq('mes', mes);
+    await supabase.from('notas_entrada').delete().eq('conta_omie', conta).eq('ano', ano).eq('mes', mes);
+  }
+}
+
 // === Orquestração de uma conta (limpa + repopula + enriquece) ===
-async function popularComprasConta(conta: Conta, de: string, ate: string): Promise<void> {
+// janelaApenas=true: apaga só os meses de [de,ate] (incremental, p/ cron).
+async function popularComprasConta(conta: Conta, de: string, ate: string, janelaApenas = false): Promise<void> {
   const s = getSyncState(conta);
   try {
     s.etapa = 'compras';
     s.mesAtual = 'iniciando...';
-    await supabase.from('compras_itens').delete().eq('conta_omie', conta);
-    await supabase.from('notas_entrada').delete().eq('conta_omie', conta);
+    if (janelaApenas) {
+      await limparJanelaCompras(conta, de, ate);
+    } else {
+      await supabase.from('compras_itens').delete().eq('conta_omie', conta);
+      await supabase.from('notas_entrada').delete().eq('conta_omie', conta);
+    }
 
     const { itens, notasCompletas } = await buscarTodasNotasEntrada(de, ate, conta, (mesLabel, mesAtual, mesTotal, itensAteAgora) => {
       s.mesAtual = 'mes ' + mesLabel + ' (' + mesAtual + '/' + mesTotal + ') - ' + itensAteAgora + ' itens ate agora';
@@ -385,4 +411,29 @@ export function iniciarPopularCompras(contasAlvo: Conta[]): { contasIniciadas: C
   });
 
   return { contasIniciadas: aIniciar, contasPuladas: puladas };
+}
+
+/**
+ * Sync INCREMENTAL de uma conta: re-busca só os últimos `mesesAtras` meses da
+ * Omie e regrava só esses meses (preserva o histórico). Atualiza o vínculo
+ * nfProdInt.nCodProd dos itens que foram associados desde o último sync.
+ * Aguarda a conclusão (uso em cron). Respeita o lock per-conta.
+ */
+export async function sincronizarComprasJanela(conta: Conta, mesesAtras = 3): Promise<{ conta: Conta; ok: boolean; erro?: string }> {
+  if (getSyncState(conta).rodando) return { conta, ok: false, erro: 'sync ja rodando' };
+  resetSyncState(conta);
+  const s = getSyncState(conta);
+  s.rodando = true;
+  s.etapa = 'compras';
+  const now = new Date();
+  const de = fmtD(new Date(now.getFullYear(), now.getMonth() - Math.max(0, mesesAtras - 1), 1));
+  const ate = fmtD(now);
+  try {
+    await popularComprasConta(conta, de, ate, true);
+    return { conta, ok: true };
+  } catch (e) {
+    s.erro = 'Fatal: ' + (e as Error).message;
+    s.rodando = false;
+    return { conta, ok: false, erro: (e as Error).message };
+  }
 }
