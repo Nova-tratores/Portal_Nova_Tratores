@@ -18,25 +18,34 @@ const norm = (s: string): string =>
 const SEM_FAMILIA = 'Sem família';
 
 export type TipoFamilia = '' | 'pecas' | 'maquinas';
+export type Grupo = 'maquina' | 'peca' | 'ignorar';
 
-/** Classifica uma família como máquina ou peça (mesma heurística da Curva ABC/Giro). */
-export function classificarTipo(familia: string): 'maquina' | 'peca' {
+/**
+ * Classifica a família em grupo. Regra do cliente:
+ *   - "Kit revisão" → ignorar
+ *   - "#N/D" / sem família → ignorar
+ *   - contém "peça" → peça
+ *   - tudo o resto → máquina
+ */
+export function classificarGrupo(familia: string): Grupo {
   const fam = norm(familia);
-  if (fam.includes('maquina') || fam.includes('trator') || fam.includes('implemento') || fam.includes('agricul')) {
-    return 'maquina';
+  if (!fam || fam === 'nd' || fam === 'n/d' || fam === '#n/d' || fam.includes('sem famil') || fam.includes('sem nome') || fam.includes('indefinid')) {
+    return 'ignorar';
   }
-  return 'peca';
+  if (fam.includes('kit') && fam.includes('revis')) return 'ignorar';
+  if (fam.includes('peca')) return 'peca';
+  return 'maquina';
 }
 
 function passaTipo(familia: string, filtro: TipoFamilia): boolean {
   if (!filtro) return true;
-  const t = classificarTipo(familia);
-  return filtro === 'maquinas' ? t === 'maquina' : t === 'peca';
+  const g = classificarGrupo(familia);
+  return filtro === 'maquinas' ? g === 'maquina' : g === 'peca';
 }
 
 export interface FamiliaLinha {
   familia: string;
-  tipo: 'maquina' | 'peca';
+  tipo: Grupo;
   estoque_qtd: number;
   estoque_valor: number;
   entradas_qtd: number;
@@ -227,7 +236,7 @@ export async function cruzamentoPorFamilia(
 
   let linhas: FamiliaLinha[] = Object.entries(acc).map(([familia, a]) => ({
     familia,
-    tipo: classificarTipo(familia),
+    tipo: classificarGrupo(familia),
     estoque_qtd: a.estoque_qtd,
     estoque_valor: a.estoque_valor,
     entradas_qtd: a.entradas_qtd,
@@ -251,4 +260,168 @@ export async function cruzamentoPorFamilia(
   }, { estoque_qtd: 0, estoque_valor: 0, entradas_qtd: 0, entradas_valor: 0, saidas_qtd: 0, saidas_valor: 0 });
 
   return { linhas, totais, mes, ano, entradasSemFamilia: entradas.semFamilia };
+}
+
+// ===========================================================================
+// Série mensal (gráfico): valor de Estoque Peça, Estoque Máquina, NF Entrada e
+// NF Saída, mês a mês.
+//
+// NF Entrada = soma de valor_nf das notas de entrada do mês (valor total da nota).
+// NF Saída   = soma de valor_total das vendas do mês.
+// Estoque    = RECONSTRUÍDO a partir do saldo atual, caminhando para trás:
+//              estoque_fim(m-1) = estoque_fim(m) − entradas_a_custo(m) + COGS(m).
+//              Aproximado: ignora ajustes/devoluções manuais e usa o CMC atual.
+// ===========================================================================
+
+const MESES_ABREV = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+function labelMes(mes: number, ano: number): string {
+  return `${MESES_ABREV[mes - 1]}/${String(ano).slice(2)}`;
+}
+
+/** Últimos `n` meses (incluindo o atual), em ordem cronológica crescente. */
+export function ultimosMeses(n: number): Array<{ mes: number; ano: number }> {
+  const out: Array<{ mes: number; ano: number }> = [];
+  const hoje = new Date();
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+    out.push({ mes: d.getMonth() + 1, ano: d.getFullYear() });
+  }
+  return out;
+}
+
+export interface PontoMensal {
+  periodo: string;
+  mes: number;
+  ano: number;
+  estoque_peca: number;
+  estoque_maquina: number;
+  nf_entrada: number;
+  nf_saida: number;
+}
+
+export interface SerieMensalResult {
+  pontos: PontoMensal[];
+  estoqueAtual: { peca: number; maquina: number };
+}
+
+/** Notas de entrada de um mês: total da nota (valor_nf) + custo de entrada por grupo. */
+async function notasDoMes(
+  mes: number,
+  ano: number,
+  conta: ContaFiltro,
+  famPorCodigo: Record<string, string>,
+  escaped: string | null,
+): Promise<{ nfTotal: number; custoPeca: number; custoMaq: number }> {
+  let nfTotal = 0, custoPeca = 0, custoMaq = 0;
+  let offset = 0;
+  const LOTE = 1000;
+  while (true) {
+    let query = supabase.from('notas_entrada').select('valor_nf,itens').eq('mes', mes).eq('ano', ano);
+    query = filtroConta(query, conta);
+    query = query.or('cancelada.is.null,cancelada.eq.false');
+    if (escaped) query = query.not('nome_emitente', 'in', escaped);
+    const { data, error } = await query.range(offset, offset + LOTE - 1);
+    if (error) throw new Error(error.message);
+    const lote = (data || []) as Array<{ valor_nf: unknown; itens: unknown }>;
+    for (const nota of lote) {
+      nfTotal += num(nota.valor_nf);
+      const itens = Array.isArray(nota.itens) ? (nota.itens as Array<Record<string, unknown>>) : [];
+      for (const it of itens) {
+        const cod = String(it.codigo_produto ?? '');
+        const g = classificarGrupo(famPorCodigo[cod] || '');
+        const v = num(it.valor_total);
+        if (g === 'peca') custoPeca += v;
+        else if (g === 'maquina') custoMaq += v;
+      }
+    }
+    if (lote.length < LOTE) break;
+    offset += LOTE;
+  }
+  return { nfTotal, custoPeca, custoMaq };
+}
+
+/** Vendas de um mês: total faturado (valor_total) + COGS (cmc×qtd) por grupo. */
+async function vendasDoMes(
+  mes: number,
+  ano: number,
+  conta: ContaFiltro,
+  famPorCodigo: Record<string, string>,
+): Promise<{ nfTotal: number; cogsPeca: number; cogsMaq: number }> {
+  let nfTotal = 0, cogsPeca = 0, cogsMaq = 0;
+  let offset = 0;
+  const LOTE = 1000;
+  while (true) {
+    const { data, error } = await filtroConta(
+      supabase
+        .from('vendas_itens')
+        .select('codigo_produto,familia,quantidade,valor_total,cmc_unitario')
+        .eq('mes', mes)
+        .eq('ano', ano),
+      conta,
+    ).range(offset, offset + LOTE - 1);
+    if (error) throw new Error(error.message);
+    const lote = (data || []) as Array<{ codigo_produto: unknown; familia: unknown; quantidade: unknown; valor_total: unknown; cmc_unitario: unknown }>;
+    for (const v of lote) {
+      nfTotal += num(v.valor_total);
+      const cod = String(v.codigo_produto ?? '');
+      const fam = famPorCodigo[cod] || String(v.familia ?? '');
+      const g = classificarGrupo(fam);
+      const cogs = num(v.cmc_unitario) * num(v.quantidade);
+      if (g === 'peca') cogsPeca += cogs;
+      else if (g === 'maquina') cogsMaq += cogs;
+    }
+    if (lote.length < LOTE) break;
+    offset += LOTE;
+  }
+  return { nfTotal, cogsPeca, cogsMaq };
+}
+
+export async function serieMensal(
+  meses: Array<{ mes: number; ano: number }>,
+  conta: ContaFiltro,
+): Promise<SerieMensalResult> {
+  const { estoquePorFamilia, famPorCodigo } = await carregarProdutos(conta);
+
+  // Estoque atual por grupo (valor).
+  let estPeca = 0, estMaq = 0;
+  for (const [fam, v] of Object.entries(estoquePorFamilia)) {
+    const g = classificarGrupo(fam);
+    if (g === 'peca') estPeca += v.valor;
+    else if (g === 'maquina') estMaq += v.valor;
+  }
+
+  const { nomes } = await getIgnorarFiltro(conta);
+  const escaped = nomes.length > 0 ? '(' + nomes.map((n) => '"' + String(n).replace(/"/g, '') + '"').join(',') + ')' : null;
+
+  // Fluxos mês a mês (nota + venda do mesmo mês em paralelo; meses em série).
+  const fluxo: Array<{ m: { mes: number; ano: number }; nota: Awaited<ReturnType<typeof notasDoMes>>; venda: Awaited<ReturnType<typeof vendasDoMes>> }> = [];
+  for (const m of meses) {
+    const [nota, venda] = await Promise.all([
+      notasDoMes(m.mes, m.ano, conta, famPorCodigo, escaped),
+      vendasDoMes(m.mes, m.ano, conta, famPorCodigo),
+    ]);
+    fluxo.push({ m, nota, venda });
+  }
+
+  // Reconstrução para trás a partir do estoque atual (último mês = mais recente).
+  const k = fluxo.length;
+  const pecaArr = new Array<number>(k).fill(0);
+  const maqArr = new Array<number>(k).fill(0);
+  if (k > 0) { pecaArr[k - 1] = estPeca; maqArr[k - 1] = estMaq; }
+  for (let i = k - 1; i >= 1; i--) {
+    pecaArr[i - 1] = Math.max(0, pecaArr[i] - fluxo[i].nota.custoPeca + fluxo[i].venda.cogsPeca);
+    maqArr[i - 1] = Math.max(0, maqArr[i] - fluxo[i].nota.custoMaq + fluxo[i].venda.cogsMaq);
+  }
+
+  const pontos: PontoMensal[] = fluxo.map((f, i) => ({
+    periodo: labelMes(f.m.mes, f.m.ano),
+    mes: f.m.mes,
+    ano: f.m.ano,
+    estoque_peca: Math.round(pecaArr[i]),
+    estoque_maquina: Math.round(maqArr[i]),
+    nf_entrada: Math.round(f.nota.nfTotal),
+    nf_saida: Math.round(f.venda.nfTotal),
+  }));
+
+  return { pontos, estoqueAtual: { peca: estPeca, maquina: estMaq } };
 }

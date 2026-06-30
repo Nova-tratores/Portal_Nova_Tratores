@@ -9,10 +9,14 @@ import SemPermissao from '@/components/SemPermissao';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 import { fmtRS } from '@/components/estoque/ui';
+import SerieMensalChart, { type PontoMensal } from '@/components/estoque/SerieMensalChart';
+
+type Tab = 'mes' | 'grafico';
+interface SerieResp { pontos: PontoMensal[]; estoqueAtual: { peca: number; maquina: number }; erro?: string }
 
 interface Linha {
   familia: string;
-  tipo: 'maquina' | 'peca';
+  tipo: 'maquina' | 'peca' | 'ignorar';
   estoque_qtd: number;
   estoque_valor: number;
   entradas_qtd: number;
@@ -49,6 +53,7 @@ export default function CruzamentoFamiliaPage() {
   const { contaParam } = useConta();
 
   const agora = new Date();
+  const [tab, setTab] = useState<Tab>('mes');
   const [mes, setMes] = useState(agora.getMonth() + 1);
   const [ano, setAno] = useState(agora.getFullYear());
   const [tipo, setTipo] = useState('');
@@ -58,6 +63,12 @@ export default function CruzamentoFamiliaPage() {
   const [dados, setDados] = useState<Resp | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('estoque_valor');
   const [sortDir, setSortDir] = useState<1 | -1>(-1);
+
+  // Aba "Gráfico mensal"
+  const [meses, setMeses] = useState(12);
+  const [serie, setSerie] = useState<SerieResp | null>(null);
+  const [serieCarregando, setSerieCarregando] = useState(false);
+  const [serieErro, setSerieErro] = useState('');
 
   const carregar = useCallback(async () => {
     setCarregando(true);
@@ -74,7 +85,24 @@ export default function CruzamentoFamiliaPage() {
     }
   }, [mes, ano, tipo, contaParam]);
 
-  useEffect(() => { carregar(); }, [carregar]);
+  useEffect(() => { if (tab === 'mes') carregar(); }, [carregar, tab]);
+
+  const carregarSerie = useCallback(async () => {
+    setSerieCarregando(true);
+    setSerieErro('');
+    try {
+      const r = await fetch(`/api/estoque/cruzamento-familia/serie?meses=${meses}${contaParam}`);
+      const d = (await r.json()) as SerieResp;
+      if (d.erro) { setSerieErro(d.erro); setSerie(null); return; }
+      setSerie(d);
+    } catch (ex) {
+      setSerieErro('Erro: ' + (ex as Error).message);
+    } finally {
+      setSerieCarregando(false);
+    }
+  }, [meses, contaParam]);
+
+  useEffect(() => { if (tab === 'grafico') carregarSerie(); }, [carregarSerie, tab]);
 
   const ordenar = (k: SortKey) => {
     if (k === sortKey) setSortDir((d) => (d === 1 ? -1 : 1));
@@ -133,6 +161,18 @@ export default function CruzamentoFamiliaPage() {
         <Link href="/estoque/curva-abc" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>→ Curva ABC</Link>
       </div>
 
+      {/* Abas */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
+        {([['mes', 'Tabela do mês'], ['grafico', 'Gráfico mensal']] as [Tab, string][]).map(([id, label]) => (
+          <button key={id} onClick={() => setTab(id)}
+            style={{ padding: '8px 16px', border: '1px solid', borderColor: tab === id ? '#dc2626' : '#e0e0e0', background: tab === id ? '#dc2626' : '#fff', color: tab === id ? '#fff' : '#666', borderRadius: 8, fontSize: '.82rem', fontWeight: 600, cursor: 'pointer' }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'mes' && (
+      <>
       {/* Filtros */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 18, alignItems: 'flex-end', flexWrap: 'wrap' }}>
         <Sel label="Mês" value={mes} onChange={(v) => setMes(parseInt(v))} options={MESES.map((nome, i) => ({ value: i + 1, label: nome }))} />
@@ -187,7 +227,7 @@ export default function CruzamentoFamiliaPage() {
                   <tr key={i}>
                     <td style={tdStyle}>
                       {l.familia}
-                      <span style={{ marginLeft: 6, fontSize: '.6rem', color: '#aaa', textTransform: 'uppercase' }}>{l.tipo === 'maquina' ? 'máq' : 'peça'}</span>
+                      <span style={{ marginLeft: 6, fontSize: '.6rem', color: '#aaa', textTransform: 'uppercase' }}>{l.tipo === 'maquina' ? 'máq' : l.tipo === 'peca' ? 'peça' : '—'}</span>
                     </td>
                     <td style={tdNum}>{l.estoque_qtd ? fmtQtd(l.estoque_qtd) : '—'}</td>
                     <td style={tdNum}>{l.estoque_valor ? fmtRS(l.estoque_valor) : '—'}</td>
@@ -220,6 +260,53 @@ export default function CruzamentoFamiliaPage() {
             Estoque = saldo atual × CMC (snapshot do último sync, não histórico do mês). Saídas = vendas do mês. Entradas = itens das notas de entrada do mês, com família resolvida pelo código do produto.
           </p>
         </>
+      )}
+      </>
+      )}
+
+      {tab === 'grafico' && (
+      <>
+        <div style={{ display: 'flex', gap: 10, marginBottom: 18, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <Sel label="Período" value={meses} onChange={(v) => setMeses(parseInt(v))} options={[6, 12, 18, 24].map((m) => ({ value: m, label: m + ' meses' }))} />
+        </div>
+
+        {serieErro && <div style={{ color: '#dc2626', marginBottom: 12, fontSize: '.85rem' }}>{serieErro}</div>}
+        {serieCarregando && <div style={{ color: '#888', fontSize: '.85rem' }}>Carregando…</div>}
+
+        {serie && !serieCarregando && (
+          <>
+            <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 16, marginBottom: 12 }}>
+              <SerieMensalChart dados={serie.pontos} />
+            </div>
+
+            <div style={{ overflowX: 'auto', background: '#fff', border: '1px solid #eee', borderRadius: 12 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead><tr>
+                  <th style={thStyle}>Mês</th>
+                  <th style={{ ...thNum, color: '#2563eb' }}>Estoque Peça</th>
+                  <th style={{ ...thNum, color: '#d97706' }}>Estoque Máquina</th>
+                  <th style={{ ...thNum, color: '#16a34a' }}>NF Entrada</th>
+                  <th style={{ ...thNum, color: '#dc2626' }}>NF Saída</th>
+                </tr></thead>
+                <tbody>
+                  {serie.pontos.map((p, i) => (
+                    <tr key={i}>
+                      <td style={tdStyle}>{p.periodo}</td>
+                      <td style={tdNum}>{fmtRS(p.estoque_peca)}</td>
+                      <td style={tdNum}>{fmtRS(p.estoque_maquina)}</td>
+                      <td style={{ ...tdNum, color: '#16a34a' }}>{fmtRS(p.nf_entrada)}</td>
+                      <td style={{ ...tdNum, color: '#dc2626' }}>{fmtRS(p.nf_saida)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p style={{ color: '#aaa', fontSize: '.72rem', marginTop: 10 }}>
+              NF Entrada = total das notas de entrada do mês. NF Saída = total das vendas do mês. Estoque Peça/Máquina é <strong>reconstruído</strong> a partir do saldo atual (estoque do mês = estoque do mês seguinte − entradas a custo + custo das saídas), portanto é uma <strong>aproximação</strong>: não considera ajustes/devoluções manuais e usa o CMC atual. Famílias &quot;#N/D&quot; e &quot;Kit revisão&quot; são ignoradas.
+            </p>
+          </>
+        )}
+      </>
       )}
     </div>
   );
