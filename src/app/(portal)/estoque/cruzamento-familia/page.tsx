@@ -13,7 +13,7 @@ import SerieMensalChart, { type PontoMensal, type SerieDef } from '@/components/
 import ComposicaoModal, { type ComposicaoParams } from '@/components/estoque/ComposicaoModal';
 
 type Tab = 'mes' | 'grafico';
-type Dimensao = 'tipo' | 'categoria';
+type Dimensao = 'tipo' | 'categoria' | 'familia';
 interface SerieResp { pontos: PontoMensal[]; series: SerieDef[]; dimensao: Dimensao; estoqueAtual: { peca: number; maquina: number }; erro?: string }
 
 // R$ sem centavos (gráfico e popup).
@@ -167,13 +167,17 @@ export default function CruzamentoFamiliaPage() {
     } else if (s.key.startsWith('nf_saida_')) {
       params = { fonte: 'saida', mes: mesN, ano: anoN, grupo: s.key.endsWith('peca') ? 'peca' : 'maquina' };
     } else if (s.key.startsWith('entrada::')) {
-      const cat = s.key.slice('entrada::'.length);
-      if (cat === 'Outras') return;
-      params = { fonte: 'entrada', mes: mesN, ano: anoN, categoria: cat };
+      const nome = s.key.slice('entrada::'.length);
+      if (nome === 'Outras') return;
+      params = serie?.dimensao === 'familia'
+        ? { fonte: 'entrada', mes: mesN, ano: anoN, familia: nome }
+        : { fonte: 'entrada', mes: mesN, ano: anoN, categoria: nome };
     } else if (s.key.startsWith('saida::')) {
-      const cat = s.key.slice('saida::'.length);
-      if (cat === 'Outras') return;
-      params = { fonte: 'saida', mes: mesN, ano: anoN, categoria: cat };
+      const nome = s.key.slice('saida::'.length);
+      if (nome === 'Outras') return;
+      params = serie?.dimensao === 'familia'
+        ? { fonte: 'saida', mes: mesN, ano: anoN, familia: nome }
+        : { fonte: 'saida', mes: mesN, ano: anoN, categoria: nome };
     }
     if (params) setPopup({ titulo: `${s.label} — ${s.key.startsWith('estoque') ? 'saldo atual' : labelMes}`, params });
   };
@@ -315,8 +319,8 @@ export default function CruzamentoFamiliaPage() {
       {tab === 'grafico' && (
       <>
         <div style={{ display: 'flex', gap: 10, marginBottom: 18, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-          <Sel label="Período" value={meses} onChange={(v) => setMeses(parseInt(v))} options={[6, 12, 18, 24].map((m) => ({ value: m, label: m + ' meses' }))} />
-          <Sel label="Entrada/Saída por" value={dimensao} onChange={(v) => setDimensao(v as Dimensao)} options={[{ value: 'tipo', label: 'Tipo (Peça/Máquina)' }, { value: 'categoria', label: 'Categoria' }]} />
+          <Sel label="Período" value={meses} onChange={(v) => setMeses(parseInt(v))} options={[6, 12, 18, 24, 36, 48].map((m) => ({ value: m, label: m + ' meses' }))} />
+          <Sel label="Entrada/Saída por" value={dimensao} onChange={(v) => setDimensao(v as Dimensao)} options={[{ value: 'tipo', label: 'Tipo (Peça/Máquina)' }, { value: 'categoria', label: 'Categoria' }, { value: 'familia', label: 'Família' }]} />
         </div>
 
         {serieErro && <div style={{ color: '#dc2626', marginBottom: 12, fontSize: '.85rem' }}>{serieErro}</div>}
@@ -354,8 +358,8 @@ export default function CruzamentoFamiliaPage() {
               </table>
             </div>
             <p style={{ color: '#aaa', fontSize: '.72rem', marginTop: 10 }}>
-              NF Entrada = itens das notas de entrada do mês. NF Saída = vendas do mês. {dimensao === 'categoria' && 'Linha cheia = entrada, tracejada = saída; cada cor é uma categoria (top 6 + “Outras”). '}
-              Estoque Peça/Máquina é <strong>reconstruído</strong> a partir do saldo atual (estoque do mês = mês seguinte − entradas a custo + custo das saídas), portanto é uma <strong>aproximação</strong>. Famílias &quot;#N/D&quot;, &quot;Kit revisão&quot; e &quot;Ativo imobilizado&quot; são ignoradas. Clique numa célula para ver a composição.
+              NF Entrada = itens das notas de entrada do mês. NF Saída = vendas do mês. {dimensao === 'categoria' && 'Linha cheia = entrada, tracejada = saída; cada cor é uma categoria (top 6 + “Outras”). '}{dimensao === 'familia' && 'Linha cheia = entrada, tracejada = saída; cada cor é uma família (top 6 + “Outras”). '}
+              Estoque Peça/Máquina vem do <strong>snapshot mensal</strong> (valor congelado a cada captura): o mês atual mostra o saldo de hoje e os meses anteriores aparecem conforme o histórico for sendo gravado — meses sem snapshot ficam sem ponto. Famílias &quot;#N/D&quot;, &quot;Kit revisão&quot; e &quot;Ativo imobilizado&quot; são ignoradas. Clique numa célula para ver a composição.
             </p>
           </>
         )}

@@ -187,7 +187,9 @@ async function buscarLocaisEstoque(conta: Conta): Promise<Array<{ id: number; no
 
 // Posição de estoque de TODOS os produtos, iterando cada local e agregando
 // saldo por produto (CMC ponderado pelo saldo). Retorna Map<codigo, {saldo, cmc}>.
-async function buscarPosicaoEstoqueBulkOmie(conta: Conta): Promise<Map<number, { saldo: number; cmc: number }>> {
+// `dataPosicao` (DD/MM/YYYY) permite consultar a posição numa data passada
+// (usado pelo backfill de snapshot histórico); default = hoje.
+export async function buscarPosicaoEstoqueBulkOmie(conta: Conta, dataPosicao?: string): Promise<Map<number, { saldo: number; cmc: number }>> {
   const locais = await buscarLocaisEstoque(conta);
   console.log(`SYNC [${conta}]: ${locais.length} locais de estoque: ${locais.map((l) => l.nome).join(', ')}`);
   await sleep(API_DELAY);
@@ -195,7 +197,7 @@ async function buscarPosicaoEstoqueBulkOmie(conta: Conta): Promise<Map<number, {
   if (locais.length === 0) throw new Error('Nenhum local de estoque ativo encontrado');
 
   const acumulado = new Map<number, { saldo: number; cmcSum: number; cmcWeight: number }>();
-  const hoje = dataHojeBR();
+  const dataPos = dataPosicao || dataHojeBR();
 
   for (const local of locais) {
     let pagina = 1;
@@ -204,7 +206,7 @@ async function buscarPosicaoEstoqueBulkOmie(conta: Conta): Promise<Map<number, {
       const data = await omieRequest<{ produtos?: OmiePosEstoqueItem[]; nTotPaginas?: number }>(
         '/estoque/consulta/',
         'ListarPosEstoque',
-        { nPagina: pagina, nRegPorPagina: 500, dDataPosicao: hoje, cExibeTodos: 'S', codigo_local_estoque: local.id },
+        { nPagina: pagina, nRegPorPagina: 500, dDataPosicao: dataPos, cExibeTodos: 'S', codigo_local_estoque: local.id },
         OMIE_OPTS(conta),
       );
       if (data.nTotPaginas) totalPaginas = data.nTotPaginas;

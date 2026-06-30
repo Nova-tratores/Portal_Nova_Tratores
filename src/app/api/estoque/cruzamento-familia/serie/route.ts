@@ -9,8 +9,9 @@ export const maxDuration = 60;
 // Série mensal: Estoque Peça/Máquina + NF Entrada/Saída por tipo ou por categoria.
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
-  const n = Math.min(36, Math.max(2, parseInt(sp.get('meses') || '12') || 12));
-  const dimensao: Dimensao = sp.get('dimensao') === 'categoria' ? 'categoria' : 'tipo';
+  const n = Math.min(48, Math.max(2, parseInt(sp.get('meses') || '12') || 12));
+  const dimRaw = sp.get('dimensao');
+  const dimensao: Dimensao = dimRaw === 'categoria' || dimRaw === 'familia' ? dimRaw : 'tipo';
   const conta = parseConta(sp.get('conta'));
 
   try {

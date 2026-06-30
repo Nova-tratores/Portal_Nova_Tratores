@@ -10,6 +10,7 @@
 import { supabase, filtroConta } from './supabase';
 import { getIgnorarFiltro } from './ignorar-clientes';
 import { buscarCategoriasOmie } from './notas-entrada';
+import { buscarPosicaoEstoqueBulkOmie } from './produtos-sync';
 import { CONTA_DEFAULT, type Conta, type ContaFiltro } from './conta';
 
 const num = (v: unknown): number => parseFloat(String(v ?? 0)) || 0;
@@ -18,10 +19,11 @@ const norm = (s: string): string =>
 
 const SEM_FAMILIA = 'Sem família';
 const SEM_CATEGORIA = 'Sem categoria';
+const SNAPSHOT_TABLE = 'estoque_familia_snapshot';
 
 export type TipoFamilia = '' | 'pecas' | 'maquinas';
 export type Grupo = 'maquina' | 'peca' | 'ignorar';
-export type Dimensao = 'tipo' | 'categoria';
+export type Dimensao = 'tipo' | 'categoria' | 'familia';
 
 /**
  * Classifica a família em grupo. Regra do cliente:
@@ -346,14 +348,18 @@ interface FluxoMes {
   // por categoria
   entradaPorCat: Record<string, number>;
   saidaPorCat: Record<string, number>;
+  // por família
+  entradaPorFam: Record<string, number>;
+  saidaPorFam: Record<string, number>;
 }
 
 async function notasDoMes(
   mes: number, ano: number, conta: ContaFiltro,
   famPorCodigo: Record<string, string>, escaped: string | null,
-): Promise<{ entradaPeca: number; entradaMaq: number; entradaPorCat: Record<string, number> }> {
+): Promise<{ entradaPeca: number; entradaMaq: number; entradaPorCat: Record<string, number>; entradaPorFam: Record<string, number> }> {
   let entradaPeca = 0, entradaMaq = 0;
   const entradaPorCat: Record<string, number> = {};
+  const entradaPorFam: Record<string, number> = {};
   let offset = 0;
   const LOTE = 1000;
   while (true) {
@@ -369,25 +375,30 @@ async function notasDoMes(
       const itens = Array.isArray(nota.itens) ? (nota.itens as Array<Record<string, unknown>>) : [];
       for (const it of itens) {
         const { codigo, valor } = parseItemEntrada(it);
-        const g = classificarGrupo(famPorCodigo[codigo] || '');
+        const fam = famPorCodigo[codigo] || '';
+        const g = classificarGrupo(fam);
         if (g === 'peca') entradaPeca += valor;
         else if (g === 'maquina') entradaMaq += valor;
-        // categoria: só conta o que não é ignorado (mesma base do "tipo")
-        if (g !== 'ignorar') entradaPorCat[cat] = (entradaPorCat[cat] || 0) + valor;
+        // categoria/família: só conta o que não é ignorado (mesma base do "tipo")
+        if (g !== 'ignorar') {
+          entradaPorCat[cat] = (entradaPorCat[cat] || 0) + valor;
+          entradaPorFam[fam] = (entradaPorFam[fam] || 0) + valor;
+        }
       }
     }
     if (lote.length < LOTE) break;
     offset += LOTE;
   }
-  return { entradaPeca, entradaMaq, entradaPorCat };
+  return { entradaPeca, entradaMaq, entradaPorCat, entradaPorFam };
 }
 
 async function vendasDoMes(
   mes: number, ano: number, conta: ContaFiltro,
   famPorCodigo: Record<string, string>, catMap: Record<string, string>,
-): Promise<{ cogsPeca: number; cogsMaq: number; saidaPeca: number; saidaMaq: number; saidaPorCat: Record<string, number> }> {
+): Promise<{ cogsPeca: number; cogsMaq: number; saidaPeca: number; saidaMaq: number; saidaPorCat: Record<string, number>; saidaPorFam: Record<string, number> }> {
   let cogsPeca = 0, cogsMaq = 0, saidaPeca = 0, saidaMaq = 0;
   const saidaPorCat: Record<string, number> = {};
+  const saidaPorFam: Record<string, number> = {};
   let offset = 0;
   const LOTE = 1000;
   while (true) {
@@ -413,12 +424,162 @@ async function vendasDoMes(
         const cod_cat = String(v.codigo_categoria ?? '');
         const cat = catMap[cod_cat] || (cod_cat ? cod_cat : SEM_CATEGORIA);
         saidaPorCat[cat] = (saidaPorCat[cat] || 0) + valor;
+        saidaPorFam[fam] = (saidaPorFam[fam] || 0) + valor;
       }
     }
     if (lote.length < LOTE) break;
     offset += LOTE;
   }
-  return { cogsPeca, cogsMaq, saidaPeca, saidaMaq, saidaPorCat };
+  return { cogsPeca, cogsMaq, saidaPeca, saidaMaq, saidaPorCat, saidaPorFam };
+}
+
+// ===========================================================================
+// Snapshot mensal de estoque por família (tabela estoque_familia_snapshot).
+// Como não há histórico de saldo na Omie, congelamos o valor atual a cada
+// captura. O cron grava o mês corrente; quando o mês vira, a última captura
+// daquele mês fica como "fim de mês". Substitui a reconstrução para trás (que
+// inflava o estoque de máquina, pois compras de máquina não passam por NF).
+// ===========================================================================
+
+async function upsertSnapshot(
+  conta: Conta,
+  mes: number,
+  ano: number,
+  estoquePorFamilia: Record<string, { qtd: number; valor: number }>,
+): Promise<number> {
+  const contaLow = String(conta).toLowerCase();
+  const rows = Object.entries(estoquePorFamilia)
+    .filter(([, v]) => v.qtd !== 0 || v.valor !== 0)
+    .map(([familia, v]) => ({ conta_omie: contaLow, ano, mes, familia, estoque_qtd: v.qtd, estoque_valor: v.valor }));
+  if (rows.length === 0) return 0;
+  for (let i = 0; i < rows.length; i += 500) {
+    const { error } = await supabase.from(SNAPSHOT_TABLE).upsert(rows.slice(i, i + 500), { onConflict: 'conta_omie,ano,mes,familia' });
+    if (error) throw new Error(error.message);
+  }
+  return rows.length;
+}
+
+/** Captura/atualiza o snapshot do mês (default: mês atual) para uma conta. */
+export async function capturarSnapshotMensal(
+  conta: Conta,
+  mes?: number,
+  ano?: number,
+): Promise<{ conta: Conta; mes: number; ano: number; familias: number }> {
+  const now = new Date();
+  const m = mes ?? now.getMonth() + 1;
+  const a = ano ?? now.getFullYear();
+  const { estoquePorFamilia } = await carregarProdutos(conta);
+  const familias = await upsertSnapshot(conta, m, a, estoquePorFamilia);
+  return { conta, mes: m, ano: a, familias };
+}
+
+// --- Backfill do histórico real de estoque via posição-por-data na Omie ---
+
+const MAX_MESES_BACKFILL = 60; // teto de segurança
+
+/** Último dia do mês em DD/MM/YYYY; para o mês corrente usa hoje. */
+function ultimoDiaMesBR(mes: number, ano: number): string {
+  const now = new Date();
+  if (mes === now.getMonth() + 1 && ano === now.getFullYear()) {
+    const dd = String(now.getDate()).padStart(2, '0');
+    return `${dd}/${String(mes).padStart(2, '0')}/${ano}`;
+  }
+  const ultimo = new Date(ano, mes, 0).getDate(); // dia 0 do mês seguinte = último deste
+  return `${String(ultimo).padStart(2, '0')}/${String(mes).padStart(2, '0')}/${ano}`;
+}
+
+export interface BackfillSnapshotStatus {
+  rodando: boolean;
+  conta?: Conta;
+  total?: number;
+  processados?: number;
+  mesAtual?: string;
+  linhasGravadas?: number;
+  ultimoErro?: string | null;
+  finalizadoEm?: string | null;
+}
+const backfillSnapStatus: Record<string, BackfillSnapshotStatus> = {};
+
+export function getBackfillSnapshotStatus(conta?: Conta): Record<string, BackfillSnapshotStatus> {
+  if (conta) return { [conta]: backfillSnapStatus[conta] || { rodando: false } };
+  return backfillSnapStatus;
+}
+
+/**
+ * Backfill do snapshot histórico: para cada mês de `desde` até o mês atual,
+ * consulta a posição de estoque na Omie no fim do mês e grava por família.
+ */
+export async function backfillSnapshotsHistoricos(
+  conta: Conta,
+  desde: { ano: number; mes: number },
+): Promise<{ conta: Conta; mesesProcessados: number; linhasGravadas: number; erros: number }> {
+  const now = new Date();
+  const meses: Array<{ mes: number; ano: number }> = [];
+  let y = desde.ano, m = desde.mes;
+  while ((y < now.getFullYear() || (y === now.getFullYear() && m <= now.getMonth() + 1)) && meses.length < MAX_MESES_BACKFILL) {
+    meses.push({ mes: m, ano: y });
+    m++; if (m > 12) { m = 1; y++; }
+  }
+
+  const st: BackfillSnapshotStatus = { rodando: true, conta, total: meses.length, processados: 0, linhasGravadas: 0, ultimoErro: null, finalizadoEm: null };
+  backfillSnapStatus[conta] = st;
+
+  // Família atual do cadastro (mapa código → família).
+  const { famPorCodigo } = await carregarProdutos(conta);
+
+  let linhasGravadas = 0, erros = 0;
+  for (const mm of meses) {
+    st.mesAtual = `${mm.mes}/${mm.ano}`;
+    try {
+      const data = ultimoDiaMesBR(mm.mes, mm.ano);
+      const mapa = await buscarPosicaoEstoqueBulkOmie(conta, data);
+      const agg: Record<string, { qtd: number; valor: number }> = {};
+      for (const [codigo, { saldo, cmc }] of mapa) {
+        const fam = famPorCodigo[String(codigo)] || SEM_FAMILIA;
+        if (!agg[fam]) agg[fam] = { qtd: 0, valor: 0 };
+        agg[fam].qtd += saldo;
+        agg[fam].valor += saldo * cmc;
+      }
+      const n = await upsertSnapshot(conta, mm.mes, mm.ano, agg);
+      linhasGravadas += n;
+      st.linhasGravadas = linhasGravadas;
+    } catch (e) {
+      erros++;
+      st.ultimoErro = (e as Error).message;
+    }
+    st.processados = (st.processados || 0) + 1;
+  }
+
+  st.rodando = false;
+  st.finalizadoEm = new Date().toISOString();
+  return { conta, mesesProcessados: meses.length, linhasGravadas, erros };
+}
+
+/** Lê snapshots dos meses pedidos e agrega o valor por grupo (peça/máquina). */
+async function lerSnapshotPorMes(
+  meses: Array<{ mes: number; ano: number }>,
+  conta: ContaFiltro,
+): Promise<Map<string, { peca: number; maquina: number }>> {
+  const map = new Map<string, { peca: number; maquina: number }>();
+  const anos = [...new Set(meses.map((m) => m.ano))];
+  if (anos.length === 0) return map;
+  let query = supabase.from(SNAPSHOT_TABLE).select('ano,mes,familia,estoque_valor').in('ano', anos);
+  if (conta) query = query.eq('conta_omie', String(conta).toLowerCase());
+  const { data, error } = await query;
+  if (error) {
+    // Tabela ainda não criada / sem permissão → trata como "sem snapshots".
+    return map;
+  }
+  for (const r of (data || []) as Array<{ ano: number; mes: number; familia: unknown; estoque_valor: unknown }>) {
+    const g = classificarGrupo(String(r.familia ?? ''));
+    if (g === 'ignorar') continue;
+    const key = `${r.ano}-${r.mes}`;
+    const e = map.get(key) || { peca: 0, maquina: 0 };
+    if (g === 'peca') e.peca += num(r.estoque_valor);
+    else e.maquina += num(r.estoque_valor);
+    map.set(key, e);
+  }
+  return map;
 }
 
 export async function serieMensal(
@@ -452,17 +613,18 @@ export async function serieMensal(
       cogsPeca: venda.cogsPeca, cogsMaq: venda.cogsMaq,
       saidaPeca: venda.saidaPeca, saidaMaq: venda.saidaMaq,
       entradaPorCat: nota.entradaPorCat, saidaPorCat: venda.saidaPorCat,
+      entradaPorFam: nota.entradaPorFam, saidaPorFam: venda.saidaPorFam,
     });
   }
 
-  // Reconstrução do estoque para trás a partir do saldo atual.
+  // Estoque por mês: snapshot persistido (meses passados) + valor AO VIVO no mês
+  // atual. Sem snapshot num mês passado → série fica sem ponto (gap). Nada de
+  // reconstrução para trás (que inflava o estoque de máquina).
   const k = fluxos.length;
-  const pecaArr = new Array<number>(k).fill(0);
-  const maqArr = new Array<number>(k).fill(0);
-  if (k > 0) { pecaArr[k - 1] = estPeca; maqArr[k - 1] = estMaq; }
-  for (let i = k - 1; i >= 1; i--) {
-    pecaArr[i - 1] = Math.max(0, pecaArr[i] - fluxos[i].entradaPeca + fluxos[i].cogsPeca);
-    maqArr[i - 1] = Math.max(0, maqArr[i] - fluxos[i].entradaMaq + fluxos[i].cogsMaq);
+  const snapMap = await lerSnapshotPorMes(meses, conta);
+  // Semeia/atualiza o snapshot do mês corrente (só quando a conta é específica).
+  if (conta && k > 0) {
+    try { await upsertSnapshot(conta, meses[k - 1].mes, meses[k - 1].ano, estoquePorFamilia); } catch { /* segue sem persistir */ }
   }
 
   // Séries (estoque sempre peça/máquina) + entrada/saída conforme a dimensão.
@@ -471,13 +633,21 @@ export async function serieMensal(
     { key: 'estoque_maquina', label: 'Estoque Máquina', cor: '#d97706' },
   ];
 
-  const pontos: PontoMensal[] = meses.map((m, i) => ({
-    periodo: labelMes(m.mes, m.ano),
-    mes: m.mes,
-    ano: m.ano,
-    estoque_peca: Math.round(pecaArr[i]),
-    estoque_maquina: Math.round(maqArr[i]),
-  }));
+  const pontos: PontoMensal[] = meses.map((m, i) => {
+    const ponto: PontoMensal = { periodo: labelMes(m.mes, m.ano), mes: m.mes, ano: m.ano };
+    if (i === k - 1) {
+      ponto.estoque_peca = Math.round(estPeca);
+      ponto.estoque_maquina = Math.round(estMaq);
+    } else {
+      const s = snapMap.get(`${m.ano}-${m.mes}`);
+      if (s) {
+        ponto.estoque_peca = Math.round(s.peca);
+        ponto.estoque_maquina = Math.round(s.maquina);
+      }
+      // sem snapshot → não define as chaves (gap no gráfico)
+    }
+    return ponto;
+  });
 
   if (dimensao === 'tipo') {
     series.push(
@@ -493,11 +663,15 @@ export async function serieMensal(
       pontos[i].nf_saida_maquina = Math.round(f.saidaMaq);
     });
   } else {
-    // Top categorias por total (entrada+saída) no período; resto → "Outras".
+    // categoria OU família: mesma lógica, fontes diferentes.
+    const pickEntrada = (f: FluxoMes) => (dimensao === 'familia' ? f.entradaPorFam : f.entradaPorCat);
+    const pickSaida = (f: FluxoMes) => (dimensao === 'familia' ? f.saidaPorFam : f.saidaPorCat);
+
+    // Top itens por total (entrada+saída) no período; resto → "Outras".
     const totalPorCat: Record<string, number> = {};
     for (const f of fluxos) {
-      for (const [c, v] of Object.entries(f.entradaPorCat)) totalPorCat[c] = (totalPorCat[c] || 0) + v;
-      for (const [c, v] of Object.entries(f.saidaPorCat)) totalPorCat[c] = (totalPorCat[c] || 0) + v;
+      for (const [c, v] of Object.entries(pickEntrada(f))) totalPorCat[c] = (totalPorCat[c] || 0) + v;
+      for (const [c, v] of Object.entries(pickSaida(f))) totalPorCat[c] = (totalPorCat[c] || 0) + v;
     }
     const ordenadas = Object.entries(totalPorCat).sort((a, b) => b[1] - a[1]).map(([c]) => c);
     const top = ordenadas.slice(0, MAX_CATEGORIAS);
@@ -513,11 +687,11 @@ export async function serieMensal(
 
     fluxos.forEach((f, i) => {
       for (const cat of catLista) { pontos[i]['entrada::' + cat] = 0; pontos[i]['saida::' + cat] = 0; }
-      for (const [c, v] of Object.entries(f.entradaPorCat)) {
+      for (const [c, v] of Object.entries(pickEntrada(f))) {
         const k2 = 'entrada::' + mapCat(c);
         pontos[i][k2] = Math.round((pontos[i][k2] as number || 0) + v);
       }
-      for (const [c, v] of Object.entries(f.saidaPorCat)) {
+      for (const [c, v] of Object.entries(pickSaida(f))) {
         const k2 = 'saida::' + mapCat(c);
         pontos[i][k2] = Math.round((pontos[i][k2] as number || 0) + v);
       }
