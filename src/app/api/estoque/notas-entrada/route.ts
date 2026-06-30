@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta } from '@/lib/estoque/conta';
-import { listarNotasEntrada } from '@/lib/estoque/notas-entrada';
+import { listarNotasEntrada, listarNotasEntradaTodas } from '@/lib/estoque/notas-entrada';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,7 +12,12 @@ export async function GET(req: NextRequest) {
   const ano = sp.get('ano') ? parseInt(sp.get('ano')!) : undefined;
   const nf = sp.get('nf') || undefined;
   const pagina = sp.get('pagina') ? parseInt(sp.get('pagina')!) : 1;
+  const todas = sp.get('todas') === '1';
   try {
+    if (todas) {
+      const r = await listarNotasEntradaTodas({ mes, ano, nf }, conta);
+      return NextResponse.json(r);
+    }
     const r = await listarNotasEntrada({ mes, ano, nf, pagina }, conta);
     return NextResponse.json(r);
   } catch (e) {
