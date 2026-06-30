@@ -164,6 +164,17 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'margens', label: 'Margens' },
     { id: 'alertas', label: 'Alertas' },
   ],
+  // Feedbacks & CRM: granular POR TELA (id da ação = slug da rota). A Home
+  // (/feedbacks) é o landing; as abas (FeedbackTabs) e o acesso por URL seguem
+  // pode('feedbacks', slug).
+  feedbacks: [
+    { id: 'crm', label: 'CRM' },
+    { id: 'rfm', label: 'RFM' },
+    { id: 'clientes', label: 'Histórico de atendimentos' },
+    { id: 'relatorios', label: 'Relatórios' },
+    { id: 'agenda', label: 'Agenda' },
+    { id: 'oportunidades', label: 'Oportunidades' },
+  ],
   // Estoque (Visual Estoque / Consulta Omie): granular POR TELA. Chave 'estoque'
   // (id da rota = slug). A Home (/estoque, busca de produto) é o landing.
   estoque: [
