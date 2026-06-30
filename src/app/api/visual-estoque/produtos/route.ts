@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buscarProdutosEnriquecidos, agruparFamilias, buscarPecasPorTipo, buscarMaquinasDemonstracao, autoDistribuir } from "@/lib/visual-estoque/data";
 
+// Famílias que NÃO são máquinas e ficam fora do pátio (igual ao app legado:
+// server.js familiasOcultasPatio). O pátio mostra só máquinas, não peças.
+const FAMILIAS_OCULTAS_PATIO = ["Peças", "Agricultura de Precisão"];
+
 export async function GET(req: NextRequest) {
   const conta = req.nextUrl.searchParams.get("conta") || undefined;
   const modo = req.nextUrl.searchParams.get("modo") || "todos";
@@ -9,7 +13,9 @@ export async function GET(req: NextRequest) {
     const produtos = await buscarProdutosEnriquecidos(conta);
 
     if (modo === "dashboard") {
-      const maquinas = produtos.filter(p => p.tipo !== "Peças" && p.estoque > 0);
+      // Máquina vs peça é definido pela FAMÍLIA (familia_nome), não por `tipo`
+      // (igual ao app legado). 'tipo' é uma característica livre e não confiável.
+      const maquinas = produtos.filter(p => p.familia_nome !== "Peças" && p.estoque > 0);
       const familias = agruparFamilias(maquinas);
       const pecasTipo = await buscarPecasPorTipo(conta);
 
@@ -18,7 +24,7 @@ export async function GET(req: NextRequest) {
       const custoCapitalTotal = maquinas.reduce((s, p) => s + p.custo_capital, 0);
       const custoCapitalMes = maquinas.reduce((s, p) => s + p.custo_capital_mes, 0);
 
-      const pecas = produtos.filter(p => p.tipo === "Peças" && p.estoque > 0);
+      const pecas = produtos.filter(p => p.familia_nome === "Peças" && p.estoque > 0);
       const qtdPecas = pecas.length;
       const qtdUnidades = pecas.reduce((s, p) => s + p.estoque, 0);
       const valorPecas = pecas.reduce((s, p) => s + p.valor_estoque, 0);
@@ -36,7 +42,7 @@ export async function GET(req: NextRequest) {
     }
 
     if (modo === "patio") {
-      const maquinas = produtos.filter(p => p.tipo !== "Peças" && p.estoque > 0);
+      const maquinas = produtos.filter(p => !FAMILIAS_OCULTAS_PATIO.includes(p.familia_nome) && p.estoque > 0);
       const demonstracao = await buscarMaquinasDemonstracao(conta);
 
       const ambientes: Record<string, typeof maquinas> = {
