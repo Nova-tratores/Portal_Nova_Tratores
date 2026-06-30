@@ -5,7 +5,7 @@
 
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
-export interface SerieDef { key: string; label: string; cor: string; dash?: boolean }
+export interface SerieDef { key: string; label: string; cor: string; dash?: boolean; soTabela?: boolean }
 export type PontoMensal = Record<string, number | string>;
 
 const fmtRS = (v: number) => 'R$ ' + Math.round(Number(v)).toLocaleString('pt-BR');
@@ -27,7 +27,7 @@ export default function SerieMensalChart({ dados, series, altura = 360 }: { dado
           <YAxis tick={{ fontSize: 11 }} tickFormatter={(v: number) => 'R$ ' + Math.round(v / 1000).toLocaleString('pt-BR') + 'k'} width={70} />
           <Tooltip formatter={(v: number, name: string) => [fmtRS(v), name]} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
-          {series.map((s) => (
+          {series.filter((s) => !s.soTabela).map((s) => (
             <Line key={s.key} type="monotone" dataKey={s.key} name={s.label} stroke={s.cor}
               strokeWidth={2} strokeDasharray={s.dash ? '5 4' : undefined} dot={{ r: 2 }} />
           ))}

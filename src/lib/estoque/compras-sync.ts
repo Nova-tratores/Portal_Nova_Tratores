@@ -10,7 +10,7 @@ import { supabase } from './supabase';
 import { omieRequest } from './omie';
 import { parseDataBR, pad2, sleep, fmtD } from './utils';
 import { getSyncState, resetSyncState } from './admin';
-import { buscarCategoriasOmie } from './notas-entrada';
+import { buscarCategoriasOmie, enriquecerNotasMes } from './notas-entrada';
 import { getContasOmie, type Conta } from './conta';
 
 const num = (v: unknown): number => parseFloat(String(v ?? 0)) || 0;
@@ -419,7 +419,7 @@ export function iniciarPopularCompras(contasAlvo: Conta[]): { contasIniciadas: C
  * nfProdInt.nCodProd dos itens que foram associados desde o último sync.
  * Aguarda a conclusão (uso em cron). Respeita o lock per-conta.
  */
-export async function sincronizarComprasJanela(conta: Conta, mesesAtras = 3): Promise<{ conta: Conta; ok: boolean; erro?: string }> {
+export async function sincronizarComprasJanela(conta: Conta, mesesAtras = 3): Promise<{ conta: Conta; ok: boolean; erro?: string; enriquecidos?: number }> {
   if (getSyncState(conta).rodando) return { conta, ok: false, erro: 'sync ja rodando' };
   resetSyncState(conta);
   const s = getSyncState(conta);
@@ -430,7 +430,16 @@ export async function sincronizarComprasJanela(conta: Conta, mesesAtras = 3): Pr
   const ate = fmtD(now);
   try {
     await popularComprasConta(conta, de, ate, true);
-    return { conta, ok: true };
+    // Auto-heal: o delete+insert zera nome_emitente/categoria; reenriquece a janela
+    // (sequencial por mês p/ não conflitar com o lock per-conta do enriquecimento).
+    let enriquecidos = 0;
+    for (const { mes, ano } of mesesNoIntervalo(de, ate)) {
+      try {
+        const r = await enriquecerNotasMes(mes, ano, conta);
+        enriquecidos += (r.emitentes_preenchidos || 0) + (r.categorias_preenchidas || 0);
+      } catch { /* segue p/ o próximo mês */ }
+    }
+    return { conta, ok: true, enriquecidos };
   } catch (e) {
     s.erro = 'Fatal: ' + (e as Error).message;
     s.rodando = false;

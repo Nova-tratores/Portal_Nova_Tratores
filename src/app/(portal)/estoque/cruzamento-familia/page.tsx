@@ -12,9 +12,10 @@ import { fmtRS } from '@/components/estoque/ui';
 import SerieMensalChart, { type PontoMensal, type SerieDef } from '@/components/estoque/SerieMensalChart';
 import ComposicaoModal, { type ComposicaoParams } from '@/components/estoque/ComposicaoModal';
 
-type Tab = 'mes' | 'grafico';
+type Tab = 'mes' | 'grafico' | 'estoqueTipo';
 type Dimensao = 'tipo' | 'categoria' | 'familia' | 'tipocarac';
 interface SerieResp { pontos: PontoMensal[]; series: SerieDef[]; dimensao: Dimensao; estoqueAtual: { peca: number; maquina: number }; erro?: string }
+interface SerieTipoResp { pontos: PontoMensal[]; series: SerieDef[]; estoqueAtual: Record<string, number>; erro?: string }
 
 // R$ sem centavos (gráfico e popup).
 const fmtRS0 = (v: number): string => 'R$ ' + Math.round(v).toLocaleString('pt-BR');
@@ -82,6 +83,13 @@ export default function CruzamentoFamiliaPage() {
   const [serieCarregando, setSerieCarregando] = useState(false);
   const [serieErro, setSerieErro] = useState('');
 
+  // Aba "Estoque por Tipo" (saldo de Peças por característica "Tipo:")
+  const [mesesTipo, setMesesTipo] = useState(12);
+  const [incluirSemTipo, setIncluirSemTipo] = useState(false);
+  const [serieTipo, setSerieTipo] = useState<SerieTipoResp | null>(null);
+  const [serieTipoCarregando, setSerieTipoCarregando] = useState(false);
+  const [serieTipoErro, setSerieTipoErro] = useState('');
+
   // Popup de composição (clique em célula).
   const [popup, setPopup] = useState<{ titulo: string; params: ComposicaoParams } | null>(null);
 
@@ -118,6 +126,23 @@ export default function CruzamentoFamiliaPage() {
   }, [meses, dimensao, contaParam]);
 
   useEffect(() => { if (tab === 'grafico') carregarSerie(); }, [carregarSerie, tab]);
+
+  const carregarSerieTipo = useCallback(async () => {
+    setSerieTipoCarregando(true);
+    setSerieTipoErro('');
+    try {
+      const r = await fetch(`/api/estoque/cruzamento-familia/serie-tipo?meses=${mesesTipo}&semtipo=${incluirSemTipo ? 1 : 0}${contaParam}`);
+      const d = (await r.json()) as SerieTipoResp;
+      if (d.erro) { setSerieTipoErro(d.erro); setSerieTipo(null); return; }
+      setSerieTipo(d);
+    } catch (ex) {
+      setSerieTipoErro('Erro: ' + (ex as Error).message);
+    } finally {
+      setSerieTipoCarregando(false);
+    }
+  }, [mesesTipo, incluirSemTipo, contaParam]);
+
+  useEffect(() => { if (tab === 'estoqueTipo') carregarSerieTipo(); }, [carregarSerieTipo, tab]);
 
   const ordenar = (k: SortKey) => {
     if (k === sortKey) setSortDir((d) => (d === 1 ? -1 : 1));
@@ -178,6 +203,14 @@ export default function CruzamentoFamiliaPage() {
     if (params) setPopup({ titulo: `${s.label} — ${s.key.startsWith('estoque') ? 'saldo atual' : labelMes}`, params });
   };
 
+  // Clique numa célula da aba "Estoque por Tipo" → composição do saldo atual daquele Tipo.
+  // (Só saldo atual: a composição por mês passado não é reconstruível item-a-item.)
+  const abrirPopupEstoqueTipo = (s: SerieDef) => {
+    const tipo = s.key.slice('estoque::'.length);
+    if (tipo === 'Outras') return; // agregado de vários Tipos — não filtra por um só
+    setPopup({ titulo: `${s.label} — saldo atual`, params: { fonte: 'estoque', tipocarac: tipo } });
+  };
+
   // Clique numa célula da TABELA DO MÊS por família → popup de composição.
   const abrirPopupFamilia = (l: Linha, fonte: 'estoque' | 'entrada' | 'saida') => {
     const params: ComposicaoParams = fonte === 'estoque'
@@ -211,7 +244,7 @@ export default function CruzamentoFamiliaPage() {
 
       {/* Abas */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
-        {([['mes', 'Tabela do mês'], ['grafico', 'Gráfico mensal']] as [Tab, string][]).map(([id, label]) => (
+        {([['mes', 'Tabela do mês'], ['grafico', 'Gráfico mensal'], ['estoqueTipo', 'Estoque por Tipo']] as [Tab, string][]).map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)}
             style={{ padding: '8px 16px', border: '1px solid', borderColor: tab === id ? '#dc2626' : '#e0e0e0', background: tab === id ? '#dc2626' : '#fff', color: tab === id ? '#fff' : '#666', borderRadius: 8, fontSize: '.82rem', fontWeight: 600, cursor: 'pointer' }}>
             {label}
@@ -356,6 +389,67 @@ export default function CruzamentoFamiliaPage() {
             <p style={{ color: '#aaa', fontSize: '.72rem', marginTop: 10 }}>
               NF Entrada = itens das notas de entrada do mês. NF Saída = vendas do mês. {dimensao === 'categoria' && 'Linha cheia = entrada, tracejada = saída; cada cor é uma categoria (top 6 + “Outras”). '}{dimensao === 'familia' && 'Linha cheia = entrada, tracejada = saída; cada cor é uma família (top 6 + “Outras”). '}{dimensao === 'tipocarac' && 'Linha cheia = entrada, tracejada = saída; cada cor é um Tipo (característica de produto_tipo; top 6 + “Outras”). Quem não tem Tipo cai em “Sem tipo”. '}
               Estoque Peça/Máquina vem do <strong>snapshot mensal</strong> (valor congelado a cada captura): o mês atual mostra o saldo de hoje e os meses anteriores aparecem conforme o histórico for sendo gravado — meses sem snapshot ficam sem ponto. Famílias &quot;#N/D&quot;, &quot;Kit revisão&quot; e &quot;Ativo imobilizado&quot; são ignoradas. Clique numa célula para ver a composição.
+            </p>
+          </>
+        )}
+      </>
+      )}
+
+      {tab === 'estoqueTipo' && (
+      <>
+        <div style={{ display: 'flex', gap: 16, marginBottom: 18, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <Sel label="Período" value={mesesTipo} onChange={(v) => setMesesTipo(parseInt(v))} options={[6, 12, 18, 24, 36, 48].map((m) => ({ value: m, label: m + ' meses' }))} />
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: '#555', cursor: 'pointer', paddingBottom: 9 }}>
+            <input type="checkbox" checked={incluirSemTipo} onChange={(e) => setIncluirSemTipo(e.target.checked)} />
+            Incluir &quot;Sem tipo&quot;
+          </label>
+        </div>
+
+        {serieTipoErro && <div style={{ color: '#dc2626', marginBottom: 12, fontSize: '.85rem' }}>{serieTipoErro}</div>}
+        {serieTipoCarregando && <div style={{ color: '#888', fontSize: '.85rem' }}>Carregando…</div>}
+
+        {serieTipo && !serieTipoCarregando && (
+          <>
+            {serieTipo.series.length === 0 ? (
+              <div style={{ color: '#888', fontSize: '.85rem', padding: '20px 0' }}>
+                Sem dados de Tipo para as Peças. Verifique a tabela <strong>produto_tipo</strong> (classificação manual de Tipo das peças).
+              </div>
+            ) : (
+              <>
+                <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 16, marginBottom: 12 }}>
+                  <SerieMensalChart dados={serieTipo.pontos} series={serieTipo.series} />
+                </div>
+
+                <div style={{ overflowX: 'auto', background: '#fff', border: '1px solid #eee', borderRadius: 12 }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead><tr>
+                      <th style={thStyle}>Mês</th>
+                      {serieTipo.series.map((s) => <th key={s.key} style={{ ...thNum, color: s.cor }}>{s.label}</th>)}
+                    </tr></thead>
+                    <tbody>
+                      {serieTipo.pontos.map((p, i) => (
+                        <tr key={i}>
+                          <td style={tdStyle}>{p.periodo}</td>
+                          {serieTipo.series.map((s) => {
+                            const v = Number(p[s.key] || 0);
+                            const clic = v !== 0 && s.key !== 'estoque::Outras';
+                            return (
+                              <td key={s.key} style={{ ...tdNum, color: v ? s.cor : '#bbb', cursor: clic ? 'pointer' : 'default' }}
+                                onClick={() => clic && abrirPopupEstoqueTipo(s)}>
+                                {v ? fmtRS0(v) : '—'}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+            <p style={{ color: '#aaa', fontSize: '.72rem', marginTop: 10 }}>
+              Saldo (R$) de estoque das <strong>Peças</strong>, por característica <strong>&quot;Tipo:&quot;</strong> (tabela produto_tipo; top 6 + &ldquo;Outras&rdquo;). Quem não tem Tipo cai em &ldquo;Sem tipo&rdquo;.
+              O mês atual mostra o saldo de hoje (ao vivo); os meses anteriores aparecem conforme o <strong>snapshot mensal</strong> for sendo gravado — meses sem snapshot ficam sem ponto. Clique numa célula para ver a composição do saldo atual daquele Tipo.
             </p>
           </>
         )}

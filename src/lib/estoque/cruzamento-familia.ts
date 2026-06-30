@@ -287,7 +287,8 @@ async function carregarEntradas(
   while (true) {
     let query = supabase.from('notas_entrada').select('itens').eq('mes', mes).eq('ano', ano);
     query = filtroConta(query, conta);
-    query = query.or('cancelada.is.null,cancelada.eq.false'); // ignora só as explicitamente canceladas
+    // NÃO filtrar por `cancelada`: é string ("" ou data de cancelamento), não bool;
+    // a listagem (listarNotasEntrada) também não filtra. Ver memória.
     if (escaped) query = query.not('nome_emitente', 'in', escaped);
     const { data, error } = await query.range(offset, offset + LOTE - 1);
     if (error) throw new Error(error.message);
@@ -400,7 +401,7 @@ export function ultimosMeses(n: number): Array<{ mes: number; ano: number }> {
   return out;
 }
 
-export interface SerieDef { key: string; label: string; cor: string; dash?: boolean }
+export interface SerieDef { key: string; label: string; cor: string; dash?: boolean; soTabela?: boolean }
 export interface PontoMensal {
   periodo: string;
   mes: number;
@@ -451,7 +452,6 @@ async function notasDoMes(
   while (true) {
     let query = supabase.from('notas_entrada').select('categoria,itens').eq('mes', mes).eq('ano', ano);
     query = filtroConta(query, conta);
-    query = query.or('cancelada.is.null,cancelada.eq.false');
     if (escaped) query = query.not('nome_emitente', 'in', escaped);
     const { data, error } = await query.range(offset, offset + LOTE - 1);
     if (error) throw new Error(error.message);
@@ -878,11 +878,16 @@ export async function serieMensal(
   });
 
   if (dimensao === 'tipo') {
+    // Gráfico mostra só as 2 linhas de Estoque (soTabela nas entradas/saídas);
+    // a tabela mostra tudo, agrupado: Entrada/Saída/Estoque de Peça, depois Máquina.
+    series.length = 0;
     series.push(
-      { key: 'nf_entrada_peca', label: 'NF Entrada Peça', cor: '#16a34a' },
-      { key: 'nf_entrada_maquina', label: 'NF Entrada Máquina', cor: '#16a34a', dash: true },
-      { key: 'nf_saida_peca', label: 'NF Saída Peça', cor: '#dc2626' },
-      { key: 'nf_saida_maquina', label: 'NF Saída Máquina', cor: '#dc2626', dash: true },
+      { key: 'nf_entrada_peca', label: 'Entrada Peça', cor: '#16a34a', soTabela: true },
+      { key: 'nf_saida_peca', label: 'Saída Peça', cor: '#dc2626', soTabela: true },
+      { key: 'estoque_peca', label: 'Estoque Peça', cor: '#2563eb' },
+      { key: 'nf_entrada_maquina', label: 'Entrada Máquina', cor: '#16a34a', soTabela: true },
+      { key: 'nf_saida_maquina', label: 'Saída Máquina', cor: '#dc2626', soTabela: true },
+      { key: 'estoque_maquina', label: 'Estoque Máquina', cor: '#d97706' },
     );
     fluxos.forEach((f, i) => {
       pontos[i].nf_entrada_peca = Math.round(f.entradaPeca);
@@ -1021,7 +1026,6 @@ async function composicaoEntrada(conta: ContaFiltro, f: ComposicaoFiltro): Promi
   while (true) {
     let query = supabase.from('notas_entrada').select('numero_nf,categoria,itens').eq('mes', f.mes!).eq('ano', f.ano!);
     query = filtroConta(query, conta);
-    query = query.or('cancelada.is.null,cancelada.eq.false');
     if (escaped) query = query.not('nome_emitente', 'in', escaped);
     const { data, error } = await query.range(offset, offset + LOTE - 1);
     if (error) throw new Error(error.message);
