@@ -21,6 +21,7 @@ const SEM_FAMILIA = 'Sem família';
 const SEM_CATEGORIA = 'Sem categoria';
 const SEM_TIPO = 'Sem tipo';
 const SNAPSHOT_TABLE = 'estoque_familia_snapshot';
+const SNAPSHOT_TIPO_TABLE = 'estoque_tipo_snapshot';
 
 export type TipoFamilia = '' | 'pecas' | 'maquinas';
 export type Grupo = 'maquina' | 'peca' | 'ignorar';
@@ -199,6 +200,38 @@ async function carregarTipoCaracteristica(conta: ContaFiltro): Promise<Record<st
     offset += LOTE;
   }
   return mapa;
+}
+
+/**
+ * Saldo atual de estoque (qtd + valor) das PEÇAS, agregado pela característica
+ * "Tipo" (tabela produto_tipo). Peça sem Tipo cai no bucket SEM_TIPO. Máquinas e
+ * famílias ignoradas ficam de fora. Fonte do saldo: tabela `produtos`.
+ */
+async function carregarEstoquePorTipo(conta: ContaFiltro): Promise<Record<string, { qtd: number; valor: number }>> {
+  const tipoPorCodigo = await carregarTipoCaracteristica(conta);
+  const porTipo: Record<string, { qtd: number; valor: number }> = {};
+  let offset = 0;
+  const LOTE = 1000;
+  while (true) {
+    const { data, error } = await aplicarContaProdutos(
+      supabase.from('produtos').select('codigo_produto,familia_nome,estoque,valor_estoque'),
+      conta,
+    ).range(offset, offset + LOTE - 1);
+    if (error) throw new Error(error.message);
+    const lote = (data || []) as Array<{ codigo_produto: unknown; familia_nome: unknown; estoque: unknown; valor_estoque: unknown }>;
+    for (const p of lote) {
+      const fam = String(p.familia_nome ?? '').trim() || SEM_FAMILIA;
+      if (classificarGrupo(fam) !== 'peca') continue; // só Peças
+      const cod = String(p.codigo_produto);
+      const tipo = tipoPorCodigo[cod] || SEM_TIPO;
+      if (!porTipo[tipo]) porTipo[tipo] = { qtd: 0, valor: 0 };
+      porTipo[tipo].qtd += num(p.estoque);
+      porTipo[tipo].valor += num(p.valor_estoque);
+    }
+    if (lote.length < LOTE) break;
+    offset += LOTE;
+  }
+  return porTipo;
 }
 
 /** Saídas do mês = vendas_itens (qtd + valor_total), por família. */
@@ -532,6 +565,39 @@ export async function capturarSnapshotMensal(
   return { conta, mes: m, ano: a, familias };
 }
 
+/** Grava/atualiza o snapshot de estoque por Tipo (tabela estoque_tipo_snapshot). */
+async function upsertSnapshotTipo(
+  conta: Conta,
+  mes: number,
+  ano: number,
+  estoquePorTipo: Record<string, { qtd: number; valor: number }>,
+): Promise<number> {
+  const contaLow = String(conta).toLowerCase();
+  const rows = Object.entries(estoquePorTipo)
+    .filter(([, v]) => v.qtd !== 0 || v.valor !== 0)
+    .map(([tipo, v]) => ({ conta_omie: contaLow, ano, mes, tipo, estoque_qtd: v.qtd, estoque_valor: v.valor }));
+  if (rows.length === 0) return 0;
+  for (let i = 0; i < rows.length; i += 500) {
+    const { error } = await supabase.from(SNAPSHOT_TIPO_TABLE).upsert(rows.slice(i, i + 500), { onConflict: 'conta_omie,ano,mes,tipo' });
+    if (error) throw new Error(error.message);
+  }
+  return rows.length;
+}
+
+/** Captura/atualiza o snapshot do mês (default: atual) por Tipo, para uma conta. */
+export async function capturarSnapshotTipoMensal(
+  conta: Conta,
+  mes?: number,
+  ano?: number,
+): Promise<{ conta: Conta; mes: number; ano: number; tipos: number }> {
+  const now = new Date();
+  const m = mes ?? now.getMonth() + 1;
+  const a = ano ?? now.getFullYear();
+  const estoquePorTipo = await carregarEstoquePorTipo(conta);
+  const tipos = await upsertSnapshotTipo(conta, m, a, estoquePorTipo);
+  return { conta, mes: m, ano: a, tipos };
+}
+
 // --- Backfill do histórico real de estoque via posição-por-data na Omie ---
 
 const MAX_MESES_BACKFILL = 60; // teto de segurança
@@ -583,8 +649,9 @@ export async function backfillSnapshotsHistoricos(
   const st: BackfillSnapshotStatus = { rodando: true, conta, total: meses.length, processados: 0, linhasGravadas: 0, ultimoErro: null, finalizadoEm: null };
   backfillSnapStatus[conta] = st;
 
-  // Família atual do cadastro (mapa código → família).
+  // Família atual do cadastro (mapa código → família) + Tipo (produto_tipo).
   const { famPorCodigo } = await carregarProdutos(conta);
+  const tipoPorCodigo = await carregarTipoCaracteristica(conta);
 
   let linhasGravadas = 0, erros = 0;
   for (const mm of meses) {
@@ -593,13 +660,23 @@ export async function backfillSnapshotsHistoricos(
       const data = ultimoDiaMesBR(mm.mes, mm.ano);
       const mapa = await buscarPosicaoEstoqueBulkOmie(conta, data);
       const agg: Record<string, { qtd: number; valor: number }> = {};
+      const aggTipo: Record<string, { qtd: number; valor: number }> = {};
       for (const [codigo, { saldo, cmc }] of mapa) {
-        const fam = famPorCodigo[String(codigo)] || SEM_FAMILIA;
+        const cod = String(codigo);
+        const fam = famPorCodigo[cod] || SEM_FAMILIA;
         if (!agg[fam]) agg[fam] = { qtd: 0, valor: 0 };
         agg[fam].qtd += saldo;
         agg[fam].valor += saldo * cmc;
+        // Snapshot por Tipo: só Peças (mesma regra de carregarEstoquePorTipo).
+        if (classificarGrupo(fam) === 'peca') {
+          const tipo = tipoPorCodigo[cod] || SEM_TIPO;
+          if (!aggTipo[tipo]) aggTipo[tipo] = { qtd: 0, valor: 0 };
+          aggTipo[tipo].qtd += saldo;
+          aggTipo[tipo].valor += saldo * cmc;
+        }
       }
       const n = await upsertSnapshot(conta, mm.mes, mm.ano, agg);
+      await upsertSnapshotTipo(conta, mm.mes, mm.ano, aggTipo);
       linhasGravadas += n;
       st.linhasGravadas = linhasGravadas;
     } catch (e) {
@@ -639,6 +716,96 @@ async function lerSnapshotPorMes(
     map.set(key, e);
   }
   return map;
+}
+
+/** Lê o snapshot de estoque por Tipo dos meses pedidos: Map<'ano-mes', {tipo: valor}>. */
+async function lerSnapshotTipoPorMes(
+  meses: Array<{ mes: number; ano: number }>,
+  conta: ContaFiltro,
+): Promise<Map<string, Record<string, number>>> {
+  const map = new Map<string, Record<string, number>>();
+  const anos = [...new Set(meses.map((m) => m.ano))];
+  if (anos.length === 0) return map;
+  let query = supabase.from(SNAPSHOT_TIPO_TABLE).select('ano,mes,tipo,estoque_valor').in('ano', anos);
+  if (conta) query = query.eq('conta_omie', String(conta).toLowerCase());
+  const { data, error } = await query;
+  if (error) {
+    // Tabela ainda não criada / sem permissão → trata como "sem snapshots".
+    return map;
+  }
+  for (const r of (data || []) as Array<{ ano: number; mes: number; tipo: unknown; estoque_valor: unknown }>) {
+    const tipo = String(r.tipo ?? '').trim() || SEM_TIPO;
+    const key = `${r.ano}-${r.mes}`;
+    const e = map.get(key) || {};
+    e[tipo] = (e[tipo] || 0) + num(r.estoque_valor);
+    map.set(key, e);
+  }
+  return map;
+}
+
+export interface SerieEstoqueTipoResult {
+  pontos: PontoMensal[];
+  series: SerieDef[];
+  estoqueAtual: Record<string, number>; // saldo atual (valor) por Tipo
+}
+
+/**
+ * Série mensal do SALDO de estoque (valor R$) das Peças, uma linha por "Tipo".
+ * Mês atual = saldo ao vivo (produtos); meses passados = snapshot por Tipo
+ * (gap quando sem snapshot). Top 6 Tipos por saldo + "Outras".
+ */
+export async function serieEstoqueTipo(
+  meses: Array<{ mes: number; ano: number }>,
+  conta: ContaFiltro,
+  incluirSemTipo = false,
+): Promise<SerieEstoqueTipoResult> {
+  const estoquePorTipo = await carregarEstoquePorTipo(conta);
+  const estoqueAtual: Record<string, number> = {};
+  for (const [tipo, v] of Object.entries(estoquePorTipo)) estoqueAtual[tipo] = Math.round(v.valor);
+
+  const k = meses.length;
+  const snapMap = await lerSnapshotTipoPorMes(meses, conta);
+  // Semeia/atualiza o snapshot do mês corrente (só quando a conta é específica).
+  // Persiste SEMPRE com todos os Tipos (inclui "Sem tipo"); o filtro é só de exibição.
+  if (conta && k > 0) {
+    try { await upsertSnapshotTipo(conta, meses[k - 1].mes, meses[k - 1].ano, estoquePorTipo); } catch { /* segue sem persistir */ }
+  }
+
+  // "Sem tipo" costuma dominar (maioria das peças sem classificação) e achata as
+  // demais linhas; por padrão fica fora da exibição (estoqueAtual mantém o valor).
+  const exibir = (tipo: string) => incluirSemTipo || tipo !== SEM_TIPO;
+
+  // Tipos a exibir: top 6 por total no período (ao vivo + snapshots) + "Outras".
+  const totalPorTipo: Record<string, number> = {};
+  for (const [tipo, v] of Object.entries(estoquePorTipo)) { if (exibir(tipo)) totalPorTipo[tipo] = (totalPorTipo[tipo] || 0) + v.valor; }
+  for (const rec of snapMap.values()) {
+    for (const [tipo, v] of Object.entries(rec)) { if (exibir(tipo)) totalPorTipo[tipo] = (totalPorTipo[tipo] || 0) + v; }
+  }
+  const ordenados = Object.entries(totalPorTipo).sort((a, b) => b[1] - a[1]).map(([t]) => t);
+  const top = ordenados.slice(0, MAX_CATEGORIAS);
+  const temOutras = ordenados.length > top.length;
+  const tipoLista = temOutras ? [...top, 'Outras'] : top;
+  const corDe = (idx: number, t: string) => (t === 'Outras' ? COR_OUTRAS : PALETA_CAT[idx % PALETA_CAT.length]);
+  const mapTipo = (t: string): string => (top.includes(t) ? t : 'Outras');
+
+  const series: SerieDef[] = tipoLista.map((t, idx) => ({ key: 'estoque::' + t, label: t, cor: corDe(idx, t) }));
+
+  const pontos: PontoMensal[] = meses.map((m, i) => {
+    const ponto: PontoMensal = { periodo: labelMes(m.mes, m.ano), mes: m.mes, ano: m.ano };
+    const fonte = i === k - 1 ? Object.fromEntries(Object.entries(estoquePorTipo).map(([t, v]) => [t, v.valor])) : snapMap.get(`${m.ano}-${m.mes}`);
+    if (fonte) {
+      for (const t of tipoLista) ponto['estoque::' + t] = 0;
+      for (const [t, v] of Object.entries(fonte)) {
+        if (!exibir(t)) continue; // "Sem tipo" oculto não entra (nem em "Outras")
+        const key = 'estoque::' + mapTipo(t);
+        ponto[key] = Math.round((ponto[key] as number || 0) + v);
+      }
+    }
+    // sem fonte (mês passado sem snapshot) → não define chaves (gap no gráfico)
+    return ponto;
+  });
+
+  return { pontos, series, estoqueAtual };
 }
 
 export async function serieMensal(
