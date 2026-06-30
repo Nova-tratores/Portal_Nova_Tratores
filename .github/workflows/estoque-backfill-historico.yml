@@ -1,0 +1,58 @@
+name: Estoque - Backfill histórico (snapshot + NF entrada)
+
+# Correção PONTUAL do histórico do "Cruzamento por Família".
+#
+# Por que existe:
+#   - Estoque máquina/peça por mês: a Omie NÃO guarda saldo histórico (só o
+#     atual). O histórico vive em estoque_familia_snapshot / estoque_tipo_snapshot.
+#     O mês corrente é semeado pelos crons de estoque, mas os meses ANTERIORES
+#     nunca foram — este job reconstrói via posição-por-data na Omie.
+#   - NF entrada máquina/peça por mês: vem de notas_entrada, que o cron
+#     estoque-sync-compras só mantém nos últimos 3 meses. Este job amplia para 12.
+#
+# Caveats:
+#   - O snapshot histórico classifica o saldo pela FAMÍLIA ATUAL do cadastro e
+#     usa o CMC da posição-por-data: é uma reconstrução aproximada.
+#   - Jobs longos (~15-20 min/conta) e fire-and-forget: o curl responde 200 na
+#     hora e o processamento segue em background no Railway (ver logs).
+#   - Rodar quando precisar (one-off). Requer os secrets PORTAL_URL e CRON_SECRET.
+
+on:
+  workflow_dispatch:
+    inputs:
+      desde:
+        description: 'Backfill do snapshot de estoque a partir de (YYYY-MM)'
+        required: true
+        default: '2024-01'
+      conta:
+        description: 'Conta Omie'
+        required: true
+        type: choice
+        default: 'ambas'
+        options:
+          - ambas
+          - NOVA
+          - CASTRO
+
+jobs:
+  backfill-historico:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Backfill snapshot de estoque (posição-por-data)
+        run: |
+          CONTA_QS=""
+          if [ "${{ github.event.inputs.conta }}" != "ambas" ]; then
+            CONTA_QS="&conta=${{ github.event.inputs.conta }}"
+          fi
+          curl -fsS --max-time 600 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/estoque/cron/backfill-snapshot?desde=${{ github.event.inputs.desde }}${CONTA_QS}" \
+            -w "\nbackfill-snapshot: HTTP %{http_code}\n"
+
+      - name: Backfill NF entrada (notas_entrada, 12 meses)
+        run: |
+          curl -fsS --max-time 600 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/estoque/cron/sync-compras?meses=12" \
+            -w "\nsync-compras: HTTP %{http_code}\n"
