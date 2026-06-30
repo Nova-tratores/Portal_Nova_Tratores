@@ -8,9 +8,9 @@ import { enriquecerCMCLote } from './cmc-admin';
 import { buscarESalvarItensOmie } from './vendas-sync';
 import { obterTotalOS } from './os';
 import { sincronizarProdutos, sincronizarApenasEstoque } from './produtos-sync';
-import { capturarSnapshotMensal, backfillSnapshotsHistoricos } from './cruzamento-familia';
+import { capturarSnapshotMensal, capturarSnapshotTipoMensal, backfillSnapshotsHistoricos } from './cruzamento-familia';
 import { sincronizarComprasJanela } from './compras-sync';
-import { sincronizarRemessas, sincronizarMovimentacao, sincronizarOutrasEntradas, cruzarDevolucoes } from '../visual-estoque/remessas-sync';
+import { sincronizarRemessas, sincronizarMovimentacao, sincronizarOutrasEntradas, cruzarDevolucoes, detectarDevolucoesDemonstracao } from '../visual-estoque/remessas-sync';
 
 /**
  * Backfill diário de CMC: para cada conta, enriquece vendas_itens sem
@@ -68,7 +68,8 @@ export async function cronSyncProdutos(): Promise<Record<string, unknown>> {
     try {
       const sync = await sincronizarProdutos(c.id);
       const snapshot = await capturarSnapshotMensal(c.id).catch((e) => ({ erro: (e as Error).message }));
-      resultado[c.id] = { ...sync, snapshot };
+      const snapshotTipo = await capturarSnapshotTipoMensal(c.id).catch((e) => ({ erro: (e as Error).message }));
+      resultado[c.id] = { ...sync, snapshot, snapshotTipo };
     } catch (e) {
       resultado[c.id] = { ok: false, erro: (e as Error).message };
     }
@@ -86,7 +87,8 @@ export async function cronSyncEstoque(): Promise<Record<string, unknown>> {
     try {
       const sync = await sincronizarApenasEstoque(c.id);
       const snapshot = await capturarSnapshotMensal(c.id).catch((e) => ({ erro: (e as Error).message }));
-      resultado[c.id] = { ...sync, snapshot };
+      const snapshotTipo = await capturarSnapshotTipoMensal(c.id).catch((e) => ({ erro: (e as Error).message }));
+      resultado[c.id] = { ...sync, snapshot, snapshotTipo };
     } catch (e) {
       resultado[c.id] = { ok: false, erro: (e as Error).message };
     }
@@ -103,7 +105,9 @@ export async function cronSnapshotEstoque(): Promise<Record<string, unknown>> {
   const resultado: Record<string, unknown> = {};
   for (const c of getContasOmie()) {
     try {
-      resultado[c.id] = await capturarSnapshotMensal(c.id);
+      const familia = await capturarSnapshotMensal(c.id);
+      const tipo = await capturarSnapshotTipoMensal(c.id).catch((e) => ({ erro: (e as Error).message }));
+      resultado[c.id] = { familia, tipo };
     } catch (e) {
       resultado[c.id] = { erro: (e as Error).message };
     }
@@ -164,7 +168,9 @@ export async function cronSyncRemessas(): Promise<Record<string, unknown>> {
       const movimentacao = await sincronizarMovimentacao(c.id);
       const outrasEntradas = await sincronizarOutrasEntradas(c.id);
       const devolucoes = await cruzarDevolucoes(c.id);
-      resultado[c.id] = { remessas, movimentacao, outrasEntradas, devolucoes };
+      // Encerra demos já devolvidas (MovimentoEstoque) p/ não acumular pendentes.
+      const demosEncerradas = await detectarDevolucoesDemonstracao(c.id);
+      resultado[c.id] = { remessas, movimentacao, outrasEntradas, devolucoes, demosEncerradas };
     } catch (e) {
       resultado[c.id] = { ok: false, erro: (e as Error).message };
     }
