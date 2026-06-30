@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
         db.from('vendas_itens')
           .select('valor_total,quantidade,cmc_unitario,nome_cliente,data_pedido,numero_pedido,familia,descricao,conta_omie,codigo_cliente')
           .eq('ano', ano).eq('mes', mes)
+          .order('id', { ascending: true }) // ordem estavel p/ paginacao
       )
       const pedInvalidos = await carregarPedidosInvalidos()
       const vendas = vendasRaw.filter((v: any) => !pedidoEhInvalido(pedInvalidos, v.conta_omie, v.numero_pedido))
@@ -109,6 +110,8 @@ export async function GET(request: NextRequest) {
           .select('valor_documento,data_emissao,conta_omie,grupo_categoria,descricao_categoria,nome_fornecedor,numero_documento')
           .gte('data_emissao', dataDe).lte('data_emissao', dataAte)
           .in('grupo_categoria', gruposParaCarregar)
+          .order('codigo_lancamento', { ascending: true })
+          .order('conta_omie', { ascending: true }) // ordem estavel p/ paginacao (evita duplicar)
       )
       cps.forEach((r: any) => {
         const cls = grupoCpClassif[r.grupo_categoria]; if (!cls) return

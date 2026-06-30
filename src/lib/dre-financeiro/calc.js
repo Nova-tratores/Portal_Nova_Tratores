@@ -1136,18 +1136,23 @@ async function calcularDRECompetencia(anoMesIni, anoMesFim) {
       return `and(ano.eq.${a},mes.eq.${m})`;
     }).join(',');
     q = q.or(orFilter);
-    return q;
+    return q.order('id', { ascending: true }); // ordem estavel: evita repetir linhas entre paginas
   });
   // Filtra pedidos invalidos (cancelados/devolvidos)
   const pedInvalidos = await carregarPedidosInvalidos();
   const vendas = vendasRaw.filter(v => !pedidoEhInvalido(pedInvalidos, v.conta_omie, v.numero_pedido));
 
-  // 3. Contas a pagar do periodo (por data_emissao) - paginar pra escapar do limit 1000
+  // 3. Contas a pagar do periodo (por data_emissao) - paginar pra escapar do limit 1000.
+  // ORDER estavel obrigatorio: sem ele o PostgREST nao garante a mesma ordem entre
+  // paginas (range), e linhas na fronteira de 1000 podem REPETIR -> despesas
+  // duplicadas (ex.: "Despesas com Pessoal"). Chave: codigo_lancamento+conta_omie.
   const contasPagar = await selectPaginado(() =>
     supabase.from('contas_pagar')
       .select('valor_documento,data_emissao,conta_omie,grupo_categoria,descricao_categoria')
       .gte('data_emissao', dataDe).lte('data_emissao', dataAte)
       .not('grupo_categoria', 'is', null)
+      .order('codigo_lancamento', { ascending: true })
+      .order('conta_omie', { ascending: true })
   );
 
   // 4. Monta arvores por conta + intercompany separado
@@ -1494,7 +1499,7 @@ async function calcularMargensPorFamilia(conta, desde, ate) {
     const orFilter = mesesList.map(m => `and(ano.eq.${m.ano},mes.eq.${m.mes})`).join(',');
     q = q.or(orFilter);
     if (contaSlug) q = q.ilike('conta_omie', contaSlug);
-    return q;
+    return q.order('id', { ascending: true }); // ordem estavel p/ paginacao (evita duplicar)
   });
   const invalidos = await carregarPedidosInvalidos();
   const data = dataRaw.filter(v => !pedidoEhInvalido(invalidos, v.conta_omie, v.numero_pedido));
