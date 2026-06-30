@@ -9,10 +9,15 @@ import SemPermissao from '@/components/SemPermissao';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 import { fmtRS } from '@/components/estoque/ui';
-import SerieMensalChart, { type PontoMensal } from '@/components/estoque/SerieMensalChart';
+import SerieMensalChart, { type PontoMensal, type SerieDef } from '@/components/estoque/SerieMensalChart';
+import ComposicaoModal, { type ComposicaoParams } from '@/components/estoque/ComposicaoModal';
 
 type Tab = 'mes' | 'grafico';
-interface SerieResp { pontos: PontoMensal[]; estoqueAtual: { peca: number; maquina: number }; erro?: string }
+type Dimensao = 'tipo' | 'categoria';
+interface SerieResp { pontos: PontoMensal[]; series: SerieDef[]; dimensao: Dimensao; estoqueAtual: { peca: number; maquina: number }; erro?: string }
+
+// R$ sem centavos (gráfico e popup).
+const fmtRS0 = (v: number): string => 'R$ ' + Math.round(v).toLocaleString('pt-BR');
 
 interface Linha {
   familia: string;
@@ -41,6 +46,12 @@ const thStyle: React.CSSProperties = { background: '#fafafa', color: '#888', fon
 const tdStyle: React.CSSProperties = { padding: '8px 10px', borderBottom: '1px solid #f5f5f5', color: '#444', fontSize: '.82rem' };
 const tdNum: React.CSSProperties = { ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' };
 const thNum: React.CSSProperties = { ...thStyle, textAlign: 'right' };
+// Célula numérica clicável (abre popup de composição quando tem valor).
+const cell = (clicavel: boolean, cor?: string): React.CSSProperties => ({
+  ...tdNum,
+  color: clicavel ? (cor || '#444') : (cor ? '#bbb' : '#444'),
+  cursor: clicavel ? 'pointer' : 'default',
+});
 
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const fmtQtd = (n: number): string => (Math.abs(n % 1) < 1e-9 ? n.toLocaleString('pt-BR') : n.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 2 }));
@@ -66,9 +77,13 @@ export default function CruzamentoFamiliaPage() {
 
   // Aba "Gráfico mensal"
   const [meses, setMeses] = useState(12);
+  const [dimensao, setDimensao] = useState<Dimensao>('tipo');
   const [serie, setSerie] = useState<SerieResp | null>(null);
   const [serieCarregando, setSerieCarregando] = useState(false);
   const [serieErro, setSerieErro] = useState('');
+
+  // Popup de composição (clique em célula).
+  const [popup, setPopup] = useState<{ titulo: string; params: ComposicaoParams } | null>(null);
 
   const carregar = useCallback(async () => {
     setCarregando(true);
@@ -91,7 +106,7 @@ export default function CruzamentoFamiliaPage() {
     setSerieCarregando(true);
     setSerieErro('');
     try {
-      const r = await fetch(`/api/estoque/cruzamento-familia/serie?meses=${meses}${contaParam}`);
+      const r = await fetch(`/api/estoque/cruzamento-familia/serie?meses=${meses}&dimensao=${dimensao}${contaParam}`);
       const d = (await r.json()) as SerieResp;
       if (d.erro) { setSerieErro(d.erro); setSerie(null); return; }
       setSerie(d);
@@ -100,7 +115,7 @@ export default function CruzamentoFamiliaPage() {
     } finally {
       setSerieCarregando(false);
     }
-  }, [meses, contaParam]);
+  }, [meses, dimensao, contaParam]);
 
   useEffect(() => { if (tab === 'grafico') carregarSerie(); }, [carregarSerie, tab]);
 
@@ -138,6 +153,39 @@ export default function CruzamentoFamiliaPage() {
     a.click();
     URL.revokeObjectURL(url);
   }, [dados, linhas, mes, ano]);
+
+  // Clique numa célula da TABELA DO GRÁFICO (mês × série) → popup de composição.
+  const MESES_ABREV = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+  const abrirPopupSerie = (s: SerieDef, p: PontoMensal) => {
+    const mesN = Number(p.mes), anoN = Number(p.ano);
+    const labelMes = `${MESES_ABREV[mesN - 1]}/${anoN}`;
+    let params: ComposicaoParams | null = null;
+    if (s.key === 'estoque_peca' || s.key === 'estoque_maquina') {
+      params = { fonte: 'estoque', grupo: s.key === 'estoque_peca' ? 'peca' : 'maquina' };
+    } else if (s.key.startsWith('nf_entrada_')) {
+      params = { fonte: 'entrada', mes: mesN, ano: anoN, grupo: s.key.endsWith('peca') ? 'peca' : 'maquina' };
+    } else if (s.key.startsWith('nf_saida_')) {
+      params = { fonte: 'saida', mes: mesN, ano: anoN, grupo: s.key.endsWith('peca') ? 'peca' : 'maquina' };
+    } else if (s.key.startsWith('entrada::')) {
+      const cat = s.key.slice('entrada::'.length);
+      if (cat === 'Outras') return;
+      params = { fonte: 'entrada', mes: mesN, ano: anoN, categoria: cat };
+    } else if (s.key.startsWith('saida::')) {
+      const cat = s.key.slice('saida::'.length);
+      if (cat === 'Outras') return;
+      params = { fonte: 'saida', mes: mesN, ano: anoN, categoria: cat };
+    }
+    if (params) setPopup({ titulo: `${s.label} — ${s.key.startsWith('estoque') ? 'saldo atual' : labelMes}`, params });
+  };
+
+  // Clique numa célula da TABELA DO MÊS por família → popup de composição.
+  const abrirPopupFamilia = (l: Linha, fonte: 'estoque' | 'entrada' | 'saida') => {
+    const params: ComposicaoParams = fonte === 'estoque'
+      ? { fonte, familia: l.familia }
+      : { fonte, mes, ano, familia: l.familia };
+    const nomeFonte = fonte === 'estoque' ? 'Estoque (saldo atual)' : fonte === 'entrada' ? `Entradas ${MESES[mes - 1]}/${ano}` : `Saídas ${MESES[mes - 1]}/${ano}`;
+    setPopup({ titulo: `${l.familia} — ${nomeFonte}`, params });
+  };
 
   if (!permLoading && userProfile && !temAcesso('estoque')) return <SemPermissao />;
 
@@ -229,12 +277,12 @@ export default function CruzamentoFamiliaPage() {
                       {l.familia}
                       <span style={{ marginLeft: 6, fontSize: '.6rem', color: '#aaa', textTransform: 'uppercase' }}>{l.tipo === 'maquina' ? 'máq' : l.tipo === 'peca' ? 'peça' : '—'}</span>
                     </td>
-                    <td style={tdNum}>{l.estoque_qtd ? fmtQtd(l.estoque_qtd) : '—'}</td>
-                    <td style={tdNum}>{l.estoque_valor ? fmtRS(l.estoque_valor) : '—'}</td>
-                    <td style={{ ...tdNum, color: l.entradas_valor ? '#16a34a' : '#bbb' }}>{l.entradas_qtd ? fmtQtd(l.entradas_qtd) : '—'}</td>
-                    <td style={{ ...tdNum, color: l.entradas_valor ? '#16a34a' : '#bbb' }}>{l.entradas_valor ? fmtRS(l.entradas_valor) : '—'}</td>
-                    <td style={{ ...tdNum, color: l.saidas_valor ? '#dc2626' : '#bbb' }}>{l.saidas_qtd ? fmtQtd(l.saidas_qtd) : '—'}</td>
-                    <td style={{ ...tdNum, color: l.saidas_valor ? '#dc2626' : '#bbb' }}>{l.saidas_valor ? fmtRS(l.saidas_valor) : '—'}</td>
+                    <td style={cell(!!l.estoque_valor)} onClick={() => l.estoque_valor && abrirPopupFamilia(l, 'estoque')}>{l.estoque_qtd ? fmtQtd(l.estoque_qtd) : '—'}</td>
+                    <td style={cell(!!l.estoque_valor)} onClick={() => l.estoque_valor && abrirPopupFamilia(l, 'estoque')}>{l.estoque_valor ? fmtRS(l.estoque_valor) : '—'}</td>
+                    <td style={cell(!!l.entradas_valor, '#16a34a')} onClick={() => l.entradas_valor && abrirPopupFamilia(l, 'entrada')}>{l.entradas_qtd ? fmtQtd(l.entradas_qtd) : '—'}</td>
+                    <td style={cell(!!l.entradas_valor, '#16a34a')} onClick={() => l.entradas_valor && abrirPopupFamilia(l, 'entrada')}>{l.entradas_valor ? fmtRS(l.entradas_valor) : '—'}</td>
+                    <td style={cell(!!l.saidas_valor, '#dc2626')} onClick={() => l.saidas_valor && abrirPopupFamilia(l, 'saida')}>{l.saidas_qtd ? fmtQtd(l.saidas_qtd) : '—'}</td>
+                    <td style={cell(!!l.saidas_valor, '#dc2626')} onClick={() => l.saidas_valor && abrirPopupFamilia(l, 'saida')}>{l.saidas_valor ? fmtRS(l.saidas_valor) : '—'}</td>
                   </tr>
                 ))}
                 {linhas.length === 0 && (
@@ -268,6 +316,7 @@ export default function CruzamentoFamiliaPage() {
       <>
         <div style={{ display: 'flex', gap: 10, marginBottom: 18, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <Sel label="Período" value={meses} onChange={(v) => setMeses(parseInt(v))} options={[6, 12, 18, 24].map((m) => ({ value: m, label: m + ' meses' }))} />
+          <Sel label="Entrada/Saída por" value={dimensao} onChange={(v) => setDimensao(v as Dimensao)} options={[{ value: 'tipo', label: 'Tipo (Peça/Máquina)' }, { value: 'categoria', label: 'Categoria' }]} />
         </div>
 
         {serieErro && <div style={{ color: '#dc2626', marginBottom: 12, fontSize: '.85rem' }}>{serieErro}</div>}
@@ -276,37 +325,45 @@ export default function CruzamentoFamiliaPage() {
         {serie && !serieCarregando && (
           <>
             <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 16, marginBottom: 12 }}>
-              <SerieMensalChart dados={serie.pontos} />
+              <SerieMensalChart dados={serie.pontos} series={serie.series} />
             </div>
 
             <div style={{ overflowX: 'auto', background: '#fff', border: '1px solid #eee', borderRadius: 12 }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead><tr>
                   <th style={thStyle}>Mês</th>
-                  <th style={{ ...thNum, color: '#2563eb' }}>Estoque Peça</th>
-                  <th style={{ ...thNum, color: '#d97706' }}>Estoque Máquina</th>
-                  <th style={{ ...thNum, color: '#16a34a' }}>NF Entrada</th>
-                  <th style={{ ...thNum, color: '#dc2626' }}>NF Saída</th>
+                  {serie.series.map((s) => <th key={s.key} style={{ ...thNum, color: s.cor }}>{s.label}</th>)}
                 </tr></thead>
                 <tbody>
                   {serie.pontos.map((p, i) => (
                     <tr key={i}>
                       <td style={tdStyle}>{p.periodo}</td>
-                      <td style={tdNum}>{fmtRS(p.estoque_peca)}</td>
-                      <td style={tdNum}>{fmtRS(p.estoque_maquina)}</td>
-                      <td style={{ ...tdNum, color: '#16a34a' }}>{fmtRS(p.nf_entrada)}</td>
-                      <td style={{ ...tdNum, color: '#dc2626' }}>{fmtRS(p.nf_saida)}</td>
+                      {serie.series.map((s) => {
+                        const v = Number(p[s.key] || 0);
+                        const clic = v !== 0 && !(s.key.endsWith('::Outras'));
+                        return (
+                          <td key={s.key} style={{ ...tdNum, color: v ? s.cor : '#bbb', cursor: clic ? 'pointer' : 'default' }}
+                            onClick={() => clic && abrirPopupSerie(s, p)}>
+                            {v ? fmtRS0(v) : '—'}
+                          </td>
+                        );
+                      })}
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
             <p style={{ color: '#aaa', fontSize: '.72rem', marginTop: 10 }}>
-              NF Entrada = total das notas de entrada do mês. NF Saída = total das vendas do mês. Estoque Peça/Máquina é <strong>reconstruído</strong> a partir do saldo atual (estoque do mês = estoque do mês seguinte − entradas a custo + custo das saídas), portanto é uma <strong>aproximação</strong>: não considera ajustes/devoluções manuais e usa o CMC atual. Famílias &quot;#N/D&quot; e &quot;Kit revisão&quot; são ignoradas.
+              NF Entrada = itens das notas de entrada do mês. NF Saída = vendas do mês. {dimensao === 'categoria' && 'Linha cheia = entrada, tracejada = saída; cada cor é uma categoria (top 6 + “Outras”). '}
+              Estoque Peça/Máquina é <strong>reconstruído</strong> a partir do saldo atual (estoque do mês = mês seguinte − entradas a custo + custo das saídas), portanto é uma <strong>aproximação</strong>. Famílias &quot;#N/D&quot;, &quot;Kit revisão&quot; e &quot;Ativo imobilizado&quot; são ignoradas. Clique numa célula para ver a composição.
             </p>
           </>
         )}
       </>
+      )}
+
+      {popup && (
+        <ComposicaoModal titulo={popup.titulo} params={popup.params} contaParam={contaParam} onClose={() => setPopup(null)} />
       )}
     </div>
   );
