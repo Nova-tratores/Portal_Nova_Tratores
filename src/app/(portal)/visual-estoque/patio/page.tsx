@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
-import { ChevronRight, Package, MapPin, Eye, Archive, ImagePlus, Images } from 'lucide-react'
+import { ChevronRight, Package, MapPin, Eye, Archive, ImagePlus, Images, List, X } from 'lucide-react'
 import { useAtalhoDuplo } from '@/lib/visual-estoque/useAtalhoDuplo'
 import MenuImagem from '@/components/visual-estoque/MenuImagem'
 
@@ -28,6 +28,10 @@ interface Maquina {
   pos_x: number
   pos_y: number
   img_tamanho: number
+  // Campos extras presentes só em máquinas de demonstração:
+  destinatario?: string
+  data_saida?: string
+  numero_remessa?: string
 }
 
 interface FamiliaVE {
@@ -66,6 +70,7 @@ export default function PatioPage() {
   const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null)
   const [dragging, setDragging] = useState<{ maq: Maquina; startX: number; startY: number; curX: number; curY: number } | null>(null)
   const [menuImagem, setMenuImagem] = useState(false)
+  const [modalDemo, setModalDemo] = useState(false)
   const [buscandoLote, setBuscandoLote] = useState(false)
   const [zonas, setZonas] = useState<Record<string, { x: number; y: number; w: number; h: number }>>({})
   const [editZonas, setEditZonas] = useState(false)
@@ -404,8 +409,15 @@ export default function PatioPage() {
                 const maquinas = data?.ambientes[amb] || []
                 return (
                   <div key={amb} style={{ borderRadius: 12, border: `2px solid ${cfg.color}30`, overflow: 'hidden' }}>
-                    <div style={{ padding: '10px 16px', background: `${cfg.color}10`, fontSize: 13, fontWeight: 700, color: cfg.color, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      {cfg.label}
+                    <div
+                      onClick={amb === 'demonstracao' && maquinas.length > 0 ? () => setModalDemo(true) : undefined}
+                      title={amb === 'demonstracao' ? 'Ver lista detalhada (cliente, data, remessa)' : undefined}
+                      style={{ padding: '10px 16px', background: `${cfg.color}10`, fontSize: 13, fontWeight: 700, color: cfg.color, display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: amb === 'demonstracao' && maquinas.length > 0 ? 'pointer' : 'default' }}
+                    >
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {cfg.label}
+                        {amb === 'demonstracao' && maquinas.length > 0 && <List size={13} />}
+                      </span>
                       <span style={{ fontSize: 11, fontWeight: 500, color: '#9CA3AF' }}>({maquinas.length})</span>
                     </div>
                     <div
@@ -593,6 +605,53 @@ export default function PatioPage() {
           )}
         </div>
       </div>
+
+      {/* Modal: lista de máquinas em demonstração (Data, Cliente, Remessa) */}
+      {modalDemo && (
+        <div onClick={() => setModalDemo(false)} style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: 'min(900px, 95vw)', maxHeight: '85vh', overflow: 'auto', background: '#fff', borderRadius: 14, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+            <div style={{ position: 'sticky', top: 0, background: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid var(--portal-border, #e5e5e5)' }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: '#DC2626', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <MapPin size={16} /> Máquinas em Demonstração
+                <span style={{ fontSize: 12, color: '#9CA3AF', fontWeight: 600 }}>({(data?.ambientes['demonstracao'] || []).length})</span>
+              </div>
+              <button onClick={() => setModalDemo(false)} style={{ border: 'none', background: 'none', cursor: 'pointer' }}><X size={18} /></button>
+            </div>
+            <div style={{ padding: '8px 20px 20px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead style={{ background: 'var(--portal-bg, #fafafa)' }}>
+                  <tr>
+                    {['Produto', 'Cliente', 'Data saída', 'Remessa', 'Dias', 'Valor'].map((h, i) => (
+                      <th key={h} style={{ padding: '10px 12px', fontSize: 10, fontWeight: 800, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: i >= 4 ? 'right' : 'left', whiteSpace: 'nowrap' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(data?.ambientes['demonstracao'] || []).map(m => {
+                    const dataFmt = m.data_saida ? (m.data_saida.includes('-') ? m.data_saida.split('-').reverse().join('/') : m.data_saida) : '—'
+                    return (
+                      <tr key={m.codigo_produto} onClick={() => { setSelecionada(m); setSidebarTab('detalhes'); setModalDemo(false) }} style={{ borderBottom: '1px solid var(--portal-border, #f0f0f0)', cursor: 'pointer' }}>
+                        <td style={{ padding: '10px 12px', fontSize: 12, maxWidth: 300 }}>
+                          <div style={{ fontWeight: 600, color: 'var(--portal-text, #1a1a1a)' }}>{m.descricao}</div>
+                          <div style={{ fontSize: 10, color: '#9CA3AF' }}>{m.codigo} · {m.familia_nome}</div>
+                        </td>
+                        <td style={{ padding: '10px 12px', fontSize: 12 }}>{m.destinatario || '—'}</td>
+                        <td style={{ padding: '10px 12px', fontSize: 12, whiteSpace: 'nowrap' }}>{dataFmt}</td>
+                        <td style={{ padding: '10px 12px', fontSize: 12 }}>{m.numero_remessa || '—'}</td>
+                        <td style={{ padding: '10px 12px', fontSize: 12, textAlign: 'right' }}>{m.dias_em_estoque}</td>
+                        <td style={{ padding: '10px 12px', fontSize: 12, textAlign: 'right', fontWeight: 700 }}>{fmt(m.valor_estoque)}</td>
+                      </tr>
+                    )
+                  })}
+                  {(data?.ambientes['demonstracao'] || []).length === 0 && (
+                    <tr><td colSpan={6} style={{ padding: 32, textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>Nenhuma máquina em demonstração.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Menu de imagem (atalho QQ ou botão Imagem) */}
       {menuImagem && selecionada && (
