@@ -10,12 +10,20 @@ name: Estoque - Backfill histórico (snapshot + NF entrada)
 #   - NF entrada máquina/peça por mês: vem de notas_entrada, que o cron
 #     estoque-sync-compras só mantém nos últimos 3 meses. Este job amplia para 12.
 #
+# IMPORTANTE — rodar UMA CONTA POR VEZ:
+#   O backfill de snapshot é pesado (1 consulta posição-por-data na Omie por mês)
+#   e roda em background no Railway. Rodar as duas contas juntas estoura o tempo
+#   de vida do processo (a 1ª conta fica pela metade e a 2ª não roda). Por isso a
+#   opção "ambas" foi REMOVIDA: rode com conta=NOVA, espere terminar, depois
+#   rode com conta=CASTRO. Com desde=2025-07 são só ~12 meses por conta.
+#
 # Caveats:
 #   - O snapshot histórico classifica o saldo pela FAMÍLIA ATUAL do cadastro e
 #     usa o CMC da posição-por-data: é uma reconstrução aproximada.
-#   - Jobs longos (~15-20 min/conta) e fire-and-forget: o curl responde 200 na
-#     hora e o processamento segue em background no Railway (ver logs).
-#   - Rodar quando precisar (one-off). Requer os secrets PORTAL_URL e CRON_SECRET.
+#   - Jobs longos e fire-and-forget: o curl responde 200 na hora e o
+#     processamento segue em background no Railway (ver logs). Conferir depois
+#     com o script _diag_tmp.mjs ou abrindo o gráfico.
+#   - Requer os secrets PORTAL_URL e CRON_SECRET.
 
 on:
   workflow_dispatch:
@@ -23,14 +31,13 @@ on:
       desde:
         description: 'Backfill do snapshot de estoque a partir de (YYYY-MM)'
         required: true
-        default: '2024-01'
+        default: '2025-07'
       conta:
-        description: 'Conta Omie'
+        description: 'Conta Omie (rode UMA por vez: primeiro NOVA, depois CASTRO)'
         required: true
         type: choice
-        default: 'ambas'
+        default: 'NOVA'
         options:
-          - ambas
           - NOVA
           - CASTRO
 
@@ -39,18 +46,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Backfill snapshot de estoque (posição-por-data)
+      - name: Backfill snapshot de estoque (posição-por-data) — conta ${{ github.event.inputs.conta }}
         run: |
-          CONTA_QS=""
-          if [ "${{ github.event.inputs.conta }}" != "ambas" ]; then
-            CONTA_QS="&conta=${{ github.event.inputs.conta }}"
-          fi
           curl -fsS --max-time 600 \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "${{ secrets.PORTAL_URL }}/api/estoque/cron/backfill-snapshot?desde=${{ github.event.inputs.desde }}${CONTA_QS}" \
+            "${{ secrets.PORTAL_URL }}/api/estoque/cron/backfill-snapshot?desde=${{ github.event.inputs.desde }}&conta=${{ github.event.inputs.conta }}" \
             -w "\nbackfill-snapshot: HTTP %{http_code}\n"
 
-      - name: Backfill NF entrada (notas_entrada, 12 meses)
+      - name: Backfill NF entrada (notas_entrada, 12 meses — NOVA + CASTRO)
         run: |
           curl -fsS --max-time 600 \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
