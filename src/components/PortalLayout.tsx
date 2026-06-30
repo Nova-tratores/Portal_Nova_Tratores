@@ -12,7 +12,7 @@ import {
   LayoutDashboard, Bell, ChevronRight, ChevronDown, Activity, Lock, MessageCircle,
   CheckCheck, Trash2, ExternalLink, Calendar, Users, Calculator, BarChart3, Eye, Camera, Wheat, Megaphone,
   Sun, Moon, Volume2, Check, MapPin, ShieldCheck, Building, SlidersHorizontal, AlertCircle, Headset,
-  LayoutGrid, List, CircleDot, GanttChartSquare
+  LayoutGrid, List, CircleDot, GanttChartSquare, Clock
 } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -963,6 +963,40 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               })}
             </div>
           ))}
+
+          {/* Sincronizações (catálogo de crons) */}
+          {isAdmin && (
+            <Link
+              href="/agendamentos"
+              onClick={() => setSidebarOpen(false)}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', gap: '10px',
+                padding: '10px 12px', borderRadius: '10px', border: 'none',
+                background: pathname === '/agendamentos' ? 'var(--portal-bg-hover)' : 'transparent',
+                color: pathname === '/agendamentos' ? '#dc2626' : 'var(--portal-text-secondary)',
+                cursor: 'pointer', fontSize: '13px', fontWeight: pathname === '/agendamentos' ? '600' : '500',
+                fontFamily: 'Inter', transition: 'all 0.2s', textAlign: 'left' as const,
+                marginBottom: '2px', textDecoration: 'none', marginTop: '8px'
+              }}
+              onMouseEnter={(e) => {
+                if (pathname !== '/agendamentos') { e.currentTarget.style.background = 'var(--portal-bg-hover)'; e.currentTarget.style.color = '#dc2626' }
+              }}
+              onMouseLeave={(e) => {
+                if (pathname !== '/agendamentos') { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--portal-text-secondary)' }
+              }}
+            >
+              <div style={{
+                width: '30px', height: '30px', borderRadius: '8px',
+                background: pathname === '/agendamentos' ? 'linear-gradient(135deg, #dc2626, #b91c1c)' : 'var(--portal-bg-secondary)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0, transition: 'all 0.2s'
+              }}>
+                <Clock size={14} style={{ color: pathname === '/agendamentos' ? '#fff' : 'var(--portal-text-muted)' }} />
+              </div>
+              <span style={{ flex: 1 }}>Sincronizações</span>
+              {pathname === '/agendamentos' && <ChevronRight size={14} style={{ color: '#dc2626' }} />}
+            </Link>
+          )}
 
           {/* Admin */}
           {isAdmin && (
