@@ -197,13 +197,17 @@ async function enriquecerCmc(rows: VendaRow[], mes: number, ano: number, conta: 
   });
   semCmc = [...new Set(rows.filter((v) => !(num(v.cmc_unitario) > 0)).map((v) => v.codigo_produto).filter(Boolean))] as string[];
   if (semCmc.length === 0) return;
+  // produtos.conta_omie é gravado em MINÚSCULAS (≠ vendas_itens etc.), por isso
+  // filtramos com conta.toLowerCase() em vez de filtroConta (que zeraria).
+  const filtroContaProdutos = <T,>(q: T): T =>
+    conta ? (q as { eq(c: string, v: string): T }).eq('conta_omie', conta.toLowerCase()) : q;
   const cmcProdMap: Record<string, number> = {};
   for (let i = 0; i < semCmc.length; i += 200) {
     const lote = semCmc.slice(i, i + 200);
-    let resp = await filtroConta(supabase.from('produtos').select('codigo_produto,cmc').in('codigo_produto', lote), conta);
+    let resp = await filtroContaProdutos(supabase.from('produtos').select('codigo_produto,cmc').in('codigo_produto', lote));
     if (resp.error) {
       const loteNum = lote.map((s) => parseInt(s)).filter((n) => !isNaN(n));
-      resp = await filtroConta(supabase.from('produtos').select('codigo_produto,cmc').in('codigo_produto', loteNum), conta);
+      resp = await filtroContaProdutos(supabase.from('produtos').select('codigo_produto,cmc').in('codigo_produto', loteNum));
     }
     if (resp.data) (resp.data as Array<{ codigo_produto: unknown; cmc: unknown }>).forEach((p) => {
       const c = num(p.cmc);
