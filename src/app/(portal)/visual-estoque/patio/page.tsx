@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
-import { ChevronRight, Package, MapPin, Eye, Archive, ImagePlus, Images, List, X } from 'lucide-react'
+import { ChevronRight, Package, MapPin, Eye, Archive, ImagePlus, Images, List, X, BookImage } from 'lucide-react'
 import { useAtalhoDuplo } from '@/lib/visual-estoque/useAtalhoDuplo'
 import MenuImagem from '@/components/visual-estoque/MenuImagem'
 
@@ -72,6 +72,7 @@ export default function PatioPage() {
   const [menuImagem, setMenuImagem] = useState(false)
   const [modalDemo, setModalDemo] = useState(false)
   const [buscandoLote, setBuscandoLote] = useState(false)
+  const [buscandoCatalogo, setBuscandoCatalogo] = useState(false)
   const [zonas, setZonas] = useState<Record<string, { x: number; y: number; w: number; h: number }>>({})
   const [editZonas, setEditZonas] = useState(false)
   const zonesRef = useRef<Record<string, HTMLDivElement | null>>({})
@@ -174,6 +175,21 @@ export default function PatioPage() {
       }
       recarregar()
     } finally { setBuscandoLote(false) }
+  }
+
+  async function buscarImagensCatalogo() {
+    setBuscandoCatalogo(true)
+    try {
+      const r = await fetch('/api/visual-estoque/imagens-catalogo', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conta }),
+      })
+      const d = await r.json()
+      if (d.erro) alert(`Erro: ${d.erro}`)
+      else {
+        alert(`Catálogo CRM: ${d.atualizados} de ${d.semImagem} máquinas sem foto foram preenchidas (${d.porCatalogo} do catálogo, ${d.porEquipamentos} de equipamentos).`)
+        recarregar()
+      }
+    } finally { setBuscandoCatalogo(false) }
   }
 
   const handleDragStart = useCallback((e: React.MouseEvent, maq: Maquina) => {
@@ -355,12 +371,19 @@ export default function PatioPage() {
           </div>
 
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button onClick={buscarImagensLote} disabled={buscandoLote} title="Buscar imagens das máquinas sem foto" style={{
+            <button onClick={buscarImagensCatalogo} disabled={buscandoCatalogo} title="Preencher fotos vazias com o catálogo oficial do CRM" style={{
+              padding: '6px 12px', borderRadius: 8, border: '1px solid var(--portal-border, #e5e5e5)',
+              fontSize: 11, fontWeight: 600, background: '#fff', cursor: buscandoCatalogo ? 'wait' : 'pointer',
+              display: 'flex', alignItems: 'center', gap: 6, color: '#6B7280',
+            }}>
+              <BookImage size={13} /> {buscandoCatalogo ? 'Catálogo...' : 'Catálogo'}
+            </button>
+            <button onClick={buscarImagensLote} disabled={buscandoLote} title="Buscar imagens das máquinas sem foto (Bing)" style={{
               padding: '6px 12px', borderRadius: 8, border: '1px solid var(--portal-border, #e5e5e5)',
               fontSize: 11, fontWeight: 600, background: '#fff', cursor: buscandoLote ? 'wait' : 'pointer',
               display: 'flex', alignItems: 'center', gap: 6, color: '#6B7280',
             }}>
-              <Images size={13} /> {buscandoLote ? 'Buscando...' : 'Imagens'}
+              <Images size={13} /> {buscandoLote ? 'Buscando...' : 'Bing'}
             </button>
             <select value={conta} onChange={e => setConta(e.target.value)} style={{
               padding: '6px 12px', borderRadius: 8, border: '1px solid var(--portal-border, #e5e5e5)',
