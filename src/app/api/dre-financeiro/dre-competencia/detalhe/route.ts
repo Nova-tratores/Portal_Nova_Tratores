@@ -107,13 +107,15 @@ export async function GET(request: NextRequest) {
       const dataAte = `${ano}-${String(mes).padStart(2, '0')}-${String(ultDia).padStart(2, '0')}`
       const cps = await selectPaginado(() =>
         db.from('contas_pagar')
-          .select('valor_documento,data_emissao,conta_omie,grupo_categoria,descricao_categoria,nome_fornecedor,numero_documento')
+          .select('valor_documento,data_emissao,conta_omie,grupo_categoria,descricao_categoria,nome_fornecedor,numero_documento,status_titulo')
           .gte('data_emissao', dataDe).lte('data_emissao', dataAte)
           .in('grupo_categoria', gruposParaCarregar)
           .order('codigo_lancamento', { ascending: true })
           .order('conta_omie', { ascending: true }) // ordem estavel p/ paginacao (evita duplicar)
       )
       cps.forEach((r: any) => {
+        // Titulos cancelados no Omie nao entram na DRE (ver calcularDRECompetencia)
+        if (String(r.status_titulo || '').toUpperCase().includes('CANCEL')) return
         const cls = grupoCpClassif[r.grupo_categoria]; if (!cls) return
         const v = cls.sinal * (Number(r.valor_documento) || 0); if (!v) return
         const cat = r.descricao_categoria || '(sem categoria)'

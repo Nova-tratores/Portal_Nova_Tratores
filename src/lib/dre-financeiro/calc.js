@@ -1148,7 +1148,7 @@ async function calcularDRECompetencia(anoMesIni, anoMesFim) {
   // duplicadas (ex.: "Despesas com Pessoal"). Chave: codigo_lancamento+conta_omie.
   const contasPagar = await selectPaginado(() =>
     supabase.from('contas_pagar')
-      .select('valor_documento,data_emissao,conta_omie,grupo_categoria,descricao_categoria')
+      .select('valor_documento,data_emissao,conta_omie,grupo_categoria,descricao_categoria,status_titulo')
       .gte('data_emissao', dataDe).lte('data_emissao', dataAte)
       .not('grupo_categoria', 'is', null)
       .order('codigo_lancamento', { ascending: true })
@@ -1196,6 +1196,9 @@ async function calcularDRECompetencia(anoMesIni, anoMesFim) {
 
   // 4b. Contas a pagar: despesas + devolucoes (sem filtro intercompany - ver nota)
   (contasPagar || []).forEach(r => {
+    // Titulos CANCELADOS no Omie continuam na tabela (sync faz upsert, nao apaga)
+    // e nao podem entrar na DRE - senao a despesa e contada (ex.: salario duplicado).
+    if (String(r.status_titulo || '').toUpperCase().includes('CANCEL')) return;
     const slug = String(r.conta_omie || '').toLowerCase();
     // contas_pagar tem conta_omie em UPPERCASE ('NOVA'/'CASTRO') - mas pelo dump
     // a config esta com case-insensitive. Tentamos ambos.
