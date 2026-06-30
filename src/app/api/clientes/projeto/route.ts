@@ -68,12 +68,24 @@ export async function GET(req: NextRequest) {
       }));
     }
 
-    // PVs vinculados (do banco)
-    const numPedidos = [...new Set(osDoProj.map(o => o.num_pedido_cli).filter((v: string) => v && /^\d+$/.test(v)))];
+    // PVs vinculados (do banco). O campo num_pedido_cli pode vir "4090",
+    // "CASTRO 4090", "3681 CASTRO", "3167(CASTRO)"... Extrai os dígitos e detecta
+    // a empresa: a Castro tem PV com o MESMO número de outra empresa, então o
+    // vínculo casa por num_pedido + empresa (senão traz as peças erradas).
+    const pedidoPares = osDoProj
+      .map((o) => {
+        const txt = String(o.num_pedido_cli || "");
+        const num = (txt.match(/\d+/g) || []).join("");
+        const emp = /castro/i.test(txt) ? "Castro Pecas" : (o.empresa || empresa);
+        return { num, emp };
+      })
+      .filter((p) => p.num);
+    const numPedidos = [...new Set(pedidoPares.map((p) => p.num))];
     let pvs: any[] = [];
     if (numPedidos.length > 0) {
       const { data } = await supabase.from("portal_nt_clientes_pv").select("*").in("num_pedido", numPedidos);
-      pvs = data || [];
+      const querer = new Set(pedidoPares.map((p) => `${p.num}|${p.emp}`));
+      pvs = (data || []).filter((p: any) => querer.has(`${p.num_pedido}|${p.empresa}`));
     }
 
     // Clientes envolvidos

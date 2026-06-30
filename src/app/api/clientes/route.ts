@@ -67,16 +67,18 @@ export async function GET(req: NextRequest) {
         .eq("empresa", empresa)
         .order("data_previsao", { ascending: false });
 
-      // Buscar PVs vinculados (via num_pedido_cli das OS)
-      // Aceita numérico puro (PV) e "REM XXXX" (remessa)
-      const numPedidos = [...new Set(
-        (ordens || []).map(o => {
-          const ref = (o.num_pedido_cli || '').trim()
-          if (/^\d+$/.test(ref)) return ref
-          const m = ref.match(/^REM\s*(\d+)$/i)
-          return m ? m[1] : null
-        }).filter(Boolean) as string[]
-      )];
+      // Buscar PVs vinculados (via num_pedido_cli das OS). O campo pode vir
+      // numérico puro (PV), "REM XXXX" (remessa) ou "CASTRO 4090"/"3681 CASTRO"
+      // (peça comprada na Castro). Como a Castro tem PV com o MESMO número de
+      // outra empresa, o vínculo casa por num_pedido + empresa.
+      const pedidoPares = (ordens || []).map(o => {
+        const ref = String(o.num_pedido_cli || '').trim();
+        const remM = ref.match(/^REM\s*(\d+)$/i);
+        const num = remM ? remM[1] : (ref.match(/\d+/g) || []).join("");
+        if (!num) return null;
+        return { num, empresa: /castro/i.test(ref) ? "Castro Pecas" : o.empresa };
+      }).filter(Boolean) as { num: string; empresa: string }[];
+      const numPedidos = [...new Set(pedidoPares.map(p => p.num))];
 
       let pedidos: any[] = [];
       if (numPedidos.length > 0) {
@@ -84,7 +86,8 @@ export async function GET(req: NextRequest) {
           .from("portal_nt_clientes_pv")
           .select("*")
           .in("num_pedido", numPedidos);
-        pedidos = pvs || [];
+        const querer = new Set(pedidoPares.map(p => `${p.num}|${p.empresa}`));
+        pedidos = (pvs || []).filter((pv: any) => querer.has(`${pv.num_pedido}|${pv.empresa}`));
       }
 
       // Também buscar PVs diretamente pelo cod_cli em TODAS as empresas

@@ -6,6 +6,16 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 );
 
+// num_pedido_cli da OS -> { num, empresa }. Pode vir "4090", "CASTRO 4090",
+// "3681 CASTRO", "3167(CASTRO)"... Extrai os dígitos e, se mencionar Castro,
+// aponta pro PV na empresa Castro Pecas (que tem pedidos com o mesmo número de
+// outra empresa — por isso o vínculo casa por num_pedido + empresa).
+function parsePedidoCli(campo: unknown, empresaOS: string): { num: string; empresa: string } {
+  const txt = String(campo || "");
+  const num = (txt.match(/\d+/g) || []).join("");
+  return { num, empresa: /castro/i.test(txt) ? "Castro Pecas" : empresaOS };
+}
+
 async function fetchAll<T>(table: string, select: string, filters?: (q: any) => any): Promise<T[]> {
   const all: T[] = [];
   const PAGE = 1000;
@@ -50,9 +60,8 @@ export async function GET(req: NextRequest) {
       const arr = osPorProjEmp.get(key) || [];
       arr.push(os);
       osPorProjEmp.set(key, arr);
-      if (os.num_pedido_cli && /^\d+$/.test(os.num_pedido_cli)) {
-        allNumPedidos.push(os.num_pedido_cli);
-      }
+      const { num } = parsePedidoCli(os.num_pedido_cli, os.empresa);
+      if (num) allNumPedidos.push(num);
     }
 
     // Buscar PVs vinculados via num_pedido_cli
@@ -104,8 +113,9 @@ export async function GET(req: NextRequest) {
         const pvsProj: any[] = [];
         const pvSeen = new Set<string>();
         for (const os of osProj) {
-          if (os.num_pedido_cli && /^\d+$/.test(os.num_pedido_cli)) {
-            const pvKey = `${os.num_pedido_cli}|${os.empresa}`;
+          const { num, empresa: pvEmp } = parsePedidoCli(os.num_pedido_cli, os.empresa);
+          if (num) {
+            const pvKey = `${num}|${pvEmp}`;
             if (!pvSeen.has(pvKey)) {
               pvSeen.add(pvKey);
               const pv = pvMap.get(pvKey);

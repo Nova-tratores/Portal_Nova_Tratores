@@ -483,19 +483,28 @@ function ClientesPageInner() {
     return [...porDoc.values(), ...semDoc]
   })()
   const empresas = [...new Set(clientes.map(c => c.empresa))]
-  const findAllPVs = (ref: string): PedidoVenda[] => {
-    if (!ref) return []
-    if (/^\d+$/.test(ref)) return pedidos.filter(pv => pv.num_pedido === ref)
-    const m = ref.match(/^REM\s*(\d+)$/i)
-    if (m) return pedidos.filter(pv => pv.num_pedido === m[1])
-    return []
+  // Interpreta o "num_pedido_cli" da OS. Pode vir "4090" (PV), "REM 3477"
+  // (remessa) ou "CASTRO 4090"/"3681 CASTRO" (peça comprada na Castro). Como a
+  // Castro tem PV com o MESMO número de outra empresa, devolve também a empresa
+  // alvo pra casar o PV certo (Castro quando mencionado, senão a empresa da OS).
+  const parseRef = (ref: string, osEmpresa?: string) => {
+    const r = String(ref || '').trim()
+    if (!r) return { tipo: 'texto' as const, num: '', empresa: '', label: '' }
+    const remM = r.match(/^REM\s*(\d+)$/i)
+    if (remM) return { tipo: 'remessa' as const, num: remM[1], empresa: osEmpresa || '', label: `Remessa ${remM[1]}` }
+    const ehCastro = /castro/i.test(r)
+    const num = /^\d+$/.test(r) ? r : (ehCastro ? (r.match(/\d+/g) || []).join("") : '')
+    if (num) return { tipo: 'pv' as const, num, empresa: ehCastro ? 'Castro Pecas' : (osEmpresa || ''), label: `Pedido de Venda ${num}${ehCastro ? ' (Castro)' : ''}` }
+    return { tipo: 'texto' as const, num: '', empresa: '', label: r }
   }
-  const classifyRef = (ref: string) => {
-    if (!ref) return { tipo: 'texto' as const, label: '' }
-    if (/^\d+$/.test(ref)) return { tipo: 'pv' as const, label: `Pedido de Venda ${ref}` }
-    const m = ref.match(/^REM\s*(\d+)$/i)
-    if (m) return { tipo: 'remessa' as const, label: `Remessa ${m[1]}` }
-    return { tipo: 'texto' as const, label: ref }
+  const findAllPVs = (ref: string, osEmpresa?: string): PedidoVenda[] => {
+    const p = parseRef(ref, osEmpresa)
+    if (!p.num) return []
+    return pedidos.filter(pv => pv.num_pedido === p.num && (!p.empresa || pv.empresa === p.empresa))
+  }
+  const classifyRef = (ref: string, osEmpresa?: string) => {
+    const p = parseRef(ref, osEmpresa)
+    return { tipo: p.tipo, label: p.label }
   }
 
   // ============ DETALHE DO CLIENTE ============
@@ -506,7 +515,10 @@ function ClientesPageInner() {
     const totalAtivas = ordens.filter(o => !o.faturada && !o.cancelada).length
     const totalValorOS = ordens.reduce((s, o) => s + (o.valor_total || 0), 0)
     const totalValorPV = pedidos.reduce((s, p) => s + (p.valor_total || 0), 0)
-    const pvsSemOS = pedidos.filter(pv => !ordens.some(os => /^\d+$/.test(os.num_pedido_cli) && os.num_pedido_cli === pv.num_pedido))
+    const pvsSemOS = pedidos.filter(pv => !ordens.some(os => {
+      const p = parseRef(os.num_pedido_cli, os.empresa)
+      return p.tipo === 'pv' && p.num === pv.num_pedido && (!p.empresa || p.empresa === pv.empresa)
+    }))
 
     return (
       <div style={{ padding: '20px 32px 48px', width: '100%', boxSizing: 'border-box' }}>
@@ -903,7 +915,7 @@ function ClientesPageInner() {
                   {ordensFiltradas.map((os, oi) => {
                     const servicos = typeof os.servicos === 'string' ? JSON.parse(os.servicos) : (os.servicos || [])
                     const solicitacao = (() => { const d = servicos.map((s: any) => s.desc || '').join('|'); const m = d.match(/Solicita[çc][ãa]o[^:]*:\s*([^|]+)/i); return m ? m[1].trim() : '' })()
-                    const ref = classifyRef(os.num_pedido_cli)
+                    const ref = classifyRef(os.num_pedido_cli, os.empresa)
                     const numRef = ref.tipo === 'pv' ? os.num_pedido_cli : ''
                     const remRef = ref.tipo === 'remessa' ? os.num_pedido_cli : ''
                     const acc = os.cancelada ? '#DC2626' : os.faturada ? '#10B981' : '#F59E0B'
@@ -1153,8 +1165,8 @@ function ClientesPageInner() {
           const os = modalOS
           const servicos = typeof os.servicos === 'string' ? JSON.parse(os.servicos) : (os.servicos || [])
           const solicitacao = (() => { const d = servicos.map((s: any) => s.desc || '').join('|'); const m = d.match(/Solicita[çc][ãa]o[^:]*:\s*([^|]+)/i); return m ? m[1].trim() : '' })()
-          const ref = classifyRef(os.num_pedido_cli)
-          const pvs = (ref.tipo === 'pv' || ref.tipo === 'remessa') ? findAllPVs(os.num_pedido_cli) : []
+          const ref = classifyRef(os.num_pedido_cli, os.empresa)
+          const pvs = (ref.tipo === 'pv' || ref.tipo === 'remessa') ? findAllPVs(os.num_pedido_cli, os.empresa) : []
 
           return (
             <div className="cli-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
@@ -1412,8 +1424,8 @@ function ClientesPageInner() {
                 // PVs vinculados a OS (via num_pedido_cli)
                 const pvsVinculados = new Set<string>()
                 for (const os of osProj) {
-                  const ref = String(os.num_pedido_cli || '').trim()
-                  if (/^\d+$/.test(ref)) pvsVinculados.add(ref)
+                  const { num } = parseRef(os.num_pedido_cli, os.empresa)
+                  if (num) pvsVinculados.add(num)
                 }
                 // Peças avulsas = PVs que NÃO estão vinculados a nenhuma OS
                 const pecasAgrupadas = (() => {
@@ -1583,9 +1595,9 @@ function ClientesPageInner() {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                               {servicosAgrupados.map((g: any, gi: number) => {
                                 const os = osPorNum.get(String(g.num_os))
-                                const pvRef = String(os?.num_pedido_cli || '').trim()
-                                const temPV = /^\d+$/.test(pvRef)
-                                const pecasDoServ = temPV ? pecasList.filter((p: any) => String(p.num_pv) === pvRef) : []
+                                const { num: pvRefNum } = parseRef(os?.num_pedido_cli || '', os?.empresa)
+                                const temPV = !!pvRefNum
+                                const pecasDoServ = temPV ? pecasList.filter((p: any) => String(p.num_pv) === pvRefNum) : []
                                 const valorPecas = pecasDoServ.reduce((s: number, p: any) => s + (p.valor_total || 0), 0)
                                 return (
                                   <div key={gi} onClick={() => setServicoModalOS(String(g.num_os))}
@@ -1596,7 +1608,7 @@ function ClientesPageInner() {
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
                                         <Wrench size={15} color="#2563EB" style={{ flexShrink: 0 }} />
                                         <span style={{ fontWeight: 700, color: '#2563EB', fontSize: 13, flexShrink: 0 }}>OS {g.num_os}</span>
-                                        {temPV && <span style={{ fontSize: 11, color: '#EA580C', fontWeight: 600, flexShrink: 0 }}>+ PV {pvRef}</span>}
+                                        {temPV && <span style={{ fontSize: 11, color: '#EA580C', fontWeight: 600, flexShrink: 0 }}>+ PV {pvRefNum}</span>}
                                         <span style={{ color: '#6B7280', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.cliente || '-'}</span>
                                       </div>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
@@ -1811,8 +1823,9 @@ function ClientesPageInner() {
                       const grupo = servicosAgrupados.find((g: any) => String(g.num_os) === servicoModalOS)
                       const linhas = grupo?.linhas || []
                       const total = grupo?.valor || os?.valor_total || 0
+                      const refPed = parseRef(os?.num_pedido_cli || '', os?.empresa)
                       const pedido = String(os?.num_pedido_cli || '').trim()
-                      const pedidoEhPV = /^\d+$/.test(pedido)
+                      const pedidoEhPV = refPed.tipo === 'pv'
                       const status = os?.status || grupo?.status || ''
                       return (
                         <div onClick={e => { if (e.target === e.currentTarget) setServicoModalOS(null) }}
@@ -1859,7 +1872,7 @@ function ClientesPageInner() {
                                     <div style={{ fontSize: 14, color: '#111827', fontWeight: 700 }}>{pedido || '—'}</div>
                                   </div>
                                   {pedidoEhPV && (
-                                    <button onClick={() => setPedidoModalNum(pedido)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 9, border: 'none', background: 'linear-gradient(135deg, #EA580C, #C2410C)', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+                                    <button onClick={() => setPedidoModalNum(refPed.num)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 9, border: 'none', background: 'linear-gradient(135deg, #EA580C, #C2410C)', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
                                       <Package size={14} /> Ver pedido <ChevronRight size={14} />
                                     </button>
                                   )}
