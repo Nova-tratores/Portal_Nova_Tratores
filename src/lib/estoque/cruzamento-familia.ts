@@ -23,7 +23,7 @@ const SNAPSHOT_TABLE = 'estoque_familia_snapshot';
 
 export type TipoFamilia = '' | 'pecas' | 'maquinas';
 export type Grupo = 'maquina' | 'peca' | 'ignorar';
-export type Dimensao = 'tipo' | 'categoria' | 'familia';
+export type Dimensao = 'tipo' | 'categoria' | 'familia' | 'tipocarac';
 
 /**
  * Classifica a família em grupo. Regra do cliente:
@@ -51,12 +51,16 @@ function passaTipo(familia: string, filtro: TipoFamilia): boolean {
 
 /** Extrai código interno, descrição, qtd e valor de um item de nota de entrada
  *  (estrutura crua do Omie: item.prod.* + item.nfProdInt.nCodProd). */
-function parseItemEntrada(it: Record<string, unknown>): { codigo: string; descricao: string; qtd: number; valor: number } {
+function parseItemEntrada(it: Record<string, unknown>): { codigo: string; sku: string; descricao: string; qtd: number; valor: number } {
   const prod = (it.prod ?? null) as Record<string, unknown> | null;
   if (prod) {
     const nf = (it.nfProdInt ?? {}) as Record<string, unknown>;
+    // nCodProd = id interno Omie (0 quando o item não foi vinculado a um produto);
+    // cProd = código do fornecedor/SKU. Tratamos 0/'' como "sem id interno".
+    const nCod = nf.nCodProd != null ? String(nf.nCodProd) : '';
     return {
-      codigo: String(nf.nCodProd ?? prod.cProd ?? ''),
+      codigo: nCod && nCod !== '0' ? nCod : '',
+      sku: String(prod.cProd ?? ''),
       descricao: String(prod.xProd ?? ''),
       qtd: num(prod.qCom),
       valor: num(prod.vProd ?? prod.vTotItem),
@@ -65,6 +69,7 @@ function parseItemEntrada(it: Record<string, unknown>): { codigo: string; descri
   // Fallback p/ formatos planos antigos.
   return {
     codigo: String(it.codigo_produto ?? ''),
+    sku: String(it.codigo ?? it.sku ?? ''),
     descricao: String(it.descricao ?? ''),
     qtd: num(it.quantidade),
     valor: num(it.valor_total),
@@ -126,22 +131,26 @@ function aplicarContaProdutos<T>(query: T, conta: ContaFiltro): T {
 async function carregarProdutos(conta: ContaFiltro): Promise<{
   estoquePorFamilia: Record<string, { qtd: number; valor: number }>;
   famPorCodigo: Record<string, string>;
+  famPorSKU: Record<string, string>;
 }> {
   const estoquePorFamilia: Record<string, { qtd: number; valor: number }> = {};
   const famPorCodigo: Record<string, string> = {};
+  const famPorSKU: Record<string, string> = {}; // produtos.codigo (SKU, minúsculo) → família
   let offset = 0;
   const LOTE = 1000;
   while (true) {
     const { data, error } = await aplicarContaProdutos(
-      supabase.from('produtos').select('codigo_produto,familia_nome,estoque,valor_estoque'),
+      supabase.from('produtos').select('codigo_produto,codigo,familia_nome,estoque,valor_estoque'),
       conta,
     ).range(offset, offset + LOTE - 1);
     if (error) throw new Error(error.message);
-    const lote = (data || []) as Array<{ codigo_produto: unknown; familia_nome: unknown; estoque: unknown; valor_estoque: unknown }>;
+    const lote = (data || []) as Array<{ codigo_produto: unknown; codigo: unknown; familia_nome: unknown; estoque: unknown; valor_estoque: unknown }>;
     for (const p of lote) {
       const cod = String(p.codigo_produto);
       const fam = String(p.familia_nome ?? '').trim() || SEM_FAMILIA;
       famPorCodigo[cod] = fam;
+      const sku = String(p.codigo ?? '').trim().toLowerCase();
+      if (sku) famPorSKU[sku] = fam;
       const qtd = num(p.estoque);
       const valor = num(p.valor_estoque);
       if (!estoquePorFamilia[fam]) estoquePorFamilia[fam] = { qtd: 0, valor: 0 };
@@ -151,7 +160,44 @@ async function carregarProdutos(conta: ContaFiltro): Promise<{
     if (lote.length < LOTE) break;
     offset += LOTE;
   }
-  return { estoquePorFamilia, famPorCodigo };
+  return { estoquePorFamilia, famPorCodigo, famPorSKU };
+}
+
+/** Resolve a família de um item de entrada: id interno (nCodProd) → SKU (cProd). */
+function resolverFamiliaEntrada(
+  codigo: string,
+  sku: string,
+  famPorCodigo: Record<string, string>,
+  famPorSKU: Record<string, string>,
+): string {
+  return famPorCodigo[codigo] || (sku ? famPorSKU[sku.trim().toLowerCase()] : '') || '';
+}
+
+/**
+ * Mapa codigo_produto(interno) → "Tipo" (característica) da tabela `produto_tipo`,
+ * só onde preenchido. É a classificação que a empresa mantém manualmente
+ * (ex.: Anel, Filtros, Retentor…). `produto_tipo.conta_omie` é MAIÚSCULO.
+ */
+async function carregarTipoCaracteristica(conta: ContaFiltro): Promise<Record<string, string>> {
+  const mapa: Record<string, string> = {};
+  let offset = 0;
+  const LOTE = 1000;
+  while (true) {
+    const { data, error } = await filtroConta(
+      supabase.from('produto_tipo').select('codigo_produto,tipo').not('tipo', 'is', null).neq('tipo', ''),
+      conta,
+    ).range(offset, offset + LOTE - 1);
+    if (error) throw new Error(error.message);
+    const lote = (data || []) as Array<{ codigo_produto: unknown; tipo: unknown }>;
+    for (const r of lote) {
+      const cod = String(r.codigo_produto ?? '');
+      const tp = String(r.tipo ?? '').trim();
+      if (cod && tp) mapa[cod] = tp;
+    }
+    if (lote.length < LOTE) break;
+    offset += LOTE;
+  }
+  return mapa;
 }
 
 /** Saídas do mês = vendas_itens (qtd + valor_total), por família. */
@@ -194,6 +240,7 @@ async function carregarEntradas(
   ano: number,
   conta: ContaFiltro,
   famPorCodigo: Record<string, string>,
+  famPorSKU: Record<string, string>,
 ): Promise<{ porFamilia: Record<string, { qtd: number; valor: number }>; semFamilia: number }> {
   const porFamilia: Record<string, { qtd: number; valor: number }> = {};
   let semFamilia = 0;
@@ -214,8 +261,8 @@ async function carregarEntradas(
     for (const nota of lote) {
       const itens = Array.isArray(nota.itens) ? (nota.itens as Array<Record<string, unknown>>) : [];
       for (const it of itens) {
-        const { codigo, qtd, valor } = parseItemEntrada(it);
-        const fam = famPorCodigo[codigo];
+        const { codigo, sku, qtd, valor } = parseItemEntrada(it);
+        const fam = resolverFamiliaEntrada(codigo, sku, famPorCodigo, famPorSKU);
         const chave = fam || SEM_FAMILIA;
         if (!fam) semFamilia++;
         if (!porFamilia[chave]) porFamilia[chave] = { qtd: 0, valor: 0 };
@@ -236,10 +283,10 @@ export async function cruzamentoPorFamilia(
   const { mes, ano } = filtros;
   const tipo = filtros.tipo || '';
 
-  const { estoquePorFamilia, famPorCodigo } = await carregarProdutos(conta);
+  const { estoquePorFamilia, famPorCodigo, famPorSKU } = await carregarProdutos(conta);
   const [saidas, entradas] = await Promise.all([
     carregarSaidas(mes, ano, conta, famPorCodigo),
-    carregarEntradas(mes, ano, conta, famPorCodigo),
+    carregarEntradas(mes, ano, conta, famPorCodigo, famPorSKU),
   ]);
 
   // União das famílias das três fontes.
@@ -351,11 +398,14 @@ interface FluxoMes {
   // por família
   entradaPorFam: Record<string, number>;
   saidaPorFam: Record<string, number>;
+  // por "Tipo" (característica manual, tabela produto_tipo)
+  entradaPorTipoCarac: Record<string, number>;
+  saidaPorTipoCarac: Record<string, number>;
 }
 
 async function notasDoMes(
   mes: number, ano: number, conta: ContaFiltro,
-  famPorCodigo: Record<string, string>, escaped: string | null,
+  famPorCodigo: Record<string, string>, famPorSKU: Record<string, string>, escaped: string | null,
 ): Promise<{ entradaPeca: number; entradaMaq: number; entradaPorCat: Record<string, number>; entradaPorFam: Record<string, number> }> {
   let entradaPeca = 0, entradaMaq = 0;
   const entradaPorCat: Record<string, number> = {};
@@ -374,8 +424,8 @@ async function notasDoMes(
       const cat = String(nota.categoria ?? '').trim() || SEM_CATEGORIA;
       const itens = Array.isArray(nota.itens) ? (nota.itens as Array<Record<string, unknown>>) : [];
       for (const it of itens) {
-        const { codigo, valor } = parseItemEntrada(it);
-        const fam = famPorCodigo[codigo] || '';
+        const { codigo, sku, valor } = parseItemEntrada(it);
+        const fam = resolverFamiliaEntrada(codigo, sku, famPorCodigo, famPorSKU);
         const g = classificarGrupo(fam);
         if (g === 'peca') entradaPeca += valor;
         else if (g === 'maquina') entradaMaq += valor;
@@ -587,7 +637,7 @@ export async function serieMensal(
   conta: ContaFiltro,
   dimensao: Dimensao = 'tipo',
 ): Promise<SerieMensalResult> {
-  const { estoquePorFamilia, famPorCodigo } = await carregarProdutos(conta);
+  const { estoquePorFamilia, famPorCodigo, famPorSKU } = await carregarProdutos(conta);
 
   // Estoque atual por grupo (valor).
   let estPeca = 0, estMaq = 0;
@@ -605,7 +655,7 @@ export async function serieMensal(
   const fluxos: FluxoMes[] = [];
   for (const m of meses) {
     const [nota, venda] = await Promise.all([
-      notasDoMes(m.mes, m.ano, conta, famPorCodigo, escaped),
+      notasDoMes(m.mes, m.ano, conta, famPorCodigo, famPorSKU, escaped),
       vendasDoMes(m.mes, m.ano, conta, famPorCodigo, catMap),
     ]);
     fluxos.push({
@@ -780,7 +830,7 @@ async function composicaoEstoque(conta: ContaFiltro, f: ComposicaoFiltro): Promi
 }
 
 async function composicaoEntrada(conta: ContaFiltro, f: ComposicaoFiltro): Promise<ComposicaoResult> {
-  const { famPorCodigo } = await carregarProdutos(conta);
+  const { famPorCodigo, famPorSKU } = await carregarProdutos(conta);
   const { nomes } = await getIgnorarFiltro(conta);
   const escaped = nomes.length > 0 ? '(' + nomes.map((n) => '"' + String(n).replace(/"/g, '') + '"').join(',') + ')' : null;
   const itens: ComposicaoItem[] = [];
@@ -798,10 +848,10 @@ async function composicaoEntrada(conta: ContaFiltro, f: ComposicaoFiltro): Promi
       const cat = String(nota.categoria ?? '').trim() || SEM_CATEGORIA;
       const its = Array.isArray(nota.itens) ? (nota.itens as Array<Record<string, unknown>>) : [];
       for (const it of its) {
-        const { codigo, descricao, qtd, valor } = parseItemEntrada(it);
-        const fam = famPorCodigo[codigo] || SEM_FAMILIA;
+        const { codigo, sku, descricao, qtd, valor } = parseItemEntrada(it);
+        const fam = resolverFamiliaEntrada(codigo, sku, famPorCodigo, famPorSKU) || SEM_FAMILIA;
         if (!passaFiltroGrupoFamCat(f, fam, cat)) continue;
-        itens.push({ codigo, descricao, familia: fam, categoria: cat, ref: String(nota.numero_nf ?? ''), qtd, valor });
+        itens.push({ codigo: codigo || sku, descricao, familia: fam, categoria: cat, ref: String(nota.numero_nf ?? ''), qtd, valor });
       }
     }
     if (lote.length < LOTE) break;
