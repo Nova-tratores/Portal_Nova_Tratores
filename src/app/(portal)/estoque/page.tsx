@@ -17,6 +17,7 @@ const NAV = [
   { href: '/estoque/cadastro-produto', label: '→ Cadastro de Produto' },
   { href: '/estoque/curva-abc', label: '→ Curva ABC' },
   { href: '/estoque/giro-estoque', label: '→ Giro de Estoque' },
+  { href: '/estoque/cruzamento-familia', label: '→ Cruzamento por Família' },
 ];
 
 const thStyle: React.CSSProperties = { background: '#fafafa', color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', padding: '9px 10px', textAlign: 'left', borderBottom: '1px solid #eee', fontWeight: 600 };
