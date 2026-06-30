@@ -71,6 +71,7 @@ export default function PatioPage() {
   const [dragging, setDragging] = useState<{ maq: Maquina; startX: number; startY: number; curX: number; curY: number } | null>(null)
   const [menuImagem, setMenuImagem] = useState(false)
   const [modalDemo, setModalDemo] = useState(false)
+  const [demoSort, setDemoSort] = useState<{ col: string; dir: 'asc' | 'desc' }>({ col: 'data_saida', dir: 'desc' })
   const [buscandoLote, setBuscandoLote] = useState(false)
   const [buscandoCatalogo, setBuscandoCatalogo] = useState(false)
   const [zonas, setZonas] = useState<Record<string, { x: number; y: number; w: number; h: number }>>({})
@@ -641,16 +642,41 @@ export default function PatioPage() {
               <button onClick={() => setModalDemo(false)} style={{ border: 'none', background: 'none', cursor: 'pointer' }}><X size={18} /></button>
             </div>
             <div style={{ padding: '8px 20px 20px' }}>
+              {(() => {
+                const parseData = (s?: string) => {
+                  if (!s) return 0
+                  if (s.includes('-')) return new Date(s).getTime() || 0
+                  const [d, mo, a] = s.split('/'); return new Date(+a, +mo - 1, +d).getTime() || 0
+                }
+                const cols: { key: string; label: string; num?: boolean; get: (m: Maquina) => string | number }[] = [
+                  { key: 'descricao', label: 'Produto', get: m => m.descricao || '' },
+                  { key: 'destinatario', label: 'Cliente', get: m => m.destinatario || '' },
+                  { key: 'data_saida', label: 'Data saída', num: true, get: m => parseData(m.data_saida) },
+                  { key: 'numero_remessa', label: 'Remessa', get: m => m.numero_remessa || '' },
+                  { key: 'dias_em_estoque', label: 'Dias', num: true, get: m => m.dias_em_estoque },
+                  { key: 'valor_estoque', label: 'Valor', num: true, get: m => m.valor_estoque },
+                ]
+                const lista = [...(data?.ambientes['demonstracao'] || [])]
+                const col = cols.find(c => c.key === demoSort.col) || cols[2]
+                lista.sort((a, b) => {
+                  const va = col.get(a), vb = col.get(b)
+                  const cmp = col.num ? (Number(va) - Number(vb)) : String(va).localeCompare(String(vb), 'pt-BR')
+                  return demoSort.dir === 'asc' ? cmp : -cmp
+                })
+                const onSort = (key: string) => setDemoSort(s => s.col === key ? { col: key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { col: key, dir: 'asc' })
+                return (
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead style={{ background: 'var(--portal-bg, #fafafa)' }}>
                   <tr>
-                    {['Produto', 'Cliente', 'Data saída', 'Remessa', 'Dias', 'Valor'].map((h, i) => (
-                      <th key={h} style={{ padding: '10px 12px', fontSize: 10, fontWeight: 800, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: i >= 4 ? 'right' : 'left', whiteSpace: 'nowrap' }}>{h}</th>
+                    {cols.map((c, i) => (
+                      <th key={c.key} onClick={() => onSort(c.key)} title="Clique para ordenar" style={{ padding: '10px 12px', fontSize: 10, fontWeight: 800, color: demoSort.col === c.key ? '#dc2626' : '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: i >= 4 ? 'right' : 'left', whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }}>
+                        {c.label}{demoSort.col === c.key ? (demoSort.dir === 'asc' ? ' ↑' : ' ↓') : ' ↕'}
+                      </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {(data?.ambientes['demonstracao'] || []).map(m => {
+                  {lista.map(m => {
                     const dataFmt = m.data_saida ? (m.data_saida.includes('-') ? m.data_saida.split('-').reverse().join('/') : m.data_saida) : '—'
                     return (
                       <tr key={m.codigo_produto} onClick={() => { setSelecionada(m); setSidebarTab('detalhes'); setModalDemo(false) }} style={{ borderBottom: '1px solid var(--portal-border, #f0f0f0)', cursor: 'pointer' }}>
@@ -666,11 +692,13 @@ export default function PatioPage() {
                       </tr>
                     )
                   })}
-                  {(data?.ambientes['demonstracao'] || []).length === 0 && (
+                  {lista.length === 0 && (
                     <tr><td colSpan={6} style={{ padding: 32, textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>Nenhuma máquina em demonstração.</td></tr>
                   )}
                 </tbody>
               </table>
+                )
+              })()}
             </div>
           </div>
         </div>
