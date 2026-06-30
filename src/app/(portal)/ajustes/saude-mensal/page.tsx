@@ -45,7 +45,7 @@ function Kpi({ label, valor, cor }: { label: string; valor: string; cor?: string
 
 export default function SaudeMensalPage() {
   const { userProfile } = useAuth();
-  const { temAcesso, loading: permLoading } = usePermissoes(userProfile?.id);
+  const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
   const { conta, contaParam } = useConta();
 
   function mesAtual(): string {
@@ -77,7 +77,7 @@ export default function SaudeMensalPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conta, mes]);
 
-  if (!permLoading && userProfile && !temAcesso('ajustes:saude-mensal')) return <SemPermissao />;
+  if (!permLoading && userProfile && !pode('ajustes', 'saude-mensal')) return <SemPermissao />;
 
   const k = dados?.kpis;
   const meses = dados?.meses || [];

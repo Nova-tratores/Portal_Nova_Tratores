@@ -89,6 +89,42 @@ export async function listarNotasEntrada(
   return { notas: (notas || []) as Array<Record<string, unknown>>, total: count || 0, pagina: pag, porPagina, totalPaginas: Math.ceil((count || 0) / porPagina) };
 }
 
+// ===== Todas as notas de um período (campos mínimos, sem paginação) =====
+// Usado pelo "selecionar todas do período" da tela de Notas de Entrada.
+export interface NotaResumo { id: number; numero_nf: string | null; valor_nf: number }
+
+export async function listarNotasEntradaTodas(
+  filtros: { mes?: number; ano?: number; nf?: string },
+  conta: ContaFiltro,
+): Promise<{ notas: NotaResumo[]; total: number; somaValor: number }> {
+  const { nomes } = await getIgnorarFiltro(conta);
+  const escaped = nomes.length > 0 ? '(' + nomes.map((n) => '"' + String(n).replace(/"/g, '') + '"').join(',') + ')' : null;
+
+  const LOTE = 1000;
+  const notas: NotaResumo[] = [];
+  let offset = 0;
+  while (true) {
+    let query = supabase.from('notas_entrada').select('id,numero_nf,valor_nf');
+    if (filtros.nf) {
+      query = query.ilike('numero_nf', '%' + filtros.nf + '%');
+    } else {
+      if (filtros.mes) query = query.eq('mes', filtros.mes);
+      if (filtros.ano) query = query.eq('ano', filtros.ano);
+    }
+    query = filtroConta(query, conta);
+    if (escaped) query = query.not('nome_emitente', 'in', escaped);
+    query = query.order('data_emissao', { ascending: false }).range(offset, offset + LOTE - 1);
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    const lote = (data || []) as Array<{ id: number; numero_nf: string | null; valor_nf: unknown }>;
+    lote.forEach((r) => notas.push({ id: r.id, numero_nf: r.numero_nf, valor_nf: num(r.valor_nf) }));
+    if (lote.length < LOTE) break;
+    offset += LOTE;
+  }
+  const somaValor = notas.reduce((s, n) => s + n.valor_nf, 0);
+  return { notas, total: notas.length, somaValor };
+}
+
 // ===== Contas a pagar de uma NF (Omie) =====
 export interface TituloContaPagar {
   numero_documento: string;

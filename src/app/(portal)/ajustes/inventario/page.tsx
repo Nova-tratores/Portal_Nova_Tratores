@@ -99,7 +99,7 @@ function BadgeClasse({ c }: { c?: string | null }) {
 
 export default function InventarioPage() {
   const { userProfile } = useAuth();
-  const { temAcesso, loading: permLoading } = usePermissoes(userProfile?.id);
+  const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
   const criadoPor = userProfile?.nome || 'portal';
 
   // recalculo (worker-ready)
@@ -321,7 +321,7 @@ export default function InventarioPage() {
     buscaTimer.current = setTimeout(() => carregarProdutos(), 350);
   }, [carregarProdutos]);
 
-  if (!permLoading && userProfile && !temAcesso('ajustes:inventario')) return <SemPermissao />;
+  if (!permLoading && userProfile && !pode('ajustes', 'inventario')) return <SemPermissao />;
 
   const hoje = hojeISO();
   const vencidos = produtos.filter((p) => p.ativo && p.proxima_contagem && String(p.proxima_contagem) <= hoje).length;

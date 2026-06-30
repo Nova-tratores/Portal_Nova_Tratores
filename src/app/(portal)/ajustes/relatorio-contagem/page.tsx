@@ -54,7 +54,7 @@ const tdStyle: React.CSSProperties = { padding: '8px 10px', borderBottom: '1px s
 
 export default function RelatorioContagemPage() {
   const { userProfile } = useAuth();
-  const { temAcesso, loading: permLoading } = usePermissoes(userProfile?.id);
+  const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
   const { conta, contaParam } = useConta();
 
   const [codigos, setCodigos] = useState('');
@@ -121,7 +121,7 @@ export default function RelatorioContagemPage() {
     URL.revokeObjectURL(url);
   }, [dados, conta]);
 
-  if (!permLoading && userProfile && !temAcesso('ajustes:inventario')) return <SemPermissao />;
+  if (!permLoading && userProfile && !pode('ajustes', 'inventario')) return <SemPermissao />;
 
   const linhas = dados?.linhas || [];
 

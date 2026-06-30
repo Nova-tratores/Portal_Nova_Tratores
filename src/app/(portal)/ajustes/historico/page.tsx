@@ -52,7 +52,7 @@ const tdStyle: React.CSSProperties = { padding: '8px 10px', borderBottom: '1px s
 
 export default function AjustesHistoricoPage() {
   const { userProfile } = useAuth();
-  const { temAcesso, loading: permLoading } = usePermissoes(userProfile?.id);
+  const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
   const { conta, contaParam } = useConta();
 
   const [produto, setProduto] = useState('');
@@ -105,7 +105,7 @@ export default function AjustesHistoricoPage() {
     }
   }, []);
 
-  if (!permLoading && userProfile && !temAcesso('ajustes:historico')) return <SemPermissao />;
+  if (!permLoading && userProfile && !pode('ajustes', 'historico')) return <SemPermissao />;
 
   return (
     <div style={{ maxWidth: 1400, margin: '0 auto', padding: '20px 24px' }}>

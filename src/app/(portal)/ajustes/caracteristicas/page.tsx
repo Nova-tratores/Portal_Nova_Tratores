@@ -43,7 +43,7 @@ function EmpBadge({ empresa }: { empresa: string }) {
 
 export default function CaracteristicasPage() {
   const { userProfile } = useAuth();
-  const { temAcesso, loading: permLoading } = usePermissoes(userProfile?.id);
+  const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
   const criadoPor = userProfile?.nome || 'portal';
 
   const [dados, setDados] = useState<CaractPayload>({ produtos: [], colunas: [], ultimaSync: null });
@@ -257,7 +257,7 @@ export default function CaracteristicasPage() {
     }
   }, [setMsg]);
 
-  if (!permLoading && userProfile && !temAcesso('ajustes:caracteristicas')) return <SemPermissao />;
+  if (!permLoading && userProfile && !pode('ajustes', 'caracteristicas')) return <SemPermissao />;
 
   const colunas = dados.colunas || [];
   const totalProdutos = (dados.produtos || []).length;

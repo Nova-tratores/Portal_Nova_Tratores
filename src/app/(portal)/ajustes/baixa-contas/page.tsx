@@ -70,7 +70,7 @@ function StatusBadge({ s }: { s?: string }) {
 
 export default function BaixaContasPage() {
   const { userProfile } = useAuth();
-  const { temAcesso, loading: permLoading } = usePermissoes(userProfile?.id);
+  const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
   const { conta, contaParam } = useConta();
 
   const [tipo, setTipo] = useState<Tipo>('pagar');
@@ -127,7 +127,7 @@ export default function BaixaContasPage() {
     setSort((s) => s.key === key ? { key, dir: -s.dir } : { key, dir: 1 });
   }, []);
 
-  if (!permLoading && userProfile && !temAcesso('ajustes:baixa-contas')) return <SemPermissao />;
+  if (!permLoading && userProfile && !pode('ajustes', 'baixa-contas')) return <SemPermissao />;
 
   return (
     <div style={{ maxWidth: 1300, margin: '0 auto', padding: '20px 24px' }}>

@@ -30,7 +30,7 @@ const td: React.CSSProperties = { padding: 10, borderBottom: '1px solid #f5f5f5'
 
 export default function IgnorarClientesPage() {
   const { userProfile } = useAuth();
-  const { temAcesso, loading: permLoading } = usePermissoes(userProfile?.id);
+  const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
   const { contas } = useConta();
 
   const [lista, setLista] = useState<Registro[]>([]);
@@ -77,7 +77,7 @@ export default function IgnorarClientesPage() {
     carregar();
   }, [carregar]);
 
-  if (!permLoading && userProfile && !temAcesso('estoque')) return <SemPermissao />;
+  if (!permLoading && userProfile && !pode('estoque', 'ignorar-clientes')) return <SemPermissao />;
 
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto', padding: '20px 24px' }}>
@@ -89,8 +89,8 @@ export default function IgnorarClientesPage() {
         <ContaSelector />
       </div>
       <div style={{ margin: '14px 0 18px', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-        <Link href="/estoque/dashboard" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>← Dashboard</Link>
-        <Link href="/estoque/notas-entrada" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>Notas de Entrada</Link>
+        {pode('estoque', 'dashboard') && (<Link href="/estoque/dashboard" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>← Dashboard</Link>)}
+        {pode('estoque', 'notas-entrada') && (<Link href="/estoque/notas-entrada" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>Notas de Entrada</Link>)}
       </div>
 
       {msg && <div style={{ padding: '10px 14px', borderRadius: 8, marginBottom: 12, fontSize: '.82rem', background: msg.tipo === 'ok' ? '#dcfce7' : '#fee2e2', color: msg.tipo === 'ok' ? '#166534' : '#991b1b' }}>{msg.texto}</div>}

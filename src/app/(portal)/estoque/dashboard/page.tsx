@@ -66,7 +66,7 @@ function calcVar(a: number, b: number): number {
 
 export default function DashboardPage() {
   const { userProfile } = useAuth();
-  const { temAcesso, loading: permLoading } = usePermissoes(userProfile?.id);
+  const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
   const { contaParam } = useConta();
 
   const now = new Date();
@@ -162,7 +162,7 @@ export default function DashboardPage() {
     URL.revokeObjectURL(url);
   }, [vendas, mes, ano]);
 
-  if (!permLoading && userProfile && !temAcesso('estoque')) return <SemPermissao />;
+  if (!permLoading && userProfile && !pode('estoque', 'dashboard')) return <SemPermissao />;
 
   const anos: number[] = [];
   for (let y = now.getFullYear(); y >= 2023; y--) anos.push(y);
@@ -179,8 +179,8 @@ export default function DashboardPage() {
 
       <div style={{ margin: '14px 0', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
         <Link href="/estoque" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>← Busca</Link>
-        <Link href="/estoque/curva-abc" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>→ Curva ABC</Link>
-        <Link href="/estoque/giro-estoque" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>→ Giro de Estoque</Link>
+        {pode('estoque', 'curva-abc') && (<Link href="/estoque/curva-abc" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>→ Curva ABC</Link>)}
+        {pode('estoque', 'giro-estoque') && (<Link href="/estoque/giro-estoque" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>→ Giro de Estoque</Link>)}
       </div>
 
       {/* Filtros */}

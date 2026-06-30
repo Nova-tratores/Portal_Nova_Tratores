@@ -6,6 +6,8 @@
 //  Quem já tem o módulo puro continua podendo tudo; para restringir, troca-se o
 //  acesso total por ações específicas.
 
+import { PAGINAS_AJUSTES } from '@/app/(portal)/ajustes/paginas';
+
 export interface AcaoPermissao {
   id: string;
   label: string;
@@ -163,6 +165,38 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'notas-entrada', label: 'Notas de Entrada' },
     { id: 'margens', label: 'Margens' },
     { id: 'alertas', label: 'Alertas' },
+  ],
+  // Ajustes: módulo único que expande nas suas páginas (derivadas de
+  // PAGINAS_AJUSTES — fonte única). id da ação = chave sem o prefixo 'ajustes:'.
+  // 'pedidos:encerrar' é uma AÇÃO dentro da página Pedidos (encerrar informal).
+  ajustes: [
+    ...PAGINAS_AJUSTES.map((p) => ({ id: p.key.replace('ajustes:', ''), label: p.label })),
+    { id: 'pedidos:encerrar', label: 'Pedidos — Encerrar informal' },
+  ],
+  // Feedbacks & CRM: granular POR TELA (id da ação = slug da rota). A Home
+  // (/feedbacks) é o landing; as abas (FeedbackTabs) e o acesso por URL seguem
+  // pode('feedbacks', slug).
+  feedbacks: [
+    { id: 'crm', label: 'CRM' },
+    { id: 'rfm', label: 'RFM' },
+    { id: 'clientes', label: 'Histórico de atendimentos' },
+    { id: 'relatorios', label: 'Relatórios' },
+    { id: 'agenda', label: 'Agenda' },
+    { id: 'oportunidades', label: 'Oportunidades' },
+  ],
+  // Estoque (Visual Estoque / Consulta Omie): granular POR TELA. Chave 'estoque'
+  // (id da rota = slug). A Home (/estoque, busca de produto) é o landing.
+  estoque: [
+    { id: 'dashboard', label: 'Dashboard de Vendas' },
+    { id: 'notas-entrada', label: 'Notas de Entrada' },
+    { id: 'cadastro-produto', label: 'Cadastro de Produto' },
+    { id: 'curva-abc', label: 'Curva ABC' },
+    { id: 'giro-estoque', label: 'Giro de Estoque' },
+    { id: 'comissao', label: 'Comissão' },
+    { id: 'recebimentos', label: 'Recebimentos' },
+    { id: 'admin', label: 'Admin' },
+    { id: 'admin-cmc', label: 'Admin CMC' },
+    { id: 'ignorar-clientes', label: 'Ignorar Clientes' },
   ],
 };
 

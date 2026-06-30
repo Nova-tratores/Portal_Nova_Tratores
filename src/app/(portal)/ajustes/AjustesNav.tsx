@@ -1,6 +1,6 @@
 'use client';
 // Submenu interno do módulo Ajustes (aparece em todas as páginas /ajustes via layout).
-// Mostra só as páginas que o usuário pode acessar (temAcesso('ajustes:<x>'); admin vê todas).
+// Mostra só as páginas que o usuário pode acessar (pode('ajustes', '<x>'); admin/total veem todas).
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
@@ -9,11 +9,11 @@ import { PAGINAS_AJUSTES, GRUPOS_AJUSTES, type GrupoAjustes } from './paginas';
 
 export default function AjustesNav() {
   const { userProfile } = useAuth();
-  const { temAcesso, loading } = usePermissoes(userProfile?.id);
+  const { pode, loading } = usePermissoes(userProfile?.id);
   const pathname = usePathname();
 
   if (loading) return null;
-  const visiveis = PAGINAS_AJUSTES.filter((p) => temAcesso(p.key));
+  const visiveis = PAGINAS_AJUSTES.filter((p) => pode('ajustes', p.key.slice('ajustes:'.length)));
   if (visiveis.length === 0) return null;
 
   const linkBase: React.CSSProperties = {

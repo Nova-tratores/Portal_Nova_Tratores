@@ -1,6 +1,8 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useAuth } from "@/hooks/useAuth";
+import { usePermissoes } from "@/hooks/usePermissoes";
 import styles from "./feedbacks.module.css";
 import { COR_RFM } from "@/lib/feedbacks/cores";
 
@@ -21,10 +23,12 @@ const TABS: Tab[] = [
 
 export default function FeedbackTabs() {
   const pathname = usePathname() ?? "";
+  const { userProfile } = useAuth();
+  const { pode } = usePermissoes(userProfile?.id);
 
   return (
     <nav className={styles.tabBar}>
-      {TABS.map((tab) => {
+      {TABS.filter((tab) => pode("feedbacks", tab.href.slice("/feedbacks/".length))).map((tab) => {
         const ativo = pathname === tab.href || pathname.startsWith(tab.href + "/");
         return (
           <Link

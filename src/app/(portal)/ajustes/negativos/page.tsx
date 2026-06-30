@@ -83,7 +83,7 @@ const tdStyle: React.CSSProperties = { padding: '8px 10px', borderBottom: '1px s
 
 export default function EstoqueNegativoPage() {
   const { userProfile } = useAuth();
-  const { temAcesso, loading: permLoading } = usePermissoes(userProfile?.id);
+  const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
   const { conta, contaParam } = useConta();
   const criadoPor = userProfile?.nome || 'portal';
 
@@ -233,7 +233,7 @@ export default function EstoqueNegativoPage() {
     }
   }, [cmcEdit, localSel, dataEdit, conta, criadoPor]);
 
-  if (!permLoading && userProfile && !temAcesso('ajustes:negativos')) return <SemPermissao />;
+  if (!permLoading && userProfile && !pode('ajustes', 'negativos')) return <SemPermissao />;
 
   const jaCorrigidos = (dados?.produtos || []).filter((p) => p.jaCorrigido).length + corrigidosExtra;
 

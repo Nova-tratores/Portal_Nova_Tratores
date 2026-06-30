@@ -17,6 +17,7 @@ const NAV = [
   { href: '/estoque/cadastro-produto', label: '→ Cadastro de Produto' },
   { href: '/estoque/curva-abc', label: '→ Curva ABC' },
   { href: '/estoque/giro-estoque', label: '→ Giro de Estoque' },
+  { href: '/estoque/cruzamento-familia', label: '→ Cruzamento por Família' },
 ];
 
 const thStyle: React.CSSProperties = { background: '#fafafa', color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', padding: '9px 10px', textAlign: 'left', borderBottom: '1px solid #eee', fontWeight: 600 };
@@ -24,7 +25,7 @@ const tdStyle: React.CSSProperties = { padding: '8px 10px', borderBottom: '1px s
 
 export default function EstoqueBuscaPage() {
   const { userProfile } = useAuth();
-  const { temAcesso, loading: permLoading } = usePermissoes(userProfile?.id);
+  const { temAcesso, pode, loading: permLoading } = usePermissoes(userProfile?.id);
   const { contaParam } = useConta();
 
   const [codigo, setCodigo] = useState('');
@@ -72,7 +73,7 @@ export default function EstoqueBuscaPage() {
       <p style={{ color: '#888', fontSize: '.82rem', marginBottom: 18 }}>Consulta produtos, estoque, vendas, compras e CMC</p>
 
       <div style={{ marginBottom: 18, display: 'flex', gap: 18, flexWrap: 'wrap' }}>
-        {NAV.map((n) => (
+        {NAV.filter((n) => pode('estoque', n.href.replace('/estoque/', ''))).map((n) => (
           <Link key={n.href} href={n.href} style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>
             {n.label}
           </Link>

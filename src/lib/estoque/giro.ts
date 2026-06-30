@@ -91,12 +91,17 @@ export async function calcularGiroEstoque(periodo: number, filtroFamilia: string
   }
 
   // 2. Estoque de todos os produtos
+  // OBS: a tabela `produtos` grava conta_omie em MINÚSCULAS ("nova"/"castro"),
+  // ao contrário de vendas_itens/produto_tipo/Produtos_Completos (maiúsculas).
+  // Por isso aqui NÃO usamos filtroConta (que aplicaria "NOVA" e zeraria o
+  // resultado — bug: giro de estoque sem dados).
+  const filtroContaProdutos = <T,>(q: T): T =>
+    conta ? (q as { eq(c: string, v: string): T }).eq('conta_omie', conta.toLowerCase()) : q;
   const estoquePorProd: Record<string, { estoque: number; cmc: number; valor_estoque: number }> = {};
   let offEst = 0;
   while (true) {
-    const { data } = await filtroConta(
+    const { data } = await filtroContaProdutos(
       supabase.from('produtos').select('codigo_produto,estoque,cmc,valor_estoque'),
-      conta,
     ).range(offEst, offEst + 999);
     if (!data || data.length === 0) break;
     (data as Array<Record<string, unknown>>).forEach((p) => {

@@ -45,7 +45,7 @@ type TipoFiltro = 'todas' | 'produto' | 'servico';
 
 export default function NotasPage() {
   const { userProfile } = useAuth();
-  const { temAcesso, loading: permLoading } = usePermissoes(userProfile?.id);
+  const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
   const { conta, contaParam } = useConta();
 
   const [modo, setModo] = useState<Modo>('numero');
@@ -149,7 +149,7 @@ export default function NotasPage() {
     }
   }, [contaParam]);
 
-  if (!permLoading && userProfile && !temAcesso('ajustes:notas')) return <SemPermissao />;
+  if (!permLoading && userProfile && !pode('ajustes', 'notas')) return <SemPermissao />;
 
   const tabStyle = (ativo: boolean): React.CSSProperties => ({
     padding: '8px 16px', fontSize: '.85rem', fontWeight: 500, background: 'none', border: 'none',

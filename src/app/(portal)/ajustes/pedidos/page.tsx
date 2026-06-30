@@ -79,7 +79,7 @@ const filtroInput: React.CSSProperties = { width: '100%', minWidth: 60, border: 
 
 export default function PedidosPage() {
   const { userProfile } = useAuth();
-  const { temAcesso, loading: permLoading } = usePermissoes(userProfile?.id);
+  const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
   const { conta, contaParam } = useConta();
   const criadoPor = userProfile?.nome || 'portal';
   const router = useRouter();
@@ -100,7 +100,7 @@ export default function PedidosPage() {
   const [aplicando, setAplicando] = useState(false);
 
   // permissao granular pra encerrar (alem do acesso a pagina)
-  const podeEncerrarInformal = temAcesso('ajustes:pedidos:encerrar');
+  const podeEncerrarInformal = pode('ajustes', 'pedidos:encerrar');
 
   // popup de detalhes (read-only) ao clicar na linha
   const [detalheSel, setDetalheSel] = useState<Pedido | null>(null);
@@ -225,7 +225,7 @@ export default function PedidosPage() {
     return arr;
   }, [peds, filtros, ordem]);
 
-  if (!permLoading && userProfile && !temAcesso('ajustes:pedidos')) return <SemPermissao />;
+  if (!permLoading && userProfile && !pode('ajustes', 'pedidos')) return <SemPermissao />;
 
   const corStatusEnc = (s?: string) => s === 'aplicado' ? { background: '#d1fae5', color: '#065f46' } : s === 'parcial' ? { background: '#fef3c7', color: '#92400e' } : s === 'erro' ? { background: '#fee2e2', color: '#991b1b' } : { background: '#f1f5f9', color: '#334155' };
 

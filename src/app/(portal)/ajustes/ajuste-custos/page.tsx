@@ -36,7 +36,7 @@ const inp: React.CSSProperties = { border: '1px solid #cbd5e1', borderRadius: 6,
 
 export default function AjusteCustosPage() {
   const { userProfile } = useAuth();
-  const { temAcesso, loading: permLoading } = usePermissoes(userProfile?.id);
+  const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
   const { conta, contaParam } = useConta();
   const criadoPor = userProfile?.nome || 'portal';
 
@@ -178,7 +178,7 @@ export default function AjusteCustosPage() {
     }
   }, [cmcEdit, fornEdit, obsEdit, fornMap, conta, criadoPor]);
 
-  if (!permLoading && userProfile && !temAcesso('ajustes:ajuste-custos')) return <SemPermissao />;
+  if (!permLoading && userProfile && !pode('ajustes', 'ajuste-custos')) return <SemPermissao />;
 
   const seta = (col: Exclude<SortCol, null>) => sortCol !== col ? '⇅' : (sortDir === 1 ? '▲' : '▼');
   const aviso = lista.length > MAX_LINHAS ? ` — mostrando as primeiras ${MAX_LINHAS}, refine a busca para ver o resto` : '';

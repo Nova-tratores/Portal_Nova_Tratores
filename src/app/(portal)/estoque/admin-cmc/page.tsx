@@ -24,7 +24,7 @@ const td: React.CSSProperties = { padding: '8px 10px', borderBottom: '1px solid 
 
 export default function AdminCMCPage() {
   const { userProfile } = useAuth();
-  const { temAcesso, loading: permLoading } = usePermissoes(userProfile?.id);
+  const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
   const { conta, contaParam } = useConta();
 
   const [cmcState, setCmcState] = useState<LoopState | null>(null);
@@ -92,7 +92,7 @@ export default function AdminCMCPage() {
 
   useEffect(() => { if (requireConta) carregarVendas(); }, [carregarVendas, requireConta]);
 
-  if (!permLoading && userProfile && !temAcesso('estoque')) return <SemPermissao />;
+  if (!permLoading && userProfile && !pode('estoque', 'admin-cmc')) return <SemPermissao />;
 
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto', padding: '20px 24px' }}>
@@ -104,8 +104,8 @@ export default function AdminCMCPage() {
         <ContaSelector />
       </div>
       <div style={{ margin: '14px 0 18px', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-        <Link href="/estoque/dashboard" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>← Dashboard</Link>
-        <Link href="/estoque/admin" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>Admin</Link>
+        {pode('estoque', 'dashboard') && (<Link href="/estoque/dashboard" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>← Dashboard</Link>)}
+        {pode('estoque', 'admin') && (<Link href="/estoque/admin" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>Admin</Link>)}
       </div>
 
       <div style={card}>

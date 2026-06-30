@@ -281,6 +281,28 @@ function mapPedidoParaRow(p: Pedido, mes: number, ano: number, conta: Conta, cmc
   };
 }
 
+/** Mapa (codigo_produto|data_pedido → cmc_unitario>0) das linhas já gravadas do mês. */
+async function carregarCmcExistente(mes: number, ano: number, conta: Conta): Promise<Record<string, number>> {
+  const mapa: Record<string, number> = {};
+  const LOTE = 1000;
+  let offset = 0;
+  while (true) {
+    const { data } = await supabase
+      .from('vendas_itens')
+      .select('codigo_produto,data_pedido,cmc_unitario')
+      .eq('mes', mes).eq('ano', ano).eq('conta_omie', conta)
+      .not('cmc_unitario', 'is', null).gt('cmc_unitario', 0)
+      .range(offset, offset + LOTE - 1);
+    const lote = (data || []) as Array<{ codigo_produto: unknown; data_pedido: unknown; cmc_unitario: unknown }>;
+    lote.forEach((r) => {
+      if (r.codigo_produto && r.data_pedido) mapa[String(r.codigo_produto) + '|' + String(r.data_pedido)] = num(r.cmc_unitario);
+    });
+    if (lote.length < LOTE) break;
+    offset += LOTE;
+  }
+  return mapa;
+}
+
 async function buscarESalvarItensOmieInner(mes: number, ano: number, conta: Conta): Promise<Pedido[]> {
   const de = fmtD(new Date(ano, mes - 1, 1));
   const ate = fmtD(new Date(ano, mes, 0));
@@ -292,9 +314,18 @@ async function buscarESalvarItensOmieInner(mes: number, ano: number, conta: Cont
   }
   if (pedidos.length > 0) {
     const cmcMap = await preCarregarCMCPorMes(codigosArr, mes, ano, conta);
+    // Preserva o cmc_unitario já enriquecido (backfill diário via Omie) antes do
+    // delete+reinsert. Sem isto, o re-sync do mês corrente zera o custo, pois
+    // resolverCMC só lê cmc_historico — que não tem o mês atual. (bug: dashboard
+    // de vendas sem custos no mês corrente.)
+    const cmcExistente = await carregarCmcExistente(mes, ano, conta);
     const rows = [];
     for (const p of pedidos) {
-      const cmc = await resolverCMC(p.codigo_produto, p.data_pedido, cmcMap, conta);
+      let cmc = await resolverCMC(p.codigo_produto, p.data_pedido, cmcMap, conta);
+      if ((cmc === null || cmc === 0) && p.codigo_produto && p.data_pedido) {
+        const prev = cmcExistente[p.codigo_produto + '|' + p.data_pedido];
+        if (prev > 0) cmc = prev;
+      }
       rows.push(mapPedidoParaRow(p, mes, ano, conta, cmc));
     }
     const delResp = await supabase.from('vendas_itens').delete().eq('mes', mes).eq('ano', ano).eq('conta_omie', conta);
@@ -354,6 +385,8 @@ async function buscarIncrementalMesAtualInner(mes: number, ano: number, conta: C
 
   if (pedidosNovos.length > 0) {
     const datasParaLimpar = new Set(pedidosNovos.map((p) => p.data_pedido).filter(Boolean));
+    // Preserva o cmc_unitario já enriquecido das datas que serão re-inseridas.
+    const cmcExistente = await carregarCmcExistente(mes, ano, conta);
     for (const dt of datasParaLimpar) {
       const delResp = await supabase
         .from('vendas_itens')
@@ -367,7 +400,11 @@ async function buscarIncrementalMesAtualInner(mes: number, ano: number, conta: C
     const cmcMap = await preCarregarCMCPorMes(codigosArr, mes, ano, conta);
     const rows = [];
     for (const p of pedidosNovos) {
-      const cmc = await resolverCMC(p.codigo_produto, p.data_pedido, cmcMap, conta);
+      let cmc = await resolverCMC(p.codigo_produto, p.data_pedido, cmcMap, conta);
+      if ((cmc === null || cmc === 0) && p.codigo_produto && p.data_pedido) {
+        const prev = cmcExistente[p.codigo_produto + '|' + p.data_pedido];
+        if (prev > 0) cmc = prev;
+      }
       rows.push(mapPedidoParaRow(p, mes, ano, conta, cmc));
     }
     for (let i = 0; i < rows.length; i += 500) {

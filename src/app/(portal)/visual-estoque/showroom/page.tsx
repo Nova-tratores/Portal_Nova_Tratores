@@ -63,8 +63,8 @@ export default function ShowroomPage() {
 
   const filtrados = useMemo(() => {
     let list = produtos
-    if (filtroTipo === 'maquinas') list = list.filter(p => p.tipo !== 'Peças')
-    if (filtroTipo === 'pecas') list = list.filter(p => p.tipo === 'Peças')
+    if (filtroTipo === 'maquinas') list = list.filter(p => p.familia_nome !== 'Peças')
+    if (filtroTipo === 'pecas') list = list.filter(p => p.familia_nome === 'Peças')
     if (filtroEstoque === 'disponivel') list = list.filter(p => p.estoque > 0)
     if (filtroEstoque === 'sem') list = list.filter(p => p.estoque <= 0)
     if (busca.trim()) {
