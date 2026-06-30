@@ -12,6 +12,7 @@ export interface ComposicaoParams {
   grupo?: 'peca' | 'maquina';
   categoria?: string;
   familia?: string;
+  tipocarac?: string;
 }
 
 interface ComposicaoItem {
@@ -45,6 +46,7 @@ export default function ComposicaoModal({ titulo, params, contaParam, onClose }:
         if (params.grupo) qs.set('grupo', params.grupo);
         if (params.categoria) qs.set('categoria', params.categoria);
         if (params.familia) qs.set('familia', params.familia);
+        if (params.tipocarac) qs.set('tipocarac', params.tipocarac);
         const r = await fetch(`/api/estoque/cruzamento-familia/composicao?${qs.toString()}${contaParam}`);
         const d = (await r.json()) as ComposicaoResp;
         if (!vivo) return;

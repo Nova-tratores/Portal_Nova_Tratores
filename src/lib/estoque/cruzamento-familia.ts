@@ -19,6 +19,7 @@ const norm = (s: string): string =>
 
 const SEM_FAMILIA = 'Sem família';
 const SEM_CATEGORIA = 'Sem categoria';
+const SEM_TIPO = 'Sem tipo';
 const SNAPSHOT_TABLE = 'estoque_familia_snapshot';
 
 export type TipoFamilia = '' | 'pecas' | 'maquinas';
@@ -405,11 +406,13 @@ interface FluxoMes {
 
 async function notasDoMes(
   mes: number, ano: number, conta: ContaFiltro,
-  famPorCodigo: Record<string, string>, famPorSKU: Record<string, string>, escaped: string | null,
-): Promise<{ entradaPeca: number; entradaMaq: number; entradaPorCat: Record<string, number>; entradaPorFam: Record<string, number> }> {
+  famPorCodigo: Record<string, string>, famPorSKU: Record<string, string>,
+  tipoPorCodigo: Record<string, string>, escaped: string | null,
+): Promise<{ entradaPeca: number; entradaMaq: number; entradaPorCat: Record<string, number>; entradaPorFam: Record<string, number>; entradaPorTipoCarac: Record<string, number> }> {
   let entradaPeca = 0, entradaMaq = 0;
   const entradaPorCat: Record<string, number> = {};
   const entradaPorFam: Record<string, number> = {};
+  const entradaPorTipoCarac: Record<string, number> = {};
   let offset = 0;
   const LOTE = 1000;
   while (true) {
@@ -429,26 +432,30 @@ async function notasDoMes(
         const g = classificarGrupo(fam);
         if (g === 'peca') entradaPeca += valor;
         else if (g === 'maquina') entradaMaq += valor;
-        // categoria/família: só conta o que não é ignorado (mesma base do "tipo")
+        // categoria/família/tipo: só conta o que não é ignorado (mesma base do "tipo")
         if (g !== 'ignorar') {
           entradaPorCat[cat] = (entradaPorCat[cat] || 0) + valor;
           entradaPorFam[fam] = (entradaPorFam[fam] || 0) + valor;
+          const tc = tipoPorCodigo[codigo] || SEM_TIPO;
+          entradaPorTipoCarac[tc] = (entradaPorTipoCarac[tc] || 0) + valor;
         }
       }
     }
     if (lote.length < LOTE) break;
     offset += LOTE;
   }
-  return { entradaPeca, entradaMaq, entradaPorCat, entradaPorFam };
+  return { entradaPeca, entradaMaq, entradaPorCat, entradaPorFam, entradaPorTipoCarac };
 }
 
 async function vendasDoMes(
   mes: number, ano: number, conta: ContaFiltro,
   famPorCodigo: Record<string, string>, catMap: Record<string, string>,
-): Promise<{ cogsPeca: number; cogsMaq: number; saidaPeca: number; saidaMaq: number; saidaPorCat: Record<string, number>; saidaPorFam: Record<string, number> }> {
+  tipoPorCodigo: Record<string, string>,
+): Promise<{ cogsPeca: number; cogsMaq: number; saidaPeca: number; saidaMaq: number; saidaPorCat: Record<string, number>; saidaPorFam: Record<string, number>; saidaPorTipoCarac: Record<string, number> }> {
   let cogsPeca = 0, cogsMaq = 0, saidaPeca = 0, saidaMaq = 0;
   const saidaPorCat: Record<string, number> = {};
   const saidaPorFam: Record<string, number> = {};
+  const saidaPorTipoCarac: Record<string, number> = {};
   let offset = 0;
   const LOTE = 1000;
   while (true) {
@@ -475,12 +482,14 @@ async function vendasDoMes(
         const cat = catMap[cod_cat] || (cod_cat ? cod_cat : SEM_CATEGORIA);
         saidaPorCat[cat] = (saidaPorCat[cat] || 0) + valor;
         saidaPorFam[fam] = (saidaPorFam[fam] || 0) + valor;
+        const tc = tipoPorCodigo[cod] || SEM_TIPO;
+        saidaPorTipoCarac[tc] = (saidaPorTipoCarac[tc] || 0) + valor;
       }
     }
     if (lote.length < LOTE) break;
     offset += LOTE;
   }
-  return { cogsPeca, cogsMaq, saidaPeca, saidaMaq, saidaPorCat, saidaPorFam };
+  return { cogsPeca, cogsMaq, saidaPeca, saidaMaq, saidaPorCat, saidaPorFam, saidaPorTipoCarac };
 }
 
 // ===========================================================================
@@ -650,13 +659,14 @@ export async function serieMensal(
   const { nomes } = await getIgnorarFiltro(conta);
   const escaped = nomes.length > 0 ? '(' + nomes.map((n) => '"' + String(n).replace(/"/g, '') + '"').join(',') + ')' : null;
   const catMap = dimensao === 'categoria' ? await buscarCategoriasOmie(conta ?? CONTA_DEFAULT) : {};
+  const tipoPorCodigo = dimensao === 'tipocarac' ? await carregarTipoCaracteristica(conta) : {};
 
   // Fluxos mês a mês (nota + venda do mesmo mês em paralelo; meses em série).
   const fluxos: FluxoMes[] = [];
   for (const m of meses) {
     const [nota, venda] = await Promise.all([
-      notasDoMes(m.mes, m.ano, conta, famPorCodigo, famPorSKU, escaped),
-      vendasDoMes(m.mes, m.ano, conta, famPorCodigo, catMap),
+      notasDoMes(m.mes, m.ano, conta, famPorCodigo, famPorSKU, tipoPorCodigo, escaped),
+      vendasDoMes(m.mes, m.ano, conta, famPorCodigo, catMap, tipoPorCodigo),
     ]);
     fluxos.push({
       entradaPeca: nota.entradaPeca, entradaMaq: nota.entradaMaq,
@@ -664,6 +674,7 @@ export async function serieMensal(
       saidaPeca: venda.saidaPeca, saidaMaq: venda.saidaMaq,
       entradaPorCat: nota.entradaPorCat, saidaPorCat: venda.saidaPorCat,
       entradaPorFam: nota.entradaPorFam, saidaPorFam: venda.saidaPorFam,
+      entradaPorTipoCarac: nota.entradaPorTipoCarac, saidaPorTipoCarac: venda.saidaPorTipoCarac,
     });
   }
 
@@ -713,9 +724,9 @@ export async function serieMensal(
       pontos[i].nf_saida_maquina = Math.round(f.saidaMaq);
     });
   } else {
-    // categoria OU família: mesma lógica, fontes diferentes.
-    const pickEntrada = (f: FluxoMes) => (dimensao === 'familia' ? f.entradaPorFam : f.entradaPorCat);
-    const pickSaida = (f: FluxoMes) => (dimensao === 'familia' ? f.saidaPorFam : f.saidaPorCat);
+    // categoria / família / tipo (característica): mesma lógica, fontes diferentes.
+    const pickEntrada = (f: FluxoMes) => (dimensao === 'familia' ? f.entradaPorFam : dimensao === 'tipocarac' ? f.entradaPorTipoCarac : f.entradaPorCat);
+    const pickSaida = (f: FluxoMes) => (dimensao === 'familia' ? f.saidaPorFam : dimensao === 'tipocarac' ? f.saidaPorTipoCarac : f.saidaPorCat);
 
     // Top itens por total (entrada+saída) no período; resto → "Outras".
     const totalPorCat: Record<string, number> = {};
@@ -782,17 +793,20 @@ export interface ComposicaoFiltro {
   grupo?: 'peca' | 'maquina';
   categoria?: string;
   familia?: string;
+  tipocarac?: string;
 }
 
 function passaFiltroGrupoFamCat(
-  args: { grupo?: string; familia?: string; categoria?: string },
+  args: { grupo?: string; familia?: string; categoria?: string; tipocarac?: string },
   fam: string,
   cat: string,
+  tipo: string = '',
 ): boolean {
   if (args.familia && fam !== args.familia) return false;
   if (args.grupo && classificarGrupo(fam) !== args.grupo) return false;
   if (args.categoria && cat !== args.categoria) return false;
-  // por padrão (sem filtro de grupo/categoria/família) exclui os ignorados
+  if (args.tipocarac && (tipo || SEM_TIPO) !== args.tipocarac) return false;
+  // exclui os ignorados (mesma base da série), exceto ao drilar uma família específica
   if (!args.familia && classificarGrupo(fam) === 'ignorar') return false;
   return true;
 }
@@ -831,6 +845,7 @@ async function composicaoEstoque(conta: ContaFiltro, f: ComposicaoFiltro): Promi
 
 async function composicaoEntrada(conta: ContaFiltro, f: ComposicaoFiltro): Promise<ComposicaoResult> {
   const { famPorCodigo, famPorSKU } = await carregarProdutos(conta);
+  const tipoPorCodigo = f.tipocarac ? await carregarTipoCaracteristica(conta) : {};
   const { nomes } = await getIgnorarFiltro(conta);
   const escaped = nomes.length > 0 ? '(' + nomes.map((n) => '"' + String(n).replace(/"/g, '') + '"').join(',') + ')' : null;
   const itens: ComposicaoItem[] = [];
@@ -850,7 +865,8 @@ async function composicaoEntrada(conta: ContaFiltro, f: ComposicaoFiltro): Promi
       for (const it of its) {
         const { codigo, sku, descricao, qtd, valor } = parseItemEntrada(it);
         const fam = resolverFamiliaEntrada(codigo, sku, famPorCodigo, famPorSKU) || SEM_FAMILIA;
-        if (!passaFiltroGrupoFamCat(f, fam, cat)) continue;
+        const tipoC = tipoPorCodigo[codigo] || SEM_TIPO;
+        if (!passaFiltroGrupoFamCat(f, fam, cat, tipoC)) continue;
         itens.push({ codigo: codigo || sku, descricao, familia: fam, categoria: cat, ref: String(nota.numero_nf ?? ''), qtd, valor });
       }
     }
@@ -863,6 +879,7 @@ async function composicaoEntrada(conta: ContaFiltro, f: ComposicaoFiltro): Promi
 
 async function composicaoSaida(conta: ContaFiltro, f: ComposicaoFiltro): Promise<ComposicaoResult> {
   const { famPorCodigo } = await carregarProdutos(conta);
+  const tipoPorCodigo = f.tipocarac ? await carregarTipoCaracteristica(conta) : {};
   const catMap = await buscarCategoriasOmie(conta ?? CONTA_DEFAULT);
   const itens: ComposicaoItem[] = [];
   let offset = 0;
@@ -881,7 +898,8 @@ async function composicaoSaida(conta: ContaFiltro, f: ComposicaoFiltro): Promise
       const fam = famPorCodigo[cod] || (String(v.familia ?? '').trim() || SEM_FAMILIA);
       const cod_cat = String(v.codigo_categoria ?? '');
       const cat = catMap[cod_cat] || (cod_cat ? cod_cat : SEM_CATEGORIA);
-      if (!passaFiltroGrupoFamCat(f, fam, cat)) continue;
+      const tipoC = tipoPorCodigo[cod] || SEM_TIPO;
+      if (!passaFiltroGrupoFamCat(f, fam, cat, tipoC)) continue;
       itens.push({
         codigo: cod, descricao: String(v.descricao ?? ''), familia: fam, categoria: cat,
         ref: String(v.numero_pedido ?? ''), qtd: num(v.quantidade), valor: num(v.valor_total),

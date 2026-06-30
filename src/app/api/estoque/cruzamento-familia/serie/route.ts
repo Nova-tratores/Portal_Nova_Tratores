@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const n = Math.min(48, Math.max(2, parseInt(sp.get('meses') || '12') || 12));
   const dimRaw = sp.get('dimensao');
-  const dimensao: Dimensao = dimRaw === 'categoria' || dimRaw === 'familia' ? dimRaw : 'tipo';
+  const dimensao: Dimensao = dimRaw === 'categoria' || dimRaw === 'familia' || dimRaw === 'tipocarac' ? dimRaw : 'tipo';
   const conta = parseConta(sp.get('conta'));
 
   try {

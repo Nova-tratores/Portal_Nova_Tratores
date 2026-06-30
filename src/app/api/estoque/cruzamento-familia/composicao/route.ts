@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
     grupo: grupoRaw === 'peca' || grupoRaw === 'maquina' ? grupoRaw : undefined,
     categoria: sp.get('categoria') || undefined,
     familia: sp.get('familia') || undefined,
+    tipocarac: sp.get('tipocarac') || undefined,
   };
 
   if ((fonte === 'entrada' || fonte === 'saida') && (!f.mes || !f.ano)) {
