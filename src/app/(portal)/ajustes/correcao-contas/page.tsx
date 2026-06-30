@@ -71,7 +71,7 @@ const COLS: ColDef[] = [
 
 export default function CorrecaoContasPage() {
   const { userProfile } = useAuth();
-  const { temAcesso, loading: permLoading } = usePermissoes(userProfile?.id);
+  const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
   const { conta, contaParam } = useConta();
   const criadoPor = userProfile?.nome || 'portal';
 
@@ -195,7 +195,7 @@ export default function CorrecaoContasPage() {
     setSort((s) => s.key === key ? { key, dir: -s.dir } : { key, dir: 1 });
   }, []);
 
-  if (!permLoading && userProfile && !temAcesso('ajustes:correcao-contas')) return <SemPermissao />;
+  if (!permLoading && userProfile && !pode('ajustes', 'correcao-contas')) return <SemPermissao />;
 
   const TOP = 30;
   const topRanking = ranking.slice(0, TOP);

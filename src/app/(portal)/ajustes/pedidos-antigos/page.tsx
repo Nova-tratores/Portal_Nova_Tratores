@@ -25,7 +25,7 @@ const tdStyle: React.CSSProperties = { padding: '8px 10px', borderBottom: '1px s
 
 export default function PedidosAntigosPage() {
   const { userProfile } = useAuth();
-  const { temAcesso, loading: permLoading } = usePermissoes(userProfile?.id);
+  const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
 
   const [dias, setDias] = useState(15);
   const [dados, setDados] = useState<Payload | null>(null);
@@ -50,7 +50,7 @@ export default function PedidosAntigosPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (!permLoading && userProfile && !temAcesso('ajustes:pedidos')) return <SemPermissao />;
+  if (!permLoading && userProfile && !pode('ajustes', 'pedidos')) return <SemPermissao />;
 
   const peds = dados?.pedidos || [];
   // agrupa por criador (lista ja vem ordenada por criador)

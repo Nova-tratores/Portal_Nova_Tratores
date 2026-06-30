@@ -86,7 +86,7 @@ const tdStyle: React.CSSProperties = { padding: '8px 10px', borderBottom: '1px s
 
 export default function AjustesDashboardPage() {
   const { userProfile } = useAuth();
-  const { temAcesso, isAdmin, permissoes, loading: permLoading } = usePermissoes(userProfile?.id);
+  const { temAcesso, pode, loading: permLoading } = usePermissoes(userProfile?.id);
   const { conta, contaParam } = useConta();
   const criadoPor = userProfile?.nome || 'portal';
 
@@ -249,10 +249,10 @@ export default function AjustesDashboardPage() {
     setSelecionados(novo);
   }, [dados, resultados, podeAplicar]);
 
-  if (!permLoading && userProfile && !temAcesso('ajustes:dashboard')) {
+  if (!permLoading && userProfile && !pode('ajustes', 'dashboard')) {
     // Sem o dashboard, mas com acesso a outra(s) pagina(s): nao bloqueia seco —
     // o submenu (layout) lista o que ele pode abrir.
-    const temAlgumAjuste = isAdmin || (permissoes?.modulos_permitidos || []).some((m) => m.startsWith('ajustes:'));
+    const temAlgumAjuste = temAcesso('ajustes');
     if (temAlgumAjuste) {
       return (
         <div style={{ maxWidth: 1100, margin: '0 auto', padding: '40px 24px', color: '#64748b', fontSize: '.9rem' }}>

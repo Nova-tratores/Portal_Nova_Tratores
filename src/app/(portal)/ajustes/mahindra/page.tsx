@@ -87,7 +87,7 @@ function arrayBufferToBase64(ab: ArrayBuffer): string {
 
 export default function MahindraPage() {
   const { userProfile } = useAuth();
-  const { temAcesso, loading: permLoading } = usePermissoes(userProfile?.id);
+  const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
   const { conta, contaParam } = useConta();
   const criadoPor = userProfile?.nome || 'portal';
 
@@ -214,7 +214,7 @@ export default function MahindraPage() {
     }
   }, [conta, contaParam, mes, file, criadoPor, poll, pararPoll]);
 
-  if (!permLoading && userProfile && !temAcesso('ajustes:mahindra')) return <SemPermissao />;
+  if (!permLoading && userProfile && !pode('ajustes', 'mahindra')) return <SemPermissao />;
 
   const resumo = status?.resumo || null;
 

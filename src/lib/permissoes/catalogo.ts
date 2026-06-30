@@ -6,6 +6,8 @@
 //  Quem já tem o módulo puro continua podendo tudo; para restringir, troca-se o
 //  acesso total por ações específicas.
 
+import { PAGINAS_AJUSTES } from '@/app/(portal)/ajustes/paginas';
+
 export interface AcaoPermissao {
   id: string;
   label: string;
@@ -163,6 +165,13 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'notas-entrada', label: 'Notas de Entrada' },
     { id: 'margens', label: 'Margens' },
     { id: 'alertas', label: 'Alertas' },
+  ],
+  // Ajustes: módulo único que expande nas suas páginas (derivadas de
+  // PAGINAS_AJUSTES — fonte única). id da ação = chave sem o prefixo 'ajustes:'.
+  // 'pedidos:encerrar' é uma AÇÃO dentro da página Pedidos (encerrar informal).
+  ajustes: [
+    ...PAGINAS_AJUSTES.map((p) => ({ id: p.key.replace('ajustes:', ''), label: p.label })),
+    { id: 'pedidos:encerrar', label: 'Pedidos — Encerrar informal' },
   ],
   // Feedbacks & CRM: granular POR TELA (id da ação = slug da rota). A Home
   // (/feedbacks) é o landing; as abas (FeedbackTabs) e o acesso por URL seguem

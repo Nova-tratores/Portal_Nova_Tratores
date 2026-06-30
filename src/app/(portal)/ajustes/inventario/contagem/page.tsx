@@ -40,7 +40,7 @@ function BadgeClasse({ c }: { c?: string | null }) {
 
 export default function ContagemPage() {
   const { userProfile } = useAuth();
-  const { temAcesso, loading: permLoading } = usePermissoes(userProfile?.id);
+  const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
 
   const [contador, setContador] = useState('');
   const [ciclo, setCiclo] = useState<Ciclo | null>(null);
@@ -128,7 +128,7 @@ export default function ContagemPage() {
     }
   }, [qtdEdit, contador, userProfile, carregar]);
 
-  if (!permLoading && userProfile && !temAcesso('ajustes:inventario-contagem')) return <SemPermissao />;
+  if (!permLoading && userProfile && !pode('ajustes', 'inventario-contagem')) return <SemPermissao />;
 
   const conciliadas = tarefas.filter((t) => t.status === 'conciliada').length;
   const pendentesFreeze = tarefas.filter((t) => t.status === 'pendente').length;

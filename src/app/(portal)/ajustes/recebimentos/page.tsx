@@ -107,7 +107,7 @@ const tdStyle: React.CSSProperties = { padding: '8px 10px', borderBottom: '1px s
 
 export default function RecebimentosPage() {
   const { userProfile } = useAuth();
-  const { temAcesso, loading: permLoading } = usePermissoes(userProfile?.id);
+  const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
   const { conta, contaParam } = useConta();
   const criadoPor = userProfile?.nome || 'portal';
 
@@ -191,7 +191,7 @@ export default function RecebimentosPage() {
     } catch { /* silencioso: a UI ja atualizou; recarregar reflete o estado real */ }
   }, [conta, usuarios]);
 
-  if (!permLoading && userProfile && !temAcesso('ajustes:recebimentos')) return <SemPermissao />;
+  if (!permLoading && userProfile && !pode('ajustes', 'recebimentos')) return <SemPermissao />;
 
   return (
     <div style={{ maxWidth: 1300, margin: '0 auto', padding: '20px 24px' }}>

@@ -42,7 +42,7 @@ function corStatus(s?: string): React.CSSProperties {
 
 export default function EncerramentoDetalhePage() {
   const { userProfile } = useAuth();
-  const { temAcesso, loading: permLoading } = usePermissoes(userProfile?.id);
+  const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
   const params = useParams();
   const id = Array.isArray(params?.id) ? params.id[0] : (params?.id as string | undefined);
 
@@ -67,7 +67,7 @@ export default function EncerramentoDetalhePage() {
     if (id) carregar(id);
   }, [id, carregar]);
 
-  if (!permLoading && userProfile && !temAcesso('ajustes:pedidos')) return <SemPermissao />;
+  if (!permLoading && userProfile && !pode('ajustes', 'pedidos')) return <SemPermissao />;
 
   if (carregando) return <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>Carregando…</div>;
   if (erro || !e) return (
