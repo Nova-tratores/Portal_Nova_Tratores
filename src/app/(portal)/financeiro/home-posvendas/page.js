@@ -21,8 +21,8 @@ import { labelSetor, ehDoSetor } from '@/lib/financeiro/setor'
 
 const FORMAS_BOLETO = ['Pix', 'Dinheiro', 'Boleto 30 dias', 'Boleto Parcelado', 'Cartão a vista', 'Cartão Parcelado', 'Cheque'];
 
-// Pós-Vendas vê tudo (Oficina + Peças). O badge no card mostra o setor de cada um.
-const SETOR_PAINEL = 'todos';
+// Pós-Vendas vê SÓ os cards de Oficina (serviço). Os de Peças ficam no painel de Peças.
+const SETOR_PAINEL = 'oficina';
 
 const setorBadgeStyle = { position: 'absolute', top: '10px', right: '10px', zIndex: 2, fontSize: '10px', fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase', padding: '3px 9px', borderRadius: '8px', background: '#eef2ff', color: '#4f46e5', border: '1px solid #c7d2fe' };
 const METODOS_PAGAR = ['Boleto', 'Boleto Parcelado', 'Pix', 'Cartão de Crédito', 'Cartão de Débito', 'Dinheiro', 'Transferência', 'Carnê ISS'];
