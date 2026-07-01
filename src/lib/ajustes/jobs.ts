@@ -22,10 +22,14 @@ const TABELA = 'ajustes_jobs';
 
 // Um job 'rodando' que fica sem atualizacao por mais de JOB_STALE_MS e' tratado
 // como MORTO: o processo caiu ou houve deploy no meio (deploys sao automaticos a
-// cada push no main, e as geracoes pesadas duram minutos). Sem isto, o job fica
-// preso em 'rodando' para sempre e bloqueia toda tentativa nova. As geracoes
-// atualizam a etapa a cada pagina (~2s), entao 5 min sem update = processo morto.
-export const JOB_STALE_MS = 5 * 60 * 1000;
+// cada push no main). Sem isto, o job fica preso em 'rodando' para sempre e
+// bloqueia toda tentativa nova.
+// ATENCAO ao valor: um job LEGITIMO pode ficar minutos sem heartbeat durante uma
+// unica chamada lenta do Omie (ex.: ListarPosEstoque de um local com milhares de
+// produtos ja levou ~5 min sozinho; a geracao Mahindra inteira leva ~13 min).
+// O limite tem de ser bem maior que o pior stall observado para nao matar um job
+// vivo por engano — 20 min da margem e ainda auto-recupera de uma queda real.
+export const JOB_STALE_MS = 20 * 60 * 1000;
 
 /** True se o job esta 'rodando' E recebeu atualizacao recente (nao esta travado). */
 export function jobEstaVivo(job: AjustesJob | null): boolean {
