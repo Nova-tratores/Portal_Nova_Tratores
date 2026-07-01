@@ -29,8 +29,8 @@ const STATUS_CONFIG = {
 
 const FORMAS_BOLETO = ['Pix', 'Dinheiro', 'Boleto 30 dias', 'Boleto Parcelado', 'Cartão a vista', 'Cartão Parcelado', 'Cheque'];
 
-// Pós-Vendas vê tudo (Oficina + Peças). O badge no card mostra o setor de cada um.
-const SETOR_KANBAN = 'todos';
+// Pós-Vendas vê SÓ os cards de Oficina (serviço). Os de Peças ficam no painel de Peças.
+const SETOR_KANBAN = 'oficina';
 const setorBadgeStyle = { display: 'inline-flex', alignItems: 'center', fontSize: '10px', fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase', padding: '3px 9px', borderRadius: '8px', background: '#eef2ff', color: '#4f46e5', border: '1px solid #c7d2fe' };
 
 // FinanceiroSubNav removido — agora usa componente compartilhado FinanceiroNav
