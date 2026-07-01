@@ -41,7 +41,7 @@ const S_EMPTY_RESULT = { padding: 16, textAlign: "center" as const, color: "var(
 const S_CLIENT_ITEM_WRAP = { flex: 1, minWidth: 0 };
 const S_CLIENT_ITEM_NAME = { fontSize: 13, fontWeight: 600 };
 const S_CLIENT_ITEM_SUB = { fontSize: 11, color: "var(--portal-text-secondary)" };
-const S_CLIENT_BADGE_CPF = { color: "var(--portal-text-secondary)", marginLeft: 8 };
+const S_CLIENT_BADGE_CPF = { color: "#166534", marginLeft: 8, fontWeight: 700, letterSpacing: "0.2px" };
 const S_REQ_MATERIAL = { color: "var(--portal-text-secondary)", flex: 1, textAlign: "right" as const, fontSize: 12 };
 const S_PRODUTO_VALOR = { fontWeight: 600 };
 const S_SPINNER_LOADING = { width: 28, height: 28, borderColor: "var(--portal-border)", borderTopColor: "var(--portal-text-secondary)" };
@@ -458,7 +458,9 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
           ? "Ordem marcada como INTERNA — movida para a aba \"Internas\"."
           : "Ordem voltou a ser EXTERNA — movida para a aba \"Externas\".");
       }
-      onClose();
+      // Ao EDITAR, mantém o modal aberto (só atualiza os dados no fundo); ao CRIAR,
+      // fecha porque a OS já foi gerada e o formulário de criação não deve continuar.
+      if (mode === "create") onClose();
       onSaved();
     } catch (err) {
       console.error("Erro ao salvar:", err);
@@ -640,9 +642,9 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                       <div className="os-summary-main">
                         <div className="os-summary-client">
                           <i className="fas fa-user" />
-                          <div>
+                          <div style={{ minWidth: 0 }}>
                             <div className="os-summary-name">{clienteInfo.nome}</div>
-                            {clienteInfo.cpf && <div className="os-summary-sub">{clienteInfo.cpf}</div>}
+                            {clienteInfo.cpf && <div className="os-summary-sub"><i className="fas fa-id-card" style={{ marginRight: 6, opacity: 0.85 }} />{clienteInfo.cpf}</div>}
                           </div>
                         </div>
                         <div className="os-summary-total">
@@ -705,22 +707,23 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                             />
                           </div>
                         </div>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, color: servicoOficina ? '#065F46' : 'var(--portal-text-secondary)' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, cursor: 'pointer', padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${servicoOficina ? '#10B981' : 'var(--portal-border)'}`, background: servicoOficina ? '#ECFDF5' : 'var(--portal-bg-secondary)' }}>
                           <input
                             type="checkbox"
                             checked={servicoOficina}
                             onChange={(e) => setServicoOficina(e.target.checked)}
-                            style={{ width: 16, height: 16, accentColor: '#065F46' }}
+                            style={{ width: 18, height: 18, accentColor: '#10B981', flexShrink: 0 }}
                           />
-                          <i className="fas fa-warehouse" style={{ fontSize: 14 }} />
-                          Serviço realizado na oficina
+                          <i className="fas fa-warehouse" style={{ fontSize: 15, color: servicoOficina ? '#059669' : 'var(--portal-text-secondary)', flexShrink: 0 }} />
+                          <span style={{ fontSize: 13.5, fontWeight: 700, color: servicoOficina ? '#065F46' : 'var(--portal-text)' }}>
+                            Serviço realizado na oficina
+                            <span style={{ display: 'block', fontSize: 11, fontWeight: 500, color: servicoOficina ? '#059669' : 'var(--portal-text-secondary)', marginTop: 2 }}>
+                              {servicoOficina
+                                ? 'Endereço salvo como Nova Tratores – Piraju (SP) e registrado no Omie.'
+                                : 'Marque se o serviço foi feito na oficina (não no endereço do cliente).'}
+                            </span>
+                          </span>
                         </label>
-                        {servicoOficina && (
-                          <div style={{ fontSize: 11, color: '#065F46', marginTop: 4, background: '#D1FAE5', padding: '4px 8px', borderRadius: 4 }}>
-                            <i className="fas fa-map-marker-alt" style={{ marginRight: 4 }} />
-                            Endereço será salvo como: Nova Tratores - Piraju (SP)
-                          </div>
-                        )}
                         <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, cursor: 'pointer', padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${servicoInterno ? '#7C3AED' : 'var(--portal-border)'}`, background: servicoInterno ? '#F3E8FF' : 'var(--portal-bg-secondary)' }}>
                           <input
                             type="checkbox"

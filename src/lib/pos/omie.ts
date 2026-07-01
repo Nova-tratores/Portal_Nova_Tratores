@@ -393,6 +393,8 @@ function montarDadosAdic(os: Record<string, unknown>): string {
   if (os.ID_PPV) partes.push(`PPV: ${os.ID_PPV}`);
   if (os.Projeto) partes.push(`Chassis/Projeto: ${os.Projeto}`);
   if (os.Id_Req) partes.push(`Req: ${os.Id_Req}`);
+  // Marca no Omie quando o serviço foi feito na oficina (não no cliente)
+  if (os.Servico_Oficina) partes.push("Serviço realizado na oficina Nova Tratores (Piraju-SP)");
   return partes.join(" | ").substring(0, 500);
 }
 
