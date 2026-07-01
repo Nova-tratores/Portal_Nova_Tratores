@@ -69,9 +69,11 @@ export async function PATCH(
     .eq('id', id)
     .maybeSingle();
   if (!g) return NextResponse.json({ error: 'Garantia não encontrada.' }, { status: 404 });
-  if (g.status !== 'rejeitada') {
+  // Cobrança vale em garantias finalizadas: rejeitadas (tudo) ou aprovadas que
+  // não pagaram algum item (M.O./deslocamento/peça vira cobrança ou interno).
+  if (g.status !== 'rejeitada' && g.status !== 'aprovada') {
     return NextResponse.json(
-      { error: 'Cobrança só é possível em garantias rejeitadas pela fábrica.' },
+      { error: 'Cobrança só é possível em garantias finalizadas.' },
       { status: 400 },
     );
   }

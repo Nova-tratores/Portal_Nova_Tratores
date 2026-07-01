@@ -91,20 +91,39 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   };
   if (body.garantista_nome) update.garantista_nome = body.garantista_nome;
 
-  // Valores pagos só na aprovação. Total = horas + km + peças aprovadas.
+  // M.O. e deslocamento são aprováveis igual às peças: a garantia pode pagar só
+  // um, os dois ou nenhum. Default (sem flag) = paga, pra manter compatibilidade.
+  const moAprovada = body.mo_aprovada !== false;
+  const deslocAprovado = body.desloc_aprovado !== false;
+
+  // Valores pagos só na aprovação. Total = (M.O. se paga) + (desloc se pago) +
+  // peças aprovadas. O que a garantia NÃO paga pré-preenche a cobrança ao cliente.
   if (resultado === 'aprovada') {
     const vh = (gHoras ?? 0) * VALOR_HORA;
     const vk = (gKm ?? 0) * VALOR_KM;
+    const vhPago = moAprovada ? vh : 0;
+    const vkPago = deslocAprovado ? vk : 0;
     let vp = 0;
     for (const p of todasPecas) {
       if (idsAprovados.has(p.id)) {
         vp += (Number(p.preco_unitario) || 0) * (Number(p.quantidade) || 0);
       }
     }
-    update.valor_pago_horas = vh;
-    update.valor_pago_km = vk;
+    update.valor_pago_horas = vhPago;
+    update.valor_pago_km = vkPago;
     update.valor_pago_pecas = vp;
-    update.valor_pago_total = vh + vk + vp;
+    update.valor_pago_total = vhPago + vkPago + vp;
+
+    // Itens não pagos pela garantia → abre a cobrança ao cliente já pré-marcada.
+    const unpaidHoras = !moAprovada && vh > 0;
+    const unpaidKm = !deslocAprovado && vk > 0;
+    const unpaidPecas = todasPecas.filter((p) => !idsAprovados.has(p.id)).map((p) => p.id);
+    if (unpaidHoras || unpaidKm || unpaidPecas.length > 0) {
+      update.cobranca_status = 'pendente';
+      update.cobranca_itens = { horas: unpaidHoras, km: unpaidKm, pecas: unpaidPecas };
+    } else {
+      update.cobranca_status = 'nao_aplicavel';
+    }
   } else {
     update.valor_pago_horas = 0;
     update.valor_pago_km = 0;

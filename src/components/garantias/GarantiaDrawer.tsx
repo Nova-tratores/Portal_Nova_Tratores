@@ -104,6 +104,9 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
   // Finalização
   const [motivoRecusa, setMotivoRecusa] = useState('');
   const [pecasAprovadas, setPecasAprovadas] = useState<Set<string>>(new Set());
+  // Garantia paga M.O. (horas) e/ou Deslocamento (km)? Default: paga os dois.
+  const [moAprovada, setMoAprovada] = useState(true);
+  const [deslocAprovado, setDeslocAprovado] = useState(true);
 
   // Recusa interna (em_analise)
   const [recusaTexto, setRecusaTexto] = useState('');
@@ -130,10 +133,14 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
       setGKm(det.garantista_km != null ? String(det.garantista_km) : '');
       setGObs(det.garantista_obs || '');
       // Default: todas as peças marcadas como aprovadas. Após finalizar, respeita o resultado salvo.
+      const jaFinalizada = det.status === 'aprovada' || det.status === 'rejeitada';
       const aprovadasIds = det.pecas
-        .filter((p) => (det.status === 'aprovada' || det.status === 'rejeitada') ? p.resultado === 'aprovada' : true)
+        .filter((p) => jaFinalizada ? p.resultado === 'aprovada' : true)
         .map((p) => p.id);
       setPecasAprovadas(new Set(aprovadasIds));
+      // M.O. e deslocamento: default pagos; após finalizar, reflete o que foi pago.
+      setMoAprovada(jaFinalizada ? (Number(det.valor_pago_horas) || 0) > 0 : true);
+      setDeslocAprovado(jaFinalizada ? (Number(det.valor_pago_km) || 0) > 0 : true);
     } catch {
       setErro('Erro de conexão.');
     } finally {
@@ -303,6 +310,8 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
         garantista_obs: gObs,
         garantista_nome: userName,
         pecas_aprovadas: resultado === 'aprovada' ? [...pecasAprovadas] : [],
+        mo_aprovada: moAprovada,
+        desloc_aprovado: deslocAprovado,
       }),
     });
 
@@ -1088,14 +1097,41 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                       </div>
                     )}
 
+                    {/* Serviço: a garantia paga M.O. e/ou deslocamento? (igual às peças) */}
+                    {(() => {
+                      const vh = (Number(gHoras) || 0) * 193;
+                      const vk = (Number(gKm) || 0) * 2.8;
+                      if (vh <= 0 && vk <= 0) return null;
+                      const linha = (label: string, valor: number, sel: boolean, onToggle: () => void) => (
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 8, background: sel ? '#ECFDF5' : 'var(--portal-bg-secondary)', border: `1px solid ${sel ? '#A7F3D0' : 'var(--portal-border)'}`, cursor: 'pointer', fontSize: 12 }}>
+                          <input type="checkbox" checked={sel} onChange={onToggle} />
+                          <span style={{ flex: 1, color: 'var(--portal-text)' }}>{label}</span>
+                          <span style={{ fontWeight: 700, color: sel ? '#16a34a' : 'var(--portal-text-muted)' }}>{fmtMoeda(valor)}</span>
+                        </label>
+                      );
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text-secondary)' }}>Serviço pago pela garantia</div>
+                          {vh > 0 && linha('Mão de obra', vh, moAprovada, () => setMoAprovada((v) => !v))}
+                          {vk > 0 && linha('Deslocamento (KM)', vk, deslocAprovado, () => setDeslocAprovado((v) => !v))}
+                        </div>
+                      );
+                    })()}
+
                     {/* Preview do valor total a ser pago */}
                     {(() => {
                       const vh = (Number(gHoras) || 0) * 193;
                       const vk = (Number(gKm) || 0) * 2.8;
+                      const vhPago = moAprovada ? vh : 0;
+                      const vkPago = deslocAprovado ? vk : 0;
                       const vp = g.pecas
                         .filter((p) => pecasAprovadas.has(p.id))
                         .reduce((s, p) => s + (Number(p.preco_unitario) || 0) * (Number(p.quantidade) || 0), 0);
-                      const total = vh + vk + vp;
+                      const total = vhPago + vkPago + vp;
+                      const naoPago = (vh - vhPago) + (vk - vkPago) + g.pecas
+                        .filter((p) => !pecasAprovadas.has(p.id))
+                        .reduce((s, p) => s + (Number(p.preco_unitario) || 0) * (Number(p.quantidade) || 0), 0);
+                      const riscado: React.CSSProperties = { textDecoration: 'line-through', opacity: 0.6 };
                       return (
                         <div
                           style={{
@@ -1106,12 +1142,17 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                             display: 'flex', flexDirection: 'column', gap: 2,
                           }}
                         >
-                          <span>Horas: <strong>{fmtMoeda(vh)}</strong></span>
-                          <span>KM: <strong>{fmtMoeda(vk)}</strong></span>
+                          <span style={moAprovada ? undefined : riscado}>Mão de obra: <strong>{fmtMoeda(vh)}</strong></span>
+                          <span style={deslocAprovado ? undefined : riscado}>Deslocamento: <strong>{fmtMoeda(vk)}</strong></span>
                           <span>Peças aprovadas: <strong>{fmtMoeda(vp)}</strong></span>
                           <span style={{ marginTop: 4, paddingTop: 4, borderTop: '1px dashed var(--portal-border)', color: 'var(--portal-text)' }}>
-                            Total a pagar: <strong style={{ color: '#16a34a' }}>{fmtMoeda(total)}</strong>
+                            Total a pagar (garantia): <strong style={{ color: '#16a34a' }}>{fmtMoeda(total)}</strong>
                           </span>
+                          {naoPago > 0 && (
+                            <span style={{ color: '#b45309' }}>
+                              Não pago (vai pra cobrança/interno): <strong>{fmtMoeda(naoPago)}</strong>
+                            </span>
+                          )}
                         </div>
                       );
                     })()}
@@ -1205,8 +1246,9 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                 </Secao>
               )}
 
-              {/* Cobrança ao cliente (só em garantias recusadas) */}
-              {g.status === 'rejeitada' && (
+              {/* Cobrança ao cliente: em recusadas, ou em aprovadas que não
+                  pagaram tudo (M.O./deslocamento/peça vira cobrança/interno). */}
+              {(g.status === 'rejeitada' || (g.status === 'aprovada' && g.cobranca_status !== 'nao_aplicavel')) && (
                 <CobrancaCliente garantia={g} busy={busy} onAcao={acaoCobranca} />
               )}
 
