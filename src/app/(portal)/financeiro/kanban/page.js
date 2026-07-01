@@ -335,36 +335,10 @@ export default function Kanban() {
      </div>
     </header>
 
-    {filtroBusca.trim() ? (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '0 50px 40px 50px' }}>
-      <div style={{ fontSize: '14px', color: 'var(--portal-text-muted)', marginBottom: '16px' }}>{chamadosFiltrados.length} resultado{chamadosFiltrados.length !== 1 ? 's' : ''}</div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '16px' }}>
-        {chamadosFiltrados.map(t => {
-          const statusLabel = { gerar_boleto: 'GERAR BOLETO', validar_pix: 'VALIDAR PIX', enviar_cliente: 'ENVIAR CLIENTE', aguardando_vencimento: 'AGUARDANDO', sem_boleto: 'SEM BOLETO', pago: 'PAGO', vencido: 'VENCIDO', concluido: 'CONCLUÍDO' }[t.status] || t.status
-          const statusColor = t.status === 'vencido' ? '#ef4444' : t.status === 'pago' ? '#22c55e' : t.status === 'gerar_boleto' ? '#3b82f6' : '#d97706'
-          return (
-            <div key={t.id} className="kanban-card" onClick={() => setTarefaSelecionada(t)} style={{
-              background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: '14px',
-              borderLeft: `4px solid ${statusColor}`, cursor: 'pointer', overflow: 'hidden',
-            }}>
-              <div style={{ padding: '20px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
-                  <h4 style={{ margin: 0, fontSize: '16px', fontWeight: '500', color: 'var(--portal-text)', flex: 1 }}>{t.nom_cliente?.toUpperCase()}</h4>
-                  <span style={{ fontSize: '10px', fontWeight: '700', padding: '3px 9px', borderRadius: '8px', background: `${statusColor}15`, color: statusColor, whiteSpace: 'nowrap' }}>{statusLabel}</span>
-                </div>
-                <div style={{ display: 'flex', gap: '14px', fontSize: '13px', color: 'var(--portal-text-secondary)', flexWrap: 'wrap' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><CreditCard size={13} />{t.forma_pagamento}</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><Calendar size={13} />{formatarDataBR(t.vencimento_boleto)}</span>
-                </div>
-                <div style={{ fontSize: '22px', fontWeight: '500', color: 'var(--portal-text)', marginTop: '10px' }}>{formatarMoeda(t.valor_exibicao)}</div>
-                <div style={{ fontSize: '11px', color: 'var(--portal-text-muted)', marginTop: '6px' }}>ID #{t.id}</div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-    ) : (
+    {filtroBusca.trim() && (
+      <div style={{ padding: '0 50px', marginBottom: '4px', fontSize: '14px', color: 'var(--portal-text-muted)' }}>{chamadosFiltrados.length} resultado{chamadosFiltrados.length !== 1 ? 's' : ''}</div>
+    )}
+    {(
     <div style={{ flex: 1, display: 'flex', gap: '25px', overflowX: 'auto', overflowY: 'hidden', padding: '0 50px 40px 50px', boxSizing: 'border-box' }}>
      {colunas.map(col => (
       <div key={col.id} style={{ width: '400px', flex: '0 0 400px', display: 'flex', flexDirection: 'column' }}>
