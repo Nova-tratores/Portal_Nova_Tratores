@@ -583,3 +583,82 @@ export async function verificarSuspeitas(conta: Conta): Promise<{ ok: boolean; s
     syncEmAndamento = false;
   }
 }
+
+// ============================================================
+// ENCERRAR DEMONSTRAÇÕES: para cada produto em demonstração (movimentacao_produtos
+// status 'Pendente'), consulta MovimentoEstoque na Omie; se houve ENTRADA depois
+// da data de saída, marca aquele registro como 'Devolvida' (com NF/data). É o que
+// impede a lista de demonstração de acumular itens já devolvidos.
+// Porta a "Parte 4" de syncMovimentacaoProdutos do app legado. PESADO (1 chamada
+// Omie por produto único) — rodar via cron, não em request HTTP curta.
+// ============================================================
+export async function detectarDevolucoesDemonstracao(conta: Conta): Promise<{ ok: boolean; consultados?: number; devolvidos?: number; erros?: number; mensagem?: string }> {
+  if (syncEmAndamento) return { ok: false, mensagem: 'Sync já em andamento' };
+  syncEmAndamento = true;
+  const low = contaLow(conta);
+  try {
+    const codsEntrada = ['RRE', 'NFC', 'RDE', 'AJE', 'RDV'];
+    const hoje = formatDateBR(new Date());
+
+    const { data: pendentes } = await supabase
+      .from('movimentacao_produtos')
+      .select('id,cod_produto,data_saida,id_remessa')
+      .eq('conta_omie', low)
+      .eq('status', 'Pendente');
+    if (!pendentes || pendentes.length === 0) return { ok: true, consultados: 0, devolvidos: 0, erros: 0 };
+
+    // Agrupa por cod_produto (evita consultas repetidas).
+    const porProduto: Record<string, any[]> = {};
+    for (const p of pendentes) {
+      const k = String(p.cod_produto);
+      (porProduto[k] = porProduto[k] || []).push(p);
+    }
+    const produtos = Object.keys(porProduto);
+
+    let consultados = 0, devolvidos = 0, erros = 0;
+    for (const codProd of produtos) {
+      const regs = porProduto[codProd];
+      let dataMin: Date | null = null;
+      for (const r of regs) { const d = parseDateBR(r.data_saida); if (d && (!dataMin || d < dataMin)) dataMin = d; }
+      if (!dataMin) { consultados++; continue; }
+
+      try {
+        const resp = await omieRequest<{ movProduto?: any[] }>(
+          '/estoque/consulta/', 'MovimentoEstoque',
+          { id_prod: Number(codProd), dataInicial: formatDateBR(dataMin), dataFinal: hoje },
+          OMIE_OPTS(conta),
+        );
+        const movimentos = resp.movProduto || [];
+        for (const reg of regs) {
+          const dataRem = parseDateBR(reg.data_saida);
+          if (!dataRem) continue;
+          const entrada = movimentos.find((mov: any) => {
+            const dt = parseDateBR(mov.dtMov);
+            if (!dt || dt < dataRem) return false;
+            const co = (mov.codOrigem || '').toUpperCase();
+            const tp = (mov.tipo || '').toUpperCase();
+            return codsEntrada.includes(co) || tp === 'E';
+          });
+          if (entrada) {
+            await supabase.from('movimentacao_produtos').update({
+              status: 'Devolvida',
+              numero_nota_entrada: entrada.numDoc ? 'NF ' + entrada.numDoc : '',
+              data_entrada: entrada.dtMov || '',
+              atualizado_em: new Date().toISOString(),
+            }).eq('id', reg.id);
+            devolvidos++;
+          }
+        }
+      } catch {
+        erros++;
+      }
+      consultados++;
+      if (consultados < produtos.length) await sleep(API_DELAY);
+    }
+    return { ok: true, consultados, devolvidos, erros };
+  } catch (e) {
+    return { ok: false, mensagem: (e as Error).message };
+  } finally {
+    syncEmAndamento = false;
+  }
+}

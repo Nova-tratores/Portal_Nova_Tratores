@@ -287,11 +287,14 @@ async function consultarClienteRapido(params: Record<string, unknown>, conta: Co
  * Dispara o backfill de enriquecimento em background (fire-and-forget).
  * Retorna imediatamente; o progresso é acompanhado por getBackfillStatus.
  */
-export function iniciarBackfillEnriquecimento(mes: number, ano: number, conta: ContaFiltro): { ok: boolean; erro?: string } {
+/**
+ * Enriquece as notas de um mês/conta (nome_emitente + categoria) e AGUARDA a
+ * conclusão. Reusada pelo wrapper fire-and-forget (`iniciarBackfillEnriquecimento`,
+ * botão "Enriquecer") e pelo cron de compras (auto-heal pós-sync). Atualiza o
+ * status em memória (backfillEnrStatus) p/ a rota de status.
+ */
+export async function enriquecerNotasMes(mes: number, ano: number, conta: ContaFiltro): Promise<BackfillStatus> {
   const k = conta || '__TODAS__';
-  const prev = backfillEnrStatus[k];
-  if (prev && prev.rodando) return { ok: false, erro: 'Backfill ja rodando para esta conta' };
-
   const s: BackfillStatus = {
     rodando: true, etapa: 'iniciando', total: 0, processadas: 0, total_no_periodo: 0, candidatos: 0,
     emitentes_preenchidos: 0, categorias_preenchidas: 0, consultarClientes_calls: 0, ainda_null: 0,
@@ -300,111 +303,121 @@ export function iniciarBackfillEnriquecimento(mes: number, ano: number, conta: C
   backfillEnrStatus[k] = s;
   const contaConcreta: Conta = conta ?? CONTA_DEFAULT;
 
-  (async () => {
-    try {
-      s.etapa = 'buscando linhas do periodo';
-      const { data: todasRows, error } = await filtroConta(
-        supabase.from('notas_entrada').select('id,ncod_nf,numero_nf,serie,nome_emitente,categoria,emitente,complemento,parcelas,contas_pagar').eq('mes', mes).eq('ano', ano),
-        conta,
-      );
-      if (error) throw new Error(error.message);
-      const rowsAll = (todasRows || []) as Array<Record<string, unknown>>;
-      s.total_no_periodo = rowsAll.length;
-      const rows = rowsAll.filter((r) => {
-        const semNome = !r.nome_emitente || String(r.nome_emitente).trim() === '';
-        const semCat = !r.categoria || String(r.categoria).trim() === '';
-        return semNome || semCat;
-      });
-      s.total = rows.length;
-      s.candidatos = rows.length;
-      if (rows.length === 0) { s.etapa = 'finalizado (nada pra processar)'; s.rodando = false; s.finalizadoEm = new Date().toISOString(); return; }
+  try {
+    s.etapa = 'buscando linhas do periodo';
+    const { data: todasRows, error } = await filtroConta(
+      supabase.from('notas_entrada').select('id,ncod_nf,numero_nf,serie,nome_emitente,categoria,emitente,complemento,parcelas,contas_pagar').eq('mes', mes).eq('ano', ano),
+      conta,
+    );
+    if (error) throw new Error(error.message);
+    const rowsAll = (todasRows || []) as Array<Record<string, unknown>>;
+    s.total_no_periodo = rowsAll.length;
+    const rows = rowsAll.filter((r) => {
+      const semNome = !r.nome_emitente || String(r.nome_emitente).trim() === '';
+      const semCat = !r.categoria || String(r.categoria).trim() === '';
+      return semNome || semCat;
+    });
+    s.total = rows.length;
+    s.candidatos = rows.length;
+    if (rows.length === 0) { s.etapa = 'finalizado (nada pra processar)'; s.rodando = false; s.finalizadoEm = new Date().toISOString(); return s; }
 
-      s.etapa = 'buscando categorias Omie';
-      const categoriasMap = await buscarCategoriasOmie(contaConcreta);
+    s.etapa = 'buscando categorias Omie';
+    const categoriasMap = await buscarCategoriasOmie(contaConcreta);
 
-      // CNPJs únicos via chave NFe
-      const cnpjsUnicos = new Set<string>();
-      rows.forEach((r) => {
-        const compl = (r.complemento || {}) as Record<string, unknown>;
-        const cnpj = cnpjFromChaveNFe(compl.cChaveNFe);
-        if (cnpj) cnpjsUnicos.add(cnpj);
-      });
+    // CNPJs únicos via chave NFe
+    const cnpjsUnicos = new Set<string>();
+    rows.forEach((r) => {
+      const compl = (r.complemento || {}) as Record<string, unknown>;
+      const cnpj = cnpjFromChaveNFe(compl.cChaveNFe);
+      if (cnpj) cnpjsUnicos.add(cnpj);
+    });
 
-      const cnpjNomeMap: Record<string, string> = {};
-      const cnpjArr = [...cnpjsUnicos];
-      s.etapa = 'buscando fornecedores em Clientes_Omie';
-      for (const cnpj of cnpjArr) {
-        if (backfillEnrStatus[k] !== s) return;
-        const fmt = fmtCnpjBR(cnpj);
-        try {
-          const { data } = await supabase.from('Clientes_Omie').select('id,nome').filter('cpf/cnpj', 'eq', fmt).limit(1);
-          if (data && data[0] && data[0].nome) cnpjNomeMap[cnpj] = String(data[0].nome);
-        } catch { /* segue */ }
-      }
-
-      s.etapa = 'consultando fornecedores no Omie via CNPJ';
-      const cnpjFaltantes = cnpjArr.filter((c) => !cnpjNomeMap[c]);
-      for (const cnpj of cnpjFaltantes) {
-        if (backfillEnrStatus[k] !== s) return;
-        try {
-          const r = await consultarClienteRapido({ cnpj_cpf: fmtCnpjBR(cnpj) }, contaConcreta, 10000);
-          s.consultarClientes_calls = (s.consultarClientes_calls || 0) + 1;
-          if (r && !r.faultstring) {
-            const nome = (r.razao_social || r.nome_fantasia) as string | undefined;
-            if (nome) cnpjNomeMap[cnpj] = nome;
-          }
-          await sleep(500);
-        } catch {
-          s.consultarClientes_calls = (s.consultarClientes_calls || 0) + 1;
-          await sleep(500);
-        }
-      }
-
-      s.etapa = 'atualizando linhas';
-      for (const r of rows) {
-        if (backfillEnrStatus[k] !== s) return;
-        const updates: Record<string, unknown> = {};
-        const compl = (r.complemento || {}) as Record<string, unknown>;
-        const parcelas = (r.parcelas as Array<Record<string, unknown>>) || [];
-        const parc0 = parcelas[0] || {};
-        const codCat = (compl.cCodCateg || parc0.cCodCateg) as string | undefined;
-        const chave = (compl.cChaveNFe as string) || null;
-        const cnpj = cnpjFromChaveNFe(chave);
-        const semCategoria = !r.categoria || String(r.categoria).trim() === '';
-        const semNome = !r.nome_emitente || String(r.nome_emitente).trim() === '';
-
-        if (semCategoria && codCat && categoriasMap[codCat]) updates.categoria = categoriasMap[codCat];
-
-        if (semNome && cnpj && cnpjNomeMap[cnpj]) {
-          updates.nome_emitente = cnpjNomeMap[cnpj];
-          updates.emitente = Object.assign({}, (r.emitente as object) || {}, { cnpj_cpf: fmtCnpjBR(cnpj), xNome: cnpjNomeMap[cnpj], cChaveNFe: chave });
-        } else if (cnpj) {
-          const emitExistente = (r.emitente || {}) as Record<string, unknown>;
-          if (!emitExistente.cnpj_cpf) updates.emitente = Object.assign({}, emitExistente, { cnpj_cpf: fmtCnpjBR(cnpj), cChaveNFe: chave });
-        }
-
-        if (updates.categoria) s.categorias_preenchidas = (s.categorias_preenchidas || 0) + 1;
-        if (updates.nome_emitente) s.emitentes_preenchidos = (s.emitentes_preenchidos || 0) + 1;
-        if (!updates.categoria && !updates.nome_emitente && !updates.emitente) s.ainda_null = (s.ainda_null || 0) + 1;
-
-        if (Object.keys(updates).length > 0) {
-          const { error: upErr, data: upData } = await supabase.from('notas_entrada').update(updates).eq('id', r.id as number).select('id');
-          if (upErr) { s.updates_erro = (s.updates_erro || 0) + 1; s.ultimo_erro = upErr.message; }
-          else if (!upData || upData.length === 0) { s.updates_erro = (s.updates_erro || 0) + 1; s.ultimo_erro = 'update 0 rows (RLS?) id=' + r.id; }
-          else s.updates_ok = (s.updates_ok || 0) + 1;
-        }
-        s.processadas = (s.processadas || 0) + 1;
-      }
-
-      s.etapa = 'finalizado';
-      s.rodando = false;
-      s.finalizadoEm = new Date().toISOString();
-    } catch (e) {
-      s.erro = (e as Error).message;
-      s.rodando = false;
-      s.finalizadoEm = new Date().toISOString();
+    const cnpjNomeMap: Record<string, string> = {};
+    const cnpjArr = [...cnpjsUnicos];
+    s.etapa = 'buscando fornecedores em Clientes_Omie';
+    for (const cnpj of cnpjArr) {
+      if (backfillEnrStatus[k] !== s) return s;
+      const fmt = fmtCnpjBR(cnpj);
+      try {
+        const { data } = await supabase.from('Clientes_Omie').select('id,nome').filter('cpf/cnpj', 'eq', fmt).limit(1);
+        if (data && data[0] && data[0].nome) cnpjNomeMap[cnpj] = String(data[0].nome);
+      } catch { /* segue */ }
     }
-  })();
 
+    s.etapa = 'consultando fornecedores no Omie via CNPJ';
+    const cnpjFaltantes = cnpjArr.filter((c) => !cnpjNomeMap[c]);
+    for (const cnpj of cnpjFaltantes) {
+      if (backfillEnrStatus[k] !== s) return s;
+      try {
+        const r = await consultarClienteRapido({ cnpj_cpf: fmtCnpjBR(cnpj) }, contaConcreta, 10000);
+        s.consultarClientes_calls = (s.consultarClientes_calls || 0) + 1;
+        if (r && !r.faultstring) {
+          const nome = (r.razao_social || r.nome_fantasia) as string | undefined;
+          if (nome) cnpjNomeMap[cnpj] = nome;
+        }
+        await sleep(500);
+      } catch {
+        s.consultarClientes_calls = (s.consultarClientes_calls || 0) + 1;
+        await sleep(500);
+      }
+    }
+
+    s.etapa = 'atualizando linhas';
+    for (const r of rows) {
+      if (backfillEnrStatus[k] !== s) return s;
+      const updates: Record<string, unknown> = {};
+      const compl = (r.complemento || {}) as Record<string, unknown>;
+      const parcelas = (r.parcelas as Array<Record<string, unknown>>) || [];
+      const parc0 = parcelas[0] || {};
+      const codCat = (compl.cCodCateg || parc0.cCodCateg) as string | undefined;
+      const chave = (compl.cChaveNFe as string) || null;
+      const cnpj = cnpjFromChaveNFe(chave);
+      const semCategoria = !r.categoria || String(r.categoria).trim() === '';
+      const semNome = !r.nome_emitente || String(r.nome_emitente).trim() === '';
+
+      if (semCategoria && codCat && categoriasMap[codCat]) updates.categoria = categoriasMap[codCat];
+
+      if (semNome && cnpj && cnpjNomeMap[cnpj]) {
+        updates.nome_emitente = cnpjNomeMap[cnpj];
+        updates.emitente = Object.assign({}, (r.emitente as object) || {}, { cnpj_cpf: fmtCnpjBR(cnpj), xNome: cnpjNomeMap[cnpj], cChaveNFe: chave });
+      } else if (cnpj) {
+        const emitExistente = (r.emitente || {}) as Record<string, unknown>;
+        if (!emitExistente.cnpj_cpf) updates.emitente = Object.assign({}, emitExistente, { cnpj_cpf: fmtCnpjBR(cnpj), cChaveNFe: chave });
+      }
+
+      if (updates.categoria) s.categorias_preenchidas = (s.categorias_preenchidas || 0) + 1;
+      if (updates.nome_emitente) s.emitentes_preenchidos = (s.emitentes_preenchidos || 0) + 1;
+      if (!updates.categoria && !updates.nome_emitente && !updates.emitente) s.ainda_null = (s.ainda_null || 0) + 1;
+
+      if (Object.keys(updates).length > 0) {
+        const { error: upErr, data: upData } = await supabase.from('notas_entrada').update(updates).eq('id', r.id as number).select('id');
+        if (upErr) { s.updates_erro = (s.updates_erro || 0) + 1; s.ultimo_erro = upErr.message; }
+        else if (!upData || upData.length === 0) { s.updates_erro = (s.updates_erro || 0) + 1; s.ultimo_erro = 'update 0 rows (RLS?) id=' + r.id; }
+        else s.updates_ok = (s.updates_ok || 0) + 1;
+      }
+      s.processadas = (s.processadas || 0) + 1;
+    }
+
+    s.etapa = 'finalizado';
+    s.rodando = false;
+    s.finalizadoEm = new Date().toISOString();
+    return s;
+  } catch (e) {
+    s.erro = (e as Error).message;
+    s.rodando = false;
+    s.finalizadoEm = new Date().toISOString();
+    return s;
+  }
+}
+
+/**
+ * Dispara o enriquecimento em background (fire-and-forget). Retorna imediatamente;
+ * o progresso é acompanhado por getBackfillStatus.
+ */
+export function iniciarBackfillEnriquecimento(mes: number, ano: number, conta: ContaFiltro): { ok: boolean; erro?: string } {
+  const k = conta || '__TODAS__';
+  const prev = backfillEnrStatus[k];
+  if (prev && prev.rodando) return { ok: false, erro: 'Backfill ja rodando para esta conta' };
+  void enriquecerNotasMes(mes, ano, conta).catch(() => {});
   return { ok: true };
 }

@@ -303,6 +303,30 @@ async function carregarCmcExistente(mes: number, ano: number, conta: Conta): Pro
   return mapa;
 }
 
+/**
+ * Mapa codigo_produto → cmc (>0) a partir do snapshot atual da tabela `produtos`.
+ * Fonte de CMC sem chamar o Omie no sync. OBS: `produtos.conta_omie` é gravado em
+ * MINÚSCULO (diferente de vendas_itens), por isso o filtro usa conta.toLowerCase().
+ */
+async function carregarCmcProdutos(conta: Conta): Promise<Record<string, number>> {
+  const mapa: Record<string, number> = {};
+  const LOTE = 1000;
+  let offset = 0;
+  while (true) {
+    const { data } = await supabase
+      .from('produtos')
+      .select('codigo_produto,cmc')
+      .eq('conta_omie', String(conta).toLowerCase())
+      .gt('cmc', 0)
+      .range(offset, offset + LOTE - 1);
+    const lote = (data || []) as Array<{ codigo_produto: unknown; cmc: unknown }>;
+    lote.forEach((r) => { if (r.codigo_produto != null) mapa[String(r.codigo_produto)] = num(r.cmc); });
+    if (lote.length < LOTE) break;
+    offset += LOTE;
+  }
+  return mapa;
+}
+
 async function buscarESalvarItensOmieInner(mes: number, ano: number, conta: Conta): Promise<Pedido[]> {
   const de = fmtD(new Date(ano, mes - 1, 1));
   const ate = fmtD(new Date(ano, mes, 0));
@@ -319,12 +343,18 @@ async function buscarESalvarItensOmieInner(mes: number, ano: number, conta: Cont
     // resolverCMC só lê cmc_historico — que não tem o mês atual. (bug: dashboard
     // de vendas sem custos no mês corrente.)
     const cmcExistente = await carregarCmcExistente(mes, ano, conta);
+    // Fallback final: CMC do snapshot atual de `produtos` (sem Omie).
+    const cmcProdutos = await carregarCmcProdutos(conta);
     const rows = [];
     for (const p of pedidos) {
       let cmc = await resolverCMC(p.codigo_produto, p.data_pedido, cmcMap, conta);
       if ((cmc === null || cmc === 0) && p.codigo_produto && p.data_pedido) {
         const prev = cmcExistente[p.codigo_produto + '|' + p.data_pedido];
         if (prev > 0) cmc = prev;
+      }
+      if ((cmc === null || cmc === 0) && p.codigo_produto) {
+        const snap = cmcProdutos[String(p.codigo_produto)];
+        if (snap > 0) cmc = snap;
       }
       rows.push(mapPedidoParaRow(p, mes, ano, conta, cmc));
     }
@@ -398,12 +428,17 @@ async function buscarIncrementalMesAtualInner(mes: number, ano: number, conta: C
       if (delResp.error) throw new Error('Erro ao deletar itens delta ' + dt + ': ' + delResp.error.message);
     }
     const cmcMap = await preCarregarCMCPorMes(codigosArr, mes, ano, conta);
+    const cmcProdutos = await carregarCmcProdutos(conta);
     const rows = [];
     for (const p of pedidosNovos) {
       let cmc = await resolverCMC(p.codigo_produto, p.data_pedido, cmcMap, conta);
       if ((cmc === null || cmc === 0) && p.codigo_produto && p.data_pedido) {
         const prev = cmcExistente[p.codigo_produto + '|' + p.data_pedido];
         if (prev > 0) cmc = prev;
+      }
+      if ((cmc === null || cmc === 0) && p.codigo_produto) {
+        const snap = cmcProdutos[String(p.codigo_produto)];
+        if (snap > 0) cmc = snap;
       }
       rows.push(mapPedidoParaRow(p, mes, ano, conta, cmc));
     }

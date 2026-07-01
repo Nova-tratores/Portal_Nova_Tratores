@@ -1,0 +1,24 @@
+name: Estoque - Sync incremental de compras/notas de entrada (diário)
+
+# Re-busca os últimos 3 meses de NF-e de entrada da Omie (NOVA + CASTRO) e
+# regrava só esses meses em notas_entrada/compras_itens, preservando o histórico.
+# Mantém a tela "Cruzamento por Família" fresca e atualiza o vínculo de produto
+# (nfProdInt.nCodProd) das notas recentes.
+# Requer os secrets do GitHub: PORTAL_URL e CRON_SECRET.
+
+on:
+  schedule:
+    - cron: '30 5 * * *'    # todo dia ~02:30 BRT (05:30 UTC)
+  workflow_dispatch: {}       # permite rodar manualmente
+
+jobs:
+  sync-compras:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Disparar sync incremental de compras (últimos 3 meses)
+        run: |
+          curl -fsS --max-time 900 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/estoque/cron/sync-compras?meses=3" \
+            -w "\nsync-compras: HTTP %{http_code}\n"

@@ -3,12 +3,14 @@
 // Cada job roda por conta concreta (getContasOmie). São disparados por rotas
 // protegidas por Bearer CRON_SECRET (mesmo padrão de pos/cron/sync-omie).
 
-import { getContasOmie } from './conta';
+import { getContasOmie, type Conta } from './conta';
 import { enriquecerCMCLote } from './cmc-admin';
 import { buscarESalvarItensOmie } from './vendas-sync';
 import { obterTotalOS } from './os';
 import { sincronizarProdutos, sincronizarApenasEstoque } from './produtos-sync';
-import { sincronizarRemessas, sincronizarMovimentacao, sincronizarOutrasEntradas, cruzarDevolucoes } from '../visual-estoque/remessas-sync';
+import { capturarSnapshotMensal, capturarSnapshotTipoMensal, backfillSnapshotsHistoricos } from './cruzamento-familia';
+import { sincronizarComprasJanela } from './compras-sync';
+import { sincronizarRemessas, sincronizarMovimentacao, sincronizarOutrasEntradas, cruzarDevolucoes, detectarDevolucoesDemonstracao } from '../visual-estoque/remessas-sync';
 
 /**
  * Backfill diário de CMC: para cada conta, enriquece vendas_itens sem
@@ -64,7 +66,10 @@ export async function cronSyncProdutos(): Promise<Record<string, unknown>> {
   const resultado: Record<string, unknown> = {};
   for (const c of getContasOmie()) {
     try {
-      resultado[c.id] = await sincronizarProdutos(c.id);
+      const sync = await sincronizarProdutos(c.id);
+      const snapshot = await capturarSnapshotMensal(c.id).catch((e) => ({ erro: (e as Error).message }));
+      const snapshotTipo = await capturarSnapshotTipoMensal(c.id).catch((e) => ({ erro: (e as Error).message }));
+      resultado[c.id] = { ...sync, snapshot, snapshotTipo };
     } catch (e) {
       resultado[c.id] = { ok: false, erro: (e as Error).message };
     }
@@ -80,9 +85,70 @@ export async function cronSyncEstoque(): Promise<Record<string, unknown>> {
   const resultado: Record<string, unknown> = {};
   for (const c of getContasOmie()) {
     try {
-      resultado[c.id] = await sincronizarApenasEstoque(c.id);
+      const sync = await sincronizarApenasEstoque(c.id);
+      const snapshot = await capturarSnapshotMensal(c.id).catch((e) => ({ erro: (e as Error).message }));
+      const snapshotTipo = await capturarSnapshotTipoMensal(c.id).catch((e) => ({ erro: (e as Error).message }));
+      resultado[c.id] = { ...sync, snapshot, snapshotTipo };
     } catch (e) {
       resultado[c.id] = { ok: false, erro: (e as Error).message };
+    }
+  }
+  return resultado;
+}
+
+/**
+ * Captura o snapshot mensal de estoque por família (mês corrente), por conta.
+ * Roda junto do sync de estoque/produtos, mas também pode ser disparado avulso
+ * para semear o histórico imediatamente.
+ */
+export async function cronSnapshotEstoque(): Promise<Record<string, unknown>> {
+  const resultado: Record<string, unknown> = {};
+  for (const c of getContasOmie()) {
+    try {
+      const familia = await capturarSnapshotMensal(c.id);
+      const tipo = await capturarSnapshotTipoMensal(c.id).catch((e) => ({ erro: (e as Error).message }));
+      resultado[c.id] = { familia, tipo };
+    } catch (e) {
+      resultado[c.id] = { erro: (e as Error).message };
+    }
+  }
+  return resultado;
+}
+
+/**
+ * Sync INCREMENTAL de compras/notas de entrada (últimos `mesesAtras` meses) por
+ * conta. Mantém `notas_entrada` fresca (NOVA + CASTRO) sem rebuild total, e
+ * atualiza o vínculo de produto (nCodProd) das notas recentes. Sequencial por
+ * conta (cada conta apaga+reescreve só a janela).
+ */
+export async function cronSyncCompras(mesesAtras = 3): Promise<Record<string, unknown>> {
+  const resultado: Record<string, unknown> = {};
+  for (const c of getContasOmie()) {
+    try {
+      resultado[c.id] = await sincronizarComprasJanela(c.id, mesesAtras);
+    } catch (e) {
+      resultado[c.id] = { ok: false, erro: (e as Error).message };
+    }
+  }
+  return resultado;
+}
+
+/**
+ * Backfill do snapshot histórico de estoque por família, consultando a posição
+ * de estoque na Omie no fim de cada mês desde `desde` até hoje. Por conta.
+ * Job longo (consulta pesada à Omie) — disparar em background.
+ */
+export async function cronBackfillSnapshots(
+  desde: { ano: number; mes: number },
+  contaUnica?: Conta,
+): Promise<Record<string, unknown>> {
+  const contas = contaUnica ? [{ id: contaUnica }] : getContasOmie();
+  const resultado: Record<string, unknown> = {};
+  for (const c of contas) {
+    try {
+      resultado[c.id] = await backfillSnapshotsHistoricos(c.id, desde);
+    } catch (e) {
+      resultado[c.id] = { erro: (e as Error).message };
     }
   }
   return resultado;
@@ -102,7 +168,9 @@ export async function cronSyncRemessas(): Promise<Record<string, unknown>> {
       const movimentacao = await sincronizarMovimentacao(c.id);
       const outrasEntradas = await sincronizarOutrasEntradas(c.id);
       const devolucoes = await cruzarDevolucoes(c.id);
-      resultado[c.id] = { remessas, movimentacao, outrasEntradas, devolucoes };
+      // Encerra demos já devolvidas (MovimentoEstoque) p/ não acumular pendentes.
+      const demosEncerradas = await detectarDevolucoesDemonstracao(c.id);
+      resultado[c.id] = { remessas, movimentacao, outrasEntradas, devolucoes, demosEncerradas };
     } catch (e) {
       resultado[c.id] = { ok: false, erro: (e as Error).message };
     }

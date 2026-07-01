@@ -185,8 +185,10 @@ export async function buscarMaquinasDemonstracao(contaFiltro?: string): Promise<
 
     maquinas.push({
       codigo_produto: m.cod_produto,
-      codigo: m.codigo || prod.codigo || "",
-      descricao: m.descricao_produto || prod.descricao || "",
+      // Preferir os dados REAIS do produto (join); o snapshot da remessa
+      // (descricao_produto) muitas vezes é o fallback "Produto #<id>".
+      codigo: prod.codigo || "",
+      descricao: prod.descricao || m.descricao_produto || "",
       familia_nome: prod.familia_nome || "",
       marca: prod.marca || "",
       data_inclusao: m.data_saida || "",

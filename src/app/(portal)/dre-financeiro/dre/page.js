@@ -38,6 +38,9 @@ const OFFSET_GRAFICO_PX = COL_CONTA_PX + 3 * COL_AUX_PX // 550 — padding-left 
 
 const PALETA = ['#ef4444', '#f59e0b', '#3b82f6', '#8b5cf6', '#10b981', '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16']
 const PALETA_TREEMAP = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16', '#0ea5e9', '#a3e635']
+// Marcadores distintos por familia: ajudam a diferenciar linhas sobrepostas na
+// aba "Margens por Familia" (margens proximas tendem a colar umas nas outras).
+const FAM_POINT_STYLES = ['circle', 'rect', 'triangle', 'rectRot', 'star', 'crossRot']
 
 // ---------------------------------------------------------------------------
 // Formatadores locais (identicos aos do <script> da fonte; o modo % depende
@@ -303,12 +306,18 @@ export default function DrePage() {
 
   // Carga lazy da aba "Margens por Familia": so busca quando a aba e aberta.
   useEffect(() => {
-    if (aba !== 'familias' || !desde || !ate) return
+    if (aba !== 'familias') return
+    // Usa o periodo EFETIVAMENTE carregado no DRE (dados.periodo), nao o input:
+    // assim a receita por familia cobre exatamente os mesmos meses das despesas
+    // usadas no rateio (so muda quando o usuario clica "Carregar").
+    const de = dados && dados.periodo && dados.periodo.de
+    const ateP = dados && dados.periodo && dados.periodo.ate
+    if (!de || !ateP) return
     setCarregandoFam(true); setErroFam('')
     // conta=todas: o DRE desta tela e SEMPRE consolidado (NOVA+CASTRO), entao a
     // receita por familia tem de cobrir as duas empresas para casar com as
     // despesas consolidadas usadas no rateio da margem liquida.
-    fetch('/api/dre-financeiro/margens-familia?conta=todas&desde=' + desde + '&ate=' + ate)
+    fetch('/api/dre-financeiro/margens-familia?conta=todas&desde=' + de + '&ate=' + ateP)
       .then((r) => r.json())
       .then((d) => {
         setCarregandoFam(false)
@@ -316,7 +325,7 @@ export default function DrePage() {
         setDadosFam(d)
       })
       .catch((e) => { setCarregandoFam(false); setErroFam(e.message); setDadosFam(null) })
-  }, [aba, desde, ate])
+  }, [aba, dados])
 
   // Modelo da aba "Margens por Familia": cruza familia x unidade de periodo
   // (mes/trimestre/ano via dreUnidade), com margem bruta (receita-CMV) e margem
@@ -650,7 +659,9 @@ export default function DrePage() {
       label: ln.familia,
       data: ln.cels.map((c) => c[campoPct]),
       borderColor: PALETA[i % PALETA.length], backgroundColor: PALETA[i % PALETA.length],
-      borderWidth: 2, pointRadius: 2, tension: 0.2, spanGaps: true,
+      borderWidth: 2, pointRadius: 3, pointHoverRadius: 6,
+      pointStyle: FAM_POINT_STYLES[i % FAM_POINT_STYLES.length],
+      tension: 0.2, spanGaps: true,
     }))
     if (resto.length) {
       const data = model.colInfo.map((c, idx) => {
@@ -658,7 +669,7 @@ export default function DrePage() {
         resto.forEach((ln) => { const cel = ln.cels[idx]; receita += cel.receita; lucro += cel[campoLucro] })
         return receita > 0 ? (lucro / receita) * 100 : null
       })
-      datasets.push({ label: 'Outros', data, borderColor: '#94a3b8', backgroundColor: '#94a3b8', borderWidth: 2, borderDash: [5, 4], pointRadius: 2, tension: 0.2, spanGaps: true })
+      datasets.push({ label: 'Outros', data, borderColor: '#94a3b8', backgroundColor: '#94a3b8', borderWidth: 2, borderDash: [5, 4], pointRadius: 2, pointHoverRadius: 6, pointStyle: 'line', tension: 0.2, spanGaps: true })
     }
     if (famChartInst.current) famChartInst.current.destroy()
     famChartInst.current = new window.Chart(famChartRef.current.getContext('2d'), {
@@ -672,8 +683,8 @@ export default function DrePage() {
           y: { ticks: { callback: (v) => v + '%' }, grid: { color: (c) => (c.tick && c.tick.value === 0 ? '#94a3b8' : '#f1f5f9') } },
         },
         plugins: {
-          legend: { position: 'bottom', labels: { boxWidth: 18, font: { size: 11 } } },
-          tooltip: { callbacks: { label: (item) => item.dataset.label + ': ' + (item.raw == null ? '—' : item.raw.toFixed(1) + '%') } },
+          legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 18, font: { size: 11 } } },
+          tooltip: { usePointStyle: true, callbacks: { label: (item) => item.dataset.label + ': ' + (item.raw == null ? '—' : item.raw.toFixed(1) + '%') } },
         },
       },
     })
@@ -1944,6 +1955,7 @@ function FamiliasTab({ dadosFam, carregandoFam, erroFam, regime, dreUnidade, set
             <div style={{ height: 320, position: 'relative' }}>
               <canvas ref={famChartRef}></canvas>
             </div>
+            <div className="text-[10px] text-slate-400 mt-1">Dica: clique numa família na legenda para escondê-la e isolar as demais.</div>
           </div>
         </>
       )}

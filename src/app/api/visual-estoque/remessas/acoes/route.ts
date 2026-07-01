@@ -6,6 +6,7 @@ import {
   sincronizarOutrasEntradas,
   cruzarDevolucoes,
   verificarSuspeitas,
+  detectarDevolucoesDemonstracao,
 } from "@/lib/visual-estoque/remessas-sync";
 
 export const runtime = "nodejs";
@@ -36,6 +37,8 @@ export async function POST(req: NextRequest) {
         resultados[c] = await cruzarDevolucoes(c);
       } else if (acao === "suspeitas") {
         resultados[c] = await verificarSuspeitas(c);
+      } else if (acao === "encerrar-demos") {
+        resultados[c] = await detectarDevolucoesDemonstracao(c);
       } else {
         return NextResponse.json({ erro: "Ação inválida" }, { status: 400 });
       }

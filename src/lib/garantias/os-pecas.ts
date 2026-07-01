@@ -54,13 +54,16 @@ export async function listarPecasDaOS(osId: string): Promise<PecaOS[]> {
   // 2) Requisições vinculadas à OS (tabela Requisicao com ordem_servico = osId)
   const { data: reqs } = await supabase
     .from('Requisicao')
-    .select('id, titulo, valor_cobrado_cliente, quantidade')
+    .select('id, titulo, valor_cobrado_cliente, valor_despeza, quantidade')
     .eq('ordem_servico', id)
     .not('status', 'in', '("lixeira","cancelada")');
-  for (const r of (reqs || []) as { id: number; titulo?: string; valor_cobrado_cliente?: string; quantidade?: string }[]) {
+  for (const r of (reqs || []) as { id: number; titulo?: string; valor_cobrado_cliente?: string; valor_despeza?: string; quantidade?: string }[]) {
     const titulo = String(r.titulo || '').trim();
     if (!titulo) continue;
-    const valor = parseFloat(r.valor_cobrado_cliente || '0');
+    // A garantia reembolsa o CUSTO. Em garantia o cliente normalmente NÃO é
+    // cobrado (valor_cobrado_cliente = 0/vazio), então cai pra valor_despeza,
+    // o custo real do serviço de terceiro / material da requisição.
+    const valor = parseFloat(r.valor_cobrado_cliente || '0') || parseFloat(r.valor_despeza || '0');
     const qtd = parseFloat(r.quantidade || '1') || 1;
     pecas.push({
       cod_produto: `REQ-${r.id}`,
