@@ -3,19 +3,9 @@ import { supabaseFetch, getValorInsensivel } from "@/lib/ppv/supabase";
 import { TBL_PEDIDOS, TBL_ITENS, TBL_OS } from "@/lib/ppv/constants";
 
 // Preview do card do PPV no hover:
-//  - com OS vinculada  → descrição da OS (Solicitação do cliente) + produtos
+//  - com OS vinculada  → campo "Descrição do Serviço" do POS (Serv_Solicitado completo) + produtos
 //  - sem OS            → produtos + observação
 // Uma chamada só; o card cacheia no cliente.
-
-function extrairSolicitacao(texto: string): string {
-  if (!texto) return "";
-  const marc = "Solicitação do cliente:";
-  const i = texto.indexOf(marc);
-  if (i === -1) return texto.trim();
-  const depois = texto.slice(i + marc.length);
-  const fim = depois.indexOf("Serviço Realizado:");
-  return (fim !== -1 ? depois.slice(0, fim) : depois).trim();
-}
 
 export async function GET(req: NextRequest) {
   const id = (req.nextUrl.searchParams.get("id") || "").trim();
@@ -50,7 +40,7 @@ export async function GET(req: NextRequest) {
       const os = await supabaseFetch<Record<string, unknown>[]>(
         `${TBL_OS}?Id_Ordem=eq.${encodeURIComponent(osId)}&select=Serv_Solicitado&limit=1`
       );
-      osDescricao = extrairSolicitacao(String(getValorInsensivel(os?.[0] || {}, "Serv_Solicitado") || ""));
+      osDescricao = String(getValorInsensivel(os?.[0] || {}, "Serv_Solicitado") || "").trim();
     }
 
     return NextResponse.json({ temOS: !!osId, osId, osDescricao, observacao, produtos });
