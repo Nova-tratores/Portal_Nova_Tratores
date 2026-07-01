@@ -196,6 +196,13 @@ export async function POST(req: NextRequest) {
       const { error } = await supabase.from("portal_nt_clientes_os").upsert(row, { onConflict: "num_os,empresa" });
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+      // Marca "fechado interno" (best-effort): se a coluna ainda não existir no
+      // banco, ignora sem quebrar o anexar. Grava sempre pra refletir o checkbox.
+      await supabase.from("portal_nt_clientes_os")
+        .update({ servico_interno: !!servico_interno })
+        .eq("num_os", cab.cNumOS).eq("empresa", empresa)
+        .then(() => {}, () => {});
+
       // Se o usuário informou um Pedido de Venda vinculado, puxa o PV junto (best-effort)
       // pra ele aparecer ligado na pasta. Não falha a OS se o PV der erro.
       let pv_vinc_aviso: string | undefined;

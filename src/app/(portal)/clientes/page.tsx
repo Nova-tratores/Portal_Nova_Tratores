@@ -17,7 +17,7 @@ interface OrdemServico {
   num_os: string; cod_os: number; empresa: string; cod_cli: number; cliente_nome: string
   etapa: string; data_previsao: string | null; data_inclusao: string | null
   data_faturamento: string | null; valor_total: number; status: string
-  cancelada: boolean; faturada: boolean; num_pedido_cli: string; vendedor: string
+  cancelada: boolean; faturada: boolean; servico_interno?: boolean; num_pedido_cli: string; vendedor: string
   cidade: string; contrato: string; projeto: string; num_nf: string; link_nf: string
   descricao: string; servicos: any[]; obs: string; dados_adic: string; pdf_anexo?: string
   pos_pdf?: string | null; pos_id?: string | null; pos_real?: boolean; financeiro?: FinanceiroDoc | null
@@ -918,7 +918,9 @@ function ClientesPageInner() {
                     const ref = classifyRef(os.num_pedido_cli, os.empresa)
                     const numRef = ref.tipo === 'pv' ? os.num_pedido_cli : ''
                     const remRef = ref.tipo === 'remessa' ? os.num_pedido_cli : ''
-                    const acc = os.cancelada ? '#DC2626' : os.faturada ? '#10B981' : '#F59E0B'
+                    const ehInterno = !!os.servico_interno
+                    const acc = os.cancelada ? '#DC2626' : ehInterno ? '#7C3AED' : os.faturada ? '#10B981' : '#F59E0B'
+                    const statusLabel = os.cancelada ? os.status : ehInterno ? 'Fechado interno' : os.status
 
                     return (
                       <div key={os.num_os} className="cli-card" onClick={() => setModalOS(os)}
@@ -952,7 +954,7 @@ function ClientesPageInner() {
                         {/* rodapé: status + data + pdf */}
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, color: acc, textTransform: 'uppercase', letterSpacing: 0.3 }}>
-                            <span style={{ width: 7, height: 7, borderRadius: '50%', background: acc, flexShrink: 0 }} />{os.status}
+                            <span style={{ width: 7, height: 7, borderRadius: '50%', background: acc, flexShrink: 0 }} />{statusLabel}
                           </span>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
                             {os.pdf_anexo && (
@@ -1193,7 +1195,7 @@ function ClientesPageInner() {
                     <span style={{ padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 700,
                       background: os.cancelada ? 'rgba(220,38,38,0.2)' : os.faturada ? 'rgba(5,150,105,0.2)' : 'rgba(255,255,255,0.15)',
                       color: '#fff', border: '1px solid rgba(255,255,255,0.2)' }}>
-                      {os.status}
+                      {os.servico_interno && !os.cancelada ? 'Fechado interno' : os.status}
                     </span>
                     {os.projeto && (
                       <span style={{ padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, background: 'rgba(255,255,255,0.15)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)' }}>
@@ -1272,11 +1274,12 @@ function ClientesPageInner() {
                           <div key={si} style={{ padding: '12px 16px', borderBottom: si < servicos.length - 1 ? '1px solid #F3F4F6' : 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div style={{ flex: 1 }}>
                               <div style={{ fontSize: 13, color: '#374151', fontWeight: 500 }}>{s.desc || s.descricao || s.nome || `Servico ${si + 1}`}</div>
-                              {s.quantidade && <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 2 }}>Qtd: {s.quantidade}</div>}
+                              {(s.qtd ?? s.quantidade) != null && <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 2 }}>Qtd: {s.qtd ?? s.quantidade}</div>}
                             </div>
                             {(s.valor || s.valor_unitario) && (
-                              <div style={{ fontSize: 14, fontWeight: 600, color: '#374151', flexShrink: 0, marginLeft: 16 }}>
+                              <div style={{ fontSize: 14, fontWeight: 600, color: '#374151', flexShrink: 0, marginLeft: 16, textAlign: 'right' }}>
                                 {formatCurrency(s.valor || s.valor_unitario || 0)}
+                                <div style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 500 }}>un.</div>
                               </div>
                             )}
                           </div>
