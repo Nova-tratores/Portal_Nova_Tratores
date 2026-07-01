@@ -6,6 +6,18 @@ import { supabase } from '@/lib/pos/supabase';
 import { TBL_OS, TBL_ITENS } from '@/lib/pos/constants';
 import type { PecaOS } from './types';
 
+// Valores da Requisicao são texto e podem vir em BR ("1.304,60") ou US
+// ("1304.60"). Se tem vírgula, ponto é milhar e vírgula é decimal; senão,
+// ponto é o decimal.
+function parseValorReq(v?: string | null): number {
+  if (v == null) return 0;
+  let s = String(v).trim().replace(/[R$\s]/g, '');
+  if (!s) return 0;
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+
 export async function listarPecasDaOS(osId: string): Promise<PecaOS[]> {
   const id = String(osId || '').trim();
   if (!id) return [];
@@ -51,30 +63,30 @@ export async function listarPecasDaOS(osId: string): Promise<PecaOS[]> {
     });
   }
 
-  // 2) Requisições vinculadas à OS (tabela Requisicao com ordem_servico = osId)
-  // Não filtramos status no SQL: `.not('status','in',(...))` no Postgres também
-  // EXCLUI linhas com status NULL (semântica do NOT IN), fazendo requisições
-  // sem status sumirem — que é justo o caso do serviço de terceiro. Buscamos
-  // todas e descartamos só lixeira/cancelada no JS (igual a OS mostra).
+  // 2) Requisições vinculadas à OS (tabela Requisicao com ordem_servico = osId).
+  // ATENÇÃO: a tabela Requisicao NÃO tem coluna `quantidade` — incluí-la no
+  // select fazia a query inteira falhar (retornava vazio) e nenhuma requisição
+  // chegava na garantia. Cada requisição é 1 item; o valor já é o total.
+  // Filtro de status no JS (só descarta lixeira/cancelada; status nulo/pedido
+  // passam — no SQL o `.not(...,'in',...)` também excluiria status NULL).
   const { data: reqs } = await supabase
     .from('Requisicao')
-    .select('id, titulo, status, valor_cobrado_cliente, valor_despeza, quantidade')
+    .select('id, titulo, status, valor_cobrado_cliente, valor_despeza')
     .eq('ordem_servico', id);
-  for (const r of (reqs || []) as { id: number; titulo?: string; status?: string; valor_cobrado_cliente?: string; valor_despeza?: string; quantidade?: string }[]) {
+  for (const r of (reqs || []) as { id: number; titulo?: string; status?: string; valor_cobrado_cliente?: string; valor_despeza?: string }[]) {
     const st = String(r.status || '').toLowerCase();
     if (st === 'lixeira' || st === 'cancelada') continue;
     const titulo = String(r.titulo || '').trim();
     if (!titulo) continue;
-    // A garantia reembolsa o CUSTO. Em garantia o cliente normalmente NÃO é
-    // cobrado (valor_cobrado_cliente = 0/vazio), então cai pra valor_despeza,
-    // o custo real do serviço de terceiro / material da requisição.
-    const valor = parseFloat(r.valor_cobrado_cliente || '0') || parseFloat(r.valor_despeza || '0');
-    const qtd = parseFloat(r.quantidade || '1') || 1;
+    // A garantia reembolsa o CUSTO. Valores vêm como texto (BR "1.304,60" ou
+    // US "1304.60") — parseamos os dois. Usa valor_cobrado_cliente; se 0/vazio,
+    // cai pra valor_despeza (custo real do serviço de terceiro).
+    const valor = parseValorReq(r.valor_cobrado_cliente) || parseValorReq(r.valor_despeza);
     pecas.push({
       cod_produto: `REQ-${r.id}`,
       descricao: titulo,
-      quantidade: qtd,
-      preco_unitario: qtd > 0 ? valor / qtd : valor,
+      quantidade: 1,
+      preco_unitario: valor,
       origem: 'pecasinfo_manual',
       fonte_ppv_id: null,
     });
