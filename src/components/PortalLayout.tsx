@@ -185,6 +185,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const [chatOpen, setChatOpen] = useState(false)
   const [lembretesOpen, setLembretesOpen] = useState(false)
   const [bellOpen, setBellOpen] = useState(false)
+  // Tooltip da notificação (mostra o conteúdo completo ao passar o mouse)
+  const [notifHover, setNotifHover] = useState<{ titulo: string; descricao: string; tempo: any; tipo: string; top: number; left: number } | null>(null)
   const [topMenuOpen, setTopMenuOpen] = useState(false)
   const [notifPrefsOpen, setNotifPrefsOpen] = useState(false)
   const [toasts, setToasts] = useState<{ id: string; chatId?: string; titulo: string; avatar: string | null; preview: string; tipo: string; link?: string; timestamp: number }[]>([])
@@ -764,8 +766,14 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                           borderBottom: `1px solid var(--portal-border)`,
                           transition: 'background 0.18s ease'
                         }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--portal-bg-secondary)' }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'var(--portal-bg-secondary)'
+                          const r = e.currentTarget.getBoundingClientRect()
+                          const TW = 360
+                          const left = r.left - TW - 12 >= 12 ? r.left - TW - 12 : Math.min(r.right + 12, window.innerWidth - TW - 12)
+                          setNotifHover({ titulo: item.titulo, descricao: item.descricao, tempo: item.tempo, tipo: item.tipo, top: r.top, left: Math.max(12, left) })
+                        }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; setNotifHover(null) }}
                       >
                         {/* Acento lateral (não lida) */}
                         {!item.lida && <div style={{ position: 'absolute', left: 0, top: 8, bottom: 8, width: 3, background: cor, borderRadius: '0 3px 3px 0' }} />}
@@ -1089,6 +1097,25 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
           isAdmin={isAdmin}
           modulos={permissoes?.modulos_permitidos || []}
         />
+      )}
+
+      {/* Tooltip da notificação — conteúdo completo ao passar o mouse (fora do dropdown por causa do transform) */}
+      {bellOpen && notifHover && (
+        <div style={{
+          position: 'fixed', top: Math.max(12, Math.min(notifHover.top, window.innerHeight - 240)), left: notifHover.left,
+          width: 360, maxHeight: '60vh', overflowY: 'auto', zIndex: 100000, pointerEvents: 'none',
+          background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 14,
+          boxShadow: '0 16px 48px rgba(0,0,0,0.22)', padding: '16px 18px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <span style={{ color: NOTIF_COLORS[notifHover.tipo] || '#dc2626', display: 'flex' }}>{NOTIF_ICONS[notifHover.tipo] || <Bell size={16} />}</span>
+            <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--portal-text-muted)' }}>{timeAgo(notifHover.tempo)}</span>
+          </div>
+          <div style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--portal-text)', marginBottom: 8, lineHeight: 1.35, wordBreak: 'break-word' }}>{notifHover.titulo}</div>
+          {notifHover.descricao && (
+            <div style={{ fontSize: 13, color: 'var(--portal-text-secondary)', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{notifHover.descricao}</div>
+          )}
+        </div>
       )}
 
       {/* ===== CHAT PANEL ===== */}
