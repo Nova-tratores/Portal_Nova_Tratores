@@ -869,8 +869,8 @@ function HomePosVendasContent() {
                     </div>
                   )}
 
-                  {/* Preferência de envio do boleto — aparece quando vai pro Pós-Vendas enviar */}
-                  {tarefaSelecionada.gTipo !== 'pagar' && tarefaSelecionada.gTipo !== 'rh' && tarefaSelecionada.status === 'enviar_cliente' && (
+                  {/* Preferência de envio do boleto — sempre visível (todas as fases), ligada ao cliente */}
+                  {tarefaSelecionada.gTipo !== 'pagar' && tarefaSelecionada.gTipo !== 'rh' && (
                     <div style={{ marginTop:'45px' }}>
                       <PreferenciaEnvioBoleto card={tarefaSelecionada} />
                     </div>

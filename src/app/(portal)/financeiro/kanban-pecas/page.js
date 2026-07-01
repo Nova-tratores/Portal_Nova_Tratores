@@ -656,9 +656,10 @@ export default function Kanban() {
         </div>
 
         <div style={{marginTop:'50px', display:'flex', flexDirection:'column', gap:'20px'}}>
+          {/* Preferência de envio do boleto — sempre visível (todas as fases), ligada ao cliente */}
+          <PreferenciaEnvioBoleto card={tarefaSelecionada} />
           {tarefaSelecionada.status === 'enviar_cliente' && (
             <>
-              <PreferenciaEnvioBoleto card={tarefaSelecionada} />
               <div style={{background:'#f0fdf4', padding:'40px', borderRadius:'24px', border:'1px solid #bbf7d0'}}>
                 <label style={{...labelModalStyle, color:'#16a34a', fontSize: '18px'}}>AÇÃO REQUERIDA</label>
                 <p style={{color: 'var(--portal-text-secondary)', marginBottom: '25px', fontSize: '14px'}}>Confirme após enviar os documentos ao cliente.</p>
