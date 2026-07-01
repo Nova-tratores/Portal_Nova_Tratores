@@ -32,7 +32,6 @@ const S_MB0 = { marginBottom: 0 } as const;
 const S_MT12 = { marginTop: 12 } as const;
 const S_SEARCH_ICON = { position: "absolute" as const, left: 14, top: 13, color: "var(--portal-text-secondary)" };
 const S_SEARCH_INPUT = { paddingLeft: 40, marginBottom: 0 };
-const S_SELECT_BOLD = { fontWeight: 600, marginBottom: 0 };
 const S_POINTER_BOLD = { cursor: "pointer" as const, fontWeight: 600 };
 const S_POINTER_BOLD_MB0 = { cursor: "pointer" as const, fontWeight: 600, marginBottom: 0 };
 const S_MONO_MB0 = { fontFamily: "monospace", marginBottom: 0 };
@@ -584,7 +583,6 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   // ── Early return ──
   if (!visible) return null;
 
-  const statusBadgeStyle = mode === "edit" ? STATUS_BADGE_STYLE(status) : undefined;
 
   return (
     <>
@@ -598,7 +596,15 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                   {mode === "create" ? "Nova Ordem de Serviço" : `${osId}`}
                 </span>
                 {mode === "edit" && (
-                  <span style={statusBadgeStyle}>{status}</span>
+                  <select
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value)}
+                    disabled={!podeEditar}
+                    title="Alterar status da OS"
+                    style={{ ...STATUS_BADGE_STYLE(status), border: "none", outline: "none", cursor: podeEditar ? "pointer" : "not-allowed", maxWidth: 340 }}
+                  >
+                    {PHASES.map((p) => <option key={p} value={p}>{p}</option>)}
+                  </select>
                 )}
               </div>
               <div className="os-header-actions">
@@ -794,20 +800,18 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                   ))}
 
                   {/* ── Status ── */}
-                  {mode === "edit" && (
+                  {/* Detalhes do status — só aparece quando Concluída ou Cancelada (o select ficou no cabeçalho) */}
+                  {mode === "edit" && (status === "Concluída" || status === "Cancelada") && (
                     <div className="os-card" style={{ order: -4 }}>
-                      <div className="os-card-title"><i className="fas fa-flag" /> Status</div>
-                      <select value={status} onChange={(e) => setStatus(e.target.value)} style={S_SELECT_BOLD}>
-                        {PHASES.map((p) => <option key={p}>{p}</option>)}
-                      </select>
+                      <div className="os-card-title"><i className="fas fa-flag" /> {status === "Cancelada" ? "Cancelamento" : "Conclusão"}</div>
                       {status === "Concluída" && (
-                        <div style={S_MT12}>
+                        <div>
                           <label>N Ordem Omie</label>
                           <input type="text" value={ordemOmie} onChange={(e) => setOrdemOmie(e.target.value)} style={S_MB0} />
                         </div>
                       )}
                       {status === "Cancelada" && (
-                        <div style={S_MT12}>
+                        <div>
                           <label>Motivo do Cancelamento *</label>
                           <textarea rows={2} value={motivoCancel} onChange={(e) => setMotivoCancel(e.target.value)} placeholder="Descreva o motivo do cancelamento..." style={{ marginBottom: 12 }} />
                           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: temSubstituto ? 10 : 0 }}>
@@ -832,6 +836,13 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                           )}
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {/* Enviar ao Omie — última seção do modal (order alto) */}
+                  {mode === "edit" && (
+                    <div className="os-card" style={{ order: 20 }}>
+                      <div className="os-card-title"><i className="fas fa-cloud-upload-alt" /> {servicoInterno ? "Concluir ordem interna" : "Enviar para o Omie"}</div>
                       {!ordemOmie && !(servicoInterno && status === "Concluída") && (
                         <button className="os-btn-omie" onClick={enviarParaOmie} disabled={enviandoOmie || (servicoInterno ? !podeConcluir : !podeOmie)}
                           title={(servicoInterno ? !podeConcluir : !podeOmie) ? MSG_SEM_PERMISSAO : undefined}
