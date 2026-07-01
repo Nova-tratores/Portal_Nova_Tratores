@@ -57,10 +57,17 @@ async function handler(req: NextRequest) {
     const nomes = lista.slice(0, 5).map((o: any) => `${o.cliente_nome || "?"} (OS ${o.num_os || "?"})`).join(", ");
     const descricao = `${lista.length} OS faturada(s) aguardando a NF de serviço na pasta do cliente${lista.length > 5 ? " (mostrando 5)" : ""}: ${nomes}${lista.length > 5 ? "..." : ""}. Anexe a nota de serviço na pasta pra liberar o card no financeiro.`;
 
+    // Título: com 1 OS, mostra cliente + nº da OS (aparece no sininho, sem precisar
+    // abrir a descrição). Com várias, mantém a contagem e a lista fica na descrição.
+    const p0 = lista[0] as any;
+    const titulo = lista.length === 1
+      ? `NF de serviço pendente — ${p0.cliente_nome || "cliente"} (OS ${p0.num_os || "?"})`
+      : `NF de serviço pendente na pasta (${lista.length})`;
+
     await fetch(`${req.nextUrl.origin}/api/financeiro/notificar`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        titulo: `NF de serviço pendente na pasta (${lista.length})`,
+        titulo,
         descricao,
         link: "/clientes",
         alvo: "posvendas",
