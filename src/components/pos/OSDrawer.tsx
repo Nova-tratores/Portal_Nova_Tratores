@@ -105,6 +105,11 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   const [agendaTecnico, setAgendaTecnico] = useState<Array<{ id_ordem: string; cliente: string; hora_inicio: string; hora_fim: string; qtd_horas: number }>>([]);
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [totalPecas, setTotalPecas] = useState(0);
+  // Adicionar peça direto no PPV vinculado, a partir da OS
+  const [showAddProdModal, setShowAddProdModal] = useState(false);
+  const [addProdTarget, setAddProdTarget] = useState("");
+  const [addProdQtd, setAddProdQtd] = useState(1);
+  const [addingProduto, setAddingProduto] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loadingData, setLoadingData] = useState(false);
   // Incrementado após importar um orçamento → força recarregar os dados da OS
@@ -301,6 +306,42 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
       console.error("Erro ao carregar PPV");
     }
   }, []);
+
+  // Abre a busca de produto pra adicionar no PPV vinculado. Se houver mais de um
+  // PPV, exige escolher pra qual antes de abrir.
+  const abrirAddProduto = useCallback(() => {
+    const ids = ppv.split(",").map((s) => s.trim()).filter(Boolean);
+    if (ids.length === 0) { alert("Não há PPV vinculado. Informe o PPV acima antes de adicionar peças."); return; }
+    if (ids.length > 1 && !addProdTarget) { alert("Escolha para qual PPV você quer adicionar a peça."); return; }
+    setShowAddProdModal(true);
+  }, [ppv, addProdTarget]);
+
+  const adicionarProdutoPPV = useCallback(async (item: { codigo?: string; descricao?: string; preco?: number }) => {
+    const ids = ppv.split(",").map((s) => s.trim()).filter(Boolean);
+    const target = ids.length === 1 ? ids[0] : addProdTarget;
+    if (!target || !item?.codigo) return;
+    setAddingProduto(true);
+    try {
+      const res = await fetch("/api/ppv/movimentacoes", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: target, tecnico: tecnico1 || "", tipoMovimento: "Saída",
+          codigo: item.codigo, descricao: item.descricao || item.codigo,
+          quantidade: addProdQtd || 1, preco: Number(item.preco) || 0, userName,
+        }),
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        alert(e.error || "Erro ao adicionar a peça ao PPV.");
+      } else {
+        await loadPPV(ppv);
+        setAddProdQtd(1);
+      }
+    } catch {
+      alert("Erro ao adicionar a peça ao PPV.");
+    }
+    setAddingProduto(false);
+  }, [ppv, addProdTarget, addProdQtd, tecnico1, userName, loadPPV]);
 
   const fetchLembretes = useCallback(async (chave: string) => {
     if (!chave) { setLembretes([]); return; }
@@ -583,6 +624,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   // ── Early return ──
   if (!visible) return null;
 
+  // PPVs vinculados (o campo aceita vários separados por vírgula)
+  const ppvIds = ppv.split(",").map((s) => s.trim()).filter(Boolean);
 
   return (
     <>
@@ -1343,6 +1386,32 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                           ))}
                         </div>
                       )}
+
+                      {/* Total de peças + adicionar peça direto no PPV vinculado */}
+                      {ppvIds.length > 0 && (
+                        <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, border: "1px solid var(--portal-border)", background: "var(--portal-bg-secondary)" }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                            <span style={{ fontSize: 12, color: "var(--portal-text-secondary)" }}>
+                              Total de peças {produtos.length > 0 ? `(${produtos.length})` : ""}
+                            </span>
+                            <span style={{ fontSize: 15, fontWeight: 600, color: "var(--portal-text)" }}>R$ {totalPecas.toFixed(2)}</span>
+                          </div>
+                          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                            {ppvIds.length > 1 && (
+                              <select value={addProdTarget} onChange={(e) => setAddProdTarget(e.target.value)} style={{ flex: "1 1 120px", marginBottom: 0, fontWeight: 500 }} title="Escolha o PPV">
+                                <option value="">PPV...</option>
+                                {ppvIds.map((id) => <option key={id} value={id}>PPV {id}</option>)}
+                              </select>
+                            )}
+                            <input type="number" min={1} value={addProdQtd} onChange={(e) => setAddProdQtd(parseInt(e.target.value) || 1)} title="Quantidade" style={{ width: 64, textAlign: "center", marginBottom: 0 }} />
+                            <button type="button" onClick={abrirAddProduto} disabled={addingProduto || !podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : undefined}
+                              style={{ flex: "1 1 auto", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 14px", borderRadius: 8, border: "none", background: addingProduto || !podeEditar ? "var(--portal-text-faint)" : "#0d9488", color: "#fff", fontSize: 13, fontWeight: 600, cursor: addingProduto || !podeEditar ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}>
+                              {addingProduto ? <i className="fas fa-spinner fa-spin" /> : <><i className="fas fa-plus" /> Adicionar peça {ppvIds.length > 1 ? "" : `ao PPV ${ppvIds[0]}`}</>}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
                       {requisicoes.length > 0 && (
                         <div style={S_MT12}>
                           <label>Requisições Vinculadas ({requisicoes.length})</label>
@@ -1687,6 +1756,11 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
       <SearchModal title="Pesquisar Revisão Pronta" placeholder="Digite termos da revisão..." apiUrl="/api/pos/buscas/revisoes" paramName="termo" visible={showRevModal} onClose={() => setShowRevModal(false)}
         onSelect={(item) => setRevisao(item.descricao || "")}
         renderItem={(item) => item.descricao || ""}
+      />
+
+      <SearchModal title={ppvIds.length > 1 && addProdTarget ? `Adicionar peça ao PPV ${addProdTarget}` : "Adicionar peça ao PPV"} placeholder="Buscar produto por código ou descrição..." apiUrl="/api/ppv/produtos" paramName="termo" visible={showAddProdModal} onClose={() => setShowAddProdModal(false)}
+        onSelect={(item) => adicionarProdutoPPV(item as { codigo?: string; descricao?: string; preco?: number })}
+        renderItem={(item) => `${item.codigo} — ${item.descricao}${item.preco ? ` · R$ ${Number(item.preco).toFixed(2)}` : ""}`}
       />
     </>
   );
