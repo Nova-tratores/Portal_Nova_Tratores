@@ -1,0 +1,51 @@
+name: Ajustes - Prewarm recebimentos (cache)
+
+# Mantém o cache de "Recebimentos pendentes" quente para NOVA + CASTRO, para a
+# tela /ajustes/recebimentos abrir pronta (sem "sincronizar no Omie" na mão).
+#
+# Chama o MESMO endpoint que a tela usa, com force=1 e a janela padrão (6 meses),
+# garantindo que a chave de cache aquecida seja exatamente a que a página carrega.
+# (O cronHomePrewarm existente usa outra janela e por isso não servia.)
+#
+# Cadência pedida: a cada 54 min, das 06:10 às 19:00 BRT. O cron do GitHub não faz
+# intervalo "rolante" de 54 min, então os horários são ENUMERADOS (BRT+3 = UTC).
+# Obs.: o agendador do GitHub pode atrasar alguns minutos (não é preciso ao segundo).
+# Requer os secrets PORTAL_URL e CRON_SECRET.
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: '10 9 * * *'    # 06:10 BRT
+    - cron: '4 10 * * *'    # 07:04 BRT
+    - cron: '58 10 * * *'   # 07:58 BRT
+    - cron: '52 11 * * *'   # 08:52 BRT
+    - cron: '46 12 * * *'   # 09:46 BRT
+    - cron: '40 13 * * *'   # 10:40 BRT
+    - cron: '34 14 * * *'   # 11:34 BRT
+    - cron: '28 15 * * *'   # 12:28 BRT
+    - cron: '22 16 * * *'   # 13:22 BRT
+    - cron: '16 17 * * *'   # 14:16 BRT
+    - cron: '10 18 * * *'   # 15:10 BRT
+    - cron: '4 19 * * *'    # 16:04 BRT
+    - cron: '58 19 * * *'   # 16:58 BRT
+    - cron: '52 20 * * *'   # 17:52 BRT
+    - cron: '46 21 * * *'   # 18:46 BRT
+
+jobs:
+  prewarm-recebimentos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Aquecer recebimentos NOVA
+        run: |
+          curl -fsS --max-time 300 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/ajustes/recebimentos-pendentes?conta=NOVA&force=1" \
+            -o /dev/null -w "recebimentos NOVA: HTTP %{http_code} em %{time_total}s\n"
+
+      - name: Aquecer recebimentos CASTRO
+        run: |
+          curl -fsS --max-time 300 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/ajustes/recebimentos-pendentes?conta=CASTRO&force=1" \
+            -o /dev/null -w "recebimentos CASTRO: HTTP %{http_code} em %{time_total}s\n"
