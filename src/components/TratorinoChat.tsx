@@ -54,13 +54,25 @@ export default function TratorinoChat({ userName = "", userId = "", isAdmin = fa
   const posRef = useRef(pos); posRef.current = pos;
   const winRef = useRef(winPos); winRef.current = winPos;
 
-  // Posição inicial do mascote (persistida)
+  // Posição inicial do mascote (persistida). SEMPRE reajusta pra dentro da tela:
+  // uma posição salva fora da viewport (monitor maior antes, valor antigo/corrompido)
+  // deixava o ícone renderizando fora da área visível — parecia que "sumiu".
   useEffect(() => {
+    const padrao = { x: window.innerWidth - LAUNCHER - 14, y: Math.round(window.innerHeight / 2 - LAUNCHER / 2) };
+    const maxX = Math.max(8, window.innerWidth - LAUNCHER - 8);
+    const maxY = Math.max(8, window.innerHeight - LAUNCHER - 8);
     try {
       const s = localStorage.getItem("tratorilson_pos");
-      if (s) { setPos(JSON.parse(s)); return; }
+      if (s) {
+        const p = JSON.parse(s);
+        const x = Number(p?.x), y = Number(p?.y);
+        if (Number.isFinite(x) && Number.isFinite(y)) {
+          setPos({ x: Math.min(Math.max(x, 8), maxX), y: Math.min(Math.max(y, 8), maxY) });
+          return;
+        }
+      }
     } catch {}
-    setPos({ x: window.innerWidth - LAUNCHER - 14, y: Math.round(window.innerHeight / 2 - LAUNCHER / 2) });
+    setPos(padrao);
   }, []);
 
   // Preferência "fixado" (encostado ao canto) — persistida
