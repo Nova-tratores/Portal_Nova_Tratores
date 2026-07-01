@@ -52,12 +52,17 @@ export async function listarPecasDaOS(osId: string): Promise<PecaOS[]> {
   }
 
   // 2) Requisições vinculadas à OS (tabela Requisicao com ordem_servico = osId)
+  // Não filtramos status no SQL: `.not('status','in',(...))` no Postgres também
+  // EXCLUI linhas com status NULL (semântica do NOT IN), fazendo requisições
+  // sem status sumirem — que é justo o caso do serviço de terceiro. Buscamos
+  // todas e descartamos só lixeira/cancelada no JS (igual a OS mostra).
   const { data: reqs } = await supabase
     .from('Requisicao')
-    .select('id, titulo, valor_cobrado_cliente, valor_despeza, quantidade')
-    .eq('ordem_servico', id)
-    .not('status', 'in', '("lixeira","cancelada")');
-  for (const r of (reqs || []) as { id: number; titulo?: string; valor_cobrado_cliente?: string; valor_despeza?: string; quantidade?: string }[]) {
+    .select('id, titulo, status, valor_cobrado_cliente, valor_despeza, quantidade')
+    .eq('ordem_servico', id);
+  for (const r of (reqs || []) as { id: number; titulo?: string; status?: string; valor_cobrado_cliente?: string; valor_despeza?: string; quantidade?: string }[]) {
+    const st = String(r.status || '').toLowerCase();
+    if (st === 'lixeira' || st === 'cancelada') continue;
     const titulo = String(r.titulo || '').trim();
     if (!titulo) continue;
     // A garantia reembolsa o CUSTO. Em garantia o cliente normalmente NÃO é
