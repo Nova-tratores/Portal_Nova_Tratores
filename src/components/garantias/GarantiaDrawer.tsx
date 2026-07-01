@@ -150,7 +150,10 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
   const sincronizarOS = useCallback(
     async (opts?: { silent?: boolean }) => {
       const silent = opts?.silent;
-      if (!podeAnalisar) { if (!silent) setErro('Você não tem permissão para sincronizar com a OS.'); return; }
+      // O auto-sync (silent) é higiene de dados em background — sempre roda, pra
+      // quem só finaliza também ver as peças atualizadas. Só o botão MANUAL
+      // exige a permissão de analisar.
+      if (!silent && !podeAnalisar) { setErro('Você não tem permissão para sincronizar com a OS.'); return; }
       if (!silent) { setBusy('sincronizar'); setErro(''); setAviso(''); }
       try {
         const res = await fetch(`/api/garantias/${garantiaId}/sincronizar-os`, {
