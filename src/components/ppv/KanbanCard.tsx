@@ -1,10 +1,21 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import type { KanbanItem } from "@/lib/ppv/types";
 import { normalizarStatus, formatarDataFrontend, formatarMoeda } from "@/lib/ppv/utils";
 import { STATUS_COLORS, STATUS_OPTIONS, type StatusKey } from "@/lib/ppv/constants";
 import { useClienteEtiquetas } from "@/hooks/useClienteEtiquetas";
+
+interface HoverPreview {
+  temOS: boolean;
+  osId: string;
+  osDescricao: string;
+  observacao: string;
+  produtos: { descricao: string; qtde: number }[];
+}
+// Cache por PPV pra não refazer a busca a cada hover
+const hoverCache = new Map<string, HoverPreview>();
 
 interface KanbanCardProps {
   item: KanbanItem;
@@ -27,6 +38,38 @@ export default function KanbanCard({ item, onClick, onStatusChange }: KanbanCard
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // ── Preview no hover (descrição da OS / produtos / observação) ──
+  const cardRef = useRef<HTMLDivElement>(null);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [preview, setPreview] = useState<HoverPreview | null>(null);
+  const [tipPos, setTipPos] = useState<{ top: number; left: number } | null>(null);
+
+  const onHoverEnter = () => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    hoverTimer.current = setTimeout(async () => {
+      const rect = cardRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const TW = 330;
+      const left = rect.right + 12 + TW <= window.innerWidth ? rect.right + 12 : Math.max(12, rect.left - TW - 12);
+      const top = Math.max(12, Math.min(rect.top, window.innerHeight - 340));
+      setTipPos({ top, left });
+      let data = hoverCache.get(item.id);
+      if (!data) {
+        try {
+          const r = await fetch(`/api/ppv/hover?id=${encodeURIComponent(item.id)}`);
+          if (r.ok) { data = await r.json() as HoverPreview; hoverCache.set(item.id, data); }
+        } catch { /* ignore */ }
+      }
+      if (data) setPreview(data);
+    }, 280);
+  };
+  const onHoverLeave = () => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    setPreview(null);
+    setTipPos(null);
+  };
+  useEffect(() => () => { if (hoverTimer.current) clearTimeout(hoverTimer.current); }, []);
 
   useEffect(() => {
     if (!dropdownOpen) return;
@@ -54,9 +97,12 @@ export default function KanbanCard({ item, onClick, onStatusChange }: KanbanCard
 
   return (
     <div
+      ref={cardRef}
       draggable
       onDragStart={handleDragStart}
       onClick={onClick}
+      onMouseEnter={onHoverEnter}
+      onMouseLeave={onHoverLeave}
       className="cursor-pointer rounded-xl border border-orange-200/60 p-5 shadow-[0_2px_5px_rgba(0,0,0,0.02)] transition-all hover:-translate-y-1 hover:border-red-300 hover:shadow-[0_10px_20px_rgba(0,0,0,0.08)]"
       style={{ borderLeftWidth: 4, borderLeftColor: colors.text, backgroundColor: bgCard }}
     >
@@ -134,6 +180,54 @@ export default function KanbanCard({ item, onClick, onStatusChange }: KanbanCard
         )}
         <span className="text-sm font-bold text-slate-800">{valorFmt}</span>
       </div>
+
+      {/* Preview no hover: com OS → descrição da OS + produtos; sem OS → produtos + observação */}
+      {preview && tipPos && typeof document !== "undefined" && createPortal(
+        <div style={{
+          position: "fixed", top: tipPos.top, left: tipPos.left, width: 330, maxHeight: "60vh", overflowY: "auto",
+          zIndex: 100000, pointerEvents: "none", background: "#0f172a", color: "#e2e8f0",
+          border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, boxShadow: "0 16px 40px rgba(0,0,0,0.35)", padding: "12px 14px",
+        }}>
+          {preview.temOS && (
+            <>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "#fbbf24", marginBottom: 6 }}>
+                Descrição da OS #{preview.osId}
+              </div>
+              <div style={{ fontSize: 12.5, lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word", marginBottom: 12 }}>
+                {preview.osDescricao || "Sem descrição na OS."}
+              </div>
+            </>
+          )}
+
+          <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "#60a5fa", marginBottom: 6 }}>
+            Produtos ({preview.produtos.length})
+          </div>
+          {preview.produtos.length === 0 ? (
+            <div style={{ fontSize: 12, color: "#94a3b8", fontStyle: "italic" }}>Nenhum produto.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {preview.produtos.map((p, i) => (
+                <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 12, borderBottom: "1px solid rgba(255,255,255,0.06)", paddingBottom: 3 }}>
+                  <span style={{ wordBreak: "break-word" }}>{p.descricao}</span>
+                  <span style={{ fontWeight: 700, color: "#34d399", whiteSpace: "nowrap" }}>x{p.qtde}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {!preview.temOS && (
+            <>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "#fbbf24", margin: "12px 0 6px" }}>
+                Observação
+              </div>
+              <div style={{ fontSize: 12.5, lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word", color: preview.observacao ? "#e2e8f0" : "#94a3b8", fontStyle: preview.observacao ? "normal" : "italic" }}>
+                {preview.observacao || "Sem observação."}
+              </div>
+            </>
+          )}
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
