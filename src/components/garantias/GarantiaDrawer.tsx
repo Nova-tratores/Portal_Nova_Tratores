@@ -187,7 +187,15 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
     if (!g) return;
     if (autoSyncRef.current === g.id) return;
     autoSyncRef.current = g.id;
-    const editavel = g.status === 'em_analise' || g.status === 'bo_tecnico';
+    // Auto-sincroniza em todos os estágios ANTES de finalizar (não só na
+    // análise): custos de terceiro / requisições podem entrar enquanto a
+    // garantia está na fábrica ('enviada') ou com info pendente. Só não
+    // sincroniza depois de aprovada/rejeitada (peças congeladas).
+    const editavel =
+      g.status === 'em_analise' ||
+      g.status === 'bo_tecnico' ||
+      g.status === 'enviada' ||
+      g.status === 'info_pendente';
     if (editavel) {
       sincronizarOS({ silent: true });
     }
