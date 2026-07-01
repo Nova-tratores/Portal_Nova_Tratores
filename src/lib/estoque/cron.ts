@@ -141,12 +141,13 @@ export async function cronSyncCompras(mesesAtras = 3): Promise<Record<string, un
 export async function cronBackfillSnapshots(
   desde: { ano: number; mes: number },
   contaUnica?: Conta,
+  ate?: { ano: number; mes: number },
 ): Promise<Record<string, unknown>> {
   const contas = contaUnica ? [{ id: contaUnica }] : getContasOmie();
   const resultado: Record<string, unknown> = {};
   for (const c of contas) {
     try {
-      resultado[c.id] = await backfillSnapshotsHistoricos(c.id, desde);
+      resultado[c.id] = await backfillSnapshotsHistoricos(c.id, desde, ate);
     } catch (e) {
       resultado[c.id] = { erro: (e as Error).message };
     }

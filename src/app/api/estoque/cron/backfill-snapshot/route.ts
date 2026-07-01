@@ -26,9 +26,17 @@ export async function GET(req: NextRequest) {
   const mes = am && am >= 1 && am <= 12 ? am : 1;
   const conta = parseConta(sp.get('conta')) || undefined;
 
-  cronBackfillSnapshots({ ano, mes }, conta)
+  // Limite de fim opcional (?ate=YYYY-MM) — permite fatiar o histórico em pedaços curtos.
+  const ateRaw = sp.get('ate');
+  let ate: { ano: number; mes: number } | undefined;
+  if (ateRaw) {
+    const [by, bm] = ateRaw.split('-').map((x) => parseInt(x));
+    if (by >= 2000 && bm >= 1 && bm <= 12) ate = { ano: by, mes: bm };
+  }
+
+  cronBackfillSnapshots({ ano, mes }, conta, ate)
     .then((r) => console.log('[cron backfill-snapshot] concluído', JSON.stringify(r)))
     .catch((e) => console.error('[cron backfill-snapshot] erro', (e as Error).message));
 
-  return NextResponse.json({ sucesso: true, iniciado: true, desde: { ano, mes }, conta: conta || 'todas', timestamp: new Date().toISOString() });
+  return NextResponse.json({ sucesso: true, iniciado: true, desde: { ano, mes }, ate: ate || 'hoje', conta: conta || 'todas', timestamp: new Date().toISOString() });
 }

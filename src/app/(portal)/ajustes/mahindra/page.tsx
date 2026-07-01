@@ -35,6 +35,7 @@ interface StatusPayload {
   arquivoId?: number | null;
   filename?: string | null;
   resumo?: Resumo | null;
+  inicio?: string | null;
 }
 interface ArquivoMeta {
   id: number;
@@ -69,6 +70,14 @@ function listaCodigos(arr: string[] | undefined, max = 30): string {
   let show = arr.slice(0, max).join(', ');
   if (arr.length > max) show += ` … (+${arr.length - max})`;
   return show;
+}
+function fmtDecorrido(inicioIso: string | null | undefined): string {
+  if (!inicioIso) return '';
+  const ini = new Date(inicioIso).getTime();
+  if (!Number.isFinite(ini)) return '';
+  const seg = Math.max(0, Math.floor((Date.now() - ini) / 1000));
+  const m = Math.floor(seg / 60), s = seg % 60;
+  return m > 0 ? `${m}m${String(s).padStart(2, '0')}s` : `${s}s`;
 }
 function mesPadrao(): string {
   // normalmente o mes anterior ao envio
@@ -247,6 +256,11 @@ export default function MahindraPage() {
               Observacao: ao preencher o template, estilos/imagens (ex.: logo) podem se perder — os <b>valores e a
               estrutura</b> da planilha sao mantidos. Confira o resumo antes de enviar a Mahindra.
             </p>
+            <p className="mt-2 rounded border border-blue-200 bg-blue-50 p-2 text-xs text-blue-700">
+              A geracao consulta o Omie item a item e <b>leva varios minutos</b> (pode chegar a ~15 min conforme o
+              volume). O status pode parecer parado durante as consultas mais pesadas — e normal, esta trabalhando.
+              Voce pode <b>fechar esta pagina e voltar depois</b>: ao reabrir, ela reconecta ao processo em andamento.
+            </p>
           </section>
 
           <section className="rounded-lg border border-slate-200 bg-white p-6">
@@ -311,7 +325,10 @@ export default function MahindraPage() {
             <h2 className="mb-3 text-lg font-semibold text-slate-900">2. Status</h2>
             <div className="text-sm text-slate-700">
               {status?.rodando ? (
-                <span className="inline-flex items-center gap-2"><span className="animate-pulse">●</span> {statusMsg}</span>
+                <span className="inline-flex items-center gap-2">
+                  <span className="animate-pulse">●</span> {statusMsg}
+                  {status.inicio && <span className="text-slate-400">(em andamento há {fmtDecorrido(status.inicio)})</span>}
+                </span>
               ) : status?.erro ? (
                 <span className="text-red-600">{statusMsg}</span>
               ) : status?.pronto ? (

@@ -1,0 +1,69 @@
+name: Estoque - Backfill histórico NOTURNO (chunks)
+
+# Reconstrói o snapshot de estoque histórico (estoque_familia_snapshot +
+# estoque_tipo_snapshot) para NOVA e CASTRO, de MADRUGADA, quando a Omie está
+# menos disputada (o prewarm de recebimentos e o sync-recebimentos não rodam à
+# noite), evitando o throttle pesado do horário comercial.
+#
+# COMO evita o "morrer no meio" do Railway: em vez de um job gigante, dispara
+# PEDAÇOS CURTOS (<= 6 meses) via ?desde=&ate=, esperando cada pedaço terminar
+# (endpoint /status) antes do próximo. Cada pedaço termina bem antes de qualquer
+# reciclagem do processo.
+#
+# Cobertura pedida (histórico completo):
+#   - NOVA: só o miolo faltante 2024-05 -> 2025-06 (o resto já existe).
+#   - CASTRO: tudo, 2022-11 -> mês atual.
+#
+# ATENÇÃO: é ONE-OFF. Depois de confirmar (script _diag), DESATIVAR/EXCLUIR este
+# workflow para não repetir os chunks toda madrugada.
+# Requer os secrets PORTAL_URL e CRON_SECRET.
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: '0 4 * * *'   # 04:00 UTC = 01:00 BRT (madrugada)
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - name: Backfill em pedaços curtos (espera cada um terminar)
+        env:
+          BASE: ${{ secrets.PORTAL_URL }}
+          SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -uo pipefail
+          # conta:desde:ate  (pedaços <= 6 meses)
+          CHUNKS=(
+            "NOVA:2024-05:2024-10"
+            "NOVA:2024-11:2025-06"
+            "CASTRO:2022-11:2023-04"
+            "CASTRO:2023-05:2023-10"
+            "CASTRO:2023-11:2024-04"
+            "CASTRO:2024-05:2024-10"
+            "CASTRO:2024-11:2025-04"
+            "CASTRO:2025-05:2025-10"
+            "CASTRO:2025-11:2026-07"
+          )
+          for entry in "${CHUNKS[@]}"; do
+            IFS=':' read -r CONTA DESDE ATE <<< "$entry"
+            echo "==> $CONTA  $DESDE .. $ATE"
+            curl -fsS --max-time 60 \
+              -H "Authorization: Bearer $SECRET" \
+              "$BASE/api/estoque/cron/backfill-snapshot?conta=$CONTA&desde=$DESDE&ate=$ATE" \
+              -w "\n  disparado: HTTP %{http_code}\n" || echo "  (falha ao disparar; segue)"
+            sleep 30   # deixa o job marcar rodando=true e começar
+            # espera terminar (rodando != true) por ate ~45 min
+            for i in $(seq 1 90); do
+              ST=$(curl -fsS --max-time 30 -H "Authorization: Bearer $SECRET" "$BASE/api/estoque/cron/backfill-snapshot/status" || echo '{}')
+              ROD=$(echo "$ST" | jq -r ".${CONTA}.rodando // false")
+              PROC=$(echo "$ST" | jq -r ".${CONTA}.processados // 0")
+              TOT=$(echo "$ST" | jq -r ".${CONTA}.total // 0")
+              echo "  [$i] rodando=$ROD ($PROC/$TOT)"
+              if [ "$ROD" != "true" ]; then echo "  pedaço concluído"; break; fi
+              sleep 30
+            done
+            sleep 20   # respiro entre pedaços
+          done
+          echo "=== todos os pedaços disparados ==="
