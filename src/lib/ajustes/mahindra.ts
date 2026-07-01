@@ -31,7 +31,7 @@ import { labelConta } from './conta';
 import { inicioMes, fimMes, fmtBR } from './dates';
 import { supabase } from './supabase';
 import { obterPosicaoEstoqueBulk, listarPedidos, normalizarPedido } from './omie';
-import { criarJob, atualizarJob, concluirJob, falharJob, lerJobAtivo, jobRodando } from './jobs';
+import { criarJob, atualizarJob, concluirJob, falharJob, lerJobAtivo, jobRodando, jobEstaVivo } from './jobs';
 
 // referencia A1 de uma celula (coluna c, linha r) - ambos base 0
 const ref = (c: number, r: number) => XLSX.utils.encode_cell({ c, r });
@@ -375,6 +375,11 @@ export async function lerStatusGeracao(conta: Conta): Promise<any> {
   const ativo = await lerJobAtivo('mahindra-gerar', conta);
   if (!ativo) return { rodando: false, semDados: true };
   if (ativo.status === 'rodando') {
+    // job travado (processo morreu no meio): reporta como erro e libera novas tentativas
+    if (!jobEstaVivo(ativo)) {
+      await falharJob(ativo.id, 'Processo interrompido (o servidor reiniciou durante a geração). Tente novamente.');
+      return { rodando: false, erro: 'A geração foi interrompida (o servidor reiniciou). Clique em Gerar novamente.', etapa: ativo.etapa, jobId: ativo.id };
+    }
     return { rodando: true, etapa: ativo.etapa, inicio: ativo.iniciado_em, jobId: ativo.id };
   }
   if (ativo.status === 'erro') {

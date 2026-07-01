@@ -20,6 +20,21 @@ import type { AjustesJob, JobStatus, JobTipo } from './types';
 
 const TABELA = 'ajustes_jobs';
 
+// Um job 'rodando' que fica sem atualizacao por mais de JOB_STALE_MS e' tratado
+// como MORTO: o processo caiu ou houve deploy no meio (deploys sao automaticos a
+// cada push no main, e as geracoes pesadas duram minutos). Sem isto, o job fica
+// preso em 'rodando' para sempre e bloqueia toda tentativa nova. As geracoes
+// atualizam a etapa a cada pagina (~2s), entao 5 min sem update = processo morto.
+export const JOB_STALE_MS = 5 * 60 * 1000;
+
+/** True se o job esta 'rodando' E recebeu atualizacao recente (nao esta travado). */
+export function jobEstaVivo(job: AjustesJob | null): boolean {
+  if (!job || job.status !== 'rodando') return false;
+  const ts = new Date(job.atualizado_em || job.iniciado_em).getTime();
+  if (!Number.isFinite(ts)) return true; // sem timestamp confiavel: nao arrisca matar
+  return Date.now() - ts < JOB_STALE_MS;
+}
+
 /** Cria um job (status 'rodando') e retorna o id. Lança em erro de banco. */
 export async function criarJob(
   tipo: JobTipo,
@@ -96,8 +111,15 @@ export async function lerJobAtivo(tipo: JobTipo, conta?: Conta | null): Promise<
   return ((data as AjustesJob[]) || [])[0] || null;
 }
 
-/** True se há um job desse tipo (e conta) ainda 'rodando' — para evitar duplicar. */
+/**
+ * True se há um job desse tipo (e conta) REALMENTE em andamento — para evitar
+ * duplicar. Um job 'rodando' porém travado (processo morto) é marcado como erro
+ * aqui mesmo e liberado, para não bloquear novas execuções para sempre.
+ */
 export async function jobRodando(tipo: JobTipo, conta?: Conta | null): Promise<boolean> {
   const ativo = await lerJobAtivo(tipo, conta);
-  return ativo?.status === 'rodando';
+  if (!ativo || ativo.status !== 'rodando') return false;
+  if (jobEstaVivo(ativo)) return true;
+  await falharJob(ativo.id, 'Processo interrompido (o servidor reiniciou durante a execução). Tente novamente.');
+  return false;
 }
