@@ -314,13 +314,20 @@ export default function PPVDrawer({
                   <i className={`fas ${tipoPedido === "Remessa" ? "fa-dolly" : "fa-file-invoice-dollar"}`} style={{ marginRight: 5 }} />
                   {tipoPedido === "Remessa" ? "Remessa" : "Pedido de Venda"}
                 </span>
-                <span style={{
-                  fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px",
-                  padding: "4px 12px", borderRadius: 6,
-                  background: statusColor.bg, color: statusColor.text,
-                }}>
-                  {status}
-                </span>
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                  disabled={!podeEditar}
+                  title="Alterar status do PPV"
+                  style={{
+                    fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px",
+                    padding: "4px 12px", borderRadius: 6,
+                    background: statusColor.bg, color: statusColor.text,
+                    border: "none", outline: "none", cursor: podeEditar ? "pointer" : "not-allowed", maxWidth: 300,
+                  }}
+                >
+                  {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                </select>
               </div>
               <div className="ppv-drawer-header-actions">
                 <button className="ppv-btn-ghost" onClick={gerarPDF} disabled={gerando}>
@@ -368,48 +375,52 @@ export default function PPVDrawer({
                     </div>
                   )}
 
-                  {/* ── Status ── */}
-                  <div className="ppv-card">
-                    <div className="ppv-card-title"><i className="fas fa-flag" /> Status</div>
-                    <select value={status} onChange={(e) => setStatus(e.target.value)} style={{ fontWeight: 600, marginBottom: 0 }}>
-                      {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                    </select>
-                    {status === "Concluída" && (
-                      <div style={{ marginTop: 12 }}>
-                        <label>Pedido OMIE *</label>
-                        <input type="text" value={pedidoOmie} onChange={(e) => setPedidoOmie(e.target.value)} placeholder="Código do pedido Omie..." style={{ marginBottom: 0 }} />
-                      </div>
-                    )}
-                    {status === "Cancelada" && (
-                      <div style={{ marginTop: 12 }}>
-                        <label>Motivo do Cancelamento *</label>
-                        <textarea rows={2} value={motivoCancelamento} onChange={(e) => setMotivoCancelamento(e.target.value)} placeholder="Descreva o motivo..." style={{ marginBottom: 12 }} />
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: temSubstituto ? 10 : 0 }}>
-                          <input type="checkbox" id="ppvTemSubstituto" checked={temSubstituto} onChange={(e) => { setTemSubstituto(e.target.checked); if (!e.target.checked) { setSubstitutoId(""); } }} />
-                          <label htmlFor="ppvTemSubstituto" style={{ margin: 0, fontWeight: 600, cursor: "pointer" }}>Tem substituto?</label>
+                  {/* ── Detalhes do status — só quando Concluída/Cancelada (o select ficou no cabeçalho) ── */}
+                  {(status === "Concluída" || status === "Cancelada") && (
+                    <div className="ppv-card">
+                      <div className="ppv-card-title"><i className="fas fa-flag" /> {status === "Cancelada" ? "Cancelamento" : "Conclusão"}</div>
+                      {status === "Concluída" && (
+                        <div>
+                          <label>Pedido OMIE *</label>
+                          <input type="text" value={pedidoOmie} onChange={(e) => setPedidoOmie(e.target.value)} placeholder="Código do pedido Omie..." style={{ marginBottom: 0 }} />
                         </div>
-                        {temSubstituto && (
-                          <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
-                            <select value={substitutoTipo} onChange={(e) => { setSubstitutoTipo(e.target.value as "POS" | "PPV"); setSubstitutoId(""); }} style={{ width: 100, fontWeight: 600 }}>
-                              <option value="POS">POS</option>
-                              <option value="PPV">PPV</option>
-                            </select>
-                            <select value={substitutoId} onChange={(e) => setSubstitutoId(e.target.value)} style={{ flex: 1, fontWeight: 600, marginBottom: 0 }}>
-                              <option value="">Selecione...</option>
-                              {(substitutoTipo === "POS" ? listaOSAbertas : listaPPVAbertos).map((item) => (
-                                <option key={item.id} value={item.id}>
-                                  {substitutoTipo === "POS" ? `OS ${item.id}` : item.id} - {item.cliente} ({item.status})
-                                </option>
-                              ))}
-                            </select>
+                      )}
+                      {status === "Cancelada" && (
+                        <div>
+                          <label>Motivo do Cancelamento *</label>
+                          <textarea rows={2} value={motivoCancelamento} onChange={(e) => setMotivoCancelamento(e.target.value)} placeholder="Descreva o motivo..." style={{ marginBottom: 12 }} />
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: temSubstituto ? 10 : 0 }}>
+                            <input type="checkbox" id="ppvTemSubstituto" checked={temSubstituto} onChange={(e) => { setTemSubstituto(e.target.checked); if (!e.target.checked) { setSubstitutoId(""); } }} />
+                            <label htmlFor="ppvTemSubstituto" style={{ margin: 0, fontWeight: 600, cursor: "pointer" }}>Tem substituto?</label>
                           </div>
-                        )}
-                      </div>
-                    )}
+                          {temSubstituto && (
+                            <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+                              <select value={substitutoTipo} onChange={(e) => { setSubstitutoTipo(e.target.value as "POS" | "PPV"); setSubstitutoId(""); }} style={{ width: 100, fontWeight: 600 }}>
+                                <option value="POS">POS</option>
+                                <option value="PPV">PPV</option>
+                              </select>
+                              <select value={substitutoId} onChange={(e) => setSubstitutoId(e.target.value)} style={{ flex: 1, fontWeight: 600, marginBottom: 0 }}>
+                                <option value="">Selecione...</option>
+                                {(substitutoTipo === "POS" ? listaOSAbertas : listaPPVAbertos).map((item) => (
+                                  <option key={item.id} value={item.id}>
+                                    {substitutoTipo === "POS" ? `OS ${item.id}` : item.id} - {item.cliente} ({item.status})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ── Enviar ao Omie — última seção do modal (order alto) ── */}
+                  <div className="ppv-card" style={{ order: 20 }}>
+                    <div className="ppv-card-title"><i className="fas fa-cloud-upload-alt" /> Enviar para o Omie</div>
                     {!pedidoOmie ? (
                       <button
                         className="ppv-btn-omie"
-                        style={{ width: "100%", marginTop: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+                        style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
                         onClick={enviarOmie}
                         disabled={enviandoOmie || !podeOmie}
                         title={!podeOmie ? MSG_SEM_PERMISSAO : undefined}
@@ -421,7 +432,7 @@ export default function PPVDrawer({
                         )}
                       </button>
                     ) : (
-                      <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 10, background: "#ECFDF5", border: "1px solid #A7F3D0", color: "#047857", fontWeight: 700, fontSize: 13 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 10, background: "#ECFDF5", border: "1px solid #A7F3D0", color: "#047857", fontWeight: 700, fontSize: 13 }}>
                         <i className="fas fa-check-circle" /> Enviado para Omie (Pedido: {pedidoOmie})
                       </div>
                     )}

@@ -1159,7 +1159,7 @@ body {
 
 /* Summary card */
 .ppv-summary {
-  background: linear-gradient(135deg, #1E3A5F 0%, #152D4A 100%);
+  background: linear-gradient(135deg, var(--ppv-primary) 0%, var(--ppv-primary-dark) 100%);
   border: none;
   border-radius: 14px;
   padding: 20px 24px;
