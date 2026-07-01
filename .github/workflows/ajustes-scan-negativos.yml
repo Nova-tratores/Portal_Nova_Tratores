@@ -1,0 +1,36 @@
+name: Ajustes - Varredura de estoque negativo (diária)
+
+# Dispara a varredura de "estoque negativo" (NOVA + CASTRO) 1x/dia às 06:00 BRT,
+# para a tela /ajustes/negativos abrir com o resultado pronto (sem iniciar a
+# varredura na mão). A varredura é PESADA (~30-50 min por conta, escaneia a
+# posição de todos os produtos na Omie) — por isso roda cedo, antes do expediente,
+# e só 1x/dia.
+#
+# O endpoint /iniciar roda em background (responde 202 na hora) via ajustes_jobs.
+# 06:00 BRT = 09:00 UTC. Requer os secrets PORTAL_URL e CRON_SECRET.
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: '0 9 * * *'   # 06:00 BRT (diário)
+
+jobs:
+  scan-negativos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Iniciar varredura NOVA
+        run: |
+          curl -fsS --max-time 60 -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" -d '{"criadoPor":"cron"}' \
+            "${{ secrets.PORTAL_URL }}/api/ajustes/estoque-negativo/iniciar?conta=NOVA&force=1" \
+            -w "\nnegativos NOVA: HTTP %{http_code}\n"
+
+      - name: Iniciar varredura CASTRO
+        run: |
+          curl -fsS --max-time 60 -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" -d '{"criadoPor":"cron"}' \
+            "${{ secrets.PORTAL_URL }}/api/ajustes/estoque-negativo/iniciar?conta=CASTRO&force=1" \
+            -w "\nnegativos CASTRO: HTTP %{http_code}\n"
