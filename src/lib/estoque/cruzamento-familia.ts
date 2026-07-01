@@ -637,11 +637,15 @@ export function getBackfillSnapshotStatus(conta?: Conta): Record<string, Backfil
 export async function backfillSnapshotsHistoricos(
   conta: Conta,
   desde: { ano: number; mes: number },
+  ate?: { ano: number; mes: number },
 ): Promise<{ conta: Conta; mesesProcessados: number; linhasGravadas: number; erros: number }> {
   const now = new Date();
+  // Limite de fim: `ate` quando informado (p/ fatiar em pedaços curtos), senão o mês atual.
+  const limA = ate?.ano ?? now.getFullYear();
+  const limM = ate?.mes ?? now.getMonth() + 1;
   const meses: Array<{ mes: number; ano: number }> = [];
   let y = desde.ano, m = desde.mes;
-  while ((y < now.getFullYear() || (y === now.getFullYear() && m <= now.getMonth() + 1)) && meses.length < MAX_MESES_BACKFILL) {
+  while ((y < limA || (y === limA && m <= limM)) && meses.length < MAX_MESES_BACKFILL) {
     meses.push({ mes: m, ano: y });
     m++; if (m > 12) { m = 1; y++; }
   }
