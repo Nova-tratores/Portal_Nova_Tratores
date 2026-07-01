@@ -61,14 +61,16 @@ function formatDateBR(dateStr: string): string {
   return dateStr;
 }
 
-const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChange, garantiaStatus }: { order: KanbanCard; color: string; onClick: () => void; onPhaseChange?: (orderId: string, newPhase: string) => void; garantiaStatus?: GarantiaStatus }) {
+const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChange, garantiaStatus, onDescEnter, onDescLeave }: { order: KanbanCard; color: string; onClick: () => void; onPhaseChange?: (orderId: string, newPhase: string) => void; garantiaStatus?: GarantiaStatus; onDescEnter?: (rect: DOMRect, texto: string) => void; onDescLeave?: () => void }) {
   const diasFase = diasEntre(o.dataFase);
   const borderStyle = useMemo(() => ({ borderLeftColor: color }), [color]);
 
   const temReqInfo = o.reqInfo && o.reqInfo.length > 0;
 
   return (
-    <div className="mini-card" style={{ ...borderStyle, position: "relative", overflow: "visible" }} onClick={onClick}>
+    <div className="mini-card" style={{ ...borderStyle, position: "relative", overflow: "visible" }} onClick={onClick}
+      onMouseEnter={(e) => onDescEnter?.(e.currentTarget.getBoundingClientRect(), o.servSolicitado || "")}
+      onMouseLeave={() => onDescLeave?.()}>
       {onPhaseChange && (
         <div className="mini-card-phase" onClick={(e) => e.stopPropagation()}>
           <select
@@ -112,11 +114,11 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
         <span className="mini-card-tecnico"><i className="fas fa-user-cog" /> {o.tecnico}</span>
         <span className="mini-card-dias">{diasFase}d</span>
         <span className="mini-card-icons">
-          {o.temPPV && <i className="fas fa-box" style={S_ICON_COLOR} />}
+          {o.temPPV && <i className="fas fa-box" style={S_ICON_COLOR} title="PPV vinculado" />}
 
           {/* Ícone REQ — tooltip no hover */}
           <span className="mc-icon-wrap" onClick={(e) => e.stopPropagation()}>
-            <i className="fas fa-shopping-cart" style={{ color: o.temReq ? "#1E3A5F" : "var(--border)" }} />
+            <i className="fas fa-shopping-cart" title={o.temReq ? "Requisição vinculada" : "Sem requisição"} style={{ color: o.temReq ? "#1E3A5F" : "var(--border)" }} />
             {temReqInfo && (
               <div className="mc-tooltip">
                 <div className="mc-tooltip-arrow" />
@@ -137,7 +139,7 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
 
           {/* Ícone REL — tooltip no hover */}
           <span className="mc-icon-wrap" onClick={(e) => e.stopPropagation()}>
-            <i className="fas fa-file-alt" style={{ color: o.temRel ? "#1E3A5F" : "var(--border)" }} />
+            <i className="fas fa-file-alt" title={o.temRel ? "Relatório técnico anexado" : "Sem relatório técnico"} style={{ color: o.temRel ? "#1E3A5F" : "var(--border)" }} />
             {o.temRel && (
               <div className="mc-tooltip">
                 <div className="mc-tooltip-arrow" />
@@ -155,7 +157,7 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
 
           {/* Ícone GARANTIA — tooltip no hover */}
           <span className="mc-icon-wrap" onClick={(e) => e.stopPropagation()}>
-            <i className="fas fa-shield-halved" style={{ color: garantiaStatus ? (STATUS_COR[garantiaStatus] || "#1E3A5F") : "var(--border)" }} />
+            <i className="fas fa-shield-halved" title={garantiaStatus ? `Garantia: ${STATUS_LABEL[garantiaStatus]}` : "Sem garantia"} style={{ color: garantiaStatus ? (STATUS_COR[garantiaStatus] || "#1E3A5F") : "var(--border)" }} />
             {garantiaStatus && (
               <div className="mc-tooltip">
                 <div className="mc-tooltip-arrow" />
@@ -181,6 +183,8 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
   const [escopo, setEscopo] = useState<"externas" | "internas">("externas");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set(COLLAPSED_DEFAULT));
   const [garantiaMap, setGarantiaMap] = useState<Record<string, GarantiaStatus>>({});
+  // Tooltip com a Descrição do Serviço completa ao passar o mouse no card
+  const [descTip, setDescTip] = useState<{ texto: string; top: number; left: number } | null>(null);
 
   // Separa ordens externas (vão pro Omie) das internas (só remessa quando precisar)
   const totInternas = useMemo(() => orders.filter((o) => o.servicoInterno).length, [orders]);
@@ -203,6 +207,16 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
       })
       .catch(() => {});
   }, []);
+
+  // Mostra o tooltip da descrição ao lado do card (posição fixa, fora do fluxo)
+  const onDescEnter = useCallback((rect: DOMRect, texto: string) => {
+    if (!texto || !texto.trim()) { setDescTip(null); return; }
+    const TW = 320;
+    const left = rect.right + 12 + TW <= window.innerWidth ? rect.right + 12 : Math.max(12, rect.left - TW - 12);
+    const top = Math.max(12, Math.min(rect.top, window.innerHeight - 260));
+    setDescTip({ texto, top, left });
+  }, []);
+  const onDescLeave = useCallback(() => setDescTip(null), []);
 
   const toggleCollapse = useCallback((phase: string) => {
     setCollapsed((prev) => {
@@ -295,6 +309,8 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
                 onClick={() => handleCardClick(o)}
                 onPhaseChange={onPhaseChange}
                 garantiaStatus={garantiaMap[o.id]}
+                onDescEnter={onDescEnter}
+                onDescLeave={onDescLeave}
               />
             ))}
             {filtered.length === 0 && (
@@ -324,6 +340,8 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
                       onClick={() => handleCardClick(o)}
                       onPhaseChange={onPhaseChange}
                       garantiaStatus={garantiaMap[o.id]}
+                      onDescEnter={onDescEnter}
+                      onDescLeave={onDescLeave}
                     />
                   ))}
                 </div>
@@ -332,6 +350,18 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
           ))
         )}
       </main>
+
+      {/* Tooltip: Descrição do Serviço completa ao passar o mouse no card */}
+      {descTip && (
+        <div style={{
+          position: "fixed", top: descTip.top, left: descTip.left, width: 320, maxHeight: "50vh", overflowY: "auto",
+          zIndex: 100000, pointerEvents: "none", background: "#0f172a", color: "#e2e8f0",
+          border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, boxShadow: "0 16px 40px rgba(0,0,0,0.35)", padding: "12px 14px",
+        }}>
+          <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "#fbbf24", marginBottom: 6 }}>Descrição do Serviço</div>
+          <div style={{ fontSize: 12.5, lineHeight: 1.55, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{descTip.texto}</div>
+        </div>
+      )}
     </>
   );
 }
