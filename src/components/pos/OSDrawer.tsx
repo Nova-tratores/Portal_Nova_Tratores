@@ -41,7 +41,6 @@ const S_EMPTY_RESULT = { padding: 16, textAlign: "center" as const, color: "var(
 const S_CLIENT_ITEM_WRAP = { flex: 1, minWidth: 0 };
 const S_CLIENT_ITEM_NAME = { fontSize: 13, fontWeight: 600 };
 const S_CLIENT_ITEM_SUB = { fontSize: 11, color: "var(--portal-text-secondary)" };
-const S_CLIENT_BADGE_CPF = { color: "#166534", marginLeft: 8, fontWeight: 700, letterSpacing: "0.2px" };
 const S_REQ_MATERIAL = { color: "var(--portal-text-secondary)", flex: 1, textAlign: "right" as const, fontSize: 12 };
 const S_PRODUTO_VALOR = { fontWeight: 600 };
 const S_SPINNER_LOADING = { width: 28, height: 28, borderColor: "var(--portal-border)", borderTopColor: "var(--portal-text-secondary)" };
@@ -638,7 +637,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
 
                   {/* ── Summary card (edit mode) ── */}
                   {mode === "edit" && clienteInfo && (
-                    <div className="os-summary">
+                    <div className="os-summary" style={{ order: -6 }}>
                       <div className="os-summary-main">
                         <div className="os-summary-client">
                           <i className="fas fa-user" />
@@ -660,7 +659,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                   )}
 
                   {/* ── Cliente (create + edit) ── */}
-                  <div className="os-card">
+                  <div className="os-card" style={{ order: -5 }}>
                     <div className="os-card-title"><i className="fas fa-user" /> {mode === "edit" ? "Alterar Cliente" : "Cliente"}</div>
                     <div style={S_RELATIVE}>
                       <i className="fas fa-search" style={S_SEARCH_ICON} />
@@ -683,64 +682,76 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                     )}
                     {clienteInfo && !clienteFilter && (
                       <div className="os-client-badge">
-                        <div><i className="fas fa-check-circle" /> {clienteInfo.nome}
-                        {clienteInfo.cpf && <span style={S_CLIENT_BADGE_CPF}>({clienteInfo.cpf})</span>}</div>
-                        <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {/* Cliente: nome + CPF/CNPJ */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                          <i className="fas fa-check-circle" style={{ color: '#16A34A', fontSize: 16, flexShrink: 0 }} />
+                          <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--portal-text)' }}>{clienteInfo.nome}</span>
+                          {clienteInfo.cpf && (
+                            <span style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--portal-text-secondary)', background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 6, padding: '2px 9px', letterSpacing: '0.2px' }}>{clienteInfo.cpf}</span>
+                          )}
+                        </div>
+
+                        {/* Endereço + cidade */}
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          <div style={{ flex: '1 1 240px', display: 'flex', alignItems: 'center', gap: 8, background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 8, padding: '0 10px' }}>
                             <i className="fas fa-map-marker-alt" style={{ color: 'var(--portal-text-secondary)', fontSize: 12, flexShrink: 0 }} />
                             <input
                               type="text"
                               value={clienteInfo.endereco || ''}
                               onChange={(e) => setClienteInfo(prev => prev ? { ...prev, endereco: e.target.value } : prev)}
                               placeholder="Endereço do cliente..."
-                              style={{ flex: 1, fontSize: 12, padding: '5px 8px', border: '1px solid var(--portal-border)', borderRadius: 6, background: 'var(--portal-bg-secondary)', color: 'var(--portal-text)', outline: 'none' }}
+                              style={{ flex: 1, minWidth: 0, fontSize: 12.5, padding: '8px 0', border: 'none', background: 'transparent', color: 'var(--portal-text)', outline: 'none' }}
                             />
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <div style={{ flex: '1 1 160px', display: 'flex', alignItems: 'center', gap: 8, background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 8, padding: '0 10px' }}>
                             <i className="fas fa-city" style={{ color: 'var(--portal-text-secondary)', fontSize: 12, flexShrink: 0 }} />
                             <input
                               type="text"
                               value={clienteInfo.cidade || ''}
                               onChange={(e) => setClienteInfo(prev => prev ? { ...prev, cidade: e.target.value } : prev)}
                               placeholder="Cidade..."
-                              style={{ flex: 1, fontSize: 12, padding: '5px 8px', border: '1px solid var(--portal-border)', borderRadius: 6, background: 'var(--portal-bg-secondary)', color: 'var(--portal-text)', outline: 'none' }}
+                              style={{ flex: 1, minWidth: 0, fontSize: 12.5, padding: '8px 0', border: 'none', background: 'transparent', color: 'var(--portal-text)', outline: 'none' }}
                             />
                           </div>
                         </div>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, cursor: 'pointer', padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${servicoOficina ? '#10B981' : 'var(--portal-border)'}`, background: servicoOficina ? '#ECFDF5' : 'var(--portal-bg-secondary)' }}>
-                          <input
-                            type="checkbox"
-                            checked={servicoOficina}
-                            onChange={(e) => setServicoOficina(e.target.checked)}
-                            style={{ width: 18, height: 18, accentColor: '#10B981', flexShrink: 0 }}
-                          />
-                          <i className="fas fa-warehouse" style={{ fontSize: 15, color: servicoOficina ? '#059669' : 'var(--portal-text-secondary)', flexShrink: 0 }} />
-                          <span style={{ fontSize: 13.5, fontWeight: 700, color: servicoOficina ? '#065F46' : 'var(--portal-text)' }}>
-                            Serviço realizado na oficina
-                            <span style={{ display: 'block', fontSize: 11, fontWeight: 500, color: servicoOficina ? '#059669' : 'var(--portal-text-secondary)', marginTop: 2 }}>
-                              {servicoOficina
-                                ? 'Endereço salvo como Nova Tratores – Piraju (SP) e registrado no Omie.'
-                                : 'Marque se o serviço foi feito na oficina (não no endereço do cliente).'}
+
+                        {/* Opções: oficina / interna */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 10 }}>
+                          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', padding: '11px 13px', borderRadius: 10, boxSizing: 'border-box', height: '100%', border: `1px solid ${servicoOficina ? '#10B981' : 'var(--portal-border)'}`, background: 'var(--portal-bg-card)', transition: 'border-color .15s' }}>
+                            <input
+                              type="checkbox"
+                              checked={servicoOficina}
+                              onChange={(e) => setServicoOficina(e.target.checked)}
+                              style={{ width: 17, height: 17, accentColor: '#10B981', flexShrink: 0, marginTop: 1 }}
+                            />
+                            <i className="fas fa-warehouse" style={{ fontSize: 15, color: servicoOficina ? '#059669' : 'var(--portal-text-secondary)', flexShrink: 0, marginTop: 1 }} />
+                            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--portal-text)', lineHeight: 1.3 }}>
+                              Serviço realizado na oficina
+                              <span style={{ display: 'block', fontSize: 11, fontWeight: 400, color: 'var(--portal-text-secondary)', marginTop: 3, lineHeight: 1.4 }}>
+                                {servicoOficina
+                                  ? 'Endereço salvo como Nova Tratores – Piraju (SP) e registrado no Omie.'
+                                  : 'Marque se o serviço foi feito na oficina (não no endereço do cliente).'}
+                              </span>
                             </span>
-                          </span>
-                        </label>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, cursor: 'pointer', padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${servicoInterno ? '#7C3AED' : 'var(--portal-border)'}`, background: servicoInterno ? '#F3E8FF' : 'var(--portal-bg-secondary)' }}>
-                          <input
-                            type="checkbox"
-                            checked={servicoInterno}
-                            onChange={(e) => setServicoInterno(e.target.checked)}
-                            style={{ width: 18, height: 18, accentColor: '#7C3AED', flexShrink: 0 }}
-                          />
-                          <i className="fas fa-tools" style={{ fontSize: 15, color: servicoInterno ? '#7C3AED' : 'var(--portal-text-secondary)', flexShrink: 0 }} />
-                          <span style={{ fontSize: 13.5, fontWeight: 700, color: servicoInterno ? '#6D28D9' : 'var(--portal-text)' }}>
-                            Ordem interna
-                            <span style={{ display: 'block', fontSize: 11, fontWeight: 500, color: servicoInterno ? '#7C3AED' : 'var(--portal-text-secondary)', marginTop: 2 }}>
-                              {servicoInterno
-                                ? 'Não vai pro Omie — fica na aba Internas (peças só por remessa).'
-                                : 'Marque pra tratar como interna (vai pra aba Internas e não envia ao Omie).'}
+                          </label>
+                          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', padding: '11px 13px', borderRadius: 10, boxSizing: 'border-box', height: '100%', border: `1px solid ${servicoInterno ? '#7C3AED' : 'var(--portal-border)'}`, background: 'var(--portal-bg-card)', transition: 'border-color .15s' }}>
+                            <input
+                              type="checkbox"
+                              checked={servicoInterno}
+                              onChange={(e) => setServicoInterno(e.target.checked)}
+                              style={{ width: 17, height: 17, accentColor: '#7C3AED', flexShrink: 0, marginTop: 1 }}
+                            />
+                            <i className="fas fa-tools" style={{ fontSize: 15, color: servicoInterno ? '#7C3AED' : 'var(--portal-text-secondary)', flexShrink: 0, marginTop: 1 }} />
+                            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--portal-text)', lineHeight: 1.3 }}>
+                              Ordem interna
+                              <span style={{ display: 'block', fontSize: 11, fontWeight: 400, color: 'var(--portal-text-secondary)', marginTop: 3, lineHeight: 1.4 }}>
+                                {servicoInterno
+                                  ? 'Não vai pro Omie — fica na aba Internas (peças só por remessa).'
+                                  : 'Marque pra tratar como interna (vai pra aba Internas e não envia ao Omie).'}
+                              </span>
                             </span>
-                          </span>
-                        </label>
+                          </label>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -784,7 +795,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
 
                   {/* ── Status ── */}
                   {mode === "edit" && (
-                    <div className="os-card">
+                    <div className="os-card" style={{ order: -4 }}>
                       <div className="os-card-title"><i className="fas fa-flag" /> Status</div>
                       <select value={status} onChange={(e) => setStatus(e.target.value)} style={S_SELECT_BOLD}>
                         {PHASES.map((p) => <option key={p}>{p}</option>)}
@@ -1071,7 +1082,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                   )}
 
                   {/* ── Equipe & Atendimento ── */}
-                  <div className="os-card">
+                  <div className="os-card" style={{ order: -3 }}>
                     <div className="os-card-title"><i className="fas fa-users" /> Equipe &amp; Atendimento</div>
                     <div className="os-row">
                       <div style={S_FLEX1}>
@@ -1132,8 +1143,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                     )}
                   </div>
 
-                  {/* ── Datas do Serviço ── */}
-                  <div className="os-card">
+                  {/* ── Datas do Serviço (inclui Alimentação/Almoço) ── */}
+                  <div className="os-card" style={{ order: -2 }}>
                     <div className="os-card-title"><i className="fas fa-calendar-alt" /> Datas do Serviço</div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                       <div>
