@@ -1312,7 +1312,7 @@ function ClientesPageInner() {
                       style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: '1px solid #E5E7EB', borderRadius: 10, background: '#fff', color: '#374151', fontSize: 14, textDecoration: 'none', fontWeight: 600 }}>
                       <Printer size={16} /> {os.pos_real ? 'Abrir POS' : 'Imprimir OS'}
                     </a>
-                    {os.faturada && !os.link_nf && !os.financeiro?.nf_servico && (
+                    {os.faturada && !os.cancelada && !os.link_nf && !os.financeiro?.nf_servico && (
                       <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: '1px solid #F59E0B', borderRadius: 10, background: '#FFFBEB', color: '#B45309', fontSize: 14, fontWeight: 700, cursor: anexNfOS ? 'wait' : 'pointer' }}>
                         <Upload size={16} /> {anexNfOS ? 'Enviando...' : 'Anexar NF de serviço'}
                         <input type="file" accept="application/pdf" style={{ display: 'none' }} disabled={anexNfOS}
