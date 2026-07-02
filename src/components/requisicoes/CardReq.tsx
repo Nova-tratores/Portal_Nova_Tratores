@@ -8,7 +8,7 @@ import {
   Store, ArrowRight, Gauge,
   Receipt, Eye, ExternalLink, Car,
   Plus, CheckCheck, Building2, User, Cpu,
-  Package, CreditCard, Upload, Check, Lock, ShieldCheck, ShieldAlert, Clock
+  Package, CreditCard, Upload, Check, Lock, ShieldCheck, ShieldAlert, Clock, FolderOpen
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
@@ -31,7 +31,7 @@ function parseMoeda(valorFmt: string): string {
   return valorFmt.replace(/\./g, '').replace(',', '.');
 }
 
-export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, aberto = false, onFechar, podeEditar = true }: { req: any, onUpdate: any, onPrint: any, dadosCompartilhados?: any, aberto?: boolean, onFechar?: () => void, podeEditar?: boolean }) {
+export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, aberto = false, onFechar, podeEditar = true, grupos = [], usuarioAtual = '', onGruposChange, onExpandirGrupo }: { req: any, onUpdate: any, onPrint: any, dadosCompartilhados?: any, aberto?: boolean, onFechar?: () => void, podeEditar?: boolean, grupos?: any[], usuarioAtual?: string, onGruposChange?: () => void, onExpandirGrupo?: (id: number) => void }) {
   const [modalAberto, setModalAberto] = useState(aberto);
   const [modalCotacaoAberto, setModalCotacaoAberto] = useState(false);
   const [histAberto, setHistAberto] = useState(false);
@@ -328,6 +328,21 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
     onFechar?.();
   };
 
+  // ── Grupos (coletivos) desta requisição ──
+  const [grupoParaAdd, setGrupoParaAdd] = useState('');
+  const gruposDaReq = (grupos || []).filter((g: any) => (g.membros || []).map((x: any) => Number(x)).includes(Number(req.id)));
+  const gruposDisponiveis = (grupos || []).filter((g: any) => g.status === 'aberto' && !gruposDaReq.some((d: any) => d.id === g.id));
+  const alterarGrupoReq = async (grupoId: number, acao: 'add' | 'remove') => {
+    try {
+      await fetch('/api/pos/requisicoes/grupos/membros', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ grupo_id: grupoId, req_id: req.id, acao, usuario: usuarioAtual }),
+      });
+      setGrupoParaAdd('');
+      onGruposChange?.();
+    } catch { /* ignore */ }
+  };
+
   const inputBase = "w-full text-[15px] text-zinc-900 bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 outline-none focus:border-red-500 focus:bg-white transition-all placeholder:text-zinc-300";
   const selectBase = `${inputBase} [&>option]:text-black [&>option]:bg-white cursor-pointer`;
   const labelBase = "text-[13px] font-semibold text-zinc-400 uppercase tracking-wider mb-2 flex items-center gap-2";
@@ -489,6 +504,39 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
 
             {/* CONTEÚDO — Scroll único */}
             <div className="flex-1 overflow-y-auto px-8 py-6 space-y-6">
+
+              {/* ── GRUPOS (coletivos) ── */}
+              <div className="bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <FolderOpen size={14} className="text-red-600" />
+                  <span className="text-[13px] font-bold text-zinc-600">Grupos</span>
+                  {gruposDaReq.length === 0 && <span className="text-[12px] text-zinc-400 italic">esta requisição não está em nenhum grupo</span>}
+                </div>
+                {gruposDaReq.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {gruposDaReq.map((g: any) => (
+                      <span key={g.id} className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-red-700 bg-red-50 border border-red-200 rounded-full pl-2.5 pr-1.5 py-1">
+                        <button onClick={() => onExpandirGrupo?.(g.id)} title="Expandir grupo no kanban" className="hover:underline flex items-center gap-1"><FolderOpen size={12} /> {g.nome}</button>
+                        {g.status !== 'aberto' && <span className="text-[9px] uppercase text-zinc-400">({g.status})</span>}
+                        {podeEditar && (
+                          <button onClick={() => alterarGrupoReq(g.id, 'remove')} title="Remover deste grupo" className="ml-0.5 w-4 h-4 flex items-center justify-center rounded-full text-red-400 hover:bg-red-200 hover:text-red-700"><X size={11} /></button>
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {podeEditar && gruposDisponiveis.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <select value={grupoParaAdd} onChange={e => setGrupoParaAdd(e.target.value)} className="text-[13px] bg-white border border-zinc-200 rounded-lg px-2 py-1.5 outline-none focus:border-red-400 flex-1 max-w-[240px]">
+                      <option value="">Adicionar a um grupo...</option>
+                      {gruposDisponiveis.map((g: any) => <option key={g.id} value={g.id}>{g.nome}</option>)}
+                    </select>
+                    <button onClick={() => grupoParaAdd && alterarGrupoReq(Number(grupoParaAdd), 'add')} disabled={!grupoParaAdd}
+                      className="text-[12px] font-bold text-white bg-red-600 px-3 py-1.5 rounded-lg hover:bg-red-700 disabled:opacity-40 flex items-center gap-1"><Plus size={13} /> Adicionar</button>
+                  </div>
+                )}
+              </div>
+
 
               {/* ── BLOQUEIO DE VALOR ALTO ── */}
               {valorAlto && (

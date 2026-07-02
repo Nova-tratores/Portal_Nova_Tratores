@@ -2,7 +2,8 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import CardCapaReq from './CardCapaReq';
 import { supabase } from '@/lib/supabase';
-import { Search, Calendar, Building2, X, Layout, UserCircle, Layers, SlidersHorizontal, Receipt, FileDown, Info } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { Search, Calendar, Building2, X, Layout, UserCircle, Layers, SlidersHorizontal, Receipt, FileDown, Info, Plus, FolderOpen, Archive, RotateCcw } from 'lucide-react';
 
 const LISTA_FORNECEDORES_CADASTRADOS = ["Rodrigo Torneiro (Panda)"];
 
@@ -25,6 +26,51 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
   const [filtroData, setFiltroData] = useState('');
   const [filtroFornAguardando, setFiltroFornAguardando] = useState('');
   const [filtroTecnicoPedido, setFiltroTecnicoPedido] = useState('');
+
+  // ── Grupos (coletivos) de requisições ──
+  const { userProfile } = useAuth();
+  const usuarioAtual = userProfile?.nome || '';
+  const [grupos, setGrupos] = useState<any[]>([]);
+  const [grupoFiltro, setGrupoFiltro] = useState<number | null>(null);
+  const [showFechados, setShowFechados] = useState(false);
+  const [criandoGrupo, setCriandoGrupo] = useState(false);
+  const [novoGrupoNome, setNovoGrupoNome] = useState('');
+  const [grupoHist, setGrupoHist] = useState<any>(null);
+
+  const recarregarGrupos = useCallback(async () => {
+    try {
+      const res = await fetch('/api/pos/requisicoes/grupos');
+      if (res.ok) setGrupos(await res.json());
+    } catch { /* ignore */ }
+  }, []);
+  useEffect(() => { recarregarGrupos(); }, [recarregarGrupos]);
+
+  const gruposAbertos = useMemo(() => grupos.filter((g: any) => g.status === 'aberto'), [grupos]);
+  const gruposFechados = useMemo(() => grupos.filter((g: any) => g.status !== 'aberto'), [grupos]);
+  const grupoAtivo = useMemo(() => grupos.find((g: any) => g.id === grupoFiltro) || null, [grupos, grupoFiltro]);
+
+  const criarGrupo = useCallback(async () => {
+    const nome = novoGrupoNome.trim();
+    if (!nome) return;
+    try {
+      const res = await fetch('/api/pos/requisicoes/grupos', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nome, criado_por: usuarioAtual }),
+      });
+      if (res.ok) { setNovoGrupoNome(''); setCriandoGrupo(false); await recarregarGrupos(); }
+    } catch { /* ignore */ }
+  }, [novoGrupoNome, usuarioAtual, recarregarGrupos]);
+
+  const mudarStatusGrupo = useCallback(async (id: number, status: string) => {
+    try {
+      await fetch('/api/pos/requisicoes/grupos', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status, usuario: usuarioAtual }),
+      });
+      if (grupoFiltro === id && status !== 'aberto') setGrupoFiltro(null);
+      await recarregarGrupos();
+    } catch { /* ignore */ }
+  }, [usuarioAtual, recarregarGrupos, grupoFiltro]);
   const [colunaArrastando, setColunaArrastando] = useState<string | null>(null);
   const [limitesPorColuna, setLimitesPorColuna] = useState<Record<string, number>>({});
   const CARDS_POR_VEZ = 20;
@@ -106,7 +152,9 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
 
   const filtradas = useMemo(() => {
     const q = filtroBusca.trim().toLowerCase();
+    const idsGrupo = grupoAtivo ? new Set((grupoAtivo.membros || []).map((x: any) => Number(x))) : null;
     return requisicoes.filter((r: any) => {
+      if (idsGrupo && !idsGrupo.has(Number(r.id))) return false;
       const matchData = filtroData ? (r.data || '').startsWith(filtroData) : true;
       if (!q) return matchData;
       const alvo = [
@@ -120,7 +168,7 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
       ].join(' ').toLowerCase();
       return matchData && alvo.includes(q);
     });
-  }, [requisicoes, filtroBusca, filtroData, nomeSolicitante]);
+  }, [requisicoes, filtroBusca, filtroData, nomeSolicitante, grupoAtivo]);
 
   const temFiltroAtivo = filtroBusca || filtroData;
   const limparFiltros = () => { setFiltroBusca(''); setFiltroData(''); setFiltroFornAguardando(''); setFiltroTecnicoPedido(''); };
@@ -284,6 +332,46 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
             {filtroData && <button onClick={() => setFiltroData('')} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-red-500 bg-white"><X size={12}/></button>}
           </div>
 
+          {/* Separador */}
+          <div className="w-px h-5 bg-zinc-200" />
+
+          {/* GRUPOS (coletivos de requisições) */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[11px] font-bold text-zinc-500 flex items-center gap-1"><Layers size={12}/> Grupos:</span>
+            {gruposAbertos.length === 0 && !criandoGrupo && (
+              <span className="text-[11px] text-zinc-400 italic">nenhum aberto</span>
+            )}
+            {gruposAbertos.map((g: any) => {
+              const ativo = grupoFiltro === g.id;
+              return (
+                <button key={g.id} onClick={() => setGrupoFiltro(ativo ? null : g.id)}
+                  className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border transition-colors flex items-center gap-1 ${ativo ? 'bg-red-600 text-white border-red-600' : 'bg-white text-zinc-600 border-zinc-200 hover:border-red-300'}`}>
+                  <FolderOpen size={11} /> {g.nome}
+                  <span className={`ml-0.5 text-[9px] font-bold px-1.5 rounded-full ${ativo ? 'bg-white/25' : 'bg-zinc-100 text-zinc-500'}`}>{(g.membros || []).length}</span>
+                  {ativo && <X size={11} className="ml-0.5" />}
+                </button>
+              );
+            })}
+            {criandoGrupo ? (
+              <span className="flex items-center gap-1">
+                <input autoFocus value={novoGrupoNome} onChange={e => setNovoGrupoNome(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') criarGrupo(); if (e.key === 'Escape') { setCriandoGrupo(false); setNovoGrupoNome(''); } }}
+                  placeholder="Nome do grupo..." className={`${inputInline} !py-1 w-40`} />
+                <button onClick={criarGrupo} className="text-[11px] font-bold text-white bg-red-600 px-2 py-1 rounded-full">Criar</button>
+                <button onClick={() => { setCriandoGrupo(false); setNovoGrupoNome(''); }} className="text-zinc-400 hover:text-red-500"><X size={13} /></button>
+              </span>
+            ) : (
+              <button onClick={() => setCriandoGrupo(true)} title="Novo grupo"
+                className="text-[11px] font-semibold px-2 py-1 rounded-full border border-dashed border-zinc-300 text-zinc-500 hover:border-red-400 hover:text-red-600 flex items-center gap-1">
+                <Plus size={12} /> Novo grupo
+              </button>
+            )}
+            <button onClick={() => setShowFechados(true)} title="Grupos concluídos / cancelados"
+              className="text-[11px] font-semibold px-2 py-1 rounded-full border border-zinc-200 text-zinc-500 hover:border-zinc-400 flex items-center gap-1">
+              <Archive size={12} /> Fechados{gruposFechados.length > 0 ? ` (${gruposFechados.length})` : ''}
+            </button>
+          </div>
+
           {/* Contador + Limpar */}
           {temFiltroAtivo && (
             <>
@@ -294,7 +382,81 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
             </>
           )}
         </div>
+
+        {/* Banner do grupo ativo */}
+        {grupoAtivo && (
+          <div className="mt-2 flex items-center gap-3 flex-wrap bg-red-50 border border-red-200 rounded-xl px-4 py-2">
+            <span className="text-[13px] font-bold text-red-700 flex items-center gap-1.5"><FolderOpen size={14} /> {grupoAtivo.nome}</span>
+            <span className="text-[11px] text-red-500">{(grupoAtivo.membros || []).length} requisição(ões) neste grupo</span>
+            <div className="ml-auto flex items-center gap-2">
+              <button onClick={() => setGrupoHist(grupoAtivo)} className="text-[11px] font-semibold text-zinc-600 bg-white border border-zinc-200 px-2.5 py-1 rounded-full hover:border-zinc-400">Histórico</button>
+              <button onClick={() => mudarStatusGrupo(grupoAtivo.id, 'concluido')} className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full hover:bg-emerald-100">Concluir grupo</button>
+              <button onClick={() => mudarStatusGrupo(grupoAtivo.id, 'cancelado')} className="text-[11px] font-semibold text-zinc-600 bg-white border border-zinc-200 px-2.5 py-1 rounded-full hover:border-red-300 hover:text-red-600">Cancelar grupo</button>
+              <button onClick={() => setGrupoFiltro(null)} className="text-zinc-400 hover:text-red-500"><X size={14} /></button>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Modal de grupos fechados (concluídos / cancelados) */}
+      {showFechados && (
+        <div className="fixed inset-0 z-[9000] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowFechados(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100">
+              <h3 className="text-base font-bold text-zinc-800 flex items-center gap-2"><Archive size={18} /> Grupos concluídos / cancelados</h3>
+              <button onClick={() => setShowFechados(false)} className="text-zinc-400 hover:text-red-500"><X size={18} /></button>
+            </div>
+            <div className="overflow-y-auto p-4 flex flex-col gap-2">
+              {gruposFechados.length === 0 ? (
+                <p className="text-sm text-zinc-400 text-center py-8">Nenhum grupo concluído ou cancelado.</p>
+              ) : gruposFechados.map((g: any) => (
+                <div key={g.id} className="flex items-center gap-3 border border-zinc-200 rounded-xl px-4 py-3">
+                  <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${g.status === 'concluido' ? 'bg-emerald-50 text-emerald-700' : 'bg-zinc-100 text-zinc-500'}`}>{g.status === 'concluido' ? 'Concluído' : 'Cancelado'}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-zinc-800 truncate">{g.nome}</div>
+                    <div className="text-[11px] text-zinc-400">{(g.membros || []).length} requisição(ões) · criado por {g.criado_por || '—'}</div>
+                  </div>
+                  <button onClick={() => setGrupoHist(g)} title="Histórico do grupo" className="text-[11px] font-semibold text-zinc-500 bg-white border border-zinc-200 px-2.5 py-1 rounded-full hover:border-zinc-400">Histórico</button>
+                  <button onClick={() => { mudarStatusGrupo(g.id, 'aberto'); }} title="Reabrir grupo" className="text-[11px] font-semibold text-red-600 bg-red-50 border border-red-200 px-2.5 py-1 rounded-full hover:bg-red-100 flex items-center gap-1"><RotateCcw size={12} /> Reabrir</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de histórico do grupo */}
+      {grupoHist && (
+        <div className="fixed inset-0 z-[9100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setGrupoHist(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100">
+              <div>
+                <h3 className="text-base font-bold text-zinc-800 flex items-center gap-2"><Layers size={17} /> {grupoHist.nome}</h3>
+                <p className="text-[11px] text-zinc-400">Histórico do grupo</p>
+              </div>
+              <button onClick={() => setGrupoHist(null)} className="text-zinc-400 hover:text-red-500"><X size={18} /></button>
+            </div>
+            <div className="overflow-y-auto p-4 flex flex-col gap-2">
+              {(!Array.isArray(grupoHist.historico) || grupoHist.historico.length === 0) ? (
+                <p className="text-sm text-zinc-400 text-center py-8">Sem histórico.</p>
+              ) : [...grupoHist.historico].reverse().map((h: any, i: number) => (
+                <div key={i} className="flex items-start gap-2 border border-zinc-100 rounded-lg px-3 py-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-red-500 mt-1.5 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13px] text-zinc-700">
+                      <span className="font-semibold">{h.usuario || '—'}</span>{' '}
+                      <span className="text-zinc-500">{h.acao}</span>
+                      {h.req_id ? <span className="text-zinc-500"> a requisição <span className="font-semibold text-red-600">#{h.req_id}</span></span> : null}
+                      {h.detalhe ? <span className="text-zinc-500"> — {h.detalhe}</span> : null}
+                    </div>
+                    <div className="text-[10px] text-zinc-400">{h.em ? new Date(h.em).toLocaleString('pt-BR') : ''}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* GRADE KANBAN - COLUNAS COM DESIGNER SLIM */}
       <div className="px-6 mt-2">
@@ -430,6 +592,10 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
                           podeMoverFase={podeMoverFase}
                           podeImprimir={podeImprimir}
                           podeExcluir={podeExcluir}
+                          grupos={grupos}
+                          usuarioAtual={usuarioAtual}
+                          onGruposChange={recarregarGrupos}
+                          onExpandirGrupo={(id: number) => setGrupoFiltro(id)}
                         />
                       ))}
                       {items.length > (limitesPorColuna[col.id] || CARDS_POR_VEZ) && (

@@ -11,7 +11,7 @@ import HistoricoModal from './HistoricoModal';
 // Carrega CardReq completo só quando o modal abre
 const CardReq = dynamic(() => import('./CardReq'), { ssr: false });
 
-export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhados, onCardFechado, podeEditar = true, podeMoverFase = true, podeImprimir = true, podeExcluir = true }: any) {
+export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhados, onCardFechado, podeEditar = true, podeMoverFase = true, podeImprimir = true, podeExcluir = true, grupos = [], usuarioAtual = '', onGruposChange, onExpandirGrupo }: any) {
   const [modalAberto, setModalAberto] = useState(false);
   const [histAberto, setHistAberto] = useState(false);
 
@@ -166,6 +166,10 @@ export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhado
           aberto={true}
           onFechar={() => { setModalAberto(false); onCardFechado?.(req.id); }}
           podeEditar={podeEditar}
+          grupos={grupos}
+          usuarioAtual={usuarioAtual}
+          onGruposChange={onGruposChange}
+          onExpandirGrupo={(id: number) => { onExpandirGrupo?.(id); setModalAberto(false); }}
         />
       )}
 
