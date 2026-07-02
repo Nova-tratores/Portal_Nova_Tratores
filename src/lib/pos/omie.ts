@@ -492,21 +492,40 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
     // a receber, categoria #Serv Prest Garantia, conta INTERNO. nCodProj fica
     // pendente até o garantista escolher a montadora em /garantias (depois
     // disso, /api/garantias/[id]/sync-omie-projeto atualiza só esse campo).
-    const ehGarantia = String(os.Tipo_Servico || '').toLowerCase().trim() === 'garantia';
+    // Garantia: OS marcada como 'Garantia' OU que TEM uma garantia vinculada
+    // (garantias criadas manualmente ficam sobre OS de Manutenção — por isso
+    // não dá pra confiar só no Tipo_Servico). Puxa a montadora pra o contrato.
+    const { data: garRow } = await supabase
+      .from('garantias')
+      .select('montadora_id')
+      .eq('id_ordem', idOrdem)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const ehGarantia = String(os.Tipo_Servico || '').toLowerCase().trim() === 'garantia' || !!garRow;
+    let montadoraNome: string | null = null;
+    if (garRow?.montadora_id) {
+      const { data: mont } = await supabase.from('montadoras').select('nome').eq('id', garRow.montadora_id).maybeSingle();
+      montadoraNome = mont?.nome ? String(mont.nome).trim() : null;
+    }
     let payloadGarantia: {
       codCategGarantia: string;
       nCodCC_Interno: number;
+      codDeptGarantia: string | null;
+      cNumContrato?: string;
       produtos: Array<{ cCodProd?: string; cDescr?: string; nQtde?: number; nValUnit?: number }>;
     } | null = null;
     if (ehGarantia) {
       try {
         const { buscarCodigosGarantia, montarListaProdutosPPV } = await import('@/lib/garantias/omie-faturamento');
-        const codigos = await buscarCodigosGarantia(undefined, null);
+        const codigos = await buscarCodigosGarantia(undefined, montadoraNome);
         const ppvIds = String(os.ID_PPV || '').split(',').map((s: string) => s.trim()).filter(Boolean);
         const produtos = await montarListaProdutosPPV(ppvIds);
         payloadGarantia = {
           codCategGarantia: codigos.codCategGarantia,
           nCodCC_Interno: codigos.nCodCC_Interno,
+          codDeptGarantia: codigos.codDeptGarantia,
+          cNumContrato: montadoraNome ? `${montadoraNome}-pgo` : undefined,
           produtos,
         };
       } catch (err) {
@@ -535,7 +554,13 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
         nCodCC: payloadGarantia ? payloadGarantia.nCodCC_Interno : OMIE_COD_CC,
         nCodProj: nCodProj || undefined,
         cDadosAdicNF: montarDadosAdic(os) || undefined,
+        // Garantia: Nº Contrato de Venda = "{Montadora}-pgo" (ex.: Mahindra-pgo)
+        ...(payloadGarantia?.cNumContrato ? { cNumContrato: payloadGarantia.cNumContrato } : {}),
       },
+      // Garantia: distribui 100% no departamento "03. # Garantias"
+      ...(payloadGarantia?.codDeptGarantia
+        ? { Departamentos: [{ cCodDepto: payloadGarantia.codDeptGarantia, nPerc: 100, nValorFixo: 'N' }] }
+        : {}),
       Observacoes: {
         cObsOS: montarObsOS(os) || undefined,
       },

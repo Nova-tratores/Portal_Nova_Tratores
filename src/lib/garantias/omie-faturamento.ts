@@ -18,6 +18,7 @@ import {
   listarCategoriasDespesa,
   listarContasCorrentes,
   listarProjetos,
+  listarDepartamentos,
   OMIE_ACCOUNTS,
   type OmieAccount,
 } from '@/lib/financeiro/omie-contapagar';
@@ -57,6 +58,7 @@ export interface OmieGarantiaCodigos {
   codCategDeslocamento: string | null;
   nCodCC_Interno: number;
   nCodProj_Pgo: number | null;
+  codDeptGarantia: string | null; // departamento "03. # Garantias"
 }
 
 // Chamada genérica à API Omie
@@ -88,10 +90,11 @@ export async function buscarCodigosGarantia(
   montadoraNome: string | null | undefined,
 ): Promise<OmieGarantiaCodigos> {
   const acc = (OMIE_ACCOUNTS.find((a) => a.name.toLowerCase() === String(empresa || '').toLowerCase()) || OMIE_ACCOUNTS[0]);
-  const [categorias, contas, projetos] = await Promise.all([
+  const [categorias, contas, projetos, departamentos] = await Promise.all([
     listarCategoriasDespesa(acc),
     listarContasCorrentes(acc),
     listarProjetos(acc),
+    listarDepartamentos(acc),
   ]);
 
   const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -105,6 +108,10 @@ export async function buscarCodigosGarantia(
 
   const contaInterno = contas.find((c) => norm(c.descricao || '').trim() === 'interno');
   if (!contaInterno) throw new Error('Conta corrente "INTERNO" não encontrada no Omie.');
+
+  // Departamento "03. # Garantias" (único que contém "garantia" na descrição).
+  const deptGarantia = departamentos.find((d) => norm(d.descricao || '').includes('garantia'));
+  const codDeptGarantia = deptGarantia ? String(deptGarantia.codigo) : null;
 
   let nCodProj_Pgo: number | null = null;
   if (montadoraNome) {
@@ -122,6 +129,7 @@ export async function buscarCodigosGarantia(
     codCategDeslocamento,
     nCodCC_Interno: Number(contaInterno.id),
     nCodProj_Pgo,
+    codDeptGarantia,
   };
 }
 
