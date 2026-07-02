@@ -33,6 +33,16 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
   const [tagsDisponiveis, setTagsDisponiveis] = useState<{ id: number; nome: string; cor: string; grupo: string | null }[]>([]);
   const [tagsSelecionadas, setTagsSelecionadas] = useState<string[]>([]);
 
+  // Grupos (coletivos) abertos — pra já jogar a nova requisição num grupo
+  const [gruposDisp, setGruposDisp] = useState<any[]>([]);
+  const [gruposSel, setGruposSel] = useState<number[]>([]);
+  useEffect(() => {
+    fetch('/api/pos/requisicoes/grupos')
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setGruposDisp((Array.isArray(d) ? d : []).filter((g: any) => g.status === 'aberto')))
+      .catch(() => {});
+  }, []);
+
   const [formData, setFormData] = useState({
     titulo: '', tipo: '', solicitante: '', setor: '',
     data: new Date().toISOString().split('T')[0],
@@ -116,6 +126,7 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
       }
     }
     if (tagsSelecionadas.length > 0) dados.tags = tagsSelecionadas;
+    if (gruposSel.length > 0) dados._grupos = gruposSel; // vínculo com grupos (a página processa e remove antes do insert)
     onSave(dados);
   };
 
@@ -692,6 +703,25 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
             <label className={labelStyle}>Observações Técnicas</label>
             <textarea rows={4} onChange={e => setFormData({...formData, obs: e.target.value})} className={`${inputStyle} resize-none italic`} placeholder="Descreva os itens ou serviços necessários..." />
           </div>
+
+          {/* Grupos (coletivos) — opcional */}
+          {gruposDisp.length > 0 && (
+            <div>
+              <label className={labelStyle}>Adicionar a grupo(s) <span className="text-zinc-400 normal-case tracking-normal font-medium">(opcional)</span></label>
+              <div className="flex flex-wrap gap-2">
+                {gruposDisp.map((g: any) => {
+                  const sel = gruposSel.includes(g.id);
+                  return (
+                    <button type="button" key={g.id}
+                      onClick={() => setGruposSel(prev => sel ? prev.filter(x => x !== g.id) : [...prev, g.id])}
+                      className={`text-sm font-semibold px-4 py-2.5 rounded-xl border transition-all flex items-center gap-2 ${sel ? 'bg-red-600 text-white border-red-600' : 'bg-zinc-50 text-zinc-600 border-zinc-200 hover:border-red-400'}`}>
+                      {g.nome}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <button type="submit" className="w-full bg-white text-slate-900 font-black py-6 rounded-xl shadow-lg hover:bg-red-500 hover:text-white transition-all uppercase text-sm tracking-[0.4em]">
             Confirmar e Enviar Pedido

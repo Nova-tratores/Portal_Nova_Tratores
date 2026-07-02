@@ -876,11 +876,23 @@ function RequisicoesPageInner() {
           <div className="w-full max-w-5xl bg-white rounded-2xl border border-zinc-200 overflow-y-auto max-h-[90vh] shadow-xl">
             <FormReq onSave={async (nova: Record<string, unknown>) => {
               nova.criado_por = userName;
-              const { error } = await supabase.from('Requisicao').insert([nova]);
+              // Grupos escolhidos na criação (não é coluna — remove antes do insert)
+              const gruposEscolhidos: number[] = Array.isArray(nova._grupos) ? (nova._grupos as number[]) : [];
+              delete nova._grupos;
+              const { data: ins, error } = await supabase.from('Requisicao').insert([nova]).select('id').single();
               if (error) {
                 console.error('[Requisições] Erro ao criar:', error);
                 alert('Erro ao criar requisição: ' + error.message);
                 return;
+              }
+              // Vincula a nova requisição aos grupos escolhidos (best-effort)
+              if (ins?.id && gruposEscolhidos.length > 0) {
+                await Promise.all(gruposEscolhidos.map((gid) =>
+                  fetch('/api/pos/requisicoes/grupos/membros', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ grupo_id: gid, req_id: ins.id, acao: 'add', usuario: userName }),
+                  }).catch(() => {})
+                ));
               }
               auditLog({ sistema: 'requisicoes', acao: 'criar', entidade: 'requisicao', entidade_label: String(nova.titulo || '') });
               notificarUsuariosReq('requisicao', `${userName} criou uma requisição`, String(nova.titulo || 'Nova requisição'), '/requisicoes');
