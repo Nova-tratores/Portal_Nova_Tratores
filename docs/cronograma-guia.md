@@ -126,6 +126,16 @@ Botão **Recorrências** → **Nova**:
   informe a **média de horas/dia** (converte "a cada 250h" em dias).
 - É **idempotente**: clicar *Gerar* de novo só cria o que faltava até o horizonte (não duplica).
 
+### 3.10 Vincular OS e Requisições
+Botão **Vínculos** — dá contexto de execução e de compras ao projeto (**somente referência**;
+não altera a OS nem o calendário dos técnicos):
+- **Ordem de Serviço:** busque e selecione **uma OS** (nº, cliente ou serviço). Mostra
+  Id/cliente/status e abre no Pós-Vendas.
+- **Grupo de Requisições:** vincule **um grupo** (ex.: `REFORMA-PATIO-26`) escolhendo um grupo
+  aberto **ou criando na hora**. Mostra o nº de requisições e o link **"ver requisições"** abre
+  o módulo já **filtrado** por esse grupo. As requisições continuam sendo criadas/geridas no
+  próprio módulo — o Cronograma só aponta para o grupo.
+
 ---
 
 ## 4. Boas práticas & erros comuns
