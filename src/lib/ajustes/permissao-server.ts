@@ -11,9 +11,9 @@ import { createClient } from '@supabase/supabase-js';
 import { supabase as supabaseAdmin } from './supabase';
 import { httpErr } from './cmc';
 
-// Valida o usuario logado e exige a permissao `modulo` (ou is_admin). Com `acao`,
-// espelha a semantica do cliente `pode(modulo, acao)`: passa quem tem o modulo puro
-// OU `modulo:acao` OU is_admin.
+// Valida o usuario logado e exige a permissao `modulo` (ou is_admin/is_dev). Com
+// `acao`, espelha a semantica do cliente pode(modulo, acao): passa quem tem o
+// modulo puro OU `modulo:acao` OU is_admin/is_dev.
 // Lanca httpErr(401) se sem/invalido token, httpErr(403) se sem permissao.
 // Retorna o usuario autenticado (com nome de financeiro_usu) em caso de sucesso.
 export async function exigirPermissao(req: Request, modulo: string, acao?: string): Promise<{ id: string; email?: string; nome?: string }> {
@@ -29,15 +29,17 @@ export async function exigirPermissao(req: Request, modulo: string, acao?: strin
 
   const { data: perm } = await supabaseAdmin
     .from('portal_permissoes')
-    .select('is_admin, modulos_permitidos')
+    .select('is_admin, is_dev, modulos_permitidos')
     .eq('user_id', user.id)
     .single();
 
-  const perms: string[] = (perm as any)?.modulos_permitidos || [];
-  const ok = (perm as any)?.is_admin === true
-    || perms.includes(modulo)
-    || (!!acao && perms.includes(`${modulo}:${acao}`));
-  if (!ok) throw httpErr(403, 'sem permissao para esta acao');
+  const p = perm as any;
+  const isAdmin = p?.is_admin === true || p?.is_dev === true;
+  const mods: string[] = p?.modulos_permitidos || [];
+  const ok = isAdmin
+    || mods.includes(modulo)
+    || (!!acao && mods.includes(`${modulo}:${acao}`));
+  if (!ok) throw httpErr(403, `sem permissao para esta acao${acao ? ` (${acao})` : ''}`);
 
   // nome legivel do usuario (best-effort; nao bloqueia se faltar)
   let nome: string | undefined;
