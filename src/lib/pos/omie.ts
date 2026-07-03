@@ -505,7 +505,7 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
     const ehGarantia = String(os.Tipo_Servico || '').toLowerCase().trim() === 'garantia' || !!garRow;
     let montadoraNome: string | null = null;
     if (garRow?.montadora_id) {
-      const { data: mont } = await supabase.from('montadoras').select('nome').eq('id', garRow.montadora_id).maybeSingle();
+      const { data: mont } = await supabase.from('garantia_montadoras').select('nome').eq('id', garRow.montadora_id).maybeSingle();
       montadoraNome = mont?.nome ? String(mont.nome).trim() : null;
     }
     let payloadGarantia: {
