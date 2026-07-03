@@ -14,7 +14,13 @@ import { httpErr } from './cmc';
 // Valida o usuario logado e exige a permissao `modulo` (ou is_admin).
 // Lanca httpErr(401) se sem/invalido token, httpErr(403) se sem permissao.
 // Retorna o usuario autenticado em caso de sucesso.
-export async function exigirPermissao(req: Request, modulo: string): Promise<{ id: string; email?: string }> {
+// `acao` (opcional) identifica a acao granular pretendida; hoje a checagem
+// continua a nivel de modulo (+ is_admin). TODO(Vinicius): enforcar granular.
+export async function exigirPermissao(
+  req: Request,
+  modulo: string,
+  acao?: string,
+): Promise<{ id: string; email?: string; nome?: string }> {
   const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
   if (!token) throw httpErr(401, 'nao autenticado');
 
@@ -32,7 +38,7 @@ export async function exigirPermissao(req: Request, modulo: string): Promise<{ i
     .single();
 
   const ok = (perm as any)?.is_admin === true || ((perm as any)?.modulos_permitidos || []).includes(modulo);
-  if (!ok) throw httpErr(403, 'sem permissao para esta acao');
+  if (!ok) throw httpErr(403, `sem permissao para esta acao${acao ? ` (${acao})` : ''}`);
 
   return { id: user.id, email: user.email };
 }

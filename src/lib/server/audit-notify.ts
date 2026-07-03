@@ -13,6 +13,7 @@ export async function registrarAuditLog(params: {
   userName: string;
   sistema: string;
   acao: string;
+  userId?: string;
   entidade?: string;
   entidadeId?: string;
   entidadeLabel?: string;
@@ -20,7 +21,9 @@ export async function registrarAuditLog(params: {
 }): Promise<void> {
   try {
     await supabase.from("audit_log").insert([{
-      user_id: "00000000-0000-0000-0000-000000000000", // server-side não tem user_id real
+      // usa o user_id real quando o chamador o fornece; senão o placeholder
+      // (rotas server-side antigas não têm o user_id do autor).
+      user_id: params.userId || "00000000-0000-0000-0000-000000000000",
       user_nome: params.userName,
       sistema: params.sistema,
       acao: params.acao,
