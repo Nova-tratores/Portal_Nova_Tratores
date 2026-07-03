@@ -175,16 +175,12 @@ export async function obterMovimentacaoProduto(
   }
   const t0 = Date.now();
 
-  const [movs, vendas, prodRow, remessasRows] = await Promise.all([
+  const [movs, vendas, prodRow] = await Promise.all([
     obterMovimentosProduto(conta, idProd, dataDeBR, dataAteBR),
     buscarVendasLista(idProd, conta, 200).catch(() => []),
     supabase.from('produtos').select('codigo,descricao')
       .eq('conta_omie', conta.toLowerCase()).eq('codigo_produto', String(idProd))
       .limit(1).then((r) => (r.data || [])[0] || null),
-    supabase.from('remessas').select('numero_nfe,destinatario')
-      .eq('conta_omie', conta.toLowerCase())
-      .range(0, 4999)
-      .then((r) => r.data || []),
   ]);
 
   // Fornecedores: só das NFs de compra que aparecem nos movimentos (query dirigida).
@@ -192,6 +188,28 @@ export async function obterMovimentacaoProduto(
     movs.filter((m: any) => ORIG_COMPRA.has(String(m.codOrigem || ''))).map((m: any) => String(m.numDoc || '')).filter(Boolean),
   )] as string[];
   const fornecedorPorNF = await resolverFornecedoresPorNF(conta, nfsCompra).catch(() => ({} as Record<string, string>));
+
+  // Remessas: query dirigida pelos nºs dos movimentos (a tabela inteira estoura
+  // o cap de 1000 linhas do PostgREST e o destinatário sumia). remessas.numero_nfe
+  // guarda o Nº DA REMESSA (vem em numPedido/"Operação nº ..."), não o da NF.
+  const numsRemessa = [...new Set(
+    movs.filter((m: any) => ORIG_REMESSA.has(String(m.codOrigem || '')))
+      .flatMap((m: any) => [chaveNum(m.numPedido), chaveNum(m.numDoc)])
+      .filter(Boolean),
+  )] as string[];
+  const destinatarioPorNF: Record<string, string> = {};
+  if (numsRemessa.length > 0) {
+    try {
+      const { data: remRows } = await supabase
+        .from('remessas').select('numero_nfe,destinatario')
+        .eq('conta_omie', conta.toLowerCase())
+        .in('numero_nfe', numsRemessa);
+      for (const r of (remRows || []) as any[]) {
+        const k = chaveNum(r.numero_nfe);
+        if (k && r.destinatario) destinatarioPorNF[k] = r.destinatario;
+      }
+    } catch { /* best-effort */ }
+  }
 
   // Índices de cruzamento (chave numérica normalizada -> venda/nome)
   interface VendaRef { cliente: string | null; vu: number; vt: number }
@@ -203,12 +221,6 @@ export async function obterMovimentacaoProduto(
     if (k) vendaPorPedido[k] = ref;
     if (v.data) vendaPorDataQtde[`${v.data}|${Math.abs(v.qtd)}`] = ref; // fallback qdo nº não casa
   }
-  const destinatarioPorNF: Record<string, string> = {};
-  for (const r of remessasRows as any[]) {
-    const k = chaveNum(r.numero_nfe);
-    if (k && r.destinatario) destinatarioPorNF[k] = r.destinatario;
-  }
-
   const movimentos: MovimentoProduto[] = movs.map((m: any) => {
     const cod = String(m.codOrigem || '');
     let nome: string | null = null;
@@ -222,7 +234,11 @@ export async function obterMovimentacaoProduto(
     } else if (ORIG_COMPRA.has(cod)) {
       nome = fornecedorPorNF[chaveNum(m.numDoc)] || null;
     } else if (ORIG_REMESSA.has(cod)) {
-      nome = destinatarioPorNF[chaveNum(m.numDoc)] || null;
+      // remessas.numero_nfe guarda o Nº DA REMESSA (vem em numPedido/"Operação
+      // nº ..."), não o nº da NF (numDoc) — casa pelos dois, remessa primeiro.
+      nome = destinatarioPorNF[chaveNum(m.numPedido)]
+        || destinatarioPorNF[chaveNum(m.numDoc)]
+        || null;
     }
     const qtdeMov = Math.abs(m.qtdeSaida || m.qtdeEntrada || 0);
     return {
