@@ -1120,18 +1120,20 @@ async function sincronizarUsuariosOmie(conta) {
   while (pagina <= totalPaginas) {
     const r = await omieRequest('/geral/usuarios/', 'ListarUsuarios', { nPagina: pagina, nRegPorPagina: 50 }, conta);
     totalPaginas = r.nTotPaginas || 1;
-    const rows = (r.listaUsuarios || [])
-      .filter(u => u.cNome && !vistos.has(u.cNome))
-      .map(u => {
-        vistos.add(u.cNome);
-        return {
-          codigo: u.cNome,
-          nome: u.cNomeCompl || u.cNome,
-          email: u.cEmail || null,
-          ncod_usuario: u.nCodUsuario || null,
-          synced_at: new Date().toISOString(),
-        };
+    // Dedup em passe unico (check-and-add): o Omie pode repetir cNome na mesma
+    // pagina, e o upsert falha se o lote tiver o mesmo 'codigo' (PK) duas vezes.
+    const rows = [];
+    for (const u of (r.listaUsuarios || [])) {
+      if (!u.cNome || vistos.has(u.cNome)) continue;
+      vistos.add(u.cNome);
+      rows.push({
+        codigo: u.cNome,
+        nome: u.cNomeCompl || u.cNome,
+        email: u.cEmail || null,
+        ncod_usuario: u.nCodUsuario || null,
+        synced_at: new Date().toISOString(),
       });
+    }
     if (rows.length) {
       const { error } = await supabaseAdmin.from('omie_usuarios').upsert(rows, { onConflict: 'codigo' });
       if (error) throw new Error(`Supabase upsert omie_usuarios: ${error.message}`);
