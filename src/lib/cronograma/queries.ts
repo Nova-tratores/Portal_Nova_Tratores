@@ -17,6 +17,7 @@ export interface ProjetoRow {
   data_fim_calc: string | null;
   calendario_id: string | null;
   os_ref: string | null;
+  req_grupo_id: number | null;
   conta_omie: string | null;
 }
 export interface TarefaRow {
@@ -82,16 +83,56 @@ export async function listarProjetos(): Promise<ProjetoRow[]> {
 
 export async function criarProjeto(p: {
   nome: string; tipo: 'obra_interna' | 'os_maquina';
-  dataInicio?: string; calendarioId?: string | null; osRef?: string | null;
+  dataInicio?: string; calendarioId?: string | null;
+  osRef?: string | null; reqGrupoId?: number | null;
 }): Promise<string> {
   const { data, error } = await cron().rpc('cron_criar_projeto', {
     p_nome: p.nome, p_tipo: p.tipo,
     p_data_inicio: p.dataInicio ?? null,
     p_calendario_id: p.calendarioId ?? null,
     p_os_ref: p.osRef ?? null,
+    p_req_grupo_id: p.reqGrupoId ?? null,
   });
   if (error) throw new Error(error.message);
   return data as string;
+}
+
+// ── vínculos: OS + grupo de requisições ──────────────────────────────
+export async function vincularProjeto(projetoId: string, v: { osRef?: string | null; reqGrupoId?: number | null }): Promise<void> {
+  const patch: Record<string, unknown> = {};
+  if (v.osRef !== undefined) patch.os_ref = v.osRef;
+  if (v.reqGrupoId !== undefined) patch.req_grupo_id = v.reqGrupoId;
+  patch.atualizado_em = new Date().toISOString();
+  const { error } = await cron().from('projetos').update(patch).eq('id', projetoId);
+  if (error) throw new Error(error.message);
+}
+
+export interface OSBuscaRow { id: string; cliente: string; status: string; servSolicitado: string }
+export async function buscarOS(termo: string): Promise<OSBuscaRow[]> {
+  const qs = termo.trim() ? `termo=${encodeURIComponent(termo.trim())}` : 'abertas=1';
+  const r = await fetch(`/api/ppv/ordens-servico?${qs}`);
+  return r.ok ? r.json() : [];
+}
+export async function carregarOSvinculada(osRef: string): Promise<{ id: string; cliente: string; status: string } | null> {
+  const { data } = await supabase.from('Ordem_Servico')
+    .select('Id_Ordem, Os_Cliente, Status').eq('Id_Ordem', osRef).maybeSingle();
+  if (!data) return null;
+  const row = data as { Id_Ordem: string; Os_Cliente: string | null; Status: string | null };
+  return { id: row.Id_Ordem, cliente: row.Os_Cliente ?? 'Sem cliente', status: row.Status ?? '—' };
+}
+
+export interface GrupoReq { id: number; nome: string; status: string; membros: (number | string)[] }
+export async function listarGruposReq(): Promise<GrupoReq[]> {
+  const r = await fetch('/api/pos/requisicoes/grupos');
+  return r.ok ? r.json() : [];
+}
+export async function criarGrupoReq(nome: string, criadoPor: string): Promise<GrupoReq> {
+  const r = await fetch('/api/pos/requisicoes/grupos', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nome, criado_por: criadoPor }),
+  });
+  if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.error || 'Erro ao criar grupo');
+  return r.json();
 }
 
 export async function carregarProjeto(projetoId: string): Promise<ProjetoCompleto> {
