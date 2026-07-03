@@ -12,7 +12,8 @@ export type JobTipo =
   | 'inventario-ciclo'
   | 'mahindra-gerar'
   | 'caracteristicas-sync'
-  | 'verificacao-diaria';
+  | 'verificacao-diaria'
+  | 'remessas-devolver';
 
 /** Linha da tabela ajustes_jobs. */
 export interface AjustesJob {
