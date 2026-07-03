@@ -4,6 +4,7 @@
 // locais), NF, operação, entrada/saída, CMC. Consome
 // /api/ajustes/movimentacao{,/buscar-produto}. Padrão visual de /ajustes/pedidos.
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
@@ -94,6 +95,20 @@ export default function MovimentacaoProdutoPage() {
   const [erro, setErro] = useState('');
   const deepLinkFeito = useRef(false);
 
+  // snapshot compartilhável (?s=<hash>)
+  interface SnapInfo { criadoPor: string | null; criadoEm: string; expiraEm: string }
+  const [snapInfo, setSnapInfo] = useState<SnapInfo | null>(null);
+  const [compartilhando, setCompartilhando] = useState(false);
+  const [compartilhaMsg, setCompartilhaMsg] = useState('');
+
+  const limparSnapshotDaURL = useCallback(() => {
+    const u = new URL(window.location.href);
+    if (u.searchParams.has('s')) {
+      u.searchParams.delete('s');
+      window.history.replaceState(null, '', u.toString());
+    }
+  }, []);
+
   // debounce da busca de sugestões
   useEffect(() => {
     if (!digitou || !conta) return;
@@ -113,6 +128,7 @@ export default function MovimentacaoProdutoPage() {
 
   const buscar = useCallback(async (prod: ProdutoSugestao | null, force = false) => {
     if (!conta || !prod) return;
+    setSnapInfo(null); limparSnapshotDaURL(); // consulta ao vivo sai do modo snapshot
     setCarregando(true); setErro(''); setStatusMsg('buscando movimentos na Omie...');
     try {
       let qs = contaParam.replace(/^&/, '') + `&idProd=${prod.codigoProduto}`;
@@ -128,7 +144,7 @@ export default function MovimentacaoProdutoPage() {
     } catch (ex) {
       setErro('erro de rede: ' + (ex as Error).message); setStatusMsg('');
     } finally { setCarregando(false); }
-  }, [conta, contaParam, de, ate]);
+  }, [conta, contaParam, de, ate, limparSnapshotDaURL]);
 
   const selecionar = useCallback((p: ProdutoSugestao) => {
     setProdutoSel(p);
@@ -140,6 +156,7 @@ export default function MovimentacaoProdutoPage() {
   // deep-link ?codigo=SKU (seleciona automático no 1º match exato)
   useEffect(() => {
     if (deepLinkFeito.current || !conta) return;
+    if (new URLSearchParams(window.location.search).get('s')) { deepLinkFeito.current = true; return; } // snapshot tem prioridade
     const codigo = new URLSearchParams(window.location.search).get('codigo');
     if (!codigo) { deepLinkFeito.current = true; return; }
     deepLinkFeito.current = true;
@@ -160,6 +177,71 @@ export default function MovimentacaoProdutoPage() {
   useEffect(() => {
     setProdutoSel(null); setDados(null); setTermo(''); setSugestoes([]); setStatusMsg('');
   }, [conta]);
+
+  // modo snapshot: ?s=<hash> carrega o retrato congelado (1 leitura, sem Omie).
+  // Declarado DEPOIS do reset por conta para prevalecer no mesmo ciclo.
+  const snapCarregado = useRef(false);
+  useEffect(() => {
+    if (snapCarregado.current || !conta) return;
+    const hash = new URLSearchParams(window.location.search).get('s');
+    if (!hash) { snapCarregado.current = true; return; }
+    snapCarregado.current = true;
+    (async () => {
+      setCarregando(true); setErro(''); setStatusMsg('abrindo snapshot compartilhado...');
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const r = await fetch(`/api/ajustes/movimentacao/snapshot?hash=${encodeURIComponent(hash)}`, {
+          headers: { Authorization: `Bearer ${session?.access_token ?? ''}` },
+        });
+        const d = await r.json();
+        if (!r.ok || d.erro) { setErro(d.erro || 'não foi possível abrir o snapshot'); setStatusMsg(''); return; }
+        const payload = d.payload as MovPayload;
+        setDados(payload);
+        const prod = payload.produto;
+        if (prod) {
+          setProdutoSel({ codigoProduto: prod.codigoProduto, codigo: prod.codigo || '', descricao: prod.descricao || '', estoque: null });
+          setTermo(`${prod.codigo || prod.codigoProduto} — ${prod.descricao || ''}`);
+          setDigitou(false);
+        }
+        setSnapInfo({ criadoPor: d.criadoPor, criadoEm: d.criadoEm, expiraEm: d.expiraEm });
+        setStatusMsg(`${fmtNum((payload.movimentos || []).length)} movimento(s) · snapshot`);
+      } catch (ex) {
+        setErro('erro ao abrir snapshot: ' + (ex as Error).message); setStatusMsg('');
+      } finally { setCarregando(false); }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conta]);
+
+  // botão Compartilhar: gera o snapshot e copia o link (vale 30 dias)
+  const compartilhar = useCallback(async () => {
+    if (!conta || !produtoSel || !dados) return;
+    // já está num snapshot? só copia o link atual
+    const sAtual = new URLSearchParams(window.location.search).get('s');
+    if (snapInfo && sAtual) {
+      await navigator.clipboard.writeText(window.location.href).catch(() => {});
+      setCompartilhaMsg('link copiado!');
+      setTimeout(() => setCompartilhaMsg(''), 4000);
+      return;
+    }
+    setCompartilhando(true); setCompartilhaMsg('gerando link...');
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const r = await fetch('/api/ajustes/movimentacao/snapshot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token ?? ''}` },
+        body: JSON.stringify({ conta, idProd: produtoSel.codigoProduto, de, ate }),
+      });
+      const d = await r.json();
+      if (!r.ok || d.erro) { setCompartilhaMsg('falhou: ' + (d.erro || r.status)); return; }
+      const url = `${window.location.origin}/ajustes/movimentacao-produto?s=${d.hash}`;
+      let copiou = true;
+      try { await navigator.clipboard.writeText(url); } catch { copiou = false; }
+      setCompartilhaMsg(copiou ? 'link copiado! (vale 30 dias)' : url);
+      setTimeout(() => setCompartilhaMsg(''), 8000);
+    } catch (ex) {
+      setCompartilhaMsg('erro: ' + (ex as Error).message);
+    } finally { setCompartilhando(false); }
+  }, [conta, produtoSel, dados, de, ate, snapInfo]);
 
   // ordenação AZ/ZA (linhas de saldo inicial/final ficam fixas fora da ordenação)
   const [ordem, setOrdem] = useState<{ col: string; dir: 'asc' | 'desc' } | null>(null);
@@ -307,7 +389,9 @@ export default function MovimentacaoProdutoPage() {
         <button onClick={() => buscar(produtoSel)} disabled={carregando || !conta || !produtoSel} style={{ padding: '7px 14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer', opacity: carregando || !conta || !produtoSel ? 0.5 : 1 }}>Buscar</button>
         <button onClick={() => buscar(produtoSel, true)} disabled={carregando || !conta || !produtoSel} title="Refaz a busca ignorando o cache" style={{ padding: '7px 14px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer', opacity: carregando || !conta || !produtoSel ? 0.5 : 1 }}>Atualizar</button>
         <button onClick={exportarCSV} disabled={!dados || movsView.length === 0} style={{ padding: '7px 12px', background: '#f1f5f9', color: '#334155', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer', opacity: !dados || movsView.length === 0 ? 0.5 : 1 }}>CSV</button>
-        <button onClick={abrirPDF} disabled={!dados || !produtoSel} title="Abre o relatório em PDF para impressão" style={{ padding: '7px 12px', background: '#f1f5f9', color: '#334155', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer', opacity: !dados || !produtoSel ? 0.5 : 1 }}>PDF</button>
+        <button onClick={abrirPDF} disabled={!dados || !produtoSel || !!snapInfo} title={snapInfo ? 'PDF gera dados ao vivo — clique em "Atualizar ao vivo" primeiro' : 'Abre o relatório em PDF para impressão'} style={{ padding: '7px 12px', background: '#f1f5f9', color: '#334155', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer', opacity: !dados || !produtoSel || !!snapInfo ? 0.5 : 1 }}>PDF</button>
+        <button onClick={compartilhar} disabled={!dados || !produtoSel || compartilhando} title="Gera um link do retrato desta consulta para mandar a outro usuário do portal (vale 30 dias)" style={{ padding: '7px 12px', background: '#0f766e', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: compartilhando ? 'wait' : 'pointer', opacity: !dados || !produtoSel || compartilhando ? 0.5 : 1 }}>Compartilhar</button>
+        {compartilhaMsg && <span style={{ fontSize: '.72rem', color: '#0f766e', alignSelf: 'center' }}>{compartilhaMsg}</span>}
       </div>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: '.72rem' }}>
@@ -319,6 +403,19 @@ export default function MovimentacaoProdutoPage() {
       </div>
 
       {erro && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: '.82rem' }}>{erro}</div>}
+
+      {/* Banner de snapshot compartilhado */}
+      {snapInfo && dados && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: '.78rem' }}>
+          <span>
+            📌 <b>Snapshot compartilhado</b>
+            {snapInfo.criadoPor ? <> por <b>{snapInfo.criadoPor}</b></> : null}
+            {snapInfo.criadoEm ? <> em {new Date(snapInfo.criadoEm).toLocaleString('pt-BR')}</> : null}
+            {' '}· retrato congelado (não consulta o Omie) · válido até {snapInfo.expiraEm ? new Date(snapInfo.expiraEm).toLocaleDateString('pt-BR') : '?'}
+          </span>
+          <button onClick={() => buscar(produtoSel, true)} disabled={carregando} style={{ marginLeft: 'auto', padding: '5px 12px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.76rem', cursor: 'pointer' }}>Atualizar ao vivo</button>
+        </div>
+      )}
 
       {/* Cards de resumo */}
       {dados && resumo && (

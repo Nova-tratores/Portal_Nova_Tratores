@@ -10,6 +10,7 @@
 // sem par (ajustes internos etc.) fica sem nome.
 // ============================================================================
 
+import { randomBytes } from 'crypto';
 import type { Conta } from './conta';
 import { supabase } from './supabase';
 import * as cache from './cache';
@@ -258,4 +259,67 @@ export async function obterMovimentacaoProduto(
   };
   cache.set(chave, payload, 120); // 2min: alivia F5 sem esconder movimento novo por muito tempo
   return { ...payload, fonte: 'live' };
+}
+
+// ============================================================================
+// Snapshots compartilháveis (tabela movimentacao_snapshots — sql/movimentacao-
+// snapshots.sql). Congela o payload da consulta sob um hash não-adivinhável;
+// quem abre o link lê 1 linha em vez de repetir a varredura no Omie.
+// ============================================================================
+
+const SNAPSHOT_DIAS = 30;
+
+export interface SnapshotInfo {
+  hash: string;
+  criadoPor: string | null;
+  criadoEm: string;
+  expiraEm: string;
+  payload: MovimentacaoPayload;
+}
+
+export async function criarSnapshotMovimentacao(
+  conta: Conta,
+  idProd: number,
+  dataDeBR: string,
+  dataAteBR: string,
+  criadoPor?: string | null,
+): Promise<{ hash: string; expiraEm: string }> {
+  const payload = await obterMovimentacaoProduto(conta, idProd, dataDeBR, dataAteBR);
+  const hash = randomBytes(9).toString('base64url'); // 12 chars
+
+  // limpeza lazy dos expirados (dispensa cron)
+  try { await supabase.from('movimentacao_snapshots').delete().lt('expira_em', new Date().toISOString()); } catch { /* best-effort */ }
+
+  const expiraEm = new Date(Date.now() + SNAPSHOT_DIAS * 86400000).toISOString();
+  const { error } = await supabase.from('movimentacao_snapshots').insert({
+    hash,
+    conta_omie: conta,
+    id_prod: idProd,
+    payload,
+    criado_por: criadoPor || null,
+    expira_em: expiraEm,
+  });
+  if (error) {
+    throw new Error(`falha ao gravar snapshot (tabela movimentacao_snapshots existe? rodar sql/movimentacao-snapshots.sql): ${error.message}`);
+  }
+  return { hash, expiraEm };
+}
+
+export async function lerSnapshotMovimentacao(hash: string): Promise<SnapshotInfo | { expirado: true } | null> {
+  const h = (hash || '').trim();
+  if (!h || h.length > 40) return null;
+  const { data, error } = await supabase
+    .from('movimentacao_snapshots')
+    .select('hash,payload,criado_por,criado_em,expira_em')
+    .eq('hash', h)
+    .maybeSingle();
+  if (error || !data) return null;
+  if (new Date(data.expira_em).getTime() < Date.now()) return { expirado: true };
+  return {
+    hash: data.hash,
+    criadoPor: data.criado_por || null,
+    criadoEm: data.criado_em,
+    expiraEm: data.expira_em,
+    payload: data.payload as MovimentacaoPayload,
+  };
 }
