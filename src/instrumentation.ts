@@ -20,33 +20,12 @@ export async function register(): Promise<void> {
   if (g.__estoqueSchedulersStarted) return;
   g.__estoqueSchedulersStarted = true;
 
-  const { cronBackfillCmc, cronSyncIncremental } = await import('./lib/estoque/cron');
-
   const log = (msg: string) => console.log('[estoque scheduler] ' + msg);
 
-  // sync-incremental: a cada 3h (mantém o mês atual quente sem depender da UI).
-  const TRES_HORAS = 3 * 60 * 60 * 1000;
-  setInterval(() => {
-    cronSyncIncremental()
-      .then((r) => log('sync-incremental ok: ' + JSON.stringify(r)))
-      .catch((e) => log('sync-incremental falhou: ' + (e as Error).message));
-  }, TRES_HORAS);
-
-  // backfill-cmc: diário às 06:00 UTC (= 03:00 BRT, preserva o timing do monolito).
-  const agendarBackfillDiario = () => {
-    const now = new Date();
-    const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 6, 0, 0));
-    if (next.getTime() <= now.getTime()) next.setUTCDate(next.getUTCDate() + 1);
-    const delay = next.getTime() - now.getTime();
-    log('backfill-cmc agendado para ' + next.toISOString());
-    setTimeout(() => {
-      cronBackfillCmc()
-        .then((r) => log('backfill-cmc ok: ' + JSON.stringify(r)))
-        .catch((e) => log('backfill-cmc falhou: ' + (e as Error).message))
-        .finally(() => agendarBackfillDiario());
-    }, delay);
-  };
-  agendarBackfillDiario();
+  // sync-incremental e backfill-cmc FORAM MOVIDOS para GitHub Actions (crons
+  // dedicados: estoque-sync-incremental / estoque-backfill-cmc). Rodá-los aqui
+  // TAMBÉM causava execução em duplicidade e disputa na mesma chave Omie.
+  // Aqui ficam só os jobs que NÃO têm cron no GitHub (abaixo).
 
   const base = `http://127.0.0.1:${process.env.PORT || 3000}`;
   const CINCO_MIN = 5 * 60 * 1000;
@@ -84,5 +63,5 @@ export async function register(): Promise<void> {
   setInterval(() => { rodarSyncClientes().catch(() => {}); }, CINCO_MIN);
   setTimeout(() => { rodarSyncClientes().catch(() => {}); }, 90 * 1000); // 1ª rodada ~1min30 após o boot
 
-  log('schedulers registrados (sync-incremental 3h, backfill-cmc 06:00 UTC, lembrete-nf 5min, pasta-cliente 5min; financeiro-scanner sob SYNC_FINANCEIRO_AUTO)');
+  log('schedulers registrados (lembrete-nf 5min, pasta-cliente 5min; financeiro-scanner sob SYNC_FINANCEIRO_AUTO). sync-incremental e backfill-cmc agora no GitHub Actions.');
 }
