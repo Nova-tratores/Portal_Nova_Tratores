@@ -35,8 +35,8 @@ interface OmieMovimentacao {
 }
 
 interface ServicoLinha {
-  cCodCateg?: string;
-  cNaoGerarReceber?: 'S' | 'N';
+  cCodCategItem?: string;
+  cNaoGerarFinanceiro?: 'S' | 'N';
   nCodServico?: number;
   nQtde?: number;
   nValUnit?: number;
@@ -294,12 +294,17 @@ export async function faturarOSGarantiaNoOmie(params: {
   const nCodOS = osOmie?.Cabecalho?.nCodOS;
   if (!nCodOS) return { ok: false, motivo: 'nCodOS não encontrado na consulta do Omie.' };
 
-  // 4) Aplica cCodCateg + cNaoGerarReceber em cada linha de serviço
-  const servicosPatched: ServicoLinha[] = (osOmie.ServicosPrestados || []).map((s) => ({
-    ...s,
-    cCodCateg: codigos.codCategGarantia,
-    cNaoGerarReceber: 'S',
-  }));
+  // 4) Aplica categoria de garantia + "não gerar financeiro" em cada linha de
+  //    serviço. No nó ServicosPrestados os campos são cCodCategItem e
+  //    cNaoGerarFinanceiro (cCodCateg/cNaoGerarReceber fazem o Omie rejeitar).
+  const servicosPatched: ServicoLinha[] = (osOmie.ServicosPrestados || []).map((s) => {
+    const { impostos, ...rest } = s as ServicoLinha & { impostos?: unknown };
+    return {
+      ...rest,
+      cCodCategItem: codigos.codCategGarantia,
+      cNaoGerarFinanceiro: 'S',
+    };
+  });
 
   // 5) Monta Lista de Produtos a partir do PPV
   const ppvIds = String(os.ID_PPV || '').split(',').map((s) => s.trim()).filter(Boolean);
