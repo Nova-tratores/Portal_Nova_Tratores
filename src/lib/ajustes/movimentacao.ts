@@ -55,21 +55,28 @@ export interface MovimentoProduto {
   origem: string | null;          // "Venda de Produto", "Compra de Produto"...
   clienteFornecedor: string | null;
   numDoc: string | null;          // NF
+  idDoc: number | null;           // nCodNF do documento (p/ DANFE)
   operacao: string | null;        // numPedido ("Operação nº ...")
   qtdeEntrada: number | null;
   entradaCMC: number | null;
   qtdeSaida: number | null;
+  valorVendaUnit: number | null;  // preço unitário do pedido de venda (só vendas)
+  valorVendaTotal: number | null; // total vendido no movimento (só vendas)
   cancelado: boolean;
   devolucao: boolean;
   qtdeAnterior: number | null;
-  qtdeAtual: number | null;
+  qtdeAtual: number | null;       // saldo após o movimento (kardex)
+  cmcAnterior: number | null;
+  cmcAtual: number | null;
 }
 
 export interface ResumoMovimentacao {
   saldoAnterior: number | null;
+  custoInicial: number | null;    // CMC unitário no início do período
   totalEntradas: number;
   totalSaidas: number;
   saldoFinal: number | null;
+  custoFinal: number | null;      // CMC unitário no fim do período
   movimentos: number;             // não-cancelados
   cancelados: number;
 }
@@ -168,60 +175,71 @@ export async function obterMovimentacaoProduto(
   )] as string[];
   const fornecedorPorNF = await resolverFornecedoresPorNF(conta, nfsCompra).catch(() => ({} as Record<string, string>));
 
-  // Índices de cruzamento (chave numérica normalizada -> nome)
-  const clientePorPedido: Record<string, string> = {};
+  // Índices de cruzamento (chave numérica normalizada -> venda/nome)
+  interface VendaRef { cliente: string | null; vu: number; vt: number }
+  const vendaPorPedido: Record<string, VendaRef> = {};
+  const vendaPorDataQtde: Record<string, VendaRef> = {};
   for (const v of vendas) {
+    const ref: VendaRef = { cliente: v.cliente || null, vu: v.vu, vt: v.vt };
     const k = chaveNum(v.numero);
-    if (k && v.cliente) clientePorPedido[k] = v.cliente;
+    if (k) vendaPorPedido[k] = ref;
+    if (v.data) vendaPorDataQtde[`${v.data}|${Math.abs(v.qtd)}`] = ref; // fallback qdo nº não casa
   }
   const destinatarioPorNF: Record<string, string> = {};
   for (const r of remessasRows as any[]) {
     const k = chaveNum(r.numero_nfe);
     if (k && r.destinatario) destinatarioPorNF[k] = r.destinatario;
   }
-  // Fallback venda: data + qtde (quando o nº do pedido não casa)
-  const clientePorDataQtde: Record<string, string> = {};
-  for (const v of vendas) {
-    if (v.cliente && v.data) clientePorDataQtde[`${v.data}|${Math.abs(v.qtd)}`] = v.cliente;
-  }
 
   const movimentos: MovimentoProduto[] = movs.map((m: any) => {
     const cod = String(m.codOrigem || '');
     let nome: string | null = null;
+    let venda: VendaRef | null = null;
     if (ORIG_VENDA.has(cod)) {
-      nome = clientePorPedido[chaveNum(m.numPedido)]
-        || clientePorPedido[chaveNum(m.numDoc)]
-        || clientePorDataQtde[`${m.data}|${Math.abs(m.qtdeSaida || m.qtdeEntrada || 0)}`]
+      venda = vendaPorPedido[chaveNum(m.numPedido)]
+        || vendaPorPedido[chaveNum(m.numDoc)]
+        || vendaPorDataQtde[`${m.data}|${Math.abs(m.qtdeSaida || m.qtdeEntrada || 0)}`]
         || null;
+      nome = venda?.cliente || null;
     } else if (ORIG_COMPRA.has(cod)) {
       nome = fornecedorPorNF[chaveNum(m.numDoc)] || null;
     } else if (ORIG_REMESSA.has(cod)) {
       nome = destinatarioPorNF[chaveNum(m.numDoc)] || null;
     }
+    const qtdeMov = Math.abs(m.qtdeSaida || m.qtdeEntrada || 0);
     return {
       data: m.data,
       codOrigem: cod,
       origem: fixUtf8(m.desOrigem || null),
       clienteFornecedor: nome,
       numDoc: m.numDoc || null,
+      idDoc: m.idDoc != null ? Number(m.idDoc) : null,
       operacao: fixUtf8(m.numPedido || null),
       qtdeEntrada: m.qtdeEntrada ?? null,
       entradaCMC: m.entradaCMC ?? null,
       qtdeSaida: m.qtdeSaida ?? null,
+      valorVendaUnit: venda ? venda.vu : null,
+      valorVendaTotal: venda ? (venda.vt || (venda.vu ? venda.vu * qtdeMov : 0)) || null : null,
       cancelado: !!m.cancelado,
       devolucao: !!m.devolucao,
       qtdeAnterior: m.qtdeAnterior ?? null,
       qtdeAtual: m.qtdeAtual ?? null,
+      cmcAnterior: m.cmcAnterior ?? null,
+      cmcAtual: m.cmcAtual ?? null,
     };
   });
 
   // Resumo sobre os NÃO-cancelados (cancelado não movimenta estoque).
   const validos = movimentos.filter((m) => !m.cancelado);
+  const primeiro = validos[0] || null;
+  const ultimo = validos[validos.length - 1] || null;
   const resumo: ResumoMovimentacao = {
-    saldoAnterior: validos.length ? (validos[0].qtdeAnterior ?? null) : null,
+    saldoAnterior: primeiro ? (primeiro.qtdeAnterior ?? null) : null,
+    custoInicial: primeiro ? (primeiro.cmcAnterior ?? null) : null,
     totalEntradas: validos.reduce((s, m) => s + Math.abs(m.qtdeEntrada || 0), 0),
     totalSaidas: validos.reduce((s, m) => s + Math.abs(m.qtdeSaida || 0), 0),
-    saldoFinal: validos.length ? (validos[validos.length - 1].qtdeAtual ?? null) : null,
+    saldoFinal: ultimo ? (ultimo.qtdeAtual ?? null) : null,
+    custoFinal: ultimo ? (ultimo.cmcAtual ?? null) : null,
     movimentos: validos.length,
     cancelados: movimentos.length - validos.length,
   };
