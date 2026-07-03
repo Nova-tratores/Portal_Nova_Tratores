@@ -11,16 +11,12 @@ import { createClient } from '@supabase/supabase-js';
 import { supabase as supabaseAdmin } from './supabase';
 import { httpErr } from './cmc';
 
-// Valida o usuario logado e exige a permissao `modulo` (ou is_admin).
+// Valida o usuario logado e exige a permissao `modulo` (ou is_admin). Com `acao`,
+// espelha a semantica do cliente `pode(modulo, acao)`: passa quem tem o modulo puro
+// OU `modulo:acao` OU is_admin.
 // Lanca httpErr(401) se sem/invalido token, httpErr(403) se sem permissao.
-// Retorna o usuario autenticado em caso de sucesso.
-// `acao` (opcional) identifica a acao granular pretendida; hoje a checagem
-// continua a nivel de modulo (+ is_admin). TODO(Vinicius): enforcar granular.
-export async function exigirPermissao(
-  req: Request,
-  modulo: string,
-  acao?: string,
-): Promise<{ id: string; email?: string; nome?: string }> {
+// Retorna o usuario autenticado (com nome de financeiro_usu) em caso de sucesso.
+export async function exigirPermissao(req: Request, modulo: string, acao?: string): Promise<{ id: string; email?: string; nome?: string }> {
   const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
   if (!token) throw httpErr(401, 'nao autenticado');
 
@@ -37,8 +33,18 @@ export async function exigirPermissao(
     .eq('user_id', user.id)
     .single();
 
-  const ok = (perm as any)?.is_admin === true || ((perm as any)?.modulos_permitidos || []).includes(modulo);
-  if (!ok) throw httpErr(403, `sem permissao para esta acao${acao ? ` (${acao})` : ''}`);
+  const perms: string[] = (perm as any)?.modulos_permitidos || [];
+  const ok = (perm as any)?.is_admin === true
+    || perms.includes(modulo)
+    || (!!acao && perms.includes(`${modulo}:${acao}`));
+  if (!ok) throw httpErr(403, 'sem permissao para esta acao');
 
-  return { id: user.id, email: user.email };
+  // nome legivel do usuario (best-effort; nao bloqueia se faltar)
+  let nome: string | undefined;
+  try {
+    const { data: usu } = await supabaseAdmin.from('financeiro_usu').select('nome').eq('id', user.id).single();
+    nome = (usu as any)?.nome || undefined;
+  } catch { /* segue sem nome */ }
+
+  return { id: user.id, email: user.email, nome };
 }

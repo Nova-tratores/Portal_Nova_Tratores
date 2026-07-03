@@ -9,6 +9,7 @@
 // lê o job do Supabase. O resultado também é cacheado para a home.
 // ============================================================================
 
+import { createHmac } from 'crypto';
 import type { Conta } from './conta';
 import * as cache from './cache';
 import { fmtBR, parseAnyDate, hoje } from './dates';
@@ -17,6 +18,7 @@ import { analisarEstoqueNegativo } from './analise';
 import { anotarCorrecoesAplicadas, httpErr } from './cmc';
 import { incluirAjusteEstoque, obterPosicaoEstoqueProduto, consultarProdutoPorIntegracao } from './omie';
 import { criarJob, atualizarJob, concluirJob, falharJob, lerJobAtivo, jobRodando } from './jobs';
+import { registrarAuditLog } from '../server/audit-notify';
 
 const NEGATIVOS_CACHE_SEG = (parseInt(process.env.NEGATIVOS_CACHE_HORAS || '', 10) || 6) * 3600;
 
@@ -80,6 +82,8 @@ export interface CorrigirNegativoArgs {
   estrategiaSugestao?: string | null;
   descricao?: string | null;
   criadoPor?: string;
+  userId?: string | null;    // UUID do usuario autenticado (via exigirPermissao)
+  userEmail?: string | null;
 }
 
 /**
@@ -114,7 +118,9 @@ export async function corrigirEstoqueNegativo(b: CorrigirNegativoArgs): Promise<
     if (!descricao) descricao = p.descricao;
   }
 
-  // guard de duplo-clique
+  // guard de duplo-clique (por produto+local+DATA do ajuste: episodios de datas
+  // diferentes nao sao duplicados, mesmo com CMC parecido).
+  const dataAjusteISO = dataAjusteBR.split('/').reverse().join('-');
   try {
     const lim = new Date(Date.now() - 90 * 1000).toISOString();
     const { data: recentes } = await supabase
@@ -125,6 +131,7 @@ export async function corrigirEstoqueNegativo(b: CorrigirNegativoArgs): Promise<
       .eq('codigo_local_estoque', codLocal)
       .eq('origem', 'estoque_negativo')
       .eq('status', 'aplicado')
+      .eq('nf_origem_data', dataAjusteISO)
       .gte('criado_em', lim)
       .order('criado_em', { ascending: false })
       .limit(1);
@@ -151,7 +158,9 @@ export async function corrigirEstoqueNegativo(b: CorrigirNegativoArgs): Promise<
     /* segue */
   }
 
-  const obs = `Correcao de CMC - estoque negativo - ajuste retroativo (${dataAjusteBR}) zerando o saldo e setando o CMC`.slice(0, 240);
+  const dataPortalBR = fmtBR(hoje()); // data em que o usuario fez a alteracao no portal
+  const usuarioNome = b.criadoPor || 'app-estoque-negativo'; // identidade verificada (a rota sobrescreve)
+  const obs = `Correcao de CMC - estoque negativo - ajuste retroativo (${dataAjusteBR}) zerando o saldo e setando o CMC. Feito no portal por ${usuarioNome} em ${dataPortalBR}`.slice(0, 240);
   let resultado: any = null;
   let erro: string | null = null;
   try {
@@ -172,6 +181,30 @@ export async function corrigirEstoqueNegativo(b: CorrigirNegativoArgs): Promise<
     erro = e.faultstring || e.message;
   }
 
+  // Assinatura HMAC (tamper-evidence) do registro aplicado. Sem o segredo, grava sem
+  // assinatura (nao bloqueia). Verificacao futura: recomputar sobre assinatura_payload.
+  const SECRET = process.env.CMC_HMAC_SECRET;
+  let assinatura: string | null = null;
+  let assinaturaPayload: Record<string, unknown> | null = null;
+  if (!erro && SECRET) {
+    assinaturaPayload = {
+      conta,
+      codigo_produto: idProd,
+      codigo_local_estoque: codLocal,
+      cmc_anterior: cmcAnterior,
+      cmc_aplicado: novoCMC,
+      data_ajuste: dataAjusteISO,
+      codigo_ajuste_omie: resultado?.codigoAjuste ?? null,
+      user_id: b.userId || null,
+      criado_por: usuarioNome,
+      assinado_em: new Date().toISOString(),
+    };
+    assinatura = createHmac('sha256', SECRET).update(JSON.stringify(assinaturaPayload)).digest('hex');
+  } else if (!erro && !SECRET) {
+    console.warn('[cmc] CMC_HMAC_SECRET ausente: correcao gravada SEM assinatura');
+  }
+  const obsDb = (assinatura ? `${obs} [sig:${assinatura.slice(0, 8)}]` : obs).slice(0, 240);
+
   const linha = {
     conta_omie: conta,
     codigo_produto: idProd,
@@ -184,17 +217,19 @@ export async function corrigirEstoqueNegativo(b: CorrigirNegativoArgs): Promise<
     qtd_saldo_no_ajuste: 0,
     estrategia_sugestao: b.estrategiaSugestao || null,
     nf_origem_numero: null,
-    nf_origem_data: dataAjusteBR.split('/').reverse().join('-'),
+    nf_origem_data: dataAjusteISO,
     cfop_origem: null,
     custo_garantia_unit: null,
     origem: 'estoque_negativo',
     codigo_ajuste_omie: resultado && resultado.codigoAjuste != null ? Number(resultado.codigoAjuste) || resultado.codigoAjuste : null,
     status: erro ? 'erro' : 'aplicado',
     erro: erro || null,
-    obs,
+    obs: obsDb,
+    assinatura,
+    assinatura_payload: assinaturaPayload,
     raw_request: resultado ? resultado.rawRequest : null,
     raw_response: resultado ? resultado.rawResponse : erro ? { erro } : null,
-    criado_por: b.criadoPor || 'app-estoque-negativo',
+    criado_por: usuarioNome,
   };
   let correcaoId: number | null = null;
   try {
@@ -204,6 +239,22 @@ export async function corrigirEstoqueNegativo(b: CorrigirNegativoArgs): Promise<
   } catch (e: any) {
     console.warn('[cmc] insert:', e.message);
   }
+
+  // Log externo (identidade real do usuario autenticado). Best-effort (nunca lanca).
+  await registrarAuditLog({
+    userId: b.userId || undefined,
+    userName: usuarioNome,
+    sistema: 'ajustes',
+    acao: 'corrigir-estoque-negativo',
+    entidade: 'cmc_correcoes',
+    entidadeId: correcaoId != null ? String(correcaoId) : undefined,
+    entidadeLabel: `CMC #${idProd} ${descricao || ''}`.trim(),
+    detalhes: {
+      conta, codLocal, cmcAnterior, cmcAplicado: erro ? null : novoCMC,
+      dataAjusteBR, codigoAjusteOmie: resultado?.codigoAjuste ?? null,
+      status: erro ? 'erro' : 'aplicado', assinatura: assinatura || null,
+    },
+  });
 
   cache.invalidatePrefix(`analise:${conta}:`);
   cache.invalidatePrefix(`pendentes:${conta}:`);

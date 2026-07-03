@@ -4,6 +4,7 @@
 // A correcao e' um ajuste RETROATIVO datado -> a UI pede a DATA por linha.
 import { useState, useCallback, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
@@ -25,11 +26,18 @@ interface UltimaCorrecao {
   criado_em?: string; cmc_anterior?: number; cmc_aplicado?: number;
   codigo_local_estoque?: number | string; codigo_ajuste_omie?: number | string; criado_por?: string;
 }
+interface Episodio {
+  dataFicouNegativo?: string | null; dataAjusteRetroativoBR?: string | null;
+  cmcSugerido?: number | null; estrategiaSugestao?: string;
+  cmcSugeridoBaseadoEm?: { data?: string; origem?: string; doc?: string } | null;
+  saldoMin?: number | null; jaCorrigido?: boolean; ultimaCorrecao?: UltimaCorrecao | null;
+}
 interface ProdutoNegativo {
   key: string; codigoProduto: number | null; codigoIntegracao?: string | null; codigo?: string | null;
   descricao?: string | null; cmcAtual: number | null; saldoTotal: number | null;
   porLocal?: PorLocal[]; cmcSugerido?: number | null; estrategiaSugestao?: string;
   dataFicouNegativo?: string | null; dataAjusteRetroativoBR?: string | null;
+  episodios?: Episodio[];
   suspeitaEmpresaErrada?: boolean; outraEmpresa?: OutraEmpresa | null;
   cmcSugeridoBaseadoEm?: { data?: string; origem?: string; doc?: string } | null;
   movimentosResumo?: MovimentoResumo[]; jaCorrigido?: boolean; ultimaCorrecao?: UltimaCorrecao | null;
@@ -78,6 +86,23 @@ function localMaisNegativo(p: ProdutoNegativo): PorLocal | null {
   return locais.slice().sort((a, b) => a.saldo - b.saldo)[0];
 }
 
+// Lista de episodios do produto. Quando o back nao trouxe episodios (ex.: negativo
+// mais antigo que a janela de 24m), sintetiza 1 "episodio" dos campos de topo.
+function episodiosDe(p: ProdutoNegativo): Episodio[] {
+  if (p.episodios && p.episodios.length) return p.episodios;
+  return [{
+    dataFicouNegativo: p.dataFicouNegativo ?? null,
+    dataAjusteRetroativoBR: p.dataAjusteRetroativoBR ?? null,
+    cmcSugerido: p.cmcSugerido ?? null,
+    estrategiaSugestao: p.estrategiaSugestao,
+    cmcSugeridoBaseadoEm: p.cmcSugeridoBaseadoEm ?? null,
+    saldoMin: p.saldoTotal ?? null,
+    jaCorrigido: p.jaCorrigido,
+    ultimaCorrecao: p.ultimaCorrecao ?? null,
+  }];
+}
+const epKey = (p: ProdutoNegativo, i: number) => `${p.key}#${i}`;
+
 const thStyle: React.CSSProperties = { background: '#f8fafc', color: '#475569', fontSize: '.65rem', textTransform: 'uppercase', letterSpacing: '.4px', padding: '8px 10px', textAlign: 'left', borderBottom: '1px solid #e2e8f0', fontWeight: 600, whiteSpace: 'nowrap' };
 const tdStyle: React.CSSProperties = { padding: '8px 10px', borderBottom: '1px solid #f1f5f9', color: '#334155', fontSize: '.82rem' };
 
@@ -101,6 +126,7 @@ export default function EstoqueNegativoPage() {
   const [resultados, setResultados] = useState<Record<string, ResultadoLinha>>({});
   const [aplicandoKey, setAplicandoKey] = useState<string | null>(null);
   const [corrigidosExtra, setCorrigidosExtra] = useState(0);
+  const [precisaRevalidar, setPrecisaRevalidar] = useState(false);
 
   const [modalProd, setModalProd] = useState<ProdutoNegativo | null>(null);
 
@@ -118,16 +144,20 @@ export default function EstoqueNegativoPage() {
     const dataInit: Record<string, string> = {};
     const localInit: Record<string, number | ''> = {};
     (d.produtos || []).forEach((p) => {
-      cmcInit[p.key] = p.cmcSugerido != null ? String(p.cmcSugerido) : '';
-      dataInit[p.key] = brToISO(p.dataAjusteRetroativoBR);
       const def = localMaisNegativo(p);
-      localInit[p.key] = def ? def.localId : '';
+      episodiosDe(p).forEach((ep, i) => {
+        const kk = epKey(p, i);
+        cmcInit[kk] = ep.cmcSugerido != null ? String(ep.cmcSugerido) : '';
+        dataInit[kk] = brToISO(ep.dataAjusteRetroativoBR);
+        localInit[kk] = def ? def.localId : '';
+      });
     });
     setCmcEdit(cmcInit);
     setDataEdit(dataInit);
     setLocalSel(localInit);
     setResultados({});
     setCorrigidosExtra(0);
+    setPrecisaRevalidar(false);
   }, []);
 
   const carregar = useCallback(async (force: boolean) => {
@@ -194,48 +224,73 @@ export default function EstoqueNegativoPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conta]);
 
-  const corrigirLinha = useCallback(async (p: ProdutoNegativo) => {
-    const novoCMC = Number(String(cmcEdit[p.key] ?? '').replace(',', '.'));
-    const codLocal = localSel[p.key] === '' || localSel[p.key] == null ? null : Number(localSel[p.key]);
-    const dataISO = dataEdit[p.key] || '';
-    if (!(novoCMC > 0)) { alert('Informe um CMC valido (> 0).'); return; }
-    if (codLocal == null) { alert('Selecione um local.'); return; }
-    if (!dataISO) { alert('Informe a data do ajuste retroativo (dia seguinte ao que o produto ficou negativo).'); return; }
+  // Aplica UM episodio (ajuste retroativo). skipConfirm=true no modo "corrigir
+  // todos" (a confirmacao e' feita uma vez la). Retorna true se aplicou.
+  const corrigirEpisodio = useCallback(async (p: ProdutoNegativo, i: number, ep: Episodio, skipConfirm = false): Promise<boolean> => {
+    const kk = epKey(p, i);
+    const novoCMC = Number(String(cmcEdit[kk] ?? '').replace(',', '.'));
+    const codLocal = localSel[kk] === '' || localSel[kk] == null ? null : Number(localSel[kk]);
+    const dataISO = dataEdit[kk] || '';
+    if (!(novoCMC > 0)) { alert('Informe um CMC valido (> 0).'); return false; }
+    if (codLocal == null) { alert('Selecione um local.'); return false; }
+    if (!dataISO) { alert('Informe a data do ajuste retroativo (dia seguinte ao que o produto ficou negativo).'); return false; }
     const dataBR = isoToBR(dataISO);
 
-    if (p.suspeitaEmpresaErrada) {
-      const oe = p.outraEmpresa || {};
-      if (!confirm(`ATENCAO: este produto pode estar negativo so porque a venda foi faturada na empresa errada (${oe.contaLabel || 'a outra empresa'} tem saldo ${oe.saldo != null ? oe.saldo : '?'}).\n\nO recomendado e' fazer a CONTAGEM FISICA, NAO o ajuste retroativo.\n\nMesmo assim, prosseguir com o ajuste retroativo?`)) return;
+    if (!skipConfirm) {
+      if (p.suspeitaEmpresaErrada) {
+        const oe = p.outraEmpresa || {};
+        if (!confirm(`ATENCAO: este produto pode estar negativo so porque a venda foi faturada na empresa errada (${oe.contaLabel || 'a outra empresa'} tem saldo ${oe.saldo != null ? oe.saldo : '?'}).\n\nO recomendado e' fazer a CONTAGEM FISICA, NAO o ajuste retroativo.\n\nMesmo assim, prosseguir com o ajuste retroativo?`)) return false;
+      }
+      if (!confirm(`AJUSTE RETROATIVO no produto ${p.codigoProduto} (${p.descricao || ''}), local ${codLocal}:\n\n- datado em ${dataBR}\n- ZERA o saldo nesse ponto e seta o CMC para ${fmtBRL(novoCMC)}\n- o Omie vai REPROCESSAR os movimentos posteriores (o saldo de hoje vai mudar)\n\nIsso mexe em periodos contabeis ja fechados. Confirme que esta alinhado com a contabilidade. Continuar?`)) return false;
     }
-    if (!confirm(`AJUSTE RETROATIVO no produto ${p.codigoProduto} (${p.descricao || ''}), local ${codLocal}:\n\n- datado em ${dataBR}\n- ZERA o saldo nesse ponto e seta o CMC para ${fmtBRL(novoCMC)}\n- o Omie vai REPROCESSAR os movimentos posteriores (o saldo de hoje vai mudar)\n\nIsso mexe em periodos contabeis ja fechados. Confirme que esta alinhado com a contabilidade. Continuar?`)) return;
 
-    setAplicandoKey(p.key);
+    setAplicandoKey(kk);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const r = await fetch('/api/ajustes/corrigir-estoque-negativo', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token ?? ''}` },
         body: JSON.stringify({
           conta, codigoProduto: p.codigoProduto, codigoIntegracao: p.codigoIntegracao,
-          codLocal, novoCMC, dataAjusteBR: dataBR, cmcSugerido: p.cmcSugerido,
-          estrategiaSugestao: p.estrategiaSugestao, descricao: p.descricao, criadoPor,
+          codLocal, novoCMC, dataAjusteBR: dataBR, cmcSugerido: ep.cmcSugerido,
+          estrategiaSugestao: ep.estrategiaSugestao, descricao: p.descricao, criadoPor,
         }),
       });
       const d = await r.json();
       if (d.ok) {
-        setResultados((s) => ({ ...s, [p.key]: { tipo: 'ok', texto: `corrigido (retroativo ${d.dataAjusteBR || dataBR}) · ajuste #${d.codigoAjuste || '?'} · CMC ${fmtBRL(d.cmcAnterior)} → ${fmtBRL(d.cmcAplicado)}` } }));
+        setResultados((s) => ({ ...s, [kk]: { tipo: 'ok', texto: `corrigido (retroativo ${d.dataAjusteBR || dataBR}) · ajuste #${d.codigoAjuste || '?'} · CMC ${fmtBRL(d.cmcAnterior)} → ${fmtBRL(d.cmcAplicado)}` } }));
         setCorrigidosExtra((n) => n + 1);
-      } else {
-        setResultados((s) => ({ ...s, [p.key]: { tipo: 'erro', texto: d.erro || 'falhou' } }));
+        setPrecisaRevalidar(true);
+        return true;
       }
+      setResultados((s) => ({ ...s, [kk]: { tipo: 'erro', texto: d.erro || 'falhou' } }));
+      return false;
     } catch (ex) {
-      setResultados((s) => ({ ...s, [p.key]: { tipo: 'erro', texto: 'erro de rede: ' + (ex as Error).message } }));
+      setResultados((s) => ({ ...s, [kk]: { tipo: 'erro', texto: 'erro de rede: ' + (ex as Error).message } }));
+      return false;
     } finally {
       setAplicandoKey(null);
     }
   }, [cmcEdit, localSel, dataEdit, conta, criadoPor]);
 
+  // Aplica TODOS os episodios pendentes do produto, do mais ANTIGO para o mais
+  // recente (a ordem importa: cada SLD zera o saldo e a Omie reprocessa o resto).
+  const corrigirTodos = useCallback(async (p: ProdutoNegativo, eps: Episodio[]) => {
+    const pendentes = eps.map((ep, i) => ({ ep, i })).filter(({ ep, i }) => !ep.jaCorrigido && !resultados[epKey(p, i)]);
+    if (!pendentes.length) return;
+    if (p.suspeitaEmpresaErrada) {
+      const oe = p.outraEmpresa || {};
+      if (!confirm(`ATENCAO: este produto pode estar negativo so porque a venda foi faturada na empresa errada (${oe.contaLabel || 'a outra empresa'} tem saldo ${oe.saldo != null ? oe.saldo : '?'}).\n\nO recomendado e' fazer a CONTAGEM FISICA, NAO o ajuste retroativo.\n\nMesmo assim, prosseguir?`)) return;
+    }
+    if (!confirm(`Vai aplicar ${pendentes.length} ajuste(s) retroativo(s) no produto ${p.codigoProduto} (${p.descricao || ''}), do episodio mais ANTIGO para o mais recente.\n\nCada um zera o saldo na data e seta o CMC; a Omie reprocessa os movimentos posteriores. Mexe em periodos contabeis ja fechados.\n\nDepois, clique em "Atualizar" para revarrer e confirmar o resultado. Continuar?`)) return;
+    for (const { ep, i } of pendentes) {
+      const ok = await corrigirEpisodio(p, i, ep, true);
+      if (!ok) break; // para na 1a falha (nao adianta seguir com o saldo desatualizado)
+    }
+  }, [resultados, corrigirEpisodio]);
+
   if (!permLoading && userProfile && !pode('ajustes', 'negativos')) return <SemPermissao />;
 
-  const jaCorrigidos = (dados?.produtos || []).filter((p) => p.jaCorrigido).length + corrigidosExtra;
+  const jaCorrigidos = (dados?.produtos || []).reduce((n, p) => n + episodiosDe(p).filter((e) => e.jaCorrigido).length, 0) + corrigidosExtra;
 
   return (
     <div style={{ maxWidth: 1300, margin: '0 auto', padding: '20px 24px' }}>
@@ -271,6 +326,13 @@ export default function EstoqueNegativoPage() {
 
           {erro && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: '.82rem' }}>{erro}</div>}
 
+          {precisaRevalidar && !rodando && (
+            <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e40af', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: '.82rem', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <span>✔ Ajuste(s) aplicado(s). O Omie reprocessa os movimentos posteriores — <b>revarra</b> para confirmar o resultado e ver se sobraram episodios.</span>
+              <button onClick={() => iniciar(true)} style={{ marginLeft: 'auto', padding: '5px 12px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.78rem', cursor: 'pointer' }}>Atualizar agora</button>
+            </div>
+          )}
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 18 }}>
             <Kpi label="Produtos varridos" valor={fmtNum(dados?.totalProdutos)} />
             <Kpi label="Com estoque negativo" valor={fmtNum(dados?.totalNegativos)} cor="#b91c1c" />
@@ -304,58 +366,78 @@ export default function EstoqueNegativoPage() {
                   ) : (dados.produtos || []).length === 0 ? (
                     <tr><td colSpan={9} style={{ padding: '40px', textAlign: 'center', color: '#059669' }}>Nenhum produto com estoque negativo. 🎉</td></tr>
                   ) : (
-                    dados.produtos!.map((p) => {
+                    dados.produtos!.flatMap((p) => {
                       const locais = p.porLocal || [];
                       const def = localMaisNegativo(p);
-                      const res = resultados[p.key];
-                      const temComoCorrigir = p.codigoProduto != null && def != null && !res;
                       const susp = !!p.suspeitaEmpresaErrada;
-                      const bg = res?.tipo === 'ok' || p.jaCorrigido ? '#ecfdf5' : (susp ? '#fef2f2' : undefined);
                       const skuMostrar = p.codigo || p.codigoIntegracao || (p.codigoProduto != null ? p.codigoProduto : '?');
                       const oe = p.outraEmpresa || {};
-                      return (
-                        <tr key={p.key} style={{ background: bg, borderBottom: '1px solid #f1f5f9' }}>
-                          <td style={tdStyle}>
-                            <div style={{ fontFamily: 'monospace', fontSize: '.72rem', color: '#64748b' }}>{skuMostrar}</div>
-                            <div style={{ fontWeight: 500 }}>{p.descricao || '(sem descricao)'}</div>
-                            {p.jaCorrigido && <span style={{ display: 'inline-block', marginTop: 2, padding: '1px 6px', borderRadius: 4, fontSize: '.62rem', background: '#d1fae5', color: '#065f46' }}>ja corrigido</span>}
-                            {susp && (
-                              <div style={{ marginTop: 3 }}>
-                                <span style={{ display: 'inline-block', padding: '1px 6px', borderRadius: 4, fontSize: '.62rem', background: '#dc2626', color: '#fff' }} title="Possivelmente faturado na empresa errada. Recomendado: contagem fisica.">⚠ suspeita empresa errada</span>
-                                <span style={{ fontSize: '.62rem', color: '#b91c1c', marginLeft: 4 }}>existe na {oe.contaLabel || 'outra empresa'} c/ saldo {oe.saldo != null ? fmtSaldo(oe.saldo) : '?'}{oe.cmc != null ? `, CMC ${fmtBRL(oe.cmc)}` : ''} → <b>fazer contagem</b></span>
-                              </div>
-                            )}
-                          </td>
-                          <td style={{ ...tdStyle, textAlign: 'right' }}>{p.cmcAtual == null ? '?' : fmtBRL(p.cmcAtual)}</td>
-                          <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600, color: '#b91c1c' }}>{fmtSaldo(p.saldoTotal)}</td>
-                          <td style={{ ...tdStyle, fontSize: '.72rem' }}>{p.dataFicouNegativo || <span style={{ color: '#d97706' }}>nao detectado (mais antigo que 24m)</span>}</td>
-                          <td style={tdStyle}>
-                            <input type="date" value={dataEdit[p.key] ?? ''} onChange={(e) => setDataEdit((s) => ({ ...s, [p.key]: e.target.value }))} disabled={!!res} style={{ border: '1px solid #cbd5e1', borderRadius: 4, padding: '2px 6px', fontSize: '.72rem' }} />
-                          </td>
-                          <td style={{ ...tdStyle, textAlign: 'right' }}>
-                            <input type="number" step="0.0001" min="0" value={cmcEdit[p.key] ?? ''} onChange={(e) => setCmcEdit((s) => ({ ...s, [p.key]: e.target.value }))} disabled={!!res} style={{ border: '1px solid #cbd5e1', borderRadius: 4, padding: '2px 6px', fontSize: '.8rem', width: 110, textAlign: 'right' }} />
-                          </td>
-                          <td style={{ ...tdStyle, fontSize: '.72rem', color: '#475569' }} title={estrategiaLabel(p.estrategiaSugestao)}>{p.estrategiaSugestao || ''}</td>
-                          <td style={tdStyle}>
-                            {locais.length > 0 ? (
-                              <select value={localSel[p.key] ?? ''} onChange={(e) => setLocalSel((s) => ({ ...s, [p.key]: e.target.value === '' ? '' : Number(e.target.value) }))} disabled={!!res} style={{ border: '1px solid #cbd5e1', borderRadius: 4, padding: '2px 6px', fontSize: '.72rem', maxWidth: 220 }}>
-                                {locais.map((l) => (
-                                  <option key={l.localId} value={l.localId}>{l.localNome} (saldo {fmtSaldo(l.saldo)})</option>
-                                ))}
-                              </select>
-                            ) : (
-                              <span style={{ fontSize: '.72rem', color: '#94a3b8' }}>-</span>
-                            )}
-                          </td>
-                          <td style={{ ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' }}>
-                            <button onClick={() => setModalProd(p)} style={{ padding: '3px 8px', fontSize: '.72rem', background: '#f1f5f9', border: 'none', borderRadius: 4, cursor: 'pointer', marginRight: 4 }}>Detalhes</button>
-                            <button onClick={() => corrigirLinha(p)} disabled={!temComoCorrigir || aplicandoKey === p.key} style={{ padding: '3px 8px', fontSize: '.72rem', border: 'none', borderRadius: 4, cursor: temComoCorrigir ? 'pointer' : 'not-allowed', background: temComoCorrigir ? '#059669' : '#e2e8f0', color: temComoCorrigir ? '#fff' : '#94a3b8' }}>
-                              {res?.tipo === 'ok' ? 'Corrigido' : aplicandoKey === p.key ? 'aplicando...' : 'Corrigir (retroativo)'}
-                            </button>
-                            {res && <div style={{ fontSize: '.68rem', marginTop: 2, color: res.tipo === 'ok' ? '#047857' : '#dc2626' }}>{res.texto}</div>}
-                          </td>
-                        </tr>
-                      );
+                      const eps = episodiosDe(p);
+                      const multi = eps.length > 1;
+                      return eps.map((ep, i) => {
+                        const kk = epKey(p, i);
+                        const res = resultados[kk];
+                        const jaCorr = !!ep.jaCorrigido;
+                        const temComoCorrigir = p.codigoProduto != null && def != null && !res && !jaCorr;
+                        const bg = res?.tipo === 'ok' || jaCorr ? '#ecfdf5' : (susp ? '#fef2f2' : undefined);
+                        const ultimoDoProduto = i === eps.length - 1;
+                        return (
+                          <tr key={kk} style={{ background: bg, borderBottom: ultimoDoProduto ? '2px solid #e2e8f0' : '1px solid #f8fafc' }}>
+                            <td style={tdStyle}>
+                              {i === 0 ? (
+                                <>
+                                  <div style={{ fontFamily: 'monospace', fontSize: '.72rem', color: '#64748b' }}>{skuMostrar}</div>
+                                  <div style={{ fontWeight: 500 }}>{p.descricao || '(sem descricao)'}</div>
+                                  {multi && <span style={{ display: 'inline-block', marginTop: 2, padding: '1px 6px', borderRadius: 4, fontSize: '.62rem', background: '#fef3c7', color: '#92400e' }}>{eps.length} episodios negativos</span>}
+                                  {p.jaCorrigido && <span style={{ display: 'inline-block', marginTop: 2, marginLeft: 4, padding: '1px 6px', borderRadius: 4, fontSize: '.62rem', background: '#d1fae5', color: '#065f46' }}>tudo corrigido</span>}
+                                  {susp && (
+                                    <div style={{ marginTop: 3 }}>
+                                      <span style={{ display: 'inline-block', padding: '1px 6px', borderRadius: 4, fontSize: '.62rem', background: '#dc2626', color: '#fff' }} title="Possivelmente faturado na empresa errada. Recomendado: contagem fisica.">⚠ suspeita empresa errada</span>
+                                      <span style={{ fontSize: '.62rem', color: '#b91c1c', marginLeft: 4 }}>existe na {oe.contaLabel || 'outra empresa'} c/ saldo {oe.saldo != null ? fmtSaldo(oe.saldo) : '?'}{oe.cmc != null ? `, CMC ${fmtBRL(oe.cmc)}` : ''} → <b>fazer contagem</b></span>
+                                    </div>
+                                  )}
+                                </>
+                              ) : (
+                                <span style={{ fontSize: '.72rem', color: '#94a3b8', paddingLeft: 12 }}>↳ episodio {i + 1} de {eps.length}</span>
+                              )}
+                            </td>
+                            <td style={{ ...tdStyle, textAlign: 'right' }}>{i === 0 ? (p.cmcAtual == null ? '?' : fmtBRL(p.cmcAtual)) : ''}</td>
+                            <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600, color: '#b91c1c' }}>{i === 0 ? fmtSaldo(p.saldoTotal) : ''}</td>
+                            <td style={{ ...tdStyle, fontSize: '.72rem' }}>
+                              {ep.dataFicouNegativo || (i === 0 && !multi ? <span style={{ color: '#d97706' }}>nao detectado (mais antigo que 24m)</span> : '-')}
+                              {ep.saldoMin != null && ep.saldoMin < 0 && <div style={{ fontSize: '.62rem', color: '#b91c1c' }}>ate {fmtSaldo(ep.saldoMin)}</div>}
+                            </td>
+                            <td style={tdStyle}>
+                              <input type="date" value={dataEdit[kk] ?? ''} onChange={(e) => setDataEdit((s) => ({ ...s, [kk]: e.target.value }))} disabled={!!res || jaCorr} style={{ border: '1px solid #cbd5e1', borderRadius: 4, padding: '2px 6px', fontSize: '.72rem' }} />
+                            </td>
+                            <td style={{ ...tdStyle, textAlign: 'right' }}>
+                              <input type="number" step="0.0001" min="0" value={cmcEdit[kk] ?? ''} onChange={(e) => setCmcEdit((s) => ({ ...s, [kk]: e.target.value }))} disabled={!!res || jaCorr} style={{ border: '1px solid #cbd5e1', borderRadius: 4, padding: '2px 6px', fontSize: '.8rem', width: 110, textAlign: 'right' }} />
+                            </td>
+                            <td style={{ ...tdStyle, fontSize: '.72rem', color: '#475569' }} title={estrategiaLabel(ep.estrategiaSugestao)}>{ep.estrategiaSugestao || ''}</td>
+                            <td style={tdStyle}>
+                              {locais.length > 0 ? (
+                                <select value={localSel[kk] ?? ''} onChange={(e) => setLocalSel((s) => ({ ...s, [kk]: e.target.value === '' ? '' : Number(e.target.value) }))} disabled={!!res || jaCorr} style={{ border: '1px solid #cbd5e1', borderRadius: 4, padding: '2px 6px', fontSize: '.72rem', maxWidth: 220 }}>
+                                  {locais.map((l) => (
+                                    <option key={l.localId} value={l.localId}>{l.localNome} (saldo {fmtSaldo(l.saldo)})</option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <span style={{ fontSize: '.72rem', color: '#94a3b8' }}>-</span>
+                              )}
+                            </td>
+                            <td style={{ ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                              {i === 0 && <button onClick={() => setModalProd(p)} style={{ padding: '3px 8px', fontSize: '.72rem', background: '#f1f5f9', border: 'none', borderRadius: 4, cursor: 'pointer', marginRight: 4 }}>Detalhes</button>}
+                              {i === 0 && multi && (
+                                <button onClick={() => corrigirTodos(p, eps)} disabled={aplicandoKey != null || p.jaCorrigido} title="Aplica todos os episodios pendentes, do mais antigo para o mais recente" style={{ padding: '3px 8px', fontSize: '.72rem', border: 'none', borderRadius: 4, cursor: aplicandoKey != null || p.jaCorrigido ? 'not-allowed' : 'pointer', background: aplicandoKey != null || p.jaCorrigido ? '#e2e8f0' : '#0f766e', color: aplicandoKey != null || p.jaCorrigido ? '#94a3b8' : '#fff', marginRight: 4 }}>Corrigir todos</button>
+                              )}
+                              <button onClick={() => corrigirEpisodio(p, i, ep)} disabled={!temComoCorrigir || aplicandoKey === kk} style={{ padding: '3px 8px', fontSize: '.72rem', border: 'none', borderRadius: 4, cursor: temComoCorrigir ? 'pointer' : 'not-allowed', background: temComoCorrigir ? '#059669' : '#e2e8f0', color: temComoCorrigir ? '#fff' : '#94a3b8' }}>
+                                {res?.tipo === 'ok' || jaCorr ? 'Corrigido' : aplicandoKey === kk ? 'aplicando...' : 'Corrigir'}
+                              </button>
+                              {res && <div style={{ fontSize: '.68rem', marginTop: 2, color: res.tipo === 'ok' ? '#047857' : '#dc2626' }}>{res.texto}</div>}
+                            </td>
+                          </tr>
+                        );
+                      });
                     })
                   )}
                 </tbody>
