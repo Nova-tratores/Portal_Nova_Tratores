@@ -32,15 +32,32 @@ export async function buscarProdutosAutocomplete(conta: Conta, termo: string): P
   // % e vírgula quebram o filtro .or() do PostgREST — remove.
   const seguro = t.replace(/[%,()]/g, ' ').trim();
   if (!seguro) return [];
-  const { data, error } = await supabase
-    .from('produtos')
-    .select('codigo_produto,codigo,descricao,estoque')
-    .eq('conta_omie', conta.toLowerCase())
-    .or(`codigo.ilike.%${seguro}%,descricao.ilike.%${seguro}%`)
-    .order('descricao')
-    .limit(20);
-  if (error) throw new Error('busca de produto: ' + error.message);
-  return (data || []).map((p: any) => ({
+
+  const consulta = async (padrao: string) => {
+    const { data, error } = await supabase
+      .from('produtos')
+      .select('codigo_produto,codigo,descricao,estoque')
+      .eq('conta_omie', conta.toLowerCase())
+      .or(`codigo.ilike.%${padrao}%,descricao.ilike.%${padrao}%`)
+      .order('descricao')
+      .limit(20);
+    if (error) throw new Error('busca de produto: ' + error.message);
+    return data || [];
+  };
+
+  let lista = await consulta(seguro);
+
+  // Fallback p/ caracteres visualmente ambíguos nos códigos (1↔I↔l, 0↔O):
+  // "RP-100012285P04" não acha "RP-I00012285P04". Sem resultado exato, refaz
+  // com `_` (curinga de 1 char do ilike) nessas posições.
+  if (lista.length === 0) {
+    const fuzzy = seguro.replace(/[10IlLoO]/g, '_');
+    if (fuzzy !== seguro && fuzzy.replace(/_/g, '').length >= 2) {
+      lista = await consulta(fuzzy);
+    }
+  }
+
+  return lista.map((p: any) => ({
     codigoProduto: Number(p.codigo_produto),
     codigo: String(p.codigo || ''),
     descricao: String(p.descricao || ''),
