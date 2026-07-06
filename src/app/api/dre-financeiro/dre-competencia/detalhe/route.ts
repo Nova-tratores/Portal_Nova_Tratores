@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin as supabase } from '@/lib/dre-financeiro/supabase'
 import { selectPaginado, carregarPedidosInvalidos, pedidoEhInvalido } from '@/lib/dre-financeiro/calc'
-import { EMPRESAS_GRUPO_CNPJ, cnpjOutraEmpresa } from '@/lib/dre-financeiro/omie-api'
+import { EMPRESAS_GRUPO_CNPJ, cnpjOutraEmpresa, mapaUsuariosOmie } from '@/lib/dre-financeiro/omie-api'
 
 export const dynamic = 'force-dynamic'
 
@@ -107,12 +107,14 @@ export async function GET(request: NextRequest) {
       const dataAte = `${ano}-${String(mes).padStart(2, '0')}-${String(ultDia).padStart(2, '0')}`
       const cps = await selectPaginado(() =>
         db.from('contas_pagar')
-          .select('valor_documento,data_emissao,conta_omie,grupo_categoria,descricao_categoria,nome_fornecedor,numero_documento,status_titulo')
+          .select('valor_documento,data_emissao,conta_omie,grupo_categoria,descricao_categoria,nome_fornecedor,numero_documento,status_titulo,incluido_por')
           .gte('data_emissao', dataDe).lte('data_emissao', dataAte)
           .in('grupo_categoria', gruposParaCarregar)
           .order('codigo_lancamento', { ascending: true })
           .order('conta_omie', { ascending: true }) // ordem estavel p/ paginacao (evita duplicar)
       )
+      // Mapa codigo Omie -> nome (para exibir "incluido por" com nome legivel).
+      const usuarios: Record<string, string> = await mapaUsuariosOmie()
       cps.forEach((r: any) => {
         // Titulos cancelados no Omie nao entram na DRE (ver calcularDRECompetencia)
         if (String(r.status_titulo || '').toUpperCase().includes('CANCEL')) return
@@ -127,6 +129,7 @@ export async function GET(request: NextRequest) {
           categoria: cat,
           dreConta: cls.conta,
           numeroDocumento: r.numero_documento,
+          incluidoPor: usuarios[r.incluido_por] || r.incluido_por || null,
           valor: v,
         })
       })

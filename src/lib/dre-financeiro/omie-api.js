@@ -1108,6 +1108,53 @@ async function sincronizarTudo(conta, deStr, ateStr) {
   }
 }
 
+// =============================================================================
+// Usuarios Omie: traduz o codigo (cNome, ex "P000454175") em nome real
+// (cNomeCompl). ListarUsuarios usa nPagina/nRegPorPagina e devolve listaUsuarios.
+// O codigo e' o mesmo que aparece em contas_pagar.incluido_por/alterado_por.
+// =============================================================================
+async function sincronizarUsuariosOmie(conta) {
+  if (!supabaseAdmin) throw new Error('Supabase nao configurado');
+  let pagina = 1, totalPaginas = 1, salvos = 0;
+  const vistos = new Set();
+  while (pagina <= totalPaginas) {
+    const r = await omieRequest('/geral/usuarios/', 'ListarUsuarios', { nPagina: pagina, nRegPorPagina: 50 }, conta);
+    totalPaginas = r.nTotPaginas || 1;
+    // Dedup em passe unico (check-and-add): o Omie pode repetir cNome na mesma
+    // pagina, e o upsert falha se o lote tiver o mesmo 'codigo' (PK) duas vezes.
+    const rows = [];
+    for (const u of (r.listaUsuarios || [])) {
+      if (!u.cNome || vistos.has(u.cNome)) continue;
+      vistos.add(u.cNome);
+      rows.push({
+        codigo: u.cNome,
+        nome: u.cNomeCompl || u.cNome,
+        email: u.cEmail || null,
+        ncod_usuario: u.nCodUsuario || null,
+        synced_at: new Date().toISOString(),
+      });
+    }
+    if (rows.length) {
+      const { error } = await supabaseAdmin.from('omie_usuarios').upsert(rows, { onConflict: 'codigo' });
+      if (error) throw new Error(`Supabase upsert omie_usuarios: ${error.message}`);
+      salvos += rows.length;
+    }
+    pagina++;
+  }
+  return salvos;
+}
+
+// Le omie_usuarios como mapa { codigo: nome }. Resiliente: se a tabela ainda
+// nao existe (migration nao aplicada), devolve {} e o chamador cai no codigo.
+async function mapaUsuariosOmie() {
+  if (!supabaseAdmin) return {};
+  const { data, error } = await supabaseAdmin.from('omie_usuarios').select('codigo,nome');
+  if (error) return {};
+  const m = {};
+  (data || []).forEach(u => { m[u.codigo] = u.nome; });
+  return m;
+}
+
 module.exports = {
   CONTAS_OMIE,
   CONFIG,
@@ -1130,5 +1177,7 @@ module.exports = {
   consultarDREPorPeriodo,
   computeResumoDRE,
   getSyncState,
-  fmtBR
+  fmtBR,
+  sincronizarUsuariosOmie,
+  mapaUsuariosOmie
 };

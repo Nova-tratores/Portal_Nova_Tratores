@@ -66,24 +66,47 @@ export async function anotarCorrecoesAplicadas(payload: any): Promise<any> {
   if (cods.length === 0) return payload;
   const { data, error } = await supabase
     .from('cmc_correcoes')
-    .select('codigo_produto, codigo_local_estoque, cmc_aplicado, cmc_anterior, codigo_ajuste_omie, status, criado_em, criado_por')
+    .select('codigo_produto, codigo_local_estoque, cmc_aplicado, cmc_anterior, codigo_ajuste_omie, status, criado_em, criado_por, nf_origem_data, origem')
     .eq('conta_omie', payload.contaLabel)
     .in('codigo_produto', cods)
     .order('criado_em', { ascending: false })
-    .limit(2000);
+    .limit(4000);
   if (error) {
     console.warn('[cmc] cruzamento cmc_correcoes falhou:', error.message);
     return payload;
   }
+  // mais recente por produto (retrocompat) + aplicadas indexadas por (produto, data-ISO)
+  // para casar cada episodio pela data do ajuste retroativo.
   const porProduto = new Map<any, any>();
+  const aplicadasPorData = new Map<string, any>();
   for (const row of data || []) {
     if (!porProduto.has(row.codigo_produto)) porProduto.set(row.codigo_produto, row);
+    if (row.status === 'aplicado' && row.origem === 'estoque_negativo' && row.nf_origem_data) {
+      const iso = String(row.nf_origem_data).slice(0, 10);
+      const k = `${row.codigo_produto}|${iso}`;
+      if (!aplicadasPorData.has(k)) aplicadasPorData.set(k, row); // ja ordenado desc -> mais recente
+    }
   }
+  const toISO = (br?: string | null): string => {
+    const m = String(br || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    return m ? `${m[3]}-${m[2]}-${m[1]}` : '';
+  };
   for (const p of payload.produtos) {
     const c = p.codigoProduto != null ? porProduto.get(p.codigoProduto) : null;
     if (c) {
       p.jaCorrigido = c.status === 'aplicado';
       p.ultimaCorrecao = c;
+    }
+    if (Array.isArray(p.episodios) && p.episodios.length > 0) {
+      let todos = true;
+      for (const ep of p.episodios) {
+        const iso = toISO(ep.dataAjusteRetroativoBR);
+        const hit = iso ? aplicadasPorData.get(`${p.codigoProduto}|${iso}`) : null;
+        ep.jaCorrigido = !!hit;
+        ep.ultimaCorrecao = hit || null;
+        if (!hit) todos = false;
+      }
+      p.jaCorrigido = todos; // produto so "corrigido" quando TODOS os episodios foram
     }
   }
   return payload;

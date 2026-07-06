@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import CardCapaReq from './CardCapaReq';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
@@ -38,6 +38,16 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
   const [salvandoGrupo, setSalvandoGrupo] = useState(false);
   const [renomeandoId, setRenomeandoId] = useState<number | null>(null);
   const [renomeandoNome, setRenomeandoNome] = useState('');
+
+  // Deep-link: /requisicoes?grupo=<id> abre o kanban já filtrado por esse grupo.
+  // 100% aditivo: só age uma vez, e apenas se o parâmetro existir na URL.
+  const aplicouGrupoUrl = useRef(false);
+  useEffect(() => {
+    if (aplicouGrupoUrl.current || grupos.length === 0) return;
+    const g = new URLSearchParams(window.location.search).get('grupo');
+    if (g && grupos.some((x: any) => x.id === Number(g))) setGrupoFiltro(Number(g));
+    aplicouGrupoUrl.current = true;
+  }, [grupos]);
   const [grupoHist, setGrupoHist] = useState<any>(null);
 
   const recarregarGrupos = useCallback(async () => {

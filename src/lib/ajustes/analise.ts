@@ -619,44 +619,78 @@ export async function analisarEstoqueNegativo(conta: Conta, opts: any = {}): Pro
     catch (e: any) { onProgress(`  aviso: MovimentoEstoque prod ${codigoProduto}: ${e.message}`); }
     await sleep(900);
 
-    // acha o 1o movimento em que a qtde acumulada ficou < 0
-    let idxNeg = -1;
+    // fallback de CMC (nivel produto): maior cmcAtual entre movimentos de Compra
+    // de Produto; usado quando nao ha CMC "bom" vigente antes do episodio.
+    let melhorCompra: any = null;
+    for (const m of movimentos) {
+      if (m.cancelado) continue;
+      if (!(m.qtdeEntrada > 0) || !(m.cmcAtual > 0)) continue;
+      if (!/compra/i.test(m.desOrigem || '') && !/^COM/.test(m.codOrigem || '')) continue;
+      if (melhorCompra == null || m.cmcAtual > melhorCompra.cmcAtual) melhorCompra = m;
+    }
+    // CMC sugerido para um episodio que comeca no movimento idxIni: o vigente antes
+    // desse ponto (cmcAnterior / ultimo cmcAtual positivo), senao o fallback do produto.
+    const sugerirCMC = (idxIni: number): { cmc: number | null; estrat: string; ref: any } => {
+      const mNeg = movimentos[idxIni];
+      if (mNeg.cmcAnterior != null && mNeg.cmcAnterior > 0) return { cmc: mNeg.cmcAnterior, estrat: 'cmc_antes_de_negativo', ref: mNeg };
+      for (let k = idxIni - 1; k >= 0; k--) {
+        if (!movimentos[k].cancelado && movimentos[k].cmcAtual != null && movimentos[k].cmcAtual > 0) return { cmc: movimentos[k].cmcAtual, estrat: 'cmc_antes_de_negativo', ref: movimentos[k] };
+      }
+      if (melhorCompra) return { cmc: melhorCompra.cmcAtual, estrat: 'maior_cmc_compra', ref: melhorCompra };
+      return { cmc: num(est.cmcMedioPonderado), estrat: 'manual', ref: null };
+    };
+    const refToBase = (ref: any) => ref ? { data: ref.data, doc: ref.numDoc, origem: ref.desOrigem || ref.codOrigem } : null;
+
+    // Detecta TODOS os episodios negativos, simulando o efeito de cada correcao: o
+    // ajuste SLD datado no dia seguinte ZERA o saldo (nao injeta estoque) e a Omie
+    // reprocessa os movimentos posteriores, deslocando o saldo para cima. O `offset`
+    // modela esses zeramentos, para so propor o conjunto minimo e independente de
+    // episodios que continuam negativos depois de corrigir os anteriores (sem
+    // arriscar zerar um saldo que ja teria voltado a ser positivo).
+    const episodios: any[] = [];
+    let offset = 0;
+    let negAberto = false;
     for (let j = 0; j < movimentos.length; j++) {
-      if (movimentos[j].cancelado) continue;
-      if (movimentos[j].qtdeAtual != null && movimentos[j].qtdeAtual < 0) { idxNeg = j; break; }
-    }
-    let cmcSugerido: number | null = null, estrategiaSugestao = 'manual', dataFicouNegativo: any = null, movRef: any = null;
-    if (idxNeg >= 0) {
-      const mNeg = movimentos[idxNeg];
-      dataFicouNegativo = mNeg.data || null;
-      movRef = mNeg;
-      // CMC "bom" = o vigente antes desse movimento (cmcAnterior) ou o cmcAtual do movimento anterior
-      if (mNeg.cmcAnterior != null && mNeg.cmcAnterior > 0) { cmcSugerido = mNeg.cmcAnterior; estrategiaSugestao = 'cmc_antes_de_negativo'; }
-      else {
-        for (let j = idxNeg - 1; j >= 0; j--) {
-          if (!movimentos[j].cancelado && movimentos[j].cmcAtual != null && movimentos[j].cmcAtual > 0) { cmcSugerido = movimentos[j].cmcAtual; estrategiaSugestao = 'cmc_antes_de_negativo'; movRef = movimentos[j]; break; }
+      const m = movimentos[j];
+      if (m.cancelado || m.qtdeAtual == null) continue;
+      const adj = num(m.qtdeAtual) + offset;
+      if (adj < 0) {
+        if (!negAberto) {
+          const s = sugerirCMC(j);
+          const dataFic = m.data || null;
+          let dataAjuste: string | null = null;
+          if (dataFic) { const d = parseAnyDate(dataFic); if (d) dataAjuste = fmtBR(addDias(d, 1)); }
+          episodios.push({
+            dataFicouNegativo: dataFic,
+            dataAjusteRetroativoBR: dataAjuste,
+            cmcSugerido: s.cmc,
+            estrategiaSugestao: s.estrat,
+            cmcSugeridoBaseadoEm: refToBase(s.ref),
+            saldoMin: adj,
+            jaCorrigido: false,
+            ultimaCorrecao: null,
+          });
+          negAberto = true;
+          offset = -num(m.qtdeAtual); // simula o SLD zerando o saldo neste ponto
         }
+      } else {
+        negAberto = false;
       }
-    }
-    if (cmcSugerido == null) {
-      // fallback: maior cmcAtual entre movimentos de Compra de Produto, ou o ultimo
-      let melhorCompra: any = null;
-      for (const m of movimentos) {
-        if (m.cancelado) continue;
-        if (!(m.qtdeEntrada > 0) || !(m.cmcAtual > 0)) continue;
-        if (!/compra/i.test(m.desOrigem || '') && !/^COM/.test(m.codOrigem || '')) continue;
-        if (melhorCompra == null || m.cmcAtual > melhorCompra.cmcAtual) melhorCompra = m;
-      }
-      if (melhorCompra) { cmcSugerido = melhorCompra.cmcAtual; estrategiaSugestao = 'maior_cmc_compra'; movRef = melhorCompra; }
-    }
-    if (cmcSugerido == null) {
-      cmcSugerido = num(est.cmcMedioPonderado);
-      estrategiaSugestao = 'manual';
     }
 
-    // data sugerida do ajuste retroativo = dia seguinte ao que ficou negativo
-    let dataAjusteRetroativoBR: string | null = null;
-    if (dataFicouNegativo) { const d = parseAnyDate(dataFicouNegativo); if (d) dataAjusteRetroativoBR = fmtBR(addDias(d, 1)); }
+    // Campos de topo = 1o episodio (retrocompat). Sem episodios (ex.: negativo mais
+    // antigo que a janela de 24m), mantem data nula e um CMC sugerido de fallback.
+    let cmcSugerido: number | null, estrategiaSugestao: string, dataFicouNegativo: any, dataAjusteRetroativoBR: string | null, baseTopo: any;
+    if (episodios.length > 0) {
+      const p0 = episodios[0];
+      cmcSugerido = p0.cmcSugerido; estrategiaSugestao = p0.estrategiaSugestao;
+      dataFicouNegativo = p0.dataFicouNegativo; dataAjusteRetroativoBR = p0.dataAjusteRetroativoBR;
+      baseTopo = p0.cmcSugeridoBaseadoEm;
+    } else {
+      dataFicouNegativo = null; dataAjusteRetroativoBR = null;
+      if (melhorCompra) { cmcSugerido = melhorCompra.cmcAtual; estrategiaSugestao = 'maior_cmc_compra'; baseTopo = refToBase(melhorCompra); }
+      else { cmcSugerido = num(est.cmcMedioPonderado); estrategiaSugestao = 'manual'; baseTopo = null; }
+    }
 
     // suspeita "faturado na empresa errada": o mesmo produto existe na outra conta com saldo > 0
     let suspeitaEmpresaErrada = false, outraEmpresa: any = null;
@@ -682,9 +716,10 @@ export async function analisarEstoqueNegativo(conta: Conta, opts: any = {}): Pro
       estrategiaSugestao,
       dataFicouNegativo,
       dataAjusteRetroativoBR,
+      episodios,
       suspeitaEmpresaErrada,
       outraEmpresa,
-      cmcSugeridoBaseadoEm: movRef ? { data: movRef.data, doc: movRef.numDoc, origem: movRef.desOrigem || movRef.codOrigem } : null,
+      cmcSugeridoBaseadoEm: baseTopo,
       movimentosResumo: (movimentos || []).slice(-30).map((m: any) => ({
         data: m.data, codOrigem: m.codOrigem, desOrigem: m.desOrigem, numDoc: m.numDoc,
         qtdeEntrada: m.qtdeEntrada, entradaCMC: m.entradaCMC, qtdeSaida: m.qtdeSaida,

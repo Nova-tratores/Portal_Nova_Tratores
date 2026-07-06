@@ -1394,6 +1394,7 @@ export default function DrePage() {
     { campo: 'categoria', label: 'Categoria', align: 'text-left' },
     { campo: 'dreConta', label: 'Conta DRE', align: 'text-left' },
     { campo: 'numeroDocumento', label: 'Doc', align: 'text-left' },
+    { campo: 'incluidoPor', label: 'Incluído por', align: 'text-left' },
     { campo: 'valor', label: 'Valor', align: 'text-right' },
   ]
 
@@ -1811,9 +1812,9 @@ export default function DrePage() {
                 </thead>
                 <tbody>
                   {modalCarregando ? (
-                    <tr><td colSpan={7} className="text-center py-4 text-slate-500">Carregando...</td></tr>
+                    <tr><td colSpan={8} className="text-center py-4 text-slate-500">Carregando...</td></tr>
                   ) : modalLista.length === 0 ? (
-                    <tr><td colSpan={7} className="text-center py-4 text-slate-500">Sem movimentos.</td></tr>
+                    <tr><td colSpan={8} className="text-center py-4 text-slate-500">Sem movimentos.</td></tr>
                   ) : modalLista.map((m, i) => {
                     const v = Number(m.valor) || 0
                     const cls = v >= 0 ? 'text-emerald-700' : 'text-red-700'
@@ -1825,6 +1826,7 @@ export default function DrePage() {
                         <td className="px-3 py-1 truncate max-w-[200px] text-[11px] text-slate-600" title={m.categoria || ''}>{m.categoria || '-'}</td>
                         <td className="px-3 py-1 truncate max-w-[200px] text-[11px] text-slate-500" title={m.dreConta || ''}>{m.dreConta || '-'}</td>
                         <td className="px-3 py-1 text-[11px] text-slate-500">{m.numeroDocumento || '-'}</td>
+                        <td className="px-3 py-1 truncate max-w-[140px] text-[11px] text-slate-500" title={m.incluidoPor || ''}>{m.incluidoPor || '-'}</td>
                         <td className={'px-3 py-1 text-right font-semibold ' + cls}>{fmtBRL(v)}</td>
                       </tr>
                     )

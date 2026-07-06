@@ -492,21 +492,40 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
     // a receber, categoria #Serv Prest Garantia, conta INTERNO. nCodProj fica
     // pendente até o garantista escolher a montadora em /garantias (depois
     // disso, /api/garantias/[id]/sync-omie-projeto atualiza só esse campo).
-    const ehGarantia = String(os.Tipo_Servico || '').toLowerCase().trim() === 'garantia';
+    // Garantia: OS marcada como 'Garantia' OU que TEM uma garantia vinculada
+    // (garantias criadas manualmente ficam sobre OS de Manutenção — por isso
+    // não dá pra confiar só no Tipo_Servico). Puxa a montadora pra o contrato.
+    const { data: garRow } = await supabase
+      .from('garantias')
+      .select('montadora_id')
+      .eq('id_ordem', idOrdem)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const ehGarantia = String(os.Tipo_Servico || '').toLowerCase().trim() === 'garantia' || !!garRow;
+    let montadoraNome: string | null = null;
+    if (garRow?.montadora_id) {
+      const { data: mont } = await supabase.from('garantia_montadoras').select('nome').eq('id', garRow.montadora_id).maybeSingle();
+      montadoraNome = mont?.nome ? String(mont.nome).trim() : null;
+    }
     let payloadGarantia: {
       codCategGarantia: string;
       nCodCC_Interno: number;
+      codDeptGarantia: string | null;
+      cNumContrato?: string;
       produtos: Array<{ cCodProd?: string; cDescr?: string; nQtde?: number; nValUnit?: number }>;
     } | null = null;
     if (ehGarantia) {
       try {
         const { buscarCodigosGarantia, montarListaProdutosPPV } = await import('@/lib/garantias/omie-faturamento');
-        const codigos = await buscarCodigosGarantia(undefined, null);
+        const codigos = await buscarCodigosGarantia(undefined, montadoraNome);
         const ppvIds = String(os.ID_PPV || '').split(',').map((s: string) => s.trim()).filter(Boolean);
         const produtos = await montarListaProdutosPPV(ppvIds);
         payloadGarantia = {
           codCategGarantia: codigos.codCategGarantia,
           nCodCC_Interno: codigos.nCodCC_Interno,
+          codDeptGarantia: codigos.codDeptGarantia,
+          cNumContrato: montadoraNome ? `${montadoraNome}-pgo` : undefined,
           produtos,
         };
       } catch (err) {
@@ -515,10 +534,13 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
       }
     }
 
-    // Serviços: em garantia cada linha recebe cCodCateg + cNaoGerarReceber='S'
+    // Serviços: em garantia cada linha recebe a categoria de garantia +
+    // "não gerar conta a receber". OBS: no nó ServicosPrestados os campos
+    // corretos são cCodCategItem e cNaoGerarFinanceiro (NÃO cCodCateg/
+    // cNaoGerarReceber — esses fazem o Omie rejeitar a OS inteira).
     const servicosBase = await montarServicosComReqs(os, idOrdem);
     const servicosFinal = payloadGarantia
-      ? servicosBase.map((s) => ({ ...s, cCodCateg: payloadGarantia!.codCategGarantia, cNaoGerarReceber: 'S' as const }))
+      ? servicosBase.map((s) => ({ ...s, cCodCategItem: payloadGarantia!.codCategGarantia, cNaoGerarFinanceiro: 'S' as const }))
       : servicosBase;
 
     const payload = {
@@ -535,7 +557,12 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
         nCodCC: payloadGarantia ? payloadGarantia.nCodCC_Interno : OMIE_COD_CC,
         nCodProj: nCodProj || undefined,
         cDadosAdicNF: montarDadosAdic(os) || undefined,
+        // Garantia: Nº Contrato de Venda = "{Montadora}-pgo" (ex.: Mahindra-pgo)
+        ...(payloadGarantia?.cNumContrato ? { cNumContrato: payloadGarantia.cNumContrato } : {}),
       },
+      // Garantia: o departamento "03. # Garantias" (100%) é aplicado logo
+      // após a criação, via AlterarOS — o Omie exige o nValor da distribuição,
+      // que só é conhecido depois que a OS existe (ver mais abaixo).
       Observacoes: {
         cObsOS: montarObsOS(os) || undefined,
       },
@@ -589,6 +616,36 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
       .eq("Id_Ordem", idOrdem);
 
     console.log(`[Omie] ✓ ${idOrdem} → OS nº ${resposta.cNumOS} (ID: ${resposta.nCodOS})`);
+
+    // Garantia: aplica o departamento "03. # Garantias" (100%) via AlterarOS.
+    // Feito depois da criação porque o Omie exige o nValor da distribuição, e
+    // esse total só é conhecido com a OS já existente. Best-effort: se falhar,
+    // a OS continua criada (só sem o rateio de departamento).
+    if (payloadGarantia?.codDeptGarantia) {
+      try {
+        const consulta = await omieCall<{ Cabecalho?: { nValorTotal?: number } }>(
+          "/servicos/os/",
+          "ConsultarOS",
+          { nCodOS: resposta.nCodOS }
+        );
+        const totalOS = Number(consulta?.Cabecalho?.nValorTotal || 0);
+        if (totalOS > 0) {
+          await omieCall(
+            "/servicos/os/",
+            "AlterarOS",
+            {
+              Cabecalho: { nCodOS: resposta.nCodOS },
+              Departamentos: [
+                { cCodDepto: payloadGarantia.codDeptGarantia, nPerc: 100, nValor: totalOS, nValorFixo: "N" },
+              ],
+            }
+          );
+          console.log(`[Omie] ✓ ${idOrdem} → departamento Garantias 100% (R$ ${totalOS})`);
+        }
+      } catch (err) {
+        console.warn(`[Omie] Falha ao aplicar departamento de garantia na OS ${resposta.nCodOS}:`, err);
+      }
+    }
 
     // Envia PPVs vinculados como Pedido de Venda (ou Remessa se serviço interno) no Omie
     let pedidoVenda: string | undefined;

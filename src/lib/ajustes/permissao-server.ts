@@ -11,10 +11,12 @@ import { createClient } from '@supabase/supabase-js';
 import { supabase as supabaseAdmin } from './supabase';
 import { httpErr } from './cmc';
 
-// Valida o usuario logado e exige a permissao `modulo` (ou is_admin).
+// Valida o usuario logado e exige a permissao `modulo` (ou is_admin/is_dev). Com
+// `acao`, espelha a semantica do cliente pode(modulo, acao): passa quem tem o
+// modulo puro OU `modulo:acao` OU is_admin/is_dev.
 // Lanca httpErr(401) se sem/invalido token, httpErr(403) se sem permissao.
-// Retorna o usuario autenticado em caso de sucesso.
-export async function exigirPermissao(req: Request, modulo: string): Promise<{ id: string; email?: string }> {
+// Retorna o usuario autenticado (com nome de financeiro_usu) em caso de sucesso.
+export async function exigirPermissao(req: Request, modulo: string, acao?: string): Promise<{ id: string; email?: string; nome?: string }> {
   const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
   if (!token) throw httpErr(401, 'nao autenticado');
 
@@ -27,12 +29,24 @@ export async function exigirPermissao(req: Request, modulo: string): Promise<{ i
 
   const { data: perm } = await supabaseAdmin
     .from('portal_permissoes')
-    .select('is_admin, modulos_permitidos')
+    .select('is_admin, is_dev, modulos_permitidos')
     .eq('user_id', user.id)
     .single();
 
-  const ok = (perm as any)?.is_admin === true || ((perm as any)?.modulos_permitidos || []).includes(modulo);
-  if (!ok) throw httpErr(403, 'sem permissao para esta acao');
+  const p = perm as any;
+  const isAdmin = p?.is_admin === true || p?.is_dev === true;
+  const mods: string[] = p?.modulos_permitidos || [];
+  const ok = isAdmin
+    || mods.includes(modulo)
+    || (!!acao && mods.includes(`${modulo}:${acao}`));
+  if (!ok) throw httpErr(403, `sem permissao para esta acao${acao ? ` (${acao})` : ''}`);
 
-  return { id: user.id, email: user.email };
+  // nome legivel do usuario (best-effort; nao bloqueia se faltar)
+  let nome: string | undefined;
+  try {
+    const { data: usu } = await supabaseAdmin.from('financeiro_usu').select('nome').eq('id', user.id).single();
+    nome = (usu as any)?.nome || undefined;
+  } catch { /* segue sem nome */ }
+
+  return { id: user.id, email: user.email, nome };
 }

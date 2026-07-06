@@ -10,6 +10,7 @@ const supabase = createClient(
 // REGISTRAR NO AUDIT_LOG (server-side)
 // =============================================
 export async function registrarAuditLog(params: {
+  userId?: string;
   userName: string;
   sistema: string;
   acao: string;
@@ -20,7 +21,7 @@ export async function registrarAuditLog(params: {
 }): Promise<void> {
   try {
     await supabase.from("audit_log").insert([{
-      user_id: "00000000-0000-0000-0000-000000000000", // server-side não tem user_id real
+      user_id: params.userId || "00000000-0000-0000-0000-000000000000", // zero-UUID quando não há user real
       user_nome: params.userName,
       sistema: params.sistema,
       acao: params.acao,

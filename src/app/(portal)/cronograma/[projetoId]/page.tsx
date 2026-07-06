@@ -4,7 +4,7 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useParams } from 'next/navigation';
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
-import { ChevronLeft, RefreshCw, Plus, AlertTriangle, Loader2, Flag, BarChart3, Repeat } from 'lucide-react';
+import { ChevronLeft, RefreshCw, Plus, AlertTriangle, Loader2, Flag, BarChart3, Repeat, Link2 } from 'lucide-react';
 import {
   carregarProjeto, recalcular, atualizarTarefa,
   type ProjetoCompleto,
@@ -18,6 +18,7 @@ const GanttView = dynamic(() => import('@/components/cronograma/GanttView'), { s
 const TarefaDrawer = dynamic(() => import('@/components/cronograma/TarefaDrawer'), { ssr: false });
 const AnalisePanel = dynamic(() => import('@/components/cronograma/AnalisePanel'), { ssr: false });
 const RecorrenciasPanel = dynamic(() => import('@/components/cronograma/RecorrenciasPanel'), { ssr: false });
+const VinculosPanel = dynamic(() => import('@/components/cronograma/VinculosPanel'), { ssr: false });
 
 const isoLocal = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -30,7 +31,7 @@ export default function TimelineProjetoPage() {
   const [recalculando, setRecalculando] = useState(false);
   const [erros, setErros] = useState<ErroMotor[]>([]);
   const [drawer, setDrawer] = useState<{ tarefaId: string | null } | null>(null);
-  const [painel, setPainel] = useState<'analise' | 'recorrencia' | null>(null);
+  const [painel, setPainel] = useState<'analise' | 'recorrencia' | 'vinculos' | null>(null);
 
   const carregar = useCallback(async () => {
     try { setPc(await carregarProjeto(projetoId)); }
@@ -157,6 +158,9 @@ export default function TimelineProjetoPage() {
           <button onClick={() => setPainel((p) => (p === 'recorrencia' ? null : 'recorrencia'))} style={btn(painel === 'recorrencia' ? '#0369a1' : '#6b7280')}>
             <Repeat size={16} /> Recorrências
           </button>
+          <button onClick={() => setPainel((p) => (p === 'vinculos' ? null : 'vinculos'))} style={btn(painel === 'vinculos' ? '#0369a1' : '#6b7280')}>
+            <Link2 size={16} /> Vínculos
+          </button>
         </div>
       </header>
 
@@ -205,6 +209,7 @@ export default function TimelineProjetoPage() {
 
       {painel === 'analise' && <AnalisePanel pc={pc} onChanged={recalcEReload} />}
       {painel === 'recorrencia' && <RecorrenciasPanel pc={pc} onChanged={recalcEReload} />}
+      {painel === 'vinculos' && <VinculosPanel pc={pc} onChanged={carregar} />}
 
       {drawer && (
         <TarefaDrawer

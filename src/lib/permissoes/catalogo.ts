@@ -172,6 +172,7 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
   ajustes: [
     ...PAGINAS_AJUSTES.map((p) => ({ id: p.key.replace('ajustes:', ''), label: p.label })),
     { id: 'pedidos:encerrar', label: 'Pedidos — Encerrar informal' },
+    { id: 'remessas:fechar', label: 'Remessas — Devolver/fechar em massa' },
   ],
   // Feedbacks & CRM: granular POR TELA (id da ação = slug da rota). A Home
   // (/feedbacks) é o landing; as abas (FeedbackTabs) e o acesso por URL seguem
