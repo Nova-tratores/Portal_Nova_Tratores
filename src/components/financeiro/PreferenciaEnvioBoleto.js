@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { authHeaders } from '@/lib/auth/client'
 import { useAuth } from '@/hooks/useAuth'
 import { MessageCircle, Mail, Check, Pencil, Send, Plus, X } from 'lucide-react'
 
@@ -166,7 +167,7 @@ export default function PreferenciaEnvioBoleto({ card, cnpj: cnpjProp, nome: nom
     try {
       const res = await fetch('/api/financeiro/enviar-boleto', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({
           urls,
           nfUrls,

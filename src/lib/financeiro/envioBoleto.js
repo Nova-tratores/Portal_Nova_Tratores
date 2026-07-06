@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { authHeaders } from '@/lib/auth/client'
 
 // URLs dos boletos anexados no card
 export function boletoUrls(card) {
@@ -59,7 +60,7 @@ export async function tentarEnvioAutomaticoBoleto(card, remetente) {
   try {
     const res = await fetch('/api/financeiro/enviar-boleto', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
       body: JSON.stringify({
         urls: bUrls,
         nfUrls: nUrls,

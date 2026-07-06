@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import { authHeaders } from "@/lib/auth/client";
 
 const MASCOTE_IMG = (process.env.NEXT_PUBLIC_SUPABASE_URL || "") + "/storage/v1/object/public/catalogo/mascote2-removebg-preview.png";
 
@@ -142,7 +143,7 @@ export default function TratorinoChat({ userName = "", userId = "", isAdmin = fa
     setLoading(true);
     try {
       const r = await fetch("/api/assistente/chat", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({ messages: novas.filter((m) => m !== SAUDACAO), userName, userId, isAdmin, modulos }),
       });
       const j = await r.json();
@@ -164,7 +165,7 @@ export default function TratorinoChat({ userName = "", userId = "", isAdmin = fa
     // OS e Requisição imprimem direto: pré-abre a aba JÁ no clique (preserva o gesto) e depois aponta pro print
     const win = (proposta?.tipo === "os" || proposta?.tipo === "requisicao") ? window.open("", "_blank") : null;
     try {
-      const r = await fetch("/api/assistente/executar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ proposta, userName }) });
+      const r = await fetch("/api/assistente/executar", { method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ proposta, userName }) });
       const j = await r.json();
       if (r.ok) { const L: any = { orcamento: "Orçamento", ppv: "PPV", os: "OS", requisicao: "Requisição" }; const extra = j.ppv ? ` PPV ${j.ppv} vinculado gerado.` : ""; setMsgs((ms) => [...ms, { role: "assistant", content: `Pronto! ${L[proposta.tipo] || ""} ${j.numero || ""} criado.${extra}`, abrirUrl: j.abrirUrl }]); if (win) { if (j.abrirUrl) win.location.href = location.origin + j.abrirUrl; else win.close(); } }
       else { if (win) win.close(); setMsgs((ms) => [...ms, { role: "assistant", content: `Não consegui criar: ${j.error || "erro"}` }]); }

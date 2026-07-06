@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { authHeaders } from '@/lib/auth/client'
 import {
  LayoutDashboard, ClipboardList, TrendingDown, TrendingUp,
  UserCheck, LogOut, Menu, MessageSquare, X, Send, Paperclip,
@@ -198,7 +199,7 @@ export default function MenuLateral({ isSidebarOpen, setIsSidebarOpen, path, rou
     // Notifica outros usuários via push (funciona mesmo com aba fechada)
     fetch('/api/push/send', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
       body: JSON.stringify({
         payload: {
           title: '💬 Mensagem no Chat',

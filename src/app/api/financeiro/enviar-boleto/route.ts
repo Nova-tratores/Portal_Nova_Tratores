@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import { NextResponse } from 'next/server';
+import { autenticar } from '@/lib/auth/server';
 
 // Mesmo esquema de envio do Controle Revisão (Gmail via nodemailer)
 const transporter = nodemailer.createTransport({
@@ -13,6 +14,11 @@ const transporter = nodemailer.createTransport({
 });
 
 export async function POST(request: Request) {
+  // Exige login: esta rota baixa URLs arbitrárias e manda e-mail pelo Gmail da
+  // empresa — não pode ser anônima. (Allow-list de URL contra SSRF fica pro P2.)
+  const auth = await autenticar(request);
+  if (!auth) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+
   let body: {
     urls?: string[];
     nfUrls?: string[];

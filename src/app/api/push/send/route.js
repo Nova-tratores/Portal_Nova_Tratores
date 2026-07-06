@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import webpush from 'web-push'
+import { autenticar } from '@/lib/auth/server'
 
 const VAPID_PUBLIC  = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
 const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY
@@ -22,6 +23,10 @@ function getSupabase() {
 export async function POST(req) {
   const supabase = getSupabase()
   try {
+    // Exige login: broadcast de push pra base inteira não pode ser anônimo.
+    const auth = await autenticar(req)
+    if (!auth) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+
     // Se VAPID não configurado, retorna sem erro (não quebra o app)
     if (!VAPID_PUBLIC || !VAPID_PRIVATE) {
       return NextResponse.json({ ok: true, skipped: true, reason: 'VAPID não configurado' })

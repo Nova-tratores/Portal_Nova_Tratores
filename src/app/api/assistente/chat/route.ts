@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { TRATORINO_PERSONA, TRATORINO_CONHECIMENTO } from "@/lib/assistente/conhecimento";
 import { getIA, chamarIA } from "@/lib/assistente/ia";
 import { geocodificar, rotaDaOficina } from "@/lib/pos/ors";
+import { autenticar } from "@/lib/auth/server";
 
 // Extrai coordenadas (lat,lng) de um link do Google Maps ou texto. Resolve links encurtados (segue o redirect).
 async function coordsDoLink(texto: string): Promise<{ lat: number; lng: number } | null> {
@@ -1014,15 +1015,20 @@ const AVISO_IMPROPRIO = "Opa, não posso falar sobre isso e apaguei sua mensagem
 
 export async function POST(req: NextRequest) {
   const ia = getIA();
+  // Identidade e permissões vêm do TOKEN, não do corpo. Antes o cliente mandava
+  // isAdmin/modulos e o servidor confiava — dava pra forjar admin e destravar as
+  // ferramentas administrativas do assistente só editando a requisição.
+  const auth = await autenticar(req);
+  if (!auth) {
+    return NextResponse.json({ reply: "Você precisa estar logado no portal pra falar comigo." }, { status: 401 });
+  }
   let messages: { role: string; content: string }[] = [];
-  let userName = "", userId = "", isAdmin = false, modulos: string[] = [];
+  let userName = auth.email || "";
+  const userId = auth.userId, isAdmin = auth.isAdmin, modulos: string[] = auth.modulos;
   try {
     const b = await req.json();
     messages = Array.isArray(b.messages) ? b.messages : [];
-    userName = String(b.userName || "");
-    userId = String(b.userId || "");
-    isAdmin = b.isAdmin === true;
-    modulos = Array.isArray(b.modulos) ? b.modulos : [];
+    if (b.userName) userName = String(b.userName); // só exibição (saudação)
   } catch {}
 
   // Moderação: se a ÚLTIMA mensagem do usuário for imprópria, bloqueia na hora (sem chamar a IA)

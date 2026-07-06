@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { autenticar } from "@/lib/auth/server";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -10,6 +11,10 @@ const supabase = createClient(
 // body: { proposta: { tipo, ... }, userName }
 export async function POST(req: NextRequest) {
   try {
+    // Exige login: esta rota cria OS/PPV/orçamento/requisição de verdade.
+    const auth = await autenticar(req);
+    if (!auth) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+
     const { proposta, userName } = await req.json();
     if (!proposta?.tipo) return NextResponse.json({ error: "Proposta inválida." }, { status: 400 });
     // Na Vercel o origin é certo; no Railway/Node o origin não resolve de dentro do container,
