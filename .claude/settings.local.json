@@ -900,7 +900,8 @@
       "PowerShell(try { $r = Invoke-WebRequest -Uri \"http://localhost:3000/api/clientes-mapa/leve\" -UseBasicParsing -TimeoutSec 10; \"Status: $\\($r.StatusCode\\) | Size: $\\($r.Content.Length\\)\" } catch { \"ERROR: $\\($_.Exception.Message\\)\" })",
       "PowerShell(try { $r = Invoke-WebRequest -Uri \"http://localhost:3000/api/pos/rastreamento?acao=veiculos_mapa\" -UseBasicParsing -TimeoutSec 10; \"Status: $\\($r.StatusCode\\) | Size: $\\($r.Content.Length\\)\" } catch { \"ERROR: $\\($_.Exception.Message\\)\" })",
       "PowerShell($r = Invoke-WebRequest -Uri \"http://localhost:3000/mapa-geral/index.html\" -UseBasicParsing -TimeoutSec 10; \"Status: $\\($r.StatusCode\\) | Size: $\\($r.Content.Length\\)\")",
-      "PowerShell(try { $r = Invoke-WebRequest -Uri 'http://localhost:3000/api/mapa/clientes' -UseBasicParsing -TimeoutSec 5; \"Status: $\\($r.StatusCode\\), Bytes: $\\($r.Content.Length\\)\" } catch { \"ERRO: $\\($_.Exception.Message\\)\" })"
+      "PowerShell(try { $r = Invoke-WebRequest -Uri 'http://localhost:3000/api/mapa/clientes' -UseBasicParsing -TimeoutSec 5; \"Status: $\\($r.StatusCode\\), Bytes: $\\($r.Content.Length\\)\" } catch { \"ERRO: $\\($_.Exception.Message\\)\" })",
+      "PowerShell(npm run build)"
     ],
     "additionalDirectories": [
       "c:\\projetos\\visual-estoque\\src",

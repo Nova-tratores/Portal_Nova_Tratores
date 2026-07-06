@@ -8,8 +8,11 @@ const supabase = createClient(
 );
 
 export async function POST(req: NextRequest) {
-  const { titulo, descricao, link, userId, alvo } = await req.json();
+  const { titulo, descricao, link, userId, alvo, modulo } = await req.json();
   // alvo: "financeiro" | "posvendas" | undefined (todos com acesso)
+  // modulo: ID do módulo silenciável nas preferências (padrão "financeiro");
+  //         o lembrete de NFS-e da Pasta Clientes manda "lembrete_nf" pra ter toggle próprio
+  const moduloPref = String(modulo || "financeiro");
 
   if (!titulo) {
     return NextResponse.json({ error: "titulo obrigatório" }, { status: 400 });
@@ -53,11 +56,11 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Respeita as preferências de silenciar do destinatário (módulo 'financeiro')
+  // Respeita as preferências de silenciar do destinatário
   const prefMap = new Map((permissoes || []).map((p) => [p.user_id, p]));
   destinatariosIds = destinatariosIds.filter((id) => {
     const p = prefMap.get(id);
-    return podeNotificar("financeiro", p?.notif_silenciado, p?.categoria);
+    return podeNotificar(moduloPref, p?.notif_silenciado, p?.categoria);
   });
 
   if (destinatariosIds.length === 0) {

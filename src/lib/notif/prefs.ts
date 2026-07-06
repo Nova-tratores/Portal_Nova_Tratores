@@ -23,6 +23,7 @@ export const NOTIF_OBRIGATORIAS_POR_CATEGORIA: Record<string, string[]> = {
 export const MODULOS_NOTIFICAVEIS: { id: string; nome: string }[] = [
   { id: 'avisos',      nome: 'Avisos do Portal' },
   { id: 'financeiro',  nome: 'Financeiro' },
+  { id: 'lembrete_nf', nome: 'Lembrete: NF de serviço pendente (Pasta Clientes)' },
   { id: 'pos',         nome: 'Pós-Vendas (OS)' },
   { id: 'garantias',   nome: 'Garantias' },
   { id: 'ppv',         nome: 'Peças (PPV)' },

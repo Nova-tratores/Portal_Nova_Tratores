@@ -71,6 +71,7 @@ async function handler(req: NextRequest) {
         descricao,
         link: "/clientes",
         alvo: "posvendas",
+        modulo: "lembrete_nf",
       }),
     }).catch(() => {});
 
