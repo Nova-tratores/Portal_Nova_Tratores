@@ -1,7 +1,7 @@
 async function run() {
   const BASE = 'https://app.omie.com.br/api/v1';
-  const KEY = '2729522270475';
-  const SECRET = '113d785bb86c48d064889d4d73348131';
+  const KEY = process.env.OMIE_APP_KEY;
+  const SECRET = process.env.OMIE_APP_SECRET;
 
   async function omieCall(endpoint, call, param) {
     const res = await fetch(BASE + endpoint, {

@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
+import { contaOmie } from "@/lib/omie/contas";
 
 const OMIE_BASE = "https://app.omie.com.br/api/v1";
 
 const CONTAS = [
-  { empresa: "Nova Tratores", key: "2729522270475", secret: "113d785bb86c48d064889d4d73348131" },
-  { empresa: "Castro Peças", key: "2730028269969", secret: "dc270bf5348b40d3ed1398ef70beb628" },
+  { empresa: "Nova Tratores", ...contaOmie("Nova Tratores") },
+  { empresa: "Castro Peças", ...contaOmie("Castro Peças") },
 ];
 
 export async function GET() {

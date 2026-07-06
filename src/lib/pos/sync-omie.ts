@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
 import { TBL_CLIENTES, TBL_PROJETOS_DB } from "./constants";
+import { contaOmie } from "@/lib/omie/contas";
 
 const TBL_PRODUTOS = "Produtos_Completos";
 
@@ -12,8 +13,8 @@ interface OmieAccount {
 }
 
 const OMIE_ACCOUNTS: OmieAccount[] = [
-  { name: "Nova Tratores", key: "2729522270475", secret: "113d785bb86c48d064889d4d73348131" },
-  { name: "Castro Peças", key: "2730028269969", secret: "dc270bf5348b40d3ed1398ef70beb628" },
+  { name: "Nova Tratores", ...contaOmie("Nova Tratores") },
+  { name: "Castro Peças", ...contaOmie("Castro Peças") },
 ];
 
 async function omieCall<T>(endpoint: string, call: string, param: Record<string, unknown>, acc?: OmieAccount): Promise<T> {

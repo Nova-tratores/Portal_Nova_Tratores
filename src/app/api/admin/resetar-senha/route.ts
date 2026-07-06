@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { exigirAdmin } from "@/lib/auth/server";
 
 function getSupabase() {
   return createClient(
@@ -10,6 +11,10 @@ function getSupabase() {
 
 export async function POST(req: NextRequest) {
   try {
+    // Só admin pode disparar reset de senha (antes era aberto a qualquer um).
+    const auth = await exigirAdmin(req);
+    if (!auth) return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
+
     const { email } = await req.json();
 
     if (!email) {

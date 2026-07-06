@@ -6,6 +6,7 @@
 import { supabaseFetch } from "./supabase";
 import { TBL_PEDIDOS, TBL_ITENS, TBL_CLIENTES, TBL_LOGS, TBL_PRODUTOS, TBL_OS } from "./constants";
 import { buscarPPVPorId, registrarLog } from "./queries";
+import { contaOmie } from "@/lib/omie/contas";
 
 // A OS vinculada é interna? (usado pra mandar o PPV como Remessa automaticamente)
 async function osEhInterna(osId: string): Promise<boolean> {
@@ -30,8 +31,8 @@ interface OmieAccount {
 
 const OMIE_ACCOUNTS: OmieAccount[] = [
   // cenarioRemessa: preencher com o código do Cenário Fiscal de "Remessa" de cada conta no Omie
-  { name: "Nova Tratores", key: "2729522270475", secret: "113d785bb86c48d064889d4d73348131", codCC: 1969919780 },
-  { name: "Castro Peças", key: "2730028269969", secret: "dc270bf5348b40d3ed1398ef70beb628", codCC: 5335855842 },
+  { name: "Nova Tratores", ...contaOmie("Nova Tratores"), codCC: 1969919780 },
+  { name: "Castro Peças", ...contaOmie("Castro Peças"), codCC: 5335855842 },
 ];
 
 const OMIE_BASE_URL = "https://app.omie.com.br/api/v1";

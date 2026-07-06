@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/pos/supabase';
+import { createClient } from '@supabase/supabase-js';
 import { sanitizarSilenciados, modulosObrigatorios } from '@/lib/notif/prefs';
+
+// Service role: a escrita em portal_permissoes (notif_silenciado) precisa passar
+// pelo servidor porque o RLS agora bloqueia escrita do cliente nessa tabela.
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+  { auth: { persistSession: false, autoRefreshToken: false } }
+);
 
 // GET /api/perfil/notif-prefs?user_id=...
 // Retorna preferências atuais + lista de módulos obrigatórios (não desativáveis).

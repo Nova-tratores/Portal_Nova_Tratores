@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { exigirAdmin } from "@/lib/auth/server";
 
 function getSupabase() {
   return createClient(
@@ -11,6 +12,10 @@ function getSupabase() {
 export async function POST(req: NextRequest) {
   const supabase = getSupabase();
   try {
+    // Só admin pode criar usuário (antes era um endpoint público de provisionamento).
+    const auth = await exigirAdmin(req);
+    if (!auth) return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
+
     const { nome, email, funcao, senha, modulos_permitidos } = await req.json();
 
     if (!nome || !email) {

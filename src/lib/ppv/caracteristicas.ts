@@ -1,5 +1,6 @@
 import { supabaseFetch, getValorInsensivel } from "./supabase";
 import { TBL_PRODUTOS } from "./constants";
+import { contaOmie } from "@/lib/omie/contas";
 
 // As características (#PRATELEIRA, #ANDAR, #CAIXA, Tipo...) só vêm no ConsultarProduto
 // do Omie (1 a 1). Buscamos sob demanda (poucos itens por pedido) e cacheamos na coluna
@@ -7,8 +8,8 @@ import { TBL_PRODUTOS } from "./constants";
 
 const OMIE_URL = "https://app.omie.com.br/api/v1/geral/produtos/";
 const ACCOUNTS: Record<string, { key: string; secret: string }> = {
-  "Nova Tratores": { key: "2729522270475", secret: "113d785bb86c48d064889d4d73348131" },
-  "Castro Peças": { key: "2730028269969", secret: "dc270bf5348b40d3ed1398ef70beb628" },
+  "Nova Tratores": contaOmie("Nova Tratores"),
+  "Castro Peças": contaOmie("Castro Peças"),
 };
 
 interface Caract { cNomeCaract?: string; cConteudo?: string }

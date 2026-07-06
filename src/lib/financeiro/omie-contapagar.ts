@@ -11,6 +11,7 @@
 // =====================================================================
 
 import { createHash } from "crypto";
+import { contaOmie } from "@/lib/omie/contas";
 
 const OMIE_BASE_URL = "https://app.omie.com.br/api/v1";
 
@@ -23,8 +24,8 @@ export interface OmieAccount {
 }
 
 export const OMIE_ACCOUNTS: OmieAccount[] = [
-  { name: "Nova Tratores", key: "2729522270475", secret: "113d785bb86c48d064889d4d73348131", codCC: 1969919780 },
-  { name: "Castro Peças", key: "2730028269969", secret: "dc270bf5348b40d3ed1398ef70beb628", codCC: 5335855842 },
+  { name: "Nova Tratores", ...contaOmie("Nova Tratores"), codCC: 1969919780 },
+  { name: "Castro Peças", ...contaOmie("Castro Peças"), codCC: 5335855842 },
 ];
 
 export function getAccount(empresa?: string): OmieAccount {

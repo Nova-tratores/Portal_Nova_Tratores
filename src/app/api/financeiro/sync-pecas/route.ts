@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { contaOmie } from "@/lib/omie/contas";
 
 // Cria automaticamente um Chamado_NF (setor Peças) para cada Pedido de Venda
 // faturado no Omie cuja Categoria seja a de "Revenda de Peças Balcão".
@@ -15,8 +16,8 @@ const OMIE_BASE = "https://app.omie.com.br/api/v1";
 // (os números de pedido colidem com num_pedido_cli das OS da Nova Tratores).
 interface Acc { name: string; key: string; secret: string; temOS: boolean }
 const ACCS: Acc[] = [
-  { name: "Nova Tratores", key: process.env.OMIE_APP_KEY || "2729522270475", secret: process.env.OMIE_APP_SECRET || "113d785bb86c48d064889d4d73348131", temOS: true },
-  { name: "Castro Pecas", key: "2730028269969", secret: "dc270bf5348b40d3ed1398ef70beb628", temOS: false },
+  { name: "Nova Tratores", ...contaOmie("Nova Tratores"), temOS: true },
+  { name: "Castro Pecas", ...contaOmie("Castro Pecas"), temOS: false },
 ];
 
 // Categoria-alvo (do Pedido de Venda). Match flexível pelo núcleo do texto.

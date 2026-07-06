@@ -176,9 +176,13 @@ export default function AdminPage() {
     setResetandoSenha(true)
     setResetSenhaMsg('')
     try {
+      const { data: { session } } = await supabase.auth.getSession()
       const res = await fetch('/api/admin/resetar-senha', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token || ''}`,
+        },
         body: JSON.stringify({ email }),
       })
       const result = await res.json()
@@ -250,18 +254,20 @@ export default function AdminPage() {
     })
 
     try {
-      if (existing?.id) {
-        await supabase.from('portal_permissoes').update({ ...updates, updated_at: new Date().toISOString() }).eq('user_id', userId)
-      } else {
-        await supabase.from('portal_permissoes').insert([{
-          user_id: userId,
-          is_admin: false,
-          categoria: '',
-          modulos_permitidos: [],
-          mecanico_role: null,
-          mecanico_tecnico_nome: null,
-          ...updates,
-        }])
+      // Escrita passa pelo servidor (com checagem de admin). O cliente não pode
+      // mais gravar portal_permissoes direto — RLS bloqueia (fim da auto-promoção).
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/admin/permissoes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token || ''}`,
+        },
+        body: JSON.stringify({ user_id: userId, updates }),
+      })
+      if (!res.ok) {
+        const r = await res.json().catch(() => ({}))
+        throw new Error(r.error || 'Falha ao salvar permissão')
       }
     } catch {
       // Reverte em caso de erro
@@ -344,9 +350,13 @@ export default function AdminPage() {
     setCriando(true)
     setCriarErro('')
     try {
+      const { data: { session } } = await supabase.auth.getSession()
       const res = await fetch('/api/pos/requisicoes/criar-usuario', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token || ''}`,
+        },
         body: JSON.stringify({
           nome: novoNome.trim(),
           email: novoEmail.trim().toLowerCase(),

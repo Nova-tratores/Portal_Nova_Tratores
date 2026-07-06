@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { TAGS_ESTRUTURAIS } from "@/lib/feedbacks/types";
+import { contaOmie } from "@/lib/omie/contas";
 
 // -----------------------------------------------------------------------------
 // Gravação no cadastro do cliente no Omie (Fase 2 do módulo de feedbacks):
@@ -17,8 +18,8 @@ const supabase = createClient(
 
 const OMIE_BASE_URL = "https://app.omie.com.br/api/v1";
 const OMIE_ACCOUNTS: Record<string, { key: string; secret: string }> = {
-  "Nova Tratores": { key: process.env.OMIE_APP_KEY || "2729522270475", secret: process.env.OMIE_APP_SECRET || "113d785bb86c48d064889d4d73348131" },
-  "Castro Peças": { key: "2730028269969", secret: "dc270bf5348b40d3ed1398ef70beb628" },
+  "Nova Tratores": contaOmie("Nova Tratores"),
+  "Castro Peças": contaOmie("Castro Peças"),
 };
 // O nome da empresa varia entre tabelas ("Castro Peças" vs "Castro Pecas").
 const ALIASES: Record<string, string> = { "Castro Pecas": "Castro Peças" };

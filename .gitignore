@@ -43,3 +43,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 /catalogos/
+
+# Claude Code — config local (acumula allows de comandos, pode conter segredos)
+.claude/settings.local.json

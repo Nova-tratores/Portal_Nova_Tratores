@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { contaOmie } from "@/lib/omie/contas";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -9,8 +10,8 @@ const supabase = createClient(
 const OMIE_BASE_URL = "https://app.omie.com.br/api/v1";
 
 const OMIE_ACCOUNTS: Record<string, { key: string; secret: string }> = {
-  "Nova Tratores": { key: "2729522270475", secret: "113d785bb86c48d064889d4d73348131" },
-  "Castro Peças": { key: "2730028269969", secret: "dc270bf5348b40d3ed1398ef70beb628" },
+  "Nova Tratores": contaOmie("Nova Tratores"),
+  "Castro Peças": contaOmie("Castro Peças"),
 };
 
 async function omieCall<T>(endpoint: string, call: string, param: Record<string, unknown>, empresa: string, tentativa = 1): Promise<T> {

@@ -126,13 +126,11 @@ export default function LoginPage() {
         if (dbError) {
           setError('Erro ao salvar perfil: ' + dbError.message)
         } else {
-          // Cria registro de permissões vazio (sem acesso até admin liberar)
-          await supabase.from('portal_permissoes').insert([{
-            user_id: data.user.id,
-            is_admin: false,
-            categoria: '',
-            modulos_permitidos: []
-          }])
+          // A linha de permissões NÃO é mais criada pelo navegador (RLS bloqueia
+          // escrita em portal_permissoes). O novo usuário fica sem acesso até um
+          // admin liberar em Administração — ou, se o trigger opcional de
+          // p0-seguranca-rls-permissoes.sql estiver ativo, a linha vazia é criada
+          // automaticamente no cadastro.
           setIsRegistering(false)
           setError('')
           alert('Conta criada com sucesso! Faça login.')
