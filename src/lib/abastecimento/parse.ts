@@ -129,6 +129,8 @@ const COLUNAS: Record<string, string> = {
   horimetro_anterior: 'horimetroanteriordigmotorista',
   horimetro: 'horimetrotransacaodigmotorista',
   desvio_descricao: 'descricaodesvionatransacao',
+  ordem_servico: 'ordemservicodigmotorista',
+  capacidade_tanque: 'capacidadetanque',
 };
 
 const OBRIGATORIAS = ['placa', 'data_transacao', 'litros', 'valor_total', 'combustivel'];
@@ -228,6 +230,9 @@ export function parseCsvAbastecimento(csvTexto: string): ResultadoParse {
       horimetro_anterior: parseNumeroBR(cel(row, 'horimetro_anterior')),
       horimetro: parseNumeroBR(cel(row, 'horimetro')),
       desvio_descricao: texto(cel(row, 'desvio_descricao')),
+      // OS digitada pelo motorista: '0'/vazio = sem OS
+      ordem_servico: (() => { const os = texto(cel(row, 'ordem_servico')); return os && os !== '0' ? os : null; })(),
+      capacidade_tanque: parseNumeroBR(cel(row, 'capacidade_tanque')),
     });
   }
 

@@ -1,33 +1,66 @@
 'use client';
 // Abastecimento da frota — upload mensal do CSV da operadora de cartão-frota
-// + dashboard (evolução, rankings, preço médio e consumo km/l).
-// Permissões: abastecimento:upload (importar/lotes) e abastecimento:dashboard (relatórios).
+// + dashboard analítico em abas (visão geral, veículos, motoristas & postos,
+// auditoria, transações), com drill-down: clicar num gráfico abre o popup com
+// os abastecimentos que compõem o valor. Relatórios PDF por período.
+// Permissões: abastecimento:upload e abastecimento:dashboard.
 
 import { useCallback, useEffect, useState } from 'react';
 import {
-  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
+  ResponsiveContainer, ComposedChart, BarChart, LineChart, ScatterChart,
+  Bar, Line, Scatter, XAxis, YAxis, ZAxis, Tooltip, CartesianGrid, Legend,
 } from 'recharts';
+import { AlertTriangle, FileDown } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
 import { Card, fmtRS } from '@/components/estoque/ui';
 import UploadLotes from '@/components/abastecimento/UploadLotes';
-import type { DashboardAbastecimento } from '@/lib/abastecimento/tipos';
+import DetalheModal, { type DetalheParams } from '@/components/abastecimento/DetalheModal';
+import HeatmapDiaHora from '@/components/abastecimento/HeatmapDiaHora';
+import TabelaTransacoes from '@/components/abastecimento/TabelaTransacoes';
+import { gerarPdfConsolidado, gerarPdfTransacoes } from '@/lib/abastecimento/pdf';
+import type { DashboardAbastecimento, TransacoesResp } from '@/lib/abastecimento/tipos';
 
-const COR_VALOR = '#dc2626'; // R$ (identidade do portal)
-const COR_LITROS = '#2563eb'; // litros
+const COR_VALOR = '#dc2626';
+const COR_LITROS = '#2563eb';
+const COR_ANO_ANTERIOR = '#9ca3af';
+
+// Cores fixas por combustível (paleta validada p/ daltonismo). Combustíveis
+// fora do dicionário recebem as sobras em ordem alfabética (estável por nome).
+const COR_COMBUSTIVEL: Record<string, string> = {
+  'Gasolina Comum': '#dc2626',
+  'Gasolina Aditivada': '#7c3aed',
+  'Etanol': '#059669',
+  'Diesel': '#b45309',
+  'Diesel S50': '#2563eb',
+  'Diesel S10': '#2563eb',
+};
+const CORES_SOBRA = ['#7c3aed', '#b45309', '#2563eb', '#059669', '#dc2626'];
+
+function corDoCombustivel(nome: string, todos: string[]): string {
+  if (COR_COMBUSTIVEL[nome]) return COR_COMBUSTIVEL[nome];
+  const semCor = todos.filter((c) => !COR_COMBUSTIVEL[c]).sort();
+  return CORES_SOBRA[semCor.indexOf(nome) % CORES_SOBRA.length];
+}
 
 const MESES_ABREV = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 
 const thStyle: React.CSSProperties = { background: '#fafafa', color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', padding: '9px 10px', textAlign: 'left', borderBottom: '1px solid #eee', fontWeight: 600 };
 const tdStyle: React.CSSProperties = { padding: '8px 10px', borderBottom: '1px solid #f5f5f5', color: '#444', fontSize: '.82rem' };
 const selStyle: React.CSSProperties = { padding: '8px 10px', border: '1px solid #ddd', borderRadius: 8, fontSize: '.82rem', background: '#fff', color: '#444' };
+const linhaClicavel: React.CSSProperties = { cursor: 'pointer' };
 
 function fmtL(v: number): string {
   return v.toLocaleString('pt-BR', { maximumFractionDigits: 0 }) + ' L';
 }
 function fmtKm(v: number): string {
   return v.toLocaleString('pt-BR', { maximumFractionDigits: 0 }) + ' km';
+}
+function fmtPct(v: number | null): string {
+  if (v == null) return '—';
+  const s = v >= 0 ? '+' : '';
+  return s + v.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%';
 }
 function rotuloMes(mes: string): string {
   const [ano, m] = mes.split('-');
@@ -46,21 +79,24 @@ function isoInicioMes(): string {
 }
 
 type Preset = 'mes' | '3m' | '12m' | 'custom';
+type Aba = 'visao' | 'veiculos' | 'pessoas' | 'auditoria' | 'transacoes';
 
-function KPI({ label, valor }: { label: string; valor: string }) {
+function KPI({ label, valor, sub, cor }: { label: string; valor: string; sub?: string; cor?: string }) {
   return (
     <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 16 }}>
       <div style={{ color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 600, marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#333' }}>{valor}</div>
+      <div style={{ fontSize: '1.2rem', fontWeight: 700, color: cor || '#333' }}>{valor}</div>
+      {sub && <div style={{ fontSize: '.68rem', color: '#aaa', marginTop: 2 }}>{sub}</div>}
     </div>
   );
 }
 
-// Gráfico de barras horizontal (rankings). Uma série só — o título identifica.
-function RankingChart({ dados, cor, formato }: {
-  dados: { nome: string; valor: number }[];
+// Barras horizontais de ranking (uma série; título identifica). Clique → drill.
+function RankingChart({ dados, cor, formato, onItemClick }: {
+  dados: { nome: string; chave: string; valor: number }[];
   cor: string;
   formato: (v: number) => string;
+  onItemClick?: (chave: string) => void;
 }) {
   const altura = Math.max(180, dados.length * 32);
   return (
@@ -71,7 +107,15 @@ function RankingChart({ dados, cor, formato }: {
           <XAxis type="number" tick={{ fontSize: 11, fill: '#888' }} tickFormatter={(v) => formato(Number(v))} />
           <YAxis type="category" dataKey="nome" width={150} tick={{ fontSize: 11, fill: '#444' }} />
           <Tooltip formatter={(v) => formato(Number(v))} labelStyle={{ color: '#444' }} />
-          <Bar dataKey="valor" fill={cor} radius={[0, 4, 4, 0]} barSize={18} />
+          <Bar
+            dataKey="valor"
+            fill={cor}
+            radius={[0, 4, 4, 0]}
+            barSize={18}
+            cursor={onItemClick ? 'pointer' : undefined}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            onClick={(d: any) => { const chave = d?.payload?.chave ?? d?.chave; if (chave && onItemClick) onItemClick(chave); }}
+          />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -89,11 +133,14 @@ export default function AbastecimentoPage() {
   const [ate, setAte] = useState(isoHoje());
   const [filial, setFilial] = useState('');
   const [placa, setPlaca] = useState('');
+  const [aba, setAba] = useState<Aba>('visao');
 
   const [dados, setDados] = useState<DashboardAbastecimento | null>(null);
-  const [opcoes, setOpcoes] = useState<{ filiais: string[]; placas: string[] }>({ filiais: [], placas: [] });
+  const [opcoes, setOpcoes] = useState<{ filiais: string[]; placas: string[]; motoristas: string[] }>({ filiais: [], placas: [], motoristas: [] });
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState('');
+  const [detalhe, setDetalhe] = useState<DetalheParams | null>(null);
+  const [gerandoPdf, setGerandoPdf] = useState('');
 
   const aplicarPreset = (p: Preset) => {
     setPreset(p);
@@ -113,7 +160,6 @@ export default function AbastecimentoPage() {
       const d = await r.json();
       if (!r.ok) { setErro(d.error || 'Erro ao carregar.'); return; }
       setDados(d as DashboardAbastecimento);
-      // opções dos selects: só do resultado sem filtro (senão o dropdown encolhe)
       if (!filial && !placa) setOpcoes((d as DashboardAbastecimento).opcoesFiltro);
     } catch (e) {
       setErro('Erro: ' + (e as Error).message);
@@ -126,32 +172,100 @@ export default function AbastecimentoPage() {
     if (podeDash) carregar();
   }, [carregar, podeDash]);
 
+  // ----- drill-down -----
+  const paramsBase = useCallback((): Record<string, string> => {
+    const p: Record<string, string> = { de, ate };
+    if (filial) p.filial = filial;
+    if (placa) p.placa = placa;
+    return p;
+  }, [de, ate, filial, placa]);
+
+  const abrirDetalhe = (titulo: string, extras: Record<string, string>) => {
+    setDetalhe({ titulo, params: { ...paramsBase(), ...extras } });
+  };
+
+  // ----- PDFs -----
+  const filtrosDescricao = (): string[] => {
+    const f: string[] = [];
+    if (filial) f.push(`Filial: ${filial}`);
+    if (placa) f.push(`Veículo: ${placa}`);
+    return f;
+  };
+
+  const pdfAnalitico = async () => {
+    setGerandoPdf('analitico');
+    try {
+      const qs = new URLSearchParams({ ...paramsBase(), limit: '0' });
+      const r = await fetch(`/api/abastecimento/transacoes?${qs}`);
+      const d = (await r.json()) as TransacoesResp;
+      await gerarPdfTransacoes({ periodo: { de, ate }, filtros: filtrosDescricao(), linhas: d.linhas, somaValor: d.somaValor, somaLitros: d.somaLitros });
+    } finally {
+      setGerandoPdf('');
+    }
+  };
+
+  const pdfConsolidado = async (tipo: 'veiculo' | 'motorista') => {
+    if (!dados) return;
+    setGerandoPdf(tipo);
+    try {
+      await gerarPdfConsolidado({
+        tipo,
+        periodo: { de, ate },
+        filtros: filtrosDescricao(),
+        itens: tipo === 'veiculo' ? dados.porVeiculo : dados.porMotorista,
+      });
+    } finally {
+      setGerandoPdf('');
+    }
+  };
+
   if (permLoading || !userProfile) {
     return <div style={{ padding: 40, color: '#888' }}>Carregando…</div>;
   }
   if (!podeDash && !podeUpload) return <SemPermissao />;
 
   const evolucao = dados?.evolucaoMensal.map((m) => ({ ...m, rotulo: rotuloMes(m.mes) })) || [];
+  const precoMensal = dados?.precoMensal.map((m) => ({ ...m, rotulo: rotuloMes(m.mes) })) || [];
+  const gastoComb = dados?.gastoMensalCombustivel.map((m) => ({ ...m, rotulo: rotuloMes(m.mes) })) || [];
+  const anomaliaPorPlaca = new Set((dados?.anomalias || []).map((a) => a.placa));
+  const suspeitas = (dados?.intervalos || []).filter((i) => i.suspeito);
+  const pontosScatter = (dados?.intervalos || []).filter((i) => i.horas <= 168); // até 7 dias no gráfico
+
+  const ABAS: { id: Aba; label: string; badge?: number }[] = [
+    { id: 'visao', label: 'Visão geral' },
+    { id: 'veiculos', label: 'Veículos', badge: dados?.anomalias.length || 0 },
+    { id: 'pessoas', label: 'Motoristas & Postos' },
+    { id: 'auditoria', label: 'Auditoria', badge: suspeitas.length },
+    { id: 'transacoes', label: 'Transações' },
+  ];
+
+  const botaoPdf = (rotulo: string, chave: string, acao: () => void) => (
+    <button
+      key={chave}
+      onClick={acao}
+      disabled={!!gerandoPdf || !dados}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', color: '#dc2626', border: '1px solid #dc2626', borderRadius: 8, padding: '8px 12px', fontSize: '.78rem', fontWeight: 600, cursor: 'pointer', opacity: gerandoPdf && gerandoPdf !== chave ? 0.5 : 1 }}
+    >
+      <FileDown size={14} /> {gerandoPdf === chave ? 'Gerando…' : rotulo}
+    </button>
+  );
 
   return (
     <div style={{ padding: 20, maxWidth: 1300, margin: '0 auto' }}>
       <h1 style={{ fontSize: '1.3rem', fontWeight: 700, color: '#333', marginBottom: 4 }}>Abastecimento da Frota</h1>
       <p style={{ color: '#888', fontSize: '.82rem', marginBottom: 16 }}>
         Gastos com combustível por veículo, motorista e posto — importados do relatório mensal da operadora.
+        Clique nas barras e linhas dos gráficos para ver os abastecimentos que compõem cada valor.
       </p>
 
       {podeUpload && (
-        <UploadLotes
-          usuario={userProfile.nome || ''}
-          isAdmin={isAdmin}
-          onMudou={carregar}
-        />
+        <UploadLotes usuario={userProfile.nome || ''} isAdmin={isAdmin} onMudou={carregar} />
       )}
 
       {podeDash && (
         <>
-          {/* filtros */}
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', margin: '16px 0' }}>
+          {/* filtros + PDFs */}
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', margin: '16px 0 8px' }}>
             {(['mes', '3m', '12m'] as Preset[]).map((p) => (
               <button
                 key={p}
@@ -174,6 +288,11 @@ export default function AbastecimentoPage() {
             </select>
             {carregando && <span style={{ color: '#888', fontSize: '.8rem' }}>Carregando…</span>}
           </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+            {botaoPdf('PDF analítico', 'analitico', pdfAnalitico)}
+            {botaoPdf('PDF por veículo', 'veiculo', () => pdfConsolidado('veiculo'))}
+            {botaoPdf('PDF por motorista', 'motorista', () => pdfConsolidado('motorista'))}
+          </div>
 
           {erro && (
             <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', color: '#b91c1c', borderRadius: 8, padding: '10px 12px', fontSize: '.82rem', marginBottom: 16 }}>
@@ -184,144 +303,424 @@ export default function AbastecimentoPage() {
           {dados && (
             <>
               {/* KPIs */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginBottom: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12, marginBottom: 16 }}>
                 <KPI label="Gasto total" valor={fmtRS(dados.totais.valor)} />
                 <KPI label="Litros" valor={fmtL(dados.totais.litros)} />
-                <KPI label="Abastecimentos" valor={String(dados.totais.transacoes)} />
-                <KPI label="Veículos" valor={String(dados.totais.veiculos)} />
-                <KPI label="Preço médio do litro" valor={fmtRS(dados.totais.precoMedioLitro)} />
+                <KPI label="Preço médio/L" valor={fmtRS(dados.totais.precoMedioLitro)} />
+                <KPI label="Abastecimentos" valor={String(dados.totais.transacoes)} sub={`${dados.totais.veiculos} veículo(s)`} />
+                <KPI
+                  label="Último mês vs anterior"
+                  valor={fmtPct(dados.totais.varMesAnterior)}
+                  cor={dados.totais.varMesAnterior == null ? '#333' : dados.totais.varMesAnterior > 0 ? '#dc2626' : '#16a34a'}
+                />
+                {dados.projecao && (
+                  <KPI
+                    label={`Projeção ${rotuloMes(dados.projecao.mes)}`}
+                    valor={fmtRS(dados.projecao.projetado)}
+                    sub={`realizado ${fmtRS(dados.projecao.realizado)} em ${dados.projecao.diasCorridos}/${dados.projecao.diasMes} dias`}
+                  />
+                )}
               </div>
 
-              {/* evolução mensal — dois gráficos (R$ e litros), um eixo cada */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 12 }}>
-                <Card titulo="Gasto por mês (R$)">
-                  <div style={{ width: '100%', height: 260 }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={evolucao}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                        <XAxis dataKey="rotulo" tick={{ fontSize: 11, fill: '#888' }} />
-                        <YAxis tick={{ fontSize: 11, fill: '#888' }} tickFormatter={(v) => (Number(v) / 1000).toLocaleString('pt-BR') + 'k'} />
-                        <Tooltip formatter={(v) => fmtRS(Number(v))} labelStyle={{ color: '#444' }} />
-                        <Bar dataKey="valor" name="Gasto" fill={COR_VALOR} radius={[4, 4, 0, 0]} barSize={26} />
-                      </BarChart>
-                    </ResponsiveContainer>
+              {/* abas */}
+              <div style={{ display: 'flex', gap: 4, borderBottom: '2px solid #eee', marginBottom: 14, flexWrap: 'wrap' }}>
+                {ABAS.map((a) => (
+                  <button
+                    key={a.id}
+                    onClick={() => setAba(a.id)}
+                    style={{ background: 'none', border: 'none', borderBottom: aba === a.id ? '2px solid #dc2626' : '2px solid transparent', marginBottom: -2, padding: '10px 14px', fontSize: '.85rem', fontWeight: aba === a.id ? 700 : 500, color: aba === a.id ? '#dc2626' : '#666', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  >
+                    {a.label}
+                    {!!a.badge && (
+                      <span style={{ background: '#dc2626', color: '#fff', borderRadius: 999, fontSize: '.62rem', padding: '1px 7px', fontWeight: 700 }}>{a.badge}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {/* ===================== VISÃO GERAL ===================== */}
+              {aba === 'visao' && (
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 12 }}>
+                    <Card titulo="Gasto por mês (R$) — barra atual, linha = mesmo mês do ano passado">
+                      <div style={{ width: '100%', height: 280 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <ComposedChart data={evolucao}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                            <XAxis dataKey="rotulo" tick={{ fontSize: 11, fill: '#888' }} />
+                            <YAxis tick={{ fontSize: 11, fill: '#888' }} tickFormatter={(v) => (Number(v) / 1000).toLocaleString('pt-BR') + 'k'} />
+                            <Tooltip
+                              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                              content={({ active, payload, label }: any) => {
+                                if (!active || !payload?.length) return null;
+                                const m = payload[0].payload;
+                                return (
+                                  <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 8, padding: '8px 10px', fontSize: '.76rem', color: '#444', boxShadow: '0 2px 8px rgba(0,0,0,.08)' }}>
+                                    <div style={{ fontWeight: 700, marginBottom: 4 }}>{label}</div>
+                                    <div>Gasto: <strong>{fmtRS(m.valor)}</strong></div>
+                                    <div>Ano passado: {m.valorAnoAnterior != null ? fmtRS(m.valorAnoAnterior) : '—'}</div>
+                                    <div>vs mês anterior: {fmtPct(m.varMes)} · vs ano passado: {fmtPct(m.varAno)}</div>
+                                    <div style={{ color: '#aaa', marginTop: 4 }}>clique para detalhar</div>
+                                  </div>
+                                );
+                              }}
+                            />
+                            <Legend wrapperStyle={{ fontSize: 11 }} />
+                            <Bar
+                              dataKey="valor" name="Gasto" fill={COR_VALOR} radius={[4, 4, 0, 0]} barSize={24} cursor="pointer"
+                              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                              onClick={(d: any) => { const mes = d?.payload?.mes ?? d?.mes; if (mes) abrirDetalhe(`Abastecimentos de ${rotuloMes(mes)}`, { mes }); }}
+                            />
+                            <Line dataKey="valorAnoAnterior" name="Mesmo mês/ano passado" stroke={COR_ANO_ANTERIOR} strokeDasharray="5 4" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                          </ComposedChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </Card>
+
+                    <Card titulo="Litros por mês — separa efeito consumo do efeito preço">
+                      <div style={{ width: '100%', height: 280 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <ComposedChart data={evolucao}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                            <XAxis dataKey="rotulo" tick={{ fontSize: 11, fill: '#888' }} />
+                            <YAxis tick={{ fontSize: 11, fill: '#888' }} />
+                            <Tooltip formatter={(v, nome) => [fmtL(Number(v)), nome]} labelStyle={{ color: '#444' }} />
+                            <Legend wrapperStyle={{ fontSize: 11 }} />
+                            <Bar
+                              dataKey="litros" name="Litros" fill={COR_LITROS} radius={[4, 4, 0, 0]} barSize={24} cursor="pointer"
+                              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                              onClick={(d: any) => { const mes = d?.payload?.mes ?? d?.mes; if (mes) abrirDetalhe(`Abastecimentos de ${rotuloMes(mes)}`, { mes }); }}
+                            />
+                            <Line dataKey="litrosAnoAnterior" name="Mesmo mês/ano passado" stroke={COR_ANO_ANTERIOR} strokeDasharray="5 4" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                          </ComposedChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </Card>
                   </div>
-                </Card>
-                <Card titulo="Litros por mês">
-                  <div style={{ width: '100%', height: 260 }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={evolucao}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                        <XAxis dataKey="rotulo" tick={{ fontSize: 11, fill: '#888' }} />
-                        <YAxis tick={{ fontSize: 11, fill: '#888' }} />
-                        <Tooltip formatter={(v) => fmtL(Number(v))} labelStyle={{ color: '#444' }} />
-                        <Bar dataKey="litros" name="Litros" fill={COR_LITROS} radius={[4, 4, 0, 0]} barSize={26} />
-                      </BarChart>
-                    </ResponsiveContainer>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 12 }}>
+                    <Card titulo="Preço médio do litro por combustível">
+                      <div style={{ width: '100%', height: 280 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={precoMensal}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                            <XAxis dataKey="rotulo" tick={{ fontSize: 11, fill: '#888' }} />
+                            <YAxis tick={{ fontSize: 11, fill: '#888' }} tickFormatter={(v) => 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} domain={['auto', 'auto']} width={70} />
+                            <Tooltip formatter={(v) => fmtRS(Number(v))} labelStyle={{ color: '#444' }} />
+                            <Legend wrapperStyle={{ fontSize: 11 }} />
+                            {dados.combustiveis.map((c) => (
+                              <Line key={c} dataKey={c} name={c} stroke={corDoCombustivel(c, dados.combustiveis)} strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                            ))}
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </Card>
+
+                    <Card titulo="Gasto mensal por combustível (empilhado)">
+                      <div style={{ width: '100%', height: 280 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={gastoComb}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                            <XAxis dataKey="rotulo" tick={{ fontSize: 11, fill: '#888' }} />
+                            <YAxis tick={{ fontSize: 11, fill: '#888' }} tickFormatter={(v) => (Number(v) / 1000).toLocaleString('pt-BR') + 'k'} />
+                            <Tooltip formatter={(v) => fmtRS(Number(v))} labelStyle={{ color: '#444' }} />
+                            <Legend wrapperStyle={{ fontSize: 11 }} />
+                            {dados.combustiveis.map((c) => (
+                              <Bar
+                                key={c} dataKey={c} name={c} stackId="g" fill={corDoCombustivel(c, dados.combustiveis)} barSize={26} cursor="pointer"
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                onClick={(d: any) => { const mes = d?.payload?.mes ?? d?.mes; if (mes) abrirDetalhe(`${c} em ${rotuloMes(mes)}`, { mes, combustivel: c }); }}
+                              />
+                            ))}
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </Card>
                   </div>
-                </Card>
-              </div>
 
-              {/* rankings */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 12 }}>
-                <Card titulo="Gasto por veículo (top 15)">
-                  <RankingChart
-                    dados={dados.porVeiculo.slice(0, 15).map((v) => ({ nome: v.detalhe ? `${v.chave} · ${v.detalhe}` : v.chave, valor: v.valor }))}
-                    cor={COR_VALOR}
-                    formato={(v) => fmtRS(v)}
-                  />
-                </Card>
-                <Card titulo="Gasto por motorista (top 15)">
-                  <RankingChart
-                    dados={dados.porMotorista.slice(0, 15).map((m) => ({ nome: m.chave, valor: m.valor }))}
-                    cor={COR_VALOR}
-                    formato={(v) => fmtRS(v)}
-                  />
-                </Card>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 12 }}>
-                <Card titulo="Gasto por posto">
-                  <RankingChart
-                    dados={dados.porPosto.slice(0, 12).map((p) => ({ nome: p.detalhe ? `${p.chave} · ${p.detalhe}` : p.chave, valor: p.valor }))}
-                    cor={COR_VALOR}
-                    formato={(v) => fmtRS(v)}
-                  />
-                </Card>
-                <Card titulo="Por combustível">
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                      <thead>
-                        <tr>
-                          <th style={thStyle}>Combustível</th>
-                          <th style={{ ...thStyle, textAlign: 'right' }}>Litros</th>
-                          <th style={{ ...thStyle, textAlign: 'right' }}>Gasto</th>
-                          <th style={{ ...thStyle, textAlign: 'right' }}>Preço médio/L</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {dados.porCombustivel.map((c) => (
-                          <tr key={c.combustivel}>
-                            <td style={tdStyle}>{c.combustivel}</td>
-                            <td style={{ ...tdStyle, textAlign: 'right' }}>{fmtL(c.litros)}</td>
-                            <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600 }}>{fmtRS(c.valor)}</td>
-                            <td style={{ ...tdStyle, textAlign: 'right' }}>{fmtRS(c.precoMedio)}</td>
+                  <Card titulo="Resumo por combustível">
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr>
+                            <th style={thStyle}>Combustível</th>
+                            <th style={{ ...thStyle, textAlign: 'right' }}>Litros</th>
+                            <th style={{ ...thStyle, textAlign: 'right' }}>Gasto</th>
+                            <th style={{ ...thStyle, textAlign: 'right' }}>Preço médio/L</th>
                           </tr>
-                        ))}
-                        {dados.porCombustivel.length === 0 && (
-                          <tr><td style={tdStyle} colSpan={4}>Sem dados no período.</td></tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </Card>
-              </div>
+                        </thead>
+                        <tbody>
+                          {dados.porCombustivel.map((c) => (
+                            <tr key={c.combustivel} style={linhaClicavel} onClick={() => abrirDetalhe(`Abastecimentos de ${c.combustivel}`, { combustivel: c.combustivel })}>
+                              <td style={tdStyle}>
+                                <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 3, background: corDoCombustivel(c.combustivel, dados.combustiveis), marginRight: 8 }} />
+                                {c.combustivel}
+                              </td>
+                              <td style={{ ...tdStyle, textAlign: 'right' }}>{fmtL(c.litros)}</td>
+                              <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600 }}>{fmtRS(c.valor)}</td>
+                              <td style={{ ...tdStyle, textAlign: 'right' }}>{fmtRS(c.precoMedio)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </Card>
+                </>
+              )}
 
-              {/* consumo km/l */}
-              <Card titulo="Consumo por veículo (km/l pelo hodômetro)">
-                <p style={{ color: '#888', fontSize: '.76rem', marginBottom: 10 }}>
-                  Calculado entre abastecimentos com hodômetro informado. Trechos com quilometragem
-                  negativa ou acima de 5.000 km (erro de digitação do motorista) são descartados e
-                  contados na última coluna.
-                </p>
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead>
-                      <tr>
-                        <th style={thStyle}>Veículo</th>
-                        <th style={thStyle}>Modelo</th>
-                        <th style={{ ...thStyle, textAlign: 'right' }}>Km rodados</th>
-                        <th style={{ ...thStyle, textAlign: 'right' }}>Litros</th>
-                        <th style={{ ...thStyle, textAlign: 'right' }}>Km/L</th>
-                        <th style={{ ...thStyle, textAlign: 'right' }}>Trechos</th>
-                        <th style={{ ...thStyle, textAlign: 'right' }}>Descartados</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {dados.consumo.map((c) => (
-                        <tr key={c.placa}>
-                          <td style={{ ...tdStyle, fontWeight: 600 }}>{c.placa}</td>
-                          <td style={tdStyle}>{c.modelo || '—'}</td>
-                          <td style={{ ...tdStyle, textAlign: 'right' }}>{fmtKm(c.kmRodado)}</td>
-                          <td style={{ ...tdStyle, textAlign: 'right' }}>{fmtL(c.litrosConsiderados)}</td>
-                          <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 700, color: '#333' }}>
-                            {c.kmPorLitro > 0 ? c.kmPorLitro.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : '—'}
-                          </td>
-                          <td style={{ ...tdStyle, textAlign: 'right' }}>{c.trechos}</td>
-                          <td style={{ ...tdStyle, textAlign: 'right', color: c.trechosDescartados ? '#b45309' : '#444' }}>{c.trechosDescartados}</td>
-                        </tr>
+              {/* ===================== VEÍCULOS ===================== */}
+              {aba === 'veiculos' && (
+                <>
+                  {dados.anomalias.length > 0 && (
+                    <Card titulo="Anomalias de consumo — investigar (possível problema mecânico, vazamento ou desvio)">
+                      {dados.anomalias.map((a) => (
+                        <div
+                          key={a.placa}
+                          onClick={() => abrirDetalhe(`Abastecimentos de ${a.placa}`, { placa: a.placa })}
+                          style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 8, padding: '10px 12px', marginBottom: 8, cursor: 'pointer' }}
+                        >
+                          <AlertTriangle size={18} color="#b45309" />
+                          <div style={{ fontSize: '.82rem', color: '#78350f' }}>
+                            <strong>{a.placa}</strong>{a.modelo ? ` · ${a.modelo}` : ''} — km/l caiu para{' '}
+                            <strong>{a.kmlRecente.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}</strong>{' '}
+                            (média histórica {a.kmlMedio.toLocaleString('pt-BR', { maximumFractionDigits: 1 })},{' '}
+                            {a.desvios.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} desvios-padrão abaixo, {a.trechos} trechos)
+                          </div>
+                        </div>
                       ))}
-                      {dados.consumo.length === 0 && (
-                        <tr><td style={tdStyle} colSpan={7}>Sem dados de hodômetro no período.</td></tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </Card>
+                    </Card>
+                  )}
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 12 }}>
+                    <Card titulo="Top 10 veículos por gasto">
+                      <RankingChart
+                        dados={dados.porVeiculo.slice(0, 10).map((v) => ({ chave: v.chave, nome: v.detalhe ? `${v.chave} · ${v.detalhe}` : v.chave, valor: v.valor }))}
+                        cor={COR_VALOR}
+                        formato={(v) => fmtRS(v)}
+                        onItemClick={(chave) => abrirDetalhe(`Abastecimentos de ${chave}`, { placa: chave })}
+                      />
+                    </Card>
+
+                    <Card titulo="Curva ABC — quais veículos concentram o custo">
+                      <div style={{ overflowX: 'auto', maxHeight: 420, overflowY: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                          <thead>
+                            <tr>
+                              <th style={thStyle}>Classe</th>
+                              <th style={thStyle}>Placa</th>
+                              <th style={{ ...thStyle, textAlign: 'right' }}>Gasto</th>
+                              <th style={{ ...thStyle, textAlign: 'right' }}>% do total</th>
+                              <th style={{ ...thStyle, textAlign: 'right' }}>% acumulado</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {dados.abc.map((v) => (
+                              <tr key={v.placa} style={linhaClicavel} onClick={() => abrirDetalhe(`Abastecimentos de ${v.placa}`, { placa: v.placa })}>
+                                <td style={tdStyle}>
+                                  <span style={{ background: v.classe === 'A' ? '#fee2e2' : v.classe === 'B' ? '#fef3c7' : '#f3f4f6', color: v.classe === 'A' ? '#b91c1c' : v.classe === 'B' ? '#92400e' : '#6b7280', borderRadius: 6, padding: '2px 8px', fontWeight: 700, fontSize: '.72rem' }}>{v.classe}</span>
+                                </td>
+                                <td style={{ ...tdStyle, fontWeight: 600 }}>{v.placa}{v.modelo ? <span style={{ color: '#999', fontWeight: 400 }}> · {v.modelo}</span> : null}</td>
+                                <td style={{ ...tdStyle, textAlign: 'right' }}>{fmtRS(v.valor)}</td>
+                                <td style={{ ...tdStyle, textAlign: 'right' }}>{v.pct.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%</td>
+                                <td style={{ ...tdStyle, textAlign: 'right' }}>{v.pctAcum.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </Card>
+                  </div>
+
+                  <Card titulo="Eficiência por veículo — km/l e custo por km (hodômetro digitado, trechos ruins descartados)">
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr>
+                            <th style={thStyle}>Veículo</th>
+                            <th style={thStyle}>Modelo</th>
+                            <th style={{ ...thStyle, textAlign: 'right' }}>Km rodados</th>
+                            <th style={{ ...thStyle, textAlign: 'right' }}>Litros</th>
+                            <th style={{ ...thStyle, textAlign: 'right' }}>Km/L</th>
+                            <th style={{ ...thStyle, textAlign: 'right' }}>R$/km</th>
+                            <th style={{ ...thStyle, textAlign: 'right' }}>Trechos</th>
+                            <th style={{ ...thStyle, textAlign: 'right' }}>Descartados</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {dados.consumo.map((c) => (
+                            <tr key={c.placa} style={linhaClicavel} onClick={() => abrirDetalhe(`Abastecimentos de ${c.placa}`, { placa: c.placa })}>
+                              <td style={{ ...tdStyle, fontWeight: 600 }}>
+                                {c.placa}
+                                {anomaliaPorPlaca.has(c.placa) && <AlertTriangle size={13} color="#b45309" style={{ marginLeft: 6, verticalAlign: -2 }} />}
+                              </td>
+                              <td style={tdStyle}>{c.modelo || '—'}</td>
+                              <td style={{ ...tdStyle, textAlign: 'right' }}>{fmtKm(c.kmRodado)}</td>
+                              <td style={{ ...tdStyle, textAlign: 'right' }}>{fmtL(c.litrosConsiderados)}</td>
+                              <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 700 }}>{c.kmPorLitro > 0 ? c.kmPorLitro.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : '—'}</td>
+                              <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 700, color: '#dc2626' }}>{c.custoPorKm > 0 ? fmtRS(c.custoPorKm) : '—'}</td>
+                              <td style={{ ...tdStyle, textAlign: 'right' }}>{c.trechos}</td>
+                              <td style={{ ...tdStyle, textAlign: 'right', color: c.trechosDescartados ? '#b45309' : '#444' }}>{c.trechosDescartados}</td>
+                            </tr>
+                          ))}
+                          {dados.consumo.length === 0 && (
+                            <tr><td style={tdStyle} colSpan={8}>Sem dados de hodômetro no período.</td></tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </Card>
+                </>
+              )}
+
+              {/* ===================== MOTORISTAS & POSTOS ===================== */}
+              {aba === 'pessoas' && (
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 12 }}>
+                    <Card titulo="Gasto por motorista (top 15)">
+                      <RankingChart
+                        dados={dados.porMotorista.slice(0, 15).map((m) => ({ chave: m.chave, nome: m.chave, valor: m.valor }))}
+                        cor={COR_VALOR}
+                        formato={(v) => fmtRS(v)}
+                        onItemClick={(chave) => abrirDetalhe(`Abastecimentos de ${chave}`, { motorista: chave === 'Sem motorista' ? '__sem__' : chave })}
+                      />
+                    </Card>
+                    <Card titulo="Gasto por posto — onde o dinheiro está indo (vale negociar?)">
+                      <RankingChart
+                        dados={dados.porPosto.slice(0, 12).map((p) => ({ chave: p.chave, nome: p.detalhe ? `${p.chave} · ${p.detalhe}` : p.chave, valor: p.valor }))}
+                        cor={COR_VALOR}
+                        formato={(v) => fmtRS(v)}
+                        onItemClick={(chave) => abrirDetalhe(`Abastecimentos no posto ${chave}`, { posto: chave })}
+                      />
+                    </Card>
+                  </div>
+
+                  <Card titulo="Gasto por Ordem de Serviço (digitada pelo motorista no abastecimento)">
+                    <p style={{ color: '#888', fontSize: '.76rem', marginBottom: 10 }}>
+                      Base para custear o combustível de cada atendimento de campo. O nº da OS é digitado
+                      pelo motorista na bomba — pode conter erros. Cruzamento com as OS do Omie: próximo passo.
+                    </p>
+                    <div style={{ overflowX: 'auto', maxHeight: 420, overflowY: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr>
+                            <th style={thStyle}>OS</th>
+                            <th style={thStyle}>Veículo(s)</th>
+                            <th style={{ ...thStyle, textAlign: 'right' }}>Abastecimentos</th>
+                            <th style={{ ...thStyle, textAlign: 'right' }}>Litros</th>
+                            <th style={{ ...thStyle, textAlign: 'right' }}>Gasto</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {dados.porOS.map((o) => (
+                            <tr key={o.os} style={linhaClicavel} onClick={() => abrirDetalhe(`Abastecimentos da OS ${o.os}`, { os: o.os })}>
+                              <td style={{ ...tdStyle, fontWeight: 600 }}>{o.os}</td>
+                              <td style={tdStyle}>{o.placas.join(', ')}</td>
+                              <td style={{ ...tdStyle, textAlign: 'right' }}>{o.transacoes}</td>
+                              <td style={{ ...tdStyle, textAlign: 'right' }}>{fmtL(o.litros)}</td>
+                              <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600 }}>{fmtRS(o.valor)}</td>
+                            </tr>
+                          ))}
+                          {dados.porOS.length === 0 && (
+                            <tr><td style={tdStyle} colSpan={5}>Nenhuma OS informada no período (exclua e reenvie lotes antigos para preencher — coluna nova).</td></tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </Card>
+                </>
+              )}
+
+              {/* ===================== AUDITORIA ===================== */}
+              {aba === 'auditoria' && (
+                <>
+                  {suspeitas.length > 0 && (
+                    <Card titulo="Abastecimentos suspeitos — red flags clássicas de desvio">
+                      {suspeitas.map((s, i) => (
+                        <div
+                          key={i}
+                          onClick={() => abrirDetalhe(`Abastecimentos de ${s.placa}`, { placa: s.placa })}
+                          style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 8, padding: '10px 12px', marginBottom: 8, cursor: 'pointer' }}
+                        >
+                          <AlertTriangle size={18} color="#b91c1c" />
+                          <div style={{ fontSize: '.82rem', color: '#7f1d1d' }}>
+                            <strong>{s.placa}</strong> em {new Date(s.data).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} —{' '}
+                            {s.motivo} ({s.litros.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L,{' '}
+                            {s.horas < 48 ? `${s.horas.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}h` : `${(s.horas / 24).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} dias`} após o anterior
+                            {s.capacidade ? `, tanque de ${s.capacidade} L` : ''})
+                          </div>
+                        </div>
+                      ))}
+                    </Card>
+                  )}
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 12 }}>
+                    <Card titulo="Intervalo entre abastecimentos × litros (até 7 dias)">
+                      <p style={{ color: '#888', fontSize: '.76rem', marginBottom: 8 }}>
+                        Pontos no canto superior esquerdo (pouco tempo, muitos litros) merecem verificação.
+                      </p>
+                      <div style={{ width: '100%', height: 300 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <ScatterChart margin={{ left: 8, right: 16, bottom: 12 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                            <XAxis type="number" dataKey="horas" name="Horas" tick={{ fontSize: 11, fill: '#888' }} label={{ value: 'horas desde o abastecimento anterior', position: 'insideBottom', offset: -6, fontSize: 11, fill: '#888' }} />
+                            <YAxis type="number" dataKey="litros" name="Litros" tick={{ fontSize: 11, fill: '#888' }} />
+                            <ZAxis range={[50, 51]} />
+                            <Tooltip
+                              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                              content={({ active, payload }: any) => {
+                                if (!active || !payload?.length) return null;
+                                const p = payload[0].payload;
+                                return (
+                                  <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 8, padding: '8px 10px', fontSize: '.76rem', color: '#444', boxShadow: '0 2px 8px rgba(0,0,0,.08)' }}>
+                                    <div style={{ fontWeight: 700 }}>{p.placa}</div>
+                                    <div>{p.litros.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L, {p.horas.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}h após o anterior</div>
+                                    {p.motivo && <div style={{ color: '#b91c1c', fontWeight: 600 }}>{p.motivo}</div>}
+                                  </div>
+                                );
+                              }}
+                            />
+                            <Legend wrapperStyle={{ fontSize: 11 }} />
+                            <Scatter
+                              name="Normal" data={pontosScatter.filter((p) => !p.suspeito)} fill="#94a3b8"
+                              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                              onClick={(d: any) => { const pl = d?.placa ?? d?.payload?.placa; if (pl) abrirDetalhe(`Abastecimentos de ${pl}`, { placa: pl }); }}
+                            />
+                            <Scatter
+                              name="Suspeito" data={pontosScatter.filter((p) => p.suspeito)} fill="#b91c1c"
+                              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                              onClick={(d: any) => { const pl = d?.placa ?? d?.payload?.placa; if (pl) abrirDetalhe(`Abastecimentos de ${pl}`, { placa: pl }); }}
+                            />
+                          </ScatterChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </Card>
+
+                    <Card titulo="Quando a frota abastece — dia da semana × hora">
+                      <HeatmapDiaHora celulas={dados.heatmap} />
+                    </Card>
+                  </div>
+                </>
+              )}
+
+              {/* ===================== TRANSAÇÕES ===================== */}
+              {aba === 'transacoes' && (
+                <Card titulo="Últimos abastecimentos">
+                  <TabelaTransacoes
+                    de={de}
+                    ate={ate}
+                    filial={filial}
+                    placa={placa}
+                    motoristas={opcoes.motoristas}
+                    placas={opcoes.placas}
+                  />
+                </Card>
+              )}
             </>
           )}
         </>
       )}
+
+      {detalhe && <DetalheModal {...detalhe} onClose={() => setDetalhe(null)} />}
     </div>
   );
 }
