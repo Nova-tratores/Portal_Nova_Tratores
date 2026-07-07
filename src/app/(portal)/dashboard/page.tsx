@@ -63,6 +63,7 @@ const systems: SystemCard[] = [
   { id: 'feedbacks', name: 'Feedbacks & CRM', description: 'CRM/RFM, oportunidades automáticas de revisão, peças, up-sell e follow-up', icon: <Megaphone size={28} />, color: '#8B5CF6', gradient: 'linear-gradient(135deg, #A78BFA, #7C3AED)', href: '/feedbacks', tag: 'CRM', group: 'comercial' },
   { id: 'clientes', name: 'Pastas Clientes', description: 'Ranking de clientes por volume de serviços, OS, PV e NF integrados ao Omie', icon: <Building size={28} />, color: '#8B5CF6', gradient: 'linear-gradient(135deg, #8B5CF6, #6D28D9)', href: '/clientes', tag: 'CLIENTES', group: 'comercial' },
   { id: 'supervisor-vendas', name: 'Supervisor Vendas', description: 'Painel do supervisor: vendedores, visitas, catálogo, mapa e alertas', icon: <TrendingUp size={28} />, color: '#8B5CF6', gradient: 'linear-gradient(135deg, #7C3AED, #6D28D9)', href: '/supervisor-vendas', tag: 'VENDAS', group: 'comercial' },
+  { id: 'gestao-vendas', name: 'Gestão de Vendas', description: 'Resultado mensal: margens, comissões e custos por vendedor', icon: <BarChart3 size={28} />, color: '#8B5CF6', gradient: 'linear-gradient(135deg, #8B5CF6, #5B21B6)', href: '/gestao-vendas', tag: 'RESULTADOS', group: 'comercial' },
 
   // Estoque (vermelho)
   { id: 'consulta-estoque', name: 'Visual Estoque', description: 'Showroom virtual de estoque com visualização de peças e produtos', icon: <BarChart3 size={28} />, color: '#DC2626', gradient: 'linear-gradient(135deg, #DC2626, #991B1B)', href: '/visual-estoque', tag: 'VISUAL', group: 'estoque' },
@@ -107,6 +108,7 @@ const systemToModulo: Record<string, string> = {
   'dre': 'dre',
   'back-nova': 'back-nova',
   'supervisor-vendas': 'supervisor-vendas',
+  'gestao-vendas': 'gestao-vendas',
   'configuracoes': 'admin',
 }
 

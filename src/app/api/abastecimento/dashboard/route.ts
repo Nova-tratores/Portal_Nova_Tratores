@@ -17,7 +17,7 @@ const supabase = createClient(
 );
 
 const COLS =
-  'placa, id_placa, modelo_veiculo, filial_nome, motorista_nome, posto_nome, posto_cidade, combustivel, litros, valor_total, hodometro, data_transacao, capacidade_tanque, ordem_servico';
+  'placa, id_placa, modelo_veiculo, filial_nome, motorista_nome, posto_nome, posto_cidade, combustivel, litros, valor_total, hodometro, data_transacao, capacidade_tanque, ordem_servico, departamento';
 
 const PAGINA = 1000;
 
@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
     const de = sp.get('de') || dePadrao.toISOString().slice(0, 10);
     const filial = sp.get('filial') || '';
     const placa = sp.get('placa') || '';
+    const departamento = sp.get('departamento') || '';
 
     // janela estendida: 13 meses antes do início (comparativo YoY)
     const deExtData = new Date(`${de}T00:00:00-03:00`);
@@ -50,6 +51,7 @@ export async function GET(req: NextRequest) {
         .range(off, off + PAGINA - 1);
       if (filial) q = q.eq('filial_nome', filial);
       if (placa) q = q.eq('placa', placa);
+      if (departamento) q = q.eq('departamento', departamento);
 
       const { data, error } = await q;
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });

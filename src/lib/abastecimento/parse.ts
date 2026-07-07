@@ -5,6 +5,7 @@
 // BR ("1.542,17"), ~60 colunas. O mapeamento é feito pelo NOME da coluna
 // (normalizado), então o import sobrevive a reordenação/colunas novas.
 
+import { corrigirPlaca } from './correcoes';
 import type { ErroLinha, LinhaAbastecimento, ResultadoParse } from './tipos';
 
 // ---------------------------------------------------------------------------
@@ -107,6 +108,7 @@ const COLUNAS: Record<string, string> = {
   modelo_veiculo: 'modeloveiculo',
   nome_veiculo: 'nomeveiculo',
   tipo_frota: 'tipodefrota',
+  departamento: 'centrodecustoveiculo',
   motorista_cpf: 'cpfmotorista',
   motorista_nome: 'nomemotorista',
   data_transacao: 'datahoratransacao',
@@ -178,11 +180,11 @@ export function parseCsvAbastecimento(csvTexto: string): ResultadoParse {
     const row = grade[r];
     const numLinha = r + 1; // 1 = cabeçalho
 
-    const placa = normalizarPlaca(cel(row, 'placa'));
+    const placaCsv = normalizarPlaca(cel(row, 'placa'));
     const dataTransacao = parseDataBR(texto(cel(row, 'data_transacao')));
     const litros = parseNumeroBR(cel(row, 'litros'));
 
-    if (!placa) { erros.push({ linha: numLinha, motivo: 'Placa vazia' }); continue; }
+    if (!placaCsv) { erros.push({ linha: numLinha, motivo: 'Placa vazia' }); continue; }
     if (!dataTransacao) {
       erros.push({ linha: numLinha, motivo: `Data/hora da transação inválida: "${cel(row, 'data_transacao') || ''}"` });
       continue;
@@ -191,6 +193,10 @@ export function parseCsvAbastecimento(csvTexto: string): ResultadoParse {
       erros.push({ linha: numLinha, motivo: `Quantidade de litros inválida: "${cel(row, 'litros') || ''}"` });
       continue;
     }
+
+    // correções de placa (unificações/trocas de cartão) — ANTES da dedup
+    const corr = corrigirPlaca(placaCsv, dataTransacao);
+    const placa = corr.placa;
 
     const chave = `${placa}|${dataTransacao}|${litros.toFixed(3)}`;
     if (vistas.has(chave)) { duplicadasArquivo++; continue; }
@@ -205,9 +211,10 @@ export function parseCsvAbastecimento(csvTexto: string): ResultadoParse {
       id_placa: null, // resolvido no upload (cruzamento com a tabela Placas)
       filial_cnpj: texto(cel(row, 'filial_cnpj')),
       filial_nome: texto(cel(row, 'filial_nome')),
-      modelo_veiculo: texto(cel(row, 'modelo_veiculo')),
+      modelo_veiculo: corr.modelo ?? texto(cel(row, 'modelo_veiculo')),
       nome_veiculo: texto(cel(row, 'nome_veiculo')),
       tipo_frota: texto(cel(row, 'tipo_frota')),
+      departamento: texto(cel(row, 'departamento')),
       motorista_cpf: texto(cel(row, 'motorista_cpf')),
       motorista_nome: motorista,
       data_transacao: dataTransacao,

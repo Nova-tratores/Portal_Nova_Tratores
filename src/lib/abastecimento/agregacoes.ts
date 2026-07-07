@@ -7,6 +7,7 @@
 
 import type {
   AbcItem,
+  VeiculoMes,
   AnomaliaConsumo,
   CombustivelItem,
   ConsumoVeiculo,
@@ -37,6 +38,7 @@ export interface LinhaDash {
   data_transacao: string;
   capacidade_tanque: number | null;
   ordem_servico: string | null;
+  departamento: string | null;
 }
 
 // Placas "especiais" da operadora (abastecimento avulso de clientes/tratores):
@@ -208,6 +210,9 @@ export const porMotorista = (linhas: LinhaDash[]) =>
 
 export const porPosto = (linhas: LinhaDash[]) =>
   ranking(linhas, (l) => l.posto_nome || 'Posto não informado', (l) => l.posto_cidade);
+
+export const porDepartamento = (linhas: LinhaDash[]) =>
+  ranking(linhas, (l) => l.departamento || 'Sem departamento', () => null);
 
 export function porCombustivel(linhas: LinhaDash[]): CombustivelItem[] {
   return ranking(linhas, (l) => l.combustivel || 'Não informado', () => null).map((r) => ({
@@ -389,6 +394,36 @@ export function heatmapDiaHora(linhas: LinhaDash[]): HeatmapCelula[] {
   return [...celulas.values()];
 }
 
+// Série mensal por veículo — base do comparativo entre veículos. km/l do mês
+// = trechos de hodômetro FECHADOS naquele mês (null se nenhum trecho válido).
+export function serieMensalPorPlaca(linhas: LinhaDash[]): VeiculoMes[] {
+  const acc = new Map<string, VeiculoMes>(); // 'placa|mes'
+  for (const l of linhas) {
+    const mes = localBR(l.data_transacao).mes;
+    const chave = `${l.placa}|${mes}`;
+    const item = acc.get(chave) || { placa: l.placa, mes, litros: 0, valor: 0, kml: null };
+    item.litros += num(l.litros);
+    item.valor += num(l.valor_total);
+    acc.set(chave, item);
+  }
+  // km/l: soma dos trechos por mês de fechamento
+  const kmMes = new Map<string, { km: number; litros: number }>();
+  for (const [placa, tv] of trechosPorVeiculo(linhas)) {
+    for (const t of tv.trechos) {
+      const chave = `${placa}|${localBR(t.dataFim).mes}`;
+      const k = kmMes.get(chave) || { km: 0, litros: 0 };
+      k.km += t.deltaKm;
+      k.litros += t.litros;
+      kmMes.set(chave, k);
+    }
+  }
+  for (const [chave, k] of kmMes) {
+    const item = acc.get(chave);
+    if (item && k.litros > 0) item.kml = k.km / k.litros;
+  }
+  return [...acc.values()].sort((a, b) => a.mes.localeCompare(b.mes));
+}
+
 // ---------------------------------------------------------------------------
 // Curva ABC, gasto por OS e projeção do mês
 // ---------------------------------------------------------------------------
@@ -463,6 +498,7 @@ export function montarDashboard(
     porVeiculo: rankingVeiculos,
     porMotorista: porMotorista(janela),
     porPosto: porPosto(janela),
+    porDepartamento: porDepartamento(janela),
     porCombustivel: porCombustivel(janela),
     consumo: consumoPorVeiculo(janela),
     anomalias: anomaliasConsumo(ext),
@@ -470,11 +506,13 @@ export function montarDashboard(
     heatmap: heatmapDiaHora(janela),
     abc: curvaAbc(rankingVeiculos),
     porOS: gastoPorOS(janela),
+    porVeiculoMes: serieMensalPorPlaca(janela),
     projecao: projecaoMesAtual(ext, agora),
     opcoesFiltro: {
       filiais: [...new Set(janela.map((l) => l.filial_nome).filter(Boolean) as string[])].sort(),
       placas: [...new Set(janela.map((l) => l.placa))].sort(),
       motoristas: [...new Set(janela.map((l) => l.motorista_nome).filter(Boolean) as string[])].sort(),
+      departamentos: [...new Set(janela.map((l) => l.departamento).filter(Boolean) as string[])].sort(),
     },
   };
 }

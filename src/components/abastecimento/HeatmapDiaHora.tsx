@@ -16,7 +16,10 @@ function corEscala(frac: number): string {
   return `rgb(${c[0]},${c[1]},${c[2]})`;
 }
 
-export default function HeatmapDiaHora({ celulas }: { celulas: HeatmapCelula[] }) {
+export default function HeatmapDiaHora({ celulas, onCellClick }: {
+  celulas: HeatmapCelula[];
+  onCellClick?: (dia: number, hora: number, nomeDia: string) => void;
+}) {
   const mapa = new Map(celulas.map((c) => [`${c.dia}|${c.hora}`, c]));
   const maxValor = Math.max(1, ...celulas.map((c) => c.valor));
 
@@ -36,8 +39,9 @@ export default function HeatmapDiaHora({ celulas }: { celulas: HeatmapCelula[] }
               return (
                 <div
                   key={`${dia}-${hora}`}
-                  title={c ? `${nome} ${hora}h — ${c.qtd} abastecimento(s), R$ ${c.valor.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}` : `${nome} ${hora}h — sem abastecimentos`}
-                  style={{ aspectRatio: '1', borderRadius: 3, background: c ? corEscala(frac) : '#fafafa', border: '1px solid #f0f0f0' }}
+                  title={c ? `${nome} ${hora}h — ${c.qtd} abastecimento(s), R$ ${c.valor.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} — clique para detalhar` : `${nome} ${hora}h — sem abastecimentos`}
+                  onClick={c && onCellClick ? () => onCellClick(dia, hora, nome) : undefined}
+                  style={{ aspectRatio: '1', borderRadius: 3, background: c ? corEscala(frac) : '#fafafa', border: '1px solid #f0f0f0', cursor: c && onCellClick ? 'pointer' : 'default' }}
                 />
               );
             })}
