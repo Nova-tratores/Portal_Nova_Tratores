@@ -8,14 +8,18 @@
 
 ---
 
+> **Atualizado 2026-07-07 — trabalho PAUSADO num bom ponto.** Tudo abaixo marcado ✅ está no ar e com SQL aplicado. Retomar pela cauda do Trilho B e pelo restante do P2 (o SSRF do chat é o próximo, ~1 linha).
+
 ## Onde estamos
 
 | Fase | O que é | Status |
 |------|---------|--------|
 | **P0** | Estancar o pior (auth de admin, segredos fora do código) | ✅ completo |
-| **P1 · Trilho A** | Rotas de ação exigirem login | 🟡 quase (falta `contas-pagar`) |
-| **P1 · Trilho B** | RLS nas tabelas (fechar acesso pela anon key) | 🟠 3 de muitas tabelas |
-| **P2** | Endurecimento (SSRF, injeção, XSS, webhooks, etc.) | 🔴 não começado |
+| **P1 · Trilho A** | Rotas de ação exigirem login | 🟡 principais feitas; `contas-pagar` pulado + cauda de rotas |
+| **P1 · Trilho B** | RLS nas tabelas (fechar acesso pela anon key) | 🟢 6 áreas sensíveis trancadas; falta a cauda |
+| **P2** | Endurecimento (SSRF, injeção, XSS, webhooks, etc.) | 🟡 injeção `.or()` e SSRF do boleto feitos; resto pendente |
+
+**Áreas com RLS já ativo (Trilho B):** `portal_permissoes`, `audit_log`, `financeiro_usu`, `clientes_*`, `garantia_*`, `feedback_*` — ou seja, todo dado sensível/PII.
 
 O problema de fundo que tudo isso resolve: hoje a **anon key** (chave pública, que vai pro navegador de todo mundo) dá acesso ao banco, e as rotas de API **não verificam quem está chamando**. P1 fecha isso; P2 tapa os buracos que sobram.
 
@@ -53,12 +57,14 @@ Ligar Row Level Security pra que a anon key não leia/escreva direto no banco. F
 | `portal_permissoes` | Permissões (admin/dev) | ✅ (no P0) |
 | `audit_log` | Log de auditoria | ✅ |
 | `financeiro_usu` | Usuários (nome, e-mail, ativo) | ✅ |
-| `clientes_omie / _os / _pv` | **PII de clientes** (nome, doc, chassi) | ⏳ próximo |
-| `garantia_*` | Garantias | ⏳ |
-| `feedback_*` | CRM / feedback de clientes | ⏳ |
-| `requisicao_autorizacoes` | Aprovação de valor alto | ⏳ |
+| `portal_nt_clientes_*` | **PII de clientes** (nome, doc, chassi) | ✅ |
+| `garantia_*` | Garantias | ✅ |
+| `feedback_*` | CRM / feedback de clientes | ✅ |
+| `requisicao_autorizacoes` | Aprovação de valor alto | ⏳ próximo |
 | `cronograma.*` | Cronograma (permissões dão acesso ao papel **anônimo** — pior caso) | ⏳ |
 | Cauda longa | `requisicoes`, `lousa_*`, `opa`, `sat`, `tecnico_*`, snapshots de estoque, `tratorilson_memoria`, `EnvioBoleto`, `catalogo_*`, `omie_*`, etc. | ⏳ |
+
+> **Padrão que acelera daqui pra frente:** os clients compartilhados `@/lib/pos/supabase`, `@/lib/ppv/supabase` e o novo `@/lib/server/supabase-admin.ts` usam `SERVICE_ROLE || ANON` — no servidor viram service role (ignoram RLS), no navegador degradam pra anon. Então os leitores de servidor já estão cobertos, e cada tabela nova costuma ser só o SQL de RLS (rodar **uma por vez** com `SET lock_timeout='5s'` — senão dá deadlock com o app em uso).
 
 > Este trilho é o mais trabalhoso — são **dezenas** de tabelas. Prioridade: as que têm PII de cliente e as que dão acesso anônimo explícito.
 
@@ -66,15 +72,13 @@ Ligar Row Level Security pra que a anon key não leia/escreva direto no banco. F
 
 ## P2 — Endurecimento
 
-Buracos pontuais, independentes do RLS. Nenhum começado.
+Buracos pontuais, independentes do RLS.
 
-### 1. SSRF (Server-Side Request Forgery) ⏳
-`financeiro/enviar-boleto` e `assistente/chat` baixam **qualquer URL** que mandarem — dá pra fazer o servidor acessar endereços internos (ex.: metadados de nuvem) e vazar o conteúdo.
-**Correção:** allow-list de domínios + bloquear IPs internos/link-local.
+### 1. SSRF (Server-Side Request Forgery) — 🟡 boleto feito, chat falta
+`financeiro/enviar-boleto` ✅ (helper `src/lib/url-segura.ts` bloqueia URLs internas antes do fetch). **Falta o `assistente/chat`** (`coordsDoLink` baixa URL do usuário) — é só aplicar o mesmo `urlSegura`, ~1 linha.
 
-### 2. Injeção de filtro `.or()` ⏳
-Várias buscas concatenam texto do usuário direto no filtro do PostgREST (`,` `.` `(` `)` `%`), o que injeta condições extras. Uma delas está num **UPDATE** (`inspecoes`, `revisoes`) que pode **apagar campos em massa**.
-**Correção:** aplicar o saneamento que já existe em `garantias/busca` (tirar `% , . ( )`) em todas. **Rápida e importante.**
+### 2. Injeção de filtro `.or()` — ✅ feito
+Helper `src/lib/busca-segura.ts` (`sanitizarFiltro`) aplicado em inspecoes+revisoes (os UPDATEs destrutivos), garantias/buscar-os/emails/os-elegiveis, sat/clientes, mapa/clientes, orcamentos, pos/lousa, catalogo.
 
 ### 3. Webhook do WhatsApp sem assinatura ⏳
 O `POST /api/whatsapp/webhook` não valida a assinatura da Meta (`WHATSAPP_APP_SECRET`). Quem souber a URL manda mensagens falsas e **gasta crédito de IA / de mensagens**, e faz o número da empresa responder a qualquer telefone.
@@ -106,11 +110,9 @@ Sem limite de tentativas nem trava. **Correção:** rate limiting no login.
 
 ---
 
-## Ordem sugerida daqui pra frente
+## Ordem sugerida ao retomar
 
-1. **`clientes_*`** (Trilho B) — dado mais sensível (cliente / LGPD).
-2. **Injeção `.or()`** (P2 nº 2) — rápida e evita perda de dados.
-3. **Webhook do WhatsApp** (P2 nº 3) — se já estiver ativo.
-4. Seguir o Trilho B nas demais tabelas (garantias, feedbacks, requisicao_autorizacoes, cronograma…).
-5. Restante do P2.
-6. (Quando quiser) fechar `contas-pagar` do Trilho A.
+1. **SSRF do chat** (P2 nº 1) — ~1 linha, helper `urlSegura` já existe. Fecha o item.
+2. **Trilho B — cauda** (`requisicao_autorizacoes`, `cronograma`, `lousa`, `opa`, `sat`, snapshots, etc.) — rápido por tabela (só SQL, uma por vez com `lock_timeout`).
+3. **P1 Trilho A restante** — aplicar `autenticar`/`exigirAdmin` nas outras rotas mutantes (tarefas, garantias state-machine, mecanicos, notif-prefs IDOR, `contas-pagar` pulado…).
+4. **Restante do P2** — WhatsApp HMAC (se for pra produção), uploads/XSS, revogar JWT de inativo, rate limiting.
