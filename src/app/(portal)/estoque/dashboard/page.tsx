@@ -27,6 +27,8 @@ interface Categoria {
   varAnoAnterior: number;
   valorProjetado: number | null;
   cardType: string;
+  valorNota?: number;
+  valorInterno?: number;
 }
 interface DashboardResp {
   periodo: string;
@@ -217,17 +219,23 @@ export default function DashboardPage() {
               const varA = calcVar(atual, aAnt);
               const proj = metrica === 'venda' ? c.valorProjetado : null;
               return (
-                <div key={idx} style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 16, boxShadow: '0 1px 4px rgba(0,0,0,.04)' }}>
+                <div key={idx} style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 16, boxShadow: '0 1px 4px rgba(0,0,0,.04)', ...(c.cardType === 'totalGeral' ? { gridColumn: '-2 / -1' } : {}) }}>
                   <div style={{ fontSize: '.72rem', color: '#888', textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 700, marginBottom: 6 }}>{c.nome}</div>
                   <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#dc2626' }}>{fmtRS(atual)}</div>
+                  {c.cardType === 'servico' && metrica === 'venda' && c.valorNota != null && c.valorInterno != null && (
+                    <div style={{ fontSize: '.7rem', color: '#999', marginTop: 4 }}>
+                      Com nota: <span style={{ fontWeight: 600, color: '#666' }}>{fmtRS(c.valorNota)}</span>
+                      {' · '}Interno: <span style={{ fontWeight: 600, color: '#666' }}>{fmtRS(c.valorInterno)}</span>
+                    </div>
+                  )}
                   <div style={{ display: 'flex', gap: 10, marginTop: 8, fontSize: '.7rem' }}>
                     <span style={{ color: varM >= 0 ? '#16a34a' : '#dc2626' }}>Mês ant: {fmtPct(varM)}</span>
                     <span style={{ color: varA >= 0 ? '#16a34a' : '#dc2626' }}>Ano ant: {fmtPct(varA)}</span>
                   </div>
                   {proj != null && <div style={{ fontSize: '.7rem', color: '#999', marginTop: 4 }}>Projeção: {fmtRS(proj)}</div>}
                   <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
-                    <button onClick={() => abrirHistorico(cardIndexParaApi(c, idx, dados))} style={linkBtn}>histórico</button>
-                    {c.cardType !== 'servico' && <button onClick={() => abrirVendas(cardIndexParaApi(c, idx, dados), c.nome)} style={linkBtn}>vendas</button>}
+                    <button onClick={() => abrirHistorico(cardIndexParaApi(c, dados))} style={linkBtn}>histórico</button>
+                    {c.cardType !== 'servico' && <button onClick={() => abrirVendas(cardIndexParaApi(c, dados), c.nome)} style={linkBtn}>vendas</button>}
                   </div>
                 </div>
               );
@@ -331,17 +339,19 @@ function Sel({ label, value, onChange, options }: { label: string; value: string
   );
 }
 
-// O índice do card no array casa com o "card" da API:
-//   0..numCats-1 → cards de produto (API usa 1..numCats); Pecas Diversas → numCats+1;
+// O índice do card na API:
+//   produtos → 1..numCats (Pecas Diversas, o último produto, → numCats+1);
 //   Servicos → numCats+2; Total Pecas → 0; Total Geral → numCats+3.
-// Aqui derivamos pelo cardType para casar com a semântica do backend.
-function cardIndexParaApi(c: Categoria, idx: number, dados: DashboardResp): number {
+// O ordinal do produto é a posição ENTRE os cards de produto (a ordem de exibição
+// intercala Serviços/totais, então o índice bruto do array não serve).
+function cardIndexParaApi(c: Categoria, dados: DashboardResp): number {
+  const produtos = dados.categorias.filter((x) => x.cardType === 'produto');
   // produto cards = N categorias reais + 1 "Pecas Diversas" (catch-all) → numCats = produtoCount - 1
-  const numCats = dados.categorias.filter((x) => x.cardType === 'produto').length - 1;
+  const numCats = produtos.length - 1;
   if (c.cardType === 'totalPecas') return 0;
   if (c.cardType === 'servico') return numCats + 2;
   if (c.cardType === 'totalGeral') return numCats + 3;
-  // produto: posição 1..numCats; Pecas Diversas é o último card de produto → numCats+1
-  if (idx === numCats) return numCats + 1; // Pecas Diversas (catch-all)
-  return idx + 1;
+  const pIdx = produtos.indexOf(c);
+  if (pIdx === numCats) return numCats + 1; // Pecas Diversas (catch-all)
+  return pIdx + 1;
 }

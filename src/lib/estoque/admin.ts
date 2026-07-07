@@ -281,8 +281,8 @@ export async function popularOS(contasAlvo: Conta[]): Promise<Array<{ conta: Con
       for (const p of mesesParaCarregar) {
         const de = fmtD(new Date(p.ano, p.mes - 1, 1));
         const ate = fmtD(new Date(p.ano, p.mes, 0));
-        const total = await buscarOSPeriodo(de, ate, conta);
-        await supabase.from('os_mensal').upsert({ mes: p.mes, ano: p.ano, valor_total: total, conta_omie: conta }, { onConflict: 'mes,ano,conta_omie' });
+        const t = await buscarOSPeriodo(de, ate, conta);
+        await supabase.from('os_mensal').upsert({ mes: p.mes, ano: p.ano, valor_total: t.total, valor_nota: t.nota, valor_interno: t.interno, conta_omie: conta }, { onConflict: 'mes,ano,conta_omie' });
         await salvarControleCache('os', p.mes, p.ano, ate, conta);
       }
       return { conta, totalOS: todas.length, mesesProcessados: mesesParaCarregar.length };

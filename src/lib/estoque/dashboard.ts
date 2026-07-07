@@ -3,7 +3,7 @@
 // Portado de obterDadosPeriodo + handler /api/dashboard (server.js:1373/1395).
 
 import { obterItensProdutos } from './vendas-sync';
-import { obterTotalOS } from './os';
+import { obterTotaisOS } from './os';
 import { agregarCards, getCategoriasConfig } from './categorias';
 import { ehMesAtual, diasUteisDoMes, diasUteisAteHoje, sleep, MESES_CURTO } from './utils';
 import type { ContaFiltro } from './conta';
@@ -16,6 +16,8 @@ interface DadosPeriodo {
   custosCards: number[];
   nomesCat: string[];
   totalOS: number;
+  osNota: number | null;
+  osInterno: number | null;
   totalPecas: number;
   totalCustoPecas: number;
   totalGeral: number;
@@ -30,7 +32,8 @@ export async function obterDadosPeriodo(
 ): Promise<DadosPeriodo> {
   const itens = await obterItensProdutos(mes, ano, conta);
   await sleep(500);
-  const totalOS = await obterTotalOS(mes, ano, conta);
+  const os = await obterTotaisOS(mes, ano, conta);
+  const totalOS = os.total;
 
   const cats = await getCategoriasConfig();
   const agg = agregarCards(itens, filtroCategoria, cats);
@@ -46,6 +49,8 @@ export async function obterDadosPeriodo(
     custosCards: agg.custosCards,
     nomesCat: agg.nomesCat,
     totalOS,
+    osNota: os.nota,
+    osInterno: os.interno,
     totalPecas,
     totalCustoPecas,
     totalGeral,
@@ -65,6 +70,9 @@ export interface DashboardCategoria {
   varAnoAnterior: number;
   valorProjetado: number | null;
   cardType: string;
+  /** Só no card 'servico': split do valor atual (OS faturadas com NFS-e × fechadas internas, sem nota). */
+  valorNota?: number;
+  valorInterno?: number;
 }
 
 export interface DashboardResponse {
@@ -131,9 +139,9 @@ export async function montarDashboard(
     };
   };
 
-  const categorias: DashboardCategoria[] = [];
+  const produtos: DashboardCategoria[] = [];
   for (let i = 0; i < atual.cards.length; i++) {
-    categorias.push(
+    produtos.push(
       montarCategoria(
         atual.nomesCat[i] || 'Card ' + (i + 1),
         atual.cards[i],
@@ -146,15 +154,26 @@ export async function montarDashboard(
       ),
     );
   }
-  categorias.push(montarCategoria('Servicos', atual.totalOS, anterior.totalOS, anoAnt.totalOS, 'servico'));
-  categorias.push(
-    montarCategoria('Total Pecas', atual.totalPecas, anterior.totalPecas, anoAnt.totalPecas, 'totalPecas',
-      atual.totalCustoPecas, anterior.totalCustoPecas, anoAnt.totalCustoPecas),
-  );
-  categorias.push(
-    montarCategoria('Total Geral Servicos + Pecas', atual.totalGeral, anterior.totalGeral, anoAnt.totalGeral, 'totalGeral',
-      atual.totalCustoPecas, anterior.totalCustoPecas, anoAnt.totalCustoPecas),
-  );
+  const servicos = montarCategoria('Servicos', atual.totalOS, anterior.totalOS, anoAnt.totalOS, 'servico');
+  if (atual.osNota != null && atual.osInterno != null) {
+    servicos.valorNota = atual.osNota;
+    servicos.valorInterno = atual.osInterno;
+  }
+  const totalPecas = montarCategoria('Total Pecas', atual.totalPecas, anterior.totalPecas, anoAnt.totalPecas, 'totalPecas',
+    atual.totalCustoPecas, anterior.totalCustoPecas, anoAnt.totalCustoPecas);
+  const totalGeral = montarCategoria('Total Geral Servicos + Pecas', atual.totalGeral, anterior.totalGeral, anoAnt.totalGeral, 'totalGeral',
+    atual.totalCustoPecas, anterior.totalCustoPecas, anoAnt.totalCustoPecas);
+
+  // Ordem dos cards (grade de 4 colunas): Serviços fecha a 1ª linha e os totais
+  // ficam na coluna da direita, um por linha.
+  const corte = Math.min(3, produtos.length);
+  const categorias: DashboardCategoria[] = [
+    ...produtos.slice(0, corte),
+    servicos,
+    ...produtos.slice(corte),
+    totalPecas,
+    totalGeral,
+  ];
 
   return {
     periodo: MESES_CURTO[selMes - 1] + ' ' + selAno,
