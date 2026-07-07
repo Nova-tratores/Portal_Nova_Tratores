@@ -6,10 +6,11 @@ import { usePathname } from 'next/navigation'
 import { useGv, type ContaGv } from './GvProvider'
 import { nomeMes } from '@/lib/gestao-vendas/calculos'
 
+// Mesmo estilo do seletor de conta do DRE (botões segmentados)
 const LOJAS: { value: ContaGv; label: string }[] = [
-  { value: 'TODAS', label: 'Todas as Lojas' },
-  { value: 'NOVA', label: 'Nova Tratores' },
-  { value: 'CASTRO', label: 'Castro Peças' },
+  { value: 'NOVA', label: 'NOVA' },
+  { value: 'CASTRO', label: 'CASTRO' },
+  { value: 'TODAS', label: 'TODAS' },
 ]
 
 const PAGINAS = [
@@ -47,18 +48,24 @@ export default function GvNav() {
       })}
 
       <div className="ml-auto flex items-center gap-2">
-        <select
-          value={conta}
-          onChange={(e) => setConta(e.target.value as ContaGv)}
-          className={selectClass}
-          aria-label="Loja"
-        >
-          {LOJAS.map((e) => (
-            <option key={e.value} value={e.value}>
-              {e.label}
-            </option>
-          ))}
-        </select>
+        <span className="text-[11px] text-gray-500">Loja</span>
+        <div className="inline-flex overflow-hidden rounded-lg border border-red-600" role="group" aria-label="Loja">
+          {LOJAS.map((e, i) => {
+            const ativo = conta === e.value
+            return (
+              <button
+                key={e.value}
+                type="button"
+                onClick={() => setConta(e.value)}
+                className={`px-3 py-1 text-xs font-semibold transition-colors ${
+                  i > 0 ? 'border-l border-red-600' : ''
+                } ${ativo ? 'bg-red-600 text-white' : 'bg-white text-red-700 hover:bg-red-50'}`}
+              >
+                {e.label}
+              </button>
+            )
+          })}
+        </div>
         <select
           value={mes}
           onChange={(e) => setCompetencia(Number(e.target.value), ano)}
