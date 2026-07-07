@@ -43,26 +43,29 @@ const CHUNK = 200
 export async function buscarVendasEnriquecidas(
   mes: number,
   ano: number,
-  conta: string,
+  conta: string, // 'NOVA' | 'CASTRO' | 'TODAS'
 ): Promise<VendaEnriquecida[]> {
-  const vendas = await fetchAll<VendaItem>((from, to) =>
-    supabaseAdmin
+  const todas = conta === 'TODAS'
+  const vendas = await fetchAll<VendaItem>((from, to) => {
+    let q = supabaseAdmin
       .from('vendas_itens')
       .select('*')
       .eq('mes', mes)
       .eq('ano', ano)
-      .ilike('conta_omie', conta)
+    if (!todas) q = q.ilike('conta_omie', conta)
+    return q
       .order('valor_total', { ascending: false })
       .order('id', { ascending: true })
-      .range(from, to),
-  )
+      .range(from, to)
+  })
 
   // lookups nas tabelas master (nomes de cliente, família real, categoria)
   const codCli = [...new Set(vendas.map((v) => v.codigo_cliente).filter((c): c is string => !!c && /^\d+$/.test(c)))].map(Number)
   const codProd = [...new Set(vendas.map((v) => v.codigo_produto).filter((c): c is string => !!c && /^\d+$/.test(c)))].map(Number)
   const codCat = [...new Set(vendas.map((v) => v.codigo_categoria).filter((c): c is string => !!c))]
 
-  const clientes = new Map<number, string>()
+  // clientes com chave conta-aware (o mesmo código Omie pode existir nas duas contas)
+  const clientes = new Map<string, string>()
   const familias = new Map<string, string | null>()
   const categorias = new Map<string, string>()
 
@@ -71,18 +74,23 @@ export async function buscarVendasEnriquecidas(
   for (let i = 0; i < codCli.length; i += CHUNK) {
     const slice = codCli.slice(i, i + CHUNK)
     buscas.push(
-      supabaseAdmin
-        .from('clientes')
-        .select('codigo_cliente_omie, razao_social, nome_fantasia')
-        .in('codigo_cliente_omie', slice)
-        .ilike('conta_omie', conta)
-        .then(({ data, error }) => {
-          if (error) throw new Error(`clientes: ${error.message}`)
-          for (const c of data ?? []) {
-            const nome = c.razao_social ?? c.nome_fantasia
-            if (nome) clientes.set(c.codigo_cliente_omie, nome)
-          }
-        }),
+      (todas
+        ? supabaseAdmin
+            .from('clientes')
+            .select('codigo_cliente_omie, razao_social, nome_fantasia, conta_omie')
+            .in('codigo_cliente_omie', slice)
+        : supabaseAdmin
+            .from('clientes')
+            .select('codigo_cliente_omie, razao_social, nome_fantasia, conta_omie')
+            .in('codigo_cliente_omie', slice)
+            .ilike('conta_omie', conta)
+      ).then(({ data, error }) => {
+        if (error) throw new Error(`clientes: ${error.message}`)
+        for (const c of data ?? []) {
+          const nome = c.razao_social ?? c.nome_fantasia
+          if (nome) clientes.set(`${(c.conta_omie ?? '').toUpperCase()}|${c.codigo_cliente_omie}`, nome)
+        }
+      }),
     )
   }
 
@@ -120,23 +128,24 @@ export async function buscarVendasEnriquecidas(
 
   return vendas.map((v) => ({
     ...v,
-    cliente_nome: v.codigo_cliente ? clientes.get(Number(v.codigo_cliente)) ?? null : null,
+    cliente_nome: v.codigo_cliente
+      ? clientes.get(`${(v.conta_omie ?? '').toUpperCase()}|${Number(v.codigo_cliente)}`) ?? null
+      : null,
     produto_familia_real: v.codigo_produto ? familias.get(v.codigo_produto) ?? null : null,
     categoria_descricao: v.codigo_categoria ? categorias.get(v.codigo_categoria) ?? null : null,
   }))
 }
 
 export async function buscarAjustes(mes: number, ano: number, conta: string): Promise<AjusteVenda[]> {
-  return fetchAll<AjusteVenda>((from, to) =>
-    supabaseAdmin
+  return fetchAll<AjusteVenda>((from, to) => {
+    let q = supabaseAdmin
       .from('comissao_ajustes_vendas')
       .select('*')
       .eq('mes', mes)
       .eq('ano', ano)
-      .ilike('conta_omie', conta)
-      .order('id', { ascending: true })
-      .range(from, to),
-  )
+    if (conta !== 'TODAS') q = q.ilike('conta_omie', conta)
+    return q.order('id', { ascending: true }).range(from, to)
+  })
 }
 
 export async function buscarVendedoresAtivos(): Promise<Vendedor[]> {
@@ -182,6 +191,6 @@ export function parseCompetencia(url: URL): { mes: number; ano: number; conta: s
   const conta = (url.searchParams.get('conta') || 'NOVA').toUpperCase()
   if (!Number.isInteger(mes) || mes < 1 || mes > 12) return null
   if (!Number.isInteger(ano) || ano < 2000 || ano > 2100) return null
-  if (conta !== 'NOVA' && conta !== 'CASTRO') return null
+  if (conta !== 'NOVA' && conta !== 'CASTRO' && conta !== 'TODAS') return null
   return { mes, ano, conta }
 }

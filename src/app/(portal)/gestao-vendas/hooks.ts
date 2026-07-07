@@ -41,8 +41,10 @@ export type MesData = {
   vendedores: Vendedor[]
 }
 
-export function useGvMes() {
-  const { mes, ano, conta } = useGv()
+// contaOverride: 'TODAS' busca as duas lojas de uma vez (usado em Vendas do Mês)
+export function useGvMes(contaOverride?: 'NOVA' | 'CASTRO' | 'TODAS') {
+  const { mes, ano, conta: contaSel } = useGv()
+  const conta = contaOverride ?? contaSel
   const [data, setData] = useState<MesData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
