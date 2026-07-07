@@ -743,39 +743,10 @@ export default function AbastecimentoPage() {
                     </Card>
                   </div>
 
-                  <Card titulo="Gasto por Ordem de Serviço (digitada pelo motorista no abastecimento)">
-                    <p style={{ color: '#888', fontSize: '.76rem', marginBottom: 10 }}>
-                      Base para custear o combustível de cada atendimento de campo. O nº da OS é digitado
-                      pelo motorista na bomba — pode conter erros. Cruzamento com as OS do Omie: próximo passo.
-                    </p>
-                    <div style={{ overflowX: 'auto', maxHeight: 420, overflowY: 'auto' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                        <thead>
-                          <tr>
-                            <th style={thStyle}>OS</th>
-                            <th style={thStyle}>Veículo(s)</th>
-                            <th style={{ ...thStyle, textAlign: 'right' }}>Abastecimentos</th>
-                            <th style={{ ...thStyle, textAlign: 'right' }}>Litros</th>
-                            <th style={{ ...thStyle, textAlign: 'right' }}>Gasto</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {dados.porOS.map((o) => (
-                            <tr key={o.os} style={linhaClicavel} onClick={() => abrirDetalhe(`Abastecimentos da OS ${o.os}`, { os: o.os })}>
-                              <td style={{ ...tdStyle, fontWeight: 600 }}>{o.os}</td>
-                              <td style={tdStyle}>{o.placas.join(', ')}</td>
-                              <td style={{ ...tdStyle, textAlign: 'right' }}>{o.transacoes}</td>
-                              <td style={{ ...tdStyle, textAlign: 'right' }}>{fmtL(o.litros)}</td>
-                              <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600 }}>{fmtRS(o.valor)}</td>
-                            </tr>
-                          ))}
-                          {dados.porOS.length === 0 && (
-                            <tr><td style={tdStyle} colSpan={5}>Nenhuma OS informada no período (exclua e reenvie lotes antigos para preencher — coluna nova).</td></tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </Card>
+                  {/* Card "Gasto por Ordem de Serviço" OCULTO a pedido do usuário
+                      (07/2026): a operadora ainda manda a coluna OS vazia. Os dados
+                      continuam sendo gravados (dados.porOS) — quando os motoristas
+                      passarem a digitar a OS, é só restaurar o card aqui. */}
                 </>
               )}
 
