@@ -3,9 +3,10 @@
 // posto/combustível herdam do drill-down) + exportação PDF analítica.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { FileDown } from 'lucide-react';
+import { FileDown, FileSpreadsheet } from 'lucide-react';
 import { fmtRS } from '@/components/estoque/ui';
 import { gerarPdfTransacoes } from '@/lib/abastecimento/pdf';
+import { gerarCsvTransacoes } from '@/lib/abastecimento/csv';
 import type { TransacaoRow, TransacoesResp } from '@/lib/abastecimento/tipos';
 
 const PAGINA = 100;
@@ -62,12 +63,16 @@ export default function TabelaTransacoes({ de, ate, filial, placa, motoristas, p
 
   useEffect(() => { buscar(0); }, [buscar]);
 
-  const exportarPdf = async () => {
+  const exportar = async (formato: 'pdf' | 'csv') => {
     setGerandoPdf(true);
     try {
       const qs = new URLSearchParams({ ...params, limit: '0' });
       const r = await fetch(`/api/abastecimento/transacoes?${qs}`);
       const d = (await r.json()) as TransacoesResp;
+      if (formato === 'csv') {
+        gerarCsvTransacoes({ periodo: { de, ate }, linhas: d.linhas });
+        return;
+      }
       const filtros: string[] = [];
       if (filial) filtros.push(`Filial: ${filial}`);
       if (params.placa) filtros.push(`Veículo: ${params.placa}`);
@@ -94,11 +99,18 @@ export default function TabelaTransacoes({ de, ate, filial, placa, motoristas, p
           {total} registro(s) · {somas.litros.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} L · <strong style={{ color: '#dc2626' }}>{fmtRS(somas.valor)}</strong>
         </span>
         <button
-          onClick={exportarPdf}
+          onClick={() => exportar('pdf')}
           disabled={gerandoPdf || total === 0}
           style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', color: '#dc2626', border: '1px solid #dc2626', borderRadius: 8, padding: '8px 12px', fontSize: '.8rem', fontWeight: 600, cursor: 'pointer' }}
         >
-          <FileDown size={14} /> {gerandoPdf ? 'Gerando…' : 'PDF analítico'}
+          <FileDown size={14} /> {gerandoPdf ? 'Gerando…' : 'PDF'}
+        </button>
+        <button
+          onClick={() => exportar('csv')}
+          disabled={gerandoPdf || total === 0}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', color: '#166534', border: '1px solid #166534', borderRadius: 8, padding: '8px 12px', fontSize: '.8rem', fontWeight: 600, cursor: 'pointer' }}
+        >
+          <FileSpreadsheet size={14} /> {gerandoPdf ? 'Gerando…' : 'CSV'}
         </button>
       </div>
 

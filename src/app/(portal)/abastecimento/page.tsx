@@ -10,7 +10,7 @@ import {
   ResponsiveContainer, ComposedChart, BarChart, LineChart, ScatterChart,
   Bar, Line, Scatter, XAxis, YAxis, ZAxis, Tooltip, CartesianGrid, Legend,
 } from 'recharts';
-import { AlertTriangle, FileDown } from 'lucide-react';
+import { AlertTriangle, FileDown, FileSpreadsheet } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
@@ -20,6 +20,7 @@ import DetalheModal, { type DetalheParams } from '@/components/abastecimento/Det
 import HeatmapDiaHora from '@/components/abastecimento/HeatmapDiaHora';
 import TabelaTransacoes from '@/components/abastecimento/TabelaTransacoes';
 import { gerarPdfConsolidado, gerarPdfTransacoes } from '@/lib/abastecimento/pdf';
+import { gerarCsvConsolidado, gerarCsvTransacoes } from '@/lib/abastecimento/csv';
 import type { DashboardAbastecimento, TransacoesResp } from '@/lib/abastecimento/tipos';
 
 const COR_VALOR = '#dc2626';
@@ -317,6 +318,27 @@ export default function AbastecimentoPage() {
     }
   };
 
+  const csvAnalitico = async () => {
+    setGerandoPdf('csv-analitico');
+    try {
+      const qs = new URLSearchParams({ ...paramsBase(), limit: '0' });
+      const r = await fetch(`/api/abastecimento/transacoes?${qs}`);
+      const d = (await r.json()) as TransacoesResp;
+      gerarCsvTransacoes({ periodo: { de, ate }, linhas: d.linhas });
+    } finally {
+      setGerandoPdf('');
+    }
+  };
+
+  const csvConsolidado = (tipo: 'veiculo' | 'motorista') => {
+    if (!dados) return;
+    gerarCsvConsolidado({
+      tipo,
+      periodo: { de, ate },
+      itens: tipo === 'veiculo' ? dados.porVeiculo : dados.porMotorista,
+    });
+  };
+
   if (permLoading || !userProfile) {
     return <div style={{ padding: 40, color: '#888' }}>Carregando…</div>;
   }
@@ -337,14 +359,14 @@ export default function AbastecimentoPage() {
     { id: 'transacoes', label: 'Transações' },
   ];
 
-  const botaoPdf = (rotulo: string, chave: string, acao: () => void) => (
+  const botaoExportar = (rotulo: string, chave: string, acao: () => void, tipo: 'pdf' | 'csv' = 'pdf') => (
     <button
       key={chave}
       onClick={acao}
       disabled={!!gerandoPdf || !dados}
-      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', color: '#dc2626', border: '1px solid #dc2626', borderRadius: 8, padding: '8px 12px', fontSize: '.78rem', fontWeight: 600, cursor: 'pointer', opacity: gerandoPdf && gerandoPdf !== chave ? 0.5 : 1 }}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', color: tipo === 'pdf' ? '#dc2626' : '#166534', border: `1px solid ${tipo === 'pdf' ? '#dc2626' : '#166534'}`, borderRadius: 8, padding: '8px 12px', fontSize: '.78rem', fontWeight: 600, cursor: 'pointer', opacity: gerandoPdf && gerandoPdf !== chave ? 0.5 : 1 }}
     >
-      <FileDown size={14} /> {gerandoPdf === chave ? 'Gerando…' : rotulo}
+      {tipo === 'pdf' ? <FileDown size={14} /> : <FileSpreadsheet size={14} />} {gerandoPdf === chave ? 'Gerando…' : rotulo}
     </button>
   );
 
@@ -387,9 +409,12 @@ export default function AbastecimentoPage() {
             {carregando && <span style={{ color: '#888', fontSize: '.8rem' }}>Carregando…</span>}
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-            {botaoPdf('PDF analítico', 'analitico', pdfAnalitico)}
-            {botaoPdf('PDF por veículo', 'veiculo', () => pdfConsolidado('veiculo'))}
-            {botaoPdf('PDF por motorista', 'motorista', () => pdfConsolidado('motorista'))}
+            {botaoExportar('PDF analítico', 'analitico', pdfAnalitico)}
+            {botaoExportar('PDF por veículo', 'veiculo', () => pdfConsolidado('veiculo'))}
+            {botaoExportar('PDF por motorista', 'motorista', () => pdfConsolidado('motorista'))}
+            {botaoExportar('CSV analítico', 'csv-analitico', csvAnalitico, 'csv')}
+            {botaoExportar('CSV por veículo', 'csv-veiculo', () => csvConsolidado('veiculo'), 'csv')}
+            {botaoExportar('CSV por motorista', 'csv-motorista', () => csvConsolidado('motorista'), 'csv')}
           </div>
 
           {erro && (

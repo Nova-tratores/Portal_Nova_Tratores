@@ -77,6 +77,7 @@ export interface TransacaoRow {
   data_transacao: string;
   placa: string;
   modelo_veiculo: string | null;
+  departamento: string | null;
   filial_nome: string | null;
   motorista_nome: string | null;
   posto_nome: string | null;
