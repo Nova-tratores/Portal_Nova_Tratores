@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer';
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { sanitizarFiltro } from '@/lib/busca-segura';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -117,7 +118,7 @@ export async function POST(request: Request) {
     await supabase
       .from('Ordem_Servico')
       .update({ pendencia_mahindra: null })
-      .or(`Projeto.ilike.%${chassisSan}%,Serv_Solicitado.ilike.%${chassisSan}%`)
+      .or(`Projeto.ilike.%${sanitizarFiltro(chassisSan)}%,Serv_Solicitado.ilike.%${sanitizarFiltro(chassisSan)}%`)
       .not('Status', 'in', '("Concluída","Cancelada")')
       .then(({ error }) => {
         if (error) console.error('Erro ao limpar pendencia_mahindra:', error.message);

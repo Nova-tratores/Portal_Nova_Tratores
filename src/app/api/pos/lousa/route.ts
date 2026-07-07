@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { TBL_LOUSA, TBL_LOUSA_CONFIG, TBL_OS, TBL_CLIENTES } from "@/lib/pos/constants";
+import { sanitizarFiltro } from "@/lib/busca-segura";
 
 // Service role só pra ler o diretório (financeiro_usu), que com RLS a anon não lê.
 const sbAdmin = createClient(
@@ -21,7 +22,7 @@ export async function GET(req: NextRequest) {
     const { data } = await sbAdmin
       .from(TBL_CLIENTES)
       .select("cnpj_cpf, nome_fantasia, razao_social, cidade")
-      .or(`nome_fantasia.ilike.%${q}%,razao_social.ilike.%${q}%,cnpj_cpf.ilike.%${q}%`)
+      .or(`nome_fantasia.ilike.%${sanitizarFiltro(q)}%,razao_social.ilike.%${sanitizarFiltro(q)}%,cnpj_cpf.ilike.%${sanitizarFiltro(q)}%`)
       .limit(60);
     // Remove duplicados (mesmo CNPJ ou mesmo nome aparecem mais de uma vez na base)
     const dedup = new Map<string, any>();

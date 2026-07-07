@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/pos/supabase';
 import { TBL_OS } from '@/lib/pos/constants';
+import { sanitizarFiltro } from '@/lib/busca-segura';
 import { TBL_GARANTIAS, STATUS_FINALIZADOS } from '@/lib/garantias/constants';
 import type { OSElegivel } from '@/lib/garantias/types';
 
@@ -13,7 +14,7 @@ export async function GET(req: NextRequest) {
   const { data: ordens, error } = await supabase
     .from(TBL_OS)
     .select('Id_Ordem, Os_Cliente, Data, Tipo_Servico, Serv_Solicitado, Status')
-    .or(`Os_Tecnico.eq.${tecnico},Os_Tecnico2.eq.${tecnico}`)
+    .or(`Os_Tecnico.eq.${sanitizarFiltro(tecnico)},Os_Tecnico2.eq.${sanitizarFiltro(tecnico)}`)
     .neq('Status', 'Cancelada')
     .order('Data', { ascending: false })
     .limit(120);

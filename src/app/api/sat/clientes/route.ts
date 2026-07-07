@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { sanitizarFiltro } from "@/lib/busca-segura";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -14,7 +15,7 @@ export async function GET(req: NextRequest) {
   const { data, error } = await supabase
     .from("portal_nt_clientes_PRINCIPAL")
     .select("id, cnpj_cpf, nome_fantasia, razao_social, endereco, numero, bairro, cidade, estado")
-    .or(`nome_fantasia.ilike.%${q}%,razao_social.ilike.%${q}%,cnpj_cpf.ilike.%${q}%`)
+    .or(`nome_fantasia.ilike.%${sanitizarFiltro(q)}%,razao_social.ilike.%${sanitizarFiltro(q)}%,cnpj_cpf.ilike.%${sanitizarFiltro(q)}%`)
     .limit(20);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

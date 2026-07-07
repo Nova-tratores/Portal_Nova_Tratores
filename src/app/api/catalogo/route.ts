@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getIA, chamarIA } from "@/lib/assistente/ia";
+import { sanitizarFiltro } from "@/lib/busca-segura";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -119,9 +120,9 @@ export async function GET(req: NextRequest) {
       const rodar = async (and: boolean) => {
         let pq = supabase.from("catalogo_pecas").select(SEL).limit(60);
         if (modeloDet) pq = pq.eq("modelo", modeloDet);
-        if (tokens.length === 0) pq = pq.or(`name.ilike.%${q}%,code.ilike.%${q}%`);
+        if (tokens.length === 0) pq = pq.or(`name.ilike.%${sanitizarFiltro(q)}%,code.ilike.%${sanitizarFiltro(q)}%`);
         else if (and) { for (const t of tokens) pq = pq.ilike("name", `%${t}%`); }
-        else pq = pq.or([...tokens.map((t) => `name.ilike.%${t}%`), `code.ilike.%${q}%`].join(","));
+        else pq = pq.or([...tokens.map((t) => `name.ilike.%${sanitizarFiltro(t)}%`), `code.ilike.%${sanitizarFiltro(q)}%`].join(","));
         return (await pq).data || [];
       };
       let pecas = await rodar(true);

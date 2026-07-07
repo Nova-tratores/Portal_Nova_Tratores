@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
+import { sanitizarFiltro } from "@/lib/busca-segura";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,7 @@ export async function GET(req: NextRequest) {
       .order("id", { ascending: false })
       .limit(50);
     if (q) {
-      query = query.or(`numero.ilike.%${q}%,cliente_nome.ilike.%${q}%`);
+      query = query.or(`numero.ilike.%${sanitizarFiltro(q)}%,cliente_nome.ilike.%${sanitizarFiltro(q)}%`);
     }
     const { data, error } = await query;
     if (error) {

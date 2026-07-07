@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/pos/supabase';
 import { STATUS_FINALIZADOS } from '@/lib/garantias/constants';
+import { sanitizarFiltro } from '@/lib/busca-segura';
 
 // GET /api/garantias/buscar-os?q=...
 // Procura OS por id_ordem, cliente ou chassi. Filtra fora as que já têm
@@ -13,7 +14,7 @@ export async function GET(req: NextRequest) {
   const { data: ordens } = await supabase
     .from('Ordem_Servico')
     .select('Id_Ordem, Os_Cliente, Projeto, Data, Tipo_Servico, Os_Tecnico, Os_Tecnico2')
-    .or(`Id_Ordem.ilike.%${q}%,Os_Cliente.ilike.%${q}%`)
+    .or(`Id_Ordem.ilike.%${sanitizarFiltro(q)}%,Os_Cliente.ilike.%${sanitizarFiltro(q)}%`)
     .order('Data', { ascending: false })
     .limit(30);
 

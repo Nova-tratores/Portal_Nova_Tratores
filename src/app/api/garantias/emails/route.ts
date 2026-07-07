@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { sanitizarFiltro } from "@/lib/busca-segura";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -17,7 +18,7 @@ export async function GET(req: NextRequest) {
       supabase
         .from("portal_nt_projetos_emails")
         .select("*")
-        .or(`chassis.eq.${chassis},chassis.ilike.%${chassisFinal}`)
+        .or(`chassis.eq.${sanitizarFiltro(chassis)},chassis.ilike.%${sanitizarFiltro(chassisFinal)}`)
         .neq("uid", 0)
         .order("data", { ascending: false })
         .limit(50),
