@@ -141,5 +141,6 @@ export const EMPRESAS_GV: { value: 'NOVA' | 'CASTRO'; label: string }[] = [
 
 export function nomeEmpresaGV(conta: string | null | undefined): string {
   const up = (conta ?? '').toUpperCase()
+  if (up === 'TODAS') return 'Todas as Lojas'
   return EMPRESAS_GV.find((e) => e.value === up)?.label ?? up
 }

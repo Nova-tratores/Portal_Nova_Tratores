@@ -31,6 +31,19 @@ export default function GvCustosPage() {
   const [copiando, setCopiando] = useState(false)
   const [msgCopia, setMsgCopia] = useState<string | null>(null)
 
+  // custo mensal é gravado POR loja — editar exige uma loja específica
+  if (conta === 'TODAS') {
+    return (
+      <div className="space-y-4">
+        <h1 className="text-2xl font-bold text-gray-900">Custos Mensais</h1>
+        <div className="rounded-md border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+          Os custos mensais são registrados por loja. Selecione <strong>Nova Tratores</strong> ou{' '}
+          <strong>Castro Peças</strong> no seletor do topo para ver e editar.
+        </div>
+      </div>
+    )
+  }
+
   // linhas = vendedores ativos ∪ registros avulsos do mês
   const linhas = useMemo(() => {
     const nomes = new Set<string>()

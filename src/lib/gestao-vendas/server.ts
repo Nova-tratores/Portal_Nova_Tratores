@@ -59,10 +59,11 @@ export async function buscarVendasEnriquecidas(
       .range(from, to)
   })
 
-  // lookups nas tabelas master (nomes de cliente, família real, categoria)
+  // lookups nas tabelas master (nomes de cliente, família real, categoria, vendedor do pedido)
   const codCli = [...new Set(vendas.map((v) => v.codigo_cliente).filter((c): c is string => !!c && /^\d+$/.test(c)))].map(Number)
   const codProd = [...new Set(vendas.map((v) => v.codigo_produto).filter((c): c is string => !!c && /^\d+$/.test(c)))].map(Number)
   const codCat = [...new Set(vendas.map((v) => v.codigo_categoria).filter((c): c is string => !!c))]
+  const numPedidos = [...new Set(vendas.map((v) => v.numero_pedido).filter((n): n is string => !!n))]
 
   // clientes com chave conta-aware (o mesmo código Omie pode existir nas duas contas)
   const clientes = new Map<string, string>()
@@ -124,10 +125,34 @@ export async function buscarVendasEnriquecidas(
     )
   }
 
+  // vendas_itens.vendedor vem vazio do sync — o nome do vendedor vive em
+  // pedidos_venda_relatorio (por numero_venda + empresa)
+  const vendedorPorPedido = new Map<string, string>()
+  for (let i = 0; i < numPedidos.length; i += CHUNK) {
+    const slice = numPedidos.slice(i, i + CHUNK)
+    buscas.push(
+      supabaseAdmin
+        .from('pedidos_venda_relatorio')
+        .select('numero_venda, empresa, vendedor')
+        .in('numero_venda', slice)
+        .then(({ data, error }) => {
+          if (error) throw new Error(`pedidos_venda_relatorio: ${error.message}`)
+          for (const p of data ?? []) {
+            if (p.vendedor) vendedorPorPedido.set(`${(p.empresa ?? '').toUpperCase()}|${p.numero_venda}`, p.vendedor)
+          }
+        }),
+    )
+  }
+
   await Promise.all(buscas)
 
   return vendas.map((v) => ({
     ...v,
+    vendedor:
+      v.vendedor?.trim() ||
+      (v.numero_pedido
+        ? vendedorPorPedido.get(`${(v.conta_omie ?? '').toUpperCase()}|${v.numero_pedido}`) ?? null
+        : null),
     cliente_nome: v.codigo_cliente
       ? clientes.get(`${(v.conta_omie ?? '').toUpperCase()}|${Number(v.codigo_cliente)}`) ?? null
       : null,
@@ -159,16 +184,15 @@ export async function buscarVendedoresAtivos(): Promise<Vendedor[]> {
 }
 
 export async function buscarCustos(mes: number, ano: number, conta: string): Promise<CustoMensalVendedor[]> {
-  return fetchAll<CustoMensalVendedor>((from, to) =>
-    supabaseAdmin
+  return fetchAll<CustoMensalVendedor>((from, to) => {
+    let q = supabaseAdmin
       .from('comissao_custos_vendedor')
       .select('*')
       .eq('mes', mes)
       .eq('ano', ano)
-      .ilike('conta_omie', conta)
-      .order('nome', { ascending: true })
-      .range(from, to),
-  )
+    if (conta !== 'TODAS') q = q.ilike('conta_omie', conta)
+    return q.order('nome', { ascending: true }).range(from, to)
+  })
 }
 
 export async function buscarPedidosRelatorio(mes: number, ano: number): Promise<PedidoVendaRelatorio[]> {
@@ -183,6 +207,116 @@ export async function buscarPedidosRelatorio(mes: number, ano: number): Promise<
       .order('id', { ascending: true })
       .range(from, to),
   )
+}
+
+// ---------- cards por família (dashboard) ----------
+// Agrega venda/CMC por família no mês, com comparativos de mês anterior e
+// mesmo mês do ano anterior (mesma visão do dashboard de estoque).
+
+export type FamiliaCard = {
+  nome: string
+  venda: number
+  cmc: number
+  qtd: number
+  vendaMesAnt: number
+  vendaAnoAnt: number
+}
+
+type LinhaMin = {
+  familia: string | null
+  codigo_produto: string | null
+  valor_total: number
+  quantidade: number
+  cmc_unitario: number | null
+  conta_omie: string
+}
+
+async function buscarVendasMin(mes: number, ano: number, conta: string): Promise<LinhaMin[]> {
+  return fetchAll<LinhaMin>((from, to) => {
+    let q = supabaseAdmin
+      .from('vendas_itens')
+      .select('familia, codigo_produto, valor_total, quantidade, cmc_unitario, conta_omie')
+      .eq('mes', mes)
+      .eq('ano', ano)
+    if (conta !== 'TODAS') q = q.ilike('conta_omie', conta)
+    return q.order('id', { ascending: true }).range(from, to)
+  })
+}
+
+export async function agregadoPorFamilia(
+  mes: number,
+  ano: number,
+  conta: string,
+): Promise<{ familias: FamiliaCard[]; total: FamiliaCard }> {
+  const ant = mes === 1 ? { mes: 12, ano: ano - 1 } : { mes: mes - 1, ano }
+  const [atual, mesAnt, anoAnt] = await Promise.all([
+    buscarVendasMin(mes, ano, conta),
+    buscarVendasMin(ant.mes, ant.ano, conta),
+    buscarVendasMin(mes, ano - 1, conta),
+  ])
+
+  // família real via master de produtos (o campo familia da venda pode vir vazio)
+  const codProds = [
+    ...new Set(
+      [...atual, ...mesAnt, ...anoAnt]
+        .map((v) => v.codigo_produto)
+        .filter((c): c is string => !!c && /^\d+$/.test(c)),
+    ),
+  ].map(Number)
+  const familiaProduto = new Map<string, string | null>()
+  for (let i = 0; i < codProds.length; i += CHUNK) {
+    const slice = codProds.slice(i, i + CHUNK)
+    const { data, error } = await supabaseAdmin
+      .from('produtos')
+      .select('codigo_produto, familia_nome')
+      .in('codigo_produto', slice)
+    if (error) throw new Error(`produtos: ${error.message}`)
+    for (const p of data ?? []) familiaProduto.set(String(p.codigo_produto), p.familia_nome)
+  }
+
+  const familiaDe = (v: LinhaMin): string | null =>
+    (v.codigo_produto ? familiaProduto.get(v.codigo_produto) : null) ?? v.familia ?? null
+
+  const cards = new Map<string, FamiliaCard>()
+  const pega = (nome: string): FamiliaCard => {
+    let c = cards.get(nome)
+    if (!c) {
+      c = { nome, venda: 0, cmc: 0, qtd: 0, vendaMesAnt: 0, vendaAnoAnt: 0 }
+      cards.set(nome, c)
+    }
+    return c
+  }
+
+  const total: FamiliaCard = { nome: 'Total Geral', venda: 0, cmc: 0, qtd: 0, vendaMesAnt: 0, vendaAnoAnt: 0 }
+
+  for (const v of atual) {
+    total.venda += v.valor_total
+    total.cmc += (v.cmc_unitario ?? 0) * v.quantidade
+    total.qtd += 1
+    const f = familiaDe(v)
+    if (!f) continue // itens sem família só entram no total
+    const c = pega(f)
+    c.venda += v.valor_total
+    c.cmc += (v.cmc_unitario ?? 0) * v.quantidade
+    c.qtd += 1
+  }
+  for (const v of mesAnt) {
+    total.vendaMesAnt += v.valor_total
+    const f = familiaDe(v)
+    if (f) pega(f).vendaMesAnt += v.valor_total
+  }
+  for (const v of anoAnt) {
+    total.vendaAnoAnt += v.valor_total
+    const f = familiaDe(v)
+    if (f) pega(f).vendaAnoAnt += v.valor_total
+  }
+
+  // só famílias com movimento em algum dos períodos, maiores primeiro
+  const familias = [...cards.values()]
+    .filter((c) => c.venda !== 0 || c.vendaMesAnt !== 0 || c.vendaAnoAnt !== 0)
+    .sort((a, b) => b.venda - a.venda)
+
+  return { familias, total }
 }
 
 export function parseCompetencia(url: URL): { mes: number; ano: number; conta: string } | null {

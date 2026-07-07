@@ -238,11 +238,12 @@ export function consolidarPorVendedor(
     r.margemLoja += calc.margem_loja_valor
   }
 
-  // custo fixo entra mesmo sem venda no mês
+  // custo fixo entra mesmo sem venda no mês; soma (com "Todas as Lojas"
+  // o mesmo vendedor pode ter registro nas duas contas)
   for (const c of custos) {
     const custo = totalCusto(c)
     if (custo === 0 && !map.has(c.nome)) continue
-    pega(c.nome).custoMensal = custo
+    pega(c.nome).custoMensal += custo
   }
 
   for (const r of map.values()) r.lucroLiquido = r.margemLoja - r.custoMensal

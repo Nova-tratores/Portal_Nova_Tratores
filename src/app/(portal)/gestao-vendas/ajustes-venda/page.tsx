@@ -54,7 +54,8 @@ export default function GvAjustesPage() {
     const venda = linha.venda
     const aj = linha.ajuste
     try {
-      const salvo = await salvarAjusteApi(conta, {
+      // grava sempre na conta da própria venda (o seletor pode estar em "Todas as Lojas")
+      const salvo = await salvarAjusteApi((venda.conta_omie ?? 'NOVA').toUpperCase(), {
         id: aj?.id ?? null,
         venda_id: linha.venda_id_chave,
         data_pedido: venda.data_pedido,

@@ -14,7 +14,7 @@ import {
   YAxis,
 } from 'recharts'
 import { useGv } from './GvProvider'
-import { useGvMes } from './hooks'
+import { useGvFamilias, useGvMes, type FamiliaCard } from './hooks'
 import {
   agregarPor,
   formatBRL,
@@ -44,6 +44,7 @@ function brlCompacto(v: number): string {
 export default function GvDashboardPage() {
   const { mes, ano, conta } = useGv()
   const { vendas, loading, error } = useGvMes()
+  const { dados: familiasCards, loading: loadingFam, error: errorFam } = useGvFamilias()
 
   const totalFaturado = vendas.reduce((s, v) => s + (v.valor_total ?? 0), 0)
   const totalCmc = vendas.reduce((s, v) => s + (v.cmc_unitario ?? 0) * (v.quantidade ?? 0), 0)
@@ -56,21 +57,6 @@ export default function GvDashboardPage() {
     return ordenar(m)
       .slice(0, TOP_N)
       .map((i) => ({ nome: i.chave, venda: i.agregado.venda }))
-  }, [vendas])
-
-  const porFamilia = useMemo<LinhaChart[]>(() => {
-    const m = agregarPor(vendas, (v) => v.produto_familia_real ?? v.familia ?? 'Sem família')
-    const todos = ordenar(m)
-    const top = todos.slice(0, TOP_N)
-    const resto = todos.slice(TOP_N)
-    const linhas = top.map((i) => ({ nome: i.chave, venda: i.agregado.venda }))
-    if (resto.length) {
-      linhas.push({
-        nome: `Outras (${resto.length})`,
-        venda: resto.reduce((s, i) => s + i.agregado.venda, 0),
-      })
-    }
-    return linhas
   }, [vendas])
 
   const topVendas = vendas.slice(0, 10)
@@ -97,9 +83,31 @@ export default function GvDashboardPage() {
         <KPI titulo="Maior venda" valor={loading ? '…' : formatBRL(maiorVenda)} />
       </div>
 
+      {/* Cards por família (mesma visão do dashboard de estoque) */}
+      <div>
+        <div className="mb-2 flex items-baseline justify-between">
+          <h2 className="text-base font-semibold text-gray-900">Resultado por Família</h2>
+          <span className="text-xs text-gray-500">
+            comparativos: mês anterior e mesmo mês do ano anterior
+          </span>
+        </div>
+        {errorFam && <ErroCard msg={errorFam} />}
+        {loadingFam ? (
+          <p className="text-sm text-gray-500">Carregando famílias…</p>
+        ) : !familiasCards || familiasCards.familias.length === 0 ? (
+          <p className="text-sm text-gray-500">Sem dados de família no período.</p>
+        ) : (
+          <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(240px,1fr))]">
+            {familiasCards.familias.map((f) => (
+              <CardFamilia key={f.nome} f={f} />
+            ))}
+            <CardFamilia f={familiasCards.total} destaque />
+          </div>
+        )}
+      </div>
+
       <div className="grid gap-3 lg:grid-cols-2">
         <GraficoBarras titulo="Faturamento por Vendedor" sub={`Top ${TOP_N}`} dados={porVendedor} loading={loading} />
-        <GraficoBarras titulo="Faturamento por Família" sub={`Top ${TOP_N} famílias`} dados={porFamilia} loading={loading} />
       </div>
 
       <div className="rounded-lg border border-gray-200 bg-white">
@@ -149,6 +157,47 @@ export default function GvDashboardPage() {
       </div>
     </div>
   )
+}
+
+// variação % vs referência (null quando não há base de comparação)
+function calcVar(atual: number, ref: number): number | null {
+  if (!ref) return null
+  return (atual - ref) / Math.abs(ref)
+}
+
+function CardFamilia({ f, destaque }: { f: FamiliaCard; destaque?: boolean }) {
+  const varM = calcVar(f.venda, f.vendaMesAnt)
+  const varA = calcVar(f.venda, f.vendaAnoAnt)
+  const vMenosC = f.venda - f.cmc
+  return (
+    <div
+      className={`rounded-xl border bg-white p-4 shadow-sm ${
+        destaque ? 'border-red-300 ring-1 ring-red-200' : 'border-gray-200'
+      }`}
+    >
+      <p className="mb-1.5 truncate text-[11px] font-bold uppercase tracking-wide text-gray-500" title={f.nome}>
+        {f.nome}
+      </p>
+      <p className="text-xl font-bold text-red-600">{formatBRL(f.venda)}</p>
+      <p className="mt-1 text-[11px] text-gray-500">
+        {f.qtd} item(ns) · V−C: <span className={vMenosC < 0 ? 'font-semibold text-red-600' : 'font-semibold text-gray-700'}>{formatBRL(vMenosC)}</span>
+      </p>
+      <div className="mt-2 flex gap-3 text-[11px]">
+        <Variacao rotulo="Mês ant" valor={varM} />
+        <Variacao rotulo="Ano ant" valor={varA} />
+      </div>
+    </div>
+  )
+}
+
+function Variacao({ rotulo, valor }: { rotulo: string; valor: number | null }) {
+  if (valor == null) return <span className="text-gray-400">{rotulo}: —</span>
+  const pct = new Intl.NumberFormat('pt-BR', {
+    style: 'percent',
+    maximumFractionDigits: 0,
+    signDisplay: 'always',
+  }).format(valor)
+  return <span className={valor >= 0 ? 'text-green-600' : 'text-red-600'}>{rotulo}: {pct}</span>
 }
 
 function KPI({ titulo, valor, sub }: { titulo: string; valor: string; sub?: string }) {

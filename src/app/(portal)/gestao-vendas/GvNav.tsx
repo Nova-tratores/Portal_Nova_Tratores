@@ -3,9 +3,14 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useGv } from './GvProvider'
-import { EMPRESAS_GV } from '@/lib/gestao-vendas/tipos'
+import { useGv, type ContaGv } from './GvProvider'
 import { nomeMes } from '@/lib/gestao-vendas/calculos'
+
+const LOJAS: { value: ContaGv; label: string }[] = [
+  { value: 'TODAS', label: 'Todas as Lojas' },
+  { value: 'NOVA', label: 'Nova Tratores' },
+  { value: 'CASTRO', label: 'Castro Peças' },
+]
 
 const PAGINAS = [
   { href: '/gestao-vendas', label: 'Dashboard' },
@@ -44,11 +49,11 @@ export default function GvNav() {
       <div className="ml-auto flex items-center gap-2">
         <select
           value={conta}
-          onChange={(e) => setConta(e.target.value as 'NOVA' | 'CASTRO')}
+          onChange={(e) => setConta(e.target.value as ContaGv)}
           className={selectClass}
-          aria-label="Empresa"
+          aria-label="Loja"
         >
-          {EMPRESAS_GV.map((e) => (
+          {LOJAS.map((e) => (
             <option key={e.value} value={e.value}>
               {e.label}
             </option>

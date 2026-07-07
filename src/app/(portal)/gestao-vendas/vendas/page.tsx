@@ -1,8 +1,8 @@
 'use client'
-// Vendas do Mês — as DUAS lojas de uma vez, com filtros (loja, família, busca)
-// e cabeçalhos ordenáveis (clique alterna A→Z / Z→A).
-// Padrão: as duas lojas marcadas e todas as famílias EXCETO peças e máquinas
-// (famílias com "peça"/"trator"/"máquina" no nome começam desmarcadas).
+// Vendas do Mês — a loja vem do seletor do topo (padrão: Todas as Lojas).
+// Filtro de família (padrão: todas MENOS peças e máquinas — nomes com
+// "peça"/"trator"/"máquina" começam desmarcados), busca livre e cabeçalhos
+// ordenáveis (clique alterna A→Z / Z→A). Itens SEM família ficam de fora.
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
@@ -12,11 +12,10 @@ import { dataBrParaIso, formatBRL, formatCompetencia } from '@/lib/gestao-vendas
 import { nomeEmpresaGV, type VendaEnriquecida } from '@/lib/gestao-vendas/tipos'
 import { ErroCard, MultiSelectFiltro } from '../componentes'
 
-const SEM_FAMILIA = 'Sem família'
 const FAMILIA_EXCLUIDA_PADRAO = /pe[çc]a|trator|m[áa]quina/i
 
 function familiaDe(v: VendaEnriquecida): string {
-  return v.produto_familia_real ?? v.familia ?? SEM_FAMILIA
+  return v.produto_familia_real ?? v.familia ?? ''
 }
 
 type ColKey =
@@ -62,14 +61,16 @@ function valorColuna(v: VendaEnriquecida, col: ColKey): string | number {
 }
 
 export default function GvVendasPage() {
-  const { mes, ano } = useGv()
-  const { vendas, loading, error } = useGvMes('TODAS')
+  const { mes, ano, conta } = useGv()
+  const { vendas: vendasCruas, loading, error } = useGvMes()
+
+  // itens sem família ficam de fora da tela
+  const vendas = useMemo(() => vendasCruas.filter((v) => familiaDe(v) !== ''), [vendasCruas])
 
   // ---------- filtros ----------
-  const [lojas, setLojas] = useState<string[]>(['NOVA', 'CASTRO'])
   const [familias, setFamilias] = useState<string[]>([])
   const [busca, setBusca] = useState('')
-  // famílias disponíveis mudam por competência; re-aplica o padrão quando muda
+  // famílias disponíveis mudam por competência/loja; re-aplica o padrão quando muda
   const [chaveFamilias, setChaveFamilias] = useState('')
 
   const opcoesFamilias = useMemo(() => {
@@ -89,7 +90,6 @@ export default function GvVendasPage() {
   const filtradas = useMemo(() => {
     const b = busca.trim().toLowerCase()
     return vendas.filter((v) => {
-      if (!lojas.includes((v.conta_omie ?? '').toUpperCase())) return false
       if (!familias.includes(familiaDe(v))) return false
       if (b) {
         const alvo =
@@ -98,7 +98,7 @@ export default function GvVendasPage() {
       }
       return true
     })
-  }, [vendas, lojas, familias, busca])
+  }, [vendas, familias, busca])
 
   // ---------- ordenação ----------
   const [sort, setSort] = useState<Sort>({ col: 'valor', dir: 'desc' })
@@ -127,16 +127,15 @@ export default function GvVendasPage() {
   const totalFaturado = filtradas.reduce((s, v) => s + (v.valor_total ?? 0), 0)
   const totalCmc = filtradas.reduce((s, v) => s + (v.cmc_unitario ?? 0) * (v.quantidade ?? 0), 0)
 
-  const filtroAtivo =
-    lojas.length !== 2 || familias.length !== opcoesFamilias.length || busca.trim() !== ''
+  const filtroAtivo = familias.length !== opcoesFamilias.length || busca.trim() !== ''
 
   return (
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Vendas do Mês</h1>
         <p className="text-sm text-gray-500">
-          As duas lojas — {formatCompetencia(mes, ano)}. Por padrão, famílias de peças e máquinas
-          começam desmarcadas no filtro.
+          {nomeEmpresaGV(conta)} — {formatCompetencia(mes, ano)}. Por padrão, famílias de peças e
+          máquinas começam desmarcadas no filtro; itens sem família não entram.
         </p>
       </div>
 
@@ -145,13 +144,6 @@ export default function GvVendasPage() {
       {/* Barra de filtros */}
       <div className="flex flex-wrap items-center gap-2 rounded-md bg-gray-100 px-3 py-2 text-sm">
         <span className="text-xs font-medium uppercase tracking-wide text-gray-500">Filtrar:</span>
-        <MultiSelectFiltro
-          label="Loja"
-          values={lojas}
-          onChange={setLojas}
-          opcoes={['NOVA', 'CASTRO']}
-          getLabel={(v) => nomeEmpresaGV(v)}
-        />
         <MultiSelectFiltro
           label="Família"
           values={familias}
@@ -169,7 +161,6 @@ export default function GvVendasPage() {
           <button
             type="button"
             onClick={() => {
-              setLojas(['NOVA', 'CASTRO'])
               setFamilias(opcoesFamilias.filter((f) => !FAMILIA_EXCLUIDA_PADRAO.test(f)))
               setBusca('')
             }}

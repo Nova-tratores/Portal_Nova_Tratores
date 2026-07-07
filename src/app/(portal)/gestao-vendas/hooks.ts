@@ -214,6 +214,49 @@ export function useGvPedidos() {
   return { pedidos, loading, error }
 }
 
+// ---------- cards por família (dashboard) ----------
+
+export type FamiliaCard = {
+  nome: string
+  venda: number
+  cmc: number
+  qtd: number
+  vendaMesAnt: number
+  vendaAnoAnt: number
+}
+
+export function useGvFamilias() {
+  const { mes, ano, conta } = useGv()
+  const [dados, setDados] = useState<{ familias: FamiliaCard[]; total: FamiliaCard } | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    getJson<{ familias: FamiliaCard[]; total: FamiliaCard }>(
+      `/api/gestao-vendas/familias?mes=${mes}&ano=${ano}&conta=${conta}`,
+    )
+      .then((d) => {
+        if (cancelled) return
+        setDados(d)
+        setLoading(false)
+      })
+      .catch((e: unknown) => {
+        if (cancelled) return
+        setError(e instanceof Error ? e.message : String(e))
+        setDados(null)
+        setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [mes, ano, conta])
+
+  return { dados, loading, error }
+}
+
 export function cmcDoPedido(p: PedidoVendaRelatorio): number {
   if (!Array.isArray(p.itens_enriquecidos)) return 0
   return p.itens_enriquecidos.reduce(
