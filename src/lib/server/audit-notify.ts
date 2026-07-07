@@ -1,9 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
 import { filtrarDestinatarios, type PrefsDestinatario } from "@/lib/notif/prefs";
 
+// Service role: escreve no audit_log e lê portal_permissoes no servidor. Com o
+// RLS ligado no audit_log, a anon key não escreve mais — precisa do service role.
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
 // =============================================
