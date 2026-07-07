@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
 
   if (modo === "clientes") {
     const q = searchParams.get("q") || "";
-    const { data } = await supabase
+    const { data } = await sbAdmin
       .from(TBL_CLIENTES)
       .select("cnpj_cpf, nome_fantasia, razao_social, cidade")
       .or(`nome_fantasia.ilike.%${q}%,razao_social.ilike.%${q}%,cnpj_cpf.ilike.%${q}%`)
