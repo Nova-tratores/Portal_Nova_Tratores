@@ -28,7 +28,7 @@ const GRUPO_POR_MODULO: Record<string, string> = {
   // Comercial
   propostas: 'Comercial', feedbacks: 'Comercial', clientes: 'Comercial', 'supervisor-vendas': 'Comercial',
   // Estoque
-  'consulta-estoque': 'Estoque', estoque: 'Estoque',
+  'consulta-estoque': 'Estoque', estoque: 'Estoque', abastecimento: 'Estoque',
   // Outros
   opa: 'Outros', avisos: 'Outros', tarefas: 'Outros', 'dashboard-agro': 'Outros', tratorilson: 'Outros',
 };
@@ -184,6 +184,11 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'relatorios', label: 'Relatórios' },
     { id: 'agenda', label: 'Agenda' },
     { id: 'oportunidades', label: 'Oportunidades' },
+  ],
+  // Abastecimento (frota): upload mensal do CSV da operadora + relatórios.
+  abastecimento: [
+    { id: 'dashboard', label: 'Dashboard (relatórios)' },
+    { id: 'upload', label: 'Importar CSV / gerir lotes' },
   ],
   // Estoque (Visual Estoque / Consulta Omie): granular POR TELA. Chave 'estoque'
   // (id da rota = slug). A Home (/estoque, busca de produto) é o landing.
