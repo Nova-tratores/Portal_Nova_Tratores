@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer';
 import { NextResponse } from 'next/server';
 import { autenticar } from '@/lib/auth/server';
+import { urlSegura } from '@/lib/url-segura';
 
 // Mesmo esquema de envio do Controle Revisão (Gmail via nodemailer)
 const transporter = nodemailer.createTransport({
@@ -14,8 +15,7 @@ const transporter = nodemailer.createTransport({
 });
 
 export async function POST(request: Request) {
-  // Exige login: esta rota baixa URLs arbitrárias e manda e-mail pelo Gmail da
-  // empresa — não pode ser anônima. (Allow-list de URL contra SSRF fica pro P2.)
+  // Exige login: esta rota baixa URLs e manda e-mail pelo Gmail da empresa.
   const auth = await autenticar(request);
   if (!auth) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
 
@@ -45,6 +45,13 @@ export async function POST(request: Request) {
   }
   if (todasUrls.length === 0) {
     return NextResponse.json({ error: 'Nenhum boleto ou nota fiscal anexado para enviar.' }, { status: 400 });
+  }
+
+  // Anti-SSRF: só baixa URLs que não apontem pra endereços internos.
+  for (const url of todasUrls) {
+    if (!(await urlSegura(url))) {
+      return NextResponse.json({ error: 'URL de anexo não permitida.' }, { status: 400 });
+    }
   }
 
   const sanitize = (s: string) => String(s || '').replace(/[<>&"']/g, '');
