@@ -4,7 +4,7 @@
 // completou exatamente `dias_aniversario` (default 30, com janela de 7 dias)
 // vira lembrete de retorno para coletar feedback / verificar satisfação.
 
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin as supabase } from "@/lib/server/supabase-admin";
 import type { FeedbackRegistro } from "@/lib/feedbacks/types";
 import { lerTudo } from "./_paginar";
 

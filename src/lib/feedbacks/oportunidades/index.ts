@@ -5,7 +5,7 @@
 // codigo_omie_norm, chassis_norm) e marca como 'expirada' as oportunidades
 // 'aberta' que não vieram nesta recomputação.
 
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin as supabase } from "@/lib/server/supabase-admin";
 import { computarR1 } from "./r1-revisao";
 import { computarR2 } from "./r2-sem-os";
 import { computarR3 } from "./r3-upsell";

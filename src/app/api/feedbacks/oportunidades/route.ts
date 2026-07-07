@@ -2,7 +2,7 @@
 // PATCH  /api/feedbacks/oportunidades?id=N           → muda status / vincula feedback_id
 
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin as supabase } from "@/lib/server/supabase-admin";
 import type { StatusOportunidade } from "@/lib/feedbacks/types";
 
 const STATUS_VALIDOS: StatusOportunidade[] = ["aberta", "atendida", "dispensada", "expirada"];
