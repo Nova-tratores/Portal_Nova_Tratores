@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { normalizarPlaca, parseCsvAbastecimento, parseDataBR, parseNumeroBR, splitCsv } from '../parse';
-import { consumoPorVeiculo, porCombustivel, type LinhaDash } from '../agregacoes';
+import {
+  anomaliasConsumo, consumoPorVeiculo, curvaAbc, intervalosAbastecimento, localBR,
+  porCombustivel, porVeiculo, type LinhaDash,
+} from '../agregacoes';
 
 // Cabeçalho + linhas REAIS do relatório da operadora (CPFs/valores do arquivo exemplo).
 const CABECALHO =
@@ -63,6 +66,18 @@ describe('parseCsvAbastecimento', () => {
     expect(l.hodometro_anterior).toBe(69910);
     expect(l.hodometro).toBe(70099);
     expect(l.desvio_descricao).toBe('Desvio Acima');
+    // neste arquivo a última coluna (Ordem Serviço) veio vazia — o '1003' é a
+    // penúltima ("Placa - Dig.Motorista": dígitos da placa digitados na bomba)
+    expect(l.ordem_servico).toBeNull();
+    expect(l.capacidade_tanque).toBe(60);
+  });
+
+  it('captura a Ordem de Serviço quando preenchida (e trata "0" como vazio)', () => {
+    const comOS = LINHA_NORMAL.replace(/;1003;$/, ';1003;789012');
+    const comZero = LINHA_SEM_MOTORISTA.replace(/;8149;$/, ';8149;0');
+    const r = parseCsvAbastecimento([CABECALHO, comOS, comZero].join('\n'));
+    expect(r.linhas[0].ordem_servico).toBe('789012');
+    expect(r.linhas[1].ordem_servico).toBeNull();
   });
 
   it('"Veículo sem motorista associado" vira motorista null (hodômetro anterior vazio ok)', () => {
@@ -106,6 +121,8 @@ const dash = (over: Partial<LinhaDash>): LinhaDash => ({
   valor_total: 240,
   hodometro: null,
   data_transacao: '2026-06-01T08:00:00-03:00',
+  capacidade_tanque: 60,
+  ordem_servico: null,
   ...over,
 });
 
@@ -156,5 +173,66 @@ describe('porCombustivel', () => {
     expect(c.litros).toBe(100);
     expect(c.valor).toBe(400);
     expect(c.precoMedio).toBe(4);
+  });
+});
+
+describe('localBR', () => {
+  it('converte UTC de volta pro mês/hora de Brasília (fim de mês não vaza)', () => {
+    // 30/06 23:30 em Brasília foi gravado como -03:00; o banco devolve em UTC (01/07 02:30Z)
+    const r = localBR('2026-07-01T02:30:00+00:00');
+    expect(r.mes).toBe('2026-06');
+    expect(r.hora).toBe(23);
+  });
+});
+
+describe('anomaliasConsumo', () => {
+  it('alerta quando o km/l do último trecho despenca vs histórico', () => {
+    // 6 marcos → 5 trechos: quatro de ~10 km/l e o último de 3 km/l
+    const hodos = [1000, 1400, 1810, 2200, 2610, 2760]; // deltas: 400,410,390,410,150
+    const linhas: LinhaDash[] = hodos.map((h, i) =>
+      dash({ hodometro: h, litros: i === 0 ? 10 : hodos[i] - hodos[i - 1] === 150 ? 50 : 40, data_transacao: `2026-06-${String(i + 1).padStart(2, '0')}T08:00:00-03:00` }),
+    );
+    const [a] = anomaliasConsumo(linhas);
+    expect(a).toBeDefined();
+    expect(a.placa).toBe('AAA1111');
+    expect(a.kmlRecente).toBe(3);
+    expect(a.desvios).toBeGreaterThanOrEqual(2);
+  });
+
+  it('não alerta com consumo estável', () => {
+    const hodos = [1000, 1400, 1800, 2200, 2600, 3000];
+    const linhas: LinhaDash[] = hodos.map((h, i) =>
+      dash({ hodometro: h, litros: 40, data_transacao: `2026-06-${String(i + 1).padStart(2, '0')}T08:00:00-03:00` }),
+    );
+    expect(anomaliasConsumo(linhas)).toHaveLength(0);
+  });
+});
+
+describe('curvaAbc', () => {
+  it('classifica A (<=80%), B (<=95%) e C', () => {
+    const linhas: LinhaDash[] = [
+      dash({ placa: 'AAA1111', valor_total: 800 }),
+      dash({ placa: 'BBB2222', valor_total: 150 }),
+      dash({ placa: 'CCC3333', valor_total: 50 }),
+    ];
+    const abc = curvaAbc(porVeiculo(linhas));
+    expect(abc.map((v) => v.classe)).toEqual(['A', 'B', 'C']);
+    expect(abc[2].pctAcum).toBeCloseTo(100);
+  });
+});
+
+describe('intervalosAbastecimento', () => {
+  it('marca litros acima da capacidade e reabastecimento rápido quase cheio', () => {
+    const linhas: LinhaDash[] = [
+      dash({ litros: 40, data_transacao: '2026-06-01T08:00:00-03:00' }),
+      dash({ litros: 70, capacidade_tanque: 60, data_transacao: '2026-06-03T08:00:00-03:00' }), // > capacidade
+      dash({ litros: 50, capacidade_tanque: 60, data_transacao: '2026-06-03T20:00:00-03:00' }), // 12h depois, 83% do tanque
+      dash({ litros: 10, capacidade_tanque: 60, data_transacao: '2026-06-10T08:00:00-03:00' }), // ok
+    ];
+    const pontos = intervalosAbastecimento(linhas);
+    expect(pontos).toHaveLength(3);
+    expect(pontos[0].motivo).toMatch(/capacidade/i);
+    expect(pontos[1].motivo).toMatch(/24h/);
+    expect(pontos[2].suspeito).toBe(false);
   });
 });
