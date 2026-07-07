@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Trash2, Upload } from 'lucide-react';
 import { Card } from '@/components/estoque/ui';
+import { authHeaders } from '@/lib/auth/client';
 import type { LoteResumo, ResultadoUpload } from '@/lib/abastecimento/tipos';
 
 const thStyle: React.CSSProperties = { background: '#fafafa', color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', padding: '9px 10px', textAlign: 'left', borderBottom: '1px solid #eee', fontWeight: 600 };
@@ -21,12 +22,11 @@ function fmtData(iso: string | null): string {
 
 interface Props {
   usuario: string;
-  usuarioId: string;
   isAdmin: boolean;
   onMudou: () => void; // dashboard refaz o fetch após importar/excluir
 }
 
-export default function UploadLotes({ usuario, usuarioId, isAdmin, onMudou }: Props) {
+export default function UploadLotes({ usuario, isAdmin, onMudou }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [enviando, setEnviando] = useState(false);
   const [erroUpload, setErroUpload] = useState('');
@@ -56,8 +56,11 @@ export default function UploadLotes({ usuario, usuarioId, isAdmin, onMudou }: Pr
       const fd = new FormData();
       fd.append('file', file);
       fd.append('usuario', usuario);
-      fd.append('usuario_id', usuarioId);
-      const r = await fetch('/api/abastecimento/upload', { method: 'POST', body: fd });
+      const r = await fetch('/api/abastecimento/upload', {
+        method: 'POST',
+        headers: await authHeaders(),
+        body: fd,
+      });
       const d = await r.json();
       if (!r.ok) { setErroUpload(d.error || 'Erro no upload.'); return; }
       setResultado(d as ResultadoUpload);
@@ -80,8 +83,7 @@ export default function UploadLotes({ usuario, usuarioId, isAdmin, onMudou }: Pr
     try {
       const r = await fetch(`/api/abastecimento/lotes/${lote.id}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ usuario_id: usuarioId }),
+        headers: await authHeaders(),
       });
       const d = await r.json();
       if (!r.ok) { alert(d.error || 'Erro ao excluir o lote.'); return; }

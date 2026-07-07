@@ -4,6 +4,7 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { autenticar } from '@/lib/auth/server';
 import { decodificarCsv, normalizarPlaca, parseCsvAbastecimento } from '@/lib/abastecimento/parse';
 import type { LinhaAbastecimento, ResultadoUpload } from '@/lib/abastecimento/tipos';
 
@@ -20,10 +21,17 @@ const CHUNK = 500;
 export async function POST(request: Request) {
   let loteId: number | null = null;
   try {
+    // identidade/permissão vêm do token (padrão de segurança do portal)
+    const auth = await autenticar(request);
+    if (!auth) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+    const podeUpload =
+      auth.isAdmin || auth.modulos.includes('abastecimento') || auth.modulos.includes('abastecimento:upload');
+    if (!podeUpload) return NextResponse.json({ error: 'Sem permissão para importar abastecimentos.' }, { status: 403 });
+
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
-    const usuario = (formData.get('usuario') as string) || '';
-    const usuarioId = (formData.get('usuario_id') as string) || null;
+    const usuario = (formData.get('usuario') as string) || auth.email || '';
+    const usuarioId = auth.userId;
     if (!file) return NextResponse.json({ error: 'Arquivo não enviado.' }, { status: 400 });
 
     // 1) parse do CSV (erros de linha não abortam o upload)

@@ -143,7 +143,6 @@ export default function AbastecimentoPage() {
       {podeUpload && (
         <UploadLotes
           usuario={userProfile.nome || ''}
-          usuarioId={userProfile.id}
           isAdmin={isAdmin}
           onMudou={carregar}
         />
