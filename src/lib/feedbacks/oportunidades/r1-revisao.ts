@@ -11,7 +11,7 @@
 //
 // Prioridade: 'Urgente' se atrasada, 'Normal' caso contrário.
 
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin as supabase } from "@/lib/server/supabase-admin";
 import { calcularPrevisao } from "@/lib/revisoes/utils";
 import { REVISOES_LISTA, type Trator } from "@/lib/revisoes/types";
 import { lerTudo } from "./_paginar";

@@ -8,7 +8,7 @@
 // de pedidos PPV — abrange clientes que talvez não passem na oficina mas
 // também não compram peça.
 
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin as supabase } from "@/lib/server/supabase-admin";
 import { lerTudo } from "./_paginar";
 import { carregarUltimoPedidoPorCliente, mesesEntre } from "./_pedidos";
 

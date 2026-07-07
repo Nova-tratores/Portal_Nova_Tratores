@@ -7,7 +7,7 @@
 //
 // Prioridade Urgente se passou bastante do prazo (≥2× o mínimo).
 
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin as supabase } from "@/lib/server/supabase-admin";
 import { lerTudo } from "./_paginar";
 import { carregarUltimoPedidoPorCliente, mesesEntre } from "./_pedidos";
 

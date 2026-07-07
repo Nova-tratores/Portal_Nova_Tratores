@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { authHeaders } from '@/lib/auth/client'
 
 export default function ClientEditModal({ onClose }) {
   const [loading, setLoading] = useState(false)
@@ -23,9 +24,17 @@ export default function ClientEditModal({ onClose }) {
   const handleUpdate = async (e) => {
     e.preventDefault()
     setLoading(true)
-    const { error } = await supabase.from('portal_nt_clientes_PRINCIPAL').update(selectedClient).eq('id', selectedClient.id)
-    if (!error) { alert("CLIENTE ATUALIZADO!"); onClose() }
-    else { alert("Erro: " + error.message) }
+    try {
+      const _res = await fetch('/api/clientes/atualizar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ cliente: selectedClient }),
+      })
+      if (!_res.ok) { const _j = await _res.json().catch(() => ({})); throw new Error(_j.error || 'Falha ao atualizar cliente') }
+      alert("CLIENTE ATUALIZADO!"); onClose()
+    } catch (err) {
+      alert("Erro: " + err.message)
+    }
     setLoading(false)
   }
 

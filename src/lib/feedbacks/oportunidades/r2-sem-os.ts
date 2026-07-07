@@ -11,7 +11,7 @@
 // Prioridade: 'Urgente' se nunca teve atividade nos últimos 2 anos OU se
 // ≥ urgente_a_partir_de equipamentos.
 
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin as supabase } from "@/lib/server/supabase-admin";
 import { lerTudo } from "./_paginar";
 import { carregarIndiceOSCompleto } from "./_os";
 

@@ -9,7 +9,7 @@ function getSupabaseUrl(): string {
 }
 
 function getSupabaseKey(): string {
-  const key = process.env.SUPABASE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!key) throw new Error("SUPABASE_KEY não configurada no .env.local");
   return key;
 }

@@ -12,7 +12,7 @@
 //
 // Fora de garantia quando data + prazo já passou. Lista todos.
 
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin as supabase } from "@/lib/server/supabase-admin";
 import { lerTudo } from "./_paginar";
 import { parseDataBR } from "./_pedidos";
 import type { Trator } from "@/lib/revisoes/types";

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin as supabase } from "@/lib/server/supabase-admin";
 
 // GET — listar etiquetas disponíveis, ou etiquetas+descricao de um cliente, ou mapa completo
 export async function GET(req: NextRequest) {
