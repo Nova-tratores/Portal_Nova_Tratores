@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/lib/pos/supabase";
 import { normName, cleanName, namesMatch, splitTecnicos as splitTecsUtil, nomesBatem } from "@/lib/tecnico-utils";
+
+// Service role só pra ler o diretório (financeiro_usu), que com RLS a anon não lê.
+const sbAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 /**
  * GET /api/mecanicos
@@ -25,7 +32,7 @@ export async function GET(req: NextRequest) {
     const userIds = perms.map((p) => p.user_id);
 
     // Buscar perfis
-    const { data: users, error: usrErr } = await supabase
+    const { data: users, error: usrErr } = await sbAdmin
       .from("financeiro_usu")
       .select("id, nome, email, funcao, avatar_url")
       .eq("ativo", true)

@@ -335,11 +335,26 @@ export default function AdminPage() {
     if (userId === userProfile?.id) return // não pode inativar a própria conta
     setSaving(userId)
     setUsuarios(prev => prev.map(u => u.id === userId ? { ...u, ativo: novo } : u))
-    const { error } = await supabase.from('financeiro_usu').update({ ativo: novo }).eq('id', userId)
-    if (error) {
+    // Passa pelo servidor: com RLS, o navegador só edita a própria linha de
+    // financeiro_usu; mexer no "ativo" de outro usuário é ação de admin no servidor.
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/admin/usuario-ativo', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token || ''}`,
+        },
+        body: JSON.stringify({ user_id: userId, ativo: novo }),
+      })
+      if (!res.ok) {
+        const r = await res.json().catch(() => ({}))
+        throw new Error(r.error || 'Falha ao alterar status')
+      }
+    } catch (e: any) {
       // reverte
       setUsuarios(prev => prev.map(u => u.id === userId ? { ...u, ativo: !novo } : u))
-      alert('Erro ao alterar status: ' + error.message)
+      alert('Erro ao alterar status: ' + (e?.message || 'erro'))
     }
     setSaving(null)
   }

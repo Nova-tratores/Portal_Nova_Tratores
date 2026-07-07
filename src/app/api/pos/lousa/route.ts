@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { TBL_LOUSA, TBL_LOUSA_CONFIG, TBL_OS, TBL_CLIENTES } from "@/lib/pos/constants";
+
+// Service role só pra ler o diretório (financeiro_usu), que com RLS a anon não lê.
+const sbAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 // GET — buscar entradas da semana + verificar OS abertas + pedidos PPV
 export async function GET(req: NextRequest) {
@@ -28,7 +35,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (modo === "usuarios") {
-    const { data } = await supabase
+    const { data } = await sbAdmin
       .from("financeiro_usu")
       .select("id, nome, funcao")
       .eq("ativo", true)
