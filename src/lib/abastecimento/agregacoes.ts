@@ -511,6 +511,13 @@ export function montarDashboard(
     opcoesFiltro: {
       filiais: [...new Set(janela.map((l) => l.filial_nome).filter(Boolean) as string[])].sort(),
       placas: [...new Set(janela.map((l) => l.placa))].sort(),
+      veiculos: (() => {
+        const modelos = new Map<string, string | null>();
+        for (const l of janela) if (!modelos.has(l.placa) || !modelos.get(l.placa)) modelos.set(l.placa, l.modelo_veiculo);
+        return [...modelos.entries()]
+          .map(([placa, modelo]) => ({ placa, modelo }))
+          .sort((a, b) => (a.modelo || 'zzz').localeCompare(b.modelo || 'zzz', 'pt-BR') || a.placa.localeCompare(b.placa));
+      })(),
       motoristas: [...new Set(janela.map((l) => l.motorista_nome).filter(Boolean) as string[])].sort(),
       departamentos: [...new Set(janela.map((l) => l.departamento).filter(Boolean) as string[])].sort(),
     },

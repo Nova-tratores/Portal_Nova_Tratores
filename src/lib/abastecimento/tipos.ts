@@ -227,5 +227,11 @@ export interface DashboardAbastecimento {
   porOS: OsGasto[];
   porVeiculoMes: VeiculoMes[];
   projecao: ProjecaoMes | null;
-  opcoesFiltro: { filiais: string[]; placas: string[]; motoristas: string[]; departamentos: string[] };
+  opcoesFiltro: {
+    filiais: string[];
+    placas: string[];
+    veiculos: { placa: string; modelo: string | null }[]; // p/ selects "Modelo · Placa"
+    motoristas: string[];
+    departamentos: string[];
+  };
 }

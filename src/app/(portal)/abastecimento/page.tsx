@@ -109,9 +109,9 @@ function KPI({ label, valor, sub, cor, onClick }: { label: string; valor: string
 const CORES_COMPARA = ['#dc2626', '#2563eb', '#059669'];
 type MetricaComp = 'litros' | 'valor' | 'kml';
 
-function ComparadorVeiculos({ serie, placas, meses }: {
+function ComparadorVeiculos({ serie, veiculos, meses }: {
   serie: import('@/lib/abastecimento/tipos').VeiculoMes[];
-  placas: string[];
+  veiculos: { placa: string; modelo: string | null }[];
   meses: string[];
 }) {
   const [sel, setSel] = useState<string[]>(['', '', '']);
@@ -143,7 +143,9 @@ function ComparadorVeiculos({ serie, placas, meses }: {
             style={{ ...selStyle, borderLeft: v ? `4px solid ${CORES_COMPARA[i]}` : selStyle.border as string }}
           >
             <option value="">{i < 2 ? `Veículo ${i + 1}…` : 'Veículo 3 (opcional)…'}</option>
-            {placas.map((p) => <option key={p} value={p}>{p}</option>)}
+            {veiculos.map((vc) => (
+              <option key={vc.placa} value={vc.placa}>{vc.modelo ? `${vc.modelo} · ${vc.placa}` : vc.placa}</option>
+            ))}
           </select>
         ))}
         {(['litros', 'valor', 'kml'] as MetricaComp[]).map((m) => (
@@ -233,7 +235,7 @@ export default function AbastecimentoPage() {
   const [aba, setAba] = useState<Aba>('visao');
 
   const [dados, setDados] = useState<DashboardAbastecimento | null>(null);
-  const [opcoes, setOpcoes] = useState<{ filiais: string[]; placas: string[]; motoristas: string[]; departamentos: string[] }>({ filiais: [], placas: [], motoristas: [], departamentos: [] });
+  const [opcoes, setOpcoes] = useState<DashboardAbastecimento['opcoesFiltro']>({ filiais: [], placas: [], veiculos: [], motoristas: [], departamentos: [] });
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState('');
   const [detalhe, setDetalhe] = useState<DetalheParams | null>(null);
@@ -400,7 +402,9 @@ export default function AbastecimentoPage() {
             <input type="date" value={ate} onChange={(e) => { setAte(e.target.value); setPreset('custom'); }} style={selStyle} />
             <select value={placa} onChange={(e) => setPlaca(e.target.value)} style={selStyle}>
               <option value="">Todos os veículos</option>
-              {opcoes.placas.map((p) => <option key={p} value={p}>{p}</option>)}
+              {opcoes.veiculos.map((v) => (
+                <option key={v.placa} value={v.placa}>{v.modelo ? `${v.modelo} · ${v.placa}` : v.placa}</option>
+              ))}
             </select>
             <select value={departamento} onChange={(e) => setDepartamento(e.target.value)} style={selStyle}>
               <option value="">Todos os departamentos</option>
@@ -701,7 +705,7 @@ export default function AbastecimentoPage() {
 
                   <ComparadorVeiculos
                     serie={dados.porVeiculoMes}
-                    placas={opcoes.placas.length ? opcoes.placas : dados.opcoesFiltro.placas}
+                    veiculos={opcoes.veiculos.length ? opcoes.veiculos : dados.opcoesFiltro.veiculos}
                     meses={dados.evolucaoMensal.map((m) => m.mes)}
                   />
 
@@ -861,7 +865,7 @@ export default function AbastecimentoPage() {
                     filial={filial}
                     placa={placa}
                     motoristas={opcoes.motoristas}
-                    placas={opcoes.placas}
+                    veiculos={opcoes.veiculos}
                   />
                 </Card>
               )}

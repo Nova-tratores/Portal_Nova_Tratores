@@ -1,23 +1,36 @@
 'use client';
-// Aba "Transações": últimos abastecimentos com filtros (veículo, motorista,
-// posto/combustível herdam do drill-down) + exportação PDF analítica.
+// Aba "Transações": últimos abastecimentos com ordenação por cabeçalho
+// (A→Z/Z→A), filtro por coluna, seletores de veículo/motorista e exportação
+// PDF/CSV. Carrega o recorte inteiro (client-side sort/filter).
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FileDown, FileSpreadsheet } from 'lucide-react';
 import { fmtRS } from '@/components/estoque/ui';
+import TabelaOrdenavel, { type ColunaDef } from '@/components/abastecimento/TabelaOrdenavel';
 import { gerarPdfTransacoes } from '@/lib/abastecimento/pdf';
 import { gerarCsvTransacoes } from '@/lib/abastecimento/csv';
 import type { TransacaoRow, TransacoesResp } from '@/lib/abastecimento/tipos';
 
-const PAGINA = 100;
-
-const thStyle: React.CSSProperties = { background: '#fafafa', color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', padding: '9px 10px', textAlign: 'left', borderBottom: '1px solid #eee', fontWeight: 600 };
-const tdStyle: React.CSSProperties = { padding: '8px 10px', borderBottom: '1px solid #f5f5f5', color: '#444', fontSize: '.82rem' };
 const selStyle: React.CSSProperties = { padding: '8px 10px', border: '1px solid #ddd', borderRadius: 8, fontSize: '.82rem', background: '#fff', color: '#444' };
 
 function fmtDataHora(iso: string): string {
   return new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
+
+const COLUNAS: ColunaDef<TransacaoRow>[] = [
+  { chave: 'data', titulo: 'Data/Hora', valor: (l) => l.data_transacao, render: (l) => fmtDataHora(l.data_transacao) },
+  { chave: 'placa', titulo: 'Placa', valor: (l) => l.placa, render: (l) => <strong>{l.placa}</strong> },
+  { chave: 'modelo', titulo: 'Modelo', valor: (l) => l.modelo_veiculo, render: (l) => l.modelo_veiculo || '—' },
+  { chave: 'departamento', titulo: 'Depto', valor: (l) => l.departamento, render: (l) => l.departamento || '—' },
+  { chave: 'motorista', titulo: 'Motorista', valor: (l) => l.motorista_nome || 'Sem motorista', render: (l) => l.motorista_nome || 'Sem motorista' },
+  { chave: 'posto', titulo: 'Posto', valor: (l) => l.posto_nome, render: (l) => l.posto_nome || '—' },
+  { chave: 'combustivel', titulo: 'Combustível', valor: (l) => l.combustivel, render: (l) => l.combustivel || '—' },
+  { chave: 'litros', titulo: 'Litros', direita: true, valor: (l) => l.litros, render: (l) => l.litros.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) },
+  { chave: 'unitario', titulo: 'R$/L', direita: true, valor: (l) => l.valor_unitario, render: (l) => (l.valor_unitario != null ? l.valor_unitario.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '—') },
+  { chave: 'total', titulo: 'Total', direita: true, valor: (l) => l.valor_total, render: (l) => <strong>{fmtRS(l.valor_total)}</strong> },
+  { chave: 'hodometro', titulo: 'Hodômetro', direita: true, valor: (l) => l.hodometro, render: (l) => (l.hodometro != null ? l.hodometro.toLocaleString('pt-BR', { maximumFractionDigits: 0 }) : '—') },
+  { chave: 'os', titulo: 'OS', valor: (l) => l.ordem_servico, render: (l) => l.ordem_servico || '—' },
+];
 
 interface Props {
   de: string;
@@ -25,17 +38,16 @@ interface Props {
   filial: string;
   placa: string;
   motoristas: string[];
-  placas: string[];
+  veiculos: { placa: string; modelo: string | null }[];
 }
 
-export default function TabelaTransacoes({ de, ate, filial, placa, motoristas, placas }: Props) {
+export default function TabelaTransacoes({ de, ate, filial, placa, motoristas, veiculos }: Props) {
   const [motorista, setMotorista] = useState('');
   const [placaLocal, setPlacaLocal] = useState('');
   const [linhas, setLinhas] = useState<TransacaoRow[]>([]);
-  const [total, setTotal] = useState(0);
   const [somas, setSomas] = useState({ valor: 0, litros: 0 });
-  const [carregando, setCarregando] = useState(false);
-  const [gerandoPdf, setGerandoPdf] = useState(false);
+  const [carregando, setCarregando] = useState(true);
+  const [gerando, setGerando] = useState('');
 
   const params = useMemo(() => {
     const p: Record<string, string> = { de, ate };
@@ -46,40 +58,36 @@ export default function TabelaTransacoes({ de, ate, filial, placa, motoristas, p
     return p;
   }, [de, ate, filial, placa, placaLocal, motorista]);
 
-  const buscar = useCallback(async (offset: number) => {
+  const buscar = useCallback(async () => {
     setCarregando(true);
     try {
-      const qs = new URLSearchParams({ ...params, limit: String(PAGINA), offset: String(offset) });
+      const qs = new URLSearchParams({ ...params, limit: '0' }); // recorte inteiro
       const r = await fetch(`/api/abastecimento/transacoes?${qs}`);
       const d = (await r.json()) as TransacoesResp;
       if (!r.ok) return;
-      setLinhas((prev) => (offset === 0 ? d.linhas : [...prev, ...d.linhas]));
-      setTotal(d.total);
+      setLinhas(d.linhas);
       setSomas({ valor: d.somaValor, litros: d.somaLitros });
     } finally {
       setCarregando(false);
     }
   }, [params]);
 
-  useEffect(() => { buscar(0); }, [buscar]);
+  useEffect(() => { buscar(); }, [buscar]);
 
   const exportar = async (formato: 'pdf' | 'csv') => {
-    setGerandoPdf(true);
+    setGerando(formato);
     try {
-      const qs = new URLSearchParams({ ...params, limit: '0' });
-      const r = await fetch(`/api/abastecimento/transacoes?${qs}`);
-      const d = (await r.json()) as TransacoesResp;
       if (formato === 'csv') {
-        gerarCsvTransacoes({ periodo: { de, ate }, linhas: d.linhas });
+        gerarCsvTransacoes({ periodo: { de, ate }, linhas });
         return;
       }
       const filtros: string[] = [];
       if (filial) filtros.push(`Filial: ${filial}`);
       if (params.placa) filtros.push(`Veículo: ${params.placa}`);
       if (motorista) filtros.push(`Motorista: ${motorista === '__sem__' ? 'Sem motorista' : motorista}`);
-      await gerarPdfTransacoes({ periodo: { de, ate }, filtros, linhas: d.linhas, somaValor: d.somaValor, somaLitros: d.somaLitros });
+      await gerarPdfTransacoes({ periodo: { de, ate }, filtros, linhas, somaValor: somas.valor, somaLitros: somas.litros });
     } finally {
-      setGerandoPdf(false);
+      setGerando('');
     }
   };
 
@@ -88,7 +96,9 @@ export default function TabelaTransacoes({ de, ate, filial, placa, motoristas, p
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
         <select value={placaLocal} onChange={(e) => setPlacaLocal(e.target.value)} style={selStyle}>
           <option value="">Todos os veículos</option>
-          {placas.map((p) => <option key={p} value={p}>{p}</option>)}
+          {veiculos.map((v) => (
+            <option key={v.placa} value={v.placa}>{v.modelo ? `${v.modelo} · ${v.placa}` : v.placa}</option>
+          ))}
         </select>
         <select value={motorista} onChange={(e) => setMotorista(e.target.value)} style={selStyle}>
           <option value="">Todos os motoristas</option>
@@ -96,72 +106,25 @@ export default function TabelaTransacoes({ de, ate, filial, placa, motoristas, p
           {motoristas.map((m) => <option key={m} value={m}>{m}</option>)}
         </select>
         <span style={{ color: '#888', fontSize: '.8rem' }}>
-          {total} registro(s) · {somas.litros.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} L · <strong style={{ color: '#dc2626' }}>{fmtRS(somas.valor)}</strong>
+          {linhas.length} registro(s) · {somas.litros.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} L · <strong style={{ color: '#dc2626' }}>{fmtRS(somas.valor)}</strong>
         </span>
         <button
           onClick={() => exportar('pdf')}
-          disabled={gerandoPdf || total === 0}
+          disabled={!!gerando || linhas.length === 0}
           style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', color: '#dc2626', border: '1px solid #dc2626', borderRadius: 8, padding: '8px 12px', fontSize: '.8rem', fontWeight: 600, cursor: 'pointer' }}
         >
-          <FileDown size={14} /> {gerandoPdf ? 'Gerando…' : 'PDF'}
+          <FileDown size={14} /> {gerando === 'pdf' ? 'Gerando…' : 'PDF'}
         </button>
         <button
           onClick={() => exportar('csv')}
-          disabled={gerandoPdf || total === 0}
+          disabled={!!gerando || linhas.length === 0}
           style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', color: '#166534', border: '1px solid #166534', borderRadius: 8, padding: '8px 12px', fontSize: '.8rem', fontWeight: 600, cursor: 'pointer' }}
         >
-          <FileSpreadsheet size={14} /> {gerandoPdf ? 'Gerando…' : 'CSV'}
+          <FileSpreadsheet size={14} /> {gerando === 'csv' ? 'Gerando…' : 'CSV'}
         </button>
       </div>
 
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr>
-              <th style={thStyle}>Data/Hora</th>
-              <th style={thStyle}>Placa</th>
-              <th style={thStyle}>Modelo</th>
-              <th style={thStyle}>Motorista</th>
-              <th style={thStyle}>Posto</th>
-              <th style={thStyle}>Combustível</th>
-              <th style={{ ...thStyle, textAlign: 'right' }}>Litros</th>
-              <th style={{ ...thStyle, textAlign: 'right' }}>R$/L</th>
-              <th style={{ ...thStyle, textAlign: 'right' }}>Total</th>
-              <th style={{ ...thStyle, textAlign: 'right' }}>Hodômetro</th>
-              <th style={thStyle}>OS</th>
-            </tr>
-          </thead>
-          <tbody>
-            {linhas.map((l) => (
-              <tr key={l.id}>
-                <td style={tdStyle}>{fmtDataHora(l.data_transacao)}</td>
-                <td style={{ ...tdStyle, fontWeight: 600 }}>{l.placa}</td>
-                <td style={tdStyle}>{l.modelo_veiculo || '—'}</td>
-                <td style={tdStyle}>{l.motorista_nome || 'Sem motorista'}</td>
-                <td style={tdStyle}>{l.posto_nome || '—'}</td>
-                <td style={tdStyle}>{l.combustivel || '—'}</td>
-                <td style={{ ...tdStyle, textAlign: 'right' }}>{l.litros.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}</td>
-                <td style={{ ...tdStyle, textAlign: 'right' }}>{l.valor_unitario != null ? l.valor_unitario.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '—'}</td>
-                <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600 }}>{fmtRS(l.valor_total)}</td>
-                <td style={{ ...tdStyle, textAlign: 'right' }}>{l.hodometro != null ? l.hodometro.toLocaleString('pt-BR', { maximumFractionDigits: 0 }) : '—'}</td>
-                <td style={tdStyle}>{l.ordem_servico || '—'}</td>
-              </tr>
-            ))}
-            {!carregando && linhas.length === 0 && (
-              <tr><td style={tdStyle} colSpan={11}>Nenhum abastecimento no filtro.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-      {carregando && <div style={{ color: '#888', fontSize: '.8rem', padding: '10px 0' }}>Carregando…</div>}
-      {!carregando && linhas.length < total && (
-        <button
-          onClick={() => buscar(linhas.length)}
-          style={{ margin: '10px 0', background: '#fafafa', border: '1px solid #ddd', borderRadius: 8, padding: '8px 14px', fontSize: '.8rem', cursor: 'pointer', color: '#444' }}
-        >
-          Carregar mais ({linhas.length} de {total})
-        </button>
-      )}
+      <TabelaOrdenavel colunas={COLUNAS} linhas={linhas} chaveLinha={(l) => l.id} carregando={carregando} />
     </div>
   );
 }
