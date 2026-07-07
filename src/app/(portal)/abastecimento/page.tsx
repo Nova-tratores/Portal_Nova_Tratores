@@ -66,6 +66,15 @@ function rotuloMes(mes: string): string {
   const [ano, m] = mes.split('-');
   return `${MESES_ABREV[Number(m) - 1]}/${ano.slice(2)}`;
 }
+// "JOSE HENRIQUE BERNARDINO GARROTE" -> "JOSE GARROTE" (rótulo dos rankings)
+function nomeCurto(nome: string): string {
+  const partes = nome.trim().split(/\s+/);
+  return partes.length > 2 ? `${partes[0]} ${partes[partes.length - 1]}` : nome;
+}
+// evita rótulo comprido invadindo o gráfico
+function truncar(s: string, max = 24): string {
+  return s.length > max ? s.slice(0, max - 1) + '…' : s;
+}
 function isoHoje(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -81,13 +90,95 @@ function isoInicioMes(): string {
 type Preset = 'mes' | '3m' | '12m' | 'custom';
 type Aba = 'visao' | 'veiculos' | 'pessoas' | 'auditoria' | 'transacoes';
 
-function KPI({ label, valor, sub, cor }: { label: string; valor: string; sub?: string; cor?: string }) {
+function KPI({ label, valor, sub, cor, onClick }: { label: string; valor: string; sub?: string; cor?: string; onClick?: () => void }) {
   return (
-    <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 16 }}>
+    <div
+      onClick={onClick}
+      title={onClick ? 'Clique para ver os abastecimentos' : undefined}
+      style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 16, cursor: onClick ? 'pointer' : 'default' }}
+    >
       <div style={{ color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 600, marginBottom: 4 }}>{label}</div>
       <div style={{ fontSize: '1.2rem', fontWeight: 700, color: cor || '#333' }}>{valor}</div>
       {sub && <div style={{ fontSize: '.68rem', color: '#aaa', marginTop: 2 }}>{sub}</div>}
     </div>
+  );
+}
+
+// Comparativo de consumo entre veículos ao longo dos meses (litros/R$/km‑l).
+const CORES_COMPARA = ['#dc2626', '#2563eb', '#059669'];
+type MetricaComp = 'litros' | 'valor' | 'kml';
+
+function ComparadorVeiculos({ serie, placas, meses }: {
+  serie: import('@/lib/abastecimento/tipos').VeiculoMes[];
+  placas: string[];
+  meses: string[];
+}) {
+  const [sel, setSel] = useState<string[]>(['', '', '']);
+  const [metrica, setMetrica] = useState<MetricaComp>('litros');
+  const escolhidas = sel.filter(Boolean);
+
+  const rotMetrica = metrica === 'litros' ? 'Litros' : metrica === 'valor' ? 'Gasto (R$)' : 'km/L';
+  const fmtMetrica = (v: number) =>
+    metrica === 'valor' ? fmtRS(v) : metrica === 'litros' ? fmtL(v) : v.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' km/L';
+
+  const porChave = new Map(serie.map((s) => [`${s.placa}|${s.mes}`, s]));
+  const dadosGrafico = meses.map((mes) => {
+    const row: Record<string, string | number | null> = { rotulo: rotuloMes(mes) };
+    for (const p of escolhidas) {
+      const s = porChave.get(`${p}|${mes}`);
+      row[p] = s ? (metrica === 'kml' ? s.kml : s[metrica]) : null;
+    }
+    return row;
+  });
+
+  return (
+    <Card titulo="Comparar veículos ao longo dos meses">
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10 }}>
+        {sel.map((v, i) => (
+          <select
+            key={i}
+            value={v}
+            onChange={(e) => setSel(sel.map((s, j) => (j === i ? e.target.value : s)))}
+            style={{ ...selStyle, borderLeft: v ? `4px solid ${CORES_COMPARA[i]}` : selStyle.border as string }}
+          >
+            <option value="">{i < 2 ? `Veículo ${i + 1}…` : 'Veículo 3 (opcional)…'}</option>
+            {placas.map((p) => <option key={p} value={p}>{p}</option>)}
+          </select>
+        ))}
+        {(['litros', 'valor', 'kml'] as MetricaComp[]).map((m) => (
+          <button
+            key={m}
+            onClick={() => setMetrica(m)}
+            style={{ ...selStyle, cursor: 'pointer', fontWeight: metrica === m ? 700 : 400, borderColor: metrica === m ? '#dc2626' : '#ddd', color: metrica === m ? '#dc2626' : '#444' }}
+          >
+            {m === 'litros' ? 'Litros' : m === 'valor' ? 'Gasto (R$)' : 'km/L'}
+          </button>
+        ))}
+      </div>
+      {escolhidas.length < 2 ? (
+        <p style={{ color: '#888', fontSize: '.8rem' }}>Escolha pelo menos dois veículos para comparar {rotMetrica.toLowerCase()} mês a mês.</p>
+      ) : (
+        <div style={{ width: '100%', height: 280 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={dadosGrafico}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+              <XAxis dataKey="rotulo" tick={{ fontSize: 11, fill: '#888' }} />
+              <YAxis tick={{ fontSize: 11, fill: '#888' }} width={70} tickFormatter={(v) => metrica === 'valor' ? (Number(v) / 1000).toLocaleString('pt-BR') + 'k' : String(v)} />
+              <Tooltip formatter={(v) => fmtMetrica(Number(v))} labelStyle={{ color: '#444' }} />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              {escolhidas.map((p) => (
+                <Line key={p} dataKey={p} name={p} stroke={CORES_COMPARA[sel.indexOf(p)]} strokeWidth={2} dot={{ r: 3 }} connectNulls />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+      {metrica === 'kml' && escolhidas.length >= 2 && (
+        <p style={{ color: '#aaa', fontSize: '.72rem', marginTop: 6 }}>
+          km/L usa os trechos de hodômetro fechados em cada mês — meses sem trecho válido ficam sem ponto.
+        </p>
+      )}
+    </Card>
   );
 }
 
@@ -105,7 +196,11 @@ function RankingChart({ dados, cor, formato, onItemClick }: {
         <BarChart data={dados} layout="vertical" margin={{ left: 8, right: 24 }}>
           <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
           <XAxis type="number" tick={{ fontSize: 11, fill: '#888' }} tickFormatter={(v) => formato(Number(v))} />
-          <YAxis type="category" dataKey="nome" width={150} tick={{ fontSize: 11, fill: '#444' }} />
+          <YAxis
+            type="category" dataKey="nome" width={155} interval={0}
+            tick={{ fontSize: 10.5, fill: '#444' }}
+            tickFormatter={(v) => truncar(String(v))}
+          />
           <Tooltip formatter={(v) => formato(Number(v))} labelStyle={{ color: '#444' }} />
           <Bar
             dataKey="valor"
@@ -131,12 +226,13 @@ export default function AbastecimentoPage() {
   const [preset, setPreset] = useState<Preset>('12m');
   const [de, setDe] = useState(isoMesesAtras(12));
   const [ate, setAte] = useState(isoHoje());
-  const [filial, setFilial] = useState('');
+  const [filial] = useState(''); // filtro de filial oculto (só há uma filial em uso)
   const [placa, setPlaca] = useState('');
+  const [departamento, setDepartamento] = useState('');
   const [aba, setAba] = useState<Aba>('visao');
 
   const [dados, setDados] = useState<DashboardAbastecimento | null>(null);
-  const [opcoes, setOpcoes] = useState<{ filiais: string[]; placas: string[]; motoristas: string[] }>({ filiais: [], placas: [], motoristas: [] });
+  const [opcoes, setOpcoes] = useState<{ filiais: string[]; placas: string[]; motoristas: string[]; departamentos: string[] }>({ filiais: [], placas: [], motoristas: [], departamentos: [] });
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState('');
   const [detalhe, setDetalhe] = useState<DetalheParams | null>(null);
@@ -156,17 +252,18 @@ export default function AbastecimentoPage() {
       const params = new URLSearchParams({ de, ate });
       if (filial) params.set('filial', filial);
       if (placa) params.set('placa', placa);
+      if (departamento) params.set('departamento', departamento);
       const r = await fetch(`/api/abastecimento/dashboard?${params}`);
       const d = await r.json();
       if (!r.ok) { setErro(d.error || 'Erro ao carregar.'); return; }
       setDados(d as DashboardAbastecimento);
-      if (!filial && !placa) setOpcoes((d as DashboardAbastecimento).opcoesFiltro);
+      if (!filial && !placa && !departamento) setOpcoes((d as DashboardAbastecimento).opcoesFiltro);
     } catch (e) {
       setErro('Erro: ' + (e as Error).message);
     } finally {
       setCarregando(false);
     }
-  }, [de, ate, filial, placa]);
+  }, [de, ate, filial, placa, departamento]);
 
   useEffect(() => {
     if (podeDash) carregar();
@@ -177,8 +274,9 @@ export default function AbastecimentoPage() {
     const p: Record<string, string> = { de, ate };
     if (filial) p.filial = filial;
     if (placa) p.placa = placa;
+    if (departamento) p.departamento = departamento;
     return p;
-  }, [de, ate, filial, placa]);
+  }, [de, ate, filial, placa, departamento]);
 
   const abrirDetalhe = (titulo: string, extras: Record<string, string>) => {
     setDetalhe({ titulo, params: { ...paramsBase(), ...extras } });
@@ -278,13 +376,13 @@ export default function AbastecimentoPage() {
             <input type="date" value={de} onChange={(e) => { setDe(e.target.value); setPreset('custom'); }} style={selStyle} />
             <span style={{ color: '#888', fontSize: '.8rem' }}>a</span>
             <input type="date" value={ate} onChange={(e) => { setAte(e.target.value); setPreset('custom'); }} style={selStyle} />
-            <select value={filial} onChange={(e) => setFilial(e.target.value)} style={selStyle}>
-              <option value="">Todas as filiais</option>
-              {opcoes.filiais.map((f) => <option key={f} value={f}>{f}</option>)}
-            </select>
             <select value={placa} onChange={(e) => setPlaca(e.target.value)} style={selStyle}>
               <option value="">Todos os veículos</option>
               {opcoes.placas.map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+            <select value={departamento} onChange={(e) => setDepartamento(e.target.value)} style={selStyle}>
+              <option value="">Todos os departamentos</option>
+              {opcoes.departamentos.map((d) => <option key={d} value={d}>{d}</option>)}
             </select>
             {carregando && <span style={{ color: '#888', fontSize: '.8rem' }}>Carregando…</span>}
           </div>
@@ -304,20 +402,25 @@ export default function AbastecimentoPage() {
             <>
               {/* KPIs */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12, marginBottom: 16 }}>
-                <KPI label="Gasto total" valor={fmtRS(dados.totais.valor)} />
-                <KPI label="Litros" valor={fmtL(dados.totais.litros)} />
-                <KPI label="Preço médio/L" valor={fmtRS(dados.totais.precoMedioLitro)} />
-                <KPI label="Abastecimentos" valor={String(dados.totais.transacoes)} sub={`${dados.totais.veiculos} veículo(s)`} />
+                <KPI label="Gasto total" valor={fmtRS(dados.totais.valor)} onClick={() => abrirDetalhe('Todos os abastecimentos do período', {})} />
+                <KPI label="Litros" valor={fmtL(dados.totais.litros)} onClick={() => abrirDetalhe('Todos os abastecimentos do período', {})} />
+                <KPI label="Preço médio/L" valor={fmtRS(dados.totais.precoMedioLitro)} onClick={() => abrirDetalhe('Todos os abastecimentos do período', {})} />
+                <KPI label="Abastecimentos" valor={String(dados.totais.transacoes)} sub={`${dados.totais.veiculos} veículo(s)`} onClick={() => abrirDetalhe('Todos os abastecimentos do período', {})} />
                 <KPI
                   label="Último mês vs anterior"
                   valor={fmtPct(dados.totais.varMesAnterior)}
                   cor={dados.totais.varMesAnterior == null ? '#333' : dados.totais.varMesAnterior > 0 ? '#dc2626' : '#16a34a'}
+                  onClick={() => {
+                    const ultimo = [...dados.evolucaoMensal].reverse().find((m) => m.valor > 0);
+                    if (ultimo) abrirDetalhe(`Abastecimentos de ${rotuloMes(ultimo.mes)}`, { mes: ultimo.mes });
+                  }}
                 />
                 {dados.projecao && (
                   <KPI
                     label={`Projeção ${rotuloMes(dados.projecao.mes)}`}
                     valor={fmtRS(dados.projecao.projetado)}
                     sub={`realizado ${fmtRS(dados.projecao.realizado)} em ${dados.projecao.diasCorridos}/${dados.projecao.diasMes} dias`}
+                    onClick={() => abrirDetalhe(`Abastecimentos de ${rotuloMes(dados.projecao!.mes)}`, { mes: dados.projecao!.mes })}
                   />
                 )}
               </div>
@@ -345,7 +448,13 @@ export default function AbastecimentoPage() {
                     <Card titulo="Gasto por mês (R$) — barra atual, linha = mesmo mês do ano passado">
                       <div style={{ width: '100%', height: 280 }}>
                         <ResponsiveContainer width="100%" height="100%">
-                          <ComposedChart data={evolucao}>
+                          <ComposedChart
+                            data={evolucao}
+                            style={{ cursor: 'pointer' }}
+                            // clique em qualquer ponto da coluna do mês (não só na barra)
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            onClick={(st: any) => { const mes = st?.activePayload?.[0]?.payload?.mes; if (mes) abrirDetalhe(`Abastecimentos de ${rotuloMes(mes)}`, { mes }); }}
+                          >
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                             <XAxis dataKey="rotulo" tick={{ fontSize: 11, fill: '#888' }} />
                             <YAxis tick={{ fontSize: 11, fill: '#888' }} tickFormatter={(v) => (Number(v) / 1000).toLocaleString('pt-BR') + 'k'} />
@@ -366,11 +475,7 @@ export default function AbastecimentoPage() {
                               }}
                             />
                             <Legend wrapperStyle={{ fontSize: 11 }} />
-                            <Bar
-                              dataKey="valor" name="Gasto" fill={COR_VALOR} radius={[4, 4, 0, 0]} barSize={24} cursor="pointer"
-                              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                              onClick={(d: any) => { const mes = d?.payload?.mes ?? d?.mes; if (mes) abrirDetalhe(`Abastecimentos de ${rotuloMes(mes)}`, { mes }); }}
-                            />
+                            <Bar dataKey="valor" name="Gasto" fill={COR_VALOR} radius={[4, 4, 0, 0]} barSize={24} />
                             <Line dataKey="valorAnoAnterior" name="Mesmo mês/ano passado" stroke={COR_ANO_ANTERIOR} strokeDasharray="5 4" strokeWidth={2} dot={{ r: 3 }} connectNulls />
                           </ComposedChart>
                         </ResponsiveContainer>
@@ -380,17 +485,18 @@ export default function AbastecimentoPage() {
                     <Card titulo="Litros por mês — separa efeito consumo do efeito preço">
                       <div style={{ width: '100%', height: 280 }}>
                         <ResponsiveContainer width="100%" height="100%">
-                          <ComposedChart data={evolucao}>
+                          <ComposedChart
+                            data={evolucao}
+                            style={{ cursor: 'pointer' }}
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            onClick={(st: any) => { const mes = st?.activePayload?.[0]?.payload?.mes; if (mes) abrirDetalhe(`Abastecimentos de ${rotuloMes(mes)}`, { mes }); }}
+                          >
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                             <XAxis dataKey="rotulo" tick={{ fontSize: 11, fill: '#888' }} />
                             <YAxis tick={{ fontSize: 11, fill: '#888' }} />
                             <Tooltip formatter={(v, nome) => [fmtL(Number(v)), nome]} labelStyle={{ color: '#444' }} />
                             <Legend wrapperStyle={{ fontSize: 11 }} />
-                            <Bar
-                              dataKey="litros" name="Litros" fill={COR_LITROS} radius={[4, 4, 0, 0]} barSize={24} cursor="pointer"
-                              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                              onClick={(d: any) => { const mes = d?.payload?.mes ?? d?.mes; if (mes) abrirDetalhe(`Abastecimentos de ${rotuloMes(mes)}`, { mes }); }}
-                            />
+                            <Bar dataKey="litros" name="Litros" fill={COR_LITROS} radius={[4, 4, 0, 0]} barSize={24} />
                             <Line dataKey="litrosAnoAnterior" name="Mesmo mês/ano passado" stroke={COR_ANO_ANTERIOR} strokeDasharray="5 4" strokeWidth={2} dot={{ r: 3 }} connectNulls />
                           </ComposedChart>
                         </ResponsiveContainer>
@@ -402,7 +508,12 @@ export default function AbastecimentoPage() {
                     <Card titulo="Preço médio do litro por combustível">
                       <div style={{ width: '100%', height: 280 }}>
                         <ResponsiveContainer width="100%" height="100%">
-                          <LineChart data={precoMensal}>
+                          <LineChart
+                            data={precoMensal}
+                            style={{ cursor: 'pointer' }}
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            onClick={(st: any) => { const mes = st?.activePayload?.[0]?.payload?.mes; if (mes) abrirDetalhe(`Abastecimentos de ${rotuloMes(mes)}`, { mes }); }}
+                          >
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                             <XAxis dataKey="rotulo" tick={{ fontSize: 11, fill: '#888' }} />
                             <YAxis tick={{ fontSize: 11, fill: '#888' }} tickFormatter={(v) => 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} domain={['auto', 'auto']} width={70} />
@@ -437,6 +548,38 @@ export default function AbastecimentoPage() {
                       </div>
                     </Card>
                   </div>
+
+                  <Card titulo="Gasto por departamento">
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr>
+                            <th style={thStyle}>Departamento</th>
+                            <th style={{ ...thStyle, textAlign: 'right' }}>Abastecimentos</th>
+                            <th style={{ ...thStyle, textAlign: 'right' }}>Litros</th>
+                            <th style={{ ...thStyle, textAlign: 'right' }}>Gasto</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {dados.porDepartamento.map((d) => (
+                            <tr
+                              key={d.chave}
+                              style={linhaClicavel}
+                              onClick={() => d.chave !== 'Sem departamento' && abrirDetalhe(`Abastecimentos — ${d.chave}`, { departamento: d.chave })}
+                            >
+                              <td style={{ ...tdStyle, fontWeight: 600 }}>{d.chave}</td>
+                              <td style={{ ...tdStyle, textAlign: 'right' }}>{d.transacoes}</td>
+                              <td style={{ ...tdStyle, textAlign: 'right' }}>{fmtL(d.litros)}</td>
+                              <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600 }}>{fmtRS(d.valor)}</td>
+                            </tr>
+                          ))}
+                          {dados.porDepartamento.length === 0 && (
+                            <tr><td style={tdStyle} colSpan={4}>Sem dados (reenvie os lotes para preencher o departamento).</td></tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </Card>
 
                   <Card titulo="Resumo por combustível">
                     <div style={{ overflowX: 'auto' }}>
@@ -531,6 +674,12 @@ export default function AbastecimentoPage() {
                     </Card>
                   </div>
 
+                  <ComparadorVeiculos
+                    serie={dados.porVeiculoMes}
+                    placas={opcoes.placas.length ? opcoes.placas : dados.opcoesFiltro.placas}
+                    meses={dados.evolucaoMensal.map((m) => m.mes)}
+                  />
+
                   <Card titulo="Eficiência por veículo — km/l e custo por km (hodômetro digitado, trechos ruins descartados)">
                     <div style={{ overflowX: 'auto' }}>
                       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -578,7 +727,7 @@ export default function AbastecimentoPage() {
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 12 }}>
                     <Card titulo="Gasto por motorista (top 15)">
                       <RankingChart
-                        dados={dados.porMotorista.slice(0, 15).map((m) => ({ chave: m.chave, nome: m.chave, valor: m.valor }))}
+                        dados={dados.porMotorista.slice(0, 15).map((m) => ({ chave: m.chave, nome: nomeCurto(m.chave), valor: m.valor }))}
                         cor={COR_VALOR}
                         formato={(v) => fmtRS(v)}
                         onItemClick={(chave) => abrirDetalhe(`Abastecimentos de ${chave}`, { motorista: chave === 'Sem motorista' ? '__sem__' : chave })}
@@ -586,7 +735,7 @@ export default function AbastecimentoPage() {
                     </Card>
                     <Card titulo="Gasto por posto — onde o dinheiro está indo (vale negociar?)">
                       <RankingChart
-                        dados={dados.porPosto.slice(0, 12).map((p) => ({ chave: p.chave, nome: p.detalhe ? `${p.chave} · ${p.detalhe}` : p.chave, valor: p.valor }))}
+                        dados={dados.porPosto.slice(0, 12).map((p) => ({ chave: p.chave, nome: p.chave, valor: p.valor }))}
                         cor={COR_VALOR}
                         formato={(v) => fmtRS(v)}
                         onItemClick={(chave) => abrirDetalhe(`Abastecimentos no posto ${chave}`, { posto: chave })}
@@ -696,7 +845,12 @@ export default function AbastecimentoPage() {
                     </Card>
 
                     <Card titulo="Quando a frota abastece — dia da semana × hora">
-                      <HeatmapDiaHora celulas={dados.heatmap} />
+                      <HeatmapDiaHora
+                        celulas={dados.heatmap}
+                        onCellClick={(dia, hora, nomeDia) =>
+                          abrirDetalhe(`Abastecimentos de ${nomeDia} às ${hora}h (no período)`, { dia: String(dia), hora: String(hora) })
+                        }
+                      />
                     </Card>
                   </div>
                 </>

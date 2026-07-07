@@ -10,6 +10,7 @@ export interface LinhaAbastecimento {
   modelo_veiculo: string | null;
   nome_veiculo: string | null;
   tipo_frota: string | null;
+  departamento: string | null; // "Centro de custo veículo" (COMERCIAL/OFICINA/...)
   motorista_cpf: string | null;
   motorista_nome: string | null;
   data_transacao: string; // ISO com offset -03:00
@@ -188,6 +189,15 @@ export interface OsGasto {
   placas: string[];
 }
 
+// Série mensal por veículo (comparativo entre veículos ao longo dos meses).
+export interface VeiculoMes {
+  placa: string;
+  mes: string; // 'YYYY-MM'
+  litros: number;
+  valor: number;
+  kml: number | null; // km/l dos trechos fechados no mês (null = sem trecho válido)
+}
+
 export interface ProjecaoMes {
   mes: string; // mês corrente
   realizado: number;
@@ -206,6 +216,7 @@ export interface DashboardAbastecimento {
   porVeiculo: RankingItem[];
   porMotorista: RankingItem[];
   porPosto: RankingItem[];
+  porDepartamento: RankingItem[];
   porCombustivel: CombustivelItem[];
   consumo: ConsumoVeiculo[];
   anomalias: AnomaliaConsumo[];
@@ -213,6 +224,7 @@ export interface DashboardAbastecimento {
   heatmap: HeatmapCelula[];
   abc: AbcItem[];
   porOS: OsGasto[];
+  porVeiculoMes: VeiculoMes[];
   projecao: ProjecaoMes | null;
-  opcoesFiltro: { filiais: string[]; placas: string[]; motoristas: string[] };
+  opcoesFiltro: { filiais: string[]; placas: string[]; motoristas: string[]; departamentos: string[] };
 }

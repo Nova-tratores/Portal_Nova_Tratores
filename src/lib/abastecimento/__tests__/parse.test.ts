@@ -70,6 +70,21 @@ describe('parseCsvAbastecimento', () => {
     // penúltima ("Placa - Dig.Motorista": dígitos da placa digitados na bomba)
     expect(l.ordem_servico).toBeNull();
     expect(l.capacidade_tanque).toBe(60);
+    expect(l.departamento).toBe('COMERCIAL'); // "Centro de custo veículo"
+  });
+
+  it('aplica as correções de placa no parse (unificação e troca até uma data)', () => {
+    // FCP0G08 -> GIH0I50 (sempre)
+    const unificada = LINHA_NORMAL.replace(';SEC1F03;', ';FCP0G08;');
+    // EPX5253 em 06/2026 -> FRS3H46 (ETIOS); em 07/2026 permanece EPX5253
+    const antiga = LINHA_NORMAL.replace(';SEC1F03;', ';EPX5253;');
+    const recente = antiga.replace('01/06/2026 07:53:33', '01/07/2026 07:53:33');
+    const r = parseCsvAbastecimento([CABECALHO, unificada, antiga, recente].join('\n'));
+    expect(r.linhas[0].placa).toBe('GIH0I50');
+    expect(r.linhas[1].placa).toBe('FRS3H46');
+    expect(r.linhas[1].modelo_veiculo).toBe('ETIOS');
+    expect(r.linhas[2].placa).toBe('EPX5253');
+    expect(r.linhas[2].modelo_veiculo).toBe('VOYAGE'); // modelo original do CSV
   });
 
   it('captura a Ordem de Serviço quando preenchida (e trata "0" como vazio)', () => {
@@ -123,6 +138,7 @@ const dash = (over: Partial<LinhaDash>): LinhaDash => ({
   data_transacao: '2026-06-01T08:00:00-03:00',
   capacidade_tanque: 60,
   ordem_servico: null,
+  departamento: 'OFICINA',
   ...over,
 });
 

@@ -8,6 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { localBR } from '@/lib/abastecimento/agregacoes';
 import type { TransacaoRow, TransacoesResp } from '@/lib/abastecimento/tipos';
 
 export const runtime = 'nodejs';
@@ -53,6 +54,7 @@ export async function GET(req: NextRequest) {
         ['posto', 'posto_nome'],
         ['combustivel', 'combustivel'],
         ['os', 'ordem_servico'],
+        ['departamento', 'departamento'],
       ] as const) {
         const v = sp.get(param);
         if (v) x = v === '__sem__' && param === 'motorista' ? x.is(col, null) : x.eq(col, v);
@@ -63,6 +65,43 @@ export async function GET(req: NextRequest) {
     const limit = Math.min(Math.max(parseInt(sp.get('limit') || '100', 10) || 0, 0), 10000);
     const offset = Math.max(parseInt(sp.get('offset') || '0', 10) || 0, 0);
     const tudo = limit === 0; // PDF: busca tudo (paginado internamente)
+
+    // Filtro dia da semana (0=dom) / hora (0-23, Brasília) — drill-down do
+    // heatmap. PostgREST não filtra por dow/hora, então busca o período e
+    // filtra em JS (volumes pequenos).
+    const diaParam = sp.get('dia');
+    const horaParam = sp.get('hora');
+    if (diaParam != null || horaParam != null) {
+      const dia = diaParam != null ? parseInt(diaParam, 10) : null;
+      const hora = horaParam != null ? parseInt(horaParam, 10) : null;
+      const todas: TransacaoRow[] = [];
+      for (let off = 0; ; off += PAGINA) {
+        const { data, error } = await filtros(supabase.from('abastecimentos').select(COLS))
+          .order('data_transacao', { ascending: false })
+          .range(off, off + PAGINA - 1);
+        if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+        for (const l of (data || []) as unknown as TransacaoRow[]) {
+          const br = localBR(l.data_transacao);
+          if ((dia == null || br.dia === dia) && (hora == null || br.hora === hora)) {
+            todas.push({
+              ...l,
+              litros: Number(l.litros) || 0,
+              valor_unitario: l.valor_unitario == null ? null : Number(l.valor_unitario),
+              valor_total: l.valor_total == null ? null : Number(l.valor_total),
+              hodometro: l.hodometro == null ? null : Number(l.hodometro),
+            });
+          }
+        }
+        if (!data || data.length < PAGINA) break;
+      }
+      const resp: TransacoesResp = {
+        linhas: tudo ? todas : todas.slice(offset, offset + limit),
+        total: todas.length,
+        somaValor: todas.reduce((s, l) => s + (l.valor_total || 0), 0),
+        somaLitros: todas.reduce((s, l) => s + l.litros, 0),
+      };
+      return NextResponse.json(resp);
+    }
 
     // totais do filtro (contagem + somas) — uma passada paginada leve
     let total = 0;
