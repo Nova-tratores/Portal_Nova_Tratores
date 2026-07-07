@@ -63,9 +63,26 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   // Buscar dados do técnico (fotos, assinaturas, etc)
   const { data: tecData } = await supabase
     .from("Ordem_Servico_Tecnicos")
-    .select("TipoServico, Motivo, ServicoRealizado, Chassis, Horimetro, Garantia, TotalHora, TotalKm, NomResp, FotoHorimetro, FotoChassis, FotoFrente, FotoDireita, FotoEsquerda, FotoTraseira, FotoVolante, FotoFalha1, FotoFalha2, FotoFalha3, FotoFalha4, FotoPecaNova1, FotoPecaNova2, FotoPecaInstalada1, FotoPecaInstalada2, AssCliente, AssTecnico, PecasInfo, JustificativaPecaExtra, CartaCorrecao")
+    .select("TipoServico, Motivo, ServicoRealizado, Chassis, Horimetro, Garantia, TotalHora, TotalKm, NomResp, FotoHorimetro, FotoChassis, FotoFrente, FotoDireita, FotoEsquerda, FotoTraseira, FotoVolante, FotoFalha1, FotoFalha2, FotoFalha3, FotoFalha4, FotoPecaNova1, FotoPecaNova2, FotoPecaInstalada1, FotoPecaInstalada2, AssCliente, AssTecnico, PecasInfo, JustificativaPecaExtra, CartaCorrecao, AlmocosFotos, FotoAlmoco")
     .eq("Ordem_Servico", idOs)
     .maybeSingle();
+
+  // Fotos das notas de almoço enviadas pelo técnico (AlmocosFotos = [{data, foto}]).
+  // Compat: se só houver o almoço único antigo (FotoAlmoco), casa com o 1º dia lançado.
+  let almocosFotos: { data: string; foto: string }[] = [];
+  if (tecData) {
+    const raw = (tecData as Record<string, unknown>).AlmocosFotos;
+    let arr: unknown[] = Array.isArray(raw) ? raw : [];
+    if (typeof raw === "string") { try { const p = JSON.parse(raw); if (Array.isArray(p)) arr = p; } catch {} }
+    almocosFotos = arr
+      .map((x) => { const o = (x || {}) as Record<string, unknown>; return { data: String(o.data || "").slice(0, 10), foto: String(o.foto || "") }; })
+      .filter((x) => x.data && x.foto);
+    if (almocosFotos.length === 0 && (tecData as Record<string, unknown>).FotoAlmoco) {
+      const ali = Array.isArray(safeGet(row, "Alimentacoes")) ? (safeGet(row, "Alimentacoes") as Record<string, unknown>[]) : [];
+      const primeiro = ali.map((a) => String(a?.data || "").slice(0, 10)).filter(Boolean).sort()[0];
+      if (primeiro) almocosFotos = [{ data: primeiro, foto: String((tecData as Record<string, unknown>).FotoAlmoco) }];
+    }
+  }
 
   return NextResponse.json({
     id: safeGet(row, "Id_Ordem"), nomeCliente: safeGet(row, "Os_Cliente"),
@@ -98,6 +115,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     alimentacaoValor: parseFloat(String(safeGet(row, "Alimentacao_Valor") || 0)),
     alimentacaoNoPdf: !!safeGet(row, "Alimentacao_No_PDF"),
     alimentacoes: Array.isArray(safeGet(row, "Alimentacoes")) ? safeGet(row, "Alimentacoes") : [],
+    almocosFotos,
     horaInicioExec: safeGet(row, "Hora_Inicio_Exec") || "",
     horaChegada: safeGet(row, "Hora_Chegada") || "",
     horaFimExec: safeGet(row, "Hora_Fim_Exec") || "",
