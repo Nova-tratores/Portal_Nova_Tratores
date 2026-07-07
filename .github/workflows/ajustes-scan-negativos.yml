@@ -12,7 +12,7 @@ name: Ajustes - Varredura de estoque negativo (diária)
 on:
   workflow_dispatch: {}
   schedule:
-    - cron: '0 9 * * *'   # 06:00 BRT (diário)
+    - cron: '0 4 * * *'   # 01:00 BRT (diário) — slot isolado da madrugada
 
 jobs:
   scan-negativos:

@@ -6,7 +6,7 @@ name: POS - Transições automáticas de fase
 
 on:
   schedule:
-    - cron: '10 8 * * *'    # 08:10 UTC ≈ 05:10 de Brasília (madrugada)
+    - cron: '40 8 * * *'    # 08:40 UTC = 05:40 BRT
   workflow_dispatch: {}      # permite rodar manualmente
 
 jobs:

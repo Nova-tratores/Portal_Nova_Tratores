@@ -8,7 +8,7 @@ name: Ajustes - Sync Notas de Saida (incremental)
 
 on:
   schedule:
-    - cron: '17 */3 * * *'   # a cada 3h (minuto 17 p/ nao cair no :00)
+    - cron: '40 */3 * * *'   # a cada 3h no minuto :40
   workflow_dispatch: {}        # permite rodar manualmente pelo botao "Run workflow"
 
 jobs:

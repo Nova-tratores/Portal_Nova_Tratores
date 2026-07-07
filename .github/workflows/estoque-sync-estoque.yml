@@ -7,7 +7,7 @@ name: Estoque - Sync rápido de saldo (a cada 3h)
 
 on:
   schedule:
-    - cron: '0 */3 * * *'   # a cada 3 horas
+    - cron: '20 */3 * * *'   # a cada 3h no minuto :20 (fora do :00)
   workflow_dispatch: {}       # permite rodar manualmente
 
 jobs:

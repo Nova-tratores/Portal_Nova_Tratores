@@ -12,7 +12,7 @@ import {
   LayoutDashboard, Bell, ChevronRight, ChevronDown, Activity, Lock, MessageCircle,
   CheckCheck, Trash2, ExternalLink, Calendar, Users, Calculator, BarChart3, Eye, Camera, Wheat, Megaphone,
   Sun, Moon, Volume2, Check, MapPin, ShieldCheck, Building, SlidersHorizontal, AlertCircle, Headset,
-  LayoutGrid, List, CircleDot, GanttChartSquare, Clock
+  LayoutGrid, List, CircleDot, GanttChartSquare, Clock, Fuel
 } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -81,6 +81,7 @@ const navItems: NavItem[] = [
   { id: 'consulta-estoque', name: 'Visual Estoque', href: '/visual-estoque', icon: <BarChart3 size={18} />, tag: 'VISUAL', gradient: '', group: 'estoque' },
   { id: 'consulta-omie', name: 'Consulta Estoque', href: '/estoque', icon: <Eye size={18} />, tag: 'CONSULTA', gradient: '', group: 'estoque' },
   { id: 'ajustes', name: 'Ajustes Estoque', href: '/ajustes', icon: <SlidersHorizontal size={18} />, tag: 'AJUSTES', gradient: '', group: 'estoque' },
+  { id: 'abastecimento', name: 'Abastecimento', href: '/abastecimento', icon: <Fuel size={18} />, tag: 'FROTA', gradient: '', group: 'estoque' },
 
   // Outros (cinza)
   { id: 'opa', name: 'Opa', href: '/opa', icon: <AlertCircle size={18} />, tag: 'OCORRÊNCIAS', gradient: '', group: 'outros' },

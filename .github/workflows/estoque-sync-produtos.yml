@@ -8,7 +8,7 @@ name: Estoque - Sync completo de produtos (diário)
 
 on:
   schedule:
-    - cron: '0 6 * * *'    # 06:00 UTC = 03:00 BRT (madrugada), igual ao externo
+    - cron: '0 5 * * *'    # 05:00 UTC = 02:00 BRT (madrugada)
   workflow_dispatch: {}      # permite rodar manualmente
 
 jobs:

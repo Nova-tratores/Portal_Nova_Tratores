@@ -20,8 +20,8 @@ name: Estoque - Backfill histórico NOTURNO (chunks)
 
 on:
   workflow_dispatch: {}
-  schedule:
-    - cron: '0 4 * * *'   # 04:00 UTC = 01:00 BRT (madrugada)
+  # AGENDAMENTO DESATIVADO — backfill histórico já concluído (2026-07).
+  # Ficou só o disparo manual (Run workflow) para eventuais reprocessamentos.
 
 jobs:
   backfill:

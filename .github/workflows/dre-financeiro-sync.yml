@@ -7,7 +7,7 @@ name: DRE Financeiro - Sync contas (pagar/receber)
 
 on:
   schedule:
-    - cron: '13 */3 * * *'   # a cada 3 horas (minuto 13 para evitar congestao)
+    - cron: '10 */3 * * *'   # a cada 3h no minuto :10
   workflow_dispatch: {}        # permite rodar manualmente
 
 jobs:
