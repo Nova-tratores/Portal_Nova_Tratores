@@ -26,6 +26,7 @@ const PHASE_COLORS: Record<string, string> = {
   "Executada": "#8B5CF6",
   "Relatório Concluído": "#A78BFA",
   "Relatório Concluído - Garantia": "#0D9488",
+  "Enviar Omie": "#F59E0B",
   "Executada aguardando comercial": "#C084FC",
   "Concluída": "#10B981",
   "Cancelada": "#EF4444",
@@ -47,6 +48,7 @@ const PHASE_SHORT: Record<string, string> = {
   "Aguardando outros": "Aguard. Outros",
   "Executada": "Executada",
   "Relatório Concluído": "Rel. Concluído",
+  "Enviar Omie": "Enviar Omie",
   "Executada aguardando comercial": "Aguard. Comercial",
   "Concluída": "Concluída",
   "Cancelada": "Cancelada",
@@ -255,7 +257,8 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
         const comGar = items.filter((o) => garantiaMap[o.id]);
         if (semGar.length > 0) map[FASE_CONCLUIDO] = semGar;
         if (comGar.length > 0) map[FASE_CONCLUIDO_GAR] = comGar;
-      } else if (items.length > 0) {
+      } else if (phase === "Enviar Omie" || items.length > 0) {
+        // "Enviar Omie" aparece sempre (mesmo vazia), pra ficar visível como fila.
         map[phase] = items;
       }
     }
