@@ -1,0 +1,24 @@
+name: Estoque - Sync SELIC (BCB)
+
+# Atualiza o cache de SELIC (`selic_cache`) com as taxas diárias novas do Banco
+# Central (SGS série 11). Alimenta o custo de capital do /visual-estoque.
+# Substitui o selic.js do app externo "Visual Estoque".
+# Necessário porque o portal roda no Railway e o vercel.json não dispara cron.
+# Requer os secrets do GitHub: PORTAL_URL e CRON_SECRET.
+
+on:
+  schedule:
+    - cron: '30 10 * * *'   # 10:30 UTC = 07:30 BRT (BCB publica a taxa do dia útil anterior)
+  workflow_dispatch: {}       # permite rodar manualmente
+
+jobs:
+  sync-selic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Disparar sync do cache SELIC
+        run: |
+          curl -fsS --max-time 120 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/estoque/cron/sync-selic" \
+            -w "\nsync-selic: HTTP %{http_code}\n"
