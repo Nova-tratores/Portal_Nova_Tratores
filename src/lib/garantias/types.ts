@@ -27,6 +27,13 @@ export interface CobrancaItens {
   horas?: boolean;
   km?: boolean;
   pecas?: string[]; // ids de garantia_pecas
+  // Valores editados pelo garantista — sobrepõem o cálculo padrão (horas×hora,
+  // km×km, preço da peça). Ausente = usa o cálculo padrão. Peças: chave = id.
+  valores?: {
+    horas?: number;
+    km?: number;
+    pecas?: Record<string, number>;
+  };
 }
 
 // Linhas livres ("outros") — taxa de visita, deslocamento extra, etc.

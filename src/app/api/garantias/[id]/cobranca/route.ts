@@ -23,14 +23,26 @@ async function calcularValorTotal(garantiaId: string, itens: CobrancaItens, outr
     .maybeSingle();
   if (!g) return 0;
 
+  // Valores editados pelo garantista sobrepõem o cálculo padrão (clamp >= 0).
+  const v = itens.valores || {};
+  const positivo = (n: unknown) => Math.max(0, Number(n) || 0);
+
   let total = 0;
   if (itens.horas) {
-    const h = g.garantista_horas != null ? Number(g.garantista_horas) : Number(g.tecnico_horas) || 0;
-    total += h * VALOR_HORA;
+    if (v.horas != null) {
+      total += positivo(v.horas);
+    } else {
+      const h = g.garantista_horas != null ? Number(g.garantista_horas) : Number(g.tecnico_horas) || 0;
+      total += h * VALOR_HORA;
+    }
   }
   if (itens.km) {
-    const k = g.garantista_km != null ? Number(g.garantista_km) : Number(g.tecnico_km) || 0;
-    total += k * VALOR_KM;
+    if (v.km != null) {
+      total += positivo(v.km);
+    } else {
+      const k = g.garantista_km != null ? Number(g.garantista_km) : Number(g.tecnico_km) || 0;
+      total += k * VALOR_KM;
+    }
   }
   if (itens.pecas && itens.pecas.length > 0) {
     const { data: pecas } = await supabase
@@ -38,7 +50,10 @@ async function calcularValorTotal(garantiaId: string, itens: CobrancaItens, outr
       .select('id, preco_unitario, quantidade')
       .in('id', itens.pecas);
     for (const p of pecas || []) {
-      total += (Number(p.preco_unitario) || 0) * (Number(p.quantidade) || 0);
+      const override = v.pecas?.[p.id];
+      total += override != null
+        ? positivo(override)
+        : (Number(p.preco_unitario) || 0) * (Number(p.quantidade) || 0);
     }
   }
   for (const o of outros || []) {
