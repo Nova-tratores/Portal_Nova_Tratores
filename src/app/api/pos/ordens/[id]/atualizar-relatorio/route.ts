@@ -18,7 +18,7 @@ async function processar(req: NextRequest, ctx: { params: Promise<{ id: string }
   if (!proposta.ok) return NextResponse.json({ ok: false, erro: proposta.erro, proposta }, { status: 200 });
 
   if (aplicar) {
-    const r = await aplicarNaOS(proposta);
+    const r = await aplicarNaOS(proposta, auth.email || "Tratorilson");
     let fase: string | null = null;
     if (r.ok) {
       // Move a OS pra "Enviar Omie" (só as atualizadas pelo Tratorilson) e notifica.

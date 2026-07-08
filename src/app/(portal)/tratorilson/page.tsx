@@ -239,6 +239,14 @@ export default function TratorilsonPainel() {
                   <div style={{ fontSize: 12.5, whiteSpace: 'pre-wrap', background: '#f0fdf4', border: '1px solid #86efac', padding: 10, borderRadius: 8, color: 'var(--portal-text)', maxHeight: 280, overflowY: 'auto' }}>{p.servSolicitado || '—'}</div>
                 </div>
               </div>
+              {Array.isArray(p.devolucoes) && p.devolucoes.length > 0 && (
+                <div style={{ marginTop: 12, padding: 10, background: '#eff6ff', border: '1px solid #93c5fd', borderRadius: 8 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#1e40af', marginBottom: 4 }}>↩ Devoluções no PPV{p.ppvId ? ` ${p.ppvId}` : ''} ({p.devolucoes.length})</div>
+                  {p.devolucoes.map((d: any, i: number) => (
+                    <div key={i} style={{ fontSize: 12.5, color: '#1e3a5f' }}>• {d.quantidade}x {d.codigo} — {d.descricao} <span style={{ color: '#2563eb' }}>({d.motivo})</span></div>
+                  ))}
+                </div>
+              )}
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 12 }}>
                 <button onClick={aplicar} disabled={aplicando} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 8, border: 'none', background: '#16a34a', color: '#fff', fontWeight: 700, cursor: aplicando ? 'default' : 'pointer' }}>
                   {aplicando ? <Loader2 size={14} className="spin" /> : <Save size={14} />} Aplicar na OS {osNum}

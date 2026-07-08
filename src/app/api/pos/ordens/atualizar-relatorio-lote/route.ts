@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
       const prop = await montarAtualizacaoOS(id, quem);
       if (!prop.ok) { resultados.push({ os: id, ok: false, erro: prop.erro }); continue; }
 
-      const r = await aplicarNaOS(prop);
+      const r = await aplicarNaOS(prop, quem);
       if (!r.ok) { resultados.push({ os: id, ok: false, erro: r.erro }); continue; }
 
       // É de garantia? (tem registro em garantias com esse id_ordem)

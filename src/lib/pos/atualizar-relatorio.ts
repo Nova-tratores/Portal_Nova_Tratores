@@ -9,8 +9,11 @@
 import { createClient } from "@supabase/supabase-js";
 import { chamarIA, getIA } from "@/lib/assistente/ia";
 import { logTratorilson } from "@/lib/assistente/log";
-import { TBL_OS, TBL_PROJETOS_DB } from "@/lib/pos/constants";
+import { TBL_OS, TBL_PROJETOS_DB, TBL_LOGS_PPO } from "@/lib/pos/constants";
 import { getConfigPOS } from "@/lib/pos/config";
+import { supabaseFetch, formatarDataBR } from "@/lib/ppv/supabase";
+import { TBL_ITENS } from "@/lib/ppv/constants";
+import { registrarLog as registrarLogPPV, atualizarValorTotal } from "@/lib/ppv/queries";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -36,6 +39,9 @@ export interface PropostaAtualizacao {
   solicitacaoCliente: string;
   servicoRealizado: string;
   servSolicitado: string;
+  ppvId: string;
+  tecnico: string;
+  devolucoes: { codigo: string; descricao: string; quantidade: number; motivo: string }[];
   antes: { servSolicitado: string; qtdHoras: number; qtdKm: number; projeto: string; previsaoExecucao: string; dataFimServico: string; valorTotal: number };
 }
 
@@ -110,10 +116,11 @@ export async function montarAtualizacaoOS(osId: string, userName?: string): Prom
   const vazia = (erro: string): PropostaAtualizacao => ({
     osId, ok: false, erro, duvidas, qtdHoras: 0, qtdKm: 0, dataInicio: "", dataFim: "", horimetro: "",
     projeto: "", modelo: "", chassis: "", solicitacaoCliente: "", servicoRealizado: "", servSolicitado: "",
+    ppvId: "", tecnico: "", devolucoes: [],
     antes: { servSolicitado: "", qtdHoras: 0, qtdKm: 0, projeto: "", previsaoExecucao: "", dataFimServico: "", valorTotal: 0 },
   });
 
-  const cols = "Id_Ordem, Serv_Solicitado, Qtd_HR, Qtd_KM, Projeto, Status, Previsao_Execucao, Data_Fim_Servico, Valor_Total";
+  const cols = "Id_Ordem, Serv_Solicitado, Qtd_HR, Qtd_KM, Projeto, Status, Previsao_Execucao, Data_Fim_Servico, Valor_Total, ID_PPV, Os_Tecnico";
   // O usuário digita o número visível (ex.: 541 ou OS-0541 = Servico_Numero), mas a
   // OS é chaveada por Id_Ordem. Resolve pelos dois.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -134,7 +141,7 @@ export async function montarAtualizacaoOS(osId: string, userName?: string): Prom
 
   const { data: rel } = await supabase
     .from(TBL_TEC)
-    .select("TotalHora, TotalKm, DataInicio, DataFinal, Chassis, Modelo, Horimetro, Motivo, ServicoRealizado")
+    .select("TotalHora, TotalKm, DataInicio, DataFinal, Chassis, Modelo, Horimetro, Motivo, ServicoRealizado, PecasInfo")
     .eq("Ordem_Servico", idReal).maybeSingle();
   if (!rel) return vazia(`Relatório do técnico da OS ${osId} não encontrado (a OS já foi preenchida pelo técnico?).`);
 
@@ -189,9 +196,34 @@ export async function montarAtualizacaoOS(osId: string, userName?: string): Prom
     `Modelo: ${modelo}\nChassis: ${chassis}\nHorimetro: ${horimetro}\n\n` +
     `Solicitação do cliente: ${solicitacaoCliente}\nServiço Realizado: ${servicoRealizado}`;
 
+  // Peças a devolver no PPV vinculado: "não usada" (qtd inteira) e "devolvida"
+  // (qtd devolvida). Só as de origem PPV.
+  const ppvId = String((os as Record<string, unknown>).ID_PPV || "");
+  const tecnico = String((os as Record<string, unknown>).Os_Tecnico || "");
+  const devolucoes: { codigo: string; descricao: string; quantidade: number; motivo: string }[] = [];
+  if (ppvId) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let pecas: any[] = [];
+    try { const pp = JSON.parse(String(rel.PecasInfo || "[]")); if (Array.isArray(pp)) pecas = pp; } catch {}
+    for (const pc of pecas) {
+      const o = (pc || {}) as Record<string, unknown>;
+      if (String(o.origem || "") !== "ppv") continue;
+      const codigo = String(o.codigo || "").trim();
+      if (!codigo) continue;
+      if (o.naoUsada === true) {
+        const q = parseNum(o.qtdUsada);
+        if (q > 0) devolucoes.push({ codigo, descricao: String(o.descricao || ""), quantidade: q, motivo: "não usada" });
+      } else if (o.devolvida === true) {
+        const q = parseNum(o.qtdDevolvida);
+        if (q > 0) devolucoes.push({ codigo, descricao: String(o.descricao || ""), quantidade: q, motivo: "devolvida" });
+      }
+    }
+  }
+
   return {
     osId: idReal, ok: true, duvidas, qtdHoras, qtdKm, dataInicio, dataFim, horimetro,
     projeto: projetoNome, modelo, chassis, solicitacaoCliente, servicoRealizado, servSolicitado,
+    ppvId, tecnico, devolucoes,
     antes: {
       servSolicitado: String(os.Serv_Solicitado || ""), qtdHoras: Number(os.Qtd_HR) || 0,
       qtdKm: Number(os.Qtd_KM) || 0, projeto: String(os.Projeto || ""),
@@ -203,7 +235,7 @@ export async function montarAtualizacaoOS(osId: string, userName?: string): Prom
 
 // Aplica a proposta na OS (grava os campos calculados). Não recalcula valores de
 // peças/requisições — só os campos que a função cuida.
-export async function aplicarNaOS(p: PropostaAtualizacao): Promise<{ ok: boolean; erro?: string; valorTotal?: number }> {
+export async function aplicarNaOS(p: PropostaAtualizacao, userName?: string): Promise<{ ok: boolean; erro?: string; valorTotal?: number; devolucoes?: number }> {
   if (!p.ok) return { ok: false, erro: p.erro || "proposta inválida" };
   // Recalcula o Valor_Total trocando só a parcela de hora/km (preserva peças/req/desconto).
   const cfg = await getConfigPOS();
@@ -221,5 +253,44 @@ export async function aplicarNaOS(p: PropostaAtualizacao): Promise<{ ok: boolean
     Serv_Solicitado: p.servSolicitado,
   }).eq("Id_Ordem", p.osId);
   if (error) return { ok: false, erro: error.message };
-  return { ok: true, valorTotal };
+
+  // Devoluções de peças no PPV vinculado + histórico no PPV e no card do POS.
+  let devsRegistradas = 0;
+  if (p.ppvId && p.devolucoes.length > 0) {
+    const quem = userName || "Tratorilson";
+    for (const d of p.devolucoes) {
+      let preco = 0;
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const it = await supabaseFetch<any[]>(`${TBL_ITENS}?Id_PPV=eq.${encodeURIComponent(p.ppvId)}&CodProduto=eq.${encodeURIComponent(d.codigo)}&order=Id.desc&limit=1`);
+        preco = Number(it?.[0]?.Preco) || 0;
+      } catch { /* sem preço → 0 */ }
+      const mov = {
+        Id: Math.floor(Math.random() * 9000000000) + 1000000000,
+        Id_PPV: p.ppvId, Data_Hora: formatarDataBR(new Date().toISOString(), true),
+        Tecnico: p.tecnico || quem, TipoMovimento: "Devolução",
+        CodProduto: d.codigo, Descricao: d.descricao, Qtde: String(d.quantidade), Preco: preco,
+      };
+      try {
+        await supabaseFetch(TBL_ITENS, "POST", [mov]);
+        await registrarLogPPV(p.ppvId, `Devolveu ${d.quantidade} un de ${d.codigo} (${d.motivo}) — via Tratorilson`, quem);
+        devsRegistradas++;
+      } catch { /* segue as demais */ }
+    }
+    if (devsRegistradas > 0) {
+      await atualizarValorTotal(p.ppvId);
+      const resumo = p.devolucoes.map((d) => `${d.quantidade}x ${d.codigo} (${d.motivo})`).join(", ");
+      const agora = new Date();
+      await supabase.from(TBL_LOGS_PPO).insert({
+        Id_ppo: p.osId,
+        Data_Acao: new Intl.DateTimeFormat("pt-BR").format(agora),
+        Hora_Acao: agora.toLocaleTimeString("pt-BR"),
+        UsuEmail: quem,
+        acao: `Tratorilson: devoluções no PPV ${p.ppvId} — ${resumo}`,
+        Status_Anterior: "", Status_Atual: "", Dias_Na_Fase: 0, Total_Dias_Aberto: 0,
+      });
+    }
+  }
+
+  return { ok: true, valorTotal, devolucoes: devsRegistradas };
 }
