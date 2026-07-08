@@ -374,7 +374,12 @@ export default function AbastecimentoPage() {
 
   return (
     <div style={{ padding: 20, maxWidth: 1300, margin: '0 auto' }}>
-      <h1 style={{ fontSize: '1.3rem', fontWeight: 700, color: '#333', marginBottom: 4 }}>Abastecimento da Frota</h1>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <h1 style={{ fontSize: '1.3rem', fontWeight: 700, color: '#333', marginBottom: 4 }}>Abastecimento da Frota</h1>
+        <a href="/abastecimento/flex" style={{ fontSize: '.78rem', color: '#dc2626', fontWeight: 600, textDecoration: 'none' }}>
+          Álcool × Gasolina por veículo →
+        </a>
+      </div>
       <p style={{ color: '#888', fontSize: '.82rem', marginBottom: 16 }}>
         Gastos com combustível por veículo, motorista e posto — importados do relatório mensal da operadora.
         Clique nas barras e linhas dos gráficos para ver os abastecimentos que compõem cada valor.
