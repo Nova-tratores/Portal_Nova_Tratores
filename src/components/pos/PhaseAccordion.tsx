@@ -180,12 +180,10 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
   );
 });
 
-// Todas as fases começam abertas. "Concluída" e "Cancelada" ficam escondidas
-// por padrão — só aparecem (já abertas) quando uma busca encontra uma ordem
-// que está numa delas.
-const COLLAPSED_DEFAULT = new Set<string>();
-// Fases escondidas do quadro a menos que haja busca com resultado nelas.
-const OCULTAS_SEM_BUSCA = new Set(["Concluída", "Cancelada"]);
+// Fases abertas por padrão; só "Concluída" e "Cancelada" começam fechadas.
+const COLLAPSED_DEFAULT = new Set(["Concluída", "Cancelada"]);
+// Fases que aparecem no quadro mas SEM mostrar a contagem no cabeçalho.
+const SEM_CONTAGEM = new Set(["Concluída", "Cancelada"]);
 
 export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChange }: PhaseViewProps) {
   const [activePhase, setActivePhase] = useState<string>("");
@@ -273,9 +271,6 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
         const comGar = items.filter((o) => garantiaMap[o.id]);
         if (semGar.length > 0) map[FASE_CONCLUIDO] = semGar;
         if (comGar.length > 0) map[FASE_CONCLUIDO_GAR] = comGar;
-      } else if (OCULTAS_SEM_BUSCA.has(phase)) {
-        // "Concluída" e "Cancelada" só aparecem quando a busca acha uma ordem nelas.
-        if (searchLower && items.length > 0) map[phase] = items;
       } else if (phase === "Enviar Omie" || phase === "Enviado Para Omie" || phase === "Preenchido" || items.length > 0) {
         // As filas do Tratorilson aparecem sempre (mesmo vazias).
         map[phase] = items;
@@ -285,7 +280,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
     const orphans = filtered.filter((o) => !phasesSet.has(o.status));
     if (orphans.length > 0) map["Outros"] = orphans;
     return map;
-  }, [filtered, activePhase, garantiaMap, searchLower]);
+  }, [filtered, activePhase, garantiaMap]);
 
   // Stable click handlers per card (avoid inline arrow in .map)
   const handleCardClick = useCallback((o: KanbanCard) => onCardClick(o), [onCardClick]);
@@ -379,7 +374,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
                 </span>
                 <span className="phase-group-dot" style={{ background: PHASE_COLORS[phase] }} />
                 <span className="phase-group-name">{phase}</span>
-                <span className="phase-group-count">{items.length}</span>
+                {!SEM_CONTAGEM.has(phase) && <span className="phase-group-count">{items.length}</span>}
                 <div className="phase-group-line" />
               </div>
               {!collapsed.has(phase) && (
