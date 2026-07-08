@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import CardCapaReq from './CardCapaReq';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
-import { Search, Calendar, Building2, X, Layout, UserCircle, Layers, SlidersHorizontal, Receipt, FileDown, Info, Plus, FolderOpen, FolderPlus, RotateCcw } from 'lucide-react';
+import { Search, Calendar, Building2, X, Layout, UserCircle, Layers, SlidersHorizontal, Receipt, FileDown, Info, Plus, FolderOpen, FolderPlus, RotateCcw, Car, Filter, ArrowLeft, Check, Tag } from 'lucide-react';
 
 const LISTA_FORNECEDORES_CADASTRADOS = ["Rodrigo Torneiro (Panda)"];
 
@@ -24,8 +24,13 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
   }, []);
   const [filtroBusca, setFiltroBusca] = useState('');
   const [filtroData, setFiltroData] = useState('');
-  const [filtroFornAguardando, setFiltroFornAguardando] = useState('');
-  const [filtroTecnicoPedido, setFiltroTecnicoPedido] = useState('');
+  // Filtro único faceteado: cada critério é { campo, valor, label }.
+  // Mesmo campo com vários valores = OU; campos diferentes = E.
+  const [filtros, setFiltros] = useState<{ campo: string; valor: string; label: string }[]>([]);
+  const [filtroMenu, setFiltroMenu] = useState(false);
+  const [filtroCampo, setFiltroCampo] = useState<string | null>(null);
+  const [filtroValorBusca, setFiltroValorBusca] = useState('');
+  const filtroMenuRef = useRef<HTMLDivElement>(null);
 
   // ── Grupos (coletivos) de requisições ──
   const { userProfile } = useAuth();
@@ -131,43 +136,6 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
     setColunaArrastando(null);
   };
 
-  // Fornecedores por coluna de status (agrupa + conta)
-  const contarFornecedoresPorStatus = (status: string) => {
-    const lista = requisicoes
-      .filter((r: any) => r.status === status && r.fornecedor)
-      .map((r: any) => r.fornecedor);
-    const contagem: Record<string, number> = {};
-    lista.forEach((f: string) => { contagem[f] = (contagem[f] || 0) + 1; });
-    return Object.entries(contagem)
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([nome, qtd]) => ({ nome, qtd }));
-  };
-  const fornecedoresAguardando = useMemo(() => contarFornecedoresPorStatus('aguardando'), [requisicoes]);
-
-  // Técnicos (solicitantes) que têm requisições na coluna "Pedido Realizado"
-  const tecnicosPedido = useMemo(() => {
-    const usuarios = dadosCompartilhados?.usuarios || [];
-    const traduzir = (s: string) => {
-      if (s && s.includes('@')) {
-        const u = usuarios.find((u: any) => u.email === s.trim());
-        return u?.nome || s;
-      }
-      return s;
-    };
-    const lista = requisicoes
-      .filter((r: any) => r.status === 'pedido' && r.solicitante)
-      .map((r: any) => ({ original: r.solicitante, nome: traduzir(r.solicitante) }));
-    const contagem: Record<string, { qtd: number; originais: Set<string> }> = {};
-    lista.forEach((s: any) => {
-      if (!contagem[s.nome]) contagem[s.nome] = { qtd: 0, originais: new Set() };
-      contagem[s.nome].qtd++;
-      contagem[s.nome].originais.add(s.original);
-    });
-    return Object.entries(contagem)
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([nome, v]) => ({ nome, qtd: v.qtd, originais: [...v.originais] }));
-  }, [requisicoes, dadosCompartilhados?.usuarios]);
-
   // Mapa email -> nome (para pesquisar técnico pelo nome, mesmo que guardado como email)
   const nomePorEmail = useMemo(() => {
     const m: Record<string, string> = {};
@@ -179,11 +147,94 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
     return s || '';
   }, [nomePorEmail]);
 
+  // ── Filtro único faceteado ──
+  // Mapa IdPlaca -> NumPlaca (o campo veiculo guarda o Id)
+  const placaPorId = useMemo(() => {
+    const m: Record<string, string> = {};
+    (dadosCompartilhados?.veiculos || []).forEach((v: any) => { m[String(v.IdPlaca)] = v.NumPlaca; });
+    return m;
+  }, [dadosCompartilhados?.veiculos]);
+  const veiculoLabel = useCallback((val: string) => placaPorId[String(val)] || val, [placaPorId]);
+
+  const STATUS_LABEL: Record<string, string> = {
+    pedido: 'Pedido Realizado', completa: 'Atualizada por Técnico',
+    aguardando: 'Aguardando Fornecedor', financeiro: 'Enviado Financeiro',
+  };
+
+  const CAMPOS_FILTRO = useMemo(() => ([
+    { key: 'solicitante', label: 'Solicitante', Icon: UserCircle },
+    { key: 'tipo', label: 'Tipo', Icon: Tag },
+    { key: 'veiculo', label: 'Veículo', Icon: Car },
+    { key: 'fornecedor', label: 'Fornecedor', Icon: Building2 },
+    { key: 'status', label: 'Fase', Icon: Layout },
+  ]), []);
+
+  // Valor "bruto" de cada campo numa requisição (o que é comparado no filtro)
+  const valorCampo = useCallback((r: any, campo: string): string => {
+    if (campo === 'solicitante') return nomeSolicitante(r.solicitante);
+    if (campo === 'veiculo') return String(r.veiculo ?? '').trim();
+    return String(r[campo] ?? '').trim();
+  }, [nomeSolicitante]);
+  // Rótulo exibível de um valor
+  const rotuloValor = useCallback((campo: string, valor: string): string => {
+    if (campo === 'veiculo') return veiculoLabel(valor);
+    if (campo === 'status') return STATUS_LABEL[valor] || valor;
+    return valor;
+  }, [veiculoLabel]);
+
+  // Opções distintas (com contagem) por campo, a partir das requisições ativas
+  const opcoesPorCampo = useMemo(() => {
+    const base = requisicoes.filter((r: any) => r.status !== 'lixeira');
+    const out: Record<string, { valor: string; label: string; qtd: number }[]> = {};
+    for (const c of CAMPOS_FILTRO) {
+      const cont: Record<string, number> = {};
+      for (const r of base) {
+        const v = valorCampo(r, c.key);
+        if (!v) continue;
+        cont[v] = (cont[v] || 0) + 1;
+      }
+      out[c.key] = Object.entries(cont)
+        .map(([valor, qtd]) => ({ valor, label: rotuloValor(c.key, valor), qtd }))
+        .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
+    }
+    return out;
+  }, [requisicoes, CAMPOS_FILTRO, valorCampo, rotuloValor]);
+
+  const temFiltroCampo = useCallback((campo: string, valor: string) => filtros.some(f => f.campo === campo && f.valor === valor), [filtros]);
+  const alternarFiltro = useCallback((campo: string, valor: string, label: string) => {
+    setFiltros(prev => prev.some(f => f.campo === campo && f.valor === valor)
+      ? prev.filter(f => !(f.campo === campo && f.valor === valor))
+      : [...prev, { campo, valor, label }]);
+  }, []);
+  const removerFiltro = useCallback((campo: string, valor: string) => {
+    setFiltros(prev => prev.filter(f => !(f.campo === campo && f.valor === valor)));
+  }, []);
+
+  // Fecha o menu ao clicar fora
+  useEffect(() => {
+    if (!filtroMenu) return;
+    const onDoc = (e: MouseEvent) => {
+      if (filtroMenuRef.current && !filtroMenuRef.current.contains(e.target as Node)) {
+        setFiltroMenu(false); setFiltroCampo(null); setFiltroValorBusca('');
+      }
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [filtroMenu]);
+
   const filtradas = useMemo(() => {
     const q = filtroBusca.trim().toLowerCase();
     const idsGrupo = grupoAtivo ? new Set((grupoAtivo.membros || []).map((x: any) => Number(x))) : null;
+    // Agrupa os critérios por campo: mesmo campo = OU; campos diferentes = E.
+    const porCampo: Record<string, Set<string>> = {};
+    for (const f of filtros) { (porCampo[f.campo] ||= new Set()).add(f.valor); }
+    const campos = Object.keys(porCampo);
     return requisicoes.filter((r: any) => {
       if (idsGrupo && !idsGrupo.has(Number(r.id))) return false;
+      // Filtro faceteado
+      for (const campo of campos) {
+        if (!porCampo[campo].has(valorCampo(r, campo))) return false;
+      }
       const matchData = filtroData ? (r.data || '').startsWith(filtroData) : true;
       if (!q) return matchData;
       const alvo = [
@@ -197,10 +248,10 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
       ].join(' ').toLowerCase();
       return matchData && alvo.includes(q);
     });
-  }, [requisicoes, filtroBusca, filtroData, nomeSolicitante, grupoAtivo]);
+  }, [requisicoes, filtroBusca, filtroData, nomeSolicitante, grupoAtivo, filtros, valorCampo]);
 
-  const temFiltroAtivo = filtroBusca || filtroData;
-  const limparFiltros = () => { setFiltroBusca(''); setFiltroData(''); setFiltroFornAguardando(''); setFiltroTecnicoPedido(''); };
+  const temFiltroAtivo = filtroBusca || filtroData || filtros.length > 0;
+  const limparFiltros = () => { setFiltroBusca(''); setFiltroData(''); setFiltros([]); };
   const resultCount = filtradas.filter((r: any) => r.status !== 'lixeira').length;
 
   const gerarPdfCobranca = async (fornecedor?: string) => {
@@ -360,6 +411,87 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
             />
             {filtroData && <button onClick={() => setFiltroData('')} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-red-500 bg-white"><X size={12}/></button>}
           </div>
+
+          {/* Separador */}
+          <div className="w-px h-5 bg-zinc-200" />
+
+          {/* FILTRO ÚNICO (faceteado): Solicitante · Tipo · Veículo · Fornecedor · Fase */}
+          <div className="relative" ref={filtroMenuRef}>
+            <button
+              onClick={() => { setFiltroMenu(v => !v); setFiltroCampo(null); setFiltroValorBusca(''); }}
+              className={`${pillBase} ${filtros.length > 0 || filtroMenu ? pillActive : pillInactive}`}
+              title="Filtrar por solicitante, tipo, veículo, fornecedor ou fase"
+            >
+              <Filter size={13} /> Filtro
+              {filtros.length > 0 && (
+                <span className={`ml-0.5 text-[10px] font-bold px-1.5 rounded-full ${filtros.length > 0 ? 'bg-white/25' : 'bg-zinc-100 text-zinc-500'}`}>{filtros.length}</span>
+              )}
+            </button>
+
+            {filtroMenu && (
+              <div className="absolute left-0 top-full mt-1.5 z-40 w-72 bg-white rounded-xl shadow-2xl border border-zinc-200 overflow-hidden">
+                {!filtroCampo ? (
+                  <div className="py-1.5">
+                    <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-400">Filtrar por</div>
+                    {CAMPOS_FILTRO.map(c => {
+                      const nAtivos = filtros.filter(f => f.campo === c.key).length;
+                      return (
+                        <button key={c.key} onClick={() => { setFiltroCampo(c.key); setFiltroValorBusca(''); }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] text-zinc-700 hover:bg-red-50 hover:text-red-600 transition-colors">
+                          <c.Icon size={14} className="text-zinc-400" />
+                          <span className="flex-1 text-left font-medium">{c.label}</span>
+                          {nAtivos > 0 && <span className="text-[10px] font-bold bg-red-100 text-red-600 px-1.5 rounded-full">{nAtivos}</span>}
+                          <span className="text-zinc-300">›</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="flex flex-col max-h-[340px]">
+                    <div className="flex items-center gap-2 px-2 py-2 border-b border-zinc-100">
+                      <button onClick={() => { setFiltroCampo(null); setFiltroValorBusca(''); }} className="p-1 text-zinc-400 hover:text-red-500"><ArrowLeft size={15} /></button>
+                      <span className="text-[13px] font-bold text-zinc-700">{CAMPOS_FILTRO.find(c => c.key === filtroCampo)?.label}</span>
+                    </div>
+                    <div className="p-2 border-b border-zinc-100">
+                      <input autoFocus value={filtroValorBusca} onChange={e => setFiltroValorBusca(e.target.value)}
+                        placeholder="Buscar..." className="w-full text-[13px] bg-zinc-50 border border-zinc-200 rounded-lg px-2.5 py-1.5 outline-none focus:border-red-400" />
+                    </div>
+                    <div className="overflow-y-auto py-1">
+                      {(() => {
+                        const opcoes = (opcoesPorCampo[filtroCampo] || []).filter(o => o.label.toLowerCase().includes(filtroValorBusca.trim().toLowerCase()));
+                        if (opcoes.length === 0) return <div className="px-3 py-6 text-center text-[12px] text-zinc-400">Nada encontrado</div>;
+                        return opcoes.map(o => {
+                          const ativo = temFiltroCampo(filtroCampo!, o.valor);
+                          return (
+                            <button key={o.valor} onClick={() => alternarFiltro(filtroCampo!, o.valor, o.label)}
+                              className={`w-full flex items-center gap-2 px-3 py-2 text-[13px] transition-colors ${ativo ? 'bg-red-50 text-red-600 font-semibold' : 'text-zinc-700 hover:bg-zinc-50'}`}>
+                              <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${ativo ? 'bg-red-600 border-red-600' : 'border-zinc-300'}`}>
+                                {ativo && <Check size={11} className="text-white" />}
+                              </span>
+                              <span className="flex-1 text-left truncate">{o.label}</span>
+                              <span className="text-[10px] font-bold text-zinc-400">{o.qtd}</span>
+                            </button>
+                          );
+                        });
+                      })()}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Chips dos filtros ativos */}
+          {filtros.map(f => {
+            const campoLabel = CAMPOS_FILTRO.find(c => c.key === f.campo)?.label || f.campo;
+            return (
+              <span key={`${f.campo}:${f.valor}`} className="inline-flex items-center gap-1.5 text-[12px] font-semibold bg-red-50 text-red-700 border border-red-200 rounded-full pl-2.5 pr-1.5 py-1">
+                <span className="text-red-400 font-bold text-[10px] uppercase">{campoLabel}</span>
+                {f.label}
+                <button onClick={() => removerFiltro(f.campo, f.valor)} className="text-red-400 hover:text-red-600"><X size={12} /></button>
+              </span>
+            );
+          })}
 
           {/* Separador */}
           <div className="w-px h-5 bg-zinc-200" />
@@ -546,14 +678,6 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
                 return db.localeCompare(da);
               });
             }
-            if (col.id === 'aguardando' && filtroFornAguardando) {
-              items = items.filter((r: any) => r.fornecedor === filtroFornAguardando);
-            }
-            if (col.id === 'pedido' && filtroTecnicoPedido) {
-              const tec = tecnicosPedido.find((t: any) => t.nome === filtroTecnicoPedido);
-              const originais = tec ? tec.originais : [filtroTecnicoPedido];
-              items = items.filter((r: any) => originais.includes(r.solicitante) || r.solicitante === filtroTecnicoPedido);
-            }
             const isOver = colunaArrastando === col.id;
 
             return (
@@ -577,72 +701,23 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
                       <div className={`w-2 h-2 rounded-full ${col.cor}`}></div>
                     </div>
                   </div>
-                  {col.id === 'pedido' && tecnicosPedido.length > 0 && (
-                    <div className="mt-3 relative">
-                      <UserCircle size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"/>
-                      <select
-                        value={filtroTecnicoPedido}
-                        onChange={e => setFiltroTecnicoPedido(e.target.value)}
-                        className={`w-full text-[11px] rounded-full pl-7 pr-7 py-1 outline-none border transition-all appearance-none cursor-pointer ${
-                          filtroTecnicoPedido
-                            ? 'border-red-300 bg-red-50/60 text-red-600 font-medium'
-                            : 'border-zinc-100 bg-zinc-50/60 text-zinc-500 hover:border-zinc-200'
-                        }`}
-                      >
-                        <option value="">Todos os técnicos ({tecnicosPedido.length})</option>
-                        {tecnicosPedido.map((t) => (
-                          <option key={t.nome} value={t.nome}>{t.nome} ({t.qtd})</option>
-                        ))}
-                      </select>
-                      {filtroTecnicoPedido && (
+                  {col.id === 'aguardando' && items.length > 0 && (() => {
+                    // Fornecedores atualmente no filtro único (se houver)
+                    const fornSel = filtros.filter(f => f.campo === 'fornecedor').map(f => f.label);
+                    const alvo = fornSel.length === 1 ? fornSel[0] : undefined;
+                    return (
+                      <div className="mt-3">
                         <button
-                          onClick={() => setFiltroTecnicoPedido('')}
-                          className="absolute right-7 top-1/2 -translate-y-1/2 text-red-400 hover:text-red-600"
-                          title="Limpar"
+                          onClick={() => gerarPdfCobranca(alvo)}
+                          className="w-full flex items-center justify-center gap-1.5 text-[11px] font-semibold text-orange-600 bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded-full py-1.5 px-3 transition-all cursor-pointer"
+                          title={alvo ? `Gerar cobrança para ${alvo}` : 'Gerar cobrança (usa o filtro de fornecedor, se houver)'}
                         >
-                          <X size={11} />
+                          <FileDown size={12} />
+                          Cobrar NF/Boleto {fornSel.length ? `(${fornSel.length === 1 ? fornSel[0] : `${fornSel.length} forn.`})` : '(todos)'}
                         </button>
-                      )}
-                    </div>
-                  )}
-                  {col.id === 'aguardando' && fornecedoresAguardando.length > 0 && (
-                    <div className="mt-3 flex flex-col gap-2">
-                      <div className="relative">
-                        <Building2 size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-orange-500 pointer-events-none"/>
-                        <select
-                          value={filtroFornAguardando}
-                          onChange={e => setFiltroFornAguardando(e.target.value)}
-                          className={`w-full text-[12px] rounded-full pl-7 pr-7 py-1.5 outline-none border transition-all appearance-none cursor-pointer ${
-                            filtroFornAguardando
-                              ? 'border-orange-400 bg-orange-50 text-orange-700 font-semibold'
-                              : 'border-zinc-200 bg-white text-zinc-600 hover:border-orange-300'
-                          }`}
-                        >
-                          <option value="">Todos os fornecedores ({fornecedoresAguardando.length})</option>
-                          {fornecedoresAguardando.map((f) => (
-                            <option key={f.nome} value={f.nome}>{f.nome} ({f.qtd})</option>
-                          ))}
-                        </select>
-                        {filtroFornAguardando && (
-                          <button
-                            onClick={() => setFiltroFornAguardando('')}
-                            className="absolute right-7 top-1/2 -translate-y-1/2 text-orange-500 hover:text-orange-700"
-                            title="Limpar"
-                          >
-                            <X size={12} />
-                          </button>
-                        )}
                       </div>
-                      <button
-                        onClick={() => gerarPdfCobranca(filtroFornAguardando || undefined)}
-                        className="flex items-center justify-center gap-1.5 text-[11px] font-semibold text-orange-600 bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded-full py-1.5 px-3 transition-all cursor-pointer"
-                        title={filtroFornAguardando ? `Gerar cobrança para ${filtroFornAguardando}` : 'Gerar cobrança para todos os fornecedores'}
-                      >
-                        <FileDown size={12} />
-                        Cobrar NF/Boleto {filtroFornAguardando ? `(${filtroFornAguardando})` : '(todos)'}
-                      </button>
-                    </div>
-                  )}
+                    );
+                  })()}
                 </div>
 
                 {/* ÁREA DOS CARDS */}
