@@ -12,7 +12,7 @@ import {
   LayoutDashboard, Bell, ChevronRight, ChevronDown, Activity, Lock, MessageCircle,
   CheckCheck, Trash2, ExternalLink, Calendar, Users, Calculator, BarChart3, Eye, Camera, Wheat, Megaphone,
   Sun, Moon, Volume2, Check, MapPin, ShieldCheck, Building, SlidersHorizontal, AlertCircle, Headset,
-  LayoutGrid, List, CircleDot, GanttChartSquare, Clock, Fuel
+  LayoutGrid, List, CircleDot, GanttChartSquare, Clock, Fuel, Bot
 } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -1038,6 +1038,39 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               </div>
               <span style={{ flex: 1 }}>Administração</span>
               {pathname === '/admin' && <ChevronRight size={14} style={{ color: '#dc2626' }} />}
+            </Link>
+          )}
+
+          {isAdmin && (
+            <Link
+              href="/tratorilson"
+              onClick={() => setSidebarOpen(false)}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', gap: '10px',
+                padding: '10px 12px', borderRadius: '10px', border: 'none',
+                background: pathname === '/tratorilson' ? 'var(--portal-bg-hover)' : 'transparent',
+                color: pathname === '/tratorilson' ? '#dc2626' : 'var(--portal-text-secondary)',
+                cursor: 'pointer', fontSize: '13px', fontWeight: pathname === '/tratorilson' ? '600' : '500',
+                fontFamily: 'Inter', transition: 'all 0.2s', textAlign: 'left' as const,
+                marginBottom: '2px', textDecoration: 'none'
+              }}
+              onMouseEnter={(e) => {
+                if (pathname !== '/tratorilson') { e.currentTarget.style.background = 'var(--portal-bg-hover)'; e.currentTarget.style.color = '#dc2626' }
+              }}
+              onMouseLeave={(e) => {
+                if (pathname !== '/tratorilson') { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--portal-text-secondary)' }
+              }}
+            >
+              <div style={{
+                width: '30px', height: '30px', borderRadius: '8px',
+                background: pathname === '/tratorilson' ? 'linear-gradient(135deg, #dc2626, #b91c1c)' : 'var(--portal-bg-secondary)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0, transition: 'all 0.2s'
+              }}>
+                <Bot size={14} style={{ color: pathname === '/tratorilson' ? '#fff' : 'var(--portal-text-muted)' }} />
+              </div>
+              <span style={{ flex: 1 }}>Tratorilson</span>
+              {pathname === '/tratorilson' && <ChevronRight size={14} style={{ color: '#dc2626' }} />}
             </Link>
           )}
 

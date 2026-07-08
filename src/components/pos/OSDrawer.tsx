@@ -127,6 +127,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   const [servicoInterno, setServicoInterno] = useState(false);
   const internoOriginalRef = useRef(false);
   const [alimentacoes, setAlimentacoes] = useState<AlimentacaoItem[]>([]);
+  // Fotos das notas de almoço enviadas pelo técnico, casadas por dia ({ data → foto }).
+  const [fotosAlmocoDia, setFotosAlmocoDia] = useState<Record<string, string>>({});
   const [enviandoOmie, setEnviandoOmie] = useState(false);
   const [showDescontos, setShowDescontos] = useState(false);
   const [dadosTecnico, setDadosTecnico] = useState<any>(null);
@@ -600,6 +602,12 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
           } else {
             setAlimentacoes([]);
           }
+          // Fotos das notas de almoço que o técnico anexou (casadas por dia)
+          const _fad: Record<string, string> = {};
+          for (const _x of (Array.isArray(d.almocosFotos) ? d.almocosFotos : [])) {
+            if (_x?.data && _x?.foto) _fad[String(_x.data).slice(0, 10)] = String(_x.foto);
+          }
+          setFotosAlmocoDia(_fad);
           setDadosTecnico(d.dadosTecnico || null);
           setShowDescontos(dv > 0 || dh > 0 || dk > 0);
           if (d.ppv) loadPPV(d.ppv);
@@ -1298,6 +1306,15 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                               <input type="checkbox" checked={a.no_pdf} onChange={(e) => upd({ no_pdf: e.target.checked })} style={{ accentColor: '#DC2626', width: 14, height: 14 }} />
                               Mostrar no PDF
                             </label>
+                            {a.data && (fotosAlmocoDia[a.data] ? (
+                              <a href={fotosAlmocoDia[a.data]} target="_blank" rel="noreferrer" title="Nota anexada pelo técnico" style={{ display: 'block', width: 40, height: 40, borderRadius: 6, overflow: 'hidden', border: '1px solid #86EFAC', flexShrink: 0 }}>
+                                <img src={fotosAlmocoDia[a.data]} alt="Nota do almoço" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                              </a>
+                            ) : (
+                              <span title="O técnico ainda não anexou a nota deste dia" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: 6, border: '1px dashed #FCA5A5', color: '#DC2626', fontSize: 9, textAlign: 'center', lineHeight: 1.1, flexShrink: 0 }}>
+                                sem<br />nota
+                              </span>
+                            ))}
                             <button type="button" onClick={() => setAlimentacoes(prev => prev.filter((_, idx) => idx !== i))} title="Remover" style={{ marginLeft: 'auto', width: 28, height: 28, borderRadius: 6, border: '1px solid #FECACA', background: '#FEF2F2', color: '#DC2626', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end' }}>
                               <i className="fas fa-times" style={{ fontSize: 12 }} />
                             </button>

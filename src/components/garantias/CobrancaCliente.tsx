@@ -70,18 +70,31 @@ export default function CobrancaCliente({ garantia: g, busy, onAcao }: Props) {
   });
   const [obs, setObs] = useState<string>(g.cobranca_obs || '');
 
+  // Valores editáveis pelo garantista. Default = cálculo padrão; se já houver
+  // valores salvos (cobranca_itens.valores), retoma esses. Ex.: M.O. negada
+  // pela fábrica → cobra do cliente o mesmo valor que cobraria da montadora.
+  const valSalvos = g.cobranca_itens?.valores;
+  const [valorHorasEd, setValorHorasEd] = useState<number>(valSalvos?.horas ?? valorHoras);
+  const [valorKmEd, setValorKmEd] = useState<number>(valSalvos?.km ?? valorKm);
+  const [valoresPecasEd, setValoresPecasEd] = useState<Record<string, number>>(() => {
+    const init: Record<string, number> = {};
+    for (const p of g.pecas) {
+      const calc = (Number(p.preco_unitario) || 0) * (Number(p.quantidade) || 0);
+      init[p.id] = valSalvos?.pecas?.[p.id] ?? calc;
+    }
+    return init;
+  });
+
   const total = useMemo(() => {
     let t = 0;
-    if (horas) t += valorHoras;
-    if (km) t += valorKm;
+    if (horas) t += Number(valorHorasEd) || 0;
+    if (km) t += Number(valorKmEd) || 0;
     for (const p of g.pecas) {
-      if (pecasMarcadas.has(p.id)) {
-        t += (Number(p.preco_unitario) || 0) * (Number(p.quantidade) || 0);
-      }
+      if (pecasMarcadas.has(p.id)) t += Number(valoresPecasEd[p.id]) || 0;
     }
     for (const o of outros) t += Number(o.valor) || 0;
     return t;
-  }, [horas, km, pecasMarcadas, outros, g.pecas, valorHoras, valorKm]);
+  }, [horas, km, pecasMarcadas, outros, g.pecas, valorHorasEd, valorKmEd, valoresPecasEd]);
 
   const togglePeca = (id: string) => {
     setPecasMarcadas((prev) => {
@@ -99,7 +112,14 @@ export default function CobrancaCliente({ garantia: g, busy, onAcao }: Props) {
   const vencida = cobrada && dias != null && dias < 0;
 
   const salvar = () => onAcao('definir', {
-    itens: { horas, km, pecas: [...pecasMarcadas] },
+    itens: {
+      horas, km, pecas: [...pecasMarcadas],
+      valores: {
+        horas: Number(valorHorasEd) || 0,
+        km: Number(valorKmEd) || 0,
+        pecas: Object.fromEntries(g.pecas.map((p) => [p.id, Number(valoresPecasEd[p.id]) || 0])),
+      },
+    },
     outros,
     vencimento,
     obs,
@@ -135,14 +155,16 @@ export default function CobrancaCliente({ garantia: g, busy, onAcao }: Props) {
           <Item
             label={`Horas trabalhadas (${horasUsar.toFixed(1)}h × ${fmtMoeda(VALOR_HORA)})`}
             checked={horas}
-            valor={valorHoras}
+            valor={valorHorasEd}
             onToggle={() => setHoras((v) => !v)}
+            onValorChange={setValorHorasEd}
           />
           <Item
             label={`KM rodados (${kmUsar.toFixed(1)}km × ${fmtMoeda(VALOR_KM)})`}
             checked={km}
-            valor={valorKm}
+            valor={valorKmEd}
             onToggle={() => setKm((v) => !v)}
+            onValorChange={setValorKmEd}
           />
 
           {g.pecas.length > 0 && (
@@ -155,8 +177,9 @@ export default function CobrancaCliente({ garantia: g, busy, onAcao }: Props) {
                     key={p.id}
                     label={`${p.cod_produto ? `${p.cod_produto} · ` : ''}${p.descricao} (x${p.quantidade})`}
                     checked={pecasMarcadas.has(p.id)}
-                    valor={v}
+                    valor={valoresPecasEd[p.id] ?? v}
                     onToggle={() => togglePeca(p.id)}
+                    onValorChange={(nv) => setValoresPecasEd((prev) => ({ ...prev, [p.id]: nv }))}
                   />
                 );
               })}
@@ -273,19 +296,36 @@ export default function CobrancaCliente({ garantia: g, busy, onAcao }: Props) {
   );
 }
 
-function Item({ label, checked, valor, onToggle }: { label: string; checked: boolean; valor: number; onToggle: () => void }) {
+function Item({ label, checked, valor, onToggle, onValorChange }: { label: string; checked: boolean; valor: number; onToggle: () => void; onValorChange: (v: number) => void }) {
   return (
-    <label style={{
+    <div style={{
       display: 'flex', alignItems: 'center', gap: 8,
       padding: '6px 8px', borderRadius: 8,
       background: checked ? '#fef3c7' : 'rgba(255,255,255,0.5)',
       border: checked ? '1px solid #fcd34d' : '1px solid var(--portal-border)',
-      cursor: 'pointer', fontSize: 12,
+      fontSize: 12,
     }}>
-      <input type="checkbox" checked={checked} onChange={onToggle} />
-      <span style={{ flex: 1, color: 'var(--portal-text)' }}>{label}</span>
-      <strong style={{ color: checked ? '#b91c1c' : 'var(--portal-text-muted)' }}>{fmtMoeda(valor)}</strong>
-    </label>
+      <input type="checkbox" checked={checked} onChange={onToggle} style={{ cursor: 'pointer' }} />
+      <span onClick={onToggle} style={{ flex: 1, color: 'var(--portal-text)', cursor: 'pointer' }}>{label}</span>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 3, color: checked ? '#b91c1c' : 'var(--portal-text-muted)' }}>
+        <span style={{ fontSize: 11, fontWeight: 700 }}>R$</span>
+        <input
+          type="number"
+          min={0}
+          step="0.01"
+          value={valor}
+          disabled={!checked}
+          onChange={(e) => onValorChange(Math.max(0, Number(e.target.value) || 0))}
+          title="Clique para editar o valor cobrado"
+          style={{
+            width: 92, textAlign: 'right', padding: '4px 6px', borderRadius: 6,
+            border: '1px solid var(--portal-border)', fontSize: 12, fontWeight: 700,
+            color: 'inherit', background: checked ? '#fff' : 'transparent',
+            cursor: checked ? 'text' : 'not-allowed',
+          }}
+        />
+      </span>
+    </div>
   );
 }
 
