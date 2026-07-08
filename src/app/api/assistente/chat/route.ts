@@ -3,6 +3,7 @@ import { TRATORINO_PERSONA, TRATORINO_CONHECIMENTO } from "@/lib/assistente/conh
 import { getIA, chamarIA } from "@/lib/assistente/ia";
 import { geocodificar, rotaDaOficina } from "@/lib/pos/ors";
 import { autenticar } from "@/lib/auth/server";
+import { logTratorilson } from "@/lib/assistente/log";
 
 // Extrai coordenadas (lat,lng) de um link do Google Maps ou texto. Resolve links encurtados (segue o redirect).
 async function coordsDoLink(texto: string): Promise<{ lat: number; lng: number } | null> {
@@ -1096,9 +1097,24 @@ export async function POST(req: NextRequest) {
   // no Railway/Node o origin não resolve de dentro do container, então chama a si mesmo via localhost.
   const baseInterna = process.env.VERCEL ? req.nextUrl.origin : `http://127.0.0.1:${process.env.PORT || 3000}`;
 
+  // Observabilidade: soma os tokens de todas as chamadas à IA nesta solicitação e
+  // registra uma vez (quem, o quê, resposta, função usada, tokens). Ver /tratorilson.
+  const perguntaUser = String([...messages].reverse().find((m) => m.role === "user")?.content || "").slice(0, 4000);
+  let tokensReq = 0;
+  const toolsUsadas: string[] = [];
+  const responder = async (reply: string, extra: Record<string, unknown> = {}) => {
+    await logTratorilson({
+      userId, userName,
+      tipo: toolsUsadas.length ? `chat:${[...new Set(toolsUsadas)].join("+")}` : "chat",
+      pergunta: perguntaUser, resposta: reply, modelo: ia.model, tokens: tokensReq,
+    }).catch(() => {});
+    return NextResponse.json({ reply, ...extra });
+  };
+
   try {
     for (let step = 0; step < 3; step++) {
       const j = await chamarIA({ temperature: 0.3, max_tokens: 600, messages: convo, tools: TOOLS, tool_choice: "auto" });
+      tokensReq += j?.usage?.total_tokens || 0;
       const m = j?.choices?.[0]?.message;
       if (m?.tool_calls?.length) {
         convo.push(m);
@@ -1106,20 +1122,22 @@ export async function POST(req: NextRequest) {
         for (const tc of m.tool_calls) {
           let args: any = {};
           try { args = JSON.parse(tc.function?.arguments || "{}"); } catch {}
+          toolsUsadas.push(String(tc.function?.name || "ferramenta"));
           const result = await execTool(baseInterna, tc.function?.name, args, ctx);
           if (result?.proposta) proposta = result.proposta;
           convo.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify(result) });
         }
         if (proposta) {
-          return NextResponse.json({ reply: "Montei a proposta abaixo. Confere o cliente e os itens — se estiver certo, clica em Confirmar e criar.", proposta });
+          return await responder("Montei a proposta abaixo. Confere o cliente e os itens — se estiver certo, clica em Confirmar e criar.", { proposta });
         }
         continue;
       }
-      return NextResponse.json({ reply: (m?.content || "").trim() || "Não consegui formular a resposta. Pode reformular?" });
+      return await responder((m?.content || "").trim() || "Não consegui formular a resposta. Pode reformular?");
     }
     // se ainda quis ferramenta no último passo, força uma resposta final
     const fim = await chamarIA({ temperature: 0.3, max_tokens: 600, messages: convo });
-    return NextResponse.json({ reply: (fim?.choices?.[0]?.message?.content || "").trim() || "Não consegui finalizar. Tenta reformular?" });
+    tokensReq += fim?.usage?.total_tokens || 0;
+    return await responder((fim?.choices?.[0]?.message?.content || "").trim() || "Não consegui finalizar. Tenta reformular?");
   } catch (e: any) {
     const msg = String(e?.message || "");
     if (msg.includes(" 429") || msg.toLowerCase().includes("rate limit") || msg.toLowerCase().includes("quota")) {
