@@ -722,10 +722,10 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                   {mode === "edit" && (ordemOmie || pedidoVenda || omieLog) && (
                     <div className="os-card" style={{ order: -5.5, borderLeft: "3px solid #0EA5E9" }}>
                       <div className="os-card-title"><i className="fas fa-paper-plane" style={{ color: "#0EA5E9" }} /> Enviado ao Omie</div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginBottom: omieLog ? 8 : 0 }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: omieLog ? 8 : 0 }}>
                         {ordemOmie && (
                           <div>
-                            <div style={{ fontSize: 11, opacity: 0.7, textTransform: "uppercase", letterSpacing: 0.4 }}>Ordem (Omie)</div>
+                            <div style={{ fontSize: 11, opacity: 0.7, textTransform: "uppercase", letterSpacing: 0.4 }}>Ordem de Serviço (Omie)</div>
                             <div style={{ fontWeight: 700, fontSize: 15 }}>{ordemOmie}</div>
                           </div>
                         )}

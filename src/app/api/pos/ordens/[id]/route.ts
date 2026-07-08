@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
-import { TBL_OS, TBL_LOGS_PPO, TBL_REQ_SOL, TBL_REQ_ATT, TBL_ITENS } from "@/lib/pos/constants";
+import { TBL_OS, TBL_LOGS_PPO, TBL_REQ_SOL, TBL_REQ_ATT, TBL_ITENS, TBL_PEDIDOS } from "@/lib/pos/constants";
 import { getConfigPOS } from "@/lib/pos/config";
 import { formatarDataBR, safeGet } from "@/lib/pos/utils";
 import { sincronizarStatusPPV } from "@/lib/pos/sync-ppv";
@@ -84,6 +84,18 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     }
   }
 
+  // Nº do Pedido de Venda: usa a coluna Pedido_Venda; se vazia (envios antigos,
+  // antes da coluna existir), busca o pedido_omie do(s) PPV(s) vinculado(s).
+  let pedidoVenda = String(safeGet(row, "Pedido_Venda") || "");
+  if (!pedidoVenda) {
+    const ppvIds = String(safeGet(row, "ID_PPV") || "").split(",").map((s) => s.trim()).filter(Boolean);
+    if (ppvIds.length) {
+      const { data: peds } = await supabase.from(TBL_PEDIDOS).select("id_pedido, pedido_omie").in("id_pedido", ppvIds);
+      const nums = (peds || []).map((p) => String((p as Record<string, unknown>).pedido_omie || "").trim()).filter(Boolean);
+      pedidoVenda = nums.join(", ");
+    }
+  }
+
   return NextResponse.json({
     id: safeGet(row, "Id_Ordem"), nomeCliente: safeGet(row, "Os_Cliente"),
     cpfCliente: safeGet(row, "Cnpj_Cliente"), enderecoCliente: safeGet(row, "Endereco_Cliente"), cidadeCliente: safeGet(row, "Cidade_Cliente"),
@@ -94,7 +106,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     qtdHoras: safeGet(row, "Qtd_HR"), qtdKm: safeGet(row, "Qtd_KM"),
     status: safeGet(row, "Status"), ppv: safeGet(row, "ID_PPV"),
     projeto: safeGet(row, "Projeto"), ordemOmie: safeGet(row, "Ordem_Omie"),
-    pedidoVenda: safeGet(row, "Pedido_Venda") || "",
+    pedidoVenda,
     omieEnvioLog: safeGet(row, "Omie_Envio_Log") || "",
     motivoCancelamento: safeGet(row, "Motivo_Cancelamento"),
     substitutoTipo: safeGet(row, "Substituto_Tipo") || null,
