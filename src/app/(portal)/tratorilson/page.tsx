@@ -78,7 +78,7 @@ export default function TratorilsonPainel() {
   const valor: React.CSSProperties = { fontSize: 26, fontWeight: 800, color: 'var(--portal-text)', marginTop: 2 }
 
   return (
-    <div style={{ padding: 20, maxWidth: 1100, margin: '0 auto', fontFamily: 'Inter, sans-serif' }}>
+    <div style={{ padding: 24, width: '100%', boxSizing: 'border-box', fontFamily: 'Inter, sans-serif' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
         <div style={{ width: 38, height: 38, borderRadius: 11, background: 'linear-gradient(135deg,#dc2626,#991b1b)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Bot size={20} color="#fff" />
