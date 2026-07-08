@@ -343,3 +343,79 @@ export async function processarLoteRelatorios(userName: string): Promise<Resulta
     resultados,
   };
 }
+
+// ── Correção de uma OS pelo chat (Fase 3): "na OS X, troca o campo Y por Z" ──
+
+function parseDescricao(texto: unknown): Record<string, string> {
+  const linhas = String(texto || "").split("\n");
+  const c: Record<string, string> = { modelo: "", chassis: "", horimetro: "", solicitacao: "", servico: "" };
+  let atual = "";
+  for (const l of linhas) {
+    const m = l.match(/^\s*(Modelo|Chassis|Hor[ií]metro|Solicita[çc][ãa]o do cliente|Servi[çc]o Realizado)\s*:\s*(.*)$/i);
+    if (m) {
+      const k = m[1].toLowerCase();
+      atual = k.startsWith("modelo") ? "modelo" : k.startsWith("chassis") ? "chassis" : k.startsWith("hor") ? "horimetro" : k.startsWith("solicit") ? "solicitacao" : "servico";
+      c[atual] = m[2];
+    } else if (atual && l.length) {
+      c[atual] += "\n" + l;
+    }
+  }
+  return c;
+}
+function montarDescricao(c: Record<string, string>): string {
+  return `Modelo: ${c.modelo || ""}\nChassis: ${c.chassis || ""}\nHorimetro: ${c.horimetro || ""}\n\n` +
+    `Solicitação do cliente: ${c.solicitacao || ""}\nServiço Realizado: ${c.servico || ""}`;
+}
+
+export type CampoOS = "servico_realizado" | "solicitacao_cliente" | "modelo" | "chassis" | "horimetro" | "horas" | "km" | "data_inicio" | "data_fim";
+
+export async function corrigirCampoOS(osNum: string, campo: CampoOS, valor: string, userName?: string): Promise<{ ok: boolean; erro?: string; osId?: string; campo?: string; antes?: string; depois?: string }> {
+  const cols = "Id_Ordem, Serv_Solicitado, Qtd_HR, Qtd_KM, Valor_Total, Previsao_Execucao, Data_Fim_Servico";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const buscar = async (c: string, v: string | number): Promise<any> => (await supabase.from(TBL_OS).select(cols).eq(c, v).maybeSingle()).data;
+  let os = await buscar("Id_Ordem", osNum);
+  if (!os) {
+    const num = parseInt(String(osNum).replace(/\D/g, ""), 10);
+    if (num) { os = await buscar("Id_Ordem", `OS-${String(num).padStart(4, "0")}`); if (!os) os = await buscar("Servico_Numero", num); }
+  }
+  if (!os) return { ok: false, erro: `OS ${osNum} não encontrada.` };
+  const idReal = String(os.Id_Ordem);
+
+  const update: Record<string, unknown> = {};
+  let antes = "", depois = "";
+  const mapDesc: Record<string, string> = { servico_realizado: "servico", solicitacao_cliente: "solicitacao", modelo: "modelo", chassis: "chassis", horimetro: "horimetro" };
+
+  if (mapDesc[campo]) {
+    const desc = parseDescricao(os.Serv_Solicitado);
+    const k = mapDesc[campo];
+    antes = desc[k] || ""; desc[k] = valor; depois = valor;
+    update.Serv_Solicitado = montarDescricao(desc);
+  } else if (campo === "horas" || campo === "km") {
+    const cfg = await getConfigPOS();
+    const novoHoras = campo === "horas" ? parseHoras(valor) : Number(os.Qtd_HR) || 0;
+    const novoKm = campo === "km" ? parseNum(valor) : Number(os.Qtd_KM) || 0;
+    const parcAntiga = (Number(os.Qtd_HR) || 0) * cfg.valor_hora + (Number(os.Qtd_KM) || 0) * cfg.valor_km;
+    const parcNova = novoHoras * cfg.valor_hora + novoKm * cfg.valor_km;
+    update.Qtd_HR = novoHoras; update.Qtd_KM = novoKm;
+    update.Valor_Total = Math.max(0, (Number(os.Valor_Total) || 0) - parcAntiga + parcNova);
+    antes = String(campo === "horas" ? os.Qtd_HR : os.Qtd_KM); depois = String(campo === "horas" ? novoHoras : novoKm);
+  } else if (campo === "data_inicio") {
+    antes = String(os.Previsao_Execucao || ""); update.Previsao_Execucao = valor || null; depois = valor;
+  } else if (campo === "data_fim") {
+    antes = String(os.Data_Fim_Servico || ""); update.Data_Fim_Servico = valor || null; depois = valor;
+  } else {
+    return { ok: false, erro: `Campo "${campo}" não suportado.` };
+  }
+
+  const { error } = await supabase.from(TBL_OS).update(update).eq("Id_Ordem", idReal);
+  if (error) return { ok: false, erro: error.message };
+
+  const agora = new Date();
+  await supabase.from(TBL_LOGS_PPO).insert({
+    Id_ppo: idReal, Data_Acao: new Intl.DateTimeFormat("pt-BR").format(agora), Hora_Acao: agora.toLocaleTimeString("pt-BR"),
+    UsuEmail: userName || "Tratorilson (correção)", acao: `Tratorilson: correção via chat — ${campo}`,
+    Status_Anterior: "", Status_Atual: "", Dias_Na_Fase: 0, Total_Dias_Aberto: 0,
+  });
+
+  return { ok: true, osId: idReal, campo, antes, depois };
+}

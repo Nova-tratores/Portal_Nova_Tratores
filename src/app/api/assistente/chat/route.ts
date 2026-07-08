@@ -4,6 +4,7 @@ import { getIA, chamarIA } from "@/lib/assistente/ia";
 import { geocodificar, rotaDaOficina } from "@/lib/pos/ors";
 import { autenticar } from "@/lib/auth/server";
 import { logTratorilson } from "@/lib/assistente/log";
+import { corrigirCampoOS } from "@/lib/pos/atualizar-relatorio";
 
 // Extrai coordenadas (lat,lng) de um link do Google Maps ou texto. Resolve links encurtados (segue o redirect).
 async function coordsDoLink(texto: string): Promise<{ lat: number; lng: number } | null> {
@@ -272,6 +273,18 @@ const TOOLS = [
       parameters: { type: "object", properties: { id: { type: "number", description: "Número da regra." }, busca: { type: "string", description: "Termo pra achar a regra, se não tiver o id." } } },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "corrigir_os",
+      description: "(Só administradores) CORRIGE um campo de uma OS que o Tratorilson preencheu. Use quando o usuário pedir pra trocar/ajustar algo numa OS (ex.: 'na OS 541 troca o serviço realizado por ...', 'ajusta as horas da OS 530 pra 3'). Informe o número da OS, qual campo e o novo valor.",
+      parameters: { type: "object", properties: {
+        numero_os: { type: "string", description: "Número da OS (ex.: 541 ou OS-0541)." },
+        campo: { type: "string", enum: ["servico_realizado", "solicitacao_cliente", "modelo", "chassis", "horimetro", "horas", "km", "data_inicio", "data_fim"], description: "Qual campo corrigir." },
+        novo_valor: { type: "string", description: "O novo valor. Para datas use AAAA-MM-DD; para horas/km um número." },
+      }, required: ["numero_os", "campo", "novo_valor"] },
+    },
+  },
 ];
 
 async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin?: boolean; pode?: (m: string) => boolean; userName?: string }) {
@@ -292,6 +305,14 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
     }
     if (name === "usuarios_portal" && !isAdmin) {
       return { sem_acesso: true, mensagem: "Apenas administradores podem ver informações de usuários do portal. Diga isso ao usuário, com gentileza." };
+    }
+    if (name === "corrigir_os" && !isAdmin) {
+      return { sem_acesso: true, mensagem: "Apenas administradores podem corrigir uma OS por aqui. Diga isso ao usuário, com gentileza." };
+    }
+    if (name === "corrigir_os") {
+      const r = await corrigirCampoOS(String(args.numero_os || ""), args.campo, String(args.novo_valor || ""), ctx?.userName);
+      if (!r.ok) return { ok: false, mensagem: `Não consegui corrigir: ${r.erro}` };
+      return { ok: true, mensagem: `Pronto! Corrigi "${r.campo}" da OS ${r.osId}. Confirme pro usuário de forma curta e natural.`, osId: r.osId, campo: r.campo, antes: r.antes, depois: r.depois };
     }
 
     if (name === "kit_revisao") {
