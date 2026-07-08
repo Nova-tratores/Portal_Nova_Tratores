@@ -132,6 +132,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   // Fotos das notas de almoço enviadas pelo técnico, casadas por dia ({ data → foto }).
   const [fotosAlmocoDia, setFotosAlmocoDia] = useState<Record<string, string>>({});
   const [enviandoOmie, setEnviandoOmie] = useState(false);
+  const [concluindo, setConcluindo] = useState(false);
   const [showDescontos, setShowDescontos] = useState(false);
   const [dadosTecnico, setDadosTecnico] = useState<any>(null);
   const [fotoExpandida, setFotoExpandida] = useState<string | null>(null);
@@ -450,6 +451,33 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
     setEnviandoOmie(false);
   }, [osId, onSaved, servicoInterno, userName, podeConcluir, podeOmie]);
 
+  // Passo final: dev confirma que o envio ao Omie ficou certo e move a OS
+  // (que está em "Enviado Para Omie") para "Concluída".
+  const confirmarConcluir = useCallback(async () => {
+    if (!osId) return;
+    if (!podeConcluir) { alert("Você não tem permissão para concluir ordens."); return; }
+    if (!confirm(`Confirmar que a OS ${osId} foi enviada ao Omie corretamente e movê-la para "Concluída"?`)) return;
+    setConcluindo(true);
+    try {
+      const res = await fetch(`/api/pos/ordens/${osId}/fase`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "Concluída", userName }),
+      });
+      const result = await res.json();
+      if (res.ok && result.success) {
+        setStatus("Concluída");
+        setLogRefreshKey((k) => k + 1);
+        onSaved?.();
+      } else {
+        alert(`Não foi possível concluir:\n${result.erro || "erro desconhecido"}`);
+      }
+    } catch {
+      alert("Erro de conexão ao concluir a OS.");
+    } finally {
+      setConcluindo(false);
+    }
+  }, [osId, podeConcluir, userName, onSaved]);
+
   const salvar = useCallback(async () => {
     if (mode === "edit" && !podeEditar) { alert("Você não tem permissão para editar esta OS."); return; }
     if (status === "Cancelada" && !podeCancelar) { alert("Você não tem permissão para cancelar OS."); return; }
@@ -738,6 +766,23 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                       </div>
                       {omieLog && (
                         <pre style={{ whiteSpace: "pre-wrap", fontSize: 12, margin: 0, padding: 8, background: "var(--portal-bg-secondary, #f8fafc)", borderRadius: 6, fontFamily: "inherit", lineHeight: 1.5 }}>{omieLog}</pre>
+                      )}
+                      {status === "Enviado Para Omie" && (
+                        <button
+                          onClick={confirmarConcluir}
+                          disabled={concluindo || !podeConcluir}
+                          title={!podeConcluir ? MSG_SEM_PERMISSAO : undefined}
+                          style={{
+                            marginTop: 12, width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                            padding: "11px 14px", borderRadius: 8, border: "none",
+                            background: podeConcluir ? "#10B981" : "#94A3B8", color: "#fff", fontWeight: 700, fontSize: 14,
+                            cursor: concluindo || !podeConcluir ? "default" : "pointer",
+                          }}
+                        >
+                          {concluindo
+                            ? <><i className="fas fa-spinner fa-spin" /> Concluindo...</>
+                            : <><i className="fas fa-check-circle" /> Confirmar e mover para Concluída</>}
+                        </button>
                       )}
                     </div>
                   )}
