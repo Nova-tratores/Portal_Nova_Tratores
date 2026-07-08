@@ -18,6 +18,11 @@ interface Dados {
 
 const nf = (n: number) => (Number(n) || 0).toLocaleString('pt-BR')
 const fmtData = (iso: string) => new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+const fmtDia = (v: unknown) => {
+  const s = String(v ?? '').slice(0, 10)
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : (s || '—')
+}
 
 export default function TratorilsonPainel() {
   const { userProfile } = useAuth()
@@ -182,8 +187,8 @@ export default function TratorilsonPainel() {
               )}
               {linha('Horas', p.antes?.qtdHoras, p.qtdHoras)}
               {linha('KM', p.antes?.qtdKm, p.qtdKm)}
-              {linha('Data início', String(p.antes?.previsaoExecucao || '').slice(0, 10), p.dataInicio)}
-              {linha('Data fim', String(p.antes?.dataFimServico || '').slice(0, 10), p.dataFim)}
+              {linha('Data início', fmtDia(p.antes?.previsaoExecucao), fmtDia(p.dataInicio))}
+              {linha('Data fim', fmtDia(p.antes?.dataFimServico), fmtDia(p.dataFim))}
               {linha('Projeto', p.antes?.projeto, p.projeto)}
               <div style={{ display: 'flex', gap: 8, fontSize: 13, padding: '4px 0' }}>
                 <span style={{ width: 110, color: 'var(--portal-text-muted)' }}>Horímetro</span>
