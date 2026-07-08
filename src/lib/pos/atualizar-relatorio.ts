@@ -96,16 +96,29 @@ export async function montarAtualizacaoOS(osId: string, userName?: string): Prom
     antes: { servSolicitado: "", qtdHoras: 0, qtdKm: 0, projeto: "", previsaoExecucao: "", dataFimServico: "", valorTotal: 0 },
   });
 
-  const { data: os } = await supabase
-    .from(TBL_OS)
-    .select("Id_Ordem, Serv_Solicitado, Qtd_HR, Qtd_KM, Projeto, Status, Previsao_Execucao, Data_Fim_Servico, Valor_Total")
-    .eq("Id_Ordem", osId).maybeSingle();
+  const cols = "Id_Ordem, Serv_Solicitado, Qtd_HR, Qtd_KM, Projeto, Status, Previsao_Execucao, Data_Fim_Servico, Valor_Total";
+  // O usuário digita o número visível (ex.: 541 ou OS-0541 = Servico_Numero), mas a
+  // OS é chaveada por Id_Ordem. Resolve pelos dois.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const buscarOS = async (campo: string, val: string | number): Promise<any> =>
+    (await supabase.from(TBL_OS).select(cols).eq(campo, val).maybeSingle()).data;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let os: any = await buscarOS("Id_Ordem", osId);
+  if (!os) {
+    const num = parseInt(String(osId).replace(/\D/g, ""), 10);
+    if (num) {
+      // Id_Ordem tem o formato "OS-0541" (prefixo + 4 dígitos).
+      os = await buscarOS("Id_Ordem", `OS-${String(num).padStart(4, "0")}`);
+      if (!os) os = await buscarOS("Servico_Numero", num);
+    }
+  }
   if (!os) return vazia(`OS ${osId} não encontrada.`);
+  const idReal = String(os.Id_Ordem);
 
   const { data: rel } = await supabase
     .from(TBL_TEC)
     .select("TotalHora, TotalKm, DataInicio, DataFinal, Chassis, Modelo, Horimetro, Motivo, ServicoRealizado")
-    .eq("Ordem_Servico", osId).maybeSingle();
+    .eq("Ordem_Servico", idReal).maybeSingle();
   if (!rel) return vazia(`Relatório do técnico da OS ${osId} não encontrado (a OS já foi preenchida pelo técnico?).`);
 
   const qtdHoras = Number(rel.TotalHora) || 0;
@@ -160,7 +173,7 @@ export async function montarAtualizacaoOS(osId: string, userName?: string): Prom
     `Solicitação do cliente: ${solicitacaoCliente}\nServiço Realizado: ${servicoRealizado}`;
 
   return {
-    osId, ok: true, duvidas, qtdHoras, qtdKm, dataInicio, dataFim, horimetro,
+    osId: idReal, ok: true, duvidas, qtdHoras, qtdKm, dataInicio, dataFim, horimetro,
     projeto: projetoNome, modelo, chassis, solicitacaoCliente, servicoRealizado, servSolicitado,
     antes: {
       servSolicitado: String(os.Serv_Solicitado || ""), qtdHoras: Number(os.Qtd_HR) || 0,

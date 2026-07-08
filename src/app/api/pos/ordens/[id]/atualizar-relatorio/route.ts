@@ -22,7 +22,7 @@ async function processar(req: NextRequest, ctx: { params: Promise<{ id: string }
     let fase: string | null = null;
     if (r.ok) {
       // Move a OS pra "Enviar Omie" (só as atualizadas pelo Tratorilson) e notifica.
-      const f = await aplicarMudancaFase(String(id), FASE_ENVIAR_OMIE, auth.email || "Tratorilson", {
+      const f = await aplicarMudancaFase(proposta.osId, FASE_ENVIAR_OMIE, auth.email || "Tratorilson", {
         notificar: true, acaoLog: "Atualizada pelo Tratorilson a partir do relatório do técnico",
       });
       if (f.success) fase = FASE_ENVIAR_OMIE;
