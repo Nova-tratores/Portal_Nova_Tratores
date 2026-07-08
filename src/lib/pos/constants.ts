@@ -49,6 +49,7 @@ export const PHASES = [
   "Aguardando outros",
   "Aguardando ordem Técnico",
   "Relatório Concluído",
+  "Enviar Omie",
   "Concluída",
   "Cancelada",
 ];

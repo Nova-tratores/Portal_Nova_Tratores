@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { exigirAdmin } from "@/lib/auth/server";
 import { montarAtualizacaoOS, aplicarNaOS } from "@/lib/pos/atualizar-relatorio";
+import { aplicarMudancaFase } from "@/lib/pos/fase";
+
+const FASE_ENVIAR_OMIE = "Enviar Omie";
 
 // Tratorilson — atualizar uma OS a partir do relatório do técnico.
 // GET  /api/pos/ordens/:id/atualizar-relatorio           → prévia (não grava)
@@ -16,7 +19,15 @@ async function processar(req: NextRequest, ctx: { params: Promise<{ id: string }
 
   if (aplicar) {
     const r = await aplicarNaOS(proposta);
-    return NextResponse.json({ ok: r.ok, aplicado: r.ok, erro: r.erro, valorTotal: r.valorTotal, proposta });
+    let fase: string | null = null;
+    if (r.ok) {
+      // Move a OS pra "Enviar Omie" (só as atualizadas pelo Tratorilson) e notifica.
+      const f = await aplicarMudancaFase(String(id), FASE_ENVIAR_OMIE, auth.email || "Tratorilson", {
+        notificar: true, acaoLog: "Atualizada pelo Tratorilson a partir do relatório do técnico",
+      });
+      if (f.success) fase = FASE_ENVIAR_OMIE;
+    }
+    return NextResponse.json({ ok: r.ok, aplicado: r.ok, erro: r.erro, valorTotal: r.valorTotal, fase, proposta });
   }
   return NextResponse.json({ ok: true, aplicado: false, proposta });
 }
