@@ -185,6 +185,11 @@ export default function TratorilsonPainel() {
               {linha('Data início', String(p.antes?.previsaoExecucao || '').slice(0, 10), p.dataInicio)}
               {linha('Data fim', String(p.antes?.dataFimServico || '').slice(0, 10), p.dataFim)}
               {linha('Projeto', p.antes?.projeto, p.projeto)}
+              <div style={{ display: 'flex', gap: 8, fontSize: 13, padding: '4px 0' }}>
+                <span style={{ width: 110, color: 'var(--portal-text-muted)' }}>Horímetro</span>
+                <span style={{ color: '#16a34a', fontWeight: 600 }}>{String(p.horimetro || '') || '—'}</span>
+                <span style={{ color: 'var(--portal-text-muted)', fontSize: 11 }}>(do relatório)</span>
+              </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)', marginBottom: 4 }}>Descrição — ANTES</div>
