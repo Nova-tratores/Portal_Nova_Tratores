@@ -180,13 +180,17 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
   );
 });
 
-// Fases abertas por padrão; só Concluída e Cancelada começam fechadas
-// (fases sem nenhuma ordem nem aparecem). Clica no cabeçalho pra abrir/fechar.
-const COLLAPSED_DEFAULT = new Set(["Concluída", "Cancelada"]);
+// Todas as fases começam abertas. "Concluída" e "Cancelada" ficam escondidas
+// por padrão — só aparecem (já abertas) quando uma busca encontra uma ordem
+// que está numa delas.
+const COLLAPSED_DEFAULT = new Set<string>();
+// Fases escondidas do quadro a menos que haja busca com resultado nelas.
+const OCULTAS_SEM_BUSCA = new Set(["Concluída", "Cancelada"]);
 
 export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChange }: PhaseViewProps) {
   const [activePhase, setActivePhase] = useState<string>("");
   const [escopo, setEscopo] = useState<"externas" | "internas">("externas");
+  const [tecnicoFiltro, setTecnicoFiltro] = useState<string>("");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set(COLLAPSED_DEFAULT));
   const [garantiaMap, setGarantiaMap] = useState<Record<string, GarantiaStatus>>({});
   // Tooltip com a Descrição do Serviço completa ao passar o mouse no card
@@ -199,6 +203,13 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
     () => orders.filter((o) => (escopo === "internas" ? !!o.servicoInterno : !o.servicoInterno)),
     [orders, escopo]
   );
+
+  // Lista de técnicos disponíveis no escopo atual (para o filtro)
+  const tecnicos = useMemo(() => {
+    const set = new Set<string>();
+    for (const o of escopoOrders) { const t = (o.tecnico || "").trim(); if (t) set.add(t); }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [escopoOrders]);
 
   // Carrega quais OS têm garantia (para o ícone de escudo no card)
   useEffect(() => {
@@ -243,9 +254,10 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
           o.cliente.toLowerCase().includes(searchLower) ||
           o.id.includes(searchLower) ||
           o.servSolicitado.toLowerCase().includes(searchLower)) &&
-        (!activePhase || o.status === activePhase)
+        (!activePhase || o.status === activePhase) &&
+        (!tecnicoFiltro || (o.tecnico || "").trim() === tecnicoFiltro)
     );
-  }, [escopoOrders, searchLower, activePhase]);
+  }, [escopoOrders, searchLower, activePhase, tecnicoFiltro]);
 
 
   // Group by phase for "Todas" view
@@ -261,6 +273,9 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
         const comGar = items.filter((o) => garantiaMap[o.id]);
         if (semGar.length > 0) map[FASE_CONCLUIDO] = semGar;
         if (comGar.length > 0) map[FASE_CONCLUIDO_GAR] = comGar;
+      } else if (OCULTAS_SEM_BUSCA.has(phase)) {
+        // "Concluída" e "Cancelada" só aparecem quando a busca acha uma ordem nelas.
+        if (searchLower && items.length > 0) map[phase] = items;
       } else if (phase === "Enviar Omie" || phase === "Enviado Para Omie" || phase === "Preenchido" || items.length > 0) {
         // As filas do Tratorilson aparecem sempre (mesmo vazias).
         map[phase] = items;
@@ -270,7 +285,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
     const orphans = filtered.filter((o) => !phasesSet.has(o.status));
     if (orphans.length > 0) map["Outros"] = orphans;
     return map;
-  }, [filtered, activePhase, garantiaMap]);
+  }, [filtered, activePhase, garantiaMap, searchLower]);
 
   // Stable click handlers per card (avoid inline arrow in .map)
   const handleCardClick = useCallback((o: KanbanCard) => onCardClick(o), [onCardClick]);
@@ -286,7 +301,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
           ]).map((t) => {
             const active = escopo === t.v;
             return (
-              <button key={t.v} onClick={() => { setEscopo(t.v); setActivePhase(""); }}
+              <button key={t.v} onClick={() => { setEscopo(t.v); setActivePhase(""); setTecnicoFiltro(""); }}
                 style={{
                   display: "flex", alignItems: "center", gap: 8, padding: "8px 22px", borderRadius: 8,
                   border: active ? `1.5px solid ${t.color}` : "1.5px solid transparent",
@@ -300,6 +315,36 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
               </button>
             );
           })}
+        </div>
+
+        {/* Filtro por técnico */}
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+          <i className="fas fa-user-cog" style={{ color: "var(--portal-text-secondary)", fontSize: 13 }} />
+          <select
+            value={tecnicoFiltro}
+            onChange={(e) => setTecnicoFiltro(e.target.value)}
+            title="Filtrar por técnico"
+            style={{
+              padding: "8px 12px", borderRadius: 8,
+              border: tecnicoFiltro ? "1.5px solid #1E3A5F" : "1.5px solid var(--border)",
+              background: "#fff", color: "var(--portal-text)", fontWeight: 600, fontSize: 13,
+              cursor: "pointer", maxWidth: 240,
+            }}
+          >
+            <option value="">Todos os técnicos</option>
+            {tecnicos.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+          {tecnicoFiltro && (
+            <button
+              onClick={() => setTecnicoFiltro("")}
+              title="Limpar filtro de técnico"
+              style={{ border: "none", background: "transparent", color: "var(--portal-text-secondary)", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: 4 }}
+            >
+              <i className="fas fa-times" />
+            </button>
+          )}
         </div>
       </div>
 
