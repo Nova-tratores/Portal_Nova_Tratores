@@ -33,6 +33,13 @@ export default function TratorilsonPainel() {
   const [salvando, setSalvando] = useState(false)
   const [detalhe, setDetalhe] = useState<LogRow | null>(null)
 
+  // Fase 1: testador de "atualizar OS pelo relatório"
+  const [osNum, setOsNum] = useState('541')
+  const [proposta, setProposta] = useState<Record<string, unknown> | null>(null)
+  const [gerando, setGerando] = useState(false)
+  const [aplicando, setAplicando] = useState(false)
+  const [msgAplic, setMsgAplic] = useState('')
+
   useEffect(() => {
     if (!loadingPerm && userProfile && !isAdmin) router.push('/dashboard')
   }, [loadingPerm, isAdmin, userProfile, router])
@@ -62,6 +69,27 @@ export default function TratorilsonPainel() {
       })
       await carregar()
     } finally { setSalvando(false) }
+  }
+
+  const gerarPrevia = async () => {
+    const id = osNum.trim(); if (!id) return
+    setGerando(true); setProposta(null); setMsgAplic('')
+    try {
+      const res = await fetch(`/api/pos/ordens/${encodeURIComponent(id)}/atualizar-relatorio`, { headers: { ...(await authHeaders()) } })
+      const j = await res.json()
+      setProposta(j.proposta || { ok: false, erro: j.erro || 'Falha ao gerar prévia' })
+    } catch { setProposta({ ok: false, erro: 'Erro de conexão' }) } finally { setGerando(false) }
+  }
+
+  const aplicar = async () => {
+    const id = osNum.trim(); if (!id || !proposta?.ok) return
+    if (!confirm(`Aplicar as mudanças na OS ${id}?`)) return
+    setAplicando(true); setMsgAplic('')
+    try {
+      const res = await fetch(`/api/pos/ordens/${encodeURIComponent(id)}/atualizar-relatorio?aplicar=1`, { method: 'POST', headers: { ...(await authHeaders()) } })
+      const j = await res.json()
+      setMsgAplic(j.aplicado ? `✓ Aplicado na OS ${id}. Confira na tela da OS.` : `Erro: ${j.erro || 'falha ao aplicar'}`)
+    } catch { setMsgAplic('Erro de conexão') } finally { setAplicando(false) }
   }
 
   if (loadingPerm || !userProfile) return null
@@ -113,6 +141,69 @@ export default function TratorilsonPainel() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Fase 1 — atualizar OS pelo relatório do técnico (teste) */}
+      <div style={{ ...card, marginTop: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--portal-text)' }}>Atualizar OS pelo relatório <span style={{ fontSize: 11, color: 'var(--portal-text-muted)', fontWeight: 500 }}>(teste — prévia antes de gravar)</span></div>
+          <div style={{ flex: 1 }} />
+          <input value={osNum} onChange={(e) => setOsNum(e.target.value)} placeholder="Nº da OS" style={{ width: 110, padding: '7px 9px', border: '1px solid var(--portal-border)', borderRadius: 8, fontSize: 14, background: 'var(--portal-bg-secondary)', color: 'var(--portal-text)' }} />
+          <button onClick={gerarPrevia} disabled={gerando} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#dc2626,#991b1b)', color: '#fff', fontWeight: 700, cursor: gerando ? 'default' : 'pointer' }}>
+            {gerando ? <Loader2 size={14} className="spin" /> : <Bot size={14} />} Gerar prévia
+          </button>
+        </div>
+
+        {proposta && !(proposta as { ok?: boolean }).ok && (
+          <div style={{ marginTop: 12, padding: 10, background: '#fef2f2', color: '#b91c1c', borderRadius: 8, fontSize: 13 }}>{String((proposta as { erro?: string }).erro || 'Falha')}</div>
+        )}
+
+        {proposta && (proposta as { ok?: boolean }).ok && (() => {
+          /* eslint-disable @typescript-eslint/no-explicit-any */
+          const p = proposta as any
+          const linha = (rot: string, antes: unknown, depois: unknown) => {
+            const mudou = String(antes ?? '') !== String(depois ?? '')
+            return (
+              <div style={{ display: 'flex', gap: 8, fontSize: 13, padding: '4px 0', flexWrap: 'wrap' }}>
+                <span style={{ width: 110, color: 'var(--portal-text-muted)' }}>{rot}</span>
+                <span style={{ color: 'var(--portal-text-secondary)', textDecoration: mudou ? 'line-through' : 'none' }}>{String(antes ?? '') || '—'}</span>
+                {mudou && <span style={{ color: 'var(--portal-text-muted)' }}>→</span>}
+                {mudou && <span style={{ color: '#16a34a', fontWeight: 600 }}>{String(depois ?? '') || '—'}</span>}
+              </div>
+            )
+          }
+          return (
+            <div style={{ marginTop: 12 }}>
+              {Array.isArray(p.duvidas) && p.duvidas.length > 0 && (
+                <div style={{ padding: 10, background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 8, marginBottom: 12 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#92400e', marginBottom: 4 }}>⚠ Dúvidas do Tratorilson</div>
+                  {p.duvidas.map((d: string, i: number) => <div key={i} style={{ fontSize: 12.5, color: '#92400e' }}>• {d}</div>)}
+                </div>
+              )}
+              {linha('Horas', p.antes?.qtdHoras, p.qtdHoras)}
+              {linha('KM', p.antes?.qtdKm, p.qtdKm)}
+              {linha('Data início', String(p.antes?.previsaoExecucao || '').slice(0, 10), p.dataInicio)}
+              {linha('Data fim', String(p.antes?.dataFimServico || '').slice(0, 10), p.dataFim)}
+              {linha('Projeto', p.antes?.projeto, p.projeto)}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)', marginBottom: 4 }}>Descrição — ANTES</div>
+                  <div style={{ fontSize: 12.5, whiteSpace: 'pre-wrap', background: 'var(--portal-bg-secondary)', padding: 10, borderRadius: 8, color: 'var(--portal-text-secondary)', maxHeight: 280, overflowY: 'auto' }}>{p.antes?.servSolicitado || '—'}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#16a34a', marginBottom: 4 }}>Descrição — DEPOIS</div>
+                  <div style={{ fontSize: 12.5, whiteSpace: 'pre-wrap', background: '#f0fdf4', border: '1px solid #86efac', padding: 10, borderRadius: 8, color: 'var(--portal-text)', maxHeight: 280, overflowY: 'auto' }}>{p.servSolicitado || '—'}</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 12 }}>
+                <button onClick={aplicar} disabled={aplicando} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 8, border: 'none', background: '#16a34a', color: '#fff', fontWeight: 700, cursor: aplicando ? 'default' : 'pointer' }}>
+                  {aplicando ? <Loader2 size={14} className="spin" /> : <Save size={14} />} Aplicar na OS {osNum}
+                </button>
+                {msgAplic && <span style={{ fontSize: 13, color: msgAplic.startsWith('✓') ? '#16a34a' : '#b91c1c' }}>{msgAplic}</span>}
+              </div>
+            </div>
+          )
+        })()}
       </div>
 
       {/* Filtros */}
