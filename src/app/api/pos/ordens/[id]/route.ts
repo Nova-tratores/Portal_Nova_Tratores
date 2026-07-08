@@ -94,6 +94,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     qtdHoras: safeGet(row, "Qtd_HR"), qtdKm: safeGet(row, "Qtd_KM"),
     status: safeGet(row, "Status"), ppv: safeGet(row, "ID_PPV"),
     projeto: safeGet(row, "Projeto"), ordemOmie: safeGet(row, "Ordem_Omie"),
+    pedidoVenda: safeGet(row, "Pedido_Venda") || "",
+    omieEnvioLog: safeGet(row, "Omie_Envio_Log") || "",
     motivoCancelamento: safeGet(row, "Motivo_Cancelamento"),
     substitutoTipo: safeGet(row, "Substituto_Tipo") || null,
     substitutoId: safeGet(row, "Substituto_Id") || null,

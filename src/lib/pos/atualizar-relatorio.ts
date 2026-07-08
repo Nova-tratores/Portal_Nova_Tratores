@@ -15,6 +15,8 @@ import { supabaseFetch, formatarDataBR } from "@/lib/ppv/supabase";
 import { TBL_ITENS } from "@/lib/ppv/constants";
 import { registrarLog as registrarLogPPV, atualizarValorTotal } from "@/lib/ppv/queries";
 import { aplicarMudancaFase } from "@/lib/pos/fase";
+import { criarOSNoOmie } from "@/lib/pos/omie";
+import { registrarAlimentacaoOS } from "@/lib/pos/alimentacao-os";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -365,6 +367,58 @@ function parseDescricao(texto: unknown): Record<string, string> {
 function montarDescricao(c: Record<string, string>): string {
   return `Modelo: ${c.modelo || ""}\nChassis: ${c.chassis || ""}\nHorimetro: ${c.horimetro || ""}\n\n` +
     `Solicitação do cliente: ${c.solicitacao || ""}\nServiço Realizado: ${c.servico || ""}`;
+}
+
+const FASE_ENVIADO_OMIE = "Enviado Para Omie";
+
+// Envia ao Omie TODAS as OS em "Enviar Omie" (OS + PPV vinculado, via criarOSNoOmie).
+// Sucesso → guarda Ordem Omie + Pedido de Venda + log, move pra "Enviado Para Omie".
+// Erro (OS ou PPV) → guarda o log com o erro e DEIXA em "Enviar Omie" pra reenviar.
+export async function enviarLoteOmie(userName: string): Promise<{ total: number; ok: number; erros: number; resultados: { os: string; ok: boolean; cNumOS?: string; pedidoVenda?: string; erro?: string; ppvErro?: string }[] }> {
+  const { data: osList } = await supabase.from(TBL_OS).select("Id_Ordem").eq("Status", FASE_ENVIAR_OMIE);
+  const ids = (osList || []).map((o) => String((o as { Id_Ordem: string }).Id_Ordem));
+  const resultados: { os: string; ok: boolean; cNumOS?: string; pedidoVenda?: string; erro?: string; ppvErro?: string }[] = [];
+
+  for (const id of ids) {
+    try {
+      const r = await criarOSNoOmie(id); // já envia OS + PPV (pedido de venda) ao Omie
+      const partes: string[] = [];
+      if (r.sucesso) {
+        partes.push(r.cNumOS ? `OK — Ordem Omie nº ${r.cNumOS}` : "OK — enviada");
+        if (r.pedidoVenda) partes.push(`Pedido de Venda nº ${r.pedidoVenda}`);
+        if (r.pedidoVendaErro) partes.push(`ERRO no PPV: ${r.pedidoVendaErro}`);
+      } else {
+        partes.push(`ERRO ao enviar a OS: ${r.erro}`);
+      }
+      const agora = new Date();
+      const log = `[${new Intl.DateTimeFormat("pt-BR").format(agora)} ${agora.toLocaleTimeString("pt-BR")}] ${partes.join(" | ")}`;
+
+      await supabase.from(TBL_OS).update({
+        Pedido_Venda: r.pedidoVenda || null,
+        Omie_Envio_Log: log,
+      }).eq("Id_Ordem", id);
+
+      if (r.sucesso) {
+        try { await registrarAlimentacaoOS(id); } catch { /* despesa de alimentação — best-effort */ }
+        // Interna: criarOSNoOmie já concluiu (remessa). Externa: move pra "Enviado Para Omie".
+        if (!r.interna) {
+          await aplicarMudancaFase(id, FASE_ENVIADO_OMIE, userName, {
+            notificar: !!r.pedidoVendaErro,
+            acaoLog: `Enviada ao Omie pelo Tratorilson${r.cNumOS ? ` (Ordem nº ${r.cNumOS})` : ""}${r.pedidoVenda ? `, PV nº ${r.pedidoVenda}` : ""}`,
+          });
+        }
+      }
+      resultados.push({ os: id, ok: r.sucesso, cNumOS: r.cNumOS, pedidoVenda: r.pedidoVenda, erro: r.sucesso ? undefined : r.erro, ppvErro: r.pedidoVendaErro });
+    } catch (e) {
+      const agora = new Date();
+      const log = `[${new Intl.DateTimeFormat("pt-BR").format(agora)} ${agora.toLocaleTimeString("pt-BR")}] ERRO: ${e instanceof Error ? e.message : String(e)}`;
+      try { await supabase.from(TBL_OS).update({ Omie_Envio_Log: log }).eq("Id_Ordem", id); } catch { /* best-effort */ }
+      resultados.push({ os: id, ok: false, erro: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  const ok = resultados.filter((r) => r.ok).length;
+  return { total: ids.length, ok, erros: resultados.length - ok, resultados };
 }
 
 export type CampoOS = "servico_realizado" | "solicitacao_cliente" | "modelo" | "chassis" | "horimetro" | "horas" | "km" | "data_inicio" | "data_fim";

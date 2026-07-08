@@ -46,6 +46,8 @@ export default function TratorilsonPainel() {
   const [msgAplic, setMsgAplic] = useState('')
   const [loteRodando, setLoteRodando] = useState(false)
   const [loteResult, setLoteResult] = useState<Record<string, unknown> | null>(null)
+  const [enviandoOmie, setEnviandoOmie] = useState(false)
+  const [omieResult, setOmieResult] = useState<Record<string, unknown> | null>(null)
 
   useEffect(() => {
     if (!loadingPerm && userProfile && !isAdmin) router.push('/dashboard')
@@ -107,6 +109,16 @@ export default function TratorilsonPainel() {
       const j = await res.json()
       setLoteResult(res.ok ? j : { erro: j.error || 'Falha' })
     } catch { setLoteResult({ erro: 'Erro de conexão' }) } finally { setLoteRodando(false) }
+  }
+
+  const enviarOmie = async () => {
+    if (!confirm('Enviar ao Omie TODAS as OS em "Enviar Omie"?\nIsso cria pedidos REAIS no Omie (OS + PPV). Ação irreversível.')) return
+    setEnviandoOmie(true); setOmieResult(null)
+    try {
+      const res = await fetch('/api/pos/ordens/enviar-omie-lote', { method: 'POST', headers: { ...(await authHeaders()) } })
+      const j = await res.json()
+      setOmieResult(res.ok ? j : { erro: j.error || 'Falha' })
+    } catch { setOmieResult({ erro: 'Erro de conexão' }) } finally { setEnviandoOmie(false) }
   }
 
   if (loadingPerm || !userProfile) return null
@@ -172,7 +184,27 @@ export default function TratorilsonPainel() {
           <button onClick={processarLote} disabled={loteRodando} title='Processa TODAS de "Relatório Concluído"' style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)', fontWeight: 700, cursor: loteRodando ? 'default' : 'pointer' }}>
             {loteRodando ? <Loader2 size={14} className="spin" /> : <Bot size={14} />} Processar todas
           </button>
+          <button onClick={enviarOmie} disabled={enviandoOmie} title='Envia ao Omie as OS em "Enviar Omie"' style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: 'none', background: '#0EA5E9', color: '#fff', fontWeight: 700, cursor: enviandoOmie ? 'default' : 'pointer' }}>
+            {enviandoOmie ? <Loader2 size={14} className="spin" /> : <Bot size={14} />} Enviar ao Omie
+          </button>
         </div>
+
+        {omieResult && (() => {
+          /* eslint-disable @typescript-eslint/no-explicit-any */
+          const O = omieResult as any
+          if (O.erro) return <div style={{ marginTop: 12, padding: 10, background: '#fef2f2', color: '#b91c1c', borderRadius: 8, fontSize: 13 }}>{String(O.erro)}</div>
+          const erros = Array.isArray(O.resultados) ? O.resultados.filter((r: any) => !r.ok || r.ppvErro) : []
+          return (
+            <div style={{ marginTop: 12, padding: 10, background: 'var(--portal-bg-secondary)', borderRadius: 8, fontSize: 13 }}>
+              <div style={{ fontWeight: 700, color: 'var(--portal-text)' }}>Envio ao Omie: {O.ok}/{O.total} enviadas{O.erros ? ` · ${O.erros} com erro` : ''}</div>
+              {erros.length > 0 && (
+                <div style={{ marginTop: 6, color: '#b91c1c', fontSize: 12 }}>
+                  {erros.map((r: any, i: number) => <div key={i}>OS {r.os}: {r.erro || (r.ppvErro ? `PPV: ${r.ppvErro}` : '')}</div>)}
+                </div>
+              )}
+            </div>
+          )
+        })()}
 
         {loteResult && (() => {
           /* eslint-disable @typescript-eslint/no-explicit-any */

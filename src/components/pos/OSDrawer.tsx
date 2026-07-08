@@ -84,6 +84,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   const [descHoraValor, setDescHoraValor] = useState(0);
   const [descKmValor, setDescKmValor] = useState(0);
   const [ordemOmie, setOrdemOmie] = useState("");
+  const [pedidoVenda, setPedidoVenda] = useState("");
+  const [omieLog, setOmieLog] = useState("");
   const [motivoCancel, setMotivoCancel] = useState("");
   const [temSubstituto, setTemSubstituto] = useState(false);
   const [substitutoTipo, setSubstitutoTipo] = useState<"POS" | "PPV">("POS");
@@ -519,7 +521,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
     setTecnico1(""); setTecnico2(""); setTipoServico("Manutenção");
     setProjeto(""); setRevisao(""); setServSolicitado(TEXT_TEMPLATE);
     setPpv(""); setQtdHoras(1); setQtdKm(0); setDescPorc(0); setDescValor(0); setDescHoraValor(0); setDescKmValor(0);
-    setOrdemOmie(""); setMotivoCancel(""); setTemSubstituto(false); setSubstitutoTipo("POS"); setSubstitutoId("");
+    setOrdemOmie(""); setPedidoVenda(""); setOmieLog(""); setMotivoCancel(""); setTemSubstituto(false); setSubstitutoTipo("POS"); setSubstitutoId("");
     setRelatorioTecnico("");
     const agora = new Date()
     const hojeStr = agora.toISOString().slice(0, 10)
@@ -573,6 +575,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
           const sub = (d.qtdHoras || 0) * VH + (d.qtdKm || 0) * VK;
           setDescPorc(sub > 0 ? parseFloat(((dv / sub) * 100).toFixed(2)) : 0);
           setOrdemOmie(d.ordemOmie || ""); setMotivoCancel(d.motivoCancelamento || "");
+          setPedidoVenda(d.pedidoVenda || ""); setOmieLog(d.omieEnvioLog || "");
           setTemSubstituto(!!(d.substitutoTipo && d.substitutoId));
           setSubstitutoTipo(d.substitutoTipo || "POS");
           setSubstitutoId(d.substitutoId || "");
@@ -712,6 +715,30 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                         {tecnico1 && <span style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' }} onClick={(e) => { e.stopPropagation(); window.open(`/mecanicos?tecnico=${encodeURIComponent(tecnico1)}`, '_blank') }} title="Abrir Janela Mecanico"><i className="fas fa-user-cog" /> {tecnico1}</span>}
                         <span><i className="fas fa-tag" /> {tipoServico}</span>
                       </div>
+                    </div>
+                  )}
+
+                  {/* ── Omie: números enviados + log (edit mode) ── */}
+                  {mode === "edit" && (ordemOmie || pedidoVenda || omieLog) && (
+                    <div className="os-card" style={{ order: -5.5, borderLeft: "3px solid #0EA5E9" }}>
+                      <div className="os-card-title"><i className="fas fa-paper-plane" style={{ color: "#0EA5E9" }} /> Enviado ao Omie</div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginBottom: omieLog ? 8 : 0 }}>
+                        {ordemOmie && (
+                          <div>
+                            <div style={{ fontSize: 11, opacity: 0.7, textTransform: "uppercase", letterSpacing: 0.4 }}>Ordem (Omie)</div>
+                            <div style={{ fontWeight: 700, fontSize: 15 }}>{ordemOmie}</div>
+                          </div>
+                        )}
+                        {pedidoVenda && (
+                          <div>
+                            <div style={{ fontSize: 11, opacity: 0.7, textTransform: "uppercase", letterSpacing: 0.4 }}>Pedido de Venda (PPV)</div>
+                            <div style={{ fontWeight: 700, fontSize: 15 }}>{pedidoVenda}</div>
+                          </div>
+                        )}
+                      </div>
+                      {omieLog && (
+                        <pre style={{ whiteSpace: "pre-wrap", fontSize: 12, margin: 0, padding: 8, background: "var(--portal-bg-secondary, #f8fafc)", borderRadius: 6, fontFamily: "inherit", lineHeight: 1.5 }}>{omieLog}</pre>
+                      )}
                     </div>
                   )}
 
