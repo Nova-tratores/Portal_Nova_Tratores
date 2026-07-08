@@ -44,6 +44,8 @@ export default function TratorilsonPainel() {
   const [gerando, setGerando] = useState(false)
   const [aplicando, setAplicando] = useState(false)
   const [msgAplic, setMsgAplic] = useState('')
+  const [loteRodando, setLoteRodando] = useState(false)
+  const [loteResult, setLoteResult] = useState<Record<string, unknown> | null>(null)
 
   useEffect(() => {
     if (!loadingPerm && userProfile && !isAdmin) router.push('/dashboard')
@@ -95,6 +97,16 @@ export default function TratorilsonPainel() {
       const j = await res.json()
       setMsgAplic(j.aplicado ? `✓ Aplicado na OS ${id}. Confira na tela da OS.` : `Erro: ${j.erro || 'falha ao aplicar'}`)
     } catch { setMsgAplic('Erro de conexão') } finally { setAplicando(false) }
+  }
+
+  const processarLote = async () => {
+    if (!confirm('Processar TODAS as OS em "Relatório Concluído"?\nAs normais vão pra "Enviar Omie" e as de garantia pra "Preenchido".')) return
+    setLoteRodando(true); setLoteResult(null)
+    try {
+      const res = await fetch('/api/pos/ordens/atualizar-relatorio-lote', { method: 'POST', headers: { ...(await authHeaders()) } })
+      const j = await res.json()
+      setLoteResult(res.ok ? j : { erro: j.error || 'Falha' })
+    } catch { setLoteResult({ erro: 'Erro de conexão' }) } finally { setLoteRodando(false) }
   }
 
   if (loadingPerm || !userProfile) return null
@@ -157,7 +169,29 @@ export default function TratorilsonPainel() {
           <button onClick={gerarPrevia} disabled={gerando} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#dc2626,#991b1b)', color: '#fff', fontWeight: 700, cursor: gerando ? 'default' : 'pointer' }}>
             {gerando ? <Loader2 size={14} className="spin" /> : <Bot size={14} />} Gerar prévia
           </button>
+          <button onClick={processarLote} disabled={loteRodando} title='Processa TODAS de "Relatório Concluído"' style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)', fontWeight: 700, cursor: loteRodando ? 'default' : 'pointer' }}>
+            {loteRodando ? <Loader2 size={14} className="spin" /> : <Bot size={14} />} Processar todas
+          </button>
         </div>
+
+        {loteResult && (() => {
+          /* eslint-disable @typescript-eslint/no-explicit-any */
+          const L = loteResult as any
+          if (L.erro) return <div style={{ marginTop: 12, padding: 10, background: '#fef2f2', color: '#b91c1c', borderRadius: 8, fontSize: 13 }}>{String(L.erro)}</div>
+          const erros = Array.isArray(L.resultados) ? L.resultados.filter((r: any) => !r.ok) : []
+          return (
+            <div style={{ marginTop: 12, padding: 10, background: 'var(--portal-bg-secondary)', borderRadius: 8, fontSize: 13 }}>
+              <div style={{ fontWeight: 700, color: 'var(--portal-text)' }}>
+                Lote: {L.ok}/{L.total} atualizadas · {L.paraEnviarOmie} → Enviar Omie · {L.paraPreenchido} → Preenchido{L.erros ? ` · ${L.erros} com erro` : ''}
+              </div>
+              {erros.length > 0 && (
+                <div style={{ marginTop: 6, color: '#b91c1c', fontSize: 12 }}>
+                  {erros.map((r: any, i: number) => <div key={i}>OS {r.os}: {r.erro}</div>)}
+                </div>
+              )}
+            </div>
+          )
+        })()}
 
         {proposta && !(proposta as { ok?: boolean }).ok && (
           <div style={{ marginTop: 12, padding: 10, background: '#fef2f2', color: '#b91c1c', borderRadius: 8, fontSize: 13 }}>{String((proposta as { erro?: string }).erro || 'Falha')}</div>

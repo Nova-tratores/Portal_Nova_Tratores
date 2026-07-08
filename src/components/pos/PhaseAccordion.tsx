@@ -27,6 +27,7 @@ const PHASE_COLORS: Record<string, string> = {
   "Relatório Concluído": "#A78BFA",
   "Relatório Concluído - Garantia": "#0D9488",
   "Enviar Omie": "#F59E0B",
+  "Preenchido": "#14B8A6",
   "Executada aguardando comercial": "#C084FC",
   "Concluída": "#10B981",
   "Cancelada": "#EF4444",
@@ -49,6 +50,7 @@ const PHASE_SHORT: Record<string, string> = {
   "Executada": "Executada",
   "Relatório Concluído": "Rel. Concluído",
   "Enviar Omie": "Enviar Omie",
+  "Preenchido": "Preenchido",
   "Executada aguardando comercial": "Aguard. Comercial",
   "Concluída": "Concluída",
   "Cancelada": "Cancelada",
@@ -257,8 +259,8 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
         const comGar = items.filter((o) => garantiaMap[o.id]);
         if (semGar.length > 0) map[FASE_CONCLUIDO] = semGar;
         if (comGar.length > 0) map[FASE_CONCLUIDO_GAR] = comGar;
-      } else if (phase === "Enviar Omie" || items.length > 0) {
-        // "Enviar Omie" aparece sempre (mesmo vazia), pra ficar visível como fila.
+      } else if (phase === "Enviar Omie" || phase === "Preenchido" || items.length > 0) {
+        // "Enviar Omie" e "Preenchido" aparecem sempre (mesmo vazias), como filas do Tratorilson.
         map[phase] = items;
       }
     }
