@@ -14,6 +14,7 @@ import { getConfigPOS } from "@/lib/pos/config";
 import { supabaseFetch, formatarDataBR } from "@/lib/ppv/supabase";
 import { TBL_ITENS } from "@/lib/ppv/constants";
 import { registrarLog as registrarLogPPV, atualizarValorTotal } from "@/lib/ppv/queries";
+import { aplicarMudancaFase } from "@/lib/pos/fase";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -293,4 +294,52 @@ export async function aplicarNaOS(p: PropostaAtualizacao, userName?: string): Pr
   }
 
   return { ok: true, valorTotal, devolucoes: devsRegistradas };
+}
+
+const FASE_ORIGEM = "Relatório Concluído";
+const FASE_ENVIAR_OMIE = "Enviar Omie";
+const FASE_PREENCHIDO = "Preenchido";
+
+export interface ResultadoLote {
+  total: number; ok: number; erros: number; paraEnviarOmie: number; paraPreenchido: number;
+  resultados: { os: string; ok: boolean; fase?: string; garantia?: boolean; duvidas?: number; erro?: string }[];
+}
+
+// Processa TODAS as OS em "Relatório Concluído": preenche pelo relatório, devolve
+// peças no PPV e move de fase (garantia → "Preenchido", resto → "Enviar Omie").
+// Usado pelo botão manual, pela rota de lote e pelo agendador automático.
+export async function processarLoteRelatorios(userName: string): Promise<ResultadoLote> {
+  const { data: osList } = await supabase.from(TBL_OS).select("Id_Ordem").eq("Status", FASE_ORIGEM);
+  const ids = (osList || []).map((o) => String((o as { Id_Ordem: string }).Id_Ordem));
+  const resultados: ResultadoLote["resultados"] = [];
+
+  for (const id of ids) {
+    try {
+      const prop = await montarAtualizacaoOS(id, userName);
+      if (!prop.ok) { resultados.push({ os: id, ok: false, erro: prop.erro }); continue; }
+      const r = await aplicarNaOS(prop, userName);
+      if (!r.ok) { resultados.push({ os: id, ok: false, erro: r.erro }); continue; }
+
+      const { data: gar } = await supabase.from("garantias").select("id").eq("id_ordem", prop.osId).limit(1);
+      const ehGarantia = !!(gar && gar.length > 0);
+      const faseDestino = ehGarantia ? FASE_PREENCHIDO : FASE_ENVIAR_OMIE;
+
+      await aplicarMudancaFase(prop.osId, faseDestino, userName, {
+        // notifica só quando houve dúvida — assim o time revisa as incertas.
+        notificar: prop.duvidas.length > 0,
+        acaoLog: "Atualizada pelo Tratorilson (relatório do técnico)",
+      });
+      resultados.push({ os: prop.osId, ok: true, fase: faseDestino, garantia: ehGarantia, duvidas: prop.duvidas.length });
+    } catch (e) {
+      resultados.push({ os: id, ok: false, erro: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  const ok = resultados.filter((r) => r.ok).length;
+  return {
+    total: ids.length, ok, erros: resultados.length - ok,
+    paraEnviarOmie: resultados.filter((r) => r.ok && !r.garantia).length,
+    paraPreenchido: resultados.filter((r) => r.ok && r.garantia).length,
+    resultados,
+  };
 }

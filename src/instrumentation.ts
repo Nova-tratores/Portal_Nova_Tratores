@@ -63,5 +63,22 @@ export async function register(): Promise<void> {
   setInterval(() => { rodarSyncClientes().catch(() => {}); }, CINCO_MIN);
   setTimeout(() => { rodarSyncClientes().catch(() => {}); }, 90 * 1000); // 1ª rodada ~1min30 após o boot
 
+  // Tratorilson: processa automaticamente as OS que entram em "Relatório Concluído"
+  // (preenche pelo relatório + devolve peças no PPV + move de fase). SÓ produção,
+  // pra não rodar no localhost de dev (mesmo banco → evita processamento em dobro).
+  if (process.env.NODE_ENV === 'production') {
+    const { processarLoteRelatorios } = await import('./lib/pos/atualizar-relatorio');
+    const rodarTratorilson = async () => {
+      try {
+        const r = await processarLoteRelatorios('Tratorilson (auto)');
+        if (r.ok > 0 || r.erros > 0) log(`tratorilson auto: ${r.ok} OS (${r.paraEnviarOmie} Omie, ${r.paraPreenchido} Preenchido, ${r.erros} erro)`);
+      } catch (e) { log('tratorilson auto falhou: ' + (e as Error).message); }
+    };
+    const DEZ_MIN = 10 * 60 * 1000;
+    setInterval(() => { rodarTratorilson().catch(() => {}); }, DEZ_MIN);
+    setTimeout(() => { rodarTratorilson().catch(() => {}); }, 3 * 60 * 1000); // 1ª rodada ~3min após o boot
+    log('tratorilson auto-processamento LIGADO (a cada 10min)');
+  }
+
   log('schedulers registrados (lembrete-nf 5min, pasta-cliente 5min; financeiro-scanner sob SYNC_FINANCEIRO_AUTO). sync-incremental e backfill-cmc agora no GitHub Actions.');
 }
