@@ -111,7 +111,7 @@ interface OmieOSResponse {
 }
 
 // --- Client genérico ---
-async function omieCall<T>(endpoint: string, call: string, param: Record<string, unknown>): Promise<T> {
+async function omieCall<T>(endpoint: string, call: string, param: Record<string, unknown>, tentativa = 0): Promise<T> {
   const payload = {
     call,
     app_key: OMIE_APP_KEY,
@@ -129,12 +129,22 @@ async function omieCall<T>(endpoint: string, call: string, param: Record<string,
   if (response.status === 429) {
     console.warn("Rate limit Omie — aguardando 60s...");
     await new Promise((r) => setTimeout(r, 60000));
-    return omieCall(endpoint, call, param);
+    return omieCall(endpoint, call, param, tentativa);
   }
 
   const data = await response.json();
 
   if (data?.faultstring) {
+    const fs = String(data.faultstring);
+    // "Consumo redundante" (anti-flood): a Omie diz quantos segundos esperar.
+    // Aguarda o tempo pedido (+3s de folga) e reenvia, até 4 tentativas.
+    const mRed = /aguarde\s+(\d+)\s+segundo/i.exec(fs);
+    if ((mRed || /redundant/i.test(fs)) && tentativa < 4) {
+      const espera = Math.min((mRed ? parseInt(mRed[1], 10) : 30) + 3, 45);
+      console.warn(`[Omie] Consumo redundante em ${call} — aguardando ${espera}s e reenviando (tentativa ${tentativa + 1})`);
+      await new Promise((r) => setTimeout(r, espera * 1000));
+      return omieCall(endpoint, call, param, tentativa + 1);
+    }
     throw new Error(`Omie [${data.faultcode}]: ${data.faultstring}`);
   }
 
