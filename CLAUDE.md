@@ -30,6 +30,11 @@
 - Persona reescrita para tom **natural/humano** (mantém regras de segurança).
 - Saudação mais calorosa + **sugestões rápidas** (chips) + opção de **"fixar"** a janela no canto (`TratorinoChat.tsx`).
 
+### Tickets internos (v1 — julho/2026)
+- Módulo `/tickets` (motor genérico do doc "conceito-sistema-tickets", ADRs 001–007): fila/pedidos/acompanhando/gerencial, timeline imutável, transferência sem aceite, participantes permanentes, resolvido→fechado (auto-fecha em 7 dias via GitHub Actions `tickets-auto-fechar.yml`).
+- Tabelas em `public` (`tickets`, `tickets_participantes`, `tickets_eventos`); leitura via RLS (`tickets_pode_ver`), escrita SÓ via `/api/tickets/*` (service role). Migration `sql/create-tickets.sql` **JÁ APLICADA** no Supabase (10/07/2026, verificada via REST).
+- Permissão: módulo `tickets` no Admin; visão gerencial = admins. Notificações in-app (tipo `tickets`). v2 (Solicitação de Compras) desenhada, aba "Em breve" na navegação.
+
 ## WhatsApp (EM CONSTRUÇÃO)
 Objetivo: Tratorilson **atende clientes no WhatsApp** (revisão / manutenção / peças / vendedor / outros), recolhe dados e (futuro) cria OS/PPV no portal.
 - **Spec detalhada do "modo cliente": `docs/tratorilson-whatsapp.md`** (ler isto!).
