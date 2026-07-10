@@ -29,8 +29,7 @@ const STATUS_CONFIG = {
 
 const FORMAS_BOLETO = ['Pix', 'Dinheiro', 'Boleto 30 dias', 'Boleto Parcelado', 'Cartão a vista', 'Cartão Parcelado', 'Cheque'];
 
-// Pós-Vendas vê SÓ os cards de Oficina (serviço). Os de Peças ficam no painel de Peças.
-const SETOR_KANBAN = 'oficina';
+// Pós-Vendas vê os cards de Oficina; pode incluir os de Peças via checkbox.
 const setorBadgeStyle = { display: 'inline-flex', alignItems: 'center', fontSize: '10px', fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase', padding: '3px 9px', borderRadius: '8px', background: '#eef2ff', color: '#4f46e5', border: '1px solid #c7d2fe' };
 
 // FinanceiroSubNav removido — agora usa componente compartilhado FinanceiroNav
@@ -47,6 +46,16 @@ export default function Kanban() {
  const [loading, setLoading] = useState(true)
 
  const [filtroBusca, setFiltroBusca] = useState('')
+ // Incluir (ou não) os cards do setor de Peças junto dos de Oficina
+ const [verPecas, setVerPecas] = useState(false)
+ const toggleVerPecas = () => {
+   const v = !verPecas
+   setVerPecas(v)
+   try { localStorage.setItem('finan_kanban_ver_pecas', v ? '1' : '0') } catch {}
+ }
+ useEffect(() => {
+   try { if (localStorage.getItem('finan_kanban_ver_pecas') === '1') setVerPecas(true) } catch {}
+ }, [])
 
  const [fileBoleto, setFileBoleto] = useState(null)
  const carregarTimeoutRef = useRef(null)
@@ -290,7 +299,7 @@ export default function Kanban() {
     carregarDados();
  };
 
- const chamadosFiltrados = chamados.filter(c => ehDoSetor(c, SETOR_KANBAN)).filter(c => {
+ const chamadosFiltrados = chamados.filter(c => ehDoSetor(c, verPecas ? 'todos' : 'oficina')).filter(c => {
     const q = filtroBusca.trim().toLowerCase();
     if (!q) return true;
     const campos = [
@@ -332,6 +341,16 @@ export default function Kanban() {
             <input type="text" placeholder="Buscar por cliente, nº da nota, vencimento, condição ou ID..." value={filtroBusca} onChange={e => setFiltroBusca(e.target.value)} style={{...inputFilterStyle, fontSize:'20px', padding:'20px 56px 20px 56px'}} />
             {filtroBusca && <X size={18} onClick={() => setFiltroBusca('')} style={{position:'absolute', right: '18px', top: '50%', transform:'translateY(-50%)', cursor:'pointer', color:'#dc2626'}}/>}
         </div>
+        <label title="Incluir os cards do setor de Peças (Balcão) junto dos de Oficina" style={{
+          display: 'flex', alignItems: 'center', gap: '9px', cursor: 'pointer', userSelect: 'none', flexShrink: 0,
+          background: verPecas ? '#fff7ed' : 'var(--portal-bg-card)',
+          color: verPecas ? '#c2410c' : 'var(--portal-text-secondary)',
+          border: `1px solid ${verPecas ? '#fed7aa' : 'var(--portal-border)'}`,
+          padding: '0 22px', borderRadius: '16px', fontWeight: 700, fontSize: '16px', transition: '0.2s',
+        }}>
+          <input type="checkbox" checked={verPecas} onChange={toggleVerPecas} style={{ accentColor: '#c2410c', cursor: 'pointer', width: '18px', height: '18px' }} />
+          Ver Peças
+        </label>
      </div>
     </header>
 
