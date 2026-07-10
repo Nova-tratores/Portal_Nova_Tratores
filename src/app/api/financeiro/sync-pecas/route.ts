@@ -126,12 +126,16 @@ function categoriaDoPedido(pv: any): string {
   ).trim();
 }
 
-// Decide se a categoria (código + descrição) é a de Peças
+// Decide se a categoria (código + descrição) é a de Peças Balcão.
+// IMPORTANTE: os candidatos são SÓ os dados reais do pedido (código/descrição).
+// Não incluir CATEGORIA_PECAS_LABEL aqui — senão bateria sempre consigo mesmo
+// e aceitaria QUALQUER categoria.
 function ehCategoriaPecas(codigo: string, descricao: string): boolean {
-  const cands = [descricao, `${codigo}. ${descricao}`, `${codigo} ${descricao}`, codigo, CATEGORIA_PECAS_LABEL];
+  const cands = [descricao, `${codigo}. ${descricao}`, `${codigo} ${descricao}`, codigo];
   const alvo = norm(CATEGORIA_PECAS_LABEL);
   return cands.some(c => {
     const n = norm(c);
+    if (!n) return false;
     return n === alvo || n.includes(NUCLEO_PECAS);
   });
 }
@@ -206,8 +210,16 @@ async function handler(req: NextRequest) {
   try {
     for (const acc of ACCS) {
       const empKey = acc.name.replace(/ /g, "_");
-      const cats = await mapaCategorias(acc);
       porEmpresa[acc.name] = { processados: 0, faturados: 0, candidatos: 0, criados: 0, jaExistiam: 0 };
+      // Conta sem credenciais (ex.: Castro sem OMIE_APP_KEY_CASTRO/SECRET) → pula
+      // e avisa, em vez de chamar o Omie e receber "chave inválida".
+      if (!acc.key || !acc.secret) {
+        (porEmpresa[acc.name] as any).erro = "Credenciais Omie não configuradas (defina OMIE_APP_KEY_CASTRO / OMIE_APP_SECRET_CASTRO)";
+        relatorio.push({ empresa: acc.name, pulado: "sem credenciais Omie configuradas" });
+        continue;
+      }
+      try {
+      const cats = await mapaCategorias(acc);
 
       let pag = 1, totPag = 1, processados = 0;
       while (pag <= totPag && processados < limite) {
@@ -326,6 +338,11 @@ async function handler(req: NextRequest) {
         }
         pag++;
         if (pag <= totPag) await new Promise(r => setTimeout(r, 300));
+      }
+      } catch (e: any) {
+        // Erro numa conta não derruba as outras — registra e segue.
+        (porEmpresa[acc.name] as any).erro = e?.message || String(e);
+        relatorio.push({ empresa: acc.name, erro_empresa: e?.message || String(e) });
       }
     }
 
