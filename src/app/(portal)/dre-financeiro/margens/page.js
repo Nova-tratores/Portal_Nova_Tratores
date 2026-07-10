@@ -3,7 +3,15 @@
 // Tela Margens (port FIEL de views/margens.ejs do financeiro-omie-dashboard).
 //
 // Mostra a margem REAL por venda historica: Receita − (CMV + Capital empatado
-// ate a venda). A tela tem:
+// ate a venda).
+//
+// A visualizacao INICIAL e um seletor com dois retangulos verticais:
+//   - FAMILIA: media de margem atual de cada familia (cards); clicar numa
+//     familia abre um popup com os valores e datas que compoem aquela media.
+//   - DATA: todos os meses do periodo e a variacao da margem de todas as
+//     familias de MAQUINAS (pecas desmarcado por padrao, com checkbox).
+// A visualizacao classica (tabela detalhada) continua acessivel por um link
+// discreto abaixo do seletor. Conteudo classico:
 //
 //   - Toolbar: periodo (1/3/6/12/24 meses ou "desde data..."), SELIC %/mes e
 //     botao Aplicar. Esses controles disparam o fetch da API (igual a fonte:
@@ -123,7 +131,8 @@ export default function MargensPage() {
   const todos = dados ? (dados.itens || []) : []
 
   // ===== Filtros client-side ================================================
-  const [familia, setFamilia] = useState('')
+  // Familia inicia em "Todas as maquinas" (pecas fora por padrao).
+  const [familia, setFamilia] = useState('__TODAS_MAQUINAS__')
   const [busca, setBusca] = useState('')
   const [faixa, setFaixa] = useState('')
 
@@ -134,9 +143,28 @@ export default function MargensPage() {
   // ===== Modal de detalhe ===================================================
   const [detalhe, setDetalhe] = useState(null)
 
+  // ===== Visao (seletor inicial) ============================================
+  // '' = seletor com os dois retangulos; 'familia' | 'data' | 'tabela' (classica)
+  const [visao, setVisao] = useState('')
+  const [famSel, setFamSel] = useState(null)              // familia aberta no popup
+  const [incluirPecas, setIncluirPecas] = useState(false) // visao DATA: pecas desmarcado
+
+  // "Margens evoluindo" (mesmo container da Analise do DRE) na visao DATA:
+  // toggle %/R$ e mes "explodido" no popup de composicao (maquinas do mes).
+  const [margemModoEvo, setMargemModoEvo] = useState('pct') // 'pct' | 'rs'
+  const [mesSel, setMesSel] = useState(null)                // 'YYYY-MM' aberto no popup
+
   // Ref do grafico mensal
   const refChart = useRef(null)
   const instChart = useRef(null)
+
+  // Ref do grafico da visao DATA (margem % por familia ao longo dos meses)
+  const refChartData = useRef(null)
+  const instChartData = useRef(null)
+
+  // Ref do grafico "Margens evoluindo" (bruta x liquida mensal, visao DATA)
+  const refChartEvo = useRef(null)
+  const instChartEvo = useRef(null)
 
   // Carrega a lib uma vez.
   useEffect(() => {
@@ -226,9 +254,13 @@ export default function MargensPage() {
     setPagina((p) => Math.max(1, Math.min(totPag, p + delta)))
   }, [totPag])
 
-  // Tecla Esc fecha o modal (port fiel do listener de keydown).
+  // Tecla Esc fecha o modal de detalhe; se ja fechado, fecha os popups
+  // (familia da visao FAMILIA / composicao do mes da visao DATA).
   useEffect(() => {
-    function onKey(e) { if (e.key === 'Escape') setDetalhe(null) }
+    function onKey(e) {
+      if (e.key !== 'Escape') return
+      setDetalhe((d) => { if (!d) { setFamSel(null); setMesSel(null) } return null })
+    }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [])
@@ -259,6 +291,224 @@ export default function MargensPage() {
   const labelFamilia = familia === '__TODAS_MAQUINAS__' ? 'Todas as maquinas'
     : familia === '__SO_PECAS__' ? 'So pecas'
       : familia
+
+  // =========================================================================
+  // Visao FAMILIA: agregacao por familia sobre TODAS as vendas do periodo.
+  // Margem media ponderada (lucro/receita), igual ao calculo dos KPIs.
+  // =========================================================================
+  const porFamilia = (() => {
+    const map = {}
+    todos.forEach((it) => {
+      const f = it.familia || '(sem familia)'
+      if (!map[f]) map[f] = { familia: f, qtd: 0, receita: 0, custo: 0, lucro: 0 }
+      map[f].qtd += 1
+      map[f].receita += it.receita
+      map[f].custo += it.cmv + it.custo_capital
+      map[f].lucro += it.margem_real
+    })
+    const arr = Object.values(map)
+    arr.forEach((x) => { x.margem_pct = x.receita > 0 ? +((x.lucro / x.receita) * 100).toFixed(1) : 0 })
+    arr.sort((a, b) => b.receita - a.receita)
+    return arr
+  })()
+
+  // Vendas que compoem a media da familia aberta no popup (mais recentes primeiro).
+  const vendasFamSel = famSel ? todos
+    .filter((it) => (it.familia || '(sem familia)') === famSel)
+    .slice()
+    .sort((a, b) => {
+      if (a.ano !== b.ano) return b.ano - a.ano
+      if (a.mes !== b.mes) return b.mes - a.mes
+      return String(b.data_pedido || '').localeCompare(String(a.data_pedido || ''), 'pt-BR', { numeric: true })
+    }) : []
+  const aggFamSel = famSel ? porFamilia.find((x) => x.familia === famSel) : null
+
+  // =========================================================================
+  // Visao DATA: matriz mes x familia (por padrao SO maquinas; pecas entram
+  // com o checkbox "Incluir pecas"). Celula = margem % ponderada do mes.
+  // =========================================================================
+  const dataView = (() => {
+    if (visao !== 'data') return { mesesArr: [], famsArr: [], celulas: {}, evolucao: [] }
+    const famsSet = new Set()
+    const mesesSet = new Set()
+    const celulas = {}
+    const recFam = {}
+    const porMes = {}
+    todos.forEach((it) => {
+      const f = it.familia || '(sem familia)'
+      if (!incluirPecas && ehPeca(f)) return
+      const m = it.ano + '-' + String(it.mes).padStart(2, '0')
+      famsSet.add(f)
+      mesesSet.add(m)
+      recFam[f] = (recFam[f] || 0) + it.receita
+      const ck = f + '|' + m
+      if (!celulas[ck]) celulas[ck] = { receita: 0, lucro: 0, qtd: 0 }
+      celulas[ck].receita += it.receita
+      celulas[ck].lucro += it.margem_real
+      celulas[ck].qtd += 1
+      // Totais do mes p/ "Margens evoluindo": bruta = receita − CMV;
+      // liquida (real) = receita − CMV − capital empatado.
+      if (!porMes[m]) porMes[m] = { receita: 0, cmv: 0, capital: 0, qtd: 0 }
+      porMes[m].receita += it.receita
+      porMes[m].cmv += it.cmv
+      porMes[m].capital += it.custo_capital
+      porMes[m].qtd += 1
+    })
+    Object.values(celulas).forEach((c2) => { c2.margem_pct = c2.receita > 0 ? +((c2.lucro / c2.receita) * 100).toFixed(1) : 0 })
+    const famsArr = [...famsSet].sort((a, b) => (recFam[b] || 0) - (recFam[a] || 0))
+    const mesesArr = [...mesesSet].sort()
+    const evolucao = mesesArr.map((m) => {
+      const x = porMes[m]
+      const lucroBruto = x.receita - x.cmv
+      const lucroLiq = x.receita - x.cmv - x.capital
+      return {
+        mes: m, qtd: x.qtd, receita: x.receita, cmv: x.cmv, capital: x.capital,
+        lucroBruto, lucroLiq,
+        brutaPct: x.receita > 0 ? +((lucroBruto / x.receita) * 100).toFixed(1) : null,
+        liqPct: x.receita > 0 ? +((lucroLiq / x.receita) * 100).toFixed(1) : null,
+      }
+    })
+    return { mesesArr, famsArr, celulas, evolucao }
+  })()
+
+  // Vendas que compoem o mes "explodido" (mesmo filtro da visao DATA: pecas so
+  // com o checkbox). Piores margens primeiro — e onde se ve por quanto a
+  // maquina deveria ter sido vendida para ficar positiva.
+  const vendasMesSel = mesSel ? todos.filter((it) => {
+    const f = it.familia || '(sem familia)'
+    if (!incluirPecas && ehPeca(f)) return false
+    return (it.ano + '-' + String(it.mes).padStart(2, '0')) === mesSel
+  }).slice().sort((a, b) => a.margem_pct - b.margem_pct) : []
+  const aggMesSel = (() => {
+    if (!mesSel || vendasMesSel.length === 0) return null
+    const t2 = vendasMesSel.reduce((s, it) => {
+      s.receita += it.receita; s.cmv += it.cmv; s.capital += it.custo_capital
+      return s
+    }, { receita: 0, cmv: 0, capital: 0 })
+    const lucroBruto = t2.receita - t2.cmv
+    const lucroLiq = lucroBruto - t2.capital
+    return {
+      ...t2, lucroBruto, lucroLiq,
+      brutaPct: t2.receita > 0 ? +((lucroBruto / t2.receita) * 100).toFixed(1) : 0,
+      liqPct: t2.receita > 0 ? +((lucroLiq / t2.receita) * 100).toFixed(1) : 0,
+    }
+  })()
+
+  // Grafico "Margens evoluindo" (mesmo container/estilo da Analise do DRE):
+  // linhas Margem Bruta e Margem Liquida (real) por mes, toggle %/R$, escala
+  // de leitura -35%..+30% com linha do zero destacada. Clicar num mes abre o
+  // popup de composicao (maquinas do mes + venda minima p/ ficar positivo).
+  useEffect(() => {
+    if (visao !== 'data') {
+      if (instChartEvo.current) { instChartEvo.current.destroy(); instChartEvo.current = null }
+      return
+    }
+    if (!chartReady || !refChartEvo.current || !window.Chart) return
+    const arr = dataView.evolucao
+    const mesesArr = dataView.mesesArr
+    const emRS = margemModoEvo === 'rs'
+    const mBruta = arr.map((x) => emRS ? x.lucroBruto : x.brutaPct)
+    const mLiq = arr.map((x) => emRS ? x.lucroLiq : x.liqPct)
+
+    // Escala do eixo Y em % (-35 a +30 como piso/teto de leitura — port fiel
+    // de escalaMargens da Analise do DRE).
+    let esc = null
+    if (!emRS) {
+      const vals = []
+      mBruta.concat(mLiq).forEach((v) => { if (v !== null && isFinite(v)) vals.push(v) })
+      if (vals.length) {
+        const lo = Math.max(-35, Math.floor(Math.min(Math.min.apply(null, vals), 0) / 5) * 5)
+        const hi = Math.min(30, Math.ceil(Math.max(Math.max.apply(null, vals), 0) / 5) * 5)
+        esc = { min: lo, max: hi }
+      }
+    }
+    const sufixo = emRS ? '' : ' %'
+
+    if (instChartEvo.current) instChartEvo.current.destroy()
+    const ctx = refChartEvo.current.getContext('2d')
+    instChartEvo.current = new window.Chart(ctx, {
+      data: {
+        labels: mesesArr,
+        datasets: [
+          { type: 'line', label: (emRS ? 'Lucro Bruto' : 'Margem Bruta') + sufixo, data: mBruta, borderColor: '#1e293b', backgroundColor: 'rgba(30,41,59,0.05)', borderWidth: 2, pointRadius: 3, tension: 0.2, fill: false },
+          { type: 'line', label: (emRS ? 'Lucro Líquido (real)' : 'Margem Líquida (real)') + sufixo, data: mLiq, borderColor: '#dc2626', backgroundColor: 'rgba(220,38,38,0.05)', borderWidth: 2, pointRadius: 3, tension: 0.2, fill: false },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        onClick: function (evt, elements) {
+          if (elements && elements.length) {
+            const m = mesesArr[elements[0].index]
+            if (m) setMesSel(m)
+          }
+        },
+        onHover: function (evt, elements) {
+          if (evt.native && evt.native.target) evt.native.target.style.cursor = elements.length ? 'pointer' : 'default'
+        },
+        scales: {
+          x: { ticks: { autoSkip: false, maxRotation: 90, minRotation: 0, font: { size: 9 } } },
+          y: {
+            position: 'left',
+            min: esc ? esc.min : undefined,
+            max: esc ? esc.max : undefined,
+            ticks: emRS
+              ? { callback: function (v) { return fmtBRLcurto(v) } }
+              : { stepSize: 5, callback: function (v) { return v.toFixed(0) + '%' } },
+            grid: { color: function (c2) { return c2.tick.value === 0 ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0.05)' } },
+          },
+        },
+        plugins: {
+          legend: { labels: { boxWidth: 12, padding: 10 } },
+          tooltip: { callbacks: { label: function (item) {
+            if (item.raw === null) return item.dataset.label + ': n/d'
+            return item.dataset.label + ': ' + (emRS ? fmtBRL(item.raw) : Number(item.raw).toFixed(1) + '%')
+          } } },
+        },
+      },
+    })
+    return () => { if (instChartEvo.current) { instChartEvo.current.destroy(); instChartEvo.current = null } }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chartReady, visao, incluirPecas, margemModoEvo, JSON.stringify(dataView.evolucao)])
+
+  // Paleta de cores das linhas por familia (visao DATA).
+  const PALETA = ['#2563eb', '#059669', '#dc2626', '#d97706', '#7c3aed', '#0891b2', '#be185d', '#65a30d', '#475569', '#ea580c', '#0d9488', '#9333ea']
+
+  // Grafico da visao DATA: uma linha de margem % por familia, meses no eixo X.
+  useEffect(() => {
+    if (visao !== 'data') {
+      if (instChartData.current) { instChartData.current.destroy(); instChartData.current = null }
+      return
+    }
+    if (!chartReady || !refChartData.current || !window.Chart) return
+    const { mesesArr, famsArr, celulas } = dataView
+    if (instChartData.current) instChartData.current.destroy()
+    const ctx = refChartData.current.getContext('2d')
+    instChartData.current = new window.Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: mesesArr,
+        datasets: famsArr.map((f, i) => ({
+          label: f,
+          data: mesesArr.map((m) => { const c2 = celulas[f + '|' + m]; return c2 ? c2.margem_pct : null }),
+          borderColor: PALETA[i % PALETA.length],
+          backgroundColor: PALETA[i % PALETA.length],
+          borderWidth: 2, pointRadius: 3, pointHoverRadius: 6, tension: 0.2, spanGaps: true,
+        })),
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'nearest', intersect: false },
+        scales: { y: { title: { display: true, text: 'Margem %' }, ticks: { callback: function (v) { return v + '%' } } } },
+        plugins: {
+          legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } },
+          tooltip: { callbacks: { label: function (item) { return item.dataset.label + ': ' + item.raw + '%' } } },
+        },
+      },
+    })
+    return () => { if (instChartData.current) { instChartData.current.destroy(); instChartData.current = null } }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chartReady, visao, incluirPecas, JSON.stringify(dataView.mesesArr), JSON.stringify(dataView.famsArr), JSON.stringify(Object.values(dataView.celulas).map((c2) => c2.margem_pct))])
 
   useEffect(() => {
     if (!familia) {
@@ -316,8 +566,9 @@ export default function MargensPage() {
       plugins: [window.ChartDataLabels],
     })
     return () => { if (instChart.current) { instChart.current.destroy(); instChart.current = null } }
+    // 'visao' entra nas deps: o canvas so existe na visualizacao classica.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chartReady, familia, JSON.stringify(arrMensal.map((m) => [m.rotulo, m.receita, m.cmv, m.capital, m.margem_pct]))])
+  }, [chartReady, familia, visao, JSON.stringify(arrMensal.map((m) => [m.rotulo, m.receita, m.cmv, m.capital, m.margem_pct]))])
 
   // --- Gate de permissao (BRIEF item 1) -------------------------------------
   if (!loading && !loadingPerm && userProfile && (!temAcesso('financeiro') && !pode('dre', 'margens'))) return <SemPermissao />
@@ -372,6 +623,179 @@ export default function MargensPage() {
           >Aplicar</button>
         </div>
       </div>
+
+      {/* ===== Seletor inicial: dois retangulos verticais ==================== */}
+      {visao === '' && (
+        <div className="mt-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-3xl mx-auto">
+            <button
+              onClick={() => setVisao('familia')}
+              className="group bg-white border-2 border-slate-200 rounded-2xl p-8 min-h-[340px] flex flex-col items-center justify-center gap-4 hover:border-blue-500 hover:shadow-lg transition-all"
+            >
+              <div className="text-5xl">🚜</div>
+              <div className="text-2xl font-bold tracking-widest text-slate-800 group-hover:text-blue-700">FAMILIA</div>
+              <p className="text-sm text-slate-500 text-center leading-relaxed">
+                Margem media atual de cada familia.<br />
+                Clique numa familia para ver os valores e datas que compoem a media.
+              </p>
+            </button>
+            <button
+              onClick={() => setVisao('data')}
+              className="group bg-white border-2 border-slate-200 rounded-2xl p-8 min-h-[340px] flex flex-col items-center justify-center gap-4 hover:border-blue-500 hover:shadow-lg transition-all"
+            >
+              <div className="text-5xl">📅</div>
+              <div className="text-2xl font-bold tracking-widest text-slate-800 group-hover:text-blue-700">DATA</div>
+              <p className="text-sm text-slate-500 text-center leading-relaxed">
+                Todos os meses e a variacao da margem<br />
+                de todas as familias de maquinas (pecas opcionais).
+              </p>
+            </button>
+          </div>
+          <div className="text-center mt-5">
+            <button
+              onClick={() => setVisao('tabela')}
+              className="text-xs text-slate-500 underline hover:text-slate-700"
+            >Ver tabela detalhada de vendas (visualizacao classica)</button>
+          </div>
+        </div>
+      )}
+
+      {/* ===== Visao FAMILIA: media atual de cada familia ==================== */}
+      {visao === 'familia' && (
+        <div>
+          <button
+            onClick={() => setVisao('')}
+            className="mb-3 text-xs px-3 py-1.5 border border-slate-300 rounded bg-white hover:bg-slate-100 text-slate-600"
+          >← Escolher visualizacao</button>
+          {!dados ? (
+            <div className="text-sm text-slate-500 py-8 text-center">Carregando...</div>
+          ) : porFamilia.length === 0 ? (
+            <div className="text-sm text-slate-500 py-8 text-center">Nenhuma venda no periodo.</div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {porFamilia.map((f) => (
+                <button
+                  key={f.familia}
+                  onClick={() => setFamSel(f.familia)}
+                  className="bg-white border border-slate-200 rounded-lg p-4 text-left hover:border-blue-400 hover:shadow transition-all"
+                >
+                  <div className="text-xs text-slate-500 truncate" title={f.familia}>
+                    {ehPeca(f.familia) ? '🔩 ' : '⚙ '}{f.familia}
+                  </div>
+                  <div className={'text-2xl font-bold mt-1 ' + corMargem(f.margem_pct)}>{f.margem_pct.toFixed(1)}%</div>
+                  <div className="text-[11px] text-slate-500 mt-1">{f.qtd} vendas · {fmtBRLcurto(f.receita)} receita</div>
+                  <div className={'text-[11px] ' + corMargem(f.margem_pct)}>{fmtBRLcurto(f.lucro)} lucro</div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ===== Visao DATA: meses x variacao das familias de maquinas ========= */}
+      {visao === 'data' && (
+        <div>
+          <div className="flex items-center gap-3 mb-3 flex-wrap">
+            <button
+              onClick={() => setVisao('')}
+              className="text-xs px-3 py-1.5 border border-slate-300 rounded bg-white hover:bg-slate-100 text-slate-600"
+            >← Escolher visualizacao</button>
+            <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={incluirPecas}
+                onChange={(e) => setIncluirPecas(e.target.checked)}
+              />
+              Incluir pecas
+            </label>
+            <span className="text-xs text-slate-500">
+              {dataView.mesesArr.length} meses · {dataView.famsArr.length} familias
+            </span>
+          </div>
+          {!dados ? (
+            <div className="text-sm text-slate-500 py-8 text-center">Carregando...</div>
+          ) : dataView.mesesArr.length === 0 ? (
+            <div className="text-sm text-slate-500 py-8 text-center">Nenhuma venda no periodo.</div>
+          ) : (
+            <>
+              {/* Margens evoluindo (mesmo container da Analise do DRE). Clique
+                  num mes para explodir a composicao (maquinas + venda minima). */}
+              <div className="bg-white border border-slate-200 rounded-lg p-3 mb-4">
+                <div className="flex items-center justify-between mb-1 gap-2 flex-wrap">
+                  <div className="text-xs uppercase tracking-wide text-slate-500">
+                    Margens evoluindo ({margemModoEvo === 'rs' ? 'R$' : '%'})
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="inline-flex rounded border border-slate-300 overflow-hidden" title="Margens em % da receita ou em valor (R$)">
+                      <button onClick={() => setMargemModoEvo('pct')} className={'px-2 py-0.5 text-[10px] ' + (margemModoEvo === 'pct' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}>%</button>
+                      <button onClick={() => setMargemModoEvo('rs')} className={'px-2 py-0.5 text-[10px] border-l border-slate-300 ' + (margemModoEvo === 'rs' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}>R$</button>
+                    </div>
+                    <div className="text-[10px] text-slate-400">
+                      Bruta = Receita − CMV · Líquida (real) = Receita − CMV − Capital · clique num mês para explodir
+                    </div>
+                  </div>
+                </div>
+                <div style={{ height: '280px', position: 'relative' }}><canvas ref={refChartEvo} /></div>
+              </div>
+
+              <div className="bg-white border border-slate-200 rounded-lg p-4 mb-4">
+                <div className="text-xs text-slate-500 uppercase tracking-wide mb-2">
+                  Margem % mensal por familia{incluirPecas ? '' : ' (so maquinas)'}
+                </div>
+                <div style={{ position: 'relative', height: '340px' }}><canvas ref={refChartData} /></div>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead className="bg-slate-50 text-slate-600">
+                      <tr>
+                        <th className="text-left px-3 py-2 whitespace-nowrap">Mes</th>
+                        {dataView.famsArr.map((f) => (
+                          <th key={f} className="text-right px-3 py-2 whitespace-nowrap max-w-[140px] truncate" title={f}>{f}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dataView.mesesArr.map((m, i) => (
+                        <tr key={m} className="border-b border-slate-100 hover:bg-slate-50">
+                          <td className="px-3 py-1.5 font-mono text-slate-700 whitespace-nowrap">{m}</td>
+                          {dataView.famsArr.map((f) => {
+                            const c2 = dataView.celulas[f + '|' + m]
+                            if (!c2) return <td key={f} className="px-3 py-1.5 text-right text-slate-300">-</td>
+                            const prev = i > 0 ? dataView.celulas[f + '|' + dataView.mesesArr[i - 1]] : null
+                            const d = prev ? +(c2.margem_pct - prev.margem_pct).toFixed(1) : null
+                            return (
+                              <td key={f} className="px-3 py-1.5 text-right whitespace-nowrap" title={c2.qtd + ' vendas · ' + fmtBRL(c2.receita) + ' receita'}>
+                                <span className={'font-semibold ' + corMargem(c2.margem_pct)}>{c2.margem_pct.toFixed(1)}%</span>
+                                {d !== null && (
+                                  <span className={'ml-1 text-[10px] ' + (d > 0 ? 'text-emerald-600' : (d < 0 ? 'text-red-600' : 'text-slate-400'))}>
+                                    {d > 0 ? '▲' : (d < 0 ? '▼' : '=')}{Math.abs(d).toFixed(1)}
+                                  </span>
+                                )}
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="px-3 py-2 border-t border-slate-200 text-[11px] text-slate-500">
+                  Variacao (▲/▼) em pontos percentuais vs mes anterior. Margem = lucro/receita do mes (ponderada).
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ===== Visualizacao classica (tabela detalhada) ====================== */}
+      {visao === 'tabela' && (
+        <>
+          <button
+            onClick={() => setVisao('')}
+            className="mb-3 text-xs px-3 py-1.5 border border-slate-300 rounded bg-white hover:bg-slate-100 text-slate-600"
+          >← Escolher visualizacao</button>
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
@@ -536,6 +960,153 @@ export default function MargensPage() {
           <div style={{ position: 'relative', height: '300px' }}><canvas ref={refChart} /></div>
         </div>
       )}
+        </>
+      )}
+
+      {/* Popup de composicao do mes explodido (visao DATA / Margens evoluindo):
+          maquinas que compoem a margem bruta e a liquida do mes, com a venda
+          minima (CMV + Capital) para a venda ter ficado positiva. */}
+      {mesSel && (
+        <>
+          <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setMesSel(null)} />
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-5xl max-h-[85vh] bg-white rounded-lg shadow-2xl z-50 flex flex-col">
+            <div className="border-b border-slate-200 px-5 py-3 flex items-center justify-between">
+              <div>
+                <h2 className="font-semibold text-slate-800">Composição do mês {mesSel}{incluirPecas ? '' : ' — só máquinas'}</h2>
+                {aggMesSel ? (
+                  <div className="text-xs text-slate-500 mt-0.5">
+                    {vendasMesSel.length} vendas · {fmtBRL(aggMesSel.receita)} receita
+                    {' · '}Margem Bruta <b className={corMargem(aggMesSel.brutaPct)}>{aggMesSel.brutaPct.toFixed(1)}%</b> ({fmtBRLcurto(aggMesSel.lucroBruto)})
+                    {' · '}Margem Líquida (real) <b className={corMargem(aggMesSel.liqPct)}>{aggMesSel.liqPct.toFixed(1)}%</b> ({fmtBRLcurto(aggMesSel.lucroLiq)})
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-500 mt-0.5">Nenhuma venda no mês.</div>
+                )}
+              </div>
+              <button onClick={() => setMesSel(null)} className="text-slate-500 hover:text-slate-900 text-2xl leading-none">&times;</button>
+            </div>
+            <div className="overflow-y-auto">
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead className="bg-slate-50 text-slate-600 sticky top-0">
+                    <tr>
+                      <th className="text-left px-3 py-2">Data</th>
+                      <th className="text-left px-3 py-2">Produto</th>
+                      <th className="text-right px-3 py-2">Vendido por</th>
+                      <th className="text-right px-3 py-2">CMV</th>
+                      <th className="text-right px-3 py-2">Capital</th>
+                      <th className="text-right px-3 py-2">Lucro bruto</th>
+                      <th className="text-right px-3 py-2">Lucro líq.</th>
+                      <th className="text-right px-3 py-2">Margem %</th>
+                      <th className="text-right px-3 py-2" title="CMV + Capital empatado: vendendo acima disso, a venda fica positiva">Venda p/ positivo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {vendasMesSel.map((it, idx) => {
+                      const corMg = corMargem(it.margem_pct)
+                      const lucroBruto = it.receita - it.cmv
+                      const faltou = it.custo_total - it.receita // > 0 = vendeu abaixo do break-even
+                      return (
+                        <tr
+                          key={idx}
+                          className={'border-b border-slate-100 hover:bg-slate-100 cursor-pointer ' + (it.margem_real < 0 ? 'bg-red-50' : (it.sem_cmc ? 'bg-amber-50' : ''))}
+                          onClick={() => setDetalhe(it)}
+                          title="Clique para ver o detalhe da venda"
+                        >
+                          <td className="px-3 py-1.5 text-slate-600 whitespace-nowrap">{it.data_pedido || '-'}</td>
+                          <td className="px-3 py-1.5 truncate max-w-[220px]" title={(it.descricao || '') + ' · ' + it.familia}>
+                            {it.descricao || '(sem)'}
+                            <span className="text-slate-400 text-[10px]"> · {it.familia}</span>
+                          </td>
+                          <td className="px-3 py-1.5 text-right font-medium">{fmtBRL(it.receita)}</td>
+                          <td className="px-3 py-1.5 text-right text-slate-600">
+                            {it.sem_cmc ? <span className="text-amber-700">s/ CMC</span> : fmtBRL(it.cmv)}
+                          </td>
+                          <td className="px-3 py-1.5 text-right text-amber-700">{fmtBRL(it.custo_capital)}</td>
+                          <td className={'px-3 py-1.5 text-right ' + corMargem(it.receita > 0 ? (lucroBruto / it.receita) * 100 : 0)}>{fmtBRL(lucroBruto)}</td>
+                          <td className={'px-3 py-1.5 text-right font-medium ' + corMg}>{fmtBRL(it.margem_real)}</td>
+                          <td className={'px-3 py-1.5 text-right font-bold ' + corMg}>{it.margem_pct.toFixed(1)}%</td>
+                          <td className="px-3 py-1.5 text-right whitespace-nowrap">
+                            {it.margem_real < 0 ? (
+                              <>
+                                <span className="font-bold text-red-700">≥ {fmtBRL(it.custo_total)}</span>
+                                <div className="text-[10px] text-red-600">faltou {fmtBRL(faltou)}</div>
+                              </>
+                            ) : (
+                              <span className="text-slate-500">≥ {fmtBRL(it.custo_total)}</span>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div className="px-3 py-2 border-t border-slate-200 text-[11px] text-slate-500">
+              Piores margens primeiro · "Venda p/ positivo" = CMV + Capital empatado (break-even da venda) · clique numa linha para o detalhe completo
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Popup de composicao da media da familia (visao FAMILIA) */}
+      {famSel && aggFamSel && (
+        <>
+          <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setFamSel(null)} />
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-3xl max-h-[85vh] bg-white rounded-lg shadow-2xl z-50 flex flex-col">
+            <div className="border-b border-slate-200 px-5 py-3 flex items-center justify-between">
+              <div>
+                <h2 className="font-semibold text-slate-800">{ehPeca(famSel) ? '🔩 ' : '⚙ '}{famSel}</h2>
+                <div className="text-xs text-slate-500 mt-0.5">
+                  Margem media <b className={corMargem(aggFamSel.margem_pct)}>{aggFamSel.margem_pct.toFixed(1)}%</b>
+                  {' · '}{aggFamSel.qtd} vendas
+                  {' · '}{fmtBRL(aggFamSel.receita)} receita
+                  {' · '}<span className={corMargem(aggFamSel.margem_pct)}>{fmtBRL(aggFamSel.lucro)} lucro</span>
+                </div>
+              </div>
+              <button onClick={() => setFamSel(null)} className="text-slate-500 hover:text-slate-900 text-2xl leading-none">&times;</button>
+            </div>
+            <div className="overflow-y-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-slate-50 text-slate-600 sticky top-0">
+                  <tr>
+                    <th className="text-left px-3 py-2">Data</th>
+                    <th className="text-left px-3 py-2">Produto</th>
+                    <th className="text-left px-3 py-2">Pedido/NF</th>
+                    <th className="text-right px-3 py-2">Receita</th>
+                    <th className="text-right px-3 py-2">Lucro</th>
+                    <th className="text-right px-3 py-2">Margem %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {vendasFamSel.map((it, idx) => {
+                    const corMg = corMargem(it.margem_pct)
+                    return (
+                      <tr
+                        key={idx}
+                        className={'border-b border-slate-100 hover:bg-slate-100 cursor-pointer ' + (it.margem_real < 0 ? 'bg-red-50' : (it.sem_cmc ? 'bg-amber-50' : ''))}
+                        onClick={() => setDetalhe(it)}
+                        title="Clique para ver o detalhe da venda"
+                      >
+                        <td className="px-3 py-1.5 text-slate-600 whitespace-nowrap">{it.data_pedido || '-'}</td>
+                        <td className="px-3 py-1.5 truncate max-w-[260px]" title={it.descricao || ''}>{it.descricao || '(sem)'}</td>
+                        <td className="px-3 py-1.5 font-mono text-[11px] text-slate-700">{it.pedido || '-'}</td>
+                        <td className="px-3 py-1.5 text-right">{fmtBRL(it.receita)}</td>
+                        <td className={'px-3 py-1.5 text-right font-medium ' + corMg}>{fmtBRL(it.margem_real)}</td>
+                        <td className={'px-3 py-1.5 text-right font-bold ' + corMg}>{it.margem_pct.toFixed(1)}%</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="px-3 py-2 border-t border-slate-200 text-[11px] text-slate-500">
+              {vendasFamSel.length} vendas compoem a media · clique numa linha para o detalhe completo
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Modal detalhe da venda */}
       {detalhe && (() => {
@@ -543,8 +1114,9 @@ export default function MargensPage() {
         const corMg = corMargem(it.margem_pct)
         return (
           <>
-            <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setDetalhe(null)} />
-            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl max-h-[85vh] bg-white rounded-lg shadow-2xl z-50 flex flex-col">
+            {/* z acima do popup de familia (z-40/z-50): o detalhe abre por cima dele */}
+            <div className="fixed inset-0 bg-black/40 z-[60]" onClick={() => setDetalhe(null)} />
+            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl max-h-[85vh] bg-white rounded-lg shadow-2xl z-[70] flex flex-col">
               <div className="border-b border-slate-200 px-5 py-3 flex items-center justify-between">
                 <h2 className="font-semibold text-slate-800">Venda · Pedido {it.pedido || '?'}</h2>
                 <button onClick={() => setDetalhe(null)} className="text-slate-500 hover:text-slate-900 text-2xl leading-none">&times;</button>
