@@ -21,8 +21,7 @@ import { labelSetor, ehDoSetor } from '@/lib/financeiro/setor'
 
 const FORMAS_BOLETO = ['Pix', 'Dinheiro', 'Boleto 30 dias', 'Boleto Parcelado', 'Cartão a vista', 'Cartão Parcelado', 'Cheque'];
 
-// Pós-Vendas vê SÓ os cards de Oficina (serviço). Os de Peças ficam no painel de Peças.
-const SETOR_PAINEL = 'oficina';
+// Pós-Vendas vê os cards de Oficina; pode incluir os de Peças via checkbox.
 
 const setorBadgeStyle = { position: 'absolute', top: '10px', right: '10px', zIndex: 2, fontSize: '10px', fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase', padding: '3px 9px', borderRadius: '8px', background: '#eef2ff', color: '#4f46e5', border: '1px solid #c7d2fe' };
 const METODOS_PAGAR = ['Boleto', 'Boleto Parcelado', 'Pix', 'Cartão de Crédito', 'Cartão de Débito', 'Dinheiro', 'Transferência', 'Carnê ISS'];
@@ -74,6 +73,16 @@ function HomePosVendasContent() {
   const [listaRH, setListaRH] = useState([]);
   const [showNovoMenu, setShowNovoMenu] = useState(false);
   const [sincOS, setSincOS] = useState(false);
+  // Mostrar (ou não) os cards do setor de Peças junto dos de Oficina.
+  // Guardado em ref pra os handlers do realtime lerem sempre o valor atual.
+  const [verPecas, setVerPecas] = useState(false);
+  const verPecasRef = useRef(false);
+  const toggleVerPecas = () => {
+    const v = !verPecasRef.current;
+    verPecasRef.current = v; setVerPecas(v);
+    try { localStorage.setItem('finan_posvendas_ver_pecas', v ? '1' : '0'); } catch {}
+    carregarDados();
+  };
   const sincronizarOS = async () => {
     if (sincOS) return;
     setSincOS(true);
@@ -97,9 +106,12 @@ function HomePosVendasContent() {
     try {
       const { data: bolds } = await supabase.from('Chamado_NF').select('*').neq('status', 'concluido').order('id', {ascending: false});
 
+      // Setor: 'oficina' (padrão) ou 'todos' (inclui Peças) conforme a checkbox
+      const setorFiltro = verPecasRef.current ? 'todos' : 'oficina';
+
       // FILTRO: Remove PIX e foca em "Enviar para cliente" ou "Cobranca"
       const tarefasFaturamento = (bolds || [])
-        .filter(t => ehDoSetor(t, SETOR_PAINEL))
+        .filter(t => ehDoSetor(t, setorFiltro))
         .filter(t => !t.forma_pagamento?.toLowerCase().includes('pix'))
         .filter(t => t.status === 'enviar_cliente' || (t.status === 'vencido' && t.tarefa?.includes('Cobrar')))
         .map(t => {
@@ -116,7 +128,7 @@ function HomePosVendasContent() {
 
       // Clientes sem boleto (status = 'sem_boleto')
       const semBoleto = (bolds || [])
-        .filter(t => ehDoSetor(t, SETOR_PAINEL))
+        .filter(t => ehDoSetor(t, setorFiltro))
         .filter(t => t.status === 'sem_boleto')
         .map(t => ({
           ...t,
@@ -153,6 +165,12 @@ function HomePosVendasContent() {
   }, []);
 
   useEffect(() => {
+    // Restaura a preferência de "ver Peças" antes de carregar
+    try {
+      if (localStorage.getItem('finan_posvendas_ver_pecas') === '1') {
+        verPecasRef.current = true; setVerPecas(true);
+      }
+    } catch {}
     carregarDados();
   }, []);
 
@@ -317,6 +335,16 @@ function HomePosVendasContent() {
   return (
     <div style={{ fontFamily: 'Inter, sans-serif' }}>
       <FinanceiroNav>
+        <label title="Incluir os cards do setor de Peças (Balcão) junto dos de Oficina" style={{
+          display: 'flex', alignItems: 'center', gap: '7px', marginRight: '8px', cursor: 'pointer',
+          background: verPecas ? '#fff7ed' : 'var(--portal-bg-secondary)',
+          color: verPecas ? '#c2410c' : 'var(--portal-text-secondary)',
+          border: `1px solid ${verPecas ? '#fed7aa' : 'var(--portal-border)'}`,
+          padding: '8px 12px', borderRadius: '8px', fontWeight: 700, fontSize: '12px', transition: '0.2s', userSelect: 'none',
+        }}>
+          <input type="checkbox" checked={verPecas} onChange={toggleVerPecas} style={{ accentColor: '#c2410c', cursor: 'pointer', width: '14px', height: '14px' }} />
+          Ver Peças
+        </label>
         <button onClick={sincronizarOS} disabled={sincOS} title="Buscar ordens de serviço faturadas (com NF) no Omie e gerar os chamados" style={{
           background: 'var(--portal-bg-secondary)', color: '#4f46e5',
           border: '1px solid #c7d2fe', padding: '8px 14px', borderRadius: '8px', fontWeight: '700',
