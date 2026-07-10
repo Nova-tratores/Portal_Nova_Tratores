@@ -34,6 +34,7 @@ function TicketsPageInner() {
 
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [usuarios, setUsuarios] = useState<Record<string, UsuarioMin>>({})
+  const [contadores, setContadores] = useState<Record<Visao, number> | null>(null)
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState('')
   const [busca, setBusca] = useState('')
@@ -52,6 +53,7 @@ function TicketsPageInner() {
       if (!res.ok) { setErro(json.error || 'Falha ao carregar'); setTickets([]); return }
       setTickets(json.tickets || [])
       setUsuarios(json.usuarios || {})
+      if (json.contadores) setContadores(json.contadores)
     } catch {
       setErro('Falha de conexão')
     } finally {
@@ -99,18 +101,31 @@ function TicketsPageInner() {
       {/* Cabeçalho */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {abas.map((a) => (
-            <button key={a.id} onClick={() => router.push(`/tickets?aba=${a.id}`)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8,
-                fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                border: visao === a.id ? '1.5px solid #dc2626' : '1px solid var(--portal-border,#e5e7eb)',
-                background: visao === a.id ? 'rgba(220,38,38,.07)' : 'var(--portal-surface,#fff)',
-                color: visao === a.id ? '#dc2626' : 'var(--portal-text-secondary,#555)',
-              }}>
-              {a.icone} {a.label}
-            </button>
-          ))}
+          {abas.map((a) => {
+            const qtd = contadores?.[a.id]
+            const ativo = visao === a.id
+            return (
+              <button key={a.id} onClick={() => router.push(`/tickets?aba=${a.id}`)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8,
+                  fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  border: ativo ? '1.5px solid #dc2626' : '1px solid var(--portal-border,#e5e7eb)',
+                  background: ativo ? 'rgba(220,38,38,.07)' : 'var(--portal-surface,#fff)',
+                  color: ativo ? '#dc2626' : 'var(--portal-text-secondary,#555)',
+                }}>
+                {a.icone} {a.label}
+                {typeof qtd === 'number' && qtd > 0 && (
+                  <span style={{
+                    minWidth: 18, padding: '1px 6px', borderRadius: 999, fontSize: 11, fontWeight: 800,
+                    background: ativo ? '#dc2626' : 'var(--portal-bg,#f3f4f6)',
+                    color: ativo ? '#fff' : 'var(--portal-text-muted,#888)',
+                  }}>
+                    {qtd}
+                  </span>
+                )}
+              </button>
+            )
+          })}
         </div>
         <button onClick={() => setModalNovo(true)}
           style={{
@@ -176,6 +191,15 @@ function TicketsPageInner() {
             {visao === 'acompanhando' && 'Você não está acompanhando nenhum ticket de outras pessoas.'}
             {visao === 'gerencial' && 'Nenhum ticket em aberto na empresa.'}
           </div>
+          {visao === 'fila' && (contadores?.pedidos || 0) > 0 && (
+            <div style={{ fontSize: 13, marginTop: 8 }}>
+              Os tickets que você abriu para outras pessoas estão em{' '}
+              <button onClick={() => router.push('/tickets?aba=pedidos')}
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, fontSize: 13, fontWeight: 700, color: '#dc2626', textDecoration: 'underline' }}>
+                Meus pedidos ({contadores?.pedidos})
+              </button>.
+            </div>
+          )}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
