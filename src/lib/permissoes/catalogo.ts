@@ -31,6 +31,7 @@ const GRUPO_POR_MODULO: Record<string, string> = {
   'consulta-estoque': 'Estoque', estoque: 'Estoque', abastecimento: 'Estoque',
   // Outros
   opa: 'Outros', avisos: 'Outros', tarefas: 'Outros', 'dashboard-agro': 'Outros', tratorilson: 'Outros',
+  tickets: 'Outros',
 };
 
 export function grupoDoModulo(id: string): string {

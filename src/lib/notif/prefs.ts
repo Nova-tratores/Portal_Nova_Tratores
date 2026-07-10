@@ -33,6 +33,7 @@ export const MODULOS_NOTIFICAVEIS: { id: string; nome: string }[] = [
   { id: 'revisoes',    nome: 'Controle de Revisões' },
   { id: 'feedbacks',   nome: 'Feedbacks & CRM' },
   { id: 'tarefas',     nome: 'Tarefas' },
+  { id: 'tickets',     nome: 'Tickets' },
   { id: 'atividades',  nome: 'Atividades' },
 ];
 

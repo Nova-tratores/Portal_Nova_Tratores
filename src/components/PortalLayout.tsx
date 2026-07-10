@@ -12,7 +12,7 @@ import {
   LayoutDashboard, Bell, ChevronRight, ChevronDown, Activity, Lock, MessageCircle,
   CheckCheck, Trash2, ExternalLink, Calendar, Users, Calculator, BarChart3, Eye, Camera, Wheat, Megaphone,
   Sun, Moon, Volume2, Check, MapPin, ShieldCheck, Building, SlidersHorizontal, AlertCircle, Headset,
-  LayoutGrid, List, CircleDot, GanttChartSquare, Clock, Fuel
+  LayoutGrid, List, CircleDot, GanttChartSquare, Clock, Fuel, Ticket
 } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -50,6 +50,7 @@ const GROUP_ORDER = ['geral', 'servicos', 'pecas', 'financeiro', 'comercial', 'e
 const navItems: NavItem[] = [
   // Geral
   { id: 'dashboard', name: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={18} />, tag: 'INÍCIO', gradient: '', group: 'geral' },
+  { id: 'tickets', name: 'Tickets', href: '/tickets', icon: <Ticket size={18} />, tag: 'DEMANDAS', gradient: '', group: 'geral' },
 
   // Serviços (azul claro)
   { id: 'pos', name: 'Pós-Vendas (OS)', href: '/pos', icon: <Settings size={18} />, tag: 'OS', gradient: '', group: 'servicos' },
@@ -101,13 +102,14 @@ const NOTIF_ICONS: Record<string, import('react').ReactNode> = {
   proposta: <FileText size={18} />,
   admin: <Lock size={18} />,
   sistema: <Bell size={18} />,
+  tickets: <Ticket size={18} />,
 }
 
 // Cor de acento por tipo de notificação
 const NOTIF_COLORS: Record<string, string> = {
   chat: '#3b82f6', financeiro: '#10b981', requisicao: '#f97316', revisao: '#0ea5e9',
   pos: '#0ea5e9', ppv: '#f97316', garantia: '#0ea5e9', proposta: '#8b5cf6',
-  admin: '#dc2626', sistema: '#6b7280',
+  admin: '#dc2626', sistema: '#6b7280', tickets: '#0891b2',
 }
 
 const timeAgo = (date: string) => {

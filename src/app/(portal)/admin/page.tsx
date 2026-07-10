@@ -38,6 +38,7 @@ const MODULOS = [
   { id: 'sat', label: 'SAT Digital', color: '#0ea5e9' },
   { id: 'supervisor-vendas', label: 'Supervisor Vendas', color: '#dc2626' },
   { id: 'tarefas', label: 'Tarefas', color: '#dc2626' },
+  { id: 'tickets', label: 'Tickets', color: '#0891b2' },
   { id: 'tratorilson', label: 'Tratorilson (Chat IA)', color: '#ef4444' },
 ]
 
