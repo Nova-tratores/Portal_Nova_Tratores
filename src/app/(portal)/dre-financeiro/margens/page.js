@@ -202,6 +202,7 @@ export default function MargensPage() {
     else if (familia && it.familia !== familia) return false
     const b = busca.trim().toLowerCase()
     if (b && !(String(it.codigo_produto).toLowerCase().includes(b)
+      || String(it.sku || '').toLowerCase().includes(b)
       || (it.descricao || '').toLowerCase().includes(b)
       || (it.cliente || '').toLowerCase().includes(b)
       || (it.vendedor || '').toLowerCase().includes(b))) return false
@@ -913,7 +914,7 @@ export default function MargensPage() {
                       onClick={() => setDetalhe(it)}
                     >
                       <td className="px-3 py-1.5 text-slate-600 whitespace-nowrap">{it.data_pedido || '-'}</td>
-                      <td className="px-3 py-1.5 font-mono text-[10px] text-slate-600">{it.codigo_produto}</td>
+                      <td className="px-3 py-1.5 font-mono text-[10px] text-slate-600" title={'Cod. Omie: ' + it.codigo_produto}>{it.sku || it.codigo_produto}</td>
                       <td className="px-3 py-1.5 truncate max-w-[240px]" title={it.descricao || ''}>{it.descricao || '(sem)'}</td>
                       <td className="px-3 py-1.5 text-slate-600 text-[11px]">{it.familia}</td>
                       <td className="px-3 py-1.5 font-mono text-[11px] text-slate-700">{it.pedido || '-'}</td>
@@ -1140,7 +1141,7 @@ export default function MargensPage() {
                 <div className="border border-slate-200 rounded p-3 mb-3">
                   <div className="text-xs text-slate-500 uppercase tracking-wide mb-2">Produto</div>
                   <div className="text-sm font-medium text-slate-800">{it.descricao || '(sem descricao)'}</div>
-                  <div className="text-xs text-slate-500 mt-1">Codigo: <span className="font-mono">{it.codigo_produto}</span> · Familia: {it.familia}</div>
+                  <div className="text-xs text-slate-500 mt-1">SKU: <span className="font-mono">{it.sku || '—'}</span> · Cod. Omie: <span className="font-mono">{it.codigo_produto}</span> · Familia: {it.familia}</div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 mb-3">

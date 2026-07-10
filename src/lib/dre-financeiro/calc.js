@@ -553,10 +553,14 @@ async function calcularMargens(conta, taxaMensalPct, meses, desde) {
   // 2. Mapa de data_inclusao por produto (pra estimar dias em estoque ate a venda)
   const codigos = Array.from(new Set(vendas.map(v => String(v.codigo_produto))));
   const dataInclMap = {};
+  const skuMap = {}; // codigo_produto (ID interno Omie) -> codigo (SKU legivel, ex "20.02.0004")
   for (let i = 0; i < codigos.length; i += 500) {
     const lote = codigos.slice(i, i + 500);
-    const { data } = await supabase.from('produtos').select('codigo_produto,data_inclusao').in('codigo_produto', lote);
-    (data || []).forEach(p => { if (p.data_inclusao) dataInclMap[String(p.codigo_produto)] = p.data_inclusao; });
+    const { data } = await supabase.from('produtos').select('codigo_produto,data_inclusao,codigo').in('codigo_produto', lote);
+    (data || []).forEach(p => {
+      if (p.data_inclusao) dataInclMap[String(p.codigo_produto)] = p.data_inclusao;
+      if (p.codigo) skuMap[String(p.codigo_produto)] = String(p.codigo);
+    });
   }
 
   // 3. Mapeia cada venda como item com margem
@@ -581,6 +585,7 @@ async function calcularMargens(conta, taxaMensalPct, meses, desde) {
     const semCmc = !cmc;
     return {
       codigo_produto: String(v.codigo_produto),
+      sku: skuMap[String(v.codigo_produto)] || null, // codigo legivel do produto (SKU)
       descricao: v.descricao || '(sem descricao)',
       familia: fam,
       cliente: v.nome_cliente || null,
