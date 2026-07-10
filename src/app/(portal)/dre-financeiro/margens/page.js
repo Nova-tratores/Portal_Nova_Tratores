@@ -153,6 +153,16 @@ export default function MargensPage() {
   // toggle %/R$ e mes "explodido" no popup de composicao (maquinas do mes).
   const [margemModoEvo, setMargemModoEvo] = useState('pct') // 'pct' | 'rs'
   const [mesSel, setMesSel] = useState(null)                // 'YYYY-MM' aberto no popup
+  const [mesSelFam, setMesSelFam] = useState(null)          // familia do ponto clicado no grafico por familia (null = todas)
+
+  // Tabela meses x familias: celulas em margem % (bruta+liquida) ou em valores
+  // R$ de venda x custo ("opcao de visualizar valores de custo e venda").
+  const [dataTabModo, setDataTabModo] = useState('pct')     // 'pct' | 'valores'
+
+  // Ordenacao das tabelas dos popups: padrao por margem liquida (piores
+  // primeiro); qualquer cabecalho ordena asc/desc ao clicar.
+  const [popOrdem, setPopOrdem] = useState({ campo: 'margem_pct', dir: 'asc' })
+  const abrirPopupOrdemPadrao = () => setPopOrdem({ campo: 'margem_pct', dir: 'asc' })
 
   // Ref do grafico mensal
   const refChart = useRef(null)
@@ -260,7 +270,7 @@ export default function MargensPage() {
   useEffect(() => {
     function onKey(e) {
       if (e.key !== 'Escape') return
-      setDetalhe((d) => { if (!d) { setFamSel(null); setMesSel(null) } return null })
+      setDetalhe((d) => { if (!d) { setFamSel(null); setMesSel(null); setMesSelFam(null) } return null })
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
@@ -301,27 +311,67 @@ export default function MargensPage() {
     const map = {}
     todos.forEach((it) => {
       const f = it.familia || '(sem familia)'
-      if (!map[f]) map[f] = { familia: f, qtd: 0, receita: 0, custo: 0, lucro: 0 }
+      if (!map[f]) map[f] = { familia: f, qtd: 0, receita: 0, cmv: 0, custo: 0, lucro: 0 }
       map[f].qtd += 1
       map[f].receita += it.receita
+      map[f].cmv += it.cmv
       map[f].custo += it.cmv + it.custo_capital
       map[f].lucro += it.margem_real
     })
     const arr = Object.values(map)
-    arr.forEach((x) => { x.margem_pct = x.receita > 0 ? +((x.lucro / x.receita) * 100).toFixed(1) : 0 })
+    arr.forEach((x) => {
+      x.margem_pct = x.receita > 0 ? +((x.lucro / x.receita) * 100).toFixed(1) : 0
+      x.bruta_pct = x.receita > 0 ? +(((x.receita - x.cmv) / x.receita) * 100).toFixed(1) : 0
+    })
     arr.sort((a, b) => b.receita - a.receita)
     return arr
   })()
 
-  // Vendas que compoem a media da familia aberta no popup (mais recentes primeiro).
-  const vendasFamSel = famSel ? todos
-    .filter((it) => (it.familia || '(sem familia)') === famSel)
-    .slice()
-    .sort((a, b) => {
-      if (a.ano !== b.ano) return b.ano - a.ano
-      if (a.mes !== b.mes) return b.mes - a.mes
-      return String(b.data_pedido || '').localeCompare(String(a.data_pedido || ''), 'pt-BR', { numeric: true })
-    }) : []
+  // =========================================================================
+  // Ordenacao das tabelas dos popups (cabecalhos clicaveis A-Z / Z-A).
+  // 'data' ordena cronologicamente (dd/mm/yyyy -> yyyymmdd); 'margem_bruta_pct'
+  // e calculada na hora (nao vem da API).
+  // =========================================================================
+  function valorOrdPopup(it, campo) {
+    if (campo === 'data') {
+      const m = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(String(it.data_pedido || ''))
+      if (m) return Number(m[3]) * 10000 + Number(m[2]) * 100 + Number(m[1])
+      return (it.ano || 0) * 10000 + (it.mes || 0) * 100
+    }
+    if (campo === 'margem_bruta_pct') return it.receita > 0 ? ((it.receita - it.cmv) / it.receita) * 100 : -Infinity
+    return it[campo]
+  }
+  function ordenarPopup(arr) {
+    const dirP = popOrdem.dir === 'asc' ? 1 : -1
+    return arr.slice().sort((a, b) => {
+      let va = valorOrdPopup(a, popOrdem.campo), vb = valorOrdPopup(b, popOrdem.campo)
+      if (va === null || va === undefined) va = -Infinity
+      if (vb === null || vb === undefined) vb = -Infinity
+      if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dirP
+      return String(va).localeCompare(String(vb), 'pt-BR', { numeric: true }) * dirP
+    })
+  }
+  // Cabecalho ordenavel dos popups (▲/▼ na coluna ativa, ⇅ nas demais).
+  function ThPop({ campo, rotulo, dirTexto, title }) {
+    const atual = popOrdem.campo === campo
+    return (
+      <th
+        title={title}
+        className={(dirTexto === 'left' ? 'text-left' : 'text-right') + ' px-3 py-2 cursor-pointer hover:bg-slate-100 whitespace-nowrap select-none'}
+        onClick={() => setPopOrdem((o) => o.campo === campo ? { campo, dir: o.dir === 'asc' ? 'desc' : 'asc' } : { campo, dir: 'asc' })}
+      >
+        {rotulo} {atual
+          ? <span className="text-slate-700">{popOrdem.dir === 'asc' ? '▲' : '▼'}</span>
+          : <span className="text-slate-300">⇅</span>}
+      </th>
+    )
+  }
+
+  // Vendas que compoem a media da familia aberta no popup (ordenacao pelos
+  // cabecalhos; padrao = margem liquida, piores primeiro).
+  const vendasFamSel = famSel
+    ? ordenarPopup(todos.filter((it) => (it.familia || '(sem familia)') === famSel))
+    : []
   const aggFamSel = famSel ? porFamilia.find((x) => x.familia === famSel) : null
 
   // =========================================================================
@@ -343,8 +393,9 @@ export default function MargensPage() {
       mesesSet.add(m)
       recFam[f] = (recFam[f] || 0) + it.receita
       const ck = f + '|' + m
-      if (!celulas[ck]) celulas[ck] = { receita: 0, lucro: 0, qtd: 0 }
+      if (!celulas[ck]) celulas[ck] = { receita: 0, cmv: 0, lucro: 0, qtd: 0 }
       celulas[ck].receita += it.receita
+      celulas[ck].cmv += it.cmv
       celulas[ck].lucro += it.margem_real
       celulas[ck].qtd += 1
       // Totais do mes p/ "Margens evoluindo": bruta = receita − CMV;
@@ -355,7 +406,11 @@ export default function MargensPage() {
       porMes[m].capital += it.custo_capital
       porMes[m].qtd += 1
     })
-    Object.values(celulas).forEach((c2) => { c2.margem_pct = c2.receita > 0 ? +((c2.lucro / c2.receita) * 100).toFixed(1) : 0 })
+    Object.values(celulas).forEach((c2) => {
+      c2.margem_pct = c2.receita > 0 ? +((c2.lucro / c2.receita) * 100).toFixed(1) : 0
+      c2.bruta_pct = c2.receita > 0 ? +(((c2.receita - c2.cmv) / c2.receita) * 100).toFixed(1) : 0
+      c2.custo = c2.receita - c2.lucro // CMV + capital do mes
+    })
     const famsArr = [...famsSet].sort((a, b) => (recFam[b] || 0) - (recFam[a] || 0))
     const mesesArr = [...mesesSet].sort()
     const evolucao = mesesArr.map((m) => {
@@ -372,14 +427,16 @@ export default function MargensPage() {
     return { mesesArr, famsArr, celulas, evolucao }
   })()
 
-  // Vendas que compoem o mes "explodido" (mesmo filtro da visao DATA: pecas so
-  // com o checkbox). Piores margens primeiro — e onde se ve por quanto a
+  // Vendas que compoem o mes "explodido". Se veio de um clique numa bolinha do
+  // grafico por familia, filtra tambem pela familia (mesSelFam); senao, mesmo
+  // filtro da visao DATA (pecas so com o checkbox). E onde se ve por quanto a
   // maquina deveria ter sido vendida para ficar positiva.
-  const vendasMesSel = mesSel ? todos.filter((it) => {
+  const vendasMesSel = mesSel ? ordenarPopup(todos.filter((it) => {
     const f = it.familia || '(sem familia)'
-    if (!incluirPecas && ehPeca(f)) return false
+    if (mesSelFam) { if (f !== mesSelFam) return false }
+    else if (!incluirPecas && ehPeca(f)) return false
     return (it.ano + '-' + String(it.mes).padStart(2, '0')) === mesSel
-  }).slice().sort((a, b) => a.margem_pct - b.margem_pct) : []
+  })) : []
   const aggMesSel = (() => {
     if (!mesSel || vendasMesSel.length === 0) return null
     const t2 = vendasMesSel.reduce((s, it) => {
@@ -441,7 +498,7 @@ export default function MargensPage() {
         onClick: function (evt, elements) {
           if (elements && elements.length) {
             const m = mesesArr[elements[0].index]
-            if (m) setMesSel(m)
+            if (m) { setMesSelFam(null); setMesSel(m); abrirPopupOrdemPadrao() }
           }
         },
         onHover: function (evt, elements) {
@@ -476,6 +533,9 @@ export default function MargensPage() {
   const PALETA = ['#2563eb', '#059669', '#dc2626', '#d97706', '#7c3aed', '#0891b2', '#be185d', '#65a30d', '#475569', '#ea580c', '#0d9488', '#9333ea']
 
   // Grafico da visao DATA: uma linha de margem % por familia, meses no eixo X.
+  // Bolinhas CLICAVEIS (abrem a composicao familia+mes); linhas finas, retas e
+  // sem spanGaps — as retas longas ligando meses distantes eram o que mais
+  // sobrepunha o grafico (familias com vendas esparsas cruzavam tudo).
   useEffect(() => {
     if (visao !== 'data') {
       if (instChartData.current) { instChartData.current.destroy(); instChartData.current = null }
@@ -494,16 +554,31 @@ export default function MargensPage() {
           data: mesesArr.map((m) => { const c2 = celulas[f + '|' + m]; return c2 ? c2.margem_pct : null }),
           borderColor: PALETA[i % PALETA.length],
           backgroundColor: PALETA[i % PALETA.length],
-          borderWidth: 2, pointRadius: 3, pointHoverRadius: 6, tension: 0.2, spanGaps: true,
+          borderWidth: 1.5, pointRadius: 5, pointHoverRadius: 8, pointHitRadius: 10,
+          tension: 0, spanGaps: false,
         })),
       },
       options: {
         responsive: true, maintainAspectRatio: false,
-        interaction: { mode: 'nearest', intersect: false },
+        // intersect: true = tooltip/clique SO em cima da bolinha (clicavel).
+        interaction: { mode: 'nearest', intersect: true },
+        onClick: function (evt, elements) {
+          if (elements && elements.length) {
+            const f = famsArr[elements[0].datasetIndex]
+            const m = mesesArr[elements[0].index]
+            if (f && m) { setMesSelFam(f); setMesSel(m); abrirPopupOrdemPadrao() }
+          }
+        },
+        onHover: function (evt, elements) {
+          if (evt.native && evt.native.target) evt.native.target.style.cursor = elements.length ? 'pointer' : 'default'
+        },
         scales: { y: { title: { display: true, text: 'Margem %' }, ticks: { callback: function (v) { return v + '%' } } } },
         plugins: {
           legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } },
-          tooltip: { callbacks: { label: function (item) { return item.dataset.label + ': ' + item.raw + '%' } } },
+          tooltip: { callbacks: {
+            label: function (item) { return item.dataset.label + ': ' + item.raw + '%' },
+            footer: function () { return 'Clique para ver as vendas' },
+          } },
         },
       },
     })
@@ -677,14 +752,19 @@ export default function MargensPage() {
               {porFamilia.map((f) => (
                 <button
                   key={f.familia}
-                  onClick={() => setFamSel(f.familia)}
+                  onClick={() => { setFamSel(f.familia); abrirPopupOrdemPadrao() }}
                   className="bg-white border border-slate-200 rounded-lg p-4 text-left hover:border-blue-400 hover:shadow transition-all"
                 >
                   <div className="text-xs text-slate-500 truncate" title={f.familia}>
                     {ehPeca(f.familia) ? '🔩 ' : '⚙ '}{f.familia}
                   </div>
                   <div className={'text-2xl font-bold mt-1 ' + corMargem(f.margem_pct)}>{f.margem_pct.toFixed(1)}%</div>
-                  <div className="text-[11px] text-slate-500 mt-1">{f.qtd} vendas · {fmtBRLcurto(f.receita)} receita</div>
+                  <div className="text-[11px] text-slate-500">
+                    líquida (real) · bruta <b className={corMargem(f.bruta_pct)}>{f.bruta_pct.toFixed(1)}%</b>
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-1">
+                    {f.qtd} vendas · venda <span className="text-emerald-700">{fmtBRLcurto(f.receita)}</span> · custo <span className="text-red-700">{fmtBRLcurto(f.custo)}</span>
+                  </div>
                   <div className={'text-[11px] ' + corMargem(f.margem_pct)}>{fmtBRLcurto(f.lucro)} lucro</div>
                 </button>
               ))}
@@ -746,6 +826,21 @@ export default function MargensPage() {
                 <div style={{ position: 'relative', height: '340px' }}><canvas ref={refChartData} /></div>
               </div>
               <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+                <div className="px-3 py-2 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
+                  <span className="text-xs uppercase tracking-wide text-slate-500">
+                    Meses x familias — {dataTabModo === 'pct' ? 'margem bruta e liquida' : 'valores de venda e custo'}
+                  </span>
+                  <div className="inline-flex rounded border border-slate-300 overflow-hidden" title="Celulas em margem % (bruta + liquida) ou em valores R$ (venda x custo)">
+                    <button
+                      onClick={() => setDataTabModo('pct')}
+                      className={'px-2 py-0.5 text-[10px] ' + (dataTabModo === 'pct' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}
+                    >Margem %</button>
+                    <button
+                      onClick={() => setDataTabModo('valores')}
+                      className={'px-2 py-0.5 text-[10px] border-l border-slate-300 ' + (dataTabModo === 'valores' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}
+                    >Custo x Venda (R$)</button>
+                  </div>
+                </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead className="bg-slate-50 text-slate-600">
@@ -765,14 +860,26 @@ export default function MargensPage() {
                             if (!c2) return <td key={f} className="px-3 py-1.5 text-right text-slate-300">-</td>
                             const prev = i > 0 ? dataView.celulas[f + '|' + dataView.mesesArr[i - 1]] : null
                             const d = prev ? +(c2.margem_pct - prev.margem_pct).toFixed(1) : null
+                            const tit = c2.qtd + ' vendas · venda ' + fmtBRL(c2.receita) + ' · custo ' + fmtBRL(c2.custo) + ' · bruta ' + c2.bruta_pct.toFixed(1) + '% · liquida ' + c2.margem_pct.toFixed(1) + '%'
+                            if (dataTabModo === 'valores') {
+                              return (
+                                <td key={f} className="px-3 py-1.5 text-right whitespace-nowrap" title={tit}>
+                                  <div className="text-emerald-700 font-medium">{fmtBRLcurto(c2.receita)}</div>
+                                  <div className="text-[10px] text-red-700">custo {fmtBRLcurto(c2.custo)}</div>
+                                </td>
+                              )
+                            }
                             return (
-                              <td key={f} className="px-3 py-1.5 text-right whitespace-nowrap" title={c2.qtd + ' vendas · ' + fmtBRL(c2.receita) + ' receita'}>
-                                <span className={'font-semibold ' + corMargem(c2.margem_pct)}>{c2.margem_pct.toFixed(1)}%</span>
-                                {d !== null && (
-                                  <span className={'ml-1 text-[10px] ' + (d > 0 ? 'text-emerald-600' : (d < 0 ? 'text-red-600' : 'text-slate-400'))}>
-                                    {d > 0 ? '▲' : (d < 0 ? '▼' : '=')}{Math.abs(d).toFixed(1)}
-                                  </span>
-                                )}
+                              <td key={f} className="px-3 py-1.5 text-right whitespace-nowrap" title={tit}>
+                                <div>
+                                  <span className={'font-semibold ' + corMargem(c2.margem_pct)}>{c2.margem_pct.toFixed(1)}%</span>
+                                  {d !== null && (
+                                    <span className={'ml-1 text-[10px] ' + (d > 0 ? 'text-emerald-600' : (d < 0 ? 'text-red-600' : 'text-slate-400'))}>
+                                      {d > 0 ? '▲' : (d < 0 ? '▼' : '=')}{Math.abs(d).toFixed(1)}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className={'text-[10px] ' + corMargem(c2.bruta_pct)}>bruta {c2.bruta_pct.toFixed(1)}%</div>
                               </td>
                             )
                           })}
@@ -782,7 +889,9 @@ export default function MargensPage() {
                   </table>
                 </div>
                 <div className="px-3 py-2 border-t border-slate-200 text-[11px] text-slate-500">
-                  Variacao (▲/▼) em pontos percentuais vs mes anterior. Margem = lucro/receita do mes (ponderada).
+                  {dataTabModo === 'pct'
+                    ? 'Liquida (real) = (receita − CMV − capital)/receita · Bruta = (receita − CMV)/receita · variacao (▲/▼) da liquida em pp vs mes anterior.'
+                    : 'Venda = receita do mes · Custo = CMV + capital empatado. Passe o mouse para os valores completos.'}
                 </div>
               </div>
             </>
@@ -969,14 +1078,18 @@ export default function MargensPage() {
           minima (CMV + Capital) para a venda ter ficado positiva. */}
       {mesSel && (
         <>
-          <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setMesSel(null)} />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-5xl max-h-[85vh] bg-white rounded-lg shadow-2xl z-50 flex flex-col">
+          <div className="fixed inset-0 bg-black/40 z-40" onClick={() => { setMesSel(null); setMesSelFam(null) }} />
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-6xl max-h-[85vh] bg-white rounded-lg shadow-2xl z-50 flex flex-col">
             <div className="border-b border-slate-200 px-5 py-3 flex items-center justify-between">
               <div>
-                <h2 className="font-semibold text-slate-800">Composição do mês {mesSel}{incluirPecas ? '' : ' — só máquinas'}</h2>
+                <h2 className="font-semibold text-slate-800">
+                  {mesSelFam
+                    ? (ehPeca(mesSelFam) ? '🔩 ' : '⚙ ') + mesSelFam + ' — mês ' + mesSel
+                    : 'Composição do mês ' + mesSel + (incluirPecas ? '' : ' — só máquinas')}
+                </h2>
                 {aggMesSel ? (
                   <div className="text-xs text-slate-500 mt-0.5">
-                    {vendasMesSel.length} vendas · {fmtBRL(aggMesSel.receita)} receita
+                    {vendasMesSel.length} vendas · venda {fmtBRL(aggMesSel.receita)} · custo {fmtBRL(aggMesSel.receita - aggMesSel.lucroLiq)}
                     {' · '}Margem Bruta <b className={corMargem(aggMesSel.brutaPct)}>{aggMesSel.brutaPct.toFixed(1)}%</b> ({fmtBRLcurto(aggMesSel.lucroBruto)})
                     {' · '}Margem Líquida (real) <b className={corMargem(aggMesSel.liqPct)}>{aggMesSel.liqPct.toFixed(1)}%</b> ({fmtBRLcurto(aggMesSel.lucroLiq)})
                   </div>
@@ -984,28 +1097,29 @@ export default function MargensPage() {
                   <div className="text-xs text-slate-500 mt-0.5">Nenhuma venda no mês.</div>
                 )}
               </div>
-              <button onClick={() => setMesSel(null)} className="text-slate-500 hover:text-slate-900 text-2xl leading-none">&times;</button>
+              <button onClick={() => { setMesSel(null); setMesSelFam(null) }} className="text-slate-500 hover:text-slate-900 text-2xl leading-none">&times;</button>
             </div>
             <div className="overflow-y-auto">
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead className="bg-slate-50 text-slate-600 sticky top-0">
                     <tr>
-                      <th className="text-left px-3 py-2">Data</th>
-                      <th className="text-left px-3 py-2">Produto</th>
-                      <th className="text-right px-3 py-2">Vendido por</th>
-                      <th className="text-right px-3 py-2">CMV</th>
-                      <th className="text-right px-3 py-2">Capital</th>
-                      <th className="text-right px-3 py-2">Lucro bruto</th>
-                      <th className="text-right px-3 py-2">Lucro líq.</th>
-                      <th className="text-right px-3 py-2">Margem %</th>
-                      <th className="text-right px-3 py-2" title="CMV + Capital empatado: vendendo acima disso, a venda fica positiva">Venda p/ positivo</th>
+                      <ThPop campo="data" rotulo="Data" dirTexto="left" />
+                      <ThPop campo="descricao" rotulo="Produto" dirTexto="left" />
+                      <ThPop campo="cmc_unitario" rotulo="CMC unit." title="Custo medio de compra unitario" />
+                      <ThPop campo="receita" rotulo="Vendido por" />
+                      <ThPop campo="cmv" rotulo="CMV" />
+                      <ThPop campo="custo_capital" rotulo="Capital" />
+                      <ThPop campo="margem_bruta_pct" rotulo="Mg bruta %" title="(receita − CMV) / receita" />
+                      <ThPop campo="margem_real" rotulo="Lucro líq." />
+                      <ThPop campo="margem_pct" rotulo="Mg líq. %" title="(receita − CMV − capital) / receita" />
+                      <ThPop campo="custo_total" rotulo="Venda p/ positivo" title="CMV + Capital empatado: vendendo acima disso, a venda fica positiva" />
                     </tr>
                   </thead>
                   <tbody>
                     {vendasMesSel.map((it, idx) => {
                       const corMg = corMargem(it.margem_pct)
-                      const lucroBruto = it.receita - it.cmv
+                      const brutaPct = it.receita > 0 ? ((it.receita - it.cmv) / it.receita) * 100 : 0
                       const faltou = it.custo_total - it.receita // > 0 = vendeu abaixo do break-even
                       return (
                         <tr
@@ -1019,12 +1133,15 @@ export default function MargensPage() {
                             {it.descricao || '(sem)'}
                             <span className="text-slate-400 text-[10px]"> · {it.familia}</span>
                           </td>
+                          <td className="px-3 py-1.5 text-right text-slate-600">
+                            {it.sem_cmc ? <span className="text-amber-700">s/ CMC</span> : fmtBRL(it.cmc_unitario)}
+                          </td>
                           <td className="px-3 py-1.5 text-right font-medium">{fmtBRL(it.receita)}</td>
                           <td className="px-3 py-1.5 text-right text-slate-600">
                             {it.sem_cmc ? <span className="text-amber-700">s/ CMC</span> : fmtBRL(it.cmv)}
                           </td>
                           <td className="px-3 py-1.5 text-right text-amber-700">{fmtBRL(it.custo_capital)}</td>
-                          <td className={'px-3 py-1.5 text-right ' + corMargem(it.receita > 0 ? (lucroBruto / it.receita) * 100 : 0)}>{fmtBRL(lucroBruto)}</td>
+                          <td className={'px-3 py-1.5 text-right ' + corMargem(brutaPct)}>{brutaPct.toFixed(1)}%</td>
                           <td className={'px-3 py-1.5 text-right font-medium ' + corMg}>{fmtBRL(it.margem_real)}</td>
                           <td className={'px-3 py-1.5 text-right font-bold ' + corMg}>{it.margem_pct.toFixed(1)}%</td>
                           <td className="px-3 py-1.5 text-right whitespace-nowrap">
@@ -1045,7 +1162,7 @@ export default function MargensPage() {
               </div>
             </div>
             <div className="px-3 py-2 border-t border-slate-200 text-[11px] text-slate-500">
-              Piores margens primeiro · "Venda p/ positivo" = CMV + Capital empatado (break-even da venda) · clique numa linha para o detalhe completo
+              Ordenado por margem líquida (clique nos cabeçalhos para reordenar) · "Venda p/ positivo" = CMV + Capital empatado (break-even da venda) · clique numa linha para o detalhe completo
             </div>
           </div>
         </>
@@ -1055,55 +1172,67 @@ export default function MargensPage() {
       {famSel && aggFamSel && (
         <>
           <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setFamSel(null)} />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-3xl max-h-[85vh] bg-white rounded-lg shadow-2xl z-50 flex flex-col">
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-5xl max-h-[85vh] bg-white rounded-lg shadow-2xl z-50 flex flex-col">
             <div className="border-b border-slate-200 px-5 py-3 flex items-center justify-between">
               <div>
                 <h2 className="font-semibold text-slate-800">{ehPeca(famSel) ? '🔩 ' : '⚙ '}{famSel}</h2>
                 <div className="text-xs text-slate-500 mt-0.5">
-                  Margem media <b className={corMargem(aggFamSel.margem_pct)}>{aggFamSel.margem_pct.toFixed(1)}%</b>
+                  Margem líquida (real) <b className={corMargem(aggFamSel.margem_pct)}>{aggFamSel.margem_pct.toFixed(1)}%</b>
+                  {' · '}bruta <b className={corMargem(aggFamSel.bruta_pct)}>{aggFamSel.bruta_pct.toFixed(1)}%</b>
                   {' · '}{aggFamSel.qtd} vendas
-                  {' · '}{fmtBRL(aggFamSel.receita)} receita
+                  {' · '}venda {fmtBRL(aggFamSel.receita)} · custo {fmtBRL(aggFamSel.custo)}
                   {' · '}<span className={corMargem(aggFamSel.margem_pct)}>{fmtBRL(aggFamSel.lucro)} lucro</span>
                 </div>
               </div>
               <button onClick={() => setFamSel(null)} className="text-slate-500 hover:text-slate-900 text-2xl leading-none">&times;</button>
             </div>
             <div className="overflow-y-auto">
-              <table className="w-full text-xs">
-                <thead className="bg-slate-50 text-slate-600 sticky top-0">
-                  <tr>
-                    <th className="text-left px-3 py-2">Data</th>
-                    <th className="text-left px-3 py-2">Produto</th>
-                    <th className="text-left px-3 py-2">Pedido/NF</th>
-                    <th className="text-right px-3 py-2">Receita</th>
-                    <th className="text-right px-3 py-2">Lucro</th>
-                    <th className="text-right px-3 py-2">Margem %</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {vendasFamSel.map((it, idx) => {
-                    const corMg = corMargem(it.margem_pct)
-                    return (
-                      <tr
-                        key={idx}
-                        className={'border-b border-slate-100 hover:bg-slate-100 cursor-pointer ' + (it.margem_real < 0 ? 'bg-red-50' : (it.sem_cmc ? 'bg-amber-50' : ''))}
-                        onClick={() => setDetalhe(it)}
-                        title="Clique para ver o detalhe da venda"
-                      >
-                        <td className="px-3 py-1.5 text-slate-600 whitespace-nowrap">{it.data_pedido || '-'}</td>
-                        <td className="px-3 py-1.5 truncate max-w-[260px]" title={it.descricao || ''}>{it.descricao || '(sem)'}</td>
-                        <td className="px-3 py-1.5 font-mono text-[11px] text-slate-700">{it.pedido || '-'}</td>
-                        <td className="px-3 py-1.5 text-right">{fmtBRL(it.receita)}</td>
-                        <td className={'px-3 py-1.5 text-right font-medium ' + corMg}>{fmtBRL(it.margem_real)}</td>
-                        <td className={'px-3 py-1.5 text-right font-bold ' + corMg}>{it.margem_pct.toFixed(1)}%</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead className="bg-slate-50 text-slate-600 sticky top-0">
+                    <tr>
+                      <ThPop campo="data" rotulo="Data" dirTexto="left" />
+                      <ThPop campo="descricao" rotulo="Produto" dirTexto="left" />
+                      <ThPop campo="pedido" rotulo="Pedido/NF" dirTexto="left" />
+                      <ThPop campo="cmc_unitario" rotulo="CMC unit." title="Custo medio de compra unitario" />
+                      <ThPop campo="receita" rotulo="Venda" />
+                      <ThPop campo="custo_total" rotulo="Custo" title="CMV + Capital empatado" />
+                      <ThPop campo="margem_bruta_pct" rotulo="Mg bruta %" title="(receita − CMV) / receita" />
+                      <ThPop campo="margem_real" rotulo="Lucro líq." />
+                      <ThPop campo="margem_pct" rotulo="Mg líq. %" title="(receita − CMV − capital) / receita" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {vendasFamSel.map((it, idx) => {
+                      const corMg = corMargem(it.margem_pct)
+                      const brutaPct = it.receita > 0 ? ((it.receita - it.cmv) / it.receita) * 100 : 0
+                      return (
+                        <tr
+                          key={idx}
+                          className={'border-b border-slate-100 hover:bg-slate-100 cursor-pointer ' + (it.margem_real < 0 ? 'bg-red-50' : (it.sem_cmc ? 'bg-amber-50' : ''))}
+                          onClick={() => setDetalhe(it)}
+                          title="Clique para ver o detalhe da venda"
+                        >
+                          <td className="px-3 py-1.5 text-slate-600 whitespace-nowrap">{it.data_pedido || '-'}</td>
+                          <td className="px-3 py-1.5 truncate max-w-[240px]" title={it.descricao || ''}>{it.descricao || '(sem)'}</td>
+                          <td className="px-3 py-1.5 font-mono text-[11px] text-slate-700">{it.pedido || '-'}</td>
+                          <td className="px-3 py-1.5 text-right text-slate-600">
+                            {it.sem_cmc ? <span className="text-amber-700">s/ CMC</span> : fmtBRL(it.cmc_unitario)}
+                          </td>
+                          <td className="px-3 py-1.5 text-right font-medium text-emerald-700">{fmtBRL(it.receita)}</td>
+                          <td className="px-3 py-1.5 text-right text-red-700">{fmtBRL(it.custo_total)}</td>
+                          <td className={'px-3 py-1.5 text-right ' + corMargem(brutaPct)}>{brutaPct.toFixed(1)}%</td>
+                          <td className={'px-3 py-1.5 text-right font-medium ' + corMg}>{fmtBRL(it.margem_real)}</td>
+                          <td className={'px-3 py-1.5 text-right font-bold ' + corMg}>{it.margem_pct.toFixed(1)}%</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
             <div className="px-3 py-2 border-t border-slate-200 text-[11px] text-slate-500">
-              {vendasFamSel.length} vendas compoem a media · clique numa linha para o detalhe completo
+              {vendasFamSel.length} vendas compoem a media · ordenado por margem líquida (clique nos cabeçalhos para reordenar) · clique numa linha para o detalhe completo
             </div>
           </div>
         </>
