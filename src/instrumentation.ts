@@ -71,7 +71,7 @@ export async function register(): Promise<void> {
     const rodarTratorilson = async () => {
       try {
         const r = await processarLoteRelatorios('Tratorilson (auto)');
-        if (r.ok > 0 || r.erros > 0) log(`tratorilson auto: ${r.ok} OS (${r.paraEnviarOmie} Omie, ${r.paraPreenchido} Preenchido, ${r.erros} erro)`);
+        if (r.ok > 0 || r.erros > 0) log(`tratorilson auto: ${r.ok} OS (${r.paraEnviarOmie} Omie, ${r.paraPreenchido} Preenchido Garantia, ${r.erros} erro)`);
       } catch (e) { log('tratorilson auto falhou: ' + (e as Error).message); }
     };
     const DEZ_MIN = 10 * 60 * 1000;

@@ -300,7 +300,7 @@ export async function aplicarNaOS(p: PropostaAtualizacao, userName?: string): Pr
 
 const FASE_ORIGEM = "Relatório Concluído";
 const FASE_ENVIAR_OMIE = "Enviar Omie";
-const FASE_PREENCHIDO = "Preenchido";
+const FASE_PREENCHIDO = "Preenchido Garantia";
 
 export interface ResultadoLote {
   total: number; ok: number; erros: number; paraEnviarOmie: number; paraPreenchido: number;

@@ -102,7 +102,7 @@ export default function TratorilsonPainel() {
   }
 
   const processarLote = async () => {
-    if (!confirm('Processar TODAS as OS em "Relatório Concluído"?\nAs normais vão pra "Enviar Omie" e as de garantia pra "Preenchido".')) return
+    if (!confirm('Processar TODAS as OS em "Relatório Concluído"?\nAs normais vão pra "Enviar Omie" e as de garantia pra "Preenchido Garantia".')) return
     setLoteRodando(true); setLoteResult(null)
     try {
       const res = await fetch('/api/pos/ordens/atualizar-relatorio-lote', { method: 'POST', headers: { ...(await authHeaders()) } })
@@ -214,7 +214,7 @@ export default function TratorilsonPainel() {
           return (
             <div style={{ marginTop: 12, padding: 10, background: 'var(--portal-bg-secondary)', borderRadius: 8, fontSize: 13 }}>
               <div style={{ fontWeight: 700, color: 'var(--portal-text)' }}>
-                Lote: {L.ok}/{L.total} atualizadas · {L.paraEnviarOmie} → Enviar Omie · {L.paraPreenchido} → Preenchido{L.erros ? ` · ${L.erros} com erro` : ''}
+                Lote: {L.ok}/{L.total} atualizadas · {L.paraEnviarOmie} → Enviar Omie · {L.paraPreenchido} → Preenchido Garantia{L.erros ? ` · ${L.erros} com erro` : ''}
               </div>
               {erros.length > 0 && (
                 <div style={{ marginTop: 6, color: '#b91c1c', fontSize: 12 }}>

@@ -51,7 +51,7 @@ export const PHASES = [
   "Relatório Concluído",
   "Enviar Omie",
   "Enviado Para Omie",
-  "Preenchido",
+  "Preenchido Garantia",
   "Concluída",
   "Cancelada",
 ];
