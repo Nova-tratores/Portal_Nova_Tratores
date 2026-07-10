@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, memo, useCallback, useEffect } from "react";
+import Link from "next/link";
 import { PHASES } from "@/lib/pos/constants";
 import { diasEntre } from "@/lib/pos/utils";
 import type { KanbanCard } from "@/lib/pos/types";
@@ -96,6 +97,13 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
           <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: 0.5, color: "#7C3AED", background: "#F3E8FF", border: "1px solid #DDD6FE", borderRadius: 5, padding: "1px 6px", textTransform: "uppercase" }}>
             <i className="fas fa-tools" style={{ marginRight: 3 }} />Interna
           </span>
+        )}
+        {o.projetoCronograma && (
+          <Link href={`/cronograma/${o.projetoCronograma.id}`} onClick={(e) => e.stopPropagation()}
+            title={`Projeto ${o.projetoCronograma.nome}`}
+            style={{ fontSize: 9, fontWeight: 800, letterSpacing: 0.5, color: "#0D9488", background: "#CCFBF1", border: "1px solid #99F6E4", borderRadius: 5, padding: "1px 6px", textTransform: "uppercase", textDecoration: "none" }}>
+            <i className="fas fa-diagram-project" style={{ marginRight: 3 }} />Cronograma
+          </Link>
         )}
         <span className="mini-card-valor">R$ {o.valor}</span>
       </div>
