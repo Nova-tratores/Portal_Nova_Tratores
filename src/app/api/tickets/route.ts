@@ -29,6 +29,29 @@ export async function GET(req: NextRequest) {
 
   const visao = req.nextUrl.searchParams.get('visao') || 'fila'
   const incluirEncerrados = req.nextUrl.searchParams.get('encerrados') === '1'
+  const finais = `(${STATUS_FINAIS.join(',')})`
+
+  // Tickets em que o usuário é participante ativo (visão + contador "acompanhando")
+  const { data: parts } = await supabaseAdmin
+    .from('tickets_participantes')
+    .select('ticket_id')
+    .eq('user_id', auth.userId)
+    .is('removido_em', null)
+    .limit(500)
+  const idsParticipa = (parts || []).map((p) => p.ticket_id)
+
+  // Contadores por aba (só tickets ativos), para os badges das visões.
+  const contar = async (montar: () => PromiseLike<{ count: number | null }>) => (await montar()).count || 0
+  const base = () => supabaseAdmin.from('tickets').select('id', { count: 'exact', head: true }).not('status', 'in', finais)
+  const [cFila, cPedidos, cAcompanhando, cGerencial] = await Promise.all([
+    contar(() => base().eq('responsavel_id', auth.userId)),
+    contar(() => base().eq('solicitante_id', auth.userId)),
+    idsParticipa.length
+      ? contar(() => base().in('id', idsParticipa).neq('responsavel_id', auth.userId).neq('solicitante_id', auth.userId))
+      : Promise.resolve(0),
+    auth.isAdmin ? contar(() => base()) : Promise.resolve(0),
+  ])
+  const contadores = { fila: cFila, pedidos: cPedidos, acompanhando: cAcompanhando, gerencial: cGerencial }
 
   let query = supabaseAdmin.from('tickets').select('*').order('ultima_atividade_em', { ascending: false }).limit(500)
 
@@ -37,29 +60,22 @@ export async function GET(req: NextRequest) {
   } else if (visao === 'pedidos') {
     query = query.eq('solicitante_id', auth.userId)
   } else if (visao === 'acompanhando') {
-    const { data: parts } = await supabaseAdmin
-      .from('tickets_participantes')
-      .select('ticket_id')
-      .eq('user_id', auth.userId)
-      .is('removido_em', null)
-      .limit(500)
-    const ids = (parts || []).map((p) => p.ticket_id)
-    if (ids.length === 0) return NextResponse.json({ tickets: [], usuarios: {} })
-    query = query.in('id', ids).neq('responsavel_id', auth.userId).neq('solicitante_id', auth.userId)
+    if (idsParticipa.length === 0) return NextResponse.json({ tickets: [], usuarios: {}, contadores })
+    query = query.in('id', idsParticipa).neq('responsavel_id', auth.userId).neq('solicitante_id', auth.userId)
   } else if (visao === 'gerencial') {
     if (!auth.isAdmin) return NextResponse.json({ error: 'Visão gerencial é restrita a administradores' }, { status: 403 })
   } else {
     return NextResponse.json({ error: 'Visão inválida' }, { status: 400 })
   }
 
-  if (!incluirEncerrados) query = query.not('status', 'in', `(${STATUS_FINAIS.join(',')})`)
+  if (!incluirEncerrados) query = query.not('status', 'in', finais)
 
   const { data: tickets, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   const lista = (tickets || []) as Ticket[]
   const usuarios = await mapaUsuarios(lista.flatMap((t) => [t.solicitante_id, t.responsavel_id]))
-  return NextResponse.json({ tickets: lista, usuarios })
+  return NextResponse.json({ tickets: lista, usuarios, contadores })
 }
 
 export async function POST(req: NextRequest) {
