@@ -51,6 +51,7 @@ Objetivo: Tratorilson **atende clientes no WhatsApp** (revisão / manutenção /
 - **IA (Tratorilson):** `AI_PROVIDER` (openai|groq), `OPENAI_API_KEY`, `OPENAI_MODEL` (gpt-4o-mini), `GROQ_API_KEY` (reserva)
   - ⚠️ A chave **OpenAI está no `.env.local` local mas FALTA no Railway** (em produção usa Groq por enquanto). Pôr `AI_PROVIDER=openai` + `OPENAI_API_KEY` no Railway para usar a OpenAI em produção.
 - **Outras (já no Railway):** Omie (`OMIE_APP_KEY/SECRET...`), Gmail (`GMAIL_USER`, `GMAIL_APP_PASSWORD`), `ORS_API_KEY`, Rotaexata, etc.
+- **Status dos crons (tela /agendamentos):** `GITHUB_TOKEN` (PAT fine-grained, só leitura — **Actions: Read** + Metadata no repo `Nova-tratores/Portal_Nova_Tratores`) — a rota `/api/agendamentos/status` consulta a GitHub Actions API para mostrar a última execução de cada cron. Opcional `GITHUB_REPO` (default `Nova-tratores/Portal_Nova_Tratores`). Se faltar, a tela funciona mas mostra aviso "configure GITHUB_TOKEN". Pôr no `.env.local` e no Railway.
 - **WhatsApp (a adicionar ao publicar):** `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_VERIFY_TOKEN` (inventar um), e opcional `WHATSAPP_APP_SECRET`.
 - **Auditoria ajustes:** `CMC_HMAC_SECRET` (inventar um segredo forte) — assina (HMAC-SHA256) cada correção de estoque negativo gravada em `cmc_correcoes`, para tamper-evidence. Se faltar, a correção ainda funciona mas fica **sem assinatura**. Pôr no `.env.local` e no Railway. **Migration a aplicar no Supabase:** `sql/cmc-correcoes-assinatura.sql` (colunas `assinatura` + `assinatura_payload`).
 
