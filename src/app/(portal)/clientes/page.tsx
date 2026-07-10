@@ -114,6 +114,7 @@ function ClientesPageInner() {
   const [expandedOS, setExpandedOS] = useState<string | null>(null)
   const [modalOS, setModalOS] = useState<OrdemServico | null>(null)
   const [anexNfOS, setAnexNfOS] = useState(false)
+  const [gerarCardFin, setGerarCardFin] = useState(true) // checkbox: gerar card no financeiro ao anexar NF de serviço
   const [subNF, setSubNF] = useState<{ osNum: string; empresa: string; nf_tipo: 'servico' | 'peca'; num_antigo: string; num_novo: string } | null>(null)
   const [subSalvando, setSubSalvando] = useState(false)
   const [modalProjeto, setModalProjeto] = useState<string | null>(null)
@@ -422,9 +423,11 @@ function ClientesPageInner() {
   }
   // Anexa a NF de serviço (NFS-e que o Omie não dá em PDF) direto na OS da pasta.
   // Ao salvar, dispara a criação do card no financeiro se o serviço ficar completo.
-  const anexarNFservicoNaOS = async (os: OrdemServico, file: File) => {
+  const anexarNFservicoNaOS = async (os: OrdemServico, file: File, opts?: { gerarCard?: boolean; substituir?: boolean }) => {
     if (!podeAnexos) return
     if (!selectedCliente) return
+    const gerarCard = opts?.gerarCard !== false
+    const substituir = !!opts?.substituir
     setAnexNfOS(true)
     try {
       const path = `clientes/${os.empresa.replace(/ /g, '_')}/os-${os.num_os}-nfserv-${Date.now()}.pdf`
@@ -433,14 +436,20 @@ function ClientesPageInner() {
       const pdf_url = supabase.storage.from('anexos').getPublicUrl(path).data.publicUrl
       const res = await fetch('/api/clientes/anexar-nf', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tipo: 'os', num: os.num_os, empresa: os.empresa, pdf_url }),
+        body: JSON.stringify({ tipo: 'os', num: os.num_os, empresa: os.empresa, pdf_url, gerarCard }),
       })
       const data = await res.json()
       if (!res.ok || data.error) { alert(data.error || 'Erro ao anexar a NF.'); setAnexNfOS(false); return }
       const r = String(data.card?.resultado || '')
       await abrirDetalhe(selectedCliente)
       setModalOS(null)
-      alert(`NF de serviço anexada na pasta.${r.includes('Card criado') ? ' ✅ Card criado no financeiro!' : r.includes('Aguardando') ? ' Ainda falta outra nota pra liberar o card.' : ''}`)
+      if (substituir) {
+        alert('Arquivo da NF de serviço substituído.')
+      } else if (!gerarCard) {
+        alert('NF de serviço anexada na pasta (sem gerar card no financeiro).')
+      } else {
+        alert(`NF de serviço anexada na pasta.${r.includes('Card criado') ? ' ✅ Card criado no financeiro!' : r.includes('Aguardando') ? ' Ainda falta outra nota pra liberar o card.' : ''}`)
+      }
     } catch { alert('Erro de conexão.') }
     setAnexNfOS(false)
   }
@@ -1316,11 +1325,17 @@ function ClientesPageInner() {
                       <Printer size={16} /> {os.pos_real ? 'Abrir POS' : 'Imprimir OS'}
                     </a>
                     {os.faturada && !os.cancelada && !os.link_nf && !os.financeiro?.nf_servico && (
-                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: '1px solid #F59E0B', borderRadius: 10, background: '#FFFBEB', color: '#B45309', fontSize: 14, fontWeight: 700, cursor: anexNfOS ? 'wait' : 'pointer' }}>
-                        <Upload size={16} /> {anexNfOS ? 'Enviando...' : 'Anexar NF de serviço'}
-                        <input type="file" accept="application/pdf" style={{ display: 'none' }} disabled={anexNfOS}
-                          onChange={e => { const f = e.target.files?.[0]; if (f) anexarNFservicoNaOS(os, f) }} />
-                      </label>
+                      <div style={{ display: 'inline-flex', flexDirection: 'column', gap: 6 }}>
+                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: '1px solid #F59E0B', borderRadius: 10, background: '#FFFBEB', color: '#B45309', fontSize: 14, fontWeight: 700, cursor: anexNfOS ? 'wait' : 'pointer' }}>
+                          <Upload size={16} /> {anexNfOS ? 'Enviando...' : 'Anexar NF de serviço'}
+                          <input type="file" accept="application/pdf" style={{ display: 'none' }} disabled={anexNfOS}
+                            onChange={e => { const f = e.target.files?.[0]; if (f) anexarNFservicoNaOS(os, f, { gerarCard: gerarCardFin }) }} />
+                        </label>
+                        <label title="Se marcado, cria o card no financeiro ao anexar a NF" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#6B7280', cursor: 'pointer', userSelect: 'none', paddingLeft: 2 }}>
+                          <input type="checkbox" checked={gerarCardFin} onChange={e => setGerarCardFin(e.target.checked)} style={{ cursor: 'pointer', accentColor: '#B45309' }} />
+                          Gerar card no financeiro
+                        </label>
+                      </div>
                     )}
                     <button onClick={() => setSubNF({ osNum: os.num_os, empresa: os.empresa, nf_tipo: 'servico', num_antigo: os.num_nf || os.financeiro?.num_nf_servico || '', num_novo: '' })}
                       style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: '1px solid #E5E7EB', borderRadius: 10, background: '#fff', color: '#374151', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
@@ -1331,6 +1346,13 @@ function ClientesPageInner() {
                         style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: 'none', borderRadius: 10, background: '#111827', color: '#fff', fontSize: 14, textDecoration: 'none', fontWeight: 600 }}>
                         <Download size={16} /> NF Serviço{os.financeiro?.num_nf_servico ? ` ${os.financeiro.num_nf_servico}` : ''}
                       </a>
+                    )}
+                    {os.link_nf && (
+                      <label title="Trocar o PDF da NF de serviço anexado" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: '1px solid #E5E7EB', borderRadius: 10, background: '#fff', color: '#374151', fontSize: 14, fontWeight: 600, cursor: anexNfOS ? 'wait' : 'pointer' }}>
+                        <Upload size={16} /> {anexNfOS ? 'Enviando...' : 'Substituir arquivo'}
+                        <input type="file" accept="application/pdf" style={{ display: 'none' }} disabled={anexNfOS}
+                          onChange={e => { const f = e.target.files?.[0]; if (f) anexarNFservicoNaOS(os, f, { gerarCard: false, substituir: true }) }} />
+                      </label>
                     )}
                     {(os.financeiro?.boleto || '').split(',').map(s => s.trim()).filter(Boolean).map((b: string, bi: number, arr: string[]) => (
                       <a key={bi} href={b} target="_blank" rel="noopener noreferrer"

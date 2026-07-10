@@ -13,10 +13,12 @@ const supabase = createClient(
 
 export async function POST(req: NextRequest) {
   try {
-    const { tipo, num, empresa, pdf_url, num_nf } = await req.json();
+    const { tipo, num, empresa, pdf_url, num_nf, gerarCard } = await req.json();
     if (!tipo || !num || !empresa || !pdf_url) {
       return NextResponse.json({ error: "tipo, num, empresa e pdf_url são obrigatórios" }, { status: 400 });
     }
+    // Checkbox da pasta: por padrão gera o card; se vier gerarCard:false, só anexa/substitui o arquivo.
+    const criarCard = gerarCard !== false;
     const origin = req.nextUrl.origin;
     const numStr = String(num);
 
@@ -27,15 +29,17 @@ export async function POST(req: NextRequest) {
         .update(upd).eq("num_os", numStr).eq("empresa", empresa);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-      // Com a NF de serviço na pasta, o serviço pode estar completo → cria o card
-      const { data: os } = await supabase.from("portal_nt_clientes_os")
-        .select("cod_os").eq("num_os", numStr).eq("empresa", empresa).maybeSingle();
+      // Com a NF de serviço na pasta, o serviço pode estar completo → cria o card (se pedido)
       let card: any = null;
-      if (os?.cod_os) {
-        card = await fetch(`${origin}/api/financeiro/sync-os?codOS=${os.cod_os}`, { method: "POST" })
-          .then(r => r.json()).catch(() => null);
+      if (criarCard) {
+        const { data: os } = await supabase.from("portal_nt_clientes_os")
+          .select("cod_os").eq("num_os", numStr).eq("empresa", empresa).maybeSingle();
+        if (os?.cod_os) {
+          card = await fetch(`${origin}/api/financeiro/sync-os?codOS=${os.cod_os}`, { method: "POST" })
+            .then(r => r.json()).catch(() => null);
+        }
       }
-      return NextResponse.json({ ok: true, tipo, num: numStr, card });
+      return NextResponse.json({ ok: true, tipo, num: numStr, gerouCard: criarCard, card });
     }
 
     if (tipo === "pv") {
@@ -45,10 +49,13 @@ export async function POST(req: NextRequest) {
         .update(upd).eq("num_pedido", numStr).eq("empresa", empresa);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-      // Peça avulsa: dispara o sync de peças (idempotente, respeita corte)
-      const card = await fetch(`${origin}/api/financeiro/sync-pecas?dias=30`, { method: "POST" })
-        .then(r => r.json()).catch(() => null);
-      return NextResponse.json({ ok: true, tipo, num: numStr, card });
+      // Peça avulsa: dispara o sync de peças (idempotente, respeita corte) — se pedido
+      let card: any = null;
+      if (criarCard) {
+        card = await fetch(`${origin}/api/financeiro/sync-pecas?dias=30`, { method: "POST" })
+          .then(r => r.json()).catch(() => null);
+      }
+      return NextResponse.json({ ok: true, tipo, num: numStr, gerouCard: criarCard, card });
     }
 
     return NextResponse.json({ error: "tipo inválido (use 'os' ou 'pv')" }, { status: 400 });
