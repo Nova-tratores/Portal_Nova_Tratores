@@ -407,7 +407,7 @@ function montarServicosItensOmie(
  * Roda junto dos refreshes de os_mensal — reusa o cache de buscarTodasOS, então
  * não custa chamadas extra à Omie além do ListarCategorias (cacheado 30 min).
  */
-async function sincronizarServicosItens(mes: number, ano: number, conta: Conta): Promise<void> {
+export async function sincronizarServicosItens(mes: number, ano: number, conta: Conta): Promise<void> {
   const todas = await buscarTodasOS(conta);
   const categorias = await buscarCategoriasOmie(conta);
   const rows = montarServicosItensOmie(todas, categorias, mes, ano, conta);
