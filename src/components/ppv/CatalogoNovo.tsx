@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 interface Peca { id: number; code: string; name: string; reference: string; qtd: number | null; unit: string | null; compravel?: boolean; figura?: any; figura_id?: string }
 interface Figura { id: string; code: string; name: string; secao: string; thumb_url: string | null; image_url: string | null; hotspots?: { reference: string; x: number; y: number }[]; pecas?: Peca[] }
 interface Secao { secao: string; ordem: number; figuras: number; thumb?: string | null }
-interface Modelo { slug: string; nome: string; image_url: string | null; figuras?: number }
+interface Modelo { slug: string; nome: string; image_url: string | null; figuras?: number; marca?: string | null }
 
 // Mascote do assistente (mecânico Nova Tratores). Se não existir no storage, cai no ícone.
 
@@ -205,7 +205,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
                   <div style={{ padding: "13px 15px", borderTop: "1px solid #f0f2f6", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <div>
                       <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}>{m.nome}</div>
-                      <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 2 }}>{m.figuras || 0} figuras · Mahindra</div>
+                      <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 2 }}>{m.figuras || 0} figuras · {m.marca || "Mahindra"}</div>
                     </div>
                     <i className="fas fa-chevron-right" style={{ fontSize: 12, color: "#cbd5e1" }} />
                   </div>

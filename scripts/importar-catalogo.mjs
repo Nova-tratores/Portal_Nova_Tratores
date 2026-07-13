@@ -47,6 +47,20 @@ async function baixarESubir(url, path) {
   } catch (e) { console.warn('  erro img', path, e.message); return null }
 }
 
+// Sobe uma imagem embutida em base64 (data:...;base64,...) — usada por catálogos
+// cujas imagens são protegidas por login (ex.: KUHN), baixadas no navegador na extração.
+async function subirB64(dataUrl, path) {
+  if (!dataUrl) return null
+  try {
+    const m = String(dataUrl).match(/^data:([^;]+);base64,(.*)$/s)
+    if (!m) return null
+    const buf = Buffer.from(m[2], 'base64')
+    const up = await sb.storage.from(BUCKET).upload(path, buf, { contentType: m[1] || 'image/jpeg', upsert: true })
+    if (up.error) { console.warn('  upload b64 falhou', path, up.error.message); return null }
+    return sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl
+  } catch (e) { console.warn('  erro b64', path, e.message); return null }
+}
+
 async function main() {
   console.log(`Trator: ${MODELO} (${SLUG}) | arquivo: ${arquivo}${pecasOnly ? ' | só peças' : ''}`)
 
@@ -59,7 +73,9 @@ async function main() {
       const up = await sb.storage.from(BUCKET).upload(`modelo/${SLUG}.jpg`, buf, { contentType: 'image/jpeg', upsert: true })
       if (!up.error) modeloImg = sb.storage.from(BUCKET).getPublicUrl(`modelo/${SLUG}.jpg`).data.publicUrl
     } catch { /* sem foto do modelo */ }
-    const mrow = { slug: SLUG, nome: MODELO, root_id: ROOT_ID, business_unit: BU, atualizado_em: new Date().toISOString() }
+    // Marca: vem do JSON (dados.marca) ou da fonte ("kuhn" → KUHN; resto → Mahindra)
+    const MARCA = dados.marca || (String(dados.fonte || '').toLowerCase() === 'kuhn' ? 'KUHN' : 'Mahindra')
+    const mrow = { slug: SLUG, nome: MODELO, marca: MARCA, root_id: ROOT_ID, business_unit: BU, atualizado_em: new Date().toISOString() }
     if (modeloImg) mrow.image_url = modeloImg
     const { error: me } = await sb.from('catalogo_modelos').upsert(mrow, { onConflict: 'slug' })
     if (me) console.warn('modelo falhou', me.message)
@@ -75,8 +91,9 @@ async function main() {
 
     for (const f of dados.figuras) {
       const ordem = (contadorOrdem[f.secao] = (contadorOrdem[f.secao] || 0) + 1)
-      const image_url = await baixarESubir(f.imageUrl, `figuras/${f.id}.jpg`)
-      const thumb_url = await baixarESubir(f.thumbUrl, `thumbs/${f.id}.jpg`)
+      // Imagem: base64 embutido (KUHN) tem prioridade; senão baixa da URL (zeitten).
+      const image_url = f.imageB64 ? await subirB64(f.imageB64, `figuras/${f.id}.jpg`) : await baixarESubir(f.imageUrl, `figuras/${f.id}.jpg`)
+      const thumb_url = f.thumbB64 ? await subirB64(f.thumbB64, `thumbs/${f.id}.jpg`) : await baixarESubir(f.thumbUrl, `thumbs/${f.id}.jpg`)
       if (image_url) nImg++
 
       const row = {

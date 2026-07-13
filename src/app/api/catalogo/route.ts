@@ -45,17 +45,27 @@ export async function GET(req: NextRequest) {
   const acao = req.nextUrl.searchParams.get("acao") || "secoes";
   const modelo = req.nextUrl.searchParams.get("modelo");
   try {
-    // Tratores (modelos) com contagem de figuras/peças
+    // Modelos (tratores/implementos) com contagem de figuras
     if (acao === "modelos") {
+      // select("*") em vez de colunas fixas: assim a coluna "marca" entra quando existir,
+      // sem quebrar se a migration ainda não tiver rodado.
       const { data: modelos, error } = await supabase
         .from("catalogo_modelos")
-        .select("slug, nome, image_url, ordem")
+        .select("*")
         .order("ordem", { ascending: true });
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-      const { data: figs } = await supabase.from("catalogo_figuras").select("modelo");
-      const cont: Record<string, number> = {};
-      for (const f of figs || []) cont[f.modelo || ""] = (cont[f.modelo || ""] || 0) + 1;
-      return NextResponse.json((modelos || []).map((m) => ({ ...m, figuras: cont[m.nome] || 0 })));
+      // Contagem EXATA por modelo. Não dá pra puxar todas as figuras e contar em memória:
+      // o PostgREST corta a resposta (1000 linhas) e os modelos do fim ficavam com 0.
+      const comContagem = await Promise.all(
+        (modelos || []).map(async (m) => {
+          const { count } = await supabase
+            .from("catalogo_figuras")
+            .select("id", { count: "exact", head: true })
+            .eq("modelo", m.nome);
+          return { ...m, figuras: count || 0 };
+        })
+      );
+      return NextResponse.json(comContagem);
     }
 
     // Seções com contagem de figuras

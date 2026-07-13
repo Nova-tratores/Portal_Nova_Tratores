@@ -46,3 +46,7 @@ next-env.d.ts
 
 # Claude Code — config local (acumula allows de comandos, pode conter segredos)
 .claude/settings.local.json
+
+# KUHN — cookie de sessão + lista de URLs (locais, não commitar)
+catalogos/.kuhn-cookie.txt
+catalogos/kuhn-urls.txt
