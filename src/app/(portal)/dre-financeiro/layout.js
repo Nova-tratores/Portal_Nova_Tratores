@@ -46,7 +46,8 @@ const GRUPOS = [
     { href: '/dre-financeiro/vencidos',      label: 'Vencidos',        icon: '⚠️', cor: 'red' },
     { href: '/dre-financeiro/curva-saldo',   label: 'Curva de Saldo',  icon: '📉', cor: 'violet' },
     { href: '/dre-financeiro/fluxo',         label: 'Fluxo',           icon: '🌊', cor: 'cyan' },
-    { href: '/dre-financeiro/movimentos',    label: 'Movimentações',   icon: '💳', cor: 'teal' },
+    // Movimentações CC fica FORA da sub-nav de propósito: acesso só pelo link
+    // direto /dre-financeiro/movimentos (gate de permissão continua no layout).
   ]},
   { label: 'Prazos & Efic.', itens: [
     { href: '/dre-financeiro/ciclo-caixa',   label: 'Ciclo de Caixa',  icon: '🔄', cor: 'lime' },
