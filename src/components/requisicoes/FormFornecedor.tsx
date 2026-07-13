@@ -28,6 +28,8 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
     estado: ''
   });
   const [cepStatus, setCepStatus] = useState<'' | 'buscando' | 'ok' | 'erro'>('');
+  const [cnpjStatus, setCnpjStatus] = useState<'' | 'buscando' | 'ok' | 'erro'>('');
+  const ultimoCnpjRef = useRef('');
 
   // 1. CARREGAR FORNECEDORES DO BANCO
   const carregarFornecedores = async () => {
@@ -62,6 +64,8 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
       estado: forn.estado || ''
     });
     setCepStatus('');
+    setCnpjStatus('');
+    ultimoCnpjRef.current = '';
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -82,6 +86,66 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
     setEditando(null);
     setFormData(FORM_VAZIO);
     setCepStatus('');
+    setCnpjStatus('');
+    ultimoCnpjRef.current = '';
+  };
+
+  // Máscara progressiva: CPF (000.000.000-00) até 11 dígitos, CNPJ
+  // (00.000.000/0001-00) com 12+. Máximo 14 dígitos.
+  const formatarDoc = (v: string) => {
+    const d = (v || '').replace(/\D/g, '').slice(0, 14);
+    if (d.length <= 11) {
+      return d
+        .replace(/^(\d{3})(\d)/, '$1.$2')
+        .replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
+        .replace(/^(\d{3})\.(\d{3})\.(\d{3})(\d)/, '$1.$2.$3-$4');
+    }
+    return d
+      .replace(/^(\d{2})(\d)/, '$1.$2')
+      .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+      .replace(/^(\d{2})\.(\d{3})\.(\d{3})(\d)/, '$1.$2.$3/$4')
+      .replace(/^(\d{2})\.(\d{3})\.(\d{3})\/(\d{4})(\d)/, '$1.$2.$3/$4-$5');
+  };
+
+  // CNPJ completo (14 dígitos) → puxa os dados da empresa na BrasilAPI
+  // (base da Receita) e preenche o formulário. Campos "relacionais"
+  // (WhatsApp, e-mail, descrição) só entram se estiverem vazios — o resto
+  // (razão social, endereço) a Receita é a fonte da verdade.
+  const buscarCnpj = async (docRaw: string) => {
+    const digits = (docRaw || '').replace(/\D/g, '');
+    if (digits.length !== 14) { setCnpjStatus(''); return; }
+    if (ultimoCnpjRef.current === digits) return;
+    ultimoCnpjRef.current = digits;
+    setCnpjStatus('buscando');
+    try {
+      const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${digits}`);
+      if (!res.ok) { setCnpjStatus('erro'); return; }
+      const data = await res.json();
+      const fone = String(data.ddd_telefone_1 || '').replace(/\D/g, '');
+      const foneFmt = fone.length >= 10 ? `(${fone.slice(0, 2)}) ${fone.slice(2, -4)}-${fone.slice(-4)}` : '';
+      const cepDigits = String(data.cep || '').replace(/\D/g, '');
+      const cepFmt = cepDigits.length === 8 ? `${cepDigits.slice(0, 5)}-${cepDigits.slice(5)}` : '';
+      const logradouro = data.logradouro
+        ? `${String(data.descricao_tipo_de_logradouro || '')} ${String(data.logradouro)}`.trim()
+        : '';
+      setFormData(prev => ({
+        ...prev,
+        nome: String(data.razao_social || prev.nome || '').toUpperCase(),
+        email: prev.email || String(data.email || '').toLowerCase(),
+        numero: prev.numero || foneFmt,
+        descricao: prev.descricao || String(data.cnae_fiscal_descricao || '').toUpperCase(),
+        cep: cepFmt || prev.cep,
+        endereco: (logradouro || prev.endereco || '').toUpperCase(),
+        endereco_numero: String(data.numero || prev.endereco_numero || '').toUpperCase(),
+        bairro: String(data.bairro || prev.bairro || '').toUpperCase(),
+        cidade: String(data.municipio || prev.cidade || '').toUpperCase(),
+        estado: String(data.uf || prev.estado || '').toUpperCase(),
+      }));
+      setCnpjStatus('ok');
+      if (cepFmt) setCepStatus('ok');
+    } catch {
+      setCnpjStatus('erro'); // offline/bloqueado — usuário preenche manualmente
+    }
   };
 
   // Busca o endereço pelo CEP (ViaCEP) e preenche logradouro/bairro/cidade/UF.
@@ -172,13 +236,31 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
         <form onSubmit={handleSubmit} className="p-4">
           <div className="grid grid-cols-1 md:grid-cols-2 border border-zinc-200 rounded-[2.5rem] overflow-hidden bg-zinc-100">
             <div className={`${cellStyle} border-b md:border-r`}>
-              <label className={labelStyle}>Razão Social / Nome</label>
-              <input name="nome" required value={formData.nome} onChange={handleChange} className={inputStyle} placeholder="DIGITE O NOME..." />
+              <label className={labelStyle}>
+                Documento (CNPJ/CPF)
+                {cnpjStatus === 'buscando' && <span className="text-blue-500 normal-case tracking-normal"> · consultando a Receita…</span>}
+                {cnpjStatus === 'ok' && <span className="text-green-600 normal-case tracking-normal"> · dados da empresa preenchidos</span>}
+                {cnpjStatus === 'erro' && <span className="text-red-500 normal-case tracking-normal"> · CNPJ não encontrado, preencha à mão</span>}
+              </label>
+              <input
+                name="cpf/cnpj"
+                required
+                inputMode="numeric"
+                maxLength={18}
+                value={formData['cpf/cnpj']}
+                onChange={e => {
+                  const v = formatarDoc(e.target.value);
+                  setFormData(prev => ({ ...prev, 'cpf/cnpj': v }));
+                  buscarCnpj(v);
+                }}
+                className={inputStyle}
+                placeholder="00.000.000/0001-00"
+              />
             </div>
 
             <div className={`${cellStyle} border-b`}>
-              <label className={labelStyle}>Documento (CNPJ/CPF)</label>
-              <input name="cpf/cnpj" required value={formData['cpf/cnpj']} onChange={handleChange} className={inputStyle} placeholder="00.000.000/0001-00" />
+              <label className={labelStyle}>Razão Social / Nome</label>
+              <input name="nome" required value={formData.nome} onChange={handleChange} className={inputStyle} placeholder="DIGITE O CNPJ AO LADO OU O NOME..." />
             </div>
 
             <div className={`${cellStyle} border-b md:border-r`}>
