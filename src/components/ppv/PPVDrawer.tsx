@@ -131,7 +131,18 @@ export default function PPVDrawer({
       setPedidoOmie(d.pedidoOmie || "");
       setDesconto(d.desconto || 0);
       onSetModalOS(d.osId || "", d.osId ? `OS #${d.osId} (Vinculada)` : "");
-      carregarDadosCliente(d.cliente || "");
+      // Cliente: se o pedido já guarda o DOCUMENTO, usa ele (sem ambiguidade de homônimo).
+      // Senão cai na busca por nome (pedidos antigos).
+      const doc = (d.clienteDocumento || "").trim();
+      setClienteDocumento(doc);
+      if (doc) {
+        setClienteDoc(doc);
+        api.buscarClientePorDocumento(doc)
+          .then((res) => { setClienteEndereco(res.endereco || ""); setClienteCidade(res.cidade || ""); })
+          .catch(() => { setClienteEndereco(""); setClienteCidade(""); });
+      } else {
+        carregarDadosCliente(d.cliente || "");
+      }
     } catch {
       showToast("error", "Erro ao carregar detalhes");
     }
@@ -145,16 +156,27 @@ export default function PPVDrawer({
     setLogsLoading(false);
   }, [ppvId]);
 
-  // Troca de cliente: o modal de busca vive DENTRO do drawer e escreve direto no estado.
-  // Antes isso passava por um ref + estado do pai + efeito aqui — e escolher o MESMO
-  // cliente de novo não mudava o estado do pai, então o React não re-renderizava, o
-  // efeito não rodava e o drawer salvava o cliente ANTIGO. Agora não tem essa cadeia.
+  // Troca de cliente: o modal vive DENTRO do drawer e escreve direto no estado.
+  // IMPORTANTE: guardamos o DOCUMENTO (CNPJ/CPF), não só o nome. Existem clientes
+  // HOMÔNIMOS com CNPJs diferentes (um ativo, um inativo) — com só o nome, trocar de um
+  // pro outro gravava o mesmo texto (nada mudava) e o CNPJ vinha sempre do 1º match.
   const [buscaClienteOpen, setBuscaClienteOpen] = useState(false);
-  const aplicarCliente = useCallback((nome: string) => {
+  const [clienteDocumento, setClienteDocumento] = useState(""); // documento salvo no pedido
+  const aplicarCliente = useCallback((nome: string, documento?: string) => {
     if (!nome) return;
     setCliente(nome);
-    carregarDadosCliente(nome);
     setBuscaClienteOpen(false);
+    const doc = (documento || "").trim();
+    setClienteDocumento(doc);
+    if (doc) {
+      // Com o documento em mãos, busca os dados DESSE cliente (sem ambiguidade de nome)
+      setClienteDoc(doc);
+      api.buscarClientePorDocumento(doc)
+        .then((res) => { setClienteEndereco(res.endereco || ""); setClienteCidade(res.cidade || ""); })
+        .catch(() => { setClienteEndereco(""); setClienteCidade(""); });
+    } else {
+      carregarDadosCliente(nome);
+    }
   }, [carregarDadosCliente]);
 
   // Compat: se o pai ainda mandar um nome (fluxo antigo), aplica também.
@@ -206,7 +228,7 @@ export default function PPVDrawer({
     setSalvando(true);
     try {
       await api.editarPedido({
-        id: ppvId!, status, observacao, tecnico, cliente, motivoCancelamento, pedidoOmie, osId: modalOSId, tipoPedido, projeto, motivoSaida, userName: userProfile?.nome || "",
+        id: ppvId!, status, observacao, tecnico, cliente, clienteDocumento, motivoCancelamento, pedidoOmie, osId: modalOSId, tipoPedido, projeto, motivoSaida, userName: userProfile?.nome || "",
         substitutoTipo: temSubstituto ? substitutoTipo : null,
         substitutoId: temSubstituto ? substitutoId : null,
         desconto,

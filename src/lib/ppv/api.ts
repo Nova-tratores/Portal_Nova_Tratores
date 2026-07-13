@@ -59,6 +59,7 @@ export const api = {
   editarPedido: (dados: {
     id: string; status: string; observacao: string; tecnico: string;
     cliente?: string;
+    clienteDocumento?: string; // CNPJ/CPF — identifica o cliente (o nome tem homônimos)
     motivoCancelamento: string; pedidoOmie: string; osId: string;
     tipoPedido: string; motivoSaida: string; userName?: string;
     substitutoTipo?: string | null; substitutoId?: string | null;
@@ -80,6 +81,10 @@ export const api = {
 
   buscarClientePorNome: (nome: string) =>
     request<{ documento: string; endereco: string; cidade: string }>(`/api/ppv/cliente-dados?nome=${encodeURIComponent(nome)}`),
+
+  // Busca pelo DOCUMENTO — é o certo quando há homônimos (nome não identifica o cliente).
+  buscarClientePorDocumento: (documento: string) =>
+    request<{ nome: string; documento: string; endereco: string; cidade: string }>(`/api/ppv/cliente-dados?documento=${encodeURIComponent(documento)}`),
 
   // --- Busca de OS ---
   buscarOS: (termo: string) =>

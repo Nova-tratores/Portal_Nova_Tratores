@@ -7,7 +7,9 @@ import { api } from "@/lib/ppv/api";
 interface Props {
   open: boolean;
   onClose: () => void;
-  onSelect: (nome: string) => void;
+  // Devolve o DOCUMENTO junto: só o nome não identifica o cliente (há homônimos com
+  // CNPJs diferentes — inclusive um ativo e um inativo).
+  onSelect: (nome: string, documento?: string) => void;
 }
 
 export default function ModalBuscaCliente({ open, onClose, onSelect }: Props) {
@@ -169,7 +171,7 @@ export default function ModalBuscaCliente({ open, onClose, onSelect }: Props) {
                       {filtrados.map((c, idx) => (
                         <tr
                           key={idx}
-                          onClick={() => { onSelect(c.nome); onClose(); }}
+                          onClick={() => { onSelect(c.nome, c.documento); onClose(); }}
                           style={{ cursor: "pointer", borderBottom: "1px solid var(--ppv-primary-light)", transition: "background 0.12s" }}
                           onMouseEnter={(e) => (e.currentTarget.style.background = "var(--ppv-primary-light)")}
                           onMouseLeave={(e) => (e.currentTarget.style.background = "")}

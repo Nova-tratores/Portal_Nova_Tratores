@@ -268,16 +268,21 @@ export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: bool
     return { sucesso: false, erro: "Cliente não informado" };
   }
 
-  // 3. Busca CNPJ do cliente
-  let cnpjCliente = "";
-  try {
-    const res = await supabaseFetch<Record<string, unknown>[]>(
-      `${TBL_CLIENTES}?or=(nome_fantasia.eq.${encodeURIComponent(detalhes.cliente)},razao_social.eq.${encodeURIComponent(detalhes.cliente)})&select=cnpj_cpf&limit=1`
-    );
-    if (res && res.length > 0) {
-      cnpjCliente = String(res[0].cnpj_cpf || "").trim();
-    }
-  } catch { /* continua */ }
+  // 3. CNPJ/CPF do cliente.
+  // PRIORIDADE: o documento gravado no pedido. Buscar pelo NOME é furado — há clientes
+  // HOMÔNIMOS com CNPJs diferentes (um ativo, um inativo) e o `limit=1` pegava o primeiro,
+  // mandando o pedido pro cliente ERRADO no Omie.
+  let cnpjCliente = String(detalhes.clienteDocumento || "").trim();
+  if (!cnpjCliente) {
+    try {
+      const res = await supabaseFetch<Record<string, unknown>[]>(
+        `${TBL_CLIENTES}?or=(nome_fantasia.eq.${encodeURIComponent(detalhes.cliente)},razao_social.eq.${encodeURIComponent(detalhes.cliente)})&select=cnpj_cpf&limit=1`
+      );
+      if (res && res.length > 0) {
+        cnpjCliente = String(res[0].cnpj_cpf || "").trim();
+      }
+    } catch { /* continua */ }
+  }
 
   if (!cnpjCliente) {
     try {

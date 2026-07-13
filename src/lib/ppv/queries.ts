@@ -25,6 +25,7 @@ export async function buscarPPVPorId(id: string): Promise<PPVDetalhes | null> {
   const detalhes: PPVDetalhes = {
     id: String(getValorInsensivel(d, "id_pedido") || ""),
     cliente: String(getValorInsensivel(d, "cliente") || ""),
+    clienteDocumento: String(getValorInsensivel(d, "cliente_documento") || ""),
     tecnico: String(getValorInsensivel(d, "tecnico") || ""),
     status: String(getValorInsensivel(d, "status") || ""),
     data: String(getValorInsensivel(d, "data") || getValorInsensivel(d, "created_at") || ""),
@@ -258,6 +259,45 @@ export async function buscarDadosCliente(nomeCliente: string): Promise<{ documen
   }
 
   return resultado;
+}
+
+// Busca os dados do cliente pelo DOCUMENTO (CNPJ/CPF) — sem ambiguidade.
+// A busca por nome não serve quando há homônimos (mesmo nome, CNPJs diferentes):
+// o `limit=1` devolvia sempre o primeiro cadastro, que podia ser o inativo.
+export async function buscarDadosClientePorDocumento(documento: string): Promise<{ nome: string; documento: string; endereco: string; cidade: string }> {
+  const vazio = { nome: "", documento: "", endereco: "", cidade: "" };
+  const doc = (documento || "").trim();
+  if (!doc) return vazio;
+  try {
+    let res = await supabaseFetch<Record<string, unknown>[]>(
+      `${TBL_CLIENTES}?cnpj_cpf=eq.${encodeURIComponent(doc)}&select=*&limit=1`
+    );
+    // Fallback: compara só os dígitos (o cadastro pode estar sem máscara)
+    if (!res || res.length === 0) {
+      const digitos = doc.replace(/\D/g, "");
+      if (digitos) {
+        res = await supabaseFetch<Record<string, unknown>[]>(
+          `${TBL_CLIENTES}?cnpj_cpf=eq.${encodeURIComponent(digitos)}&select=*&limit=1`
+        );
+      }
+    }
+    if (!res || res.length === 0) return vazio;
+    const row = res[0];
+    const partes = [
+      String(row.endereco || "").trim(),
+      String(row.numero || "").trim(),
+      String(row.bairro || "").trim(),
+    ].filter(Boolean);
+    return {
+      nome: String(row.nome_fantasia || row.razao_social || "").trim(),
+      documento: String(row.cnpj_cpf || "").trim(),
+      endereco: partes.join(", "),
+      cidade: [String(row.cidade || "").trim(), String(row.estado || "").trim()].filter(Boolean).join(" - "),
+    };
+  } catch (e) {
+    console.error("Erro buscar cliente por documento:", e);
+    return vazio;
+  }
 }
 
 // =============================================

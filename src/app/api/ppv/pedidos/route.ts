@@ -169,6 +169,9 @@ export async function PATCH(req: NextRequest) {
     if (dados.observacao !== undefined) payload.observacao = dados.observacao;
     if (dados.tecnico) payload.tecnico = dados.tecnico;
     if (dados.cliente) payload.cliente = dados.cliente;
+    // Documento é quem IDENTIFICA o cliente (o nome tem homônimos com CNPJs diferentes).
+    // "" = limpar (volta pro comportamento antigo, por nome).
+    if (dados.clienteDocumento !== undefined) payload.cliente_documento = dados.clienteDocumento || null;
     if (dados.motivoCancelamento) payload.motivo_cancelamento = dados.motivoCancelamento;
     if (dados.pedidoOmie) payload.pedido_omie = dados.pedidoOmie;
     if (dados.osId !== undefined) payload.Id_Os = dados.osId;
@@ -205,6 +208,12 @@ export async function PATCH(req: NextRequest) {
       }
       if (dados.cliente && estadoAtual.cliente !== dados.cliente) {
         await registrarLog(dados.id, `Cliente alterado: ${estadoAtual.cliente || "—"} → ${dados.cliente}`, userName);
+        temMudanca = true;
+      }
+      // Homônimos: o nome pode ser IGUAL e o cliente ser outro (CNPJ diferente).
+      // Por isso a troca de documento também vira log.
+      if (dados.clienteDocumento && (estadoAtual.clienteDocumento || "") !== dados.clienteDocumento) {
+        await registrarLog(dados.id, `Cliente (CNPJ/CPF) alterado: ${estadoAtual.clienteDocumento || "—"} → ${dados.clienteDocumento}`, userName);
         temMudanca = true;
       }
       if (dados.tipoPedido && estadoAtual.tipoPedido !== dados.tipoPedido) {

@@ -68,6 +68,7 @@ export interface Devolucao {
 export interface PPVDetalhes {
   id: string;
   cliente: string;
+  clienteDocumento?: string; // CNPJ/CPF — é o que identifica o cliente (o nome tem homônimos)
   tecnico: string;
   status: string;
   data: string;

@@ -36,6 +36,8 @@ export const editarPedidoSchema = z.object({
   observacao: z.string().optional().default(""),
   tecnico: z.string().optional().default(""),
   cliente: z.string().optional().default(""),
+  // CNPJ/CPF do cliente: é o que IDENTIFICA (o nome tem homônimos)
+  clienteDocumento: z.string().optional().default(""),
   motivoCancelamento: z.string().optional().default(""),
   pedidoOmie: z.string().optional().default(""),
   osId: z.string().optional().default(""),
