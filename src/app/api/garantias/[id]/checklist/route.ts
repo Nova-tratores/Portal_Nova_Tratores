@@ -87,30 +87,49 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     detalhe: 'Checklist atualizado',
   });
 
-  // Quando a montadora muda (ou é definida pela primeira vez), sincroniza
-  // o nCodProj da OS no Omie pra "{Montadora}-pgo". Best-effort — só
-  // dispara se a OS já estiver no Omie e houver projeto correspondente.
+  // Quando a montadora muda (ou é definida pela primeira vez) e a OS já está
+  // no Omie, reaplica o padrão COMPLETO de garantia lá (categoria, conta
+  // INTERNO, sem conta a receber, contrato/projeto {Montadora}-pgo, recibo,
+  // depto Garantias) — cobre a garantia que nasceu DEPOIS da OS ser enviada.
+  // Em garantia rejeitada só sincroniza o projeto (a OS não é de garantia
+  // pro financeiro — o garantista só está corrigindo a montadora).
   if (
     body.montadora_id !== undefined &&
     body.montadora_id !== garantia.montadora_id &&
     body.montadora_id
   ) {
     try {
-      const { sincronizarProjetoMontadoraNoOmie } = await import('@/lib/garantias/omie-faturamento');
       const montadora = (data as { id_ordem?: string; montadora?: { nome?: string } }).montadora;
       const idOrdem = (data as { id_ordem?: string }).id_ordem || '';
       if (montadora?.nome && idOrdem) {
-        const resp = await sincronizarProjetoMontadoraNoOmie({ idOrdem, montadoraNome: montadora.nome });
-        await registrarEvento(id, {
-          tipo: resp.ok ? 'omie_projeto_sincronizado' : 'omie_projeto_erro',
-          ator: body.garantista_nome || 'Garantista',
-          detalhe: resp.ok
-            ? `Projeto da OS no Omie atualizado pra ${montadora.nome}-pgo.`
-            : `Falha ao atualizar projeto no Omie: ${resp.motivo}`,
-        });
+        if (garantia.status === 'rejeitada') {
+          const { sincronizarProjetoMontadoraNoOmie } = await import('@/lib/garantias/omie-faturamento');
+          const resp = await sincronizarProjetoMontadoraNoOmie({ idOrdem, montadoraNome: montadora.nome });
+          await registrarEvento(id, {
+            tipo: resp.ok ? 'omie_projeto_sincronizado' : 'omie_projeto_erro',
+            ator: body.garantista_nome || 'Garantista',
+            detalhe: resp.ok
+              ? `Projeto da OS no Omie atualizado pra ${montadora.nome}-pgo.`
+              : `Falha ao atualizar projeto no Omie: ${resp.motivo}`,
+          });
+        } else {
+          const { faturarOSGarantiaNoOmie } = await import('@/lib/garantias/omie-faturamento');
+          const resp = await faturarOSGarantiaNoOmie({ idOrdem, montadoraNome: montadora.nome, garantiaId: id });
+          // pendenteEnvio = OS ainda não fechou no POS; o padrão entra no
+          // fechamento (criarOSNoOmie) — nada a registrar.
+          if (!resp.pendenteEnvio) {
+            await registrarEvento(id, {
+              tipo: resp.ok ? 'omie_faturada_garantia' : 'omie_faturamento_erro',
+              ator: body.garantista_nome || 'Garantista',
+              detalhe: resp.ok
+                ? `Padrão de garantia aplicado na OS no Omie (contrato/projeto ${montadora.nome}-pgo, categoria, conta INTERNO, sem conta a receber, recibo, depto Garantias).`
+                : `Falha ao aplicar padrão de garantia no Omie: ${resp.motivo}`,
+            });
+          }
+        }
       }
     } catch (err) {
-      console.warn('[garantias] sincronizar projeto Omie falhou:', err);
+      console.warn('[garantias] faturamento/sync Omie falhou:', err);
     }
   }
 

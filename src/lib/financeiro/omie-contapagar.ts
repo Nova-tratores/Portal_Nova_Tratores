@@ -258,33 +258,55 @@ export interface ContaCorrenteOmie { id: number; descricao: string; tipo?: strin
 export interface DepartamentoOmie { codigo: string; descricao: string }
 // ProjetoOmie é re-exportado mais abaixo de src/lib/omie/matching.ts (mesmo shape).
 
-const cacheCategorias = new Map<string, CategoriaOmie[]>();
+const cacheCategoriasRaw = new Map<string, CategoriaRawOmie[]>();
 const cacheContas = new Map<string, ContaCorrenteOmie[]>();
 const cacheProjetos = new Map<string, { codigo: number; nome: string }[]>();
 const cacheDepartamentos = new Map<string, DepartamentoOmie[]>();
 
-export async function listarCategoriasDespesa(acc: OmieAccount): Promise<CategoriaOmie[]> {
-  if (cacheCategorias.has(acc.name)) return cacheCategorias.get(acc.name)!;
-  const out: CategoriaOmie[] = [];
+interface CategoriaRawOmie {
+  codigo: string;
+  descricao: string;
+  conta_despesa?: string;
+  conta_receita?: string;
+  nao_exibir?: string;
+  totalizadora?: string;
+}
+
+async function listarCategoriasRaw(acc: OmieAccount): Promise<CategoriaRawOmie[]> {
+  if (cacheCategoriasRaw.has(acc.name)) return cacheCategoriasRaw.get(acc.name)!;
+  const out: CategoriaRawOmie[] = [];
   let pagina = 1;
   let totalPaginas = 1;
   while (pagina <= totalPaginas) {
     const r = await omieCall<{
-      categoria_cadastro?: Array<{ codigo: string; descricao: string; conta_despesa?: string; nao_exibir?: string; totalizadora?: string }>;
+      categoria_cadastro?: CategoriaRawOmie[];
       total_de_paginas?: number;
     }>("/geral/categorias/", "ListarCategorias", { pagina, registros_por_pagina: 500 }, acc);
     if (pagina === 1) totalPaginas = r?.total_de_paginas || 1;
-    for (const c of r?.categoria_cadastro || []) {
-      if (c.conta_despesa === "S" && c.totalizadora !== "S" && c.nao_exibir !== "S") {
-        out.push({ codigo: c.codigo, descricao: c.descricao });
-      }
-    }
+    out.push(...(r?.categoria_cadastro || []));
     pagina++;
     if (pagina <= totalPaginas) await new Promise((r) => setTimeout(r, 300));
   }
   out.sort((a, b) => a.codigo.localeCompare(b.codigo));
-  cacheCategorias.set(acc.name, out);
+  cacheCategoriasRaw.set(acc.name, out);
   return out;
+}
+
+export async function listarCategoriasDespesa(acc: OmieAccount): Promise<CategoriaOmie[]> {
+  const raw = await listarCategoriasRaw(acc);
+  return raw
+    .filter((c) => c.conta_despesa === "S" && c.totalizadora !== "S" && c.nao_exibir !== "S")
+    .map((c) => ({ codigo: c.codigo, descricao: c.descricao }));
+}
+
+// Categorias de RECEITA (conta_receita='S'). ⚠️ As categorias de serviço de
+// garantia ("3. #Serv Prest Garantia", "7. #Deslocamento") são de receita —
+// procurá-las na lista de despesa não acha nunca.
+export async function listarCategoriasReceita(acc: OmieAccount): Promise<CategoriaOmie[]> {
+  const raw = await listarCategoriasRaw(acc);
+  return raw
+    .filter((c) => c.conta_receita === "S" && c.totalizadora !== "S" && c.nao_exibir !== "S")
+    .map((c) => ({ codigo: c.codigo, descricao: c.descricao }));
 }
 
 export async function listarContasCorrentes(acc: OmieAccount): Promise<ContaCorrenteOmie[]> {

@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
   // 1) Verifica se a OS existe
   const { data: os } = await supabase
     .from('Ordem_Servico')
-    .select('Id_Ordem, Os_Cliente, Projeto, ID_PPV, Os_Tecnico, Os_Tecnico2, Qtd_HR, Qtd_KM')
+    .select('Id_Ordem, Os_Cliente, Projeto, ID_PPV, Os_Tecnico, Os_Tecnico2, Qtd_HR, Qtd_KM, Ordem_Omie, id_omie')
     .eq('Id_Ordem', idOrdem)
     .maybeSingle();
   if (!os) {
@@ -149,7 +149,28 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // 8) Notificações
+  // 8) OS já estava no Omie (foi fechada como OS comum ANTES da garantia
+  //    existir)? Retro-aplica o padrão de garantia lá — categoria, conta
+  //    INTERNO, não gerar financeiro, recibo, departamento Garantias.
+  //    Contrato/projeto {Montadora}-pgo entram quando a montadora for
+  //    escolhida no checklist. Best-effort: erro vira evento na timeline.
+  if (os.Ordem_Omie || os.id_omie) {
+    try {
+      const { faturarOSGarantiaNoOmie } = await import('@/lib/garantias/omie-faturamento');
+      const resp = await faturarOSGarantiaNoOmie({ idOrdem, garantiaId: String(garantia.id) });
+      await registrarEvento(garantia.id, {
+        tipo: resp.ok ? 'omie_faturada_garantia' : 'omie_faturamento_erro',
+        ator: garantistaNome,
+        detalhe: resp.ok
+          ? `OS ${idOrdem} já estava no Omie — padrão de garantia reaplicado (categoria, conta INTERNO, sem conta a receber, recibo, depto Garantias).`
+          : `OS ${idOrdem} já estava no Omie, mas falhou ao reaplicar o padrão de garantia: ${resp.motivo}. Use "Reaplicar padrão Omie" no drawer pra tentar de novo.`,
+      });
+    } catch (err) {
+      console.warn('[criar-manual] retro-faturamento Omie falhou:', err);
+    }
+  }
+
+  // 9) Notificações
   await notificarTecnico(tecnicoNome, {
     titulo: `Garantia ${garantia.numero} aberta na sua OS`,
     descricao: `${garantistaNome} abriu uma garantia para a OS ${idOrdem}${motivo ? ` (${motivo})` : ''}.`,

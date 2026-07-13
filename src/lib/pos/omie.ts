@@ -523,24 +523,25 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
       nCodCC_Interno: number;
       codDeptGarantia: string | null;
       cNumContrato?: string;
-      produtos: Array<{ cCodProd?: string; cDescr?: string; nQtde?: number; nValUnit?: number }>;
     } | null = null;
     if (ehGarantia) {
       try {
-        const { buscarCodigosGarantia, montarListaProdutosPPV } = await import('@/lib/garantias/omie-faturamento');
+        const { buscarCodigosGarantia } = await import('@/lib/garantias/omie-faturamento');
         const codigos = await buscarCodigosGarantia(undefined, montadoraNome);
-        const ppvIds = String(os.ID_PPV || '').split(',').map((s: string) => s.trim()).filter(Boolean);
-        const produtos = await montarListaProdutosPPV(ppvIds);
         payloadGarantia = {
           codCategGarantia: codigos.codCategGarantia,
           nCodCC_Interno: codigos.nCodCC_Interno,
           codDeptGarantia: codigos.codDeptGarantia,
           cNumContrato: montadoraNome ? `${montadoraNome}-pgo` : undefined,
-          produtos,
         };
       } catch (err) {
-        console.warn('[Omie] Falha ao resolver dados de garantia, seguindo com OS padrão:', err);
-        payloadGarantia = null;
+        // NÃO cai pra OS padrão: já aconteceu de uma falha momentânea aqui
+        // mandar a OS de garantia como comum (categoria/conta erradas, com
+        // conta a receber) e ninguém perceber. Melhor falhar o envio — a OS
+        // fica em "Enviar Omie" e o reenvio tenta de novo.
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(`[Omie] ✗ ${idOrdem} é garantia mas falhou ao resolver os códigos:`, err);
+        return { sucesso: false, erro: `OS de garantia: falha ao resolver os códigos no Omie (${msg}). Nada foi enviado — tente novamente.` };
       }
     }
 
@@ -576,8 +577,9 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
       Observacoes: {
         cObsOS: montarObsOS(os) || undefined,
       },
+      // ⚠️ Sem nó "Produtos" — o osCadastro do Omie não aceita a tag; as
+      // peças do PPV vão como Pedido de Venda logo abaixo.
       ServicosPrestados: servicosFinal,
-      ...(payloadGarantia && payloadGarantia.produtos.length > 0 ? { Produtos: payloadGarantia.produtos } : {}),
       Email: payloadGarantia
         ? {
             cEnvBoleto: 'N',
