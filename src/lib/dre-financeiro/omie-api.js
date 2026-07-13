@@ -476,6 +476,238 @@ async function aplicarBaixas(conta, dePagBR, atePagBR) {
 }
 
 // =============================================================================
+// Movimentações de Conta Corrente (extrato) - persiste TODOS os campos do
+// /financas/mf/ ListarMovimentos na tabela movimentos_cc (sql/movimentos-cc.sql).
+// Diferente de buscarMovimentos/aplicarBaixas (que só usam a baixa e descartam
+// o resto), aqui guardamos conta corrente, categoria, contraparte, juros/multa
+// etc. codigo_titulo liga com contas_pagar/receber.codigo_lancamento.
+// =============================================================================
+const movSyncState = {};
+function getMovSyncState(conta) {
+  if (!movSyncState[conta]) {
+    movSyncState[conta] = {
+      rodando: false, etapa: null, paginaAtual: 0, totalPaginas: 0,
+      registrosSalvos: 0, inicio: null, fim: null, erro: null
+    };
+  }
+  return movSyncState[conta];
+}
+
+// Mapa nCodCC -> descricao da conta corrente (caixa, banco, cartao...).
+async function buscarContasCorrentes(conta) {
+  const mapa = {};
+  let pag = 1;
+  while (true) {
+    let r;
+    try {
+      r = await omieRequest('/geral/contacorrente/', 'ListarContasCorrentes', {
+        pagina: pag,
+        registros_por_pagina: 200,
+        apenas_importado_api: 'N'
+      }, conta);
+    } catch (e) {
+      if (e.faultstring && /n[aã]o.*registros|ERROR/i.test(e.faultstring)) break;
+      console.log(`[contas-correntes ${conta}] falhou: ${e.message}`);
+      return mapa;
+    }
+    const lista = r.ListarContasCorrentes || [];
+    if (lista.length === 0) break;
+    lista.forEach(c => { if (c.nCodCC) mapa[c.nCodCC] = c.descricao || ''; });
+    const totalPag = r.total_de_paginas || 0;
+    console.log(`[contas-correntes ${conta}] pag ${pag}/${totalPag || '?'}, ${lista.length} itens`);
+    if (totalPag > 0) {
+      if (pag >= totalPag) break;
+    } else if (lista.length < 200) {
+      break;
+    }
+    pag++;
+    await sleep(1000);
+  }
+  return mapa;
+}
+
+// Movimento Omie (detalhes/resumo/categorias/departamentos) -> linha movimentos_cc.
+function mapearMovimento(m, mapaCat, mapaDep, mapaContra, mapaCC, contaLabel) {
+  const d = m.detalhes || {};
+  const res = m.resumo || {};
+  const cat0 = (Array.isArray(m.categorias) && m.categorias[0]) || {};
+  const codCat = d.cCodCateg || cat0.cCodCateg || null;
+  const dep0 = (Array.isArray(m.departamentos) && m.departamentos[0]) || {};
+  const codDep = dep0.cCodDepartamento || null;
+  const codCliente = Number(d.nCodCliente) || null;
+  const codCC = Number(d.nCodCC) || null;
+  return {
+    conta_omie: contaLabel,
+    codigo_movimento: Number(d.nCodMovCC) || 0,
+    codigo_titulo: Number(d.nCodTitulo) || 0,
+    natureza: d.cNatureza || '',
+    origem: d.cOrigem || null,
+    tipo_documento: d.cTipo || null,
+    status: d.cStatus || null,
+    numero_documento: d.cNumDocumento || null,
+    numero_documento_fiscal: d.cNumDocFiscal || null,
+    numero_parcela: d.cNumParcela || null,
+    data_emissao: parseBR(d.dDtEmissao),
+    data_vencimento: parseBR(d.dDtVenc),
+    data_previsao: parseBR(d.dDtPrevisao),
+    data_pagamento: parseBR(d.dDtPagamento),
+    valor_documento: Number(d.nValorTitulo) || 0,
+    valor_pago: Number(res.nValPago) || 0,
+    valor_liquido: Number(res.nValLiquido) || 0,
+    valor_aberto: Number(res.nValAberto) || 0,
+    juros: Number(res.nJuros) || 0,
+    multa: Number(res.nMulta) || 0,
+    desconto: Number(res.nDesconto) || 0,
+    liquidado: res.cLiquidado || null,
+    codigo_conta_corrente: codCC,
+    nome_conta_corrente: (codCC && mapaCC[codCC]) || null,
+    codigo_categoria: codCat,
+    descricao_categoria: codCat ? (mapaCat[codCat]?.descricao || null) : null,
+    grupo_categoria: codCat ? (mapaCat[codCat]?.grupo || null) : null,
+    codigo_departamento: codDep,
+    descricao_departamento: codDep ? (mapaDep[codDep] || null) : null,
+    codigo_cliente_fornecedor: codCliente,
+    nome_cliente_fornecedor: (codCliente && mapaContra[codCliente]) || null,
+    raw: m,
+    synced_at: new Date().toISOString()
+  };
+}
+
+// Sincroniza movimentos por janela de DATA DE PAGAMENTO (DD/MM/YYYY).
+// Upsert por (conta_omie, natureza, codigo_movimento, codigo_titulo).
+async function sincronizarMovimentosCC(conta, dePagBR, atePagBR) {
+  const s = getMovSyncState(conta);
+  if (s.rodando) {
+    return { ok: false, mensagem: 'Sync de movimentos ja em andamento para esta conta' };
+  }
+  if (!supabaseAdmin) {
+    return { ok: false, mensagem: 'Supabase nao configurado' };
+  }
+  const contaLabel = labelConta(conta);
+
+  s.rodando = true;
+  s.etapa = 'iniciando';
+  s.paginaAtual = 0;
+  s.totalPaginas = 0;
+  s.registrosSalvos = 0;
+  s.inicio = new Date().toISOString();
+  s.fim = null;
+  s.erro = null;
+
+  let logId = null;
+  try {
+    const { data: log } = await supabaseAdmin
+      .from('cp_sync_log')
+      .insert({
+        conta_omie: contaLabel,
+        tipo: 'movimentos_cc',
+        status: 'em_andamento',
+        parametros: { de: dePagBR, ate: atePagBR }
+      })
+      .select('id').single();
+    logId = log?.id;
+
+    s.etapa = 'mapas (categorias / contrapartes / contas correntes)';
+    const [mapaCat, mapaDep, contrapartes, mapaCC] = await Promise.all([
+      buscarCategorias(conta).catch(e => { console.log(`categorias: ${e.message}`); return {}; }),
+      buscarDepartamentos(conta).catch(e => { console.log(`departamentos: ${e.message}`); return {}; }),
+      buscarClientesFornecedores(conta).catch(e => { console.log(`contrapartes: ${e.message}`); return { mapa: {}, completo: false }; }),
+      buscarContasCorrentes(conta).catch(e => { console.log(`contas-correntes: ${e.message}`); return {}; })
+    ]);
+    const mapaContra = contrapartes.mapa || {};
+
+    // Mesmo guard do sync de titulos: o upsert reescreve a linha inteira; com
+    // mapa de contrapartes parcial, nome_cliente_fornecedor iria para null e
+    // apagaria nomes ja corretos em re-sync. Aborta (fail-safe).
+    if (!contrapartes.completo || Object.keys(mapaContra).length === 0) {
+      throw new Error(`mapa de contrapartes incompleto (completo=${contrapartes.completo}, itens=${Object.keys(mapaContra).length}) - sync abortado para nao apagar nomes`);
+    }
+    console.log(`[mov-cc ${conta}] categorias: ${Object.keys(mapaCat).length}, contrapartes: ${Object.keys(mapaContra).length}, contas correntes: ${Object.keys(mapaCC).length}`);
+
+    s.etapa = 'paginando movimentos';
+    let pag = 1;
+    while (true) {
+      let r;
+      try {
+        r = await omieRequest('/financas/mf/', 'ListarMovimentos', {
+          nPagina: pag,
+          nRegPorPagina: PAGE_SIZE,
+          dDtPagtoDe: dePagBR,
+          dDtPagtoAte: atePagBR
+        }, conta);
+      } catch (e) {
+        if (e.faultstring && /n[aã]o.*registros|ERROR/i.test(e.faultstring)) break;
+        throw e;
+      }
+      const lista = r.movimentos || [];
+      s.paginaAtual = pag;
+      s.totalPaginas = r.nTotPaginas || s.totalPaginas;
+      console.log(`[mov-cc ${conta}] pag ${pag}/${s.totalPaginas || '?'}: ${lista.length} movimentos`);
+      if (lista.length === 0) break;
+
+      // Dedup dentro do lote pela chave do upsert (o Postgres rejeita ON CONFLICT
+      // que afeta a mesma linha duas vezes no mesmo statement). Fica o ultimo.
+      const porChave = {};
+      lista
+        .map(m => mapearMovimento(m, mapaCat, mapaDep, mapaContra, mapaCC, contaLabel))
+        .filter(row => row.codigo_movimento || row.codigo_titulo)
+        .forEach(row => {
+          const chave = `${row.natureza}|${row.codigo_movimento}|${row.codigo_titulo}`;
+          porChave[chave] = row;
+        });
+      const rows = Object.values(porChave);
+
+      if (rows.length > 0) {
+        const { error } = await supabaseAdmin
+          .from('movimentos_cc')
+          .upsert(rows, { onConflict: 'conta_omie,natureza,codigo_movimento,codigo_titulo' });
+        if (error) {
+          throw new Error(`Supabase upsert movimentos_cc: ${error.message}`);
+        }
+        s.registrosSalvos += rows.length;
+      }
+
+      const totalPag = r.nTotPaginas || 0;
+      if (totalPag > 0) {
+        if (pag >= totalPag) break;
+      } else if (lista.length < PAGE_SIZE) {
+        break;
+      }
+      pag++;
+      await sleep(SLEEP_BETWEEN_PAGES);
+    }
+
+    s.etapa = 'concluido';
+    s.fim = new Date().toISOString();
+    if (logId) {
+      await supabaseAdmin.from('cp_sync_log').update({
+        status: 'ok',
+        fim: s.fim,
+        registros: s.registrosSalvos
+      }).eq('id', logId);
+    }
+    console.log(`[mov-cc ${conta}] ok - ${s.registrosSalvos} movimentos salvos`);
+    return { ok: true, registros: s.registrosSalvos };
+
+  } catch (e) {
+    console.error(`[mov-cc ${conta}] erro: ${e.message}`);
+    s.erro = e.message;
+    s.fim = new Date().toISOString();
+    if (logId) {
+      await supabaseAdmin.from('cp_sync_log').update({
+        status: 'erro',
+        fim: s.fim,
+        registros: s.registrosSalvos,
+        erro: e.message
+      }).eq('id', logId);
+    }
+    return { ok: false, mensagem: e.message };
+  } finally {
+    s.rodando = false;
+  }
+}
+
+// =============================================================================
 // Mapeia titulo Omie -> linha da tabela (pagar OU receber, conforme cfg)
 // =============================================================================
 function mapearTitulo(t, mapaCategorias, mapaDepartamentos, mapaContrapartes, contaLabel, cfg) {
@@ -1167,6 +1399,9 @@ module.exports = {
   sincronizarTudo,
   buscarMovimentos,
   aplicarBaixas,
+  buscarContasCorrentes,
+  sincronizarMovimentosCC,
+  getMovSyncState,
   buscarClientesFornecedores,
   backfillNomesContas,
   backfillModeloProdutos,

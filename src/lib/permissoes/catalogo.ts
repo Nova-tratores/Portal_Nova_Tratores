@@ -142,6 +142,7 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'vencidos', label: 'Vencidos' },
     { id: 'curva-saldo', label: 'Curva de Saldo' },
     { id: 'fluxo', label: 'Fluxo' },
+    { id: 'movimentos', label: 'Movimentações CC' },
     { id: 'ciclo-caixa', label: 'Ciclo de Caixa' },
     { id: 'aderencia', label: 'Pontualidade' },
     { id: 'dre', label: 'DRE' },
