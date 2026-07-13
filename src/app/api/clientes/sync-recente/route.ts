@@ -263,6 +263,23 @@ export async function GET(req: Request) {
               await supabase.from("portal_nt_clientes_pv").update(upd).eq("num_pedido", pv.num_pedido).eq("empresa", acc.name);
               nfs++;
             }
+            // Sem DANFE = nota REJEITADA/DENEGADA pela SEFAZ. Guarda a situação pra pasta
+            // avisar e a pessoa anexar a nota manualmente. Update separado (best-effort):
+            // se as colunas ainda não existirem, não estraga o update do link_nf acima.
+            if (!url) {
+              const stat = String(nfe.status_nfe || "").trim();
+              const motivo = String(nfe?.mensagens?.[0]?.cDescricao || "").trim();
+              if (stat || motivo) {
+                await supabase.from("portal_nt_clientes_pv")
+                  .update({ nf_status: stat, nf_motivo: motivo })
+                  .eq("num_pedido", pv.num_pedido).eq("empresa", acc.name);
+              }
+            } else {
+              // Nota boa chegou → limpa qualquer rejeição antiga
+              await supabase.from("portal_nt_clientes_pv")
+                .update({ nf_status: null, nf_motivo: null })
+                .eq("num_pedido", pv.num_pedido).eq("empresa", acc.name);
+            }
           }
           await new Promise(r => setTimeout(r, 300));
         } catch {}

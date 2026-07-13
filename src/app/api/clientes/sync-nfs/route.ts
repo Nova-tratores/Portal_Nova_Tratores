@@ -123,6 +123,21 @@ export async function POST(req: NextRequest) {
               await supabase.from("portal_nt_clientes_pv").update(updates).eq("num_pedido", pv.num_pedido).eq("empresa", acc.name);
               pvComNF++;
             }
+            // Sem DANFE = NF rejeitada/denegada → registra a situação (pasta avisa e a
+            // pessoa anexa manualmente). Update separado pra não estragar o de cima.
+            if (!danfeUrl) {
+              const stat = String(nfe.status_nfe || "").trim();
+              const motivo = String(nfe?.mensagens?.[0]?.cDescricao || "").trim();
+              if (stat || motivo) {
+                await supabase.from("portal_nt_clientes_pv")
+                  .update({ nf_status: stat, nf_motivo: motivo })
+                  .eq("num_pedido", pv.num_pedido).eq("empresa", acc.name);
+              }
+            } else {
+              await supabase.from("portal_nt_clientes_pv")
+                .update({ nf_status: null, nf_motivo: null })
+                .eq("num_pedido", pv.num_pedido).eq("empresa", acc.name);
+            }
           }
           await new Promise(r => setTimeout(r, 250));
         } catch { /* ignore */ }

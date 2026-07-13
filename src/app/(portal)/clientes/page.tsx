@@ -6,7 +6,7 @@ import { usePermissoes } from '@/hooks/usePermissoes'
 import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui'
 import { supabase } from '@/lib/supabase'
 import SemPermissao from '@/components/SemPermissao'
-import { Search, ChevronDown, ChevronUp, ArrowLeft, RefreshCw, ChevronRight, Download, Printer, FolderOpen, X, FileText, Wrench, Calendar, MapPin, User, Hash, ClipboardList, Package, Users, Shield, CheckCircle, Clock, Mail, Bell, Tag, Plus, Trash2, Save, Upload } from 'lucide-react'
+import { Search, ChevronDown, ChevronUp, ArrowLeft, RefreshCw, ChevronRight, Download, Printer, FolderOpen, X, FileText, Wrench, Calendar, MapPin, User, Hash, ClipboardList, Package, Users, Shield, CheckCircle, Clock, Mail, Bell, Tag, Plus, Trash2, Save, Upload, AlertTriangle } from 'lucide-react'
 
 interface Cliente {
   cod_cli: number; empresa: string; razao_social: string; nome_fantasia: string
@@ -39,6 +39,7 @@ interface PedidoVenda {
   numero_nf: string; link_nf: string; itens: any[]; observacoes: string; pdf_anexo?: string
   pv_pdf?: string | null; ppv_id?: string | null; ppv_real?: boolean; financeiro?: FinanceiroDoc | null
   nf_substituicoes?: SubstituicaoNF[]
+  nf_status?: string | null; nf_motivo?: string | null   // NF rejeitada/denegada na SEFAZ
 }
 
 function formatCurrency(v: number) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }
@@ -450,6 +451,32 @@ function ClientesPageInner() {
       } else {
         alert(`NF de serviço anexada na pasta.${r.includes('Card criado') ? ' ✅ Card criado no financeiro!' : r.includes('Aguardando') ? ' Ainda falta outra nota pra liberar o card.' : ''}`)
       }
+    } catch { alert('Erro de conexão.') }
+    setAnexNfOS(false)
+  }
+  // Anexa MANUALMENTE a NF de peça num PV (usado quando a SEFAZ rejeitou a nota e ela
+  // foi reemitida/gerada por fora). Depois segue o fluxo normal: gera o card no financeiro.
+  const anexarNFpecaNoPV = async (pv: PedidoVenda, file: File, opts?: { gerarCard?: boolean; substituir?: boolean }) => {
+    if (!podeAnexos || !selectedCliente) return
+    const gerarCard = opts?.gerarCard !== false
+    const substituir = !!opts?.substituir
+    setAnexNfOS(true)
+    try {
+      const path = `clientes/${pv.empresa.replace(/ /g, '_')}/pv-${pv.num_pedido}-nfpeca-${Date.now()}.pdf`
+      const { error: upErr } = await supabase.storage.from('anexos').upload(path, file, { upsert: true })
+      if (upErr) { alert('Falha ao subir o PDF da NF de peça.'); setAnexNfOS(false); return }
+      const pdf_url = supabase.storage.from('anexos').getPublicUrl(path).data.publicUrl
+      const res = await fetch('/api/clientes/anexar-nf', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tipo: 'pv', num: pv.num_pedido, empresa: pv.empresa, pdf_url, gerarCard }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) { alert(data.error || 'Erro ao anexar a NF de peça.'); setAnexNfOS(false); return }
+      await abrirDetalhe(selectedCliente)
+      setModalOS(null)
+      alert(substituir ? 'Arquivo da NF de peça substituído.'
+        : gerarCard ? 'NF de peça anexada na pasta. ✅ Card do financeiro acionado.'
+        : 'NF de peça anexada na pasta (sem gerar card no financeiro).')
     } catch { alert('Erro de conexão.') }
     setAnexNfOS(false)
   }
@@ -1029,6 +1056,15 @@ function ClientesPageInner() {
                                   <Download size={15} />
                                 </a>
                               )}
+                              {/* NF rejeitada na SEFAZ → avisa e deixa anexar na mão */}
+                              {!pv.link_nf && pv.nf_motivo && (
+                                <label onClick={e => e.stopPropagation()} title={`NF não saiu${pv.nf_status ? ` (status ${pv.nf_status})` : ''}: ${pv.nf_motivo}\n\nClique para anexar a nota manualmente.`}
+                                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, height: 30, padding: '0 10px', borderRadius: 7, border: '1px solid #FECACA', background: '#FEF2F2', color: '#B91C1C', fontSize: 12, fontWeight: 700, cursor: anexNfOS ? 'wait' : 'pointer' }}>
+                                  <AlertTriangle size={14} /> {anexNfOS ? '...' : 'NF rejeitada — anexar'}
+                                  <input type="file" accept="application/pdf" style={{ display: 'none' }} disabled={anexNfOS}
+                                    onChange={e => { e.stopPropagation(); const f = e.target.files?.[0]; if (f) anexarNFpecaNoPV(pv, f, { gerarCard: true }) }} />
+                                </label>
+                              )}
                               {pv.pdf_anexo && (
                                 <a href={pv.pdf_anexo} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="PDF anexado"
                                   style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 7, border: '1px solid #FED7AA', background: '#FFF7ED', textDecoration: 'none', color: '#EA580C' }}>
@@ -1367,6 +1403,22 @@ function ClientesPageInner() {
                           style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: '1px solid #E5E7EB', borderRadius: 10, background: '#fff', color: '#374151', fontSize: 14, textDecoration: 'none', fontWeight: 600 }}>
                           <Printer size={16} /> {pv.ppv_real ? 'Abrir PPV' : 'PV'} {pv.num_pedido}
                         </a>
+                        {/* NF de peça rejeitada/denegada na SEFAZ: avisa e deixa anexar na mão */}
+                        {!pv.link_nf && !os.financeiro?.nf_peca && pv.nf_motivo && (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderRadius: 10, background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C', fontSize: 13, fontWeight: 600, maxWidth: 520 }}>
+                            <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+                            <span style={{ lineHeight: 1.35 }}>
+                              <b>NF de peça do PV {pv.num_pedido} não saiu</b>
+                              {pv.nf_status ? ` (status ${pv.nf_status})` : ''}: {pv.nf_motivo}
+                              <br /><span style={{ fontWeight: 500, opacity: 0.85 }}>Se já reemitiu, anexe a nota aqui →</span>
+                            </span>
+                            <label title="Anexar a NF de peça manualmente" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 8, border: 'none', background: '#B91C1C', color: '#fff', fontSize: 13, fontWeight: 700, cursor: anexNfOS ? 'wait' : 'pointer', flexShrink: 0 }}>
+                              <Upload size={14} /> {anexNfOS ? 'Enviando...' : 'Anexar NF'}
+                              <input type="file" accept="application/pdf" style={{ display: 'none' }} disabled={anexNfOS}
+                                onChange={e => { const f = e.target.files?.[0]; if (f) anexarNFpecaNoPV(pv, f, { gerarCard: true }) }} />
+                            </label>
+                          </span>
+                        )}
                         {(pv.link_nf || os.financeiro?.nf_peca) && (
                           <a href={pv.link_nf || os.financeiro?.nf_peca || undefined} target="_blank" rel="noopener noreferrer"
                             style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: 'none', borderRadius: 10, background: '#111827', color: '#fff', fontSize: 14, textDecoration: 'none', fontWeight: 600 }}>
