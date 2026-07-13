@@ -12,7 +12,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const result = await criarOSNoOmie(idOs);
 
+  // Pós-processamento é best-effort: a OS JÁ está no Omie — um erro aqui não
+  // pode virar 500 pro navegador (o usuário veria "erro" num envio que deu
+  // certo e poderia tentar reenviar).
   if (result.sucesso) {
+    try {
     const agora = new Date();
     const dataFmt = new Intl.DateTimeFormat("pt-BR").format(agora);
     const horaFmt = agora.toLocaleTimeString("pt-BR");
@@ -57,6 +61,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         : `${userName} enviou OS ${idOs} para Omie (nº ${result.cNumOS})`,
       notifLink: `/pos?id=${idOs}`,
     });
+    } catch (e) {
+      console.error(`[pos/omie] OS ${idOs}: pós-processamento falhou (envio ao Omie OK):`, e);
+    }
   }
 
   return NextResponse.json(result);

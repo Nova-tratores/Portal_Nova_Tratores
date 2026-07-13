@@ -425,7 +425,22 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
     setEnviandoOmie(true);
     try {
       const res = await fetch(`/api/pos/ordens/${osId}/omie`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userName }) });
-      const result = await res.json();
+      const result = await res.json().catch(() => ({} as Record<string, never>));
+      // Resposta sem os campos esperados = a conexão caiu no meio (ex.: timeout
+      // do proxy do Railway enquanto o Omie processava). O envio pode TER dado
+      // certo no servidor — reenviar às cegas assusta; melhor conferir.
+      if (typeof result.sucesso === "undefined" && !result.erro) {
+        alert(
+          "A conexão caiu enquanto o Omie processava (demorou demais).\n\n" +
+          "O envio pode ter sido concluído mesmo assim. Recarregue a página e confira se a OS recebeu o nº do Omie:\n" +
+          "• Se recebeu, está tudo certo — não reenvie.\n" +
+          "• Se não recebeu, tente enviar de novo (reenviar não duplica: o sistema recusa OS que já tem nº)."
+        );
+        setLogRefreshKey((k) => k + 1);
+        onSaved?.();
+        setEnviandoOmie(false);
+        return;
+      }
       if (result.sucesso) {
         let msg: string;
         if (result.interna) {
