@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
           const st: any = await omieCall("/servicos/os/", "StatusOS", { nCodOS: os.cod_os }, acc);
           const nfseList: any[] = st?.ListaRpsNfse || [];
           if (nfseList.length > 0) {
-            const nfse = nfseList[0];
+            const nfse = nfseList.find((n: any) => n?.danfe || n?.cUrlNfse) || nfseList[nfseList.length - 1];
             const numNFSe = nfse.nNfse || "";
             const danfeUrl = nfse.danfe || nfse.cUrlNfse || "";
             if (numNFSe || danfeUrl) {
@@ -105,7 +105,9 @@ export async function POST(req: NextRequest) {
           const st: any = await omieCall("/produtos/pedido/", "StatusPedido", { codigo_pedido: pv.cod_pedido }, acc);
           const nfeList: any[] = st?.ListaNfe || [];
           if (nfeList.length > 0) {
-            const nfe = nfeList[0];
+            // Prioriza a NF que TEM danfe: se a 1ª foi rejeitada e depois reemitida,
+            // pegar [0] cegamente ficaria na rejeitada (sem DANFE) pra sempre.
+            const nfe = nfeList.find((n: any) => n?.danfe && String(n.danfe).trim()) || nfeList[nfeList.length - 1];
             const numNFe = nfe.numero_nfe || "";
             const danfeUrl = nfe.danfe || "";
             if (numNFe || danfeUrl) {
@@ -114,9 +116,10 @@ export async function POST(req: NextRequest) {
                 const stored = await downloadAndStore(danfeUrl, `${empKey}/pv_${pv.num_pedido}/danfe_${numNFe || pv.num_pedido}.pdf`);
                 if (stored) finalUrl = stored;
               }
-              const updates: Record<string, string> = {};
+              const updates: Record<string, unknown> = {};
               if (numNFe) updates.numero_nf = numNFe;
               if (finalUrl) updates.link_nf = finalUrl;
+              if (danfeUrl) updates.faturado = true;
               await supabase.from("portal_nt_clientes_pv").update(updates).eq("num_pedido", pv.num_pedido).eq("empresa", acc.name);
               pvComNF++;
             }

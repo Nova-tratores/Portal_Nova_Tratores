@@ -201,18 +201,23 @@ export async function GET(req: Request) {
         console.warn(`[sync-recente] PV ${acc.name}:`, e instanceof Error ? e.message : e);
       }
 
-      // Buscar NFs para OS/PV faturados recentes sem link_nf
+      // Buscar NFs para OS/PV faturados sem link_nf.
+      // Ordena pelos mais RECENTES: sem isso, a fila (que tem milhares de itens antigos
+      // sem nota) devolvia sempre os mesmos e as notas novas nunca eram tentadas.
       const { data: osSemNF } = await supabase.from("portal_nt_clientes_os")
         .select("num_os, cod_os").eq("empresa", acc.name)
         .eq("faturada", true).eq("cancelada", false)
-        .or("link_nf.is.null,link_nf.eq.").limit(50);
+        .or("link_nf.is.null,link_nf.eq.")
+        .order("updated_at", { ascending: false }).limit(80);
 
       for (const os of osSemNF || []) {
         try {
           const st: any = await omieCall("/servicos/os/", "StatusOS", { nCodOS: os.cod_os }, acc);
           const nfseList: any[] = st?.ListaRpsNfse || [];
           if (nfseList.length > 0) {
-            const nfse = nfseList[0];
+            // Pega a nota que REALMENTE tem link (uma NF rejeitada e depois reemitida deixa
+            // a rejeitada em [0]; pegar [0] cegamente perdia a nota boa).
+            const nfse = nfseList.find((n: any) => n?.danfe || n?.cUrlNfse) || nfseList[nfseList.length - 1];
             const num = nfse.nNfse || "";
             const url = nfse.danfe || nfse.cUrlNfse || "";
             if (num || url) {
@@ -229,25 +234,32 @@ export async function GET(req: Request) {
         } catch {}
       }
 
+      // PV (peças): mesma coisa. Inclui os que a pasta ainda não marcou como faturado mas
+      // cuja ETAPA já diz "Faturado" (a flag fica velha quando o sync perde a janela de 1h).
       const { data: pvSemNF } = await supabase.from("portal_nt_clientes_pv")
         .select("num_pedido, cod_pedido").eq("empresa", acc.name)
-        .eq("faturado", true).eq("cancelado", false)
-        .or("link_nf.is.null,link_nf.eq.").limit(50);
+        .eq("cancelado", false)
+        .or("faturado.eq.true,etapa.ilike.*fatur*")
+        .or("link_nf.is.null,link_nf.eq.")
+        .order("updated_at", { ascending: false }).limit(80);
 
       for (const pv of pvSemNF || []) {
         try {
           const st: any = await omieCall("/produtos/pedido/", "StatusPedido", { codigo_pedido: pv.cod_pedido }, acc);
           const nfeList: any[] = st?.ListaNfe || [];
           if (nfeList.length > 0) {
-            const nfe = nfeList[0];
+            // Idem: prioriza a NF que tem DANFE (a reemitida), não a rejeitada em [0].
+            const nfe = nfeList.find((n: any) => n?.danfe && String(n.danfe).trim()) || nfeList[nfeList.length - 1];
             const num = nfe.numero_nfe || "";
             const url = nfe.danfe || "";
             if (num || url) {
               let finalUrl = url;
               if (url) finalUrl = await downloadNF(url, `${empKey}/pv_${pv.num_pedido}/danfe_${num || pv.num_pedido}.pdf`);
-              const upd: Record<string, string> = {};
+              const upd: Record<string, unknown> = {};
               if (num) upd.numero_nf = num;
               if (finalUrl) upd.link_nf = finalUrl;
+              // Achou NF com DANFE → o pedido está faturado de fato (conserta a flag velha).
+              if (url) upd.faturado = true;
               await supabase.from("portal_nt_clientes_pv").update(upd).eq("num_pedido", pv.num_pedido).eq("empresa", acc.name);
               nfs++;
             }
