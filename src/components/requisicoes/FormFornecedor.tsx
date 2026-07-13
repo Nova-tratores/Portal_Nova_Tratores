@@ -29,6 +29,7 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
   });
   const [cepStatus, setCepStatus] = useState<'' | 'buscando' | 'ok' | 'erro'>('');
   const [cnpjStatus, setCnpjStatus] = useState<'' | 'buscando' | 'ok' | 'erro'>('');
+  const [cnpjAviso, setCnpjAviso] = useState(''); // o que a Receita NÃO tinha (ex.: e-mail)
   const ultimoCnpjRef = useRef('');
 
   // 1. CARREGAR FORNECEDORES DO BANCO
@@ -65,6 +66,7 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
     });
     setCepStatus('');
     setCnpjStatus('');
+    setCnpjAviso('');
     ultimoCnpjRef.current = '';
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -87,6 +89,7 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
     setFormData(FORM_VAZIO);
     setCepStatus('');
     setCnpjStatus('');
+    setCnpjAviso('');
     ultimoCnpjRef.current = '';
   };
 
@@ -111,17 +114,25 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
   // (base da Receita) e preenche o formulário. Campos "relacionais"
   // (WhatsApp, e-mail, descrição) só entram se estiverem vazios — o resto
   // (razão social, endereço) a Receita é a fonte da verdade.
+  // A Receita NÃO publica e-mail/telefone de todo CNPJ: o que faltar vira
+  // aviso no label (cnpjAviso) pra pessoa completar à mão.
   const buscarCnpj = async (docRaw: string) => {
     const digits = (docRaw || '').replace(/\D/g, '');
-    if (digits.length !== 14) { setCnpjStatus(''); return; }
+    if (digits.length !== 14) { setCnpjStatus(''); setCnpjAviso(''); return; }
     if (ultimoCnpjRef.current === digits) return;
     ultimoCnpjRef.current = digits;
     setCnpjStatus('buscando');
+    setCnpjAviso('');
     try {
       const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${digits}`);
-      if (!res.ok) { setCnpjStatus('erro'); return; }
+      if (!res.ok) {
+        setCnpjStatus('erro');
+        ultimoCnpjRef.current = ''; // deixa tentar de novo (corrigindo um dígito e voltando)
+        return;
+      }
       const data = await res.json();
-      const fone = String(data.ddd_telefone_1 || '').replace(/\D/g, '');
+      // Telefone: tenta o 1º e cai pro 2º; e-mail nem sempre é público.
+      const fone = String(data.ddd_telefone_1 || data.ddd_telefone_2 || '').replace(/\D/g, '');
       const foneFmt = fone.length >= 10 ? `(${fone.slice(0, 2)}) ${fone.slice(2, -4)}-${fone.slice(-4)}` : '';
       const cepDigits = String(data.cep || '').replace(/\D/g, '');
       const cepFmt = cepDigits.length === 8 ? `${cepDigits.slice(0, 5)}-${cepDigits.slice(5)}` : '';
@@ -130,7 +141,7 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
         : '';
       setFormData(prev => ({
         ...prev,
-        nome: String(data.razao_social || prev.nome || '').toUpperCase(),
+        nome: String(data.razao_social || data.nome_fantasia || prev.nome || '').toUpperCase(),
         email: prev.email || String(data.email || '').toLowerCase(),
         numero: prev.numero || foneFmt,
         descricao: prev.descricao || String(data.cnae_fiscal_descricao || '').toUpperCase(),
@@ -141,10 +152,18 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
         cidade: String(data.municipio || prev.cidade || '').toUpperCase(),
         estado: String(data.uf || prev.estado || '').toUpperCase(),
       }));
+      // Endereço incompleto mas com CEP? Completa pelo ViaCEP.
+      if (!logradouro && cepFmt) buscarCep(cepFmt);
+      // Avisa o que a Receita não tinha (só o que continua vazio no form).
+      const faltantes: string[] = [];
+      if (!data.email) faltantes.push('e-mail');
+      if (!foneFmt) faltantes.push('telefone');
+      setCnpjAviso(faltantes.length ? `Receita sem ${faltantes.join(' e ')} — complete à mão` : '');
       setCnpjStatus('ok');
       if (cepFmt) setCepStatus('ok');
     } catch {
       setCnpjStatus('erro'); // offline/bloqueado — usuário preenche manualmente
+      ultimoCnpjRef.current = '';
     }
   };
 
@@ -200,6 +219,9 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
       await onSave(formData);
       setFormData(FORM_VAZIO);
       setCepStatus('');
+      setCnpjStatus('');
+      setCnpjAviso('');
+      ultimoCnpjRef.current = '';
       await carregarFornecedores();
     }
   };
@@ -239,7 +261,12 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
               <label className={labelStyle}>
                 Documento (CNPJ/CPF)
                 {cnpjStatus === 'buscando' && <span className="text-blue-500 normal-case tracking-normal"> · consultando a Receita…</span>}
-                {cnpjStatus === 'ok' && <span className="text-green-600 normal-case tracking-normal"> · dados da empresa preenchidos</span>}
+                {cnpjStatus === 'ok' && (
+                  <span className="text-green-600 normal-case tracking-normal">
+                    {' '}· dados da empresa preenchidos
+                    {cnpjAviso && <span className="text-amber-600"> · {cnpjAviso}</span>}
+                  </span>
+                )}
                 {cnpjStatus === 'erro' && <span className="text-red-500 normal-case tracking-normal"> · CNPJ não encontrado, preencha à mão</span>}
               </label>
               <input
