@@ -1256,20 +1256,32 @@ function ClientesPageInner() {
                 </div>
 
                 <div style={{ padding: '24px 28px' }}>
-                  {/* Info grid */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 24 }}>
-                    {[
-                      { l: 'Valor Total', v: formatCurrency(os.valor_total || 0), bg: '#F3F4F6', c: '#111827', b: '#E5E7EB' },
-                      { l: 'Data Previsao', v: formatDate(os.data_previsao), bg: '#F9FAFB', c: '#374151', b: '#E5E7EB' },
-                      { l: 'Data Inclusao', v: formatDate(os.data_inclusao), bg: '#F9FAFB', c: '#374151', b: '#E5E7EB' },
-                      { l: 'Faturamento', v: formatDate(os.data_faturamento), bg: os.faturada ? '#ECFDF5' : '#F9FAFB', c: os.faturada ? '#047857' : '#9CA3AF', b: os.faturada ? '#A7F3D0' : '#E5E7EB' },
-                    ].map((c, i) => (
-                      <div key={i} style={{ padding: '14px 16px', borderRadius: 10, background: c.bg, border: `1px solid ${c.b}` }}>
-                        <div style={{ fontSize: 11, color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>{c.l}</div>
-                        <div style={{ fontSize: 18, fontWeight: 700, color: c.c }}>{c.v}</div>
+                  {/* Info grid — Valor Total = serviço (OS) + peças (PVs vinculados),
+                      que é o mesmo total que vai pro card do financeiro. */}
+                  {(() => {
+                    const vServico = os.valor_total || 0
+                    const vPecas = pvs.reduce((s: number, p: PedidoVenda) => s + (p.valor_total || 0), 0)
+                    const vTotal = vServico + vPecas
+                    return (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 24 }}>
+                        {[
+                          {
+                            l: 'Valor Total', v: formatCurrency(vTotal), bg: '#F3F4F6', c: '#111827', b: '#E5E7EB',
+                            sub: vPecas > 0 ? `Serviço ${formatCurrency(vServico)} + Peças ${formatCurrency(vPecas)}` : null,
+                          },
+                          { l: 'Data Previsao', v: formatDate(os.data_previsao), bg: '#F9FAFB', c: '#374151', b: '#E5E7EB', sub: null },
+                          { l: 'Data Inclusao', v: formatDate(os.data_inclusao), bg: '#F9FAFB', c: '#374151', b: '#E5E7EB', sub: null },
+                          { l: 'Faturamento', v: formatDate(os.data_faturamento), bg: os.faturada ? '#ECFDF5' : '#F9FAFB', c: os.faturada ? '#047857' : '#9CA3AF', b: os.faturada ? '#A7F3D0' : '#E5E7EB', sub: null },
+                        ].map((c, i) => (
+                          <div key={i} style={{ padding: '14px 16px', borderRadius: 10, background: c.bg, border: `1px solid ${c.b}` }}>
+                            <div style={{ fontSize: 11, color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>{c.l}</div>
+                            <div style={{ fontSize: 18, fontWeight: 700, color: c.c }}>{c.v}</div>
+                            {c.sub && <div style={{ fontSize: 11, color: '#6B7280', marginTop: 3, fontWeight: 500 }}>{c.sub}</div>}
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    )
+                  })()}
 
                   {/* Info adicional */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 24 }}>

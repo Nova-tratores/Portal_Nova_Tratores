@@ -49,13 +49,30 @@ export async function POST(req: NextRequest) {
         .update(upd).eq("num_pedido", numStr).eq("empresa", empresa);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-      // Peça avulsa: dispara o sync de peças (idempotente, respeita corte) — se pedido
       let card: any = null;
+      let via: string | null = null;
       if (criarCard) {
-        card = await fetch(`${origin}/api/financeiro/sync-pecas?dias=30`, { method: "POST" })
-          .then(r => r.json()).catch(() => null);
+        // A peça tem OS vinculada? Então o card é o COMBINADO (serviço + peça) e sai pelo
+        // sync-os — o sync-pecas PULA de propósito os PV que têm OS ("card sai pelo sync de OS").
+        // Chamar sync-pecas aqui não geraria card nenhum.
+        const { data: osLig } = await supabase.from("portal_nt_clientes_os")
+          .select("cod_os, num_pedido_cli").eq("empresa", empresa)
+          .ilike("num_pedido_cli", `%${numStr}%`).limit(30);
+        const osDaPeca = (osLig || []).find((o: any) =>
+          ((String(o.num_pedido_cli).match(/\d+/g) || []) as string[]).includes(numStr)
+        );
+
+        if (osDaPeca?.cod_os) {
+          via = "sync-os (card combinado serviço + peça)";
+          card = await fetch(`${origin}/api/financeiro/sync-os?codOS=${osDaPeca.cod_os}`, { method: "POST" })
+            .then(r => r.json()).catch(() => null);
+        } else {
+          via = "sync-pecas (peça avulsa)";
+          card = await fetch(`${origin}/api/financeiro/sync-pecas?dias=30`, { method: "POST" })
+            .then(r => r.json()).catch(() => null);
+        }
       }
-      return NextResponse.json({ ok: true, tipo, num: numStr, gerouCard: criarCard, card });
+      return NextResponse.json({ ok: true, tipo, num: numStr, gerouCard: criarCard, via, card });
     }
 
     return NextResponse.json({ error: "tipo inválido (use 'os' ou 'pv')" }, { status: 400 });
