@@ -33,6 +33,9 @@ interface HistoricoMesPonto {
   valor: number;
   custo: number;
   qtdePedidos: number;
+  /** Só no card Serviços: split OS com NFS-e × internas (null quando os_mensal ainda não tem o split). */
+  valorNota?: number | null;
+  valorInterno?: number | null;
 }
 
 export interface HistoricoResult {
@@ -91,18 +94,26 @@ export async function montarHistorico(
     }
   }
 
-  let todosOS: Array<{ mes: number; ano: number; valor_total: number }> = [];
+  type OSMensalRow = { mes: number; ano: number; valor_total: number; valor_nota: number | null; valor_interno: number | null };
+  let todosOS: OSMensalRow[] = [];
   if (card === cardServicos || card === cardTotalGeral) {
     for (const ano of anos) {
-      const { data } = await filtroConta(supabase.from('os_mensal').select('mes,ano,valor_total').eq('ano', ano), conta);
-      if (data) todosOS = todosOS.concat(data as Array<{ mes: number; ano: number; valor_total: number }>);
+      const { data } = await filtroConta(supabase.from('os_mensal').select('mes,ano,valor_total,valor_nota,valor_interno').eq('ano', ano), conta);
+      if (data) todosOS = todosOS.concat(data as OSMensalRow[]);
     }
     if (!conta) {
-      const agregado: Record<string, number> = {};
-      todosOS.forEach((o) => { agregado[o.mes + '/' + o.ano] = (agregado[o.mes + '/' + o.ano] || 0) + num(o.valor_total); });
+      // "Todas": soma por mês; split só quando TODAS as contas do mês têm o split (senão null).
+      const agregado: Record<string, { total: number; nota: number | null; interno: number | null }> = {};
+      todosOS.forEach((o) => {
+        const k = o.mes + '/' + o.ano;
+        const a = (agregado[k] ||= { total: 0, nota: 0, interno: 0 });
+        a.total += num(o.valor_total);
+        a.nota = a.nota != null && o.valor_nota != null ? a.nota + num(o.valor_nota) : null;
+        a.interno = a.interno != null && o.valor_interno != null ? a.interno + num(o.valor_interno) : null;
+      });
       todosOS = Object.keys(agregado).map((k) => {
         const p = k.split('/');
-        return { mes: parseInt(p[0]), ano: parseInt(p[1]), valor_total: agregado[k] };
+        return { mes: parseInt(p[0]), ano: parseInt(p[1]), valor_total: agregado[k].total, valor_nota: agregado[k].nota, valor_interno: agregado[k].interno };
       });
     }
   }
@@ -122,7 +133,12 @@ export async function montarHistorico(
     else if (card === cardTotalGeral) { valor = totalPecas + totalOS; custo = totalCustoPecas; }
     else { valor = 0; custo = 0; }
     const pedidosUnicos = new Set(itensMes.map((it) => it.numero_pedido).filter(Boolean)).size;
-    return { label: m.label, mes: m.mes, ano: m.ano, valor, custo, qtdePedidos: pedidosUnicos };
+    const ponto: HistoricoMesPonto = { label: m.label, mes: m.mes, ano: m.ano, valor, custo, qtdePedidos: pedidosUnicos };
+    if (card === cardServicos) {
+      ponto.valorNota = osMes ? (osMes.valor_nota == null ? null : num(osMes.valor_nota)) : null;
+      ponto.valorInterno = osMes ? (osMes.valor_interno == null ? null : num(osMes.valor_interno)) : null;
+    }
+    return ponto;
   });
 
   let nomeCard: string;
