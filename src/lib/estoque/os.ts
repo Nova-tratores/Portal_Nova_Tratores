@@ -7,6 +7,7 @@ import { supabase } from './supabase';
 import { omieRequest } from './omie';
 import { fmtD, parseDataBR, sleep, ehMesAtual } from './utils';
 import { salvarControleCache, obterControleCache } from './vendas-sync';
+import { buscarCategoriasOmie } from './notas-entrada';
 import { getContasOmie, type Conta, type ContaFiltro } from './conta';
 
 const num = (v: unknown): number => parseFloat(String(v ?? 0)) || 0;
@@ -254,6 +255,23 @@ export interface OSListaRow {
   codigo_cliente: number | null;
   cliente: string;
   conta: Conta;
+  ncod_os: number;
+  /** NFS-e emitida (cache os_nfse). null = ainda não verificado pelo refresh BG. */
+  tem_nota: boolean | null;
+}
+
+/** tem_nota por nCodOS, SÓ do cache os_nfse (não chama Omie — quem verifica é o refresh BG). */
+async function buscarTemNotaMap(ids: number[], conta: Conta): Promise<Map<number, boolean>> {
+  const map = new Map<number, boolean>();
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data } = await supabase
+      .from('os_nfse')
+      .select('ncod_os,tem_nota')
+      .eq('conta_omie', conta)
+      .in('ncod_os', ids.slice(i, i + 200));
+    (data || []).forEach((r) => map.set(Number(r.ncod_os), !!r.tem_nota));
+  }
+  return map;
 }
 
 /** OS faturadas (etapa 60, não canceladas) de UMA conta no mês — mesmo critério do total do card. */
@@ -277,21 +295,17 @@ async function listarOSMesConta(mes: number, ano: number, conta: Conta): Promise
       codigo_cliente: num(cab.nCodCli) || null,
       cliente: '',
       conta,
+      ncod_os: num(cab.nCodOS),
+      tem_nota: null,
     });
   });
+  const notaMap = await buscarTemNotaMap(rows.map((r) => r.ncod_os).filter(Boolean), conta);
+  rows.forEach((r) => { r.tem_nota = notaMap.has(r.ncod_os) ? notaMap.get(r.ncod_os)! : null; });
   return rows;
 }
 
-/**
- * OS faturadas do mês com nome do cliente, para o popup "vendas" do card Serviços.
- * Nome resolvido via cadastro já sincronizado (portal_nt_clientes_cadastro_omie),
- * sem chamadas extra à Omie. conta undefined = "Todas" (soma as contas configuradas).
- */
-export async function listarOSMes(mes: number, ano: number, conta: ContaFiltro): Promise<OSListaRow[]> {
-  const contas = conta === undefined ? getContasOmie().map((c) => c.id) : [conta];
-  const rows: OSListaRow[] = [];
-  for (const c of contas) rows.push(...(await listarOSMesConta(mes, ano, c)));
-
+/** Preenche `cliente` via cadastro já sincronizado (portal_nt_clientes_cadastro_omie), sem Omie. */
+async function resolverNomesClientes(rows: Array<{ codigo_cliente: number | null; cliente: string }>): Promise<void> {
   const codigos = [...new Set(rows.map((r) => r.codigo_cliente).filter(Boolean))] as number[];
   const nomeMap: Record<number, string> = {};
   for (let i = 0; i < codigos.length; i += 200) {
@@ -305,6 +319,131 @@ export async function listarOSMes(mes: number, ano: number, conta: ContaFiltro):
     });
   }
   rows.forEach((r) => { if (r.codigo_cliente && nomeMap[r.codigo_cliente]) r.cliente = nomeMap[r.codigo_cliente]; });
+}
 
+/**
+ * OS faturadas do mês com nome do cliente, para o popup "vendas" do card Serviços.
+ * conta undefined = "Todas" (soma as contas configuradas).
+ */
+export async function listarOSMes(mes: number, ano: number, conta: ContaFiltro): Promise<OSListaRow[]> {
+  const contas = conta === undefined ? getContasOmie().map((c) => c.id) : [conta];
+  const rows: OSListaRow[] = [];
+  for (const c of contas) rows.push(...(await listarOSMesConta(mes, ano, c)));
+  await resolverNomesClientes(rows);
   return rows.sort((a, b) => b.valor - a.valor);
+}
+
+// ====================== Serviços das OS (itens ServicosPrestados) ======================
+
+export type TipoServico = 'HR' | 'KM' | 'OUTRO';
+
+// Códigos do cadastro de serviços da Omie (NOVA). Contas sem esses códigos caem
+// no fallback por descrição ("Hora Trabalhada" / "KM" / "Deslocamento").
+const HR_NCODSERV = new Set([1979758762, 1979955370]); // Hora Trabalhada
+const KM_NCODSERV = new Set([1975974257]); // KM Deslocamento
+
+function classificarTipoServico(nCodServico: number, descricao: string): TipoServico {
+  if (HR_NCODSERV.has(nCodServico)) return 'HR';
+  if (KM_NCODSERV.has(nCodServico)) return 'KM';
+  const d = descricao.trim().toLowerCase();
+  if (d.includes('hora trabalhada')) return 'HR';
+  if (/^km\b/.test(d) || d.includes('deslocamento')) return 'KM';
+  return 'OUTRO';
+}
+
+export interface ServicoOSRow {
+  numero_os: string;
+  data: string; // dd/mm/aaaa (data de faturamento)
+  codigo_cliente: number | null;
+  cliente: string;
+  descricao: string;
+  tipo: TipoServico;
+  categoria: string; // código Omie (cCodCategItem / cCodCateg da OS)
+  categoria_desc: string;
+  qtde: number;
+  valor_unit: number;
+  valor_total: number;
+  conta: Conta;
+  ncod_os: number;
+  /** NFS-e emitida na OS deste item (cache os_nfse). null = ainda não verificado. */
+  tem_nota: boolean | null;
+}
+
+/** Itens de serviço das OS faturadas (etapa 60, não canceladas) de UMA conta no mês. */
+async function listarServicosOSMesConta(mes: number, ano: number, conta: Conta): Promise<ServicoOSRow[]> {
+  const todas = await buscarTodasOS(conta);
+  const categorias = await buscarCategoriasOmie(conta);
+  const dtDe = new Date(ano, mes - 1, 1);
+  const dtAte = new Date(ano, mes, 0, 23, 59, 59);
+  const rows: ServicoOSRow[] = [];
+  todas.forEach((os) => {
+    const cab = (os.Cabecalho || {}) as Record<string, unknown>;
+    const info = (os.InfoCadastro || os.infoCadastro || {}) as Record<string, unknown>;
+    if ((info.cCancelada || cab.cCancelada) === 'S') return;
+    const dataStr = String(info.dDtFat || info.dDtInc || cab.dDtPrevisao || '');
+    const dtOS = parseDataBR(dataStr);
+    if (dtOS < dtDe || dtOS > dtAte) return;
+    if (cab.cEtapa != '60') return;
+
+    const adic = ((os as Record<string, unknown>).InformacoesAdicionais || {}) as Record<string, unknown>;
+    const catOS = String(adic.cCodCateg || '');
+    const base = {
+      numero_os: String(cab.cNumOS || ''),
+      data: dataStr,
+      codigo_cliente: num(cab.nCodCli) || null,
+      cliente: '',
+      conta,
+      ncod_os: num(cab.nCodOS),
+      tem_nota: null as boolean | null,
+    };
+
+    const itens = (Array.isArray((os as Record<string, unknown>).ServicosPrestados)
+      ? (os as Record<string, unknown>).ServicosPrestados
+      : []) as Array<Record<string, unknown>>;
+    if (itens.length === 0) {
+      // OS sem itens detalhados: uma linha com o valor do cabeçalho, pra fechar com o total do card.
+      rows.push({
+        ...base,
+        descricao: 'Serviços prestados (sem detalhe)',
+        tipo: 'OUTRO',
+        categoria: catOS,
+        categoria_desc: categorias[catOS] || '',
+        qtde: 1,
+        valor_unit: num(cab.nValorTotal),
+        valor_total: num(cab.nValorTotal),
+      });
+      return;
+    }
+    itens.forEach((it) => {
+      const descricao = String(it.cDescServ || '').trim();
+      const cat = String(it.cCodCategItem || catOS || '');
+      const qtde = num(it.nQtde) || 1;
+      const valorUnit = num(it.nValUnit);
+      rows.push({
+        ...base,
+        descricao,
+        tipo: classificarTipoServico(num(it.nCodServico), descricao),
+        categoria: cat,
+        categoria_desc: categorias[cat] || '',
+        qtde,
+        valor_unit: valorUnit,
+        valor_total: qtde * valorUnit - num(it.nValorDesconto) + num(it.nValorAcrescimos),
+      });
+    });
+  });
+  const notaMap = await buscarTemNotaMap([...new Set(rows.map((r) => r.ncod_os).filter(Boolean))], conta);
+  rows.forEach((r) => { r.tem_nota = notaMap.has(r.ncod_os) ? notaMap.get(r.ncod_os)! : null; });
+  return rows;
+}
+
+/**
+ * Serviços que compõem o valor do card Serviços no mês (drill-down "vendas"),
+ * com tipo HR/KM/OUTRO e categoria. conta undefined = "Todas".
+ */
+export async function listarServicosOSMes(mes: number, ano: number, conta: ContaFiltro): Promise<ServicoOSRow[]> {
+  const contas = conta === undefined ? getContasOmie().map((c) => c.id) : [conta];
+  const rows: ServicoOSRow[] = [];
+  for (const c of contas) rows.push(...(await listarServicosOSMesConta(mes, ano, c)));
+  await resolverNomesClientes(rows);
+  return rows.sort((a, b) => b.valor_total - a.valor_total);
 }

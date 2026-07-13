@@ -1,7 +1,7 @@
 'use client';
 // Dashboard de Vendas. Portado de GET /dashboard (server.js:4932) consumindo
 // /api/estoque/dashboard{,/historico,/categorias-vendas,/vendas,/pedido-itens,/compras}.
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, Fragment } from 'react';
 import Link from 'next/link';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
 import { useAuth } from '@/hooks/useAuth';
@@ -41,13 +41,19 @@ interface DashboardResp {
   diasUteisTotal: number | null;
   erro?: string;
 }
-interface HistMes { label: string; mes: number; ano: number; valor: number; custo: number; qtdePedidos: number }
+interface HistMes { label: string; mes: number; ano: number; valor: number; custo: number; qtdePedidos: number; valorNota?: number | null; valorInterno?: number | null }
 interface HistResp { card: number; nome: string; meses: HistMes[]; erro?: string }
 interface VendaRow {
   numero_pedido?: string; data_pedido?: string; descricao?: string; codigo_produto?: string;
   quantidade?: number; valor_unitario?: number; valor_total?: number; cmc_unitario?: number;
 }
-interface OSRow { numero_os?: string; data?: string; cliente?: string; codigo_cliente?: number | null; valor?: number; conta?: string }
+interface OSRow { numero_os?: string; data?: string; cliente?: string; codigo_cliente?: number | null; valor?: number; conta?: string; tem_nota?: boolean | null }
+type TipoServico = 'HR' | 'KM' | 'OUTRO';
+interface ServicoOSRow {
+  numero_os?: string; data?: string; cliente?: string; codigo_cliente?: number | null;
+  descricao?: string; tipo?: TipoServico; categoria?: string; categoria_desc?: string;
+  qtde?: number; valor_unit?: number; valor_total?: number; conta?: string; tem_nota?: boolean | null;
+}
 
 const thStyle: React.CSSProperties = { background: '#fafafa', color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', padding: '9px 10px', textAlign: 'left', borderBottom: '1px solid #eee', fontWeight: 600 };
 const tdStyle: React.CSSProperties = { padding: '8px 10px', borderBottom: '1px solid #f5f5f5', color: '#444', fontSize: '.82rem' };
@@ -92,9 +98,12 @@ export default function DashboardPage() {
   const [vendasCard, setVendasCard] = useState<{ idx: number; nome: string } | null>(null);
   const [pedidoItens, setPedidoItens] = useState<{ numero: string; itens: VendaRow[] } | null>(null);
 
-  // OS do card Serviços (popup)
+  // OS do card Serviços (popup): visão "Serviços" (itens HR/KM) × "Por OS"
   const [osAberto, setOsAberto] = useState(false);
   const [osServicos, setOsServicos] = useState<OSRow[] | null>(null);
+  const [servItens, setServItens] = useState<ServicoOSRow[] | null>(null);
+  const [osView, setOsView] = useState<'servicos' | 'os'>('servicos');
+  const [tipoFiltro, setTipoFiltro] = useState<TipoServico | null>(null);
 
   const carregar = useCallback(async () => {
     setCarregando(true);
@@ -105,6 +114,7 @@ export default function DashboardPage() {
     setVendasCard(null);
     setOsAberto(false);
     setOsServicos(null);
+    setServItens(null);
     try {
       const catParam = categoria ? `&categoria=${encodeURIComponent(categoria)}` : '';
       const r = await fetch(`/api/estoque/dashboard?mes=${mes}&ano=${ano}${catParam}${contaParam}`);
@@ -149,10 +159,15 @@ export default function DashboardPage() {
 
   const abrirOSServicos = useCallback(async () => {
     setOsServicos(null);
+    setServItens(null);
+    setTipoFiltro(null);
     setOsAberto(true);
     const r = await fetch(`/api/estoque/dashboard/os?mes=${mes}&ano=${ano}${contaParam}`);
     const d = await r.json();
-    if (!d.erro) setOsServicos(d.os || []);
+    if (!d.erro) {
+      setOsServicos(d.os || []);
+      setServItens(d.servicos || []);
+    }
   }, [mes, ano, contaParam]);
 
   const abrirPedido = useCallback(async (numero: string) => {
@@ -235,7 +250,10 @@ export default function DashboardPage() {
               const proj = metrica === 'venda' ? c.valorProjetado : null;
               const bordaVermelha = c.cardType === 'totalPecas' || c.cardType === 'totalGeral';
               return (
-                <div key={idx} style={{ background: '#fff', border: bordaVermelha ? '2px solid #dc2626' : '1px solid #eee', borderRadius: 12, padding: 16, boxShadow: '0 1px 4px rgba(0,0,0,.04)', ...(c.cardType === 'totalGeral' ? { gridColumn: '-2 / -1' } : {}) }}>
+                <Fragment key={idx}>
+                {/* Linha separadora antes dos totais */}
+                {c.cardType === 'totalPecas' && <div style={cardSep} />}
+                <div style={{ background: '#fff', border: bordaVermelha ? '2px solid #dc2626' : '1px solid #eee', borderRadius: 12, padding: 16, boxShadow: '0 1px 4px rgba(0,0,0,.04)', ...(c.cardType === 'totalGeral' ? { gridColumn: '-2 / -1' } : {}) }}>
                   <div style={{ fontSize: '.72rem', color: '#888', textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 700, marginBottom: 6 }}>{c.nome}</div>
                   <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#dc2626' }}>{fmtRS(atual)}</div>
                   {c.cardType === 'servico' && metrica === 'venda' && c.valorNota != null && c.valorInterno != null && (
@@ -256,6 +274,9 @@ export default function DashboardPage() {
                       : <button onClick={() => abrirVendas(cardIndexParaApi(c, dados), c.nome)} style={linkBtn}>vendas</button>}
                   </div>
                 </div>
+                {/* Linha separadora depois de Serviços (fim do grupo principal) */}
+                {c.cardType === 'servico' && <div style={cardSep} />}
+                </Fragment>
               );
             })}
           </div>
@@ -266,21 +287,28 @@ export default function DashboardPage() {
       {histCard != null && (
         <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 18, marginBottom: 18 }}>
           <h2 style={{ color: '#dc2626', fontSize: '.95rem', fontWeight: 700, marginBottom: 12 }}>Histórico — {hist?.nome || '…'}</h2>
-          {!hist ? <div style={{ color: '#888', fontSize: '.85rem' }}>Carregando…</div> : (
-            <div style={{ width: '100%', height: 320 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={hist.meses}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey="label" tick={{ fontSize: 10 }} />
-                  <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => 'R$ ' + (v / 1000).toFixed(0) + 'k'} />
-                  <Tooltip formatter={(v: number) => fmtRS(v)} />
-                  <Legend />
-                  <Line type="monotone" dataKey="valor" name="Venda" stroke="#dc2626" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="custo" name="Custo" stroke="#888" strokeWidth={1.5} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          )}
+          {!hist ? <div style={{ color: '#888', fontSize: '.85rem' }}>Carregando…</div> : (() => {
+            // Card Serviços: split com nota × interno (quando o os_mensal já tem); custo todo-zero sai do gráfico.
+            const temSplit = hist.meses.some((m) => m.valorNota != null);
+            const custoTodoZero = hist.meses.every((m) => !m.custo);
+            return (
+              <div style={{ width: '100%', height: 320 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={hist.meses}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => 'R$ ' + (v / 1000).toFixed(0) + 'k'} />
+                    <Tooltip formatter={(v: number) => fmtRS(v)} />
+                    <Legend />
+                    <Line type="monotone" dataKey="valor" name="Venda" stroke="#dc2626" strokeWidth={2} dot={false} />
+                    {!custoTodoZero && <Line type="monotone" dataKey="custo" name="Custo" stroke="#888" strokeWidth={1.5} dot={false} />}
+                    {temSplit && <Line type="monotone" dataKey="valorNota" name="Com nota" stroke="#2563eb" strokeWidth={1.5} dot={false} />}
+                    {temSplit && <Line type="monotone" dataKey="valorInterno" name="Interno" stroke="#f59e0b" strokeWidth={1.5} dot={false} />}
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -314,34 +342,92 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Popup OS do card Serviços */}
+      {/* Popup do card Serviços: itens de serviço (HR/KM) × lista de OS */}
       {osAberto && (
         <div onClick={() => setOsAberto(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 20, maxWidth: 860, width: '92%', maxHeight: '80vh', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 20, maxWidth: 1100, width: '94%', maxHeight: '85vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 12, flexWrap: 'wrap' }}>
               <h2 style={{ color: '#dc2626', fontSize: '.95rem', fontWeight: 700, margin: 0 }}>
-                Serviços — Ordens de Serviço ({osServicos?.length ?? 0})
+                Serviços — {osView === 'servicos' ? `itens (${servItens?.length ?? 0})` : `Ordens de Serviço (${osServicos?.length ?? 0})`}
                 {osServicos && osServicos.length > 0 && (
                   <span style={{ color: '#888', fontWeight: 600, marginLeft: 8 }}>· Total {fmtRS(osServicos.reduce((s, o) => s + (o.valor || 0), 0))}</span>
                 )}
               </h2>
-              <button onClick={() => setOsAberto(false)} style={linkBtn}>fechar</button>
-            </div>
-            {!osServicos ? <div style={{ color: '#888', fontSize: '.85rem' }}>Carregando…</div> : osServicos.length === 0 ? <div style={{ color: '#888', fontSize: '.85rem' }}>Sem OS faturadas no período.</div> : (
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead><tr>{['OS', 'Data', 'Cliente', ...(contaParam === '' ? ['Conta'] : []), 'Valor'].map((h) => <th key={h} style={thStyle}>{h}</th>)}</tr></thead>
-                <tbody>
-                  {osServicos.map((o, i) => (
-                    <tr key={i}>
-                      <td style={tdStyle}>{o.numero_os}</td>
-                      <td style={tdStyle}>{o.data}</td>
-                      <td style={tdStyle}>{o.cliente || (o.codigo_cliente ? '#' + o.codigo_cliente : '—')}</td>
-                      {contaParam === '' && <td style={tdStyle}>{o.conta}</td>}
-                      <td style={tdStyle}>{fmtRS(o.valor)}</td>
-                    </tr>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {([['servicos', 'Serviços'], ['os', 'Por OS']] as Array<['servicos' | 'os', string]>).map(([v, rotulo]) => (
+                    <button key={v} onClick={() => setOsView(v)}
+                      style={{ padding: '5px 12px', border: '1px solid', borderColor: osView === v ? '#dc2626' : '#e0e0e0', background: osView === v ? '#dc2626' : '#fff', color: osView === v ? '#fff' : '#666', borderRadius: 8, fontSize: '.72rem', fontWeight: 600, cursor: 'pointer' }}>
+                      {rotulo}
+                    </button>
                   ))}
-                </tbody>
-              </table>
+                </div>
+                <button onClick={() => setOsAberto(false)} style={linkBtn}>fechar</button>
+              </div>
+            </div>
+
+            {osView === 'servicos' ? (
+              !servItens ? <div style={{ color: '#888', fontSize: '.85rem' }}>Carregando…</div> : servItens.length === 0 ? <div style={{ color: '#888', fontSize: '.85rem' }}>Sem serviços faturados no período.</div> : (
+                <>
+                  {/* Resumo por tipo (clique filtra) */}
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+                    {(['HR', 'KM', 'OUTRO'] as TipoServico[]).map((t) => {
+                      const doTipo = servItens.filter((s) => s.tipo === t);
+                      const soma = doTipo.reduce((s, x) => s + (x.valor_total || 0), 0);
+                      const qtd = doTipo.reduce((s, x) => s + (x.qtde || 0), 0);
+                      const ativo = tipoFiltro === t;
+                      const unidade = t === 'HR' ? `${qtd.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} h` : t === 'KM' ? `${qtd.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} km` : `${doTipo.length} itens`;
+                      return (
+                        <button key={t} onClick={() => setTipoFiltro(ativo ? null : t)}
+                          style={{ padding: '7px 12px', border: '1px solid', borderColor: ativo ? '#dc2626' : '#e0e0e0', background: ativo ? '#fef2f2' : '#fafafa', borderRadius: 8, cursor: 'pointer', textAlign: 'left' }}>
+                          <div style={{ fontSize: '.62rem', color: '#888', textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 700 }}>{tipoRotulo(t)}</div>
+                          <div style={{ fontSize: '.88rem', fontWeight: 700, color: '#dc2626' }}>{fmtRS(soma)} <span style={{ color: '#999', fontWeight: 600, fontSize: '.7rem' }}>· {unidade}</span></div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead><tr>{['OS', 'Data', 'Cliente', 'Serviço', 'Tipo', 'Nota', 'Categoria', ...(contaParam === '' ? ['Conta'] : []), 'Qtd', 'V. Unit', 'V. Total'].map((h) => <th key={h} style={thStyle}>{h}</th>)}</tr></thead>
+                      <tbody>
+                        {servItens.filter((s) => !tipoFiltro || s.tipo === tipoFiltro).map((s, i) => (
+                          <tr key={i}>
+                            <td style={tdStyle}>{s.numero_os}</td>
+                            <td style={tdStyle}>{s.data}</td>
+                            <td style={tdStyle}>{s.cliente || (s.codigo_cliente ? '#' + s.codigo_cliente : '—')}</td>
+                            <td style={{ ...tdStyle, maxWidth: 320 }} title={s.descricao}>{(s.descricao || '—').length > 70 ? (s.descricao || '').slice(0, 70) + '…' : (s.descricao || '—')}</td>
+                            <td style={tdStyle}><TipoBadge tipo={s.tipo} /></td>
+                            <td style={tdStyle}><NotaBadge temNota={s.tem_nota} /></td>
+                            <td style={tdStyle} title={s.categoria}>{s.categoria_desc || s.categoria || '—'}</td>
+                            {contaParam === '' && <td style={tdStyle}>{s.conta}</td>}
+                            <td style={tdStyle}>{s.qtde}</td>
+                            <td style={tdStyle}>{fmtRS(s.valor_unit)}</td>
+                            <td style={tdStyle}>{fmtRS(s.valor_total)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )
+            ) : (
+              !osServicos ? <div style={{ color: '#888', fontSize: '.85rem' }}>Carregando…</div> : osServicos.length === 0 ? <div style={{ color: '#888', fontSize: '.85rem' }}>Sem OS faturadas no período.</div> : (
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead><tr>{['OS', 'Data', 'Cliente', 'Nota', ...(contaParam === '' ? ['Conta'] : []), 'Valor'].map((h) => <th key={h} style={thStyle}>{h}</th>)}</tr></thead>
+                  <tbody>
+                    {osServicos.map((o, i) => (
+                      <tr key={i}>
+                        <td style={tdStyle}>{o.numero_os}</td>
+                        <td style={tdStyle}>{o.data}</td>
+                        <td style={tdStyle}>{o.cliente || (o.codigo_cliente ? '#' + o.codigo_cliente : '—')}</td>
+                        <td style={tdStyle}><NotaBadge temNota={o.tem_nota} /></td>
+                        {contaParam === '' && <td style={tdStyle}>{o.conta}</td>}
+                        <td style={tdStyle}>{fmtRS(o.valor)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )
             )}
           </div>
         </div>
@@ -378,6 +464,36 @@ export default function DashboardPage() {
 }
 
 const linkBtn: React.CSSProperties = { background: 'none', border: 'none', color: '#dc2626', fontSize: '.74rem', fontWeight: 600, cursor: 'pointer', padding: 0, textDecoration: 'underline' };
+
+// Linha separadora entre grupos de cards (ocupa a largura toda da grade)
+const cardSep: React.CSSProperties = { gridColumn: '1 / -1', borderTop: '2px solid #111', margin: '2px 0' };
+
+function tipoRotulo(t: TipoServico): string {
+  return t === 'HR' ? 'HR — Hora trabalhada' : t === 'KM' ? 'KM — Deslocamento' : 'Outros';
+}
+
+function NotaBadge({ temNota }: { temNota?: boolean | null }) {
+  if (temNota == null) return <span title="Ainda não verificado" style={{ color: '#bbb', fontSize: '.7rem' }}>—</span>;
+  return temNota ? (
+    <span style={{ background: '#ede9fe', color: '#6d28d9', borderRadius: 6, padding: '2px 7px', fontSize: '.66rem', fontWeight: 700 }}>Com nota</span>
+  ) : (
+    <span style={{ background: '#f3f4f6', color: '#666', borderRadius: 6, padding: '2px 7px', fontSize: '.66rem', fontWeight: 700 }}>Interno</span>
+  );
+}
+
+function TipoBadge({ tipo }: { tipo?: TipoServico }) {
+  const cores: Record<TipoServico, { bg: string; fg: string }> = {
+    HR: { bg: '#dbeafe', fg: '#1d4ed8' },
+    KM: { bg: '#dcfce7', fg: '#15803d' },
+    OUTRO: { bg: '#f3f4f6', fg: '#666' },
+  };
+  const c = cores[tipo || 'OUTRO'];
+  return (
+    <span style={{ background: c.bg, color: c.fg, borderRadius: 6, padding: '2px 7px', fontSize: '.66rem', fontWeight: 700 }}>
+      {tipo === 'OUTRO' || !tipo ? 'Outro' : tipo}
+    </span>
+  );
+}
 
 function Sel({ label, value, onChange, options }: { label: string; value: string | number; onChange: (v: string) => void; options: Array<{ value: string | number; label: string }> }) {
   return (
