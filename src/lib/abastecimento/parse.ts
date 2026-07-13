@@ -6,6 +6,7 @@
 // (normalizado), então o import sobrevive a reordenação/colunas novas.
 
 import { corrigirPlaca } from './correcoes';
+import { normalizarPlaca } from '@/lib/frota/placa';
 import type { ErroLinha, LinhaAbastecimento, ResultadoParse } from './tipos';
 
 // ---------------------------------------------------------------------------
@@ -49,9 +50,9 @@ export function parseDataBR(s: string | null | undefined): string | null {
 }
 
 // Placa comparável: maiúscula, só letras/números ("ABC-1234" e "abc 1234" -> "ABC1234").
-export function normalizarPlaca(s: string | null | undefined): string {
-  return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-}
+// A implementação vive em @/lib/frota/placa — fonte única do portal. Importada e
+// re-exportada aqui para não quebrar os imports (e os testes) já existentes.
+export { normalizarPlaca };
 
 // Nome de coluna comparável: minúsculo, sem acento, só letras/números
 // ("Data/ Hora transação" -> "datahoratransacao").

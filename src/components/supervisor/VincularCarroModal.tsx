@@ -2,12 +2,11 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Car, Search } from 'lucide-react'
+import { normalizarPlaca as norm } from '@/lib/frota/placa'
 
 interface Adesao { adesao_id: number; placa: string; descricao: string }
 interface Pessoa { id: string; nome: string; tipo: 'portal' | 'vendedor' }
 interface Classif { categoria: string; ativo: boolean; pessoa_id: string | null; pessoa_nome: string; vinculo_tipo: string }
-
-const norm = (p: string) => (p || '').replace(/[-\s]/g, '').toUpperCase()
 
 export default function VincularCarroModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
   const [adesoes, setAdesoes] = useState<Adesao[]>([])

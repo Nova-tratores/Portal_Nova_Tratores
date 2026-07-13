@@ -1,5 +1,6 @@
 import { supabaseVE } from "./supabase";
 import { autoDistribuir } from "./data";
+import { partesNumPlaca } from "@/lib/frota/placa";
 
 // Gestão de frota de veículos (tabela `Placas`). Porta a rota /frota do app
 // legado: lê Placas, separa tipo da placa pelo `NumPlaca`, agrupa por ambiente,
@@ -68,9 +69,10 @@ export function calcularSeguro(valor: number, temSeguro: boolean): number {
 }
 
 function mapearPlaca(p: any): VeiculoVE {
-  const partes = String(p.NumPlaca || "").split(/[-–]/);
-  const tipoVeiculo = (partes[0] || "").trim();
-  const placa = (partes[1] || "").trim();
+  // partesNumPlaca acha a placa como o último token que PARECE placa. O split
+  // antigo pegava `partes[1]`, que dá "4000" em "F-4000 - LNX1234" e vazio
+  // quando o NumPlaca não tem separador.
+  const { tipo: tipoVeiculo, placa } = partesNumPlaca(p.NumPlaca);
   const valorMercado = Number(p.valor_mercado) || 0;
   const ano = p.ano || null;
   const combustivel = p.combustivel || "flex";

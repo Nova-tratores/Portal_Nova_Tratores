@@ -5,7 +5,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
-import { decodificarCsv, normalizarPlaca, parseCsvAbastecimento } from '@/lib/abastecimento/parse';
+import { decodificarCsv, parseCsvAbastecimento } from '@/lib/abastecimento/parse';
+import { extrairPlacaDeNumPlaca, resolverPlaca } from '@/lib/frota/placa';
 import type { LinhaAbastecimento, ResultadoUpload } from '@/lib/abastecimento/tipos';
 
 export const runtime = 'nodejs';
@@ -57,17 +58,22 @@ export async function POST(request: Request) {
       .select('IdPlaca, NumPlaca');
     if (errPlacas) throw new Error(`Erro ao ler a frota (Placas): ${errPlacas.message}`);
 
+    // extrairPlacaDeNumPlaca pega o ÚLTIMO token que parece placa — o split
+    // antigo (`partes[1]`) devolvia "4000" em "F-4000 - LNX1234" e undefined
+    // quando o NumPlaca não tinha separador.
     const mapaFrota = new Map<string, number>();
     for (const p of placasFrota || []) {
-      const partes = String(p.NumPlaca || '').split(/[-–]/);
-      const placa = normalizarPlaca(partes[1] || partes[0]);
+      const placa = resolverPlaca(extrairPlacaDeNumPlaca(p.NumPlaca));
       if (placa) mapaFrota.set(placa, p.IdPlaca);
     }
 
+    // resolverPlaca unifica as grafias erradas (EVG1467 → EVG1E67 etc.), senão
+    // o mesmo carro vira dois no relatório.
     const desconhecidas = new Map<string, number>();
     for (const l of linhas) {
-      l.id_placa = mapaFrota.get(l.placa) ?? null;
-      if (l.id_placa == null) desconhecidas.set(l.placa, (desconhecidas.get(l.placa) || 0) + 1);
+      const canonica = resolverPlaca(l.placa);
+      l.id_placa = mapaFrota.get(canonica) ?? null;
+      if (l.id_placa == null) desconhecidas.set(canonica, (desconhecidas.get(canonica) || 0) + 1);
     }
 
     // 3) cria o lote

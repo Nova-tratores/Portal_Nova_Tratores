@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { fetchRotaExata, computarESalvarRota } from "@/lib/pos/rastreamento";
+import { fetchRotaExata, fetchTudo, computarESalvarRota } from "@/lib/pos/rastreamento";
+import { normalizarPlaca } from "@/lib/frota/placa";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -26,10 +27,9 @@ export async function GET(req: NextRequest) {
 
     if (acao === "posicoes") {
       const fonte = req.nextUrl.searchParams.get("fonte");
-      const normPlaca = (p: string) => (p || "").replace(/[-\s]/g, "").toUpperCase();
+      const normPlaca = normalizarPlaca;
 
-      const vData = await fetchRotaExata("/adesoes", { limit: "300", page: "0" });
-      const adesoes = vData.data || [];
+      const adesoes = await fetchTudo("/adesoes");
 
       // Define quais carros processar (+ dados da pessoa)
       let alvos: { ad: any; vendedor_id: any; vendedor_nome: string; vinculado: boolean }[] = [];

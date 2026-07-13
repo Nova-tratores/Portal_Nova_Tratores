@@ -2,6 +2,7 @@
 // Lógica compartilhada de rastreamento GPS (Rota Exata)
 // Usada por: /api/pos/rastreamento e /api/pos/cron/gravar-gps
 // =============================================
+import { normalizarPlaca } from '@/lib/frota/placa'
 
 const API_URL = process.env.ROTAEXATA_API_URL || 'https://api.rotaexata.com.br'
 const EMAIL = process.env.ROTAEXATA_EMAIL || ''
@@ -47,6 +48,33 @@ export async function fetchRotaExata(endpoint: string, params?: Record<string, s
   return res.json()
 }
 
+// Busca TODOS os registros de um endpoint, paginando de verdade.
+//
+// Todo call-site do repo passava `page: '0'` e nunca iterava — o que trunca em
+// silêncio assim que a coleção passa do `limit`. /custos já está em 471 e vinha
+// sendo lido com limit 500.
+//
+// ⚠️ PEGADINHA (verificada contra a API): o `page` da Rota Exata é um OFFSET EM
+// REGISTROS, não um número de página. `page=1` pula UM registro, não uma página.
+// Então avançamos de `pageSize` em `pageSize`. (Tratar como nº de página traz
+// janelas sobrepostas deslocadas de 1 em 1 — duplicata em massa e loop infinito.)
+// `offset`/`skip` são ignorados pela API.
+export async function fetchTudo(
+  endpoint: string,
+  params: Record<string, string> = {},
+  pageSize = 200,
+): Promise<any[]> {
+  const out: any[] = []
+  const MAX = 100_000 // trava de segurança
+  for (let offset = 0; offset < MAX; offset += pageSize) {
+    const r = await fetchRotaExata(endpoint, { ...params, limit: String(pageSize), page: String(offset) })
+    const lote = Array.isArray(r?.data) ? r.data : (Array.isArray(r) ? r : [])
+    out.push(...lote)
+    if (lote.length < pageSize) break // veio incompleto = última página
+  }
+  return out
+}
+
 // ── Destinos ──
 export interface Destino {
   id: number; nome: string; latitude: number; longitude: number
@@ -60,8 +88,7 @@ export async function getDestinos(): Promise<Destino[]> {
     return destinosCache.destinos
   }
   try {
-    const data = await fetchRotaExata('/destinos', { limit: '500', page: '0' })
-    const raw = Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : [])
+    const raw = await fetchTudo('/destinos')
     const destinos: Destino[] = raw.map((d: any) => ({
       id: d.id || d._id, nome: d.nome || '', latitude: d.latitude || 0, longitude: d.longitude || 0,
       raio: d.raio || 500, tipo_local: Array.isArray(d.tipo_local) ? d.tipo_local : [], endereco: d.endereco || '', cnpj: d.cnpj || '',
@@ -288,10 +315,10 @@ export async function computarESalvarRota(
   }
 
   // 2) Achar o veículo na Rota Exata pela placa
-  const vData = await fetchRotaExata('/adesoes', { limit: '200', page: '0' })
-  const placaNorm = placa.replace(/[-\s]/g, '').toUpperCase()
-  const ad = (vData.data || []).find(
-    (a: any) => (a.vei_placa || '').replace(/[-\s]/g, '').toUpperCase() === placaNorm,
+  const adesoes = await fetchTudo('/adesoes')
+  const placaNorm = normalizarPlaca(placa)
+  const ad = adesoes.find(
+    (a: any) => normalizarPlaca(a.vei_placa) === placaNorm,
   )
   if (!ad) return { placa, data, pontos: [], paradas: [], km_total: 0, hora_inicio: null, hora_fim: null, tempo_dirigindo_min: 0, tempo_parado_min: 0, visitas: [] }
 
@@ -303,11 +330,17 @@ export async function computarESalvarRota(
     .maybeSingle()
 
   // 3) Posições do dia
-  const inicio = `${data}T00:00:00.000Z`
-  const fim = data === hoje ? new Date().toISOString() : `${data}T23:59:59.000Z`
+  //
+  // FUSO: a janela é o dia em horário de Brasília (-03:00), não em UTC. Antes
+  // usava 'Z', o que puxava 21h-24h do dia ANTERIOR e perdia 21h-24h do dia
+  // alvo — as rotas ficavam deslocadas 3h. (O gravar-gps já usava -03:00.)
+  //
+  // PAGINAÇÃO: 1 fix a cada 30s dá ~2.880 pontos/dia, então o `limit: 1000`
+  // sem iterar truncava o trajeto (e o km) de qualquer carro movimentado.
+  const inicio = `${data}T00:00:00.000-03:00`
+  const fim = data === hoje ? new Date().toISOString() : `${data}T23:59:59.999-03:00`
   const w = JSON.stringify({ adesao_id: ad.id, dt_posicao: { $gte: inicio, $lte: fim } })
-  const posData = await fetchRotaExata('/posicoes', { where: w, limit: '1000', page: '0' })
-  const posicoes = (Array.isArray(posData.data) ? posData.data : [])
+  const posicoes = (await fetchTudo('/posicoes', { where: w }, 1000))
     .sort((a: any, b: any) => new Date(a.dt_posicao).getTime() - new Date(b.dt_posicao).getTime())
 
   const pontos = posicoes.map((p: any) => ({ lat: p.latitude, lng: p.longitude, dt: p.dt_posicao, ignicao: p.ignicao, vel: p.velocidade }))

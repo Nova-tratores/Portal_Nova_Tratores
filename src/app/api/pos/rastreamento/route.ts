@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { normalizarPlaca } from '@/lib/frota/placa'
 
 const API_URL = process.env.ROTAEXATA_API_URL || 'https://api.rotaexata.com.br'
 const EMAIL = process.env.ROTAEXATA_EMAIL || ''
@@ -386,7 +387,7 @@ export async function GET(req: NextRequest) {
           const results = await Promise.all(batch.map(async (ad: any) => {
             const veiculo: any = {
               id: ad.id,
-              placa: (ad.vei_placa || '').replace(/[-\s]/g, '').toUpperCase(),
+              placa: normalizarPlaca(ad.vei_placa),
               modelo: ad.vei_modelo || ad.vei_descricao || '',
               cor: ad.vei_cor || '',
               ano: ad.vei_ano || '',
