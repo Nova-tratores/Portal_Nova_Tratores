@@ -297,16 +297,20 @@ export async function sugestoesTipo(): Promise<any> {
   return { colTipo, valores: Array.from(unionOmie.size ? unionOmie : distintosBanco).sort((a, b) => a.localeCompare(b, 'pt-BR')), itens };
 }
 
-/** Aplica em lote os "Tipo:" confirmados (throttle). */
+/** Aplica em lote os "Tipo:" confirmados (throttle). Se a Omie bloquear no meio
+ *  ("consumo indevido", dura minutos), devolve os itens nao aplicados em
+ *  `pendentes` + `aguardarSegundos` para o cliente esperar e reenviar. */
 export async function aplicarTipoLote(itens: Array<{ empresa: string; codigo_produto: number | string; valor: string }>, nome?: string): Promise<any> {
   const colTipo = nome || 'Tipo:';
   const THROTTLE_MS = parseInt(process.env.CARACT_THROTTLE_MS || '', 10) >= 0 ? parseInt(process.env.CARACT_THROTTLE_MS || '', 10) : 700;
   const resultados: any[] = [];
+  const pendentes: any[] = [];
   let bloqueado = false;
+  let aguardarSegundos = 0;
   let primeiro = true;
   for (const it of itens) {
     if (bloqueado) {
-      resultados.push({ codigo_produto: it.codigo_produto, empresa: it.empresa, ok: false, erro: 'pulado: Omie bloqueada' });
+      pendentes.push(it);
       continue;
     }
     if (!primeiro && THROTTLE_MS > 0) await sleep(THROTTLE_MS);
@@ -314,13 +318,18 @@ export async function aplicarTipoLote(itens: Array<{ empresa: string; codigo_pro
     try {
       const contaId = contaIdPorLabel(it.empresa);
       if (!contaId) throw new Error(`Empresa desconhecida: ${it.empresa}`);
-      await gravarCaractProduto(contaId, { codigoProduto: it.codigo_produto, nomeCaract: colTipo, conteudo: it.valor });
+      await gravarCaractProduto(contaId, { codigoProduto: it.codigo_produto, nomeCaract: colTipo, conteudo: it.valor, preferirIncluir: true });
       await atualizarCaractSupabase(String(it.empresa).toUpperCase(), Number(it.codigo_produto) || it.codigo_produto, colTipo, it.valor);
       resultados.push({ codigo_produto: it.codigo_produto, empresa: it.empresa, ok: true });
     } catch (e: any) {
-      if (e.bloqueio) bloqueado = true;
+      if (e.bloqueio) {
+        bloqueado = true;
+        aguardarSegundos = e.aguardarSegundos || 60;
+        pendentes.push(it);
+        continue;
+      }
       resultados.push({ codigo_produto: it.codigo_produto, empresa: it.empresa, ok: false, erro: e.faultstring || e.message });
     }
   }
-  return { ok: true, total: itens.length, aplicados: resultados.filter((r) => r.ok).length, bloqueado, resultados };
+  return { ok: true, total: itens.length, aplicados: resultados.filter((r) => r.ok).length, bloqueado, aguardarSegundos, pendentes, resultados };
 }

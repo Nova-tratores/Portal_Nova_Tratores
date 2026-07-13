@@ -37,12 +37,14 @@ export const SLEEP_BETWEEN_PAGES = 2000;
 interface OmieError extends Error {
   faultstring?: string;
   bloqueio?: boolean;
+  aguardarSegundos?: number;
 }
 
-function omieError(msg: string, extra?: { faultstring?: string; bloqueio?: boolean }): OmieError {
+function omieError(msg: string, extra?: { faultstring?: string; bloqueio?: boolean; aguardarSegundos?: number }): OmieError {
   const e = new Error(msg) as OmieError;
   if (extra?.faultstring) e.faultstring = extra.faultstring;
   if (extra?.bloqueio) e.bloqueio = extra.bloqueio;
+  if (extra?.aguardarSegundos) e.aguardarSegundos = extra.aguardarSegundos;
   return e;
 }
 
@@ -94,7 +96,10 @@ export async function omieRequest(
     // minutos). Falha rapido p/ nao estourar o timeout do gateway (que
     // devolveria "upstream error" em vez do JSON).
     if (/bloquead|consumo indevido/i.test(fs)) {
-      throw omieError(`Omie API: ${fs}`, { faultstring: fs, bloqueio: true });
+      const mSeg = fs.match(/(\d+)\s*segundos?/i);
+      const mMin = fs.match(/(\d+)\s*minutos?/i);
+      const aguardarSegundos = mSeg ? parseInt(mSeg[1], 10) : mMin ? parseInt(mMin[1], 10) * 60 : 60;
+      throw omieError(`Omie API: ${fs}`, { faultstring: fs, bloqueio: true, aguardarSegundos });
     }
     // Erros "transitorios" da Omie que valem retry com backoff:
     //  - "Too many requests" / "REDUNDANT" (rate limit padrao)
@@ -1023,7 +1028,7 @@ async function codigoCaractPorNome(conta: Conta, nome: any): Promise<any> {
 // /geral/prodcaract/ -> AlterarCaractProduto (ja associada) com fallback p/
 // IncluirCaractProduto (ainda nao associada), e vice-versa. Exige nCodProd +
 // nCodCaract + cConteudo.
-export async function gravarCaractProduto(conta: Conta, { codigoProduto, nomeCaract, conteudo }: { codigoProduto: any; nomeCaract: any; conteudo: any }): Promise<any> {
+export async function gravarCaractProduto(conta: Conta, { codigoProduto, nomeCaract, conteudo, preferirIncluir }: { codigoProduto: any; nomeCaract: any; conteudo: any; preferirIncluir?: boolean }): Promise<any> {
   const nCodCaract = await codigoCaractPorNome(conta, nomeCaract);
   if (nCodCaract == null) throw new Error(`Caracteristica nao encontrada na Omie: "${nomeCaract}"`);
   const params = {
@@ -1031,19 +1036,38 @@ export async function gravarCaractProduto(conta: Conta, { codigoProduto, nomeCar
     nCodCaract: Number(nCodCaract) || nCodCaract,
     cConteudo: conteudo == null ? '' : String(conteudo)
   };
+  const alterar = () => omieRequest('/geral/prodcaract/', 'AlterarCaractProduto', params, conta);
+  const incluir = () => omieRequest('/geral/prodcaract/', 'IncluirCaractProduto', params, conta);
+  const jaExiste = (e: OmieError) => /j[aá]\s+(cadastrad|associad|exist)/i.test(String(e.faultstring || e.message || ''));
+  // preferirIncluir: quando o campo esta vazio a caracteristica quase nunca esta
+  // associada ao produto — Incluir primeiro evita a chamada dupla (Alterar falha
+  // + Incluir), que dobrava o consumo e derrubava lotes no bloqueio da Omie.
+  if (preferirIncluir) {
+    try {
+      return await incluir();
+    } catch (eInc) {
+      if ((eInc as OmieError).bloqueio) throw eInc;
+      try {
+        return await alterar();
+      } catch (eAlt) {
+        if ((eAlt as OmieError).bloqueio) throw eAlt;
+        if (jaExiste(eInc as OmieError)) throw eAlt;
+        throw eInc;
+      }
+    }
+  }
   // Tenta Alterar (caracteristica ja associada ao produto). Se a Omie recusar
   // porque ainda nao esta associada (ex.: "Caracteristica do Produto nao
   // cadastrada."), cai pra Incluir. Se o Incluir falhar por ja existir, o erro
   // real e' do Alterar.
   try {
-    return await omieRequest('/geral/prodcaract/', 'AlterarCaractProduto', params, conta);
+    return await alterar();
   } catch (eAlt) {
     if ((eAlt as OmieError).bloqueio) throw eAlt;  // bloqueio longo: nao adianta tentar Incluir
     try {
-      return await omieRequest('/geral/prodcaract/', 'IncluirCaractProduto', params, conta);
+      return await incluir();
     } catch (eInc) {
-      const fsInc = String((eInc as OmieError).faultstring || (eInc as OmieError).message || '');
-      if (/j[aá]\s+(cadastrad|associad|exist)/i.test(fsInc)) throw eAlt;
+      if (jaExiste(eInc as OmieError)) throw eAlt;
       throw eInc;
     }
   }
