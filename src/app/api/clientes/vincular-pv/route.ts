@@ -41,7 +41,18 @@ export async function POST(req: NextRequest) {
       detalhes: { de: antes?.pv_manual || antes?.num_pedido_cli || null, para: pvNovo || "(automático)" },
     }]).select("id").maybeSingle().then(() => {}, () => {}); // best-effort
 
-    return NextResponse.json({ ok: true, num_os: numOS, pv: pvNovo || null });
+    // Com o pedido certo apontado, tenta JÁ buscar a nota nesse PV. Se as duas notas
+    // (serviço e peça) ficarem completas, o card do financeiro nasce aqui mesmo.
+    // Se ainda faltar alguma, NÃO cria nada — só devolve o que está faltando.
+    const sync: any = await fetch(`${req.nextUrl.origin}/api/financeiro/sync-os?os=${encodeURIComponent(numOS)}`, { method: "POST" })
+      .then((r) => r.json()).catch(() => null);
+
+    return NextResponse.json({
+      ok: true, num_os: numOS, pv: pvNovo || null,
+      resultado: sync?.resultado || null,
+      falta_servico: !!sync?.falta_servico,
+      falta_peca: !!sync?.falta_peca,
+    });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }

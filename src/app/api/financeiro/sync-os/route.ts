@@ -182,7 +182,7 @@ function condicao(datas: string[]) {
 
 // Processa UMA OS específica (ConsultarOS) — pra debug (?os=NNNN), webhook (?codOS=) e tempo real.
 // `consulta` = { cNumOS } ou { nCodOS }.
-async function processarOSnum(consulta: Record<string, unknown>, label: string, dryRun: boolean, desde: string, origin: string, forcar = false) {
+async function processarOSnum(consulta: Record<string, unknown>, label: string, dryRun: boolean, desde: string, origin: string) {
   const debug: any = { os: label, tentativas: [] };
   for (const acc of ACCS) {
     let osData: any = null;
@@ -232,7 +232,7 @@ async function processarOSnum(consulta: Record<string, unknown>, label: string, 
     const anexoServico = (osRow?.link_nf && String(osRow.link_nf).trim()) || nfse.url;
     const numNFServico = nfse.num || String(osRow?.num_nf || "").trim() || "";
     debug.anexo_servico_origem = osRow?.link_nf ? "pasta (anexo manual)" : (nfse.url ? "StatusOS (Omie)" : "nenhum");
-    if (!anexoServico && !forcar) {
+    if (!anexoServico) {
       debug.aguardando_nf = true; debug.falta_servico = true;
       debug.resultado = "Sem NF de serviço: a NFS-e não saiu no Omie e não há nota anexada na pasta — anexe a nota de serviço na pasta do cliente";
       return debug;
@@ -284,12 +284,11 @@ async function processarOSnum(consulta: Record<string, unknown>, label: string, 
     // Gate de COMPLETUDE: o card só nasce quando o serviço está COMPLETO na pasta —
     // com a NF de serviço e, se houver peça vinculada, a NF de peça. De qualquer origem
     // (Omie ou anexo manual). Ao anexar a NF na pasta, este sync roda de novo e cria o card.
-    if (pvNum && !anexoPeca && !forcar) {
+    if (pvNum && !anexoPeca) {
       debug.aguardando_nf = true; debug.falta_peca = true;
       debug.resultado = `Aguardando a NF de peça do PV ${pvNum}: não saiu no Omie${pvParc.faturado ? "" : " (PV nem faturado)"} e não há nota anexada na pasta — anexe a NF de peça na pasta`;
       return debug;
     }
-    if (forcar) debug.forcado = true;
 
     const row: Record<string, unknown> = {
       nom_cliente: cli.nome, cnpj_cliente: cli.cnpj, valor_servico: valor,
@@ -321,15 +320,12 @@ async function handler(req: NextRequest) {
   const desde = req.nextUrl.searchParams.get("desde") || DATA_CORTE; // corte por data de faturamento
 
   // Modo OS específica (debug/webhook): ?os=5043 (número) ou ?codOS=123 (código interno)
-  // ?forcar=1 → escape manual da pasta: cria o card mesmo faltando NF (usado quando a
-  // nota deu erro na SEFAZ/prefeitura). No modo forçado o corte de data também é ignorado.
+  // NÃO existe modo "forçar": o card só nasce com as DUAS notas (serviço e peça) na pasta.
   const osParam = req.nextUrl.searchParams.get("os");
   const codOSParam = req.nextUrl.searchParams.get("codOS");
-  const forcar = req.nextUrl.searchParams.get("forcar") === "1";
   if (osParam || codOSParam) {
     const consulta = codOSParam ? { nCodOS: Number(codOSParam) } : { cNumOS: String(osParam).trim() };
-    const corte = forcar ? "1900-01-01" : desde;
-    try { return NextResponse.json({ sucesso: true, ...(await processarOSnum(consulta, codOSParam || String(osParam), dryRun, corte, req.nextUrl.origin, forcar)) }); }
+    try { return NextResponse.json({ sucesso: true, ...(await processarOSnum(consulta, codOSParam || String(osParam), dryRun, desde, req.nextUrl.origin)) }); }
     catch (e) { return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 }); }
   }
 

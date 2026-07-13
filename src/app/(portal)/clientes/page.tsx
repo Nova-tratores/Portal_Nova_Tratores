@@ -502,25 +502,12 @@ function ClientesPageInner() {
       const d = await res.json()
       if (!res.ok || d.error) { alert(d.error || 'Erro ao trocar o pedido.'); setForcandoCard(false); return }
       await abrirDetalhe(selectedCliente)
-      setModalOS(null)
-      alert(d.pv ? `Pedido de venda da OS ${os.num_os} passou a ser o ${d.pv}.` : `OS ${os.num_os} voltou ao vínculo automático do Omie.`)
-    } catch { alert('Erro de conexão.') }
-    setForcandoCard(false)
-  }
-  // 2) Forçar a criação do card no financeiro, mesmo faltando NF (nota deu erro).
-  const enviarCardFinanceiro = async (os: OrdemServico) => {
-    if (!podeAnexos || !selectedCliente) return
-    if (!window.confirm(
-      `Enviar a OS ${os.num_os} para o financeiro AGORA?\n\nUse isto só quando a nota deu erro e o card não nasceu sozinho.\nO card é criado mesmo faltando NF.`
-    )) return
-    setForcandoCard(true)
-    try {
-      const res = await fetch(`/api/financeiro/sync-os?os=${encodeURIComponent(os.num_os)}&forcar=1`, { method: 'POST' })
-      const d = await res.json()
-      const r = String(d?.resultado || d?.error || '')
-      await abrirDetalhe(selectedCliente)
-      if (/Card criado/i.test(r)) { setModalOS(null); alert(`✅ ${r}`) }
-      else alert(`Não criou o card.\n\n${r || 'Sem detalhe.'}`)
+      const base = d.pv
+        ? `Pedido de venda da OS ${os.num_os} passou a ser o ${d.pv}.`
+        : `OS ${os.num_os} voltou ao vínculo automático do Omie.`
+      const r = String(d.resultado || '')
+      if (/Card criado/i.test(r)) { setModalOS(null); alert(`${base}\n\n✅ ${r}`) }
+      else alert(`${base}\n\n${r || 'Ainda não foi pro financeiro.'}`)
     } catch { alert('Erro de conexão.') }
     setForcandoCard(false)
   }
@@ -1541,36 +1528,54 @@ function ClientesPageInner() {
                           </div>
                         )}
 
-                        {/* ESCAPE MANUAL — só pra quando a nota deu erro. O automático continua igual. */}
-                        <div style={{ paddingTop: 4 }}>
-                          <div style={LBL}>Se a nota deu erro</div>
-                          <div style={{ ...ROW, gap: 8 }}>
-                            <button onClick={() => trocarPVdaOS(os, os.pv_manual || os.num_pedido_cli || '')} disabled={forcandoCard}
-                              title="O Omie vinculou o pedido errado (ou nenhum)? Aponte aqui o nº do Pedido de Venda certo — o sistema passa a buscar a NF de peça nele."
-                              style={{ ...GHOST, cursor: forcandoCard ? 'wait' : 'pointer' }}>
-                              <Hash size={15} /> Trocar o nº do pedido de venda
-                              {(os.pv_manual || os.num_pedido_cli) && (
-                                <span style={{ marginLeft: 4, fontSize: 12, fontWeight: 700, color: os.pv_manual ? '#B45309' : '#9CA3AF' }}>
-                                  ({os.pv_manual || os.num_pedido_cli}{os.pv_manual ? ' · manual' : ''})
-                                </span>
-                              )}
-                            </button>
-                            {os.financeiro ? (
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#047857', fontWeight: 600 }}>
-                                <CheckCircle size={15} /> Já está no financeiro
+                        {/* STATUS PRO FINANCEIRO — o card só nasce com as DUAS notas */}
+                        {(() => {
+                          const temServ = !!nfServ
+                          const pvDaOS = os.pv_manual || os.num_pedido_cli || ''
+                          const pvsComNF = pvs.filter(p => p.link_nf || os.financeiro?.nf_peca)
+                          const temPeca = pvs.length === 0 ? true : pvsComNF.length === pvs.length
+                          const completo = temServ && temPeca
+                          const Item = ({ ok, txt }: { ok: boolean; txt: string }) => (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 13.5, fontWeight: 600, color: ok ? '#047857' : '#B91C1C' }}>
+                              <span style={{ width: 18, height: 18, borderRadius: 5, border: `2px solid ${ok ? '#047857' : '#FCA5A5'}`, background: ok ? '#047857' : '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                {ok && <CheckCircle size={12} color="#fff" />}
                               </span>
-                            ) : (
-                              <button onClick={() => enviarCardFinanceiro(os)} disabled={forcandoCard}
-                                title="Cria o card no financeiro AGORA, mesmo faltando NF. Use só quando a nota deu erro e o card não nasceu sozinho."
-                                style={{ ...BASE, border: 'none', background: '#4F46E5', color: '#fff', fontWeight: 700, cursor: forcandoCard ? 'wait' : 'pointer' }}>
-                                <Package size={15} /> {forcandoCard ? 'Enviando...' : 'Enviar para o financeiro'}
-                              </button>
-                            )}
-                          </div>
-                          <div style={{ fontSize: 11.5, color: '#9CA3AF', marginTop: 6 }}>
-                            Normalmente o card nasce sozinho quando as duas notas (serviço e peça) estão na pasta. Use estes botões só quando a nota deu erro.
-                          </div>
-                        </div>
+                              {txt}
+                            </span>
+                          )
+                          return (
+                            <div style={{ paddingTop: 4 }}>
+                              <div style={LBL}>Status para o financeiro</div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 7, padding: '12px 14px', borderRadius: 10, background: completo ? '#ECFDF5' : '#FFFBEB', border: `1px solid ${completo ? '#A7F3D0' : '#FDE68A'}` }}>
+                                <Item ok={temServ} txt={temServ ? 'NF de Serviço anexada' : 'NF de Serviço FALTANDO — anexe acima'} />
+                                {pvs.length > 0 && (
+                                  <Item ok={temPeca} txt={temPeca
+                                    ? `NF de Peça anexada${pvs.length > 1 ? ` (${pvs.length} pedidos)` : ` (PV ${pvs[0].num_pedido})`}`
+                                    : `NF de Peça FALTANDO (PV ${pvs.filter(p => !p.link_nf).map(p => p.num_pedido).join(', ')}) — anexe acima`} />
+                                )}
+                                <div style={{ fontSize: 12.5, marginTop: 3, color: completo ? '#047857' : '#92400E', fontWeight: 600 }}>
+                                  {os.financeiro
+                                    ? '✅ Já está no financeiro.'
+                                    : completo
+                                      ? 'As duas notas estão prontas — o card vai pro financeiro no próximo sync (ou já foi).'
+                                      : 'Enquanto faltar nota, NÃO vai pro financeiro. Anexe a que falta (ou aponte o pedido certo abaixo).'}
+                                </div>
+                              </div>
+                              <div style={{ ...ROW, marginTop: 10 }}>
+                                <button onClick={() => trocarPVdaOS(os, pvDaOS)} disabled={forcandoCard}
+                                  title="O Omie vinculou o pedido errado (ou nenhum)? Aponte aqui o nº do Pedido de Venda certo — o sistema vai buscar a NF de peça nele. Vazio = volta ao automático."
+                                  style={{ ...GHOST, cursor: forcandoCard ? 'wait' : 'pointer' }}>
+                                  <Hash size={15} /> {forcandoCard ? 'Buscando...' : 'Trocar o nº do pedido de venda'}
+                                  {pvDaOS && (
+                                    <span style={{ marginLeft: 4, fontSize: 12, fontWeight: 700, color: os.pv_manual ? '#B45309' : '#9CA3AF' }}>
+                                      ({pvDaOS}{os.pv_manual ? ' · manual' : ''})
+                                    </span>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          )
+                        })()}
                       </div>
                     )
                   })()}
