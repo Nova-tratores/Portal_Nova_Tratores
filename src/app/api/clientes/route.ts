@@ -158,9 +158,12 @@ export async function GET(req: NextRequest) {
         valor: c.valor_servico || null,
         categoria: c.setor_destino === "pecas" ? "Peças" : "Oficina",
       } : null;
-      const origin = req.nextUrl.origin;
-      const reconstrOS = (o: any) => o.cod_os ? `${origin}/api/clientes/print?tipo=os&cod=${o.cod_os}&empresa=${encodeURIComponent(empresa)}` : null;
-      const reconstrPV = (p: any) => p.cod_pedido ? `${origin}/api/clientes/print?tipo=pv&cod=${p.cod_pedido}&empresa=${encodeURIComponent(p.empresa || empresa)}` : null;
+      // Links SEM origin (relativos). Usar req.nextUrl.origin aqui gerava
+      // "http://localhost:8080/..." em produção — no Railway o app roda atrás de um
+      // proxy na porta interna 8080, então o origin da request é o interno, não o público.
+      // Relativo, o próprio navegador resolve no domínio certo.
+      const reconstrOS = (o: any) => o.cod_os ? `/api/clientes/print?tipo=os&cod=${o.cod_os}&empresa=${encodeURIComponent(empresa)}` : null;
+      const reconstrPV = (p: any) => p.cod_pedido ? `/api/clientes/print?tipo=pv&cod=${p.cod_pedido}&empresa=${encodeURIComponent(p.empresa || empresa)}` : null;
       const ordensEnr = (ordens || []).map((o: any) => {
         const idOrdem = posPorOS.get(String(o.num_os)) || null;
         return {
@@ -168,7 +171,7 @@ export async function GET(req: NextRequest) {
           financeiro: fin(cardPorOS.get(String(o.num_os))),
           // documento REAL do POS quando existe; senão a remontagem do Omie
           pos_id: idOrdem,
-          pos_pdf: idOrdem ? `${origin}/api/pos/ordens/${idOrdem}/print` : reconstrOS(o),
+          pos_pdf: idOrdem ? `/api/pos/ordens/${idOrdem}/print` : reconstrOS(o),
           pos_real: !!idOrdem,
         };
       });
@@ -179,7 +182,7 @@ export async function GET(req: NextRequest) {
           financeiro: fin(cardPorPV.get(String(p.num_pedido))),
           // documento REAL do PPV quando existe; senão a remontagem do Omie
           ppv_id: idPedido,
-          pv_pdf: idPedido ? `${origin}/api/ppv/pdf?id=${idPedido}` : reconstrPV(p),
+          pv_pdf: idPedido ? `/api/ppv/pdf?id=${idPedido}` : reconstrPV(p),
           ppv_real: !!idPedido,
         };
       });

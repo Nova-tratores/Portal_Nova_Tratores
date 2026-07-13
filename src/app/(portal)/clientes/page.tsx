@@ -1353,81 +1353,140 @@ function ClientesPageInner() {
                     </div>
                   )}
 
-                  {/* Botoes de acao */}
-                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', paddingTop: 8, borderTop: '1px solid #F3F4F6' }}>
-                    <a href={os.pos_pdf || `/api/clientes/print?tipo=os&cod=${os.cod_os}&empresa=${encodeURIComponent(os.empresa)}`}
-                      target="_blank" rel="noopener noreferrer"
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: '1px solid #E5E7EB', borderRadius: 10, background: '#fff', color: '#374151', fontSize: 14, textDecoration: 'none', fontWeight: 600 }}>
-                      <Printer size={16} /> {os.pos_real ? 'Abrir POS' : 'Imprimir OS'}
-                    </a>
-                    {os.faturada && !os.cancelada && !os.link_nf && !os.financeiro?.nf_servico && (
-                      <div style={{ display: 'inline-flex', flexDirection: 'column', gap: 6 }}>
-                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: '1px solid #F59E0B', borderRadius: 10, background: '#FFFBEB', color: '#B45309', fontSize: 14, fontWeight: 700, cursor: anexNfOS ? 'wait' : 'pointer' }}>
-                          <Upload size={16} /> {anexNfOS ? 'Enviando...' : 'Anexar NF de serviço'}
-                          <input type="file" accept="application/pdf" style={{ display: 'none' }} disabled={anexNfOS}
-                            onChange={e => { const f = e.target.files?.[0]; if (f) anexarNFservicoNaOS(os, f, { gerarCard: gerarCardFin }) }} />
-                        </label>
-                        <label title="Se marcado, cria o card no financeiro ao anexar a NF" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#6B7280', cursor: 'pointer', userSelect: 'none', paddingLeft: 2 }}>
-                          <input type="checkbox" checked={gerarCardFin} onChange={e => setGerarCardFin(e.target.checked)} style={{ cursor: 'pointer', accentColor: '#B45309' }} />
-                          Gerar card no financeiro
-                        </label>
+                  {/* ── Ações, agrupadas por assunto ── */}
+                  {(() => {
+                    const LBL = { fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase' as const, letterSpacing: 0.6, marginBottom: 8 }
+                    const ROW = { display: 'flex', gap: 8, flexWrap: 'wrap' as const, alignItems: 'center' }
+                    const BASE = { display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 16px', borderRadius: 9, fontSize: 13.5, fontWeight: 600, textDecoration: 'none', cursor: 'pointer' }
+                    const GHOST = { ...BASE, border: '1px solid #E5E7EB', background: '#fff', color: '#374151' }
+                    const DARK = { ...BASE, border: 'none', background: '#111827', color: '#fff' }
+                    const WARN = { ...BASE, border: '1px solid #F59E0B', background: '#FFFBEB', color: '#B45309', fontWeight: 700 }
+                    const GREEN = { ...BASE, border: 'none', background: '#059669', color: '#fff' }
+                    const MUTED = { fontSize: 13, color: '#9CA3AF', fontStyle: 'italic' as const }
+                    const nfServ = os.link_nf || os.financeiro?.nf_servico
+                    const numNfServ = os.num_nf || os.financeiro?.num_nf_servico
+                    const boletos = (os.financeiro?.boleto || '').split(',').map(s => s.trim()).filter(Boolean)
+                    return (
+                      <div style={{ paddingTop: 16, borderTop: '1px solid #F3F4F6', display: 'flex', flexDirection: 'column', gap: 18 }}>
+
+                        {/* DOCUMENTOS */}
+                        <div>
+                          <div style={LBL}>Documentos</div>
+                          <div style={ROW}>
+                            <a href={os.pos_pdf || `/api/clientes/print?tipo=os&cod=${os.cod_os}&empresa=${encodeURIComponent(os.empresa)}`}
+                              target="_blank" rel="noopener noreferrer" title="Abrir a Ordem de Serviço" style={GHOST}>
+                              <Printer size={15} /> {os.pos_real ? 'Abrir OS (POS)' : 'Imprimir OS'}
+                            </a>
+                            {pvs.map(pv => (
+                              <a key={pv.num_pedido} href={pv.pv_pdf || `/api/clientes/print?tipo=pv&cod=${pv.cod_pedido}&empresa=${encodeURIComponent(pv.empresa)}`}
+                                target="_blank" rel="noopener noreferrer" title={`Abrir o pedido de peças ${pv.num_pedido}`} style={GHOST}>
+                                <Printer size={15} /> {pv.ppv_real ? 'Abrir PPV' : 'Imprimir PV'} {pv.num_pedido}
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* NOTA FISCAL DE SERVIÇO */}
+                        <div>
+                          <div style={LBL}>Nota Fiscal de Serviço{numNfServ ? ` — nº ${numNfServ}` : ''}</div>
+                          <div style={ROW}>
+                            {nfServ ? (
+                              <>
+                                <a href={nfServ} target="_blank" rel="noopener noreferrer" title="Baixar o PDF da nota" style={DARK}>
+                                  <Download size={15} /> Baixar a nota
+                                </a>
+                                {os.link_nf && (
+                                  <label title="Trocar o PDF que está anexado (envia outro arquivo no lugar)" style={{ ...GHOST, cursor: anexNfOS ? 'wait' : 'pointer' }}>
+                                    <Upload size={15} /> {anexNfOS ? 'Enviando...' : 'Trocar o PDF'}
+                                    <input type="file" accept="application/pdf" style={{ display: 'none' }} disabled={anexNfOS}
+                                      onChange={e => { const f = e.target.files?.[0]; if (f) anexarNFservicoNaOS(os, f, { gerarCard: false, substituir: true }) }} />
+                                  </label>
+                                )}
+                              </>
+                            ) : os.faturada && !os.cancelada ? (
+                              <div style={{ display: 'inline-flex', flexDirection: 'column', gap: 6 }}>
+                                <label title="Enviar o PDF da NFS-e (o Omie não fornece essa nota em PDF)" style={{ ...WARN, cursor: anexNfOS ? 'wait' : 'pointer' }}>
+                                  <Upload size={15} /> {anexNfOS ? 'Enviando...' : 'Anexar a nota'}
+                                  <input type="file" accept="application/pdf" style={{ display: 'none' }} disabled={anexNfOS}
+                                    onChange={e => { const f = e.target.files?.[0]; if (f) anexarNFservicoNaOS(os, f, { gerarCard: gerarCardFin }) }} />
+                                </label>
+                                <label title="Se marcado, ao anexar a nota já cria o card no financeiro" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#6B7280', cursor: 'pointer', userSelect: 'none', paddingLeft: 2 }}>
+                                  <input type="checkbox" checked={gerarCardFin} onChange={e => setGerarCardFin(e.target.checked)} style={{ cursor: 'pointer', accentColor: '#B45309' }} />
+                                  Gerar card no financeiro
+                                </label>
+                              </div>
+                            ) : (
+                              <span style={MUTED}>Ainda sem nota (a OS não foi faturada).</span>
+                            )}
+                            <button onClick={() => setSubNF({ osNum: os.num_os, empresa: os.empresa, nf_tipo: 'servico', num_antigo: numNfServ || '', num_novo: '' })}
+                              title="A nota foi cancelada e emitida outra? Registre aqui o nº antigo → nº novo (fica no histórico)."
+                              style={GHOST}>
+                              <RefreshCw size={15} /> Registrar troca de nº da nota
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* NOTA FISCAL DE PEÇA (por PV) */}
+                        {pvs.length > 0 && (
+                          <div>
+                            <div style={LBL}>Nota Fiscal de Peça</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                              {pvs.map(pv => {
+                                const nfPeca = pv.link_nf || os.financeiro?.nf_peca
+                                return (
+                                  <div key={pv.num_pedido} style={ROW}>
+                                    {nfPeca ? (
+                                      <>
+                                        <a href={nfPeca} target="_blank" rel="noopener noreferrer" title={`Baixar a NF de peça do PV ${pv.num_pedido}`} style={DARK}>
+                                          <Download size={15} /> Baixar a nota do PV {pv.num_pedido}{pv.numero_nf ? ` (nº ${pv.numero_nf})` : ''}
+                                        </a>
+                                        {pv.link_nf && (
+                                          <label title="Trocar o PDF anexado" style={{ ...GHOST, cursor: anexNfOS ? 'wait' : 'pointer' }}>
+                                            <Upload size={15} /> {anexNfOS ? 'Enviando...' : 'Trocar o PDF'}
+                                            <input type="file" accept="application/pdf" style={{ display: 'none' }} disabled={anexNfOS}
+                                              onChange={e => { const f = e.target.files?.[0]; if (f) anexarNFpecaNoPV(pv, f, { gerarCard: false, substituir: true }) }} />
+                                          </label>
+                                        )}
+                                      </>
+                                    ) : (
+                                      <>
+                                        {pv.nf_motivo && (
+                                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 13px', borderRadius: 9, background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C', fontSize: 13, fontWeight: 600, maxWidth: 560, lineHeight: 1.35 }}>
+                                            <AlertTriangle size={15} style={{ flexShrink: 0 }} />
+                                            <span>A nota do PV {pv.num_pedido} <b>não foi autorizada</b>{pv.nf_status ? ` (status ${pv.nf_status})` : ''}: {pv.nf_motivo}</span>
+                                          </span>
+                                        )}
+                                        <label title={`Enviar o PDF da NF de peça do PV ${pv.num_pedido}. Ao anexar, o card do financeiro é acionado.`}
+                                          style={{ ...(pv.nf_motivo ? { ...BASE, border: 'none', background: '#B91C1C', color: '#fff', fontWeight: 700 } : WARN), cursor: anexNfOS ? 'wait' : 'pointer' }}>
+                                          <Upload size={15} /> {anexNfOS ? 'Enviando...' : `Anexar a nota do PV ${pv.num_pedido}`}
+                                          <input type="file" accept="application/pdf" style={{ display: 'none' }} disabled={anexNfOS}
+                                            onChange={e => { const f = e.target.files?.[0]; if (f) anexarNFpecaNoPV(pv, f, { gerarCard: true }) }} />
+                                        </label>
+                                      </>
+                                    )}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* FINANCEIRO */}
+                        {boletos.length > 0 && (
+                          <div>
+                            <div style={LBL}>Financeiro</div>
+                            <div style={ROW}>
+                              {boletos.map((b: string, bi: number) => (
+                                <a key={bi} href={b} target="_blank" rel="noopener noreferrer" title="Baixar o boleto" style={GREEN}>
+                                  <Download size={15} /> Boleto{boletos.length > 1 ? ` ${bi + 1}` : ''}
+                                </a>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    )}
-                    <button onClick={() => setSubNF({ osNum: os.num_os, empresa: os.empresa, nf_tipo: 'servico', num_antigo: os.num_nf || os.financeiro?.num_nf_servico || '', num_novo: '' })}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: '1px solid #E5E7EB', borderRadius: 10, background: '#fff', color: '#374151', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
-                      <RefreshCw size={16} /> NF substituída
-                    </button>
-                    {(os.link_nf || os.financeiro?.nf_servico) && (
-                      <a href={os.link_nf || os.financeiro?.nf_servico || undefined} target="_blank" rel="noopener noreferrer"
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: 'none', borderRadius: 10, background: '#111827', color: '#fff', fontSize: 14, textDecoration: 'none', fontWeight: 600 }}>
-                        <Download size={16} /> NF Serviço{os.financeiro?.num_nf_servico ? ` ${os.financeiro.num_nf_servico}` : ''}
-                      </a>
-                    )}
-                    {os.link_nf && (
-                      <label title="Trocar o PDF da NF de serviço anexado" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: '1px solid #E5E7EB', borderRadius: 10, background: '#fff', color: '#374151', fontSize: 14, fontWeight: 600, cursor: anexNfOS ? 'wait' : 'pointer' }}>
-                        <Upload size={16} /> {anexNfOS ? 'Enviando...' : 'Substituir arquivo'}
-                        <input type="file" accept="application/pdf" style={{ display: 'none' }} disabled={anexNfOS}
-                          onChange={e => { const f = e.target.files?.[0]; if (f) anexarNFservicoNaOS(os, f, { gerarCard: false, substituir: true }) }} />
-                      </label>
-                    )}
-                    {(os.financeiro?.boleto || '').split(',').map(s => s.trim()).filter(Boolean).map((b: string, bi: number, arr: string[]) => (
-                      <a key={bi} href={b} target="_blank" rel="noopener noreferrer"
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: 'none', borderRadius: 10, background: '#059669', color: '#fff', fontSize: 14, textDecoration: 'none', fontWeight: 600 }}>
-                        <Download size={16} /> Boleto{arr.length > 1 ? ` ${bi + 1}` : ''}
-                      </a>
-                    ))}
-                    {pvs.map(pv => (
-                      <span key={pv.num_pedido} style={{ display: 'contents' }}>
-                        <a href={pv.pv_pdf || `/api/clientes/print?tipo=pv&cod=${pv.cod_pedido}&empresa=${encodeURIComponent(pv.empresa)}`}
-                          target="_blank" rel="noopener noreferrer"
-                          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: '1px solid #E5E7EB', borderRadius: 10, background: '#fff', color: '#374151', fontSize: 14, textDecoration: 'none', fontWeight: 600 }}>
-                          <Printer size={16} /> {pv.ppv_real ? 'Abrir PPV' : 'PV'} {pv.num_pedido}
-                        </a>
-                        {/* NF de peça rejeitada/denegada na SEFAZ: avisa e deixa anexar na mão */}
-                        {!pv.link_nf && !os.financeiro?.nf_peca && pv.nf_motivo && (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderRadius: 10, background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C', fontSize: 13, fontWeight: 600, maxWidth: 520 }}>
-                            <AlertTriangle size={16} style={{ flexShrink: 0 }} />
-                            <span style={{ lineHeight: 1.35 }}>
-                              <b>NF de peça do PV {pv.num_pedido} não saiu</b>
-                              {pv.nf_status ? ` (status ${pv.nf_status})` : ''}: {pv.nf_motivo}
-                              <br /><span style={{ fontWeight: 500, opacity: 0.85 }}>Se já reemitiu, anexe a nota aqui →</span>
-                            </span>
-                            <label title="Anexar a NF de peça manualmente" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 8, border: 'none', background: '#B91C1C', color: '#fff', fontSize: 13, fontWeight: 700, cursor: anexNfOS ? 'wait' : 'pointer', flexShrink: 0 }}>
-                              <Upload size={14} /> {anexNfOS ? 'Enviando...' : 'Anexar NF'}
-                              <input type="file" accept="application/pdf" style={{ display: 'none' }} disabled={anexNfOS}
-                                onChange={e => { const f = e.target.files?.[0]; if (f) anexarNFpecaNoPV(pv, f, { gerarCard: true }) }} />
-                            </label>
-                          </span>
-                        )}
-                        {(pv.link_nf || os.financeiro?.nf_peca) && (
-                          <a href={pv.link_nf || os.financeiro?.nf_peca || undefined} target="_blank" rel="noopener noreferrer"
-                            style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: 'none', borderRadius: 10, background: '#111827', color: '#fff', fontSize: 14, textDecoration: 'none', fontWeight: 600 }}>
-                            <Download size={16} /> NF PV {pv.num_pedido}
-                          </a>
-                        )}
-                      </span>
-                    ))}
-                  </div>
+                    )
+                  })()}
                 </div>
               </div>
             </div>
