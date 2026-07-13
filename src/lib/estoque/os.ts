@@ -244,3 +244,67 @@ export async function obterTotaisOS(mes: number, ano: number, conta: ContaFiltro
 export async function obterTotalOS(mes: number, ano: number, conta: ContaFiltro): Promise<number> {
   return (await obterTotaisOS(mes, ano, conta)).total;
 }
+
+// ====================== Listagem detalhada (drill-down do card Serviços) ======================
+
+export interface OSListaRow {
+  numero_os: string;
+  data: string; // dd/mm/aaaa (data de faturamento)
+  valor: number;
+  codigo_cliente: number | null;
+  cliente: string;
+  conta: Conta;
+}
+
+/** OS faturadas (etapa 60, não canceladas) de UMA conta no mês — mesmo critério do total do card. */
+async function listarOSMesConta(mes: number, ano: number, conta: Conta): Promise<OSListaRow[]> {
+  const todas = await buscarTodasOS(conta);
+  const dtDe = new Date(ano, mes - 1, 1);
+  const dtAte = new Date(ano, mes, 0, 23, 59, 59);
+  const rows: OSListaRow[] = [];
+  todas.forEach((os) => {
+    const cab = (os.Cabecalho || {}) as Record<string, unknown>;
+    const info = (os.InfoCadastro || os.infoCadastro || {}) as Record<string, unknown>;
+    if ((info.cCancelada || cab.cCancelada) === 'S') return;
+    const dataStr = String(info.dDtFat || info.dDtInc || cab.dDtPrevisao || '');
+    const dtOS = parseDataBR(dataStr);
+    if (dtOS < dtDe || dtOS > dtAte) return;
+    if (cab.cEtapa != '60') return;
+    rows.push({
+      numero_os: String(cab.cNumOS || ''),
+      data: dataStr,
+      valor: num(cab.nValorTotal),
+      codigo_cliente: num(cab.nCodCli) || null,
+      cliente: '',
+      conta,
+    });
+  });
+  return rows;
+}
+
+/**
+ * OS faturadas do mês com nome do cliente, para o popup "vendas" do card Serviços.
+ * Nome resolvido via cadastro já sincronizado (portal_nt_clientes_cadastro_omie),
+ * sem chamadas extra à Omie. conta undefined = "Todas" (soma as contas configuradas).
+ */
+export async function listarOSMes(mes: number, ano: number, conta: ContaFiltro): Promise<OSListaRow[]> {
+  const contas = conta === undefined ? getContasOmie().map((c) => c.id) : [conta];
+  const rows: OSListaRow[] = [];
+  for (const c of contas) rows.push(...(await listarOSMesConta(mes, ano, c)));
+
+  const codigos = [...new Set(rows.map((r) => r.codigo_cliente).filter(Boolean))] as number[];
+  const nomeMap: Record<number, string> = {};
+  for (let i = 0; i < codigos.length; i += 200) {
+    const { data } = await supabase
+      .from('portal_nt_clientes_cadastro_omie')
+      .select('cod_cli,nome_fantasia,razao_social')
+      .in('cod_cli', codigos.slice(i, i + 200));
+    (data || []).forEach((cli) => {
+      const nome = String(cli.nome_fantasia || cli.razao_social || '').trim();
+      if (nome) nomeMap[num(cli.cod_cli)] = nome;
+    });
+  }
+  rows.forEach((r) => { if (r.codigo_cliente && nomeMap[r.codigo_cliente]) r.cliente = nomeMap[r.codigo_cliente]; });
+
+  return rows.sort((a, b) => b.valor - a.valor);
+}

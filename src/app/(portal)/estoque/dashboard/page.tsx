@@ -47,6 +47,7 @@ interface VendaRow {
   numero_pedido?: string; data_pedido?: string; descricao?: string; codigo_produto?: string;
   quantidade?: number; valor_unitario?: number; valor_total?: number; cmc_unitario?: number;
 }
+interface OSRow { numero_os?: string; data?: string; cliente?: string; codigo_cliente?: number | null; valor?: number; conta?: string }
 
 const thStyle: React.CSSProperties = { background: '#fafafa', color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', padding: '9px 10px', textAlign: 'left', borderBottom: '1px solid #eee', fontWeight: 600 };
 const tdStyle: React.CSSProperties = { padding: '8px 10px', borderBottom: '1px solid #f5f5f5', color: '#444', fontSize: '.82rem' };
@@ -91,6 +92,10 @@ export default function DashboardPage() {
   const [vendasCard, setVendasCard] = useState<{ idx: number; nome: string } | null>(null);
   const [pedidoItens, setPedidoItens] = useState<{ numero: string; itens: VendaRow[] } | null>(null);
 
+  // OS do card Serviços (popup)
+  const [osAberto, setOsAberto] = useState(false);
+  const [osServicos, setOsServicos] = useState<OSRow[] | null>(null);
+
   const carregar = useCallback(async () => {
     setCarregando(true);
     setErro('');
@@ -98,6 +103,8 @@ export default function DashboardPage() {
     setHist(null);
     setVendas(null);
     setVendasCard(null);
+    setOsAberto(false);
+    setOsServicos(null);
     try {
       const catParam = categoria ? `&categoria=${encodeURIComponent(categoria)}` : '';
       const r = await fetch(`/api/estoque/dashboard?mes=${mes}&ano=${ano}${catParam}${contaParam}`);
@@ -139,6 +146,14 @@ export default function DashboardPage() {
     const d = await r.json();
     if (!d.erro) setVendas(d.vendas || []);
   }, [mes, ano, categoria, contaParam]);
+
+  const abrirOSServicos = useCallback(async () => {
+    setOsServicos(null);
+    setOsAberto(true);
+    const r = await fetch(`/api/estoque/dashboard/os?mes=${mes}&ano=${ano}${contaParam}`);
+    const d = await r.json();
+    if (!d.erro) setOsServicos(d.os || []);
+  }, [mes, ano, contaParam]);
 
   const abrirPedido = useCallback(async (numero: string) => {
     setPedidoItens({ numero, itens: [] });
@@ -218,8 +233,9 @@ export default function DashboardPage() {
               const varM = calcVar(atual, mAnt);
               const varA = calcVar(atual, aAnt);
               const proj = metrica === 'venda' ? c.valorProjetado : null;
+              const bordaVermelha = c.cardType === 'totalPecas' || c.cardType === 'totalGeral';
               return (
-                <div key={idx} style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 16, boxShadow: '0 1px 4px rgba(0,0,0,.04)', ...(c.cardType === 'totalGeral' ? { gridColumn: '-2 / -1' } : {}) }}>
+                <div key={idx} style={{ background: '#fff', border: bordaVermelha ? '2px solid #dc2626' : '1px solid #eee', borderRadius: 12, padding: 16, boxShadow: '0 1px 4px rgba(0,0,0,.04)', ...(c.cardType === 'totalGeral' ? { gridColumn: '-2 / -1' } : {}) }}>
                   <div style={{ fontSize: '.72rem', color: '#888', textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 700, marginBottom: 6 }}>{c.nome}</div>
                   <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#dc2626' }}>{fmtRS(atual)}</div>
                   {c.cardType === 'servico' && metrica === 'venda' && c.valorNota != null && c.valorInterno != null && (
@@ -235,7 +251,9 @@ export default function DashboardPage() {
                   {proj != null && <div style={{ fontSize: '.7rem', color: '#999', marginTop: 4 }}>Projeção: {fmtRS(proj)}</div>}
                   <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
                     <button onClick={() => abrirHistorico(cardIndexParaApi(c, dados))} style={linkBtn}>histórico</button>
-                    {c.cardType !== 'servico' && <button onClick={() => abrirVendas(cardIndexParaApi(c, dados), c.nome)} style={linkBtn}>vendas</button>}
+                    {c.cardType === 'servico'
+                      ? <button onClick={abrirOSServicos} style={linkBtn}>vendas</button>
+                      : <button onClick={() => abrirVendas(cardIndexParaApi(c, dados), c.nome)} style={linkBtn}>vendas</button>}
                   </div>
                 </div>
               );
@@ -293,6 +311,39 @@ export default function DashboardPage() {
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Popup OS do card Serviços */}
+      {osAberto && (
+        <div onClick={() => setOsAberto(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 20, maxWidth: 860, width: '92%', maxHeight: '80vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <h2 style={{ color: '#dc2626', fontSize: '.95rem', fontWeight: 700, margin: 0 }}>
+                Serviços — Ordens de Serviço ({osServicos?.length ?? 0})
+                {osServicos && osServicos.length > 0 && (
+                  <span style={{ color: '#888', fontWeight: 600, marginLeft: 8 }}>· Total {fmtRS(osServicos.reduce((s, o) => s + (o.valor || 0), 0))}</span>
+                )}
+              </h2>
+              <button onClick={() => setOsAberto(false)} style={linkBtn}>fechar</button>
+            </div>
+            {!osServicos ? <div style={{ color: '#888', fontSize: '.85rem' }}>Carregando…</div> : osServicos.length === 0 ? <div style={{ color: '#888', fontSize: '.85rem' }}>Sem OS faturadas no período.</div> : (
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead><tr>{['OS', 'Data', 'Cliente', ...(contaParam === '' ? ['Conta'] : []), 'Valor'].map((h) => <th key={h} style={thStyle}>{h}</th>)}</tr></thead>
+                <tbody>
+                  {osServicos.map((o, i) => (
+                    <tr key={i}>
+                      <td style={tdStyle}>{o.numero_os}</td>
+                      <td style={tdStyle}>{o.data}</td>
+                      <td style={tdStyle}>{o.cliente || (o.codigo_cliente ? '#' + o.codigo_cliente : '—')}</td>
+                      {contaParam === '' && <td style={tdStyle}>{o.conta}</td>}
+                      <td style={tdStyle}>{fmtRS(o.valor)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
       )}
 
