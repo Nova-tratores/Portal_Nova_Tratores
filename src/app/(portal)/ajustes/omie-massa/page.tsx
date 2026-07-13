@@ -225,7 +225,7 @@ export default function OmieMassaPage() {
   }, [authHeaders, fFamilia, fOrdenar, fTop, fMes, fAno]);
 
   useEffect(() => {
-    if (permLoading || !pode('omie-massa')) return;
+    if (permLoading || !pode('ajustes', 'omie-massa')) return;
     carregarServicos();
     carregarFamilias();
   }, [permLoading]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -280,7 +280,7 @@ export default function OmieMassaPage() {
   };
 
   if (permLoading) return <div style={{ padding: 40, color: '#64748b' }}>Carregando…</div>;
-  if (!pode('omie-massa')) return <SemPermissao />;
+  if (!pode('ajustes', 'omie-massa')) return <SemPermissao />;
 
   const loading = aba === 'servicos' ? servLoading : prodLoading;
 

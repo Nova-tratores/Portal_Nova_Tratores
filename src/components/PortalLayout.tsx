@@ -83,7 +83,6 @@ const navItems: NavItem[] = [
   { id: 'estoque', name: 'Consulta Estoque', href: '/estoque', icon: <Eye size={18} />, tag: 'CONSULTA', gradient: '', group: 'estoque' },
   { id: 'ajustes', name: 'Ajustes Estoque', href: '/ajustes', icon: <SlidersHorizontal size={18} />, tag: 'AJUSTES', gradient: '', group: 'estoque' },
   { id: 'abastecimento', name: 'Abastecimento', href: '/abastecimento', icon: <Fuel size={18} />, tag: 'FROTA', gradient: '', group: 'estoque' },
-  { id: 'omie-massa', name: 'Omie em Massa', href: '/omie-massa', icon: <List size={18} />, tag: 'CADASTROS', gradient: '', group: 'estoque' },
 
   // Outros (cinza)
   { id: 'opa', name: 'Opa', href: '/opa', icon: <AlertCircle size={18} />, tag: 'OCORRÊNCIAS', gradient: '', group: 'outros' },

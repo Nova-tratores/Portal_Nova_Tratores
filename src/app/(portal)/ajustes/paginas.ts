@@ -23,6 +23,7 @@ export const PAGINAS_AJUSTES: PaginaAjustes[] = [
   { key: 'ajustes:inventario', label: 'Inventário rotativo', href: '/ajustes/inventario', grupo: 'Edição' },
   { key: 'ajustes:inventario-contagem', label: 'Contagem', href: '/ajustes/inventario/contagem', grupo: 'Edição' },
   { key: 'ajustes:caracteristicas', label: 'Características', href: '/ajustes/caracteristicas', grupo: 'Edição' },
+  { key: 'ajustes:omie-massa', label: 'Omie em massa', href: '/ajustes/omie-massa', grupo: 'Edição' },
   // Visualização
   { key: 'ajustes:negativos', label: 'Estoque negativo', href: '/ajustes/negativos', grupo: 'Visualização' },
   { key: 'ajustes:recebimentos', label: 'Recebimentos pendentes', href: '/ajustes/recebimentos', grupo: 'Visualização' },

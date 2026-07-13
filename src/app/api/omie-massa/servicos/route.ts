@@ -15,8 +15,11 @@ export const maxDuration = 300;
 async function checarAcesso(req: Request) {
   const auth = await autenticar(req);
   if (!auth) return { erro: NextResponse.json({ error: 'Não autenticado' }, { status: 401 }) };
-  if (!auth.isAdmin && !auth.modulos.includes('omie-massa')) {
-    return { erro: NextResponse.json({ error: 'Sem permissão (omie-massa)' }, { status: 403 }) };
+  // Página vive no módulo Ajustes: aceita o módulo inteiro ('ajustes'), a ação
+  // granular ('ajustes:omie-massa') e o id antigo ('omie-massa', compat).
+  const permitido = auth.isAdmin || ['ajustes', 'ajustes:omie-massa', 'omie-massa'].some((m) => auth.modulos.includes(m));
+  if (!permitido) {
+    return { erro: NextResponse.json({ error: 'Sem permissão (ajustes:omie-massa)' }, { status: 403 }) };
   }
   return { auth };
 }

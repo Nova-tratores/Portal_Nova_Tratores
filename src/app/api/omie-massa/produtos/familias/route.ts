@@ -9,8 +9,9 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: Request) {
   const auth = await autenticar(req);
   if (!auth) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
-  if (!auth.isAdmin && !auth.modulos.includes('omie-massa')) {
-    return NextResponse.json({ error: 'Sem permissão (omie-massa)' }, { status: 403 });
+  const permitido = auth.isAdmin || ['ajustes', 'ajustes:omie-massa', 'omie-massa'].some((m) => auth.modulos.includes(m));
+  if (!permitido) {
+    return NextResponse.json({ error: 'Sem permissão (ajustes:omie-massa)' }, { status: 403 });
   }
   try {
     const fam = await familiasPorProduto();
