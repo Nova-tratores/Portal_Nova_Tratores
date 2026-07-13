@@ -13,7 +13,13 @@ interface PhaseViewProps {
   searchTerm: string;
   onCardClick: (order: KanbanCard) => void;
   onPhaseChange?: (orderId: string, newPhase: string) => void;
+  // Envio ao Omie (manual): botão por card e "Enviar todas" no cabeçalho da fase.
+  onEnviarOmie?: (orderId: string) => void;
+  onEnviarOmieTodas?: () => void;
+  enviandoOmie?: string | null; // id da OS em envio, ou "__todas__"
 }
+
+const FASE_ENVIAR_OMIE = "Enviar Omie";
 
 const PHASE_COLORS: Record<string, string> = {
   "Orçamento": "#3B82F6",
@@ -68,7 +74,7 @@ function formatDateBR(dateStr: string): string {
   return dateStr;
 }
 
-const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChange, garantiaStatus, onDescEnter, onDescLeave }: { order: KanbanCard; color: string; onClick: () => void; onPhaseChange?: (orderId: string, newPhase: string) => void; garantiaStatus?: GarantiaStatus; onDescEnter?: (rect: DOMRect, texto: string) => void; onDescLeave?: () => void }) {
+const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChange, garantiaStatus, onDescEnter, onDescLeave, onEnviarOmie, enviandoOmie }: { order: KanbanCard; color: string; onClick: () => void; onPhaseChange?: (orderId: string, newPhase: string) => void; garantiaStatus?: GarantiaStatus; onDescEnter?: (rect: DOMRect, texto: string) => void; onDescLeave?: () => void; onEnviarOmie?: (orderId: string) => void; enviandoOmie?: string | null }) {
   const diasFase = diasEntre(o.dataFase);
   const borderStyle = useMemo(() => ({ borderLeftColor: color }), [color]);
 
@@ -109,6 +115,24 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
       </div>
       <div className="mini-card-cliente">{o.cliente}</div>
       <div className="mini-card-servico">{o.servSolicitado}</div>
+      {/* Envio ao Omie: só nos cards da fila "Enviar Omie". Manual de propósito
+          (cria ordem/pedido REAL no Omie). */}
+      {onEnviarOmie && o.status === FASE_ENVIAR_OMIE && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onEnviarOmie(o.id); }}
+          disabled={!!enviandoOmie}
+          title={`Enviar a ${o.id} ao Omie${o.temPPV ? " (com o PPV vinculado)" : ""}`}
+          style={{
+            width: "100%", marginTop: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+            padding: "7px 10px", borderRadius: 7, border: "none",
+            background: enviandoOmie === o.id ? "#94A3B8" : "#0EA5E9", color: "#fff",
+            fontSize: 12, fontWeight: 700, cursor: enviandoOmie ? "default" : "pointer",
+            opacity: enviandoOmie && enviandoOmie !== o.id ? 0.5 : 1,
+          }}>
+          <i className={enviandoOmie === o.id ? "fas fa-spinner fa-spin" : "fas fa-paper-plane"} />
+          {enviandoOmie === o.id ? "Enviando..." : "Enviar ao Omie"}
+        </button>
+      )}
       {(o.previsaoExecucao || o.previsaoFaturamento) && (
         <div className="mini-card-dates">
           {o.previsaoExecucao && (
@@ -193,7 +217,7 @@ const COLLAPSED_DEFAULT = new Set(["Concluída", "Cancelada"]);
 // Fases que aparecem no quadro mas SEM mostrar a contagem no cabeçalho.
 const SEM_CONTAGEM = new Set(["Concluída", "Cancelada"]);
 
-export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChange }: PhaseViewProps) {
+export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChange, onEnviarOmie, onEnviarOmieTodas, enviandoOmie }: PhaseViewProps) {
   const [activePhase, setActivePhase] = useState<string>("");
   const [escopo, setEscopo] = useState<"externas" | "internas">("externas");
   const [tecnicoFiltro, setTecnicoFiltro] = useState<string>("");
@@ -366,6 +390,8 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
                 garantiaStatus={garantiaMap[o.id]}
                 onDescEnter={onDescEnter}
                 onDescLeave={onDescLeave}
+                onEnviarOmie={onEnviarOmie}
+                enviandoOmie={enviandoOmie}
               />
             ))}
             {filtered.length === 0 && (
@@ -383,6 +409,22 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
                 <span className="phase-group-dot" style={{ background: PHASE_COLORS[phase] }} />
                 <span className="phase-group-name">{phase}</span>
                 {!SEM_CONTAGEM.has(phase) && <span className="phase-group-count">{items.length}</span>}
+                {/* "Enviar todas" — só no cabeçalho da fase "Enviar Omie" e se houver fila */}
+                {onEnviarOmieTodas && phase === FASE_ENVIAR_OMIE && items.length > 0 && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onEnviarOmieTodas(); }}
+                    disabled={!!enviandoOmie}
+                    title={`Enviar ao Omie as ${items.length} OS desta fase (uma a uma, com pausa entre elas)`}
+                    style={{
+                      marginLeft: 10, display: "inline-flex", alignItems: "center", gap: 6,
+                      padding: "5px 12px", borderRadius: 7, border: "none",
+                      background: enviandoOmie === "__todas__" ? "#94A3B8" : "#0EA5E9", color: "#fff",
+                      fontSize: 12, fontWeight: 700, cursor: enviandoOmie ? "default" : "pointer",
+                    }}>
+                    <i className={enviandoOmie === "__todas__" ? "fas fa-spinner fa-spin" : "fas fa-paper-plane"} />
+                    {enviandoOmie === "__todas__" ? "Enviando..." : `Enviar todas (${items.length})`}
+                  </button>
+                )}
                 <div className="phase-group-line" />
               </div>
               {!collapsed.has(phase) && (
@@ -397,6 +439,8 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
                       garantiaStatus={garantiaMap[o.id]}
                       onDescEnter={onDescEnter}
                       onDescLeave={onDescLeave}
+                onEnviarOmie={onEnviarOmie}
+                enviandoOmie={enviandoOmie}
                     />
                   ))}
                 </div>

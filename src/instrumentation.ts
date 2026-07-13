@@ -66,6 +66,10 @@ export async function register(): Promise<void> {
   // Tratorilson: processa automaticamente as OS que entram em "Relatório Concluído"
   // (preenche pelo relatório + devolve peças no PPV + move de fase). SÓ produção,
   // pra não rodar no localhost de dev (mesmo banco → evita processamento em dobro).
+  //
+  // O ENVIO AO OMIE **NÃO** é automático de propósito: cria ordem/pedido REAL no Omie,
+  // então quem dispara é a pessoa, pelos botões da fase "Enviar Omie" no Kanban
+  // (um por card, ou "Enviar todas" no cabeçalho da fase).
   if (process.env.NODE_ENV === 'production') {
     const { processarLoteRelatorios } = await import('./lib/pos/atualizar-relatorio');
     const rodarTratorilson = async () => {
@@ -77,7 +81,7 @@ export async function register(): Promise<void> {
     const DEZ_MIN = 10 * 60 * 1000;
     setInterval(() => { rodarTratorilson().catch(() => {}); }, DEZ_MIN);
     setTimeout(() => { rodarTratorilson().catch(() => {}); }, 3 * 60 * 1000); // 1ª rodada ~3min após o boot
-    log('tratorilson auto-processamento LIGADO (a cada 10min)');
+    log('tratorilson auto-processamento LIGADO (a cada 10min) — envio ao Omie é manual');
   }
 
   log('schedulers registrados (lembrete-nf 5min, pasta-cliente 5min; financeiro-scanner sob SYNC_FINANCEIRO_AUTO). sync-incremental e backfill-cmc agora no GitHub Actions.');

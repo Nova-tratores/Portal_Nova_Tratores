@@ -371,69 +371,78 @@ function montarDescricao(c: Record<string, string>): string {
 
 const FASE_ENVIADO_OMIE = "Enviado Para Omie";
 
-// Envia ao Omie TODAS as OS em "Enviar Omie" (OS + PPV vinculado, via criarOSNoOmie).
+export type ResultadoEnvioOmie = { os: string; ok: boolean; cNumOS?: string; pedidoVenda?: string; erro?: string; ppvErro?: string };
+
+// Envia UMA OS ao Omie (a OS + o PPV vinculado, via criarOSNoOmie).
 // Sucesso → guarda Ordem Omie + Pedido de Venda + log, move pra "Enviado Para Omie".
 // Erro (OS ou PPV) → guarda o log com o erro e DEIXA em "Enviar Omie" pra reenviar.
-export async function enviarLoteOmie(userName: string): Promise<{ total: number; ok: number; erros: number; resultados: { os: string; ok: boolean; cNumOS?: string; pedidoVenda?: string; erro?: string; ppvErro?: string }[] }> {
-  const { data: osList } = await supabase.from(TBL_OS).select("Id_Ordem").eq("Status", FASE_ENVIAR_OMIE);
-  const ids = (osList || []).map((o) => String((o as { Id_Ordem: string }).Id_Ordem));
-  const resultados: { os: string; ok: boolean; cNumOS?: string; pedidoVenda?: string; erro?: string; ppvErro?: string }[] = [];
+export async function enviarOSaoOmie(id: string, userName: string): Promise<ResultadoEnvioOmie> {
+  try {
+    const r = await criarOSNoOmie(id); // já envia OS + PPV (pedido de venda) ao Omie
+    // "OS já possui Ordem Omie: NNN" → já foi enviada antes; trata como enviada
+    // (não reenvia, mas avança de fase pra parar de dar erro).
+    const jaEnviada = !r.sucesso && /já possui Ordem Omie/i.test(r.erro || "");
+    const numExistente = jaEnviada ? (r.erro || "").split(":").pop()?.trim() : undefined;
+    const okFinal = r.sucesso || jaEnviada;
+    const cNum = r.cNumOS || numExistente;
 
-  for (const id of ids) {
-    try {
-      const r = await criarOSNoOmie(id); // já envia OS + PPV (pedido de venda) ao Omie
-      // "OS já possui Ordem Omie: NNN" → já foi enviada antes; trata como enviada
-      // (não reenvia, mas avança de fase pra parar de dar erro).
-      const jaEnviada = !r.sucesso && /já possui Ordem Omie/i.test(r.erro || "");
-      const numExistente = jaEnviada ? (r.erro || "").split(":").pop()?.trim() : undefined;
-      const okFinal = r.sucesso || jaEnviada;
-      const cNum = r.cNumOS || numExistente;
-
-      const partes: string[] = [];
-      if (r.sucesso) {
-        partes.push(r.cNumOS ? `OK — Ordem Omie nº ${r.cNumOS}` : "OK — enviada");
-        if (r.pedidoVenda) partes.push(`Pedido de Venda nº ${r.pedidoVenda}`);
-        if (r.pedidoVendaErro) partes.push(`ERRO no PPV: ${r.pedidoVendaErro}`);
-      } else if (jaEnviada) {
-        partes.push(`Já estava no Omie — Ordem nº ${numExistente}`);
-      } else {
-        partes.push(`ERRO ao enviar a OS: ${r.erro}`);
-      }
-      const agora = new Date();
-      const log = `[${new Intl.DateTimeFormat("pt-BR").format(agora)} ${agora.toLocaleTimeString("pt-BR")}] ${partes.join(" | ")}`;
-
-      // Só grava Pedido_Venda quando houve envio novo (não apaga o que já existe).
-      const upd: Record<string, unknown> = { Omie_Envio_Log: log };
-      if (r.pedidoVenda) upd.Pedido_Venda = r.pedidoVenda;
-      await supabase.from(TBL_OS).update(upd).eq("Id_Ordem", id);
-
-      if (okFinal) {
-        // Só lança alimentação em envio novo (evita duplicar em OS que já estava no Omie).
-        if (r.sucesso) { try { await registrarAlimentacaoOS(id); } catch { /* despesa de alimentação — best-effort */ } }
-        // Interna: criarOSNoOmie já concluiu (remessa). Externa: move pra "Enviado Para Omie".
-        if (!r.interna) {
-          await aplicarMudancaFase(id, FASE_ENVIADO_OMIE, userName, {
-            notificar: !!r.pedidoVendaErro,
-            acaoLog: jaEnviada
-              ? `Já estava no Omie (Ordem nº ${numExistente}) — movida pelo Tratorilson`
-              : `Enviada ao Omie pelo Tratorilson${r.cNumOS ? ` (Ordem nº ${r.cNumOS})` : ""}${r.pedidoVenda ? `, PV nº ${r.pedidoVenda}` : ""}`,
-          });
-        }
-      }
-      resultados.push({ os: id, ok: okFinal, cNumOS: cNum, pedidoVenda: r.pedidoVenda, erro: okFinal ? undefined : r.erro, ppvErro: r.pedidoVendaErro });
-
-      // Espaçamento entre OS pra não disparar o anti-flood da Omie.
-      await new Promise((res) => setTimeout(res, 1200));
-    } catch (e) {
-      const agora = new Date();
-      const log = `[${new Intl.DateTimeFormat("pt-BR").format(agora)} ${agora.toLocaleTimeString("pt-BR")}] ERRO: ${e instanceof Error ? e.message : String(e)}`;
-      try { await supabase.from(TBL_OS).update({ Omie_Envio_Log: log }).eq("Id_Ordem", id); } catch { /* best-effort */ }
-      resultados.push({ os: id, ok: false, erro: e instanceof Error ? e.message : String(e) });
+    const partes: string[] = [];
+    if (r.sucesso) {
+      partes.push(r.cNumOS ? `OK — Ordem Omie nº ${r.cNumOS}` : "OK — enviada");
+      if (r.pedidoVenda) partes.push(`Pedido de Venda nº ${r.pedidoVenda}`);
+      if (r.pedidoVendaErro) partes.push(`ERRO no PPV: ${r.pedidoVendaErro}`);
+    } else if (jaEnviada) {
+      partes.push(`Já estava no Omie — Ordem nº ${numExistente}`);
+    } else {
+      partes.push(`ERRO ao enviar a OS: ${r.erro}`);
     }
+    const agora = new Date();
+    const log = `[${new Intl.DateTimeFormat("pt-BR").format(agora)} ${agora.toLocaleTimeString("pt-BR")}] ${partes.join(" | ")}`;
+
+    // Só grava Pedido_Venda quando houve envio novo (não apaga o que já existe).
+    const upd: Record<string, unknown> = { Omie_Envio_Log: log };
+    if (r.pedidoVenda) upd.Pedido_Venda = r.pedidoVenda;
+    await supabase.from(TBL_OS).update(upd).eq("Id_Ordem", id);
+
+    if (okFinal) {
+      // Só lança alimentação em envio novo (evita duplicar em OS que já estava no Omie).
+      if (r.sucesso) { try { await registrarAlimentacaoOS(id); } catch { /* despesa de alimentação — best-effort */ } }
+      // Interna: criarOSNoOmie já concluiu (remessa). Externa: move pra "Enviado Para Omie".
+      if (!r.interna) {
+        await aplicarMudancaFase(id, FASE_ENVIADO_OMIE, userName, {
+          notificar: !!r.pedidoVendaErro,
+          acaoLog: jaEnviada
+            ? `Já estava no Omie (Ordem nº ${numExistente}) — movida pelo Tratorilson`
+            : `Enviada ao Omie${r.cNumOS ? ` (Ordem nº ${r.cNumOS})` : ""}${r.pedidoVenda ? `, PV nº ${r.pedidoVenda}` : ""} — por ${userName}`,
+        });
+      }
+    }
+    return { os: id, ok: okFinal, cNumOS: cNum, pedidoVenda: r.pedidoVenda, erro: okFinal ? undefined : r.erro, ppvErro: r.pedidoVendaErro };
+  } catch (e) {
+    const agora = new Date();
+    const log = `[${new Intl.DateTimeFormat("pt-BR").format(agora)} ${agora.toLocaleTimeString("pt-BR")}] ERRO: ${e instanceof Error ? e.message : String(e)}`;
+    try { await supabase.from(TBL_OS).update({ Omie_Envio_Log: log }).eq("Id_Ordem", id); } catch { /* best-effort */ }
+    return { os: id, ok: false, erro: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+// Envia ao Omie TODAS as OS em "Enviar Omie" (ou só as de `ids`, se passar).
+export async function enviarLoteOmie(userName: string, ids?: string[]): Promise<{ total: number; ok: number; erros: number; resultados: ResultadoEnvioOmie[] }> {
+  let alvos = ids;
+  if (!alvos) {
+    const { data: osList } = await supabase.from(TBL_OS).select("Id_Ordem").eq("Status", FASE_ENVIAR_OMIE);
+    alvos = (osList || []).map((o) => String((o as { Id_Ordem: string }).Id_Ordem));
+  }
+  const resultados: ResultadoEnvioOmie[] = [];
+
+  for (const id of alvos) {
+    resultados.push(await enviarOSaoOmie(id, userName));
+    // Espaçamento entre OS pra não disparar o anti-flood da Omie.
+    await new Promise((res) => setTimeout(res, 1200));
   }
 
   const ok = resultados.filter((r) => r.ok).length;
-  return { total: ids.length, ok, erros: resultados.length - ok, resultados };
+  return { total: alvos.length, ok, erros: resultados.length - ok, resultados };
 }
 
 export type CampoOS = "servico_realizado" | "solicitacao_cliente" | "modelo" | "chassis" | "horimetro" | "horas" | "km" | "data_inicio" | "data_fim";

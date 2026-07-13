@@ -10,6 +10,7 @@ import OSDrawer from "@/components/pos/OSDrawer";
 import LembretesDrawer from "@/components/pos/LembretesDrawer";
 import LoadingIndicator from "@/components/pos/LoadingIndicator";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
+import { authHeaders } from "@/lib/auth/client";
 import type { KanbanCard, ClienteOption } from "@/lib/pos/types";
 
 function PosPageInner() {
@@ -117,6 +118,47 @@ function PosPageInner() {
     setDrawerVisible(true);
   };
 
+  // ── Envio ao Omie (manual, pelos botões da fase "Enviar Omie") ──
+  // Cria ordem/pedido REAL no Omie, por isso não é automático.
+  const [enviandoOmie, setEnviandoOmie] = useState<string | null>(null); // id da OS, ou "__todas__"
+
+  const handleEnviarOmie = async (orderId: string) => {
+    if (!podeOmie) { alert("Você não tem permissão para enviar ao Omie."); return; }
+    const o = orders.find((x) => x.id === orderId);
+    if (!confirm(`Enviar a ${orderId} ao Omie?\n\nCliente: ${o?.cliente || "—"}\n${o?.temPPV ? "O PPV vinculado também vai (pedido de venda).\n" : ""}\nIsso cria ordem REAL no Omie. Ação irreversível.`)) return;
+    setEnviandoOmie(orderId);
+    try {
+      const res = await fetch(`/api/pos/ordens/${orderId}/enviar-omie`, { method: "POST", headers: { ...(await authHeaders()) } });
+      const r = await res.json();
+      if (r.ok) {
+        alert(`✅ ${orderId} enviada!\nOrdem Omie nº ${r.cNumOS || "—"}${r.pedidoVenda ? `\nPedido de Venda nº ${r.pedidoVenda}` : ""}${r.ppvErro ? `\n\n⚠️ Erro no PPV: ${r.ppvErro}` : ""}`);
+      } else {
+        alert(`❌ Não enviou a ${orderId}:\n\n${r.erro || r.error || "erro desconhecido"}`);
+      }
+    } catch { alert("Erro de conexão ao enviar ao Omie."); }
+    setEnviandoOmie(null);
+    fetchOrders();
+  };
+
+  const handleEnviarOmieTodas = async () => {
+    if (!podeOmie) { alert("Você não tem permissão para enviar ao Omie."); return; }
+    const fila = orders.filter((o) => o.status === "Enviar Omie");
+    if (fila.length === 0) { alert('Não há nenhuma OS na fase "Enviar Omie".'); return; }
+    if (!confirm(`Enviar ao Omie as ${fila.length} OS da fase "Enviar Omie"?\n\nIsso cria ordens REAIS no Omie (OS + PPV vinculado). Ação irreversível.`)) return;
+    setEnviandoOmie("__todas__");
+    try {
+      const res = await fetch("/api/pos/ordens/enviar-omie-lote", { method: "POST", headers: { ...(await authHeaders()) } });
+      const r = await res.json();
+      if (res.ok) {
+        const ruins = (r.resultados || []).filter((x: { ok: boolean; ppvErro?: string }) => !x.ok || x.ppvErro);
+        alert(`Envio ao Omie: ${r.ok}/${r.total} enviadas${r.erros ? ` · ${r.erros} com erro` : ""}` +
+          (ruins.length ? `\n\n${ruins.map((x: { os: string; erro?: string; ppvErro?: string }) => `${x.os}: ${x.erro || `PPV: ${x.ppvErro}`}`).join("\n")}` : ""));
+      } else alert(`Erro: ${r.error || "falha"}`);
+    } catch { alert("Erro de conexão ao enviar ao Omie."); }
+    setEnviandoOmie(null);
+    fetchOrders();
+  };
+
   const handlePhaseChange = async (orderId: string, newPhase: string) => {
     if (!podeMoverFase) { alert("Você não tem permissão para mover de fase."); return; }
     // Atualiza localmente para feedback imediato
@@ -211,6 +253,9 @@ function PosPageInner() {
         searchTerm={searchTerm}
         onCardClick={handleCardClick}
         onPhaseChange={podeMoverFase ? handlePhaseChange : undefined}
+        onEnviarOmie={podeOmie ? handleEnviarOmie : undefined}
+        onEnviarOmieTodas={podeOmie ? handleEnviarOmieTodas : undefined}
+        enviandoOmie={enviandoOmie}
       />
 
       {drawerVisible && (
