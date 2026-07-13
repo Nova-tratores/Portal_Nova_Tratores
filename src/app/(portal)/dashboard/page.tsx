@@ -101,8 +101,8 @@ const systemToModulo: Record<string, string> = {
   'mapa-geral': 'mapa',
   'fotos-tecnicos': 'fotos-tecnicos',
   'lousa': 'lousa',
-  'consulta-estoque': 'estoque',
-  'consulta-omie': 'visual-estoque',
+  'consulta-estoque': 'consulta-estoque', // card Visual Estoque (/visual-estoque)
+  'consulta-omie': 'estoque',             // card Consulta Estoque (/estoque)
   'avisos': 'avisos',
   'dashboard-agro': 'dashboard-agro',
   'dre': 'dre',
