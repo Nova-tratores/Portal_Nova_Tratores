@@ -28,6 +28,7 @@ const MODULOS = [
   { id: 'garantias', label: 'Garantias', color: '#0ea5e9' },
   { id: 'mecanicos', label: 'Janela Mecânicos', color: '#1d4ed8' },
   { id: 'mapa', label: 'Mapeamento Técnico', color: '#b91c1c' },
+  { id: 'omie-massa', label: 'Omie em Massa', color: '#7c3aed' },
   { id: 'opa', label: 'Opa (Ocorrências)', color: '#dc2626' },
   { id: 'orcamentos', label: 'Orçamentos', color: '#ef4444' },
   { id: 'painel-mecanicos', label: 'Painel Mecânicos', color: '#3b82f6' },
