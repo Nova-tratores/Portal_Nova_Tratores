@@ -27,6 +27,7 @@ interface Props {
   onModalProdDisplayChange: (v: string) => void;
   onSetModalOS: (id: string, display: string) => void;
   modalClienteNome: string;
+  onClienteConsumido?: () => void; // limpa o nome no pai depois de aplicado (ver useEffect)
   onDirty?: () => void;
 }
 
@@ -34,7 +35,7 @@ export default function PPVDrawer({
   open, ppvId, onClose, onBuscaProduto, onBuscaOS, onBuscaCliente,
   modalOSId, modalOSDisplay, modalProdDisplay, modalProdCodigo,
   onModalProdDisplayChange, onSetModalOS,
-  modalClienteNome, onDirty,
+  modalClienteNome, onClienteConsumido, onDirty,
 }: Props) {
   const { tecnicos, productCache, showToast } = usePPV();
   const { userProfile } = useAuth();
@@ -143,12 +144,17 @@ export default function PPVDrawer({
     setLogsLoading(false);
   }, [ppvId]);
 
+  // Aplica o cliente escolhido no modal de busca e AVISA o pai pra limpar o nome.
+  // Sem essa limpeza, escolher o MESMO cliente de novo não muda o estado no pai →
+  // o React não re-renderiza → este efeito não roda → o drawer continua com o cliente
+  // antigo e salva o antigo. (Era isso que prendia o PPV no mesmo cliente.)
   useEffect(() => {
     if (modalClienteNome && open) {
       setCliente(modalClienteNome);
       carregarDadosCliente(modalClienteNome);
+      onClienteConsumido?.();
     }
-  }, [modalClienteNome, open, carregarDadosCliente]);
+  }, [modalClienteNome, open, carregarDadosCliente, onClienteConsumido]);
 
   useEffect(() => {
     if (open && ppvId) {

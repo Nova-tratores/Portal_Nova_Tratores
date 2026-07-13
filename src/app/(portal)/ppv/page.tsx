@@ -201,9 +201,14 @@ function PPVApp() {
     if (clienteContext.current === "main") {
       setClienteValue(nome);
     } else {
-      setModalClienteNome(nome);
+      // Limpa antes de setar: garante que escolher o MESMO cliente de novo conte como
+      // mudança de estado (senão o React não re-renderiza e o drawer não aplica).
+      setModalClienteNome("");
+      setTimeout(() => setModalClienteNome(nome), 0);
     }
   }
+  // O drawer avisa quando já aplicou o nome — aí zeramos, pra próxima escolha valer.
+  const handleClienteConsumido = useCallback(() => setModalClienteNome(""), []);
 
   function handleFormSaved() {
     setClienteValue(""); setOsIdValue(""); setOsDisplayValue(""); setProdutoDisplay("");
@@ -366,6 +371,7 @@ function PPVApp() {
         onModalProdDisplayChange={(v) => { setModalProdDisplay(v); if (!v) setModalProdCodigo(""); }}
         onSetModalOS={handleSetModalOS}
         modalClienteNome={modalClienteNome}
+        onClienteConsumido={handleClienteConsumido}
         onDirty={markDrawerDirty}
       />
 
