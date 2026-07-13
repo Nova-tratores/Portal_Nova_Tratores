@@ -8,6 +8,7 @@ import { TIPOS_PEDIDO, MOTIVOS_SAIDA, STATUS_OPTIONS, STATUS_COLORS, type Status
 import { api } from "@/lib/ppv/api";
 import { usePPV } from "@/lib/ppv/PPVContext";
 import { useAuth } from "@/hooks/useAuth";
+import ModalBuscaCliente from "./ModalBuscaCliente";
 import { usePermissoes } from "@/hooks/usePermissoes";
 import ModalDevolucao from "./ModalDevolucao";
 import ModalImportarKit from "@/components/orcamentos/ModalImportarKit";
@@ -144,10 +145,19 @@ export default function PPVDrawer({
     setLogsLoading(false);
   }, [ppvId]);
 
-  // Aplica o cliente escolhido no modal de busca e AVISA o pai pra limpar o nome.
-  // Sem essa limpeza, escolher o MESMO cliente de novo não muda o estado no pai →
-  // o React não re-renderiza → este efeito não roda → o drawer continua com o cliente
-  // antigo e salva o antigo. (Era isso que prendia o PPV no mesmo cliente.)
+  // Troca de cliente: o modal de busca vive DENTRO do drawer e escreve direto no estado.
+  // Antes isso passava por um ref + estado do pai + efeito aqui — e escolher o MESMO
+  // cliente de novo não mudava o estado do pai, então o React não re-renderizava, o
+  // efeito não rodava e o drawer salvava o cliente ANTIGO. Agora não tem essa cadeia.
+  const [buscaClienteOpen, setBuscaClienteOpen] = useState(false);
+  const aplicarCliente = useCallback((nome: string) => {
+    if (!nome) return;
+    setCliente(nome);
+    carregarDadosCliente(nome);
+    setBuscaClienteOpen(false);
+  }, [carregarDadosCliente]);
+
+  // Compat: se o pai ainda mandar um nome (fluxo antigo), aplica também.
   useEffect(() => {
     if (modalClienteNome && open) {
       setCliente(modalClienteNome);
@@ -448,7 +458,7 @@ export default function PPVDrawer({
                   <div className="ppv-card">
                     <div className="ppv-card-title" style={{ justifyContent: "space-between" }}>
                       <span><i className="fas fa-user" /> Cliente</span>
-                      <button type="button" onClick={onBuscaCliente} className="ppv-card-title-action">
+                      <button type="button" onClick={() => setBuscaClienteOpen(true)} className="ppv-card-title-action">
                         <i className="fas fa-exchange-alt" /> Trocar
                       </button>
                     </div>
@@ -752,6 +762,8 @@ export default function PPVDrawer({
 
       <ModalDevolucao open={devolucaoOpen} produto={devolucaoProd} onClose={() => setDevolucaoOpen(false)} onConfirm={confirmarDevolucao} confirmando={confirmandoDev} />
       <ModalImportarKit open={kitModalOpen} onClose={() => setKitModalOpen(false)} onImportar={(produtos) => importarKitItens(produtos)} />
+      {/* Busca de cliente do PRÓPRIO drawer — escreve direto no estado daqui */}
+      <ModalBuscaCliente open={buscaClienteOpen} onClose={() => setBuscaClienteOpen(false)} onSelect={aplicarCliente} />
     </>
   );
 }
