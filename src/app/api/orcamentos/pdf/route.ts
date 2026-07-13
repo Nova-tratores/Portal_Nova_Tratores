@@ -82,6 +82,7 @@ function gerarHTML(dados: BodyOrc) {
     `);
   }
 
+  const totalServicos = totalMaoObra + totalDeslocamento;
   const servicosSection = servicosRows.length > 0 ? `
     <div class="section">
       <div class="section-title">Serviços</div>
@@ -93,21 +94,22 @@ function gerarHTML(dados: BodyOrc) {
           <th style="width:16%; text-align:right;">Total</th>
         </tr></thead>
         <tbody>${servicosRows.join("")}</tbody>
+        ${servicosRows.length > 1 ? `<tfoot><tr>
+          <td colspan="3" style="text-align:right;" class="sub-lbl">Total em Serviços</td>
+          <td style="text-align:right;">R$ ${fmt(totalServicos)}</td>
+        </tr></tfoot>` : ""}
       </table>
     </div>
   ` : "";
 
-  // Resumo de valores
+  // Resumo final: uma linha por parcela, com o mesmo destaque (antes as peças ficavam
+  // numa linha cinza de 8pt, praticamente ilegível).
   const resumoLinhas: string[] = [];
-  if (dados.itens.length > 0) {
-    resumoLinhas.push(`<span>Peças/Produtos: R$ ${fmt(totalPecas)}</span>`);
-  }
-  if (dados.maoObra) {
-    resumoLinhas.push(`<span>Mão de Obra: R$ ${fmt(totalMaoObra)}</span>`);
-  }
-  if (dados.deslocamento && dados.deslocamento.km > 0) {
-    resumoLinhas.push(`<span>Deslocamento: R$ ${fmt(totalDeslocamento)}</span>`);
-  }
+  const linhaResumo = (lbl: string, val: number) =>
+    `<div class="resumo-linha"><span class="resumo-lbl">${lbl}</span><span class="resumo-val">R$ ${fmt(val)}</span></div>`;
+  if (dados.itens.length > 0) resumoLinhas.push(linhaResumo("Peças / Produtos", totalPecas));
+  if (dados.maoObra) resumoLinhas.push(linhaResumo("Mão de Obra", totalMaoObra));
+  if (dados.deslocamento && dados.deslocamento.km > 0) resumoLinhas.push(linhaResumo("Deslocamento", totalDeslocamento));
 
   return `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>Orçamento ${numero}</title>
@@ -142,9 +144,20 @@ function gerarHTML(dados: BodyOrc) {
   .cost-table th { text-align: left; font-size: 7pt; font-weight: 800; color: #000; text-transform: uppercase; letter-spacing: 0.5px; padding: 6px 8px; border-bottom: 2px solid #000; }
   .cost-table td { padding: 6px 8px; border-bottom: 1px solid #e5e5e5; font-size: 9pt; color: #222; }
 
-  .total-row { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 10px; padding-top: 10px; border-top: 2.5px solid #C2410C; }
-  .total-sub { font-size: 8pt; color: #888; margin-bottom: 2px; display: flex; gap: 16px; flex-wrap: wrap; }
-  .total-lbl { font-size: 8pt; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #C2410C; }
+  /* Subtotal no rodapé de cada tabela (Peças / Serviços) */
+  .cost-table tfoot td { border-bottom: none; border-top: 2px solid #000; padding: 7px 8px;
+    font-size: 9.5pt; font-weight: 800; color: #000; }
+  .cost-table tfoot .sub-lbl { text-transform: uppercase; letter-spacing: 0.5px; font-size: 8pt; }
+
+  /* Resumo final: uma linha por parcela + o total destacado */
+  .resumo { margin-top: 18px; margin-left: auto; width: 58%; }
+  .resumo-linha { display: flex; justify-content: space-between; align-items: baseline;
+    padding: 6px 0; border-bottom: 1px solid #e5e5e5; }
+  .resumo-lbl { font-size: 9.5pt; font-weight: 600; color: #333; }
+  .resumo-val { font-size: 11pt; font-weight: 700; color: #000; }
+  .total-row { display: flex; justify-content: space-between; align-items: center;
+    margin-top: 8px; padding-top: 10px; border-top: 2.5px solid #C2410C; }
+  .total-lbl { font-size: 9pt; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #C2410C; }
   .total-val { font-size: 22pt; font-weight: 900; color: #C2410C; }
 
   .validade-box { margin-top: 20px; padding: 10px 14px; border: 1px dashed #FDBA74; font-size: 8pt; color: #92400e; }
@@ -197,17 +210,21 @@ function gerarHTML(dados: BodyOrc) {
         <th style="width:14%; text-align:right;">Total</th>
       </tr></thead>
       <tbody>${itensHTML}</tbody>
+      <tfoot><tr>
+        <td colspan="5" style="text-align:right;" class="sub-lbl">Total em Peças</td>
+        <td style="text-align:right;">R$ ${fmt(totalPecas)}</td>
+      </tr></tfoot>
     </table>
   </div>` : ""}
 
   ${servicosSection}
 
-  <div class="total-row">
-    <div>
-      ${resumoLinhas.length > 1 ? `<div class="total-sub">${resumoLinhas.join("")}</div>` : ""}
+  <div class="resumo">
+    ${resumoLinhas.join("")}
+    <div class="total-row">
       <div class="total-lbl">Total do Orçamento</div>
+      <div class="total-val">R$ ${fmt(totalGeral)}</div>
     </div>
-    <div class="total-val">R$ ${fmt(totalGeral)}</div>
   </div>
 
   <div class="validade-box">
