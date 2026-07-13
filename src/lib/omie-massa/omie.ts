@@ -53,11 +53,20 @@ export interface ServicoRow {
   nAliqISS: number; cRetISS: string; nAliqPIS: number; cRetPIS: string;
   nAliqCOFINS: number; cRetCOFINS: string; nAliqCSLL: number; cRetCSLL: string;
   nAliqIR: number; cRetIR: string; nAliqINSS: number; cRetINSS: string;
+  // Reforma Tributária (IBS/CBS)
+  cCstIbsCbs: string; cClassTrib: string; cIndOper: string;
+  nAliqIbsMun: number; nAliqIbsUf: number; nAliqCbs: number;
+  nPercReducaoIbsMun: number; nPercReducaoIbsUf: number; nPercReducaoCbs: number;
 }
 
 export const CAMPOS_SERV_CABECALHO = ['cCodigo', 'cDescricao', 'cIdTrib', 'cCodLC116', 'cCodServMun', 'cCodCateg'] as const;
-export const CAMPOS_SERV_ALIQ = ['nAliqISS', 'nAliqPIS', 'nAliqCOFINS', 'nAliqCSLL', 'nAliqIR', 'nAliqINSS'] as const;
+export const CAMPOS_SERV_ALIQ = [
+  'nAliqISS', 'nAliqPIS', 'nAliqCOFINS', 'nAliqCSLL', 'nAliqIR', 'nAliqINSS',
+  'nAliqIbsMun', 'nAliqIbsUf', 'nAliqCbs', 'nPercReducaoIbsMun', 'nPercReducaoIbsUf', 'nPercReducaoCbs',
+] as const;
 export const CAMPOS_SERV_RET = ['cRetISS', 'cRetPIS', 'cRetCOFINS', 'cRetCSLL', 'cRetIR', 'cRetINSS'] as const;
+// Campos texto da Reforma Tributária (vivem em impostos, mas não são S/N)
+export const CAMPOS_SERV_REFORMA_TXT = ['cCstIbsCbs', 'cClassTrib', 'cIndOper'] as const;
 
 export async function listarTodosServicos(): Promise<ServicoOmie[]> {
   const servicos: ServicoOmie[] = [];
@@ -94,6 +103,9 @@ export function servicoParaRow(s: ServicoOmie): ServicoRow {
     nAliqCSLL: Number(imp.nAliqCSLL ?? 0), cRetCSLL: String(imp.cRetCSLL ?? 'N'),
     nAliqIR: Number(imp.nAliqIR ?? 0), cRetIR: String(imp.cRetIR ?? 'N'),
     nAliqINSS: Number(imp.nAliqINSS ?? 0), cRetINSS: String(imp.cRetINSS ?? 'N'),
+    cCstIbsCbs: String(imp.cCstIbsCbs ?? ''), cClassTrib: String(imp.cClassTrib ?? ''), cIndOper: String(imp.cIndOper ?? ''),
+    nAliqIbsMun: Number(imp.nAliqIbsMun ?? 0), nAliqIbsUf: Number(imp.nAliqIbsUf ?? 0), nAliqCbs: Number(imp.nAliqCbs ?? 0),
+    nPercReducaoIbsMun: Number(imp.nPercReducaoIbsMun ?? 0), nPercReducaoIbsUf: Number(imp.nPercReducaoIbsUf ?? 0), nPercReducaoCbs: Number(imp.nPercReducaoCbs ?? 0),
   };
 }
 
@@ -103,7 +115,7 @@ export interface MudancaCampo { campo: string; de: string | number; para: string
 export function diffServico(row: Partial<ServicoRow>, atual: ServicoOmie): MudancaCampo[] {
   const flat = servicoParaRow(atual);
   const m: MudancaCampo[] = [];
-  for (const c of [...CAMPOS_SERV_CABECALHO, 'cDescrCompleta', ...CAMPOS_SERV_RET, 'inativo'] as const) {
+  for (const c of [...CAMPOS_SERV_CABECALHO, 'cDescrCompleta', ...CAMPOS_SERV_RET, ...CAMPOS_SERV_REFORMA_TXT, 'inativo'] as const) {
     const para = row[c];
     if (para !== undefined && String(para).trim() !== String(flat[c])) m.push({ campo: c, de: flat[c], para: String(para).trim() });
   }
@@ -121,6 +133,7 @@ export function payloadServico(row: Partial<ServicoRow>, atual: ServicoOmie, mud
   const impostos: Record<string, string | number | boolean> = { ...(atual.impostos || {}) };
   for (const c of CAMPOS_SERV_ALIQ) impostos[c] = Number(v(c));
   for (const c of CAMPOS_SERV_RET) impostos[c] = String(v(c)).toUpperCase();
+  for (const c of CAMPOS_SERV_REFORMA_TXT) impostos[c] = String(v(c)).trim();
   const payload: Record<string, unknown> = {
     intEditar: { nCodServ: atual.intListar.nCodServ },
     cabecalho: {

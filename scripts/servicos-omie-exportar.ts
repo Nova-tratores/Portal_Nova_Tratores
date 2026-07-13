@@ -90,6 +90,16 @@ export const COLUNAS: Array<[string, (s: ServicoOmie) => string | number]> = [
   ['cRetIR', (s) => String(s.impostos?.cRetIR ?? 'N')],
   ['nAliqINSS', (s) => Number(s.impostos?.nAliqINSS ?? 0)],
   ['cRetINSS', (s) => String(s.impostos?.cRetINSS ?? 'N')],
+  // Reforma Tributária (IBS/CBS)
+  ['cCstIbsCbs', (s) => String(s.impostos?.cCstIbsCbs ?? '')],
+  ['cClassTrib', (s) => String(s.impostos?.cClassTrib ?? '')],
+  ['cIndOper', (s) => String(s.impostos?.cIndOper ?? '')],
+  ['nAliqIbsMun', (s) => Number(s.impostos?.nAliqIbsMun ?? 0)],
+  ['nAliqIbsUf', (s) => Number(s.impostos?.nAliqIbsUf ?? 0)],
+  ['nAliqCbs', (s) => Number(s.impostos?.nAliqCbs ?? 0)],
+  ['nPercReducaoIbsMun', (s) => Number(s.impostos?.nPercReducaoIbsMun ?? 0)],
+  ['nPercReducaoIbsUf', (s) => Number(s.impostos?.nPercReducaoIbsUf ?? 0)],
+  ['nPercReducaoCbs', (s) => Number(s.impostos?.nPercReducaoCbs ?? 0)],
 ];
 
 function celula(v: string | number): string {

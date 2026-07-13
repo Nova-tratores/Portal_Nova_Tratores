@@ -40,6 +40,16 @@ const COLS_SERV: Col[] = [
   { key: 'cRetIR', label: 'Ret IR', w: 58, tipo: 'sn' },
   { key: 'nAliqINSS', label: '% INSS', w: 60, tipo: 'num' },
   { key: 'cRetINSS', label: 'Ret INSS', w: 58, tipo: 'sn' },
+  // Reforma Tributária (IBS/CBS)
+  { key: 'cCstIbsCbs', label: 'CST IBS/CBS', w: 85 },
+  { key: 'cClassTrib', label: 'Class. Trib.', w: 85 },
+  { key: 'cIndOper', label: 'Ind. Operação', w: 95 },
+  { key: 'nAliqIbsMun', label: '% IBS Mun', w: 75, tipo: 'num' },
+  { key: 'nAliqIbsUf', label: '% IBS Est', w: 75, tipo: 'num' },
+  { key: 'nAliqCbs', label: '% CBS', w: 65, tipo: 'num' },
+  { key: 'nPercReducaoIbsMun', label: 'Red. IBS Mun', w: 85, tipo: 'num' },
+  { key: 'nPercReducaoIbsUf', label: 'Red. IBS Est', w: 85, tipo: 'num' },
+  { key: 'nPercReducaoCbs', label: 'Red. CBS', w: 75, tipo: 'num' },
 ];
 const COLS_PROD: Col[] = [
   { key: 'codigo_produto', label: 'Cód. Omie', w: 105, ro: true },

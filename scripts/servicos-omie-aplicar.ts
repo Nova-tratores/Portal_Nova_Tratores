@@ -19,7 +19,12 @@ const PAUSA_MS = 350; // rate limit Omie
 // Campos editáveis e onde vivem no registro do Omie
 const CAMPOS_CABECALHO = ['cCodigo', 'cDescricao', 'cIdTrib', 'cCodLC116', 'cCodServMun', 'cCodCateg'] as const;
 const CAMPOS_IMPOSTOS_TXT = ['cRetISS', 'cRetPIS', 'cRetCOFINS', 'cRetCSLL', 'cRetIR', 'cRetINSS'] as const;
-const CAMPOS_IMPOSTOS_NUM = ['nAliqISS', 'nAliqPIS', 'nAliqCOFINS', 'nAliqCSLL', 'nAliqIR', 'nAliqINSS'] as const;
+const CAMPOS_IMPOSTOS_NUM = [
+  'nAliqISS', 'nAliqPIS', 'nAliqCOFINS', 'nAliqCSLL', 'nAliqIR', 'nAliqINSS',
+  'nAliqIbsMun', 'nAliqIbsUf', 'nAliqCbs', 'nPercReducaoIbsMun', 'nPercReducaoIbsUf', 'nPercReducaoCbs',
+] as const;
+// Reforma Tributária: campos texto que vivem em impostos (sem uppercase S/N)
+const CAMPOS_REFORMA_TXT = ['cCstIbsCbs', 'cClassTrib', 'cIndOper'] as const;
 
 function parseCsv(texto: string): Array<Record<string, string>> {
   const linhas = texto.replace(/^﻿/, '').split(/\r?\n/).filter((l) => l.trim());
@@ -75,6 +80,10 @@ function diffLinha(row: Record<string, string>, atual: ServicoOmie): Mudanca[] {
     const de = String(atual.impostos?.[c] ?? 'N');
     if (row[c] !== undefined && row[c].toUpperCase() !== de) m.push({ campo: c, de, para: row[c].toUpperCase() });
   }
+  for (const c of CAMPOS_REFORMA_TXT) {
+    const de = String(atual.impostos?.[c] ?? '');
+    if (row[c] !== undefined && row[c] !== de) m.push({ campo: c, de, para: row[c] });
+  }
   const inativoDe = atual.info?.inativo ?? 'N';
   if (row.inativo !== undefined && row.inativo.toUpperCase() !== inativoDe) {
     m.push({ campo: 'inativo', de: inativoDe, para: row.inativo.toUpperCase() });
@@ -95,6 +104,7 @@ function montarPayload(row: Record<string, string>, atual: ServicoOmie, mudancas
   const impostos: Record<string, string | number | boolean> = { ...(atual.impostos || {}) };
   for (const c of CAMPOS_IMPOSTOS_NUM) if (row[c] !== undefined) impostos[c] = numSimples(row[c]);
   for (const c of CAMPOS_IMPOSTOS_TXT) if (row[c] !== undefined) impostos[c] = row[c].toUpperCase();
+  for (const c of CAMPOS_REFORMA_TXT) if (row[c] !== undefined) impostos[c] = row[c];
 
   const payload: Record<string, unknown> = {
     intEditar: { nCodServ: Number(row.nCodServ) },
