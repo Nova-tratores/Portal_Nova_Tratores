@@ -401,30 +401,45 @@ function ModalSugestoes({ d, onClose, onAplicado }: { d: SugestoesPayload; onClo
   const aplicar = useCallback(async () => {
     const itens = linhas.filter((l) => l.marcado && l.valor).map((l) => ({ empresa: l.item.empresa, codigo_produto: l.item.codigo_produto, valor: l.valor }));
     if (!itens.length) { setProg('Marque ao menos um item com valor.'); return; }
-    if (!confirm(`Aplicar "${colTipo}" em ${itens.length} produto(s) na Omie?`)) return;
+    if (!confirm(`Aplicar "${colTipo}" em ${itens.length} produto(s) na Omie?\n\nSe a Omie bloquear no meio, o sistema espera e retoma sozinho — deixe esta janela aberta ate o fim.`)) return;
     setAplicando(true);
     const CHUNK = 20, total = itens.length;
-    let aplicados = 0, falhas = 0, bloqueado = false, primeiraFalha = '';
-    for (let i = 0; i < total && !bloqueado; i += CHUNK) {
-      const lote = itens.slice(i, i + CHUNK);
-      setProg(`aplicando ${Math.min(i + lote.length, total)}/${total} na Omie...`);
+    const MAX_ESPERAS_SEGUIDAS = 8; // desiste se a Omie bloquear varias vezes sem nenhum progresso
+    let aplicados = 0, falhas = 0, abortado = false, primeiraFalha = '', esperasSeguidas = 0;
+    let fila = itens.slice();
+    while (fila.length && !abortado) {
+      const lote = fila.slice(0, CHUNK);
+      setProg(`aplicando na Omie... ${aplicados}/${total} feitos, ${fila.length} na fila`);
       try {
         const r = await fetch('/api/ajustes/caracteristicas/aplicar-tipo', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ nome: colTipo, itens: lote }),
         });
         const res = await r.json();
-        if (res.erro) { primeiraFalha = res.erro; bloqueado = true; break; }
+        if (res.erro) { primeiraFalha = res.erro; abortado = true; break; }
         aplicados += res.aplicados || 0;
         (res.resultados || []).filter((x: { ok?: boolean }) => !x.ok).forEach((x: { erro?: string }) => { falhas++; if (!primeiraFalha) primeiraFalha = x.erro || ''; });
-        if (res.bloqueado) bloqueado = true;
+        // itens que o servidor nao chegou a aplicar (bloqueio da Omie) voltam pro inicio da fila
+        fila = [...(res.pendentes || []), ...fila.slice(lote.length)];
+        if (res.bloqueado) {
+          if ((res.aplicados || 0) > 0) esperasSeguidas = 0;
+          esperasSeguidas++;
+          if (esperasSeguidas > MAX_ESPERAS_SEGUIDAS) { primeiraFalha = 'Omie continua bloqueada apos varias esperas'; abortado = true; break; }
+          const seg = Math.min(Math.max(Number(res.aguardarSegundos) || 60, 15), 300);
+          for (let s = seg; s > 0; s--) {
+            setProg(`Omie bloqueou temporariamente — retomando em ${s}s (${aplicados}/${total} feitos, ${fila.length} na fila; nao feche)`);
+            await new Promise((ok) => setTimeout(ok, 1000));
+          }
+        } else {
+          esperasSeguidas = 0;
+        }
       } catch (ex) {
-        primeiraFalha = 'rede: ' + (ex as Error).message; bloqueado = true; break;
+        primeiraFalha = 'rede: ' + (ex as Error).message; abortado = true; break;
       }
     }
     let msg = `Aplicados ${aplicados}/${total}`;
-    if (bloqueado) msg += ' · interrompido (Omie bloqueou / erro) — tente o restante em instantes';
-    if (falhas) msg += ` · ${falhas} falha(s)${primeiraFalha ? ': ' + primeiraFalha.slice(0, 120) : ''}`;
+    if (abortado) msg += ` · interrompido${primeiraFalha ? ' (' + primeiraFalha.slice(0, 120) + ')' : ''} — clique em "Sugerir Tipo:" para retomar o restante`;
+    if (falhas) msg += ` · ${falhas} falha(s)${primeiraFalha && !abortado ? ': ' + primeiraFalha.slice(0, 120) : ''}`;
     onAplicado(msg);
   }, [linhas, colTipo, onAplicado]);
 
