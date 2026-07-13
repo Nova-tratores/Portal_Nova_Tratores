@@ -145,6 +145,7 @@ function agendarRefreshOSMesAtual(mes: number, ano: number, conta: Conta): void 
       const de = fmtD(new Date(ano, mes - 1, 1));
       const t = await buscarOSPeriodo(de, hoje, conta);
       await supabase.from('os_mensal').upsert({ mes, ano, valor_total: t.total, valor_nota: t.nota, valor_interno: t.interno, conta_omie: conta }, { onConflict: 'mes,ano,conta_omie' });
+      await sincronizarServicosItens(mes, ano, conta);
       await salvarControleCache('os', mes, ano, hoje, conta);
     } catch (e) {
       console.log('Refresh BG OS [' + conta + '] ' + mes + '/' + ano + ' falhou: ' + (e as Error).message);
@@ -163,6 +164,7 @@ function agendarRefreshOSPassado(mes: number, ano: number, conta: Conta): void {
       const ate = fmtD(new Date(ano, mes, 0));
       const t = await buscarOSPeriodo(de, ate, conta);
       await supabase.from('os_mensal').upsert({ mes, ano, valor_total: t.total, valor_nota: t.nota, valor_interno: t.interno, conta_omie: conta }, { onConflict: 'mes,ano,conta_omie' });
+      await sincronizarServicosItens(mes, ano, conta);
     } catch (e) {
       console.log('Refresh BG OS passado [' + conta + '] ' + mes + '/' + ano + ' falhou: ' + (e as Error).message);
     } finally {
@@ -216,10 +218,11 @@ export async function obterTotaisOS(mes: number, ano: number, conta: ContaFiltro
       if (ultimaData !== hoje || data.valor_nota == null) agendarRefreshOSMesAtual(mes, ano, conta);
       return doRow(data);
     }
-    // Cold start: sem cache, busca síncrono
+    // Cold start: sem cache, busca síncrono (itens vão em BG pra não segurar a request)
     const de = fmtD(new Date(ano, mes - 1, 1));
     const t = await buscarOSPeriodo(de, hoje, conta);
     await supabase.from('os_mensal').upsert({ mes, ano, valor_total: t.total, valor_nota: t.nota, valor_interno: t.interno, conta_omie: conta }, { onConflict: 'mes,ano,conta_omie' });
+    void sincronizarServicosItens(mes, ano, conta).catch(() => {});
     await salvarControleCache('os', mes, ano, hoje, conta);
     return t;
   }
@@ -274,36 +277,6 @@ async function buscarTemNotaMap(ids: number[], conta: Conta): Promise<Map<number
   return map;
 }
 
-/** OS faturadas (etapa 60, não canceladas) de UMA conta no mês — mesmo critério do total do card. */
-async function listarOSMesConta(mes: number, ano: number, conta: Conta): Promise<OSListaRow[]> {
-  const todas = await buscarTodasOS(conta);
-  const dtDe = new Date(ano, mes - 1, 1);
-  const dtAte = new Date(ano, mes, 0, 23, 59, 59);
-  const rows: OSListaRow[] = [];
-  todas.forEach((os) => {
-    const cab = (os.Cabecalho || {}) as Record<string, unknown>;
-    const info = (os.InfoCadastro || os.infoCadastro || {}) as Record<string, unknown>;
-    if ((info.cCancelada || cab.cCancelada) === 'S') return;
-    const dataStr = String(info.dDtFat || info.dDtInc || cab.dDtPrevisao || '');
-    const dtOS = parseDataBR(dataStr);
-    if (dtOS < dtDe || dtOS > dtAte) return;
-    if (cab.cEtapa != '60') return;
-    rows.push({
-      numero_os: String(cab.cNumOS || ''),
-      data: dataStr,
-      valor: num(cab.nValorTotal),
-      codigo_cliente: num(cab.nCodCli) || null,
-      cliente: '',
-      conta,
-      ncod_os: num(cab.nCodOS),
-      tem_nota: null,
-    });
-  });
-  const notaMap = await buscarTemNotaMap(rows.map((r) => r.ncod_os).filter(Boolean), conta);
-  rows.forEach((r) => { r.tem_nota = notaMap.has(r.ncod_os) ? notaMap.get(r.ncod_os)! : null; });
-  return rows;
-}
-
 /** Preenche `cliente` via cadastro já sincronizado (portal_nt_clientes_cadastro_omie), sem Omie. */
 async function resolverNomesClientes(rows: Array<{ codigo_cliente: number | null; cliente: string }>): Promise<void> {
   const codigos = [...new Set(rows.map((r) => r.codigo_cliente).filter(Boolean))] as number[];
@@ -319,18 +292,6 @@ async function resolverNomesClientes(rows: Array<{ codigo_cliente: number | null
     });
   }
   rows.forEach((r) => { if (r.codigo_cliente && nomeMap[r.codigo_cliente]) r.cliente = nomeMap[r.codigo_cliente]; });
-}
-
-/**
- * OS faturadas do mês com nome do cliente, para o popup "vendas" do card Serviços.
- * conta undefined = "Todas" (soma as contas configuradas).
- */
-export async function listarOSMes(mes: number, ano: number, conta: ContaFiltro): Promise<OSListaRow[]> {
-  const contas = conta === undefined ? getContasOmie().map((c) => c.id) : [conta];
-  const rows: OSListaRow[] = [];
-  for (const c of contas) rows.push(...(await listarOSMesConta(mes, ano, c)));
-  await resolverNomesClientes(rows);
-  return rows.sort((a, b) => b.valor - a.valor);
 }
 
 // ====================== Serviços das OS (itens ServicosPrestados) ======================
@@ -369,10 +330,17 @@ export interface ServicoOSRow {
   tem_nota: boolean | null;
 }
 
-/** Itens de serviço das OS faturadas (etapa 60, não canceladas) de UMA conta no mês. */
-async function listarServicosOSMesConta(mes: number, ano: number, conta: Conta): Promise<ServicoOSRow[]> {
-  const todas = await buscarTodasOS(conta);
-  const categorias = await buscarCategoriasOmie(conta);
+/**
+ * Monta os itens de serviço das OS faturadas (etapa 60, não canceladas) do mês
+ * a partir do ListarOS cru — usado SÓ pelo sync em background (a UI lê do Supabase).
+ */
+function montarServicosItensOmie(
+  todas: Array<Record<string, unknown>>,
+  categorias: Record<string, string>,
+  mes: number,
+  ano: number,
+  conta: Conta,
+): ServicoOSRow[] {
   const dtDe = new Date(ano, mes - 1, 1);
   const dtAte = new Date(ano, mes, 0, 23, 59, 59);
   const rows: ServicoOSRow[] = [];
@@ -431,19 +399,145 @@ async function listarServicosOSMesConta(mes: number, ano: number, conta: Conta):
       });
     });
   });
-  const notaMap = await buscarTemNotaMap([...new Set(rows.map((r) => r.ncod_os).filter(Boolean))], conta);
-  rows.forEach((r) => { r.tem_nota = notaMap.has(r.ncod_os) ? notaMap.get(r.ncod_os)! : null; });
   return rows;
 }
 
 /**
- * Serviços que compõem o valor do card Serviços no mês (drill-down "vendas"),
- * com tipo HR/KM/OUTRO e categoria. conta undefined = "Todas".
+ * Regrava os itens de serviço do mês em os_servicos_itens (apaga e insere).
+ * Roda junto dos refreshes de os_mensal — reusa o cache de buscarTodasOS, então
+ * não custa chamadas extra à Omie além do ListarCategorias (cacheado 30 min).
  */
-export async function listarServicosOSMes(mes: number, ano: number, conta: ContaFiltro): Promise<ServicoOSRow[]> {
-  const contas = conta === undefined ? getContasOmie().map((c) => c.id) : [conta];
+async function sincronizarServicosItens(mes: number, ano: number, conta: Conta): Promise<void> {
+  const todas = await buscarTodasOS(conta);
+  const categorias = await buscarCategoriasOmie(conta);
+  const rows = montarServicosItensOmie(todas, categorias, mes, ano, conta);
+  const { error: delErr } = await supabase
+    .from('os_servicos_itens')
+    .delete()
+    .eq('conta_omie', conta)
+    .eq('mes', mes)
+    .eq('ano', ano);
+  if (delErr) {
+    console.log('os_servicos_itens delete [' + conta + '] ' + mes + '/' + ano + ' falhou: ' + delErr.message);
+    return;
+  }
+  for (let i = 0; i < rows.length; i += 500) {
+    const lote = rows.slice(i, i + 500).map((r) => ({
+      conta_omie: r.conta,
+      mes,
+      ano,
+      ncod_os: r.ncod_os,
+      numero_os: r.numero_os,
+      data: r.data,
+      codigo_cliente: r.codigo_cliente,
+      descricao: r.descricao,
+      tipo: r.tipo,
+      categoria: r.categoria,
+      categoria_desc: r.categoria_desc,
+      qtde: r.qtde,
+      valor_unit: r.valor_unit,
+      valor_total: r.valor_total,
+      atualizado_em: new Date().toISOString(),
+    }));
+    const { error } = await supabase.from('os_servicos_itens').insert(lote);
+    if (error) {
+      console.log('os_servicos_itens insert [' + conta + '] ' + mes + '/' + ano + ' falhou: ' + error.message);
+      return;
+    }
+  }
+}
+
+/** Itens do mês direto do Supabase (paginado — PostgREST corta em 1000 linhas). */
+async function lerServicosItensMes(mes: number, ano: number, conta: Conta): Promise<ServicoOSRow[]> {
   const rows: ServicoOSRow[] = [];
-  for (const c of contas) rows.push(...(await listarServicosOSMesConta(mes, ano, c)));
-  await resolverNomesClientes(rows);
-  return rows.sort((a, b) => b.valor_total - a.valor_total);
+  let offset = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from('os_servicos_itens')
+      .select('ncod_os,numero_os,data,codigo_cliente,descricao,tipo,categoria,categoria_desc,qtde,valor_unit,valor_total')
+      .eq('conta_omie', conta)
+      .eq('mes', mes)
+      .eq('ano', ano)
+      .order('id', { ascending: true })
+      .range(offset, offset + 999);
+    if (error) throw new Error('os_servicos_itens: ' + error.message + ' — a migration sql/os-servicos-itens.sql foi aplicada?');
+    if (!data || data.length === 0) break;
+    data.forEach((r) => rows.push({
+      numero_os: String(r.numero_os || ''),
+      data: String(r.data || ''),
+      codigo_cliente: r.codigo_cliente == null ? null : num(r.codigo_cliente),
+      cliente: '',
+      descricao: String(r.descricao || ''),
+      tipo: (r.tipo === 'HR' || r.tipo === 'KM' ? r.tipo : 'OUTRO') as TipoServico,
+      categoria: String(r.categoria || ''),
+      categoria_desc: String(r.categoria_desc || ''),
+      qtde: num(r.qtde),
+      valor_unit: num(r.valor_unit),
+      valor_total: num(r.valor_total),
+      conta,
+      ncod_os: num(r.ncod_os),
+      tem_nota: null,
+    }));
+    if (data.length < 1000) break;
+    offset += 1000;
+  }
+  return rows;
+}
+
+export interface ServicosPopupResult {
+  os: OSListaRow[];
+  servicos: ServicoOSRow[];
+  /** true = alguma conta ainda não tem os itens do mês no cache; refresh BG foi agendado. */
+  pendente: boolean;
+}
+
+/**
+ * Dados do popup "vendas" do card Serviços — TUDO do Supabase (os_servicos_itens
+ * + os_nfse + cadastro de clientes), nada de Omie na hora do clique. Mês sem
+ * itens no cache mas com valor em os_mensal (ou sem linha) dispara o refresh BG
+ * e volta pendente=true. A lista por OS é agregada dos itens (soma bate com o
+ * cabeçalho — inclusive a linha-fallback de OS sem itens detalhados).
+ */
+export async function obterServicosPopup(mes: number, ano: number, conta: ContaFiltro): Promise<ServicosPopupResult> {
+  const contas = conta === undefined ? getContasOmie().map((c) => c.id) : [conta];
+  const servicos: ServicoOSRow[] = [];
+  let pendente = false;
+  for (const c of contas) {
+    const itens = await lerServicosItensMes(mes, ano, c);
+    if (itens.length === 0) {
+      // Mês pode não ter OS mesmo (ex.: CASTRO em 2026) — só é "pendente" se o
+      // os_mensal diz que há valor (ou nem tem linha ainda).
+      const { data } = await supabase
+        .from('os_mensal')
+        .select('valor_total')
+        .eq('mes', mes)
+        .eq('ano', ano)
+        .eq('conta_omie', c)
+        .maybeSingle();
+      if (!data || num(data.valor_total) > 0) {
+        pendente = true;
+        if (ehMesAtual(mes, ano)) agendarRefreshOSMesAtual(mes, ano, c);
+        else agendarRefreshOSPassado(mes, ano, c);
+      }
+      continue;
+    }
+    const notaMap = await buscarTemNotaMap([...new Set(itens.map((r) => r.ncod_os).filter(Boolean))], c);
+    itens.forEach((r) => { r.tem_nota = notaMap.has(r.ncod_os) ? notaMap.get(r.ncod_os)! : null; });
+    servicos.push(...itens);
+  }
+  await resolverNomesClientes(servicos);
+  servicos.sort((a, b) => b.valor_total - a.valor_total);
+
+  const porOS = new Map<string, OSListaRow>();
+  for (const s of servicos) {
+    const k = s.conta + ':' + s.ncod_os;
+    let os = porOS.get(k);
+    if (!os) {
+      os = { numero_os: s.numero_os, data: s.data, valor: 0, codigo_cliente: s.codigo_cliente, cliente: s.cliente, conta: s.conta, ncod_os: s.ncod_os, tem_nota: s.tem_nota };
+      porOS.set(k, os);
+    }
+    os.valor += s.valor_total;
+  }
+  const os = [...porOS.values()].sort((a, b) => b.valor - a.valor);
+  return { os, servicos, pendente };
 }

@@ -104,6 +104,8 @@ export default function DashboardPage() {
   const [servItens, setServItens] = useState<ServicoOSRow[] | null>(null);
   const [osView, setOsView] = useState<'servicos' | 'os'>('servicos');
   const [tipoFiltro, setTipoFiltro] = useState<TipoServico | null>(null);
+  const [osPendente, setOsPendente] = useState(false);
+  const [osErro, setOsErro] = useState('');
 
   const carregar = useCallback(async () => {
     setCarregando(true);
@@ -161,12 +163,17 @@ export default function DashboardPage() {
     setOsServicos(null);
     setServItens(null);
     setTipoFiltro(null);
+    setOsPendente(false);
+    setOsErro('');
     setOsAberto(true);
     const r = await fetch(`/api/estoque/dashboard/os?mes=${mes}&ano=${ano}${contaParam}`);
     const d = await r.json();
-    if (!d.erro) {
+    if (d.erro) {
+      setOsErro(d.erro);
+    } else {
       setOsServicos(d.os || []);
       setServItens(d.servicos || []);
+      setOsPendente(!!d.pendente);
     }
   }, [mes, ano, contaParam]);
 
@@ -240,8 +247,8 @@ export default function DashboardPage() {
               Mês corrente — {dados.diasUteisTranscorridos}/{dados.diasUteisTotal} dias úteis ({Math.round((dados.proporcao || 0) * 100)}%). Comparativos ajustados proporcionalmente; projeção exibida.
             </div>
           )}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12, marginBottom: 18 }}>
-            {dados.categorias.map((c, idx) => {
+          {(() => {
+            const renderCard = (c: Categoria, key: number) => {
               const atual = valorMetrica(c, metrica, 'atual');
               const mAnt = valorMetrica(c, metrica, 'mesAnt');
               const aAnt = valorMetrica(c, metrica, 'anoAnt');
@@ -250,10 +257,7 @@ export default function DashboardPage() {
               const proj = metrica === 'venda' ? c.valorProjetado : null;
               const bordaVermelha = c.cardType === 'totalPecas' || c.cardType === 'totalGeral';
               return (
-                <Fragment key={idx}>
-                {/* Linha separadora antes dos totais */}
-                {c.cardType === 'totalPecas' && <div style={cardSep} />}
-                <div style={{ background: '#fff', border: bordaVermelha ? '2px solid #dc2626' : '1px solid #eee', borderRadius: 12, padding: 16, boxShadow: '0 1px 4px rgba(0,0,0,.04)', ...(c.cardType === 'totalGeral' ? { gridColumn: '-2 / -1' } : {}) }}>
+                <div key={key} style={{ background: '#fff', border: bordaVermelha ? '2px solid #dc2626' : '1px solid #eee', borderRadius: 12, padding: 16, boxShadow: '0 1px 4px rgba(0,0,0,.04)' }}>
                   <div style={{ fontSize: '.72rem', color: '#888', textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 700, marginBottom: 6 }}>{c.nome}</div>
                   <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#dc2626' }}>{fmtRS(atual)}</div>
                   {c.cardType === 'servico' && metrica === 'venda' && c.valorNota != null && c.valorInterno != null && (
@@ -274,12 +278,29 @@ export default function DashboardPage() {
                       : <button onClick={() => abrirVendas(cardIndexParaApi(c, dados), c.nome)} style={linkBtn}>vendas</button>}
                   </div>
                 </div>
-                {/* Linha separadora depois de Serviços (fim do grupo principal) */}
-                {c.cardType === 'servico' && <div style={cardSep} />}
-                </Fragment>
               );
-            })}
-          </div>
+            };
+            // Esboço do usuário: produtos à esquerda; Serviços + totais na coluna da
+            // direita, atrás de uma linha vertical; linha horizontal acima do Total Geral.
+            const produtos = dados.categorias.filter((c) => c.cardType === 'produto');
+            const direita = dados.categorias.filter((c) => c.cardType !== 'produto');
+            return (
+              <div style={{ display: 'flex', gap: 12, marginBottom: 18, flexWrap: 'wrap', alignItems: 'stretch' }}>
+                <div style={{ flex: '3 1 500px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12, alignContent: 'start' }}>
+                  {produtos.map((c, i) => renderCard(c, i))}
+                </div>
+                <div style={{ width: 2, background: '#111', alignSelf: 'stretch' }} />
+                <div style={{ flex: '1 1 240px', display: 'flex', flexDirection: 'column', gap: 12, alignContent: 'start' }}>
+                  {direita.map((c, i) => (
+                    <Fragment key={i}>
+                      {c.cardType === 'totalGeral' && <div style={{ borderTop: '2px solid #111' }} />}
+                      {renderCard(c, i)}
+                    </Fragment>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
         </>
       )}
 
@@ -366,8 +387,14 @@ export default function DashboardPage() {
               </div>
             </div>
 
+            {osErro && <div style={{ color: '#dc2626', fontSize: '.82rem', marginBottom: 10 }}>{osErro}</div>}
+            {osPendente && (
+              <div style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', borderRadius: 8, padding: '8px 12px', fontSize: '.78rem', marginBottom: 10 }}>
+                Sincronizando este mês com a Omie em segundo plano — feche e abra o popup novamente em ~1–2 minutos.
+              </div>
+            )}
             {osView === 'servicos' ? (
-              !servItens ? <div style={{ color: '#888', fontSize: '.85rem' }}>Carregando…</div> : servItens.length === 0 ? <div style={{ color: '#888', fontSize: '.85rem' }}>Sem serviços faturados no período.</div> : (
+              !servItens ? (osErro ? null : <div style={{ color: '#888', fontSize: '.85rem' }}>Carregando…</div>) : servItens.length === 0 ? (osPendente ? null : <div style={{ color: '#888', fontSize: '.85rem' }}>Sem serviços faturados no período.</div>) : (
                 <>
                   {/* Resumo por tipo (clique filtra) */}
                   <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
@@ -411,7 +438,7 @@ export default function DashboardPage() {
                 </>
               )
             ) : (
-              !osServicos ? <div style={{ color: '#888', fontSize: '.85rem' }}>Carregando…</div> : osServicos.length === 0 ? <div style={{ color: '#888', fontSize: '.85rem' }}>Sem OS faturadas no período.</div> : (
+              !osServicos ? (osErro ? null : <div style={{ color: '#888', fontSize: '.85rem' }}>Carregando…</div>) : osServicos.length === 0 ? (osPendente ? null : <div style={{ color: '#888', fontSize: '.85rem' }}>Sem OS faturadas no período.</div>) : (
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead><tr>{['OS', 'Data', 'Cliente', 'Nota', ...(contaParam === '' ? ['Conta'] : []), 'Valor'].map((h) => <th key={h} style={thStyle}>{h}</th>)}</tr></thead>
                   <tbody>
@@ -464,9 +491,6 @@ export default function DashboardPage() {
 }
 
 const linkBtn: React.CSSProperties = { background: 'none', border: 'none', color: '#dc2626', fontSize: '.74rem', fontWeight: 600, cursor: 'pointer', padding: 0, textDecoration: 'underline' };
-
-// Linha separadora entre grupos de cards (ocupa a largura toda da grade)
-const cardSep: React.CSSProperties = { gridColumn: '1 / -1', borderTop: '2px solid #111', margin: '2px 0' };
 
 function tipoRotulo(t: TipoServico): string {
   return t === 'HR' ? 'HR — Hora trabalhada' : t === 'KM' ? 'KM — Deslocamento' : 'Outros';
