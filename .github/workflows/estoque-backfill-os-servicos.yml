@@ -1,0 +1,42 @@
+name: Estoque - Backfill itens de servico das OS (noturno)
+
+# Preenche os_servicos_itens (popup "vendas" do card Serviços) para TODOS os
+# meses desde nov/2022, de MADRUGADA, quando a Omie está ociosa. O endpoint
+# PULA meses que já têm itens, então depois da primeira passada completa cada
+# execução custa só ~1 consulta ao Supabase por mês (zero chamadas Omie) — o
+# agendamento pode ficar ligado como guarda, ou ser desativado após confirmar
+# a primeira carga (ver /api/estoque/cron/backfill-os-servicos/status).
+# Requer os secrets PORTAL_URL e CRON_SECRET.
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: '30 6 * * *'   # 03:30 BRT
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Disparar backfill e acompanhar status
+        env:
+          BASE: ${{ secrets.PORTAL_URL }}
+          SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -uo pipefail
+          echo "==> disparando (todas as contas, meses faltantes)"
+          curl -fsS --max-time 60 \
+            -H "Authorization: Bearer $SECRET" \
+            "$BASE/api/estoque/cron/backfill-os-servicos" \
+            -w "\n  disparado: HTTP %{http_code}\n"
+          sleep 20
+          # espera terminar (nenhuma conta com rodando=true) por até ~45 min
+          for i in $(seq 1 90); do
+            ST=$(curl -fsS --max-time 30 -H "Authorization: Bearer $SECRET" "$BASE/api/estoque/cron/backfill-os-servicos/status" || echo '{}')
+            ROD=$(echo "$ST" | jq -r '[.[] | select(.rodando == true)] | length')
+            echo "  [$i] contas rodando=$ROD -> $(echo "$ST" | jq -c 'to_entries | map({conta: .key, ultimo: .value.ultimoMes, feitos: .value.feitos, pulados: .value.pulados, erros: .value.erros})')"
+            if [ "$ROD" = "0" ] && [ "$i" -gt 1 ]; then echo "concluído"; break; fi
+            sleep 30
+          done
+          echo "=== status final ==="
+          curl -fsS --max-time 30 -H "Authorization: Bearer $SECRET" "$BASE/api/estoque/cron/backfill-os-servicos/status" | jq .
