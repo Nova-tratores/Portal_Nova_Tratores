@@ -22,6 +22,7 @@ interface OrdemServico {
   descricao: string; servicos: any[]; obs: string; dados_adic: string; pdf_anexo?: string
   pos_pdf?: string | null; pos_id?: string | null; pos_real?: boolean; financeiro?: FinanceiroDoc | null
   nf_substituicoes?: SubstituicaoNF[]
+  pv_manual?: string | null   // PV apontado à mão na pasta (prioridade sobre o do Omie)
 }
 interface SubstituicaoNF {
   nf_tipo: 'servico' | 'peca'; num_antigo: string | null; num_novo: string
@@ -116,6 +117,7 @@ function ClientesPageInner() {
   const [modalOS, setModalOS] = useState<OrdemServico | null>(null)
   const [anexNfOS, setAnexNfOS] = useState(false)
   const [gerarCardFin, setGerarCardFin] = useState(true) // checkbox: gerar card no financeiro ao anexar NF de serviço
+  const [forcandoCard, setForcandoCard] = useState(false) // escapes manuais (trocar PV / forçar card)
   const [subNF, setSubNF] = useState<{ osNum: string; empresa: string; nf_tipo: 'servico' | 'peca'; num_antigo: string; num_novo: string } | null>(null)
   const [subSalvando, setSubSalvando] = useState(false)
   const [modalProjeto, setModalProjeto] = useState<string | null>(null)
@@ -479,6 +481,48 @@ function ClientesPageInner() {
         : 'NF de peça anexada na pasta (sem gerar card no financeiro).')
     } catch { alert('Erro de conexão.') }
     setAnexNfOS(false)
+  }
+  // ── Escapes manuais (só pra quando a NF dá erro; o automático continua igual) ──
+  // 1) Apontar outro Pedido de Venda pra OS (quando o vínculo do Omie está errado/vazio).
+  const trocarPVdaOS = async (os: OrdemServico, pvAtual: string) => {
+    if (!podeAnexos || !selectedCliente) return
+    const pv = window.prompt(
+      `Nº do Pedido de Venda (peça) desta OS.\n\nAtual: ${pvAtual || '(nenhum)'}\n\nDeixe VAZIO para voltar ao vínculo automático do Omie.`,
+      pvAtual || ''
+    )
+    if (pv === null) return // cancelou
+    setForcandoCard(true)
+    let usuario = '', usuarioId = ''
+    try { const { data } = await supabase.auth.getUser(); usuario = data.user?.email || ''; usuarioId = data.user?.id || '' } catch {}
+    try {
+      const res = await fetch('/api/clientes/vincular-pv', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ num_os: os.num_os, empresa: os.empresa, pv: pv.trim(), usuario, usuarioId }),
+      })
+      const d = await res.json()
+      if (!res.ok || d.error) { alert(d.error || 'Erro ao trocar o pedido.'); setForcandoCard(false); return }
+      await abrirDetalhe(selectedCliente)
+      setModalOS(null)
+      alert(d.pv ? `Pedido de venda da OS ${os.num_os} passou a ser o ${d.pv}.` : `OS ${os.num_os} voltou ao vínculo automático do Omie.`)
+    } catch { alert('Erro de conexão.') }
+    setForcandoCard(false)
+  }
+  // 2) Forçar a criação do card no financeiro, mesmo faltando NF (nota deu erro).
+  const enviarCardFinanceiro = async (os: OrdemServico) => {
+    if (!podeAnexos || !selectedCliente) return
+    if (!window.confirm(
+      `Enviar a OS ${os.num_os} para o financeiro AGORA?\n\nUse isto só quando a nota deu erro e o card não nasceu sozinho.\nO card é criado mesmo faltando NF.`
+    )) return
+    setForcandoCard(true)
+    try {
+      const res = await fetch(`/api/financeiro/sync-os?os=${encodeURIComponent(os.num_os)}&forcar=1`, { method: 'POST' })
+      const d = await res.json()
+      const r = String(d?.resultado || d?.error || '')
+      await abrirDetalhe(selectedCliente)
+      if (/Card criado/i.test(r)) { setModalOS(null); alert(`✅ ${r}`) }
+      else alert(`Não criou o card.\n\n${r || 'Sem detalhe.'}`)
+    } catch { alert('Erro de conexão.') }
+    setForcandoCard(false)
   }
   // Marca uma NF (serviço/peça) como substituída na OS da pasta (nº antigo -> novo + histórico).
   const salvarSubstituicao = async () => {
@@ -1496,6 +1540,37 @@ function ClientesPageInner() {
                             </div>
                           </div>
                         )}
+
+                        {/* ESCAPE MANUAL — só pra quando a nota deu erro. O automático continua igual. */}
+                        <div style={{ paddingTop: 4 }}>
+                          <div style={LBL}>Se a nota deu erro</div>
+                          <div style={{ ...ROW, gap: 8 }}>
+                            <button onClick={() => trocarPVdaOS(os, os.pv_manual || os.num_pedido_cli || '')} disabled={forcandoCard}
+                              title="O Omie vinculou o pedido errado (ou nenhum)? Aponte aqui o nº do Pedido de Venda certo — o sistema passa a buscar a NF de peça nele."
+                              style={{ ...GHOST, cursor: forcandoCard ? 'wait' : 'pointer' }}>
+                              <Hash size={15} /> Trocar o nº do pedido de venda
+                              {(os.pv_manual || os.num_pedido_cli) && (
+                                <span style={{ marginLeft: 4, fontSize: 12, fontWeight: 700, color: os.pv_manual ? '#B45309' : '#9CA3AF' }}>
+                                  ({os.pv_manual || os.num_pedido_cli}{os.pv_manual ? ' · manual' : ''})
+                                </span>
+                              )}
+                            </button>
+                            {os.financeiro ? (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#047857', fontWeight: 600 }}>
+                                <CheckCircle size={15} /> Já está no financeiro
+                              </span>
+                            ) : (
+                              <button onClick={() => enviarCardFinanceiro(os)} disabled={forcandoCard}
+                                title="Cria o card no financeiro AGORA, mesmo faltando NF. Use só quando a nota deu erro e o card não nasceu sozinho."
+                                style={{ ...BASE, border: 'none', background: '#4F46E5', color: '#fff', fontWeight: 700, cursor: forcandoCard ? 'wait' : 'pointer' }}>
+                                <Package size={15} /> {forcandoCard ? 'Enviando...' : 'Enviar para o financeiro'}
+                              </button>
+                            )}
+                          </div>
+                          <div style={{ fontSize: 11.5, color: '#9CA3AF', marginTop: 6 }}>
+                            Normalmente o card nasce sozinho quando as duas notas (serviço e peça) estão na pasta. Use estes botões só quando a nota deu erro.
+                          </div>
+                        </div>
                       </div>
                     )
                   })()}

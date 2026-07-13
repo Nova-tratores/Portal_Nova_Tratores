@@ -182,7 +182,7 @@ function condicao(datas: string[]) {
 
 // Processa UMA OS específica (ConsultarOS) — pra debug (?os=NNNN), webhook (?codOS=) e tempo real.
 // `consulta` = { cNumOS } ou { nCodOS }.
-async function processarOSnum(consulta: Record<string, unknown>, label: string, dryRun: boolean, desde: string, origin: string) {
+async function processarOSnum(consulta: Record<string, unknown>, label: string, dryRun: boolean, desde: string, origin: string, forcar = false) {
   const debug: any = { os: label, tentativas: [] };
   for (const acc of ACCS) {
     let osData: any = null;
@@ -219,12 +219,34 @@ async function processarOSnum(consulta: Record<string, unknown>, label: string, 
     const nfse = await nfseDaOS(cab.nCodOS, numOS, empKey, acc);
     debug.nfse_num = nfse.num; debug.nfse_pdf = !!nfse.url; debug.nfse_url = nfse.url;
     if (dryRun) debug.nfse_raw = nfse.raw; // campos brutos da NFS-e (pra achar o link certo)
-    if (!nfse.num) { debug.resultado = "NFS-e ainda não emitida (StatusOS sem nota) — aguardando autorização da prefeitura"; return debug; }
+
+    // A NOTA ANEXADA NA PASTA VALE TANTO QUANTO A DO OMIE.
+    // Muita nota não sai pelo Omie (NFS-e municipal sem PDF, nota rejeitada e reemitida
+    // por fora, etc.) e é anexada na mão na pasta do cliente. Antes o sync só olhava o
+    // Omie: exigia o Nº da NFS-e, o PV faturado e o DANFE — então anexar à mão não
+    // destravava nada e o card nunca nascia.
+    // select("*") de propósito: assim a coluna pv_manual entra quando existir, sem quebrar
+    // se a migration ainda não tiver rodado.
+    const { data: osRow } = await supabase.from("portal_nt_clientes_os")
+      .select("*").eq("num_os", numOS).eq("empresa", acc.name).maybeSingle();
+    const anexoServico = (osRow?.link_nf && String(osRow.link_nf).trim()) || nfse.url;
+    const numNFServico = nfse.num || String(osRow?.num_nf || "").trim() || "";
+    debug.anexo_servico_origem = osRow?.link_nf ? "pasta (anexo manual)" : (nfse.url ? "StatusOS (Omie)" : "nenhum");
+    if (!anexoServico && !forcar) {
+      debug.aguardando_nf = true; debug.falta_servico = true;
+      debug.resultado = "Sem NF de serviço: a NFS-e não saiu no Omie e não há nota anexada na pasta — anexe a nota de serviço na pasta do cliente";
+      return debug;
+    }
 
     const pedCli = cab.cNumPedCli || adic.cNumPedido || adic.cNumContrato || "";
     debug.pedido_cliente = pedCli;
-    const { num: pvNum, empresa: pvEmp } = parsePedidoCliente(pedCli, acc.name);
-    debug.pv = pvNum; debug.pv_empresa = pvEmp;
+    const auto = parsePedidoCliente(pedCli, acc.name);
+    // PV manual (definido na pasta) tem prioridade sobre o que veio do Omie — serve pra
+    // apontar o pedido certo quando o vínculo do Omie está errado/vazio.
+    const pvManual = String(osRow?.pv_manual || "").trim();
+    const pvNum = pvManual || auto.num;
+    const pvEmp = auto.empresa;
+    debug.pv = pvNum; debug.pv_empresa = pvEmp; debug.pv_manual = pvManual || null;
     const accPV = accPorNome(pvEmp);
 
     const { data: jaOS } = await supabase.from("Chamado_NF").select("id").eq("omie_num_os", numOS).eq("omie_empresa", acc.name).limit(1);
@@ -235,40 +257,43 @@ async function processarOSnum(consulta: Record<string, unknown>, label: string, 
 
     const pvParc = pvNum ? await parcelasPV(pvNum, null, accPV) : { datas: [] as string[], valor: 0, numNF: "", danfe: null, codCli: null, codPedido: null, faturado: false, existe: false };
     debug.pv_faturado = pvParc.faturado;
-    if (pvNum && !pvParc.faturado) { debug.resultado = `Peça (PV ${pvNum}) ainda NÃO faturada — não cria; espera as duas notas`; return debug; }
 
     const osParc = await parcelasOS(cab.nCodOS, acc);
     const datasDiferem = osParc.datas.length > 0 && (osParc.datas.length !== pvParc.datas.length || JSON.stringify(osParc.datas) !== JSON.stringify(pvParc.datas));
     const datasFinais = datasDiferem ? osParc.datas : (pvParc.datas.length ? pvParc.datas : osParc.datas);
     const cond = condicao(datasFinais);
+
+    // NF de peça: do Omie OU anexada na pasta (mesma regra do serviço)
     const nfPeca = pvNum ? await nfePedido(pvNum, pvParc.codPedido, empKey, accPV) : { num: "", url: null };
-    const numNFPeca = nfPeca.num || pvParc.numNF || "";
+    let pvRow: { link_nf?: string | null; numero_nf?: string | null; valor_total?: number | null } | null = null;
+    if (pvNum) {
+      const { data } = await supabase.from("portal_nt_clientes_pv")
+        .select("link_nf, numero_nf, valor_total").eq("num_pedido", pvNum).eq("empresa", pvEmp).maybeSingle();
+      pvRow = data;
+    }
+    const anexoPeca = pvNum ? ((pvRow?.link_nf && String(pvRow.link_nf).trim()) || nfPeca.url) : null;
+    const numNFPeca = nfPeca.num || pvParc.numNF || String(pvRow?.numero_nf || "").trim() || "";
+    debug.anexo_peca_origem = pvRow?.link_nf ? "pasta (anexo manual)" : (nfPeca.url ? "StatusPedido (Omie)" : "nenhum");
+
     const valorOS = Number(cab.nValorTotal || 0);
-    const valorPV = Number(pvParc.valor || 0);
+    const valorPV = Number(pvParc.valor || pvRow?.valor_total || 0);
     const valor = valorOS + valorPV;
     const cli = await dadosCliente(cab.nCodCli, acc);
-    // Prioriza a NFS-e que o portal JÁ baixou (módulo Clientes), depois o link do StatusOS
-    const { data: osRow } = await supabase.from("portal_nt_clientes_os").select("link_nf").eq("num_os", numOS).eq("empresa", acc.name).maybeSingle();
-    const anexoServico = (osRow?.link_nf && String(osRow.link_nf).trim()) || nfse.url;
-    debug.anexo_servico_origem = osRow?.link_nf ? "portal_nt_clientes_os.link_nf" : (nfse.url ? "StatusOS" : "nenhum");
-    Object.assign(debug, { cliente: cli.nome, nf_servico: nfse.num, nf_peca: numNFPeca, anexo_servico: anexoServico, valor_os: valorOS, valor_pv: valorPV, valor_total: valor, parcelas_de: datasDiferem ? "OS" : "PV", ...cond });
+    Object.assign(debug, { cliente: cli.nome, nf_servico: numNFServico, nf_peca: numNFPeca, anexo_servico: anexoServico, anexo_peca: anexoPeca, valor_os: valorOS, valor_pv: valorPV, valor_total: valor, parcelas_de: datasDiferem ? "OS" : "PV", ...cond });
 
-    // Gate de COMPLETUDE: o card só nasce quando o serviço está COMPLETO na pasta.
-    // Precisa da NF de serviço (NFS-e) e, se houver peça vinculada, da NF de peça (DANFE).
-    // Enquanto faltar, NÃO cria — o serviço fica na pasta aguardando o anexo (o lembrete
-    // cobra o Pós-Vendas). Ao anexar a NF na pasta, este sync roda de novo e cria o card.
-    const faltaServico = !anexoServico;
-    const faltaPeca = !!pvNum && !nfPeca.url;
-    if (faltaServico || faltaPeca) {
-      debug.aguardando_nf = true;
-      debug.falta_servico = faltaServico; debug.falta_peca = faltaPeca;
-      debug.resultado = `Aguardando ${[faltaServico && "NF de serviço (NFS-e)", faltaPeca && "NF de peça (DANFE)"].filter(Boolean).join(" e ")} na pasta do cliente — card NÃO criado ainda`;
+    // Gate de COMPLETUDE: o card só nasce quando o serviço está COMPLETO na pasta —
+    // com a NF de serviço e, se houver peça vinculada, a NF de peça. De qualquer origem
+    // (Omie ou anexo manual). Ao anexar a NF na pasta, este sync roda de novo e cria o card.
+    if (pvNum && !anexoPeca && !forcar) {
+      debug.aguardando_nf = true; debug.falta_peca = true;
+      debug.resultado = `Aguardando a NF de peça do PV ${pvNum}: não saiu no Omie${pvParc.faturado ? "" : " (PV nem faturado)"} e não há nota anexada na pasta — anexe a NF de peça na pasta`;
       return debug;
     }
+    if (forcar) debug.forcado = true;
 
     const row: Record<string, unknown> = {
       nom_cliente: cli.nome, cnpj_cliente: cli.cnpj, valor_servico: valor,
-      num_nf_servico: nfse.num, anexo_nf_servico: anexoServico, num_nf_peca: numNFPeca, anexo_nf_peca: nfPeca.url,
+      num_nf_servico: numNFServico, anexo_nf_servico: anexoServico, num_nf_peca: numNFPeca, anexo_nf_peca: anexoPeca,
       forma_pagamento: cond.forma_pagamento, qtd_parcelas: cond.qtd_parcelas, vencimento_boleto: cond.vencimento_boleto, datas_parcelas: cond.datas_parcelas,
       setor: "Financeiro", status: "gerar_boleto", tarefa: "Gerar Boleto", setor_destino: "oficina", origem: "omie_os",
       omie_num_os: numOS, omie_num_pedido: pvNum || null, omie_empresa: acc.name,
@@ -296,11 +321,15 @@ async function handler(req: NextRequest) {
   const desde = req.nextUrl.searchParams.get("desde") || DATA_CORTE; // corte por data de faturamento
 
   // Modo OS específica (debug/webhook): ?os=5043 (número) ou ?codOS=123 (código interno)
+  // ?forcar=1 → escape manual da pasta: cria o card mesmo faltando NF (usado quando a
+  // nota deu erro na SEFAZ/prefeitura). No modo forçado o corte de data também é ignorado.
   const osParam = req.nextUrl.searchParams.get("os");
   const codOSParam = req.nextUrl.searchParams.get("codOS");
+  const forcar = req.nextUrl.searchParams.get("forcar") === "1";
   if (osParam || codOSParam) {
     const consulta = codOSParam ? { nCodOS: Number(codOSParam) } : { cNumOS: String(osParam).trim() };
-    try { return NextResponse.json({ sucesso: true, ...(await processarOSnum(consulta, codOSParam || String(osParam), dryRun, desde, req.nextUrl.origin)) }); }
+    const corte = forcar ? "1900-01-01" : desde;
+    try { return NextResponse.json({ sucesso: true, ...(await processarOSnum(consulta, codOSParam || String(osParam), dryRun, corte, req.nextUrl.origin, forcar)) }); }
     catch (e) { return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 }); }
   }
 
