@@ -511,6 +511,27 @@ function ClientesPageInner() {
     } catch { alert('Erro de conexão.') }
     setForcandoCard(false)
   }
+  // 2) Criar o card no financeiro À MÃO. Só existe pra quando deu erro na nota — o fluxo
+  //    automático NUNCA cria card com nota faltando.
+  const criarCardManual = async (os: OrdemServico, motivo: string) => {
+    if (!podeAnexos || !selectedCliente) return
+    if (!window.confirm(
+      `Criar o card da OS ${os.num_os} no financeiro À MÃO?\n\n` +
+      `Problema encontrado:\n${motivo}\n\n` +
+      `O card será criado assim mesmo (o automático não cria quando falta nota).\n` +
+      `Confira os dados no financeiro depois.`
+    )) return
+    setForcandoCard(true)
+    try {
+      const res = await fetch(`/api/financeiro/sync-os?os=${encodeURIComponent(os.num_os)}&manual=1`, { method: 'POST' })
+      const d = await res.json()
+      const r = String(d?.resultado || d?.error || '')
+      await abrirDetalhe(selectedCliente)
+      if (/Card criado/i.test(r)) { setModalOS(null); alert(`✅ ${r}`) }
+      else alert(`Não criou o card.\n\n${r || 'Sem detalhe.'}`)
+    } catch { alert('Erro de conexão.') }
+    setForcandoCard(false)
+  }
   // Marca uma NF (serviço/peça) como substituída na OS da pasta (nº antigo -> novo + histórico).
   const salvarSubstituicao = async () => {
     if (!podeAnexos) return
@@ -1535,6 +1556,14 @@ function ClientesPageInner() {
                           const pvsComNF = pvs.filter(p => p.link_nf || os.financeiro?.nf_peca)
                           const temPeca = pvs.length === 0 ? true : pvsComNF.length === pvs.length
                           const completo = temServ && temPeca
+                          // Lista dos problemas — é o que aparece na caixa e vai no confirm do botão manual
+                          const problemas: string[] = []
+                          if (!temServ) problemas.push('• A NF de Serviço não está na pasta (não saiu no Omie e não foi anexada).')
+                          for (const p of pvs.filter(x => !x.link_nf && !os.financeiro?.nf_peca)) {
+                            problemas.push(p.nf_motivo
+                              ? `• A NF de Peça do PV ${p.num_pedido} foi RECUSADA${p.nf_status ? ` (status ${p.nf_status})` : ''}: ${p.nf_motivo}`
+                              : `• A NF de Peça do PV ${p.num_pedido} não está na pasta.`)
+                          }
                           const Item = ({ ok, txt }: { ok: boolean; txt: string }) => (
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 13.5, fontWeight: 600, color: ok ? '#047857' : '#B91C1C' }}>
                               <span style={{ width: 18, height: 18, borderRadius: 5, border: `2px solid ${ok ? '#047857' : '#FCA5A5'}`, background: ok ? '#047857' : '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -1558,9 +1587,29 @@ function ClientesPageInner() {
                                     ? '✅ Já está no financeiro.'
                                     : completo
                                       ? 'As duas notas estão prontas — o card vai pro financeiro no próximo sync (ou já foi).'
-                                      : 'Enquanto faltar nota, NÃO vai pro financeiro. Anexe a que falta (ou aponte o pedido certo abaixo).'}
+                                      : 'Enquanto faltar nota, NÃO vai pro financeiro (é de propósito, pra não gerar card errado).'}
                                 </div>
                               </div>
+
+                              {/* Caixa do ERRO — aparece dentro do card, explicando o problema */}
+                              {!os.financeiro && problemas.length > 0 && (
+                                <div style={{ marginTop: 10, padding: '12px 14px', borderRadius: 10, background: '#FEF2F2', border: '1px solid #FECACA' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, color: '#B91C1C', fontWeight: 800, fontSize: 13, marginBottom: 6 }}>
+                                    <AlertTriangle size={15} /> Problema com a nota — o card NÃO foi pro financeiro
+                                  </div>
+                                  <div style={{ fontSize: 13, color: '#7F1D1D', lineHeight: 1.6, whiteSpace: 'pre-line' }}>{problemas.join('\n')}</div>
+                                  <div style={{ fontSize: 12.5, color: '#7F1D1D', marginTop: 8, lineHeight: 1.5 }}>
+                                    <b>O que fazer:</b> anexe a nota que falta acima, ou aponte o pedido de venda certo.
+                                    Se a nota foi emitida por fora e você quer seguir mesmo assim, crie o card <b>à mão</b> no botão abaixo.
+                                  </div>
+                                  <button onClick={() => criarCardManual(os, problemas.join('\n'))} disabled={forcandoCard}
+                                    title="Cria o card no financeiro à mão, mesmo com a nota pendente. O automático nunca faz isso."
+                                    style={{ ...BASE, marginTop: 10, border: 'none', background: '#B91C1C', color: '#fff', fontWeight: 700, cursor: forcandoCard ? 'wait' : 'pointer' }}>
+                                    <Package size={15} /> {forcandoCard ? 'Criando...' : 'Criar o card no financeiro à mão'}
+                                  </button>
+                                </div>
+                              )}
+
                               <div style={{ ...ROW, marginTop: 10 }}>
                                 <button onClick={() => trocarPVdaOS(os, pvDaOS)} disabled={forcandoCard}
                                   title="O Omie vinculou o pedido errado (ou nenhum)? Aponte aqui o nº do Pedido de Venda certo — o sistema vai buscar a NF de peça nele. Vazio = volta ao automático."

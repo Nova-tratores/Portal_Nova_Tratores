@@ -29,6 +29,12 @@ export async function POST(req: NextRequest) {
         .update(upd).eq("num_os", numStr).eq("empresa", empresa);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+      // Marca que a nota foi anexada DE PROPÓSITO (é isso que autoriza o card quando a
+      // NFS-e não existe no Omie). Update separado pra não estragar o de cima se a
+      // coluna ainda não existir.
+      await supabase.from("portal_nt_clientes_os").update({ nf_manual: true })
+        .eq("num_os", numStr).eq("empresa", empresa);
+
       // Com a NF de serviço na pasta, o serviço pode estar completo → cria o card (se pedido)
       let card: any = null;
       if (criarCard) {
@@ -48,6 +54,10 @@ export async function POST(req: NextRequest) {
       const { error } = await supabase.from("portal_nt_clientes_pv")
         .update(upd).eq("num_pedido", numStr).eq("empresa", empresa);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+      // Idem: marca o anexo manual (é o que autoriza o card quando a NF-e não saiu no Omie)
+      await supabase.from("portal_nt_clientes_pv").update({ nf_manual: true })
+        .eq("num_pedido", numStr).eq("empresa", empresa);
 
       let card: any = null;
       let via: string | null = null;

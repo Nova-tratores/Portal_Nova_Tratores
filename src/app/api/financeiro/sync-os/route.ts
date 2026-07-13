@@ -182,7 +182,9 @@ function condicao(datas: string[]) {
 
 // Processa UMA OS específica (ConsultarOS) — pra debug (?os=NNNN), webhook (?codOS=) e tempo real.
 // `consulta` = { cNumOS } ou { nCodOS }.
-async function processarOSnum(consulta: Record<string, unknown>, label: string, dryRun: boolean, desde: string, origin: string) {
+// `manual` = criação pedida NA MÃO pelo usuário na pasta (ignora a trava das notas).
+// O fluxo automático SEMPRE chama com manual=false.
+async function processarOSnum(consulta: Record<string, unknown>, label: string, dryRun: boolean, desde: string, origin: string, manual = false) {
   const debug: any = { os: label, tentativas: [] };
   for (const acc of ACCS) {
     let osData: any = null;
@@ -231,10 +233,23 @@ async function processarOSnum(consulta: Record<string, unknown>, label: string, 
       .select("*").eq("num_os", numOS).eq("empresa", acc.name).maybeSingle();
     const anexoServico = (osRow?.link_nf && String(osRow.link_nf).trim()) || nfse.url;
     const numNFServico = nfse.num || String(osRow?.num_nf || "").trim() || "";
-    debug.anexo_servico_origem = osRow?.link_nf ? "pasta (anexo manual)" : (nfse.url ? "StatusOS (Omie)" : "nenhum");
-    if (!anexoServico) {
+    debug.anexo_servico_origem = osRow?.link_nf ? "pasta" : (nfse.url ? "StatusOS (Omie)" : "nenhum");
+
+    // A NOTA DE SERVIÇO EXISTE? Só de duas formas:
+    //  a) o Omie tem a NFS-e (nfse.num), ou
+    //  b) alguém ANEXOU a nota de propósito na pasta (nf_manual).
+    // Ter um link_nf qualquer NÃO basta — ele pode ter sido preenchido pelo sync com uma
+    // URL solta. Sem essa checagem, OS sem nota nenhuma virava card no financeiro.
+    const servicoManual = !!osRow?.nf_manual;
+    debug.nf_servico_manual = servicoManual;
+    if (!nfse.num && !servicoManual && !manual) {
       debug.aguardando_nf = true; debug.falta_servico = true;
-      debug.resultado = "Sem NF de serviço: a NFS-e não saiu no Omie e não há nota anexada na pasta — anexe a nota de serviço na pasta do cliente";
+      debug.resultado = "NFS-e ainda não emitida (StatusOS sem nota) — anexe a nota de serviço na pasta se ela foi emitida por fora";
+      return debug;
+    }
+    if (!anexoServico && !manual) {
+      debug.aguardando_nf = true; debug.falta_servico = true;
+      debug.resultado = "NFS-e emitida mas sem PDF — anexe a nota de serviço na pasta do cliente";
       return debug;
     }
 
@@ -265,15 +280,30 @@ async function processarOSnum(consulta: Record<string, unknown>, label: string, 
 
     // NF de peça: do Omie OU anexada na pasta (mesma regra do serviço)
     const nfPeca = pvNum ? await nfePedido(pvNum, pvParc.codPedido, empKey, accPV) : { num: "", url: null };
-    let pvRow: { link_nf?: string | null; numero_nf?: string | null; valor_total?: number | null } | null = null;
+    let pvRow: any = null;
     if (pvNum) {
       const { data } = await supabase.from("portal_nt_clientes_pv")
-        .select("link_nf, numero_nf, valor_total").eq("num_pedido", pvNum).eq("empresa", pvEmp).maybeSingle();
+        .select("*").eq("num_pedido", pvNum).eq("empresa", pvEmp).maybeSingle();
       pvRow = data;
     }
+    const pecaManual = !!pvRow?.nf_manual;
     const anexoPeca = pvNum ? ((pvRow?.link_nf && String(pvRow.link_nf).trim()) || nfPeca.url) : null;
     const numNFPeca = nfPeca.num || pvParc.numNF || String(pvRow?.numero_nf || "").trim() || "";
-    debug.anexo_peca_origem = pvRow?.link_nf ? "pasta (anexo manual)" : (nfPeca.url ? "StatusPedido (Omie)" : "nenhum");
+    debug.anexo_peca_origem = pvRow?.link_nf ? "pasta" : (nfPeca.url ? "StatusPedido (Omie)" : "nenhum");
+    debug.nf_peca_manual = pecaManual;
+
+    // Peça: idem. Só conta se o Omie tem a NF-e OU se a nota foi anexada de propósito.
+    // (o PV precisa estar faturado no Omie, exceto quando a nota foi anexada à mão)
+    if (pvNum && !pvParc.faturado && !pecaManual && !manual) {
+      debug.aguardando_nf = true; debug.falta_peca = true;
+      debug.resultado = `Peça (PV ${pvNum}) ainda NÃO faturada no Omie — não cria; espera as duas notas`;
+      return debug;
+    }
+    if (pvNum && !nfPeca.url && !pecaManual && !manual) {
+      debug.aguardando_nf = true; debug.falta_peca = true;
+      debug.resultado = `NF de peça do PV ${pvNum} não saiu no Omie — anexe a NF de peça na pasta se ela foi emitida por fora`;
+      return debug;
+    }
 
     const valorOS = Number(cab.nValorTotal || 0);
     const valorPV = Number(pvParc.valor || pvRow?.valor_total || 0);
@@ -284,11 +314,12 @@ async function processarOSnum(consulta: Record<string, unknown>, label: string, 
     // Gate de COMPLETUDE: o card só nasce quando o serviço está COMPLETO na pasta —
     // com a NF de serviço e, se houver peça vinculada, a NF de peça. De qualquer origem
     // (Omie ou anexo manual). Ao anexar a NF na pasta, este sync roda de novo e cria o card.
-    if (pvNum && !anexoPeca) {
+    if (pvNum && !anexoPeca && !manual) {
       debug.aguardando_nf = true; debug.falta_peca = true;
-      debug.resultado = `Aguardando a NF de peça do PV ${pvNum}: não saiu no Omie${pvParc.faturado ? "" : " (PV nem faturado)"} e não há nota anexada na pasta — anexe a NF de peça na pasta`;
+      debug.resultado = `NF de peça do PV ${pvNum} sem PDF — anexe a NF de peça na pasta do cliente`;
       return debug;
     }
+    if (manual) { debug.criado_manualmente = true; debug.obs_manual = "Card criado À MÃO pelo usuário na pasta (fora do fluxo automático)"; }
 
     const row: Record<string, unknown> = {
       nom_cliente: cli.nome, cnpj_cliente: cli.cnpj, valor_servico: valor,
@@ -320,12 +351,17 @@ async function handler(req: NextRequest) {
   const desde = req.nextUrl.searchParams.get("desde") || DATA_CORTE; // corte por data de faturamento
 
   // Modo OS específica (debug/webhook): ?os=5043 (número) ou ?codOS=123 (código interno)
-  // NÃO existe modo "forçar": o card só nasce com as DUAS notas (serviço e peça) na pasta.
+  //
+  // ?manual=1 → SÓ pelo clique do usuário na pasta do cliente. O automático NUNCA usa isto:
+  // quando falta nota, o card não nasce sozinho — a pasta mostra o erro e a pessoa decide
+  // criar o card na mão. É o único caminho que ignora a trava das duas notas.
   const osParam = req.nextUrl.searchParams.get("os");
   const codOSParam = req.nextUrl.searchParams.get("codOS");
+  const manual = req.nextUrl.searchParams.get("manual") === "1";
   if (osParam || codOSParam) {
     const consulta = codOSParam ? { nCodOS: Number(codOSParam) } : { cNumOS: String(osParam).trim() };
-    try { return NextResponse.json({ sucesso: true, ...(await processarOSnum(consulta, codOSParam || String(osParam), dryRun, desde, req.nextUrl.origin)) }); }
+    const corte = manual ? "1900-01-01" : desde;
+    try { return NextResponse.json({ sucesso: true, ...(await processarOSnum(consulta, codOSParam || String(osParam), dryRun, corte, req.nextUrl.origin, manual)) }); }
     catch (e) { return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 }); }
   }
 
