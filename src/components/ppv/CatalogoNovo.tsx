@@ -103,7 +103,13 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
   // Modelos irmãos ficam lado a lado: agrupa pela "família" (o texto antes do número —
   // ACCURA, STRONGER, GRAIN MAX…) e dentro dela ordena pelo número (1200 < 1600 < 12000).
   // Nos Mahindra, que começam por número, a família é vazia e vale o próprio número.
-  const familia = (nome: string) => (nome.match(/^[^\d]*/) || [""])[0].trim().toUpperCase();
+  const familia = (nome: string) => {
+    let p = (nome.match(/^[^\d]*/) || [""])[0].trim().toUpperCase();
+    // Nome sem número nenhum (STRONGER HD): tira o sufixo curto pra cair na mesma
+    // linha do irmão numerado (STRONGER 3200 HD).
+    if (!/\d/.test(nome)) p = p.replace(/\s+\S{1,3}$/, "");
+    return p.replace(/[\s\-–/]+$/, "");
+  };
   const ordenar = (lista: Modelo[]) =>
     [...lista].sort((a, b) => {
       const ta = a.tipo || "", tb = b.tipo || "";
@@ -121,18 +127,25 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
   const tiposTodos = [...new Set(modelos.map((m) => m.tipo).filter(Boolean))].sort() as string[];
   const porTipo = (lista: Modelo[]) => (tipoSel ? lista.filter((m) => m.tipo === tipoSel) : lista);
 
-  // Agrupa por LINHA DE PRODUTO: quem não tem família vale por si (o nome é a linha).
-  // Sem isto, as 62 variantes da PST DUO virariam 62 cards na tela da marca.
+  // Agrupa por LINHA DE PRODUTO (KAPINA CITRUS, ACCURA, PST DUO…): as versões ficam
+  // dentro do card, não espalhadas pela tela. A linha vem da coluna "familia" quando
+  // existir; senão é o prefixo do nome (o que vem antes do número — a mesma "família"
+  // que já usamos pra ordenar). Modelo sozinho na linha mantém o nome completo no card.
   const agrupar = (lista: Modelo[]): Familia[] => {
     const mapa = new Map<string, Familia>();
     for (const m of ordenar(lista)) {
-      const nome = (m.familia || m.nome).trim();
-      if (!mapa.has(nome)) mapa.set(nome, { nome, marca: m.marca || "", tipo: m.tipo || null, image_url: null, variantes: [] });
-      const f = mapa.get(nome)!;
+      const chave = (m.familia || familia(m.nome) || m.nome).trim().toUpperCase();
+      if (!mapa.has(chave)) mapa.set(chave, { nome: m.familia || m.nome, marca: m.marca || "", tipo: m.tipo || null, image_url: null, variantes: [] });
+      const f = mapa.get(chave)!;
       f.variantes.push(m);
       if (!f.image_url && m.image_url) f.image_url = m.image_url;
     }
-    return [...mapa.values()];
+    // Com mais de uma versão, o card passa a chamar-se pela linha (ex.: "KAPINA CITRUS").
+    return [...mapa.values()].map((f) =>
+      f.variantes.length > 1 && !f.variantes[0].familia
+        ? { ...f, nome: familia(f.variantes[0].nome) || f.nome }
+        : f
+    );
   };
 
   // carrega seções do trator selecionado
