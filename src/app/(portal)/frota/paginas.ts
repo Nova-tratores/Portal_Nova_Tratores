@@ -25,10 +25,12 @@ export const GRUPOS_FROTA: GrupoFrota[] = ['Início', 'Cadastro', 'Operação', 
 
 export const PAGINAS_FROTA: PaginaFrota[] = [
   { key: 'frota:dashboard',          label: 'Visão geral',       href: '/frota',                    grupo: 'Início' },
+  { key: 'frota:veiculos',           label: 'Veículos',          href: '/frota/veiculos',           grupo: 'Cadastro' },
+  { key: 'frota:multas',             label: 'Multas',            href: '/frota/multas',             grupo: 'Operação' },
+  { key: 'frota:manutencoes',        label: 'Manutenções',       href: '/frota/manutencoes',        grupo: 'Operação' },
   { key: 'frota:abastecimento',      label: 'Abastecimento',     href: '/frota/abastecimento',      grupo: 'Custos' },
   { key: 'frota:abastecimento:flex', label: 'Álcool × Gasolina', href: '/frota/abastecimento/flex', grupo: 'Custos' },
-  // Próximas fases: veiculos, patio, documentos, mapa, paradas, multas,
-  // manutencoes, custos. Entram aqui conforme forem construídas.
+  // Próximas fases: patio, documentos, mapa, paradas, custos.
 ];
 
 /** 'frota:abastecimento:flex' -> 'abastecimento:flex' */

@@ -196,6 +196,9 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
   // NÃO são telas.
   frota: [
     ...PAGINAS_FROTA.map((p) => ({ id: p.key.replace('frota:', ''), label: p.label })),
+    { id: 'veiculos:editar', label: 'Veículos — editar a ficha' },
+    { id: 'veiculos:responsavel', label: 'Veículos — trocar o responsável' },
+    { id: 'multas:editar', label: 'Multas — mudar status / desconto' },
     { id: 'abastecimento:upload', label: 'Abastecimento — importar CSV / gerir lotes' },
   ],
   // LEGADO: o Abastecimento virou submódulo do Frota (`frota:abastecimento`).
