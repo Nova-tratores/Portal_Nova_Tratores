@@ -1,0 +1,22 @@
+name: Frota — sync de eventos (multas/manutenções/custos)
+
+# Espelha /multas, /manutencoes e /custos da Rota Exata nas tabelas frota_*.
+# 2x/dia: multa e manutenção mudam no meio do dia.
+# Requer os secrets do GitHub: PORTAL_URL e CRON_SECRET.
+
+on:
+  schedule:
+    - cron: '0 9,21 * * *'   # 09:00/21:00 UTC ≈ 06:00/18:00 de Brasília
+  workflow_dispatch: {}       # permite rodar manualmente
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Disparar sync de eventos
+        run: |
+          curl -fsS --max-time 600 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/frota/cron/sync-eventos" \
+            -w "\nsync-eventos: HTTP %{http_code}\n"

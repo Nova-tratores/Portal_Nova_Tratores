@@ -1,0 +1,23 @@
+name: Frota — sync do cadastro (Rota Exata)
+
+# Espelha /adesoes, /usuarios, /motoristas, /destinos e /odometro nas tabelas
+# frota_*. 1x/dia basta (cadastro muda pouco). Escalonado às 06:10 UTC pra não
+# brigar pelo token/rate-limit com o sync-rotas-comercial (07:00).
+# Requer os secrets do GitHub: PORTAL_URL e CRON_SECRET.
+
+on:
+  schedule:
+    - cron: '10 6 * * *'   # 06:10 UTC ≈ 03:10 de Brasília
+  workflow_dispatch: {}     # permite rodar manualmente
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Disparar sync do cadastro
+        run: |
+          curl -fsS --max-time 600 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/frota/cron/sync-cadastro" \
+            -w "\nsync-cadastro: HTTP %{http_code}\n"

@@ -739,9 +739,13 @@ UNION ALL
    WHERE t.placa IS NOT NULL;
 
 -- Custo total por veículo — "quanto custa esse carro?".
--- ⚠️ ANTI-DUPLICIDADE: o `abastecimentos` (CSV do cartão) é a fonte AUTORITATIVA
--- de combustível. Os /custos da Rota Exata com litros são o MESMO gasto vindo
--- pela integração — somar os dois dobraria a conta.
+-- ⚠️ ANTI-DUPLICIDADE (verificado contra a API em 14/07/2026 — os /custos do RE
+-- têm integracao "veloe_abastecimento", o MESMO cartão do CSV):
+--   Combustível  -> só `abastecimentos` (CSV, cobre os 30 carros; RE só os 16)
+--   Multas       -> só `frota_multas` (10 > os 5 lançados em /custos)
+--   Manutenção   -> /custos do RE (39 lançamentos) + registros MANUAIS do portal
+--                   (frota_manutencoes origem='rotaexata' fica FORA: quando a
+--                   manutenção do RE tem custo real, ela já aparece em /custos)
 CREATE OR REPLACE VIEW vw_frota_custos AS
   SELECT f.id                    AS veiculo_id,
          f.placa,
@@ -754,11 +758,14 @@ CREATE OR REPLACE VIEW vw_frota_custos AS
 UNION ALL
   SELECT c.veiculo_id, c.placa, c.dt_lancamento, c.tipo_custo, c.valor, 'rotaexata'
     FROM frota_custos c
-   WHERE NOT c.eh_combustivel AND NOT c.ignorar_no_total
+   WHERE NOT c.eh_combustivel
+     AND NOT c.ignorar_no_total
+     AND lower(coalesce(c.tipo_custo, '')) NOT LIKE '%multa%'
 UNION ALL
   SELECT m.veiculo_id, m.placa, m.dt_realizado, 'Manutenção', m.valor_total, 'manutencao'
     FROM frota_manutencoes m
-   WHERE m.dt_realizado IS NOT NULL AND m.valor_total IS NOT NULL
+   WHERE m.origem = 'manual'
+     AND m.dt_realizado IS NOT NULL AND m.valor_total IS NOT NULL
 UNION ALL
   SELECT mu.veiculo_id, mu.placa, mu.dt_multa::date, 'Multa', mu.valor, 'multa'
     FROM frota_multas mu
