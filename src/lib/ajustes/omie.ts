@@ -20,6 +20,7 @@
 // =============================================================================
 
 import type { Conta } from './conta';
+import { decodeOmieTexto } from '@/lib/omie/texto';
 import { getCredentials } from './conta';
 import { sleep, num } from './utils';
 import { fmtBR, hoje } from './dates';
@@ -928,14 +929,19 @@ export function normalizarProdutoLista(p: any): any {
   if (codigoProduto == null) return null;
   const arr = Array.isArray(p.caracteristicas) ? p.caracteristicas
     : (Array.isArray(p.caracteristica) ? p.caracteristica : []);
-  const caracteristicas = arr.map((c: any) => ({
-    nome: c.cNomeCaract ?? c.nomeCaracteristica ?? c.cNome ?? c.nome ?? null,
-    conteudo: c.cConteudo ?? c.conteudo ?? c.cValor ?? c.valor ?? null
-  })).filter((c: any) => c.nome != null && String(c.nome).trim() !== '');
+  const caracteristicas = arr.map((c: any) => {
+    const conteudo = c.cConteudo ?? c.conteudo ?? c.cValor ?? c.valor ?? null;
+    return {
+      nome: c.cNomeCaract ?? c.nomeCaracteristica ?? c.cNome ?? c.nome ?? null,
+      // a API escapa HTML na saída (12" vira 12&quot;) — armazena decodificado
+      conteudo: typeof conteudo === 'string' ? decodeOmieTexto(conteudo) : conteudo
+    };
+  }).filter((c: any) => c.nome != null && String(c.nome).trim() !== '');
+  const descricao = p.descricao ?? p.cDescricao ?? null;
   return {
     codigoProduto,
     codigo: p.codigo ?? p.cCodigo ?? null,            // SKU
-    descricao: p.descricao ?? p.cDescricao ?? null,
+    descricao: descricao != null ? decodeOmieTexto(descricao) : null,
     familia: p.descricao_familia ?? p.descricaoFamilia ?? p.cDescricaoFamilia ?? null,
     inativo: String(p.inativo ?? p.cInativo ?? '').toUpperCase() === 'S',
     caracteristicas

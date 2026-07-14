@@ -12,6 +12,7 @@ import type { Conta } from './conta';
 import { getContasOmie } from './conta';
 import { supabase } from './supabase';
 import { listarProdutos, gravarCaractProduto, listarCaracteristicas, sleep } from './omie';
+import { decodeOmieTexto } from '@/lib/omie/texto';
 import { criarJob, atualizarJob, concluirJob, falharJob, lerJobAtivo, jobRodando } from './jobs';
 
 // Características ocultas na leitura (dados continuam no banco).
@@ -106,6 +107,14 @@ export async function lerStatusSync(): Promise<any> {
 
 // ---- Matriz ----
 
+// Linhas antigas do snapshot podem ter texto escapado em HTML pela API da Omie
+// (12&quot;, O&apos;RING) — decodifica na leitura (no-op para linhas limpas).
+function decodeCaractRow(r: any): any {
+  const car: Record<string, any> = {};
+  Object.entries(r.caracteristicas || {}).forEach(([k, v]) => { car[k] = typeof v === 'string' ? decodeOmieTexto(v) : v; });
+  return { ...r, descricao: r.descricao != null ? decodeOmieTexto(r.descricao) : r.descricao, caracteristicas: car };
+}
+
 async function lerTodasCaractRows(): Promise<any[]> {
   const todos: any[] = [];
   const PAGE = 1000;
@@ -117,7 +126,7 @@ async function lerTodasCaractRows(): Promise<any[]> {
       .order('codigo', { ascending: true })
       .range(from, from + PAGE - 1);
     if (error) throw error;
-    todos.push(...(data || []));
+    todos.push(...(data || []).map(decodeCaractRow));
     if (!data || data.length < PAGE) break;
   }
   return todos;
@@ -135,7 +144,7 @@ export async function lerMatrizCaracteristicas(): Promise<any> {
       .order('codigo', { ascending: true })
       .range(from, from + PAGE - 1);
     if (error) throw error;
-    todos.push(...(data || []));
+    todos.push(...(data || []).map(decodeCaractRow));
     if (!data || data.length < PAGE) break;
   }
   const colunasSet = new Set<string>();

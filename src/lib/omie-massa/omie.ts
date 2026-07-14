@@ -7,6 +7,8 @@
 // tentamos enviar e o chamador verifica depois se pegou.
 // Produtos: AlterarProduto altera apenas os campos enviados; "inativo" é editável.
 
+import { decodeOmieTexto } from '@/lib/omie/texto';
+
 const OMIE_SERV_URL = 'https://app.omie.com.br/api/v1/servicos/servico/';
 const OMIE_PROD_URL = 'https://app.omie.com.br/api/v1/geral/produtos/';
 export const PAUSA_MS = 150; // entre chamadas, p/ rate limit do Omie
@@ -90,8 +92,8 @@ export function servicoParaRow(s: ServicoOmie): ServicoRow {
     nCodServ: s.intListar.nCodServ,
     inativo: s.info?.inativo ?? 'N',
     cCodigo: s.cabecalho.cCodigo ?? '',
-    cDescricao: s.cabecalho.cDescricao ?? '',
-    cDescrCompleta: s.descricao?.cDescrCompleta ?? '',
+    cDescricao: decodeOmieTexto(s.cabecalho.cDescricao ?? ''),
+    cDescrCompleta: decodeOmieTexto(s.descricao?.cDescrCompleta ?? ''),
     nPrecoUnit: Number(s.cabecalho.nPrecoUnit ?? 0),
     cIdTrib: s.cabecalho.cIdTrib ?? '',
     cCodLC116: s.cabecalho.cCodLC116 ?? '',
@@ -169,9 +171,10 @@ export function diffProduto(row: Partial<ProdutoOmie> & { inativo?: string }, at
   const mudancas: MudancaCampo[] = [];
   for (const c of CAMPOS_PROD_TXT) {
     const para = row[c];
-    if (para !== undefined && String(para).trim() !== String(atual[c] ?? '')) {
+    const atualTxt = decodeOmieTexto(atual[c] ?? '');  // a API devolve escapado; o front trabalha decodificado
+    if (para !== undefined && String(para).trim() !== atualTxt) {
       payload[c] = String(para).trim();
-      mudancas.push({ campo: c, de: String(atual[c] ?? ''), para: String(para).trim() });
+      mudancas.push({ campo: c, de: atualTxt, para: String(para).trim() });
     }
   }
   if (row.valor_unitario !== undefined && Number(row.valor_unitario) !== Number(atual.valor_unitario ?? 0)) {

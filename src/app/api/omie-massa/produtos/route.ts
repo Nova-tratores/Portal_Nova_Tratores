@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server';
 import { autenticar } from '@/lib/auth/server';
 import { omieProdutoCall, diffProduto, pausa, PAUSA_MS, type ProdutoOmie } from '@/lib/omie-massa/omie';
 import { supabaseAdmin as supabase, norm, familiasPorProduto } from '@/lib/omie-massa/supabase';
+import { decodeOmieTexto } from '@/lib/omie/texto';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -92,7 +93,7 @@ export async function GET(req: Request) {
         linhas.push({
           codigo_produto: Number(p.codigo_produto), codigo: o.codigo ?? p.codigo,
           familia: p.familia, estoque: p.estoque, vendas_qtd: p.vendas_qtd, vendas_valor: p.vendas_valor,
-          descricao: o.descricao ?? '', descr_detalhada: o.descr_detalhada ?? '', valor_unitario: Number(o.valor_unitario ?? 0),
+          descricao: decodeOmieTexto(o.descricao ?? ''), descr_detalhada: decodeOmieTexto(o.descr_detalhada ?? ''), valor_unitario: Number(o.valor_unitario ?? 0),
           ncm: o.ncm ?? '', ean: o.ean ?? '', unidade: o.unidade ?? '', inativo: o.inativo ?? 'N',
         });
       } catch {
