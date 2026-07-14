@@ -224,6 +224,14 @@ export default function DrePage() {
   const [modalGrupo, setModalGrupo] = useState('fornecedor') // 'fornecedor' | 'categoria'
   const [ordemModal, setOrdemModal] = useState({ campo: 'valor', dir: 'desc' })
 
+  // Modal de detalhe do grafico de familias (clique num ponto): vendas que
+  // compoem a margem daquela familia naquele periodo.
+  const [famDetCtx, setFamDetCtx] = useState(null) // { titulo, resumo }
+  const [famDetVendas, setFamDetVendas] = useState([])
+  const [famDetCarregando, setFamDetCarregando] = useState(false)
+  const [famDetErro, setFamDetErro] = useState('')
+  const [famDetBusca, setFamDetBusca] = useState('')
+
   // Refs de canvas + instancias Chart.js
   const cascataRef = useRef(null)
   const cascataInst = useRef(null)
@@ -674,8 +682,45 @@ export default function DrePage() {
         resto.forEach((ln) => { const cel = ln.cels[idx]; receita += cel.receita; lucro += cel[campoLucro] })
         return receita > 0 ? (lucro / receita) * 100 : null
       })
-      datasets.push({ label: 'Outros', data, borderColor: '#94a3b8', backgroundColor: '#94a3b8', borderWidth: 2, borderDash: [5, 4], pointRadius: 2, pointHoverRadius: 6, pointStyle: 'line', tension: 0.2, spanGaps: true })
+      datasets.push({ label: 'Outros', data, borderColor: '#94a3b8', backgroundColor: '#94a3b8', borderWidth: 2, borderDash: [5, 4], pointRadius: 3, pointHoverRadius: 6, pointStyle: 'circle', tension: 0.2, spanGaps: true })
     }
+    // Familias por dataset (mesma ordem): usado no clique p/ abrir o detalhe.
+    // "Outros" agrega todas as familias fora do top-6.
+    const dsFamilias = top.map((ln) => [ln.familia])
+    if (resto.length) dsFamilias.push(resto.map((ln) => ln.familia))
+
+    // Escala robusta (clamp IQR, como no grafico de despesas): um outlier
+    // (ex.: margem 300% num mes de receita minima) nao esmaga as demais linhas.
+    // Valores fora da faixa ficam cortados no grafico mas aparecem no tooltip.
+    const vals = []
+    datasets.forEach((ds) => ds.data.forEach((v) => { if (v != null && isFinite(v)) vals.push(v) }))
+    let yMin, yMax
+    if (vals.length >= 8) {
+      const s = vals.slice().sort((a, b) => a - b)
+      const pct = (p) => {
+        const idx = (s.length - 1) * p, lo = Math.floor(idx), hi = Math.ceil(idx)
+        return lo === hi ? s[lo] : s[lo] + (s[hi] - s[lo]) * (idx - lo)
+      }
+      const q1 = pct(0.25), q3 = pct(0.75), iqr = q3 - q1
+      const min = Math.max(s[0], q1 - 1.5 * iqr)
+      const max = Math.min(s[s.length - 1], q3 + 1.5 * iqr)
+      const pad = Math.max(2, (max - min) * 0.1)
+      yMin = Math.floor((min - pad) / 5) * 5
+      yMax = Math.ceil((max + pad) / 5) * 5
+    }
+
+    // Resumo (R$) da celula clicada, agregando as familias do dataset na coluna.
+    function resumoColuna(idxDs, idxCol) {
+      const linhas = idxDs < top.length ? [top[idxDs]] : resto
+      const r = { receita: 0, cmv: 0, lucroBruto: 0, despesaRateada: 0, lucroLiq: 0 }
+      linhas.forEach((ln) => {
+        const c = ln.cels[idxCol]
+        r.receita += c.receita; r.cmv += c.cmv; r.lucroBruto += c.lucroBruto
+        r.despesaRateada += c.despesaRateada; r.lucroLiq += c.lucroLiq
+      })
+      return r
+    }
+
     if (famChartInst.current) famChartInst.current.destroy()
     famChartInst.current = new window.Chart(famChartRef.current.getContext('2d'), {
       type: 'line',
@@ -683,9 +728,28 @@ export default function DrePage() {
       options: {
         responsive: true, maintainAspectRatio: false,
         interaction: { mode: 'index', intersect: false },
+        onClick: (evt, _els, chart) => {
+          const els = chart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true)
+          if (!els.length) return
+          const { datasetIndex, index } = els[0]
+          const col = model.colInfo[index]
+          const familias = dsFamilias[datasetIndex]
+          if (!col || !familias) return
+          const nomeDs = datasetIndex < top.length ? top[datasetIndex].familia : 'Outros'
+          const r = resumoColuna(datasetIndex, index)
+          const resumo = 'Receita ' + fmtBRL(r.receita) + ' · CMV ' + fmtBRL(r.cmv)
+            + ' · Lucro bruto ' + fmtBRL(r.lucroBruto)
+            + ' · Despesa rateada ' + fmtBRL(r.despesaRateada)
+            + ' · Lucro líquido ' + fmtBRL(r.lucroLiq)
+          abrirDetalheFam({ titulo: nomeDs + ' · ' + col.label, resumo, familias, meses: col.meses })
+        },
+        onHover: (evt, _els, chart) => {
+          const els = chart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true)
+          chart.canvas.style.cursor = els.length ? 'pointer' : 'default'
+        },
         scales: {
           x: { grid: { display: false } },
-          y: { ticks: { callback: (v) => v + '%' }, grid: { color: (c) => (c.tick && c.tick.value === 0 ? '#94a3b8' : '#f1f5f9') } },
+          y: { min: yMin, max: yMax, ticks: { callback: (v) => v + '%' }, grid: { color: (c) => (c.tick && c.tick.value === 0 ? '#94a3b8' : '#f1f5f9') } },
         },
         plugins: {
           legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 18, font: { size: 11 } } },
@@ -981,9 +1045,25 @@ export default function DrePage() {
     if (treemapInst.current) { treemapInst.current.destroy(); treemapInst.current = null }
   }
 
-  // Esc fecha o modal
+  // Abre o popup de vendas de um ponto do grafico de familias.
+  // p: { titulo, resumo, familias: [nomes normalizados], meses: ['YYYY-MM'] }
+  function abrirDetalheFam(p) {
+    setFamDetCtx({ titulo: p.titulo, resumo: p.resumo })
+    setFamDetVendas([]); setFamDetErro(''); setFamDetBusca(''); setFamDetCarregando(true)
+    const qs = 'conta=todas&meses=' + p.meses.join(',') + '&familias=' + encodeURIComponent(p.familias.join(','))
+    fetch('/api/dre-financeiro/margens-familia/detalhe?' + qs)
+      .then((r) => r.json())
+      .then((d) => {
+        setFamDetCarregando(false)
+        if (d.erro) { setFamDetErro('Erro: ' + d.erro); return }
+        setFamDetVendas(d.vendas || [])
+      })
+      .catch((e) => { setFamDetCarregando(false); setFamDetErro('Erro: ' + e.message) })
+  }
+
+  // Esc fecha os modais
   useEffect(() => {
-    function onKey(e) { if (e.key === 'Escape') fecharModal() }
+    function onKey(e) { if (e.key === 'Escape') { fecharModal(); setFamDetCtx(null) } }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [])
@@ -1443,6 +1523,29 @@ export default function DrePage() {
       : (!modalFiltro.f
         ? modalMovimentos.length + ' movimentos · total ' + fmtBRL(modalTotalAll)
         : 'Filtro "' + modalFiltro.f + '" - ' + modalLista.length + ' resultados'))
+
+  // Vendas filtradas do popup do grafico de familias + totais do filtro
+  const FAM_DET_MAX_LINHAS = 800
+  const famDetLista = useMemo(() => {
+    const f = (famDetBusca || '').trim().toLowerCase()
+    if (!f) return famDetVendas
+    return famDetVendas.filter((v) =>
+      String(v.nome_cliente || '').toLowerCase().includes(f)
+      || String(v.descricao || '').toLowerCase().includes(f)
+      || String(v.numero_pedido || '').toLowerCase().includes(f)
+      || String(v.familia_norm || '').toLowerCase().includes(f))
+  }, [famDetVendas, famDetBusca])
+  const famDetTotais = useMemo(() => {
+    const t = famDetLista.reduce((s, v) => {
+      s.receita += Number(v.valor_total) || 0
+      s.custo += v.custo || 0
+      if (v.custo == null) s.semCusto += 1
+      return s
+    }, { receita: 0, custo: 0, semCusto: 0 })
+    t.lucro = t.receita - t.custo
+    t.margem = t.receita > 0 ? (t.lucro / t.receita) * 100 : null
+    return t
+  }, [famDetLista])
 
   // Cabecalhos clicaveis do modal
   const modalCols = [
@@ -1909,6 +2012,91 @@ export default function DrePage() {
           </div>
         </div>
       )}
+
+      {/* Modal de detalhe do grafico de familias: vendas que compoem o ponto clicado */}
+      {famDetCtx && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(15,23,42,0.6)' }}
+          onClick={(e) => { if (e.target === e.currentTarget) setFamDetCtx(null) }}>
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-6xl max-h-[88vh] flex flex-col">
+            <div className="px-4 py-3 border-b border-slate-200 flex justify-between items-center gap-3">
+              <div>
+                <div className="text-xs uppercase tracking-wide text-slate-500">Vendas que compõem a margem</div>
+                <h3 className="font-bold text-lg text-slate-800">{famDetCtx.titulo}</h3>
+                {famDetCtx.resumo && <div className="text-[11px] text-slate-500 mt-0.5">{famDetCtx.resumo}</div>}
+              </div>
+              <button onClick={() => setFamDetCtx(null)} className="text-2xl text-slate-400 hover:text-slate-700 leading-none">×</button>
+            </div>
+            <div className="px-4 py-2 border-b border-slate-200 bg-slate-50 text-xs flex flex-wrap gap-3 items-center">
+              <span className="text-slate-700">
+                {famDetCarregando ? 'Carregando vendas...' : (famDetErro || (famDetVendas.length + ' vendas'))}
+              </span>
+              <label className="ml-auto text-xs">
+                Buscar:
+                <input type="text" value={famDetBusca} onChange={(e) => setFamDetBusca(e.target.value)}
+                  placeholder="cliente, máquina/item, pedido..."
+                  className="border border-slate-300 rounded px-2 py-0.5 text-xs ml-1 w-56" />
+              </label>
+            </div>
+            <div className="overflow-auto flex-1">
+              <table className="w-full text-xs">
+                <thead className="bg-slate-50 text-slate-600 sticky top-0">
+                  <tr>
+                    <th className="text-left px-3 py-2">Data</th>
+                    <th className="text-left px-3 py-2">Pedido</th>
+                    <th className="text-left px-3 py-2">Máquina / Item</th>
+                    <th className="text-left px-3 py-2">Cliente</th>
+                    <th className="text-right px-3 py-2">Qtd</th>
+                    <th className="text-right px-3 py-2">Custo (CMC)</th>
+                    <th className="text-right px-3 py-2">Venda</th>
+                    <th className="text-right px-3 py-2">Lucro</th>
+                    <th className="text-right px-3 py-2">MB %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {famDetCarregando ? (
+                    <tr><td colSpan={9} className="px-3 py-6 text-center text-slate-400">Carregando…</td></tr>
+                  ) : famDetLista.length === 0 ? (
+                    <tr><td colSpan={9} className="px-3 py-6 text-center text-slate-400">{famDetErro || 'Nenhuma venda encontrada.'}</td></tr>
+                  ) : famDetLista.slice(0, FAM_DET_MAX_LINHAS).map((v, i) => {
+                    const receita = Number(v.valor_total) || 0
+                    const mb = v.custo != null && receita > 0 ? ((receita - v.custo) / receita) * 100 : null
+                    return (
+                      <tr key={i} className="border-b border-slate-100 hover:bg-slate-50">
+                        <td className="px-3 py-1 whitespace-nowrap text-slate-600">{v.data_pedido || '—'}</td>
+                        <td className="px-3 py-1 whitespace-nowrap text-slate-500">{v.numero_pedido || '—'}</td>
+                        <td className="px-3 py-1" title={v.descricao || ''}>{v.descricao || '—'}</td>
+                        <td className="px-3 py-1" title={v.nome_cliente || ''}>{v.nome_cliente || '—'}</td>
+                        <td className="px-3 py-1 text-right tabular-nums">{Number(v.quantidade) || 0}</td>
+                        <td className="px-3 py-1 text-right tabular-nums text-slate-600">{v.custo == null ? '—' : fmtBRL(v.custo)}</td>
+                        <td className="px-3 py-1 text-right tabular-nums font-medium">{fmtBRL(receita)}</td>
+                        <td className={'px-3 py-1 text-right tabular-nums ' + cor(v.lucro)}>{v.lucro == null ? '—' : fmtBRL(v.lucro)}</td>
+                        <td className={'px-3 py-1 text-right tabular-nums ' + cor(mb)}>{mb == null ? '—' : mb.toFixed(1) + '%'}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="px-4 py-2 border-t border-slate-200 bg-slate-50 text-xs flex flex-wrap justify-between items-center gap-2">
+              <span className="text-slate-500">
+                {famDetCarregando ? '' : (
+                  Math.min(famDetLista.length, FAM_DET_MAX_LINHAS) + ' de ' + famDetVendas.length + ' vendas'
+                  + (famDetLista.length > FAM_DET_MAX_LINHAS ? ' (use a busca para refinar)' : '')
+                  + (famDetTotais.semCusto ? ' · ' + famDetTotais.semCusto + ' sem CMC (custo ignorado)' : '')
+                )}
+              </span>
+              {!famDetCarregando && (
+                <span className="font-bold text-slate-800">
+                  {'Venda ' + fmtBRL(famDetTotais.receita) + ' · Custo ' + fmtBRL(famDetTotais.custo)
+                    + ' · Lucro bruto ' + fmtBRL(famDetTotais.lucro)
+                    + (famDetTotais.margem == null ? '' : ' · MB ' + famDetTotais.margem.toFixed(1) + '%')}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
@@ -2014,10 +2202,13 @@ function FamiliasTab({ dadosFam, carregandoFam, erroFam, regime, dreUnidade, set
                   className={'px-3 py-1 border-l border-slate-300 ' + (metricaFam === 'liquida' ? tgAtivo : tgInativo)}>Margem Líquida %</button>
               </div>
             </div>
-            <div style={{ height: 320, position: 'relative' }}>
+            <div style={{ height: 440, position: 'relative' }}>
               <canvas ref={famChartRef}></canvas>
             </div>
-            <div className="text-[10px] text-slate-400 mt-1">Dica: clique numa família na legenda para escondê-la e isolar as demais.</div>
+            <div className="text-[10px] text-slate-400 mt-1">
+              Dica: clique num <strong>ponto</strong> para ver as vendas que compõem aquele valor · clique numa família na legenda para escondê-la e isolar as demais.
+              A escala ignora valores extremos para facilitar a leitura (o valor exato aparece no tooltip).
+            </div>
           </div>
         </>
       )}
