@@ -705,6 +705,39 @@ UNION ALL
     JOIN frota_veiculos f ON f.supa_placa_id::text = r.veiculo::text
    WHERE r.tipo = 'Veicular Manutenção';
 
+-- USO DIÁRIO — quem estava COM o carro em cada dia (≠ responsável fixo).
+-- Duas fontes locais (por isso VIEW, não cópia):
+--   - checkin_vendedor: vendedor marca o carro do dia (supervisor-vendas)
+--   - tecnico_caminhos: técnico marca o carro ao sair (app dos mecânicos —
+--     o schema já existe; a tela no NT_Mecanicos que grava aqui está no plano)
+-- Pra atribuir multa/parada de um DIA, esta view vence o responsável fixo
+-- (frota_responsaveis); o fixo é o fallback quando ninguém marcou o dia.
+CREATE OR REPLACE VIEW vw_frota_uso_diario AS
+  SELECT f.id            AS veiculo_id,
+         f.placa,
+         c.data::date    AS data,
+         c.vendedor_nome AS pessoa_nome,
+         c.vendedor_id::text AS pessoa_id,
+         'vendedor'      AS pessoa_tipo,
+         'checkin_vendedor' AS fonte,
+         c.created_at
+    FROM checkin_vendedor c
+    JOIN frota_veiculos f
+      ON f.placa = frota_resolver_placa(frota_placa_de_numplaca(c.placa))
+UNION ALL
+  SELECT f.id,
+         f.placa,
+         t.data_saida::date,
+         t.tecnico_nome,
+         NULL,
+         'tecnico',
+         'tecnico_caminhos',
+         t.data_saida
+    FROM tecnico_caminhos t
+    JOIN frota_veiculos f
+      ON f.placa = frota_resolver_placa(frota_placa_de_numplaca(coalesce(t.placa, '')))
+   WHERE t.placa IS NOT NULL;
+
 -- Custo total por veículo — "quanto custa esse carro?".
 -- ⚠️ ANTI-DUPLICIDADE: o `abastecimentos` (CSV do cartão) é a fonte AUTORITATIVA
 -- de combustível. Os /custos da Rota Exata com litros são o MESMO gasto vindo
