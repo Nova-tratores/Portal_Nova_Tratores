@@ -626,6 +626,13 @@ async function sincronizarMovimentosCC(conta, dePagBR, atePagBR) {
 
     s.etapa = 'paginando movimentos';
     let pag = 1;
+    let tentativasPag = 0;
+    // Ha "fim de paginas" confiavel e ha falha transitoria da Omie sob carga que
+    // responde a MESMA coisa ("nao existem registros"/lista vazia) no MEIO da
+    // paginacao. Quando o total de paginas ja e' conhecido e ainda nao chegamos
+    // nele, tratamos como transitoria: retry e, se persistir, ERRO explicito -
+    // nunca "concluido" parcial (o cron gravaria buracos silenciosos).
+    const noMeioDaPaginacao = () => s.totalPaginas > 0 && pag <= s.totalPaginas;
     while (true) {
       let r;
       try {
@@ -636,14 +643,33 @@ async function sincronizarMovimentosCC(conta, dePagBR, atePagBR) {
           dDtPagtoAte: atePagBR
         }, conta);
       } catch (e) {
-        if (e.faultstring && /n[aã]o.*registros|ERROR/i.test(e.faultstring)) break;
+        if (e.faultstring && /n[aã]o.*registros|ERROR/i.test(e.faultstring)) {
+          if (!noMeioDaPaginacao()) break;
+          if (tentativasPag < 3) {
+            tentativasPag++;
+            console.log(`[mov-cc ${conta}] pag ${pag}/${s.totalPaginas} falhou ("${e.faultstring}") - retry ${tentativasPag}/3`);
+            await sleep(5000 * tentativasPag);
+            continue;
+          }
+          throw new Error(`paginacao interrompida na pag ${pag}/${s.totalPaginas}: ${e.faultstring}`);
+        }
         throw e;
       }
       const lista = r.movimentos || [];
       s.paginaAtual = pag;
       s.totalPaginas = r.nTotPaginas || s.totalPaginas;
       console.log(`[mov-cc ${conta}] pag ${pag}/${s.totalPaginas || '?'}: ${lista.length} movimentos`);
-      if (lista.length === 0) break;
+      if (lista.length === 0) {
+        if (!noMeioDaPaginacao()) break;
+        if (tentativasPag < 3) {
+          tentativasPag++;
+          console.log(`[mov-cc ${conta}] pag ${pag}/${s.totalPaginas} veio vazia - retry ${tentativasPag}/3`);
+          await sleep(5000 * tentativasPag);
+          continue;
+        }
+        throw new Error(`pagina ${pag}/${s.totalPaginas} vazia apos retries - paginacao interrompida`);
+      }
+      tentativasPag = 0;
 
       // Dedup dentro do lote pela chave do upsert (o Postgres rejeita ON CONFLICT
       // que afeta a mesma linha duas vezes no mesmo statement). Fica o ultimo.
