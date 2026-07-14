@@ -530,20 +530,24 @@ ALTER TABLE rotas_vendedor ADD COLUMN IF NOT EXISTS vel_max                NUMER
 --     ⚠️ NUNCA faz INSERT em Placas nem em SupaPlacas (o DRE e o Omie leem elas).
 -- =============================================================================
 
+-- ⚠️ Todos os passos deduplicam por placa RESOLVIDA (DISTINCT ON) antes do
+-- INSERT: se a mesma placa aparece 2x na origem (ex.: tecnico_veiculos tem
+-- vários técnicos no MESMO carro), o ON CONFLICT DO UPDATE estoura com
+-- "cannot affect row a second time".
+
 -- 11a) Placas (o cadastro mais rico: modelo, ano, FIPE, seguro, foto, pátio)
 INSERT INTO frota_veiculos (placa, placa_exibicao, id_placa, modelo, ano, ativo,
                             combustivel, origem_cadastro, tipo_registro)
-SELECT frota_resolver_placa(frota_placa_de_numplaca(p."NumPlaca")),
-       p."NumPlaca",
-       p."IdPlaca",
-       p.modelo,
-       p.ano,
-       COALESCE(p.ativo, TRUE),
-       p.combustivel,
-       'placas',
-       'veiculo'
-FROM "Placas" p
-WHERE frota_placa_de_numplaca(p."NumPlaca") <> ''
+SELECT x.placa, x."NumPlaca", x."IdPlaca", x.modelo, x.ano,
+       COALESCE(x.ativo, TRUE), x.combustivel, 'placas', 'veiculo'
+FROM (
+  SELECT DISTINCT ON (frota_resolver_placa(frota_placa_de_numplaca(p."NumPlaca")))
+         frota_resolver_placa(frota_placa_de_numplaca(p."NumPlaca")) AS placa,
+         p."NumPlaca", p."IdPlaca", p.modelo, p.ano, p.ativo, p.combustivel
+  FROM "Placas" p
+  WHERE frota_placa_de_numplaca(p."NumPlaca") <> ''
+  ORDER BY frota_resolver_placa(frota_placa_de_numplaca(p."NumPlaca")), p."IdPlaca"
+) x
 ON CONFLICT (placa) DO UPDATE
   SET id_placa    = COALESCE(frota_veiculos.id_placa, EXCLUDED.id_placa),
       modelo      = COALESCE(frota_veiculos.modelo, EXCLUDED.modelo),
@@ -562,20 +566,31 @@ UPDATE frota_veiculos f
 -- Placas que só existem na SupaPlacas
 INSERT INTO frota_veiculos (placa, placa_exibicao, supa_placa_id, id_projeto_omie,
                             id_projeto_omie_castro, origem_cadastro)
-SELECT frota_resolver_placa(frota_placa_de_numplaca(s."NumPlaca")),
-       s."NumPlaca", s."IdPlaca", s.id_projeto_omie, s.id_projeto_omie_castro, 'placas'
-FROM "SupaPlacas" s
-WHERE frota_placa_de_numplaca(s."NumPlaca") <> ''
+SELECT x.placa, x."NumPlaca", x."IdPlaca", x.id_projeto_omie, x.id_projeto_omie_castro, 'placas'
+FROM (
+  SELECT DISTINCT ON (frota_resolver_placa(frota_placa_de_numplaca(s."NumPlaca")))
+         frota_resolver_placa(frota_placa_de_numplaca(s."NumPlaca")) AS placa,
+         s."NumPlaca", s."IdPlaca", s.id_projeto_omie, s.id_projeto_omie_castro
+  FROM "SupaPlacas" s
+  WHERE frota_placa_de_numplaca(s."NumPlaca") <> ''
+  ORDER BY frota_resolver_placa(frota_placa_de_numplaca(s."NumPlaca")), s."IdPlaca"
+) x
 ON CONFLICT (placa) DO UPDATE
   SET supa_placa_id = COALESCE(frota_veiculos.supa_placa_id, EXCLUDED.supa_placa_id);
 
 -- 11c) comercial_veiculos -> adesao_id (rastreador) + categoria + responsável
 INSERT INTO frota_veiculos (placa, adesao_id, descricao, comercial_id, categoria,
                             ativo, origem_cadastro)
-SELECT frota_resolver_placa(c.placa), c.adesao_id, c.descricao, c.id,
-       COALESCE(NULLIF(c.categoria, ''), 'comercial'), COALESCE(c.ativo, TRUE), 'manual'
-FROM comercial_veiculos c
-WHERE frota_resolver_placa(c.placa) <> ''
+SELECT x.placa, x.adesao_id, x.descricao, x.id,
+       COALESCE(NULLIF(x.categoria, ''), 'comercial'), COALESCE(x.ativo, TRUE), 'manual'
+FROM (
+  SELECT DISTINCT ON (frota_resolver_placa(c.placa))
+         frota_resolver_placa(c.placa) AS placa,
+         c.adesao_id, c.descricao, c.id, c.categoria, c.ativo
+  FROM comercial_veiculos c
+  WHERE frota_resolver_placa(c.placa) <> ''
+  ORDER BY frota_resolver_placa(c.placa), c.created_at
+) x
 ON CONFLICT (placa) DO UPDATE
   SET adesao_id    = COALESCE(frota_veiculos.adesao_id, EXCLUDED.adesao_id),
       comercial_id = COALESCE(frota_veiculos.comercial_id, EXCLUDED.comercial_id),
@@ -584,26 +599,36 @@ ON CONFLICT (placa) DO UPDATE
                           THEN EXCLUDED.categoria ELSE frota_veiculos.categoria END;
 
 -- 11d) tecnico_veiculos -> adesao_id (oficina)
+-- Aqui a deduplicação é OBRIGATÓRIA: vários técnicos dividem o MESMO carro
+-- (TKY6E68 tem 3, TKC5D99 tem 2) — foi o que estourou o seed na 1ª tentativa.
 INSERT INTO frota_veiculos (placa, adesao_id, descricao, categoria, origem_cadastro)
-SELECT frota_resolver_placa(t.placa), t.adesao_id, t.descricao, 'oficina', 'manual'
-FROM tecnico_veiculos t
-WHERE frota_resolver_placa(t.placa) <> ''
+SELECT x.placa, x.adesao_id, x.descricao, 'oficina', 'manual'
+FROM (
+  SELECT DISTINCT ON (frota_resolver_placa(t.placa))
+         frota_resolver_placa(t.placa) AS placa,
+         t.adesao_id, t.descricao
+  FROM tecnico_veiculos t
+  WHERE frota_resolver_placa(t.placa) <> ''
+  ORDER BY frota_resolver_placa(t.placa), t.adesao_id NULLS LAST
+) x
 ON CONFLICT (placa) DO UPDATE
   SET adesao_id = COALESCE(frota_veiculos.adesao_id, EXCLUDED.adesao_id),
       descricao = COALESCE(frota_veiculos.descricao, EXCLUDED.descricao);
 
--- 11e) placas que SÓ aparecem no abastecimento (não têm cadastro nenhum)
+-- 11e) placas que SÓ aparecem no abastecimento (não têm cadastro nenhum).
+-- DISTINCT ON por placa (não DISTINCT na linha inteira): a mesma placa aparece
+-- com modelos escritos de formas diferentes ao longo dos CSVs.
 INSERT INTO frota_veiculos (placa, modelo, ativo, origem_cadastro, pendencia_vinculo, tipo_registro)
-SELECT DISTINCT
-       frota_resolver_placa(a.placa),
-       a.modelo_veiculo,
-       TRUE,
-       'abastecimento',
-       TRUE,
-       CASE WHEN frota_norm_placa(a.placa) IN ('CLI0002','TRA0001','0000000')
-            THEN 'avulso' ELSE 'veiculo' END
-FROM abastecimentos a
-WHERE frota_resolver_placa(a.placa) <> ''
+SELECT x.placa, x.modelo_veiculo, TRUE, 'abastecimento', TRUE,
+       CASE WHEN x.placa IN ('CLI0002','TRA0001','0000000') THEN 'avulso' ELSE 'veiculo' END
+FROM (
+  SELECT DISTINCT ON (frota_resolver_placa(a.placa))
+         frota_resolver_placa(a.placa) AS placa,
+         a.modelo_veiculo
+  FROM abastecimentos a
+  WHERE frota_resolver_placa(a.placa) <> ''
+  ORDER BY frota_resolver_placa(a.placa), a.data_transacao DESC   -- modelo mais recente
+) x
 ON CONFLICT (placa) DO NOTHING;
 
 -- 11f) os baldes de abastecimento avulso (NÃO são veículos)
@@ -730,11 +755,16 @@ END $$;
 NOTIFY pgrst, 'reload schema';
 
 -- =============================================================================
--- CONFERÊNCIA (rode depois; deve bater com o esperado)
+-- CONFERÊNCIA (rode depois; números validados contra os dados reais em 14/07)
 -- =============================================================================
 -- SELECT tipo_registro, count(*) FROM frota_veiculos GROUP BY 1;
---   -> veiculo ~34, avulso 3
--- SELECT count(*) FROM frota_veiculos WHERE adesao_id IS NOT NULL;      -- 16 (rastreados)
+--   -> veiculo 31, avulso 3 (total 34)
+-- SELECT count(*) FROM frota_veiculos WHERE adesao_id IS NOT NULL;
+--   -> 14 após o seed (vêm de comercial_veiculos + tecnico_veiculos).
+--      Os 16 completos (ATJ6211 e FXM4G90 incluídos) só depois do sync da
+--      Rota Exata (Fase 2), que casa /adesoes por placa.
+-- SELECT count(*) FROM frota_veiculos WHERE id_placa IS NOT NULL;       -- 22
+-- SELECT count(*) FROM frota_veiculos WHERE supa_placa_id IS NOT NULL;  -- 23
 -- SELECT count(*) FROM frota_veiculos WHERE pendencia_vinculo;          -- os sem cadastro
 -- SELECT placa, placa_exibicao, modelo, adesao_id, id_placa, supa_placa_id
 --   FROM frota_veiculos ORDER BY placa;
