@@ -37,7 +37,7 @@ export default function UploadLotes({ usuario, isAdmin, onMudou }: Props) {
 
   const carregarLotes = useCallback(async () => {
     try {
-      const r = await fetch('/api/abastecimento/lotes');
+      const r = await fetch('/api/abastecimento/lotes', { headers: await authHeaders() });
       const d = await r.json();
       setLotes(d.lotes || []);
     } catch {

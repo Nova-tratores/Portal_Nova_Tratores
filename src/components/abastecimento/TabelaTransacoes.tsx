@@ -5,6 +5,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FileDown, FileSpreadsheet } from 'lucide-react';
+import { authHeaders } from '@/lib/auth/client';
 import { fmtRS } from '@/components/estoque/ui';
 import TabelaOrdenavel, { type ColunaDef } from '@/components/abastecimento/TabelaOrdenavel';
 import { gerarPdfTransacoes } from '@/lib/abastecimento/pdf';
@@ -62,7 +63,7 @@ export default function TabelaTransacoes({ de, ate, filial, placa, motoristas, v
     setCarregando(true);
     try {
       const qs = new URLSearchParams({ ...params, limit: '0' }); // recorte inteiro
-      const r = await fetch(`/api/abastecimento/transacoes?${qs}`);
+      const r = await fetch(`/api/abastecimento/transacoes?${qs}`, { headers: await authHeaders() });
       const d = (await r.json()) as TransacoesResp;
       if (!r.ok) return;
       setLinhas(d.linhas);

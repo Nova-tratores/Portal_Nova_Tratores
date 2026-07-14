@@ -7,6 +7,7 @@
 //  acesso total por ações específicas.
 
 import { PAGINAS_AJUSTES } from '@/app/(portal)/ajustes/paginas';
+import { PAGINAS_FROTA } from '@/app/(portal)/frota/paginas';
 
 export interface AcaoPermissao {
   id: string;
@@ -14,7 +15,7 @@ export interface AcaoPermissao {
 }
 
 // Ordem dos grupos na tela de Admin.
-export const GRUPOS_ORDEM = ['Serviços', 'Peças', 'Financeiro', 'Comercial', 'Estoque', 'Ajustes', 'Outros'] as const;
+export const GRUPOS_ORDEM = ['Serviços', 'Peças', 'Financeiro', 'Comercial', 'Estoque', 'Frota', 'Ajustes', 'Outros'] as const;
 
 // módulo id → grupo (organiza os módulos na tela). Ids que não estão aqui caem em 'Outros'.
 const GRUPO_POR_MODULO: Record<string, string> = {
@@ -28,7 +29,10 @@ const GRUPO_POR_MODULO: Record<string, string> = {
   // Comercial
   propostas: 'Comercial', feedbacks: 'Comercial', clientes: 'Comercial', 'supervisor-vendas': 'Comercial',
   // Estoque
-  'consulta-estoque': 'Estoque', estoque: 'Estoque', abastecimento: 'Estoque',
+  'consulta-estoque': 'Estoque', estoque: 'Estoque',
+  // Frota (o `abastecimento` legado fica no grupo Frota — a chave nova é
+  // `frota:abastecimento`; a antiga sobrevive via lib/permissoes/compat.ts)
+  frota: 'Frota', abastecimento: 'Frota',
   // Outros
   opa: 'Outros', avisos: 'Outros', tarefas: 'Outros', 'dashboard-agro': 'Outros', tratorilson: 'Outros',
   tickets: 'Outros',
@@ -187,7 +191,16 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'agenda', label: 'Agenda' },
     { id: 'oportunidades', label: 'Oportunidades' },
   ],
-  // Abastecimento (frota): upload mensal do CSV da operadora + relatórios.
+  // FROTA — granular POR TELA. As telas vêm de PAGINAS_FROTA (fonte única:
+  // adicionar tela lá já cria a permissão aqui). Abaixo delas, as ações que
+  // NÃO são telas.
+  frota: [
+    ...PAGINAS_FROTA.map((p) => ({ id: p.key.replace('frota:', ''), label: p.label })),
+    { id: 'abastecimento:upload', label: 'Abastecimento — importar CSV / gerir lotes' },
+  ],
+  // LEGADO: o Abastecimento virou submódulo do Frota (`frota:abastecimento`).
+  // Mantido aqui só para quem ainda tem a chave antiga gravada — o
+  // lib/permissoes/compat.ts traduz em runtime. Remover na limpeza (Fase 5).
   abastecimento: [
     { id: 'dashboard', label: 'Dashboard (relatórios)' },
     { id: 'upload', label: 'Importar CSV / gerir lotes' },

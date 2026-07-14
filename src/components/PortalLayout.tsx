@@ -12,7 +12,7 @@ import {
   LayoutDashboard, Bell, ChevronRight, ChevronDown, Activity, Lock, MessageCircle,
   CheckCheck, Trash2, ExternalLink, Calendar, Users, Calculator, BarChart3, Eye, Camera, Wheat, Megaphone,
   Sun, Moon, Volume2, Check, MapPin, ShieldCheck, Building, SlidersHorizontal, AlertCircle, Headset,
-  LayoutGrid, List, CircleDot, GanttChartSquare, Clock, Fuel, Bot, Ticket
+  LayoutGrid, List, CircleDot, GanttChartSquare, Clock, Truck, Bot, Ticket
 } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -42,10 +42,12 @@ const GROUP_CONFIG: Record<string, { label: string; color: string; gradient: str
   financeiro: { label: 'FINANCEIRO',  color: '#10B981', gradient: 'linear-gradient(135deg, #10B981, #059669)' },
   comercial:  { label: 'COMERCIAL',   color: '#8B5CF6', gradient: 'linear-gradient(135deg, #8B5CF6, #7C3AED)' },
   estoque:    { label: 'ESTOQUE',     color: '#DC2626', gradient: 'linear-gradient(135deg, #DC2626, #991B1B)' },
+  frota:      { label: 'FROTA',       color: '#0D9488', gradient: 'linear-gradient(135deg, #0D9488, #0F766E)' },
   outros:     { label: 'OUTROS',      color: '#6B7280', gradient: 'linear-gradient(135deg, #6B7280, #4B5563)' },
 }
 
-const GROUP_ORDER = ['geral', 'servicos', 'pecas', 'financeiro', 'comercial', 'estoque', 'outros']
+// ⚠️ Um grupo que não esteja AQUI não renderiza (o groupedNav itera esta lista).
+const GROUP_ORDER = ['geral', 'servicos', 'pecas', 'financeiro', 'comercial', 'estoque', 'frota', 'outros']
 
 const navItems: NavItem[] = [
   // Geral
@@ -82,7 +84,10 @@ const navItems: NavItem[] = [
   { id: 'consulta-estoque', name: 'Visual Estoque', href: '/visual-estoque', icon: <BarChart3 size={18} />, tag: 'VISUAL', gradient: '', group: 'estoque' },
   { id: 'estoque', name: 'Consulta Estoque', href: '/estoque', icon: <Eye size={18} />, tag: 'CONSULTA', gradient: '', group: 'estoque' },
   { id: 'ajustes', name: 'Ajustes Estoque', href: '/ajustes', icon: <SlidersHorizontal size={18} />, tag: 'AJUSTES', gradient: '', group: 'estoque' },
-  { id: 'abastecimento', name: 'Abastecimento', href: '/abastecimento', icon: <Fuel size={18} />, tag: 'FROTA', gradient: '', group: 'estoque' },
+  // Frota: o Abastecimento virou submódulo (/frota/abastecimento), então o item
+  // solto dele saiu daqui — quem tem a permissão antiga entra pelo Frota
+  // (lib/permissoes/compat.ts traduz a chave).
+  { id: 'frota', name: 'Frota', href: '/frota', icon: <Truck size={18} />, tag: 'VEÍCULOS', gradient: '', group: 'frota' },
 
   // Outros (cinza)
   { id: 'opa', name: 'Opa', href: '/opa', icon: <AlertCircle size={18} />, tag: 'OCORRÊNCIAS', gradient: '', group: 'outros' },
@@ -103,13 +108,14 @@ const NOTIF_ICONS: Record<string, import('react').ReactNode> = {
   admin: <Lock size={18} />,
   sistema: <Bell size={18} />,
   tickets: <Ticket size={18} />,
+  frota: <Truck size={18} />,
 }
 
 // Cor de acento por tipo de notificação
 const NOTIF_COLORS: Record<string, string> = {
   chat: '#3b82f6', financeiro: '#10b981', requisicao: '#f97316', revisao: '#0ea5e9',
   pos: '#0ea5e9', ppv: '#f97316', garantia: '#0ea5e9', proposta: '#8b5cf6',
-  admin: '#dc2626', sistema: '#6b7280', tickets: '#0891b2',
+  admin: '#dc2626', sistema: '#6b7280', tickets: '#0891b2', frota: '#0d9488',
 }
 
 const timeAgo = (date: string) => {

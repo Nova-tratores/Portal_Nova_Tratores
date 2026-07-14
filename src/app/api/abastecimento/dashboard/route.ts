@@ -5,6 +5,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { autenticar } from '@/lib/auth/server';
+import { podeFrota } from '@/lib/frota/server';
 import { montarDashboard, type LinhaDash } from '@/lib/abastecimento/agregacoes';
 
 export const runtime = 'nodejs';
@@ -22,6 +24,14 @@ const COLS =
 const PAGINA = 1000;
 
 export async function GET(req: NextRequest) {
+  // Esta rota usava service role e NENHUMA autenticação — qualquer pessoa na
+  // internet lia gasto, motorista, posto e placa da empresa.
+  const auth = await autenticar(req);
+  if (!auth) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+  if (!podeFrota(auth, 'abastecimento')) {
+    return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
+  }
+
   try {
     const sp = req.nextUrl.searchParams;
     // default: últimos 12 meses

@@ -11,7 +11,7 @@ import {
   BarChart3, Users, Package, ClipboardCheck, AlertTriangle,
   CheckCircle2, Map, RefreshCw, Database, X, Check, Calculator, Eye, Camera, Wheat, Megaphone, TrendingUp, Server,
   FolderPlus, Pencil, Trash2, FolderOpen, MapPin, ShieldCheck, Building,
-  Star, LayoutGrid, List, CircleDot, AlertCircle, Headset, LayoutDashboard
+  Star, LayoutGrid, List, CircleDot, AlertCircle, Headset, LayoutDashboard, Truck
 } from 'lucide-react'
 
 interface SystemCard {
@@ -33,10 +33,12 @@ const DASH_GROUPS: Record<string, { label: string; color: string; gradient: stri
   financeiro: { label: 'Financeiro',  color: '#10B981', gradient: 'linear-gradient(135deg, #10B981, #059669)', icon: <DollarSign size={22} /> },
   comercial:  { label: 'Comercial',   color: '#8B5CF6', gradient: 'linear-gradient(135deg, #8B5CF6, #7C3AED)', icon: <Building size={22} /> },
   estoque:    { label: 'Estoque',     color: '#DC2626', gradient: 'linear-gradient(135deg, #DC2626, #991B1B)', icon: <BarChart3 size={22} /> },
+  frota:      { label: 'Frota',       color: '#0D9488', gradient: 'linear-gradient(135deg, #0D9488, #0F766E)', icon: <Truck size={22} /> },
   outros:     { label: 'Outros',      color: '#6B7280', gradient: 'linear-gradient(135deg, #6B7280, #4B5563)', icon: <Activity size={22} /> },
 }
 
-const DASH_GROUP_ORDER = ['servicos', 'pecas', 'financeiro', 'comercial', 'estoque', 'outros']
+// ⚠️ Um grupo fora desta lista não renderiza em nenhum viewMode.
+const DASH_GROUP_ORDER = ['servicos', 'pecas', 'financeiro', 'comercial', 'estoque', 'frota', 'outros']
 
 const systems: SystemCard[] = [
   // Serviços (azul claro)
@@ -68,6 +70,7 @@ const systems: SystemCard[] = [
   // Estoque (vermelho)
   { id: 'consulta-estoque', name: 'Visual Estoque', description: 'Showroom virtual de estoque com visualização de peças e produtos', icon: <BarChart3 size={28} />, color: '#DC2626', gradient: 'linear-gradient(135deg, #DC2626, #991B1B)', href: '/visual-estoque', tag: 'VISUAL', group: 'estoque' },
   { id: 'consulta-omie', name: 'Consulta Estoque', description: 'Estoque Omie, CMC, curva ABC, dashboard de vendas e comissões', icon: <Eye size={28} />, color: '#DC2626', gradient: 'linear-gradient(135deg, #EF4444, #B91C1C)', href: '/estoque', tag: 'CONSULTA', group: 'estoque' },
+  { id: 'frota', name: 'Frota', description: 'Veículos, abastecimento, multas, manutenções, documentos e rastreamento', icon: <Truck size={28} />, color: '#0D9488', gradient: 'linear-gradient(135deg, #0D9488, #0F766E)', href: '/frota', tag: 'VEÍCULOS', group: 'frota' },
 
   // Outros (cinza)
   { id: 'opa', name: 'Opa', description: 'Sinalize ocorrências e coisas fora do lugar — todos veem até alguém resolver', icon: <AlertCircle size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #ef4444, #dc2626)', href: '/opa', tag: 'OCORRÊNCIAS', group: 'outros' },
@@ -103,6 +106,7 @@ const systemToModulo: Record<string, string> = {
   'lousa': 'lousa',
   'consulta-estoque': 'consulta-estoque', // card Visual Estoque (/visual-estoque)
   'consulta-omie': 'estoque',             // card Consulta Estoque (/estoque)
+  'frota': 'frota',                       // ⚠️ card SEM entrada aqui = visível pra TODOS
   'avisos': 'avisos',
   'dashboard-agro': 'dashboard-agro',
   'dre': 'dre',

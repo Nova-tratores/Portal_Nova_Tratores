@@ -25,6 +25,11 @@ const MODULOS = [
   { id: 'feedbacks', label: 'Feedbacks & CRM', color: '#dc2626' },
   { id: 'financeiro', label: 'Financeiro', color: '#dc2626' },
   { id: 'fotos-tecnicos', label: 'Fotos Técnicos', color: '#dc2626' },
+  // Frota: expande nas telas (ações derivadas de PAGINAS_FROTA). O
+  // Abastecimento é submódulo dele (`frota:abastecimento`) — e note que o
+  // módulo `abastecimento` NUNCA esteve nesta lista, por isso a permissão dele
+  // era impossível de conceder pela tela.
+  { id: 'frota', label: 'Frota', color: '#0d9488' },
   { id: 'garantias', label: 'Garantias', color: '#0ea5e9' },
   { id: 'mecanicos', label: 'Janela Mecânicos', color: '#1d4ed8' },
   { id: 'mapa', label: 'Mapeamento Técnico', color: '#b91c1c' },

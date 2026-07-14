@@ -5,6 +5,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
+import { podeFrota } from '@/lib/frota/server';
 import { decodificarCsv, parseCsvAbastecimento } from '@/lib/abastecimento/parse';
 import { extrairPlacaDeNumPlaca, resolverPlaca } from '@/lib/frota/placa';
 import type { LinhaAbastecimento, ResultadoUpload } from '@/lib/abastecimento/tipos';
@@ -22,12 +23,15 @@ const CHUNK = 500;
 export async function POST(request: Request) {
   let loteId: number | null = null;
   try {
-    // identidade/permissão vêm do token (padrão de segurança do portal)
+    // identidade/permissão vêm do token (padrão de segurança do portal).
+    // A chave passou a ser `frota:abastecimento:upload`; as antigas
+    // (abastecimento / abastecimento:upload) continuam valendo porque o
+    // lib/permissoes/compat.ts as expande dentro do `autenticar`.
     const auth = await autenticar(request);
     if (!auth) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
-    const podeUpload =
-      auth.isAdmin || auth.modulos.includes('abastecimento') || auth.modulos.includes('abastecimento:upload');
-    if (!podeUpload) return NextResponse.json({ error: 'Sem permissão para importar abastecimentos.' }, { status: 403 });
+    if (!podeFrota(auth, 'abastecimento:upload')) {
+      return NextResponse.json({ error: 'Sem permissão para importar abastecimentos.' }, { status: 403 });
+    }
 
     const formData = await request.formData();
     const file = formData.get('file') as File | null;

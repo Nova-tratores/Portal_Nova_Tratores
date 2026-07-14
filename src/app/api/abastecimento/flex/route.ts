@@ -5,6 +5,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { autenticar } from '@/lib/auth/server';
+import { podeFrota } from '@/lib/frota/server';
 import { compararFlex, type FlexRow } from '@/lib/abastecimento/flex';
 
 export const runtime = 'nodejs';
@@ -19,6 +21,13 @@ const supabase = createClient(
 const PAGINA = 1000;
 
 export async function GET(req: NextRequest) {
+  // Rodava com service role e sem autenticação nenhuma (ver dashboard/route.ts).
+  const auth = await autenticar(req);
+  if (!auth) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+  if (!podeFrota(auth, 'abastecimento')) {
+    return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
+  }
+
   try {
     const sp = req.nextUrl.searchParams;
     const hoje = new Date();

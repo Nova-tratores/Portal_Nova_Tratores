@@ -6,6 +6,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { ResponsiveContainer, Treemap, Tooltip } from 'recharts';
+import { authHeaders } from '@/lib/auth/client';
 import { FileDown, FileSpreadsheet, LayoutGrid, List, X } from 'lucide-react';
 import { fmtRS } from '@/components/estoque/ui';
 import TabelaOrdenavel, { type ColunaDef } from '@/components/abastecimento/TabelaOrdenavel';
@@ -99,7 +100,7 @@ export default function DetalheModal({ titulo, params, onClose }: DetalheParams 
       setErro('');
       try {
         const qs = new URLSearchParams({ ...params, limit: '0' }); // recorte inteiro
-        const r = await fetch(`/api/abastecimento/transacoes?${qs}`);
+        const r = await fetch(`/api/abastecimento/transacoes?${qs}`, { headers: await authHeaders() });
         const d = (await r.json()) as TransacoesResp & { error?: string };
         if (cancelado) return;
         if (!r.ok) { setErro(d.error || 'Erro ao carregar.'); return; }
