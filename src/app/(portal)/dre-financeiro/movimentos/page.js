@@ -97,6 +97,17 @@ function sortVal(m, key) {
   return ''
 }
 
+// Colunas da lista plana de duplicatas descontadas (ordenáveis).
+const COLUNAS_DUP = [
+  { key: 'dataOp', label: 'Operação', align: 'left' },
+  { key: 'empresa', label: 'Empresa', align: 'left' },
+  { key: 'cliente', label: 'Cliente', align: 'left' },
+  { key: 'entrada', label: 'Entrada na conta', align: 'left' },
+  { key: 'original', label: 'Valor original', align: 'right' },
+  { key: 'taxa', label: 'Taxa %', align: 'right' },
+  { key: 'liquido', label: 'Líquido estimado', align: 'right' },
+]
+
 const estiloInput = {
   padding: '6px 10px', border: '1px solid #cbd5e1', borderRadius: '8px',
   fontSize: '13px', color: '#1e293b', background: '#fff', outline: 'none'
@@ -269,6 +280,61 @@ export default function MovimentosPage() {
     if (q) arr = arr.filter((o) => (o.duplicatas || []).some((d) => (d.cliente || '').toLowerCase().includes(q)))
     return arr
   }, [ant, busca])
+
+  // Lista plana de duplicatas (todas as operações do período), com busca por
+  // cliente e ordenação por coluna — visão "Lista de duplicatas".
+  const [antVisao, setAntVisao] = useState('operacoes') // 'operacoes' | 'duplicatas'
+  const [ordemDup, setOrdemDup] = useState({ key: 'dataOp', dir: 'desc' })
+
+  const dupsFlat = useMemo(() => {
+    const q = busca.trim().toLowerCase()
+    const arr = []
+    ;(ant?.operacoes || []).forEach((o) => {
+      ;(o.duplicatas || []).forEach((d) => {
+        if (q && !(d.cliente || '').toLowerCase().includes(q)) return
+        arr.push({
+          dataOp: o.data, conta_omie: o.conta_omie, taxaPct: Number(o.taxaPct) || 0,
+          cliente: d.cliente, entrada: d.dataEntrada,
+          original: Number(d.valorOriginal) || 0,
+          usado: Number(d.valorNaOperacao) || 0,
+          liquido: Number(d.liquidoEstimado) || 0,
+          parcial: !!d.parcial,
+        })
+      })
+    })
+    const { key, dir } = ordemDup
+    const mult = dir === 'asc' ? 1 : -1
+    const val = (r) => {
+      switch (key) {
+        case 'dataOp': return r.dataOp
+        case 'empresa': return empresaLabel(r.conta_omie)
+        case 'cliente': return (r.cliente || '').toLowerCase()
+        case 'entrada': return r.entrada || ''
+        case 'original': return r.original
+        case 'taxa': return r.taxaPct
+        case 'liquido': return r.liquido
+      }
+      return ''
+    }
+    return arr.sort((a, b) => {
+      const va = val(a), vb = val(b)
+      if (va < vb) return -1 * mult
+      if (va > vb) return 1 * mult
+      return 0
+    })
+  }, [ant, busca, ordemDup])
+
+  const totaisDup = useMemo(() => {
+    let original = 0, usado = 0, liquido = 0
+    dupsFlat.forEach((d) => { original += d.original; usado += d.usado; liquido += d.liquido })
+    return { original, usado, liquido, taxaPct: usado > 0 ? (1 - liquido / usado) * 100 : 0 }
+  }, [dupsFlat])
+
+  function toggleOrdemDup(key) {
+    setOrdemDup((o) => o.key === key
+      ? { key, dir: o.dir === 'asc' ? 'desc' : 'asc' }
+      : { key, dir: ['dataOp', 'original', 'taxa', 'liquido'].includes(key) ? 'desc' : 'asc' })
+  }
 
   function exportarCSV() {
     if (modo === 'antecipacoes') return exportarCSVAntecipacoes()
@@ -540,7 +606,21 @@ export default function MovimentosPage() {
         o líquido por duplicata é estimado pelo rateio da taxa da operação — o Omie cobra o deságio por lote, não por duplicata.
       </div>
 
+      {/* Sub-visão: agrupado por operação ou lista plana de duplicatas */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'inline-flex', borderRadius: '8px', overflow: 'hidden', border: '1px solid #cbd5e1' }}>
+          {[['operacoes', 'Por operação'], ['duplicatas', 'Lista de duplicatas']].map(([id, label], i) => (
+            <button key={id} type="button" onClick={() => setAntVisao(id)} style={{
+              padding: '5px 11px', fontSize: '12px', fontWeight: 600, cursor: 'pointer', border: 'none',
+              borderLeft: i ? '1px solid #cbd5e1' : 'none',
+              background: antVisao === id ? '#475569' : '#fff', color: antVisao === id ? '#fff' : '#475569'
+            }}>{label}</button>
+          ))}
+        </div>
+      </div>
+
       {/* Operações de desconto */}
+      {antVisao === 'operacoes' && (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {antLoading ? (
           <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '13px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px' }}>Carregando...</div>
@@ -602,6 +682,75 @@ export default function MovimentosPage() {
           </details>
         ))}
       </div>
+      )}
+
+      {/* Lista plana de duplicatas descontadas (cabeçalho ordenável + colunas alinhadas) */}
+      {antVisao === 'duplicatas' && (
+      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
+        {antLoading ? (
+          <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>Carregando...</div>
+        ) : antErro ? (
+          <div style={{ padding: '40px', textAlign: 'center', color: '#991b1b', fontSize: '13px' }}>Erro: {antErro}</div>
+        ) : dupsFlat.length === 0 ? (
+          <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>
+            Nenhuma duplicata descontada no período.
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+              <thead>
+                <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                  {COLUNAS_DUP.map((c) => (
+                    <th
+                      key={c.key} onClick={() => toggleOrdemDup(c.key)}
+                      style={{
+                        padding: '8px 12px', textAlign: c.align, cursor: 'pointer', whiteSpace: 'nowrap',
+                        fontSize: '11px', fontWeight: 700, color: ordemDup.key === c.key ? '#0f172a' : '#64748b',
+                        textTransform: 'uppercase', letterSpacing: '.4px', userSelect: 'none'
+                      }}
+                    >
+                      {c.label}{ordemDup.key === c.key ? (ordemDup.dir === 'asc' ? ' ▲' : ' ▼') : ''}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {dupsFlat.map((d, i) => (
+                  <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '7px 12px', whiteSpace: 'nowrap', color: '#334155' }}>{fmtData(d.dataOp)}</td>
+                    <td style={{ padding: '7px 12px' }}><EmpresaBadge conta={d.conta_omie} /></td>
+                    <td style={{ padding: '7px 12px', color: '#1e293b', maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={d.cliente}>
+                      {d.cliente}
+                      {d.parcial && (
+                        <span style={{ marginLeft: 6, fontSize: 10, color: '#b45309', background: '#fef3c7', padding: '1px 6px', borderRadius: 6 }}>
+                          parte ({formatBRL(d.usado)})
+                        </span>
+                      )}
+                    </td>
+                    <td style={{ padding: '7px 12px', color: '#475569', whiteSpace: 'nowrap' }}>{fmtData(d.entrada)}</td>
+                    <td style={{ padding: '7px 12px', textAlign: 'right', color: '#334155', whiteSpace: 'nowrap' }}>{formatBRL(d.original)}</td>
+                    <td style={{ padding: '7px 12px', textAlign: 'right', color: '#7c3aed', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                      {d.taxaPct.toFixed(2).replace('.', ',')}%
+                    </td>
+                    <td style={{ padding: '7px 12px', textAlign: 'right', fontWeight: 700, color: VERDE, whiteSpace: 'nowrap' }}>{formatBRL(d.liquido)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr style={{ background: '#f8fafc', borderTop: '2px solid #e2e8f0', fontWeight: 700 }}>
+                  <td colSpan={4} style={{ padding: '8px 12px', color: '#475569', fontSize: '12px' }}>
+                    {dupsFlat.length.toLocaleString('pt-BR')} duplicata(s) no filtro
+                  </td>
+                  <td style={{ padding: '8px 12px', textAlign: 'right', whiteSpace: 'nowrap', color: '#334155' }}>{formatBRL(totaisDup.original)}</td>
+                  <td style={{ padding: '8px 12px', textAlign: 'right', whiteSpace: 'nowrap', color: '#7c3aed' }}>{totaisDup.taxaPct.toFixed(2).replace('.', ',')}%</td>
+                  <td style={{ padding: '8px 12px', textAlign: 'right', whiteSpace: 'nowrap', color: VERDE }}>{formatBRL(totaisDup.liquido)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+      </div>
+      )}
 
       {/* Duplicatas descontadas aguardando liberação (saldo na conta de desconto) */}
       {!antLoading && !antErro && (ant?.pendentes || []).length > 0 && (
