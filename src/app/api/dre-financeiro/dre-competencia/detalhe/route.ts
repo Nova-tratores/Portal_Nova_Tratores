@@ -139,6 +139,44 @@ export async function GET(request: NextRequest) {
       })
     }
 
+    // 3. Lancamentos de conta corrente SEM titulo (movimentos_cc, codigo_titulo=0)
+    // - espelha o passo 4c de calcularDRECompetencia (ex.: juros da antecipacao
+    // de duplicatas), para o modal bater com a arvore. Graceful: tabela ausente
+    // ou vazia nao quebra o drill-down.
+    try {
+      const dataDe = `${ano}-${String(mes).padStart(2, '0')}-01`
+      const ultDia = new Date(ano, mes, 0).getDate()
+      const dataAte = `${ano}-${String(mes).padStart(2, '0')}-${String(ultDia).padStart(2, '0')}`
+      const lancCC = await selectPaginado(() =>
+        db.from('movimentos_cc')
+          .select('conta_omie,data_pagamento,valor_pago,grupo_categoria,descricao_categoria,status,nome_cliente_fornecedor,nome_conta_corrente,numero_documento')
+          .eq('natureza', 'P')
+          .eq('codigo_titulo', 0)
+          .gte('data_pagamento', dataDe).lte('data_pagamento', dataAte)
+          .not('grupo_categoria', 'is', null)
+          .order('id', { ascending: true })
+      )
+      ;(lancCC || []).forEach((r: any) => {
+        if (String(r.status || '').toUpperCase().includes('CANCEL')) return
+        const cls = grupoCpClassif[r.grupo_categoria]; if (!cls) return
+        if (!matchesClassif(cls.tipo, cls.grupo, cls.conta)) return
+        const v = cls.sinal * (Number(r.valor_pago) || 0); if (!v) return
+        const cat = r.descricao_categoria || '(sem categoria)'
+        if (filtroCategoria && cat !== filtroCategoria) return
+        if (filtroCategoriaNe && cat === filtroCategoriaNe) return
+        movimentos.push({
+          dataMovimento: r.data_pagamento,
+          _conta_omie: String(r.conta_omie || '').toLowerCase(),
+          nomeClienteFornecedor: r.nome_cliente_fornecedor || r.nome_conta_corrente || '(lançamento conta corrente)',
+          categoria: cat,
+          dreConta: cls.conta,
+          numeroDocumento: r.numero_documento,
+          incluidoPor: null,
+          valor: v,
+        })
+      })
+    } catch (e: any) { console.warn('[dre-comp/detalhe] lancamentos CC:', e.message) }
+
     movimentos.sort((a, b) => Math.abs(Number(b.valor) || 0) - Math.abs(Number(a.valor) || 0))
     const total = movimentos.reduce((s, m) => s + (Number(m.valor) || 0), 0)
     return NextResponse.json({

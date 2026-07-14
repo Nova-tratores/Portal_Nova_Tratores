@@ -1223,6 +1223,44 @@ async function calcularDRECompetencia(anoMesIni, anoMesFim) {
     addNoTree(arv.consolidado, cls.tipo, cls.grupo, cls.conta, v, mesKey, cat);
   });
 
+  // 4c. Lancamentos de conta corrente SEM titulo (movimentos_cc, codigo_titulo=0):
+  // despesas pagas direto da conta que nunca viram contas_pagar - em especial os
+  // JUROS DA ANTECIPACAO de duplicatas ("Juros sobre Emprestimos", lancados pelo
+  // Omie na CC "Omie Desconto de Duplicatas" quando libera o valor liquido).
+  // Sem eles, "03. Despesas Financeiras" so mostra tarifas/multas.
+  // Transferencias entre contas tem grupo "Transferencia" -> classificaGrupoCP
+  // retorna null e ficam fora. Competencia = mes do PAGAMENTO (unica data que um
+  // lancamento de CC tem). Sem risco de duplicidade: codigo_titulo=0 garante que
+  // o lancamento nao existe em contas_pagar. Graceful: tabela vazia/indisponivel
+  // (sync de movimentos nao rodou) -> DRE fica exatamente como antes.
+  try {
+    const lancCC = await selectPaginado(() =>
+      supabase.from('movimentos_cc')
+        .select('conta_omie,data_pagamento,valor_pago,grupo_categoria,descricao_categoria,status')
+        .eq('natureza', 'P')
+        .eq('codigo_titulo', 0)
+        .gte('data_pagamento', dataDe).lte('data_pagamento', dataAte)
+        .not('grupo_categoria', 'is', null)
+        .order('id', { ascending: true })
+    );
+    (lancCC || []).forEach(r => {
+      if (String(r.status || '').toUpperCase().includes('CANCEL')) return;
+      const up = String(r.conta_omie || '').toUpperCase();
+      const slugNorm = up === 'NOVA' ? 'nova' : up === 'CASTRO' ? 'castro' : null;
+      if (!slugNorm) return;
+      const cls = classificaGrupoCP(r.grupo_categoria);
+      if (!cls) return;
+      if (!r.data_pagamento) return;
+      const mesKey = String(r.data_pagamento).slice(0, 7);
+      if (!mesesSet.has(mesKey)) return;
+      const v = cls.sinal * (Number(r.valor_pago) || 0);
+      if (!v) return;
+      const cat = r.descricao_categoria || '(sem categoria)';
+      addNoTree(arv[slugNorm],   cls.tipo, cls.grupo, cls.conta, v, mesKey, cat);
+      addNoTree(arv.consolidado, cls.tipo, cls.grupo, cls.conta, v, mesKey, cat);
+    });
+  } catch (e) { console.warn('[dre-comp] lancamentos CC sem titulo (movimentos_cc):', e.message); }
+
   return {
     periodo: { de: anoMesIni, ate: anoMesFim, cTipoData: 'competencia' },
     regime: 'competencia',
