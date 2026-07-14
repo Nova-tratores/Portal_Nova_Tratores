@@ -27,6 +27,8 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
   const [resultados, setResultados] = useState<Peca[]>([]);
   const [loading, setLoading] = useState(false);
   const [refHover, setRefHover] = useState<string | null>(null);
+  const [pecaSel, setPecaSel] = useState<Peca | null>(null); // peça aberta pela bolinha (painel sob a imagem)
+  const [qtdSel, setQtdSel] = useState(1);
   const [imgDim, setImgDim] = useState<{ w: number; h: number }>({ w: 1, h: 1 });
   const [toast, setToast] = useState("");
   const [imgErro, setImgErro] = useState<Record<string, boolean>>({});
@@ -39,13 +41,13 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
   const [criando, setCriando] = useState(false);
   const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  const addToCart = useCallback((p: { code: string; name: string }) => {
+  const addToCart = useCallback((p: { code: string; name: string }, qty = 1) => {
     setCart((prev) => {
       const i = prev.findIndex((x) => x.code === p.code);
-      if (i >= 0) { const c = [...prev]; c[i] = { ...c[i], qty: c[i].qty + 1 }; return c; }
-      return [...prev, { code: p.code, name: p.name, qty: 1 }];
+      if (i >= 0) { const c = [...prev]; c[i] = { ...c[i], qty: c[i].qty + qty }; return c; }
+      return [...prev, { code: p.code, name: p.name, qty }];
     });
-    setToast(`No carrinho: ${p.code}`); setTimeout(() => setToast(""), 1400);
+    setToast(`No carrinho: ${qty > 1 ? `${qty}× ` : ""}${p.code}`); setTimeout(() => setToast(""), 1400);
   }, []);
   const setQty = (code: string, q: number) => setCart((prev) => prev.map((x) => (x.code === code ? { ...x, qty: Math.max(1, q) } : x)));
   const removeFromCart = (code: string) => setCart((prev) => prev.filter((x) => x.code !== code));
@@ -164,7 +166,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
   }, [mq]);
 
   const abrirFigura = useCallback(async (id: string) => {
-    setLoading(true); setRefHover(null);
+    setLoading(true); setRefHover(null); setPecaSel(null);
     try {
       const r = await fetch(`/api/catalogo/figura/${id}`);
       const f = r.ok ? await r.json() : null;
@@ -184,10 +186,21 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
     return () => clearTimeout(t);
   }, [busca, mq]);
 
-  const addPeca = useCallback((p: { code: string; name: string }) => {
-    if (onSelecionarPeca) { onSelecionarPeca(p); setToast(`Adicionado: ${p.code}`); setTimeout(() => setToast(""), 2200); }
-    else addToCart(p); // modo avulso → carrinho
+  const addPeca = useCallback((p: { code: string; name: string }, qty = 1) => {
+    if (onSelecionarPeca) {
+      for (let i = 0; i < qty; i++) onSelecionarPeca(p); // o lançamento soma a linha repetida
+      setToast(`Adicionado: ${qty > 1 ? `${qty}× ` : ""}${p.code}`); setTimeout(() => setToast(""), 2200);
+    } else addToCart(p, qty); // modo avulso → carrinho
   }, [onSelecionarPeca, addToCart]);
+
+  // Bolinha clicada → abre a peça no painel sob a imagem (e realça a linha da lista)
+  const abrirPecaDaBolinha = useCallback((ref: string) => {
+    const p = (figura?.pecas || []).find((x) => x.reference === ref) || null;
+    setRefHover(ref);
+    setPecaSel(p);
+    setQtdSel(p?.qtd && p.qtd > 0 ? p.qtd : 1); // já vem com a quantidade que o desenho pede
+    rowRefs.current[ref]?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [figura]);
 
   const corSecao: Record<string, string> = { Motor: "#dc2626", "Transmissão": "#2563eb", "Sistema Hidráulico": "#7c3aed", "Eixo Dianteiro": "#0891b2", "Elétrica": "#ca8a04", Lataria: "#0d9488", Freio: "#be123c", Embreagem: "#9333ea", "Diferencial": "#0369a1", "Direção": "#65a30d" };
 
@@ -489,17 +502,45 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
                 {figura.image_url ? (
                   <>
                     <img src={figura.image_url} alt={figura.name} onLoad={(e) => setImgDim({ w: (e.target as HTMLImageElement).naturalWidth || 1, h: (e.target as HTMLImageElement).naturalHeight || 1 })} style={{ width: "100%", display: "block" }} />
-                    {(figura.hotspots || []).map((h) => {
+                    {(figura.hotspots || []).map((h, i) => {
                       const ativo = refHover === h.reference;
                       return (
-                        <button key={h.reference} onClick={() => { setRefHover(h.reference); rowRefs.current[h.reference]?.scrollIntoView({ block: "nearest", behavior: "smooth" }); }}
-                          onMouseEnter={() => setRefHover(h.reference)} onMouseLeave={() => setRefHover(null)}
+                        <button key={`${h.reference}-${i}`} onClick={() => abrirPecaDaBolinha(h.reference)}
+                          onMouseEnter={() => setRefHover(h.reference)} onMouseLeave={() => !pecaSel && setRefHover(null)}
                           style={{ position: "absolute", left: `${(h.x / imgDim.w) * 100}%`, top: `${(h.y / imgDim.h) * 100}%`, transform: "translate(-50%,-50%)", width: ativo ? 26 : 20, height: ativo ? 26 : 20, borderRadius: "50%", border: "2px solid #fff", background: ativo ? "#dc2626" : "rgba(37,99,235,0.9)", color: "#fff", fontSize: ativo ? 12 : 10, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 5px rgba(0,0,0,0.4)", transition: "all .12s", zIndex: ativo ? 3 : 2 }}>{h.reference}</button>
                       );
                     })}
                   </>
                 ) : <div style={{ padding: 50, color: "#cbd5e1" }}><i className="fas fa-image" style={{ fontSize: 36 }} /></div>}
               </div>
+
+              {/* Peça da bolinha clicada: some junto com a figura, some ao fechar */}
+              {pecaSel && (
+                <div style={{ marginTop: 12, borderRadius: 12, border: "1.5px solid #fecaca", background: "#fff7f7", padding: "13px 15px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+                  <span style={{ display: "inline-flex", width: 30, height: 30, borderRadius: "50%", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, background: "#dc2626", color: "#fff", flexShrink: 0 }}>{pecaSel.reference}</span>
+                  <div style={{ flex: "1 1 180px", minWidth: 0 }}>
+                    <div style={{ fontSize: 14.5, fontWeight: 700, color: "#0f172a", lineHeight: 1.25 }}>{pecaSel.name}</div>
+                    <div style={{ fontSize: 12.5, marginTop: 2, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                      <code style={{ fontWeight: 800, color: "#dc2626" }}>{pecaSel.code}</code>
+                      {pecaSel.qtd ? <span style={{ color: "#94a3b8" }}>o desenho pede {pecaSel.qtd}{pecaSel.unit ? ` ${pecaSel.unit}` : ""}</span> : null}
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                    <button onClick={() => setQtdSel((q) => Math.max(1, q - 1))} style={{ width: 32, height: 32, border: "1px solid #e2e8f0", background: "#fff", borderRadius: 8, cursor: "pointer", fontSize: 15, color: "#475569" }}>−</button>
+                    <input value={qtdSel} onChange={(e) => setQtdSel(Math.max(1, parseInt(e.target.value) || 1))}
+                      style={{ width: 46, textAlign: "center", border: "1px solid #e2e8f0", borderRadius: 8, padding: "7px 0", fontSize: 14, fontWeight: 700 }} />
+                    <button onClick={() => setQtdSel((q) => q + 1)} style={{ width: 32, height: 32, border: "1px solid #e2e8f0", background: "#fff", borderRadius: 8, cursor: "pointer", fontSize: 15, color: "#475569" }}>+</button>
+                  </div>
+
+                  <button className="cat-add" onClick={() => { addPeca({ code: pecaSel.code, name: pecaSel.name }, qtdSel); setPecaSel(null); }}
+                    style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 18px", border: "none", borderRadius: 10, background: "#dc2626", color: "#fff", fontSize: 13.5, fontWeight: 800, cursor: "pointer" }}>
+                    <i className="fas fa-plus" /> {onSelecionarPeca ? "Adicionar ao lançamento" : "Adicionar ao carrinho"}
+                  </button>
+                  <button onClick={() => { setPecaSel(null); setRefHover(null); }} title="Fechar"
+                    style={{ width: 32, height: 32, border: "none", background: "#fee2e2", color: "#b91c1c", borderRadius: 8, cursor: "pointer" }}><i className="fas fa-times" /></button>
+                </div>
+              )}
             </div>
 
             <div style={{ flex: "1 1 340px", minWidth: 300, display: "flex", flexDirection: "column", maxHeight: "100%" }}>
