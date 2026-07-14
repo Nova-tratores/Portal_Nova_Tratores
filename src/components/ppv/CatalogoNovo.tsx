@@ -96,10 +96,23 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
     }).catch(() => {});
   }, []);
 
+  // Modelos irmãos ficam lado a lado: agrupa pela "família" (o texto antes do número —
+  // ACCURA, STRONGER, GRAIN MAX…) e dentro dela ordena pelo número (1200 < 1600 < 12000).
+  // Nos Mahindra, que começam por número, a família é vazia e vale o próprio número.
+  const familia = (nome: string) => (nome.match(/^[^\d]*/) || [""])[0].trim().toUpperCase();
+  const ordenar = (lista: Modelo[]) =>
+    [...lista].sort((a, b) => {
+      const ta = a.tipo || "", tb = b.tipo || "";
+      if (ta !== tb) return ta.localeCompare(tb, "pt");           // implementos juntos, autopropelidos juntos
+      const fa = familia(a.nome), fb = familia(b.nome);
+      if (fa !== fb) return fa.localeCompare(fb, "pt");
+      return a.nome.localeCompare(b.nome, "pt", { numeric: true });
+    });
+
   // Modelos da marca escolhida, respeitando o filtro de tipo
   const modelosDaMarca = modelos.filter((m) => m.marca === marcaSel?.nome);
   const tiposDaMarca = [...new Set(modelosDaMarca.map((m) => m.tipo).filter(Boolean))] as string[];
-  const modelosVisiveis = tipoSel ? modelosDaMarca.filter((m) => m.tipo === tipoSel) : modelosDaMarca;
+  const modelosVisiveis = ordenar(tipoSel ? modelosDaMarca.filter((m) => m.tipo === tipoSel) : modelosDaMarca);
   // Na tela inicial as marcas ficam abertas (modelos à mostra), com o filtro de tipo valendo pra todas.
   const tiposTodos = [...new Set(modelos.map((m) => m.tipo).filter(Boolean))].sort() as string[];
   const porTipo = (lista: Modelo[]) => (tipoSel ? lista.filter((m) => m.tipo === tipoSel) : lista);
@@ -267,7 +280,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
             {tiposTodos.length > 1 && chipsTipo(tiposTodos, modelos)}
 
             {marcas.map((mc) => {
-              const lista = porTipo(modelos.filter((m) => m.marca === mc.nome));
+              const lista = ordenar(porTipo(modelos.filter((m) => m.marca === mc.nome)));
               if (lista.length === 0) return null; // marca sem modelo neste tipo
               return (
                 <div key={mc.slug} style={{ marginBottom: 26 }}>
