@@ -60,12 +60,20 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     }
   }
 
-  // Buscar dados do técnico (fotos, assinaturas, etc)
-  const { data: tecData } = await supabase
+  // Buscar dados do técnico (fotos, assinaturas, etc).
+  // Pode haver MAIS DE UM registro por OS (rascunhos) — por isso nada de maybeSingle(),
+  // que estoura quando vem mais de uma linha. Pega o ENVIADO; senão o mais recente.
+  const { data: tecRows } = await supabase
     .from("Ordem_Servico_Tecnicos")
-    .select("TipoServico, Motivo, ServicoRealizado, Chassis, Horimetro, Garantia, TotalHora, TotalKm, NomResp, FotoHorimetro, FotoChassis, FotoFrente, FotoDireita, FotoEsquerda, FotoTraseira, FotoVolante, FotoFalha1, FotoFalha2, FotoFalha3, FotoFalha4, FotoPecaNova1, FotoPecaNova2, FotoPecaInstalada1, FotoPecaInstalada2, AssCliente, AssTecnico, PecasInfo, JustificativaPecaExtra, CartaCorrecao, AlmocosFotos, FotoAlmoco")
-    .eq("Ordem_Servico", idOs)
-    .maybeSingle();
+    .select("IdOs, Status, TipoServico, Motivo, ServicoRealizado, Chassis, Horimetro, Garantia, TotalHora, TotalKm, NomResp, FotoHorimetro, FotoChassis, FotoFrente, FotoDireita, FotoEsquerda, FotoTraseira, FotoVolante, FotoFalha1, FotoFalha2, FotoFalha3, FotoFalha4, FotoPecaNova1, FotoPecaNova2, FotoPecaInstalada1, FotoPecaInstalada2, AssCliente, AssTecnico, PecasInfo, JustificativaPecaExtra, CartaCorrecao, AlmocosFotos, FotoAlmoco")
+    .eq("Ordem_Servico", idOs);
+  const tecLista = (tecRows || []) as Record<string, unknown>[];
+  const tecData = tecLista.find((t) => String(t.Status || "").toLowerCase() === "enviado")
+    || [...tecLista].sort((a, b) => Number(b.IdOs || 0) - Number(a.IdOs || 0))[0]
+    || null;
+
+  // Tem relatório do técnico na tabela? (independe do PDF do app ter dado certo)
+  const temRelatorioTecnico = !!tecData;
 
   // Fotos das notas de almoço enviadas pelo técnico (AlmocosFotos = [{data, foto}]).
   // Compat: se só houver o almoço único antigo (FotoAlmoco), casa com o 1º dia lançado.
@@ -112,7 +120,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     substitutoTipo: safeGet(row, "Substituto_Tipo") || null,
     substitutoId: safeGet(row, "Substituto_Id") || null,
     relatorioTecnico: safeGet(row, "ID_Relatorio_Final"),
-    infoRelatorio: safeGet(row, "ID_Relatorio_Final") ? { status: "OK", link: safeGet(row, "ID_Relatorio_Final") } : null,
+    // Link do relatório: o PDF do app quando existe; senão o relatório montado no servidor
+    // a partir dos dados (o PDF é gerado no celular do técnico e às vezes falha).
+    infoRelatorio: safeGet(row, "ID_Relatorio_Final")
+      ? { status: "OK", link: safeGet(row, "ID_Relatorio_Final") }
+      : (temRelatorioTecnico ? { status: "OK", link: `/api/pos/ordens/${encodeURIComponent(idOs)}/relatorio`, semPdf: true } : null),
     infoRequisicoes: requisicoes,
     descontoSalvo: safeGet(row, "Desconto"),
     descontoHora: safeGet(row, "Desconto_Hora"),
@@ -169,7 +181,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       pecasExtras: (() => {
         if (!tecData.PecasInfo) return [];
         try {
-          const parsed = JSON.parse(tecData.PecasInfo);
+          const parsed = JSON.parse(String(tecData.PecasInfo));
           return parsed.filter((p: any) => p.origem === 'manual');
         } catch { return []; }
       })(),

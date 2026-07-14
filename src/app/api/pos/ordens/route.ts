@@ -185,11 +185,17 @@ async function getOrdensParaKanban(): Promise<KanbanCard[]> {
     });
   });
 
-  // Mapa: ordem_servico → técnico do relatório
+  // Mapa: ordem_servico → técnico do relatório + quais OS TÊM relatório do técnico.
+  // O ID_Relatorio_Final (o PDF) é gerado no CELULAR do técnico e às vezes falha —
+  // aí a OS fica sem link mesmo com o relatório enviado. Por isso o "tem relatório"
+  // olha a tabela, não só o PDF (o POS monta o relatório pelos dados quando falta o PDF).
   const mapaRelTecnico: Record<string, string> = {};
+  const temRelatorio = new Set<string>();
   (relatorios || []).forEach((r) => {
     const osId = String(r.Ordem_Servico || "");
-    if (osId && r.NomResp) mapaRelTecnico[osId] = r.NomResp;
+    if (!osId) return;
+    temRelatorio.add(osId);
+    if (r.NomResp) mapaRelTecnico[osId] = r.NomResp;
   });
 
   // Mapa reverso: Id_Ordem → projeto do Cronograma que o referencia
@@ -240,7 +246,7 @@ async function getOrdensParaKanban(): Promise<KanbanCard[]> {
       temPPV: !!safeGet(row, "ID_PPV"),
       ppvId: String(safeGet(row, "ID_PPV") || ""),
       temReq: reqsDoCard.length > 0,
-      temRel: !!safeGet(row, "ID_Relatorio_Final"),
+      temRel: !!safeGet(row, "ID_Relatorio_Final") || temRelatorio.has(osId),
       servSolicitado: (safeGet(row, "Serv_Solicitado") as string) || "-",
       previsaoExecucao: (safeGet(row, "Previsao_Execucao") as string) || "",
       previsaoFaturamento: (safeGet(row, "Previsao_Faturamento") as string) || "",
