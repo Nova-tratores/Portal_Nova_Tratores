@@ -11,6 +11,7 @@ interface Props {
   // 'carros' = só o comercial (default: comportamento original do supervisor);
   // 'frota'  = todos os rastreados (usado pelo /frota/mapa)
   fontePosicoes?: 'carros' | 'frota'
+  tituloPainel?: string
 }
 
 const hojeStr = () => new Date().toISOString().split('T')[0]
@@ -18,7 +19,7 @@ const fmtH = (iso: string) => { if (!iso) return '--:--'; try { const d = new Da
 const fmtT = (min: number) => min >= 60 ? Math.floor(min / 60) + 'h' + (min % 60 > 0 ? String(min % 60).padStart(2, '0') + 'min' : '') : min + 'min'
 const fmtData = (d: string) => { if (!d) return ''; const [y, m, dia] = d.split('-'); return `${dia}/${m}/${y.slice(2)}` }
 
-export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVisitaClick, fmtVisita, fontePosicoes = 'carros' }: Props) {
+export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVisitaClick, fmtVisita, fontePosicoes = 'carros', tituloPainel = 'CARROS COMERCIAIS' }: Props) {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstance = useRef<any>(null)
   const liveLayerRef = useRef<any>(null)
@@ -224,13 +225,15 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
         {!carroSel ? (
           <>
             <div style={{ padding: '10px 12px', borderBottom: '1px solid #eee', fontSize: 12, fontWeight: 700, color: '#64748B', letterSpacing: 0.3 }}>
-              CARROS COMERCIAIS
+              {tituloPainel}
             </div>
             <div style={{ overflowY: 'auto', flex: 1 }}>
               {carros.length === 0 ? (
                 <div style={{ padding: 16, fontSize: 12, color: '#94a3b8', textAlign: 'center' }}>Nenhum carro comercial</div>
               ) : carros.map(c => (
-                <button key={c.placa} onClick={() => abrirCarro(c.placa, c.pessoa_nome || c.placa)} style={{
+                // mesmo comportamento do clique no marcador: abre o painel E já
+                // desenha a rota de hoje (antes só abria o histórico)
+                <button key={c.placa} onClick={() => abrirCarroNoMapa(c.placa, c.pessoa_nome || c.placa)} style={{
                   width: '100%', textAlign: 'left', padding: '10px 12px', border: 'none', borderBottom: '1px solid #f1f5f9',
                   background: 'transparent', cursor: 'pointer',
                 }}>

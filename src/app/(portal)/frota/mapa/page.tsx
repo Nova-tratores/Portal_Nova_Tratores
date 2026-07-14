@@ -50,7 +50,7 @@ export default function FrotaMapaPage() {
       {/* O MapaCarros usa height:100% — sem um pai com ALTURA EXPLÍCITA o
           Leaflet monta num container de 0px e a tela fica em branco. */}
       <div style={{ width: '100%', height: 'calc(100vh - 230px)', minHeight: 480, borderRadius: 14, overflow: 'hidden', border: '1px solid var(--portal-border)' }}>
-        <MapaCarros carros={carros as any} fontePosicoes="frota" />
+        <MapaCarros carros={carros as any} fontePosicoes="frota" tituloPainel="FROTA RASTREADA" />
       </div>
     </div>
   );
