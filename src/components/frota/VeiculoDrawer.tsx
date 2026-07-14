@@ -324,6 +324,47 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, onCl
                 )}
               </Secao>
 
+              {/* Uso & Ignição (30 dias) */}
+              {v.tem_rastreador && det.uso_30d && (
+                <Secao titulo="Uso & Ignição (30 dias)" icone={<Gauge size={14} />}>
+                  {det.uso_30d.dias_com_uso === 0 ? (
+                    <span style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>
+                      Sem dias consolidados ainda — o fechamento roda de madrugada.
+                    </span>
+                  ) : (
+                    <>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 20px' }}>
+                        <Linha rotulo="Dias com uso" valor={det.uso_30d.dias_com_uso} />
+                        <Linha rotulo="Partidas" valor={det.uso_30d.partidas} />
+                        <Linha rotulo="Tempo ligado" valor={`${Math.floor(det.uso_30d.tempo_ligado_min / 60)}h${String(det.uso_30d.tempo_ligado_min % 60).padStart(2, '0')}`} />
+                        <Linha
+                          rotulo="Marcha lenta (parado ligado)"
+                          valor={<span style={{ color: det.uso_30d.tempo_marcha_lenta_min >= 300 ? '#b45309' : undefined }}>{`${Math.floor(det.uso_30d.tempo_marcha_lenta_min / 60)}h${String(det.uso_30d.tempo_marcha_lenta_min % 60).padStart(2, '0')}`}</span>}
+                        />
+                        <Linha rotulo="KM rodados" valor={det.uso_30d.km.toLocaleString('pt-BR')} />
+                        <Linha rotulo="Paradas atípicas" valor={<span style={{ color: det.uso_30d.paradas_atipicas > 0 ? '#b91c1c' : undefined }}>{det.uso_30d.paradas_atipicas}</span>} />
+                      </div>
+                      {det.uso_30d.ultimos_dias.length > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, borderTop: '1px dashed var(--portal-border)', paddingTop: 8 }}>
+                          {det.uso_30d.ultimos_dias.map((d) => (
+                            <div key={d.data} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--portal-text-secondary)' }}>
+                              <span>{fmtData(d.data)}</span>
+                              <span>
+                                {Math.round(Number(d.km_odometro ?? d.km_total))} km · {d.partidas} partida(s) · {d.tempo_ligado_min}min ligado
+                                {d.paradas_atipicas > 0 && <strong style={{ color: '#b91c1c' }}> · {d.paradas_atipicas} atípica(s)</strong>}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <a href="/frota/paradas" style={{ fontSize: 11.5, color: '#0d9488', fontWeight: 600, textDecoration: 'none' }}>
+                        Ver paradas & trajetos →
+                      </a>
+                    </>
+                  )}
+                </Secao>
+              )}
+
               {/* Multas */}
               <Secao titulo={`Multas (${det.multas.length})`} icone={<ShieldAlert size={14} />}>
                 {det.multas.length === 0 ? (

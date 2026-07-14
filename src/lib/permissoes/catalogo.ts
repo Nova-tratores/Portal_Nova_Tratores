@@ -199,6 +199,7 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'veiculos:editar', label: 'Veículos — editar a ficha' },
     { id: 'veiculos:responsavel', label: 'Veículos — trocar o responsável' },
     { id: 'multas:editar', label: 'Multas — mudar status / desconto' },
+    { id: 'paradas:justificar', label: 'Paradas — justificar / ignorar atípicas' },
     { id: 'abastecimento:upload', label: 'Abastecimento — importar CSV / gerir lotes' },
   ],
   // LEGADO: o Abastecimento virou submódulo do Frota (`frota:abastecimento`).

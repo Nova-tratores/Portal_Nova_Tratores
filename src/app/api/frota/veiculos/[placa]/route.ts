@@ -48,7 +48,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ plac
   de12m.setMonth(de12m.getMonth() - 12);
   const de12mIso = de12m.toISOString().slice(0, 10);
 
-  const [resp, multas, manut, abast, custos, odo, foto] = await Promise.all([
+  const de30 = new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);
+  const [resp, multas, manut, abast, custos, odo, foto, dias] = await Promise.all([
     supabase
       .from('frota_responsaveis')
       .select('id, motorista_id, motorista_nome, inicio, fim, origem, obs')
@@ -72,6 +73,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ plac
     v.id_placa != null
       ? supabase.from('Placas').select('imagem_url').eq('IdPlaca', v.id_placa).maybeSingle()
       : Promise.resolve({ data: null } as any),
+    supabase
+      .from('frota_dias')
+      .select('data, km_total, km_odometro, partidas, tempo_ligado_min, tempo_marcha_lenta_min, paradas_total, paradas_atipicas, posicoes_total')
+      .eq('veiculo_id', v.id)
+      .gte('data', de30)
+      .order('data', { ascending: false }),
   ]);
 
   // custos 12m agregados por tipo (a view garante que cada real conta UMA vez)
@@ -86,6 +93,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ plac
 
   const ultOdo = (odo.data || [])[0];
 
+  // Uso & Ignição (30 dias) — só dias com telemetria
+  const diasUso = (dias.data || []).filter((d) => (d.posicoes_total || 0) > 0);
+  const uso_30d = {
+    dias_com_uso: diasUso.length,
+    partidas: diasUso.reduce((s, d) => s + (d.partidas || 0), 0),
+    tempo_ligado_min: diasUso.reduce((s, d) => s + (d.tempo_ligado_min || 0), 0),
+    tempo_marcha_lenta_min: diasUso.reduce((s, d) => s + (d.tempo_marcha_lenta_min || 0), 0),
+    km: Math.round(diasUso.reduce((s, d) => s + Number(d.km_odometro ?? d.km_total ?? 0), 0)),
+    paradas_atipicas: diasUso.reduce((s, d) => s + (d.paradas_atipicas || 0), 0),
+    ultimos_dias: diasUso.slice(0, 7),
+  };
+
   return NextResponse.json({
     veiculo: v,
     imagem_url: foto?.data?.imagem_url || null,
@@ -95,6 +114,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ plac
     abastecimentos: abast.data || [],
     custos_12m: custos12m,
     km_odometro: ultOdo ? Number(ultOdo.km_adesao ?? ultOdo.km_rastreador) || null : null,
+    uso_30d,
   });
 }
 

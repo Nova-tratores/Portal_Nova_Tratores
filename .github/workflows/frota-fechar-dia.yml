@@ -1,0 +1,24 @@
+name: Frota — fechar o dia (ignição + paradas)
+
+# Consolida o dia anterior de cada veículo rastreado: frota_dias (km, partidas,
+# tempo ligado, marcha lenta) + frota_paradas (classificadas; atípicas).
+# Escalonado DEPOIS do sync-rotas-comercial (07:00) — as rotas do dia anterior
+# já estão salvas, então isto quase não toca a API da Rota Exata.
+# Requer os secrets do GitHub: PORTAL_URL e CRON_SECRET.
+
+on:
+  schedule:
+    - cron: '20 7 * * *'   # 07:20 UTC ≈ 04:20 de Brasília
+  workflow_dispatch: {}     # permite rodar manualmente
+
+jobs:
+  fechar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Fechar o dia anterior
+        run: |
+          curl -fsS --max-time 900 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/frota/cron/fechar-dia" \
+            -w "\nfechar-dia: HTTP %{http_code}\n"

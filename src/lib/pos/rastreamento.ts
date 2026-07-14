@@ -3,6 +3,7 @@
 // Usada por: /api/pos/rastreamento e /api/pos/cron/gravar-gps
 // =============================================
 import { normalizarPlaca } from '@/lib/frota/placa'
+import { agregarIgnicao, type MetricasIgnicao } from '@/lib/frota/ignicao'
 
 const API_URL = process.env.ROTAEXATA_API_URL || 'https://api.rotaexata.com.br'
 const EMAIL = process.env.ROTAEXATA_EMAIL || ''
@@ -282,7 +283,7 @@ export function detectarViagens(posicoes: Posicao[], destinos: Destino[]): Viage
 // Lê do banco (rotas_vendedor) se já salva; senão busca na Rota Exata,
 // calcula e salva (quando é dia passado). Reutilizado pela API e pelo cron.
 // =============================================
-export interface RotaDia {
+export interface RotaDia extends Partial<MetricasIgnicao> {
   placa: string
   data: string
   pontos: { lat: number; lng: number; dt: string; ignicao: number; vel: number }[]
@@ -311,6 +312,14 @@ export async function computarESalvarRota(
     .eq('data', data)
     .maybeSingle()
   if (rotaSalva && Array.isArray(rotaSalva.pontos) && rotaSalva.pontos.length > 0) {
+    // Auto-cura: rota gravada ANTES das colunas de ignição existirem — os
+    // pontos crus já estão no JSONB, então recalcula daqui mesmo, sem gastar
+    // a API da Rota Exata, e persiste.
+    if (rotaSalva.tempo_ligado_min == null) {
+      const ign = agregarIgnicao(rotaSalva.pontos)
+      await supabase.from('rotas_vendedor').update(ign).eq('placa', placa).eq('data', data)
+      return { ...rotaSalva, ...ign } as RotaDia
+    }
     return rotaSalva as RotaDia
   }
 
@@ -414,6 +423,9 @@ export async function computarESalvarRota(
     hora_inicio: pontos.length > 0 ? pontos[0].dt : null,
     hora_fim: pontos.length > 0 ? pontos[pontos.length - 1].dt : null,
     tempo_dirigindo_min, tempo_parado_min, visitas,
+    // Ignição (partidas, tempo LIGADO — inclui marcha lenta — etc.). Vai junto
+    // no upsert: o cron do comercial e o do Frota compartilham este cálculo.
+    ...agregarIgnicao(pontos),
   }
 
   // 4) Salva histórico (dia passado, com pontos) — inclui as visitas cruzadas

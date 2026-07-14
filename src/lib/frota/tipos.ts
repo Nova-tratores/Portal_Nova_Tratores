@@ -127,4 +127,22 @@ export interface VeiculoDetalhe {
   }[];
   custos_12m: { tipo: string; total: number }[];
   km_odometro: number | null; // última leitura real do rastreador
+  uso_30d: {
+    dias_com_uso: number;
+    partidas: number;
+    tempo_ligado_min: number;
+    tempo_marcha_lenta_min: number;
+    km: number;
+    paradas_atipicas: number;
+    ultimos_dias: {
+      data: string;
+      km_total: number;
+      km_odometro: number | null;
+      partidas: number;
+      tempo_ligado_min: number;
+      tempo_marcha_lenta_min: number;
+      paradas_total: number;
+      paradas_atipicas: number;
+    }[];
+  };
 }
