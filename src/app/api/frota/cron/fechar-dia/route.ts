@@ -15,6 +15,7 @@ import { autenticar } from '@/lib/auth/server';
 import { computarESalvarRota } from '@/lib/pos/rastreamento';
 import { agregarIgnicao } from '@/lib/frota/ignicao';
 import { classificarParadas, type GeocercaCtx } from '@/lib/frota/paradas';
+import { carregarPropriedades, propriedadesComoGeocercas } from '@/lib/frota/propriedades';
 import { resolverPlaca } from '@/lib/frota/placa';
 
 export const runtime = 'nodejs';
@@ -67,7 +68,7 @@ export async function GET(req: NextRequest) {
     const supabase = db();
 
     // Contexto carregado UMA vez para o intervalo inteiro
-    const [veic, geo, resp, usos, abast, odo] = await Promise.all([
+    const [veic, geo, resp, usos, abast, odo, props] = await Promise.all([
       supabase
         .from('frota_veiculos')
         .select('id, placa, adesao_id')
@@ -88,9 +89,18 @@ export async function GET(req: NextRequest) {
         .from('frota_odometro')
         .select('adesao_id, data, km_adesao, km_rastreador')
         .order('data'),
+      // propriedades de clientes geocodificadas — absolvem como 'cliente_portal'
+      carregarPropriedades(supabase).catch(() => []),
     ]);
     const veiculos = veic.data || [];
-    const geocercas = (geo.data || []) as GeocercaCtx[];
+    // geocercas da Rota Exata PRIMEIRO: se uma parada cabe nas duas, a geocerca
+    // oficial vence só por proximidade (geocercaDa pega a mais perto) — e a
+    // propriedade nunca "rouba" a loja porque o raio dela parte da sede.
+    const geocercas = [
+      ...((geo.data || []) as GeocercaCtx[]),
+      ...propriedadesComoGeocercas(props),
+    ];
+    console.log(`[frota] fechar-dia ctx: ${geo.data?.length || 0} geocercas + ${props.length} propriedades de clientes`);
 
     const usoPorDia = new Map<string, string>();
     for (const u of usos.data || []) if (u.pessoa_nome) usoPorDia.set(`${u.veiculo_id}|${u.data}`, u.pessoa_nome);
@@ -209,7 +219,7 @@ export async function GET(req: NextRequest) {
               tempo_desligado_min: ign.tempo_desligado_min ?? 0,
               vel_max: ign.vel_max ?? 0,
               paradas_total: classificadas.length,
-              paradas_cliente: classificadas.filter((p) => ['cliente', 'visita'].includes(p.classe)).length,
+              paradas_cliente: classificadas.filter((p) => ['cliente', 'cliente_portal', 'visita'].includes(p.classe)).length,
               paradas_loja: classificadas.filter((p) => p.classe === 'loja').length,
               paradas_atipicas: atip,
               litros: consumo.litros,

@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation';
 
-// O pátio da frota foi absorvido pelo módulo Frota. Stub de redirect para não
-// quebrar bookmarks. Remover na limpeza (Fase 5).
+// O pátio virou os cards de Veículos do módulo Frota (a tela de pátio foi
+// descontinuada). Stub de redirect para não quebrar bookmarks. Remover na
+// limpeza (Fase 5).
 export default function VisualEstoqueFrotaRedirect() {
-  redirect('/frota/patio');
+  redirect('/frota/veiculos');
 }

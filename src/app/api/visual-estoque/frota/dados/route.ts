@@ -9,10 +9,10 @@ const CAMPOS = ["modelo", "ano", "hodometro", "valor_mercado", "data_valor", "at
 
 export async function POST(req: NextRequest) {
   // Rodava sem autenticacao nenhuma (mutacoes incluidas). O patio agora e
-  // do Frota: leitura = frota:patio; escrita = frota:patio:editar.
+  // do Frota: a tela de patio morreu; quem edita FIPE/dados agora e a Ficha do Veiculo (frota:veiculos:editar).
   const auth = await autenticar(req);
   if (!auth) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
-  if (!podeFrota(auth, 'patio:editar')) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
+  if (!podeFrota(auth, 'veiculos:editar')) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
 
 
   try {

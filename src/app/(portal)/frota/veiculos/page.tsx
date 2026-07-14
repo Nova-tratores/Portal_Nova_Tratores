@@ -1,7 +1,10 @@
 'use client';
 // Frota > Veículos — a frota inteira num grid; clique abre a Ficha (drawer).
+// Cada card rastreado ganha o rótulo de ONDE o carro está ("Piraju — Cliente
+// Faz 3 S" / "Piraju — Loja" / "Piraju — Sem cadastro de local"), resolvido
+// pela /api/frota/localizacao (posição ao vivo × geocercas × propriedades).
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Car, Search, Satellite, ShieldAlert, User as UserIcon, AlertTriangle, FileWarning } from 'lucide-react';
+import { Car, Search, Satellite, ShieldAlert, User as UserIcon, AlertTriangle, FileWarning, MapPin } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import { authHeaders } from '@/lib/auth/client';
@@ -11,10 +14,26 @@ import type { VeiculoLista } from '@/lib/frota/tipos';
 
 const fmtRS = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 
+interface Localizacao {
+  rotulo: string;
+  cidade: string | null;
+  classe: string;
+  dt: string | null;
+  fonte: 'ao_vivo' | 'cache';
+}
+
+const COR_LOC: Record<string, string> = {
+  loja: '#0f766e',
+  cliente: '#1d4ed8', cliente_portal: '#1d4ed8',
+  em_deslocamento: '#7c3aed',
+  fora_geocerca: '#b45309',
+};
+
 export default function FrotaVeiculosPage() {
   const { userProfile } = useAuth();
   const { pode } = usePermissoes(userProfile?.id);
   const [veiculos, setVeiculos] = useState<VeiculoLista[]>([]);
+  const [locs, setLocs] = useState<Record<string, Localizacao>>({});
   const [busca, setBusca] = useState('');
   const [soAtivos, setSoAtivos] = useState(true);
   const [placaAberta, setPlacaAberta] = useState<string | null>(null);
@@ -29,6 +48,22 @@ export default function FrotaVeiculosPage() {
     } catch (e) { setErro(String(e)); }
   }, []);
   useEffect(() => { carregar(); }, [carregar]);
+
+  // Localização atual (Rota Exata + geocode) — chega DEPOIS da lista, de
+  // propósito: é externa e lenta; os cards aparecem na hora e os rótulos vão
+  // pingando quando prontos.
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      try {
+        const r = await fetch('/api/frota/localizacao', { headers: await authHeaders() });
+        if (!r.ok) return;
+        const d = await r.json();
+        if (vivo) setLocs(d.localizacoes || {});
+      } catch { /* rótulo é opcional */ }
+    })();
+    return () => { vivo = false; };
+  }, []);
 
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
@@ -103,6 +138,23 @@ export default function FrotaVeiculosPage() {
               <div style={{ fontSize: 12, color: 'var(--portal-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {[v.marca, v.modelo || v.descricao, v.ano].filter(Boolean).join(' · ') || '—'}
               </div>
+              {(() => {
+                const loc = locs[v.placa];
+                if (!loc) return null;
+                const cor = COR_LOC[loc.classe] || 'var(--portal-text-muted)';
+                const quando = loc.dt ? new Date(loc.dt).toLocaleString('pt-BR') : '';
+                return (
+                  <div
+                    title={`${loc.fonte === 'cache' ? 'Última posição conhecida' : 'Posição ao vivo'}${quando ? ` · ${quando}` : ''}`}
+                    style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3, fontSize: 11.5, fontWeight: 600, color: cor, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                  >
+                    <MapPin size={11} style={{ flexShrink: 0 }} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {loc.cidade ? `${loc.cidade} — ` : ''}{loc.rotulo}
+                    </span>
+                  </div>
+                );
+              })()}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11.5, color: 'var(--portal-text-muted)' }}>
                   <UserIcon size={11} /> {v.responsavel_nome || 'sem responsável'}

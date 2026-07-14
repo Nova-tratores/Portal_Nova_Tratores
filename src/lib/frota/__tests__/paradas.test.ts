@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { classificarParada, type Contexto, type ParadaBruta } from '../paradas';
+import { classificarParada, raioPropriedadeM, type Contexto, type ParadaBruta } from '../paradas';
 
 // Loja da Nova Tratores (as constantes reais do rastreamento)
 const LOJA = { lat: -23.2085, lng: -49.371 };
@@ -93,5 +93,35 @@ describe('classificarParada', () => {
       { ...ctxVazio, geocercas: [geoMinuscula] },
     );
     expect(c.classe).toBe('loja'); // absorvida pelo raio mínimo
+  });
+
+  it('propriedade de cliente do portal absolve como cliente_portal e SEM geocerca_id', () => {
+    const propriedade = {
+      id: 'cli-78920', latitude: -23.3985, longitude: -49.7452, raio_m: 800,
+      classe: 'cliente', nome: 'Faz 3 S', cliente_id: 'cli-78920',
+      origem: 'propriedade' as const,
+    };
+    const c = classificarParada(
+      parada({ lat: -23.3990, lng: -49.7455 }),
+      { ...ctxVazio, geocercas: [propriedade] },
+    );
+    expect(c.classe).toBe('cliente_portal');
+    expect(c.atipica).toBe(false);
+    expect(c.geocerca_id).toBeNull(); // FK aponta pra frota_geocercas — propriedade não entra
+    expect(c.destino_nome).toBe('Faz 3 S');
+    expect(c.cliente_id).toBe('cli-78920');
+  });
+});
+
+describe('raioPropriedadeM', () => {
+  it('deriva o raio da área (círculo equivalente + 20%)', () => {
+    // 100 ha = 1 km² -> r = 564m * 1.2 ≈ 677m
+    expect(raioPropriedadeM(100)).toBe(677);
+  });
+  it('sem área -> 500m; piso 300m; teto 3km', () => {
+    expect(raioPropriedadeM(null)).toBe(500);
+    expect(raioPropriedadeM(0)).toBe(500);
+    expect(raioPropriedadeM(1)).toBe(300);     // 1 ha -> 68m, sobe pro piso
+    expect(raioPropriedadeM(10_000)).toBe(3000); // 10 mil ha, capado
   });
 });

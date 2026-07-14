@@ -22,6 +22,7 @@ const fmtMin = (min: number | null) => {
 const CLASSE_LABEL: Record<string, string> = {
   loja: 'Loja', cliente: 'Cliente', manutencao: 'Manutenção', estacionamento: 'Estacionamento',
   descarga: 'Descarga', outro_destino: 'Destino cadastrado', visita: 'Visita comercial',
+  cliente_portal: 'Propriedade de cliente',
   abastecimento: 'Abastecimento', fora_geocerca: 'FORA DE GEOCERCA',
 };
 

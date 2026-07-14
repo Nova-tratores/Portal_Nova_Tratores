@@ -114,6 +114,8 @@ export interface ManutencaoView {
 export interface VeiculoDetalhe {
   veiculo: FrotaVeiculo;
   imagem_url: string | null;
+  // valor de mercado (FIPE) — vive em Placas (o DRE lê de lá); null sem id_placa
+  fipe: { valor_mercado: number | null; data_valor: string | null } | null;
   responsaveis: Responsavel[];
   multas: Multa[];
   manutencoes: ManutencaoView[];

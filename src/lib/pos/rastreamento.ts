@@ -429,12 +429,29 @@ export async function computarESalvarRota(
   }
 
   // 4) Salva histórico (dia passado, com pontos) — inclui as visitas cruzadas
+  //
+  // ⚠️ O erro deste upsert era IGNORADO — e a coluna `visitas` não existia na
+  // tabela, então TODO upsert morria em silêncio (PGRST204) e o cache ficou
+  // vazio desde sempre: o histórico do mapa nunca aparecia e cada consulta
+  // refazia a busca inteira na Rota Exata. Agora loga o erro e, se for a
+  // coluna faltando, regrava sem `visitas` (a migração
+  // sql/rotas-vendedor-visitas.sql adiciona a coluna).
   if (data !== hoje && pontos.length > 0) {
-    await supabase.from('rotas_vendedor').upsert({
+    const linha = {
       ...rota,
       vendedor_id: vinc?.pessoa_id || null,
       vendedor_nome: vinc?.pessoa_nome || null,
-    }, { onConflict: 'placa,data' })
+    }
+    const { error: errSalvar } = await supabase
+      .from('rotas_vendedor')
+      .upsert(linha, { onConflict: 'placa,data' })
+    if (errSalvar) {
+      const { visitas: _v, ...semVisitas } = linha
+      const { error: err2 } = errSalvar.message?.includes("'visitas'")
+        ? await supabase.from('rotas_vendedor').upsert(semVisitas, { onConflict: 'placa,data' })
+        : { error: errSalvar }
+      if (err2) console.error(`[rastreamento] cache de rota ${placa} ${data} falhou: ${err2.message}`)
+    }
   }
 
   return rota

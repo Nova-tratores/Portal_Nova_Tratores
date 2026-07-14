@@ -28,8 +28,9 @@ describe('expandirPermissoes — ninguém perde acesso', () => {
     expect(r).toContain('frota:abastecimento:upload');
   });
 
-  it('a tela do pátio (consulta-estoque:frota) vira tela do Frota', () => {
-    expect(expandirPermissoes(['consulta-estoque:frota'])).toContain('frota:patio');
+  it('quem tinha a tela do pátio (consulta-estoque:frota) vê os Veículos do Frota', () => {
+    // a tela de pátio foi descontinuada (13/07) — a lista de Veículos absorveu
+    expect(expandirPermissoes(['consulta-estoque:frota'])).toContain('frota:veiculos');
   });
 
   it('não inventa permissão pra quem não tinha nada', () => {
@@ -75,7 +76,7 @@ describe('podeTelaFrota — o gate por prefixo', () => {
   it('não vaza para telas que a pessoa não tem', () => {
     const perms = ['frota:abastecimento'];
     expect(podeTelaFrota(perms, false, 'multas')).toBe(false);
-    expect(podeTelaFrota(perms, false, 'patio')).toBe(false);
+    expect(podeTelaFrota(perms, false, 'veiculos')).toBe(false);
   });
 
   it('cenário real: usuário legado com abastecimento:dashboard entra e navega', () => {

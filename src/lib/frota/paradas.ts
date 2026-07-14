@@ -7,6 +7,9 @@
 //
 //   1. geocerca (espelho de /destinos): loja | cliente | manutencao |
 //      estacionamento | descarga | outro_destino
+//      + PROPRIEDADES de clientes do portal (portal_nt_clientes_PRINCIPAL, as
+//      que têm lat/lng) — entram na MESMA lista com origem='propriedade' e
+//      viram 'cliente_portal' (geocerca_id fica NULL: não há FK pra elas)
 //   2. absolvições com dados do PORTAL:
 //      - visita:        ≤2 km de uma visita comercial do dia (o cruzamento já
 //                       vem pronto em RotaDia.visitas)
@@ -17,10 +20,6 @@
 //      nivel (baixa <15min · media <60min · alta ≥60min),
 //      fora_horario (antes das 06h / depois das 19h, Brasília),
 //      fim_de_semana
-//
-// Evolução documentada: 'cliente_portal' (≤300m de um cliente com coordenada)
-// e 'servico' (cliente com OS no dia) entram quando houver coordenadas de
-// cliente no banco — hoje a clientes_coordenadas está vazia.
 // =============================================================================
 import { distanciaKm } from '@/lib/pos/rastreamento';
 
@@ -33,13 +32,16 @@ export interface ParadaBruta {
 }
 
 export interface GeocercaCtx {
-  id: string;                 // frota_geocercas.id (uuid)
+  id: string;                 // frota_geocercas.id (uuid) — ou o id do cliente, se origem='propriedade'
   latitude: number;
   longitude: number;
   raio_m: number;
   classe: string | null;      // cliente|loja|manutencao|estacionamento|descarga|outro
   nome: string;
   cliente_id?: string | null;
+  // 'propriedade' = fazenda/sítio de cliente do portal (não é geocerca da Rota
+  // Exata): classifica como 'cliente_portal' e NÃO grava geocerca_id (sem FK).
+  origem?: 'geocerca' | 'propriedade';
 }
 
 export interface VisitaCtx { lat: number; lng: number }
@@ -105,9 +107,18 @@ export function classificarParada(p: ParadaBruta, ctx: Contexto): ParadaClassifi
     fim_de_semana: [0, 6].includes(diaSemanaBrasilia(p.inicio)),
   };
 
-  // 1) geocerca
+  // 1) geocerca (Rota Exata) ou propriedade de cliente (portal)
   const g = geocercaDa(p, ctx.geocercas);
   if (g) {
+    if (g.origem === 'propriedade') {
+      return {
+        ...base,
+        classe: 'cliente_portal',
+        geocerca_id: null, // não é frota_geocercas — a FK não aceita
+        destino_nome: g.nome,
+        cliente_id: g.cliente_id ?? null,
+      };
+    }
     return {
       ...base,
       classe: g.classe && g.classe !== 'outro' ? g.classe : 'outro_destino',
@@ -138,4 +149,17 @@ export function classificarParada(p: ParadaBruta, ctx: Contexto): ParadaClassifi
 
 export function classificarParadas(paradas: ParadaBruta[], ctx: Contexto): ParadaClassificada[] {
   return (paradas || []).map((p) => classificarParada(p, ctx));
+}
+
+/**
+ * Raio de cobertura de uma propriedade rural a partir da área em hectares:
+ * o raio do círculo equivalente + 20% de folga (a coordenada é da sede, o
+ * carro para na lavoura). Piso 300m (GPS erra), teto 3km (fazenda gigante
+ * não pode absolver a cidade inteira). Sem área -> 500m.
+ */
+export function raioPropriedadeM(areaHectares: number | null | undefined): number {
+  const ha = Number(areaHectares);
+  if (!Number.isFinite(ha) || ha <= 0) return 500;
+  const r = Math.sqrt((ha * 10_000) / Math.PI) * 1.2;
+  return Math.round(Math.min(3000, Math.max(300, r)));
 }

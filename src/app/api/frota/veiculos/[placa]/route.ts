@@ -71,7 +71,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ plac
       .order('data', { ascending: false })
       .limit(1),
     v.id_placa != null
-      ? supabase.from('Placas').select('imagem_url').eq('IdPlaca', v.id_placa).maybeSingle()
+      ? supabase.from('Placas').select('imagem_url, valor_mercado, data_valor').eq('IdPlaca', v.id_placa).maybeSingle()
       : Promise.resolve({ data: null } as any),
     supabase
       .from('frota_dias')
@@ -113,6 +113,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ plac
   return NextResponse.json({
     veiculo: v,
     imagem_url: foto?.data?.imagem_url || null,
+    // FIPE mora em Placas (o DRE lê valor_mercado de lá) — edição na Ficha via
+    // /api/visual-estoque/frota/dados, identificando por id_placa.
+    fipe: v.id_placa != null && foto?.data
+      ? { valor_mercado: foto.data.valor_mercado ?? null, data_valor: foto.data.data_valor ?? null }
+      : null,
     responsaveis: resp.data || [],
     multas: multas.data || [],
     manutencoes: manut.data || [],

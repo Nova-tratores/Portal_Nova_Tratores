@@ -2,19 +2,28 @@
 // Frota > Mapa — posição ao vivo + trajeto de qualquer dia de TODA a frota
 // rastreada. Reusa o MapaCarros do supervisor (Leaflet + OSM: ao vivo,
 // polyline do dia, paradas, histórico de 90 dias) — aqui só muda a fonte:
-// todos os 16 rastreados, não só os carros do comercial.
+// todos os 16 rastreados, não só os carros do comercial. Também desenha a
+// camada de LOCAIS: geocercas da Rota Exata + propriedades de clientes do
+// portal (as geocodificadas).
 import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { Map as MapIcon } from 'lucide-react';
 import { authHeaders } from '@/lib/auth/client';
 import { formatarPlaca } from '@/lib/frota/placa';
+import type { LocalPin } from '@/components/supervisor/MapaCarros';
 
 const MapaCarros = dynamic(() => import('@/components/supervisor/MapaCarros'), { ssr: false });
 
 interface CarroMapa { placa: string; descricao?: string | null; pessoa_nome?: string | null }
 
+const CLASSE_LABEL: Record<string, string> = {
+  loja: 'Loja', cliente: 'Cliente (geocerca)', manutencao: 'Manutenção',
+  estacionamento: 'Estacionamento', descarga: 'Descarga',
+};
+
 export default function FrotaMapaPage() {
   const [carros, setCarros] = useState<CarroMapa[]>([]);
+  const [locais, setLocais] = useState<LocalPin[]>([]);
   const [erro, setErro] = useState('');
 
   useEffect(() => {
@@ -36,6 +45,34 @@ export default function FrotaMapaPage() {
     })();
   }, []);
 
+  // Camada de locais: geocercas + propriedades de clientes (falha em silêncio —
+  // o mapa funciona sem ela)
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch('/api/frota/locais', { headers: await authHeaders() });
+        if (!r.ok) return;
+        const d = await r.json();
+        setLocais([
+          ...(d.geocercas || []).map((g: any) => ({
+            nome: g.nome,
+            lat: g.latitude,
+            lng: g.longitude,
+            classe: g.classe || 'outro',
+            subtitulo: CLASSE_LABEL[g.classe] || 'Geocerca',
+          })),
+          ...(d.propriedades || []).map((p: any) => ({
+            nome: p.nome,
+            lat: p.latitude,
+            lng: p.longitude,
+            classe: 'propriedade',
+            subtitulo: `Propriedade de cliente${p.cidade ? ` · ${p.cidade}` : ''}`,
+          })),
+        ]);
+      } catch { /* camada opcional */ }
+    })();
+  }, []);
+
   return (
     <div style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
@@ -50,7 +87,7 @@ export default function FrotaMapaPage() {
       {/* O MapaCarros usa height:100% — sem um pai com ALTURA EXPLÍCITA o
           Leaflet monta num container de 0px e a tela fica em branco. */}
       <div style={{ width: '100%', height: 'calc(100vh - 230px)', minHeight: 480, borderRadius: 14, overflow: 'hidden', border: '1px solid var(--portal-border)' }}>
-        <MapaCarros carros={carros as any} fontePosicoes="frota" tituloPainel="FROTA RASTREADA" />
+        <MapaCarros carros={carros as any} fontePosicoes="frota" tituloPainel="FROTA RASTREADA" locais={locais} />
       </div>
     </div>
   );

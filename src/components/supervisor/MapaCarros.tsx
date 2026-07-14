@@ -2,6 +2,16 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 
 interface Carro { placa: string; descricao?: string | null; pessoa_nome?: string | null; vinculo_tipo?: string | null }
+// Lugar conhecido (geocerca ou propriedade de cliente) — vira um pin discreto
+// no mapa, com botão pra ligar/desligar a camada.
+export interface LocalPin {
+  nome: string
+  lat: number
+  lng: number
+  // loja | cliente | manutencao | estacionamento | descarga | propriedade | outro
+  classe?: string | null
+  subtitulo?: string | null
+}
 interface Props {
   carros: Carro[]
   visitas?: any[]
@@ -12,6 +22,13 @@ interface Props {
   // 'frota'  = todos os rastreados (usado pelo /frota/mapa)
   fontePosicoes?: 'carros' | 'frota'
   tituloPainel?: string
+  // pins de lugares conhecidos (default: nenhum — o supervisor fica como era)
+  locais?: LocalPin[]
+}
+
+const COR_LOCAL: Record<string, string> = {
+  loja: '#0d9488', cliente: '#2563eb', propriedade: '#16a34a',
+  manutencao: '#9333ea', estacionamento: '#64748b', descarga: '#d97706',
 }
 
 const hojeStr = () => new Date().toISOString().split('T')[0]
@@ -19,12 +36,14 @@ const fmtH = (iso: string) => { if (!iso) return '--:--'; try { const d = new Da
 const fmtT = (min: number) => min >= 60 ? Math.floor(min / 60) + 'h' + (min % 60 > 0 ? String(min % 60).padStart(2, '0') + 'min' : '') : min + 'min'
 const fmtData = (d: string) => { if (!d) return ''; const [y, m, dia] = d.split('-'); return `${dia}/${m}/${y.slice(2)}` }
 
-export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVisitaClick, fmtVisita, fontePosicoes = 'carros', tituloPainel = 'CARROS COMERCIAIS' }: Props) {
+export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVisitaClick, fmtVisita, fontePosicoes = 'carros', tituloPainel = 'CARROS COMERCIAIS', locais = [] }: Props) {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstance = useRef<any>(null)
   const liveLayerRef = useRef<any>(null)
   const rotaLayerRef = useRef<any>(null)
   const visitasLayerRef = useRef<any>(null)
+  const locaisLayerRef = useRef<any>(null)
+  const [mostrarLocais, setMostrarLocais] = useState(true)
   const onVisitaClickRef = useRef(onVisitaClick)
   onVisitaClickRef.current = onVisitaClick
   const selecionarCarroRef = useRef<(placa: string, nome: string) => void>(() => {})
@@ -59,7 +78,27 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
     liveLayerRef.current = L.layerGroup().addTo(mapInstance.current)
     rotaLayerRef.current = L.layerGroup().addTo(mapInstance.current)
     visitasLayerRef.current = L.layerGroup().addTo(mapInstance.current)
+    locaisLayerRef.current = L.layerGroup().addTo(mapInstance.current)
   }, [ready])
+
+  // Camada de lugares conhecidos (geocercas + propriedades de clientes) —
+  // pins pequenos pra não competir com os carros; botão liga/desliga.
+  useEffect(() => {
+    if (!mapInstance.current || !locaisLayerRef.current || !ready) return
+    const L = (window as any).L
+    locaisLayerRef.current.clearLayers()
+    if (!mostrarLocais) return
+    for (const loc of locais) {
+      if (!loc.lat || !loc.lng) continue
+      const cor = COR_LOCAL[loc.classe || ''] || '#64748b'
+      L.circleMarker([loc.lat, loc.lng], {
+        radius: 6, weight: 2, color: '#fff', fillColor: cor, fillOpacity: 0.9,
+      })
+        .bindPopup(`<div style="font-size:13px;font-weight:700">${loc.nome}</div>${loc.subtitulo ? `<div style="font-size:11px;color:#64748B">${loc.subtitulo}</div>` : ''}`)
+        .bindTooltip(loc.nome, { direction: 'top', offset: [0, -6] })
+        .addTo(locaisLayerRef.current)
+    }
+  }, [locais, mostrarLocais, ready])
 
   // Posições ao vivo (só quando a data é hoje)
   const carregarLive = useCallback(async () => {
@@ -293,6 +332,25 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
           </>
         )}
       </div>
+
+      {/* Liga/desliga a camada de lugares (só aparece se a tela passou `locais`) */}
+      {locais.length > 0 && (
+        <button
+          onClick={() => setMostrarLocais((v) => !v)}
+          title={mostrarLocais ? 'Ocultar clientes e geocercas' : 'Mostrar clientes e geocercas'}
+          style={{
+            position: 'absolute', bottom: 12, right: 12, zIndex: 1000,
+            display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px',
+            borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+            background: mostrarLocais ? '#0f766e' : 'rgba(255,255,255,0.97)',
+            color: mostrarLocais ? '#fff' : '#475569',
+            boxShadow: '0 3px 10px rgba(0,0,0,0.25)',
+          }}
+        >
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: mostrarLocais ? '#5eead4' : '#94a3b8' }} />
+          Locais ({locais.length})
+        </button>
+      )}
 
       {loading && (
         <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: 1000, background: 'rgba(0,0,0,0.7)', color: '#fff', padding: '12px 20px', borderRadius: 10, fontSize: 13, fontWeight: 600 }}>Carregando rota...</div>

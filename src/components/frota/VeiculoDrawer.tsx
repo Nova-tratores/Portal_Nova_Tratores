@@ -98,6 +98,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
       categoria: v.categoria || 'outros', status: v.status || 'ativo',
       seguradora: v.seguradora || '', numero_apolice: v.numero_apolice || '',
       observacoes: v.observacoes || '',
+      valor_mercado: det.fipe?.valor_mercado != null ? String(det.fipe.valor_mercado) : '',
     });
     setEditando(true);
   };
@@ -105,7 +106,8 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
   const salvarEdicao = async () => {
     setBusy('editar');
     try {
-      const payload: Record<string, unknown> = { ...form };
+      const { valor_mercado, ...campos } = form;
+      const payload: Record<string, unknown> = { ...campos };
       if (form.ano !== undefined) payload.ano = form.ano === '' ? null : Number(form.ano);
       const r = await fetch(`/api/frota/veiculos/${encodeURIComponent(placa)}`, {
         method: 'PATCH',
@@ -114,6 +116,22 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
       });
       const d = await r.json();
       if (!r.ok) { alert(d.error || 'Falha ao salvar.'); return; }
+
+      // FIPE mora em Placas (o DRE lê de lá) — grava à parte, só se mudou
+      const fipeNovo = valor_mercado === '' ? null : Number(String(valor_mercado).replace(',', '.'));
+      if (det?.veiculo.id_placa != null && fipeNovo !== (det.fipe?.valor_mercado ?? null)) {
+        const rf = await fetch('/api/visual-estoque/frota/dados', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+          body: JSON.stringify({
+            id_placa: det.veiculo.id_placa,
+            valor_mercado: fipeNovo,
+            data_valor: new Date().toISOString().slice(0, 10),
+          }),
+        });
+        if (!rf.ok) { const df = await rf.json().catch(() => ({})); alert(df.erro || df.error || 'Ficha salva, mas o valor FIPE falhou.'); }
+      }
+
       setEditando(false);
       await carregar();
       onMudou?.();
@@ -237,6 +255,14 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                       <Linha rotulo="Tanque" valor={v.capacidade_tanque != null ? `${v.capacidade_tanque} L` : '—'} />
                       <Linha rotulo="Seguradora" valor={v.seguradora} />
                       <Linha rotulo="Apólice" valor={v.numero_apolice} />
+                      {det.fipe && (
+                        <Linha
+                          rotulo="Valor de mercado (FIPE)"
+                          valor={det.fipe.valor_mercado != null
+                            ? `${fmtRS(det.fipe.valor_mercado)}${det.fipe.data_valor ? ` (${fmtData(det.fipe.data_valor)})` : ''}`
+                            : '—'}
+                        />
+                      )}
                     </div>
                     {v.observacoes && <div style={{ fontSize: 12, color: 'var(--portal-text-secondary)' }}>{v.observacoes}</div>}
                     {podeEditar && (
@@ -258,6 +284,12 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                           <input value={form[campo] || ''} onChange={(e) => setForm((f) => ({ ...f, [campo]: e.target.value }))} style={inputStyle} />
                         </label>
                       ))}
+                      {det.veiculo.id_placa != null && (
+                        <label title="Grava em Placas.valor_mercado — é o número que o DRE usa no patrimônio" style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase' }}>
+                          Valor FIPE (R$)
+                          <input value={form.valor_mercado || ''} onChange={(e) => setForm((f) => ({ ...f, valor_mercado: e.target.value }))} placeholder="ex.: 85000" style={inputStyle} />
+                        </label>
+                      )}
                       <label style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase' }}>
                         Categoria
                         <select value={form.categoria} onChange={(e) => setForm((f) => ({ ...f, categoria: e.target.value }))} style={inputStyle}>

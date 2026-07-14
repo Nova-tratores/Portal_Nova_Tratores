@@ -29,8 +29,9 @@ const ALIAS: Record<string, string[]> = {
   'abastecimento:dashboard': ['frota:abastecimento', 'frota:abastecimento:flex'],
   'abastecimento:upload': ['frota:abastecimento:upload'],
 
-  // Pátio (a tela `frota` do Visual Estoque) -> tela do módulo Frota
-  'consulta-estoque:frota': ['frota:patio'],
+  // A tela `frota` do Visual Estoque (pátio) foi descontinuada — quem a tinha
+  // passa a ver a lista de Veículos do Frota (que absorveu a função).
+  'consulta-estoque:frota': ['frota:veiculos'],
 };
 
 /**

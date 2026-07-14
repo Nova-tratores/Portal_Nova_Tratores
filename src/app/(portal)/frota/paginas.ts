@@ -26,7 +26,10 @@ export const GRUPOS_FROTA: GrupoFrota[] = ['Início', 'Cadastro', 'Operação', 
 export const PAGINAS_FROTA: PaginaFrota[] = [
   { key: 'frota:dashboard',          label: 'Visão geral',       href: '/frota',                    grupo: 'Início' },
   { key: 'frota:veiculos',           label: 'Veículos',          href: '/frota/veiculos',           grupo: 'Cadastro' },
-  { key: 'frota:patio',              label: 'Pátio',             href: '/frota/patio',              grupo: 'Cadastro' },
+  // Pátio NÃO tem tela (decisão do usuário, 13/07): o rótulo de localização nos
+  // cards de Veículos substituiu o grid arrastável; o valor FIPE é editado na
+  // Ficha do Veículo (via /api/visual-estoque/frota/dados — o DRE continua
+  // lendo Placas.valor_mercado normalmente).
   // Documentos NÃO têm tela própria (decisão do usuário): vivem na Ficha do
   // Veículo. A ação frota:documentos:editar (nas extras) controla a escrita.
   { key: 'frota:mapa',               label: 'Mapa',              href: '/frota/mapa',               grupo: 'Operação' },

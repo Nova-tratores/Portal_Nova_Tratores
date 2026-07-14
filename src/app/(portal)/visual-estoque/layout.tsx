@@ -9,7 +9,7 @@ const tabs = [
   { href: '/visual-estoque', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/visual-estoque/showroom', label: 'Showroom', icon: ShoppingBag },
   { href: '/visual-estoque/patio', label: 'Pátio', icon: MapPin },
-  // A aba Frota foi absorvida pelo módulo Frota (/frota/patio)
+  // A aba Frota foi absorvida pelo módulo Frota (/frota/veiculos)
   { href: '/visual-estoque/remessas', label: 'Remessas', icon: Send },
   { href: '/visual-estoque/notas-entrada', label: 'Notas de Entrada', icon: FileInput },
   { href: '/visual-estoque/margens', label: 'Margens', icon: Percent },
