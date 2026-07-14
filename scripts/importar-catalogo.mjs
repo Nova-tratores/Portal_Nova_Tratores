@@ -77,8 +77,17 @@ async function main() {
     const MARCA = dados.marca || (String(dados.fonte || '').toLowerCase() === 'kuhn' ? 'KUHN' : 'Mahindra')
     const mrow = { slug: SLUG, nome: MODELO, marca: MARCA, root_id: ROOT_ID, business_unit: BU, atualizado_em: new Date().toISOString() }
     if (modeloImg) mrow.image_url = modeloImg
-    const { error: me } = await sb.from('catalogo_modelos').upsert(mrow, { onConflict: 'slug' })
-    if (me) console.warn('modelo falhou', me.message)
+    let { error: me } = await sb.from('catalogo_modelos').upsert(mrow, { onConflict: 'slug' })
+    // Se a coluna "marca" ainda não existe no banco, o upsert INTEIRO falhava e o modelo
+    // nem era criado (as figuras/peças entravam e o modelo sumia do catálogo). Agora
+    // tenta de novo sem ela e avisa alto — nunca mais falha em silêncio.
+    if (me && /marca/i.test(me.message)) {
+      console.warn(`⚠ coluna "marca" não existe — rode:  ALTER TABLE catalogo_modelos ADD COLUMN IF NOT EXISTS marca text;`)
+      delete mrow.marca
+      ;({ error: me } = await sb.from('catalogo_modelos').upsert(mrow, { onConflict: 'slug' }))
+    }
+    if (me) console.error(`❌ MODELO NÃO FOI CRIADO (${MODELO}): ${me.message}`)
+    else console.log(`  modelo ok: ${MODELO} (${SLUG})`)
   }
 
   const contadorOrdem = {}

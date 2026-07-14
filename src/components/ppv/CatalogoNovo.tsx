@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 interface Peca { id: number; code: string; name: string; reference: string; qtd: number | null; unit: string | null; compravel?: boolean; figura?: any; figura_id?: string }
 interface Figura { id: string; code: string; name: string; secao: string; thumb_url: string | null; image_url: string | null; hotspots?: { reference: string; x: number; y: number }[]; pecas?: Peca[] }
 interface Secao { secao: string; ordem: number; figuras: number; thumb?: string | null }
-interface Modelo { slug: string; nome: string; image_url: string | null; figuras?: number; marca?: string | null }
+interface Modelo { slug: string; nome: string; image_url: string | null; figuras?: number; marca?: string | null; manual_url?: string | null; manual_nome?: string | null }
 
 // Mascote do assistente (mecânico Nova Tratores). Se não existir no storage, cai no ícone.
 
@@ -225,10 +225,28 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
                 {modeloSel.image_url && !imgErro[modeloSel.slug] ? <img src={modeloSel.image_url} alt={modeloSel.nome} onError={() => setImgErro((s) => ({ ...s, [modeloSel.slug]: true }))} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : <i className="fas fa-tractor" style={{ fontSize: 32, color: "#cbd5e1" }} />}
               </div>
               <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#dc2626", letterSpacing: 1.2, textTransform: "uppercase" }}>Trator</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#dc2626", letterSpacing: 1.2, textTransform: "uppercase" }}>{modeloSel.marca || "Trator"}</div>
                 <div style={{ fontSize: 22, fontWeight: 800, lineHeight: 1.15, color: "#0f172a" }}>{modeloSel.nome}</div>
                 <div style={{ fontSize: 12.5, color: "#94a3b8", marginTop: 3 }}>{secoes.reduce((a, s) => a + s.figuras, 0)} figuras · {secoes.length} sistemas</div>
               </div>
+              {/* Manual de instrução — ao lado da foto, quando o modelo tem */}
+              {modeloSel.manual_url && (
+                <a href={modeloSel.manual_url} target="_blank" rel="noopener noreferrer"
+                  title={modeloSel.manual_nome || "Abrir o manual de instrução (PDF)"}
+                  style={{
+                    marginLeft: "auto", marginRight: 6, display: "flex", alignItems: "center", gap: 9,
+                    padding: "11px 18px", borderRadius: 11, border: "none",
+                    background: "linear-gradient(135deg,#ef4444,#dc2626)", color: "#fff",
+                    fontSize: 13.5, fontWeight: 700, textDecoration: "none",
+                    boxShadow: "0 4px 12px rgba(220,38,38,.28)", flexShrink: 0,
+                  }}>
+                  <i className="fas fa-book" style={{ fontSize: 15 }} />
+                  <span style={{ lineHeight: 1.2 }}>
+                    Manual de instrução
+                    <span style={{ display: "block", fontSize: 10.5, fontWeight: 500, opacity: 0.85 }}>Abrir o PDF</span>
+                  </span>
+                </a>
+              )}
             </div>
 
             <div style={{ fontSize: 11.5, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 1, margin: "2px 2px 12px" }}>Sistemas</div>

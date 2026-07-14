@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissoes } from "@/hooks/usePermissoes";
 import SemPermissao from "@/components/SemPermissao";
@@ -30,12 +30,24 @@ function PPVApp() {
   const podeMoverFase = pode('ppv', 'mover_fase');
   const podeCatalogo = pode('ppv', 'catalogo');
   const searchParams = useSearchParams();
+  const pathname = usePathname();
 
   // Refresh ao voltar para a aba
   useRefreshOnFocus(carregarKanban);
 
-  // Tabs e filtros
-  const [activeTab, setActiveTab] = useState("kanbanTab");
+  // Tabs e filtros.
+  // O Catálogo tem URL própria (/ppv/catalogo) pra dar pra linkar/favoritar — a aba
+  // inicial sai do pathname (usePathname é igual no servidor e no cliente, sem
+  // descasar a hidratação) e a URL é mantida em sincronia quando troca de aba.
+  const [activeTab, setActiveTab] = useState(
+    pathname?.endsWith("/catalogo") ? "catalogoTab" : "kanbanTab"
+  );
+  useEffect(() => {
+    const alvo = activeTab === "catalogoTab" ? "/ppv/catalogo" : "/ppv";
+    if (window.location.pathname !== alvo) {
+      window.history.replaceState(null, "", alvo + window.location.search);
+    }
+  }, [activeTab]);
   const [searchFilter, setSearchFilter] = useState("");
   const [tipoFilter, setTipoFilter] = useState("TODOS");
   const [tecnicoFilter, setTecnicoFilter] = useState("");
