@@ -7,9 +7,18 @@ import { Search, Calendar, Building2, X, Layout, UserCircle, Layers, SlidersHori
 
 const LISTA_FORNECEDORES_CADASTRADOS = ["Rodrigo Torneiro (Panda)"];
 
-export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, podeEditar = true, podeMoverFase = true, podeImprimir = true, podeExcluir = true }: any) {
+export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, idDestaque = null, podeEditar = true, podeMoverFase = true, podeImprimir = true, podeExcluir = true }: any) {
   // Dados compartilhados - buscados UMA vez, passados para todos os cards
   const [dadosCompartilhados, setDadosCompartilhados] = useState<{ fornecedores: any[], usuarios: any[], veiculos: any[] }>({ fornecedores: [], usuarios: [], veiculos: [] });
+
+  // Deep-link (?req=<id>): garante que o card destacado esteja MONTADO — a
+  // coluna pagina com slice, então sem isto um card antigo nem renderizaria.
+  const priorizarDestaque = (lista: any[]) => {
+    if (idDestaque == null) return lista;
+    const i = lista.findIndex((r: any) => String(r.id) === String(idDestaque));
+    if (i <= 0) return lista;
+    return [lista[i], ...lista.slice(0, i), ...lista.slice(i + 1)];
+  };
 
   useEffect(() => {
     const fetchDados = async () => {
@@ -724,7 +733,7 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
                 <div className="p-4 space-y-4 flex-1 max-h-[72vh] overflow-y-auto scrollbar-hide">
                   {items.length > 0 ? (
                     <>
-                      {items.slice(0, limitesPorColuna[col.id] || CARDS_POR_VEZ).map((req: any) => (
+                      {priorizarDestaque(items).slice(0, limitesPorColuna[col.id] || CARDS_POR_VEZ).map((req: any) => (
                         <CardCapaReq
                           key={req.id}
                           req={req}
@@ -732,6 +741,7 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
                           onPrint={onPrint}
                           dadosCompartilhados={dadosCompartilhados}
                           onCardFechado={onCardFechado}
+                          abrirAoMontar={idDestaque != null && String(req.id) === String(idDestaque)}
                           podeEditar={podeEditar}
                           podeMoverFase={podeMoverFase}
                           podeImprimir={podeImprimir}

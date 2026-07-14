@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import {
   Calendar, UserCircle, Briefcase,
@@ -11,8 +11,11 @@ import HistoricoModal from './HistoricoModal';
 // Carrega CardReq completo só quando o modal abre
 const CardReq = dynamic(() => import('./CardReq'), { ssr: false });
 
-export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhados, onCardFechado, podeEditar = true, podeMoverFase = true, podeImprimir = true, podeExcluir = true, grupos = [], usuarioAtual = '', onGruposChange, onExpandirGrupo }: any) {
-  const [modalAberto, setModalAberto] = useState(false);
+export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhados, onCardFechado, podeEditar = true, podeMoverFase = true, podeImprimir = true, podeExcluir = true, grupos = [], usuarioAtual = '', onGruposChange, onExpandirGrupo, abrirAoMontar = false }: any) {
+  // abrirAoMontar: deep-link (?req=<id> na URL) — outros módulos (ex.: Frota >
+  // Manutenções) linkam direto pra requisição e o card já abre expandido.
+  const [modalAberto, setModalAberto] = useState(!!abrirAoMontar);
+  useEffect(() => { if (abrirAoMontar) setModalAberto(true); }, [abrirAoMontar]);
   const [histAberto, setHistAberto] = useState(false);
 
   // Sem permissão de editar: bloqueia a escrita do CardReq (única via é onUpdate).

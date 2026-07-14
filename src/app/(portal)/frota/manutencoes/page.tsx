@@ -3,7 +3,7 @@
 // Rota Exata (espelho) ∪ registros manuais ∪ Requisições "Veicular Manutenção".
 // Lê a vw_frota_manutencoes direto (RLS: leitura autenticada).
 import { useEffect, useMemo, useState } from 'react';
-import { Wrench, Search } from 'lucide-react';
+import { Wrench, Search, ExternalLink } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { formatarPlaca } from '@/lib/frota/placa';
 import type { ManutencaoView } from '@/lib/frota/tipos';
@@ -80,7 +80,19 @@ export default function FrotaManutencoesPage() {
             <div key={`${m.origem}-${m.id}`} style={{ display: 'grid', gridTemplateColumns: '100px 110px 1fr 160px 110px 110px', padding: '9px 16px', borderTop: '1px solid var(--portal-border)', fontSize: 12.5, color: 'var(--portal-text-secondary)', alignItems: 'center' }}>
             <span>{fmtData(m.data)}</span>
             <strong style={{ color: 'var(--portal-text)' }}>{formatarPlaca(m.placa)}</strong>
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={m.descricao || ''}>{m.descricao || m.tipo || '—'}</span>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={m.descricao || ''}>
+              {m.origem === 'requisicao' ? (
+                <a
+                  href={`/requisicoes?req=${m.id}`}
+                  title="Abrir a requisição"
+                  style={{ color: 'var(--portal-text)', textDecoration: 'none', fontWeight: 600 }}
+                >
+                  {m.descricao || m.tipo || '—'} <ExternalLink size={11} style={{ verticalAlign: '-1px', color: '#0d9488' }} />
+                </a>
+              ) : (
+                m.descricao || m.tipo || '—'
+              )}
+            </span>
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.fornecedor || '—'}</span>
             <span><span style={{ fontSize: 10.5, fontWeight: 700, color: o.cor, background: o.bg, borderRadius: 999, padding: '2px 8px' }}>{o.label}</span></span>
             <strong style={{ color: 'var(--portal-text)', textAlign: 'right' }}>{fmtRS(m.valor_total)}</strong>

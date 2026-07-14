@@ -55,7 +55,12 @@ function RequisicoesPageInner() {
   const [showNotifModal, setShowNotifModal] = useState(false);
   const [showTagsModal, setShowTagsModal] = useState(false);
   const [contadorNotif, setContadorNotif] = useState(0);
-  const [idDestaque, setIdDestaque] = useState<any>(null);
+  // Deep-link: /requisicoes?req=<id> abre o card direto (usado pelo Frota >
+  // Manutenções; o Kanban sobe o card pro topo da coluna e expande o modal).
+  const [idDestaque, setIdDestaque] = useState<any>(() => {
+    const r = searchParams.get('req');
+    return r && /^\d+$/.test(r) ? Number(r) : null;
+  });
   const [filtroRelTipo, setFiltroRelTipo] = useState('');
   const [filtroRelSetor, setFiltroRelSetor] = useState('');
   const [filtroRelSolicitante, setFiltroRelSolicitante] = useState('');
@@ -176,6 +181,8 @@ function RequisicoesPageInner() {
   }, [carregarDados, auditLog])
 
   const handleCardFechado = useCallback((id: number) => {
+    // Fechou o card do deep-link: solta o destaque (senão ele reabre no rerender)
+    setIdDestaque((atual: any) => (String(atual) === String(id) ? null : atual));
     if (cardsEditadosRef.current.has(id)) {
       cardsEditadosRef.current.delete(id);
       const req = requisicoes.find(r => r.id === id);

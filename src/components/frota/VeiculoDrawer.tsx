@@ -357,7 +357,14 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, onCl
                 ) : det.manutencoes.slice(0, 8).map((m) => (
                   <div key={`${m.origem}-${m.id}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12, color: 'var(--portal-text-secondary)' }}>
                     <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {fmtData(m.data)} · {m.descricao || m.tipo || '—'}
+                      {fmtData(m.data)} ·{' '}
+                      {m.origem === 'requisicao' ? (
+                        <a href={`/requisicoes?req=${m.id}`} title="Abrir a requisição" style={{ color: '#0d9488', textDecoration: 'none', fontWeight: 600 }}>
+                          {m.descricao || m.tipo || '—'}
+                        </a>
+                      ) : (
+                        m.descricao || m.tipo || '—'
+                      )}
                       <span style={{ color: 'var(--portal-text-muted)' }}> ({m.origem === 'requisicao' ? 'requisição' : m.origem})</span>
                     </span>
                     <strong style={{ color: 'var(--portal-text)' }}>{fmtRS(m.valor_total)}</strong>
