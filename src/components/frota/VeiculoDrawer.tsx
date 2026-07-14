@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   Car, X, ShieldAlert, User as UserIcon, Wrench, Fuel, DollarSign,
-  Loader2, Pencil, Check, History, Gauge, Satellite, AlertTriangle, FileText,
+  Loader2, Pencil, Check, History, Gauge, Satellite, AlertTriangle, FileText, Sparkles,
 } from 'lucide-react';
 import { authHeaders } from '@/lib/auth/client';
 import DocumentoInline from '@/components/frota/DocumentoInline';
@@ -63,6 +63,8 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
   // edição de campo da ficha
   const [editando, setEditando] = useState(false);
   const [form, setForm] = useState<Record<string, string>>({});
+  // avisos da leitura de CRLV por IA (mostrados no topo do formulário)
+  const [crlvAvisos, setCrlvAvisos] = useState<string[]>([]);
 
   // troca de responsável
   const [trocando, setTrocando] = useState(false);
@@ -88,10 +90,9 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
 
   useEffect(() => { carregar(); }, [carregar]);
 
-  const abrirEdicao = () => {
-    if (!det) return;
-    const v = det.veiculo;
-    setForm({
+  const formBase = (): Record<string, string> => {
+    const v = det!.veiculo;
+    return {
       marca: v.marca || '', modelo: v.modelo || '', descricao: v.descricao || '',
       ano: v.ano != null ? String(v.ano) : '', cor: v.cor || '',
       chassi: v.chassi || '', renavam: v.renavam || '', combustivel: v.combustivel || '',
@@ -99,9 +100,47 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
       seguradora: v.seguradora || '', numero_apolice: v.numero_apolice || '',
       proprietario: v.proprietario || '',
       observacoes: v.observacoes || '',
-      valor_mercado: det.fipe?.valor_mercado != null ? String(det.fipe.valor_mercado) : '',
-    });
+      valor_mercado: det!.fipe?.valor_mercado != null ? String(det!.fipe!.valor_mercado) : '',
+    };
+  };
+
+  const abrirEdicao = () => {
+    if (!det) return;
+    setCrlvAvisos([]);
+    setForm(formBase());
     setEditando(true);
+  };
+
+  // Lê o CRLV com IA e PRÉ-PREENCHE o formulário de edição — nada é salvo
+  // sem o humano conferir e clicar em Salvar (o PATCH normal loga tudo).
+  const lerCrlvDoc = async (documentoId: string) => {
+    if (!det) return;
+    setBusy(`crlv-${documentoId}`);
+    try {
+      const r = await fetch('/api/frota/documentos/ler-crlv', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ documento_id: documentoId }),
+      });
+      const d = await r.json();
+      if (!r.ok) { alert(d.error || 'Falha ao ler o CRLV.'); return; }
+      const x = d.dados || {};
+      const lido: Record<string, string> = {};
+      if (x.marca) lido.marca = String(x.marca);
+      if (x.modelo) lido.modelo = String(x.modelo);
+      if (x.ano_fabricacao) lido.ano = String(x.ano_fabricacao);
+      if (x.cor) lido.cor = String(x.cor);
+      if (x.chassi) lido.chassi = String(x.chassi);
+      if (x.renavam) lido.renavam = String(x.renavam);
+      if (x.combustivel) lido.combustivel = String(x.combustivel);
+      if (x.proprietario) lido.proprietario = String(x.proprietario);
+      setForm({ ...formBase(), ...lido });
+      setCrlvAvisos([
+        `✨ ${Object.keys(lido).length} campo(s) lidos do CRLV — CONFIRA antes de salvar (a IA pode errar).`,
+        ...(d.avisos || []),
+      ]);
+      setEditando(true);
+    } catch (e) { alert(String(e)); } finally { setBusy(''); }
   };
 
   const salvarEdicao = async () => {
@@ -134,6 +173,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
       }
 
       setEditando(false);
+      setCrlvAvisos([]);
       await carregar();
       onMudou?.();
     } finally { setBusy(''); }
@@ -165,6 +205,10 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
       setDocForm({ aberto: false, tipo: 'crlv', numero: '', vigencia_fim: '' });
       setDocArquivo(null);
       await carregar();
+      // CRLV recém-subido com arquivo: já lê com IA e abre a ficha pré-preenchida
+      if (podeEditar && d.documento?.tipo === 'crlv' && d.documento?.arquivo_url) {
+        await lerCrlvDoc(d.documento.id);
+      }
     } finally { setBusy(''); }
   };
 
@@ -275,6 +319,13 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                   </>
                 ) : (
                   <>
+                    {crlvAvisos.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, padding: '8px 10px', borderRadius: 8, background: '#fef3c7', border: '1px solid #fcd34d' }}>
+                        {crlvAvisos.map((a, i) => (
+                          <span key={i} style={{ fontSize: 11.5, color: '#92400e', fontWeight: i === 0 ? 700 : 500 }}>{a}</span>
+                        ))}
+                      </div>
+                    )}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                       {([
                         ['marca', 'Marca'], ['modelo', 'Modelo'], ['ano', 'Ano'], ['cor', 'Cor'],
@@ -314,7 +365,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                       <button onClick={salvarEdicao} disabled={busy === 'editar'} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 6, border: 'none', background: '#0d9488', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
                         {busy === 'editar' ? <Loader2 size={12} className="spin" /> : <Check size={12} />} Salvar
                       </button>
-                      <button onClick={() => setEditando(false)} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--portal-border)', background: 'transparent', color: 'var(--portal-text-secondary)', fontSize: 12, cursor: 'pointer' }}>Cancelar</button>
+                      <button onClick={() => { setEditando(false); setCrlvAvisos([]); }} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--portal-border)', background: 'transparent', color: 'var(--portal-text-secondary)', fontSize: 12, cursor: 'pointer' }}>Cancelar</button>
                     </div>
                   </>
                 )}
@@ -409,11 +460,21 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                                 {dias < 0 ? 'vencido' : `${dias}d`}
                               </span>
                             )}
+                            {podeEditar && doc.tipo === 'crlv' && doc.arquivo_url && (
+                              <button
+                                onClick={() => lerCrlvDoc(doc.id)}
+                                disabled={busy === `crlv-${doc.id}`}
+                                title="Ler os dados do CRLV com IA e pré-preencher a ficha (você confere antes de salvar)"
+                                style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 3, background: 'none', border: 'none', color: '#0d9488', cursor: 'pointer', fontSize: 10.5, fontWeight: 700, padding: 0 }}
+                              >
+                                {busy === `crlv-${doc.id}` ? <Loader2 size={10} className="spin" /> : <Sparkles size={10} />} ler dados
+                              </button>
+                            )}
                             {podeDocumentos && (
                               <button
                                 onClick={() => excluirDocumento(doc.id, `${doc.tipo.toUpperCase()}${doc.nome_arquivo ? ` (${doc.nome_arquivo})` : ''}`)}
                                 title="Excluir documento"
-                                style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer', fontSize: 10.5, padding: 0 }}
+                                style={{ marginLeft: podeEditar && doc.tipo === 'crlv' && doc.arquivo_url ? 0 : 'auto', background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer', fontSize: 10.5, padding: 0 }}
                               >
                                 excluir
                               </button>
