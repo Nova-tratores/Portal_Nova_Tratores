@@ -27,7 +27,8 @@ export const PAGINAS_FROTA: PaginaFrota[] = [
   { key: 'frota:dashboard',          label: 'Visão geral',       href: '/frota',                    grupo: 'Início' },
   { key: 'frota:veiculos',           label: 'Veículos',          href: '/frota/veiculos',           grupo: 'Cadastro' },
   { key: 'frota:patio',              label: 'Pátio',             href: '/frota/patio',              grupo: 'Cadastro' },
-  { key: 'frota:documentos',         label: 'Documentos',        href: '/frota/documentos',         grupo: 'Cadastro' },
+  // Documentos NÃO têm tela própria (decisão do usuário): vivem na Ficha do
+  // Veículo. A ação frota:documentos:editar (nas extras) controla a escrita.
   { key: 'frota:mapa',               label: 'Mapa',              href: '/frota/mapa',               grupo: 'Operação' },
   { key: 'frota:paradas',            label: 'Paradas',           href: '/frota/paradas',            grupo: 'Operação' },
   { key: 'frota:multas',             label: 'Multas',            href: '/frota/multas',             grupo: 'Operação' },

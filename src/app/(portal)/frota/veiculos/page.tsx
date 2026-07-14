@@ -1,7 +1,7 @@
 'use client';
 // Frota > Veículos — a frota inteira num grid; clique abre a Ficha (drawer).
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Car, Search, Satellite, ShieldAlert, User as UserIcon, AlertTriangle } from 'lucide-react';
+import { Car, Search, Satellite, ShieldAlert, User as UserIcon, AlertTriangle, FileWarning } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import { authHeaders } from '@/lib/auth/client';
@@ -112,6 +112,11 @@ export default function FrotaVeiculosPage() {
                     <ShieldAlert size={11} /> {v.multas_abertas} · {fmtRS(v.valor_multas_abertas)}
                   </span>
                 )}
+                {v.docs_vencendo > 0 && (
+                  <span title={`${v.docs_vencendo} documento(s) vencido(s) ou vencendo em 30 dias`} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 700, color: '#b45309' }}>
+                    <FileWarning size={11} /> DOC
+                  </span>
+                )}
               </div>
             </div>
           </button>
@@ -123,6 +128,7 @@ export default function FrotaVeiculosPage() {
           placa={placaAberta}
           podeEditar={pode('frota', 'veiculos:editar')}
           podeResponsavel={pode('frota', 'veiculos:responsavel')}
+          podeDocumentos={pode('frota', 'documentos:editar')}
           onClose={() => setPlacaAberta(null)}
           onMudou={carregar}
         />

@@ -43,6 +43,7 @@ export interface VeiculoLista extends FrotaVeiculo {
   responsavel_nome: string | null;  // frota_responsaveis com fim IS NULL
   multas_abertas: number;
   valor_multas_abertas: number;
+  docs_vencendo: number; // vencidos ou vencendo em ≤30 dias
 }
 
 export interface Responsavel {

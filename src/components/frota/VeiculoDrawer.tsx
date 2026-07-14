@@ -16,6 +16,7 @@ interface Props {
   placa: string;
   podeEditar: boolean;
   podeResponsavel: boolean;
+  podeDocumentos: boolean;
   onClose: () => void;
   onMudou?: () => void;
 }
@@ -54,7 +55,7 @@ const STATUS_MULTA: Record<string, { label: string; cor: string; bg: string }> =
   arquivada: { label: 'Arquivada', cor: '#64748b', bg: '#f1f5f9' },
 };
 
-export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, onClose, onMudou }: Props) {
+export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, podeDocumentos, onClose, onMudou }: Props) {
   const [det, setDet] = useState<VeiculoDetalhe | null>(null);
   const [erro, setErro] = useState('');
   const [busy, setBusy] = useState('');
@@ -68,6 +69,12 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, onCl
   const [motoristas, setMotoristas] = useState<Motorista[]>([]);
   const [novoResp, setNovoResp] = useState('');
   const [novoRespId, setNovoRespId] = useState('');
+
+  // novo documento (o gerenciamento vive AQUI na Ficha — não há tela separada)
+  const [docForm, setDocForm] = useState<{ aberto: boolean; tipo: string; numero: string; vigencia_fim: string }>({
+    aberto: false, tipo: 'crlv', numero: '', vigencia_fim: '',
+  });
+  const [docArquivo, setDocArquivo] = useState<File | null>(null);
 
   const carregar = useCallback(async () => {
     setErro('');
@@ -121,6 +128,35 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, onCl
       const d = await r.json();
       setMotoristas(d.motoristas || []);
     } catch { /* seletor fica vazio; dá pra digitar o nome */ }
+  };
+
+  const enviarDocumento = async () => {
+    if (!det) return;
+    setBusy('documento');
+    try {
+      const fd = new FormData();
+      fd.set('veiculo_id', det.veiculo.id);
+      fd.set('tipo', docForm.tipo);
+      fd.set('numero', docForm.numero);
+      fd.set('vigencia_fim', docForm.vigencia_fim);
+      if (docArquivo) fd.set('file', docArquivo);
+      const r = await fetch('/api/frota/documentos', { method: 'POST', headers: await authHeaders(), body: fd });
+      const d = await r.json();
+      if (!r.ok) { alert(d.error || 'Falha ao enviar.'); return; }
+      setDocForm({ aberto: false, tipo: 'crlv', numero: '', vigencia_fim: '' });
+      setDocArquivo(null);
+      await carregar();
+    } finally { setBusy(''); }
+  };
+
+  const excluirDocumento = async (id: string, rotulo: string) => {
+    if (!confirm(`Excluir ${rotulo}?`)) return;
+    setBusy('documento');
+    try {
+      const r = await fetch(`/api/frota/documentos?id=${id}`, { method: 'DELETE', headers: await authHeaders() });
+      if (!r.ok) { const d = await r.json(); alert(d.error || 'Falha ao excluir.'); return; }
+      await carregar();
+    } finally { setBusy(''); }
   };
 
   const salvarResponsavel = async () => {
@@ -311,13 +347,14 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, onCl
                 )}
               </Secao>
 
-              {/* Documentos (preview inline) */}
+              {/* Documentos — preview inline + gestão (tudo aqui na Ficha) */}
               <Secao titulo={`Documentos (${det.documentos?.length || 0})`} icone={<FileText size={14} />}>
-                {(det.documentos || []).length === 0 ? (
+                {(det.documentos || []).length === 0 && !docForm.aberto && (
                   <span style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>
-                    Nenhum documento. <a href="/frota/documentos" style={{ color: '#0d9488', fontWeight: 600, textDecoration: 'none' }}>Adicionar →</a>
+                    Nenhum documento — suba o CRLV, a apólice e o IPVA pra ativar os alertas de vencimento.
                   </span>
-                ) : (
+                )}
+                {(det.documentos || []).length > 0 && (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10 }}>
                     {det.documentos.map((doc) => {
                       const dias = doc.vigencia_fim
@@ -330,17 +367,55 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, onCl
                           ) : (
                             <div style={{ height: 95, borderRadius: 8, background: 'var(--portal-bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--portal-text-muted)', fontSize: 11 }}>sem arquivo</div>
                           )}
-                          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--portal-text)' }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 5 }}>
                             {doc.tipo.toUpperCase()}
                             {dias != null && (
-                              <span style={{ marginLeft: 5, fontWeight: 700, color: dias < 0 ? '#b91c1c' : dias <= 30 ? '#b45309' : '#15803d' }}>
+                              <span style={{ fontWeight: 700, color: dias < 0 ? '#b91c1c' : dias <= 30 ? '#b45309' : '#15803d' }}>
                                 {dias < 0 ? 'vencido' : `${dias}d`}
                               </span>
+                            )}
+                            {podeDocumentos && (
+                              <button
+                                onClick={() => excluirDocumento(doc.id, `${doc.tipo.toUpperCase()}${doc.nome_arquivo ? ` (${doc.nome_arquivo})` : ''}`)}
+                                title="Excluir documento"
+                                style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer', fontSize: 10.5, padding: 0 }}
+                              >
+                                excluir
+                              </button>
                             )}
                           </span>
                         </div>
                       );
                     })}
+                  </div>
+                )}
+
+                {podeDocumentos && !docForm.aberto && (
+                  <button onClick={() => setDocForm((f) => ({ ...f, aberto: true }))} style={{ alignSelf: 'flex-start', padding: '5px 10px', borderRadius: 6, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text-secondary)', fontSize: 11.5, fontWeight: 600, cursor: 'pointer' }}>
+                    + Adicionar documento
+                  </button>
+                )}
+                {docForm.aberto && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 10, borderRadius: 8, background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                      <select value={docForm.tipo} onChange={(e) => setDocForm((f) => ({ ...f, tipo: e.target.value }))} style={inputStyle}>
+                        {[['crlv', 'CRLV'], ['seguro', 'Seguro'], ['ipva', 'IPVA'], ['licenciamento', 'Licenciamento'], ['contrato_locacao', 'Contrato de locação'], ['laudo', 'Laudo'], ['outros', 'Outros']].map(([k, l]) => (
+                          <option key={k} value={k}>{l}</option>
+                        ))}
+                      </select>
+                      <input placeholder="Número (opcional)" value={docForm.numero} onChange={(e) => setDocForm((f) => ({ ...f, numero: e.target.value }))} style={inputStyle} />
+                    </div>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase' }}>
+                      Vence em (dispara o alerta)
+                      <input type="date" value={docForm.vigencia_fim} onChange={(e) => setDocForm((f) => ({ ...f, vigencia_fim: e.target.value }))} style={inputStyle} />
+                    </label>
+                    <input type="file" accept=".pdf,image/*" onChange={(e) => setDocArquivo(e.target.files?.[0] || null)} style={inputStyle} />
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={enviarDocumento} disabled={busy === 'documento'} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 6, border: 'none', background: '#0d9488', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                        {busy === 'documento' ? <Loader2 size={12} className="spin" /> : <Check size={12} />} Salvar
+                      </button>
+                      <button onClick={() => setDocForm((f) => ({ ...f, aberto: false }))} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--portal-border)', background: 'transparent', color: 'var(--portal-text-secondary)', fontSize: 12, cursor: 'pointer' }}>Cancelar</button>
+                    </div>
                   </div>
                 )}
               </Secao>

@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   if (!auth) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   if (!temModuloFrota(auth)) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
 
-  const [veiculos, responsaveis, placasFoto, multas] = await Promise.all([
+  const [veiculos, responsaveis, placasFoto, multas, docs] = await Promise.all([
     supabase.from('frota_veiculos').select('*').order('placa'),
     supabase.from('frota_responsaveis').select('veiculo_id, motorista_nome').is('fim', null),
     supabase.from('Placas').select('IdPlaca, imagem_url'),
@@ -26,6 +26,7 @@ export async function GET(req: NextRequest) {
       .from('frota_multas')
       .select('veiculo_id, valor, status_interno')
       .not('status_interno', 'in', '("paga","descontada","arquivada")'),
+    supabase.from('frota_documentos').select('veiculo_id, vigencia_fim').not('vigencia_fim', 'is', null),
   ]);
   if (veiculos.error) return NextResponse.json({ error: veiculos.error.message }, { status: 500 });
 
@@ -46,12 +47,22 @@ export async function GET(req: NextRequest) {
     multasPorVeiculo.set(m.veiculo_id, e);
   }
 
+  // documentos vencidos ou vencendo em ≤30 dias (o alerta vai no card)
+  const limite = new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10);
+  const docsVencendo = new Map<string, number>();
+  for (const d of docs.data || []) {
+    if (String(d.vigencia_fim) <= limite) {
+      docsVencendo.set(d.veiculo_id, (docsVencendo.get(d.veiculo_id) || 0) + 1);
+    }
+  }
+
   const lista = (veiculos.data || []).map((v) => ({
     ...v,
     imagem_url: v.id_placa != null ? fotoPorIdPlaca.get(Number(v.id_placa)) || null : null,
     responsavel_nome: respPorVeiculo.get(v.id) || null,
     multas_abertas: multasPorVeiculo.get(v.id)?.n || 0,
     valor_multas_abertas: multasPorVeiculo.get(v.id)?.total || 0,
+    docs_vencendo: docsVencendo.get(v.id) || 0,
   }));
 
   return NextResponse.json({ veiculos: lista });
