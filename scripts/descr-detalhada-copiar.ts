@@ -54,15 +54,36 @@ function credenciais(env: Record<string, string>, conta: Conta): { app_key: stri
   return { app_key, app_secret };
 }
 
+// Chamada com resiliência: erros transitórios da Omie (SOAP-ERROR/Broken
+// response/Too many requests/rede) ganham retry com backoff; bloqueio longo
+// ("consumo indevido") espera o tempo que a própria mensagem indica.
 async function omieCall<T>(cred: { app_key: string; app_secret: string }, call: string, param: object): Promise<T> {
-  const res = await fetch(OMIE_PROD_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ call, ...cred, param: [param] }),
-  });
-  const json = await res.json();
-  if (json.faultstring) throw new Error(`Omie [${call}]: ${json.faultstring}`);
-  return json as T;
+  for (let tentativa = 1; ; tentativa++) {
+    try {
+      const res = await fetch(OMIE_PROD_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ call, ...cred, param: [param] }),
+      });
+      const json = await res.json();
+      if (json.faultstring) throw new Error(`Omie [${call}]: ${json.faultstring}`);
+      return json as T;
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (/bloquead|consumo indevido/i.test(msg) && tentativa < 8) {
+        const m = msg.match(/(\d+)\s*segundos?/i);
+        const seg = Math.min(Math.max(m ? parseInt(m[1], 10) : 60, 15), 600);
+        console.log(`  [${call}] Omie bloqueou — aguardando ${seg}s (tentativa ${tentativa}/7)`);
+        await pausa(seg * 1000);
+        continue;
+      }
+      const transiente = /SOAP-ERROR|Broken response|too many requests|redundant|fetch failed|ECONNRESET|ETIMEDOUT|Unexpected token|not valid JSON/i.test(msg);
+      if (!transiente || tentativa >= 4) throw e;
+      const espera = tentativa * 10_000;
+      console.log(`  [${call}] transitório ("${msg.slice(0, 70)}") — retry em ${espera / 1000}s (tentativa ${tentativa}/3)`);
+      await pausa(espera);
+    }
+  }
 }
 
 async function listarTodos(cred: { app_key: string; app_secret: string }, conta: Conta): Promise<ProdutoLista[]> {
