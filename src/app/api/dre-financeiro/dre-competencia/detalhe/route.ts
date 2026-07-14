@@ -24,6 +24,9 @@ export async function GET(request: NextRequest) {
     const filtroGrupo = sp.get('dre_grupo') || null
     const filtroConta = sp.get('dre_conta') || null
     const filtroCategoria = sp.get('dre_categoria') || null
+    // Exclusao: usado pela linha "03. Despesas Financeiras" limpa do grafico,
+    // que separa "Pagamento de Emprestimos" em serie propria.
+    const filtroCategoriaNe = sp.get('dre_categoria_ne') || null
 
     function matchesClassif(tipo: string, grupo: string, conta: string) {
       if (filtroTipo && tipo !== filtroTipo) return false
@@ -122,6 +125,7 @@ export async function GET(request: NextRequest) {
         const v = cls.sinal * (Number(r.valor_documento) || 0); if (!v) return
         const cat = r.descricao_categoria || '(sem categoria)'
         if (filtroCategoria && cat !== filtroCategoria) return
+        if (filtroCategoriaNe && cat === filtroCategoriaNe) return
         movimentos.push({
           dataMovimento: r.data_emissao,
           _conta_omie: String(r.conta_omie || '').toLowerCase(),
@@ -139,7 +143,7 @@ export async function GET(request: NextRequest) {
     const total = movimentos.reduce((s, m) => s + (Number(m.valor) || 0), 0)
     return NextResponse.json({
       ano, mes, regime: 'competencia',
-      filtros: { dre_tipo: filtroTipo, dre_grupo: filtroGrupo, dre_conta: filtroConta, dre_categoria: filtroCategoria },
+      filtros: { dre_tipo: filtroTipo, dre_grupo: filtroGrupo, dre_conta: filtroConta, dre_categoria: filtroCategoria, dre_categoria_ne: filtroCategoriaNe },
       total, count: movimentos.length, movimentos,
     })
   } catch (e: any) {

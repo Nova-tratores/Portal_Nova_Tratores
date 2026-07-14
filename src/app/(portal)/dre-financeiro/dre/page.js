@@ -37,6 +37,11 @@ const COL_MES_PX = 92 // cada coluna de mes
 const OFFSET_GRAFICO_PX = COL_CONTA_PX + 3 * COL_AUX_PX // 550 — padding-left do canvas do grafico
 
 const PALETA = ['#ef4444', '#f59e0b', '#3b82f6', '#8b5cf6', '#10b981', '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16']
+// Liquidacoes de antecipacao de duplicata (factoring: ERG/BRADESCO/VOTORANTIM)
+// caem nesta categoria do Omie. E' principal (fluxo de financiamento), nao
+// despesa - no grafico de despesas sai da conta "03. Despesas Financeiras" e
+// vira serie propria, oculta por padrao, pra nao esmagar as demais linhas.
+const CATEGORIA_EMPRESTIMOS = 'Pagamento de Empréstimos'
 const PALETA_TREEMAP = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16', '#0ea5e9', '#a3e635']
 // Marcadores distintos por familia: ajudam a diferenciar linhas sobrepostas na
 // aba "Margens por Familia" (margens proximas tendem a colar umas nas outras).
@@ -791,10 +796,24 @@ export default function DrePage() {
             if (!porConta[c]) porConta[c] = { porMes: {}, tipo: t }
             const pm = contas[c].por_mes || {}
             Object.keys(pm).forEach((k) => { porConta[c].porMes[k] = (porConta[c].porMes[k] || 0) + pm[k] })
+            // "Pagamento de Emprestimos" (antecipacoes) sai da conta e vira
+            // serie propria. So no regime Competencia a arvore tem o nivel
+            // categorias{} - no Omie o bloco e' no-op e nada muda.
+            const pmEmp = ((contas[c].categorias || {})[CATEGORIA_EMPRESTIMOS] || {}).por_mes || {}
+            Object.keys(pmEmp).forEach((k) => {
+              porConta[c].porMes[k] = (porConta[c].porMes[k] || 0) - pmEmp[k]
+              porConta[c].categoriaNe = CATEGORIA_EMPRESTIMOS
+              if (!porConta[CATEGORIA_EMPRESTIMOS]) {
+                porConta[CATEGORIA_EMPRESTIMOS] = { porMes: {}, tipo: t, categoria: CATEGORIA_EMPRESTIMOS, conta: c }
+              }
+              porConta[CATEGORIA_EMPRESTIMOS].porMes[k] = (porConta[CATEGORIA_EMPRESTIMOS].porMes[k] || 0) + pmEmp[k]
+            })
           })
         })
       })
-      nomes = Object.keys(porConta).sort()
+      const temEmprestimos = !!porConta[CATEGORIA_EMPRESTIMOS]
+      nomes = Object.keys(porConta).filter((n) => n !== CATEGORIA_EMPRESTIMOS).sort()
+      const nContas = nomes.length
       datasets = nomes.map((nome, i) => {
         const c = PALETA[i % PALETA.length]
         return {
@@ -804,7 +823,20 @@ export default function DrePage() {
           borderWidth: 2, pointRadius: 3, pointHoverRadius: 6, pointHitRadius: 8, tension: 0.2, fill: false,
         }
       })
-      infoTxt = nomes.length + ' contas · ' + colunas.length + ' colunas'
+      if (temEmprestimos) {
+        // Por ultimo (nao mexe nas cores das contas), tracejada e oculta por
+        // padrao - um clique na legenda revela.
+        nomes.push(CATEGORIA_EMPRESTIMOS)
+        datasets.push({
+          label: CATEGORIA_EMPRESTIMOS,
+          data: colunas.map((k) => Math.abs(valorPorColuna(porConta[CATEGORIA_EMPRESTIMOS].porMes, k))),
+          borderColor: '#64748b', backgroundColor: '#64748b',
+          borderWidth: 2, borderDash: [4, 4], pointRadius: 2, pointHoverRadius: 5, pointHitRadius: 8, tension: 0.2, fill: false,
+          hidden: true,
+        })
+      }
+      infoTxt = nContas + ' contas · ' + colunas.length + ' colunas'
+        + (temEmprestimos ? ' · empréstimos fora de Despesas Financeiras (série própria na legenda)' : '')
     }
 
     const clamp = calcularTetoDespesas(datasets)
@@ -831,7 +863,13 @@ export default function DrePage() {
             const conta = nomes[el.datasetIndex]
             const info = porConta[conta]
             if (!conta || !info) return
-            abrirModalDetalhe({ ano: p[0], mes: p[1], dreTipo: info.tipo, dreGrupo: '', dreConta: conta, label: conta })
+            if (info.categoria) {
+              // Serie separada de emprestimos: filtra pela categoria dentro da conta de origem
+              abrirModalDetalhe({ ano: p[0], mes: p[1], dreTipo: info.tipo, dreGrupo: '', dreConta: info.conta || '', dreCategoria: info.categoria, label: conta })
+            } else {
+              // Conta que teve os emprestimos removidos: modal exclui a categoria pra bater com a linha
+              abrirModalDetalhe({ ano: p[0], mes: p[1], dreTipo: info.tipo, dreGrupo: '', dreConta: conta, dreCategoriaNe: info.categoriaNe || '', label: conta })
+            }
           }
         },
         onHover: function (evt, els, chart) {
@@ -881,9 +919,11 @@ export default function DrePage() {
   function abrirModalDetalhe(p) {
     const ano = p.ano, mes = p.mes
     const dreTipo = p.dreTipo, dreGrupo = p.dreGrupo, dreConta = p.dreConta, dreCategoria = p.dreCategoria || ''
+    const dreCategoriaNe = p.dreCategoriaNe || ''
     const labelLinha = p.label || ''
     const rotuloMesStr = rotuloMes(ano + '-' + mes)
     const classifTexto = [dreTipo, dreGrupo, dreConta, dreCategoria].filter(Boolean).join(' › ')
+      + (dreCategoriaNe ? ' (exceto ' + dreCategoriaNe + ')' : '')
 
     setModalCtx({ classif: classifTexto, titulo: labelLinha + ' · ' + rotuloMesStr })
     setModalMovimentos([])
@@ -908,6 +948,7 @@ export default function DrePage() {
     if (dreGrupo) qs += '&dre_grupo=' + encodeURIComponent(dreGrupo)
     if (dreConta) qs += '&dre_conta=' + encodeURIComponent(dreConta)
     if (dreCategoria) qs += '&dre_categoria=' + encodeURIComponent(dreCategoria)
+    if (dreCategoriaNe) qs += '&dre_categoria_ne=' + encodeURIComponent(dreCategoriaNe)
     fetch(endpoint + '?' + qs).then((r) => r.json()).then((d) => {
       setModalCarregando(false)
       if (d.erro) { setModalErro('Erro: ' + d.erro); return }
