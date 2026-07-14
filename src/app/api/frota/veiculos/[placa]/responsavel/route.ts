@@ -11,7 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
-import { podeFrota } from '@/lib/frota/server';
+import { logFrota, podeFrota } from '@/lib/frota/server';
 import { resolverPlaca } from '@/lib/frota/placa';
 
 export const runtime = 'nodejs';
@@ -44,6 +44,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pla
   const inicio: string = /^\d{4}-\d{2}-\d{2}$/.test(String(body.inicio || ''))
     ? body.inicio
     : new Date().toISOString().slice(0, 10);
+
+  // (para o audit log: quem era o responsável até agora)
+  const { data: anterior } = await supabase
+    .from('frota_responsaveis')
+    .select('motorista_nome')
+    .eq('veiculo_id', v.id)
+    .is('fim', null)
+    .maybeSingle();
 
   // 1) fecha o período aberto (o histórico é o ponto: "quem, de quando a quando")
   const { error: errFecha } = await supabase
@@ -109,6 +117,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pla
     console.warn('[frota] write-through comercial_veiculos falhou:', e);
     writeThrough = 'falhou';
   }
+
+  await logFrota(auth, {
+    acao: 'editar',
+    entidade: 'responsavel',
+    entidadeId: v.placa,
+    entidadeLabel: `${v.placa_exibicao || v.placa} — responsável`,
+    detalhes: {
+      de: anterior?.motorista_nome || null,
+      para: nome || null,
+      inicio,
+      write_through: writeThrough,
+    },
+  });
 
   return NextResponse.json({ ok: true, write_through: writeThrough });
 }

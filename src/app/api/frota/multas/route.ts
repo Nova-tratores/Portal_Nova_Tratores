@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
-import { podeFrota, temModuloFrota } from '@/lib/frota/server';
+import { logFrota, podeFrota, temModuloFrota } from '@/lib/frota/server';
 
 export const runtime = 'nodejs';
 
@@ -85,7 +85,34 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Nada para atualizar.' }, { status: 400 });
   }
 
+  // (para o audit log: como estava antes)
+  const { data: antes } = await supabase
+    .from('frota_multas')
+    .select('placa, numero_auto, valor, status_interno, descontado_folha')
+    .eq('id', id)
+    .maybeSingle();
+
   const { error } = await supabase.from('frota_multas').update(upd).eq('id', id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  await logFrota(auth, {
+    acao: upd.status_interno !== undefined ? 'mover_status' : 'editar',
+    entidade: 'multa',
+    entidadeId: id,
+    entidadeLabel: antes
+      ? `Multa ${antes.numero_auto || id.slice(0, 8)} · ${antes.placa} · R$ ${Number(antes.valor || 0).toFixed(2)}`
+      : `Multa ${id.slice(0, 8)}`,
+    detalhes: {
+      ...(upd.status_interno !== undefined
+        ? { status: { de: antes?.status_interno ?? null, para: upd.status_interno } }
+        : {}),
+      ...(upd.descontado_folha !== undefined
+        ? { descontado_folha: { de: antes?.descontado_folha ?? null, para: upd.descontado_folha } }
+        : {}),
+      ...(upd.obs_interna !== undefined ? { obs_interna: upd.obs_interna } : {}),
+      ...(upd.desconto_competencia !== undefined ? { desconto_competencia: upd.desconto_competencia } : {}),
+    },
+  });
+
   return NextResponse.json({ ok: true });
 }

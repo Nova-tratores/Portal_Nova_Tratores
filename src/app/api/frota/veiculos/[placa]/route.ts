@@ -5,7 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
-import { podeFrota, temModuloFrota } from '@/lib/frota/server';
+import { logFrota, podeFrota, temModuloFrota } from '@/lib/frota/server';
 import { resolverPlaca } from '@/lib/frota/placa';
 
 export const runtime = 'nodejs';
@@ -126,5 +126,22 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ pl
 
   const { error } = await supabase.from('frota_veiculos').update(upd).eq('id', v.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  await logFrota(auth, {
+    acao: 'editar',
+    entidade: 'veiculo',
+    entidadeId: v.placa,
+    entidadeLabel: `${v.placa_exibicao || v.placa}${v.modelo ? ` · ${v.modelo}` : ''}`,
+    // antes/depois só dos campos alterados — é o que o histórico precisa
+    detalhes: {
+      alterados: Object.fromEntries(
+        Object.entries(upd)
+          .filter(([k]) => k !== 'campos_manuais')
+          .map(([k, novo]) => [k, { de: (v as Record<string, unknown>)[k] ?? null, para: novo }]),
+      ),
+      campos_travados: travar,
+    },
+  });
+
   return NextResponse.json({ ok: true, campos_travados: travar });
 }

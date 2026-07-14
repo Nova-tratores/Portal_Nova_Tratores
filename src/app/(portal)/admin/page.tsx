@@ -61,6 +61,7 @@ const SISTEMAS_MAP: Record<string, { label: string; icon: string }> = {
   orcamentos: { label: 'Orçamentos', icon: 'file' },
   tarefas: { label: 'Tarefas', icon: 'clipboard' },
   admin: { label: 'Administração', icon: 'shield' },
+  frota: { label: 'Frota', icon: 'settings' },
 }
 
 const SISTEMA_ICON_MAP: Record<string, React.ReactNode> = {

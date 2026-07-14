@@ -5,7 +5,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
-import { podeFrota } from '@/lib/frota/server';
+import { logFrota, podeFrota } from '@/lib/frota/server';
 import { decodificarCsv, parseCsvAbastecimento } from '@/lib/abastecimento/parse';
 import { extrairPlacaDeNumPlaca, resolverPlaca } from '@/lib/frota/placa';
 import type { LinhaAbastecimento, ResultadoUpload } from '@/lib/abastecimento/tipos';
@@ -133,6 +133,15 @@ export async function POST(request: Request) {
         .map(([placa, ocorrencias]) => ({ placa, ocorrencias }))
         .sort((a, b) => b.ocorrencias - a.ocorrencias),
     };
+
+    await logFrota(auth, {
+      acao: 'upload',
+      entidade: 'abastecimento_lote',
+      entidadeId: String(lote.id),
+      entidadeLabel: `CSV ${lote.arquivo_nome}`,
+      detalhes: { totalLinhas, novos, duplicados, erros: erros.length },
+    });
+
     return NextResponse.json(resultado);
   } catch (e) {
     // rollback manual: apaga o lote (cascade remove o que já entrou)
