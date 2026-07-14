@@ -120,9 +120,12 @@ CREATE TABLE IF NOT EXISTS frota_veiculos (
                     CHECK (status IN ('ativo','manutencao','parado','vendido','locado')),
   observacoes       TEXT,
 
-  -- Omie (era da SupaPlacas; agora edita-se aqui e espelha-se pra lá)
-  id_projeto_omie        TEXT,
-  id_projeto_omie_castro TEXT,
+  -- Omie (era da SupaPlacas; agora edita-se aqui e espelha-se pra lá).
+  -- BIGINT para casar com SupaPlacas.id_projeto_omie (ex.: 2005928545) — se
+  -- fosse TEXT, o COALESCE do seed quebra com "types text and bigint cannot
+  -- be matched".
+  id_projeto_omie        BIGINT,
+  id_projeto_omie_castro BIGINT,
 
   -- Seguro / aquisição
   numero_apolice    TEXT,
@@ -362,12 +365,14 @@ CREATE TABLE IF NOT EXISTS frota_custos (
   ignorar_no_total BOOLEAN NOT NULL DEFAULT FALSE,   -- anti-double-count, editável
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- Coluna GERADA exige expressão IMUTÁVEL — por isso lower()+LIKE (imutáveis) em
+-- vez de ILIKE, que depende de collation.
 ALTER TABLE frota_custos
   ADD COLUMN IF NOT EXISTS eh_combustivel BOOLEAN
   GENERATED ALWAYS AS (
     coalesce(litros, 0) > 0
-    OR tipo_custo ILIKE '%abastec%'
-    OR tipo_custo ILIKE '%combust%'
+    OR lower(coalesce(tipo_custo, '')) LIKE '%abastec%'
+    OR lower(coalesce(tipo_custo, '')) LIKE '%combust%'
   ) STORED;
 CREATE INDEX IF NOT EXISTS idx_frota_custos_veic ON frota_custos(veiculo_id, dt_lancamento DESC);
 
@@ -659,12 +664,18 @@ UNION ALL
          r.status,
          r.titulo,
          r.fornecedor,
-         -- valor_despeza é TEXTO em formato BR ("1.304,60")
-         NULLIF(regexp_replace(replace(coalesce(r.valor_despeza, ''), '.', ''), ',', '.'), '')::numeric,
+         -- valor_despeza é TEXTO em formato BR ("1.304,60" / "80,00"). O CASE é
+         -- obrigatório: um único valor não-numérico faria a VIEW INTEIRA
+         -- estourar em runtime, não só a linha.
+         CASE WHEN replace(replace(coalesce(r.valor_despeza, ''), '.', ''), ',', '.')
+                   ~ '^[0-9]+(\.[0-9]+)?$'
+              THEN replace(replace(r.valor_despeza, '.', ''), ',', '.')::numeric
+         END,
          r.data::date,
          -- hodometro é TEXTO e pode vir "Não Informado"
-         CASE WHEN r.hodometro ~ '^[0-9]+([.,][0-9]+)?$'
-              THEN replace(r.hodometro, ',', '.')::numeric END
+         CASE WHEN replace(coalesce(r.hodometro, ''), ',', '.') ~ '^[0-9]+(\.[0-9]+)?$'
+              THEN replace(r.hodometro, ',', '.')::numeric
+         END
     FROM "Requisicao" r
     JOIN frota_veiculos f ON f.supa_placa_id::text = r.veiculo::text
    WHERE r.tipo = 'Veicular Manutenção';
