@@ -226,6 +226,7 @@ export default function DashboardPage() {
         <Link href="/estoque" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>← Busca</Link>
         {pode('estoque', 'curva-abc') && (<Link href="/estoque/curva-abc" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>→ Curva ABC</Link>)}
         {pode('estoque', 'giro-estoque') && (<Link href="/estoque/giro-estoque" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>→ Giro de Estoque</Link>)}
+        <Link href="/estoque/cruzamento-familia" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>→ Cruzamento de Família</Link>
       </div>
 
       {/* Filtros */}
