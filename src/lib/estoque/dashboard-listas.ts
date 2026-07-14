@@ -130,7 +130,8 @@ export async function montarHistorico(
     else if (card >= 1 && card <= numCats) { valor = agg.cards[card - 1] || 0; custo = agg.custosCards[card - 1] || 0; }
     else if (card === cardPecas) { valor = agg.cards[numCats] || 0; custo = agg.custosCards[numCats] || 0; }
     else if (card === cardServicos) { valor = totalOS; custo = 0; }
-    else if (card === cardTotalGeral) { valor = totalPecas + totalOS; custo = totalCustoPecas; }
+    // Total Geral = peças + serviços COM NOTA (fallback: total de OS quando o split falta)
+    else if (card === cardTotalGeral) { valor = totalPecas + (osMes && osMes.valor_nota != null ? num(osMes.valor_nota) : totalOS); custo = totalCustoPecas; }
     else { valor = 0; custo = 0; }
     const pedidosUnicos = new Set(itensMes.map((it) => it.numero_pedido).filter(Boolean)).size;
     const ponto: HistoricoMesPonto = { label: m.label, mes: m.mes, ano: m.ano, valor, custo, qtdePedidos: pedidosUnicos };

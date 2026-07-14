@@ -29,6 +29,9 @@ interface Categoria {
   cardType: string;
   valorNota?: number;
   valorInterno?: number;
+  valorHR?: number;
+  valorKM?: number;
+  valorOutros?: number;
 }
 interface DashboardResp {
   periodo: string;
@@ -76,7 +79,10 @@ function calcVar(a: number, b: number): number {
 export default function DashboardPage() {
   const { userProfile } = useAuth();
   const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
-  const { contaParam } = useConta();
+  const { contaParam, setConta } = useConta();
+
+  // Esta tela sempre abre com Conta = "Todas" (pedido do usuário).
+  useEffect(() => { setConta(''); }, [setConta]);
 
   const now = new Date();
   const [mes, setMes] = useState(now.getMonth() + 1);
@@ -256,15 +262,26 @@ export default function DashboardPage() {
               const varA = calcVar(atual, aAnt);
               const proj = metrica === 'venda' ? c.valorProjetado : null;
               const bordaVermelha = c.cardType === 'totalPecas' || c.cardType === 'totalGeral';
+              // Card Serviços (métrica venda): destaque é o valor COM NOTA,
+              // com a composição HR/KM/Outros e o interno logo abaixo.
+              const servicoNota = c.cardType === 'servico' && metrica === 'venda' && c.valorNota != null && c.valorInterno != null;
               return (
                 <div key={key} style={{ background: '#fff', border: bordaVermelha ? '2px solid #dc2626' : '1px solid #eee', borderRadius: 12, padding: 16, boxShadow: '0 1px 4px rgba(0,0,0,.04)' }}>
                   <div style={{ fontSize: '.72rem', color: '#888', textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 700, marginBottom: 6 }}>{c.nome}</div>
-                  <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#dc2626' }}>{fmtRS(atual)}</div>
-                  {c.cardType === 'servico' && metrica === 'venda' && c.valorNota != null && c.valorInterno != null && (
-                    <div style={{ fontSize: '.7rem', color: '#999', marginTop: 4 }}>
-                      Com nota: <span style={{ fontWeight: 600, color: '#666' }}>{fmtRS(c.valorNota)}</span>
-                      {' · '}Interno: <span style={{ fontWeight: 600, color: '#666' }}>{fmtRS(c.valorInterno)}</span>
-                    </div>
+                  <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#dc2626' }}>{fmtRS(servicoNota ? c.valorNota! : atual)}</div>
+                  {servicoNota && (
+                    <>
+                      {c.valorHR != null && (
+                        <div style={{ fontSize: '.7rem', color: '#666', marginTop: 4 }}>
+                          HR: <span style={{ fontWeight: 700 }}>{fmtRS(c.valorHR)}</span>
+                          {' · '}KM: <span style={{ fontWeight: 700 }}>{fmtRS(c.valorKM)}</span>
+                          {' · '}Outros: <span style={{ fontWeight: 700 }}>{fmtRS(c.valorOutros)}</span>
+                        </div>
+                      )}
+                      <div style={{ fontSize: '.7rem', color: '#999', marginTop: 4 }}>
+                        Interno: <span style={{ fontWeight: 600, color: '#666' }}>{fmtRS(c.valorInterno)}</span>
+                      </div>
+                    </>
                   )}
                   <div style={{ display: 'flex', gap: 10, marginTop: 8, fontSize: '.7rem' }}>
                     <span style={{ color: varM >= 0 ? '#16a34a' : '#dc2626' }}>Mês ant: {fmtPct(varM)}</span>

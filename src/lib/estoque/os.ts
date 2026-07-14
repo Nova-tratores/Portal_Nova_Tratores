@@ -484,6 +484,37 @@ async function lerServicosItensMes(mes: number, ano: number, conta: Conta): Prom
   return rows;
 }
 
+export interface TiposComNota {
+  hr: number;
+  km: number;
+  outros: number;
+}
+
+/**
+ * Composição por tipo (HR/KM/Outros) do valor COM NOTA do mês, para o card
+ * Serviços do dashboard. Mesma regra do valor_nota do os_mensal: só OS com
+ * tem_nota=true no os_nfse entram (não verificadas contam como interno).
+ * Retorna null quando o mês ainda não tem itens no cache (card esconde a linha).
+ */
+export async function obterTiposComNotaMes(mes: number, ano: number, conta: ContaFiltro): Promise<TiposComNota | null> {
+  const contas = conta === undefined ? getContasOmie().map((c) => c.id) : [conta];
+  const soma: TiposComNota = { hr: 0, km: 0, outros: 0 };
+  let temItens = false;
+  for (const c of contas) {
+    const itens = await lerServicosItensMes(mes, ano, c);
+    if (itens.length === 0) continue;
+    temItens = true;
+    const notaMap = await buscarTemNotaMap([...new Set(itens.map((r) => r.ncod_os).filter(Boolean))], c);
+    for (const it of itens) {
+      if (!notaMap.get(it.ncod_os)) continue; // sem nota (ou não verificada) = interno
+      if (it.tipo === 'HR') soma.hr += it.valor_total;
+      else if (it.tipo === 'KM') soma.km += it.valor_total;
+      else soma.outros += it.valor_total;
+    }
+  }
+  return temItens ? soma : null;
+}
+
 export interface ServicosPopupResult {
   os: OSListaRow[];
   servicos: ServicoOSRow[];

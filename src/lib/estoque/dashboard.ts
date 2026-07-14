@@ -3,7 +3,7 @@
 // Portado de obterDadosPeriodo + handler /api/dashboard (server.js:1373/1395).
 
 import { obterItensProdutos } from './vendas-sync';
-import { obterTotaisOS } from './os';
+import { obterTotaisOS, obterTiposComNotaMes } from './os';
 import { agregarCards, getCategoriasConfig } from './categorias';
 import { ehMesAtual, diasUteisDoMes, diasUteisAteHoje, sleep, MESES_CURTO } from './utils';
 import type { ContaFiltro } from './conta';
@@ -39,7 +39,9 @@ export async function obterDadosPeriodo(
   const agg = agregarCards(itens, filtroCategoria, cats);
   const totalPecas = agg.cards.reduce((s, v) => s + v, 0);
   const totalCustoPecas = agg.custosCards.reduce((s, v) => s + v, 0);
-  const totalGeral = totalPecas + totalOS;
+  // Total Geral = peças + serviços COM NOTA (pedido do usuário); quando o mês
+  // ainda não tem o split no os_mensal, cai no total de OS (converge via BG).
+  const totalGeral = totalPecas + (os.nota ?? totalOS);
 
   return {
     card1: agg.card1,
@@ -73,6 +75,10 @@ export interface DashboardCategoria {
   /** Só no card 'servico': split do valor atual (OS faturadas com NFS-e × fechadas internas, sem nota). */
   valorNota?: number;
   valorInterno?: number;
+  /** Só no card 'servico': composição do valor COM NOTA por tipo (os_servicos_itens × os_nfse). */
+  valorHR?: number;
+  valorKM?: number;
+  valorOutros?: number;
 }
 
 export interface DashboardResponse {
@@ -158,6 +164,12 @@ export async function montarDashboard(
   if (atual.osNota != null && atual.osInterno != null) {
     servicos.valorNota = atual.osNota;
     servicos.valorInterno = atual.osInterno;
+  }
+  const tipos = await obterTiposComNotaMes(selMes, selAno, conta);
+  if (tipos) {
+    servicos.valorHR = tipos.hr;
+    servicos.valorKM = tipos.km;
+    servicos.valorOutros = tipos.outros;
   }
   const totalPecas = montarCategoria('Total Pecas', atual.totalPecas, anterior.totalPecas, anoAnt.totalPecas, 'totalPecas',
     atual.totalCustoPecas, anterior.totalCustoPecas, anoAnt.totalCustoPecas);
