@@ -149,14 +149,15 @@ function gerarHTML(dados: BodyOrc) {
     font-size: 9.5pt; font-weight: 800; color: #000; }
   .cost-table tfoot .sub-lbl { text-transform: uppercase; letter-spacing: 0.5px; font-size: 8pt; }
 
-  /* Resumo final: uma linha por parcela + o total destacado */
-  .resumo { margin-top: 18px; margin-left: auto; width: 58%; }
+  /* Resumo final: largura TOTAL, alinhado com as tabelas (rótulo na margem esquerda,
+     valor na margem direita — na mesma coluna do "Total" das tabelas). */
+  .resumo { margin-top: 18px; width: 100%; }
   .resumo-linha { display: flex; justify-content: space-between; align-items: baseline;
-    padding: 6px 0; border-bottom: 1px solid #e5e5e5; }
+    padding: 6px 8px; border-bottom: 1px solid #e5e5e5; }
   .resumo-lbl { font-size: 9.5pt; font-weight: 600; color: #333; }
   .resumo-val { font-size: 11pt; font-weight: 700; color: #000; }
-  .total-row { display: flex; justify-content: space-between; align-items: center;
-    margin-top: 8px; padding-top: 10px; border-top: 2.5px solid #C2410C; }
+  .total-row { display: flex; justify-content: space-between; align-items: baseline;
+    margin-top: 8px; padding: 12px 8px 0; border-top: 2.5px solid #C2410C; }
   .total-lbl { font-size: 9pt; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #C2410C; }
   .total-val { font-size: 22pt; font-weight: 900; color: #C2410C; }
 
@@ -197,6 +198,8 @@ function gerarHTML(dados: BodyOrc) {
     <div class="obs-box">${rich(dados.observacao!)}</div>
   </div>` : ""}
 
+  ${servicosSection}
+
   ${dados.itens.length > 0 ? `
   <div class="section">
     <div class="section-title">Peças / Produtos</div>
@@ -216,8 +219,6 @@ function gerarHTML(dados: BodyOrc) {
       </tr></tfoot>
     </table>
   </div>` : ""}
-
-  ${servicosSection}
 
   <div class="resumo">
     ${resumoLinhas.join("")}
