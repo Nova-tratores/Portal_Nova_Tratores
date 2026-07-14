@@ -97,6 +97,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
       chassi: v.chassi || '', renavam: v.renavam || '', combustivel: v.combustivel || '',
       categoria: v.categoria || 'outros', status: v.status || 'ativo',
       seguradora: v.seguradora || '', numero_apolice: v.numero_apolice || '',
+      proprietario: v.proprietario || '',
       observacoes: v.observacoes || '',
       valor_mercado: det.fipe?.valor_mercado != null ? String(det.fipe.valor_mercado) : '',
     });
@@ -251,6 +252,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                       <Linha rotulo="RENAVAM" valor={v.renavam} />
                       <Linha rotulo="Categoria" valor={v.categoria} />
                       <Linha rotulo="Status" valor={v.status} />
+                      <Linha rotulo="Proprietário" valor={v.proprietario} />
                       <Linha rotulo="Hodômetro (rastreador)" valor={det.km_odometro != null ? `${det.km_odometro.toLocaleString('pt-BR')} km` : '—'} />
                       <Linha rotulo="Tanque" valor={v.capacidade_tanque != null ? `${v.capacidade_tanque} L` : '—'} />
                       <Linha rotulo="Seguradora" valor={v.seguradora} />
@@ -278,6 +280,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                         ['marca', 'Marca'], ['modelo', 'Modelo'], ['ano', 'Ano'], ['cor', 'Cor'],
                         ['chassi', 'Chassi'], ['renavam', 'RENAVAM'], ['combustivel', 'Combustível'],
                         ['seguradora', 'Seguradora'], ['numero_apolice', 'Apólice'],
+                        ['proprietario', 'Proprietário'],
                       ] as [string, string][]).map(([campo, rotulo]) => (
                         <label key={campo} style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase' }}>
                           {rotulo}

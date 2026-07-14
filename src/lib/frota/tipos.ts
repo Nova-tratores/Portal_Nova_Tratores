@@ -24,6 +24,9 @@ export interface FrotaVeiculo {
   custo_km_ref: number | null;
   categoria: string;
   setor: string | null;
+  // proprietário LEGAL (documento/CRLV) — não confundir com o responsável do
+  // dia a dia (frota_responsaveis). Campo manual: o sync nunca escreve aqui.
+  proprietario: string | null;
   ativo: boolean;
   status: 'ativo' | 'manutencao' | 'parado' | 'vendido' | 'locado';
   observacoes: string | null;
