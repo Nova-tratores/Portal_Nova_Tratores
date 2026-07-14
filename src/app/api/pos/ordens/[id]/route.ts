@@ -72,9 +72,6 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     || [...tecLista].sort((a, b) => Number(b.IdOs || 0) - Number(a.IdOs || 0))[0]
     || null;
 
-  // Tem relatório do técnico na tabela? (independe do PDF do app ter dado certo)
-  const temRelatorioTecnico = !!tecData;
-
   // Fotos das notas de almoço enviadas pelo técnico (AlmocosFotos = [{data, foto}]).
   // Compat: se só houver o almoço único antigo (FotoAlmoco), casa com o 1º dia lançado.
   let almocosFotos: { data: string; foto: string }[] = [];
@@ -120,11 +117,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     substitutoTipo: safeGet(row, "Substituto_Tipo") || null,
     substitutoId: safeGet(row, "Substituto_Id") || null,
     relatorioTecnico: safeGet(row, "ID_Relatorio_Final"),
-    // Link do relatório: o PDF do app quando existe; senão o relatório montado no servidor
-    // a partir dos dados (o PDF é gerado no celular do técnico e às vezes falha).
-    infoRelatorio: safeGet(row, "ID_Relatorio_Final")
-      ? { status: "OK", link: safeGet(row, "ID_Relatorio_Final") }
-      : (temRelatorioTecnico ? { status: "OK", link: `/api/pos/ordens/${encodeURIComponent(idOs)}/relatorio`, semPdf: true } : null),
+    infoRelatorio: safeGet(row, "ID_Relatorio_Final") ? { status: "OK", link: safeGet(row, "ID_Relatorio_Final") } : null,
     infoRequisicoes: requisicoes,
     descontoSalvo: safeGet(row, "Desconto"),
     descontoHora: safeGet(row, "Desconto_Hora"),

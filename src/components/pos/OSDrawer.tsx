@@ -93,11 +93,6 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   const [listaOSAbertas, setListaOSAbertas] = useState<Array<{ id: string; cliente: string; status: string }>>([]);
   const [listaPPVAbertos, setListaPPVAbertos] = useState<Array<{ id: string; cliente: string; status: string }>>([]);
   const [relatorioTecnico, setRelatorioTecnico] = useState("");
-  // Link pra ABRIR o relatório: o PDF do app quando existe; senão o relatório montado
-  // no servidor pelos dados (o PDF é gerado no celular do técnico e às vezes falha).
-  // Separado do relatorioTecnico de propósito: aquele é o campo salvo na OS.
-  const [relatorioLink, setRelatorioLink] = useState("");
-  const [relatorioSemPdf, setRelatorioSemPdf] = useState(false);
   const [previsaoExecucao, setPrevisaoExecucao] = useState("");
   const [previsaoFaturamento, setPrevisaoFaturamento] = useState("");
   const [dataFimServico, setDataFimServico] = useState("");
@@ -570,7 +565,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
     setProjeto(""); setRevisao(""); setServSolicitado(TEXT_TEMPLATE);
     setPpv(""); setQtdHoras(1); setQtdKm(0); setDescPorc(0); setDescValor(0); setDescHoraValor(0); setDescKmValor(0);
     setOrdemOmie(""); setPedidoVenda(""); setOmieLog(""); setMotivoCancel(""); setTemSubstituto(false); setSubstitutoTipo("POS"); setSubstitutoId("");
-    setRelatorioTecnico(""); setRelatorioLink(""); setRelatorioSemPdf(false);
+    setRelatorioTecnico("");
     const agora = new Date()
     const hojeStr = agora.toISOString().slice(0, 10)
     const horaStr = `${String(agora.getHours()).padStart(2, '0')}:${String(agora.getMinutes()).padStart(2, '0')}`
@@ -628,8 +623,6 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
           setSubstitutoTipo(d.substitutoTipo || "POS");
           setSubstitutoId(d.substitutoId || "");
           setRelatorioTecnico(d.relatorioTecnico || "");
-          setRelatorioLink(d.infoRelatorio?.link || d.relatorioTecnico || "");
-          setRelatorioSemPdf(!!d.infoRelatorio?.semPdf);
           setPrevisaoExecucao(d.previsaoExecucao || "");
           setPrevisaoFaturamento(d.previsaoFaturamento || "");
           setDataFimServico(d.dataFimServico || "");
@@ -1024,36 +1017,23 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
 
 
                   {/* ── Relatório Técnico ── */}
-                  {mode === "edit" && relatorioLink && (
+                  {mode === "edit" && relatorioTecnico && (
                     <div className="os-card">
                       <div className="os-card-title"><i className="fas fa-file-pdf" /> Relatório Técnico</div>
                       <a
-                        href={relatorioLink}
+                        href={relatorioTecnico}
                         target="_blank"
                         rel="noopener noreferrer"
-                        title={relatorioSemPdf
-                          ? "O PDF gerado no celular do técnico falhou. Este relatório é montado a partir dos dados enviados — abra e use Imprimir / Salvar PDF."
-                          : "Abrir o PDF enviado pelo técnico"}
                         style={{
                           display: "flex", alignItems: "center", gap: 10,
                           padding: "12px 16px", borderRadius: 10,
-                          background: relatorioSemPdf ? "#FFFBEB" : "#D1FAE5",
-                          border: `1.5px solid ${relatorioSemPdf ? "#FCD34D" : "#6EE7B7"}`,
-                          color: relatorioSemPdf ? "#92400E" : "#065F46",
-                          fontWeight: 600, fontSize: 13,
+                          background: "#D1FAE5", border: "1.5px solid #6EE7B7",
+                          color: "#065F46", fontWeight: 600, fontSize: 13,
                           textDecoration: "none", cursor: "pointer",
                         }}
                       >
-                        <i className={relatorioSemPdf ? "fas fa-file-lines" : "fas fa-check-circle"}
-                          style={{ color: relatorioSemPdf ? "#B45309" : "#059669" }} />
-                        <span style={{ flex: 1 }}>
-                          {relatorioSemPdf ? "Abrir relatório do técnico" : "Relatório enviado pelo técnico"}
-                          {relatorioSemPdf && (
-                            <span style={{ display: "block", fontWeight: 500, fontSize: 11, opacity: 0.85, marginTop: 2 }}>
-                              O PDF do app falhou — montado pelos dados enviados
-                            </span>
-                          )}
-                        </span>
+                        <i className="fas fa-check-circle" style={{ color: "#059669" }} />
+                        <span style={{ flex: 1 }}>Relatório enviado pelo técnico</span>
                         <i className="fas fa-external-link-alt" style={{ fontSize: 11 }} />
                       </a>
                     </div>
