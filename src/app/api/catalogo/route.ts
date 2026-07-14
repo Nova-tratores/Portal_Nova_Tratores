@@ -45,6 +45,36 @@ export async function GET(req: NextRequest) {
   const acao = req.nextUrl.searchParams.get("acao") || "secoes";
   const modelo = req.nextUrl.searchParams.get("modelo");
   try {
+    // Marcas que TÊM modelo no catálogo (com a logo e a contagem de modelos/tipos).
+    // A tabela catalogo_marcas tem dezenas de marcas cadastradas; aqui só entram as
+    // que realmente têm catálogo, senão a tela viraria uma lista de marcas vazias.
+    if (acao === "marcas") {
+      const { data: modelos, error } = await supabase.from("catalogo_modelos").select("marca, tipo, slug");
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      const porMarca = new Map<string, { modelos: number; tipos: Set<string> }>();
+      for (const m of modelos || []) {
+        const marca = String(m.marca || "").trim();
+        if (!marca) continue;
+        if (!porMarca.has(marca)) porMarca.set(marca, { modelos: 0, tipos: new Set() });
+        const o = porMarca.get(marca)!;
+        o.modelos++;
+        if (m.tipo) o.tipos.add(String(m.tipo));
+      }
+      const { data: marcas } = await supabase.from("catalogo_marcas").select("nome, slug, logo_url, ordem");
+      const logoPor: Record<string, { slug: string; logo_url: string | null; ordem: number }> = {};
+      for (const m of marcas || []) {
+        logoPor[String(m.nome || "").trim().toLowerCase()] = { slug: m.slug, logo_url: m.logo_url, ordem: m.ordem ?? 99 };
+      }
+      const out = [...porMarca.entries()].map(([nome, o]) => {
+        const info = logoPor[nome.toLowerCase()];
+        return {
+          nome, slug: info?.slug || nome.toLowerCase(), logo_url: info?.logo_url || null,
+          modelos: o.modelos, tipos: [...o.tipos].sort(),
+        };
+      }).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+      return NextResponse.json(out);
+    }
+
     // Modelos (tratores/implementos) com contagem de figuras
     if (acao === "modelos") {
       // select("*") em vez de colunas fixas: assim a coluna "marca" entra quando existir,

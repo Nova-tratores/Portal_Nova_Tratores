@@ -4,13 +4,17 @@ import { useState, useEffect, useCallback, useRef } from "react";
 interface Peca { id: number; code: string; name: string; reference: string; qtd: number | null; unit: string | null; compravel?: boolean; figura?: any; figura_id?: string }
 interface Figura { id: string; code: string; name: string; secao: string; thumb_url: string | null; image_url: string | null; hotspots?: { reference: string; x: number; y: number }[]; pecas?: Peca[] }
 interface Secao { secao: string; ordem: number; figuras: number; thumb?: string | null }
-interface Modelo { slug: string; nome: string; image_url: string | null; figuras?: number; marca?: string | null; manual_url?: string | null; manual_nome?: string | null }
+interface Modelo { slug: string; nome: string; image_url: string | null; figuras?: number; marca?: string | null; tipo?: string | null; manual_url?: string | null; manual_nome?: string | null }
+interface Marca { slug: string; nome: string; logo_url: string | null; modelos: number; tipos: string[] }
 
 // Mascote do assistente (mecânico Nova Tratores). Se não existir no storage, cai no ícone.
 
 // Quando embutido no fluxo de adicionar peças, recebe onSelecionarPeca; senão, copia o código.
 export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecionarPeca?: (p: { code: string; name: string }) => void; userName?: string }) {
   const [modelos, setModelos] = useState<Modelo[]>([]);
+  const [marcas, setMarcas] = useState<Marca[]>([]);
+  const [marcaSel, setMarcaSel] = useState<Marca | null>(null);
+  const [tipoSel, setTipoSel] = useState<string>(""); // "" = todos os tipos
   const [modeloSel, setModeloSel] = useState<Modelo | null>(null);
   const [secoes, setSecoes] = useState<Secao[]>([]);
   const [secaoAtual, setSecaoAtual] = useState<string>("");
@@ -71,16 +75,34 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
     setTimeout(() => setToast(""), 3500);
   }, [cliSel, cart, userName]);
 
-  const vista = busca.trim().length >= 2 ? "busca" : figura ? "figura" : secaoAtual ? "figuras" : modeloSel ? "secoes" : "modelos";
+  // Navegação: marcas → modelos (filtrando por tipo) → sistemas → figura.
+  const vista = busca.trim().length >= 2 ? "busca"
+    : figura ? "figura"
+    : secaoAtual ? "figuras"
+    : modeloSel ? "secoes"
+    : marcaSel ? "modelos"
+    : "marcas";
   const mq = modeloSel ? `&modelo=${encodeURIComponent(modeloSel.nome)}` : "";
 
   useEffect(() => {
     fetch("/api/catalogo?acao=modelos").then((r) => r.json()).then((d) => {
-      const lista = Array.isArray(d) ? d : [];
+      const lista: Modelo[] = Array.isArray(d) ? d : [];
       setModelos(lista);
-      if (lista.length === 1) setModeloSel(lista[0]); // 1 trator → entra direto
+    }).catch(() => {});
+    fetch("/api/catalogo?acao=marcas").then((r) => r.json()).then((d) => {
+      const lista: Marca[] = Array.isArray(d) ? d : [];
+      setMarcas(lista);
+      if (lista.length === 1) setMarcaSel(lista[0]); // uma marca só → entra direto
     }).catch(() => {});
   }, []);
+
+  // Modelos da marca escolhida, respeitando o filtro de tipo
+  const modelosDaMarca = modelos.filter((m) => m.marca === marcaSel?.nome);
+  const tiposDaMarca = [...new Set(modelosDaMarca.map((m) => m.tipo).filter(Boolean))] as string[];
+  const modelosVisiveis = tipoSel ? modelosDaMarca.filter((m) => m.tipo === tipoSel) : modelosDaMarca;
+  // Na tela inicial as marcas ficam abertas (modelos à mostra), com o filtro de tipo valendo pra todas.
+  const tiposTodos = [...new Set(modelos.map((m) => m.tipo).filter(Boolean))].sort() as string[];
+  const porTipo = (lista: Modelo[]) => (tipoSel ? lista.filter((m) => m.tipo === tipoSel) : lista);
 
   // carrega seções do trator selecionado
   useEffect(() => {
@@ -125,7 +147,53 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
 
   const corSecao: Record<string, string> = { Motor: "#dc2626", "Transmissão": "#2563eb", "Sistema Hidráulico": "#7c3aed", "Eixo Dianteiro": "#0891b2", "Elétrica": "#ca8a04", Lataria: "#0d9488", Freio: "#be123c", Embreagem: "#9333ea", "Diferencial": "#0369a1", "Direção": "#65a30d" };
 
-  const voltar = () => { if (figura) setFigura(null); else if (secaoAtual) setSecaoAtual(""); else if (modelos.length > 1) setModeloSel(null); };
+  const voltar = () => {
+    if (figura) setFigura(null);
+    else if (secaoAtual) setSecaoAtual("");
+    else if (modeloSel) { setModeloSel(null); if (marcas.length > 1) setMarcaSel(null); } // volta pra tela inicial (marcas abertas)
+    else if (marcaSel && marcas.length > 1) setMarcaSel(null);
+  };
+  const irParaMarcas = () => { setMarcaSel(null); setTipoSel(""); setModeloSel(null); setSecaoAtual(""); setFigura(null); };
+
+  const abrirModelo = (m: Modelo) => {
+    if (!marcaSel) setMarcaSel(marcas.find((mc) => mc.nome === m.marca) || null);
+    setModeloSel(m); setSecaoAtual(""); setFigura(null);
+  };
+
+  // Card de modelo (usado na tela inicial e dentro da marca)
+  const cardModelo = (m: Modelo) => (
+    <button key={m.slug} className="cat-card" onClick={() => abrirModelo(m)} style={{ padding: 0, borderRadius: 14, border: "1px solid #e9ecf1", background: "#fff", cursor: "pointer", overflow: "hidden", textAlign: "left" }}>
+      <div style={{ height: 184, background: "linear-gradient(180deg,#fbfcfe,#eef2f7)", display: "flex", alignItems: "center", justifyContent: "center", padding: 14, position: "relative" }}>
+        {m.tipo && <span style={{ position: "absolute", top: 10, left: 10, fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: .6, padding: "3px 9px", borderRadius: 999, background: "#0f172a", color: "#fff", opacity: .82 }}>{m.tipo}</span>}
+        {m.manual_url && <span title="Tem manual de instrução" style={{ position: "absolute", top: 10, right: 10, width: 24, height: 24, borderRadius: 7, background: "#dc2626", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11 }}><i className="fas fa-book" /></span>}
+        {m.image_url && !imgErro[m.slug] ? <img src={m.image_url} alt={m.nome} onError={() => setImgErro((s) => ({ ...s, [m.slug]: true }))} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : <i className="fas fa-tractor" style={{ fontSize: 46, color: "#cbd5e1" }} />}
+      </div>
+      <div style={{ padding: "13px 15px", borderTop: "1px solid #f0f2f6", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}>{m.nome}</div>
+          <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 2 }}>{m.figuras || 0} figuras</div>
+        </div>
+        <i className="fas fa-chevron-right" style={{ fontSize: 12, color: "#cbd5e1" }} />
+      </div>
+    </button>
+  );
+
+  // Chips de tipo (Todos / Trator / Implemento / Autopropelido)
+  const chipsTipo = (tipos: string[], universo: Modelo[]) => (
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+      {["", ...tipos].map((t) => {
+        const ativo = tipoSel === t;
+        const n = t ? universo.filter((m) => m.tipo === t).length : universo.length;
+        return (
+          <button key={t || "todos"} onClick={() => setTipoSel(t)}
+            style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 15px", borderRadius: 999, border: `1.5px solid ${ativo ? "#dc2626" : "#e3e8ef"}`, background: ativo ? "#dc2626" : "#fff", color: ativo ? "#fff" : "#475569", fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "all .12s" }}>
+            {t || "Todos"}
+            <span style={{ fontSize: 11, fontWeight: 700, padding: "1px 7px", borderRadius: 999, background: ativo ? "rgba(255,255,255,.22)" : "#f1f5f9", color: ativo ? "#fff" : "#94a3b8" }}>{n}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#f7f8fa", borderRadius: 14, overflow: "hidden", color: "#0f172a", fontFamily: "'Inter','Segoe UI',system-ui,sans-serif" }}>
@@ -155,8 +223,9 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
         </div>
         {vista !== "busca" && (
           <div style={{ fontSize: 13, color: "#64748b", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            {(secaoAtual || figura || (modeloSel && modelos.length > 1)) && <button className="cat-back" onClick={voltar} style={{ display: "flex", alignItems: "center", gap: 7, border: "1px solid #e3e8ef", background: "#fff", color: "#334155", borderRadius: 9, padding: "7px 13px", cursor: "pointer", fontSize: 13, fontWeight: 600, transition: "background .15s,color .15s" }}><i className="fas fa-arrow-left" style={{ fontSize: 11 }} /> Voltar</button>}
-            <span className="cat-crumb" onClick={() => { if (modelos.length > 1) setModeloSel(null); setSecaoAtual(""); setFigura(null); }} style={{ fontWeight: 600 }}>Catálogo</span>
+            {(secaoAtual || figura || modeloSel || (marcaSel && marcas.length > 1)) && <button className="cat-back" onClick={voltar} style={{ display: "flex", alignItems: "center", gap: 7, border: "1px solid #e3e8ef", background: "#fff", color: "#334155", borderRadius: 9, padding: "7px 13px", cursor: "pointer", fontSize: 13, fontWeight: 600, transition: "background .15s,color .15s" }}><i className="fas fa-arrow-left" style={{ fontSize: 11 }} /> Voltar</button>}
+            <span className="cat-crumb" onClick={irParaMarcas} style={{ fontWeight: 600 }}>Catálogo</span>
+            {marcaSel && <><span style={{ color: "#cbd5e1" }}>›</span><span className="cat-crumb" onClick={() => { setModeloSel(null); setSecaoAtual(""); setFigura(null); }}>{marcaSel.nome}</span></>}
             {modeloSel && <><span style={{ color: "#cbd5e1" }}>›</span><span className="cat-crumb" onClick={() => { setSecaoAtual(""); setFigura(null); }}>{modeloSel.nome}</span></>}
             {secaoAtual && <><span style={{ color: "#cbd5e1" }}>›</span><span className="cat-crumb" onClick={() => setFigura(null)}>{secaoAtual}</span></>}
             {figura && <><span style={{ color: "#cbd5e1" }}>›</span><span style={{ fontWeight: 700, color: "#0f172a" }}>{figura.code} · {figura.name}</span></>}
@@ -192,26 +261,60 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
           </div>
         )}
 
-        {/* ===== TRATORES ===== */}
-        {vista === "modelos" && (
+        {/* ===== TELA INICIAL: marcas abertas, com os modelos à mostra ===== */}
+        {vista === "marcas" && (
           <div style={{ padding: 18 }}>
-            <div style={{ fontSize: 11.5, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 1, margin: "2px 2px 14px" }}>Tratores</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 18 }}>
-              {modelos.map((m) => (
-                <button key={m.slug} className="cat-card" onClick={() => { setModeloSel(m); setSecaoAtual(""); setFigura(null); }} style={{ padding: 0, borderRadius: 14, border: "1px solid #e9ecf1", background: "#fff", cursor: "pointer", overflow: "hidden", textAlign: "left" }}>
-                  <div style={{ height: 184, background: "linear-gradient(180deg,#fbfcfe,#eef2f7)", display: "flex", alignItems: "center", justifyContent: "center", padding: 14 }}>
-                    {m.image_url && !imgErro[m.slug] ? <img src={m.image_url} alt={m.nome} onError={() => setImgErro((s) => ({ ...s, [m.slug]: true }))} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : <i className="fas fa-tractor" style={{ fontSize: 46, color: "#cbd5e1" }} />}
-                  </div>
-                  <div style={{ padding: "13px 15px", borderTop: "1px solid #f0f2f6", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <div>
-                      <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}>{m.nome}</div>
-                      <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 2 }}>{m.figuras || 0} figuras · {m.marca || "Mahindra"}</div>
+            {tiposTodos.length > 1 && chipsTipo(tiposTodos, modelos)}
+
+            {marcas.map((mc) => {
+              const lista = porTipo(modelos.filter((m) => m.marca === mc.nome));
+              if (lista.length === 0) return null; // marca sem modelo neste tipo
+              return (
+                <div key={mc.slug} style={{ marginBottom: 26 }}>
+                  {/* Cabeçalho da marca (clicável = ver só ela) */}
+                  <div onClick={() => setMarcaSel(mc)} title={`Ver só ${mc.nome}`}
+                    style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", borderRadius: 12, background: "#fff", border: "1px solid #e9ecf1", marginBottom: 14, cursor: "pointer", boxShadow: "0 1px 2px rgba(16,24,40,.05)" }}>
+                    {mc.logo_url && !imgErro[`marca:${mc.slug}`]
+                      ? <img src={mc.logo_url} alt={mc.nome} onError={() => setImgErro((s) => ({ ...s, [`marca:${mc.slug}`]: true }))} style={{ height: 36, maxWidth: 120, objectFit: "contain" }} />
+                      : <div style={{ fontSize: 18, fontWeight: 900, color: "#0f172a", letterSpacing: 1 }}>{mc.nome}</div>}
+                    <div style={{ width: 1, height: 28, background: "#eef1f6" }} />
+                    <div style={{ fontSize: 13, color: "#64748b", fontWeight: 600 }}>
+                      {lista.length} {lista.length === 1 ? "modelo" : "modelos"}
+                      {tipoSel ? ` · ${tipoSel}` : mc.tipos.length ? ` · ${mc.tipos.join(" · ")}` : ""}
                     </div>
-                    <i className="fas fa-chevron-right" style={{ fontSize: 12, color: "#cbd5e1" }} />
+                    <i className="fas fa-chevron-right" style={{ marginLeft: "auto", fontSize: 12, color: "#cbd5e1" }} />
                   </div>
-                </button>
-              ))}
-              {modelos.length === 0 && <div style={{ padding: 30, color: "#94a3b8" }}>Nenhum trator cadastrado.</div>}
+
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 18 }}>
+                    {lista.map(cardModelo)}
+                  </div>
+                </div>
+              );
+            })}
+            {marcas.length === 0 && <div style={{ padding: 30, color: "#94a3b8" }}>Nenhuma marca com catálogo.</div>}
+          </div>
+        )}
+
+        {/* ===== MODELOS DA MARCA (com filtro por tipo) ===== */}
+        {vista === "modelos" && marcaSel && (
+          <div style={{ padding: 18 }}>
+            {/* Cabeçalho da marca */}
+            <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 18px", borderRadius: 14, background: "#fff", border: "1px solid #e9ecf1", marginBottom: 16 }}>
+              {marcaSel.logo_url && !imgErro[`marca:${marcaSel.slug}`] && (
+                <img src={marcaSel.logo_url} alt={marcaSel.nome} onError={() => setImgErro((s) => ({ ...s, [`marca:${marcaSel.slug}`]: true }))} style={{ height: 40, maxWidth: 130, objectFit: "contain" }} />
+              )}
+              <div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: "#0f172a", lineHeight: 1.15 }}>{marcaSel.nome}</div>
+                <div style={{ fontSize: 12.5, color: "#94a3b8", marginTop: 2 }}>{modelosVisiveis.length} de {modelosDaMarca.length} modelos</div>
+              </div>
+            </div>
+
+            {/* Filtro por tipo — só aparece se a marca tiver mais de um */}
+            {tiposDaMarca.length > 1 && chipsTipo(tiposDaMarca, modelosDaMarca)}
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 18 }}>
+              {modelosVisiveis.map(cardModelo)}
+              {modelosVisiveis.length === 0 && <div style={{ padding: 30, color: "#94a3b8" }}>Nenhum modelo neste tipo.</div>}
             </div>
           </div>
         )}
