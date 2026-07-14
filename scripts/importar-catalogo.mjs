@@ -26,24 +26,37 @@ const sb = createClient(URL_SB, KEY, { auth: { persistSession: false } })
 const BUCKET = 'catalogo'
 const args = process.argv.slice(2)
 const pecasOnly = args.includes('--pecas')
-const arquivo = args.find((a) => !a.startsWith('--')) || 'catalogo_completo.json'
-const dados = JSON.parse(readFileSync(new URL(`../catalogos/${arquivo}`, import.meta.url), 'utf8'))
+// Aceita VÁRIOS arquivos de uma vez (antes só o primeiro era importado, em silêncio).
+const arquivos = args.filter((a) => !a.startsWith('--'))
+if (!arquivos.length) arquivos.push('catalogo_completo.json')
 
 const slugify = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-const MODELO = dados.modelo || 'Jivo 2025'
-const SLUG = dados.modeloSlug || slugify(MODELO)
-const ROOT_ID = dados.root || null
-const BU = dados.businessUnit || null
+
+// Imagens já subidas (mesmo processo) e as que já estavam no storage: não baixa nem sobe de novo.
+// Sem isto, 120 variantes de plantadeira subiriam a MESMA folha 120 vezes.
+const cacheImg = new Map()
+async function jaNoStorage(path) {
+  const url = sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl
+  try {
+    const r = await fetch(url, { method: 'HEAD' })
+    return r.ok ? url : null
+  } catch { return null }
+}
 
 async function baixarESubir(url, path) {
   if (!url) return null
+  if (cacheImg.has(path)) return cacheImg.get(path)
+  const existente = await jaNoStorage(path)
+  if (existente) { cacheImg.set(path, existente); return existente }
   try {
     const r = await fetch(url)
     if (!r.ok) { console.warn('  imagem falhou', r.status, path); return null }
     const buf = Buffer.from(await r.arrayBuffer())
     const up = await sb.storage.from(BUCKET).upload(path, buf, { contentType: 'image/jpeg', upsert: true })
     if (up.error) { console.warn('  upload falhou', path, up.error.message); return null }
-    return sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl
+    const pub = sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl
+    cacheImg.set(path, pub)
+    return pub
   } catch (e) { console.warn('  erro img', path, e.message); return null }
 }
 
@@ -61,8 +74,13 @@ async function subirB64(dataUrl, path) {
   } catch (e) { console.warn('  erro b64', path, e.message); return null }
 }
 
-async function main() {
-  console.log(`Trator: ${MODELO} (${SLUG}) | arquivo: ${arquivo}${pecasOnly ? ' | só peças' : ''}`)
+async function importar(arquivo) {
+  const dados = JSON.parse(readFileSync(new URL(`../catalogos/${arquivo}`, import.meta.url), 'utf8'))
+  const MODELO = dados.modelo || 'Jivo 2025'
+  const SLUG = dados.modeloSlug || slugify(MODELO)
+  const ROOT_ID = dados.root || null
+  const BU = dados.businessUnit || null
+  console.log(`\nTrator: ${MODELO} (${SLUG}) | arquivo: ${arquivo}${pecasOnly ? ' | só peças' : ''}`)
 
   // Cadastra/atualiza o trator (com a foto catalogos/<slug>.jpg, se existir)
   if (!pecasOnly) {
@@ -76,8 +94,14 @@ async function main() {
     // Marca: vem do JSON (dados.marca) ou da fonte ("kuhn" → KUHN; resto → Mahindra)
     const MARCA = dados.marca || (String(dados.fonte || '').toLowerCase() === 'kuhn' ? 'KUHN' : 'Mahindra')
     const mrow = { slug: SLUG, nome: MODELO, marca: MARCA, root_id: ROOT_ID, business_unit: BU, atualizado_em: new Date().toISOString() }
+    if (dados.familia) mrow.familia = dados.familia // linha de produto (agrupa as variantes)
     if (modeloImg) mrow.image_url = modeloImg
     let { error: me } = await sb.from('catalogo_modelos').upsert(mrow, { onConflict: 'slug' })
+    if (me && /familia/i.test(me.message)) {
+      console.warn('⚠ coluna "familia" não existe — rode sql/catalogo-familia.sql')
+      delete mrow.familia
+      ;({ error: me } = await sb.from('catalogo_modelos').upsert(mrow, { onConflict: 'slug' }))
+    }
     // Se a coluna "marca" ainda não existe no banco, o upsert INTEIRO falhava e o modelo
     // nem era criado (as figuras/peças entravam e o modelo sumia do catálogo). Agora
     // tenta de novo sem ela e avisa alto — nunca mais falha em silêncio.
@@ -101,7 +125,9 @@ async function main() {
     for (const f of dados.figuras) {
       const ordem = (contadorOrdem[f.secao] = (contadorOrdem[f.secao] || 0) + 1)
       // Imagem: base64 embutido (KUHN) tem prioridade; senão baixa da URL (zeitten).
-      const image_url = f.imageB64 ? await subirB64(f.imageB64, `figuras/${f.id}.jpg`) : await baixarESubir(f.imageUrl, `figuras/${f.id}.jpg`)
+      // imageKey (Tatu): a mesma folha é partilhada entre máquinas → guarda uma vez só.
+      const imgPath = `figuras/${f.imageKey || f.id}.jpg`
+      const image_url = f.imageB64 ? await subirB64(f.imageB64, imgPath) : await baixarESubir(f.imageUrl, imgPath)
       const thumb_url = f.thumbB64 ? await subirB64(f.thumbB64, `thumbs/${f.id}.jpg`) : await baixarESubir(f.thumbUrl, `thumbs/${f.id}.jpg`)
       if (image_url) nImg++
 
@@ -138,6 +164,12 @@ async function main() {
   }
 
   console.log(`\n✅ ${MODELO}: ${pecasOnly ? '(só peças)' : nFig + ' figuras (' + nImg + ' com imagem),'} ${nPecas} peças inseridas (de ${todasPecas.length}).`)
+}
+
+async function main() {
+  for (const arq of arquivos) {
+    try { await importar(arq) } catch (e) { console.error(`❌ ${arq}: ${e.message}`) }
+  }
 }
 
 main().catch((e) => { console.error(e); process.exit(1) })

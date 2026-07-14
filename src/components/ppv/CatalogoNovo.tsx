@@ -4,8 +4,10 @@ import { useState, useEffect, useCallback, useRef } from "react";
 interface Peca { id: number; code: string; name: string; reference: string; qtd: number | null; unit: string | null; compravel?: boolean; figura?: any; figura_id?: string }
 interface Figura { id: string; code: string; name: string; secao: string; thumb_url: string | null; image_url: string | null; hotspots?: { reference: string; x: number; y: number }[]; pecas?: Peca[] }
 interface Secao { secao: string; ordem: number; figuras: number; thumb?: string | null }
-interface Modelo { slug: string; nome: string; image_url: string | null; figuras?: number; marca?: string | null; tipo?: string | null; manual_url?: string | null; manual_nome?: string | null }
+interface Modelo { slug: string; nome: string; image_url: string | null; figuras?: number; marca?: string | null; tipo?: string | null; familia?: string | null; manual_url?: string | null; manual_nome?: string | null }
 interface Marca { slug: string; nome: string; logo_url: string | null; modelos: number; tipos: string[] }
+// Linha de produto: agrupa as variantes num card só (ex.: PST DUO tem 62 variantes de chassi/versão).
+interface Familia { nome: string; marca: string; tipo: string | null; image_url: string | null; variantes: Modelo[] }
 
 // Mascote do assistente (mecânico Nova Tratores). Se não existir no storage, cai no ícone.
 
@@ -15,6 +17,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
   const [marcas, setMarcas] = useState<Marca[]>([]);
   const [marcaSel, setMarcaSel] = useState<Marca | null>(null);
   const [tipoSel, setTipoSel] = useState<string>(""); // "" = todos os tipos
+  const [familiaSel, setFamiliaSel] = useState<Familia | null>(null);
   const [modeloSel, setModeloSel] = useState<Modelo | null>(null);
   const [secoes, setSecoes] = useState<Secao[]>([]);
   const [secaoAtual, setSecaoAtual] = useState<string>("");
@@ -75,11 +78,12 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
     setTimeout(() => setToast(""), 3500);
   }, [cliSel, cart, userName]);
 
-  // Navegação: marcas → modelos (filtrando por tipo) → sistemas → figura.
+  // Navegação: marcas → linhas de produto → variantes → sistemas → figura.
   const vista = busca.trim().length >= 2 ? "busca"
     : figura ? "figura"
     : secaoAtual ? "figuras"
     : modeloSel ? "secoes"
+    : familiaSel ? "variantes"
     : marcaSel ? "modelos"
     : "marcas";
   const mq = modeloSel ? `&modelo=${encodeURIComponent(modeloSel.nome)}` : "";
@@ -116,6 +120,20 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
   // Na tela inicial as marcas ficam abertas (modelos à mostra), com o filtro de tipo valendo pra todas.
   const tiposTodos = [...new Set(modelos.map((m) => m.tipo).filter(Boolean))].sort() as string[];
   const porTipo = (lista: Modelo[]) => (tipoSel ? lista.filter((m) => m.tipo === tipoSel) : lista);
+
+  // Agrupa por LINHA DE PRODUTO: quem não tem família vale por si (o nome é a linha).
+  // Sem isto, as 62 variantes da PST DUO virariam 62 cards na tela da marca.
+  const agrupar = (lista: Modelo[]): Familia[] => {
+    const mapa = new Map<string, Familia>();
+    for (const m of ordenar(lista)) {
+      const nome = (m.familia || m.nome).trim();
+      if (!mapa.has(nome)) mapa.set(nome, { nome, marca: m.marca || "", tipo: m.tipo || null, image_url: null, variantes: [] });
+      const f = mapa.get(nome)!;
+      f.variantes.push(m);
+      if (!f.image_url && m.image_url) f.image_url = m.image_url;
+    }
+    return [...mapa.values()];
+  };
 
   // carrega seções do trator selecionado
   useEffect(() => {
@@ -163,34 +181,48 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
   const voltar = () => {
     if (figura) setFigura(null);
     else if (secaoAtual) setSecaoAtual("");
-    else if (modeloSel) { setModeloSel(null); if (marcas.length > 1) setMarcaSel(null); } // volta pra tela inicial (marcas abertas)
+    else if (modeloSel) { setModeloSel(null); if (!familiaSel && marcas.length > 1) setMarcaSel(null); } // sem variantes → volta pra tela inicial
+    else if (familiaSel) { setFamiliaSel(null); if (marcas.length > 1) setMarcaSel(null); }
     else if (marcaSel && marcas.length > 1) setMarcaSel(null);
   };
-  const irParaMarcas = () => { setMarcaSel(null); setTipoSel(""); setModeloSel(null); setSecaoAtual(""); setFigura(null); };
+  const irParaMarcas = () => { setMarcaSel(null); setTipoSel(""); setFamiliaSel(null); setModeloSel(null); setSecaoAtual(""); setFigura(null); };
 
   const abrirModelo = (m: Modelo) => {
     if (!marcaSel) setMarcaSel(marcas.find((mc) => mc.nome === m.marca) || null);
     setModeloSel(m); setSecaoAtual(""); setFigura(null);
   };
 
-  // Card de modelo (usado na tela inicial e dentro da marca)
-  const cardModelo = (m: Modelo) => (
-    <button key={m.slug} className="cat-card" onClick={() => abrirModelo(m)} style={{ padding: 0, borderRadius: 14, border: "1px solid #e9ecf1", background: "#fff", cursor: "pointer", overflow: "hidden", textAlign: "left" }}>
-      <div style={{ height: 184, background: "linear-gradient(180deg,#fbfcfe,#eef2f7)", display: "flex", alignItems: "center", justifyContent: "center", padding: 14, position: "relative" }}>
-        {m.tipo && <span style={{ position: "absolute", top: 10, left: 10, fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: .6, padding: "3px 9px", borderRadius: 999, background: "#0f172a", color: "#fff", opacity: .82 }}>{m.tipo}</span>}
-        {m.manual_url && <span title="Tem manual de instrução" style={{ position: "absolute", top: 10, right: 10, width: 24, height: 24, borderRadius: 7, background: "#dc2626", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11 }}><i className="fas fa-book" /></span>}
-        {m.image_url && !imgErro[m.slug] ? <img src={m.image_url} alt={m.nome} onError={() => setImgErro((s) => ({ ...s, [m.slug]: true }))} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : <i className="fas fa-tractor" style={{ fontSize: 46, color: "#cbd5e1" }} />}
-      </div>
-      <div style={{ padding: "13px 15px", borderTop: "1px solid #f0f2f6", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}>{m.nome}</div>
-          <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 2 }}>{m.figuras || 0} figuras</div>
-        </div>
-        <i className="fas fa-chevron-right" style={{ fontSize: 12, color: "#cbd5e1" }} />
-      </div>
-    </button>
-  );
+  // Linha com uma variante só abre direto no modelo; com várias, mostra a lista.
+  const abrirFamilia = (f: Familia) => {
+    if (!marcaSel) setMarcaSel(marcas.find((mc) => mc.nome === f.marca) || null);
+    if (f.variantes.length === 1) { setModeloSel(f.variantes[0]); setSecaoAtual(""); setFigura(null); return; }
+    setFamiliaSel(f);
+  };
 
+  const cardFamilia = (f: Familia) => {
+    const n = f.variantes.length;
+    const figuras = f.variantes.reduce((a, m) => a + (m.figuras || 0), 0);
+    const temManual = f.variantes.some((m) => m.manual_url);
+    return (
+      <button key={f.nome} className="cat-card" onClick={() => abrirFamilia(f)} style={{ padding: 0, borderRadius: 14, border: "1px solid #e9ecf1", background: "#fff", cursor: "pointer", overflow: "hidden", textAlign: "left" }}>
+        <div style={{ height: 184, background: "linear-gradient(180deg,#fbfcfe,#eef2f7)", display: "flex", alignItems: "center", justifyContent: "center", padding: 14, position: "relative" }}>
+          {f.tipo && <span style={{ position: "absolute", top: 10, left: 10, fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: .6, padding: "3px 9px", borderRadius: 999, background: "#0f172a", color: "#fff", opacity: .82 }}>{f.tipo}</span>}
+          {temManual && <span title="Tem manual de instrução" style={{ position: "absolute", top: 10, right: 10, width: 24, height: 24, borderRadius: 7, background: "#dc2626", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11 }}><i className="fas fa-book" /></span>}
+          {n > 1 && <span style={{ position: "absolute", bottom: 10, right: 10, fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999, background: "#fff", color: "#dc2626", border: "1px solid #fecaca" }}>{n} versões</span>}
+          {f.image_url && !imgErro[`fam:${f.nome}`] ? <img src={f.image_url} alt={f.nome} onError={() => setImgErro((s) => ({ ...s, [`fam:${f.nome}`]: true }))} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : <i className="fas fa-tractor" style={{ fontSize: 46, color: "#cbd5e1" }} />}
+        </div>
+        <div style={{ padding: "13px 15px", borderTop: "1px solid #f0f2f6", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}>{f.nome}</div>
+            <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 2 }}>{n > 1 ? `${n} versões · ${figuras} figuras` : `${figuras} figuras`}</div>
+          </div>
+          <i className="fas fa-chevron-right" style={{ fontSize: 12, color: "#cbd5e1" }} />
+        </div>
+      </button>
+    );
+  };
+
+  // Card de modelo (usado na tela inicial e dentro da marca)
   // Chips de tipo (Todos / Trator / Implemento / Autopropelido)
   const chipsTipo = (tipos: string[], universo: Modelo[]) => (
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
@@ -236,9 +268,10 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
         </div>
         {vista !== "busca" && (
           <div style={{ fontSize: 13, color: "#64748b", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            {(secaoAtual || figura || modeloSel || (marcaSel && marcas.length > 1)) && <button className="cat-back" onClick={voltar} style={{ display: "flex", alignItems: "center", gap: 7, border: "1px solid #e3e8ef", background: "#fff", color: "#334155", borderRadius: 9, padding: "7px 13px", cursor: "pointer", fontSize: 13, fontWeight: 600, transition: "background .15s,color .15s" }}><i className="fas fa-arrow-left" style={{ fontSize: 11 }} /> Voltar</button>}
+            {(secaoAtual || figura || modeloSel || familiaSel || (marcaSel && marcas.length > 1)) && <button className="cat-back" onClick={voltar} style={{ display: "flex", alignItems: "center", gap: 7, border: "1px solid #e3e8ef", background: "#fff", color: "#334155", borderRadius: 9, padding: "7px 13px", cursor: "pointer", fontSize: 13, fontWeight: 600, transition: "background .15s,color .15s" }}><i className="fas fa-arrow-left" style={{ fontSize: 11 }} /> Voltar</button>}
             <span className="cat-crumb" onClick={irParaMarcas} style={{ fontWeight: 600 }}>Catálogo</span>
-            {marcaSel && <><span style={{ color: "#cbd5e1" }}>›</span><span className="cat-crumb" onClick={() => { setModeloSel(null); setSecaoAtual(""); setFigura(null); }}>{marcaSel.nome}</span></>}
+            {marcaSel && <><span style={{ color: "#cbd5e1" }}>›</span><span className="cat-crumb" onClick={() => { setFamiliaSel(null); setModeloSel(null); setSecaoAtual(""); setFigura(null); }}>{marcaSel.nome}</span></>}
+            {familiaSel && <><span style={{ color: "#cbd5e1" }}>›</span><span className="cat-crumb" onClick={() => { setModeloSel(null); setSecaoAtual(""); setFigura(null); }}>{familiaSel.nome}</span></>}
             {modeloSel && <><span style={{ color: "#cbd5e1" }}>›</span><span className="cat-crumb" onClick={() => { setSecaoAtual(""); setFigura(null); }}>{modeloSel.nome}</span></>}
             {secaoAtual && <><span style={{ color: "#cbd5e1" }}>›</span><span className="cat-crumb" onClick={() => setFigura(null)}>{secaoAtual}</span></>}
             {figura && <><span style={{ color: "#cbd5e1" }}>›</span><span style={{ fontWeight: 700, color: "#0f172a" }}>{figura.code} · {figura.name}</span></>}
@@ -299,7 +332,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
                   </div>
 
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 18 }}>
-                    {lista.map(cardModelo)}
+                    {agrupar(lista).map(cardFamilia)}
                   </div>
                 </div>
               );
@@ -326,8 +359,37 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
             {tiposDaMarca.length > 1 && chipsTipo(tiposDaMarca, modelosDaMarca)}
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 18 }}>
-              {modelosVisiveis.map(cardModelo)}
+              {agrupar(modelosVisiveis).map(cardFamilia)}
               {modelosVisiveis.length === 0 && <div style={{ padding: 30, color: "#94a3b8" }}>Nenhum modelo neste tipo.</div>}
+            </div>
+          </div>
+        )}
+
+        {/* ===== VARIANTES DE UMA LINHA (ex.: as 62 PST DUO, por chassi/versão) ===== */}
+        {vista === "variantes" && familiaSel && (
+          <div style={{ padding: 18 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 18px", borderRadius: 14, background: "#fff", border: "1px solid #e9ecf1", marginBottom: 16 }}>
+              <div style={{ width: 96, height: 68, borderRadius: 10, overflow: "hidden", background: "linear-gradient(180deg,#fbfcfe,#eef2f7)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid #eef1f6", flexShrink: 0 }}>
+                {familiaSel.image_url ? <img src={familiaSel.image_url} alt={familiaSel.nome} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : <i className="fas fa-tractor" style={{ fontSize: 26, color: "#cbd5e1" }} />}
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#dc2626", letterSpacing: 1.2, textTransform: "uppercase" }}>{familiaSel.marca}{familiaSel.tipo ? ` · ${familiaSel.tipo}` : ""}</div>
+                <div style={{ fontSize: 22, fontWeight: 800, lineHeight: 1.15, color: "#0f172a" }}>{familiaSel.nome}</div>
+                <div style={{ fontSize: 12.5, color: "#94a3b8", marginTop: 3 }}>{familiaSel.variantes.length} versões — escolha a do cliente (chassi / configuração)</div>
+              </div>
+            </div>
+
+            <div style={{ background: "#fff", border: "1px solid #e9ecf1", borderRadius: 12, overflow: "hidden" }}>
+              {familiaSel.variantes.map((m) => (
+                <button key={m.slug} className="cat-row" onClick={() => abrirModelo(m)}
+                  style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left", padding: "12px 15px", border: "none", borderBottom: "1px solid #f1f4f8", background: "transparent", cursor: "pointer" }}>
+                  <i className="fas fa-file-lines" style={{ color: "#cbd5e1", fontSize: 14 }} />
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 600, color: "#0f172a" }}>{m.nome}</span>
+                  {m.manual_url && <i className="fas fa-book" title="Tem manual" style={{ color: "#dc2626", fontSize: 12 }} />}
+                  <span style={{ fontSize: 12, color: "#94a3b8", whiteSpace: "nowrap" }}>{m.figuras || 0} figuras</span>
+                  <i className="fas fa-chevron-right" style={{ fontSize: 11, color: "#cbd5e1" }} />
+                </button>
+              ))}
             </div>
           </div>
         )}
