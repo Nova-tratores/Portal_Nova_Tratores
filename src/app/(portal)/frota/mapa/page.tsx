@@ -47,7 +47,11 @@ export default function FrotaMapaPage() {
         </span>
       </div>
       {erro && <div style={{ color: '#b91c1c', fontSize: 13, marginBottom: 10 }}>{erro}</div>}
-      <MapaCarros carros={carros as any} />
+      {/* O MapaCarros usa height:100% — sem um pai com ALTURA EXPLÍCITA o
+          Leaflet monta num container de 0px e a tela fica em branco. */}
+      <div style={{ width: '100%', height: 'calc(100vh - 230px)', minHeight: 480, borderRadius: 14, overflow: 'hidden', border: '1px solid var(--portal-border)' }}>
+        <MapaCarros carros={carros as any} fontePosicoes="frota" />
+      </div>
     </div>
   );
 }

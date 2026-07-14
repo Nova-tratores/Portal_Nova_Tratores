@@ -8,6 +8,9 @@ interface Props {
   tipoCores?: Record<string, { bg: string; text: string }>
   onVisitaClick?: (v: any) => void
   fmtVisita?: (iso: string) => string
+  // 'carros' = só o comercial (default: comportamento original do supervisor);
+  // 'frota'  = todos os rastreados (usado pelo /frota/mapa)
+  fontePosicoes?: 'carros' | 'frota'
 }
 
 const hojeStr = () => new Date().toISOString().split('T')[0]
@@ -15,7 +18,7 @@ const fmtH = (iso: string) => { if (!iso) return '--:--'; try { const d = new Da
 const fmtT = (min: number) => min >= 60 ? Math.floor(min / 60) + 'h' + (min % 60 > 0 ? String(min % 60).padStart(2, '0') + 'min' : '') : min + 'min'
 const fmtData = (d: string) => { if (!d) return ''; const [y, m, dia] = d.split('-'); return `${dia}/${m}/${y.slice(2)}` }
 
-export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVisitaClick, fmtVisita }: Props) {
+export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVisitaClick, fmtVisita, fontePosicoes = 'carros' }: Props) {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstance = useRef<any>(null)
   const liveLayerRef = useRef<any>(null)
@@ -61,10 +64,10 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
   const carregarLive = useCallback(async () => {
     if (data !== hojeStr()) { setLive([]); return }
     try {
-      const res = await fetch('/api/supervisor-vendas/veiculos?acao=posicoes&fonte=carros')
+      const res = await fetch(`/api/supervisor-vendas/veiculos?acao=posicoes&fonte=${fontePosicoes}`)
       if (res.ok) setLive(await res.json())
     } catch { /* */ }
-  }, [data])
+  }, [data, fontePosicoes])
 
   useEffect(() => {
     carregarLive()

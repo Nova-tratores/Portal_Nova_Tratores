@@ -49,6 +49,20 @@ export async function GET(req: NextRequest) {
             const v = comerciais.get(normPlaca(ad.vei_placa));
             return { ad, vendedor_id: v?.pessoa_id || null, vendedor_nome: v?.pessoa_nome || "", vinculado: !!v };
           });
+      } else if (fonte === "frota") {
+        // Frota: TODOS os veículos rastreados (o /frota/mapa usa esta fonte).
+        // O nome exibido vem do vínculo comercial quando existir.
+        const { data: carros } = await supabase
+          .from("comercial_veiculos")
+          .select("placa, pessoa_id, pessoa_nome");
+        const pessoas = new Map<string, any>();
+        for (const c of carros || []) pessoas.set(normPlaca(c.placa), c);
+        alvos = (adesoes as any[])
+          .filter((a) => a.vei_placa)
+          .map((ad) => {
+            const v = pessoas.get(normPlaca(ad.vei_placa));
+            return { ad, vendedor_id: v?.pessoa_id || null, vendedor_nome: v?.pessoa_nome || "", vinculado: !!v };
+          });
       } else {
         // Vendedores que fizeram check-in hoje
         const { data: checkins } = await supabase.from("checkin_vendedor").select("*").eq("data", hoje);
