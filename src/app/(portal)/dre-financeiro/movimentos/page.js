@@ -148,6 +148,33 @@ export default function MovimentosPage() {
 
   useEffect(() => { carregar() }, [carregar])
 
+  // ---- Modo Antecipações: operações de desconto de duplicatas ----
+  // Reconstruídas pela API a partir da CC "Omie Desconto de Duplicatas":
+  // cheio/juros/líquido/taxa por operação são exatos; o líquido POR DUPLICATA
+  // é rateio pela taxa da operação (o Omie cobra o deságio por lote).
+  const [modo, setModo] = useState('extrato') // 'extrato' | 'antecipacoes'
+  const [ant, setAnt] = useState(null)
+  const [antLoading, setAntLoading] = useState(false)
+  const [antErro, setAntErro] = useState(null)
+
+  const carregarAnt = useCallback(async () => {
+    setAntLoading(true)
+    setAntErro(null)
+    try {
+      const qs = new URLSearchParams({ conta, de, ate })
+      const r = await fetch(`/api/dre-financeiro/movimentos/antecipacoes?${qs.toString()}`)
+      const j = await r.json()
+      if (!r.ok) throw new Error(j.erro || `HTTP ${r.status}`)
+      setAnt(j)
+    } catch (e) {
+      setAntErro(e.message)
+    } finally {
+      setAntLoading(false)
+    }
+  }, [conta, de, ate])
+
+  useEffect(() => { if (modo === 'antecipacoes') carregarAnt() }, [modo, carregarAnt])
+
   // ---- Sync com o Omie (dispara + polling do estado) ----
   const pararPoll = useCallback(() => {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
@@ -163,10 +190,11 @@ export default function MovimentosPage() {
         if (!j.rodando) {
           pararPoll()
           carregar()
+          carregarAnt()
         }
       } catch { /* tenta de novo no próximo tick */ }
     }, 3000)
-  }, [pararPoll, carregar])
+  }, [pararPoll, carregar, carregarAnt])
 
   useEffect(() => {
     // Se já houver um sync rodando (disparado antes / em outra aba), retoma o polling.
@@ -234,7 +262,16 @@ export default function MovimentosPage() {
     setOrdem((o) => o.key === key ? { key, dir: o.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: key === 'valor' || key === 'data' ? 'desc' : 'asc' })
   }
 
+  // Operações filtradas pela busca (por cliente das duplicatas).
+  const opsFiltradas = useMemo(() => {
+    let arr = ant?.operacoes || []
+    const q = busca.trim().toLowerCase()
+    if (q) arr = arr.filter((o) => (o.duplicatas || []).some((d) => (d.cliente || '').toLowerCase().includes(q)))
+    return arr
+  }, [ant, busca])
+
   function exportarCSV() {
+    if (modo === 'antecipacoes') return exportarCSVAntecipacoes()
     const cab = ['Data', 'Empresa', 'Tipo', 'Contraparte', 'Documento', 'Categoria', 'Grupo', 'Conta corrente', 'Valor', 'Juros', 'Multa', 'Desconto', 'Cod. título']
     const esc = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`
     const linhasCsv = linhas.map((m) => [
@@ -254,6 +291,28 @@ export default function MovimentosPage() {
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
     a.download = `movimentacoes_${de}_${ate}.csv`
+    a.click()
+    URL.revokeObjectURL(a.href)
+  }
+
+  function exportarCSVAntecipacoes() {
+    const cab = ['Data operação', 'Empresa', 'Taxa %', 'Cliente', 'Entrada na conta', 'Valor original', 'Usado na operação', 'Líquido estimado']
+    const esc = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`
+    const num = (v) => String(Math.round((Number(v) || 0) * 100) / 100).replace('.', ',')
+    const linhasCsv = []
+    opsFiltradas.forEach((o) => {
+      o.duplicatas.forEach((d) => {
+        linhasCsv.push([
+          fmtData(o.data), empresaLabel(o.conta_omie), num(o.taxaPct),
+          d.cliente, fmtData(d.dataEntrada), num(d.valorOriginal), num(d.valorNaOperacao), num(d.liquidoEstimado),
+        ].map(esc).join(';'))
+      })
+    })
+    const csv = '﻿' + [cab.map(esc).join(';'), ...linhasCsv].join('\r\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `antecipacoes_${de}_${ate}.csv`
     a.click()
     URL.revokeObjectURL(a.href)
   }
@@ -287,9 +346,21 @@ export default function MovimentosPage() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <button type="button" onClick={exportarCSV} disabled={!linhas.length} style={{
-            ...estiloAtalho, opacity: linhas.length ? 1 : 0.5
-          }}>
+          <div style={{ display: 'inline-flex', borderRadius: '8px', overflow: 'hidden', border: '1px solid #10B981' }}>
+            {[['extrato', 'Extrato'], ['antecipacoes', 'Antecipações']].map(([id, label], i) => (
+              <button key={id} type="button" onClick={() => setModo(id)} style={{
+                padding: '6px 12px', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
+                border: 'none', borderLeft: i ? '1px solid #10B981' : 'none',
+                background: modo === id ? '#10B981' : '#fff', color: modo === id ? '#fff' : '#047857'
+              }}>{label}</button>
+            ))}
+          </div>
+          <button type="button" onClick={exportarCSV}
+            disabled={modo === 'antecipacoes' ? !opsFiltradas.length : !linhas.length}
+            style={{
+              ...estiloAtalho,
+              opacity: (modo === 'antecipacoes' ? opsFiltradas.length : linhas.length) ? 1 : 0.5
+            }}>
             ⬇️ Exportar CSV
           </button>
           <button type="button" onClick={sincronizar} disabled={rodando} style={{
@@ -337,24 +408,30 @@ export default function MovimentosPage() {
             <button key={a.label} type="button" onClick={a.fn} style={estiloAtalho}>{a.label}</button>
           ))}
         </div>
-        <select value={natureza} onChange={(e) => setNatureza(e.target.value)} style={estiloInput}>
-          <option value="">Entradas + Saídas</option>
-          <option value="R">Só entradas (recebimentos)</option>
-          <option value="P">Só saídas (pagamentos)</option>
-        </select>
-        <select value={cc} onChange={(e) => setCc(e.target.value)} style={{ ...estiloInput, maxWidth: '220px' }}>
-          <option value="">Todas as contas correntes</option>
-          {ccOptions.map((c) => (
-            <option key={c.codigo} value={c.codigo}>{c.nome}</option>
-          ))}
-        </select>
+        {modo === 'extrato' && (
+          <>
+            <select value={natureza} onChange={(e) => setNatureza(e.target.value)} style={estiloInput}>
+              <option value="">Entradas + Saídas</option>
+              <option value="R">Só entradas (recebimentos)</option>
+              <option value="P">Só saídas (pagamentos)</option>
+            </select>
+            <select value={cc} onChange={(e) => setCc(e.target.value)} style={{ ...estiloInput, maxWidth: '220px' }}>
+              <option value="">Todas as contas correntes</option>
+              {ccOptions.map((c) => (
+                <option key={c.codigo} value={c.codigo}>{c.nome}</option>
+              ))}
+            </select>
+          </>
+        )}
         <input
-          type="text" placeholder="🔎 Buscar contraparte, documento, categoria..."
+          type="text"
+          placeholder={modo === 'antecipacoes' ? '🔎 Buscar cliente da duplicata...' : '🔎 Buscar contraparte, documento, categoria...'}
           value={busca} onChange={(e) => setBusca(e.target.value)}
           style={{ ...estiloInput, flex: 1, minWidth: '220px' }}
         />
       </div>
 
+      {modo === 'extrato' && (<>
       {/* KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
         {kpis.map((k) => (
@@ -437,6 +514,112 @@ export default function MovimentosPage() {
           </div>
         )}
       </div>
+      </>)}
+
+      {modo === 'antecipacoes' && (<>
+      {/* KPIs das antecipações */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
+        {[
+          { label: 'Valor antecipado (cheio)', valor: ant?.totais?.valorCheio || 0, cor: '#334155' },
+          { label: 'Juros pagos', valor: ant?.totais?.juros || 0, cor: VERMELHO },
+          { label: 'Líquido recebido', valor: ant?.totais?.liquido || 0, cor: VERDE },
+          { label: 'Taxa média', valor: ant?.totais?.taxaMediaPct || 0, cor: '#7c3aed', pct: true },
+        ].map((k) => (
+          <div key={k.label} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px 14px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.5px' }}>{k.label}</div>
+            <div style={{ fontSize: '20px', fontWeight: 800, color: k.cor, marginTop: '2px' }}>
+              {k.pct ? `${(k.valor || 0).toFixed(2).replace('.', ',')}%` : formatBRL(k.valor)}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+        {ant?.totais ? `${ant.totais.operacoes} operação(ões) · ${ant.totais.duplicatas} duplicata(s) no período. ` : ''}
+        Valor cheio, juros e líquido de cada operação são exatos (extrato da conta &quot;Omie Desconto de Duplicatas&quot;);
+        o líquido por duplicata é estimado pelo rateio da taxa da operação — o Omie cobra o deságio por lote, não por duplicata.
+      </div>
+
+      {/* Operações de desconto */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        {antLoading ? (
+          <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '13px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px' }}>Carregando...</div>
+        ) : antErro ? (
+          <div style={{ padding: '40px', textAlign: 'center', color: '#991b1b', fontSize: '13px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px' }}>Erro: {antErro}</div>
+        ) : opsFiltradas.length === 0 ? (
+          <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '13px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
+            Nenhuma operação de desconto de duplicatas no período.
+          </div>
+        ) : opsFiltradas.map((o, i) => (
+          <details key={`${o.data}-${o.conta_omie}-${i}`} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
+            <summary style={{ padding: '10px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              <span style={{ fontWeight: 700, color: '#1e293b', whiteSpace: 'nowrap' }}>{fmtData(o.data)}</span>
+              <EmpresaBadge conta={o.conta_omie} />
+              <span style={{ fontSize: '12px', color: '#64748b' }}>{o.duplicatas.length} duplicata(s)</span>
+              <span style={{ marginLeft: 'auto', fontSize: '13px', color: '#334155', whiteSpace: 'nowrap' }}>
+                cheio <b>{formatBRL(o.valorCheio)}</b>
+              </span>
+              <span style={{ fontSize: '13px', color: VERMELHO, whiteSpace: 'nowrap' }}>juros <b>{formatBRL(o.juros)}</b></span>
+              <span style={{ fontSize: '13px', color: VERDE, whiteSpace: 'nowrap' }}>líquido <b>{formatBRL(o.liquido)}</b></span>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: '#7c3aed', whiteSpace: 'nowrap' }}>
+                {(o.taxaPct || 0).toFixed(2).replace('.', ',')}%
+              </span>
+            </summary>
+            <div style={{ borderTop: '1px solid #f1f5f9', overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                <thead>
+                  <tr style={{ background: '#f8fafc' }}>
+                    <th style={{ padding: '6px 12px', textAlign: 'left', fontSize: '10px', color: '#64748b', textTransform: 'uppercase' }}>Cliente</th>
+                    <th style={{ padding: '6px 12px', textAlign: 'left', fontSize: '10px', color: '#64748b', textTransform: 'uppercase' }}>Entrada na conta</th>
+                    <th style={{ padding: '6px 12px', textAlign: 'right', fontSize: '10px', color: '#64748b', textTransform: 'uppercase' }}>Valor original</th>
+                    <th style={{ padding: '6px 12px', textAlign: 'right', fontSize: '10px', color: '#64748b', textTransform: 'uppercase' }}>Líquido estimado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {o.duplicatas.map((d, j) => (
+                    <tr key={j} style={{ borderTop: '1px solid #f8fafc' }}>
+                      <td style={{ padding: '5px 12px', color: '#1e293b' }}>
+                        {d.cliente}
+                        {d.parcial && (
+                          <span style={{ marginLeft: 6, fontSize: 10, color: '#b45309', background: '#fef3c7', padding: '1px 6px', borderRadius: 6 }}>
+                            parte ({formatBRL(d.valorNaOperacao)}) nesta operação
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ padding: '5px 12px', color: '#475569', whiteSpace: 'nowrap' }}>{fmtData(d.dataEntrada)}</td>
+                      <td style={{ padding: '5px 12px', textAlign: 'right', color: '#334155', whiteSpace: 'nowrap' }}>{formatBRL(d.valorOriginal)}</td>
+                      <td style={{ padding: '5px 12px', textAlign: 'right', fontWeight: 700, color: VERDE, whiteSpace: 'nowrap' }}>{formatBRL(d.liquidoEstimado)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {o.incompleta && (
+                <div style={{ padding: '6px 12px', fontSize: '11px', color: '#b45309', background: '#fffbeb' }}>
+                  ⚠️ {formatBRL(o.valorSemOrigem)} desta operação vêm de duplicatas anteriores a jan/2025 (fora do histórico sincronizado).
+                </div>
+              )}
+            </div>
+          </details>
+        ))}
+      </div>
+
+      {/* Duplicatas descontadas aguardando liberação (saldo na conta de desconto) */}
+      {!antLoading && !antErro && (ant?.pendentes || []).length > 0 && (
+        <details style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '10px 14px' }}>
+          <summary style={{ cursor: 'pointer', fontSize: '13px', fontWeight: 700, color: '#475569' }}>
+            ⏳ {ant.pendentes.length} duplicata(s) na conta de desconto aguardando liberação · {formatBRL(ant.pendentes.reduce((s, p) => s + p.valor, 0))}
+          </summary>
+          <div style={{ marginTop: '8px', fontSize: '12px', color: '#475569' }}>
+            {ant.pendentes.map((p, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', padding: '3px 0', borderTop: i ? '1px solid #f1f5f9' : 'none' }}>
+                <span>{fmtData(p.data)} · {p.cliente} <EmpresaBadge conta={p.conta_omie} /></span>
+                <b>{formatBRL(p.valor)}</b>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+      </>)}
     </div>
   )
 }
