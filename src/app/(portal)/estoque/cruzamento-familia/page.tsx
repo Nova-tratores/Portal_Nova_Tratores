@@ -65,7 +65,8 @@ export default function CruzamentoFamiliaPage() {
   const { contaParam } = useConta();
 
   const agora = new Date();
-  const [tab, setTab] = useState<Tab>('mes');
+  // Abre direto no "Gráfico mensal" (pedido do usuário).
+  const [tab, setTab] = useState<Tab>('grafico');
   const [mes, setMes] = useState(agora.getMonth() + 1);
   const [ano, setAno] = useState(agora.getFullYear());
   const [tipo, setTipo] = useState('');
