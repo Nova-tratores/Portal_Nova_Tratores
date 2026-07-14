@@ -1,9 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
+import { autenticar } from "@/lib/auth/server";
+import { podeFrota } from "@/lib/frota/server";
 import { supabaseVE } from "@/lib/visual-estoque/supabase";
 
 // Atualiza imagem_url de um veículo. Porta /api/frota-imagem.
 // Aceita { id_placa | IdPlaca, imagem_url }.
 export async function POST(req: NextRequest) {
+  // Rodava sem autenticacao nenhuma (mutacoes incluidas). O patio agora e
+  // do Frota: leitura = frota:patio; escrita = frota:patio:editar.
+  const auth = await autenticar(req);
+  if (!auth) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+  if (!podeFrota(auth, 'patio:editar')) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
+
+
   try {
     const body = await req.json();
     const id = body.id_placa ?? body.IdPlaca ?? body.id;

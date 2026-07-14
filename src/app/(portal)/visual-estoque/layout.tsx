@@ -3,13 +3,13 @@ import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
-import { LayoutDashboard, ShoppingBag, MapPin, AlertTriangle, Percent, FileInput, Send, Truck } from 'lucide-react'
+import { LayoutDashboard, ShoppingBag, MapPin, AlertTriangle, Percent, FileInput, Send } from 'lucide-react'
 
 const tabs = [
   { href: '/visual-estoque', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/visual-estoque/showroom', label: 'Showroom', icon: ShoppingBag },
   { href: '/visual-estoque/patio', label: 'Pátio', icon: MapPin },
-  { href: '/visual-estoque/frota', label: 'Frota', icon: Truck },
+  // A aba Frota foi absorvida pelo módulo Frota (/frota/patio)
   { href: '/visual-estoque/remessas', label: 'Remessas', icon: Send },
   { href: '/visual-estoque/notas-entrada', label: 'Notas de Entrada', icon: FileInput },
   { href: '/visual-estoque/margens', label: 'Margens', icon: Percent },

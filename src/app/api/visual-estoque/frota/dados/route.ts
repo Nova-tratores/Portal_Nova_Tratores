@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { autenticar } from "@/lib/auth/server";
+import { podeFrota } from "@/lib/frota/server";
 import { supabaseVE } from "@/lib/visual-estoque/supabase";
 
 // Atualiza dados de um veículo. Porta /api/frota-dados. Só grava os campos
@@ -6,6 +8,13 @@ import { supabaseVE } from "@/lib/visual-estoque/supabase";
 const CAMPOS = ["modelo", "ano", "hodometro", "valor_mercado", "data_valor", "ativo", "frota_tipo", "combustivel", "tem_seguro"] as const;
 
 export async function POST(req: NextRequest) {
+  // Rodava sem autenticacao nenhuma (mutacoes incluidas). O patio agora e
+  // do Frota: leitura = frota:patio; escrita = frota:patio:editar.
+  const auth = await autenticar(req);
+  if (!auth) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+  if (!podeFrota(auth, 'patio:editar')) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
+
+
   try {
     const body = await req.json();
     const id = body.id_placa ?? body.IdPlaca ?? body.id;

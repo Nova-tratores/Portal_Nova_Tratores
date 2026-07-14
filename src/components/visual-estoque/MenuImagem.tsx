@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { X, Search, Image as ImageIcon, ZoomIn, RotateCw, Plus, Minus } from 'lucide-react'
+import { authHeaders } from '@/lib/auth/client'
 
 // Menu de gestão de imagem (aberto via atalho QQ). Genérico para produtos do
 // pátio e veículos da frota: o pai informa os endpoints e a identidade do item.
@@ -52,7 +53,7 @@ export default function MenuImagem({
   async function salvarImagem(novaUrl: string) {
     if (!novaUrl) return
     await fetch(endpointImagem, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
       body: JSON.stringify({ [chaveId]: item.id, imagem_url: novaUrl }),
     })
     onImagemAlterada(novaUrl)
@@ -64,7 +65,7 @@ export default function MenuImagem({
     onTamanhoAlterado(clamp)
     if (endpointTamanho && montarBodyTamanho) {
       await fetch(endpointTamanho, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify(montarBodyTamanho(clamp)),
       })
     }
@@ -73,7 +74,7 @@ export default function MenuImagem({
   async function buscarInternet() {
     setBuscando(true); setResultados([])
     try {
-      const r = await fetch(`${endpointBuscar}?termo=${encodeURIComponent(item.descricao)}`)
+      const r = await fetch(`${endpointBuscar}?termo=${encodeURIComponent(item.descricao)}`, { headers: await authHeaders() })
       const d = await r.json()
       setResultados(d.imagens || [])
     } finally { setBuscando(false) }
@@ -82,7 +83,7 @@ export default function MenuImagem({
   async function abrirCopiar() {
     setAba('copiar')
     if (copiarLista.length === 0) {
-      const r = await fetch(endpointCopiar)
+      const r = await fetch(endpointCopiar, { headers: await authHeaders() })
       const d = await r.json()
       setCopiarLista(Array.isArray(d) ? d.filter((x: any) => x.imagem_url) : [])
     }

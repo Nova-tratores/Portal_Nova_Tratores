@@ -166,7 +166,8 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
   'consulta-estoque': [
     { id: 'showroom', label: 'Showroom' },
     { id: 'patio', label: 'Pátio' },
-    { id: 'frota', label: 'Frota' },
+    // 'frota' foi absorvida pelo módulo Frota (frota:patio); a chave legada
+    // consulta-estoque:frota continua valendo via lib/permissoes/compat.ts
     { id: 'remessas', label: 'Remessas' },
     { id: 'notas-entrada', label: 'Notas de Entrada' },
     { id: 'margens', label: 'Margens' },
@@ -200,6 +201,8 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'veiculos:responsavel', label: 'Veículos — trocar o responsável' },
     { id: 'multas:editar', label: 'Multas — mudar status / desconto' },
     { id: 'paradas:justificar', label: 'Paradas — justificar / ignorar atípicas' },
+    { id: 'patio:editar', label: 'Pátio — editar/mover veículos' },
+    { id: 'documentos:editar', label: 'Documentos — enviar / excluir' },
     { id: 'abastecimento:upload', label: 'Abastecimento — importar CSV / gerir lotes' },
   ],
   // LEGADO: o Abastecimento virou submódulo do Frota (`frota:abastecimento`).

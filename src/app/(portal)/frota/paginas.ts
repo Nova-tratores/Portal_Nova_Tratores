@@ -26,6 +26,8 @@ export const GRUPOS_FROTA: GrupoFrota[] = ['Início', 'Cadastro', 'Operação', 
 export const PAGINAS_FROTA: PaginaFrota[] = [
   { key: 'frota:dashboard',          label: 'Visão geral',       href: '/frota',                    grupo: 'Início' },
   { key: 'frota:veiculos',           label: 'Veículos',          href: '/frota/veiculos',           grupo: 'Cadastro' },
+  { key: 'frota:patio',              label: 'Pátio',             href: '/frota/patio',              grupo: 'Cadastro' },
+  { key: 'frota:documentos',         label: 'Documentos',        href: '/frota/documentos',         grupo: 'Cadastro' },
   { key: 'frota:mapa',               label: 'Mapa',              href: '/frota/mapa',               grupo: 'Operação' },
   { key: 'frota:paradas',            label: 'Paradas',           href: '/frota/paradas',            grupo: 'Operação' },
   { key: 'frota:multas',             label: 'Multas',            href: '/frota/multas',             grupo: 'Operação' },

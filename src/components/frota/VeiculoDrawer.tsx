@@ -5,9 +5,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   Car, X, ShieldAlert, User as UserIcon, Wrench, Fuel, DollarSign,
-  Loader2, Pencil, Check, History, Gauge, Satellite, AlertTriangle,
+  Loader2, Pencil, Check, History, Gauge, Satellite, AlertTriangle, FileText,
 } from 'lucide-react';
 import { authHeaders } from '@/lib/auth/client';
+import DocumentoInline from '@/components/frota/DocumentoInline';
 import { formatarPlaca } from '@/lib/frota/placa';
 import type { Motorista, VeiculoDetalhe } from '@/lib/frota/tipos';
 
@@ -306,6 +307,40 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, onCl
                         <span>{fmtData(r.inicio)} → {r.fim ? fmtData(r.fim) : 'atual'}</span>
                       </div>
                     ))}
+                  </div>
+                )}
+              </Secao>
+
+              {/* Documentos (preview inline) */}
+              <Secao titulo={`Documentos (${det.documentos?.length || 0})`} icone={<FileText size={14} />}>
+                {(det.documentos || []).length === 0 ? (
+                  <span style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>
+                    Nenhum documento. <a href="/frota/documentos" style={{ color: '#0d9488', fontWeight: 600, textDecoration: 'none' }}>Adicionar →</a>
+                  </span>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10 }}>
+                    {det.documentos.map((doc) => {
+                      const dias = doc.vigencia_fim
+                        ? Math.floor((new Date(`${doc.vigencia_fim}T00:00:00`).getTime() - Date.now()) / 86400_000)
+                        : null;
+                      return (
+                        <div key={doc.id} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {doc.arquivo_url ? (
+                            <DocumentoInline url={doc.arquivo_url} nome={doc.nome_arquivo} alturaThumb={95} />
+                          ) : (
+                            <div style={{ height: 95, borderRadius: 8, background: 'var(--portal-bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--portal-text-muted)', fontSize: 11 }}>sem arquivo</div>
+                          )}
+                          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--portal-text)' }}>
+                            {doc.tipo.toUpperCase()}
+                            {dias != null && (
+                              <span style={{ marginLeft: 5, fontWeight: 700, color: dias < 0 ? '#b91c1c' : dias <= 30 ? '#b45309' : '#15803d' }}>
+                                {dias < 0 ? 'vencido' : `${dias}d`}
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </Secao>

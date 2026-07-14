@@ -49,7 +49,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ plac
   const de12mIso = de12m.toISOString().slice(0, 10);
 
   const de30 = new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);
-  const [resp, multas, manut, abast, custos, odo, foto, dias] = await Promise.all([
+  const [resp, multas, manut, abast, custos, odo, foto, dias, documentos] = await Promise.all([
     supabase
       .from('frota_responsaveis')
       .select('id, motorista_id, motorista_nome, inicio, fim, origem, obs')
@@ -79,6 +79,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ plac
       .eq('veiculo_id', v.id)
       .gte('data', de30)
       .order('data', { ascending: false }),
+    supabase
+      .from('frota_documentos')
+      .select('*')
+      .eq('veiculo_id', v.id)
+      .order('vigencia_fim', { ascending: true, nullsFirst: false }),
   ]);
 
   // custos 12m agregados por tipo (a view garante que cada real conta UMA vez)
@@ -115,6 +120,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ plac
     custos_12m: custos12m,
     km_odometro: ultOdo ? Number(ultOdo.km_adesao ?? ultOdo.km_rastreador) || null : null,
     uso_30d,
+    documentos: documentos.data || [],
   });
 }
 

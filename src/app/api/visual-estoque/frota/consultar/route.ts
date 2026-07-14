@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { autenticar } from "@/lib/auth/server";
+import { podeFrota } from "@/lib/frota/server";
 import { supabaseVE } from "@/lib/visual-estoque/supabase";
 import { buscarImagensBing } from "@/lib/visual-estoque/bing";
 
@@ -8,6 +10,13 @@ export const runtime = "nodejs";
 // /api/frota-consultar. Degrada com mensagem clara se as credenciais APIBrasil
 // não estiverem configuradas no ambiente.
 export async function POST(req: NextRequest) {
+  // Rodava sem autenticacao nenhuma (mutacoes incluidas). O patio agora e
+  // do Frota: leitura = frota:patio; escrita = frota:patio:editar.
+  const auth = await autenticar(req);
+  if (!auth) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+  if (!podeFrota(auth, 'patio:editar')) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
+
+
   const { id_placa, placa } = await req.json();
   if (!id_placa || !placa) return NextResponse.json({ ok: false, mensagem: "Dados inválidos" }, { status: 400 });
 
