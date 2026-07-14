@@ -320,13 +320,15 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
                   {/* Cabeçalho da marca (clicável = ver só ela) */}
                   <div onClick={() => setMarcaSel(mc)} title={`Ver só ${mc.nome}`}
                     style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", borderRadius: 12, background: "#fff", border: "1px solid #e9ecf1", marginBottom: 14, cursor: "pointer", boxShadow: "0 1px 2px rgba(16,24,40,.05)" }}>
-                    {mc.logo_url && !imgErro[`marca:${mc.slug}`]
-                      ? <img src={mc.logo_url} alt={mc.nome} onError={() => setImgErro((s) => ({ ...s, [`marca:${mc.slug}`]: true }))} style={{ height: 36, maxWidth: 120, objectFit: "contain" }} />
-                      : <div style={{ fontSize: 18, fontWeight: 900, color: "#0f172a", letterSpacing: 1 }}>{mc.nome}</div>}
-                    <div style={{ width: 1, height: 28, background: "#eef1f6" }} />
-                    <div style={{ fontSize: 13, color: "#64748b", fontWeight: 600 }}>
-                      {lista.length} {lista.length === 1 ? "modelo" : "modelos"}
-                      {tipoSel ? ` · ${tipoSel}` : mc.tipos.length ? ` · ${mc.tipos.join(" · ")}` : ""}
+                    {mc.logo_url && !imgErro[`marca:${mc.slug}`] && (
+                      <img src={mc.logo_url} alt={mc.nome} onError={() => setImgErro((s) => ({ ...s, [`marca:${mc.slug}`]: true }))} style={{ height: 36, maxWidth: 120, objectFit: "contain" }} />
+                    )}
+                    <div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: "#0f172a", lineHeight: 1.15 }}>{mc.nome}</div>
+                      <div style={{ fontSize: 12.5, color: "#94a3b8", fontWeight: 600, marginTop: 2 }}>
+                        {lista.length} {lista.length === 1 ? "modelo" : "modelos"}
+                        {tipoSel ? ` · ${tipoSel}` : mc.tipos.length ? ` · ${mc.tipos.join(" · ")}` : ""}
+                      </div>
                     </div>
                     <i className="fas fa-chevron-right" style={{ marginLeft: "auto", fontSize: 12, color: "#cbd5e1" }} />
                   </div>
