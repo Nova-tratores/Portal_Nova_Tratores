@@ -70,6 +70,24 @@ CREATE OR REPLACE FUNCTION frota_resolver_placa(p TEXT) RETURNS TEXT
     ELSE frota_norm_placa(p)
   END $$;
 
+-- Valor monetário em TEXTO nos DOIS formatos que convivem no banco:
+--   BR "1.304,60" (vírgula decimal)  e  US "920.00" (ponto decimal).
+-- Mesma regra do parseValorReq das garantias: tem vírgula -> BR; senão o ponto
+-- É o decimal. (A v1 assumia só BR e inflava "920.00" para 92000 — 100x.)
+CREATE OR REPLACE FUNCTION frota_parse_valor(v TEXT) RETURNS NUMERIC
+  LANGUAGE plpgsql IMMUTABLE AS $$
+DECLARE s TEXT;
+BEGIN
+  -- [[:space:]] porque \s não vale dentro de colchetes no regex POSIX
+  s := regexp_replace(coalesce(v, ''), '[R$[:space:]]', '', 'g');
+  IF s = '' THEN RETURN NULL; END IF;
+  IF position(',' in s) > 0 THEN
+    s := replace(replace(s, '.', ''), ',', '.');
+  END IF;
+  IF s ~ '^[0-9]+(\.[0-9]+)?$' THEN RETURN s::numeric; END IF;
+  RETURN NULL;  -- "Não Informado" etc.
+END $$;
+
 -- updated_at automático
 CREATE OR REPLACE FUNCTION frota_touch() RETURNS TRIGGER
   LANGUAGE plpgsql AS $$
@@ -689,18 +707,12 @@ UNION ALL
          r.status,
          r.titulo,
          r.fornecedor,
-         -- valor_despeza é TEXTO em formato BR ("1.304,60" / "80,00"). O CASE é
-         -- obrigatório: um único valor não-numérico faria a VIEW INTEIRA
-         -- estourar em runtime, não só a linha.
-         CASE WHEN replace(replace(coalesce(r.valor_despeza, ''), '.', ''), ',', '.')
-                   ~ '^[0-9]+(\.[0-9]+)?$'
-              THEN replace(replace(r.valor_despeza, '.', ''), ',', '.')::numeric
-         END,
+         -- valor_despeza/hodometro são TEXTO em formatos MISTURADOS (BR e US) —
+         -- frota_parse_valor trata os dois e devolve NULL pro que não é número
+         -- (um único cast inválido estouraria a view inteira em runtime).
+         frota_parse_valor(r.valor_despeza),
          r.data::date,
-         -- hodometro é TEXTO e pode vir "Não Informado"
-         CASE WHEN replace(coalesce(r.hodometro, ''), ',', '.') ~ '^[0-9]+(\.[0-9]+)?$'
-              THEN replace(r.hodometro, ',', '.')::numeric
-         END
+         frota_parse_valor(r.hodometro)
     FROM "Requisicao" r
     JOIN frota_veiculos f ON f.supa_placa_id::text = r.veiculo::text
    WHERE r.tipo = 'Veicular Manutenção';
