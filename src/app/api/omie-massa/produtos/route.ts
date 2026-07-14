@@ -92,7 +92,7 @@ export async function GET(req: Request) {
         linhas.push({
           codigo_produto: Number(p.codigo_produto), codigo: o.codigo ?? p.codigo,
           familia: p.familia, estoque: p.estoque, vendas_qtd: p.vendas_qtd, vendas_valor: p.vendas_valor,
-          descricao: o.descricao ?? '', valor_unitario: Number(o.valor_unitario ?? 0),
+          descricao: o.descricao ?? '', descr_detalhada: o.descr_detalhada ?? '', valor_unitario: Number(o.valor_unitario ?? 0),
           ncm: o.ncm ?? '', ean: o.ean ?? '', unidade: o.unidade ?? '', inativo: o.inativo ?? 'N',
         });
       } catch {

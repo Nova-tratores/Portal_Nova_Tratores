@@ -154,6 +154,7 @@ export interface ProdutoOmie {
   codigo_produto: number;
   codigo: string;
   descricao: string;
+  descr_detalhada: string;
   valor_unitario: number;
   ncm: string;
   ean: string;
@@ -161,7 +162,7 @@ export interface ProdutoOmie {
   inativo: 'S' | 'N';
 }
 
-export const CAMPOS_PROD_TXT = ['descricao', 'ncm', 'ean', 'unidade'] as const;
+export const CAMPOS_PROD_TXT = ['descricao', 'descr_detalhada', 'ncm', 'ean', 'unidade'] as const;
 
 export function diffProduto(row: Partial<ProdutoOmie> & { inativo?: string }, atual: ProdutoOmie): { payload: Record<string, string | number>; mudancas: MudancaCampo[] } {
   const payload: Record<string, string | number> = { codigo_produto: Number(atual.codigo_produto) };

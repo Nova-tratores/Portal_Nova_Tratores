@@ -59,6 +59,7 @@ const COLS_PROD: Col[] = [
   { key: 'vendas_qtd', label: 'Vendas (qtd)', w: 85, ro: true },
   { key: 'vendas_valor', label: 'Vendas (R$)', w: 95, ro: true },
   { key: 'descricao', label: 'Descrição', w: 300 },
+  { key: 'descr_detalhada', label: 'Descr. detalhada', w: 300 },
   { key: 'valor_unitario', label: 'Valor unit. (R$)', w: 105, tipo: 'num' },
   { key: 'ncm', label: 'NCM', w: 95 },
   { key: 'ean', label: 'EAN', w: 110 },
@@ -230,6 +231,24 @@ export default function OmieMassaPage() {
     carregarFamilias();
   }, [permLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ---- copiar Descrição → Descr. detalhada (só onde está vazia) ----
+  // Apenas marca as células como editadas (amarelo); nada vai pro Omie sem
+  // passar pelo "Revisar e aplicar".
+  const copiarDescricaoParaDetalhada = useCallback(() => {
+    setProdEdits((prev) => {
+      const next = { ...prev };
+      for (const r of prodRows) {
+        const id = String(r.codigo_produto);
+        const det = next[id]?.descr_detalhada !== undefined ? next[id].descr_detalhada : String(r.descr_detalhada ?? '');
+        const desc = next[id]?.descricao !== undefined ? next[id].descricao : String(r.descricao ?? '');
+        if (det.trim() === '' && desc.trim() !== '') {
+          next[id] = { ...(next[id] || {}), descr_detalhada: desc };
+        }
+      }
+      return next;
+    });
+  }, [prodRows]);
+
   // ---- diff pendente da aba ativa ----
   const cols = aba === 'servicos' ? COLS_SERV : COLS_PROD;
   const rows = aba === 'servicos' ? servRows : prodRows;
@@ -331,6 +350,10 @@ export default function OmieMassaPage() {
                 style={{ ...btn, width: 78, padding: '7px 8px' }} />
             </label>
             <button onClick={buscarProdutos} disabled={prodLoading} style={btnPrim}>{prodLoading ? 'Buscando…' : 'Buscar'}</button>
+            <button onClick={copiarDescricaoParaDetalhada} disabled={prodLoading || !prodRows.length} style={btn}
+              title="Preenche a Descr. detalhada com a Descrição nos produtos listados onde ela está vazia — só marca as células; revise e aplique depois">
+              Descrição → detalhada (vazios)
+            </button>
             {prodInfo && <span style={{ fontSize: '.75rem', color: '#64748b' }}>{prodInfo}</span>}
           </>
         )}
