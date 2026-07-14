@@ -184,7 +184,7 @@ export default function DrePage() {
   const [regime, setRegime] = useState('competencia') // 'competencia' | 'omie'
   const [modoExibicao, setModoExibicao] = useState('rs') // 'rs' | 'pct'
   const [granularidade, setGranularidade] = useState('mes') // 'mes' | 'ano'
-  const [escalaDespesas, setEscalaDespesas] = useState('auto') // 'auto' | 'full'
+  const [escalaDespesas, setEscalaDespesas] = useState('log') // 'log' | 'auto' | 'full'
   const [nivelDespesas, setNivelDespesas] = useState('conta') // 'conta' | 'categoria'
 
   const [desde, setDesde] = useState(def.de)
@@ -824,15 +824,15 @@ export default function DrePage() {
         }
       })
       if (temEmprestimos) {
-        // Por ultimo (nao mexe nas cores das contas), tracejada e oculta por
-        // padrao - um clique na legenda revela.
+        // Por ultimo = item 7 da legenda (nao mexe nas cores das contas 01-06).
+        // Tracejada pra distinguir; com a escala Log (default) os picos dela
+        // nao achatam as demais linhas.
         nomes.push(CATEGORIA_EMPRESTIMOS)
         datasets.push({
           label: CATEGORIA_EMPRESTIMOS,
           data: colunas.map((k) => Math.abs(valorPorColuna(porConta[CATEGORIA_EMPRESTIMOS].porMes, k))),
           borderColor: '#64748b', backgroundColor: '#64748b',
           borderWidth: 2, borderDash: [4, 4], pointRadius: 2, pointHoverRadius: 5, pointHitRadius: 8, tension: 0.2, fill: false,
-          hidden: true,
         })
       }
       infoTxt = nContas + ' contas · ' + colunas.length + ' colunas'
@@ -881,9 +881,26 @@ export default function DrePage() {
         },
         scales: {
           x: { offset: true, grid: { display: false } },
-          y: {
+          // Log (default): pontos que estouram muito (ex.: parcelas de emprestimo)
+          // continuam visiveis sem achatar as demais linhas.
+          y: escalaDespesas === 'log' ? {
+            type: 'logarithmic',
+            ticks: { callback: (v) => fmtBRLs(v) },
+          } : {
             min: 0,
             max: (escalaDespesas === 'auto' && clamp) ? clamp.teto : undefined,
+            ticks: { callback: (v) => fmtBRLs(v) },
+          },
+          // Espelho do eixo Y no lado direito: o grafico e' largo e rola na
+          // horizontal - quem esta na ponta direita tambem precisa da regua.
+          y2: {
+            position: 'right',
+            type: escalaDespesas === 'log' ? 'logarithmic' : 'linear',
+            afterDataLimits: (axis) => {
+              const y = axis.chart.scales.y
+              if (y) { axis.min = y.min; axis.max = y.max }
+            },
+            grid: { drawOnChartArea: false },
             ticks: { callback: (v) => fmtBRLs(v) },
           },
         },
@@ -1714,9 +1731,11 @@ export default function DrePage() {
                   className={'px-2 py-0.5 text-[10px] border-l border-slate-300 ' + (nivelDespesas === 'categoria' ? tgAtivo : tgInativo)}>Categoria</button>
               </div>
               <div className="inline-flex rounded border border-slate-300 overflow-hidden"
-                title="Legível: limita o teto do eixo Y para que lançamentos fora da curva não achatem o gráfico. Completa: mostra a escala inteira.">
+                title="Log: escala logarítmica — pontos que estouram muito continuam visíveis sem achatar as demais linhas. Legível: limita o teto do eixo Y (linear). Completa: escala linear inteira.">
+                <button onClick={() => setEscalaDespesas('log')}
+                  className={'px-2 py-0.5 text-[10px] ' + (escalaDespesas === 'log' ? tgAtivo : tgInativo)}>Log</button>
                 <button onClick={() => setEscalaDespesas('auto')}
-                  className={'px-2 py-0.5 text-[10px] ' + (escalaDespesas === 'auto' ? tgAtivo : tgInativo)}>Legível</button>
+                  className={'px-2 py-0.5 text-[10px] border-l border-slate-300 ' + (escalaDespesas === 'auto' ? tgAtivo : tgInativo)}>Legível</button>
                 <button onClick={() => setEscalaDespesas('full')}
                   className={'px-2 py-0.5 text-[10px] border-l border-slate-300 ' + (escalaDespesas === 'full' ? tgAtivo : tgInativo)}>Completa</button>
               </div>
