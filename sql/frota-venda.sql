@@ -71,3 +71,32 @@ ALTER TABLE frota_veiculos
   ADD COLUMN IF NOT EXISTS arquivado_em     DATE;
 
 COMMENT ON COLUMN frota_veiculos.arquivado_motivo IS 'Por que o veículo saiu da frota sem venda (sucateado, devolvido, cadastro errado...).';
+
+-- =============================================================================
+-- CATÁLOGO DE EQUIPAMENTOS (pedido de 16/07): em vez de texto livre por
+-- vírgula, o equipamento é cadastrado UMA vez (ex.: RASTREADOR) e anexado por
+-- seleção em cada carro. frota_veiculos.equipamentos (TEXT[]) continua sendo
+-- onde o vínculo mora — o catálogo é a lista de opções.
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS frota_equipamentos (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  nome       TEXT NOT NULL UNIQUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE frota_equipamentos ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS frota_equipamentos_select ON frota_equipamentos;
+CREATE POLICY frota_equipamentos_select ON frota_equipamentos
+  FOR SELECT TO authenticated USING (true);
+-- escrita SÓ via /api (service role) — padrão P1 do módulo
+
+-- aproveita o que já foi digitado no texto livre como itens do catálogo
+INSERT INTO frota_equipamentos (nome)
+  SELECT DISTINCT upper(trim(e))
+    FROM frota_veiculos, unnest(equipamentos) AS e
+   WHERE trim(e) <> ''
+  ON CONFLICT (nome) DO NOTHING;
+
+-- itens de partida comuns (idempotente)
+INSERT INTO frota_equipamentos (nome) VALUES ('RASTREADOR') ON CONFLICT (nome) DO NOTHING;

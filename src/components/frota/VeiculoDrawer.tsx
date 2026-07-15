@@ -84,6 +84,56 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
   const [vendaAberta, setVendaAberta] = useState(false);
   const [venda, setVenda] = useState({ comprador: '', data: new Date().toISOString().slice(0, 10), valor: '', obs: '' });
 
+  // catálogo de equipamentos (cadastra uma vez, anexa por seleção no carro)
+  const [catalogoEquip, setCatalogoEquip] = useState<string[]>([]);
+  useEffect(() => {
+    if (!podeEditar) return;
+    (async () => {
+      try {
+        const r = await fetch('/api/frota/equipamentos', { headers: await authHeaders() });
+        const d = await r.json();
+        if (r.ok) setCatalogoEquip((d.equipamentos || []).map((e: { nome: string }) => e.nome));
+      } catch { /* seletor fica só com "cadastrar novo" */ }
+    })();
+  }, [podeEditar]);
+
+  // grava a lista de equipamentos do carro na hora (PATCH normal — auditado)
+  const salvarEquipamentos = async (novos: string[]) => {
+    setBusy('equip');
+    try {
+      const r = await fetch(`/api/frota/veiculos/${encodeURIComponent(placa)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ equipamentos: novos }),
+      });
+      if (!r.ok) { const d = await r.json(); alert(d.error || 'Falha ao salvar equipamentos.'); return; }
+      await carregar();
+    } finally { setBusy(''); }
+  };
+
+  const anexarEquipamento = async (nome: string) => {
+    if (!det) return;
+    let escolhido = nome;
+    if (nome === '__novo__') {
+      const novo = prompt('Nome do equipamento novo (ex.: RASTREADOR, INSULFILM):', '');
+      if (!novo || !novo.trim()) return;
+      escolhido = novo.trim().toUpperCase();
+      try {
+        const r = await fetch('/api/frota/equipamentos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+          body: JSON.stringify({ nome: escolhido }),
+        });
+        const d = await r.json();
+        if (!r.ok) { alert(d.error || 'Falha ao cadastrar o equipamento.'); return; }
+        setCatalogoEquip((c) => [...new Set([...c, escolhido])].sort());
+      } catch (e) { alert(String(e)); return; }
+    }
+    const atuais = det.veiculo.equipamentos || [];
+    if (atuais.includes(escolhido)) return;
+    await salvarEquipamentos([...atuais, escolhido]);
+  };
+
   const carregar = useCallback(async () => {
     setErro('');
     try {
@@ -105,7 +155,6 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
       categoria: v.categoria || 'outros', status: v.status || 'ativo',
       seguradora: v.seguradora || '', numero_apolice: v.numero_apolice || '',
       proprietario: v.proprietario || '',
-      equipamentos: (v.equipamentos || []).join(', '),
       exercicio_crlv: v.exercicio_crlv != null ? String(v.exercicio_crlv) : '',
       observacoes: v.observacoes || '',
       valor_mercado: det!.fipe?.valor_mercado != null ? String(det!.fipe!.valor_mercado) : '',
@@ -165,10 +214,6 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
       // projetos Omie: número ou null (o servidor espelha na SupaPlacas)
       for (const k of ['id_projeto_omie', 'id_projeto_omie_castro'] as const) {
         if (form[k] !== undefined) payload[k] = form[k] === '' ? null : Number(String(form[k]).replace(/\D/g, ''));
-      }
-      // equipamentos: "insulfilm, suporte" -> array (cada item vira checklist pré-venda)
-      if (form.equipamentos !== undefined) {
-        payload.equipamentos = form.equipamentos.split(',').map((e) => e.trim()).filter(Boolean);
       }
       // ano do documento (exercício do CRLV): número ou null
       if (form.exercicio_crlv !== undefined) {
@@ -553,10 +598,46 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                           ? `${v.id_projeto_omie ?? '—'} / ${v.id_projeto_omie_castro ?? '—'}`
                           : '—'}
                       />
-                      <Linha
-                        rotulo="Equipamentos instalados"
-                        valor={(v.equipamentos || []).length > 0 ? v.equipamentos!.join(', ') : '—'}
-                      />
+                    </div>
+
+                    {/* Equipamentos instalados — catálogo + chips (salva na hora) */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, borderTop: '1px dashed var(--portal-border)', paddingTop: 8 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                        Equipamentos instalados {busy === 'equip' && <Loader2 size={10} className="spin" style={{ verticalAlign: '-1px' }} />}
+                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        {(v.equipamentos || []).length === 0 && !podeEditar && (
+                          <span style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>—</span>
+                        )}
+                        {(v.equipamentos || []).map((e) => (
+                          <span key={e} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 700, color: '#0f766e', background: '#ccfbf1', borderRadius: 999, padding: '3px 10px' }}>
+                            {e}
+                            {podeEditar && (
+                              <button
+                                onClick={() => salvarEquipamentos((v.equipamentos || []).filter((x) => x !== e))}
+                                disabled={busy === 'equip'}
+                                title={`Remover ${e} deste veículo`}
+                                style={{ background: 'none', border: 'none', color: '#0f766e', cursor: 'pointer', fontSize: 12, padding: 0, lineHeight: 1 }}
+                              >×</button>
+                            )}
+                          </span>
+                        ))}
+                        {podeEditar && (
+                          <select
+                            value=""
+                            disabled={busy === 'equip'}
+                            onChange={(e) => { if (e.target.value) anexarEquipamento(e.target.value); e.target.value = ''; }}
+                            title="Anexar um equipamento do catálogo (cada item entra no checklist pré-venda)"
+                            style={{ padding: '3px 8px', borderRadius: 999, border: '1px dashed #0d948866', background: 'transparent', color: '#0d9488', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}
+                          >
+                            <option value="">+ anexar…</option>
+                            {catalogoEquip.filter((c) => !(v.equipamentos || []).includes(c)).map((c) => (
+                              <option key={c} value={c}>{c}</option>
+                            ))}
+                            <option value="__novo__">➕ cadastrar equipamento novo…</option>
+                          </select>
+                        )}
+                      </div>
                     </div>
                     {v.observacoes && <div style={{ fontSize: 12, color: 'var(--portal-text-secondary)' }}>{v.observacoes}</div>}
                     {podeEditar && (
@@ -579,8 +660,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                         ['marca', 'Marca'], ['modelo', 'Modelo'], ['ano', 'Ano'], ['cor', 'Cor'],
                         ['chassi', 'Chassi'], ['renavam', 'RENAVAM'], ['combustivel', 'Combustível'],
                         ['seguradora', 'Seguradora'], ['numero_apolice', 'Apólice'],
-                        ['proprietario', 'Proprietário'], ['equipamentos', 'Equipamentos (vírgula)'],
-                        ['exercicio_crlv', 'Documento (exercício)'],
+                        ['proprietario', 'Proprietário'], ['exercicio_crlv', 'Documento (exercício)'],
                       ] as [string, string][]).map(([campo, rotulo]) => (
                         <label key={campo} style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase' }}>
                           {rotulo}
