@@ -96,8 +96,12 @@ function lerDesenhos(path) {
   return out
 }
 
-// "1  STEERING ASSY", mas também "5-1  FENDER" (o mesmo conjunto tem várias folhas)
-const ehTitulo = (c) => /^\d+(?:-\d+)?\s+\S/.test(c || '')
+// Título do conjunto. Formatos vistos nos manuais Linhai:
+//   "1  STEERING ASSY"      (550)
+//   "5-1  FENDER"           (550, o mesmo conjunto em várias folhas)
+//   "V01  STEERING ASSY"    (650: V=veículo, E=motor)
+const RE_TITULO = /^([A-Z]{0,3}\d+(?:-\d+)?)\s+\S/
+const ehTitulo = (c) => RE_TITULO.test(c || '')
 const ehCabecalho = (c) => /^REF\.?\s*No/i.test(c || '')
 
 const figuras = []
@@ -117,8 +121,8 @@ for (const aba of abas) {
 
   titulos.forEach((t, i) => {
     const fim = titulos[i + 1] ? titulos[i + 1].n : Infinity
-    const num = (t.cells[0].match(/^\d+(?:-\d+)?/) || ['0'])[0]
-    const nome = t.cells[0].replace(/^\d+(?:-\d+)?\s+/, '').trim()
+    const num = (t.cells[0].match(RE_TITULO) || ['', String(i + 1)])[1]
+    const nome = t.cells[0].replace(/^[A-Z]{0,3}\d+(?:-\d+)?\s+/, '').trim()
     const code = num // "5-1" — é assim que o manual chama a folha
     // O id tem de levar a aba E a ordem: o "1" do VEICULO e o "1" do MOTOR são folhas
     // diferentes, e "1 STEERING ASSY" e "1 STEERING ASSY(EPS)" também.
@@ -141,7 +145,7 @@ for (const aba of abas) {
     let n = 0
     for (const l of linhas) {
       if (l.n <= (cab ? cab.n : t.n) || l.n >= fim) continue
-      const ref = (l.cells[0] || '').trim()
+      const ref = (l.cells[0] || '').trim().replace(/\*$/, '') // "3*" = item com nota
       const cod = (l.cells[1] || '').trim()
       if (!/^\d+[A-Z]?$/i.test(ref) || !cod) continue
       const en = (l.cells[2] || '').trim()
