@@ -204,7 +204,21 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
       if (!res.ok) { setLoading(false); return }
       const rota = await res.json()
       const pontos = rota.pontos || []
-      if (pontos.length === 0) { setLoading(false); setResumo({ km: 0, paradas: 0, ini: null, fim: null, dirigindo: 0, visitas: 0 }); return }
+      if (pontos.length === 0) {
+        // Dia sem trajeto OU rota antiga já podada pela retenção (os pontos
+        // crus somem depois de 90 dias, os AGREGADOS ficam) — mostra o resumo
+        // salvo em vez de "0 km".
+        setLoading(false)
+        setResumo({
+          km: rota.km_total || 0,
+          paradas: (rota.paradas || []).length,
+          ini: rota.hora_inicio || null,
+          fim: rota.hora_fim || null,
+          dirigindo: rota.tempo_dirigindo_min || 0,
+          visitas: (rota.visitas || []).length,
+        })
+        return
+      }
       const coords = pontos.map((p: any) => [p.lat, p.lng])
       L.polyline(coords, { color: '#3b82f6', weight: 4, opacity: 0.85 }).addTo(rotaLayerRef.current)
 

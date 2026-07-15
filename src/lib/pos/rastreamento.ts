@@ -305,17 +305,24 @@ export async function computarESalvarRota(
   const hoje = new Date().toISOString().split('T')[0]
 
   // 1) Rota já salva?
+  //
+  // Linha existente = dia JÁ computado (só gravamos com pontos > 0). Depois da
+  // retenção (fechar-dia poda os `pontos` crus de dias com +90 dias), a linha
+  // fica com pontos=[] mas os AGREGADOS continuam — devolve o cache mesmo
+  // assim, senão cada visita ao histórico antigo refaz a busca na Rota Exata
+  // (que também já não tem mais o dia).
   const { data: rotaSalva } = await supabase
     .from('rotas_vendedor')
     .select('*')
     .eq('placa', placa)
     .eq('data', data)
     .maybeSingle()
-  if (rotaSalva && Array.isArray(rotaSalva.pontos) && rotaSalva.pontos.length > 0) {
+  if (rotaSalva && Array.isArray(rotaSalva.pontos)) {
     // Auto-cura: rota gravada ANTES das colunas de ignição existirem — os
     // pontos crus já estão no JSONB, então recalcula daqui mesmo, sem gastar
-    // a API da Rota Exata, e persiste.
-    if (rotaSalva.tempo_ligado_min == null) {
+    // a API da Rota Exata, e persiste. (Só quando ainda HÁ pontos — linha
+    // podada pela retenção já tem os agregados gravados.)
+    if (rotaSalva.tempo_ligado_min == null && rotaSalva.pontos.length > 0) {
       const ign = agregarIgnicao(rotaSalva.pontos)
       await supabase.from('rotas_vendedor').update(ign).eq('placa', placa).eq('data', data)
       return { ...rotaSalva, ...ign } as RotaDia

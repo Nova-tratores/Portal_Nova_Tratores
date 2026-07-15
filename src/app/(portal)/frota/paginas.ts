@@ -40,7 +40,7 @@ export const PAGINAS_FROTA: PaginaFrota[] = [
   { key: 'frota:manutencoes',        label: 'Manutenções',       href: '/frota/manutencoes',        grupo: 'Operação' },
   { key: 'frota:abastecimento',      label: 'Abastecimento',     href: '/frota/abastecimento',      grupo: 'Custos' },
   { key: 'frota:abastecimento:flex', label: 'Álcool × Gasolina', href: '/frota/abastecimento/flex', grupo: 'Custos' },
-  // Próximas fases: patio, documentos, mapa, paradas, custos.
+  { key: 'frota:custos',             label: 'Custos (TCO)',      href: '/frota/custos',             grupo: 'Custos' },
 ];
 
 /** 'frota:abastecimento:flex' -> 'abastecimento:flex' */

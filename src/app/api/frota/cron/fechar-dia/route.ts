@@ -239,6 +239,30 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Retenção: os `pontos` crus (JSONB, ~2.880 fixes/dia) de rotas com mais
+    // de 90 dias viram [] — sem isso rotas_vendedor cresce ~580MB/ano. Os
+    // AGREGADOS (km, paradas, ignição, visitas) ficam; o histórico do mapa
+    // continua listando (computarESalvarRota devolve a linha podada).
+    try {
+      const corte = new Date(Date.now() - 90 * 86400_000).toISOString().slice(0, 10);
+      const { data: velhas } = await supabase
+        .from('rotas_vendedor')
+        .select('id')
+        .lt('data', corte)
+        .neq('pontos', '[]')
+        .limit(500); // lote por execução — o cron é diário, o backlog esvazia
+      if (velhas && velhas.length > 0) {
+        const { error: errPoda } = await supabase
+          .from('rotas_vendedor')
+          .update({ pontos: [] })
+          .in('id', velhas.map((v) => v.id));
+        if (errPoda) throw new Error(errPoda.message);
+      }
+      (resumo as Record<string, unknown>).pontos_podados = velhas?.length || 0;
+    } catch (e) {
+      (resumo as Record<string, unknown>).pontos_podados = `falhou: ${e instanceof Error ? e.message : e}`;
+    }
+
     console.log('[frota] fechar-dia OK:', JSON.stringify(resumo));
     return NextResponse.json({ ok: resumo.erros.length === 0, resumo });
   } catch (e) {
