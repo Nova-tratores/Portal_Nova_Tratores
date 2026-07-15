@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const amigavel = msg.includes('OPENAI_API_KEY')
-      ? 'A leitura por IA precisa da OPENAI_API_KEY configurada no ambiente.'
+      ? 'Este arquivo é foto ou PDF escaneado — precisa de leitura por IA, e a OPENAI_API_KEY não está configurada. O CRLV-e digital (PDF baixado do Detran/app CDT) é lido sem IA.'
       : `Falha na leitura: ${msg}`;
     return NextResponse.json({ error: amigavel }, { status: 500 });
   }

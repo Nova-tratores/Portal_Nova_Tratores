@@ -136,7 +136,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
       if (x.proprietario) lido.proprietario = String(x.proprietario);
       setForm({ ...formBase(), ...lido });
       setCrlvAvisos([
-        `✨ ${Object.keys(lido).length} campo(s) lidos do CRLV — CONFIRA antes de salvar (a IA pode errar).`,
+        `✨ ${Object.keys(lido).length} campo(s) lidos do CRLV${d.fonte === 'pdf_padrao' ? '' : ' (via IA)'} — CONFIRA antes de salvar.`,
         ...(d.avisos || []),
       ]);
       setEditando(true);
