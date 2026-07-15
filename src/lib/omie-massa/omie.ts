@@ -162,9 +162,38 @@ export interface ProdutoOmie {
   ean: string;
   unidade: string;
   inativo: 'S' | 'N';
+  // Classificação fiscal
+  cest: string;
+  cfop: string;
+  // ICMS/PIS/COFINS (clássicos)
+  cst_icms: string;
+  csosn_icms: string;
+  aliquota_icms: number;
+  cst_pis: string;
+  aliquota_pis: number;
+  cst_cofins: string;
+  aliquota_cofins: number;
+  // Reforma Tributária (IBS/CBS)
+  cst_ibs_cbs: string;
+  class_trib: string;
+  aliquota_ibs_mun: number;
+  aliquota_ibs_uf: number;
+  aliquota_cbs: number;
+  perc_reducao_ibs_mun: number;
+  perc_reducao_ibs_uf: number;
+  perc_reducao_cbs: number;
 }
 
-export const CAMPOS_PROD_TXT = ['descricao', 'descr_detalhada', 'ncm', 'ean', 'unidade'] as const;
+export const CAMPOS_PROD_TXT = [
+  'descricao', 'descr_detalhada', 'ncm', 'ean', 'unidade',
+  'cest', 'cfop', 'cst_icms', 'csosn_icms', 'cst_pis', 'cst_cofins',
+  'cst_ibs_cbs', 'class_trib',
+] as const;
+export const CAMPOS_PROD_NUM = [
+  'valor_unitario', 'aliquota_icms', 'aliquota_pis', 'aliquota_cofins',
+  'aliquota_ibs_mun', 'aliquota_ibs_uf', 'aliquota_cbs',
+  'perc_reducao_ibs_mun', 'perc_reducao_ibs_uf', 'perc_reducao_cbs',
+] as const;
 
 export function diffProduto(row: Partial<ProdutoOmie> & { inativo?: string }, atual: ProdutoOmie): { payload: Record<string, string | number>; mudancas: MudancaCampo[] } {
   const payload: Record<string, string | number> = { codigo_produto: Number(atual.codigo_produto) };
@@ -177,9 +206,12 @@ export function diffProduto(row: Partial<ProdutoOmie> & { inativo?: string }, at
       mudancas.push({ campo: c, de: atualTxt, para: String(para).trim() });
     }
   }
-  if (row.valor_unitario !== undefined && Number(row.valor_unitario) !== Number(atual.valor_unitario ?? 0)) {
-    payload.valor_unitario = Number(row.valor_unitario);
-    mudancas.push({ campo: 'valor_unitario', de: Number(atual.valor_unitario ?? 0), para: Number(row.valor_unitario) });
+  for (const c of CAMPOS_PROD_NUM) {
+    const para = row[c];
+    if (para !== undefined && Number(para) !== Number(atual[c] ?? 0)) {
+      payload[c] = Number(para);
+      mudancas.push({ campo: c, de: Number(atual[c] ?? 0), para: Number(para) });
+    }
   }
   if (row.inativo !== undefined && String(row.inativo).toUpperCase() !== (atual.inativo ?? 'N')) {
     payload.inativo = String(row.inativo).toUpperCase();

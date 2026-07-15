@@ -95,6 +95,14 @@ export async function GET(req: Request) {
           familia: p.familia, estoque: p.estoque, vendas_qtd: p.vendas_qtd, vendas_valor: p.vendas_valor,
           descricao: decodeOmieTexto(o.descricao ?? ''), descr_detalhada: decodeOmieTexto(o.descr_detalhada ?? ''), valor_unitario: Number(o.valor_unitario ?? 0),
           ncm: o.ncm ?? '', ean: o.ean ?? '', unidade: o.unidade ?? '', inativo: o.inativo ?? 'N',
+          // Classificação fiscal + tributos (clássicos e Reforma IBS/CBS)
+          cest: o.cest ?? '', cfop: o.cfop ?? '',
+          cst_icms: o.cst_icms ?? '', csosn_icms: o.csosn_icms ?? '', aliquota_icms: Number(o.aliquota_icms ?? 0),
+          cst_pis: o.cst_pis ?? '', aliquota_pis: Number(o.aliquota_pis ?? 0),
+          cst_cofins: o.cst_cofins ?? '', aliquota_cofins: Number(o.aliquota_cofins ?? 0),
+          cst_ibs_cbs: o.cst_ibs_cbs ?? '', class_trib: o.class_trib ?? '',
+          aliquota_ibs_mun: Number(o.aliquota_ibs_mun ?? 0), aliquota_ibs_uf: Number(o.aliquota_ibs_uf ?? 0), aliquota_cbs: Number(o.aliquota_cbs ?? 0),
+          perc_reducao_ibs_mun: Number(o.perc_reducao_ibs_mun ?? 0), perc_reducao_ibs_uf: Number(o.perc_reducao_ibs_uf ?? 0), perc_reducao_cbs: Number(o.perc_reducao_cbs ?? 0),
         });
       } catch {
         // produto sem cadastro consultável — pula

@@ -62,8 +62,27 @@ const COLS_PROD: Col[] = [
   { key: 'descr_detalhada', label: 'Descr. detalhada', w: 300 },
   { key: 'valor_unitario', label: 'Valor unit. (R$)', w: 105, tipo: 'num' },
   { key: 'ncm', label: 'NCM', w: 95 },
+  { key: 'cest', label: 'CEST', w: 90 },
+  { key: 'cfop', label: 'CFOP', w: 70 },
   { key: 'ean', label: 'EAN', w: 110 },
   { key: 'unidade', label: 'Unidade', w: 70 },
+  // ICMS/PIS/COFINS (clássicos)
+  { key: 'cst_icms', label: 'CST ICMS', w: 75 },
+  { key: 'csosn_icms', label: 'CSOSN', w: 70 },
+  { key: 'aliquota_icms', label: '% ICMS', w: 65, tipo: 'num' },
+  { key: 'cst_pis', label: 'CST PIS', w: 65 },
+  { key: 'aliquota_pis', label: '% PIS', w: 60, tipo: 'num' },
+  { key: 'cst_cofins', label: 'CST COFINS', w: 80 },
+  { key: 'aliquota_cofins', label: '% COFINS', w: 70, tipo: 'num' },
+  // Reforma Tributária (IBS/CBS)
+  { key: 'cst_ibs_cbs', label: 'CST IBS/CBS', w: 85 },
+  { key: 'class_trib', label: 'Class. Trib.', w: 85 },
+  { key: 'aliquota_ibs_mun', label: '% IBS Mun', w: 75, tipo: 'num' },
+  { key: 'aliquota_ibs_uf', label: '% IBS Est', w: 75, tipo: 'num' },
+  { key: 'aliquota_cbs', label: '% CBS', w: 65, tipo: 'num' },
+  { key: 'perc_reducao_ibs_mun', label: 'Red. IBS Mun', w: 85, tipo: 'num' },
+  { key: 'perc_reducao_ibs_uf', label: 'Red. IBS Est', w: 85, tipo: 'num' },
+  { key: 'perc_reducao_cbs', label: 'Red. CBS', w: 75, tipo: 'num' },
   { key: 'inativo', label: 'Inativo', w: 62, tipo: 'sn' },
 ];
 
@@ -162,6 +181,9 @@ export default function OmieMassaPage() {
 
   const [aba, setAba] = useState<'servicos' | 'produtos'>('servicos');
   const [filtro, setFiltro] = useState('');
+  // "aplicar à coluna": preenche um valor em todas as linhas visíveis da aba
+  const [fillCol, setFillCol] = useState('');
+  const [fillVal, setFillVal] = useState('');
 
   // serviços
   const [servRows, setServRows] = useState<Row[]>([]);
@@ -256,6 +278,27 @@ export default function OmieMassaPage() {
   const setEdits = aba === 'servicos' ? setServEdits : setProdEdits;
   const idKey = aba === 'servicos' ? 'nCodServ' : 'codigo_produto';
 
+  // linhas que passam no filtro de texto (mesma regra do GridEditavel)
+  const linhasVisiveis = useMemo(() => {
+    if (!filtro.trim()) return rows;
+    const f = filtro.trim().toLowerCase();
+    return rows.filter((r) => cols.some((c) => String(r[c.key] ?? '').toLowerCase().includes(f)));
+  }, [rows, filtro, cols]);
+
+  // preenche fillVal na coluna fillCol de todas as linhas visíveis — só marca
+  // as células (amarelo); nada grava sem passar pelo "Revisar e aplicar"
+  const aplicarColuna = () => {
+    if (!fillCol) return;
+    setEdits((prev) => {
+      const next = { ...prev };
+      for (const r of linhasVisiveis) {
+        const id = String(r[idKey]);
+        next[id] = { ...(next[id] || {}), [fillCol]: fillVal };
+      }
+      return next;
+    });
+  };
+
   const pendencias = useMemo(() => {
     const itens: Array<{ id: string; rotulo: string; difs: Array<{ campo: string; de: string; para: string }>; alteracao: Row }> = [];
     for (const r of rows) {
@@ -314,7 +357,7 @@ export default function OmieMassaPage() {
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           {(['servicos', 'produtos'] as const).map((t) => (
-            <button key={t} onClick={() => { setAba(t); setResultado(null); setFiltro(''); }}
+            <button key={t} onClick={() => { setAba(t); setResultado(null); setFiltro(''); setFillCol(''); setFillVal(''); }}
               style={{ ...btn, ...(aba === t ? { background: '#0f172a', color: '#fff', border: '1px solid #0f172a' } : {}) }}>
               {t === 'servicos' ? `Serviços (${servRows.length})` : 'Produtos'}
             </button>
@@ -362,6 +405,21 @@ export default function OmieMassaPage() {
         )}
         <input placeholder="Filtrar na tabela…" value={filtro} onChange={(e) => setFiltro(e.target.value)}
           style={{ ...btn, cursor: 'text', minWidth: 220, fontWeight: 400 }} />
+        {/* aplicar valor em massa a uma coluna (linhas visíveis) */}
+        {rows.length > 0 && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 8px', border: '1px dashed #cbd5e1', borderRadius: 10 }}>
+            <select value={fillCol} onChange={(e) => setFillCol(e.target.value)} style={{ ...btn, cursor: 'pointer', padding: '6px 8px' }}>
+              <option value="">Aplicar à coluna…</option>
+              {cols.filter((c) => !c.ro).map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+            </select>
+            <input placeholder="valor" value={fillVal} onChange={(e) => setFillVal(e.target.value)}
+              style={{ ...btn, cursor: 'text', width: 110, fontWeight: 400, padding: '6px 8px' }} />
+            <button onClick={aplicarColuna} disabled={!fillCol || !linhasVisiveis.length} style={{ ...btn, opacity: !fillCol ? 0.5 : 1 }}
+              title="Preenche esta coluna em todas as linhas visíveis (só marca as células em amarelo; nada grava sem o Revisar e aplicar)">
+              Preencher {linhasVisiveis.length} linha(s)
+            </button>
+          </span>
+        )}
       </div>
 
       {erro && (
