@@ -11,6 +11,7 @@ import { decodeOmieTexto } from '@/lib/omie/texto';
 
 const OMIE_SERV_URL = 'https://app.omie.com.br/api/v1/servicos/servico/';
 const OMIE_PROD_URL = 'https://app.omie.com.br/api/v1/geral/produtos/';
+const OMIE_LOCAL_URL = 'https://app.omie.com.br/api/v1/estoque/local/';
 export const PAUSA_MS = 150; // entre chamadas, p/ rate limit do Omie
 
 export const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -33,6 +34,7 @@ async function omieCall<T>(url: string, call: string, param: object): Promise<T>
 
 export const omieServicoCall = <T,>(call: string, param: object) => omieCall<T>(OMIE_SERV_URL, call, param);
 export const omieProdutoCall = <T,>(call: string, param: object) => omieCall<T>(OMIE_PROD_URL, call, param);
+export const omieLocalCall = <T,>(call: string, param: object) => omieCall<T>(OMIE_LOCAL_URL, call, param);
 
 // ---------------- Serviços ----------------
 
@@ -84,6 +86,44 @@ export async function listarTodosServicos(): Promise<ServicoOmie[]> {
     if (pagina <= totPaginas) await pausa(PAUSA_MS);
   } while (pagina <= totPaginas);
   return servicos;
+}
+
+// ---- Produtos Utilizados (aba do cadastro de serviço no Omie) ----
+// O ListarCadastroServico NÃO devolve a composição; só o ConsultarCadastroServico
+// (consulta individual) traz o bloco produtosUtilizados.
+
+export interface ProdutoUtilizadoOmie {
+  nCodProdutoPU: number;   // codigo_produto do cadastro de produtos
+  nQtdePU: number;
+  nIdItemPU: number;
+  codigo_local_estoque: number;
+}
+
+export interface ServicoConsultaOmie extends ServicoOmie {
+  produtosUtilizados?: {
+    cAtualizarProdutos?: 'S' | 'N';
+    produtoUtilizado?: ProdutoUtilizadoOmie[];
+  } | null;
+}
+
+export const consultarServico = (nCodServ: number) =>
+  omieServicoCall<ServicoConsultaOmie>('ConsultarCadastroServico', { nCodServ });
+
+// Mapa codigo_local_estoque → descrição ("Estoque Balcão" etc.)
+export async function listarLocaisEstoque(): Promise<Map<number, string>> {
+  const locais = new Map<number, string>();
+  let pagina = 1;
+  let totPaginas = 1;
+  do {
+    const r = await omieLocalCall<{ nTotPaginas: number; locaisEncontrados?: Array<{ codigo_local_estoque: number; descricao: string }> }>(
+      'ListarLocaisEstoque', { nPagina: pagina, nRegPorPagina: 50 },
+    );
+    totPaginas = r.nTotPaginas;
+    for (const l of r.locaisEncontrados || []) locais.set(Number(l.codigo_local_estoque), decodeOmieTexto(l.descricao));
+    pagina++;
+    if (pagina <= totPaginas) await pausa(PAUSA_MS);
+  } while (pagina <= totPaginas);
+  return locais;
 }
 
 export function servicoParaRow(s: ServicoOmie): ServicoRow {

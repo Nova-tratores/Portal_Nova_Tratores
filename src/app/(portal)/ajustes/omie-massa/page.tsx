@@ -15,6 +15,9 @@ type Row = Record<string, string | number>;
 interface Col { key: string; label: string; w: number; tipo?: 'num' | 'sn'; ro?: boolean }
 interface Resultado { ok: boolean; erro?: string; campos: string[]; cCodigo?: string; codigo?: string; nCodServ?: number; codigo_produto?: number }
 interface Familia { nome: string; produtos: number }
+// "Produtos Utilizados" — composição de produtos do serviço no cadastro do Omie
+interface ProdutoServ { codigo_produto: number; codigo: string; descricao: string; qtde: number; local: string }
+interface ServComProdutos { nCodServ: number; cCodigo: string; cDescricao: string; inativo: string; produtos: ProdutoServ[] }
 
 // ---------- colunas ----------
 const COLS_SERV: Col[] = [
@@ -106,11 +109,13 @@ const btnDanger: React.CSSProperties = { ...btn, background: '#dc2626', color: '
 const inputBase: React.CSSProperties = { width: '100%', border: '1px solid transparent', borderRadius: 4, padding: '4px 6px', fontSize: '.78rem', background: 'transparent', color: '#334155' };
 
 // ---------- grid editável (compartilhado pelas duas abas) ----------
-function GridEditavel({ cols, rows, idKey, edits, setEdits, filtro }: {
+function GridEditavel({ cols, rows, idKey, edits, setEdits, filtro, acao }: {
   cols: Col[]; rows: Row[]; idKey: string;
   edits: Record<string, Record<string, string>>;
   setEdits: React.Dispatch<React.SetStateAction<Record<string, Record<string, string>>>>;
   filtro: string;
+  // coluna extra de ação no início da linha (ex.: "Produtos" nos serviços)
+  acao?: { label: string; render: (r: Row) => React.ReactNode };
 }) {
   const visiveis = useMemo(() => {
     if (!filtro.trim()) return rows;
@@ -126,13 +131,17 @@ function GridEditavel({ cols, rows, idKey, edits, setEdits, filtro }: {
     <div style={{ overflow: 'auto', maxHeight: 'calc(100vh - 320px)', border: '1px solid #e2e8f0', borderRadius: 8, background: '#fff' }}>
       <table style={{ borderCollapse: 'collapse', width: 'max-content', minWidth: '100%' }}>
         <thead>
-          <tr>{cols.map((c) => <th key={c.key} style={{ ...thStyle, minWidth: c.w }}>{c.label}</th>)}</tr>
+          <tr>
+            {acao && <th style={{ ...thStyle, minWidth: 70 }}>{acao.label}</th>}
+            {cols.map((c) => <th key={c.key} style={{ ...thStyle, minWidth: c.w }}>{c.label}</th>)}
+          </tr>
         </thead>
         <tbody>
           {visiveis.map((r) => {
             const id = String(r[idKey]);
             return (
               <tr key={id}>
+                {acao && <td style={{ borderBottom: '1px solid #f1f5f9', padding: '2px 8px', whiteSpace: 'nowrap' }}>{acao.render(r)}</td>}
                 {cols.map((c) => {
                   const original = r[c.key] ?? '';
                   const editado = edits[id]?.[c.key];
@@ -166,7 +175,7 @@ function GridEditavel({ cols, rows, idKey, edits, setEdits, filtro }: {
             );
           })}
           {!visiveis.length && (
-            <tr><td colSpan={cols.length} style={{ padding: 24, textAlign: 'center', color: '#94a3b8', fontSize: '.85rem' }}>Nenhum item.</td></tr>
+            <tr><td colSpan={cols.length + (acao ? 1 : 0)} style={{ padding: 24, textAlign: 'center', color: '#94a3b8', fontSize: '.85rem' }}>Nenhum item.</td></tr>
           )}
         </tbody>
       </table>
@@ -207,6 +216,11 @@ export default function OmieMassaPage() {
   const [modal, setModal] = useState<null | { itens: Array<{ id: string; rotulo: string; difs: Array<{ campo: string; de: string; para: string }> }> }>(null);
   const [aplicando, setAplicando] = useState(false);
   const [resultado, setResultado] = useState<null | { resultados: Resultado[]; inativoIgnorado?: number[] }>(null);
+
+  // "Produtos Utilizados" dos serviços (só visualização)
+  const [prodServ, setProdServ] = useState<null | { titulo: string; loading: boolean; erro?: string; produtos: ProdutoServ[] }>(null);
+  const [todosProdServ, setTodosProdServ] = useState<null | { loading: boolean; erro?: string; servicos: ServComProdutos[]; comProdutos: number }>(null);
+  const [filtroProdServ, setFiltroProdServ] = useState('');
 
   const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -252,6 +266,49 @@ export default function OmieMassaPage() {
     carregarServicos();
     carregarFamilias();
   }, [permLoading]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ---- "Produtos Utilizados" de um serviço (modal rápido) ----
+  const verProdutosServico = useCallback(async (r: Row) => {
+    const titulo = `${r.cCodigo} — ${r.cDescricao}`;
+    setProdServ({ titulo, loading: true, produtos: [] });
+    try {
+      const res = await fetch(`/api/omie-massa/servicos/produtos?nCodServ=${r.nCodServ}`, { headers: await authHeaders() });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      setProdServ({ titulo, loading: false, produtos: json.produtos || [] });
+    } catch (e: unknown) {
+      setProdServ({ titulo, loading: false, erro: e instanceof Error ? e.message : String(e), produtos: [] });
+    }
+  }, [authHeaders]);
+
+  // ---- "Produtos Utilizados" de TODOS os serviços (1 consulta por serviço no Omie) ----
+  const carregarTodosProdutosServicos = useCallback(async () => {
+    setFiltroProdServ('');
+    setTodosProdServ({ loading: true, servicos: [], comProdutos: 0 });
+    try {
+      const res = await fetch('/api/omie-massa/servicos/produtos', { headers: await authHeaders() });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      setTodosProdServ({ loading: false, servicos: json.servicos || [], comProdutos: json.comProdutos || 0 });
+    } catch (e: unknown) {
+      setTodosProdServ({ loading: false, erro: e instanceof Error ? e.message : String(e), servicos: [], comProdutos: 0 });
+    }
+  }, [authHeaders]);
+
+  const baixarCsvProdutosServicos = () => {
+    if (!todosProdServ?.servicos.length) return;
+    const esc = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+    const linhas = ['servico_codigo;servico_descricao;servico_inativo;produto_codigo;produto_descricao;quantidade;local_estoque'];
+    for (const s of todosProdServ.servicos) {
+      for (const p of s.produtos) linhas.push([s.cCodigo, s.cDescricao, s.inativo, p.codigo, p.descricao, p.qtde, p.local].map(esc).join(';'));
+    }
+    const blob = new Blob(['\ufeff' + linhas.join('\n')], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'produtos-por-servico.csv';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
 
   // ---- copiar Descrição → Descr. detalhada (só onde está vazia) ----
   // Apenas marca as células como editadas (amarelo); nada vai pro Omie sem
@@ -401,7 +458,13 @@ export default function OmieMassaPage() {
           </>
         )}
         {aba === 'servicos' && (
-          <button onClick={carregarServicos} disabled={servLoading} style={btn}>{servLoading ? 'Carregando…' : 'Recarregar'}</button>
+          <>
+            <button onClick={carregarServicos} disabled={servLoading} style={btn}>{servLoading ? 'Carregando…' : 'Recarregar'}</button>
+            <button onClick={carregarTodosProdutosServicos} disabled={!!todosProdServ?.loading} style={btn}
+              title="Lista os Produtos Utilizados de TODOS os serviços (1 consulta por serviço no Omie — pode levar 1–2 minutos)">
+              🧩 Produtos de todos os serviços
+            </button>
+          </>
         )}
         <input placeholder="Filtrar na tabela…" value={filtro} onChange={(e) => setFiltro(e.target.value)}
           style={{ ...btn, cursor: 'text', minWidth: 220, fontWeight: 400 }} />
@@ -446,7 +509,16 @@ export default function OmieMassaPage() {
 
       {loading && !rows.length
         ? <div style={{ padding: 60, textAlign: 'center', color: '#64748b', fontSize: '.9rem' }}>Consultando o Omie… (pode levar alguns segundos)</div>
-        : <GridEditavel cols={cols} rows={rows} idKey={idKey} edits={edits} setEdits={setEdits} filtro={filtro} />}
+        : <GridEditavel cols={cols} rows={rows} idKey={idKey} edits={edits} setEdits={setEdits} filtro={filtro}
+            acao={aba === 'servicos' ? {
+              label: 'Produtos',
+              render: (r) => (
+                <button onClick={() => verProdutosServico(r)} style={{ ...btn, padding: '3px 10px', fontSize: '.72rem' }}
+                  title="Ver os Produtos Utilizados deste serviço (aba do cadastro no Omie)">
+                  ver
+                </button>
+              ),
+            } : undefined} />}
 
       {/* barra de pendências */}
       {pendencias.length > 0 && (
@@ -489,6 +561,119 @@ export default function OmieMassaPage() {
               <button onClick={aplicar} disabled={aplicando} style={btnDanger}>
                 {aplicando ? 'Aplicando…' : `Aplicar ${modal.itens.length} item(ns) no Omie`}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* modal: Produtos Utilizados de UM serviço */}
+      {prodServ && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.55)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+          onClick={() => setProdServ(null)}>
+          <div style={{ background: '#fff', borderRadius: 12, maxWidth: 760, width: '100%', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}
+            onClick={(e) => e.stopPropagation()}>
+            <div style={{ padding: '14px 18px', borderBottom: '1px solid #e2e8f0' }}>
+              <strong style={{ fontSize: '.95rem', color: '#0f172a' }}>Produtos utilizados</strong>
+              <div style={{ fontSize: '.78rem', color: '#64748b', marginTop: 2 }}>{prodServ.titulo}</div>
+            </div>
+            <div style={{ overflow: 'auto', padding: '10px 18px', flex: 1 }}>
+              {prodServ.loading && <div style={{ padding: 24, textAlign: 'center', color: '#64748b', fontSize: '.85rem' }}>Consultando o Omie…</div>}
+              {prodServ.erro && <div style={{ color: '#b91c1c', fontSize: '.82rem' }}>{prodServ.erro}</div>}
+              {!prodServ.loading && !prodServ.erro && !prodServ.produtos.length && (
+                <div style={{ padding: 24, textAlign: 'center', color: '#94a3b8', fontSize: '.85rem' }}>Este serviço não tem produtos cadastrados.</div>
+              )}
+              {!prodServ.loading && prodServ.produtos.length > 0 && (
+                <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+                  <thead>
+                    <tr>
+                      {['Código', 'Descrição', 'Qtde', 'Local de estoque'].map((h) => (
+                        <th key={h} style={{ ...thStyle, position: 'static' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {prodServ.produtos.map((p, i) => (
+                      <tr key={i}>
+                        <td style={{ borderBottom: '1px solid #f1f5f9', padding: '5px 8px', fontSize: '.78rem', color: '#334155', whiteSpace: 'nowrap' }}>{p.codigo}</td>
+                        <td style={{ borderBottom: '1px solid #f1f5f9', padding: '5px 8px', fontSize: '.78rem', color: '#334155' }}>{p.descricao}</td>
+                        <td style={{ borderBottom: '1px solid #f1f5f9', padding: '5px 8px', fontSize: '.78rem', color: '#334155', textAlign: 'right' }}>{p.qtde}</td>
+                        <td style={{ borderBottom: '1px solid #f1f5f9', padding: '5px 8px', fontSize: '.78rem', color: '#64748b', whiteSpace: 'nowrap' }}>{p.local}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+            <div style={{ padding: '12px 18px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
+              <button onClick={() => setProdServ(null)} style={btn}>Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* modal: Produtos Utilizados de TODOS os serviços */}
+      {todosProdServ && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.55)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+          onClick={() => !todosProdServ.loading && setTodosProdServ(null)}>
+          <div style={{ background: '#fff', borderRadius: 12, maxWidth: 900, width: '100%', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}
+            onClick={(e) => e.stopPropagation()}>
+            <div style={{ padding: '14px 18px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, minWidth: 220 }}>
+                <strong style={{ fontSize: '.95rem', color: '#0f172a' }}>Produtos utilizados por serviço</strong>
+                {!todosProdServ.loading && !todosProdServ.erro && (
+                  <div style={{ fontSize: '.75rem', color: '#64748b', marginTop: 2 }}>
+                    {todosProdServ.comProdutos} de {todosProdServ.servicos.length} serviços têm produtos cadastrados
+                  </div>
+                )}
+              </div>
+              {!todosProdServ.loading && (
+                <input placeholder="Filtrar serviço ou produto…" value={filtroProdServ} onChange={(e) => setFiltroProdServ(e.target.value)}
+                  style={{ ...btn, cursor: 'text', minWidth: 220, fontWeight: 400 }} />
+              )}
+            </div>
+            <div style={{ overflow: 'auto', padding: '10px 18px', flex: 1 }}>
+              {todosProdServ.loading && (
+                <div style={{ padding: 40, textAlign: 'center', color: '#64748b', fontSize: '.85rem' }}>
+                  Consultando o Omie serviço a serviço… (pode levar 1–2 minutos)
+                </div>
+              )}
+              {todosProdServ.erro && <div style={{ color: '#b91c1c', fontSize: '.82rem' }}>{todosProdServ.erro}</div>}
+              {!todosProdServ.loading && !todosProdServ.erro && (() => {
+                const f = filtroProdServ.trim().toLowerCase();
+                const visiveis = todosProdServ.servicos.filter((s) => s.produtos.length && (!f
+                  || `${s.cCodigo} ${s.cDescricao}`.toLowerCase().includes(f)
+                  || s.produtos.some((p) => `${p.codigo} ${p.descricao}`.toLowerCase().includes(f))));
+                if (!visiveis.length) {
+                  return <div style={{ padding: 24, textAlign: 'center', color: '#94a3b8', fontSize: '.85rem' }}>Nenhum serviço com produtos {f ? 'para esse filtro' : 'cadastrados'}.</div>;
+                }
+                return visiveis.map((s) => (
+                  <div key={s.nCodServ} style={{ marginBottom: 14 }}>
+                    <div style={{ fontSize: '.82rem', fontWeight: 700, color: '#0f172a', padding: '6px 0 4px' }}>
+                      {s.cCodigo} — {s.cDescricao}
+                      {s.inativo === 'S' && <span style={{ marginLeft: 8, fontSize: '.68rem', color: '#b45309', border: '1px solid #fcd34d', background: '#fffbeb', borderRadius: 6, padding: '1px 6px' }}>inativo</span>}
+                      <span style={{ marginLeft: 8, fontSize: '.72rem', color: '#64748b', fontWeight: 400 }}>{s.produtos.length} produto(s)</span>
+                    </div>
+                    <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+                      <tbody>
+                        {s.produtos.map((p, i) => (
+                          <tr key={i}>
+                            <td style={{ borderBottom: '1px solid #f1f5f9', padding: '4px 8px', fontSize: '.76rem', color: '#334155', whiteSpace: 'nowrap', width: 160 }}>{p.codigo}</td>
+                            <td style={{ borderBottom: '1px solid #f1f5f9', padding: '4px 8px', fontSize: '.76rem', color: '#334155' }}>{p.descricao}</td>
+                            <td style={{ borderBottom: '1px solid #f1f5f9', padding: '4px 8px', fontSize: '.76rem', color: '#334155', textAlign: 'right', width: 60 }}>{p.qtde}</td>
+                            <td style={{ borderBottom: '1px solid #f1f5f9', padding: '4px 8px', fontSize: '.76rem', color: '#64748b', whiteSpace: 'nowrap', width: 150 }}>{p.local}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ));
+              })()}
+            </div>
+            <div style={{ padding: '12px 18px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              {!todosProdServ.loading && !todosProdServ.erro && todosProdServ.servicos.length > 0 && (
+                <button onClick={baixarCsvProdutosServicos} style={btn}>Baixar CSV</button>
+              )}
+              <button onClick={() => setTodosProdServ(null)} disabled={todosProdServ.loading} style={btn}>Fechar</button>
             </div>
           </div>
         </div>
