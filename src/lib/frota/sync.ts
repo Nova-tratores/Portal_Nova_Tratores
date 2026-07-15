@@ -220,6 +220,24 @@ export async function syncCadastro() {
     })
     .filter(Boolean) as any[];
 
+  // ⚠️ REGRA DE OURO (pedido do usuário, 16/07): responsável definido PELO
+  // PORTAL (origem != 'rotaexata' — ex.: 'manual', pela Ficha) VENCE a Rota
+  // Exata. O sync nunca fecha um período aberto do portal, nem reabre o
+  // vínculo do RE por cima: pro carro que o portal assumiu, o vínculo do RE
+  // vira histórico FECHADO (fim = início). Sem isso, trocar o responsável na
+  // Ficha durava só até o sync seguinte (aconteceu com TKY6E68/Nicolas).
+  const { data: abertosDb, error: eAbertos } = await supabase
+    .from('frota_responsaveis')
+    .select('id, re_id, veiculo_id, inicio, origem')
+    .is('fim', null);
+  if (eAbertos) throw new Error(`frota_responsaveis(abertos): ${eAbertos.message}`);
+  const portalManda = new Set(
+    (abertosDb || []).filter((a) => a.origem !== 'rotaexata').map((a) => String(a.veiculo_id)),
+  );
+  for (const v of vinculos) {
+    if (!v.fim && portalManda.has(String(v.veiculo_id))) v.fim = v.inicio;
+  }
+
   // uq_frota_resp_aberto: só UM vínculo aberto por carro. Se o RE tiver dois em
   // aberto pro mesmo carro, o mais recente fica aberto e o anterior é fechado
   // no início do mais novo (interpretação: trocou de mãos ali).
@@ -237,12 +255,9 @@ export async function syncCadastro() {
   // O dedupe acima só olha o LOTE. Se o RE apagou/recriou o vínculo aberto de
   // um carro (re_id novo), o banco ainda tem o antigo em aberto e o insert do
   // novo estoura o uq_frota_resp_aberto — fecha o antigo no início do novo.
-  const { data: abertosDb, error: eAbertos } = await supabase
-    .from('frota_responsaveis')
-    .select('id, re_id, veiculo_id, inicio')
-    .is('fim', null);
-  if (eAbertos) throw new Error(`frota_responsaveis(abertos): ${eAbertos.message}`);
+  // (Período do PORTAL nunca é fechado aqui — regra de ouro acima.)
   for (const aberto of abertosDb || []) {
+    if (aberto.origem !== 'rotaexata') continue; // o portal manda
     const novo = abertosPorVeiculo.get(String(aberto.veiculo_id))?.[0];
     if (!novo || String(novo.re_id) === String(aberto.re_id)) continue;
     const fim = String(novo.inicio) > String(aberto.inicio) ? novo.inicio : aberto.inicio;
