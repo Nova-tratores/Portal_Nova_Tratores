@@ -2,8 +2,8 @@
 // Frota > Multas — todas as multas da frota, com QUEM estava com o carro na
 // data (uso diário > responsável fixo > Rota Exata) e o fluxo interno
 // (análise/defesa/paga/descontada). Espelho local — nada de API externa aqui.
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ShieldAlert, AlertTriangle, MapPin, ExternalLink } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ShieldAlert, AlertTriangle, MapPin, ExternalLink, Paperclip, Loader2, Camera } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import { authHeaders } from '@/lib/auth/client';
@@ -27,6 +27,14 @@ const FONTE_LABEL: Record<string, string> = {
   responsavel_fixo: 'responsável fixo',
   rotaexata: 'carimbado pela Rota Exata',
 };
+
+// as imagens que a Rota Exata carimba vêm em formatos variados — extrai URLs
+function urlsImagensRE(imagens: unknown): string[] {
+  if (!Array.isArray(imagens)) return [];
+  return imagens
+    .map((i: any) => (typeof i === 'string' ? i : i?.url || i?.imagem || i?.link || ''))
+    .filter((u: string) => /^https?:\/\//.test(u));
+}
 
 export default function FrotaMultasPage() {
   const { userProfile } = useAuth();
@@ -61,6 +69,36 @@ export default function FrotaMultasPage() {
     } finally { setBusy(''); }
   };
 
+  // anexos (auto de infração, boleto, comprovante, defesa...)
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [multaAnexando, setMultaAnexando] = useState<string | null>(null);
+
+  const anexar = async (multaId: string, file: File | null) => {
+    if (!file) return;
+    setBusy(`anexo-${multaId}`);
+    try {
+      const fd = new FormData();
+      fd.set('multa_id', multaId);
+      fd.set('file', file);
+      const r = await fetch('/api/frota/multas/anexos', { method: 'POST', headers: await authHeaders(), body: fd });
+      const d = await r.json();
+      if (!r.ok) { alert(d.error || 'Falha ao anexar.'); return; }
+      await carregar();
+    } finally { setBusy(''); setMultaAnexando(null); }
+  };
+
+  const removerAnexo = async (multaId: string, url: string, nome: string) => {
+    if (!confirm(`Remover o anexo "${nome}"?`)) return;
+    setBusy(`anexo-${multaId}`);
+    try {
+      const r = await fetch(`/api/frota/multas/anexos?multa_id=${encodeURIComponent(multaId)}&url=${encodeURIComponent(url)}`, {
+        method: 'DELETE', headers: await authHeaders(),
+      });
+      if (!r.ok) { const d = await r.json(); alert(d.error || 'Falha ao remover.'); return; }
+      await carregar();
+    } finally { setBusy(''); }
+  };
+
   const visiveis = useMemo(
     () => multas.filter((m) => !soAbertas || !['paga', 'descontada', 'arquivada'].includes(m.status_interno)),
     [multas, soAbertas],
@@ -83,6 +121,18 @@ export default function FrotaMultasPage() {
           <input type="checkbox" checked={soAbertas} onChange={() => setSoAbertas((v) => !v)} /> só em aberto
         </label>
       </div>
+
+      {/* input único e escondido — o botão "anexar" de cada multa aponta pra cá */}
+      <input
+        ref={fileRef}
+        type="file"
+        accept=".pdf,image/*"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          if (multaAnexando) anexar(multaAnexando, e.target.files?.[0] || null);
+          e.target.value = '';
+        }}
+      />
 
       {erro && <div style={{ color: '#b91c1c', fontSize: 13, marginBottom: 12 }}>{erro}</div>}
       {visiveis.length === 0 && !erro && (
@@ -120,6 +170,36 @@ export default function FrotaMultasPage() {
                     <span title="O motorista carimbado pela Rota Exata difere do responsável vigente na data — confira antes de descontar" style={{ color: '#b45309', marginLeft: 6 }}>
                       <AlertTriangle size={11} style={{ verticalAlign: '-2px' }} /> divergência
                     </span>
+                  )}
+                </div>
+
+                {/* Anexos: fotos da Rota Exata + arquivos do portal (auto, boleto, comprovante...) */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                  {urlsImagensRE(m.imagens).map((u, i) => (
+                    <a key={`re-${i}`} href={u} target="_blank" rel="noopener noreferrer" title="Imagem carimbada pela Rota Exata"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 600, color: '#0d9488', background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: 999, padding: '2px 8px', textDecoration: 'none' }}>
+                      <Camera size={10} /> foto {i + 1}
+                    </a>
+                  ))}
+                  {(m.anexos || []).map((a) => (
+                    <span key={a.url} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: 'var(--portal-text-secondary)', background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 999, padding: '2px 8px' }}>
+                      <a href={a.url} target="_blank" rel="noopener noreferrer" title={`${a.nome}${a.por ? ` · ${a.por}` : ''}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, color: 'inherit', textDecoration: 'none', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <Paperclip size={10} /> {a.nome}
+                      </a>
+                      {podeEditar && (
+                        <button onClick={() => removerAnexo(m.id, a.url, a.nome)} title="Remover anexo" style={{ background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer', fontSize: 11, padding: 0, lineHeight: 1 }}>×</button>
+                      )}
+                    </span>
+                  ))}
+                  {podeEditar && (
+                    <button
+                      onClick={() => { setMultaAnexando(m.id); fileRef.current?.click(); }}
+                      disabled={busy === `anexo-${m.id}`}
+                      title="Anexar arquivo (auto de infração, boleto, comprovante, defesa…)"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 700, color: '#0d9488', background: 'transparent', border: '1px dashed #0d948866', borderRadius: 999, padding: '2px 8px', cursor: 'pointer' }}
+                    >
+                      {busy === `anexo-${m.id}` ? <Loader2 size={10} className="spin" /> : <Paperclip size={10} />} anexar
+                    </button>
                   )}
                 </div>
               </div>

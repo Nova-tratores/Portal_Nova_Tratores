@@ -98,6 +98,8 @@ export interface Multa {
   local_lat: number | null;
   local_lng: number | null;
   imagens: unknown[];
+  // anexos do PORTAL (auto de infração, boleto, comprovante, defesa...)
+  anexos: { url: string; nome: string; por: string | null; em: string }[] | null;
   motorista_nome: string | null;     // carimbado pela Rota Exata
   motorista_divergente: boolean;
   status_interno: 'nova' | 'em_analise' | 'em_defesa' | 'paga' | 'descontada' | 'arquivada';

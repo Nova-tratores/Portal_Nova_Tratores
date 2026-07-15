@@ -29,3 +29,15 @@ ALTER TABLE frota_veiculos
 COMMENT ON COLUMN frota_veiculos.venda_comprador IS 'Pra quem o veículo foi vendido (registro histórico — o veículo fica com status=vendido, ativo=false).';
 COMMENT ON COLUMN frota_veiculos.equipamentos IS 'Acessórios instalados (insulfilm, suporte, rádio...). Cada item entra no checklist pré-venda.';
 COMMENT ON COLUMN frota_veiculos.exercicio_crlv IS 'Ano do documento (exercício do CRLV/licenciamento). Menor que o ano atual = pendência.';
+
+-- =============================================================================
+-- frota_multas: ANEXOS do portal (auto de infração, boleto, comprovante,
+-- defesa...) — [{url, nome, por, em}]. O arquivo vive no bucket
+-- frota-documentos (multas/{id}/...); escrita só via /api/frota/multas/anexos.
+-- (As imagens que a Rota Exata carimba continuam na coluna `imagens`.)
+-- =============================================================================
+
+ALTER TABLE frota_multas
+  ADD COLUMN IF NOT EXISTS anexos JSONB NOT NULL DEFAULT '[]'::jsonb;
+
+COMMENT ON COLUMN frota_multas.anexos IS 'Anexos do portal: [{url, nome, por, em}] — auto de infração, boleto, comprovante, defesa.';
