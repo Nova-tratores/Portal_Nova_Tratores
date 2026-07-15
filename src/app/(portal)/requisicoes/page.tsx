@@ -13,15 +13,17 @@ import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
 import Kanban from '@/components/requisicoes/Kanban';
 import FormReq from '@/components/requisicoes/FormReq';
 import FormFornecedor from '@/components/requisicoes/FormFornecedor';
-import FormVeiculo from '@/components/requisicoes/FormVeiculo';
 import TemplatePDF from '@/components/requisicoes/TemplatePDF';
 import {
-  LayoutDashboard, Users2, Box, Activity, Trash2, Plus, X, Car, Bell, Info, CheckCheck, Edit3, FileText, Printer, Tag
+  LayoutDashboard, Users2, Box, Activity, Trash2, Plus, X, Bell, Info, CheckCheck, FileText, Printer, Tag
 } from 'lucide-react';
 import ModalTags from '@/components/requisicoes/ModalTags';
 import PainelDev from '@/components/requisicoes/PainelDev';
 
-const ABAS_VALIDAS = new Set(['kanban', 'usuarios', 'veiculos', 'fornecedores', 'relatorio', 'lixeira', 'form_usuario', 'form_veiculo']);
+// A aba "Veículos" morreu na Fase 5 do Frota: o cadastro de veículos agora é
+// SÓ no módulo Frota (/frota, botão "Novo veículo"), que mantém a SupaPlacas
+// como projeção — o dropdown do FormReq e o Omie continuam funcionando igual.
+const ABAS_VALIDAS = new Set(['kanban', 'usuarios', 'fornecedores', 'relatorio', 'lixeira', 'form_usuario']);
 
 function RequisicoesPageInner() {
   const { userProfile } = useAuth();
@@ -31,7 +33,6 @@ function RequisicoesPageInner() {
   const podeEditar = pode('requisicoes', 'editar');
   const podeMoverFase = pode('requisicoes', 'mover_fase');
   const podeFornecedor = pode('requisicoes', 'criar_fornecedor');
-  const podeVeiculo = pode('requisicoes', 'criar_veiculo');
   const podeTags = pode('requisicoes', 'tags');
   const podeExcluir = pode('requisicoes', 'excluir');
   const podeImprimir = pode('requisicoes', 'imprimir');
@@ -48,7 +49,6 @@ function RequisicoesPageInner() {
   const [usuarios, setUsuarios] = useState<any[]>([]);
   const [veiculos, setVeiculos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [veiculoEditando, setVeiculoEditando] = useState<any>(null);
   const [reqParaImprimir, setReqParaImprimir] = useState<any>(null);
   const [notificacoes, setNotificacoes] = useState<any[]>([]);
   const [toasts, setToasts] = useState<any[]>([]);
@@ -350,22 +350,8 @@ function RequisicoesPageInner() {
     return () => { supabase.removeChannel(channel); };
   }, [carregarDados]);
 
-  const salvarVeiculo = async (dados: any) => {
-    if (veiculoEditando) {
-      const { error } = await supabase.from('SupaPlacas').update(dados).eq('IdPlaca', veiculoEditando.IdPlaca);
-      if (error) { console.error('Erro ao editar veículo:', error); alert('Erro ao salvar: ' + error.message); return; }
-      auditLog({ sistema: 'requisicoes', acao: 'editar', entidade: 'veiculo', entidade_id: veiculoEditando.IdPlaca, entidade_label: dados.NumPlaca });
-    } else {
-      const { error } = await supabase.from('SupaPlacas').insert([{ IdPlaca: String(Date.now()), ...dados }]);
-      if (error) { console.error('Erro ao criar veículo:', error); alert('Erro ao cadastrar: ' + error.message); return; }
-      auditLog({ sistema: 'requisicoes', acao: 'criar', entidade: 'veiculo', entidade_label: dados.NumPlaca });
-    }
-    setVeiculoEditando(null); setAbaAtiva('veiculos'); await carregarDados(true);
-  };
-
   const tabs = [
     { id: 'kanban', label: 'Kanban', icon: <LayoutDashboard size={16} /> },
-    podeVeiculo && { id: 'veiculos', label: 'Veículos', icon: <Car size={16} /> },
     podeFornecedor && { id: 'fornecedores', label: 'Fornecedores', icon: <Users2 size={16} /> },
     { id: 'relatorio', label: 'Relatório', icon: <FileText size={16} /> },
     podeExcluir && { id: 'lixeira', label: `Lixeira${lixeiraCount > 0 ? ` (${lixeiraCount})` : ''}`, icon: <Trash2 size={16} /> },
@@ -624,36 +610,6 @@ function RequisicoesPageInner() {
               podeImprimir={podeImprimir}
               podeExcluir={podeExcluir}
             />
-          )}
-
-          {abaAtiva === 'veiculos' && (
-            <div>
-              <div className="flex justify-between items-center mb-8">
-                <span className="text-sm text-zinc-500">{veiculos.length} veículos cadastrados</span>
-                <button onClick={() => { setVeiculoEditando(null); setAbaAtiva('form_veiculo'); }} className="bg-red-600 hover:bg-red-700 text-white px-6 py-2.5 rounded-xl font-semibold flex items-center gap-2 text-sm transition-all">
-                  <Plus size={16} /> Novo Veículo
-                </button>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {veiculos.map(v => (
-                  <div key={v.IdPlaca} className="bg-white border border-zinc-200 p-5 rounded-2xl hover:border-red-200 transition-all flex justify-between items-center">
-                    <div>
-                      <p className="text-[10px] font-bold text-red-600 uppercase tracking-widest mb-1">PLACA</p>
-                      <h3 className="text-base font-semibold text-zinc-800 uppercase">{v.NumPlaca}</h3>
-                    </div>
-                    <button onClick={() => { setVeiculoEditando(v); setAbaAtiva('form_veiculo'); }} className="p-2 text-zinc-400 hover:text-red-600 transition-colors"><Edit3 size={16} /></button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {abaAtiva === 'form_veiculo' && (
-            <div className="max-w-3xl mx-auto">
-              <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden">
-                <FormVeiculo veiculoParaEditar={veiculoEditando} onSave={salvarVeiculo} onCancel={() => setAbaAtiva('veiculos')} />
-              </div>
-            </div>
           )}
 
           {abaAtiva === 'fornecedores' && (

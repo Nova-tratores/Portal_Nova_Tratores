@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
 import { logFrota, podeFrota, temModuloFrota } from '@/lib/frota/server';
+import { espelharProjetosOmie } from '@/lib/frota/supaplacas';
 import { resolverPlaca } from '@/lib/frota/placa';
 
 export const runtime = 'nodejs';
@@ -157,6 +158,21 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ pl
 
   const { error } = await supabase.from('frota_veiculos').update(upd).eq('id', v.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Projeto Omie editado? Espelha na SupaPlacas — é de lá que o
+  // omie-contapagar resolve o projeto das requisições veiculares.
+  if ('id_projeto_omie' in upd || 'id_projeto_omie_castro' in upd) {
+    try {
+      await espelharProjetosOmie(supabase, v, {
+        ...('id_projeto_omie' in upd ? { id_projeto_omie: upd.id_projeto_omie == null ? null : Number(upd.id_projeto_omie) } : {}),
+        ...('id_projeto_omie_castro' in upd ? { id_projeto_omie_castro: upd.id_projeto_omie_castro == null ? null : Number(upd.id_projeto_omie_castro) } : {}),
+      });
+    } catch (e) {
+      // a ficha salvou; o espelho é re-tentável no próximo save
+      console.error('[frota] espelho SupaPlacas falhou:', e);
+      return NextResponse.json({ ok: true, aviso: 'Ficha salva, mas o espelho pro Omie (SupaPlacas) falhou — salve de novo.' });
+    }
+  }
 
   await logFrota(auth, {
     acao: 'editar',

@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
+import { formatarPlaca } from '@/lib/frota/placa';
 
 const EMPRESAS = {
   NOVA: { nome: "NOVA TRATORES MÁQUINAS AGRÍCOLAS LTDA", endereco: "AVENIDA SÃO SEBASTIÃO, 1065 | Piraju - SP" },
@@ -56,11 +57,25 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
     const fetchData = async () => {
       const [{ data: users }, { data: veic }, { data: ordens }] = await Promise.all([
         supabase.from('financeiro_usu').select('id, nome, funcao').eq('ativo', true).order('nome'),
-        supabase.from('SupaPlacas').select('IdPlaca, NumPlaca').order('NumPlaca'),
+        // Fase 5: o cadastro de veículos é do FROTA. O value do select continua
+        // sendo o IdPlaca da SupaPlacas (via supa_placa_id, mantido pelo Frota)
+        // — requisições antigas e o lançamento no Omie não mudam nada.
+        supabase
+          .from('frota_veiculos')
+          .select('placa, modelo, supa_placa_id')
+          .eq('tipo_registro', 'veiculo')
+          .eq('ativo', true)
+          .not('supa_placa_id', 'is', null)
+          .order('placa'),
         supabase.from('Ordem_Servico').select('Id_Ordem, Os_Cliente, Os_Tecnico, Status').not('Status', 'in', '("Concluída","Cancelada")').order('Id_Ordem', { ascending: false }),
       ]);
       if (users) setUsuarios(users);
-      if (veic) setVeiculos(veic);
+      if (veic) {
+        setVeiculos(veic.map((v: any) => ({
+          IdPlaca: v.supa_placa_id,
+          NumPlaca: `${formatarPlaca(v.placa)}${v.modelo ? ` · ${v.modelo}` : ''}`,
+        })));
+      }
       const { data: tags } = await supabase.from('requisicao_tags').select('*').order('nome');
       if (tags) setTagsDisponiveis(tags);
       if (ordens) setOrdensAbertas(ordens);

@@ -1,9 +1,14 @@
-// GET /api/frota/veiculos — a frota inteira, com responsável atual, foto e
-// resumo de multas. Tudo local (espelhos) — nenhuma chamada à Rota Exata aqui.
+// GET  /api/frota/veiculos — a frota inteira, com responsável atual, foto e
+//      resumo de multas. Tudo local (espelhos) — nenhuma chamada à Rota Exata.
+// POST /api/frota/veiculos — cadastra um veículo NOVO (o Frota é o único lugar
+//      de cadastro desde a Fase 5) e cria a linha-espelho na SupaPlacas, que
+//      as Requisições e o Omie consomem. Permissão: frota:veiculos:editar.
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
-import { temModuloFrota } from '@/lib/frota/server';
+import { logFrota, podeFrota, temModuloFrota } from '@/lib/frota/server';
+import { garantirSupaPlaca } from '@/lib/frota/supaplacas';
+import { PLACA_RE, resolverPlaca } from '@/lib/frota/placa';
 
 export const runtime = 'nodejs';
 
@@ -74,4 +79,71 @@ export async function GET(req: NextRequest) {
       atipicas_7d: (dias7.data || []).reduce((s, d) => s + (d.paradas_atipicas || 0), 0),
     },
   });
+}
+
+export async function POST(req: NextRequest) {
+  const auth = await autenticar(req);
+  if (!auth) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+  if (!podeFrota(auth, 'veiculos:editar')) {
+    return NextResponse.json({ error: 'Sem permissão para cadastrar veículos.' }, { status: 403 });
+  }
+
+  const body = await req.json().catch(() => ({}));
+  const placaBruta = String(body?.placa || '').trim();
+  const placa = resolverPlaca(placaBruta);
+  if (!PLACA_RE.test(placa)) {
+    return NextResponse.json({ error: `Placa inválida: "${placaBruta}" (esperado ABC-1234 ou ABC1D23).` }, { status: 400 });
+  }
+
+  const { data: existente } = await supabase
+    .from('frota_veiculos')
+    .select('id, placa_exibicao, ativo')
+    .eq('placa', placa)
+    .maybeSingle();
+  if (existente) {
+    return NextResponse.json(
+      { error: `A placa ${existente.placa_exibicao || placa} já está cadastrada${existente.ativo ? '' : ' (inativa — reative pela Ficha)'}.` },
+      { status: 409 },
+    );
+  }
+
+  const txt = (k: string) => (typeof body?.[k] === 'string' && body[k].trim() ? String(body[k]).trim() : null);
+  const ano = Number(body?.ano);
+  const { data: novo, error } = await supabase
+    .from('frota_veiculos')
+    .insert({
+      placa,
+      placa_exibicao: placaBruta.toUpperCase(),
+      tipo_registro: 'veiculo',
+      origem_cadastro: 'portal',
+      marca: txt('marca'),
+      modelo: txt('modelo'),
+      ano: Number.isFinite(ano) && ano > 1950 ? ano : null,
+      cor: txt('cor'),
+      combustivel: txt('combustivel'),
+      categoria: txt('categoria') || 'outros',
+      proprietario: txt('proprietario'),
+      observacoes: txt('observacoes'),
+      ativo: true,
+    })
+    .select()
+    .single();
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // espelho pras Requisições/Omie — se falhar, o veículo existe mas sem
+  // vínculo; a Ficha regenera no próximo save de projeto Omie
+  let supaPlacaId: number | null = null;
+  try { supaPlacaId = await garantirSupaPlaca(supabase, novo); } catch (e) {
+    console.error('[frota] criar veículo: espelho SupaPlacas falhou:', e);
+  }
+
+  await logFrota(auth, {
+    acao: 'criar',
+    entidade: 'veiculo',
+    entidadeId: novo.placa,
+    entidadeLabel: `${novo.placa_exibicao || novo.placa}${novo.modelo ? ` · ${novo.modelo}` : ''}`,
+    detalhes: { origem: 'portal', supa_placa_id: supaPlacaId },
+  });
+
+  return NextResponse.json({ ok: true, veiculo: { ...novo, supa_placa_id: supaPlacaId } });
 }

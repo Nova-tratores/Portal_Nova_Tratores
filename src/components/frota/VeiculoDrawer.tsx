@@ -101,6 +101,8 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
       proprietario: v.proprietario || '',
       observacoes: v.observacoes || '',
       valor_mercado: det!.fipe?.valor_mercado != null ? String(det!.fipe!.valor_mercado) : '',
+      id_projeto_omie: v.id_projeto_omie != null ? String(v.id_projeto_omie) : '',
+      id_projeto_omie_castro: v.id_projeto_omie_castro != null ? String(v.id_projeto_omie_castro) : '',
     };
   };
 
@@ -149,6 +151,10 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
       const { valor_mercado, ...campos } = form;
       const payload: Record<string, unknown> = { ...campos };
       if (form.ano !== undefined) payload.ano = form.ano === '' ? null : Number(form.ano);
+      // projetos Omie: número ou null (o servidor espelha na SupaPlacas)
+      for (const k of ['id_projeto_omie', 'id_projeto_omie_castro'] as const) {
+        if (form[k] !== undefined) payload[k] = form[k] === '' ? null : Number(String(form[k]).replace(/\D/g, ''));
+      }
       const r = await fetch(`/api/frota/veiculos/${encodeURIComponent(placa)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
@@ -156,6 +162,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
       });
       const d = await r.json();
       if (!r.ok) { alert(d.error || 'Falha ao salvar.'); return; }
+      if (d.aviso) alert(d.aviso);
 
       // FIPE mora em Placas (o DRE lê de lá) — grava à parte, só se mudou
       const fipeNovo = valor_mercado === '' ? null : Number(String(valor_mercado).replace(',', '.'));
@@ -309,6 +316,12 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                             : '—'}
                         />
                       )}
+                      <Linha
+                        rotulo="Projeto Omie (Nova / Castro)"
+                        valor={v.id_projeto_omie || v.id_projeto_omie_castro
+                          ? `${v.id_projeto_omie ?? '—'} / ${v.id_projeto_omie_castro ?? '—'}`
+                          : '—'}
+                      />
                     </div>
                     {v.observacoes && <div style={{ fontSize: 12, color: 'var(--portal-text-secondary)' }}>{v.observacoes}</div>}
                     {podeEditar && (
@@ -344,6 +357,14 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                           <input value={form.valor_mercado || ''} onChange={(e) => setForm((f) => ({ ...f, valor_mercado: e.target.value }))} placeholder="ex.: 85000" style={inputStyle} />
                         </label>
                       )}
+                      <label title="Código do projeto no Omie (loja NOVA) — usado ao lançar requisições veiculares no contas a pagar" style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase' }}>
+                        Projeto Omie — Nova
+                        <input value={form.id_projeto_omie || ''} onChange={(e) => setForm((f) => ({ ...f, id_projeto_omie: e.target.value }))} placeholder="código numérico" style={inputStyle} />
+                      </label>
+                      <label title="Código do projeto no Omie (loja CASTRO)" style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase' }}>
+                        Projeto Omie — Castro
+                        <input value={form.id_projeto_omie_castro || ''} onChange={(e) => setForm((f) => ({ ...f, id_projeto_omie_castro: e.target.value }))} placeholder="código numérico" style={inputStyle} />
+                      </label>
                       <label style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase' }}>
                         Categoria
                         <select value={form.categoria} onChange={(e) => setForm((f) => ({ ...f, categoria: e.target.value }))} style={inputStyle}>

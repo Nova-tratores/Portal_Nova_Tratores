@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Car, Search, Satellite, ShieldAlert, User as UserIcon, AlertTriangle,
-  FileWarning, MapPin, Truck, Fuel, Droplets, OctagonAlert,
+  FileWarning, MapPin, Truck, Fuel, Droplets, OctagonAlert, Plus, Loader2, X,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
@@ -45,6 +45,29 @@ export default function FrotaHome() {
   const [soAtivos, setSoAtivos] = useState(true);
   const [placaAberta, setPlacaAberta] = useState<string | null>(null);
   const [erro, setErro] = useState('');
+
+  // cadastro de veículo novo (o Frota é o ÚNICO lugar de cadastro — Fase 5)
+  const [novoAberto, setNovoAberto] = useState(false);
+  const [novo, setNovo] = useState({ placa: '', marca: '', modelo: '', ano: '' });
+  const [criando, setCriando] = useState(false);
+
+  const criarVeiculo = async () => {
+    if (!novo.placa.trim()) { alert('Informe a placa.'); return; }
+    setCriando(true);
+    try {
+      const r = await fetch('/api/frota/veiculos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ ...novo, ano: novo.ano || undefined }),
+      });
+      const d = await r.json();
+      if (!r.ok) { alert(d.error || 'Falha ao cadastrar.'); return; }
+      setNovoAberto(false);
+      setNovo({ placa: '', marca: '', modelo: '', ano: '' });
+      await carregar();
+      setPlacaAberta(d.veiculo.placa); // já abre a Ficha pra completar os dados
+    } catch (e) { alert(String(e)); } finally { setCriando(false); }
+  };
 
   const carregar = useCallback(async () => {
     try {
@@ -182,7 +205,48 @@ export default function FrotaHome() {
             style={{ padding: '8px 12px 8px 30px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13, width: 260 }}
           />
         </div>
+        {pode('frota', 'veiculos:editar') && (
+          <button
+            onClick={() => setNovoAberto(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: 'none', background: '#0d9488', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+          >
+            <Plus size={15} /> Novo veículo
+          </button>
+        )}
       </div>
+
+      {novoAberto && (
+        <div onClick={() => setNovoAberto(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: 'min(440px, 92vw)', background: 'var(--portal-bg)', borderRadius: 14, padding: 20, display: 'flex', flexDirection: 'column', gap: 12, boxShadow: '0 20px 60px rgba(0,0,0,0.35)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <strong style={{ fontSize: 16, fontWeight: 800, color: 'var(--portal-text)' }}>Novo veículo</strong>
+              <button onClick={() => setNovoAberto(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text-muted)' }}><X size={18} /></button>
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--portal-text-secondary)' }}>
+              O Frota é o único lugar de cadastro: o veículo já nasce disponível nas Requisições. Depois complete a Ficha (documentos, projeto Omie, FIPE…).
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              {([['placa', 'Placa *', 'ABC-1D23'], ['marca', 'Marca', 'VW'], ['modelo', 'Modelo', 'Saveiro'], ['ano', 'Ano', '2025']] as [keyof typeof novo, string, string][]).map(([campo, rotulo, ph]) => (
+                <label key={campo} style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase' }}>
+                  {rotulo}
+                  <input
+                    value={novo[campo]}
+                    onChange={(e) => setNovo((f) => ({ ...f, [campo]: e.target.value }))}
+                    placeholder={ph}
+                    style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13 }}
+                  />
+                </label>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => setNovoAberto(false)} style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'transparent', color: 'var(--portal-text-secondary)', fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={criarVeiculo} disabled={criando} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: 'none', background: '#0d9488', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                {criando ? <Loader2 size={14} className="spin" /> : <Plus size={14} />} Cadastrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {erro && <div style={{ color: '#b91c1c', fontSize: 13, marginBottom: 12 }}>{erro}</div>}
 
