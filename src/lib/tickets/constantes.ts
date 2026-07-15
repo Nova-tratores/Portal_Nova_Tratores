@@ -62,6 +62,13 @@ export interface TicketEvento {
   created_at: string
 }
 
+// Fila pessoal (tickets_plano): ordem planejada + "mexendo agora" por usuário.
+export interface TicketPlanoItem {
+  ticket_id: string
+  posicao: number
+  atual: boolean
+}
+
 export interface UsuarioMin {
   id: string
   nome: string

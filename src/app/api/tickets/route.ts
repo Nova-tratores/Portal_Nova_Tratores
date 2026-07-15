@@ -7,7 +7,7 @@ import { supabaseAdmin } from '@/lib/server/supabase-admin'
 import {
   temModuloTickets, registrarEvento, notificarTicket, garantirParticipante,
 } from '@/lib/tickets/server'
-import { STATUS_FINAIS, type Ticket, type TicketVisibilidade } from '@/lib/tickets/constantes'
+import { STATUS_FINAIS, type Ticket, type TicketPlanoItem, type TicketVisibilidade } from '@/lib/tickets/constantes'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -75,6 +75,34 @@ export async function GET(req: NextRequest) {
 
   const lista = (tickets || []) as Ticket[]
   const usuarios = await mapaUsuarios(lista.flatMap((t) => [t.solicitante_id, t.responsavel_id]))
+
+  // Fila: devolve também o plano pessoal (ordem planejada + "mexendo agora").
+  if (visao === 'fila') {
+    const { data: planoRows } = await supabaseAdmin
+      .from('tickets_plano')
+      .select('ticket_id, posicao, atual')
+      .eq('user_id', auth.userId)
+      .order('posicao')
+    let plano = (planoRows || []) as TicketPlanoItem[]
+
+    // Limpeza lazy de órfãos (ticket transferido/encerrado fora daqui).
+    // Só quando a lista é o conjunto elegível completo: sem encerrados e
+    // sem truncamento pelo limit (lista cortada apagaria entradas válidas).
+    if (!incluirEncerrados && lista.length < 500) {
+      const idsFila = new Set(lista.map((t) => t.id))
+      const orfaos = plano.filter((p) => !idsFila.has(p.ticket_id)).map((p) => p.ticket_id)
+      if (orfaos.length > 0) {
+        await supabaseAdmin
+          .from('tickets_plano')
+          .delete()
+          .eq('user_id', auth.userId)
+          .in('ticket_id', orfaos)
+        plano = plano.filter((p) => idsFila.has(p.ticket_id))
+      }
+    }
+    return NextResponse.json({ tickets: lista, usuarios, contadores, plano })
+  }
+
   return NextResponse.json({ tickets: lista, usuarios, contadores })
 }
 
