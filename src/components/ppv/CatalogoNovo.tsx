@@ -506,7 +506,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
                       const ativo = refHover === h.reference;
                       return (
                         <button key={`${h.reference}-${i}`} onClick={() => abrirPecaDaBolinha(h.reference)}
-                          onMouseEnter={() => setRefHover(h.reference)} onMouseLeave={() => !pecaSel && setRefHover(null)}
+                          onMouseEnter={() => { setRefHover(h.reference); rowRefs.current[h.reference]?.scrollIntoView({ block: "nearest", behavior: "smooth" }); }} onMouseLeave={() => !pecaSel && setRefHover(null)}
                           style={{ position: "absolute", left: `${(h.x / imgDim.w) * 100}%`, top: `${(h.y / imgDim.h) * 100}%`, transform: "translate(-50%,-50%)", width: ativo ? 26 : 20, height: ativo ? 26 : 20, borderRadius: "50%", border: "2px solid #fff", background: ativo ? "#dc2626" : "rgba(37,99,235,0.9)", color: "#fff", fontSize: ativo ? 12 : 10, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 5px rgba(0,0,0,0.4)", transition: "all .12s", zIndex: ativo ? 3 : 2 }}>{h.reference}</button>
                       );
                     })}
