@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   Car, X, ShieldAlert, User as UserIcon, Wrench, Fuel, DollarSign,
-  Loader2, Pencil, Check, History, Gauge, Satellite, AlertTriangle, FileText, Sparkles,
+  Loader2, Pencil, Check, History, Gauge, Satellite, AlertTriangle, FileText, Sparkles, Camera,
 } from 'lucide-react';
 import { authHeaders } from '@/lib/auth/client';
 import DocumentoInline from '@/components/frota/DocumentoInline';
@@ -219,6 +219,23 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
     } finally { setBusy(''); }
   };
 
+  // Foto do veículo (mora em Placas.imagem_url — precisa do vínculo id_placa)
+  const trocarFoto = async (file: File | null) => {
+    if (!file) return;
+    setBusy('foto');
+    try {
+      const fd = new FormData();
+      fd.set('file', file);
+      const r = await fetch(`/api/frota/veiculos/${encodeURIComponent(placa)}/foto`, {
+        method: 'POST', headers: await authHeaders(), body: fd,
+      });
+      const d = await r.json();
+      if (!r.ok) { alert(d.error || 'Falha ao trocar a foto.'); return; }
+      await carregar();
+      onMudou?.();
+    } finally { setBusy(''); }
+  };
+
   const excluirDocumento = async (id: string, rotulo: string) => {
     if (!confirm(`Excluir ${rotulo}?`)) return;
     setBusy('documento');
@@ -257,13 +274,26 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
       <div onClick={(e) => e.stopPropagation()} style={{ width: 'min(640px, 100%)', height: '100%', background: 'var(--portal-bg)', display: 'flex', flexDirection: 'column', boxShadow: '-10px 0 40px rgba(0,0,0,0.3)' }}>
         {/* Header */}
         <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--portal-border)', display: 'flex', alignItems: 'center', gap: 12 }}>
-          {det?.imagem_url ? (
-            <img src={det.imagem_url} alt="" style={{ width: 52, height: 52, borderRadius: 10, objectFit: 'cover', background: 'var(--portal-bg-secondary)' }} />
-          ) : (
-            <div style={{ width: 52, height: 52, borderRadius: 10, background: 'linear-gradient(135deg,#0D9488,#0F766E)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Car size={26} color="#fff" />
-            </div>
-          )}
+          <label
+            title={podeEditar && det?.veiculo.id_placa != null ? 'Trocar a foto do veículo' : undefined}
+            style={{ position: 'relative', cursor: podeEditar && det?.veiculo.id_placa != null ? 'pointer' : 'default', flexShrink: 0 }}
+          >
+            {det?.imagem_url ? (
+              <img src={det.imagem_url} alt="" style={{ width: 52, height: 52, borderRadius: 10, objectFit: 'cover', background: 'var(--portal-bg-secondary)', display: 'block' }} />
+            ) : (
+              <div style={{ width: 52, height: 52, borderRadius: 10, background: 'linear-gradient(135deg,#0D9488,#0F766E)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Car size={26} color="#fff" />
+              </div>
+            )}
+            {podeEditar && det?.veiculo.id_placa != null && (
+              <>
+                <span style={{ position: 'absolute', right: -4, bottom: -4, width: 20, height: 20, borderRadius: '50%', background: '#0d9488', border: '2px solid var(--portal-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {busy === 'foto' ? <Loader2 size={11} color="#fff" className="spin" /> : <Camera size={11} color="#fff" />}
+                </span>
+                <input type="file" accept="image/*" onChange={(e) => { trocarFoto(e.target.files?.[0] || null); e.target.value = ''; }} style={{ display: 'none' }} />
+              </>
+            )}
+          </label>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <strong style={{ fontSize: 20, fontWeight: 800, color: 'var(--portal-text)' }}>{formatarPlaca(placa)}</strong>

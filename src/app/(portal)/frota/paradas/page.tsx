@@ -98,6 +98,28 @@ export default function FrotaParadasPage() {
     } finally { setBusy(''); }
   };
 
+  // Parada recorrente vira CADASTRO: cria a geocerca ali e absolve o histórico
+  // dentro do raio — é assim que a lista de atípicas encolhe sozinha.
+  const criarGeocerca = async (p: ParadaRow) => {
+    const nome = prompt('Nome do local (ex.: "Casa do Danilo", "Estacionamento centro"):', '');
+    if (!nome || !nome.trim()) return;
+    const classe = (prompt('Tipo do local: cliente | loja | manutencao | estacionamento | outro', 'outro') || '').trim().toLowerCase();
+    if (!classe) return;
+    const raio = Number(prompt('Raio em metros (100 a 5000):', '300')) || 300;
+    setBusy(p.id);
+    try {
+      const r = await fetch('/api/frota/geocercas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ nome: nome.trim(), classe, latitude: p.latitude, longitude: p.longitude, raio_m: raio }),
+      });
+      const d = await r.json();
+      if (!r.ok) { alert(d.error || 'Falha ao criar a geocerca.'); return; }
+      alert(`Geocerca "${nome.trim()}" criada — ${d.paradas_absolvidas} parada(s) do histórico absolvida(s).${d.aviso ? `\n${d.aviso}` : ''}`);
+      await carregar();
+    } finally { setBusy(''); }
+  };
+
   const ignorar = async (p: ParadaRow) => {
     setBusy(p.id);
     try {
@@ -206,6 +228,14 @@ export default function FrotaParadasPage() {
                   style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', borderRadius: 6, border: '1px solid var(--portal-border)', background: 'transparent', color: 'var(--portal-text-muted)', fontSize: 11.5, cursor: podeJustificar ? 'pointer' : 'not-allowed', opacity: podeJustificar ? 1 : 0.5 }}
                 >
                   <EyeOff size={12} /> {p.ignorada ? 'reativar' : 'ignorar'}
+                </button>
+                <button
+                  onClick={() => criarGeocerca(p)}
+                  disabled={!podeJustificar || busy === p.id}
+                  title={podeJustificar ? 'Este lugar é conhecido? Cadastre a geocerca aqui — o histórico dentro do raio é absolvido e os próximos dias já vêm classificados.' : MSG_SEM_PERMISSAO}
+                  style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', borderRadius: 6, border: '1px solid #99f6e4', background: '#f0fdfa', color: '#0f766e', fontSize: 11.5, fontWeight: 700, cursor: podeJustificar ? 'pointer' : 'not-allowed', opacity: podeJustificar ? 1 : 0.5 }}
+                >
+                  <MapPin size={12} /> criar geocerca
                 </button>
               </div>
             )}
