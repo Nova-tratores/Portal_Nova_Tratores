@@ -17,10 +17,15 @@ export interface DadosPendencia {
   tem_crlv: boolean;          // existe documento tipo 'crlv' anexado
   docs_vencendo: number;      // vencidos ou vencendo em ≤30 dias
   multas_abertas: number;
+  // "ano do documento" (exercício do CRLV) — menor que o ano atual = atrasado
+  exercicio_crlv?: number | null;
 }
 
 /** O que falta neste veículo (vazio = card normal; 1+ = card vermelho). */
-export function pendenciasDoVeiculo(d: DadosPendencia): string[] {
+export function pendenciasDoVeiculo(
+  d: DadosPendencia,
+  anoAtual: number = new Date().getFullYear(),
+): string[] {
   // vendido/inativo é HISTÓRICO — não cobra pendência de quem já saiu da frota
   if (d.status === 'vendido' || !d.ativo) return [];
   const p: string[] = [];
@@ -29,6 +34,9 @@ export function pendenciasDoVeiculo(d: DadosPendencia): string[] {
   if (!d.chassi?.trim()) p.push('Sem chassi');
   if (!d.proprietario?.trim()) p.push('Sem proprietário');
   if (!d.tem_crlv) p.push('Sem CRLV anexado');
+  if (d.exercicio_crlv != null && d.exercicio_crlv < anoAtual) {
+    p.push(`Documento atrasado — CRLV do exercício ${d.exercicio_crlv} (atualize o licenciamento)`);
+  }
   if (d.docs_vencendo > 0) p.push(`${d.docs_vencendo} documento(s) vencido(s) ou vencendo em 30 dias`);
   if (d.multas_abertas > 0) p.push(`${d.multas_abertas} multa(s) em aberto`);
   return p;

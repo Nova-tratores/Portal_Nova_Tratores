@@ -106,6 +106,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
       seguradora: v.seguradora || '', numero_apolice: v.numero_apolice || '',
       proprietario: v.proprietario || '',
       equipamentos: (v.equipamentos || []).join(', '),
+      exercicio_crlv: v.exercicio_crlv != null ? String(v.exercicio_crlv) : '',
       observacoes: v.observacoes || '',
       valor_mercado: det!.fipe?.valor_mercado != null ? String(det!.fipe!.valor_mercado) : '',
       id_projeto_omie: v.id_projeto_omie != null ? String(v.id_projeto_omie) : '',
@@ -143,6 +144,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
       if (x.renavam) lido.renavam = String(x.renavam);
       if (x.combustivel) lido.combustivel = String(x.combustivel);
       if (x.proprietario) lido.proprietario = String(x.proprietario);
+      if (x.exercicio) lido.exercicio_crlv = String(x.exercicio); // "ano do documento"
       setForm({ ...formBase(), ...lido });
       setCrlvAvisos([
         `✨ ${Object.keys(lido).length} campo(s) lidos do CRLV${d.fonte === 'pdf_padrao' ? '' : ' (via IA)'} — CONFIRA antes de salvar.`,
@@ -165,6 +167,10 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
       // equipamentos: "insulfilm, suporte" -> array (cada item vira checklist pré-venda)
       if (form.equipamentos !== undefined) {
         payload.equipamentos = form.equipamentos.split(',').map((e) => e.trim()).filter(Boolean);
+      }
+      // ano do documento (exercício do CRLV): número ou null
+      if (form.exercicio_crlv !== undefined) {
+        payload.exercicio_crlv = form.exercicio_crlv === '' ? null : Number(String(form.exercicio_crlv).replace(/\D/g, ''));
       }
       const r = await fetch(`/api/frota/veiculos/${encodeURIComponent(placa)}`, {
         method: 'PATCH',
@@ -295,6 +301,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
       tem_crlv: (det.documentos || []).some((d) => d.tipo === 'crlv'),
       docs_vencendo: (det.documentos || []).filter((d) => d.vigencia_fim && String(d.vigencia_fim) <= limite).length,
       multas_abertas: multasAbertas,
+      exercicio_crlv: det.veiculo.exercicio_crlv,
     });
   }, [det, multasAbertas]);
 
@@ -448,6 +455,12 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                       <Linha rotulo="Categoria" valor={v.categoria} />
                       <Linha rotulo="Status" valor={v.status} />
                       <Linha rotulo="Proprietário" valor={v.proprietario} />
+                      <Linha
+                        rotulo="Documento (exercício)"
+                        valor={v.exercicio_crlv != null
+                          ? <span style={{ color: v.exercicio_crlv < new Date().getFullYear() ? '#b91c1c' : '#15803d' }}>{v.exercicio_crlv}{v.exercicio_crlv < new Date().getFullYear() ? ' — atrasado' : ''}</span>
+                          : '—'}
+                      />
                       <Linha rotulo="Hodômetro (rastreador)" valor={det.km_odometro != null ? `${det.km_odometro.toLocaleString('pt-BR')} km` : '—'} />
                       <Linha rotulo="Tanque" valor={v.capacidade_tanque != null ? `${v.capacidade_tanque} L` : '—'} />
                       <Linha rotulo="Seguradora" valor={v.seguradora} />
@@ -493,6 +506,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                         ['chassi', 'Chassi'], ['renavam', 'RENAVAM'], ['combustivel', 'Combustível'],
                         ['seguradora', 'Seguradora'], ['numero_apolice', 'Apólice'],
                         ['proprietario', 'Proprietário'], ['equipamentos', 'Equipamentos (vírgula)'],
+                        ['exercicio_crlv', 'Documento (exercício)'],
                       ] as [string, string][]).map(([campo, rotulo]) => (
                         <label key={campo} style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase' }}>
                           {rotulo}

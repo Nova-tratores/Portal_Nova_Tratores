@@ -29,6 +29,8 @@ export interface FrotaVeiculo {
   proprietario: string | null;
   // acessórios instalados ("tunagem") — cada item entra no checklist pré-venda
   equipamentos: string[] | null;
+  // "ano do documento" — exercício do CRLV/licenciamento (a leitura do CRLV preenche)
+  exercicio_crlv: number | null;
   // venda (status='vendido', ativo=false — o registro vira histórico)
   venda_data: string | null;
   venda_valor: number | null;

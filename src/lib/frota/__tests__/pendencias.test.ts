@@ -37,6 +37,12 @@ describe('pendenciasDoVeiculo — a régua do card vermelho', () => {
     const p = pendenciasDoVeiculo({ ...completo, pendencia_vinculo: true });
     expect(p[0]).toMatch(/abastecimento/);
   });
+
+  it('ano do documento (exercício do CRLV) atrasado é pendência; em dia não é', () => {
+    expect(pendenciasDoVeiculo({ ...completo, exercicio_crlv: 2025 }, 2026).join(' | ')).toMatch(/exercício 2025/);
+    expect(pendenciasDoVeiculo({ ...completo, exercicio_crlv: 2026 }, 2026)).toEqual([]);
+    expect(pendenciasDoVeiculo({ ...completo, exercicio_crlv: null }, 2026)).toEqual([]); // sem info não cobra
+  });
 });
 
 const limpo: DadosPreVenda = {

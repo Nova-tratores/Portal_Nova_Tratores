@@ -90,6 +90,7 @@ export async function GET(req: NextRequest) {
             tem_crlv: temCrlv.has(v.id),
             docs_vencendo,
             multas_abertas,
+            exercicio_crlv: v.exercicio_crlv ?? null,
           })
         : [],
     };

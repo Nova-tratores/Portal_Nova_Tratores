@@ -27,7 +27,7 @@ const EDITAVEIS = new Set([
   ...ESPELHADOS,
   'marca', 'modelo', 'combustivel', 'categoria', 'setor', 'status', 'ativo',
   'observacoes', 'seguradora', 'placa_exibicao', 'proprietario', 'equipamentos',
-  'id_projeto_omie', 'id_projeto_omie_castro',
+  'exercicio_crlv', 'id_projeto_omie', 'id_projeto_omie_castro',
 ]);
 
 async function acharVeiculo(placaParam: string) {

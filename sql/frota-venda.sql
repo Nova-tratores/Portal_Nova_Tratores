@@ -20,7 +20,12 @@ ALTER TABLE frota_veiculos
   ADD COLUMN IF NOT EXISTS venda_valor     NUMERIC(14,2),
   ADD COLUMN IF NOT EXISTS venda_comprador TEXT,
   ADD COLUMN IF NOT EXISTS venda_obs       TEXT,
-  ADD COLUMN IF NOT EXISTS equipamentos    TEXT[] NOT NULL DEFAULT '{}';
+  ADD COLUMN IF NOT EXISTS equipamentos    TEXT[] NOT NULL DEFAULT '{}',
+  -- "ano do documento": exercício do CRLV (licenciamento). Preenchido pela
+  -- leitura automática do CRLV ou na mão. Exercício < ano atual = pendência
+  -- vermelha ("documento atrasado").
+  ADD COLUMN IF NOT EXISTS exercicio_crlv  INT;
 
 COMMENT ON COLUMN frota_veiculos.venda_comprador IS 'Pra quem o veículo foi vendido (registro histórico — o veículo fica com status=vendido, ativo=false).';
 COMMENT ON COLUMN frota_veiculos.equipamentos IS 'Acessórios instalados (insulfilm, suporte, rádio...). Cada item entra no checklist pré-venda.';
+COMMENT ON COLUMN frota_veiculos.exercicio_crlv IS 'Ano do documento (exercício do CRLV/licenciamento). Menor que o ano atual = pendência.';
