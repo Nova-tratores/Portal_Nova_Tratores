@@ -17,7 +17,7 @@ import { supabase } from './supabase';
 import { analisarEstoqueNegativo } from './analise';
 import { anotarCorrecoesAplicadas, httpErr } from './cmc';
 import { incluirAjusteEstoque, obterPosicaoEstoqueProduto, consultarProdutoPorIntegracao } from './omie';
-import { criarJob, atualizarJob, concluirJob, falharJob, lerJobAtivo, jobRodando } from './jobs';
+import { criarJob, atualizarJob, concluirJob, falharJob, lerJobAtivo, jobRodando, jobEstaVivo } from './jobs';
 import { registrarAuditLog } from '../server/audit-notify';
 
 const NEGATIVOS_CACHE_SEG = (parseInt(process.env.NEGATIVOS_CACHE_HORAS || '', 10) || 6) * 3600;
@@ -58,7 +58,15 @@ export async function iniciarScanNegativos(conta: Conta, criadoPor?: string): Pr
 export async function lerStatusNegativos(conta: Conta, force = false): Promise<any> {
   const ativo = await lerJobAtivo('estoque-negativo', conta);
   if (ativo?.status === 'rodando') {
-    return { rodando: true, etapa: ativo.etapa, inicio: ativo.iniciado_em, jobId: ativo.id };
+    if (jobEstaVivo(ativo)) {
+      return { rodando: true, etapa: ativo.etapa, inicio: ativo.iniciado_em, jobId: ativo.id };
+    }
+    // Job 'rodando' sem heartbeat ha mais de JOB_STALE_MS = processo morreu no
+    // meio (deploy/restart do Railway). Sem isto a tela mostrava "varrendo..."
+    // para sempre; o stale-check so existia no /iniciar (jobRodando).
+    ativo.status = 'erro';
+    ativo.erro = 'Processo interrompido (o servidor reiniciou durante a execução). Tente novamente.';
+    await falharJob(ativo.id, ativo.erro);
   }
   if (!force) {
     const hit = cache.get<any>(`negativos:${conta}`);
@@ -67,7 +75,24 @@ export async function lerStatusNegativos(conta: Conta, force = false): Promise<a
   if (ativo?.status === 'concluido' && ativo.resultado) {
     return { ...(ativo.resultado as any), fonte: 'job', rodando: false };
   }
-  if (ativo?.status === 'erro') return { rodando: false, erro: ativo.erro };
+  if (ativo?.status === 'erro') {
+    // A ultima tentativa falhou (Omie instavel / deploy no meio da varredura).
+    // Cai de volta no ultimo scan CONCLUIDO em vez de esconder dados bons
+    // atras do erro — o resultado da madrugada continua valido.
+    const { data } = await supabase
+      .from('ajustes_jobs')
+      .select('resultado, iniciado_em')
+      .eq('tipo', 'estoque-negativo')
+      .eq('conta_omie', conta)
+      .eq('status', 'concluido')
+      .order('iniciado_em', { ascending: false })
+      .limit(1);
+    const ultimoOk = ((data as any[]) || [])[0];
+    if (ultimoOk?.resultado) {
+      return { ...(ultimoOk.resultado as any), fonte: 'job', rodando: false };
+    }
+    return { rodando: false, erro: ativo.erro };
+  }
   return { rodando: false, semDados: true };
 }
 
