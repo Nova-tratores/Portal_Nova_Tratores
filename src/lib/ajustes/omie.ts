@@ -95,7 +95,9 @@ export async function omieRequest(
     // novamente em N segundos.") - NAO adianta re-tentar (o bloqueio dura
     // minutos). Falha rapido p/ nao estourar o timeout do gateway (que
     // devolveria "upstream error" em vez do JSON).
-    if (/bloquead|consumo indevido/i.test(fs)) {
+    // Cuidado: "bloquead" solto pegava erros de NEGOCIO ("O período contábil
+    // de Abril... foi bloqueado") e abortava lotes inteiros por engano.
+    if (/api bloqueada|consumo indevido/i.test(fs)) {
       const mSeg = fs.match(/(\d+)\s*segundos?/i);
       const mMin = fs.match(/(\d+)\s*minutos?/i);
       const aguardarSegundos = mSeg ? parseInt(mSeg[1], 10) : mMin ? parseInt(mMin[1], 10) * 60 : 60;
@@ -105,7 +107,10 @@ export async function omieRequest(
     //  - "Too many requests" / "REDUNDANT" (rate limit padrao)
     //  - "Ja existe uma requisicao desse metodo sendo executada" (concorrencia)
     //  - "Consumo redundante" / "SOAP" ocasionais
+    //  - "SOAP-ERROR: Broken response from Application Server (BG)" (o
+    //    backend da Omie engasgou; passa numa nova tentativa)
     const isTransiente = /too many requests/i.test(fs)
+      || /soap-error|broken response/i.test(fs)
       || /redundant/i.test(fs)
       || /j[aá] existe uma requisi/i.test(fs)
       || /requisi[cç][aã]o desse m[ée]todo/i.test(fs)
