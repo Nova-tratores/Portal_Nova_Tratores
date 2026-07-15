@@ -628,13 +628,13 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                             disabled={busy === 'equip'}
                             onChange={(e) => { if (e.target.value) anexarEquipamento(e.target.value); e.target.value = ''; }}
                             title="Anexar um equipamento do catálogo (cada item entra no checklist pré-venda)"
-                            style={{ padding: '3px 8px', borderRadius: 999, border: '1px dashed #0d948866', background: 'transparent', color: '#0d9488', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}
+                            style={{ ...inputStyle, width: 'auto', fontSize: 12, padding: '4px 8px', cursor: 'pointer' }}
                           >
-                            <option value="">+ anexar…</option>
+                            <option value="">Anexar equipamento…</option>
                             {catalogoEquip.filter((c) => !(v.equipamentos || []).includes(c)).map((c) => (
                               <option key={c} value={c}>{c}</option>
                             ))}
-                            <option value="__novo__">➕ cadastrar equipamento novo…</option>
+                            <option value="__novo__">Cadastrar novo…</option>
                           </select>
                         )}
                       </div>
