@@ -104,6 +104,24 @@ const RE_TITULO = /^([A-Z]{0,3}\d+(?:-\d+)?)\s+\S/
 const ehTitulo = (c) => RE_TITULO.test(c || '')
 const ehCabecalho = (c) => /^REF\.?\s*No/i.test(c || '')
 
+const semFloat = (s) => String(s || '').trim().replace(/\.0+$/, '')
+
+// Lê a linha de cabeçalho ("REF. No. | PART No. | DESCRIPTION | Q'TY | DESCRIÇÃO") e
+// descobre em que coluna está cada coisa — assim o mesmo código serve tanto os arquivos
+// com coluna PT (LandForce) como os só em inglês (T-BOSS, colunas Ref.No./Part Number).
+function mapaColunas(cells) {
+  const m = { ref: 0, cod: 1, en: 2, qtd: 3, pt: null }
+  cells.forEach((c, i) => {
+    const s = String(c || '').toUpperCase()
+    if (/^REF/.test(s)) m.ref = i
+    else if (/PART|CÓDIGO|CODIGO/.test(s)) m.cod = i
+    else if (/DESCRIÇÃO|DESCRICAO/.test(s)) m.pt = i
+    else if (/DESCRIPTION/.test(s)) m.en = i
+    else if (/Q.?TY|QTD|QUANT/.test(s)) m.qtd = i
+  })
+  return m
+}
+
 const figuras = []
 const pecas = []
 let nFig = 0
@@ -111,29 +129,37 @@ let nFig = 0
 for (const aba of abas) {
   const linhas = lerAba(aba.path)
   const desenhos = lerDesenhos(aba.path)
-  // imagem que se repete em várias linhas = logo/rodapé, não é desenho
   const cont = {}
   for (const d of desenhos) cont[d.img] = (cont[d.img] || 0) + 1
   const repetida = new Set(Object.entries(cont).filter(([, c]) => c > 3).map(([i]) => i))
 
-  const titulos = linhas.filter((l) => ehTitulo(l.cells[0]) && !l.cells[1])
-  console.log(`\n=== ${aba.nome}: ${titulos.length} conjuntos ===`)
+  // Cada conjunto tem um cabeçalho "REF. No.". Usamos ele como âncora do bloco: o título
+  // é o texto (col A) logo acima, e as peças são as linhas até o próximo cabeçalho.
+  const cabecalhos = linhas.filter((l) => ehCabecalho(l.cells[0]))
+  console.log(`\n=== ${aba.nome}: ${cabecalhos.length} conjuntos ===`)
 
-  titulos.forEach((t, i) => {
-    const fim = titulos[i + 1] ? titulos[i + 1].n : Infinity
-    const num = (t.cells[0].match(RE_TITULO) || ['', String(i + 1)])[1]
-    const nome = t.cells[0].replace(/^[A-Z]{0,3}\d+(?:-\d+)?\s+/, '').trim()
-    const code = num // "5-1" — é assim que o manual chama a folha
-    // O id tem de levar a aba E a ordem: o "1" do VEICULO e o "1" do MOTOR são folhas
-    // diferentes, e "1 STEERING ASSY" e "1 STEERING ASSY(EPS)" também.
-    const id = `xlsx-${SLUG}-${slugify(aba.nome)}-${i + 1}-${code}`
+  cabecalhos.forEach((cab, i) => {
+    const cabAnt = cabecalhos[i - 1]
+    const fim = cabecalhos[i + 1] ? cabecalhos[i + 1].n : Infinity
+    const col = mapaColunas(cab.cells)
 
-    // desenho: a imagem ancorada entre o título e a tabela (fora as repetidas)
-    const cab = linhas.find((l) => l.n > t.n && l.n < fim && ehCabecalho(l.cells[0]))
-    const limite = cab ? cab.n : t.n + 30
-    const img = desenhos.find((d) => d.row >= t.n && d.row <= limite && !repetida.has(d.img))
-      || desenhos.find((d) => d.row >= t.n && d.row < fim && !repetida.has(d.img))
+    // título: a última linha com texto em col A, acima do cabeçalho, que não seja peça
+    let tRow = cab.n
+    let nome = ''
+    for (let k = cab.n - 1; k > (cabAnt ? cabAnt.n : 0); k--) {
+      const l = linhas.find((x) => x.n === k)
+      if (!l) continue
+      const a = (l.cells[0] || '').trim()
+      if (!a) continue
+      if (/^\d+[A-Z]?(\.0+)?$/.test(a)) continue // linha de peça (ref numérica)
+      nome = a; tRow = k; break
+    }
+    const num = (nome.match(RE_TITULO) || ['', String(i + 1)])[1]
+    nome = nome.replace(/^[A-Z]{0,3}\d+(?:-\d+)?\s+/, '').trim() || nome || `Conjunto ${i + 1}`
+    const id = `xlsx-${SLUG}-${slugify(aba.nome)}-${i + 1}-${num}`
 
+    // desenho: ancorado entre o título e o fim do bloco (fora logos/rodapés repetidos)
+    const img = desenhos.find((d) => d.row >= tRow && d.row < fim && !repetida.has(d.img))
     let imageB64 = null
     if (img) {
       const bin = readFileSync(join(dir, 'xl/media', img.img))
@@ -141,16 +167,16 @@ for (const aba of abas) {
       imageB64 = `data:${mime};base64,${bin.toString('base64')}`
     }
 
-    // peças: linhas com REF numérica e código
+    // peças: linhas com REF numérica e código, entre o cabeçalho e o próximo
     let n = 0
     for (const l of linhas) {
-      if (l.n <= (cab ? cab.n : t.n) || l.n >= fim) continue
-      const ref = (l.cells[0] || '').trim().replace(/\*$/, '') // "3*" = item com nota
-      const cod = (l.cells[1] || '').trim()
+      if (l.n <= cab.n || l.n >= fim) continue
+      const ref = semFloat(l.cells[col.ref]).replace(/\*$/, '') // "3*" = item com nota
+      const cod = semFloat(l.cells[col.cod])
       if (!/^\d+[A-Z]?$/i.test(ref) || !cod) continue
-      const en = (l.cells[2] || '').trim()
-      const qtd = parseFloat(String(l.cells[3] || '').replace(',', '.'))
-      const pt = (l.cells[4] || '').trim()
+      const en = (l.cells[col.en] || '').trim()
+      const qtd = parseFloat(String(l.cells[col.qtd] || '').replace(',', '.'))
+      const pt = col.pt != null ? (l.cells[col.pt] || '').trim() : ''
       pecas.push({
         figura_id: id, code: cod, name: pt || en, reference: ref,
         qtd: Number.isFinite(qtd) ? qtd : null, unit: null, compravel: true,
@@ -158,7 +184,7 @@ for (const aba of abas) {
       n++
     }
 
-    figuras.push({ id, code, name: nome, secao: aba.nome, imageB64, hotspots: [], path: [] })
+    figuras.push({ id, code: num, name: nome, secao: aba.nome, imageB64, hotspots: [], path: [] })
     nFig++
     console.log(`  ${String(i + 1).padStart(2)}. ${nome.slice(0, 40).padEnd(40)} ${String(n).padStart(3)} peças ${imageB64 ? '+img' : '(sem imagem)'}`)
   })

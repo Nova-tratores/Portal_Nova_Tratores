@@ -159,7 +159,10 @@ async function main() {
       if (!r.ok) { console.log(`  ${f.code}: imagem não abriu`); continue }
       const buf = Buffer.from(await r.arrayBuffer())
 
-      const { hotspots } = await hotspotsDaImagem(worker, buf, refs)
+      // Uma folha com formato que o sharp não lê (WMF/EMF etc.) não pode derrubar a corrida.
+      let hotspots
+      try { ({ hotspots } = await hotspotsDaImagem(worker, buf, refs)) }
+      catch (e) { console.log(`  ${String(f.code).padEnd(6)} ${f.name.slice(0, 32).padEnd(32)} — pulada (${e.message.slice(0, 40)})`); continue }
       await sb.from('catalogo_figuras').update({ hotspots }).eq('id', f.id)
       totF++; totH += hotspots.length
       const cobertas = new Set(hotspots.map((h) => h.reference)).size
