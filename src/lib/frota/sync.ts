@@ -234,6 +234,21 @@ export async function syncCadastro() {
     lista.sort((a, b) => String(b.inicio).localeCompare(String(a.inicio)));
     for (let i = 1; i < lista.length; i++) lista[i].fim = lista[0].inicio;
   }
+  // O dedupe acima só olha o LOTE. Se o RE apagou/recriou o vínculo aberto de
+  // um carro (re_id novo), o banco ainda tem o antigo em aberto e o insert do
+  // novo estoura o uq_frota_resp_aberto — fecha o antigo no início do novo.
+  const { data: abertosDb, error: eAbertos } = await supabase
+    .from('frota_responsaveis')
+    .select('id, re_id, veiculo_id, inicio')
+    .is('fim', null);
+  if (eAbertos) throw new Error(`frota_responsaveis(abertos): ${eAbertos.message}`);
+  for (const aberto of abertosDb || []) {
+    const novo = abertosPorVeiculo.get(String(aberto.veiculo_id))?.[0];
+    if (!novo || String(novo.re_id) === String(aberto.re_id)) continue;
+    const fim = String(novo.inicio) > String(aberto.inicio) ? novo.inicio : aberto.inicio;
+    const { error } = await supabase.from('frota_responsaveis').update({ fim }).eq('id', aberto.id);
+    if (error) throw new Error(`frota_responsaveis(fechar ${aberto.re_id}): ${error.message}`);
+  }
   await upsertLotes(
     supabase,
     'frota_responsaveis',
