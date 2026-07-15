@@ -360,6 +360,39 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
     } finally { setBusy(''); }
   };
 
+  // Arquivar: saída da frota SEM venda (sucateado, devolvido, cadastro errado)
+  const arquivar = async () => {
+    const motivo = prompt('Motivo do arquivamento (sucateado, devolvido, cadastro errado/duplicado…):', '');
+    if (!motivo || !motivo.trim()) return;
+    setBusy('arquivar');
+    try {
+      const r = await fetch(`/api/frota/veiculos/${encodeURIComponent(placa)}/arquivar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ motivo: motivo.trim() }),
+      });
+      const d = await r.json();
+      if (!r.ok) { alert(d.error || 'Falha ao arquivar.'); return; }
+      if (d.aviso) alert(d.aviso);
+      await carregar();
+      onMudou?.();
+    } finally { setBusy(''); }
+  };
+
+  const desarquivar = async () => {
+    if (!confirm('Desarquivar? O veículo volta pra frota ativa (inclusive no patrimônio do DRE).')) return;
+    setBusy('arquivar');
+    try {
+      const r = await fetch(`/api/frota/veiculos/${encodeURIComponent(placa)}/arquivar`, {
+        method: 'DELETE', headers: await authHeaders(),
+      });
+      const d = await r.json();
+      if (!r.ok) { alert(d.error || 'Falha ao desarquivar.'); return; }
+      await carregar();
+      onMudou?.();
+    } finally { setBusy(''); }
+  };
+
   const desfazerVenda = async () => {
     if (!confirm('Desfazer a venda? O veículo volta a contar como ativo (inclusive no patrimônio do DRE).')) return;
     setBusy('venda');
@@ -459,6 +492,24 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                   {podeEditar && (
                     <button onClick={desfazerVenda} disabled={busy === 'venda'} style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 6, border: '1px solid #c4b5fd', background: 'transparent', color: '#6d28d9', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
                       {busy === 'venda' ? <Loader2 size={11} className="spin" /> : <Undo2 size={11} />} desfazer venda
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Arquivado — fora da frota, ficha de histórico */}
+              {v.status === 'arquivado' && (
+                <div style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 12, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                    <FileText size={13} /> Arquivado{v.arquivado_em ? ` em ${fmtData(v.arquivado_em)}` : ''}
+                  </div>
+                  {v.arquivado_motivo && <span style={{ fontSize: 12.5, color: '#334155' }}>💬 {v.arquivado_motivo}</span>}
+                  <span style={{ fontSize: 11, color: '#64748b' }}>
+                    Fora da frota ativa e do patrimônio do DRE — a ficha fica só como registro histórico.
+                  </span>
+                  {podeEditar && (
+                    <button onClick={desarquivar} disabled={busy === 'arquivar'} style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 6, border: '1px solid #cbd5e1', background: 'transparent', color: '#475569', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                      {busy === 'arquivar' ? <Loader2 size={11} className="spin" /> : <Undo2 size={11} />} desarquivar
                     </button>
                   )}
                 </div>
@@ -851,18 +902,25 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                 </a>
               </Secao>
 
-              {/* Venda — o carro sai da frota ativa mas a ficha fica de histórico */}
-              {podeEditar && v.status !== 'vendido' && (
-                <Secao titulo="Venda do veículo" icone={<HandCoins size={14} />}>
+              {/* Saída da frota — venda ou arquivamento; a ficha fica de histórico */}
+              {podeEditar && v.status !== 'vendido' && v.status !== 'arquivado' && (
+                <Secao titulo="Saída da frota" icone={<HandCoins size={14} />}>
                   {!vendaAberta ? (
                     <>
                       <span style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>
-                        Vendeu o carro? Registre pra quem, quando e por quanto — ele sai da frota ativa
-                        (e do patrimônio do DRE), mas a ficha inteira fica de histórico.
+                        O carro saiu? <strong>Venda</strong> registra pra quem, quando e por quanto;{' '}
+                        <strong>arquivar</strong> é pra saída sem venda (sucateado, devolvido, cadastro
+                        errado). Nos dois casos ele sai da frota ativa e do patrimônio do DRE, mas a
+                        ficha inteira fica de histórico — nada é apagado.
                       </span>
-                      <button onClick={() => setVendaAberta(true)} style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 6, border: '1px solid #fca5a5', background: '#fef2f2', color: '#b91c1c', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                        <HandCoins size={13} /> Marcar como vendido
-                      </button>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <button onClick={() => setVendaAberta(true)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 6, border: '1px solid #fca5a5', background: '#fef2f2', color: '#b91c1c', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                          <HandCoins size={13} /> Marcar como vendido
+                        </button>
+                        <button onClick={arquivar} disabled={busy === 'arquivar'} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 6, border: '1px solid #cbd5e1', background: 'var(--portal-bg-input)', color: '#475569', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                          {busy === 'arquivar' ? <Loader2 size={13} className="spin" /> : <FileText size={13} />} Arquivar veículo
+                        </button>
+                      </div>
                     </>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 10, borderRadius: 8, background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)' }}>

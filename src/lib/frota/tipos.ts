@@ -40,7 +40,10 @@ export interface FrotaVeiculo {
   venda_comprador: string | null;
   venda_obs: string | null;
   ativo: boolean;
-  status: 'ativo' | 'manutencao' | 'parado' | 'vendido' | 'locado';
+  status: 'ativo' | 'manutencao' | 'parado' | 'vendido' | 'locado' | 'arquivado';
+  // arquivamento (saída da frota sem venda — sucateado, devolvido, cadastro errado)
+  arquivado_motivo: string | null;
+  arquivado_em: string | null;
   observacoes: string | null;
   id_projeto_omie: number | null;
   id_projeto_omie_castro: number | null;

@@ -53,3 +53,21 @@ ALTER TABLE frota_veiculos
   ADD COLUMN IF NOT EXISTS fipe_ano_codigo TEXT;
 
 COMMENT ON COLUMN frota_veiculos.fipe_codigo IS 'Código FIPE do modelo (ex.: 005501-8), confirmado por humano na Ficha — o cron mensal usa pra atualizar o valor de mercado.';
+
+-- =============================================================================
+-- ARQUIVAR veículo (pedido de 16/07): saída da frota SEM venda — sucateado,
+-- devolvido (locação), cadastro errado/duplicado... status='arquivado',
+-- ativo=false, com motivo e data. Mesmo tratamento da venda: sai do patrimônio
+-- do DRE (Placas.ativo=false), o responsável aberto é encerrado e a ficha
+-- inteira fica de histórico. Reversível ("desarquivar").
+-- =============================================================================
+
+ALTER TABLE frota_veiculos DROP CONSTRAINT IF EXISTS frota_veiculos_status_check;
+ALTER TABLE frota_veiculos ADD CONSTRAINT frota_veiculos_status_check
+  CHECK (status IN ('ativo','manutencao','parado','vendido','locado','arquivado'));
+
+ALTER TABLE frota_veiculos
+  ADD COLUMN IF NOT EXISTS arquivado_motivo TEXT,
+  ADD COLUMN IF NOT EXISTS arquivado_em     DATE;
+
+COMMENT ON COLUMN frota_veiculos.arquivado_motivo IS 'Por que o veículo saiu da frota sem venda (sucateado, devolvido, cadastro errado...).';

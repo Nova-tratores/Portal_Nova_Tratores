@@ -42,7 +42,8 @@ export default function FrotaHome() {
   const [locs, setLocs] = useState<Record<string, Localizacao>>({});
   const [combustivel, setCombustivel] = useState<{ gasto30: number; litros30: number; abast30: number } | null>(null);
   const [busca, setBusca] = useState('');
-  const [soAtivos, setSoAtivos] = useState(true);
+  // Ativos = a frota de verdade; Vendidos/Arquivados = histórico (saíram)
+  const [segmento, setSegmento] = useState<'ativos' | 'vendidos' | 'arquivados' | 'todos'>('ativos');
   const [placaAberta, setPlacaAberta] = useState<string | null>(null);
   const [erro, setErro] = useState('');
 
@@ -122,7 +123,12 @@ export default function FrotaHome() {
     const q = busca.trim().toLowerCase();
     return veiculos
       .filter((v) => v.tipo_registro === 'veiculo') // os "avulsos" não são carros
-      .filter((v) => !soAtivos || v.ativo)
+      .filter((v) =>
+        segmento === 'todos' ? true :
+        segmento === 'vendidos' ? v.status === 'vendido' :
+        segmento === 'arquivados' ? v.status === 'arquivado' :
+        v.ativo,
+      )
       .filter((v) =>
         !q ||
         v.placa.toLowerCase().includes(q) ||
@@ -131,7 +137,7 @@ export default function FrotaHome() {
         (v.descricao || '').toLowerCase().includes(q) ||
         (v.responsavel_nome || '').toLowerCase().includes(q),
       );
-  }, [veiculos, busca, soAtivos]);
+  }, [veiculos, busca, segmento]);
 
   const soCarros = veiculos.filter((v) => v.tipo_registro === 'veiculo');
   const pendencias = soCarros.filter((v) => v.pendencia_vinculo).length;
@@ -200,9 +206,27 @@ export default function FrotaHome() {
           </span>
         )}
         <div style={{ flex: 1 }} />
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--portal-text-secondary)', cursor: 'pointer' }}>
-          <input type="checkbox" checked={soAtivos} onChange={() => setSoAtivos((v) => !v)} /> só ativos
-        </label>
+        {/* Onde cada carro mora: Ativos = frota de verdade; Vendidos/Arquivados = histórico */}
+        <div style={{ display: 'flex', border: '1px solid var(--portal-border)', borderRadius: 8, overflow: 'hidden' }}>
+          {([
+            ['ativos', `Ativos (${soCarros.filter((v) => v.ativo).length})`],
+            ['vendidos', `Vendidos (${soCarros.filter((v) => v.status === 'vendido').length})`],
+            ['arquivados', `Arquivados (${soCarros.filter((v) => v.status === 'arquivado').length})`],
+            ['todos', 'Todos'],
+          ] as ['ativos' | 'vendidos' | 'arquivados' | 'todos', string][]).map(([k, rotulo]) => (
+            <button
+              key={k}
+              onClick={() => setSegmento(k)}
+              style={{
+                padding: '7px 12px', border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                background: segmento === k ? '#0d9488' : 'var(--portal-bg-input)',
+                color: segmento === k ? '#fff' : 'var(--portal-text-secondary)',
+              }}
+            >
+              {rotulo}
+            </button>
+          ))}
+        </div>
         <div style={{ position: 'relative' }}>
           <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--portal-text-muted)' }} />
           <input
@@ -286,6 +310,11 @@ export default function FrotaHome() {
                 {v.status === 'vendido' && (
                   <span title={`Vendido${v.venda_comprador ? ` para ${v.venda_comprador}` : ''}${v.venda_data ? ` em ${new Date(`${v.venda_data}T00:00:00`).toLocaleDateString('pt-BR')}` : ''}`} style={{ fontSize: 9.5, fontWeight: 800, color: '#6d28d9', background: '#ede9fe', borderRadius: 999, padding: '2px 7px', letterSpacing: 0.4 }}>
                     VENDIDO
+                  </span>
+                )}
+                {v.status === 'arquivado' && (
+                  <span title={`Arquivado${v.arquivado_em ? ` em ${new Date(`${v.arquivado_em}T00:00:00`).toLocaleDateString('pt-BR')}` : ''}${v.arquivado_motivo ? ` — ${v.arquivado_motivo}` : ''}`} style={{ fontSize: 9.5, fontWeight: 800, color: '#475569', background: '#e2e8f0', borderRadius: 999, padding: '2px 7px', letterSpacing: 0.4 }}>
+                    ARQUIVADO
                   </span>
                 )}
                 {(v.pendencias || []).length > 0 && (
