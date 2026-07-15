@@ -9,13 +9,14 @@ import { useState, useEffect, useCallback, useMemo, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Inbox, Send, Eye, BarChart3, Plus, Search, Clock, CalendarDays, User as UserIcon, RefreshCw,
+  GripVertical, ChevronUp, ChevronDown, Zap,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import { authHeaders } from '@/lib/auth/client'
 import {
   STATUS_INFO, STATUS_ATIVOS, diasParado, prazoVencido,
-  type Ticket, type TicketStatus, type UsuarioMin,
+  type Ticket, type TicketPlanoItem, type TicketStatus, type UsuarioMin,
 } from '@/lib/tickets/constantes'
 import StatusBadge from '@/components/tickets/StatusBadge'
 import FormTicket from '@/components/tickets/FormTicket'
@@ -42,6 +43,23 @@ function TicketsPageInner() {
   const [encerrados, setEncerrados] = useState(false)
   const [modalNovo, setModalNovo] = useState(false)
 
+  // Fila pessoal: ordem planejada (ticket_id → posição) + "mexendo agora".
+  const [plano, setPlano] = useState<Record<string, number>>({})
+  const [atualId, setAtualId] = useState<string | null>(null)
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [overId, setOverId] = useState<string | null>(null)
+
+  const aplicarPlanoLocal = useCallback((itens: TicketPlanoItem[]) => {
+    const mapa: Record<string, number> = {}
+    let atual: string | null = null
+    for (const p of itens) {
+      mapa[p.ticket_id] = p.posicao
+      if (p.atual) atual = p.ticket_id
+    }
+    setPlano(mapa)
+    setAtualId(atual)
+  }, [])
+
   const carregar = useCallback(async (silencioso = false) => {
     if (!silencioso) setCarregando(true)
     setErro('')
@@ -54,12 +72,40 @@ function TicketsPageInner() {
       setTickets(json.tickets || [])
       setUsuarios(json.usuarios || {})
       if (json.contadores) setContadores(json.contadores)
+      aplicarPlanoLocal(json.plano || [])
     } catch {
       setErro('Falha de conexão')
     } finally {
       setCarregando(false)
     }
-  }, [visao, encerrados])
+  }, [visao, encerrados, aplicarPlanoLocal])
+
+  // Persiste o plano pessoal (otimista, com rollback). Não é atividade do
+  // ticket: não gera evento na timeline nem notificação.
+  const salvarPlano = useCallback(async (payload: { ordem?: string[]; atual?: string | null }) => {
+    const planoAntes = plano
+    const atualAntes = atualId
+    if (payload.ordem) {
+      const mapa: Record<string, number> = {}
+      payload.ordem.forEach((id, i) => { mapa[id] = i })
+      setPlano(mapa)
+    }
+    if ('atual' in payload) setAtualId(payload.atual ?? null)
+    try {
+      const res = await fetch('/api/tickets/plano', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify(payload),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Falha ao salvar a ordem')
+      aplicarPlanoLocal(json.plano || [])
+    } catch (e) {
+      setPlano(planoAntes)
+      setAtualId(atualAntes)
+      setErro(e instanceof Error ? e.message : 'Falha ao salvar a ordem')
+    }
+  }, [plano, atualId, aplicarPlanoLocal])
 
   useEffect(() => { if (userProfile) carregar() }, [carregar, userProfile])
 
@@ -82,6 +128,54 @@ function TicketsPageInner() {
     }
     return lista
   }, [tickets, filtroStatus, busca, visao, usuarios])
+
+  // Reordenar uma lista filtrada é ambíguo — grip e ▲▼ só sem filtro ativo.
+  const dndAtivo = visao === 'fila' && !busca.trim() && !filtroStatus && !encerrados
+
+  // Fila: "mexendo agora" no topo → depois a ordem planejada → depois o resto
+  // na ordem da API (última atividade). Itens sem posição vão para o fim.
+  const ordenados = useMemo(() => {
+    if (visao !== 'fila') return filtrados
+    const idxApi = new Map(filtrados.map((t, i) => [t.id, i]))
+    return [...filtrados].sort((a, b) => {
+      if (a.id === atualId) return -1
+      if (b.id === atualId) return 1
+      const pa = plano[a.id]
+      const pb = plano[b.id]
+      if (pa !== undefined && pb !== undefined) return pa - pb
+      if (pa !== undefined) return -1
+      if (pb !== undefined) return 1
+      return (idxApi.get(a.id) || 0) - (idxApi.get(b.id) || 0)
+    })
+  }, [filtrados, visao, plano, atualId])
+
+  // ▲▼ (caminho mobile — DnD HTML5 não funciona em touch).
+  const moverTicket = (id: string, delta: -1 | 1) => {
+    const ids = ordenados.map((t) => t.id)
+    const i = ids.indexOf(id)
+    const j = i + delta
+    if (i < 0 || j < 0 || j >= ids.length) return
+    ;[ids[i], ids[j]] = [ids[j], ids[i]]
+    salvarPlano({ ordem: ids })
+  }
+
+  const soltarSobre = (targetId: string) => {
+    const origem = dragId
+    setDragId(null)
+    setOverId(null)
+    if (!origem || origem === targetId) return
+    const ids = ordenados.map((t) => t.id)
+    const de = ids.indexOf(origem)
+    const para = ids.indexOf(targetId)
+    if (de < 0 || para < 0) return
+    ids.splice(de, 1)
+    ids.splice(para, 0, origem)
+    salvarPlano({ ordem: ids })
+  }
+
+  const marcarAtual = (id: string) => {
+    salvarPlano({ atual: atualId === id ? null : id })
+  }
 
   const contagemStatus = useMemo(() => {
     const c: Partial<Record<TicketStatus, number>> = {}
@@ -203,24 +297,63 @@ function TicketsPageInner() {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {filtrados.map((t) => {
+          {ordenados.map((t, i) => {
             const dias = diasParado(t.ultima_atividade_em)
             const vencido = prazoVencido(t.prazo, t.status)
             const resp = usuarios[t.responsavel_id]
             const sol = usuarios[t.solicitante_id]
+            const ehAtual = visao === 'fila' && t.id === atualId
             return (
-              <button key={t.id} onClick={() => router.push(`/tickets/${t.id}`)}
+              <div key={t.id} role="button" tabIndex={0}
+                onClick={() => router.push(`/tickets/${t.id}`)}
+                onKeyDown={(e) => { if (e.key === 'Enter') router.push(`/tickets/${t.id}`) }}
+                draggable={dndAtivo}
+                onDragStart={(e) => {
+                  setDragId(t.id)
+                  e.dataTransfer.setData('text/plain', t.id) // Firefox exige
+                  e.dataTransfer.effectAllowed = 'move'
+                }}
+                onDragOver={(e) => { if (dragId) { e.preventDefault(); if (overId !== t.id) setOverId(t.id) } }}
+                onDrop={(e) => { e.preventDefault(); soltarSobre(t.id) }}
+                onDragEnd={() => { setDragId(null); setOverId(null) }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 14, padding: '13px 16px', borderRadius: 12,
-                  border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)',
+                  border: ehAtual ? '1.5px solid #d97706' : '1px solid var(--portal-border,#e5e7eb)',
+                  background: ehAtual ? 'rgba(217,119,6,.06)' : 'var(--portal-surface,#fff)',
                   cursor: 'pointer', textAlign: 'left', width: '100%',
+                  opacity: dragId === t.id ? .5 : 1,
+                  boxShadow: dragId && overId === t.id && dragId !== t.id ? '0 -2px 0 0 #dc2626' : undefined,
                 }}>
+                {dndAtivo && (
+                  <span onClick={(e) => e.stopPropagation()}
+                    style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, color: 'var(--portal-text-muted,#999)' }}>
+                    <button onClick={() => moverTicket(t.id, -1)} disabled={i === 0} title="Mover para cima"
+                      style={{ border: 'none', background: 'transparent', cursor: i === 0 ? 'default' : 'pointer', padding: 2, color: 'inherit', opacity: i === 0 ? .25 : .8 }}>
+                      <ChevronUp size={14} />
+                    </button>
+                    <GripVertical size={14} style={{ opacity: .4, cursor: 'grab' }} />
+                    <button onClick={() => moverTicket(t.id, 1)} disabled={i === ordenados.length - 1} title="Mover para baixo"
+                      style={{ border: 'none', background: 'transparent', cursor: i === ordenados.length - 1 ? 'default' : 'pointer', padding: 2, color: 'inherit', opacity: i === ordenados.length - 1 ? .25 : .8 }}>
+                      <ChevronDown size={14} />
+                    </button>
+                  </span>
+                )}
                 <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--portal-text-muted,#999)', flexShrink: 0, width: 46 }}>
                   #{t.numero}
                 </span>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text,#111)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {t.titulo}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text,#111)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {t.titulo}
+                    </span>
+                    {ehAtual && (
+                      <span style={{
+                        display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0, padding: '1px 8px', borderRadius: 999,
+                        fontSize: 11, fontWeight: 800, color: '#d97706', background: 'rgba(217,119,6,.14)',
+                      }}>
+                        <Zap size={11} /> Mexendo agora
+                      </span>
+                    )}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 3, fontSize: 12, color: 'var(--portal-text-muted,#888)', flexWrap: 'wrap' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -235,6 +368,18 @@ function TicketsPageInner() {
                     )}
                   </div>
                 </div>
+                {visao === 'fila' && (
+                  <button onClick={(e) => { e.stopPropagation(); marcarAtual(t.id) }}
+                    title={ehAtual ? 'Deixar de destacar este ticket' : 'Estou mexendo neste agora'}
+                    style={{
+                      display: 'flex', alignItems: 'center', padding: 6, borderRadius: 8, flexShrink: 0, cursor: 'pointer',
+                      border: ehAtual ? '1px solid #d97706' : '1px solid var(--portal-border,#e5e7eb)',
+                      background: ehAtual ? 'rgba(217,119,6,.14)' : 'transparent',
+                      color: ehAtual ? '#d97706' : 'var(--portal-text-muted,#999)',
+                    }}>
+                    <Zap size={14} fill={ehAtual ? '#d97706' : 'none'} />
+                  </button>
+                )}
                 <span title="Dias sem movimento"
                   style={{
                     display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700, flexShrink: 0,
@@ -243,7 +388,7 @@ function TicketsPageInner() {
                   <Clock size={12} /> {dias === 0 ? 'hoje' : `${dias}d`}
                 </span>
                 <StatusBadge status={t.status} />
-              </button>
+              </div>
             )
           })}
         </div>

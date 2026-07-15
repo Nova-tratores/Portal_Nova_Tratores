@@ -90,6 +90,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const { error } = await supabaseAdmin.from('tickets').update({ responsavel_id: para }).eq('id', id)
     if (error) return erro(error.message, 500)
 
+    // O ticket sai da fila pessoal do responsável anterior.
+    await supabaseAdmin.from('tickets_plano').delete().eq('ticket_id', id).eq('user_id', anterior)
+
     // ADR-002/003: o anterior permanece participante; o novo entra.
     await garantirParticipante(id, anterior, auth.userId)
     await garantirParticipante(id, para, auth.userId)
@@ -110,6 +113,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const { error } = await supabaseAdmin.from('tickets').update(camposDoStatus(para)).eq('id', id)
     if (error) return erro(error.message, 500)
+    // Encerrou: sai da fila pessoal de todo mundo.
+    if (STATUS_FINAIS.includes(para)) {
+      await supabaseAdmin.from('tickets_plano').delete().eq('ticket_id', id)
+    }
     await registrarEvento(id, auth.userId, 'status', { de: ticket.status, para, ...(motivo ? { motivo } : {}) })
 
     const autor = await nomeDe(auth.userId)

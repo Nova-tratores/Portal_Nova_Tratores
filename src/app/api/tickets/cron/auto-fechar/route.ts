@@ -34,6 +34,8 @@ async function executar(req: NextRequest) {
       .eq('id', t.id)
       .eq('status', 'resolvido') // proteção contra corrida com ação manual
     if (upErr) continue
+    // Encerrou: sai da fila pessoal (tickets_plano) de todo mundo.
+    await supabaseAdmin.from('tickets_plano').delete().eq('ticket_id', t.id)
     // autor_id null = evento do sistema
     await registrarEvento(t.id, null, 'status', {
       de: 'resolvido', para: 'fechado', auto: true,
