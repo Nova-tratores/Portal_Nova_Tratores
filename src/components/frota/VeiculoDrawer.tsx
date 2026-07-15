@@ -2,14 +2,16 @@
 // Ficha do Veículo — o coração do Frota. Tudo vem de UMA chamada local
 // (/api/frota/veiculos/[placa]): os espelhos já estão no banco, então não há
 // espera de API externa aqui.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Car, X, ShieldAlert, User as UserIcon, Wrench, Fuel, DollarSign,
   Loader2, Pencil, Check, History, Gauge, Satellite, AlertTriangle, FileText, Sparkles, Camera,
+  HandCoins, Undo2,
 } from 'lucide-react';
 import { authHeaders } from '@/lib/auth/client';
 import DocumentoInline from '@/components/frota/DocumentoInline';
 import { formatarPlaca } from '@/lib/frota/placa';
+import { checklistPreVenda, pendenciasDoVeiculo } from '@/lib/frota/pendencias';
 import type { Motorista, VeiculoDetalhe } from '@/lib/frota/tipos';
 
 interface Props {
@@ -78,6 +80,10 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
   });
   const [docArquivo, setDocArquivo] = useState<File | null>(null);
 
+  // venda do veículo (registro histórico: pra quem, quando, por quanto)
+  const [vendaAberta, setVendaAberta] = useState(false);
+  const [venda, setVenda] = useState({ comprador: '', data: new Date().toISOString().slice(0, 10), valor: '', obs: '' });
+
   const carregar = useCallback(async () => {
     setErro('');
     try {
@@ -99,6 +105,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
       categoria: v.categoria || 'outros', status: v.status || 'ativo',
       seguradora: v.seguradora || '', numero_apolice: v.numero_apolice || '',
       proprietario: v.proprietario || '',
+      equipamentos: (v.equipamentos || []).join(', '),
       observacoes: v.observacoes || '',
       valor_mercado: det!.fipe?.valor_mercado != null ? String(det!.fipe!.valor_mercado) : '',
       id_projeto_omie: v.id_projeto_omie != null ? String(v.id_projeto_omie) : '',
@@ -154,6 +161,10 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
       // projetos Omie: número ou null (o servidor espelha na SupaPlacas)
       for (const k of ['id_projeto_omie', 'id_projeto_omie_castro'] as const) {
         if (form[k] !== undefined) payload[k] = form[k] === '' ? null : Number(String(form[k]).replace(/\D/g, ''));
+      }
+      // equipamentos: "insulfilm, suporte" -> array (cada item vira checklist pré-venda)
+      if (form.equipamentos !== undefined) {
+        payload.equipamentos = form.equipamentos.split(',').map((e) => e.trim()).filter(Boolean);
       }
       const r = await fetch(`/api/frota/veiculos/${encodeURIComponent(placa)}`, {
         method: 'PATCH',
@@ -264,6 +275,74 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
 
   const v = det?.veiculo;
   const respAtual = det?.responsaveis.find((r) => r.fim === null) || null;
+
+  const multasAbertas = useMemo(
+    () => (det?.multas || []).filter((m) => !['paga', 'descontada', 'arquivada'].includes(m.status_interno)).length,
+    [det],
+  );
+
+  // a MESMA régua do card vermelho da lista (lib/frota/pendencias)
+  const pendencias = useMemo(() => {
+    if (!det) return [];
+    const limite = new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10);
+    return pendenciasDoVeiculo({
+      status: det.veiculo.status,
+      ativo: det.veiculo.ativo,
+      pendencia_vinculo: det.veiculo.pendencia_vinculo,
+      renavam: det.veiculo.renavam,
+      chassi: det.veiculo.chassi,
+      proprietario: det.veiculo.proprietario,
+      tem_crlv: (det.documentos || []).some((d) => d.tipo === 'crlv'),
+      docs_vencendo: (det.documentos || []).filter((d) => d.vigencia_fim && String(d.vigencia_fim) <= limite).length,
+      multas_abertas: multasAbertas,
+    });
+  }, [det, multasAbertas]);
+
+  // o que tirar/resolver antes de entregar o carro vendido
+  const checklist = useMemo(() => {
+    if (!det) return [];
+    const hoje = new Date().toISOString().slice(0, 10);
+    return checklistPreVenda({
+      tem_rastreador: det.veiculo.tem_rastreador,
+      equipamentos: det.veiculo.equipamentos,
+      seguradora: det.veiculo.seguradora,
+      numero_apolice: det.veiculo.numero_apolice,
+      tem_seguro_vigente: (det.documentos || []).some((d) => d.tipo === 'seguro' && d.vigencia_fim && String(d.vigencia_fim) >= hoje),
+      multas_abertas: multasAbertas,
+      responsavel_atual: respAtual?.motorista_nome || null,
+    });
+  }, [det, multasAbertas, respAtual]);
+
+  const confirmarVenda = async () => {
+    setBusy('venda');
+    try {
+      const r = await fetch(`/api/frota/veiculos/${encodeURIComponent(placa)}/venda`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify(venda),
+      });
+      const d = await r.json();
+      if (!r.ok) { alert(d.error || 'Falha ao registrar a venda.'); return; }
+      if (d.aviso) alert(d.aviso);
+      setVendaAberta(false);
+      await carregar();
+      onMudou?.();
+    } finally { setBusy(''); }
+  };
+
+  const desfazerVenda = async () => {
+    if (!confirm('Desfazer a venda? O veículo volta a contar como ativo (inclusive no patrimônio do DRE).')) return;
+    setBusy('venda');
+    try {
+      const r = await fetch(`/api/frota/veiculos/${encodeURIComponent(placa)}/venda`, {
+        method: 'DELETE', headers: await authHeaders(),
+      });
+      const d = await r.json();
+      if (!r.ok) { alert(d.error || 'Falha ao desfazer.'); return; }
+      await carregar();
+      onMudou?.();
+    } finally { setBusy(''); }
+  };
   const inputStyle: React.CSSProperties = {
     width: '100%', padding: '6px 8px', borderRadius: 6, fontSize: 12.5,
     border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)',
@@ -320,6 +399,41 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
 
           {det && v && (
             <>
+              {/* Pendências — a mesma régua que pinta o card de vermelho */}
+              {pendencias.length > 0 && (
+                <div style={{ background: 'rgba(220,38,38,0.07)', border: '1px solid #ef4444', borderRadius: 12, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 800, color: '#b91c1c', textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                    <AlertTriangle size={13} /> {pendencias.length} pendência{pendencias.length > 1 ? 's' : ''}
+                  </div>
+                  {pendencias.map((p, i) => (
+                    <span key={i} style={{ fontSize: 12, color: '#b91c1c' }}>• {p}</span>
+                  ))}
+                </div>
+              )}
+
+              {/* Vendido — o carro é HISTÓRICO agora */}
+              {v.status === 'vendido' && (
+                <div style={{ background: '#ede9fe', border: '1px solid #c4b5fd', borderRadius: 12, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 800, color: '#6d28d9', textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                    <HandCoins size={13} /> Vendido
+                  </div>
+                  <span style={{ fontSize: 12.5, color: '#4c1d95' }}>
+                    {v.venda_comprador ? <>Para <strong>{v.venda_comprador}</strong></> : 'Comprador não informado'}
+                    {v.venda_data ? ` em ${fmtData(v.venda_data)}` : ''}
+                    {v.venda_valor != null ? <> por <strong>{fmtRS(Number(v.venda_valor))}</strong></> : ''}
+                  </span>
+                  {v.venda_obs && <span style={{ fontSize: 11.5, color: '#6d28d9' }}>💬 {v.venda_obs}</span>}
+                  <span style={{ fontSize: 11, color: '#7c3aed' }}>
+                    Fora da frota ativa e do patrimônio do DRE — a ficha fica só como registro histórico.
+                  </span>
+                  {podeEditar && (
+                    <button onClick={desfazerVenda} disabled={busy === 'venda'} style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 6, border: '1px solid #c4b5fd', background: 'transparent', color: '#6d28d9', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                      {busy === 'venda' ? <Loader2 size={11} className="spin" /> : <Undo2 size={11} />} desfazer venda
+                    </button>
+                  )}
+                </div>
+              )}
+
               {/* Identificação */}
               <Secao titulo="Identificação" icone={<Car size={14} />}>
                 {!editando ? (
@@ -352,6 +466,10 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                           ? `${v.id_projeto_omie ?? '—'} / ${v.id_projeto_omie_castro ?? '—'}`
                           : '—'}
                       />
+                      <Linha
+                        rotulo="Equipamentos instalados"
+                        valor={(v.equipamentos || []).length > 0 ? v.equipamentos!.join(', ') : '—'}
+                      />
                     </div>
                     {v.observacoes && <div style={{ fontSize: 12, color: 'var(--portal-text-secondary)' }}>{v.observacoes}</div>}
                     {podeEditar && (
@@ -374,7 +492,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                         ['marca', 'Marca'], ['modelo', 'Modelo'], ['ano', 'Ano'], ['cor', 'Cor'],
                         ['chassi', 'Chassi'], ['renavam', 'RENAVAM'], ['combustivel', 'Combustível'],
                         ['seguradora', 'Seguradora'], ['numero_apolice', 'Apólice'],
-                        ['proprietario', 'Proprietário'],
+                        ['proprietario', 'Proprietário'], ['equipamentos', 'Equipamentos (vírgula)'],
                       ] as [string, string][]).map(([campo, rotulo]) => (
                         <label key={campo} style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase' }}>
                           {rotulo}
@@ -684,6 +802,57 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                   Ver tudo no Abastecimento →
                 </a>
               </Secao>
+
+              {/* Venda — o carro sai da frota ativa mas a ficha fica de histórico */}
+              {podeEditar && v.status !== 'vendido' && (
+                <Secao titulo="Venda do veículo" icone={<HandCoins size={14} />}>
+                  {!vendaAberta ? (
+                    <>
+                      <span style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>
+                        Vendeu o carro? Registre pra quem, quando e por quanto — ele sai da frota ativa
+                        (e do patrimônio do DRE), mas a ficha inteira fica de histórico.
+                      </span>
+                      <button onClick={() => setVendaAberta(true)} style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 6, border: '1px solid #fca5a5', background: '#fef2f2', color: '#b91c1c', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                        <HandCoins size={13} /> Marcar como vendido
+                      </button>
+                    </>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 10, borderRadius: 8, background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)' }}>
+                      {checklist.length > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, padding: '8px 10px', borderRadius: 8, background: '#fef3c7', border: '1px solid #fcd34d' }}>
+                          <span style={{ fontSize: 11.5, fontWeight: 800, color: '#92400e', textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                            Antes de entregar, tire/resolva:
+                          </span>
+                          {checklist.map((c, i) => (
+                            <span key={i} style={{ fontSize: 11.5, color: '#92400e' }}>• {c}</span>
+                          ))}
+                        </div>
+                      )}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        <label style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase' }}>
+                          Vendido para *
+                          <input value={venda.comprador} onChange={(e) => setVenda((f) => ({ ...f, comprador: e.target.value }))} placeholder="nome do comprador" style={inputStyle} />
+                        </label>
+                        <label style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase' }}>
+                          Data da venda *
+                          <input type="date" value={venda.data} onChange={(e) => setVenda((f) => ({ ...f, data: e.target.value }))} style={inputStyle} />
+                        </label>
+                        <label style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase' }}>
+                          Valor (R$) *
+                          <input value={venda.valor} onChange={(e) => setVenda((f) => ({ ...f, valor: e.target.value }))} placeholder="ex.: 45000" style={inputStyle} />
+                        </label>
+                      </div>
+                      <textarea value={venda.obs} onChange={(e) => setVenda((f) => ({ ...f, obs: e.target.value }))} placeholder="Observações (forma de pagamento, pendências combinadas…)" rows={2} style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }} />
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button onClick={confirmarVenda} disabled={busy === 'venda'} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 6, border: 'none', background: '#b91c1c', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                          {busy === 'venda' ? <Loader2 size={12} className="spin" /> : <Check size={12} />} Confirmar venda
+                        </button>
+                        <button onClick={() => setVendaAberta(false)} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--portal-border)', background: 'transparent', color: 'var(--portal-text-secondary)', fontSize: 12, cursor: 'pointer' }}>Cancelar</button>
+                      </div>
+                    </div>
+                  )}
+                </Secao>
+              )}
 
               {/* Rodapé técnico */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10.5, color: 'var(--portal-text-faint)' }}>

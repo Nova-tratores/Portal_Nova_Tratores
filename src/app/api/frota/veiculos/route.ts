@@ -8,6 +8,7 @@ import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
 import { logFrota, podeFrota, temModuloFrota } from '@/lib/frota/server';
 import { garantirSupaPlaca } from '@/lib/frota/supaplacas';
+import { pendenciasDoVeiculo } from '@/lib/frota/pendencias';
 import { PLACA_RE, resolverPlaca } from '@/lib/frota/placa';
 
 export const runtime = 'nodejs';
@@ -32,7 +33,7 @@ export async function GET(req: NextRequest) {
       .from('frota_multas')
       .select('veiculo_id, valor, status_interno')
       .not('status_interno', 'in', '("paga","descontada","arquivada")'),
-    supabase.from('frota_documentos').select('veiculo_id, vigencia_fim').not('vigencia_fim', 'is', null),
+    supabase.from('frota_documentos').select('veiculo_id, tipo, vigencia_fim'),
     // paradas atípicas na última semana (KPI da Visão geral)
     supabase.from('frota_dias').select('paradas_atipicas').gte('data', de7),
   ]);
@@ -55,23 +56,44 @@ export async function GET(req: NextRequest) {
     multasPorVeiculo.set(m.veiculo_id, e);
   }
 
-  // documentos vencidos ou vencendo em ≤30 dias (o alerta vai no card)
+  // documentos vencidos ou vencendo em ≤30 dias (o alerta vai no card) +
+  // quem tem CRLV anexado (a falta dele é pendência)
   const limite = new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10);
   const docsVencendo = new Map<string, number>();
+  const temCrlv = new Set<string>();
   for (const d of docs.data || []) {
-    if (String(d.vigencia_fim) <= limite) {
+    if (d.tipo === 'crlv') temCrlv.add(d.veiculo_id);
+    if (d.vigencia_fim && String(d.vigencia_fim) <= limite) {
       docsVencendo.set(d.veiculo_id, (docsVencendo.get(d.veiculo_id) || 0) + 1);
     }
   }
 
-  const lista = (veiculos.data || []).map((v) => ({
-    ...v,
-    imagem_url: v.id_placa != null ? fotoPorIdPlaca.get(Number(v.id_placa)) || null : null,
-    responsavel_nome: respPorVeiculo.get(v.id) || null,
-    multas_abertas: multasPorVeiculo.get(v.id)?.n || 0,
-    valor_multas_abertas: multasPorVeiculo.get(v.id)?.total || 0,
-    docs_vencendo: docsVencendo.get(v.id) || 0,
-  }));
+  const lista = (veiculos.data || []).map((v) => {
+    const multas_abertas = multasPorVeiculo.get(v.id)?.n || 0;
+    const docs_vencendo = docsVencendo.get(v.id) || 0;
+    return {
+      ...v,
+      imagem_url: v.id_placa != null ? fotoPorIdPlaca.get(Number(v.id_placa)) || null : null,
+      responsavel_nome: respPorVeiculo.get(v.id) || null,
+      multas_abertas,
+      valor_multas_abertas: multasPorVeiculo.get(v.id)?.total || 0,
+      docs_vencendo,
+      // a régua do card VERMELHO (mesma função da Ficha — lib/frota/pendencias)
+      pendencias: v.tipo_registro === 'veiculo'
+        ? pendenciasDoVeiculo({
+            status: v.status,
+            ativo: v.ativo,
+            pendencia_vinculo: !!v.pendencia_vinculo,
+            renavam: v.renavam,
+            chassi: v.chassi,
+            proprietario: v.proprietario ?? null,
+            tem_crlv: temCrlv.has(v.id),
+            docs_vencendo,
+            multas_abertas,
+          })
+        : [],
+    };
+  });
 
   return NextResponse.json({
     veiculos: lista,

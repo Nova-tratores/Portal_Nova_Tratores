@@ -27,6 +27,13 @@ export interface FrotaVeiculo {
   // proprietário LEGAL (documento/CRLV) — não confundir com o responsável do
   // dia a dia (frota_responsaveis). Campo manual: o sync nunca escreve aqui.
   proprietario: string | null;
+  // acessórios instalados ("tunagem") — cada item entra no checklist pré-venda
+  equipamentos: string[] | null;
+  // venda (status='vendido', ativo=false — o registro vira histórico)
+  venda_data: string | null;
+  venda_valor: number | null;
+  venda_comprador: string | null;
+  venda_obs: string | null;
   ativo: boolean;
   status: 'ativo' | 'manutencao' | 'parado' | 'vendido' | 'locado';
   observacoes: string | null;
@@ -47,6 +54,7 @@ export interface VeiculoLista extends FrotaVeiculo {
   multas_abertas: number;
   valor_multas_abertas: number;
   docs_vencendo: number; // vencidos ou vencendo em ≤30 dias
+  pendencias: string[];  // 1+ = card VERMELHO (lib/frota/pendencias)
 }
 
 export interface Responsavel {

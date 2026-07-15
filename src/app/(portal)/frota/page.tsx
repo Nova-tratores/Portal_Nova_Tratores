@@ -135,6 +135,7 @@ export default function FrotaHome() {
 
   const soCarros = veiculos.filter((v) => v.tipo_registro === 'veiculo');
   const pendencias = soCarros.filter((v) => v.pendencia_vinculo).length;
+  const comPendencia = soCarros.filter((v) => (v.pendencias || []).length > 0).length;
   const multasN = soCarros.reduce((s, v) => s + (v.multas_abertas || 0), 0);
   const multasRS = soCarros.reduce((s, v) => s + (v.valor_multas_abertas || 0), 0);
   const docsN = soCarros.reduce((s, v) => s + (v.docs_vencendo || 0), 0);
@@ -178,6 +179,12 @@ export default function FrotaHome() {
           valor={atipicas7d != null ? String(atipicas7d) : '—'}
           cor={(atipicas7d || 0) > 0 ? '#b45309' : undefined}
           href="/frota/paradas"
+        />
+        <Kpi
+          icone={<AlertTriangle size={16} />}
+          rotulo="Veículos com pendência"
+          valor={veiculos.length ? String(comPendencia) : '—'}
+          cor={comPendencia > 0 ? '#b91c1c' : undefined}
         />
       </div>
 
@@ -255,9 +262,12 @@ export default function FrotaHome() {
           <button
             key={v.id}
             onClick={() => setPlacaAberta(v.placa)}
+            title={(v.pendencias || []).length > 0 ? `Pendências:\n• ${v.pendencias.join('\n• ')}` : undefined}
             style={{
               textAlign: 'left', cursor: 'pointer',
-              background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
+              // pendência = card VERMELHO (a régua é a lib/frota/pendencias)
+              background: (v.pendencias || []).length > 0 ? 'rgba(220, 38, 38, 0.06)' : 'var(--portal-bg-card)',
+              border: `1px solid ${(v.pendencias || []).length > 0 ? '#ef4444' : 'var(--portal-border)'}`,
               borderRadius: 12, padding: 14, display: 'flex', gap: 12, alignItems: 'center',
               opacity: v.ativo ? 1 : 0.55,
             }}
@@ -270,9 +280,19 @@ export default function FrotaHome() {
               </div>
             )}
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                 <strong style={{ fontSize: 15, fontWeight: 800, color: 'var(--portal-text)' }}>{formatarPlaca(v.placa)}</strong>
                 {v.tem_rastreador && <Satellite size={13} color="#0f766e" aria-label="Rastreado" />}
+                {v.status === 'vendido' && (
+                  <span title={`Vendido${v.venda_comprador ? ` para ${v.venda_comprador}` : ''}${v.venda_data ? ` em ${new Date(`${v.venda_data}T00:00:00`).toLocaleDateString('pt-BR')}` : ''}`} style={{ fontSize: 9.5, fontWeight: 800, color: '#6d28d9', background: '#ede9fe', borderRadius: 999, padding: '2px 7px', letterSpacing: 0.4 }}>
+                    VENDIDO
+                  </span>
+                )}
+                {(v.pendencias || []).length > 0 && (
+                  <span style={{ fontSize: 9.5, fontWeight: 800, color: '#b91c1c', background: '#fee2e2', borderRadius: 999, padding: '2px 7px', letterSpacing: 0.4 }}>
+                    {v.pendencias.length} PENDÊNCIA{v.pendencias.length > 1 ? 'S' : ''}
+                  </span>
+                )}
               </div>
               <div style={{ fontSize: 12, color: 'var(--portal-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {[v.marca, v.modelo || v.descricao, v.ano].filter(Boolean).join(' · ') || '—'}

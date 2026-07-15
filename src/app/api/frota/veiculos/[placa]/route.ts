@@ -26,7 +26,7 @@ const ESPELHADOS = new Set([
 const EDITAVEIS = new Set([
   ...ESPELHADOS,
   'marca', 'modelo', 'combustivel', 'categoria', 'setor', 'status', 'ativo',
-  'observacoes', 'seguradora', 'placa_exibicao', 'proprietario',
+  'observacoes', 'seguradora', 'placa_exibicao', 'proprietario', 'equipamentos',
   'id_projeto_omie', 'id_projeto_omie_castro',
 ]);
 
