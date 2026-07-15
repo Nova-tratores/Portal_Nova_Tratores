@@ -21,6 +21,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import { useDreConta } from '@/lib/dre-financeiro/format'
+import { simlogY, yScaleSimlog, LIN_MIN, LIN_MAX } from '@/lib/dre-financeiro/escala-simlog'
 
 // =========================================================================
 // Helpers (port fiel do <script> inline da analise-dre.ejs)
@@ -546,19 +547,13 @@ export default function AnaliseDre() {
     var mOper = margemSerie(numOper)
     var mLiq = margemSerie(numLiq)
 
-    // Escala do eixo Y das margens (-35% a +30% como piso/teto de leitura).
-    var ESCALA_PISO = -35, ESCALA_TETO = 30
-    function escalaMargens(seriesArr) {
-      var todos = []
-      seriesArr.forEach(function (s) { s.forEach(function (v) { if (v !== null && isFinite(v)) todos.push(v) }) })
-      if (!todos.length) return null
-      var dMin = Math.min.apply(null, todos), dMax = Math.max.apply(null, todos)
-      var lo = Math.max(ESCALA_PISO, Math.floor(Math.min(dMin, 0) / 5) * 5)
-      var hi = Math.min(ESCALA_TETO, Math.ceil(Math.max(dMax, 0) / 5) * 5)
-      var nFora = todos.filter(function (v) { return v < lo || v > hi }).length
-      return { min: lo, max: hi, foraEscala: nFora }
-    }
-    var esc = emRS ? null : escalaMargens([mBruta, mOper, mLiq])
+    // Escala do eixo Y das margens (modo %): linear no intervalo principal
+    // -10%..+15% e comprimida (log) fora dele — pontos extremos continuam
+    // visiveis sem achatar a zona util (ver escala-simlog.js).
+    var todosPct = emRS ? [] : mBruta.concat(mOper, mLiq)
+    // Series plotadas: transformadas no modo %; as REAIS ficam em rawData
+    // (tooltip mostra sempre o valor real).
+    function plotSerie(s) { return emRS ? s : s.map(simlogY) }
 
     var sufixo = emRS ? '' : ' %'
     var lblBruta = (emRS ? 'Lucro Bruto' : 'Margem Bruta') + sufixo
@@ -572,9 +567,9 @@ export default function AnaliseDre() {
         data: {
           labels: labels,
           datasets: [
-            { type: 'line', label: lblBruta, data: mBruta, borderColor: '#1e293b', backgroundColor: 'rgba(30,41,59,0.05)', borderWidth: 2, pointRadius: 3, tension: 0.2, fill: false },
-            { type: 'line', label: lblOper, data: mOper, borderColor: '#7c3aed', backgroundColor: 'rgba(124,58,237,0.05)', borderWidth: 2, pointRadius: 3, tension: 0.2, fill: false },
-            { type: 'line', label: lblLiq, data: mLiq, borderColor: '#dc2626', backgroundColor: 'rgba(220,38,38,0.05)', borderWidth: 2, pointRadius: 3, tension: 0.2, fill: false }
+            { type: 'line', label: lblBruta, data: plotSerie(mBruta), rawData: mBruta, borderColor: '#1e293b', backgroundColor: 'rgba(30,41,59,0.05)', borderWidth: 2, pointRadius: 3, tension: 0.2, fill: false },
+            { type: 'line', label: lblOper, data: plotSerie(mOper), rawData: mOper, borderColor: '#7c3aed', backgroundColor: 'rgba(124,58,237,0.05)', borderWidth: 2, pointRadius: 3, tension: 0.2, fill: false },
+            { type: 'line', label: lblLiq, data: plotSerie(mLiq), rawData: mLiq, borderColor: '#dc2626', backgroundColor: 'rgba(220,38,38,0.05)', borderWidth: 2, pointRadius: 3, tension: 0.2, fill: false }
           ]
         },
         options: {
@@ -582,21 +577,21 @@ export default function AnaliseDre() {
           interaction: { mode: 'index', intersect: false },
           scales: {
             x: { ticks: { autoSkip: false, maxRotation: 90, minRotation: 0, font: { size: 9 } } },
-            y: {
-              position: 'left',
-              min: esc ? esc.min : undefined,
-              max: esc ? esc.max : undefined,
-              ticks: emRS
-                ? { callback: function (v) { return fmtBRLs(v) } }
-                : { stepSize: 5, callback: function (v) { return v.toFixed(0) + '%' } },
-              grid: { color: function (ctx) { return ctx.tick.value === 0 ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0.05)' } }
-            }
+            y: emRS
+              ? {
+                  position: 'left',
+                  ticks: { callback: function (v) { return fmtBRLs(v) } },
+                  grid: { color: function (ctx) { return ctx.tick.value === 0 ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0.05)' } }
+                }
+              : yScaleSimlog(todosPct, { position: 'left' })
           },
           plugins: {
             legend: { labels: { boxWidth: 12, padding: 10 } },
             tooltip: { callbacks: { label: function (item) {
-              if (item.raw === null) return item.dataset.label + ': n/d'
-              return item.dataset.label + ': ' + (emRS ? fmtBRL(item.raw) : Number(item.raw).toFixed(1) + '%')
+              // No modo % o dado plotado e transformado; o valor REAL esta em rawData.
+              var real = item.dataset.rawData ? item.dataset.rawData[item.dataIndex] : item.raw
+              if (real === null || real === undefined) return item.dataset.label + ': n/d'
+              return item.dataset.label + ': ' + (emRS ? fmtBRL(real) : Number(real).toFixed(1) + '%')
             } } }
           }
         }
@@ -628,7 +623,10 @@ export default function AnaliseDre() {
     }
 
     var infoTxt = colunas.length + ' colunas · regime ' + (regime === 'competencia' ? 'Competência' : 'Omie')
-    if (esc && esc.foraEscala > 0) infoTxt += ' · ' + esc.foraEscala + ' ponto(s) fora da escala (ver tooltip)'
+    if (!emRS) {
+      var nZonaLog = todosPct.filter(function (v) { return v !== null && isFinite(v) && (v < LIN_MIN || v > LIN_MAX) }).length
+      if (nZonaLog > 0) infoTxt += ' · ' + nZonaLog + ' ponto(s) na zona log (fora de ' + LIN_MIN + '%..' + LIN_MAX + '%)'
+    }
     setChartInfo(infoTxt)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chartPronto, dados, granularidade, margemModo, regime])

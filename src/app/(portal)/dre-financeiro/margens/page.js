@@ -42,6 +42,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import { useDreConta } from '@/lib/dre-financeiro/format'
+import { simlogY, yScaleSimlog } from '@/lib/dre-financeiro/escala-simlog'
 
 // ---------------------------------------------------------------------------
 // Formatadores locais (identicos aos do <script> da fonte). Mantidos inline
@@ -618,13 +619,20 @@ export default function MargensPage() {
     const { mesesArr, famsArr, celulas } = dataView
     if (instChartData.current) instChartData.current.destroy()
     const ctx = refChartData.current.getContext('2d')
+    // Escala simlog: linear entre -10%..+15% (intervalo principal), comprimida
+    // (log) fora — familias com margem estourada nao achatam as demais. Os
+    // valores plotados sao transformados (simlogY); os REAIS ficam em rawData
+    // (tooltip mostra sempre o real).
+    const seriesFam = famsArr.map((f) => mesesArr.map((m) => { const c2 = celulas[f + '|' + m]; return c2 ? c2.margem_pct : null }))
+    const todosVals = seriesFam.flat()
     instChartData.current = new window.Chart(ctx, {
       type: 'line',
       data: {
         labels: mesesArr,
         datasets: famsArr.map((f, i) => ({
           label: f,
-          data: mesesArr.map((m) => { const c2 = celulas[f + '|' + m]; return c2 ? c2.margem_pct : null }),
+          data: seriesFam[i].map(simlogY),
+          rawData: seriesFam[i],
           borderColor: PALETA[i % PALETA.length],
           backgroundColor: PALETA[i % PALETA.length],
           borderWidth: 1.5, pointRadius: 5, pointHoverRadius: 8, pointHitRadius: 10,
@@ -645,11 +653,11 @@ export default function MargensPage() {
         onHover: function (evt, elements) {
           if (evt.native && evt.native.target) evt.native.target.style.cursor = elements.length ? 'pointer' : 'default'
         },
-        scales: { y: { title: { display: true, text: 'Margem %' }, ticks: { callback: function (v) { return v + '%' } } } },
+        scales: { y: yScaleSimlog(todosVals, { title: { display: true, text: 'Margem %' } }) },
         plugins: {
           legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } },
           tooltip: { callbacks: {
-            label: function (item) { return item.dataset.label + ': ' + item.raw + '%' },
+            label: function (item) { return item.dataset.label + ': ' + item.dataset.rawData[item.dataIndex] + '%' },
             footer: function () { return 'Clique para ver as vendas' },
           } },
         },
