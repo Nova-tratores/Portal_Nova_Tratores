@@ -1,7 +1,9 @@
 'use client';
 // Frota > Multas — todas as multas da frota, com QUEM estava com o carro na
 // data (uso diário > responsável fixo > Rota Exata) e o fluxo interno
-// (análise/defesa/paga/descontada). Espelho local — nada de API externa aqui.
+// (análise/defesa/paga/descontada). A lista abre na hora com o espelho local
+// e um sync com a Rota Exata roda em segundo plano ao abrir a aba (trava de
+// 10 min na rota /multas/atualizar) — recarrega sozinha quando termina.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ShieldAlert, AlertTriangle, MapPin, ExternalLink, Paperclip, Loader2, Camera } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
@@ -45,6 +47,7 @@ export default function FrotaMultasPage() {
   const [erro, setErro] = useState('');
   const [soAbertas, setSoAbertas] = useState(true);
   const [busy, setBusy] = useState('');
+  const [sincronizando, setSincronizando] = useState(false);
 
   const carregar = useCallback(async () => {
     try {
@@ -55,6 +58,23 @@ export default function FrotaMultasPage() {
     } catch (e) { setErro(String(e)); }
   }, []);
   useEffect(() => { carregar(); }, [carregar]);
+
+  // Ao abrir a aba: puxa da Rota Exata em segundo plano (a rota ignora se o
+  // último sync tem menos de 10 min) e recarrega a lista se veio coisa nova.
+  const sincronizouRef = useRef(false);
+  useEffect(() => {
+    if (sincronizouRef.current) return;
+    sincronizouRef.current = true;
+    (async () => {
+      setSincronizando(true);
+      try {
+        const r = await fetch('/api/frota/multas/atualizar', { method: 'POST', headers: await authHeaders() });
+        const d = await r.json().catch(() => ({}));
+        if (r.ok && d.sincronizou) await carregar();
+      } catch { /* sem rede/timeout: a aba segue com o espelho local */ }
+      finally { setSincronizando(false); }
+    })();
+  }, [carregar]);
 
   const mudarStatus = async (id: string, status: string) => {
     setBusy(id);
@@ -116,6 +136,11 @@ export default function FrotaMultasPage() {
         <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted)' }}>
           {visiveis.length} exibidas · <strong style={{ color: '#b91c1c' }}>{fmtRS(totalAberto)}</strong> em aberto
         </span>
+        {sincronizando && (
+          <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--portal-text-muted)' }}>
+            <Loader2 size={13} className="animate-spin" /> sincronizando com a Rota Exata…
+          </span>
+        )}
         <div style={{ flex: 1 }} />
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--portal-text-secondary)', cursor: 'pointer' }}>
           <input type="checkbox" checked={soAbertas} onChange={() => setSoAbertas((v) => !v)} /> só em aberto
