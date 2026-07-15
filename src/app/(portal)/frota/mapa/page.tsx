@@ -5,11 +5,12 @@
 // todos os 16 rastreados, não só os carros do comercial. Também desenha a
 // camada de LOCAIS: geocercas da Rota Exata + propriedades de clientes do
 // portal (as geocodificadas).
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { Map as MapIcon } from 'lucide-react';
 import { authHeaders } from '@/lib/auth/client';
-import { formatarPlaca } from '@/lib/frota/placa';
+import { supabase } from '@/lib/supabase';
+import { formatarPlaca, resolverPlaca } from '@/lib/frota/placa';
 import type { LocalPin } from '@/components/supervisor/MapaCarros';
 
 const MapaCarros = dynamic(() => import('@/components/supervisor/MapaCarros'), { ssr: false });
@@ -73,6 +74,19 @@ export default function FrotaMapaPage() {
     })();
   }, []);
 
+  // Quem estava com o carro no dia — vw_frota_uso_diario (check-in dos
+  // vendedores + check-in diário do app dos MECÂNICOS). Aparece na timeline.
+  const resolverMotorista = useCallback(async (placa: string, data: string) => {
+    const { data: rows } = await supabase
+      .from('vw_frota_uso_diario')
+      .select('pessoa_nome, created_at')
+      .eq('placa', resolverPlaca(placa))
+      .eq('data', data)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    return rows?.[0]?.pessoa_nome || null;
+  }, []);
+
   return (
     <div style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
@@ -87,7 +101,7 @@ export default function FrotaMapaPage() {
       {/* O MapaCarros usa height:100% — sem um pai com ALTURA EXPLÍCITA o
           Leaflet monta num container de 0px e a tela fica em branco. */}
       <div style={{ width: '100%', height: 'calc(100vh - 230px)', minHeight: 480, borderRadius: 14, overflow: 'hidden', border: '1px solid var(--portal-border)' }}>
-        <MapaCarros carros={carros as any} fontePosicoes="frota" tituloPainel="FROTA RASTREADA" locais={locais} />
+        <MapaCarros carros={carros as any} fontePosicoes="frota" tituloPainel="FROTA RASTREADA" locais={locais} resolverMotorista={resolverMotorista} />
       </div>
     </div>
   );

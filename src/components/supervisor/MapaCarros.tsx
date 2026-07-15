@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 
 interface Carro { placa: string; descricao?: string | null; pessoa_nome?: string | null; vinculo_tipo?: string | null }
 // Lugar conhecido (geocerca ou propriedade de cliente) — vira um pin discreto
@@ -24,6 +24,9 @@ interface Props {
   tituloPainel?: string
   // pins de lugares conhecidos (default: nenhum — o supervisor fica como era)
   locais?: LocalPin[]
+  // quem estava com o carro no dia (o /frota/mapa liga na vw_frota_uso_diario,
+  // que lê o check-in do app dos mecânicos) — aparece no topo da timeline
+  resolverMotorista?: (placa: string, data: string) => Promise<string | null>
 }
 
 const COR_LOCAL: Record<string, string> = {
@@ -31,12 +34,28 @@ const COR_LOCAL: Record<string, string> = {
   manutencao: '#9333ea', estacionamento: '#64748b', descarga: '#d97706',
 }
 
+// Sem base de limite POR VIA (isso exigiria map-matching no OSM) — o alerta de
+// velocidade usa o teto de rodovia: acima disso é excesso em QUALQUER via.
+const LIMITE_VEL_KMH = 110
+
+// Buraco de sinal não é trajeto: pontos consecutivos longe demais (ou com gap
+// de tempo) NÃO são ligados por linha cheia — viram conector pontilhado.
+const GAP_KM = 2
+const GAP_MIN = 15
+
+const distKm = (a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
+  const R = 6371, rad = (x: number) => (x * Math.PI) / 180
+  const dLat = rad(b.lat - a.lat), dLng = rad(b.lng - a.lng)
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2
+  return 2 * R * Math.asin(Math.sqrt(h))
+}
+
 const hojeStr = () => new Date().toISOString().split('T')[0]
 const fmtH = (iso: string) => { if (!iso) return '--:--'; try { const d = new Date(iso); return d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0') } catch { return '--:--' } }
 const fmtT = (min: number) => min >= 60 ? Math.floor(min / 60) + 'h' + (min % 60 > 0 ? String(min % 60).padStart(2, '0') + 'min' : '') : min + 'min'
 const fmtData = (d: string) => { if (!d) return ''; const [y, m, dia] = d.split('-'); return `${dia}/${m}/${y.slice(2)}` }
 
-export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVisitaClick, fmtVisita, fontePosicoes = 'carros', tituloPainel = 'CARROS COMERCIAIS', locais = [] }: Props) {
+export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVisitaClick, fmtVisita, fontePosicoes = 'carros', tituloPainel = 'CARROS COMERCIAIS', locais = [], resolverMotorista }: Props) {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstance = useRef<any>(null)
   const liveLayerRef = useRef<any>(null)
@@ -56,6 +75,10 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
   const [carroSel, setCarroSel] = useState<{ placa: string; nome: string } | null>(null)
   const [historico, setHistorico] = useState<any[]>([])
   const [loadingHist, setLoadingHist] = useState(false)
+  // timeline da rota selecionada (onde passou, horários, paradas, velocidade)
+  const [rotaSel, setRotaSel] = useState<any>(null)
+  const [timelineAberta, setTimelineAberta] = useState(true)
+  const [motoristaDia, setMotoristaDia] = useState<string | null>(null)
 
   // Carregar Leaflet
   useEffect(() => {
@@ -186,6 +209,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
 
   const fecharCarro = useCallback(() => {
     setCarroSel(null); setHistorico([]); setPlacaSel(null); setResumo(null)
+    setRotaSel(null); setMotoristaDia(null)
     setData(hojeStr())
     rotaLayerRef.current?.clearLayers()
   }, [])
@@ -203,6 +227,9 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
       const res = await fetch(`/api/supervisor-vendas/veiculos?acao=rota&placa=${encodeURIComponent(placa)}&data=${dataParam}`)
       if (!res.ok) { setLoading(false); return }
       const rota = await res.json()
+      setRotaSel(rota)
+      setMotoristaDia(null)
+      resolverMotorista?.(placa, dataParam).then((m) => setMotoristaDia(m)).catch(() => {})
       const pontos = rota.pontos || []
       if (pontos.length === 0) {
         // Dia sem trajeto OU rota antiga já podada pela retenção (os pontos
@@ -220,7 +247,33 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
         return
       }
       const coords = pontos.map((p: any) => [p.lat, p.lng])
-      L.polyline(coords, { color: '#3b82f6', weight: 4, opacity: 0.85 }).addTo(rotaLayerRef.current)
+
+      // Trajeto SEGMENTADO: buraco de sinal (pontos consecutivos a >2km ou
+      // >15min) não vira linha reta cruzando o mapa — vira conector
+      // pontilhado cinza com tooltip do tamanho do buraco.
+      const segmentos: any[][] = []
+      let seg: any[] = []
+      for (const p of pontos) {
+        if (seg.length > 0) {
+          const prev = seg[seg.length - 1]
+          const gapKm = distKm(prev, p)
+          const gapMin = (new Date(p.dt).getTime() - new Date(prev.dt).getTime()) / 60000
+          if (gapKm > GAP_KM || gapMin > GAP_MIN) {
+            segmentos.push(seg)
+            L.polyline([[prev.lat, prev.lng], [p.lat, p.lng]], { color: '#94a3b8', weight: 2, opacity: 0.55, dashArray: '6 8' })
+              .bindTooltip(`sem sinal: ${gapKm > GAP_KM ? gapKm.toFixed(1) + ' km' : Math.round(gapMin) + ' min'} sem pontos`)
+              .addTo(rotaLayerRef.current)
+            seg = []
+          }
+        }
+        seg.push(p)
+      }
+      if (seg.length > 0) segmentos.push(seg)
+      for (const s of segmentos) {
+        if (s.length >= 2) {
+          L.polyline(s.map((p: any) => [p.lat, p.lng]), { color: '#3b82f6', weight: 4, opacity: 0.85 }).addTo(rotaLayerRef.current)
+        }
+      }
 
       for (const p of (rota.paradas || [])) {
         if (!p.lat || !p.lng) continue
@@ -268,6 +321,57 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
     verRota(placa, hojeStr())
   }, [abrirCarro, verRota])
   selecionarCarroRef.current = abrirCarroNoMapa
+
+  // TIMELINE da rota selecionada: saída -> trechos (km, vel. máx) -> paradas
+  // (onde, quanto tempo) -> fim. "Onde" = o lugar conhecido mais próximo
+  // (geocercas + propriedades, prop `locais`) a até 500m.
+  const timeline = useMemo(() => {
+    const r = rotaSel
+    if (!r || !Array.isArray(r.pontos) || r.pontos.length === 0) return []
+    const pontos = r.pontos
+    const paradas = [...(r.paradas || [])].sort((a: any, b: any) => String(a.inicio).localeCompare(String(b.inicio)))
+    const localDe = (lat: number, lng: number): string | null => {
+      let melhor: LocalPin | null = null, md = Infinity
+      for (const l of locais) {
+        const d = distKm({ lat, lng }, { lat: l.lat, lng: l.lng })
+        if (d < md) { md = d; melhor = l }
+      }
+      return melhor && md <= 0.5 ? melhor.nome : null
+    }
+    const trecho = (deIso: string, ateIso: string) => {
+      const janela = pontos.filter((p: any) => p.dt >= deIso && p.dt <= ateIso)
+      if (janela.length < 2) return null
+      let km = 0, velMax = 0
+      for (let i = 1; i < janela.length; i++) {
+        const d = distKm(janela[i - 1], janela[i])
+        if (d < 5) km += d // salto de GPS não é km rodado
+        velMax = Math.max(velMax, Number(janela[i].vel) || 0)
+      }
+      if (km < 0.3) return null
+      const min = Math.max(1, Math.round((new Date(ateIso).getTime() - new Date(deIso).getTime()) / 60000))
+      return { km: Math.round(km * 10) / 10, velMax: Math.round(velMax), min }
+    }
+
+    const evs: any[] = []
+    evs.push({ tipo: 'inicio', hora: r.hora_inicio, local: localDe(pontos[0].lat, pontos[0].lng) })
+    let cursor = pontos[0].dt
+    for (const pa of paradas) {
+      const t = trecho(cursor, pa.inicio)
+      if (t) evs.push({ tipo: 'trecho', de: cursor, ate: pa.inicio, ...t })
+      evs.push({ tipo: 'parada', hora: pa.inicio, fim: pa.fim, dur: pa.duracao_min, local: localDe(pa.lat, pa.lng), lat: pa.lat, lng: pa.lng })
+      cursor = pa.fim || pa.inicio
+    }
+    const ultimo = pontos[pontos.length - 1]
+    const tFinal = trecho(cursor, ultimo.dt)
+    if (tFinal) evs.push({ tipo: 'trecho', de: cursor, ate: ultimo.dt, ...tFinal })
+    evs.push({ tipo: 'fim', hora: r.hora_fim, local: localDe(ultimo.lat, ultimo.lng) })
+    return evs
+  }, [rotaSel, locais])
+
+  const excessos = useMemo(
+    () => timeline.filter((e) => e.tipo === 'trecho' && e.velMax > LIMITE_VEL_KMH).length,
+    [timeline],
+  )
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
@@ -378,6 +482,74 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
           {resumo.visitas > 0 && <span style={{ color: '#818cf8' }}>{resumo.visitas} visita{resumo.visitas !== 1 ? 's' : ''}</span>}
           <span style={{ color: '#34d399' }}>{fmtT(resumo.dirigindo)} dirigindo</span>
           <span style={{ color: '#94a3b8', fontWeight: 500 }}>{fmtH(resumo.ini || '')} – {fmtH(resumo.fim || '')}</span>
+          {timeline.length > 0 && (
+            <button onClick={() => setTimelineAberta((v) => !v)} style={{ background: timelineAberta ? '#334155' : '#0d9488', border: 'none', color: '#fff', borderRadius: 7, padding: '4px 10px', fontSize: 11.5, fontWeight: 800, cursor: 'pointer' }}>
+              🕒 timeline{excessos > 0 ? ` · ${excessos}⚠` : ''}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* TIMELINE — onde passou, que horas, paradas, velocidade e o motorista do dia */}
+      {timelineAberta && timeline.length > 0 && placaSel && (
+        <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 1000, width: 292, maxHeight: 'calc(100% - 20px)', background: 'rgba(255,255,255,0.98)', borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ padding: '10px 12px', borderBottom: '1px solid #eee' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 12, fontWeight: 800, color: '#334155', letterSpacing: 0.3 }}>🕒 TIMELINE — {fmtData(placaSel)}</span>
+              <button onClick={() => setTimelineAberta(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 14, lineHeight: 1 }}>✕</button>
+            </div>
+            <div style={{ fontSize: 11.5, color: '#475569', marginTop: 3 }}>
+              🧑‍🔧 Motorista do dia: <strong>{motoristaDia || 'não marcado no app'}</strong>
+            </div>
+            {excessos > 0 && (
+              <div style={{ fontSize: 11, color: '#b91c1c', fontWeight: 700, marginTop: 2 }}>
+                ⚠ {excessos} trecho{excessos > 1 ? 's' : ''} acima de {LIMITE_VEL_KMH} km/h
+              </div>
+            )}
+          </div>
+          <div style={{ overflowY: 'auto', flex: 1, padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 0 }}>
+            {timeline.map((e, i) => (
+              <div key={i} style={{ display: 'flex', gap: 8, position: 'relative', paddingBottom: 10 }}>
+                {/* trilho vertical */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 14, flexShrink: 0 }}>
+                  <div style={{
+                    width: 10, height: 10, borderRadius: '50%', marginTop: 3, flexShrink: 0,
+                    background: e.tipo === 'inicio' ? '#22c55e' : e.tipo === 'fim' ? '#dc2626' : e.tipo === 'parada' ? '#f59e0b' : (e.velMax > LIMITE_VEL_KMH ? '#dc2626' : '#3b82f6'),
+                    border: '2px solid #fff', boxShadow: '0 0 0 1px #cbd5e1',
+                  }} />
+                  {i < timeline.length - 1 && <div style={{ width: 2, flex: 1, background: '#e2e8f0', marginTop: 2 }} />}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  {e.tipo === 'inicio' && (
+                    <div style={{ fontSize: 12, color: '#334155' }}>
+                      <strong>{fmtH(e.hora)}</strong> · saiu{e.local ? <> de <strong>{e.local}</strong></> : ''}
+                    </div>
+                  )}
+                  {e.tipo === 'trecho' && (
+                    <div style={{ fontSize: 11.5, color: '#475569' }}>
+                      {fmtH(e.de)}–{fmtH(e.ate)} · rodou <strong>{e.km} km</strong> em {fmtT(e.min)}
+                      <span style={{ color: e.velMax > LIMITE_VEL_KMH ? '#dc2626' : '#64748b', fontWeight: e.velMax > LIMITE_VEL_KMH ? 800 : 500 }}>
+                        {' '}· máx {e.velMax} km/h{e.velMax > LIMITE_VEL_KMH ? ' ⚠' : ''}
+                      </span>
+                    </div>
+                  )}
+                  {e.tipo === 'parada' && (
+                    <div style={{ fontSize: 12, color: '#334155' }}>
+                      <strong>{fmtH(e.hora)}</strong> · parou {fmtT(e.dur)}{' '}
+                      {e.local
+                        ? <>em <strong>{e.local}</strong></>
+                        : <a href={`https://www.google.com/maps?q=${e.lat},${e.lng}`} target="_blank" rel="noopener noreferrer" style={{ color: '#0d9488', textDecoration: 'none', fontWeight: 600 }}>ver local ↗</a>}
+                    </div>
+                  )}
+                  {e.tipo === 'fim' && (
+                    <div style={{ fontSize: 12, color: '#334155' }}>
+                      <strong>{fmtH(e.hora)}</strong> · fim do trajeto{e.local ? <> em <strong>{e.local}</strong></> : ''}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
