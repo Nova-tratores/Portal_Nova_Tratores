@@ -556,6 +556,13 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
                   </button>
                 )}
               </div>
+              {/* Aviso: catálogo Ventura em ajuste das bolinhas */}
+              {podeEditar && !editando && (
+                <div style={{ marginBottom: 10, borderRadius: 10, border: "1px solid #fde68a", background: "#fffbeb", padding: "9px 13px", display: "flex", alignItems: "flex-start", gap: 9, fontSize: 12.5, color: "#92400e", lineHeight: 1.4 }}>
+                  <i className="fas fa-triangle-exclamation" style={{ marginTop: 2, color: "#d97706" }} />
+                  <span><b>Catálogo Ventura em ajuste:</b> algumas bolinhas ainda estão fora de posição (as por acertar ficam enfileiradas no topo do desenho). Estamos a colocá-las no lugar. A <b>lista de peças à direita está completa e correta</b> — use-a como referência.</span>
+                </div>
+              )}
               <div ref={imgBoxRef}
                 onMouseMove={editando ? (e) => moverBolinha(e.clientX, e.clientY) : undefined}
                 onMouseUp={editando ? () => setArrastando(null) : undefined}
