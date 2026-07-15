@@ -158,8 +158,13 @@ for (const aba of abas) {
     nome = nome.replace(/^[A-Z]{0,3}\d+(?:-\d+)?\s+/, '').trim() || nome || `Conjunto ${i + 1}`
     const id = `xlsx-${SLUG}-${slugify(aba.nome)}-${i + 1}-${num}`
 
-    // desenho: ancorado entre o título e o fim do bloco (fora logos/rodapés repetidos)
-    const img = desenhos.find((d) => d.row >= tRow && d.row < fim && !repetida.has(d.img))
+    // Desenho: fica entre o título e o CABEÇALHO deste bloco (a lista de peças vem depois).
+    // Preferir o de linha mais próxima do título — senão o desenho do bloco SEGUINTE, que é
+    // ancorado antes do seu próprio cabeçalho, "vaza" para dentro deste intervalo e era
+    // escolhido por engano (pela ordem do XML, não pela posição). Blindagem: se nada entre
+    // título e cabeçalho, aceita algo até o fim do bloco, sempre o de menor linha.
+    const escolher = (lo, hi) => desenhos.filter((d) => d.row >= lo && d.row < hi && !repetida.has(d.img)).sort((a, b) => a.row - b.row)[0]
+    const img = escolher(tRow, cab.n) || escolher(cab.n, fim)
     let imageB64 = null
     if (img) {
       const bin = readFileSync(join(dir, 'xl/media', img.img))
