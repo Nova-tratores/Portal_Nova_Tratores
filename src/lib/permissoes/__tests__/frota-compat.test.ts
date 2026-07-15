@@ -28,9 +28,16 @@ describe('expandirPermissoes — ninguém perde acesso', () => {
     expect(r).toContain('frota:abastecimento:upload');
   });
 
-  it('quem tinha a tela do pátio (consulta-estoque:frota) vê os Veículos do Frota', () => {
-    // a tela de pátio foi descontinuada (13/07) — a lista de Veículos absorveu
-    expect(expandirPermissoes(['consulta-estoque:frota'])).toContain('frota:veiculos');
+  it('quem tinha a tela do pátio (consulta-estoque:frota) vê a Visão geral do Frota', () => {
+    // a tela de pátio foi descontinuada (13/07) — a Visão geral absorveu
+    expect(expandirPermissoes(['consulta-estoque:frota'])).toContain('frota:dashboard');
+  });
+
+  it('quem tinha a aba Veículos (frota:veiculos) entra na Visão geral unificada', () => {
+    // Veículos foi fundida na Visão geral (15/07) — ninguém perde acesso
+    const r = expandirPermissoes(['frota:veiculos']);
+    expect(r).toContain('frota:dashboard');
+    expect(r).toContain('frota:veiculos'); // aditivo — a chave antiga fica
   });
 
   it('não inventa permissão pra quem não tinha nada', () => {
@@ -45,6 +52,10 @@ describe('slugDaRota', () => {
     expect(slugDaRota('/frota')).toBe('dashboard');
     expect(slugDaRota('/frota/abastecimento')).toBe('abastecimento');
     expect(slugDaRota('/frota/abastecimento/flex')).toBe('abastecimento:flex');
+  });
+
+  it('/frota/veiculos (redirect da aba fundida) usa o gate da Visão geral', () => {
+    expect(slugDaRota('/frota/veiculos')).toBe('dashboard');
   });
 
   it('sub-rota que NÃO é tela herda a permissão da tela pai', () => {

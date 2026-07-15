@@ -18,7 +18,8 @@ export async function GET(req: NextRequest) {
   if (!auth) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   if (!temModuloFrota(auth)) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
 
-  const [veiculos, responsaveis, placasFoto, multas, docs] = await Promise.all([
+  const de7 = new Date(Date.now() - 7 * 86400_000).toISOString().slice(0, 10);
+  const [veiculos, responsaveis, placasFoto, multas, docs, dias7] = await Promise.all([
     supabase.from('frota_veiculos').select('*').order('placa'),
     supabase.from('frota_responsaveis').select('veiculo_id, motorista_nome').is('fim', null),
     supabase.from('Placas').select('IdPlaca, imagem_url'),
@@ -27,6 +28,8 @@ export async function GET(req: NextRequest) {
       .select('veiculo_id, valor, status_interno')
       .not('status_interno', 'in', '("paga","descontada","arquivada")'),
     supabase.from('frota_documentos').select('veiculo_id, vigencia_fim').not('vigencia_fim', 'is', null),
+    // paradas atípicas na última semana (KPI da Visão geral)
+    supabase.from('frota_dias').select('paradas_atipicas').gte('data', de7),
   ]);
   if (veiculos.error) return NextResponse.json({ error: veiculos.error.message }, { status: 500 });
 
@@ -65,5 +68,10 @@ export async function GET(req: NextRequest) {
     docs_vencendo: docsVencendo.get(v.id) || 0,
   }));
 
-  return NextResponse.json({ veiculos: lista });
+  return NextResponse.json({
+    veiculos: lista,
+    resumo: {
+      atipicas_7d: (dias7.data || []).reduce((s, d) => s + (d.paradas_atipicas || 0), 0),
+    },
+  });
 }

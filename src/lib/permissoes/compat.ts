@@ -30,8 +30,12 @@ const ALIAS: Record<string, string[]> = {
   'abastecimento:upload': ['frota:abastecimento:upload'],
 
   // A tela `frota` do Visual Estoque (pátio) foi descontinuada — quem a tinha
-  // passa a ver a lista de Veículos do Frota (que absorveu a função).
-  'consulta-estoque:frota': ['frota:veiculos'],
+  // passa a ver a Visão geral do Frota (que absorveu a função).
+  'consulta-estoque:frota': ['frota:dashboard'],
+
+  // A aba Veículos foi fundida na Visão geral (15/07) — quem tinha só a chave
+  // frota:veiculos continua entrando na tela unificada.
+  'frota:veiculos': ['frota:dashboard'],
 };
 
 /**

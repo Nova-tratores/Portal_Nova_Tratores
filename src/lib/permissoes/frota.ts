@@ -27,6 +27,11 @@ export function slugDaRota(pathname: string): string {
   const partes = pathname.slice('/frota'.length).split('/').filter(Boolean);
   if (partes.length === 0) return 'dashboard';
 
+  // /frota/veiculos é redirect pra Visão geral (aba fundida em 15/07) — o
+  // bookmark antigo tem que passar pelo gate da tela unificada, não por um
+  // slug que já não existe.
+  if (partes[0] === 'veiculos') return 'dashboard';
+
   const doisNiveis = partes.slice(0, 2).join(':');
   if (SLUGS_FROTA.has(doisNiveis)) return doisNiveis;
   return partes[0];

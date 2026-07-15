@@ -24,8 +24,10 @@ export interface PaginaFrota {
 export const GRUPOS_FROTA: GrupoFrota[] = ['Início', 'Cadastro', 'Operação', 'Custos'];
 
 export const PAGINAS_FROTA: PaginaFrota[] = [
+  // A Visão geral É a tela de veículos (fundidas em 15/07, decisão do usuário):
+  // KPIs de saúde da frota + grid completo com a Ficha. /frota/veiculos virou
+  // redirect; quem tem a chave frota:veiculos entra via compat.ts.
   { key: 'frota:dashboard',          label: 'Visão geral',       href: '/frota',                    grupo: 'Início' },
-  { key: 'frota:veiculos',           label: 'Veículos',          href: '/frota/veiculos',           grupo: 'Cadastro' },
   // Pátio NÃO tem tela (decisão do usuário, 13/07): o rótulo de localização nos
   // cards de Veículos substituiu o grid arrastável; o valor FIPE é editado na
   // Ficha do Veículo (via /api/visual-estoque/frota/dados — o DRE continua
