@@ -31,6 +31,9 @@ export interface FrotaVeiculo {
   equipamentos: string[] | null;
   // "ano do documento" — exercício do CRLV/licenciamento (a leitura do CRLV preenche)
   exercicio_crlv: number | null;
+  // código FIPE confirmado por humano — o cron mensal atualiza o valor por ele
+  fipe_codigo: string | null;
+  fipe_ano_codigo: string | null;
   // venda (status='vendido', ativo=false — o registro vira histórico)
   venda_data: string | null;
   venda_valor: number | null;

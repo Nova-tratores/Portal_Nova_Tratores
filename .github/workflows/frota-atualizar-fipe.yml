@@ -1,0 +1,23 @@
+name: Frota — atualizar valor FIPE (mensal)
+
+# A tabela FIPE muda uma vez por mês. Este cron atualiza Placas.valor_mercado
+# (o patrimônio do DRE) de todo veículo com o modelo FIPE CONFIRMADO na Ficha
+# (fipe_codigo gravado) — consulta determinística por código, sem matching.
+# Requer os secrets do GitHub: PORTAL_URL e CRON_SECRET.
+
+on:
+  schedule:
+    - cron: '30 8 5 * *'   # dia 5 de cada mês, 08:30 UTC ≈ 05:30 de Brasília
+  workflow_dispatch: {}     # permite rodar manualmente
+
+jobs:
+  fipe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Atualizar valores FIPE
+        run: |
+          curl -fsS --max-time 600 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/frota/cron/atualizar-fipe" \
+            -w "\natualizar-fipe: HTTP %{http_code}\n"

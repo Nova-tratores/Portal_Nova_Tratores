@@ -109,6 +109,8 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
       exercicio_crlv: v.exercicio_crlv != null ? String(v.exercicio_crlv) : '',
       observacoes: v.observacoes || '',
       valor_mercado: det!.fipe?.valor_mercado != null ? String(det!.fipe!.valor_mercado) : '',
+      fipe_codigo: v.fipe_codigo || '',
+      fipe_ano_codigo: v.fipe_ano_codigo || '',
       id_projeto_omie: v.id_projeto_omie != null ? String(v.id_projeto_omie) : '',
       id_projeto_omie_castro: v.id_projeto_omie_castro != null ? String(v.id_projeto_omie_castro) : '',
     };
@@ -234,6 +236,27 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
         await lerCrlvDoc(d.documento.id);
       }
     } finally { setBusy(''); }
+  };
+
+  // Busca o valor na tabela FIPE (API pública) e pré-preenche o campo. Ao
+  // salvar, o código FIPE fica gravado — daí o cron mensal atualiza sozinho.
+  const buscarFipe = async () => {
+    setBusy('fipe');
+    try {
+      const r = await fetch(`/api/frota/veiculos/${encodeURIComponent(placa)}/fipe`, { headers: await authHeaders() });
+      const d = await r.json();
+      if (!r.ok) { alert(d.error || 'Falha na consulta FIPE.'); return; }
+      setForm((f) => ({
+        ...f,
+        valor_mercado: String(d.valor),
+        fipe_codigo: d.codigo_fipe || '',
+        fipe_ano_codigo: d.ano_codigo || '',
+      }));
+      setCrlvAvisos([
+        `💰 FIPE: ${d.nome} (${d.ano_modelo}) — ${d.valor_texto} (${d.mes_referencia}). CONFIRA se o modelo bate antes de salvar${d.confianca === 'baixa' ? ' — CONFIANÇA BAIXA no matching!' : '.'}`,
+        ...(d.candidatos?.length ? [`Outros candidatos: ${d.candidatos.slice(0, 3).join(' · ')}`] : []),
+      ]);
+    } catch (e) { alert(String(e)); } finally { setBusy(''); }
   };
 
   // Foto do veículo (mora em Placas.imagem_url — precisa do vínculo id_placa)
@@ -515,7 +538,18 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                       ))}
                       {det.veiculo.id_placa != null && (
                         <label title="Grava em Placas.valor_mercado — é o número que o DRE usa no patrimônio" style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase' }}>
-                          Valor FIPE (R$)
+                          <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            Valor FIPE (R$)
+                            <button
+                              type="button"
+                              onClick={buscarFipe}
+                              disabled={busy === 'fipe'}
+                              title="Buscar o valor atual na tabela FIPE pela marca/modelo/ano da ficha"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: 'none', border: 'none', color: '#0d9488', cursor: 'pointer', fontSize: 10, fontWeight: 700, padding: 0, textTransform: 'none' }}
+                            >
+                              {busy === 'fipe' ? <Loader2 size={10} className="spin" /> : <Sparkles size={10} />} buscar FIPE
+                            </button>
+                          </span>
                           <input value={form.valor_mercado || ''} onChange={(e) => setForm((f) => ({ ...f, valor_mercado: e.target.value }))} placeholder="ex.: 85000" style={inputStyle} />
                         </label>
                       )}

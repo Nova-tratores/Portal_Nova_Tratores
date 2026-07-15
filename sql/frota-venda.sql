@@ -41,3 +41,15 @@ ALTER TABLE frota_multas
   ADD COLUMN IF NOT EXISTS anexos JSONB NOT NULL DEFAULT '[]'::jsonb;
 
 COMMENT ON COLUMN frota_multas.anexos IS 'Anexos do portal: [{url, nome, por, em}] — auto de infração, boleto, comprovante, defesa.';
+
+-- =============================================================================
+-- FIPE automática: quando o humano confirma o modelo na Ficha ("buscar FIPE"),
+-- o código fica gravado — e o cron mensal atualiza Placas.valor_mercado (o
+-- patrimônio do DRE) SEM chute de matching, direto pelo código.
+-- =============================================================================
+
+ALTER TABLE frota_veiculos
+  ADD COLUMN IF NOT EXISTS fipe_codigo     TEXT,
+  ADD COLUMN IF NOT EXISTS fipe_ano_codigo TEXT;
+
+COMMENT ON COLUMN frota_veiculos.fipe_codigo IS 'Código FIPE do modelo (ex.: 005501-8), confirmado por humano na Ficha — o cron mensal usa pra atualizar o valor de mercado.';

@@ -28,6 +28,7 @@ const EDITAVEIS = new Set([
   'marca', 'modelo', 'combustivel', 'categoria', 'setor', 'status', 'ativo',
   'observacoes', 'seguradora', 'placa_exibicao', 'proprietario', 'equipamentos',
   'exercicio_crlv', 'id_projeto_omie', 'id_projeto_omie_castro',
+  'fipe_codigo', 'fipe_ano_codigo',
 ]);
 
 async function acharVeiculo(placaParam: string) {
