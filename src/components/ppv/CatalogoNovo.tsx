@@ -30,6 +30,14 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
   const [pecaSel, setPecaSel] = useState<Peca | null>(null); // peça aberta pela bolinha (painel sob a imagem)
   const [qtdSel, setQtdSel] = useState(1);
   const [imgDim, setImgDim] = useState<{ w: number; h: number }>({ w: 1, h: 1 });
+  // Modo edição das bolinhas (só Ventura, temporário): arrastar posições e salvar
+  const [editando, setEditando] = useState(false);
+  const [hsEdit, setHsEdit] = useState<{ reference: string; x: number; y: number }[]>([]);
+  const [arrastando, setArrastando] = useState<number | null>(null); // índice da bolinha a arrastar
+  const [salvando, setSalvando] = useState(false);
+  const imgBoxRef = useRef<HTMLDivElement | null>(null);
+  const marcaAtual = modeloSel?.marca || marcaSel?.nome || "";
+  const podeEditar = /ventura/i.test(marcaAtual);
   const [toast, setToast] = useState("");
   const [imgErro, setImgErro] = useState<Record<string, boolean>>({});
   // Carrinho (só no modo avulso — sem onSelecionarPeca)
@@ -166,7 +174,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
   }, [mq]);
 
   const abrirFigura = useCallback(async (id: string) => {
-    setLoading(true); setRefHover(null); setPecaSel(null);
+    setLoading(true); setRefHover(null); setPecaSel(null); setEditando(false);
     try {
       const r = await fetch(`/api/catalogo/figura/${id}`);
       const f = r.ok ? await r.json() : null;
@@ -175,6 +183,48 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
     } catch { setFigura(null); }
     setLoading(false);
   }, [secaoAtual]);
+
+  // ---- Modo edição das bolinhas (Ventura) ----
+  // Ao entrar, junta as bolinhas existentes com as peças SEM bolinha (estacionadas no topo,
+  // em fila, para arrastar para o lugar). Posições em pixels da imagem (mesmo espaço dos hotspots).
+  const iniciarEdicao = useCallback(() => {
+    if (!figura) return;
+    const existentes = new Map((figura.hotspots || []).map((h) => [h.reference, { reference: h.reference, x: h.x, y: h.y }]));
+    const refs = [...new Set((figura.pecas || []).map((p) => p.reference))];
+    const semBolinha = refs.filter((r) => !existentes.has(r));
+    const W = imgDim.w || 1000;
+    semBolinha.forEach((r, i) => {
+      // estaciona numa fila no topo (a cada ~5% da largura), em pixels da imagem
+      existentes.set(r, { reference: r, x: Math.round(W * 0.04 + (i % 18) * W * 0.05), y: Math.round((imgDim.h || 700) * (0.03 + Math.floor(i / 18) * 0.05)) });
+    });
+    setHsEdit([...existentes.values()]);
+    setEditando(true); setPecaSel(null); setRefHover(null);
+  }, [figura, imgDim]);
+
+  const moverBolinha = useCallback((clientX: number, clientY: number) => {
+    if (arrastando == null || !imgBoxRef.current) return;
+    const rect = imgBoxRef.current.getBoundingClientRect();
+    const px = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width)) * imgDim.w;
+    const py = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height)) * imgDim.h;
+    setHsEdit((prev) => prev.map((h, i) => (i === arrastando ? { ...h, x: Math.round(px), y: Math.round(py) } : h)));
+  }, [arrastando, imgDim]);
+
+  const salvarHotspots = useCallback(async () => {
+    if (!figura) return;
+    setSalvando(true);
+    try {
+      const r = await fetch("/api/catalogo/hotspots", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ figuraId: figura.id, hotspots: hsEdit }),
+      });
+      if (r.ok) {
+        setFigura((f) => (f ? { ...f, hotspots: hsEdit } : f));
+        setEditando(false);
+        setToast("Bolinhas salvas!"); setTimeout(() => setToast(""), 2000);
+      } else setToast("Erro ao salvar.");
+    } catch { setToast("Erro de conexão."); }
+    setSalvando(false);
+  }, [figura, hsEdit]);
 
   // busca (debounce) — dentro do trator selecionado
   useEffect(() => {
@@ -494,15 +544,28 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
         {vista === "figura" && figura && (
           <div style={{ display: "flex", gap: 0, height: "100%", flexWrap: "wrap", background: "#fff" }}>
             <div style={{ flex: "1 1 360px", minWidth: 300, padding: 18, borderRight: "1px solid #eef0f3" }}>
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#dc2626", letterSpacing: 0.5 }}>{figura.code}</div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}>{figura.name}</div>
+              <div style={{ marginBottom: 12, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#dc2626", letterSpacing: 0.5 }}>{figura.code}</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}>{figura.name}</div>
+                </div>
+                {/* Editar bolinhas — só Ventura, enquanto ajustamos as posições */}
+                {podeEditar && figura.image_url && !editando && (
+                  <button onClick={iniciarEdicao} title="Ajustar a posição das bolinhas" style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 7, padding: "8px 13px", borderRadius: 9, border: "1.5px solid #c7d2fe", background: "#eef2ff", color: "#4338ca", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                    <i className="fas fa-crosshairs" /> Editar bolinhas
+                  </button>
+                )}
               </div>
-              <div style={{ position: "relative", width: "100%", background: "linear-gradient(180deg,#fbfcfe,#f1f4f8)", borderRadius: 12, overflow: "hidden", border: "1px solid #eef1f6", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div ref={imgBoxRef}
+                onMouseMove={editando ? (e) => moverBolinha(e.clientX, e.clientY) : undefined}
+                onMouseUp={editando ? () => setArrastando(null) : undefined}
+                onMouseLeave={editando ? () => setArrastando(null) : undefined}
+                style={{ position: "relative", width: "100%", background: "linear-gradient(180deg,#fbfcfe,#f1f4f8)", borderRadius: 12, overflow: "hidden", border: editando ? "2px solid #6366f1" : "1px solid #eef1f6", display: "flex", alignItems: "center", justifyContent: "center", cursor: arrastando != null ? "grabbing" : "default", userSelect: "none" }}>
                 {figura.image_url ? (
                   <>
-                    <img src={figura.image_url} alt={figura.name} onLoad={(e) => setImgDim({ w: (e.target as HTMLImageElement).naturalWidth || 1, h: (e.target as HTMLImageElement).naturalHeight || 1 })} style={{ width: "100%", display: "block" }} />
-                    {(figura.hotspots || []).map((h, i) => {
+                    <img src={figura.image_url} alt={figura.name} draggable={false} onLoad={(e) => setImgDim({ w: (e.target as HTMLImageElement).naturalWidth || 1, h: (e.target as HTMLImageElement).naturalHeight || 1 })} style={{ width: "100%", display: "block" }} />
+                    {/* MODO NORMAL: bolinhas clicáveis */}
+                    {!editando && (figura.hotspots || []).map((h, i) => {
                       const ativo = refHover === h.reference;
                       return (
                         <button key={`${h.reference}-${i}`} onClick={() => abrirPecaDaBolinha(h.reference)}
@@ -510,9 +573,26 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
                           style={{ position: "absolute", left: `${(h.x / imgDim.w) * 100}%`, top: `${(h.y / imgDim.h) * 100}%`, transform: "translate(-50%,-50%)", width: ativo ? 26 : 20, height: ativo ? 26 : 20, borderRadius: "50%", border: "2px solid #fff", background: ativo ? "#dc2626" : "rgba(37,99,235,0.9)", color: "#fff", fontSize: ativo ? 12 : 10, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 5px rgba(0,0,0,0.4)", transition: "all .12s", zIndex: ativo ? 3 : 2 }}>{h.reference}</button>
                       );
                     })}
+                    {/* MODO EDIÇÃO: bolinhas arrastáveis */}
+                    {editando && hsEdit.map((h, i) => (
+                      <div key={`e-${h.reference}-${i}`} onMouseDown={(e) => { e.preventDefault(); setArrastando(i); }}
+                        title={`Ref ${h.reference} — arraste para o número`}
+                        style={{ position: "absolute", left: `${(h.x / imgDim.w) * 100}%`, top: `${(h.y / imgDim.h) * 100}%`, transform: "translate(-50%,-50%)", width: 22, height: 22, borderRadius: "50%", border: "2px solid #fff", background: arrastando === i ? "#4338ca" : "#dc2626", color: "#fff", fontSize: 11, fontWeight: 800, cursor: "grab", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 6px rgba(0,0,0,0.5)", zIndex: arrastando === i ? 6 : 5 }}>{h.reference}</div>
+                    ))}
                   </>
                 ) : <div style={{ padding: 50, color: "#cbd5e1" }}><i className="fas fa-image" style={{ fontSize: 36 }} /></div>}
               </div>
+
+              {/* Barra do modo edição */}
+              {editando && (
+                <div style={{ marginTop: 10, borderRadius: 10, border: "1.5px solid #c7d2fe", background: "#eef2ff", padding: "10px 13px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 12.5, color: "#4338ca", fontWeight: 600, flex: 1 }}>
+                    <i className="fas fa-crosshairs" style={{ marginRight: 6 }} />Arraste cada bolinha para o número. As sem posição estão em fila no topo.
+                  </span>
+                  <button onClick={() => setEditando(false)} style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid #cbd5e1", background: "#fff", color: "#475569", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>Cancelar</button>
+                  <button disabled={salvando} onClick={salvarHotspots} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#4338ca", color: "#fff", fontSize: 12.5, fontWeight: 800, cursor: "pointer", opacity: salvando ? 0.6 : 1 }}>{salvando ? "Salvando…" : "Salvar posições"}</button>
+                </div>
+              )}
 
               {/* Peça da bolinha clicada: some junto com a figura, some ao fechar */}
               {pecaSel && (
