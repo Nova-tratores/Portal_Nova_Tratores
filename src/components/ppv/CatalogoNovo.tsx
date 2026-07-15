@@ -38,6 +38,9 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
   const imgBoxRef = useRef<HTMLDivElement | null>(null);
   const marcaAtual = modeloSel?.marca || marcaSel?.nome || "";
   const podeEditar = /ventura/i.test(marcaAtual);
+  // Deep-link do catálogo (só standalone, não no drawer): a URL reflete a navegação.
+  const urlInicialRef = useRef(typeof window !== "undefined" ? window.location.search : "");
+  const [urlPronto, setUrlPronto] = useState(!!onSelecionarPeca); // embutido não sincroniza
   const [toast, setToast] = useState("");
   const [imgErro, setImgErro] = useState<Record<string, boolean>>({});
   // Carrinho (só no modo avulso — sem onSelecionarPeca)
@@ -183,6 +186,43 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
     } catch { setFigura(null); }
     setLoading(false);
   }, [secaoAtual]);
+
+  // Restaura a navegação a partir da URL (uma vez, quando marcas/modelos já carregaram).
+  useEffect(() => {
+    if (onSelecionarPeca || urlPronto) return;
+    if (!marcas.length || !modelos.length) return;
+    const p = new URLSearchParams(urlInicialRef.current);
+    const q = p.get("q"), mc = p.get("marca"), mSlug = p.get("modelo"), sec = p.get("secao"), fig = p.get("fig");
+    if (q && q.length >= 2) { setBusca(q); }
+    else {
+      if (mc) { const m = marcas.find((x) => x.slug === mc); if (m) setMarcaSel(m); }
+      if (mSlug) {
+        const m = modelos.find((x) => x.slug === mSlug);
+        if (m) { setModeloSel(m); if (!mc) setMarcaSel(marcas.find((x) => x.nome === m.marca) || null); }
+      }
+      if (sec) setSecaoAtual(sec);
+      if (fig) abrirFigura(fig);
+    }
+    setUrlPronto(true);
+  }, [onSelecionarPeca, urlPronto, marcas, modelos, abrirFigura]);
+
+  // Mantém a URL em sincronia com a navegação (marca › modelo › seção › figura › busca).
+  useEffect(() => {
+    if (onSelecionarPeca || !urlPronto) return;
+    const p = new URLSearchParams();
+    if (busca.trim().length >= 2) p.set("q", busca.trim());
+    else {
+      if (marcaSel) p.set("marca", marcaSel.slug);
+      if (modeloSel) p.set("modelo", modeloSel.slug);
+      if (secaoAtual) p.set("secao", secaoAtual);
+      if (figura) p.set("fig", figura.id);
+    }
+    const qs = p.toString();
+    const alvo = "/ppv/catalogo" + (qs ? "?" + qs : "");
+    if (window.location.pathname + window.location.search !== alvo) {
+      window.history.replaceState(null, "", alvo);
+    }
+  }, [onSelecionarPeca, urlPronto, busca, marcaSel, modeloSel, secaoAtual, figura]);
 
   // ---- Modo edição das bolinhas (Ventura) ----
   // Ao entrar, junta as bolinhas existentes com as peças SEM bolinha (estacionadas no topo,
