@@ -196,68 +196,106 @@ export default function FlexPage() {
             </thead>
             <tbody>
               {visiveis.map((v) => (
-                <FragmentoVeiculo
+                <tr
                   key={v.placa}
-                  v={v}
-                  aberta={expandida === v.placa}
-                  onToggle={() => abrirDetalhe(v.placa)}
-                  detalhe={detalhes[v.placa]}
-                  carregandoDetalhe={carregandoDetalhe && expandida === v.placa}
-                />
+                  onClick={() => abrirDetalhe(v.placa)}
+                  title="Clique pra ver todos os abastecimentos deste veículo"
+                  className={`cursor-pointer border-t border-gray-100 hover:bg-gray-50 ${v.ativo === false ? 'opacity-60' : ''}`}
+                >
+                  <td className="px-3 py-1.5">
+                    <span className="font-semibold tabular-nums">{v.placa}</span>
+                    {v.modelo && <span className="ml-1.5 text-gray-500">{v.modelo}</span>}
+                    {v.status_frota === 'vendido' && (
+                      <span className="ml-1.5 rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-bold text-violet-700">VENDIDO</span>
+                    )}
+                    {v.status_frota === 'arquivado' && (
+                      <span className="ml-1.5 rounded-full bg-slate-200 px-1.5 py-0.5 text-[9px] font-bold text-slate-600">ARQUIVADO</span>
+                    )}
+                  </td>
+                  <Lado lado={v.etanol} borda />
+                  <Lado lado={v.gasolina} borda />
+                  <td className="border-l border-gray-200 px-3 py-1.5 text-center">
+                    <Veredito v={v} />
+                  </td>
+                </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
+
+      {/* Modal com todos os abastecimentos do veículo clicado */}
+      {expandida && (() => {
+        const v = veiculos.find((x) => x.placa === expandida)
+        if (!v) return null
+        return (
+          <ModalDetalhe
+            v={v}
+            meses={meses}
+            detalhe={detalhes[expandida]}
+            carregando={carregandoDetalhe}
+            onClose={() => setExpandida(null)}
+          />
+        )
+      })()}
     </div>
   )
 }
 
-function FragmentoVeiculo({ v, aberta, onToggle, detalhe, carregandoDetalhe }: {
+function ModalDetalhe({ v, meses, detalhe, carregando, onClose }: {
   v: VeiculoFlexAnotado
-  aberta: boolean
-  onToggle: () => void
+  meses: number
   detalhe?: DetalheRow[]
-  carregandoDetalhe: boolean
+  carregando: boolean
+  onClose: () => void
 }) {
   return (
-    <>
-      <tr
-        onClick={onToggle}
-        title="Clique pra ver todos os abastecimentos deste veículo"
-        className={`cursor-pointer border-t border-gray-100 hover:bg-gray-50 ${aberta ? 'bg-gray-50' : ''} ${v.ativo === false ? 'opacity-60' : ''}`}
+    <div onClick={onClose} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="flex max-h-[85vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl"
       >
-        <td className="px-3 py-1.5">
-          <span className={`mr-1 inline-block text-[9px] text-gray-400 transition-transform ${aberta ? 'rotate-90' : ''}`}>▶</span>
-          <span className="font-semibold tabular-nums">{v.placa}</span>
-          {v.modelo && <span className="ml-1.5 text-gray-500">{v.modelo}</span>}
-          {v.status_frota === 'vendido' && (
-            <span className="ml-1.5 rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-bold text-violet-700">VENDIDO</span>
+        {/* Cabeçalho: veículo + veredito — o modal se explica sozinho */}
+        <div className="flex items-start justify-between gap-3 border-b border-gray-200 px-5 py-3">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-lg font-bold tabular-nums text-gray-900">{v.placa}</span>
+              {v.modelo && <span className="text-sm text-gray-500">{v.modelo}</span>}
+              {v.status_frota === 'vendido' && (
+                <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold text-violet-700">VENDIDO</span>
+              )}
+              {v.status_frota === 'arquivado' && (
+                <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-600">ARQUIVADO</span>
+              )}
+              <Veredito v={v} />
+            </div>
+            <p className="mt-0.5 text-xs text-gray-500">
+              Últimos {meses} meses ·{' '}
+              <span className="font-medium text-green-700">etanol {fmtRS(v.etanol.custoPorKm)}/km</span>
+              {' × '}
+              <span className="font-medium text-orange-700">gasolina {fmtRS(v.gasolina.custoPorKm)}/km</span>
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+            title="Fechar"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="overflow-y-auto px-5 py-3">
+          {carregando && !detalhe ? (
+            <p className="py-6 text-center text-sm text-gray-400">Carregando abastecimentos…</p>
+          ) : !detalhe || detalhe.length === 0 ? (
+            <p className="py-6 text-center text-sm text-gray-400">Não consegui carregar os abastecimentos.</p>
+          ) : (
+            <DetalheAbastecimentos linhas={detalhe} />
           )}
-          {v.status_frota === 'arquivado' && (
-            <span className="ml-1.5 rounded-full bg-slate-200 px-1.5 py-0.5 text-[9px] font-bold text-slate-600">ARQUIVADO</span>
-          )}
-        </td>
-        <Lado lado={v.etanol} borda />
-        <Lado lado={v.gasolina} borda />
-        <td className="border-l border-gray-200 px-3 py-1.5 text-center">
-          <Veredito v={v} />
-        </td>
-      </tr>
-      {aberta && (
-        <tr className="border-t border-gray-100 bg-gray-50/60">
-          <td colSpan={10} className="px-4 pb-3 pt-1">
-            {carregandoDetalhe && !detalhe ? (
-              <p className="py-2 text-xs text-gray-400">Carregando abastecimentos…</p>
-            ) : !detalhe || detalhe.length === 0 ? (
-              <p className="py-2 text-xs text-gray-400">Não consegui carregar os abastecimentos.</p>
-            ) : (
-              <DetalheAbastecimentos linhas={detalhe} />
-            )}
-          </td>
-        </tr>
-      )}
-    </>
+        </div>
+      </div>
+    </div>
   )
 }
 
