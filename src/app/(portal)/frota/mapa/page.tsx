@@ -83,20 +83,24 @@ export default function FrotaMapaPage() {
     })();
   }, []);
 
-  // Visitas dos VENDEDORES (últimos 7 dias, com coordenada) — o cadastro do
-  // comercial (vw_visitas_detalhadas) vira pins no mapa, com toggle próprio.
+  // Visitas dos VENDEDORES (TODAS, com coordenada) — o cadastro do comercial
+  // (vw_visitas_detalhadas) vira pins no mapa, com toggle próprio. Paginado
+  // de 1000 em 1000 (teto do PostgREST) pra não truncar quando crescer.
   useEffect(() => {
     (async () => {
       try {
-        const de = new Date(Date.now() - 7 * 86400_000).toISOString().slice(0, 10);
-        const { data } = await supabase
-          .from('vw_visitas_detalhadas')
-          .select('id, vendedor_nome, cliente_nome, tipo, data_visita, latitude, longitude')
-          .gte('data_visita', de)
-          .not('latitude', 'is', null)
-          .order('data_visita', { ascending: false })
-          .limit(500);
-        setVisitas((data || []).filter((v) => Number(v.latitude) && Number(v.longitude)));
+        const todas: any[] = [];
+        for (let offset = 0; offset < 20_000; offset += 1000) {
+          const { data } = await supabase
+            .from('vw_visitas_detalhadas')
+            .select('id, vendedor_nome, cliente_nome, tipo, data_visita, latitude, longitude')
+            .not('latitude', 'is', null)
+            .order('data_visita', { ascending: false })
+            .range(offset, offset + 999);
+          todas.push(...(data || []));
+          if (!data || data.length < 1000) break;
+        }
+        setVisitas(todas.filter((v) => Number(v.latitude) && Number(v.longitude)));
       } catch { /* camada opcional */ }
     })();
   }, []);
