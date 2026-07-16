@@ -88,9 +88,10 @@ export async function POST(req: NextRequest) {
     const prefixo = tipo === "Remessa" ? "REM" : "PPV";
     const finalId = dadosPPV.idExistente || (await gerarProximoId(prefixo));
 
-    // Projeto: o que o usuário informou manda; se vazio e tiver OS, copia da OS.
+    // Projeto: o que o usuário informou manda; se vazio e tiver OS, copia da OS — a menos
+    // que o usuário tenha desmarcado "usar o projeto da OS" (usarProjetoOS === false).
     const projetoInformado = (dadosPPV.projeto || "").trim();
-    const projetoFinal = projetoInformado || (await projetoDaOS(dadosPPV.osId)) || "";
+    const projetoFinal = projetoInformado || (dadosPPV.usarProjetoOS === false ? "" : (await projetoDaOS(dadosPPV.osId))) || "";
 
     const novoDoc: Record<string, unknown> = {
       id_pedido: finalId,
@@ -178,7 +179,7 @@ export async function PATCH(req: NextRequest) {
     // Projeto: o que veio do form manda; se vazio e tiver OS, copia da OS.
     if (dados.projeto !== undefined) {
       const projetoInformado = (dados.projeto || "").trim();
-      payload.Projeto = projetoInformado || (await projetoDaOS(dados.osId)) || "";
+      payload.Projeto = projetoInformado || (dados.usarProjetoOS === false ? "" : (await projetoDaOS(dados.osId))) || "";
     }
     if (dados.tipoPedido) payload.Tipo_Pedido = dados.tipoPedido;
     if (dados.motivoSaida) payload.Motivo_Saida_Pedido = dados.motivoSaida;

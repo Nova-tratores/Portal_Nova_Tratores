@@ -38,6 +38,10 @@ export default function FormNovoLancamento({
   const [motivoSaida, setMotivoSaida] = useState(MOTIVOS_SAIDA[0].value);
   const [tecnico, setTecnico] = useState("");
   const [projeto, setProjeto] = useState("");
+  const [projetosDB, setProjetosDB] = useState<{ id: string; nome: string; status: string; os_ref: string | null }[]>([]);
+  const [projDropdown, setProjDropdown] = useState(false);
+  const [projBusca, setProjBusca] = useState("");
+  const [usarProjetoOS, setUsarProjetoOS] = useState(true);
   const [observacao, setObservacao] = useState("");
   const [recentlyAdded, setRecentlyAdded] = useState<string | null>(null);
   const [removingItem, setRemovingItem] = useState<string | null>(null);
@@ -135,7 +139,7 @@ export default function FormNovoLancamento({
     try {
       const data = await api.criarPedido({
         tipoPedido, motivoSaida, tecnico, cliente: clienteValue,
-        observacao, osId: osIdValue, projeto, valorTotal: total, produtosSelecionados: prodsList,
+        observacao, osId: osIdValue, projeto, usarProjetoOS, valorTotal: total, produtosSelecionados: prodsList,
         userName: userProfile?.nome || "",
       });
       showToast("success", "Lançamento salvo!");
@@ -257,16 +261,55 @@ export default function FormNovoLancamento({
             </div>
           </div>
 
-          {/* ── Projeto (copiado da OS quando vinculada) ── */}
-          <div className="ppv-form-field">
+          {/* ── Projeto (copiado da OS quando vinculada, ou escolhido do banco) ── */}
+          <div className="ppv-form-field" style={{ position: "relative" }}>
             <span className="ppv-form-label">Projeto <span className="ppv-form-optional">(opcional)</span></span>
-            <input
-              type="text"
-              value={projeto}
-              onChange={(e) => setProjeto(e.target.value)}
-              placeholder={osIdValue ? "Deixe vazio para usar o projeto da OS" : "Nome do projeto..."}
-            />
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                type="text"
+                value={usarProjetoOS && osIdValue && !projeto ? "" : projeto}
+                onChange={(e) => setProjeto(e.target.value)}
+                disabled={usarProjetoOS && !!osIdValue && !projeto}
+                placeholder={usarProjetoOS && osIdValue ? "Usando o projeto da OS vinculada" : "Escolha do banco ou digite..."}
+                style={{ flex: 1, background: usarProjetoOS && osIdValue && !projeto ? "#f8fafc" : "#fff" }}
+              />
+              <button type="button" title="Escolher um projeto do banco"
+                onClick={() => {
+                  setProjDropdown((o) => !o); setProjBusca("");
+                  if (projetosDB.length === 0) fetch("/api/ppv/projetos").then((r) => r.json()).then((d) => setProjetosDB(Array.isArray(d) ? d : [])).catch(() => {});
+                }}
+                style={{ flexShrink: 0, padding: "0 14px", borderRadius: 10, border: "1px solid #E2E8F0", background: projDropdown ? "#EFF6FF" : "#fff", color: "#334155", fontSize: 12.5, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+                <i className="fas fa-database" style={{ fontSize: 12 }} /> Do banco
+              </button>
+            </div>
+            {projDropdown && (
+              <div style={{ position: "absolute", zIndex: 30, top: "calc(100% + 2px)", left: 0, right: 0, background: "#fff", border: "1px solid #E2E8F0", borderRadius: 10, boxShadow: "0 12px 30px rgba(0,0,0,0.14)", maxHeight: 280, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+                <div style={{ padding: 8, borderBottom: "1px solid #F1F5F9" }}>
+                  <input autoFocus value={projBusca} onChange={(e) => setProjBusca(e.target.value)} placeholder="Buscar projeto..."
+                    style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 13, boxSizing: "border-box" }} />
+                </div>
+                <div style={{ overflow: "auto" }}>
+                  {projetosDB.filter((p) => p.nome.toLowerCase().includes(projBusca.trim().toLowerCase())).slice(0, 60).map((p) => (
+                    <button type="button" key={p.id} onClick={() => { setUsarProjetoOS(false); setProjeto(p.nome); setProjDropdown(false); }}
+                      style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left", padding: "9px 12px", border: "none", background: "transparent", cursor: "pointer", borderBottom: "1px solid #F5F5F5" }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "#F8FAFC")} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+                      <span style={{ width: 7, height: 7, borderRadius: "50%", background: p.status === "ativo" ? "#22c55e" : p.status === "concluido" ? "#94a3b8" : "#f59e0b", flexShrink: 0 }} />
+                      <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: "#1e293b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.nome}</span>
+                      {p.os_ref && <span style={{ fontSize: 10.5, color: "#94a3b8" }}>OS {p.os_ref}</span>}
+                    </button>
+                  ))}
+                  {projetosDB.length === 0 && <div style={{ padding: 20, textAlign: "center", color: "#94a3b8", fontSize: 12.5 }}>Carregando...</div>}
+                  {projetosDB.length > 0 && projetosDB.filter((p) => p.nome.toLowerCase().includes(projBusca.trim().toLowerCase())).length === 0 && <div style={{ padding: 20, textAlign: "center", color: "#94a3b8", fontSize: 12.5 }}>Nenhum projeto.</div>}
+                </div>
+              </div>
+            )}
             {osIdValue && (
+              <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, fontSize: 12, color: "#64748b", cursor: "pointer", fontWeight: 500 }}>
+                <input type="checkbox" checked={usarProjetoOS} onChange={(e) => { setUsarProjetoOS(e.target.checked); if (e.target.checked) setProjeto(""); }} />
+                Usar o projeto da OS vinculada (desmarque para escolher outro ou nenhum)
+              </label>
+            )}
+            {false && osIdValue && (
               <span className="ppv-form-optional" style={{ marginTop: 4 }}>
                 <i className="fas fa-link" style={{ marginRight: 4 }} />Se deixar vazio, uso o projeto da OS vinculada.
               </span>

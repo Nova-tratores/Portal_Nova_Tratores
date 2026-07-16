@@ -19,6 +19,7 @@ export const criarPedidoSchema = z.object({
   observacao: z.string().optional().default(""),
   osId: z.string().optional().default(""),
   projeto: z.string().optional().default(""),
+  usarProjetoOS: z.boolean().optional().default(true), // false = não copiar o projeto da OS
   valorTotal: z.number().min(0).default(0),
   idExistente: z.string().optional(),
   userName: z.string().optional().default(""),
@@ -42,6 +43,7 @@ export const editarPedidoSchema = z.object({
   pedidoOmie: z.string().optional().default(""),
   osId: z.string().optional().default(""),
   projeto: z.string().optional().default(""),
+  usarProjetoOS: z.boolean().optional().default(true), // false = não copiar o projeto da OS
   tipoPedido: z.string().optional().default(""),
   motivoSaida: z.string().optional().default(""),
   userName: z.string().optional().default(""),
