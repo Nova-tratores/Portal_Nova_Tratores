@@ -155,12 +155,23 @@ export async function GET(req: NextRequest) {
     if (acao === "historico") {
       const placa = req.nextUrl.searchParams.get("placa");
       if (!placa) return NextResponse.json({ error: "placa obrigatória" }, { status: 400 });
-      const { data } = await supabase
+      // aceita o formato antigo ("EPX-5475") e o canônico ("EPX5475") — o
+      // cache passou a gravar normalizado; dedupe por data (linhas legadas
+      // podem existir nos dois formatos)
+      const { resolverPlaca } = await import("@/lib/frota/placa");
+      const chaves = [...new Set([placa, resolverPlaca(placa)])];
+      const { data: rows } = await supabase
         .from("rotas_vendedor")
         .select("data, km_total, paradas, visitas, tempo_dirigindo_min, tempo_parado_min, hora_inicio, hora_fim")
-        .eq("placa", placa)
+        .in("placa", chaves)
         .order("data", { ascending: false })
-        .limit(90);
+        .limit(120);
+      const vistos = new Set<string>();
+      const data = (rows || []).filter((r: any) => {
+        if (vistos.has(String(r.data))) return false;
+        vistos.add(String(r.data));
+        return true;
+      }).slice(0, 90);
       const hist = (data || []).map((r: any) => ({
         data: r.data,
         km_total: r.km_total || 0,

@@ -42,12 +42,37 @@ const LIMITE_VEL_KMH = 110
 // de tempo) NÃO são ligados por linha cheia — viram conector pontilhado.
 const GAP_KM = 2
 const GAP_MIN = 15
+// deslocamento fisicamente impossível entre dois fixes (km/h implícito) —
+// pega os saltos CURTOS que passam pelo corte de 2km e viravam risco reto
+const VEL_IMPLICITA_MAX = 160
 
 const distKm = (a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
   const R = 6371, rad = (x: number) => (x * Math.PI) / 180
   const dLat = rad(b.lat - a.lat), dLng = rad(b.lng - a.lng)
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2
   return 2 * R * Math.asin(Math.sqrt(h))
+}
+
+// "Espeto" de GPS: ponto que salta pra longe e VOLTA (A -> B -> A) é ruído do
+// rastreador, não trajeto — é o que desenhava aquele leque de retas cruzando
+// os bairros. Some do desenho e da timeline; o km oficial (frota_dias) não
+// passa por aqui.
+function filtrarEspetos(pontos: any[]): any[] {
+  const out: any[] = []
+  for (let i = 0; i < pontos.length; i++) {
+    const prev = out[out.length - 1]
+    const next = pontos[i + 1]
+    if (prev && next) {
+      const idaKm = distKm(prev, pontos[i])
+      const voltaKm = distKm(pontos[i], next)
+      const direto = distKm(prev, next)
+      // foi (>250m), voltou (>250m) e os vizinhos são praticamente o mesmo
+      // lugar -> o do meio é espeto
+      if (idaKm > 0.25 && voltaKm > 0.25 && direto < Math.min(idaKm, voltaKm) * 0.5) continue
+    }
+    out.push(pontos[i])
+  }
+  return out
 }
 
 const hojeStr = () => new Date().toISOString().split('T')[0]
@@ -234,10 +259,12 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
       const res = await fetch(`/api/supervisor-vendas/veiculos?acao=rota&placa=${encodeURIComponent(placa)}&data=${dataParam}`)
       if (!res.ok) { setLoading(false); return }
       const rota = await res.json()
-      setRotaSel(rota)
+      // espetos de GPS fora do desenho e da timeline (o resumo/km oficial
+      // continua vindo do servidor, intacto)
+      const pontos = filtrarEspetos(rota.pontos || [])
+      setRotaSel({ ...rota, pontos })
       setMotoristaDia(null)
       resolverMotorista?.(placa, dataParam).then((m) => setMotoristaDia(m)).catch(() => {})
-      const pontos = rota.pontos || []
       if (pontos.length === 0) {
         // Dia sem trajeto OU rota antiga já podada pela retenção (os pontos
         // crus somem depois de 90 dias, os AGREGADOS ficam) — mostra o resumo
@@ -255,9 +282,9 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
       }
       const coords = pontos.map((p: any) => [p.lat, p.lng])
 
-      // Trajeto SEGMENTADO: buraco de sinal (pontos consecutivos a >2km ou
-      // >15min) não vira linha reta cruzando o mapa — vira conector
-      // pontilhado cinza com tooltip do tamanho do buraco.
+      // Trajeto SEGMENTADO: buraco de sinal (pontos consecutivos a >2km, com
+      // >15min, ou com velocidade implícita impossível) não vira linha reta
+      // cruzando o mapa — vira conector pontilhado cinza com tooltip.
       const segmentos: any[][] = []
       let seg: any[] = []
       for (const p of pontos) {
@@ -265,10 +292,15 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
           const prev = seg[seg.length - 1]
           const gapKm = distKm(prev, p)
           const gapMin = (new Date(p.dt).getTime() - new Date(prev.dt).getTime()) / 60000
-          if (gapKm > GAP_KM || gapMin > GAP_MIN) {
+          const velImplicita = gapMin > 0 ? (gapKm / gapMin) * 60 : (gapKm > 0.05 ? Infinity : 0)
+          if (gapKm > GAP_KM || gapMin > GAP_MIN || velImplicita > VEL_IMPLICITA_MAX) {
             segmentos.push(seg)
             L.polyline([[prev.lat, prev.lng], [p.lat, p.lng]], { color: '#94a3b8', weight: 2, opacity: 0.55, dashArray: '6 8' })
-              .bindTooltip(`sem sinal: ${gapKm > GAP_KM ? gapKm.toFixed(1) + ' km' : Math.round(gapMin) + ' min'} sem pontos`)
+              .bindTooltip(
+                velImplicita > VEL_IMPLICITA_MAX && gapKm <= GAP_KM
+                  ? `salto de GPS: ${(gapKm * 1000).toFixed(0)}m em ${Math.max(1, Math.round(gapMin * 60))}s`
+                  : `sem sinal: ${gapKm > GAP_KM ? gapKm.toFixed(1) + ' km' : Math.round(gapMin) + ' min'} sem pontos`,
+              )
               .addTo(rotaLayerRef.current)
             seg = []
           }

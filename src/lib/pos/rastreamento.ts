@@ -2,7 +2,7 @@
 // Lógica compartilhada de rastreamento GPS (Rota Exata)
 // Usada por: /api/pos/rastreamento e /api/pos/cron/gravar-gps
 // =============================================
-import { normalizarPlaca } from '@/lib/frota/placa'
+import { normalizarPlaca, resolverPlaca } from '@/lib/frota/placa'
 import { agregarIgnicao, type MetricasIgnicao } from '@/lib/frota/ignicao'
 
 const API_URL = process.env.ROTAEXATA_API_URL || 'https://api.rotaexata.com.br'
@@ -304,6 +304,13 @@ export async function computarESalvarRota(
 ): Promise<RotaDia> {
   const hoje = new Date().toISOString().split('T')[0]
 
+  // Chave CANÔNICA do cache: os chamadores passam a placa em formatos
+  // diferentes ("EPX-5475" do supervisor, "EPX5475" do frota) e a mesma rota
+  // era salva DUPLICADA. Grava sempre normalizada; na leitura aceita o
+  // formato antigo durante a transição.
+  const placaCache = resolverPlaca(placa)
+  const chavesPlaca = [...new Set([placaCache, placa])]
+
   // 1) Rota já salva?
   //
   // Linha existente = dia JÁ computado (só gravamos com pontos > 0). Depois da
@@ -311,12 +318,13 @@ export async function computarESalvarRota(
   // fica com pontos=[] mas os AGREGADOS continuam — devolve o cache mesmo
   // assim, senão cada visita ao histórico antigo refaz a busca na Rota Exata
   // (que também já não tem mais o dia).
-  const { data: rotaSalva } = await supabase
+  const { data: rotasSalvas } = await supabase
     .from('rotas_vendedor')
     .select('*')
-    .eq('placa', placa)
+    .in('placa', chavesPlaca)
     .eq('data', data)
-    .maybeSingle()
+    .limit(1)
+  const rotaSalva = rotasSalvas?.[0]
   if (rotaSalva && Array.isArray(rotaSalva.pontos)) {
     // Auto-cura: rota gravada ANTES das colunas de ignição existirem — os
     // pontos crus já estão no JSONB, então recalcula daqui mesmo, sem gastar
@@ -324,7 +332,7 @@ export async function computarESalvarRota(
     // podada pela retenção já tem os agregados gravados.)
     if (rotaSalva.tempo_ligado_min == null && rotaSalva.pontos.length > 0) {
       const ign = agregarIgnicao(rotaSalva.pontos)
-      await supabase.from('rotas_vendedor').update(ign).eq('placa', placa).eq('data', data)
+      await supabase.from('rotas_vendedor').update(ign).eq('placa', rotaSalva.placa).eq('data', data)
       return { ...rotaSalva, ...ign } as RotaDia
     }
     return rotaSalva as RotaDia
@@ -446,6 +454,7 @@ export async function computarESalvarRota(
   if (data !== hoje && pontos.length > 0) {
     const linha = {
       ...rota,
+      placa: placaCache, // chave canônica — nunca mais duplicar por formato
       vendedor_id: vinc?.pessoa_id || null,
       vendedor_nome: vinc?.pessoa_nome || null,
     }
