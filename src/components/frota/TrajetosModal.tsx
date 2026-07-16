@@ -1,0 +1,255 @@
+'use client';
+// Modal de TRAJETOS & PARADAS do veículo (aberto pela Ficha — sem redirecionar):
+// mini-mapa Leaflet com seleção de VÁRIOS dias — cada dia numa cor, com as
+// paradas classificadas (onde/quando/quanto tempo) e o resumo somado dos dias
+// escolhidos (km, litros, R$ de combustível, tempo ligado, atípicas).
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Route, X, Loader2 } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+import { formatarPlaca } from '@/lib/frota/placa';
+import { filtrarEspetos, segmentarTrajeto } from '@/lib/frota/gps';
+
+interface Props {
+  placa: string;
+  onClose: () => void;
+}
+
+interface DiaResumo {
+  data: string;
+  km_total: number;
+  km_odometro: number | null;
+  partidas: number;
+  tempo_ligado_min: number;
+  paradas_total: number;
+  paradas_atipicas: number;
+  litros: number;
+  gasto_combustivel: number;
+}
+
+interface ParadaDia {
+  inicio: string;
+  fim: string | null;
+  duracao_min: number;
+  latitude: number;
+  longitude: number;
+  classe: string;
+  destino_nome: string | null;
+  atipica: boolean;
+}
+
+interface RotaDiaCache {
+  pontos: { lat: number; lng: number; dt: string }[];
+  paradas: ParadaDia[];
+}
+
+// uma cor por dia selecionado (repete depois de 8)
+const CORES = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
+
+const CLASSE_LABEL: Record<string, string> = {
+  loja: 'Loja', cliente: 'Cliente', cliente_portal: 'Propriedade de cliente', manutencao: 'Manutenção',
+  estacionamento: 'Estacionamento', descarga: 'Descarga', outro_destino: 'Destino cadastrado',
+  visita: 'Visita comercial', abastecimento: 'Abastecimento', fora_geocerca: 'Fora de geocerca',
+};
+
+const fmtRS = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+const fmtData = (d: string) => { const [y, m, dia] = d.split('-'); return `${dia}/${m}/${y.slice(2)}`; };
+const fmtHora = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+const fmtMin = (min: number) => (min >= 60 ? `${Math.floor(min / 60)}h${String(min % 60).padStart(2, '0')}` : `${min}min`);
+
+export default function TrajetosModal({ placa, onClose }: Props) {
+  const [dias, setDias] = useState<DiaResumo[]>([]);
+  const [sel, setSel] = useState<string[]>([]);
+  const [rotas, setRotas] = useState<Record<string, RotaDiaCache>>({});
+  const [carregandoDias, setCarregandoDias] = useState(true);
+  const [buscando, setBuscando] = useState(false);
+  const mapRef = useRef<HTMLDivElement>(null);
+  const mapa = useRef<any>(null);
+  const camada = useRef<any>(null);
+  const [leafletOk, setLeafletOk] = useState(false);
+
+  // dias com movimento (últimos 60 fechados) — a lista lateral
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from('frota_dias')
+        .select('data, km_total, km_odometro, partidas, tempo_ligado_min, paradas_total, paradas_atipicas, litros, gasto_combustivel')
+        .eq('placa', placa)
+        .gt('posicoes_total', 0)
+        .order('data', { ascending: false })
+        .limit(60);
+      const lista = (data || []) as DiaResumo[];
+      setDias(lista);
+      if (lista.length > 0) setSel([lista[0].data]); // o dia mais recente já vem marcado
+      setCarregandoDias(false);
+    })();
+  }, [placa]);
+
+  // Leaflet via CDN (mesmo padrão do MapaCarros)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if ((window as any).L) { setLeafletOk(true); return; }
+    const link = document.createElement('link');
+    link.rel = 'stylesheet'; link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+    document.head.appendChild(link);
+    const script = document.createElement('script');
+    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+    script.onload = () => setLeafletOk(true);
+    document.head.appendChild(script);
+  }, []);
+
+  useEffect(() => {
+    if (!leafletOk || !mapRef.current || mapa.current) return;
+    const L = (window as any).L;
+    mapa.current = L.map(mapRef.current).setView([-23.2, -49.37], 10);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }).addTo(mapa.current);
+    camada.current = L.layerGroup().addTo(mapa.current);
+  }, [leafletOk]);
+
+  // busca a rota (pontos) + paradas classificadas de cada dia selecionado
+  useEffect(() => {
+    (async () => {
+      const faltam = sel.filter((d) => !rotas[d]);
+      if (faltam.length === 0) return;
+      setBuscando(true);
+      for (const dia of faltam) {
+        try {
+          const [rotaRes, paradasRes] = await Promise.all([
+            fetch(`/api/supervisor-vendas/veiculos?acao=rota&placa=${encodeURIComponent(placa)}&data=${dia}`).then((r) => (r.ok ? r.json() : null)),
+            supabase
+              .from('frota_paradas')
+              .select('inicio, fim, duracao_min, latitude, longitude, classe, destino_nome, atipica')
+              .eq('placa', placa)
+              .eq('data', dia)
+              .order('inicio'),
+          ]);
+          const pontos = filtrarEspetos(((rotaRes?.pontos || []) as RotaDiaCache['pontos']));
+          // paradas classificadas do fechamento; se o dia ainda não fechou
+          // (hoje), usa as cruas da própria rota
+          const paradas: ParadaDia[] = (paradasRes.data && paradasRes.data.length > 0)
+            ? (paradasRes.data as ParadaDia[])
+            : ((rotaRes?.paradas || []) as any[]).map((p) => ({
+                inicio: p.inicio, fim: p.fim, duracao_min: p.duracao_min,
+                latitude: p.lat, longitude: p.lng, classe: '', destino_nome: null, atipica: false,
+              }));
+          setRotas((prev) => ({ ...prev, [dia]: { pontos, paradas } }));
+        } catch { /* dia fica sem desenho */ }
+      }
+      setBuscando(false);
+    })();
+  }, [sel, placa, rotas]);
+
+  // desenha os dias selecionados
+  useEffect(() => {
+    if (!mapa.current || !camada.current) return;
+    const L = (window as any).L;
+    camada.current.clearLayers();
+    const bounds: [number, number][] = [];
+    sel.forEach((dia, i) => {
+      const rota = rotas[dia];
+      if (!rota) return;
+      const cor = CORES[i % CORES.length];
+      const { segmentos, buracos } = segmentarTrajeto(rota.pontos as any[]);
+      for (const s of segmentos) {
+        if (s.length >= 2) L.polyline(s.map((p) => [p.lat, p.lng]), { color: cor, weight: 4, opacity: 0.8 }).addTo(camada.current);
+      }
+      for (const b of buracos) {
+        L.polyline([[b.de.lat, b.de.lng], [b.ate.lat, b.ate.lng]], { color: '#94a3b8', weight: 2, opacity: 0.5, dashArray: '6 8' })
+          .bindTooltip(b.tooltip).addTo(camada.current);
+      }
+      for (const p of rota.pontos) bounds.push([p.lat, p.lng]);
+      for (const pa of rota.paradas) {
+        if (!pa.latitude || !pa.longitude) continue;
+        const corP = pa.atipica ? '#dc2626' : cor;
+        L.circleMarker([pa.latitude, pa.longitude], { radius: 6, weight: 2, color: '#fff', fillColor: corP, fillOpacity: 1 })
+          .bindPopup(
+            `<div style="font-size:12.5px"><b>${fmtData(dia)} · parada ${fmtMin(pa.duracao_min)}</b><br>` +
+            `${fmtHora(pa.inicio)} → ${pa.fim ? fmtHora(pa.fim) : 'em aberto'}<br>` +
+            `${pa.destino_nome ? `<b>${pa.destino_nome}</b>` : (CLASSE_LABEL[pa.classe] || 'Local sem cadastro')}` +
+            `${pa.atipica ? ' · <span style="color:#dc2626;font-weight:700">ATÍPICA</span>' : ''}</div>`,
+          )
+          .addTo(camada.current);
+        bounds.push([pa.latitude, pa.longitude]);
+      }
+    });
+    if (bounds.length > 1) mapa.current.fitBounds(bounds, { padding: [40, 40] });
+  }, [sel, rotas, leafletOk]);
+
+  const resumo = useMemo(() => {
+    const escolhidos = dias.filter((d) => sel.includes(d.data));
+    return {
+      km: escolhidos.reduce((s, d) => s + Number(d.km_odometro ?? d.km_total ?? 0), 0),
+      paradas: escolhidos.reduce((s, d) => s + (d.paradas_total || 0), 0),
+      atipicas: escolhidos.reduce((s, d) => s + (d.paradas_atipicas || 0), 0),
+      litros: escolhidos.reduce((s, d) => s + Number(d.litros || 0), 0),
+      gasto: escolhidos.reduce((s, d) => s + Number(d.gasto_combustivel || 0), 0),
+      ligado: escolhidos.reduce((s, d) => s + (d.tempo_ligado_min || 0), 0),
+    };
+  }, [dias, sel]);
+
+  const alternar = (data: string) =>
+    setSel((prev) => (prev.includes(data) ? prev.filter((d) => d !== data) : [...prev, data]));
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 950, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: 'min(1000px, 96vw)', height: 'min(640px, 88vh)', background: 'var(--portal-bg)', borderRadius: 14, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 70px rgba(0,0,0,0.4)' }}>
+        {/* Header + resumo dos dias escolhidos */}
+        <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--portal-border)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <Route size={17} color="#0d9488" />
+          <strong style={{ fontSize: 15, fontWeight: 800, color: 'var(--portal-text)' }}>Trajetos & paradas · {formatarPlaca(placa)}</strong>
+          {sel.length > 0 && (
+            <span style={{ fontSize: 12, color: 'var(--portal-text-secondary)', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <span><strong style={{ color: '#2563eb' }}>{Math.round(resumo.km).toLocaleString('pt-BR')} km</strong> em {sel.length} dia{sel.length > 1 ? 's' : ''}</span>
+              <span>{resumo.paradas} paradas{resumo.atipicas > 0 && <strong style={{ color: '#b91c1c' }}> ({resumo.atipicas} atípicas)</strong>}</span>
+              <span>{fmtMin(resumo.ligado)} ligado</span>
+              {resumo.litros > 0 && <span>{resumo.litros.toFixed(1)} L · <strong style={{ color: '#0d9488' }}>{fmtRS(resumo.gasto)}</strong></span>}
+            </span>
+          )}
+          {buscando && <Loader2 size={14} className="spin" color="var(--portal-text-muted)" />}
+          <div style={{ flex: 1 }} />
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text-muted)' }}><X size={18} /></button>
+        </div>
+
+        <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+          {/* Lista de dias (multi-seleção) */}
+          <div style={{ width: 250, borderRight: '1px solid var(--portal-border)', overflowY: 'auto', flexShrink: 0 }}>
+            {carregandoDias && <div style={{ padding: 14, fontSize: 12, color: 'var(--portal-text-muted)' }}>Carregando dias…</div>}
+            {!carregandoDias && dias.length === 0 && (
+              <div style={{ padding: 14, fontSize: 12, color: 'var(--portal-text-muted)' }}>
+                Nenhum dia consolidado ainda — o fechamento roda de madrugada (e este veículo precisa de rastreador).
+              </div>
+            )}
+            {dias.map((d) => {
+              const marcado = sel.includes(d.data);
+              const cor = marcado ? CORES[sel.indexOf(d.data) % CORES.length] : null;
+              return (
+                <label key={d.data} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderBottom: '1px solid var(--portal-border)', cursor: 'pointer', background: marcado ? 'var(--portal-bg-secondary)' : 'transparent' }}>
+                  <input type="checkbox" checked={marcado} onChange={() => alternar(d.data)} style={{ accentColor: cor || '#0d9488' }} />
+                  {cor && <span style={{ width: 9, height: 9, borderRadius: '50%', background: cor, flexShrink: 0 }} />}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--portal-text)' }}>{fmtData(d.data)}</div>
+                    <div style={{ fontSize: 10.5, color: 'var(--portal-text-muted)', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      <span>{Math.round(Number(d.km_odometro ?? d.km_total))} km</span>
+                      <span>{d.paradas_total} par.</span>
+                      {d.paradas_atipicas > 0 && <span style={{ color: '#b91c1c', fontWeight: 700 }}>{d.paradas_atipicas} atíp.</span>}
+                      {Number(d.gasto_combustivel) > 0 && <span style={{ color: '#0d9488' }}>{fmtRS(Number(d.gasto_combustivel))}</span>}
+                    </div>
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+
+          {/* Mapa */}
+          <div style={{ flex: 1, position: 'relative' }}>
+            <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
+            {sel.length === 0 && (
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.75)', zIndex: 500, fontSize: 13, color: '#475569', fontWeight: 600 }}>
+                Marque um ou mais dias na lista pra desenhar os trajetos
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

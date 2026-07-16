@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 import { authHeaders } from '@/lib/auth/client';
 import DocumentoInline from '@/components/frota/DocumentoInline';
+import AbastecimentosModal from '@/components/frota/AbastecimentosModal';
+import TrajetosModal from '@/components/frota/TrajetosModal';
 import { formatarPlaca } from '@/lib/frota/placa';
 import { checklistPreVenda, pendenciasDoVeiculo } from '@/lib/frota/pendencias';
 import type { Motorista, VeiculoDetalhe } from '@/lib/frota/tipos';
@@ -79,6 +81,10 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
     aberto: false, tipo: 'crlv', numero: '', vigencia_fim: '',
   });
   const [docArquivo, setDocArquivo] = useState<File | null>(null);
+
+  // modais "tudo deste veículo" (sem redirecionar pra outra tela)
+  const [abastecimentosAberto, setAbastecimentosAberto] = useState(false);
+  const [trajetosAberto, setTrajetosAberto] = useState(false);
 
   // venda do veículo (registro histórico: pra quem, quando, por quanto)
   const [vendaAberta, setVendaAberta] = useState(false);
@@ -911,9 +917,10 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                           ))}
                         </div>
                       )}
-                      <a href="/frota/paradas" style={{ fontSize: 11.5, color: '#0d9488', fontWeight: 600, textDecoration: 'none' }}>
-                        Ver paradas & trajetos →
-                      </a>
+                      {/* modal com mini-mapa multi-dia — nada de redirecionar */}
+                      <button onClick={() => setTrajetosAberto(true)} style={{ alignSelf: 'flex-start', background: 'none', border: 'none', padding: 0, fontSize: 11.5, color: '#0d9488', fontWeight: 600, cursor: 'pointer' }}>
+                        Ver paradas & trajetos deste veículo →
+                      </button>
                     </>
                   )}
                 </Secao>
@@ -977,9 +984,10 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                     <strong style={{ color: 'var(--portal-text)' }}>{fmtRS(Number(a.valor_total))}</strong>
                   </div>
                 ))}
-                <a href={`/frota/abastecimento?placa=${encodeURIComponent(placa)}`} style={{ fontSize: 11.5, color: '#0d9488', fontWeight: 600, textDecoration: 'none' }}>
-                  Ver tudo no Abastecimento →
-                </a>
+                {/* modal com o histórico completo (dia/semana/mês) — nada de redirecionar */}
+                <button onClick={() => setAbastecimentosAberto(true)} style={{ alignSelf: 'flex-start', background: 'none', border: 'none', padding: 0, fontSize: 11.5, color: '#0d9488', fontWeight: 600, cursor: 'pointer' }}>
+                  Ver todos os abastecimentos deste veículo →
+                </button>
               </Secao>
 
               {/* Saída da frota — venda ou arquivamento; a ficha fica de histórico */}
@@ -1038,6 +1046,13 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                     </div>
                   )}
                 </Secao>
+              )}
+
+              {abastecimentosAberto && (
+                <AbastecimentosModal placa={v.placa} onClose={() => setAbastecimentosAberto(false)} />
+              )}
+              {trajetosAberto && (
+                <TrajetosModal placa={v.placa} onClose={() => setTrajetosAberto(false)} />
               )}
 
               {/* Rodapé técnico */}
