@@ -42,8 +42,28 @@ interface RotaDiaCache {
   paradas: ParadaDia[];
 }
 
-// uma cor por dia selecionado (repete depois de 8)
+// uma cor por dia/grupo selecionado (repete depois de 8)
 const CORES = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
+
+type Visao = 'dia' | 'semana' | 'mes';
+
+const MESES_NOME = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+
+// segunda-feira da semana do dia (chave do agrupamento semanal)
+function segundaDe(dia: string): string {
+  const d = new Date(`${dia}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+  return d.toISOString().slice(0, 10);
+}
+
+function rotuloSemana(segunda: string): string {
+  const ini = new Date(`${segunda}T00:00:00Z`);
+  const fim = new Date(ini);
+  fim.setUTCDate(fim.getUTCDate() + 6);
+  const dd = (x: Date) => String(x.getUTCDate()).padStart(2, '0');
+  const mm = (x: Date) => String(x.getUTCMonth() + 1).padStart(2, '0');
+  return `${dd(ini)}/${mm(ini)} – ${dd(fim)}/${mm(fim)}/${String(fim.getUTCFullYear()).slice(2)}`;
+}
 
 const CLASSE_LABEL: Record<string, string> = {
   loja: 'Loja', cliente: 'Cliente', cliente_portal: 'Propriedade de cliente', manutencao: 'Manutenção',
@@ -59,6 +79,7 @@ const fmtMin = (min: number) => (min >= 60 ? `${Math.floor(min / 60)}h${String(m
 export default function TrajetosModal({ placa, onClose }: Props) {
   const [dias, setDias] = useState<DiaResumo[]>([]);
   const [sel, setSel] = useState<string[]>([]);
+  const [visao, setVisao] = useState<Visao>('dia');
   const [rotas, setRotas] = useState<Record<string, RotaDiaCache>>({});
   const [carregandoDias, setCarregandoDias] = useState(true);
   const [buscando, setBuscando] = useState(false);
@@ -76,7 +97,7 @@ export default function TrajetosModal({ placa, onClose }: Props) {
         .eq('placa', placa)
         .gt('posicoes_total', 0)
         .order('data', { ascending: false })
-        .limit(60);
+        .limit(120);
       const lista = (data || []) as DiaResumo[];
       setDias(lista);
       if (lista.length > 0) setSel([lista[0].data]); // o dia mais recente já vem marcado
@@ -138,16 +159,59 @@ export default function TrajetosModal({ placa, onClose }: Props) {
     })();
   }, [sel, placa, rotas]);
 
+  // Grupos conforme a visão (dia = 1 grupo por dia; semana/mês = agregados).
+  // Marcar um grupo = marcar TODOS os dias dele (a semana/mês inteiro desenha).
+  const grupos = useMemo(() => {
+    const porChave = new Map<string, { rotulo: string; dias: DiaResumo[] }>();
+    for (const d of dias) {
+      let chave: string, rotulo: string;
+      if (visao === 'dia') { chave = d.data; rotulo = fmtData(d.data); }
+      else if (visao === 'semana') { chave = segundaDe(d.data); rotulo = rotuloSemana(chave); }
+      else { chave = d.data.slice(0, 7); rotulo = `${MESES_NOME[Number(d.data.slice(5, 7)) - 1]}/${d.data.slice(0, 4)}`; }
+      const g = porChave.get(chave) || { rotulo, dias: [] };
+      g.dias.push(d);
+      porChave.set(chave, g);
+    }
+    return [...porChave.entries()]
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([chave, g]) => ({
+        chave,
+        rotulo: g.rotulo,
+        dias: g.dias,
+        km: g.dias.reduce((s, d) => s + Number(d.km_odometro ?? d.km_total ?? 0), 0),
+        paradas: g.dias.reduce((s, d) => s + (d.paradas_total || 0), 0),
+        atipicas: g.dias.reduce((s, d) => s + (d.paradas_atipicas || 0), 0),
+        gasto: g.dias.reduce((s, d) => s + Number(d.gasto_combustivel || 0), 0),
+        litros: g.dias.reduce((s, d) => s + Number(d.litros || 0), 0),
+      }));
+  }, [dias, visao]);
+
+  // cor por DIA: dias do mesmo grupo selecionado dividem a cor do grupo
+  const corPorDia = useMemo(() => {
+    const mapa: Record<string, string> = {};
+    const selecionados = grupos.filter((g) => g.dias.some((d) => sel.includes(d.data)));
+    selecionados.forEach((g, i) => {
+      for (const d of g.dias) if (sel.includes(d.data)) mapa[d.data] = CORES[i % CORES.length];
+    });
+    return mapa;
+  }, [grupos, sel]);
+
+  const alternarGrupo = (g: { dias: DiaResumo[] }) => {
+    const datas = g.dias.map((d) => d.data);
+    const todosMarcados = datas.every((d) => sel.includes(d));
+    setSel((prev) => (todosMarcados ? prev.filter((d) => !datas.includes(d)) : [...new Set([...prev, ...datas])]));
+  };
+
   // desenha os dias selecionados
   useEffect(() => {
     if (!mapa.current || !camada.current) return;
     const L = (window as any).L;
     camada.current.clearLayers();
     const bounds: [number, number][] = [];
-    sel.forEach((dia, i) => {
+    sel.forEach((dia) => {
       const rota = rotas[dia];
       if (!rota) return;
-      const cor = CORES[i % CORES.length];
+      const cor = corPorDia[dia] || CORES[0];
       const { segmentos, buracos } = segmentarTrajeto(rota.pontos as any[]);
       for (const s of segmentos) {
         if (s.length >= 2) L.polyline(s.map((p) => [p.lat, p.lng]), { color: cor, weight: 4, opacity: 0.8 }).addTo(camada.current);
@@ -172,7 +236,7 @@ export default function TrajetosModal({ placa, onClose }: Props) {
       }
     });
     if (bounds.length > 1) mapa.current.fitBounds(bounds, { padding: [40, 40] });
-  }, [sel, rotas, leafletOk]);
+  }, [sel, rotas, leafletOk, corPorDia]);
 
   const resumo = useMemo(() => {
     const escolhidos = dias.filter((d) => sel.includes(d.data));
@@ -186,8 +250,6 @@ export default function TrajetosModal({ placa, onClose }: Props) {
     };
   }, [dias, sel]);
 
-  const alternar = (data: string) =>
-    setSel((prev) => (prev.includes(data) ? prev.filter((d) => d !== data) : [...prev, data]));
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 950, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
@@ -206,6 +268,13 @@ export default function TrajetosModal({ placa, onClose }: Props) {
           )}
           {buscando && <Loader2 size={14} className="spin" color="var(--portal-text-muted)" />}
           <div style={{ flex: 1 }} />
+          <div style={{ display: 'flex', border: '1px solid var(--portal-border)', borderRadius: 8, overflow: 'hidden' }}>
+            {(['dia', 'semana', 'mes'] as Visao[]).map((v) => (
+              <button key={v} onClick={() => setVisao(v)} style={{ padding: '5px 12px', border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer', background: visao === v ? '#0d9488' : 'var(--portal-bg-input)', color: visao === v ? '#fff' : 'var(--portal-text-secondary)' }}>
+                {v === 'dia' ? 'Dia' : v === 'semana' ? 'Semana' : 'Mês'}
+              </button>
+            ))}
+          </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text-muted)' }}><X size={18} /></button>
         </div>
 
@@ -218,20 +287,24 @@ export default function TrajetosModal({ placa, onClose }: Props) {
                 Nenhum dia consolidado ainda — o fechamento roda de madrugada (e este veículo precisa de rastreador).
               </div>
             )}
-            {dias.map((d) => {
-              const marcado = sel.includes(d.data);
-              const cor = marcado ? CORES[sel.indexOf(d.data) % CORES.length] : null;
+            {grupos.map((g) => {
+              const marcado = g.dias.every((d) => sel.includes(d.data));
+              const parcial = !marcado && g.dias.some((d) => sel.includes(d.data));
+              const cor = marcado || parcial ? corPorDia[g.dias.find((d) => sel.includes(d.data))?.data || ''] : null;
               return (
-                <label key={d.data} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderBottom: '1px solid var(--portal-border)', cursor: 'pointer', background: marcado ? 'var(--portal-bg-secondary)' : 'transparent' }}>
-                  <input type="checkbox" checked={marcado} onChange={() => alternar(d.data)} style={{ accentColor: cor || '#0d9488' }} />
+                <label key={g.chave} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderBottom: '1px solid var(--portal-border)', cursor: 'pointer', background: marcado || parcial ? 'var(--portal-bg-secondary)' : 'transparent' }}>
+                  <input type="checkbox" checked={marcado} ref={(el) => { if (el) el.indeterminate = parcial; }} onChange={() => alternarGrupo(g)} style={{ accentColor: cor || '#0d9488' }} />
                   {cor && <span style={{ width: 9, height: 9, borderRadius: '50%', background: cor, flexShrink: 0 }} />}
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--portal-text)' }}>{fmtData(d.data)}</div>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--portal-text)', textTransform: visao === 'mes' ? 'capitalize' : 'none' }}>
+                      {g.rotulo}
+                      {visao !== 'dia' && <span style={{ fontWeight: 500, color: 'var(--portal-text-muted)' }}> · {g.dias.length} dia{g.dias.length > 1 ? 's' : ''}</span>}
+                    </div>
                     <div style={{ fontSize: 10.5, color: 'var(--portal-text-muted)', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      <span>{Math.round(Number(d.km_odometro ?? d.km_total))} km</span>
-                      <span>{d.paradas_total} par.</span>
-                      {d.paradas_atipicas > 0 && <span style={{ color: '#b91c1c', fontWeight: 700 }}>{d.paradas_atipicas} atíp.</span>}
-                      {Number(d.gasto_combustivel) > 0 && <span style={{ color: '#0d9488' }}>{fmtRS(Number(d.gasto_combustivel))}</span>}
+                      <span>{Math.round(g.km).toLocaleString('pt-BR')} km</span>
+                      <span>{g.paradas} par.</span>
+                      {g.atipicas > 0 && <span style={{ color: '#b91c1c', fontWeight: 700 }}>{g.atipicas} atíp.</span>}
+                      {g.gasto > 0 && <span style={{ color: '#0d9488' }}>{fmtRS(g.gasto)}</span>}
                     </div>
                   </div>
                 </label>
