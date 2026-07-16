@@ -75,6 +75,16 @@ export const api = {
   editarPrecoItem: (id: string, codigo: string, preco: number, userName?: string) =>
     patch<PPVDetalhes>("/api/ppv/movimentacoes", { id, codigo, preco, userName }),
 
+  // Importa um kit inteiro numa só chamada (marca os itens com o rótulo do kit)
+  importarKitLote: (dados: {
+    id: string; kit: string; tecnico: string; userName?: string;
+    itens: { codigo: string; descricao: string; quantidade: number; preco: number }[];
+  }) => post<PPVDetalhes>("/api/ppv/movimentacoes", dados),
+
+  // Remove o kit inteiro (devolve todos os itens dele de uma vez)
+  removerKit: (id: string, kit: string, userName?: string) =>
+    request<PPVDetalhes>("/api/ppv/movimentacoes", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, kit, userName }) }),
+
   // --- Busca de Clientes ---
   buscarClientes: (termo: string) =>
     request<ClienteBusca[]>(`/api/ppv/clientes?termo=${encodeURIComponent(termo)}`),

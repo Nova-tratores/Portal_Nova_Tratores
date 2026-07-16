@@ -86,6 +86,15 @@ export interface PPVDetalhes {
   projeto: string;
   produtos: ProdutoDetalhe[];
   devolucoes: Devolucao[];
+  kits?: KitImportado[];
+}
+
+// Kit importado num PPV (agrupa os itens que entraram juntos), para remover o kit inteiro.
+export interface KitImportado {
+  tag: string;      // "rótulo§batchId" — identifica esta importação
+  rotulo: string;   // ex.: "Revisão 300H · 6075"
+  itens: { codigo: string; descricao: string; quantidade: number; preco: number }[];
+  total: number;
 }
 
 export interface DadosIniciais {

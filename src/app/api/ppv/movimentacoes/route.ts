@@ -8,6 +8,45 @@ import { logAndNotify } from "@/lib/server/audit-notify";
 export async function POST(req: NextRequest) {
   try {
     const raw = await req.json();
+
+    // ── Modo LOTE (importar kit): grava todos os itens numa só chamada, marcados com o
+    // mesmo Kit, com um log/notificação/recalculo só. Antes ia um a um (N chamadas).
+    if (Array.isArray(raw?.itens)) {
+      const id = String(raw.id || "");
+      const tecnico = String(raw.tecnico || "");
+      const userNameLog = String(raw.userName || "Sistema");
+      const rotulo = String(raw.kit || "Kit").trim();
+      if (!id || raw.itens.length === 0) return NextResponse.json({ error: "id e itens são obrigatórios" }, { status: 400 });
+      const kitTag = `${rotulo}§${Date.now().toString(36)}`; // distingue importações repetidas
+      const dataHora = formatarDataBR(new Date().toISOString(), true);
+      const linhas = raw.itens
+        .filter((it: any) => it && it.codigo)
+        .map((it: any) => ({
+          Id: Math.floor(Math.random() * 9000000000) + 1000000000,
+          Id_PPV: id, Data_Hora: dataHora, Tecnico: tecnico, TipoMovimento: "Saída",
+          CodProduto: String(it.codigo), Descricao: String(it.descricao || ""),
+          Qtde: String(it.quantidade ?? 1), Preco: Number(it.preco) || 0, Kit: kitTag,
+        }));
+      if (linhas.length === 0) return NextResponse.json({ error: "kit sem itens válidos" }, { status: 400 });
+
+      // Se a coluna Kit ainda não existir, grava sem ela (o remover-kit só não agrupa).
+      try { await supabaseFetch(TBL_ITENS, "POST", linhas); }
+      catch (e: any) {
+        if (/kit/i.test(String(e?.message || ""))) await supabaseFetch(TBL_ITENS, "POST", linhas.map(({ Kit, ...r }: any) => r));
+        else throw e;
+      }
+      await registrarLog(id, `Importou kit "${rotulo}": ${linhas.length} itens`, userNameLog);
+      await atualizarValorTotal(id);
+      await logAndNotify({
+        userName: userNameLog, sistema: "ppv", acao: "adicionar_item",
+        entidade: "pedido", entidadeId: id, entidadeLabel: `PPV ${id}`,
+        detalhes: { kit: rotulo, itens: linhas.length },
+        notifTitulo: `PPV ${id}: kit importado`, notifDescricao: `${userNameLog} importou o kit "${rotulo}" (${linhas.length} itens)`,
+        notifLink: `/ppv?id=${id}`,
+      });
+      return NextResponse.json(await buscarPPVPorId(id));
+    }
+
     const parsed = movimentacaoSchema.safeParse(raw);
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues.map((i) => i.message).join(", ") }, { status: 400 });
@@ -49,6 +88,40 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erro desconhecido";
     return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}
+
+// Remove um KIT inteiro do PPV: devolve (Devolução) todas as saídas marcadas com aquele
+// Kit, de uma vez. (Remover item a item continua pelo fluxo de devolução normal.)
+export async function DELETE(req: NextRequest) {
+  try {
+    const { id, kit, userName } = await req.json();
+    if (!id || !kit) return NextResponse.json({ error: "id e kit são obrigatórios" }, { status: 400 });
+
+    const saidas = await supabaseFetch<Record<string, unknown>[]>(
+      `${TBL_ITENS}?Id_PPV=eq.${encodeURIComponent(id)}&Kit=eq.${encodeURIComponent(kit)}&TipoMovimento=eq.Sa%C3%ADda&select=*`
+    );
+    if (!saidas || saidas.length === 0) return NextResponse.json({ error: "kit não encontrado" }, { status: 404 });
+
+    const dataHora = formatarDataBR(new Date().toISOString(), true);
+    const devolucoes = saidas.map((s) => ({
+      Id: Math.floor(Math.random() * 9000000000) + 1000000000,
+      Id_PPV: id, Data_Hora: dataHora, Tecnico: String(s.Tecnico || ""), TipoMovimento: "Devolução",
+      CodProduto: String(s.CodProduto || ""), Descricao: String(s.Descricao || ""),
+      Qtde: String(s.Qtde || 0), Preco: Number(s.Preco) || 0, Kit: String(kit),
+    }));
+    try { await supabaseFetch(TBL_ITENS, "POST", devolucoes); }
+    catch (e: any) {
+      if (/kit/i.test(String(e?.message || ""))) await supabaseFetch(TBL_ITENS, "POST", devolucoes.map(({ Kit, ...r }: any) => r));
+      else throw e;
+    }
+
+    const rotulo = String(kit).split("§")[0];
+    await registrarLog(id, `Removeu o kit "${rotulo}" (${devolucoes.length} itens devolvidos)`, String(userName || "Sistema"));
+    await atualizarValorTotal(id);
+    return NextResponse.json(await buscarPPVPorId(id));
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : "Erro" }, { status: 500 });
   }
 }
 

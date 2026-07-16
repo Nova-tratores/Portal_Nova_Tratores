@@ -43,16 +43,20 @@ export async function buscarPPVPorId(id: string): Promise<PPVDetalhes | null> {
     projeto: String(getValorInsensivel(d, "Projeto") || ""),
     produtos: [],
     devolucoes: [],
+    kits: [],
   };
 
   if (resItens) {
     const itensMap: Record<string, { codigo: string; descricao: string; quantidade: number; preco: number }> = {};
+    // Kits importados: por rótulo§batchId, o saldo (saída - devolução) de cada código.
+    const kitMap: Record<string, { tag: string; rotulo: string; itens: Record<string, { codigo: string; descricao: string; quantidade: number; preco: number }> }> = {};
     resItens.forEach((r) => {
       const tipo = String(getValorInsensivel(r, "TipoMovimento") || "").toLowerCase();
       const codigo = String(getValorInsensivel(r, "CodProduto") || "");
       const qtdVal = Math.abs(parseFloat(String(getValorInsensivel(r, "Qtde") || 0)));
       const precoVal = parseFloat(String(getValorInsensivel(r, "Preco") || 0));
       const desc = String(getValorInsensivel(r, "Descricao") || "");
+      const kitTag = String(getValorInsensivel(r, "Kit") || "").trim();
 
       if (tipo.includes("saida") || tipo.includes("saída")) {
         if (itensMap[codigo]) itensMap[codigo].quantidade += qtdVal;
@@ -60,7 +64,21 @@ export async function buscarPPVPorId(id: string): Promise<PPVDetalhes | null> {
       } else if (tipo.includes("devolu")) {
         detalhes.devolucoes.push({ codigo, descricao: desc, quantidade: qtdVal, preco: precoVal });
       }
+      // saldo por kit (saída soma, devolução subtrai) — só quando o item tem tag de kit
+      if (kitTag) {
+        if (!kitMap[kitTag]) kitMap[kitTag] = { tag: kitTag, rotulo: kitTag.split("§")[0], itens: {} };
+        const g = kitMap[kitTag].itens;
+        const sinal = tipo.includes("devolu") ? -1 : 1;
+        if (!g[codigo]) g[codigo] = { codigo, descricao: desc, quantidade: 0, preco: precoVal };
+        g[codigo].quantidade += sinal * qtdVal;
+      }
     });
+    // Só kits com algum item ainda ativo (saldo > 0)
+    detalhes.kits = Object.values(kitMap).map((k) => {
+      const itens = Object.values(k.itens).filter((i) => i.quantidade > 0);
+      const total = itens.reduce((a, i) => a + i.quantidade * i.preco, 0);
+      return { tag: k.tag, rotulo: k.rotulo, itens, total };
+    }).filter((k) => k.itens.length > 0);
 
     // Buscar empresa dos produtos (um produto pode existir em múltiplas empresas)
     const codigos = Object.keys(itensMap);

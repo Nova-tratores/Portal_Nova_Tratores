@@ -23,7 +23,7 @@ interface ProdutoResolvido {
 interface Props {
   open: boolean
   onClose: () => void
-  onImportar: (produtos: ProdutoResolvido[], horas: number) => void
+  onImportar: (produtos: ProdutoResolvido[], horas: number, rotulo?: string) => void
 }
 
 // Número de horas de "50H", "300 H"… (pra ordenar do menor pro maior; sem número vai pro fim).
@@ -124,7 +124,8 @@ export default function ModalImportarKit({ open, onClose, onImportar }: Props) {
         }
       }
       if (produtos.length === 0) { alert('Kit sem produtos'); setImportando(null); return }
-      onImportar(produtos, horasNum(kit.Horas) === Infinity ? 0 : horasNum(kit.Horas))
+      const rotulo = `${kit.Trator} · ${kit.Horas}`.trim()
+      onImportar(produtos, horasNum(kit.Horas) === Infinity ? 0 : horasNum(kit.Horas), rotulo)
       onClose()
     } catch (e) {
       alert('Erro ao importar kit: ' + (e instanceof Error ? e.message : String(e)))

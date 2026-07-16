@@ -256,20 +256,32 @@ export default function PPVDrawer({
     setAddingExtra(false);
   }
 
-  async function importarKitItens(produtos: { codigo: string; descricao: string; quantidade: number; preco: number }[]) {
+  async function importarKitItens(produtos: { codigo: string; descricao: string; quantidade: number; preco: number }[], _horas?: number, rotulo?: string) {
     if (!podeItem) { showToast("error", "Sem permissão para alterar itens."); return; }
     if (!ppvId || produtos.length === 0) return;
     setImportandoKit(true);
     try {
-      let d: any = null;
-      for (const x of produtos) {
-        d = await api.registrarMovimentacao({ id: ppvId, codigo: x.codigo, descricao: x.descricao, quantidade: x.quantidade, preco: x.preco, tecnico: details?.tecnico || "", tipoMovimento: "Saída", userName: userProfile?.nome || "" });
-      }
+      // Uma chamada só (antes ia item a item): grava o kit inteiro marcado com o rótulo.
+      const d = await api.importarKitLote({ id: ppvId, kit: rotulo || "Kit", tecnico: details?.tecnico || "", userName: userProfile?.nome || "", itens: produtos });
       if (d) setDetails(d);
       showToast("success", `Kit importado: ${produtos.length} ${produtos.length === 1 ? "item" : "itens"}`);
       onDirty?.();
     } catch (e) { showToast("error", e instanceof Error ? e.message : "Erro ao importar kit"); }
     setImportandoKit(false);
+  }
+
+  const [removendoKit, setRemovendoKit] = useState<string | null>(null);
+  async function removerKitInteiro(tag: string, rotulo: string) {
+    if (!podeItem) { showToast("error", "Sem permissão para alterar itens."); return; }
+    if (!ppvId || !confirm(`Remover o kit "${rotulo}" inteiro do PPV?`)) return;
+    setRemovendoKit(tag);
+    try {
+      const d = await api.removerKit(ppvId, tag, userProfile?.nome || "");
+      if (d) setDetails(d);
+      showToast("success", "Kit removido.");
+      onDirty?.();
+    } catch (e) { showToast("error", e instanceof Error ? e.message : "Erro ao remover kit"); }
+    setRemovendoKit(null);
   }
 
   async function salvarPrecoItem(codigo: string) {
@@ -576,6 +588,26 @@ export default function PPVDrawer({
                       </span>
                       <i className="fas fa-chevron-right" style={{ fontSize: 13, color: "#0d9488", flexShrink: 0 }} />
                     </button>
+
+                    {/* Kits importados — remover o kit inteiro de uma vez */}
+                    {(details?.kits || []).length > 0 && (
+                      <div style={{ marginBottom: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+                        {(details?.kits || []).map((k) => (
+                          <div key={k.tag} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 10, border: "1px solid #99F6E4", background: "#F0FDFA" }}>
+                            <i className="fas fa-tools" style={{ fontSize: 13, color: "#0d9488" }} />
+                            <span style={{ flex: 1, minWidth: 0 }}>
+                              <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#0f766e", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{k.rotulo}</span>
+                              <span style={{ display: "block", fontSize: 11, color: "#5EAaa8" }}>{k.itens.length} {k.itens.length === 1 ? "item" : "itens"} · {formatarMoeda(k.total)}</span>
+                            </span>
+                            <button type="button" onClick={() => removerKitInteiro(k.tag, k.rotulo)} disabled={!podeItem || removendoKit === k.tag}
+                              title={!podeItem ? MSG_SEM_PERMISSAO : "Remover o kit inteiro"}
+                              style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #FECACA", background: "#fff", color: "#dc2626", fontSize: 12, fontWeight: 700, cursor: !podeItem ? "not-allowed" : "pointer", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 6 }}>
+                              {removendoKit === k.tag ? <i className="fas fa-spinner fa-spin" /> : <i className="fas fa-trash" />} Remover kit
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
 
                     {/* Adicionar item */}
                     <label>Adicionar Produto</label>
