@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { classificarCombustivel, compararFlex, type FlexRow } from '../flex'
+import { avaliarKmL, classificarCombustivel, compararFlex, type FlexRow } from '../flex'
 
 function abast(p: Partial<FlexRow>): FlexRow {
   return {
@@ -71,5 +71,31 @@ describe('compararFlex', () => {
     ]
     const [v] = compararFlex(rows)
     expect(v.veredito).toBe('empate')
+  })
+})
+
+describe('avaliarKmL — a régua exposta pro detalhe da tela', () => {
+  it('classifica ok / sem hodômetro / km-l implausível', () => {
+    expect(avaliarKmL({ litros: 40, hodometro_anterior: 10000, hodometro: 10400 }))
+      .toEqual({ km: 400, kml: 10, valido: true, motivo: 'ok' })
+    expect(avaliarKmL({ litros: 40, hodometro_anterior: null, hodometro: 10400 }).motivo)
+      .toBe('sem_hodometro')
+    expect(avaliarKmL({ litros: 40, hodometro_anterior: 10400, hodometro: 10000 }).motivo)
+      .toBe('sem_hodometro') // hodômetro andou pra trás = digitação errada
+    const implausivel = avaliarKmL({ litros: 10, hodometro_anterior: 10000, hodometro: 10400 })
+    expect(implausivel.motivo).toBe('kml_implausivel') // 40 km/l
+    expect(implausivel.kml).toBe(40)
+    expect(implausivel.valido).toBe(false)
+  })
+
+  it('é a MESMA régua do compararFlex (um válido conta, um implausível não)', () => {
+    const rows: FlexRow[] = [
+      { placa: 'AAA1234', modelo_veiculo: null, combustivel: 'Gasolina', litros: 40, valor_total: 240, hodometro_anterior: 10000, hodometro: 10400 },
+      { placa: 'AAA1234', modelo_veiculo: null, combustivel: 'Gasolina', litros: 10, valor_total: 60, hodometro_anterior: 10400, hodometro: 10800 },
+      { placa: 'AAA1234', modelo_veiculo: null, combustivel: 'Etanol', litros: 40, valor_total: 180, hodometro_anterior: 10800, hodometro: 11200 },
+    ]
+    const [v] = compararFlex(rows)
+    expect(v.gasolina.validos).toBe(1)
+    expect(rows.map((r) => avaliarKmL(r).valido)).toEqual([true, false, true])
   })
 })

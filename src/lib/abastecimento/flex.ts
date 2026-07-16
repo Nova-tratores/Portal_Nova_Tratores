@@ -24,6 +24,30 @@ export type Combustivel = 'etanol' | 'gasolina'
 const KML_MIN = 3
 const KML_MAX = 30
 
+// A MESMA régua do veredito, exposta por abastecimento — é o que o detalhe
+// da tela mostra ("por que este entrou/saiu da conta").
+export type AvaliacaoKmL = {
+  km: number | null
+  kml: number | null
+  valido: boolean
+  motivo: 'ok' | 'sem_hodometro' | 'kml_implausivel'
+}
+
+export function avaliarKmL(r: Pick<FlexRow, 'litros' | 'hodometro_anterior' | 'hodometro'>): AvaliacaoKmL {
+  const litros = Number(r.litros) || 0
+  const h0 = Number(r.hodometro_anterior)
+  const h1 = Number(r.hodometro)
+  if (litros <= 0 || !Number.isFinite(h0) || !Number.isFinite(h1) || h0 <= 0 || h1 <= h0) {
+    return { km: null, kml: null, valido: false, motivo: 'sem_hodometro' }
+  }
+  const km = h1 - h0
+  const kml = km / litros
+  if (kml < KML_MIN || kml > KML_MAX) {
+    return { km, kml, valido: false, motivo: 'kml_implausivel' }
+  }
+  return { km, kml, valido: true, motivo: 'ok' }
+}
+
 export function classificarCombustivel(c: string | null | undefined): Combustivel | null {
   const s = (c ?? '').toLowerCase()
   if (/etanol|álcool|alcool/.test(s)) return 'etanol'
@@ -100,16 +124,12 @@ export function compararFlex(rows: FlexRow[]): VeiculoFlex[] {
     lado.litrosTotais += litros
     lado.valorTotal += valor
 
-    // saneamento do km/l
-    const h0 = Number(r.hodometro_anterior)
-    const h1 = Number(r.hodometro)
-    if (!Number.isFinite(h0) || !Number.isFinite(h1) || h0 <= 0 || h1 <= h0) continue
-    const km = h1 - h0
-    const kml = km / litros
-    if (kml < KML_MIN || kml > KML_MAX) continue
+    // saneamento do km/l (mesma régua exposta em avaliarKmL)
+    const av = avaliarKmL(r)
+    if (!av.valido || av.km == null) continue
 
     lado.validos += 1
-    lado.km += km
+    lado.km += av.km
     lado.litros += litros
     lado.valor += valor
   }
