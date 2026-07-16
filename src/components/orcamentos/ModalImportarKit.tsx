@@ -81,30 +81,50 @@ export default function ModalImportarKit({ open, onClose, onImportar }: Props) {
     return { tratores: tratores.sort(ord), quads: quads.sort(ord) }
   }, [kits, busca])
 
-  // Kits do modelo em foco, ordenados por horas (menor -> maior).
-  const kitsDoModelo = useMemo(() => {
-    if (!modeloSel) return []
-    return kits.filter((k) => (k.Trator || '').trim() === modeloSel)
-      .sort((a, b) => horasNum(a.Horas) - horasNum(b.Horas) || String(a.Horas).localeCompare(String(b.Horas), 'pt', { numeric: true }))
-  }, [kits, modeloSel])
+  // Pré-computa os kits ordenados por modelo (uma vez) — assim passar o mouse não refiltra
+  // o array inteiro a cada modelo, o que deixava a lista travada.
+  const kitsPorModelo = useMemo(() => {
+    const m = new Map<string, Kit[]>()
+    for (const k of kits) {
+      const nome = (k.Trator || '').trim()
+      if (!m.has(nome)) m.set(nome, [])
+      m.get(nome)!.push(k)
+    }
+    for (const arr of m.values()) {
+      arr.sort((a, b) => horasNum(a.Horas) - horasNum(b.Horas) || String(a.Horas).localeCompare(String(b.Horas), 'pt', { numeric: true }))
+    }
+    return m
+  }, [kits])
+  const kitsDoModelo = modeloSel ? (kitsPorModelo.get(modeloSel) || []) : []
 
   async function importarKit(kit: Kit) {
     setImportando(kit.id)
     try {
-      const produtosResolvidos: ProdutoResolvido[] = []
-      for (const p of kit.produtos) {
-        if (!p.codigo) continue
-        let descricao = `Produto ${p.codigo}`, preco = 0
-        try {
-          const res = await fetch(`/api/ppv/produtos?termo=${encodeURIComponent(p.codigo)}`)
-          const arr = await res.json()
-          const match = Array.isArray(arr) ? arr.find((r: any) => r.codigo === p.codigo) : null
-          if (match) { descricao = match.descricao || descricao; preco = match.preco || 0 }
-        } catch { /* usa o fallback */ }
-        produtosResolvidos.push({ codigo: p.codigo, descricao, quantidade: p.quantidade || 1, preco })
+      // Resolve por CÓDIGO EXATO no endpoint de revisão (trator+horas): traz descrição e
+      // preço certos. A busca por "termo" (ilike) falhava no quadriciclo e vinha preço 0.
+      let lista: any[] = []
+      try {
+        const res = await fetch(`/api/ppv/revisoes?trator=${encodeURIComponent(kit.Trator)}&horas=${encodeURIComponent(kit.Horas)}`)
+        if (res.ok) lista = await res.json()
+      } catch { /* tenta o fallback abaixo */ }
+      let produtos: ProdutoResolvido[] = (Array.isArray(lista) ? lista : []).map((p: any) => ({
+        codigo: String(p.codigo), descricao: p.descricao || `Produto ${p.codigo}`, quantidade: p.quantidade || 1, preco: p.preco || 0,
+      }))
+      // Fallback: se o endpoint não achou o kit, usa os códigos que já temos (preço via busca).
+      if (produtos.length === 0) {
+        for (const p of kit.produtos) {
+          if (!p.codigo) continue
+          let descricao = `Produto ${p.codigo}`, preco = 0
+          try {
+            const arr = await (await fetch(`/api/ppv/produtos?termo=${encodeURIComponent(p.codigo)}`)).json()
+            const match = Array.isArray(arr) ? arr.find((r: any) => r.codigo === p.codigo) : null
+            if (match) { descricao = match.descricao || descricao; preco = match.preco || 0 }
+          } catch { /* mantém fallback */ }
+          produtos.push({ codigo: p.codigo, descricao, quantidade: p.quantidade || 1, preco })
+        }
       }
-      if (produtosResolvidos.length === 0) { alert('Kit sem produtos'); setImportando(null); return }
-      onImportar(produtosResolvidos, horasNum(kit.Horas) === Infinity ? 0 : horasNum(kit.Horas))
+      if (produtos.length === 0) { alert('Kit sem produtos'); setImportando(null); return }
+      onImportar(produtos, horasNum(kit.Horas) === Infinity ? 0 : horasNum(kit.Horas))
       onClose()
     } catch (e) {
       alert('Erro ao importar kit: ' + (e instanceof Error ? e.message : String(e)))
@@ -123,7 +143,7 @@ export default function ModalImportarKit({ open, onClose, onImportar }: Props) {
             const ativo = modeloSel === m.nome
             return (
               <div key={m.nome}
-                onMouseEnter={() => setModeloSel(m.nome)}
+                onMouseEnter={() => setModeloSel((cur) => (cur === m.nome ? cur : m.nome))}
                 onClick={() => setModeloSel(m.nome)}
                 style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '10px 12px', borderRadius: 9, cursor: 'pointer',
                   background: ativo ? '#fef2f2' : 'transparent', border: ativo ? '1px solid #fecaca' : '1px solid transparent', transition: '.1s' }}>
