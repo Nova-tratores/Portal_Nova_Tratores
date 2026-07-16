@@ -666,111 +666,58 @@ export default function PPVDrawer({
                       </button>
                     </div>
 
-                    {/* Lista de produtos */}
+                    {/* Lista de produtos — tabela estilo Omie */}
                     {produtosComSaldo.length > 0 && (
-                      <div className="ppv-produtos-list">
-                        {produtosComSaldo.map((p) => {
-                          const pctDev = p.quantidade > 0 ? (p.qtdDev / p.quantidade) * 100 : 0;
+                      <div style={{ border: "1px solid var(--ppv-border, #E2E8F0)", borderRadius: 12, overflow: "hidden" }}>
+                        {/* Cabeçalho */}
+                        <div style={{ display: "grid", gridTemplateColumns: "minmax(130px,1.1fr) 74px minmax(150px,1.8fr) 116px 118px 56px", gap: 8, alignItems: "center", padding: "9px 14px", background: "#F8FAFC", borderBottom: "1px solid var(--ppv-border, #E2E8F0)", fontSize: 10.5, fontWeight: 800, color: "#94A3B8", textTransform: "uppercase", letterSpacing: 0.4 }}>
+                          <span>Produto</span><span style={{ textAlign: "center" }}>Qtd</span><span>Descrição</span><span style={{ textAlign: "right" }}>Preço un.</span><span style={{ textAlign: "right" }}>Total</span><span />
+                        </div>
+                        {produtosComSaldo.map((p, i) => {
                           const isDevolvido = p.saldo === 0;
                           const isParcial = p.saldo > 0 && p.qtdDev > 0;
+                          const editando = editandoPrecoCod === p.codigo;
+                          const isPrimario = (p.empresa || "").toLowerCase().includes("primari");
                           return (
-                            <div key={p.codigo} className={`ppv-produto-item ${isDevolvido ? "devolvido" : ""}`}>
-                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                <div style={{ minWidth: 0, flex: 1 }}>
-                                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                    <span style={{ fontWeight: 700 }}>{p.codigo}</span>
-                                    {p.empresa && (() => {
-                                      const isPrimario = p.empresa.toLowerCase().includes("primari");
-                                      const label = isPrimario ? "CASTRO" : "NOVA";
-                                      return (
-                                        <span style={{
-                                          fontSize: 12, fontWeight: 700, padding: "2px 8px", borderRadius: 8,
-                                          background: isPrimario ? "#DBEAFE" : "#FEE2E2",
-                                          color: isPrimario ? "#2563EB" : "#DC2626",
-                                        }}>
-                                          {label}
-                                        </span>
-                                      );
-                                    })()}
-                                    <span style={{ fontSize: 12, color: "var(--ppv-text-light)" }}>{p.descricao}</span>
-                                  </div>
-                                  <div style={{ fontSize: 12, color: "var(--ppv-text-light)", marginTop: 4, display: "flex", alignItems: "center", gap: 12 }}>
-                                    <span>Qtd: <b>{p.quantidade}</b></span>
-                                    <span>Saldo: <b>{p.saldo}</b></span>
-                                    {p.qtdDev > 0 && <span style={{ color: "#EF4444" }}>Dev: <b>{p.qtdDev}</b></span>}
-                                    {isDevolvido && <span className="ppv-badge gray">DEVOLVIDO</span>}
-                                    {isParcial && <span className="ppv-badge yellow">PARCIAL</span>}
-                                    {!isDevolvido && !isParcial && <span className="ppv-badge green">ATIVO</span>}
-                                  </div>
-                                </div>
-                                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                                  {editandoPrecoCod === p.codigo ? (
-                                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                      <span style={{ fontSize: 11, color: "var(--ppv-text-light)" }}>R$</span>
-                                      <input
-                                        type="number"
-                                        step="0.01"
-                                        min="0"
-                                        autoFocus
-                                        value={editandoPrecoVal}
-                                        onChange={(e) => setEditandoPrecoVal(e.target.value)}
-                                        onKeyDown={(e) => {
-                                          if (e.key === "Enter") { e.preventDefault(); salvarPrecoItem(p.codigo); }
-                                          if (e.key === "Escape") { setEditandoPrecoCod(null); setEditandoPrecoVal(""); }
-                                        }}
-                                        disabled={salvandoPreco}
-                                        style={{ width: 90, padding: "4px 8px", marginBottom: 0, fontSize: 13, fontWeight: 700 }}
-                                      />
-                                      <button
-                                        type="button"
-                                        onClick={() => salvarPrecoItem(p.codigo)}
-                                        disabled={salvandoPreco}
-                                        title="Salvar"
-                                        style={{ background: "#10B981", color: "#fff", border: "none", borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontSize: 12 }}
-                                      >
-                                        <i className={`fas ${salvandoPreco ? "fa-spinner fa-spin" : "fa-check"}`} />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => { setEditandoPrecoCod(null); setEditandoPrecoVal(""); }}
-                                        disabled={salvandoPreco}
-                                        title="Cancelar"
-                                        style={{ background: "#EF4444", color: "#fff", border: "none", borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontSize: 12 }}
-                                      >
-                                        <i className="fas fa-times" />
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <>
-                                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", lineHeight: 1.2 }}>
-                                        <span style={{ fontWeight: 700, whiteSpace: "nowrap" }}>{formatarMoeda(p.saldo * p.preco)}</span>
-                                        <span style={{ fontSize: 11, color: "var(--ppv-text-light)", whiteSpace: "nowrap" }}>
-                                          un. {formatarMoeda(p.preco)}
-                                        </span>
-                                      </div>
-                                      <button
-                                        type="button"
-                                        onClick={() => { setEditandoPrecoCod(p.codigo); setEditandoPrecoVal(p.preco.toFixed(2)); }}
-                                        title="Editar preço unitário"
-                                        style={{ background: "transparent", border: "none", color: "var(--portal-text-secondary)", cursor: "pointer", padding: 4, fontSize: 13 }}
-                                      >
-                                        <i className="fas fa-pen" />
-                                      </button>
-                                    </>
-                                  )}
-                                  {p.saldo > 0 && editandoPrecoCod !== p.codigo && (
-                                    <button
-                                      onClick={() => { setDevolucaoProd({ codigo: p.codigo, descricao: p.descricao, preco: p.preco, max: p.saldo }); setDevolucaoOpen(true); }}
-                                      className="ppv-btn-devolver"
-                                    >
-                                      <i className="fas fa-undo-alt" />
-                                    </button>
-                                  )}
-                                </div>
+                            <div key={p.codigo} style={{ display: "grid", gridTemplateColumns: "minmax(130px,1.1fr) 74px minmax(150px,1.8fr) 116px 118px 56px", gap: 8, alignItems: "center", padding: "10px 14px", borderBottom: i < produtosComSaldo.length - 1 ? "1px solid #F1F5F9" : "none", background: isDevolvido ? "#FAFAFA" : "#fff", opacity: isDevolvido ? 0.7 : 1, fontSize: 13 }}>
+                              {/* Produto */}
+                              <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+                                <span style={{ fontWeight: 700, color: "#0f172a", textDecoration: isDevolvido ? "line-through" : "none" }}>{p.codigo}</span>
+                                {p.empresa && <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 6, background: isPrimario ? "#DBEAFE" : "#FEE2E2", color: isPrimario ? "#2563EB" : "#DC2626" }}>{isPrimario ? "CASTRO" : "NOVA"}</span>}
                               </div>
-                              {/* Progress bar */}
-                              <div className="ppv-progress-bar" style={{ marginTop: 8 }}>
-                                <div className="ppv-progress-fill" style={{ width: `${100 - pctDev}%`, backgroundColor: isDevolvido ? "#CBD5E1" : isParcial ? "#F59E0B" : "#10B981" }} />
+                              {/* Qtd / saldo + status */}
+                              <div style={{ textAlign: "center", lineHeight: 1.25 }}>
+                                <div style={{ fontWeight: 700 }}>{p.saldo}</div>
+                                {p.qtdDev > 0
+                                  ? <div style={{ fontSize: 10.5, color: "#EF4444" }}>de {p.quantidade} · dev {p.qtdDev}</div>
+                                  : <div style={{ fontSize: 10, fontWeight: 700, color: isParcial ? "#B45309" : "#16A34A" }}>{isDevolvido ? "DEVOLVIDO" : isParcial ? "PARCIAL" : "ATIVO"}</div>}
+                              </div>
+                              {/* Descrição */}
+                              <div style={{ minWidth: 0, color: "#475569", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={p.descricao}>{p.descricao}</div>
+                              {/* Preço un. (editável) */}
+                              <div style={{ textAlign: "right" }}>
+                                {editando ? (
+                                  <div style={{ display: "flex", alignItems: "center", gap: 4, justifyContent: "flex-end" }}>
+                                    <input type="number" step="0.01" min="0" autoFocus value={editandoPrecoVal} onChange={(e) => setEditandoPrecoVal(e.target.value)}
+                                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); salvarPrecoItem(p.codigo); } if (e.key === "Escape") { setEditandoPrecoCod(null); setEditandoPrecoVal(""); } }}
+                                      disabled={salvandoPreco} style={{ width: 74, padding: "4px 6px", marginBottom: 0, fontSize: 12.5, fontWeight: 700, textAlign: "right" }} />
+                                    <button type="button" onClick={() => salvarPrecoItem(p.codigo)} disabled={salvandoPreco} title="Salvar" style={{ background: "#10B981", color: "#fff", border: "none", borderRadius: 6, width: 26, height: 26, cursor: "pointer", fontSize: 11, flexShrink: 0 }}><i className={`fas ${salvandoPreco ? "fa-spinner fa-spin" : "fa-check"}`} /></button>
+                                    <button type="button" onClick={() => { setEditandoPrecoCod(null); setEditandoPrecoVal(""); }} disabled={salvandoPreco} title="Cancelar" style={{ background: "#EF4444", color: "#fff", border: "none", borderRadius: 6, width: 26, height: 26, cursor: "pointer", fontSize: 11, flexShrink: 0 }}><i className="fas fa-times" /></button>
+                                  </div>
+                                ) : (
+                                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6, justifyContent: "flex-end" }}>
+                                    <span style={{ whiteSpace: "nowrap", color: "#475569" }}>{formatarMoeda(p.preco)}</span>
+                                    <button type="button" onClick={() => { setEditandoPrecoCod(p.codigo); setEditandoPrecoVal(p.preco.toFixed(2)); }} title="Editar preço unitário" style={{ background: "transparent", border: "none", color: "#94A3B8", cursor: "pointer", padding: 2, fontSize: 12 }}><i className="fas fa-pen" /></button>
+                                  </span>
+                                )}
+                              </div>
+                              {/* Total */}
+                              <div style={{ textAlign: "right", fontWeight: 700, color: "#0f172a", whiteSpace: "nowrap" }}>{formatarMoeda(p.saldo * p.preco)}</div>
+                              {/* Ação: devolver */}
+                              <div style={{ textAlign: "right" }}>
+                                {p.saldo > 0 && !editando && (
+                                  <button onClick={() => { setDevolucaoProd({ codigo: p.codigo, descricao: p.descricao, preco: p.preco, max: p.saldo }); setDevolucaoOpen(true); }} className="ppv-btn-devolver" title="Devolver / remover"><i className="fas fa-undo-alt" /></button>
+                                )}
                               </div>
                             </div>
                           );

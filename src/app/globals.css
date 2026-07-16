@@ -1052,7 +1052,7 @@ body {
 
 .ppv-modal-container {
   width: 100%;
-  max-width: 920px;
+  max-width: 1160px;
   margin: 0 auto;
   padding-bottom: 30px;
   animation: ppvDrawerSlideIn 0.25s ease-out;
@@ -1061,7 +1061,7 @@ body {
   transition: max-width 0.25s ease;
 }
 .ppv-modal-container.with-logs {
-  max-width: 1240px;
+  max-width: 1460px;
 }
 @keyframes ppvDrawerSlideIn {
   from { opacity: 0; transform: translateY(20px) scale(0.98); }
