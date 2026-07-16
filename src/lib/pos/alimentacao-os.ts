@@ -79,11 +79,16 @@ function fotoNfDe(foto: string | null | undefined): string | null {
 }
 
 /**
- * Cria UMA despesa de alimentação (Requisicao tipo='Alimentação', já em
- * status='financeiro', solicitante = técnico, recibo em foto_nf). Reusada
- * pelo fechamento da OS e pelo anexo de nota do admin (que dispara na hora).
+ * Cria UMA despesa de alimentação (Requisicao tipo='Alimentação',
+ * solicitante = técnico, recibo em foto_nf). O status depende do momento:
+ * 'pedido' (primeira fase, em aberto — a OS ainda não concluiu) ou
+ * 'financeiro' (OS concluída).
  */
-async function criarRequisicaoAlimentacao(os: OSMin, item: AlimentacaoItem): Promise<number | null> {
+async function criarRequisicaoAlimentacao(
+  os: OSMin,
+  item: AlimentacaoItem,
+  status: "pedido" | "financeiro",
+): Promise<number | null> {
   const setor = os.Cnpj_Cliente ? "Trator-Cliente" : "Trator-Loja";
   const tituloProjeto = os.Projeto ? ` (${os.Projeto})` : "";
   const agora = new Date();
@@ -96,13 +101,16 @@ async function criarRequisicaoAlimentacao(os: OSMin, item: AlimentacaoItem): Pro
     setor,
     solicitante: tecnicos[0] || "Sistema",
     data: dataItem,
-    status: "financeiro",
-    enviado_financeiro_data: agora.toISOString(),
+    status,
     valor_despeza: item.valor.toFixed(2).replace(".", ","),
     ordem_servico: os.Id_Ordem,
     origem: "auto_alimentacao_os",
-    obs: `Despesa de alimentação (${dataItem}) registrada automaticamente (OS ${os.Id_Ordem})${tecnicos.length > 1 ? ` — técnicos: ${tecnicos.join(", ")}` : ""}.`,
+    obs:
+      status === "financeiro"
+        ? `Despesa de alimentação (${dataItem}) registrada automaticamente (OS ${os.Id_Ordem})${tecnicos.length > 1 ? ` — técnicos: ${tecnicos.join(", ")}` : ""}.`
+        : `Despesa de alimentação (${dataItem}) aberta automaticamente ao lançar a alimentação na OS ${os.Id_Ordem}${tecnicos.length > 1 ? ` — técnicos: ${tecnicos.join(", ")}` : ""}. Fica EM ABERTO (disponível pra desconto em folha, se for o caso) e vai pro financeiro quando a OS concluir.`,
   };
+  if (status === "financeiro") novaReq.enviado_financeiro_data = agora.toISOString();
   const fotoNf = fotoNfDe(item.foto);
   if (fotoNf) novaReq.foto_nf = fotoNf;
   if (os.Projeto) novaReq.Chassis_Modelo = os.Projeto;
@@ -116,27 +124,47 @@ async function criarRequisicaoAlimentacao(os: OSMin, item: AlimentacaoItem): Pro
   return inserida?.id ?? null;
 }
 
+export interface SyncAlimentacaoResult {
+  criadas: number;
+  atualizadas: number;
+  promovidas: number;   // pedido -> financeiro (na conclusão da OS)
+  removidas: number;    // item saiu da OS -> requisição em aberto vai pra lixeira
+  pulado: boolean;
+  motivoPulado?: string;
+  ultimoId?: number;
+}
+
 /**
- * Dispara a despesa de UM item de alimentação NA HORA (usado quando o admin
- * anexa a nota no portal — pedido do usuário: anexou, abriu a despesa).
- * Idempotente por OS + data + valor; se a despesa auto já existe, só ATUALIZA
- * o recibo (foto_nf) nela. Não exige a OS concluída.
+ * O MOTOR do fluxo automático de alimentação (pedido do usuário, 16/07):
+ *
+ *  - lançou a alimentação na OS  -> a Requisicao nasce NA HORA em
+ *    status='pedido' (primeira fase, em aberto — dá pra descontar em folha
+ *    se precisar), com os dados da OS, o técnico como solicitante e o valor;
+ *  - editou valor/técnico/nota   -> a requisição em aberto acompanha;
+ *  - removeu o item da OS        -> a requisição em aberto vai pra lixeira
+ *    (reversível; a lixeira não exclui);
+ *  - CONCLUIU a OS (promover)    -> vira status='financeiro' com o valor
+ *    ATUALIZADO e a nota anexada (foto_nf).
+ *
+ * Idempotente: casa requisição <-> item pela DATA (uma despesa por dia por
+ * OS; dois itens no mesmo dia somam). Requisição MANUAL de Alimentação na OS
+ * desliga o automático (o humano venceu). Requisição já em 'financeiro'
+ * nunca é rebaixada nem tem valor mexido fora da conclusão (só ganha nota).
  */
-export async function registrarAlimentacaoItem(
+export async function sincronizarAlimentacaoOS(
   idOrdem: string,
-  item: AlimentacaoItem,
-): Promise<{ requisicaoId: number | null; criada: boolean; motivo?: string }> {
+  opts?: { promover?: boolean },
+): Promise<SyncAlimentacaoResult> {
+  const vazio: SyncAlimentacaoResult = { criadas: 0, atualizadas: 0, promovidas: 0, removidas: 0, pulado: true };
+
   const { data: osRes } = await supabase
     .from(TBL_OS)
-    .select("Id_Ordem, Status, Os_Tecnico, Os_Tecnico2, Alimentacoes, Projeto, Cnpj_Cliente, Os_Cliente, Data")
+    .select("Id_Ordem, Status, Os_Tecnico, Os_Tecnico2, Alimentacoes, Alimentacao_Tecnico, Alimentacao_Valor, Projeto, Cnpj_Cliente, Os_Cliente, Data")
     .eq("Id_Ordem", idOrdem)
     .limit(1);
-  if (!osRes?.length) return { requisicaoId: null, criada: false, motivo: `OS ${idOrdem} não encontrada` };
+  if (!osRes?.length) return { ...vazio, motivoPulado: `OS ${idOrdem} não encontrada` };
   const os = osRes[0] as OSMin;
-
-  if (!(item.valor > 0)) {
-    return { requisicaoId: null, criada: false, motivo: "Lance o VALOR da alimentação antes — a despesa precisa dele." };
-  }
+  const promover = opts?.promover ?? (os.Status || "").trim() === "Concluída";
 
   // manual existente vence (o humano já cuidou)
   const { data: manual } = await supabase
@@ -148,99 +176,156 @@ export async function registrarAlimentacaoItem(
     .not("status", "in", '("lixeira","cancelada")')
     .limit(1);
   if (manual?.length) {
-    return { requisicaoId: manual[0].id, criada: false, motivo: `Já existe requisição manual de Alimentação (#${manual[0].id}) nesta OS` };
+    return { ...vazio, motivoPulado: `Já há requisição manual de Alimentação (#${manual[0].id})` };
   }
 
-  // auto existente pra mesma data+valor -> só anexa o recibo nela
-  const dataItem = item.data || (os.Data || new Date().toISOString().slice(0, 10));
-  const { data: autos } = await supabase
-    .from("Requisicao")
-    .select("id, data, valor_despeza, foto_nf")
-    .eq("ordem_servico", idOrdem)
-    .eq("origem", "auto_alimentacao_os");
-  const existente = (autos || []).find(
-    (r: any) => String(r.data) === dataItem && parseValor(r.valor_despeza).toFixed(2) === item.valor.toFixed(2),
-  );
-  if (existente) {
-    const fotoNf = fotoNfDe(item.foto);
-    if (fotoNf && fotoNf !== existente.foto_nf) {
-      await supabase.from("Requisicao").update({ foto_nf: fotoNf }).eq("id", existente.id);
-    }
-    return { requisicaoId: existente.id, criada: false, motivo: "Despesa já existia — recibo anexado nela" };
-  }
-
-  const id = await criarRequisicaoAlimentacao(os, { ...item, data: dataItem });
-  return { requisicaoId: id, criada: id != null, motivo: id == null ? "Falha ao criar a requisição" : undefined };
-}
-
-export async function registrarAlimentacaoOS(idOrdem: string): Promise<RegistroAlimentacaoResult> {
-  // 1) Carregar OS
-  const { data: osRes } = await supabase
-    .from(TBL_OS)
-    .select("Id_Ordem, Status, Os_Tecnico, Os_Tecnico2, Alimentacoes, Alimentacao_Tecnico, Alimentacao_Valor, Projeto, Cnpj_Cliente, Os_Cliente, Data")
-    .eq("Id_Ordem", idOrdem)
-    .limit(1);
-
-  if (!osRes || !osRes.length) {
-    return { criada: false, criadas: 0, pulado: true, motivoPulado: `OS ${idOrdem} não encontrada` };
-  }
-  const os = osRes[0] as OSMin;
-
-  if ((os.Status || "").trim() !== "Concluída") {
-    return { criada: false, criadas: 0, pulado: true, motivoPulado: `Status atual="${os.Status}" (esperado: Concluída)` };
-  }
-
-  // 2) Montar a lista de alimentações (array novo, ou fallback do campo antigo)
+  // itens da OS (compat: campo agregado antigo só entra na conclusão, como antes)
   let lista = normalizarAlimentacoes(os.Alimentacoes);
-  if (lista.length === 0) {
+  if (lista.length === 0 && promover) {
     const valorAgg = parseValor(os.Alimentacao_Valor);
     if (os.Alimentacao_Tecnico && valorAgg > 0) {
-      lista = [{ data: (os.Data || new Date().toISOString().slice(0, 10)), valor: valorAgg, tecnicos: [os.Os_Tecnico || "Sistema"], no_pdf: false }];
+      lista = [{ data: (os.Data || new Date().toISOString().slice(0, 10)), valor: valorAgg, tecnicos: [os.Os_Tecnico || "Sistema"], no_pdf: false, foto: null }];
     }
   }
-  if (lista.length === 0) {
-    return { criada: false, criadas: 0, pulado: true, motivoPulado: "OS sem alimentação a registrar" };
+
+  // agrupa por DATA (a chave do casamento requisição<->item)
+  const porData = new Map<string, AlimentacaoItem>();
+  for (const item of lista) {
+    if (!(item.valor > 0)) continue; // nota sem valor lançado ainda não é despesa
+    const dataItem = item.data || (os.Data || new Date().toISOString().slice(0, 10));
+    const atual = porData.get(dataItem);
+    porData.set(dataItem, atual
+      ? { ...atual, valor: atual.valor + item.valor, foto: atual.foto || item.foto }
+      : { ...item, data: dataItem });
   }
 
-  // 3) Se já há Requisição MANUAL tipo='Alimentação' vinculada, o usuário já cuidou — não cria nada
-  const { data: existenteManual } = await supabase
+  const { data: autos } = await supabase
+    .from("Requisicao")
+    .select("id, data, valor_despeza, foto_nf, status, solicitante, obs")
+    .eq("ordem_servico", idOrdem)
+    .eq("origem", "auto_alimentacao_os")
+    .not("status", "in", '("lixeira","cancelada")');
+
+  const resumo: SyncAlimentacaoResult = { criadas: 0, atualizadas: 0, promovidas: 0, removidas: 0, pulado: false };
+  const agora = new Date();
+
+  for (const [dataItem, item] of porData) {
+    const existente = (autos || []).find((r: any) => String(r.data).slice(0, 10) === dataItem);
+    if (!existente) {
+      const id = await criarRequisicaoAlimentacao(os, item, promover ? "financeiro" : "pedido");
+      if (id != null) { resumo.criadas++; resumo.ultimoId = id; }
+      continue;
+    }
+
+    const patch: Record<string, unknown> = {};
+    const jaFinanceiro = String(existente.status).toLowerCase() === "financeiro";
+    const valorNovo = item.valor.toFixed(2).replace(".", ",");
+    // valor/solicitante acompanham enquanto em aberto — e na conclusão (o
+    // "atualiza o valor junto da nota" do pedido); financeiro fora da
+    // conclusão não é mexido
+    if ((!jaFinanceiro || promover) && parseValor(existente.valor_despeza).toFixed(2) !== item.valor.toFixed(2)) {
+      patch.valor_despeza = valorNovo;
+    }
+    const solicitante = item.tecnicos[0] || os.Os_Tecnico || "Sistema";
+    if (!jaFinanceiro && existente.solicitante !== solicitante) patch.solicitante = solicitante;
+    const fotoNf = fotoNfDe(item.foto);
+    if (fotoNf && fotoNf !== existente.foto_nf) patch.foto_nf = fotoNf;
+    if (promover && !jaFinanceiro) {
+      patch.status = "financeiro";
+      patch.enviado_financeiro_data = agora.toISOString();
+    }
+
+    if (Object.keys(patch).length > 0) {
+      const { error } = await supabase.from("Requisicao").update(patch).eq("id", existente.id);
+      if (!error) {
+        if (patch.status === "financeiro") resumo.promovidas++;
+        else resumo.atualizadas++;
+      }
+    }
+    resumo.ultimoId = existente.id;
+  }
+
+  // item saiu da OS -> requisição EM ABERTO vai pra lixeira (nunca a financeiro)
+  for (const r of autos || []) {
+    const st = String(r.status).toLowerCase();
+    if (st !== "pedido" && st !== "aguardando") continue;
+    if (porData.has(String(r.data).slice(0, 10))) continue;
+    const { error } = await supabase
+      .from("Requisicao")
+      .update({ status: "lixeira", obs: `${r.obs || ""}\n[auto] Item de alimentação removido da OS ${idOrdem} — despesa arquivada na lixeira.`.trim() })
+      .eq("id", r.id);
+    if (!error) resumo.removidas++;
+  }
+
+  resumo.pulado = resumo.criadas + resumo.atualizadas + resumo.promovidas + resumo.removidas === 0;
+  if (resumo.pulado) resumo.motivoPulado = porData.size === 0 ? "OS sem alimentação a registrar" : "Nada novo a registrar";
+  return resumo;
+}
+
+/**
+ * Anexo de nota pelo admin: o chamador já gravou item.foto na OS — aqui só
+ * roda o sync e devolve o estado da requisição daquele dia (pra mensagem).
+ */
+export async function registrarAlimentacaoItem(
+  idOrdem: string,
+  item: AlimentacaoItem,
+): Promise<{ requisicaoId: number | null; criada: boolean; status?: string; motivo?: string }> {
+  if (!(item.valor > 0)) {
+    await sincronizarAlimentacaoOS(idOrdem); // ainda sincroniza os outros dias
+    return { requisicaoId: null, criada: false, motivo: "Nota guardada — lance o VALOR da alimentação pra despesa abrir." };
+  }
+  const antes = await supabase
     .from("Requisicao")
     .select("id")
     .eq("ordem_servico", idOrdem)
-    .eq("tipo", "Alimentação")
-    .neq("origem", "auto_alimentacao_os")
+    .eq("origem", "auto_alimentacao_os")
+    .eq("data", item.data)
     .not("status", "in", '("lixeira","cancelada")')
     .limit(1);
-  if (existenteManual && existenteManual.length > 0) {
-    return { criada: false, criadas: 0, pulado: true, motivoPulado: `Já há requisição manual de Alimentação (#${existenteManual[0].id})` };
+  const existiaAntes = !!antes.data?.length;
+
+  const sync = await sincronizarAlimentacaoOS(idOrdem);
+  if (sync.motivoPulado?.includes("manual")) {
+    return { requisicaoId: null, criada: false, motivo: sync.motivoPulado };
   }
 
-  // 4) Despesas auto já existentes (idempotência por data+valor)
-  const { data: existentesAuto } = await supabase
+  const { data: depois } = await supabase
     .from("Requisicao")
-    .select("id, data, valor_despeza")
+    .select("id, status")
     .eq("ordem_servico", idOrdem)
-    .eq("origem", "auto_alimentacao_os");
-  const jaTem = new Set(
-    (existentesAuto || []).map((r: any) => `${String(r.data)}|${parseValor(r.valor_despeza).toFixed(2)}`)
-  );
+    .eq("origem", "auto_alimentacao_os")
+    .eq("data", item.data)
+    .not("status", "in", '("lixeira","cancelada")')
+    .limit(1);
+  const req = depois?.[0];
+  return {
+    requisicaoId: req?.id ?? null,
+    criada: !existiaAntes && !!req,
+    status: req?.status,
+    motivo: !req ? "Não consegui localizar/criar a despesa deste dia." : existiaAntes ? "Despesa já existia — recibo anexado nela." : undefined,
+  };
+}
 
-  const agora = new Date();
-  let criadas = 0;
-  let ultimoId: number | undefined;
-
-  for (const item of lista) {
-    if (!(item.valor > 0)) continue; // item só com foto (nota sem valor lançado) não vira despesa
-    const dataItem = item.data || (os.Data || agora.toISOString().slice(0, 10));
-    const chave = `${dataItem}|${item.valor.toFixed(2)}`;
-    if (jaTem.has(chave)) continue;
-
-    const id = await criarRequisicaoAlimentacao(os, { ...item, data: dataItem });
-    if (id == null) continue;
-    criadas++;
-    ultimoId = id;
-    jaTem.add(chave);
+export async function registrarAlimentacaoOS(idOrdem: string): Promise<RegistroAlimentacaoResult> {
+  // Wrapper de compatibilidade (3 call sites: PATCH da OS, envio ao Omie e
+  // atualizar-relatorio): a CONCLUSÃO da OS agora é "promover" — as despesas
+  // abertas na fase Pedido viram 'financeiro' com valor atualizado e nota
+  // anexada; o que faltar é criado direto em 'financeiro'.
+  const { data: osRes } = await supabase.from(TBL_OS).select("Id_Ordem, Status").eq("Id_Ordem", idOrdem).limit(1);
+  if (!osRes?.length) {
+    return { criada: false, criadas: 0, pulado: true, motivoPulado: `OS ${idOrdem} não encontrada` };
+  }
+  if ((osRes[0].Status || "").trim() !== "Concluída") {
+    return { criada: false, criadas: 0, pulado: true, motivoPulado: `Status atual="${osRes[0].Status}" (esperado: Concluída)` };
   }
 
-  return { criada: criadas > 0, criadas, pulado: criadas === 0, motivoPulado: criadas === 0 ? "Nada novo a registrar" : undefined, requisicaoId: ultimoId };
+  const sync = await sincronizarAlimentacaoOS(idOrdem, { promover: true });
+  const total = sync.criadas + sync.promovidas;
+  return {
+    criada: total > 0,
+    criadas: total,
+    pulado: sync.pulado,
+    motivoPulado: sync.motivoPulado,
+    requisicaoId: sync.ultimoId,
+  };
 }

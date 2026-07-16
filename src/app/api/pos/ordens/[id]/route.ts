@@ -325,18 +325,31 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     await supabase.from("pedidos").update({ Tipo_Pedido: "Remessa" }).eq("Id_Os", idOs);
   }
 
-  // Se a OS acabou de ser concluída, registra a despesa de alimentação como Requisicao (fluxo padrão)
+  // Alimentação -> Requisicao automática:
+  //  - OS concluída: promove pra 'financeiro' (valor atualizado + nota)
+  //  - OS em andamento: sincroniza as despesas EM ABERTO (fase Pedido) —
+  //    lançou/editou/removeu alimentação, a requisição acompanha
   if (dados.status === "Concluída") {
     try {
       const { registrarAlimentacaoOS } = await import("@/lib/pos/alimentacao-os");
       const alim = await registrarAlimentacaoOS(idOs);
       if (alim.criada) {
-        console.log(`[alimentacao-os] OS ${idOs} → Requisicao #${alim.requisicaoId} criada (financeiro)`);
+        console.log(`[alimentacao-os] OS ${idOs} → ${alim.criadas} despesa(s) no financeiro (última #${alim.requisicaoId})`);
       } else if (alim.motivoPulado) {
         console.log(`[alimentacao-os] OS ${idOs} pulado: ${alim.motivoPulado}`);
       }
     } catch (e) {
       console.error(`[alimentacao-os] OS ${idOs} falhou (ignorado):`, e instanceof Error ? e.message : e);
+    }
+  } else if (Array.isArray(dados.alimentacoes)) {
+    try {
+      const { sincronizarAlimentacaoOS } = await import("@/lib/pos/alimentacao-os");
+      const sync = await sincronizarAlimentacaoOS(idOs);
+      if (!sync.pulado) {
+        console.log(`[alimentacao-os] OS ${idOs} sync: +${sync.criadas} ~${sync.atualizadas} -${sync.removidas}`);
+      }
+    } catch (e) {
+      console.error(`[alimentacao-os] OS ${idOs} sync falhou (ignorado):`, e instanceof Error ? e.message : e);
     }
   }
 

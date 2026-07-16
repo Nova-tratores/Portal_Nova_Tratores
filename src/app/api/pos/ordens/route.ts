@@ -447,6 +447,17 @@ export async function POST(req: NextRequest) {
     await supabase.from("pedidos").update({ Tipo_Pedido: "Remessa" }).eq("Id_Os", newId);
   }
 
+  // Alimentação já lançada na criação -> abre a(s) despesa(s) na fase Pedido
+  if (Array.isArray(dados.alimentacoes) && dados.alimentacoes.length > 0) {
+    try {
+      const { sincronizarAlimentacaoOS } = await import("@/lib/pos/alimentacao-os");
+      const sync = await sincronizarAlimentacaoOS(newId);
+      if (!sync.pulado) console.log(`[alimentacao-os] OS ${newId} criada com ${sync.criadas} despesa(s) em aberto`);
+    } catch (e) {
+      console.error(`[alimentacao-os] OS ${newId} sync falhou (ignorado):`, e instanceof Error ? e.message : e);
+    }
+  }
+
   const userNameLog = dados.userName || "Sistema";
   await registrarLog(newId, "Ordem Criada", "Orçamento", null, userNameLog);
   if (ppvGerado) {

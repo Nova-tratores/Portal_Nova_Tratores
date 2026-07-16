@@ -79,6 +79,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     foto_url: fotoUrl,
     requisicao_id: resultado.requisicaoId,
     criada: resultado.criada,
+    status: resultado.status,
     aviso: resultado.criada ? undefined : resultado.motivo,
   });
 }

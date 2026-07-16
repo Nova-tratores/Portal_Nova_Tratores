@@ -155,7 +155,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
       if (!r.ok) { alert(d.error || "Falha ao anexar a nota."); return; }
       setAlimentacoes(prev => prev.map((x, i) => i === idx ? { ...x, foto: d.foto_url } : x));
       if (d.criada) {
-        alert(`Nota anexada — despesa de alimentação #${d.requisicao_id} criada em nome do técnico e já ENVIADA PRO FINANCEIRO.`);
+        alert(`Nota anexada — despesa de alimentação #${d.requisicao_id} criada em nome do técnico${d.status === 'financeiro' ? ' e já ENVIADA PRO FINANCEIRO' : ', EM ABERTO na fase Pedido (vai pro financeiro quando a OS concluir)'}.`);
       } else {
         alert(`Nota anexada. ${d.aviso || ""}`.trim());
       }
