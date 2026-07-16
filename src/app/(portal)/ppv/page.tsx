@@ -167,11 +167,16 @@ function PPVApp() {
 
   // Handlers
   const drawerDirty = useRef(false);
-  function openCardDetails(id: string) { setDetailsPPVId(id); setDetailsOpen(true); drawerDirty.current = false; }
+  function openCardDetails(id: string) {
+    setDetailsPPVId(id); setDetailsOpen(true); drawerDirty.current = false;
+    // Reflete o card aberto na URL (dá pra linkar/favoritar/abrir direto)
+    if (typeof window !== "undefined") window.history.replaceState(null, "", `/ppv?id=${encodeURIComponent(id)}`);
+  }
   function markDrawerDirty() { drawerDirty.current = true; }
   function closeDetails() {
     setDetailsOpen(false);
     setDetailsPPVId(null);
+    if (typeof window !== "undefined") window.history.replaceState(null, "", activeTab === "catalogoTab" ? "/ppv/catalogo" : "/ppv");
     if (drawerDirty.current) carregarKanban();
   }
   function handleBuscaOS(ctx: "main" | "modal") { osContext.current = ctx; setBuscaOSOpen(true); }
