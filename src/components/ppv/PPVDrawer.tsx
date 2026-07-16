@@ -88,7 +88,8 @@ export default function PPVDrawer({
   const [editandoPrecoCod, setEditandoPrecoCod] = useState<string | null>(null);
   const [editandoPrecoVal, setEditandoPrecoVal] = useState("");
   const [salvandoPreco, setSalvandoPreco] = useState(false);
-  const [desconto, setDesconto] = useState(0);
+  const [desconto, setDesconto] = useState(0); // sempre guardado em % (fonte de verdade)
+  const [descontoModo, setDescontoModo] = useState<"pct" | "valor">("pct");
 
   // Carregar listas para dropdown de substituto
   useEffect(() => {
@@ -778,27 +779,33 @@ export default function PPVDrawer({
                     )}
                   </div>
 
-                  {/* ── Desconto ── */}
+                  {/* ── Desconto (% ou valor) ── */}
                   <div className="ppv-card">
                     <div className="ppv-card-title"><i className="fas fa-percent" /> Desconto</div>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <input
-                        type="number"
-                        value={desconto || ""}
-                        onChange={(e) => {
-                          const v = parseFloat(e.target.value);
-                          setDesconto(isNaN(v) ? 0 : Math.min(100, Math.max(0, v)));
-                        }}
-                        min={0}
-                        max={100}
-                        step={0.5}
-                        placeholder="0"
-                        style={{ width: 90, textAlign: "center", fontWeight: 700, marginBottom: 0 }}
-                      />
-                      <span style={{ fontWeight: 700, color: "var(--ppv-text-light)" }}>%</span>
+                      {/* toggle % / R$ */}
+                      <div style={{ display: "flex", background: "#F1F5F9", borderRadius: 8, padding: 3 }}>
+                        {(["pct", "valor"] as const).map((m) => (
+                          <button key={m} type="button" onClick={() => setDescontoModo(m)}
+                            style={{ padding: "6px 12px", borderRadius: 6, border: "none", fontSize: 13, fontWeight: 800, cursor: "pointer",
+                              background: descontoModo === m ? "#fff" : "transparent", color: descontoModo === m ? "#dc2626" : "#64748B",
+                              boxShadow: descontoModo === m ? "0 1px 3px rgba(0,0,0,0.1)" : "none" }}>
+                            {m === "pct" ? "%" : "R$"}
+                          </button>
+                        ))}
+                      </div>
+                      {descontoModo === "pct" ? (
+                        <input type="number" value={desconto || ""} min={0} max={100} step={0.5} placeholder="0"
+                          onChange={(e) => { const v = parseFloat(e.target.value); setDesconto(isNaN(v) ? 0 : Math.min(100, Math.max(0, v))); }}
+                          style={{ width: 100, textAlign: "center", fontWeight: 700, marginBottom: 0 }} />
+                      ) : (
+                        <input type="number" value={valorDesconto ? Number(valorDesconto.toFixed(2)) : ""} min={0} max={totalSemDesconto} step={1} placeholder="0,00"
+                          onChange={(e) => { const v = parseFloat(e.target.value); const val = isNaN(v) ? 0 : Math.min(totalSemDesconto, Math.max(0, v)); setDesconto(totalSemDesconto > 0 ? (val / totalSemDesconto) * 100 : 0); }}
+                          style={{ width: 120, textAlign: "center", fontWeight: 700, marginBottom: 0 }} />
+                      )}
                       {desconto > 0 && (
                         <span style={{ fontSize: 13, color: "#10B981", fontWeight: 700 }}>
-                          -{formatarMoeda(valorDesconto)}
+                          {descontoModo === "pct" ? `-${formatarMoeda(valorDesconto)}` : `${desconto.toFixed(1).replace(".", ",")}%`}
                         </span>
                       )}
                     </div>
