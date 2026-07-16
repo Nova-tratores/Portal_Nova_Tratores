@@ -22,9 +22,18 @@ const CLASSE_LABEL: Record<string, string> = {
   estacionamento: 'Estacionamento', descarga: 'Descarga',
 };
 
+// cores dos tipos de visita — o mesmo padrão do supervisor de vendas
+const TIPO_CORES: Record<string, { bg: string; text: string }> = {
+  presencial: { bg: '#DBEAFE', text: '#1D4ED8' },
+  mensagem: { bg: '#D1FAE5', text: '#059669' },
+  telefonema: { bg: '#FEF3C7', text: '#D97706' },
+  email: { bg: '#EDE9FE', text: '#7C3AED' },
+};
+
 export default function FrotaMapaPage() {
   const [carros, setCarros] = useState<CarroMapa[]>([]);
   const [locais, setLocais] = useState<LocalPin[]>([]);
+  const [visitas, setVisitas] = useState<any[]>([]);
   const [erro, setErro] = useState('');
 
   useEffect(() => {
@@ -74,6 +83,24 @@ export default function FrotaMapaPage() {
     })();
   }, []);
 
+  // Visitas dos VENDEDORES (últimos 7 dias, com coordenada) — o cadastro do
+  // comercial (vw_visitas_detalhadas) vira pins no mapa, com toggle próprio.
+  useEffect(() => {
+    (async () => {
+      try {
+        const de = new Date(Date.now() - 7 * 86400_000).toISOString().slice(0, 10);
+        const { data } = await supabase
+          .from('vw_visitas_detalhadas')
+          .select('id, vendedor_nome, cliente_nome, tipo, data_visita, latitude, longitude')
+          .gte('data_visita', de)
+          .not('latitude', 'is', null)
+          .order('data_visita', { ascending: false })
+          .limit(500);
+        setVisitas((data || []).filter((v) => Number(v.latitude) && Number(v.longitude)));
+      } catch { /* camada opcional */ }
+    })();
+  }, []);
+
   // Quem estava com o carro no dia — vw_frota_uso_diario (check-in dos
   // vendedores + check-in diário do app dos MECÂNICOS). Aparece na timeline.
   const resolverMotorista = useCallback(async (placa: string, data: string) => {
@@ -101,7 +128,16 @@ export default function FrotaMapaPage() {
       {/* O MapaCarros usa height:100% — sem um pai com ALTURA EXPLÍCITA o
           Leaflet monta num container de 0px e a tela fica em branco. */}
       <div style={{ width: '100%', height: 'calc(100vh - 230px)', minHeight: 480, borderRadius: 14, overflow: 'hidden', border: '1px solid var(--portal-border)' }}>
-        <MapaCarros carros={carros as any} fontePosicoes="frota" tituloPainel="FROTA RASTREADA" locais={locais} resolverMotorista={resolverMotorista} />
+        <MapaCarros
+          carros={carros as any}
+          fontePosicoes="frota"
+          tituloPainel="FROTA RASTREADA"
+          locais={locais}
+          visitas={visitas}
+          tipoCores={TIPO_CORES}
+          fmtVisita={(iso) => { try { return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); } catch { return iso || ''; } }}
+          resolverMotorista={resolverMotorista}
+        />
       </div>
     </div>
   );

@@ -63,6 +63,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
   const visitasLayerRef = useRef<any>(null)
   const locaisLayerRef = useRef<any>(null)
   const [mostrarLocais, setMostrarLocais] = useState(true)
+  const [mostrarVisitas, setMostrarVisitas] = useState(true)
   const onVisitaClickRef = useRef(onVisitaClick)
   onVisitaClickRef.current = onVisitaClick
   const selecionarCarroRef = useRef<(placa: string, nome: string) => void>(() => {})
@@ -165,6 +166,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
     if (!mapInstance.current || !visitasLayerRef.current || !ready) return
     const L = (window as any).L
     visitasLayerRef.current.clearLayers()
+    if (!mostrarVisitas) return
     const fv = fmtVisita || ((iso: string) => { try { return new Date(iso).toLocaleString('pt-BR') } catch { return iso || '' } })
     const corMarcador: Record<string, string> = { presencial: '#1D4ED8', mensagem: '#059669', telefonema: '#D97706', email: '#7C3AED' }
     for (const v of visitas) {
@@ -180,19 +182,24 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
       })
       const marker = L.marker([v.latitude, v.longitude], { icon })
       const popupId = `sv-visit-${v.id}`
+      // o botão "Ver detalhes" só existe quando a tela passou o handler
+      // (o supervisor passa; o mapa da frota mostra só o popup informativo)
+      const temHandler = !!onVisitaClick
       marker.bindPopup(`
         <div style="font-size:14px;font-weight:700">${v.vendedor_nome || '-'}</div>
         <div style="font-size:12px;color:#64748B">${fv(v.data_visita)}</div>
         <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11px;background:${tipoCores[v.tipo]?.bg || '#F1F5F9'};color:${tipoCores[v.tipo]?.text || '#475569'};margin-top:4px">${v.tipo}</span>
         ${v.cliente_nome ? `<div style="font-size:12px;margin-top:4px;font-weight:600">${v.cliente_nome}</div>` : ''}
-        <button id="${popupId}" style="margin-top:8px;width:100%;padding:6px;border:none;border-radius:6px;background:#dc2626;color:#fff;font-size:12px;font-weight:700;cursor:pointer">Ver detalhes</button>
+        ${temHandler ? `<button id="${popupId}" style="margin-top:8px;width:100%;padding:6px;border:none;border-radius:6px;background:#dc2626;color:#fff;font-size:12px;font-weight:700;cursor:pointer">Ver detalhes</button>` : ''}
       `, { maxWidth: 260 })
-      marker.on('popupopen', () => {
-        setTimeout(() => { const btn = document.getElementById(popupId); if (btn) btn.onclick = () => onVisitaClickRef.current?.(v) }, 50)
-      })
+      if (temHandler) {
+        marker.on('popupopen', () => {
+          setTimeout(() => { const btn = document.getElementById(popupId); if (btn) btn.onclick = () => onVisitaClickRef.current?.(v) }, 50)
+        })
+      }
       marker.addTo(visitasLayerRef.current)
     }
-  }, [visitas, ready, tipoCores, fmtVisita])
+  }, [visitas, ready, tipoCores, fmtVisita, mostrarVisitas, onVisitaClick])
 
   // Histórico do carro (lista de dias salvos)
   const abrirCarro = useCallback(async (placa: string, nome: string) => {
@@ -451,23 +458,42 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
         )}
       </div>
 
-      {/* Liga/desliga a camada de lugares (só aparece se a tela passou `locais`) */}
-      {locais.length > 0 && (
-        <button
-          onClick={() => setMostrarLocais((v) => !v)}
-          title={mostrarLocais ? 'Ocultar clientes e geocercas' : 'Mostrar clientes e geocercas'}
-          style={{
-            position: 'absolute', bottom: 12, right: 12, zIndex: 1000,
-            display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px',
-            borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
-            background: mostrarLocais ? '#0f766e' : 'rgba(255,255,255,0.97)',
-            color: mostrarLocais ? '#fff' : '#475569',
-            boxShadow: '0 3px 10px rgba(0,0,0,0.25)',
-          }}
-        >
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: mostrarLocais ? '#5eead4' : '#94a3b8' }} />
-          Locais ({locais.length})
-        </button>
+      {/* Liga/desliga as camadas de contexto (aparecem quando a tela passou os dados) */}
+      {(locais.length > 0 || visitas.length > 0) && (
+        <div style={{ position: 'absolute', bottom: 12, right: 12, zIndex: 1000, display: 'flex', gap: 6 }}>
+          {visitas.length > 0 && (
+            <button
+              onClick={() => setMostrarVisitas((v) => !v)}
+              title={mostrarVisitas ? 'Ocultar as visitas dos vendedores' : 'Mostrar as visitas dos vendedores'}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px',
+                borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                background: mostrarVisitas ? '#1d4ed8' : 'rgba(255,255,255,0.97)',
+                color: mostrarVisitas ? '#fff' : '#475569',
+                boxShadow: '0 3px 10px rgba(0,0,0,0.25)',
+              }}
+            >
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: mostrarVisitas ? '#93c5fd' : '#94a3b8' }} />
+              Visitas ({visitas.length})
+            </button>
+          )}
+          {locais.length > 0 && (
+            <button
+              onClick={() => setMostrarLocais((v) => !v)}
+              title={mostrarLocais ? 'Ocultar clientes e geocercas' : 'Mostrar clientes e geocercas'}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px',
+                borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                background: mostrarLocais ? '#0f766e' : 'rgba(255,255,255,0.97)',
+                color: mostrarLocais ? '#fff' : '#475569',
+                boxShadow: '0 3px 10px rgba(0,0,0,0.25)',
+              }}
+            >
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: mostrarLocais ? '#5eead4' : '#94a3b8' }} />
+              Locais ({locais.length})
+            </button>
+          )}
+        </div>
       )}
 
       {loading && (
