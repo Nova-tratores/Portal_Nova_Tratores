@@ -1090,6 +1090,37 @@ body {
 .ppv-drawer::-webkit-scrollbar-track { background: transparent; }
 .ppv-drawer::-webkit-scrollbar-thumb { background: var(--ppv-border); border-radius: 3px; }
 
+/* Coluna de ações à direita (estilo Omie) */
+.ppv-action-rail {
+  width: 208px;
+  flex-shrink: 0;
+  align-self: flex-start;
+  background: #fff;
+  border-radius: 16px;
+  margin-left: 12px;
+  padding: 14px 12px;
+  box-shadow: 0 25px 60px -12px rgba(0,0,0,0.3), 0 0 0 1px rgba(0,0,0,0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.ppv-rail-btn {
+  display: flex; align-items: center; gap: 11px;
+  padding: 11px 13px; border-radius: 10px; border: none;
+  background: transparent; color: #334155;
+  font-size: 13.5px; font-weight: 600; cursor: pointer;
+  text-align: left; width: 100%; transition: background .12s;
+  font-family: inherit;
+}
+.ppv-rail-btn i { width: 18px; text-align: center; color: #94a3b8; font-size: 15px; }
+.ppv-rail-btn:hover:not(:disabled) { background: #f1f5f9; }
+.ppv-rail-btn:disabled { opacity: .5; cursor: not-allowed; }
+.ppv-rail-btn.primary { background: #dc2626; color: #fff; margin-bottom: 4px; }
+.ppv-rail-btn.primary i { color: #fff; }
+.ppv-rail-btn.primary:hover:not(:disabled) { background: #b91c1c; }
+.ppv-rail-btn.ghost { color: #64748b; }
+.ppv-rail-sep { height: 1px; background: #eef1f6; margin: 6px 4px; }
+
 /* Header */
 .ppv-drawer-header {
   display: flex;
@@ -1159,11 +1190,11 @@ body {
 
 /* Summary card */
 .ppv-summary {
-  background: linear-gradient(135deg, var(--ppv-primary) 0%, var(--ppv-primary-dark) 100%);
-  border: none;
+  background: #fff;
+  border: 1px solid var(--ppv-border-light, #E2E8F0);
   border-radius: 14px;
-  padding: 20px 24px;
-  color: white;
+  padding: 18px 22px;
+  color: #1e293b;
 }
 .ppv-summary-main {
   display: flex;
@@ -1183,13 +1214,13 @@ body {
 }
 .ppv-summary-name {
   font-size: 17px;
-  font-weight: 600;
-  color: #fff;
+  font-weight: 700;
+  color: #0f172a;
   word-break: break-word;
 }
 .ppv-summary-sub {
   font-size: 13px;
-  color: rgba(255,255,255,0.9);
+  color: #64748b;
   font-weight: 500;
   letter-spacing: 0.2px;
   margin-top: 2px;
@@ -1197,16 +1228,16 @@ body {
 .ppv-summary-total {
   font-size: 24px;
   font-weight: 800;
-  color: #fff;
+  color: #0f172a;
   letter-spacing: -0.5px;
 }
 .ppv-summary-details {
   display: flex;
   gap: 18px;
   padding-top: 14px;
-  border-top: 1px solid rgba(255,255,255,0.12);
+  border-top: 1px solid #eef1f6;
   font-size: 12px;
-  color: rgba(255,255,255,0.6);
+  color: #64748b;
   font-weight: 500;
 }
 .ppv-summary-details i { margin-right: 5px; }
@@ -3124,9 +3155,9 @@ body {
   display: flex;
   gap: 18px;
   padding-top: 14px;
-  border-top: 1px solid rgba(255,255,255,0.12);
+  border-top: 1px solid #eef1f6;
   font-size: 12px;
-  color: rgba(255,255,255,0.6);
+  color: #64748b;
   font-weight: 500;
 }
 

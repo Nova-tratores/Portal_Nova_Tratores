@@ -389,12 +389,6 @@ export default function PPVDrawer({
                 </select>
               </div>
               <div className="ppv-drawer-header-actions">
-                <button className="ppv-btn-ghost" onClick={gerarPDF} disabled={gerando}>
-                  <i className={`fas ${gerando ? "fa-spinner fa-spin" : "fa-print"}`} /> {gerando ? "Gerando..." : "Imprimir"}
-                </button>
-                <button className="ppv-btn-ghost" onClick={() => setShowLogs(!showLogs)}>
-                  <i className="fas fa-history" /> Log
-                </button>
                 <button className="ppv-btn-close" onClick={onClose}>
                   <i className="fas fa-times" />
                 </button>
@@ -421,15 +415,25 @@ export default function PPVDrawer({
                             {clienteDoc && <div className="ppv-summary-sub">{clienteDoc}</div>}
                           </div>
                         </div>
-                        <div className="ppv-summary-total">
-                          {formatarMoeda(totalFinal)}
-                        </div>
                       </div>
                       <div className="ppv-summary-details">
                         <span><i className="fas fa-user-cog" /> {tecnico || "..."}</span>
                         <span><i className="far fa-calendar" /> {formatarDataFrontend(details.data)}</span>
                         <span><i className="fas fa-tag" /> {tipoPedido}</span>
                         {modalOSDisplay && <span><i className="fas fa-link" /> {modalOSDisplay}</span>}
+                      </div>
+                      {/* Faixa de totais estilo Omie */}
+                      <div style={{ display: "grid", gridTemplateColumns: valorDesconto > 0 ? "1fr 1fr 1fr" : "1fr 1fr", gap: 10, marginTop: 14 }}>
+                        {[
+                          { rot: "Total de Mercadorias", val: formatarMoeda(totalSemDesconto), forte: false },
+                          ...(valorDesconto > 0 ? [{ rot: `Desconto${desconto > 0 ? ` (${desconto.toFixed(1).replace(".", ",")}%)` : ""}`, val: "-" + formatarMoeda(valorDesconto), forte: false }] : []),
+                          { rot: "Valor Total do Pedido", val: formatarMoeda(totalFinal), forte: true },
+                        ].map((c, i) => (
+                          <div key={i} style={{ background: c.forte ? "#FEF2F2" : "#F8FAFC", border: `1px solid ${c.forte ? "#FECACA" : "#E2E8F0"}`, borderRadius: 10, padding: "9px 13px" }}>
+                            <div style={{ fontSize: 10.5, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: 0.4 }}>{c.rot}</div>
+                            <div style={{ fontSize: c.forte ? 19 : 15, fontWeight: 800, marginTop: 2, color: c.forte ? "#dc2626" : "#0f172a" }}>{c.val}</div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}
@@ -773,15 +777,28 @@ export default function PPVDrawer({
                 </div>
 
                 {/* ── Footer ── */}
-                <div className="ppv-drawer-footer">
-                  <button className="ppv-btn-cancel" onClick={onClose}>Cancelar</button>
-                  <button className="ppv-btn-save" onClick={salvar} disabled={salvando || !podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : undefined}>
-                    {salvando ? "Salvando..." : "Salvar Alterações"}
-                  </button>
-                </div>
               </>
             )}
           </div>
+
+          {/* ── Coluna de ações (estilo Omie) ── */}
+          {!loadingData && (
+            <div className="ppv-action-rail">
+              <button className="ppv-rail-btn primary" onClick={salvar} disabled={salvando || !podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : undefined}>
+                <i className={`fas ${salvando ? "fa-spinner fa-spin" : "fa-save"}`} /> {salvando ? "Salvando..." : "Salvar"}
+              </button>
+              <button className="ppv-rail-btn" onClick={gerarPDF} disabled={gerando}>
+                <i className={`fas ${gerando ? "fa-spinner fa-spin" : "fa-print"}`} /> {gerando ? "Gerando..." : "Imprimir"}
+              </button>
+              <button className="ppv-rail-btn" onClick={() => setShowLogs(!showLogs)}>
+                <i className="fas fa-history" /> Histórico
+              </button>
+              <div className="ppv-rail-sep" />
+              <button className="ppv-rail-btn ghost" onClick={onClose}>
+                <i className="fas fa-times" /> Fechar
+              </button>
+            </div>
+          )}
 
           {/* ── Log Panel ── */}
           {showLogs && (
