@@ -121,6 +121,10 @@ export interface AlimentacaoItem {
   valor: number;         // valor total da alimentação
   tecnicos: string[];    // 1 ou 2 nomes (técnicos da OS)
   no_pdf: boolean;       // mostrar no PDF do cliente
+  // nota/recibo anexado pelo ADMIN no portal (URL pública). O técnico anexa
+  // pelo app dele (Ordem_Servico_Tecnicos.AlmocosFotos); este é o do portal
+  // e vira o foto_nf da despesa automática de alimentação.
+  foto?: string | null;
 }
 
 export interface OSFormData {

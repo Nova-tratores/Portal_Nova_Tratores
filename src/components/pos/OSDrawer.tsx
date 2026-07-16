@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { VALOR_HORA, VALOR_KM, TEXT_TEMPLATE, PHASES } from "@/lib/pos/constants";
+import { authHeaders } from "@/lib/auth/client";
 import type { ClienteOption, ClienteDados, Produto, AlimentacaoItem } from "@/lib/pos/types";
 import { MSG_SEM_PERMISSAO } from "@/lib/permissoes/ui";
 import SearchModal from "./SearchModal";
@@ -131,6 +132,35 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   const [alimentacoes, setAlimentacoes] = useState<AlimentacaoItem[]>([]);
   // Fotos das notas de almoço enviadas pelo técnico, casadas por dia ({ data → foto }).
   const [fotosAlmocoDia, setFotosAlmocoDia] = useState<Record<string, string>>({});
+  // upload da NOTA pelo admin — anexou, a despesa automática abre NA HORA
+  const [enviandoNota, setEnviandoNota] = useState<number | null>(null);
+  const notaFileRef = useRef<HTMLInputElement>(null);
+  const notaIdxRef = useRef<number>(-1);
+
+  const anexarNota = async (idx: number, file: File | null) => {
+    if (!file || !osId) return;
+    const item = alimentacoes[idx];
+    if (!item?.data) { alert("Informe a DATA da alimentação antes de anexar a nota."); return; }
+    setEnviandoNota(idx);
+    try {
+      const fd = new FormData();
+      fd.set("file", file);
+      fd.set("data", item.data);
+      fd.set("valor", String(item.valor || 0));
+      fd.set("tecnicos", JSON.stringify(item.tecnicos || []));
+      const r = await fetch(`/api/pos/ordens/${osId}/alimentacao-nota`, {
+        method: "POST", headers: await authHeaders(), body: fd,
+      });
+      const d = await r.json();
+      if (!r.ok) { alert(d.error || "Falha ao anexar a nota."); return; }
+      setAlimentacoes(prev => prev.map((x, i) => i === idx ? { ...x, foto: d.foto_url } : x));
+      if (d.criada) {
+        alert(`Nota anexada — despesa de alimentação #${d.requisicao_id} criada em nome do técnico e já ENVIADA PRO FINANCEIRO.`);
+      } else {
+        alert(`Nota anexada. ${d.aviso || ""}`.trim());
+      }
+    } catch (e) { alert(String(e)); } finally { setEnviandoNota(null); }
+  };
   const [enviandoOmie, setEnviandoOmie] = useState(false);
   const [concluindo, setConcluindo] = useState(false);
   const [showDescontos, setShowDescontos] = useState(false);
@@ -523,7 +553,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
       gerarPPV: mode === "create" && tipoServico === "Revisão" && gerarPPV,
       servicoOficina,
       servicoInterno,
-      alimentacoes: alimentacoes.filter(a => (a.valor || 0) > 0),
+      // item com NOTA anexada mas valor ainda não lançado não pode sumir no save
+      alimentacoes: alimentacoes.filter(a => (a.valor || 0) > 0 || a.foto),
       userName,
     };
     try {
@@ -642,6 +673,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
               valor: parseFloat(a?.valor) || 0,
               tecnicos: Array.isArray(a?.tecnicos) ? a.tecnicos.filter(Boolean).slice(0, 2) : [],
               no_pdf: !!a?.no_pdf,
+              foto: typeof a?.foto === 'string' && a.foto ? a.foto : null, // nota do admin
             })));
           } else if (d.alimentacaoTecnico && parseFloat(d.alimentacaoValor || 0) > 0) {
             setAlimentacoes([{ data: (d.Data || '').slice(0, 10), valor: parseFloat(d.alimentacaoValor || 0), tecnicos: [d.tecnicoResponsavel || ''].filter(Boolean), no_pdf: !!d.alimentacaoNoPdf }]);
@@ -1351,6 +1383,18 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                         </button>
                       </div>
 
+                      {/* input escondido — o botão "anexar nota" de cada linha aponta pra cá */}
+                      <input
+                        ref={notaFileRef}
+                        type="file"
+                        accept=".pdf,image/*"
+                        style={{ display: 'none' }}
+                        onChange={(e) => {
+                          const idx = notaIdxRef.current;
+                          if (idx >= 0) anexarNota(idx, e.target.files?.[0] || null);
+                          e.target.value = '';
+                        }}
+                      />
                       {alimentacoes.length === 0 && (
                         <div style={{ marginTop: 6, fontSize: 11, color: 'var(--portal-text-muted)', fontStyle: 'italic' }}>
                           Nenhuma alimentação. Clique em &quot;Adicionar&quot;.
@@ -1393,15 +1437,30 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                               <input type="checkbox" checked={a.no_pdf} onChange={(e) => upd({ no_pdf: e.target.checked })} style={{ accentColor: '#DC2626', width: 14, height: 14 }} />
                               Mostrar no PDF
                             </label>
-                            {a.data && (fotosAlmocoDia[a.data] ? (
-                              <a href={fotosAlmocoDia[a.data]} target="_blank" rel="noreferrer" title="Nota anexada pelo técnico" style={{ display: 'block', width: 40, height: 40, borderRadius: 6, overflow: 'hidden', border: '1px solid #86EFAC', flexShrink: 0 }}>
-                                <img src={fotosAlmocoDia[a.data]} alt="Nota do almoço" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                              </a>
-                            ) : (
-                              <span title="O técnico ainda não anexou a nota deste dia" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: 6, border: '1px dashed #FCA5A5', color: '#DC2626', fontSize: 9, textAlign: 'center', lineHeight: 1.1, flexShrink: 0 }}>
-                                sem<br />nota
-                              </span>
-                            ))}
+                            {a.data && (() => {
+                              const fotoNota = a.foto || fotosAlmocoDia[a.data];
+                              if (fotoNota) {
+                                return (
+                                  <a href={fotoNota} target="_blank" rel="noreferrer" title={a.foto ? 'Nota anexada pelo portal' : 'Nota anexada pelo técnico'} style={{ display: 'block', width: 40, height: 40, borderRadius: 6, overflow: 'hidden', border: '1px solid #86EFAC', flexShrink: 0 }}>
+                                    <img src={fotoNota} alt="Nota do almoço" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                                  </a>
+                                );
+                              }
+                              // sem nota: em OS já salva, o admin anexa AQUI — e a
+                              // despesa de alimentação abre automaticamente
+                              return mode === 'edit' && osId ? (
+                                <button type="button" disabled={enviandoNota === i}
+                                  onClick={() => { notaIdxRef.current = i; notaFileRef.current?.click(); }}
+                                  title="Anexar a nota deste dia (abre a despesa de alimentação automaticamente, em nome do técnico, direto no financeiro)"
+                                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: 6, border: '1px dashed #F59E0B', background: '#FFFBEB', color: '#B45309', fontSize: 8.5, textAlign: 'center', lineHeight: 1.15, flexShrink: 0, cursor: 'pointer', fontWeight: 700 }}>
+                                  {enviandoNota === i ? <i className="fas fa-spinner fa-spin" style={{ fontSize: 12 }} /> : <><i className="fas fa-paperclip" style={{ fontSize: 10, marginBottom: 2 }} />anexar<br />nota</>}
+                                </button>
+                              ) : (
+                                <span title="O técnico ainda não anexou a nota deste dia" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: 6, border: '1px dashed #FCA5A5', color: '#DC2626', fontSize: 9, textAlign: 'center', lineHeight: 1.1, flexShrink: 0 }}>
+                                  sem<br />nota
+                                </span>
+                              );
+                            })()}
                             <button type="button" onClick={() => setAlimentacoes(prev => prev.filter((_, idx) => idx !== i))} title="Remover" style={{ marginLeft: 'auto', width: 28, height: 28, borderRadius: 6, border: '1px solid #FECACA', background: '#FEF2F2', color: '#DC2626', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end' }}>
                               <i className="fas fa-times" style={{ fontSize: 12 }} />
                             </button>
