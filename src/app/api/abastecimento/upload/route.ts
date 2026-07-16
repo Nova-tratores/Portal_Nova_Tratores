@@ -26,7 +26,7 @@ export async function POST(request: Request) {
     // identidade/permissão vêm do token (padrão de segurança do portal).
     // A chave passou a ser `frota:abastecimento:upload`; as antigas
     // (abastecimento / abastecimento:upload) continuam valendo porque o
-    // lib/permissoes/compat.ts as expande dentro do `autenticar`.
+    // (compat de chaves legadas removida em 16/07 — ninguém mais as tinha).
     const auth = await autenticar(request);
     if (!auth) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
     if (!podeFrota(auth, 'abastecimento:upload')) {

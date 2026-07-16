@@ -1,7 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import { expandirPermissoes } from '@/lib/permissoes/compat'
 
 interface Permissoes {
   id: string
@@ -34,13 +33,7 @@ export function usePermissoes(userId: string | undefined) {
           .select('*')
           .eq('user_id', userId)
           .single()
-        // Expande as chaves legadas (abastecimento -> frota:abastecimento*).
-        // Aditivo: quem tinha a permissão antiga continua com ela E ganha a nova.
-        setPermissoes(
-          data
-            ? { ...data, modulos_permitidos: expandirPermissoes(data.modulos_permitidos) }
-            : data,
-        )
+        setPermissoes(data)
       } catch {
         setPermissoes(null)
       } finally {

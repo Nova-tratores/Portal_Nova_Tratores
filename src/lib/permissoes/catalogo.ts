@@ -30,9 +30,7 @@ const GRUPO_POR_MODULO: Record<string, string> = {
   propostas: 'Comercial', feedbacks: 'Comercial', clientes: 'Comercial', 'supervisor-vendas': 'Comercial',
   // Estoque
   'consulta-estoque': 'Estoque', estoque: 'Estoque',
-  // Frota (o `abastecimento` legado fica no grupo Frota — a chave nova é
-  // `frota:abastecimento`; a antiga sobrevive via lib/permissoes/compat.ts)
-  frota: 'Frota', abastecimento: 'Frota',
+  frota: 'Frota',
   // Outros
   opa: 'Outros', avisos: 'Outros', tarefas: 'Outros', 'dashboard-agro': 'Outros', tratorilson: 'Outros',
   tickets: 'Outros',
@@ -168,8 +166,8 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
   'consulta-estoque': [
     { id: 'showroom', label: 'Showroom' },
     { id: 'patio', label: 'Pátio' },
-    // 'frota' foi absorvida pelo módulo Frota (hoje: frota:veiculos); a chave
-    // legada consulta-estoque:frota continua valendo via lib/permissoes/compat.ts
+    // 'frota' foi absorvida pelo módulo Frota (compat removida em 16/07 —
+    // ninguém mais tinha a chave legada consulta-estoque:frota)
     { id: 'remessas', label: 'Remessas' },
     { id: 'notas-entrada', label: 'Notas de Entrada' },
     { id: 'margens', label: 'Margens' },
@@ -207,13 +205,6 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     // (valor FIPE, imagem do veículo) passaram a exigir veiculos:editar.
     { id: 'documentos:editar', label: 'Documentos — enviar / excluir' },
     { id: 'abastecimento:upload', label: 'Abastecimento — importar CSV / gerir lotes' },
-  ],
-  // LEGADO: o Abastecimento virou submódulo do Frota (`frota:abastecimento`).
-  // Mantido aqui só para quem ainda tem a chave antiga gravada — o
-  // lib/permissoes/compat.ts traduz em runtime. Remover na limpeza (Fase 5).
-  abastecimento: [
-    { id: 'dashboard', label: 'Dashboard (relatórios)' },
-    { id: 'upload', label: 'Importar CSV / gerir lotes' },
   ],
   // Estoque (Visual Estoque / Consulta Omie): granular POR TELA. Chave 'estoque'
   // (id da rota = slug). A Home (/estoque, busca de produto) é o landing.

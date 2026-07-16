@@ -86,7 +86,7 @@ const navItems: NavItem[] = [
   { id: 'ajustes', name: 'Ajustes Estoque', href: '/ajustes', icon: <SlidersHorizontal size={18} />, tag: 'AJUSTES', gradient: '', group: 'estoque' },
   // Frota: o Abastecimento virou submódulo (/frota/abastecimento), então o item
   // solto dele saiu daqui — quem tem a permissão antiga entra pelo Frota
-  // (lib/permissoes/compat.ts traduz a chave).
+  // (compat de chaves legadas removida em 16/07).
   { id: 'frota', name: 'Frota', href: '/frota', icon: <Truck size={18} />, tag: 'VEÍCULOS', gradient: '', group: 'frota' },
 
   // Outros (cinza)

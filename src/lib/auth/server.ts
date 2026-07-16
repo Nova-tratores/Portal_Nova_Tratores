@@ -10,7 +10,6 @@
 //   if (!auth) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
 //   if (!auth.isAdmin) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
 import { createClient } from '@supabase/supabase-js'
-import { expandirPermissoes } from '@/lib/permissoes/compat'
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
@@ -62,9 +61,7 @@ export async function autenticar(req: Request): Promise<Autenticado | null> {
     isAdmin,
     isDev,
     categoria: perm?.categoria ?? null,
-    // Expande as chaves legadas (abastecimento -> frota:abastecimento*), igual
-    // ao hook do cliente. Aditivo: as antigas continuam valendo.
-    modulos: expandirPermissoes(perm?.modulos_permitidos),
+    modulos: Array.isArray(perm?.modulos_permitidos) ? perm.modulos_permitidos : [],
   }
 }
 

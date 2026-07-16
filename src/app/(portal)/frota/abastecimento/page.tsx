@@ -225,7 +225,7 @@ export default function AbastecimentoPage() {
   const { pode, isAdmin, loading: permLoading } = usePermissoes(userProfile?.id);
   // O gate da TELA é do frota/layout.tsx (chegou aqui = pode ver). Aqui fica só
   // a ação de escrita. As chaves antigas (abastecimento:*) continuam valendo:
-  // o lib/permissoes/compat.ts as traduz para frota:abastecimento* em runtime.
+  // (a camada de compat foi removida em 16/07 — ninguém mais tinha chave legada).
   const podeDash = true;
   const podeUpload = pode('frota', 'abastecimento:upload');
 
