@@ -1,8 +1,10 @@
 // =============================================================================
-// GPS — helpers de desenho de trajeto (client-safe, sem dependências).
-// Usados pelo MapaCarros (supervisor + /frota/mapa) e pelo mini-mapa da Ficha
-// do Veículo — a régua anti-"linha fantasma" é UMA só.
+// GPS — helpers de trajeto (client-safe, sem dependências de servidor).
+// Usados pelo MapaCarros (supervisor + /frota/mapa), pelo mini-mapa da Ficha
+// e pelo CÁLCULO de rota do dia (computarESalvarRota + importador do
+// histórico do OMIE) — régua de desenho e de cálculo é UMA só.
 // =============================================================================
+import { agregarIgnicao, type MetricasIgnicao } from './ignicao'
 
 export interface PontoGps {
   lat: number
@@ -79,4 +81,76 @@ export function segmentarTrajeto(pontos: PontoGps[]): { segmentos: PontoGps[][];
   }
   if (seg.length > 0) segmentos.push(seg)
   return { segmentos, buracos }
+}
+
+// ── Rota do dia a partir dos pontos crus ────────────────────────────────────
+// A MESMA conta do computarESalvarRota, extraída pra também servir o
+// importador do histórico local (rastreio_pontos_relatorio, do projeto OMIE).
+
+export interface ParadaCalculada {
+  lat: number
+  lng: number
+  inicio: string
+  fim: string | null
+  duracao_min: number
+}
+
+export interface RotaDiaCalculada extends Partial<MetricasIgnicao> {
+  placa: string
+  data: string
+  pontos: PontoGps[]
+  paradas: ParadaCalculada[]
+  km_total: number
+  hora_inicio: string | null
+  hora_fim: string | null
+  tempo_dirigindo_min: number
+  tempo_parado_min: number
+}
+
+/** `pontos` já ordenados por dt asc. */
+export function construirRotaDia(placa: string, data: string, pontos: PontoGps[]): RotaDiaCalculada {
+  // km (haversine, ignora saltos > 5km de erro de GPS)
+  let kmTotal = 0
+  for (let i = 1; i < pontos.length; i++) {
+    const d = distKm(pontos[i - 1], pontos[i])
+    if (d < 5) kmTotal += d
+  }
+
+  // paradas (ignição 0 + velocidade 0 por >= 5 min)
+  const paradas: ParadaCalculada[] = []
+  let pIni: PontoGps | null = null
+  for (const p of pontos) {
+    if (p.ignicao === 0 && p.vel === 0) {
+      if (!pIni) pIni = p
+    } else if (pIni) {
+      const dur = Math.round((new Date(p.dt).getTime() - new Date(pIni.dt).getTime()) / 60000)
+      if (dur >= 5) paradas.push({ lat: pIni.lat, lng: pIni.lng, inicio: pIni.dt, fim: p.dt, duracao_min: dur })
+      pIni = null
+    }
+  }
+
+  // tempo dirigindo (intervalos em movimento) e parado (soma das paradas)
+  let dirigindoMs = 0
+  for (let i = 1; i < pontos.length; i++) {
+    const prev = pontos[i - 1]
+    const diff = new Date(pontos[i].dt).getTime() - new Date(prev.dt).getTime()
+    if (diff > 0 && diff < 30 * 60 * 1000 && prev.ignicao === 1 && (prev.vel || 0) > 0) {
+      dirigindoMs += diff
+    }
+  }
+
+  return {
+    placa,
+    data,
+    pontos,
+    paradas,
+    km_total: Math.round(kmTotal),
+    hora_inicio: pontos.length > 0 ? pontos[0].dt : null,
+    hora_fim: pontos.length > 0 ? pontos[pontos.length - 1].dt : null,
+    tempo_dirigindo_min: Math.round(dirigindoMs / 60000),
+    tempo_parado_min: paradas.reduce((s, p) => s + (p.duracao_min || 0), 0),
+    // Ignição (partidas, tempo LIGADO — inclui marcha lenta — etc.).
+    // ignicao/vel ausentes viram 0 (desligado/parado) — mesmo efeito do RE.
+    ...agregarIgnicao(pontos.map((p) => ({ ...p, ignicao: p.ignicao ?? 0, vel: p.vel ?? 0 }))),
+  }
 }
