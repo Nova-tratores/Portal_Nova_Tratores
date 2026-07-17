@@ -1,11 +1,11 @@
 'use client'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import { useAuditLog } from '@/hooks/useAuditLog'
 import { supabase } from '@/lib/supabase'
-import { Plus, Pencil, Trash2, RefreshCw, Factory, Users, FileDown } from 'lucide-react'
+import { Plus, Trash2, RefreshCw, Factory, Users, FileDown, Menu, ChevronDown, List, LayoutGrid, Check } from 'lucide-react'
 import { MSG_SEM_PERMISSAO } from '@/lib/permissoes/ui'
 import dynamic from 'next/dynamic'
 
@@ -59,6 +59,17 @@ function PropostaComercialPageInner() {
   const [selected, setSelected] = useState(null)
   const [syncing, setSyncing] = useState(false)
   const [gerando, setGerando] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [menuEnt, setMenuEnt] = useState(null) // entidade expandida no menu (cliente/trator/implemento)
+  const [modoVisao, setModoVisao] = useState('tabela') // 'tabela' | 'kanban' (só na aba de propostas cliente)
+  const menuRef = useRef(null)
+  const fecharMenu = () => { setMenuOpen(false); setMenuEnt(null) }
+  useEffect(() => {
+    if (!menuOpen) return
+    const onDoc = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) fecharMenu() }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [menuOpen])
 
   const convertToCli = (data) => {
     if (!podeEditar) return
@@ -194,50 +205,103 @@ function PropostaComercialPageInner() {
   const tabs = [
     { id: 'clientes', label: 'Propostas Cliente', icon: <Users size={14} /> },
     { id: 'fabrica', label: 'Pedidos Fabrica', icon: <Factory size={14} /> },
+    ...(podeExcluir ? [{ id: 'lixeira', label: 'Lixeira', icon: <Trash2 size={14} /> }] : []),
   ]
 
   return (
     <div className="w-full bg-zinc-50 min-h-screen pb-20">
+      <style jsx>{`
+        .chrome-tabs { display: flex; align-items: flex-end; gap: 4px; padding: 0 10px; }
+        .chrome-tab {
+          position: relative; padding: 11px 24px 12px; border: none; cursor: pointer;
+          background: #e9ecef; color: #5f6368; font-family: inherit; font-size: 14.5px; font-weight: 600;
+          border-radius: 12px 12px 0 0; display: flex; align-items: center; gap: 8px; line-height: 1;
+          transition: background .15s, color .15s;
+        }
+        .chrome-tab:hover:not(.chrome-tab-active) { background: #dfe3e8; color: #202124; }
+        .chrome-tab-active { background: #ffffff; color: #dc2626; z-index: 3; }
+        .chrome-tab-active::before, .chrome-tab-active::after {
+          content: ""; position: absolute; bottom: 0; width: 12px; height: 12px; background: transparent; pointer-events: none;
+        }
+        .chrome-tab-active::before { left: -12px; border-bottom-right-radius: 12px; box-shadow: 6px 6px 0 6px #ffffff; }
+        .chrome-tab-active::after  { right: -12px; border-bottom-left-radius: 12px; box-shadow: -6px 6px 0 6px #ffffff; }
+        .chrome-tabs-base { height: 10px; background: #ffffff; border-radius: 10px 10px 0 0; position: relative; z-index: 2; }
+      `}</style>
       {/* HEADER */}
       <div className="w-full px-6 pt-6 pb-2">
-        <div className="max-w-7xl mx-auto">
-          {/* TABS */}
-          <div className="flex items-center gap-1 mb-4">
-            {tabs.map(tab => (
-              <button key={tab.id} onClick={() => setView(tab.id)}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all border-none cursor-pointer ${view === tab.id ? 'bg-red-600 text-white' : 'bg-white text-zinc-500 hover:bg-zinc-100 border border-zinc-200'}`}>
-                {tab.icon} {tab.label}
-              </button>
-            ))}
+        <div className="w-full">
+          {/* TABS — estilo Chrome (folder tabs) */}
+          <div className="mb-4">
+            <div className="chrome-tabs">
+              {tabs.map(tab => (
+                <button key={tab.id} onClick={() => setView(tab.id)}
+                  className={`chrome-tab ${view === tab.id ? 'chrome-tab-active' : ''}`}>
+                  {tab.icon} {tab.label}
+                </button>
+              ))}
+            </div>
+            <div className="chrome-tabs-base" />
           </div>
 
           {/* BARRA DE ACOES */}
+          {view !== 'lixeira' && (
           <div className="bg-white border border-zinc-200 p-3 rounded-xl">
             <div className="flex items-center gap-2 flex-wrap">
-              {/* CADASTROS */}
-              <div className="flex items-center gap-1.5 border-r border-zinc-200 pr-3 mr-1">
-                <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest mr-1">Cadastrar:</span>
-                <button onClick={() => setModals({ ...modals, client: true })} disabled={!podeCriar} title={!podeCriar ? MSG_SEM_PERMISSAO : undefined} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-50 text-zinc-600 text-xs font-semibold border border-zinc-200 hover:bg-zinc-100 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"><Plus size={12} /> Cliente</button>
-                <button onClick={() => setModals({ ...modals, trator: true })} disabled={!podeCriar} title={!podeCriar ? MSG_SEM_PERMISSAO : undefined} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-50 text-zinc-600 text-xs font-semibold border border-zinc-200 hover:bg-zinc-100 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"><Plus size={12} /> Trator</button>
-                <button onClick={() => setModals({ ...modals, equip: true })} disabled={!podeCriar} title={!podeCriar ? MSG_SEM_PERMISSAO : undefined} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-50 text-zinc-600 text-xs font-semibold border border-zinc-200 hover:bg-zinc-100 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"><Plus size={12} /> Implemento</button>
+              {/* MENU (Cadastrar/Editar + utilitários) */}
+              <div className="relative" ref={menuRef}>
+                <button onClick={() => setMenuOpen((o) => !o)}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-zinc-50 text-zinc-700 text-sm font-semibold border border-zinc-200 hover:bg-zinc-100 cursor-pointer transition-all">
+                  <Menu size={18} /> Menu
+                </button>
+                {menuOpen && (
+                  <div className="absolute left-0 top-full mt-2 z-50 w-[300px] bg-white border border-zinc-200 rounded-xl shadow-xl p-2">
+                    {[
+                      { key: 'cliente', label: 'Cadastrar / editar Cliente', novo: 'client', editar: 'searchEditClient' },
+                      { key: 'trator', label: 'Cadastrar / editar Trator', novo: 'trator', editar: 'searchEditTrator' },
+                      { key: 'implemento', label: 'Cadastrar / editar Implemento', novo: 'equip', editar: 'searchEditEquip' },
+                    ].map((ent) => (
+                      <div key={ent.key}>
+                        <button onClick={() => setMenuEnt(menuEnt === ent.key ? null : ent.key)}
+                          className="w-full flex items-center justify-between gap-2 px-3.5 py-3 rounded-lg text-[15px] font-medium text-zinc-700 hover:bg-zinc-100 cursor-pointer transition-all whitespace-nowrap">
+                          {ent.label}
+                          <ChevronDown size={16} className={`shrink-0 text-zinc-400 transition-transform ${menuEnt === ent.key ? 'rotate-180' : ''}`} />
+                        </button>
+                        {menuEnt === ent.key && (
+                          <div className="ml-3 pl-2 border-l border-zinc-200 flex flex-col mb-1">
+                            <button onClick={() => { setModals({ ...modals, [ent.novo]: true }); fecharMenu() }} disabled={!podeCriar} title={!podeCriar ? MSG_SEM_PERMISSAO : undefined}
+                              className="w-full text-left px-3 py-2 rounded-lg text-[14px] text-zinc-600 hover:bg-zinc-100 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed">Cadastrar</button>
+                            <button onClick={() => { setModals({ ...modals, [ent.editar]: true }); fecharMenu() }} disabled={!podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : undefined}
+                              className="w-full text-left px-3 py-2 rounded-lg text-[14px] text-zinc-600 hover:bg-zinc-100 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed">Editar</button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    <div className="my-1.5 border-t border-zinc-100" />
+                    <button onClick={() => { handleSyncOmie(); fecharMenu() }} disabled={syncing || !podeSincronizar} title={!podeSincronizar ? MSG_SEM_PERMISSAO : undefined}
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[15px] font-medium text-zinc-700 hover:bg-zinc-100 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                      <RefreshCw size={15} className={syncing ? 'animate-spin' : ''} /> {syncing ? 'Sincronizando...' : 'Sync Omie'}
+                    </button>
+                    <button onClick={() => { handleRelatorio(); fecharMenu() }} disabled={gerando}
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[15px] font-medium text-zinc-700 hover:bg-zinc-100 cursor-pointer transition-all disabled:opacity-50">
+                      <FileDown size={15} className={gerando ? 'animate-bounce' : ''} /> {gerando ? 'Gerando...' : 'Imprimir relatório'}
+                    </button>
+                    {view === 'clientes' && (
+                      <>
+                        <div className="my-1.5 border-t border-zinc-100" />
+                        <div className="px-3 py-1 text-[11px] font-bold text-zinc-400 tracking-wider">Visualização</div>
+                        <button onClick={() => { setModoVisao('tabela'); fecharMenu() }}
+                          className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[15px] font-medium hover:bg-zinc-100 cursor-pointer transition-all ${modoVisao === 'tabela' ? 'text-red-600' : 'text-zinc-700'}`}>
+                          <List size={15} /> Em lista {modoVisao === 'tabela' && <Check size={15} className="ml-auto text-red-600" />}
+                        </button>
+                        <button onClick={() => { setModoVisao('kanban'); fecharMenu() }}
+                          className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[15px] font-medium hover:bg-zinc-100 cursor-pointer transition-all ${modoVisao === 'kanban' ? 'text-red-600' : 'text-zinc-700'}`}>
+                          <LayoutGrid size={15} /> Em kanban {modoVisao === 'kanban' && <Check size={15} className="ml-auto text-red-600" />}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
-
-              {/* EDITAR */}
-              <div className="flex items-center gap-1.5 border-r border-zinc-200 pr-3 mr-1">
-                <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest mr-1">Editar:</span>
-                <button onClick={() => setModals({ ...modals, searchEditClient: true })} disabled={!podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : undefined} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-800 text-white text-xs font-semibold border-none hover:bg-zinc-700 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"><Pencil size={11} /> Cliente</button>
-                <button onClick={() => setModals({ ...modals, searchEditTrator: true })} disabled={!podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : undefined} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-800 text-white text-xs font-semibold border-none hover:bg-zinc-700 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"><Pencil size={11} /> Trator</button>
-                <button onClick={() => setModals({ ...modals, searchEditEquip: true })} disabled={!podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : undefined} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-800 text-white text-xs font-semibold border-none hover:bg-zinc-700 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"><Pencil size={11} /> Implemento</button>
-              </div>
-
-              {/* UTILITARIOS */}
-              <button onClick={() => setModals({ ...modals, trash: true })} disabled={!podeExcluir} title={!podeExcluir ? MSG_SEM_PERMISSAO : undefined} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-50 text-zinc-500 text-xs font-semibold border border-zinc-200 hover:bg-red-50 hover:text-red-600 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"><Trash2 size={12} /> Lixeira</button>
-              <button onClick={handleSyncOmie} disabled={syncing || !podeSincronizar} title={!podeSincronizar ? MSG_SEM_PERMISSAO : undefined} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-amber-50 text-amber-700 text-xs font-semibold border border-amber-200 hover:bg-amber-100 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"><RefreshCw size={12} className={syncing ? 'animate-spin' : ''} /> {syncing ? 'Sincronizando...' : 'Sync Omie'}</button>
-
-              {/* RELATORIO */}
-              <button onClick={handleRelatorio} disabled={gerando} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-50 text-red-700 text-xs font-semibold border border-red-200 hover:bg-red-100 cursor-pointer transition-all disabled:opacity-50">
-                <FileDown size={12} className={gerando ? 'animate-bounce' : ''} /> {gerando ? 'Gerando...' : 'Relatorio Abertos'}
-              </button>
 
               {/* BOTAO PRINCIPAL */}
               <button onClick={() => view === 'fabrica' ? setModals({ ...modals, newFab: true }) : setModals({ ...modals, newCli: true })}
@@ -247,15 +311,18 @@ function PropostaComercialPageInner() {
               </button>
             </div>
           </div>
+          )}
         </div>
       </div>
 
       {/* CONTEUDO */}
-      <div className="px-6 mt-4 max-w-7xl mx-auto">
-        {view === 'fabrica' ? (
+      <div className="px-6 mt-4 w-full">
+        {view === 'lixeira' ? (
+          <Lixeira embed />
+        ) : view === 'fabrica' ? (
           <FactoryKanban onCardClick={(p) => handleCardClick(p, 'fab')} />
         ) : (
-          <Kanban onCardClick={(p) => handleCardClick(p, 'cli')} />
+          <Kanban onCardClick={(p) => handleCardClick(p, 'cli')} modo={modoVisao} />
         )}
       </div>
 
@@ -270,7 +337,6 @@ function PropostaComercialPageInner() {
       {modals.searchEditClient && <ClientEditModal onClose={() => setModals({ ...modals, searchEditClient: false })} />}
       {modals.searchEditEquip && <EquipamentoEditModal onClose={() => setModals({ ...modals, searchEditEquip: false })} />}
       {modals.searchEditTrator && <TratorEditModal onClose={() => setModals({ ...modals, searchEditTrator: false })} />}
-      {modals.trash && <Lixeira onClose={() => setModals({ ...modals, trash: false })} />}
     </div>
   )
 }

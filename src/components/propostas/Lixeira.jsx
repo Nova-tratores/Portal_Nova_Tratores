@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 
-export default function Lixeira({ onClose }) {
+export default function Lixeira({ onClose, embed = false }) {
   const [loading, setLoading] = useState(false)
   const [itensExcluidos, setItensExcluidos] = useState([])
   const [filtro, setFiltro] = useState('')
@@ -34,15 +34,14 @@ export default function Lixeira({ onClose }) {
     item.id?.toString().includes(filtro)
   )
 
-  return (
-    <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex justify-center items-center z-[10000]">
-      <div className="bg-white w-[95%] max-w-[900px] h-[85vh] rounded-2xl border border-zinc-200 flex flex-col shadow-2xl overflow-hidden">
+  const conteudo = (
+      <>
         <div className="px-8 py-5 bg-white border-b border-zinc-200 flex justify-between items-center">
           <div className="flex items-center gap-4">
             <span className="text-2xl">&#128465;</span>
             <h2 className="font-black text-zinc-900">LIXEIRA DO SISTEMA</h2>
           </div>
-          <button onClick={onClose} className="font-black text-zinc-500 hover:text-red-600 bg-transparent border-none cursor-pointer">FECHAR [X]</button>
+          {!embed && <button onClick={onClose} className="font-black text-zinc-500 hover:text-red-600 bg-transparent border-none cursor-pointer">FECHAR [X]</button>}
         </div>
 
         <div className="px-8 py-4 bg-zinc-50 border-b border-zinc-200">
@@ -83,6 +82,21 @@ export default function Lixeira({ onClose }) {
             </table>
           )}
         </div>
+      </>
+  )
+
+  if (embed) {
+    return (
+      <div className="bg-white rounded-2xl border border-zinc-200 flex flex-col shadow-sm overflow-hidden" style={{ height: 'calc(100vh - 220px)' }}>
+        {conteudo}
+      </div>
+    )
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex justify-center items-center z-[10000]">
+      <div className="bg-white w-[95%] max-w-[900px] h-[85vh] rounded-2xl border border-zinc-200 flex flex-col shadow-2xl overflow-hidden">
+        {conteudo}
       </div>
     </div>
   )

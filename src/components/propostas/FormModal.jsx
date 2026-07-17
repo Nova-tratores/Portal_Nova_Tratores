@@ -1,8 +1,10 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useAuditLog } from '@/hooks/useAuditLog'
 
 export default function FormModal({ onClose, initialData }) {
+  const { log } = useAuditLog()
   const [loading, setLoading] = useState(false)
   const [tipoMaq, setTipoMaq] = useState('implemento')
   const [temValidade, setTemValidade] = useState(true)
@@ -147,8 +149,11 @@ export default function FormModal({ onClose, initialData }) {
     delete payload.Valor_A_Vista
     if (!temValidade) payload.validade = 'Sem validade'
 
-    const { error } = await supabase.from('Formulario').insert([payload])
-    if (!error) { alert("PROPOSTA GERADA COM SUCESSO!"); onClose(); window.location.reload() }
+    const { data, error } = await supabase.from('Formulario').insert([payload]).select('id').single()
+    if (!error) {
+      if (data?.id) await log({ sistema: 'Proposta Comercial', acao: 'criar', entidade: 'proposta', entidade_id: String(data.id), entidade_label: payload.Cliente })
+      alert("PROPOSTA GERADA COM SUCESSO!"); onClose(); window.location.reload()
+    }
     else { alert("Erro ao salvar: " + error.message); setLoading(false) }
   }
 
@@ -284,7 +289,7 @@ export default function FormModal({ onClose, initialData }) {
                 <div className="flex-1 p-3 flex flex-col"><label className={labelStyle}>VALOR TOTAL (R$)</label><input type="number" step="0.01" value={formData.Valor_Total} onChange={e => setFormData({ ...formData, Valor_Total: e.target.value })} className={`${inputStyle} text-red-600`} /></div>
               </div>
               <div className="flex border-b border-zinc-200">
-                <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>PRAZO ENTREGA (DIAS)</label><input type="number" value={formData.Prazo_Entrega} onChange={e => setFormData({ ...formData, Prazo_Entrega: e.target.value })} className={inputStyle} /></div>
+                <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>PRAZO DE ENTREGA</label><input type="text" value={formData.Prazo_Entrega} onChange={e => setFormData({ ...formData, Prazo_Entrega: e.target.value })} placeholder="Ex: 30 dias, a combinar..." className={inputStyle} /></div>
                 <div className="flex-1 p-3 flex flex-col"><label className={labelStyle}>TIPO DE ENTREGA</label><select value={formData.Tipo_Entrega} onChange={e => setFormData({ ...formData, Tipo_Entrega: e.target.value })} className={`${inputStyle} cursor-pointer`}><option value="FOB">FOB (CLIENTE RETIRA)</option><option value="CIF">CIF (ENTREGA NA PROPRIEDADE)</option></select></div>
               </div>
               <div className="flex border-b border-zinc-200">

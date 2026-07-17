@@ -3,11 +3,16 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import jsPDF from 'jspdf'
 import QRCode from 'qrcode'
+import { Copy, Trash2, FileDown, X, History } from 'lucide-react'
+import { useAuditLog } from '@/hooks/useAuditLog'
+import HistoricoProposta from './HistoricoProposta'
 
 export default function EditModal({ proposal, onClose }) {
   const [formData, setFormData] = useState(proposal || {})
   const [imagePreview, setImagePreview] = useState(proposal?.Imagem_Equipamento || '')
   const [assinaturaDiretor, setAssinaturaDiretor] = useState(null)
+  const [showHist, setShowHist] = useState(false)
+  const { log } = useAuditLog()
 
   const isTrator = !!(formData.motor_trator || formData.cambio_trator || formData.trasmissao_tras_trator)
 
@@ -36,9 +41,27 @@ export default function EditModal({ proposal, onClose }) {
   const handleTrash = async () => {
     if (confirm("DESEJA REALMENTE MOVER ESTA PROPOSTA PARA A LIXEIRA?")) {
       const { error } = await supabase.from('Formulario').update({ status: 'Lixeira' }).eq('id', proposal.id)
-      if (!error) { alert("MOVIDO PARA A LIXEIRA COM SUCESSO!"); window.location.reload() }
+      if (!error) {
+        await log({ sistema: 'Proposta Comercial', acao: 'lixeira', entidade: 'proposta', entidade_id: String(proposal.id), entidade_label: proposal.Cliente })
+        alert("MOVIDO PARA A LIXEIRA COM SUCESSO!"); window.location.reload()
+      }
       else { alert("Erro ao mover: " + error.message) }
     }
+  }
+
+  const handleDuplicar = async () => {
+    if (!confirm("Deseja DUPLICAR esta proposta? Uma nova cópia será criada em 'Enviar proposta'.")) return
+    const copia = { ...formData }
+    delete copia.id           // novo ID gerado pelo banco
+    delete copia.created_at   // se existir, o banco gera de novo
+    delete copia.id_fabrica_ref // a cópia é independente (não vinculada à fábrica)
+    copia.status = 'Enviar Proposta'
+    const { data, error } = await supabase.from('Formulario').insert([copia]).select('id').single()
+    if (!error) {
+      if (data?.id) await log({ sistema: 'Proposta Comercial', acao: 'criar', entidade: 'proposta', entidade_id: String(data.id), entidade_label: copia.Cliente, detalhes: { origem: proposal.id } })
+      alert("PROPOSTA DUPLICADA COM SUCESSO!"); window.location.reload()
+    }
+    else { alert("Erro ao duplicar: " + error.message) }
   }
 
   const handlePrint = async () => {
@@ -167,8 +190,10 @@ export default function EditModal({ proposal, onClose }) {
     doc.setFontSize(9); doc.setFont("helvetica", "normal")
     doc.text(`VALOR TOTAL: R$ ${formData.Valor_Total || '0,00'}`, margin + 5, y + 18)
 
-    if (formData.Prazo_Entrega && Number(formData.Prazo_Entrega) !== 0) {
-      doc.text(`PRAZO ENTREGA: ${formData.Prazo_Entrega} DIAS`, col2X, y + 18)
+    if (formData.Prazo_Entrega && String(formData.Prazo_Entrega).trim() && String(formData.Prazo_Entrega).trim() !== '0') {
+      const prazo = String(formData.Prazo_Entrega).trim()
+      const soNumero = /^\d+$/.test(prazo) // se for só número, acrescenta "DIAS"
+      doc.text(`PRAZO ENTREGA: ${prazo}${soNumero ? ' DIAS' : ''}`, col2X, y + 18)
     }
 
     const labelCond = "CONDICOES: "
@@ -207,32 +232,54 @@ export default function EditModal({ proposal, onClose }) {
   }
 
   const handleUpdate = async () => {
+    // Diff: o que mudou em relação ao original (para o histórico).
+    const IGN = new Set(['id', 'created_at', 'id_fabrica_ref', 'Imagem_Equipamento'])
+    const corta = (v) => { const s = String(v ?? ''); return s.length > 300 ? s.slice(0, 300) + '…' : s }
+    const alteracoes = Object.keys(formData).filter(k => !IGN.has(k)).reduce((acc, k) => {
+      if (String(proposal?.[k] ?? '') !== String(formData[k] ?? '')) acc.push({ campo: k, de: corta(proposal?.[k]), para: corta(formData[k]) })
+      return acc
+    }, [])
     const { error } = await supabase.from('Formulario').update(formData).eq('id', proposal.id)
-    if (!error) { alert("ATUALIZADO COM SUCESSO!"); window.location.reload() }
+    if (!error) {
+      if (alteracoes.length) await log({ sistema: 'Proposta Comercial', acao: 'editar', entidade: 'proposta', entidade_id: String(proposal.id), entidade_label: formData.Cliente || proposal.Cliente, detalhes: { alteracoes } })
+      alert("ATUALIZADO COM SUCESSO!"); window.location.reload()
+    }
     else { alert("Erro: " + error.message) }
   }
 
-  const inputStyle = "w-full bg-white border-none outline-none text-[13px] font-bold text-zinc-900"
-  const labelStyle = "text-[8.5px] font-black text-zinc-800 uppercase"
+  const inputStyle = "w-full bg-white border-none outline-none text-[15px] font-normal text-zinc-900"
+  const labelStyle = "text-[11px] font-medium text-zinc-500 uppercase tracking-wide"
 
   return (
     <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex justify-center items-center z-[9999]">
       <div className="bg-white w-[95%] max-w-[1100px] h-[95vh] rounded-2xl flex flex-col border border-zinc-200 shadow-2xl overflow-hidden">
-        <div className="px-10 py-5 bg-white border-b border-zinc-200 flex justify-between items-center">
+        <div className="px-10 py-5 bg-white border-b border-zinc-200 flex justify-between items-center gap-4">
           <div className="flex items-center gap-4">
-            <div className="w-1 h-6 bg-red-600 rounded" />
-            <h2 className="font-black text-zinc-900">EDICAO PROPOSTA #{formData.id}</h2>
+            <div className="w-1.5 h-7 bg-red-600 rounded" />
+            <h2 className="text-xl font-medium text-zinc-900">Edição da proposta <span className="text-red-600">#{formData.id}</span></h2>
           </div>
-          <div className="flex gap-4">
-            <button onClick={handleTrash} className="px-5 py-2.5 bg-red-600 text-white border-none rounded-lg font-black cursor-pointer text-xs hover:bg-red-700 transition-colors">LIXEIRA</button>
-            <button onClick={handlePrint} className="px-5 py-2.5 bg-zinc-900 text-white border-none rounded-lg font-black cursor-pointer text-xs hover:bg-zinc-800 transition-colors">IMPRIMIR PDF</button>
-            <button onClick={onClose} className="text-sm font-black text-zinc-500 hover:text-red-600 transition-colors">FECHAR [X]</button>
+          <div className="flex items-center gap-2.5">
+            <button onClick={() => setShowHist(true)} className="flex items-center gap-2 px-4 py-2.5 bg-zinc-100 text-zinc-700 border border-zinc-200 rounded-lg text-sm font-medium cursor-pointer hover:bg-zinc-200 transition-colors">
+              <History size={16} /> Histórico
+            </button>
+            <button onClick={handleDuplicar} className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg text-sm font-medium cursor-pointer hover:bg-blue-100 transition-colors">
+              <Copy size={16} /> Duplicar
+            </button>
+            <button onClick={handleTrash} className="flex items-center gap-2 px-4 py-2.5 bg-red-50 text-red-600 border border-red-200 rounded-lg text-sm font-medium cursor-pointer hover:bg-red-100 transition-colors">
+              <Trash2 size={16} /> Lixeira
+            </button>
+            <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2.5 bg-zinc-100 text-zinc-700 border border-zinc-200 rounded-lg text-sm font-medium cursor-pointer hover:bg-zinc-200 transition-colors">
+              <FileDown size={16} /> Imprimir PDF
+            </button>
+            <button onClick={onClose} title="Fechar" className="flex items-center justify-center w-10 h-10 rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-red-600 cursor-pointer transition-colors">
+              <X size={20} />
+            </button>
           </div>
         </div>
 
         <div className="px-10 py-8 overflow-y-auto flex-1">
           <div className="flex flex-col gap-4">
-            <div className="text-[11px] font-black text-red-600 uppercase">I. DADOS DO CLIENTE</div>
+            <div className="text-[14px] font-medium text-red-600 uppercase tracking-wide">I. DADOS DO CLIENTE</div>
             <div className="border border-zinc-200 rounded-xl overflow-hidden bg-white">
               <div className="flex border-b border-zinc-100">
                 <div className="flex-1 p-3 border-r border-zinc-100 flex flex-col gap-0.5"><label className={labelStyle}>NOME</label><input value={formData.Cliente || ''} onChange={e => setFormData({ ...formData, Cliente: e.target.value })} className={inputStyle} /></div>
@@ -249,7 +296,7 @@ export default function EditModal({ proposal, onClose }) {
               </div>
             </div>
 
-            <div className="text-[11px] font-black text-red-600 uppercase">II. DADOS DO {isTrator ? 'TRATOR' : 'IMPLEMENTO'}</div>
+            <div className="text-[14px] font-medium text-red-600 uppercase tracking-wide">II. DADOS DO {isTrator ? 'TRATOR' : 'IMPLEMENTO'}</div>
             {imagePreview && <div className="text-center"><img src={imagePreview} className="w-[100px] h-[80px] object-contain border-2 border-zinc-300 rounded-lg" alt="Preview" /></div>}
 
             <div className="border border-zinc-200 rounded-xl overflow-hidden bg-white">
@@ -288,12 +335,12 @@ export default function EditModal({ proposal, onClose }) {
                 </>
               ) : (
                 <div className="flex">
-                  <div className="flex-1 p-3 flex flex-col gap-0.5"><label className={labelStyle}>DESCRICAO TECNICA</label><textarea value={formData.Configuracao || formData.Descricao || ''} onChange={e => setFormData({ ...formData, Configuracao: e.target.value })} className="w-full border-none outline-none text-[13px] min-h-[70px] resize-none font-semibold" /></div>
+                  <div className="flex-1 p-3 flex flex-col gap-0.5"><label className={labelStyle}>DESCRICAO TECNICA</label><textarea value={formData.Configuracao || formData.Descricao || ''} onChange={e => setFormData({ ...formData, Configuracao: e.target.value })} className="w-full border-none outline-none text-[15px] min-h-[80px] resize-none font-normal text-zinc-900" /></div>
                 </div>
               )}
             </div>
 
-            <div className="text-[11px] font-black text-red-600 uppercase">III. FINANCEIRO</div>
+            <div className="text-[14px] font-medium text-red-600 uppercase tracking-wide">III. FINANCEIRO</div>
             <div className="border border-zinc-200 rounded-xl overflow-hidden bg-white">
               <div className="flex border-b border-zinc-100">
                 <div className="flex-1 p-3 border-r border-zinc-100 flex flex-col gap-0.5"><label className={labelStyle}>VALOR TOTAL</label><input value={formData.Valor_Total || ''} onChange={e => setFormData({ ...formData, Valor_Total: e.target.value })} className={`${inputStyle} !text-red-600`} /></div>
@@ -307,9 +354,11 @@ export default function EditModal({ proposal, onClose }) {
         </div>
 
         <div className="px-10 py-5 bg-white border-t border-zinc-200">
-          <button onClick={handleUpdate} className="w-full py-4 bg-red-600 text-white border-none rounded-xl font-black cursor-pointer hover:bg-red-700 transition-colors">SALVAR ALTERACOES</button>
+          <button onClick={handleUpdate} className="w-full py-4 bg-red-600 text-white border-none rounded-xl text-base font-medium cursor-pointer hover:bg-red-700 transition-colors">Salvar alterações</button>
         </div>
       </div>
+
+      {showHist && <HistoricoProposta propostaId={proposal.id} onClose={() => setShowHist(false)} />}
     </div>
   )
 }
