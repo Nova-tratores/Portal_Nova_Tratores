@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useRef, type CSSProperties, type MouseEvent as RMouseEvent } from "react";
+import CarrinhosPanel from "./CarrinhosPanel";
 
 interface Peca { id: number; code: string; name: string; reference: string; qtd: number | null; unit: string | null; compravel?: boolean; figura?: any; figura_id?: string }
 interface Figura { id: string; code: string; name: string; secao: string; thumb_url: string | null; image_url: string | null; hotspots?: { reference: string; x: number; y: number }[]; pecas?: Peca[] }
@@ -14,7 +15,7 @@ interface Familia { nome: string; marca: string; tipo: string | null; image_url:
 // Mascote do assistente (mecânico Nova Tratores). Se não existir no storage, cai no ícone.
 
 // Quando embutido no fluxo de adicionar peças, recebe onSelecionarPeca; senão, copia o código.
-export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecionarPeca?: (p: { code: string; name: string }) => void; userName?: string }) {
+export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicialSlug, travado }: { onSelecionarPeca?: (p: { code: string; name: string }) => void; userName?: string; modeloInicialSlug?: string; travado?: boolean }) {
   const [modelos, setModelos] = useState<Modelo[]>([]);
   const [marcas, setMarcas] = useState<Marca[]>([]);
   const [marcaSel, setMarcaSel] = useState<Marca | null>(null);
@@ -52,6 +53,13 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
   const [cliRes, setCliRes] = useState<any[]>([]);
   const [cliSel, setCliSel] = useState<any | null>(null);
   const [criando, setCriando] = useState(false);
+  // Carrinhos salvos (Fase 1)
+  const [carrinhosOpen, setCarrinhosOpen] = useState(false);
+  const [nomeCarrinho, setNomeCarrinho] = useState("");
+  const [servicoCarrinho, setServicoCarrinho] = useState("");
+  const [salvandoCarrinho, setSalvandoCarrinho] = useState(false);
+  // Carrinho salvo "ativo": ao adicionar peças, grava direto nele (via API)
+  const [carrinhoAtivo, setCarrinhoAtivo] = useState<{ id: string; nome: string } | null>(null);
   const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const listScrollRef = useRef<HTMLDivElement | null>(null);
   const leftPanelRef = useRef<HTMLDivElement | null>(null);
@@ -67,9 +75,11 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
   const [gerandoPdf, setGerandoPdf] = useState(false);
   // Diálogo de tamanho da imagem antes de imprimir (molde A4 com escala arrastável)
   const [printDlg, setPrintDlg] = useState<{ comPecas: boolean } | null>(null);
-  const [printScale, setPrintScale] = useState(0.78); // fração da largura útil da folha
+  const [printScale, setPrintScale] = useState(0.78); // fração da largura útil da folha (até 2.5x)
+  const [printRot, setPrintRot] = useState(0);        // 0 / 90 / 180 / 270
+  const [printPos, setPrintPos] = useState({ x: 0.5, y: 0.45 }); // centro da imagem (fração da folha)
   const a4Ref = useRef<HTMLDivElement | null>(null);
-  const escalaDrag = useRef(false);
+  const posDrag = useRef<{ mx: number; my: number; px: number; py: number } | null>(null);
   // Tela cheia + desenho (caneta com cores) + zoom
   const [fullscreen, setFullscreen] = useState(false);
   const [fsZoom, setFsZoom] = useState(1);
@@ -118,15 +128,20 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
     navigator.clipboard?.writeText(code).then(() => { setCopiado(code); setTimeout(() => setCopiado(null), 1400); }).catch(() => {});
   }, []);
 
-  // Arrastar o canto da imagem no molde A4 para redimensionar.
-  const arrastarEscala = useCallback((e: RMouseEvent<HTMLDivElement>) => {
-    if (!escalaDrag.current || !a4Ref.current) return;
+  // Arrastar a imagem no molde A4 para posicioná-la na folha.
+  const arrastarPos = useCallback((e: RMouseEvent<HTMLDivElement>) => {
+    if (!posDrag.current || !a4Ref.current) return;
     const r = a4Ref.current.getBoundingClientRect();
-    const marginFrac = 0.06;
-    const contentW = r.width * (1 - 2 * marginFrac);
-    const localX = e.clientX - r.left - r.width * marginFrac;
-    setPrintScale(Math.min(1, Math.max(0.15, localX / contentW)));
+    const d = posDrag.current;
+    const nx = d.px + (e.clientX - d.mx) / r.width;
+    const ny = d.py + (e.clientY - d.my) / r.height;
+    setPrintPos({ x: Math.min(1, Math.max(0, nx)), y: Math.min(1, Math.max(0, ny)) });
   }, []);
+
+  // Reseta os ajustes de impressão sempre que o diálogo abre.
+  useEffect(() => {
+    if (printDlg) { setPrintScale(0.78); setPrintRot(0); setPrintPos({ x: 0.5, y: 0.45 }); }
+  }, [printDlg]);
 
   // PDF do desenho feito na tela cheia (imagem + traços da caneta).
   const gerarPdfDesenho = useCallback(async (acao: "imprimir" | "baixar") => {
@@ -202,9 +217,13 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
 
   // Gera PDF da figura (com ou sem a lista de peças da direita).
   // acao: "imprimir" abre na máquina de impressão; "baixar" só faz download.
-  // wf = fator de largura da imagem (0..1 da largura útil da folha).
-  const gerarPdf = useCallback(async (comPecas: boolean, acao: "imprimir" | "baixar", wf = 0.78) => {
+  // opts: scale (largura da imagem / largura útil), rot (0/90/180/270), pos (centro em fração da folha).
+  const gerarPdf = useCallback(async (comPecas: boolean, acao: "imprimir" | "baixar",
+    opts: { scale?: number; rot?: number; pos?: { x: number; y: number } } = {}) => {
     if (!figura?.image_url) return;
+    const scale = Math.min(2.5, Math.max(0.1, opts.scale ?? 0.78));
+    const rot = ((opts.rot ?? 0) % 360 + 360) % 360;
+    const pos = opts.pos ?? { x: 0.5, y: 0.45 };
     setGerandoPdf(true);
     try {
       const [{ default: JsPDF }, autoMod] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
@@ -212,24 +231,34 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
       const resp = await fetch(figura.image_url);
       const blob = await resp.blob();
       const dataUrl: string = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result as string); fr.onerror = rej; fr.readAsDataURL(blob); });
-      const fmt = blob.type.includes("png") ? "PNG" : "JPEG";
+
+      const im = new Image(); im.src = dataUrl; await im.decode();
+      const ratio = (im.naturalHeight || 1) / (im.naturalWidth || 1);
+
       const doc = new JsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
       const pageW = doc.internal.pageSize.getWidth();
-      const margin = 12;
-      let y = margin;
-      doc.setFontSize(13); doc.setTextColor(30);
-      doc.text(`${figura.code || ""}  ${figura.name || ""}`.trim(), margin, y); y += 6;
-      if (modeloSel?.nome) { doc.setFontSize(10); doc.setTextColor(120); doc.text(String(modeloSel.nome), margin, y); y += 5; }
-      const maxW = pageW - margin * 2;
-      const ratio = (imgDim.h || 1) / (imgDim.w || 1);
-      let imgW = maxW * Math.min(1, Math.max(0.1, wf)); let imgH = imgW * ratio;
-      const maxImgH = comPecas ? 150 : 250;
-      if (imgH > maxImgH) { imgH = maxImgH; imgW = imgH / ratio; }
-      doc.addImage(dataUrl, fmt, margin + (maxW - imgW) / 2, y, imgW, imgH);
-      y += imgH + 6;
+      const pageH = doc.internal.pageSize.getHeight();
+      const K = 0.88; // mesma fração usada no molde da prévia (largura útil / folha)
+
+      // Compõe a FOLHA A4 inteira numa canvas — o que aparece no molde é exatamente o que sai.
+      const CW = 2000, CH = Math.round(CW * pageH / pageW);
+      const cv = document.createElement("canvas"); cv.width = CW; cv.height = CH;
+      const ctx = cv.getContext("2d");
+      if (!ctx) throw new Error("sem contexto");
+      ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, CW, CH);
+      ctx.textBaseline = "top"; ctx.fillStyle = "#1e1e1e"; ctx.font = "700 32px Arial, sans-serif";
+      ctx.fillText(`${figura.code || ""}  ${figura.name || ""}`.trim(), CW * 0.05, CH * 0.02);
+      if (modeloSel?.nome) { ctx.fillStyle = "#777"; ctx.font = "22px Arial, sans-serif"; ctx.fillText(String(modeloSel.nome), CW * 0.05, CH * 0.042); }
+      const iw = CW * K * scale, ih = iw * ratio;
+      ctx.save(); ctx.translate(pos.x * CW, pos.y * CH); ctx.rotate((rot * Math.PI) / 180); ctx.drawImage(im, -iw / 2, -ih / 2, iw, ih); ctx.restore();
+      doc.addImage(cv.toDataURL("image/png"), "PNG", 0, 0, pageW, pageH);
+
       if (comPecas) {
         const rows = (figura.pecas || []).map((p) => [p.reference, p.code, p.name, `${p.qtd ?? ""} ${p.unit ?? ""}`.trim()]);
-        autoTable(doc, { startY: y, head: [["Ref", "Código", "Nome", "Qtd"]], body: rows, styles: { fontSize: 8, cellPadding: 1.5 }, headStyles: { fillColor: [220, 38, 38] }, margin: { left: margin, right: margin } });
+        const iwmm = pageW * K * scale, ihmm = iwmm * ratio;
+        const bboxH = (rot === 90 || rot === 270) ? iwmm : ihmm;
+        const startY = Math.max(30, Math.min(pos.y * pageH + bboxH / 2 + 5, pageH - 40));
+        autoTable(doc, { startY, head: [["Ref", "Código", "Nome", "Qtd"]], body: rows, styles: { fontSize: 8, cellPadding: 1.5 }, headStyles: { fillColor: [220, 38, 38] }, margin: { left: 12, right: 12 } });
       }
       const nome = `${(figura.code || "figura").replace(/[^\w.-]+/g, "_")}.pdf`;
       if (acao === "imprimir") {
@@ -245,16 +274,45 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
     }
     setGerandoPdf(false);
     setPdfMenu(false);
-  }, [figura, imgDim, modeloSel]);
+  }, [figura, modeloSel]);
 
   const addToCart = useCallback((p: { code: string; name: string }, qty = 1) => {
+    // Carrinho salvo ativo → grava direto nele (persistido).
+    if (carrinhoAtivo) {
+      fetch(`/api/carrinhos/${carrinhoAtivo.id}/itens`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ codigo: p.code, descricao: p.name, qtd: qty, quem: userName || "" }) }).catch(() => {});
+      setToast(`Adicionado a "${carrinhoAtivo.nome}": ${p.code}`); setTimeout(() => setToast(""), 1500);
+      return;
+    }
     setCart((prev) => {
       const i = prev.findIndex((x) => x.code === p.code);
       if (i >= 0) { const c = [...prev]; c[i] = { ...c[i], qty: c[i].qty + qty }; return c; }
       return [...prev, { code: p.code, name: p.name, qty }];
     });
     setToast(`No carrinho: ${qty > 1 ? `${qty}× ` : ""}${p.code}`); setTimeout(() => setToast(""), 1400);
-  }, []);
+  }, [carrinhoAtivo, userName]);
+
+  // Salva o carrinho em memória como um carrinho persistido novo.
+  const salvarCarrinho = useCallback(async () => {
+    if (cart.length === 0) { setToast("Carrinho vazio."); setTimeout(() => setToast(""), 1600); return; }
+    setSalvandoCarrinho(true);
+    try {
+      const r = await fetch("/api/carrinhos", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nome: nomeCarrinho.trim() || (modeloSel?.nome ? `Carrinho ${modeloSel.nome}` : "Carrinho"),
+          cliente: cliSel?.nome || "", modelo: modeloSel?.nome || "", modelo_slug: modeloSel?.slug || "",
+          servico: servicoCarrinho.trim(), criadoPor: userName || "",
+          itens: cart.map((c) => ({ codigo: c.code, descricao: c.name, qtd: c.qty })),
+        }),
+      });
+      if (r.ok) {
+        setToast("Carrinho salvo!"); setTimeout(() => setToast(""), 1800);
+        setCart([]); setNomeCarrinho(""); setServicoCarrinho(""); setCartOpen(false);
+      } else setToast("Erro ao salvar carrinho.");
+    } catch { setToast("Erro de conexão."); }
+    setSalvandoCarrinho(false);
+    setTimeout(() => setToast(""), 2000);
+  }, [cart, nomeCarrinho, servicoCarrinho, cliSel, modeloSel, userName]);
   const setQty = (code: string, q: number) => setCart((prev) => prev.map((x) => (x.code === code ? { ...x, qty: Math.max(1, q) } : x)));
   const removeFromCart = (code: string) => setCart((prev) => prev.filter((x) => x.code !== code));
 
@@ -537,11 +595,19 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
   const voltar = () => {
     if (figura) setFigura(null);
     else if (secaoAtual) setSecaoAtual("");
+    else if (travado) return; // link público: trava no modelo
     else if (modeloSel) { setModeloSel(null); if (!familiaSel && marcas.length > 1) setMarcaSel(null); } // sem variantes → volta pra tela inicial
     else if (familiaSel) { setFamiliaSel(null); if (marcas.length > 1) setMarcaSel(null); }
     else if (marcaSel && marcas.length > 1) setMarcaSel(null);
   };
-  const irParaMarcas = () => { setMarcaSel(null); setTipoSel(""); setFamiliaSel(null); setModeloSel(null); setSecaoAtual(""); setFigura(null); };
+  const irParaMarcas = () => { if (travado) return; setMarcaSel(null); setTipoSel(""); setFamiliaSel(null); setModeloSel(null); setSecaoAtual(""); setFigura(null); };
+
+  // Link público: pula direto pro modelo do carrinho.
+  useEffect(() => {
+    if (!modeloInicialSlug || modeloSel || !modelos.length) return;
+    const m = modelos.find((x) => x.slug === modeloInicialSlug);
+    if (m) { setModeloSel(m); setMarcaSel(marcas.find((x) => x.nome === m.marca) || null); }
+  }, [modeloInicialSlug, modelos, marcas, modeloSel]);
 
   const abrirModelo = (m: Modelo) => {
     if (!marcaSel) setMarcaSel(marcas.find((mc) => mc.nome === m.marca) || null);
@@ -625,15 +691,31 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
         {vista !== "busca" && (
           <div style={{ fontSize: 13, color: "#64748b", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             {(secaoAtual || figura || modeloSel || familiaSel || (marcaSel && marcas.length > 1)) && <button className="cat-back" onClick={voltar} style={{ display: "flex", alignItems: "center", gap: 7, border: "1px solid #e3e8ef", background: "#fff", color: "#334155", borderRadius: 9, padding: "7px 13px", cursor: "pointer", fontSize: 13, fontWeight: 600, transition: "background .15s,color .15s" }}><i className="fas fa-arrow-left" style={{ fontSize: 11 }} /> Voltar</button>}
-            <span className="cat-crumb" onClick={irParaMarcas} style={{ fontWeight: 600 }}>Catálogo</span>
-            {marcaSel && <><span style={{ color: "#cbd5e1" }}>›</span><span className="cat-crumb" onClick={() => { setFamiliaSel(null); setModeloSel(null); setSecaoAtual(""); setFigura(null); }}>{marcaSel.nome}</span></>}
-            {familiaSel && <><span style={{ color: "#cbd5e1" }}>›</span><span className="cat-crumb" onClick={() => { setModeloSel(null); setSecaoAtual(""); setFigura(null); }}>{familiaSel.nome}</span></>}
+            <span className="cat-crumb" onClick={irParaMarcas} style={{ fontWeight: 600, cursor: travado ? "default" : "pointer" }}>Catálogo</span>
+            {!travado && marcaSel && <><span style={{ color: "#cbd5e1" }}>›</span><span className="cat-crumb" onClick={() => { setFamiliaSel(null); setModeloSel(null); setSecaoAtual(""); setFigura(null); }}>{marcaSel.nome}</span></>}
+            {!travado && familiaSel && <><span style={{ color: "#cbd5e1" }}>›</span><span className="cat-crumb" onClick={() => { setModeloSel(null); setSecaoAtual(""); setFigura(null); }}>{familiaSel.nome}</span></>}
             {modeloSel && <><span style={{ color: "#cbd5e1" }}>›</span><span className="cat-crumb" onClick={() => { setSecaoAtual(""); setFigura(null); }}>{modeloSel.nome}</span></>}
             {secaoAtual && <><span style={{ color: "#cbd5e1" }}>›</span><span className="cat-crumb" onClick={() => setFigura(null)}>{secaoAtual}</span></>}
             {figura && <><span style={{ color: "#cbd5e1" }}>›</span><span style={{ fontWeight: 700, color: "#0f172a" }}>{figura.code} · {figura.name}</span></>}
           </div>
         )}
+        {!onSelecionarPeca && (
+          <button onClick={() => setCarrinhosOpen(true)} title="Carrinhos salvos"
+            style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, border: "1px solid #e3e8ef", background: "#fff", color: "#334155", borderRadius: 9, padding: "9px 15px", cursor: "pointer", fontSize: 13.5, fontWeight: 600 }}>
+            <i className="fas fa-cart-shopping" style={{ color: "#dc2626" }} /> Carrinhos
+          </button>
+        )}
       </div>
+
+      {/* Banner: adicionando a um carrinho salvo */}
+      {carrinhoAtivo && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 18px", background: "#fff7ed", borderBottom: "1px solid #fed7aa", color: "#9a3412", fontSize: 13 }}>
+          <i className="fas fa-cart-plus" />
+          <span style={{ flex: 1 }}>Adicionando peças ao carrinho <b>{carrinhoAtivo.nome}</b>. Clique numa peça pra incluir.</span>
+          <button onClick={() => setCarrinhosOpen(true)} style={{ border: "1px solid #fed7aa", background: "#fff", color: "#9a3412", borderRadius: 8, padding: "6px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>Ver carrinho</button>
+          <button onClick={() => setCarrinhoAtivo(null)} style={{ border: "none", background: "transparent", color: "#9a3412", cursor: "pointer", fontSize: 13 }} title="Concluir"><i className="fas fa-check" /> Concluir</button>
+        </div>
+      )}
 
       <div className="cat-scroll" style={{ flex: 1, overflow: "auto", position: "relative" }}>
         {loading && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(247,248,250,0.72)", zIndex: 5, fontSize: 13, color: "#64748b" }}><i className="fas fa-circle-notch fa-spin" style={{ marginRight: 8, color: "#dc2626" }} /> Carregando…</div>}
@@ -1053,6 +1135,20 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
                 <button disabled={criando || cart.length === 0 || !cliSel} onClick={() => criarDoc("ppv")} style={{ flex: 1, padding: "12px", borderRadius: 10, border: "none", background: "#dc2626", color: "#fff", fontWeight: 800, fontSize: 13.5, cursor: "pointer", opacity: criando || !cliSel ? 0.5 : 1 }}><i className="fas fa-box" /> PPV</button>
               </div>
               <div style={{ fontSize: 11, color: "#cbd5e1", marginTop: 8, textAlign: "center" }}>Os preços são puxados do Omie ao criar o documento.</div>
+
+              {/* Salvar como carrinho */}
+              <div style={{ marginTop: 14, borderTop: "1px dashed #e2e8f0", paddingTop: 14 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: "#334155", marginBottom: 8 }}><i className="fas fa-bookmark" style={{ color: "#dc2626", marginRight: 6 }} /> Salvar como carrinho</div>
+                <input value={nomeCarrinho} onChange={(e) => setNomeCarrinho(e.target.value)} placeholder={modeloSel ? `Nome (ex.: Revisão ${modeloSel.nome})` : "Nome do carrinho"}
+                  style={{ width: "100%", padding: "9px 11px", borderRadius: 9, border: "1px solid #e2e8f0", fontSize: 13, boxSizing: "border-box", outline: "none", marginBottom: 8 }} />
+                <input value={servicoCarrinho} onChange={(e) => setServicoCarrinho(e.target.value)} placeholder="Serviço (opcional)"
+                  style={{ width: "100%", padding: "9px 11px", borderRadius: 9, border: "1px solid #e2e8f0", fontSize: 13, boxSizing: "border-box", outline: "none", marginBottom: 8 }} />
+                <div style={{ fontSize: 11.5, color: "#94a3b8", marginBottom: 8 }}>Cliente: {cliSel?.nome || "—"}{modeloSel ? ` · Modelo: ${modeloSel.nome}` : ""}</div>
+                <button disabled={salvandoCarrinho || cart.length === 0} onClick={salvarCarrinho}
+                  style={{ width: "100%", padding: "11px", borderRadius: 10, border: "1.5px solid #dc2626", background: "#fff", color: "#dc2626", fontWeight: 700, fontSize: 13.5, cursor: "pointer", opacity: salvandoCarrinho || cart.length === 0 ? 0.5 : 1 }}>
+                  <i className="fas fa-cart-shopping" /> {salvandoCarrinho ? "Salvando..." : "Salvar carrinho"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1060,66 +1156,73 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
 
       {toast && <div style={{ position: "absolute", bottom: 18, left: "50%", transform: "translateX(-50%)", background: "#0f172a", color: "#fff", padding: "10px 18px", borderRadius: 11, fontSize: 13, fontWeight: 600, zIndex: 50, boxShadow: "0 8px 24px rgba(15,23,42,0.3)", display: "flex", alignItems: "center", gap: 8 }}><i className="fas fa-circle-check" style={{ color: "#4ade80" }} /> {toast}</div>}
 
+      {/* Painel de carrinhos salvos */}
+      {carrinhosOpen && (
+        <CarrinhosPanel userName={userName}
+          onEditarPecas={(c) => { setCarrinhoAtivo({ id: c.id, nome: c.nome }); setCarrinhosOpen(false); setToast(`Editando "${c.nome}" — clique nas peças pra adicionar.`); setTimeout(() => setToast(""), 2500); }}
+          onClose={() => setCarrinhosOpen(false)} />
+      )}
+
       {/* Diálogo: tamanho da imagem antes de imprimir */}
       {printDlg && (
         <div onClick={(e) => { if (e.target === e.currentTarget) setPrintDlg(null); }}
           style={{ position: "fixed", inset: 0, zIndex: 4000, background: "rgba(15,23,42,0.5)", backdropFilter: "blur(3px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div style={{ width: 420, maxWidth: "94vw", background: "#fff", borderRadius: 16, boxShadow: "0 20px 60px rgba(0,0,0,0.3)", overflow: "hidden" }}>
             <div style={{ padding: "16px 20px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}><i className="fas fa-print" style={{ color: "#dc2626", marginRight: 8 }} /> Tamanho da imagem</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}><i className="fas fa-print" style={{ color: "#dc2626", marginRight: 8 }} /> Ajustar impressão</div>
               <button onClick={() => setPrintDlg(null)} style={{ border: "none", background: "transparent", fontSize: 22, color: "#94a3b8", cursor: "pointer", lineHeight: 1 }}>&times;</button>
             </div>
             <div style={{ padding: 20 }}>
-              <div style={{ fontSize: 13, color: "#64748b", marginBottom: 14 }}>Arraste o canto da imagem no molde da folha (A4) para deixar do tamanho que quiser {printDlg.comPecas ? "— a lista de peças entra abaixo." : "."}</div>
+              <div style={{ fontSize: 13, color: "#64748b", marginBottom: 12 }}>Arraste a imagem para posicionar na folha, ajuste o tamanho e gire se precisar.{printDlg.comPecas ? " A lista de peças entra abaixo da imagem." : ""}</div>
               {/* Molde A4 */}
               {(() => {
-                const A4W = 260; const A4H = Math.round(A4W * 297 / 210);
-                const marginFrac = 0.06;
-                const contentW = A4W * (1 - 2 * marginFrac);
+                const A4W = 300; const A4H = Math.round(A4W * 297 / 210);
+                const contentW = A4W * (1 - 2 * 0.06);
                 const ratio = (imgDim.h || 1) / (imgDim.w || 1);
                 const iw = contentW * printScale;
                 const ih = iw * ratio;
-                const left = A4W * marginFrac;
-                const top = A4H * marginFrac;
+                const cx = printPos.x * A4W, cy = printPos.y * A4H;
                 return (
                   <div style={{ display: "flex", justifyContent: "center" }}>
                     <div ref={a4Ref}
-                      onMouseMove={arrastarEscala}
-                      onMouseUp={() => (escalaDrag.current = false)}
-                      onMouseLeave={() => (escalaDrag.current = false)}
-                      style={{ position: "relative", width: A4W, height: A4H, background: "#fff", border: "1px solid #cbd5e1", boxShadow: "0 6px 20px rgba(0,0,0,0.10)", borderRadius: 4 }}>
+                      onMouseMove={arrastarPos}
+                      onMouseUp={() => (posDrag.current = null)}
+                      onMouseLeave={() => (posDrag.current = null)}
+                      style={{ position: "relative", width: A4W, height: A4H, background: "#fff", border: "1px solid #cbd5e1", boxShadow: "0 6px 20px rgba(0,0,0,0.10)", borderRadius: 4, overflow: "hidden" }}>
                       {figura?.image_url && (
-                        <img src={figura.image_url} alt="" draggable={false} style={{ position: "absolute", left, top, width: iw, height: ih, objectFit: "fill", pointerEvents: "none" }} />
-                      )}
-                      {/* alça de redimensionar (canto inferior direito) */}
-                      <div onMouseDown={(e) => { e.preventDefault(); escalaDrag.current = true; }}
-                        title="Arraste para redimensionar"
-                        style={{ position: "absolute", left: left + iw - 9, top: top + ih - 9, width: 18, height: 18, borderRadius: "50%", background: "#dc2626", border: "2px solid #fff", boxShadow: "0 1px 5px rgba(0,0,0,0.4)", cursor: "nwse-resize" }} />
-                      {/* dica de peças */}
-                      {printDlg.comPecas && (
-                        <div style={{ position: "absolute", left, right: left, top: top + ih + 6, display: "flex", flexDirection: "column", gap: 3 }}>
-                          {[0, 1, 2, 3].map((i) => <div key={i} style={{ height: 4, background: "#eef0f3", borderRadius: 2 }} />)}
-                        </div>
+                        <img src={figura.image_url} alt="" draggable={false}
+                          onMouseDown={(e) => { e.preventDefault(); posDrag.current = { mx: e.clientX, my: e.clientY, px: printPos.x, py: printPos.y }; }}
+                          style={{ position: "absolute", left: cx - iw / 2, top: cy - ih / 2, width: iw, height: ih, objectFit: "fill", transform: `rotate(${printRot}deg)`, transformOrigin: "center center", cursor: "grab", userSelect: "none" }} />
                       )}
                     </div>
                   </div>
                 );
               })()}
-              {/* Slider */}
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 16 }}>
-                <i className="fas fa-image" style={{ color: "#94a3b8", fontSize: 12 }} />
-                <input type="range" min={15} max={100} value={Math.round(printScale * 100)} onChange={(e) => setPrintScale(parseInt(e.target.value) / 100)} style={{ flex: 1 }} />
-                <i className="fas fa-image" style={{ color: "#94a3b8", fontSize: 20 }} />
-                <span style={{ width: 42, textAlign: "right", fontSize: 13, fontWeight: 700, color: "#475569" }}>{Math.round(printScale * 100)}%</span>
+              {/* Controles: girar, centralizar, tamanho */}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
+                <button onClick={() => setPrintRot((r) => (r + 90) % 360)} title="Girar 90°"
+                  style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 9, border: "1px solid #e2e8f0", background: "#fff", color: "#334155", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                  <i className="fas fa-rotate-right" /> Girar
+                </button>
+                <button onClick={() => setPrintPos({ x: 0.5, y: 0.45 })} title="Centralizar na folha"
+                  style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 9, border: "1px solid #e2e8f0", background: "#fff", color: "#334155", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                  <i className="fas fa-arrows-to-dot" /> Centralizar
+                </button>
+                <div style={{ flex: 1, minWidth: 160, display: "flex", alignItems: "center", gap: 8 }}>
+                  <i className="fas fa-magnifying-glass-minus" style={{ color: "#94a3b8", fontSize: 12 }} />
+                  <input type="range" min={15} max={250} value={Math.round(printScale * 100)} onChange={(e) => setPrintScale(parseInt(e.target.value) / 100)} style={{ flex: 1 }} />
+                  <i className="fas fa-magnifying-glass-plus" style={{ color: "#94a3b8", fontSize: 15 }} />
+                  <span style={{ width: 46, textAlign: "right", fontSize: 13, fontWeight: 700, color: "#475569" }}>{Math.round(printScale * 100)}%</span>
+                </div>
               </div>
             </div>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: "14px 20px", borderTop: "1px solid #f1f5f9" }}>
               <button onClick={() => setPrintDlg(null)} style={{ padding: "10px 18px", borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", color: "#475569", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Cancelar</button>
-              <button onClick={() => { const cp = printDlg.comPecas; setPrintDlg(null); gerarPdf(cp, "baixar", printScale); }} disabled={gerandoPdf}
+              <button onClick={() => { const cp = printDlg.comPecas; const o = { scale: printScale, rot: printRot, pos: printPos }; setPrintDlg(null); gerarPdf(cp, "baixar", o); }} disabled={gerandoPdf}
                 style={{ padding: "10px 16px", borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", color: "#334155", fontSize: 14, fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8 }}>
                 <i className="fas fa-download" /> Baixar
               </button>
-              <button onClick={() => { const cp = printDlg.comPecas; setPrintDlg(null); gerarPdf(cp, "imprimir", printScale); }} disabled={gerandoPdf}
+              <button onClick={() => { const cp = printDlg.comPecas; const o = { scale: printScale, rot: printRot, pos: printPos }; setPrintDlg(null); gerarPdf(cp, "imprimir", o); }} disabled={gerandoPdf}
                 style={{ padding: "10px 20px", borderRadius: 10, border: "none", background: "#dc2626", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8 }}>
                 <i className="fas fa-print" /> Imprimir
               </button>

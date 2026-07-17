@@ -1,0 +1,18 @@
+# Carrinhos — auto-fechamento: carrinho aberto há 7+ dias (expira_em) fecha
+# automaticamente e vai para "fechados". Roda 1x por dia.
+name: Carrinhos - Auto-fechar expirados
+
+on:
+  schedule:
+    - cron: '30 9 * * *'   # 06:30 BRT
+  workflow_dispatch: {}
+
+jobs:
+  fechar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Chamar rota de auto-fechamento
+        run: |
+          curl -fsS --max-time 300 -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/carrinhos/cron/fechar-expirados"
