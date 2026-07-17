@@ -6,7 +6,7 @@ import { usePermissoes } from '@/hooks/usePermissoes'
 import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui'
 import { supabase } from '@/lib/supabase'
 import SemPermissao from '@/components/SemPermissao'
-import { Search, ChevronDown, ChevronUp, ArrowLeft, RefreshCw, ChevronRight, Download, Printer, FolderOpen, X, FileText, Wrench, Calendar, MapPin, User, Hash, ClipboardList, Package, Users, Shield, CheckCircle, Clock, Mail, Bell, Tag, Plus, Trash2, Save, Upload, AlertTriangle } from 'lucide-react'
+import { Search, ChevronDown, ChevronUp, ArrowLeft, RefreshCw, ChevronRight, Download, Printer, FolderOpen, X, FileText, Wrench, Calendar, MapPin, User, Hash, ClipboardList, Package, Users, Shield, CheckCircle, Clock, Mail, Bell, Tag, Plus, Trash2, Save, Upload, AlertTriangle, Send } from 'lucide-react'
 
 interface Cliente {
   cod_cli: number; empresa: string; razao_social: string; nome_fantasia: string
@@ -29,9 +29,9 @@ interface SubstituicaoNF {
   por: string; por_id: string | null; em: string
 }
 interface FinanceiroDoc {
-  boleto: string | null; nf_servico: string | null; nf_peca: string | null
+  id: number | null; boleto: string | null; nf_servico: string | null; nf_peca: string | null
   num_nf_servico: string | null; num_nf_peca: string | null
-  status: string | null; valor: number | null; categoria: string
+  status: string | null; valor: number | null; categoria: string; criado_em: string | null
 }
 interface PedidoVenda {
   num_pedido: string; cod_pedido: number; empresa: string; cod_cli: number
@@ -516,10 +516,9 @@ function ClientesPageInner() {
   const criarCardManual = async (os: OrdemServico, motivo: string) => {
     if (!podeAnexos || !selectedCliente) return
     if (!window.confirm(
-      `Criar o card da OS ${os.num_os} no financeiro À MÃO?\n\n` +
-      `Problema encontrado:\n${motivo}\n\n` +
-      `O card será criado assim mesmo (o automático não cria quando falta nota).\n` +
-      `Confira os dados no financeiro depois.`
+      motivo
+        ? `Criar o card da OS ${os.num_os} no financeiro À MÃO?\n\nProblema encontrado:\n${motivo}\n\nO card será criado assim mesmo (o automático não cria quando falta nota).\nConfira os dados no financeiro depois.`
+        : `Enviar a OS ${os.num_os} para o financeiro agora?\n\nSe já existe um card, não vai duplicar.`
     )) return
     setForcandoCard(true)
     try {
@@ -1474,10 +1473,17 @@ function ClientesPageInner() {
                                   <input type="file" accept="application/pdf" style={{ display: 'none' }} disabled={anexNfOS}
                                     onChange={e => { const f = e.target.files?.[0]; if (f) anexarNFservicoNaOS(os, f, { gerarCard: gerarCardFin }) }} />
                                 </label>
-                                <label title="Se marcado, ao anexar a nota já cria o card no financeiro" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#6B7280', cursor: 'pointer', userSelect: 'none', paddingLeft: 2 }}>
-                                  <input type="checkbox" checked={gerarCardFin} onChange={e => setGerarCardFin(e.target.checked)} style={{ cursor: 'pointer', accentColor: '#B45309' }} />
-                                  Gerar card no financeiro
-                                </label>
+                                {os.financeiro ? (
+                                  <span title={`Card #${os.financeiro.id || ''} já criado no financeiro`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#047857', fontWeight: 600, paddingLeft: 2 }}>
+                                    <input type="checkbox" checked disabled style={{ cursor: 'default', accentColor: '#047857' }} />
+                                    Já enviado ao financeiro{os.financeiro.id ? ` (#${os.financeiro.id})` : ''}
+                                  </span>
+                                ) : (
+                                  <label title="Se marcado, ao anexar a nota já cria o card no financeiro" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#6B7280', cursor: 'pointer', userSelect: 'none', paddingLeft: 2 }}>
+                                    <input type="checkbox" checked={gerarCardFin} onChange={e => setGerarCardFin(e.target.checked)} style={{ cursor: 'pointer', accentColor: '#B45309' }} />
+                                    Enviar para o Financeiro
+                                  </label>
+                                )}
                               </div>
                             ) : (
                               <span style={MUTED}>Ainda sem nota (a OS não foi faturada).</span>
@@ -1556,7 +1562,7 @@ function ClientesPageInner() {
                           const pvsComNF = pvs.filter(p => p.link_nf || os.financeiro?.nf_peca)
                           const temPeca = pvs.length === 0 ? true : pvsComNF.length === pvs.length
                           const completo = temServ && temPeca
-                          // Lista dos problemas — é o que aparece na caixa e vai no confirm do botão manual
+                          const jaNoFinanceiro = !!os.financeiro
                           const problemas: string[] = []
                           if (!temServ) problemas.push('• A NF de Serviço não está na pasta (não saiu no Omie e não foi anexada).')
                           for (const p of pvs.filter(x => !x.link_nf && !os.financeiro?.nf_peca)) {
@@ -1575,24 +1581,69 @@ function ClientesPageInner() {
                           return (
                             <div style={{ paddingTop: 4 }}>
                               <div style={LBL}>Status para o financeiro</div>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 7, padding: '12px 14px', borderRadius: 10, background: completo ? '#ECFDF5' : '#FFFBEB', border: `1px solid ${completo ? '#A7F3D0' : '#FDE68A'}` }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 7, padding: '12px 14px', borderRadius: 10, background: jaNoFinanceiro ? '#ECFDF5' : completo ? '#F0FDF4' : '#FFFBEB', border: `1px solid ${jaNoFinanceiro ? '#A7F3D0' : completo ? '#BBF7D0' : '#FDE68A'}` }}>
                                 <Item ok={temServ} txt={temServ ? 'NF de Serviço anexada' : 'NF de Serviço FALTANDO — anexe acima'} />
                                 {pvs.length > 0 && (
                                   <Item ok={temPeca} txt={temPeca
                                     ? `NF de Peça anexada${pvs.length > 1 ? ` (${pvs.length} pedidos)` : ` (PV ${pvs[0].num_pedido})`}`
                                     : `NF de Peça FALTANDO (PV ${pvs.filter(p => !p.link_nf).map(p => p.num_pedido).join(', ')}) — anexe acima`} />
                                 )}
-                                <div style={{ fontSize: 12.5, marginTop: 3, color: completo ? '#047857' : '#92400E', fontWeight: 600 }}>
-                                  {os.financeiro
-                                    ? '✅ Já está no financeiro.'
-                                    : completo
-                                      ? 'As duas notas estão prontas — o card vai pro financeiro no próximo sync (ou já foi).'
+
+                                {/* CARD JÁ EXISTE NO FINANCEIRO — mostrar detalhes */}
+                                {jaNoFinanceiro && (
+                                  <div style={{ marginTop: 4, padding: '10px 12px', borderRadius: 8, background: '#D1FAE5', border: '1px solid #6EE7B7' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: '#047857', marginBottom: 6 }}>
+                                      <CheckCircle size={14} /> Card no financeiro
+                                      {os.financeiro?.id && (
+                                        <span style={{ fontSize: 11, fontWeight: 600, color: '#059669', background: '#ECFDF5', padding: '2px 8px', borderRadius: 6 }}>
+                                          #{os.financeiro.id}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 12, color: '#065F46' }}>
+                                      {os.financeiro?.status && (
+                                        <div><span style={{ fontWeight: 600 }}>Status:</span> {os.financeiro.status}</div>
+                                      )}
+                                      {os.financeiro?.valor && (
+                                        <div><span style={{ fontWeight: 600 }}>Valor:</span> R$ {Number(os.financeiro.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                                      )}
+                                      {os.financeiro?.categoria && (
+                                        <div><span style={{ fontWeight: 600 }}>Categoria:</span> {os.financeiro.categoria}</div>
+                                      )}
+                                      {os.financeiro?.num_nf_servico && (
+                                        <div><span style={{ fontWeight: 600 }}>NF Serv.:</span> {os.financeiro.num_nf_servico}</div>
+                                      )}
+                                      {os.financeiro?.num_nf_peca && (
+                                        <div><span style={{ fontWeight: 600 }}>NF Peça:</span> {os.financeiro.num_nf_peca}</div>
+                                      )}
+                                      {os.financeiro?.criado_em && (
+                                        <div><span style={{ fontWeight: 600 }}>Criado:</span> {new Date(os.financeiro.criado_em).toLocaleDateString('pt-BR')}</div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* NÃO ESTÁ NO FINANCEIRO */}
+                                {!jaNoFinanceiro && (
+                                  <div style={{ fontSize: 12.5, marginTop: 3, color: completo ? '#047857' : '#92400E', fontWeight: 600 }}>
+                                    {completo
+                                      ? 'As notas estão prontas — use o botão abaixo para enviar, ou aguarde o sync automático.'
                                       : 'Enquanto faltar nota, NÃO vai pro financeiro (é de propósito, pra não gerar card errado).'}
-                                </div>
+                                  </div>
+                                )}
                               </div>
 
-                              {/* Caixa do ERRO — aparece dentro do card, explicando o problema */}
-                              {!os.financeiro && problemas.length > 0 && (
+                              {/* BOTÃO ENVIAR PARA O FINANCEIRO — quando completo mas não foi ainda */}
+                              {!jaNoFinanceiro && completo && (
+                                <button onClick={() => criarCardManual(os, '')} disabled={forcandoCard}
+                                  title="Envia esta OS para o financeiro agora. Se já foi enviada, não duplica."
+                                  style={{ ...BASE, marginTop: 10, border: 'none', background: '#047857', color: '#fff', fontWeight: 700, cursor: forcandoCard ? 'wait' : 'pointer' }}>
+                                  <Send size={15} /> {forcandoCard ? 'Enviando...' : 'Enviar para o Financeiro'}
+                                </button>
+                              )}
+
+                              {/* Caixa do ERRO — aparece quando tem problemas e não foi pro financeiro */}
+                              {!jaNoFinanceiro && problemas.length > 0 && (
                                 <div style={{ marginTop: 10, padding: '12px 14px', borderRadius: 10, background: '#FEF2F2', border: '1px solid #FECACA' }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 7, color: '#B91C1C', fontWeight: 800, fontSize: 13, marginBottom: 6 }}>
                                     <AlertTriangle size={15} /> Problema com a nota — o card NÃO foi pro financeiro

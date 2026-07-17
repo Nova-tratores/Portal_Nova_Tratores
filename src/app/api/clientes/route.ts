@@ -113,7 +113,7 @@ export async function GET(req: NextRequest) {
         if (pvNums.length) ors.push(`omie_num_pedido.in.(${pvNums.join(",")})`);
         const { data: ch } = await supabase
           .from("Chamado_NF")
-          .select("omie_num_os, omie_num_pedido, omie_empresa, anexo_boleto, anexo_nf_servico, anexo_nf_peca, num_nf_servico, num_nf_peca, status, valor_servico, setor_destino")
+          .select("id, omie_num_os, omie_num_pedido, omie_empresa, anexo_boleto, anexo_nf_servico, anexo_nf_peca, num_nf_servico, num_nf_peca, status, valor_servico, setor_destino, created_at")
           .or(ors.join(","));
         cards = ch || [];
       }
@@ -149,6 +149,7 @@ export async function GET(req: NextRequest) {
       }
 
       const fin = (c: any) => c ? {
+        id: c.id || null,
         boleto: c.anexo_boleto || null,
         nf_servico: c.anexo_nf_servico || null,
         nf_peca: c.anexo_nf_peca || null,
@@ -157,6 +158,7 @@ export async function GET(req: NextRequest) {
         status: c.status || null,
         valor: c.valor_servico || null,
         categoria: c.setor_destino === "pecas" ? "Peças" : "Oficina",
+        criado_em: c.created_at || null,
       } : null;
       // Links SEM origin (relativos). Usar req.nextUrl.origin aqui gerava
       // "http://localhost:8080/..." em produção — no Railway o app roda atrás de um

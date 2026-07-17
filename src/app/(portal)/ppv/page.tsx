@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useMemo, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useSearchParams, usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissoes } from "@/hooks/usePermissoes";
@@ -23,7 +23,7 @@ import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import { MSG_SEM_PERMISSAO } from "@/lib/permissoes/ui";
 
 function PPVApp() {
-  const { kanbanItems, carregarKanban, atualizarKanbanLocal, toast, hideToast, globalLoading, cacheProduct, showToast, tecnicos, recarregarRevisoes } = usePPV();
+  const { kanbanItems, carregarKanban, atualizarKanbanLocal, toast, hideToast, globalLoading, cacheProduct, showToast, recarregarRevisoes } = usePPV();
   const { userProfile } = useAuth();
   const { pode } = usePermissoes(userProfile?.id);
   const podeCriar = pode('ppv', 'criar');
@@ -50,15 +50,7 @@ function PPVApp() {
   }, [activeTab]);
   const [searchFilter, setSearchFilter] = useState("");
   const [tipoFilter, setTipoFilter] = useState("TODOS");
-  const [tecnicoFilter, setTecnicoFilter] = useState("");
-  const [clienteFilter, setClienteFilter] = useState("");
   const [activePhase, setActivePhase] = useState("");
-
-  // Lista de clientes únicos para filtro
-  const clientesUnicos = useMemo(() => {
-    const set = new Set(kanbanItems.map((i) => i.cliente).filter(Boolean));
-    return Array.from(set).sort();
-  }, [kanbanItems]);
 
   // Handler para trocar status via dropdown — update otimista
   const handleStatusChange = useCallback(async (id: string, newStatus: string) => {
@@ -109,6 +101,15 @@ function PPVApp() {
   const [produtoManualOpen, setProdutoManualOpen] = useState(false);
   const [produtoManualEdit, setProdutoManualEdit] = useState<{ id: string; codigo: string; descricao: string; preco: number } | null>(null);
   const [produtoManualProvisorio, setProdutoManualProvisorio] = useState(false);
+  // Menu suspenso de ações no cabeçalho da Gestão (Kits/Produtos/Sync)
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+  const headerMenuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!headerMenuOpen) return;
+    const onDoc = (e: MouseEvent) => { if (headerMenuRef.current && !headerMenuRef.current.contains(e.target as Node)) setHeaderMenuOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [headerMenuOpen]);
 
   // Sync produtos
   const [syncingProdutos, setSyncingProdutos] = useState(false);
@@ -242,18 +243,52 @@ function PPVApp() {
     carregarKanban();
   }
 
-  // Filtro combinado: tipo (Pedido/Remessa) + técnico + cliente. Mostra todos os status.
+  // Filtro combinado: tipo (Pedido/Remessa). A busca por texto cobre técnico/cliente/ID.
   const filteredKanban = kanbanItems.filter((item) => {
     const isRem = (item.tipo || "").toLowerCase().includes("remessa") || (item.tipo || "").toUpperCase() === "REM";
     if (tipoFilter === "PEDIDO" && isRem) return false;
     if (tipoFilter === "REMESSA" && !isRem) return false;
-    if (tecnicoFilter && item.tecnico !== tecnicoFilter) return false;
-    if (clienteFilter && item.cliente !== clienteFilter) return false;
     return true;
   });
 
   // Fundo igual ao POS: superfície neutra clara, sem o padrão pontilhado.
   const bgPattern = { background: "var(--portal-bg, #f1f5f9)" };
+
+  const headerMenuItem = (icon: string, label: string, onClick: () => void, disabled = false) => (
+    <button disabled={disabled} onClick={() => { onClick(); setHeaderMenuOpen(false); }}
+      style={{ display: "flex", alignItems: "center", gap: 11, padding: "11px 13px", width: "100%", border: "none", borderRadius: 8, cursor: disabled ? "not-allowed" : "pointer", background: "transparent", color: "var(--ppv-text)", fontSize: 14.5, fontWeight: 500, textAlign: "left", fontFamily: "'Poppins', sans-serif", opacity: disabled ? 0.6 : 1 }}
+      onMouseEnter={(e) => { if (!disabled) e.currentTarget.style.background = "#F1F5F9"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
+      <i className={`fas ${icon}`} style={{ width: 17, textAlign: "center", color: "var(--ppv-accent)" }} /> {label}
+    </button>
+  );
+
+  const headerActions = (
+    <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+      <button onClick={() => setActiveTab("formTab")} disabled={!podeCriar} title={!podeCriar ? MSG_SEM_PERMISSAO : undefined}
+        style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 20px", borderRadius: 10, border: "none", background: "var(--ppv-primary, #dc2626)", color: "#fff", fontSize: 15, fontWeight: 600, cursor: podeCriar ? "pointer" : "not-allowed", opacity: podeCriar ? 1 : 0.55, fontFamily: "'Poppins', sans-serif", whiteSpace: "nowrap" }}>
+        <i className="fas fa-plus-circle" /> Novo Lançamento
+      </button>
+      {podeCatalogo && (
+        <div style={{ position: "relative" }} ref={headerMenuRef}>
+          <button onClick={() => setHeaderMenuOpen((o) => !o)}
+            style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 18px", borderRadius: 10, border: "1.5px solid var(--ppv-border-light)", background: "#fff", color: "var(--ppv-text)", fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: "'Poppins', sans-serif", whiteSpace: "nowrap" }}>
+            <i className="fas fa-bars" /> Menu <i className="fas fa-chevron-down" style={{ fontSize: 10, transform: headerMenuOpen ? "rotate(180deg)" : "none", transition: "transform .15s" }} />
+          </button>
+          {headerMenuOpen && (
+            <div style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", zIndex: 60, minWidth: 220, background: "#fff", border: "1px solid var(--ppv-border-light)", borderRadius: 12, boxShadow: "0 12px 30px rgba(0,0,0,0.14)", padding: 6, display: "flex", flexDirection: "column", gap: 2 }}>
+              {headerMenuItem("fa-tools", "Gerenciar Kits", () => setShowGerenciarKits(true))}
+              <div style={{ height: 1, background: "var(--ppv-border-light)", margin: "4px 8px" }} />
+              {headerMenuItem("fa-box-open", "Criar Produto", () => { setProdutoManualEdit(null); setProdutoManualProvisorio(false); setProdutoManualOpen(true); })}
+              {headerMenuItem("fa-edit", "Editar Produto", () => handleBuscaProduto("edit"))}
+              {headerMenuItem(`fa-sync-alt ${syncingProdutos ? "fa-spin" : ""}`, syncingProdutos ? "Sincronizando..." : "Sync Preços", syncPrecosOmie, syncingProdutos)}
+              {syncResult && <div style={{ padding: "6px 12px", fontSize: 11, fontWeight: 600, color: syncResult.startsWith("Erro") ? "#DC2626" : "#065F46" }}>{syncResult}</div>}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div className="flex flex-col overflow-hidden font-[Poppins] text-[14px] text-slate-800" style={{ height: "calc(100vh - 84px)" }}>
@@ -262,66 +297,15 @@ function PPVApp() {
 
       {/* ===== TOP BAR ===== */}
       <div className="ppv-topbar">
-        {/* Brand */}
-        <div className="ppv-topbar-brand">
-          <div className="ppv-topbar-icon">
-            <i className="fas fa-file-invoice-dollar" />
-          </div>
-          <span className="ppv-topbar-title">NOVA <span style={{ fontWeight: 400 }}>PPV</span></span>
-        </div>
-
-        {/* Ações à direita: abas (Gestão, Novo, Catálogo, Kits) + botões */}
+        {/* Abas (estilo Chrome) à direita: só Gestão e Catálogo */}
         <div className="ppv-topbar-actions">
-          {/* Abas */}
           <button className={`ppv-topbar-nav-btn ${activeTab === "kanbanTab" ? "active" : ""}`} onClick={() => setActiveTab("kanbanTab")}>
             <i className="fas fa-th-large" /> Gestão
-          </button>
-          <button
-            className={`ppv-topbar-nav-btn ${activeTab === "formTab" ? "active" : ""} disabled:opacity-50 disabled:cursor-not-allowed`}
-            onClick={() => setActiveTab("formTab")}
-            disabled={!podeCriar}
-            title={!podeCriar ? MSG_SEM_PERMISSAO : undefined}
-          >
-            <i className="fas fa-plus-circle" /> Novo Lançamento
           </button>
           {podeCatalogo && (
             <button className={`ppv-topbar-nav-btn ${activeTab === "catalogoTab" ? "active" : ""}`} onClick={() => setActiveTab("catalogoTab")}>
               <i className="fas fa-cogs" /> Catálogo
             </button>
-          )}
-          {podeCatalogo && (
-            <button className="ppv-topbar-nav-btn" onClick={() => setShowGerenciarKits(true)}>
-              <i className="fas fa-tools" /> Gerenciar Kits
-            </button>
-          )}
-
-          {/* Botões secundários */}
-          {podeCatalogo && (
-            <>
-              <div style={{ width: 1, height: 24, background: "rgba(255,255,255,0.22)", margin: "0 4px", alignSelf: "center" }} />
-              <button className="ppv-topbar-action-btn" onClick={() => { setProdutoManualEdit(null); setProdutoManualProvisorio(false); setProdutoManualOpen(true); }}>
-                <i className="fas fa-box-open" /> Criar Produto
-              </button>
-              <button className="ppv-topbar-action-btn" onClick={() => handleBuscaProduto("edit")}>
-                <i className="fas fa-edit" /> Editar Produto
-              </button>
-              <div style={{ position: "relative" }}>
-                <button className="ppv-topbar-action-btn" onClick={syncPrecosOmie} disabled={syncingProdutos}>
-                  <i className={`fas fa-sync-alt ${syncingProdutos ? "fa-spin" : ""}`} /> {syncingProdutos ? "Sincronizando..." : "Sync Preços"}
-                </button>
-                {syncResult && (
-                  <span style={{
-                    position: 'absolute', top: '110%', right: 0, whiteSpace: 'nowrap',
-                    background: syncResult.startsWith('Erro') ? '#FEE2E2' : '#D1FAE5',
-                    color: syncResult.startsWith('Erro') ? '#DC2626' : '#065F46',
-                    fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 6,
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)', zIndex: 50,
-                  }}>
-                    {syncResult}
-                  </span>
-                )}
-              </div>
-            </>
           )}
         </div>
       </div>
@@ -332,10 +316,7 @@ function PPVApp() {
           <Header
             searchFilter={searchFilter} onSearchChange={setSearchFilter}
             tipoFilter={tipoFilter} onTipoFilterChange={setTipoFilter}
-            tecnicoFilter={tecnicoFilter} onTecnicoFilterChange={setTecnicoFilter}
-            tecnicos={tecnicos}
-            clienteFilter={clienteFilter} onClienteFilterChange={setClienteFilter}
-            clientes={clientesUnicos}
+            actions={headerActions}
           />
         )}
 

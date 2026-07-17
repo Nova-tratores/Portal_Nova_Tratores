@@ -9,7 +9,7 @@ import type { GarantiaStatus } from "@/lib/garantias/types";
 // no mesmo tom neutro do texto pra ficar conciso com o resto do documento.
 const ESCUDO_SVG = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1.5px"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`;
 
-const FASES_EXCLUIDAS = new Set(["Concluída", "Cancelada"]);
+const FASES_EXCLUIDAS = new Set(["Concluída", "Cancelada", "Enviar Omie", "Enviado Para Omie", "Preenchido Garantia"]);
 
 // Fase virtual: ordens na fase "Relatório Concluído" que têm garantia são
 // separadas neste grupo próprio no relatório (não é um status real do banco).

@@ -708,9 +708,10 @@ body {
 /* ======================================== */
 .ppv-topbar {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 16px;
-  padding: 10px 24px;
+  padding: 0 24px;
+  min-height: 60px;
   background: var(--ppv-primary-dark);
   color: white;
   position: relative;
@@ -722,6 +723,7 @@ body {
   align-items: center;
   gap: 10px;
   margin-right: 8px;
+  align-self: center;
 }
 .ppv-topbar-icon {
   width: 38px;
@@ -743,60 +745,49 @@ body {
   display: flex;
   gap: 4px;
 }
-.ppv-topbar-nav-btn {
-  padding: 9px 18px;
-  border: 1.5px solid transparent;
-  border-radius: 10px;
-  background: rgba(255,255,255,0.08);
-  color: rgba(255,255,255,0.6);
+.ppv-topbar-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  margin-right: auto;
+}
+/* Abas estilo Chrome (folder tabs) — encaixam na base da barra e "abrem" pro conteúdo */
+.ppv-topbar-nav-btn,
+.ppv-topbar-action-btn {
+  position: relative;
+  padding: 10px 18px;
+  border: none;
+  border-radius: 12px 12px 0 0;
+  background: rgba(255,255,255,0.10);
+  color: rgba(255,255,255,0.72);
   font-family: 'Poppins', sans-serif;
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 500;
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 8px;
-  transition: all 0.15s;
+  transition: background 0.15s, color 0.15s;
   white-space: nowrap;
 }
-.ppv-topbar-nav-btn:hover {
-  background: rgba(255,255,255,0.15);
-  color: white;
+.ppv-topbar-nav-btn:hover:not(.active),
+.ppv-topbar-action-btn:hover {
+  background: rgba(255,255,255,0.20);
+  color: #fff;
 }
 .ppv-topbar-nav-btn.active {
-  background: white;
+  background: #f1f5f9;
   color: var(--ppv-primary-dark);
-  border-color: white;
-  font-weight: 500;
+  z-index: 3;
 }
-.ppv-topbar-nav-btn i { font-size: 14px; }
-
-.ppv-topbar-actions {
-  display: flex;
-  gap: 6px;
-  margin-left: auto;
+/* cantos inferiores côncavos ligando a aba ativa ao conteúdo */
+.ppv-topbar-nav-btn.active::before,
+.ppv-topbar-nav-btn.active::after {
+  content: ""; position: absolute; bottom: 0; width: 11px; height: 11px; background: transparent; pointer-events: none;
 }
-.ppv-topbar-action-btn {
-  padding: 9px 16px;
-  border: 1.5px solid rgba(255,255,255,0.2);
-  border-radius: 10px;
-  background: rgba(255,255,255,0.1);
-  color: rgba(255,255,255,0.8);
-  font-family: 'Poppins', sans-serif;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  transition: all 0.15s;
-  white-space: nowrap;
-}
-.ppv-topbar-action-btn:hover {
-  background: rgba(255,255,255,0.2);
-  color: white;
-  border-color: rgba(255,255,255,0.4);
-}
+.ppv-topbar-nav-btn.active::before { left: -11px; border-bottom-right-radius: 11px; box-shadow: 5.5px 5.5px 0 5.5px #f1f5f9; }
+.ppv-topbar-nav-btn.active::after { right: -11px; border-bottom-left-radius: 11px; box-shadow: -5.5px 5.5px 0 5.5px #f1f5f9; }
+.ppv-topbar-nav-btn i,
 .ppv-topbar-action-btn i { font-size: 13px; }
 
 /* ======================================== */

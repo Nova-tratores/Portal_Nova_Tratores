@@ -54,6 +54,9 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
   const [criando, setCriando] = useState(false);
   const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const listScrollRef = useRef<HTMLDivElement | null>(null);
+  const leftPanelRef = useRef<HTMLDivElement | null>(null);
+  const imgElRef = useRef<HTMLImageElement | null>(null);
+  const pendingHighlight = useRef<string | null>(null);
 
   // Zoom + arrastar (pan) da imagem da figura.
   const [zoom, setZoom] = useState(1);
@@ -178,12 +181,13 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
   // Reseta zoom/pan sempre que abre outra figura.
   useEffect(() => { setZoom(1); setPan({ x: 0, y: 0 }); setPdfMenu(false); }, [figura?.id]);
 
-  // Zoom pela roda do mouse (listener nativo não-passivo para poder previnir o scroll).
+  // Roda do mouse: Ctrl (ou ⌘) = zoom; sem modificador = rolar a página normalmente.
   useEffect(() => {
     const el = imgBoxRef.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
       if (editando) return;
+      if (!e.ctrlKey && !e.metaKey) return; // deixa rolar (scroll) o painel
       e.preventDefault();
       const fator = e.deltaY < 0 ? 1.15 : 1 / 1.15;
       setZoom((z) => {
@@ -483,6 +487,51 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
     scrollParaRef(ref);
   }, [figura, scrollParaRef]);
 
+  // Rola o painel da imagem (esquerda) para centralizar a bolinha `ref`.
+  const scrollImagemParaRef = useCallback((ref: string) => {
+    const h = (figura?.hotspots || []).find((x) => x.reference === ref);
+    const panel = leftPanelRef.current, img = imgElRef.current;
+    if (!h || !panel || !img) return;
+    const pr = panel.getBoundingClientRect(), ir = img.getBoundingClientRect();
+    const yFrac = h.y / (imgDim.h || 1);
+    const alvo = panel.scrollTop + (ir.top - pr.top) + yFrac * ir.height - panel.clientHeight / 2;
+    panel.scrollTo({ top: Math.max(0, alvo), behavior: "smooth" });
+  }, [figura, imgDim.h]);
+
+  // Clique numa peça da lista: destaca a bolinha na imagem. Se a peça não tiver
+  // posição nesta figura, procura a mesma (mesmo código) em outra figura e vai pra lá.
+  const selecionarPecaDaLista = useCallback(async (p: Peca) => {
+    const temAqui = (figura?.hotspots || []).some((h) => h.reference === p.reference);
+    if (temAqui) {
+      setZoom(1); setPan({ x: 0, y: 0 });
+      abrirPecaDaBolinha(p.reference);
+      setTimeout(() => scrollImagemParaRef(p.reference), 80);
+      return;
+    }
+    try {
+      const r = await fetch(`/api/catalogo?acao=busca&q=${encodeURIComponent(p.code)}${mq}`);
+      const res: { code?: string; reference: string; figura?: { id: string } | null }[] = r.ok ? await r.json() : [];
+      const outra = res.find((x) => (x.code || "").toUpperCase() === (p.code || "").toUpperCase() && x.figura && x.figura.id !== figura?.id);
+      if (outra?.figura) {
+        pendingHighlight.current = outra.reference;
+        await abrirFigura(outra.figura.id);
+      } else {
+        abrirPecaDaBolinha(p.reference);
+        setToast("Peça sem posição no desenho."); setTimeout(() => setToast(""), 1600);
+      }
+    } catch { /* silencioso */ }
+  }, [figura, mq, abrirPecaDaBolinha, scrollImagemParaRef, abrirFigura]);
+
+  // Ao entrar noutra figura com destaque pendente (navegação entre figuras), realça a peça lá.
+  useEffect(() => {
+    if (!figura || !pendingHighlight.current) return;
+    const ref = pendingHighlight.current;
+    pendingHighlight.current = null;
+    const p = (figura.pecas || []).find((x) => x.reference === ref) || null;
+    setRefHover(ref); setPecaSel(p); setZoom(1); setPan({ x: 0, y: 0 });
+    setTimeout(() => { scrollImagemParaRef(ref); scrollParaRef(ref); }, 140);
+  }, [figura, scrollImagemParaRef, scrollParaRef]);
+
   const corSecao: Record<string, string> = { Motor: "#dc2626", "Transmissão": "#2563eb", "Sistema Hidráulico": "#7c3aed", "Eixo Dianteiro": "#0891b2", "Elétrica": "#ca8a04", Lataria: "#0d9488", Freio: "#be123c", Embreagem: "#9333ea", "Diferencial": "#0369a1", "Direção": "#65a30d" };
 
   const voltar = () => {
@@ -774,7 +823,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
         {/* ===== DETALHE DA FIGURA (vista explodida + peças) ===== */}
         {vista === "figura" && figura && (
           <div style={{ display: "flex", gap: 0, height: "100%", flexWrap: "wrap", background: "#fff" }}>
-            <div style={{ flex: "1 1 360px", minWidth: 300, padding: 18, borderRight: "1px solid #eef0f3" }}>
+            <div ref={leftPanelRef} style={{ flex: "1 1 360px", minWidth: 300, padding: 18, borderRight: "1px solid #eef0f3", overflowY: "auto", maxHeight: "100%" }}>
               <div style={{ marginBottom: 12, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 700, color: "#dc2626", letterSpacing: 0.5 }}>{figura.code}</div>
@@ -837,7 +886,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
                   <>
                     {/* Wrapper com zoom/pan — a imagem e as bolinhas escalam juntas */}
                     <div style={{ width: "100%", transformOrigin: "center center", transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transition: panRef.current ? "none" : "transform .1s ease", willChange: "transform" }}>
-                      <img src={figura.image_url} alt={figura.name} draggable={false}
+                      <img ref={imgElRef} src={figura.image_url} alt={figura.name} draggable={false}
                         onMouseDown={(e) => { if (!editando && zoom > 1) { e.preventDefault(); panRef.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y }; } }}
                         onLoad={(e) => setImgDim({ w: (e.target as HTMLImageElement).naturalWidth || 1, h: (e.target as HTMLImageElement).naturalHeight || 1 })} style={{ width: "100%", display: "block" }} />
                       {/* MODO NORMAL: bolinhas clicáveis */}
@@ -846,7 +895,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
                         return (
                           <button key={`${h.reference}-${i}`} onClick={() => abrirPecaDaBolinha(h.reference)}
                             onMouseEnter={() => { setRefHover(h.reference); scrollParaRef(h.reference); }} onMouseLeave={() => !pecaSel && setRefHover(null)}
-                            style={{ position: "absolute", left: `${(h.x / imgDim.w) * 100}%`, top: `${(h.y / imgDim.h) * 100}%`, transform: `translate(-50%,-50%) scale(${1 / zoom})`, width: ativo ? 26 : 20, height: ativo ? 26 : 20, borderRadius: "50%", border: "2px solid #fff", background: ativo ? "#dc2626" : "rgba(37,99,235,0.9)", color: "#fff", fontSize: ativo ? 12 : 10, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 5px rgba(0,0,0,0.4)", transition: "all .12s", zIndex: ativo ? 3 : 2 }}>{h.reference}</button>
+                            style={{ position: "absolute", left: `${(h.x / imgDim.w) * 100}%`, top: `${(h.y / imgDim.h) * 100}%`, transform: `translate(-50%,-50%) scale(${1 / zoom})`, width: ativo ? 38 : 30, height: ativo ? 38 : 30, borderRadius: "50%", border: "2.5px solid #fff", background: ativo ? "#dc2626" : "rgba(37,99,235,0.92)", color: "#fff", fontSize: ativo ? 16 : 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 7px rgba(0,0,0,0.45)", transition: "all .12s", zIndex: ativo ? 3 : 2 }}>{h.reference}</button>
                         );
                       })}
                       {/* MODO EDIÇÃO: bolinhas arrastáveis */}
@@ -880,9 +929,9 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
                 </div>
               )}
 
-              {/* Peça da bolinha clicada: some junto com a figura, some ao fechar */}
+              {/* Peça selecionada: fica FIXA no rodapé do painel (sempre visível, mesmo scrollando) */}
               {pecaSel && (
-                <div style={{ marginTop: 12, borderRadius: 12, border: "1.5px solid #fecaca", background: "#fff7f7", padding: "13px 15px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+                <div style={{ position: "sticky", bottom: 0, zIndex: 8, marginTop: 12, borderRadius: 12, border: "1.5px solid #fecaca", background: "#fff7f7", padding: "13px 15px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", boxShadow: "0 -6px 18px rgba(0,0,0,0.10)" }}>
                   <span style={{ display: "inline-flex", width: 30, height: 30, borderRadius: "50%", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, background: "#dc2626", color: "#fff", flexShrink: 0 }}>{pecaSel.reference}</span>
                   <div style={{ flex: "1 1 180px", minWidth: 0 }}>
                     <div style={{ fontSize: 14.5, fontWeight: 700, color: "#0f172a", lineHeight: 1.25 }}>{pecaSel.name}</div>
@@ -917,19 +966,20 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
                 {(figura.pecas || []).map((p) => {
                   const ativo = refHover === p.reference;
                   return (
-                    <div key={p.id} ref={(el) => { rowRefs.current[p.reference] = el; }} onMouseEnter={() => setRefHover(p.reference)} onMouseLeave={() => setRefHover(null)}
-                      style={{ display: "flex", alignItems: "center", padding: "11px 16px", borderBottom: "1px solid #f3f5f8", background: ativo ? "#fff7ed" : "transparent", transition: "background .12s" }}>
+                    <div key={p.id} ref={(el) => { rowRefs.current[p.reference] = el; }} onMouseEnter={() => setRefHover(p.reference)} onMouseLeave={() => { if (!pecaSel) setRefHover(null); }}
+                      onClick={() => selecionarPecaDaLista(p)} title="Clique para destacar no desenho"
+                      style={{ display: "flex", alignItems: "center", padding: "11px 16px", borderBottom: "1px solid #f3f5f8", background: ativo ? "#fff7ed" : "transparent", transition: "background .12s", cursor: "pointer" }}>
                       <span style={{ width: 40 }}><span style={{ display: "inline-flex", width: 23, height: 23, borderRadius: "50%", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, background: ativo ? "#dc2626" : "#eef2f7", color: ativo ? "#fff" : "#475569" }}>{p.reference}</span></span>
                       <span style={{ width: 172, display: "flex", alignItems: "center", gap: 6 }}>
                         <code style={{ fontSize: 14.5, fontWeight: 700, color: "#dc2626" }}>{p.code}</code>
-                        <button onClick={() => copiarCodigo(p.code)} title="Copiar código"
+                        <button onClick={(e) => { e.stopPropagation(); copiarCodigo(p.code); }} title="Copiar código"
                           style={{ border: "none", background: "transparent", cursor: "pointer", color: copiado === p.code ? "#16a34a" : "#94a3b8", fontSize: 13, padding: 2, flexShrink: 0 }}>
                           <i className={`fas ${copiado === p.code ? "fa-check" : "fa-copy"}`} />
                         </button>
                       </span>
                       <span style={{ flex: 1, fontSize: 14.5, paddingRight: 8, color: "#0f172a", lineHeight: 1.3 }}>{p.name}</span>
                       <span style={{ width: 50, fontSize: 13.5, color: "#64748b" }}>{p.qtd} {p.unit}</span>
-                      <button className="cat-add" onClick={() => addPeca({ code: p.code, name: p.name })} title={onSelecionarPeca ? "Adicionar ao lançamento" : "Adicionar ao carrinho"} style={{ width: 32, height: 32, border: "none", background: "#dc2626", color: "#fff", borderRadius: 8, cursor: "pointer", flexShrink: 0 }}><i className="fas fa-plus" /></button>
+                      <button className="cat-add" onClick={(e) => { e.stopPropagation(); addPeca({ code: p.code, name: p.name }); }} title={onSelecionarPeca ? "Adicionar ao lançamento" : "Adicionar ao carrinho"} style={{ width: 32, height: 32, border: "none", background: "#dc2626", color: "#fff", borderRadius: 8, cursor: "pointer", flexShrink: 0 }}><i className="fas fa-plus" /></button>
                     </div>
                   );
                 })}
