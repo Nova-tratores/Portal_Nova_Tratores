@@ -386,6 +386,14 @@ function Lado({ lado, borda }: { lado: VeiculoFlex['etanol']; borda?: boolean })
 
 function Veredito({ v }: { v: VeiculoFlex }) {
   if (!v.veredito) {
+    // nunca testou o outro combustível: dizer ISSO em vez de "amostra
+    // insuficiente" — é um convite pra testar o outro lado no próximo tanque
+    if (v.etanol.abastecimentos === 0) {
+      return <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-semibold text-orange-700">só gasolina no período</span>
+    }
+    if (v.gasolina.abastecimentos === 0) {
+      return <span className="rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-semibold text-green-700">só etanol no período</span>
+    }
     return <span className="text-[10px] text-gray-400">amostra insuficiente</span>
   }
   const pct = v.economiaPct != null && v.economiaPct > 0

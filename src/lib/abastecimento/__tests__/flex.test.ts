@@ -25,9 +25,14 @@ describe('classificarCombustivel', () => {
 })
 
 describe('compararFlex', () => {
-  it('só devolve veículos que usaram os dois combustíveis', () => {
+  it('quem usou só UM combustível APARECE, mas sem veredito (só gasolina)', () => {
+    // antes o veículo sumia da tela — escondia que ele nunca testou o etanol
     const rows = [abast({}), abast({ hodometro_anterior: 10400, hodometro: 10800 })]
-    expect(compararFlex(rows)).toHaveLength(0) // só gasolina
+    const lista = compararFlex(rows)
+    expect(lista).toHaveLength(1)
+    expect(lista[0].veredito).toBeNull()
+    expect(lista[0].gasolina.abastecimentos).toBe(2)
+    expect(lista[0].etanol.abastecimentos).toBe(0)
   })
 
   it('calcula km/l e R$/km por combustível e dá o veredito pelo custo/km', () => {

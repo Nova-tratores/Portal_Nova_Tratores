@@ -144,8 +144,9 @@ export function compararFlex(rows: FlexRow[]): VeiculoFlex[] {
       if (lado.litrosTotais > 0) lado.precoMedioLitro = lado.valorTotal / lado.litrosTotais
     }
 
-    // só interessa quem usou os dois combustíveis no período
-    if (v.etanol.abastecimentos === 0 || v.gasolina.abastecimentos === 0) continue
+    // Quem usou só UM combustível também entra (sem veredito) — sumir da
+    // lista escondia que o carro nunca testou o outro lado (o TKY6E68
+    // abastecia muito e não aparecia). A tela mostra "só gasolina/etanol".
 
     if (
       v.etanol.validos >= MIN_VALIDOS &&
@@ -170,10 +171,15 @@ export function compararFlex(rows: FlexRow[]): VeiculoFlex[] {
     out.push(v)
   }
 
-  // veículos com veredito primeiro, maior economia no topo
+  // ordem: com veredito > testou os dois (amostra curta) > só um combustível;
+  // dentro do grupo, maior economia / mais abastecimentos no topo
+  const grupo = (v: VeiculoFlex) =>
+    v.veredito != null ? 0 : v.etanol.abastecimentos > 0 && v.gasolina.abastecimentos > 0 ? 1 : 2
   out.sort((a, b) => {
-    if ((a.veredito != null) !== (b.veredito != null)) return a.veredito != null ? -1 : 1
-    return (b.economiaPct ?? 0) - (a.economiaPct ?? 0)
+    const ga = grupo(a), gb = grupo(b)
+    if (ga !== gb) return ga - gb
+    if (ga === 0) return (b.economiaPct ?? 0) - (a.economiaPct ?? 0)
+    return (b.etanol.abastecimentos + b.gasolina.abastecimentos) - (a.etanol.abastecimentos + a.gasolina.abastecimentos)
   })
   return out
 }

@@ -26,6 +26,9 @@ export const COLUNAS_POPUP: ColunaDef<TransacaoRow>[] = [
   { chave: 'posto', titulo: 'Posto', valor: (l) => l.posto_nome, render: (l) => l.posto_nome || '—' },
   { chave: 'combustivel', titulo: 'Combustível', valor: (l) => l.combustivel, render: (l) => l.combustivel || '—' },
   { chave: 'litros', titulo: 'Litros', direita: true, valor: (l) => l.litros, render: (l) => l.litros.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) },
+  // hodômetro digitado pelo motorista na bomba — é a base do km/L e do km dos
+  // veículos sem rastreador (pedido do usuário: aparecer no dia do abastecimento)
+  { chave: 'hodometro', titulo: 'Hodômetro', direita: true, valor: (l) => l.hodometro, render: (l) => (l.hodometro != null && l.hodometro > 0 ? `${l.hodometro.toLocaleString('pt-BR')} km` : '—') },
   { chave: 'unitario', titulo: 'R$/L', direita: true, valor: (l) => l.valor_unitario, render: (l) => (l.valor_unitario != null ? l.valor_unitario.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '—') },
   { chave: 'total', titulo: 'Total', direita: true, valor: (l) => l.valor_total, render: (l) => <strong>{fmtRS(l.valor_total)}</strong> },
 ];
