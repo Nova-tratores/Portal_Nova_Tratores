@@ -9,9 +9,10 @@ interface Props {
   onClose: () => void;
   onSaved: () => void;
   editData?: { id: string; codigo: string; descricao: string; preco: number } | null;
+  provisorio?: boolean;
 }
 
-export default function ModalProdutoManual({ open, onClose, onSaved, editData }: Props) {
+export default function ModalProdutoManual({ open, onClose, onSaved, editData, provisorio }: Props) {
   const { showToast } = usePPV();
   const [codigo, setCodigo] = useState("");
   const [descricao, setDescricao] = useState("");
@@ -61,11 +62,20 @@ export default function ModalProdutoManual({ open, onClose, onSaved, editData }:
       <div className="flex w-[500px] flex-col rounded-lg bg-[#FFFAF5] shadow-2xl">
         <div className="flex items-center justify-between rounded-t-lg border-b border-orange-200/60 bg-[#FFFAF5] px-10 py-5">
           <h2 className="text-xl font-bold text-slate-800">
-            {editData ? "Editar Produto Manual" : "Novo Produto Manual"}
+            {editData?.id ? "Editar Produto Manual" : provisorio ? "Criar Produto (provisório)" : "Novo Produto Manual"}
           </h2>
           <button onClick={onClose} className="border-none bg-transparent text-2xl text-slate-400 transition-colors hover:text-red-500">&times;</button>
         </div>
         <div className="bg-[#FFFAF5] px-10 py-7">
+          {provisorio && (
+            <div className="mb-5 flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-[12.5px] leading-snug text-amber-800">
+              <i className="fas fa-triangle-exclamation mt-0.5 text-amber-500" />
+              <span>
+                Essa peça <b>não está cadastrada no Omie</b>. Ela vai ser criada de forma <b>provisória</b> só para não travar o pedido.
+                Sempre que possível, <b>use produtos já cadastrados no Omie</b> — depois peça o cadastro oficial dessa peça lá.
+              </span>
+            </div>
+          )}
           <div className="mb-4">
             <label className="mb-1.5 block text-xs font-semibold text-slate-400">Código do Produto</label>
             <input type="text" value={codigo} onChange={(e) => setCodigo(e.target.value)} placeholder="Ex: MAN-001" className="w-full rounded-lg border border-orange-200/60 p-3 font-[Poppins] text-[13px] focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-100" />

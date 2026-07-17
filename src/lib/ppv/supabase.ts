@@ -73,9 +73,10 @@ export function formatarDataBR(
   if (!valor) return "";
   const d = new Date(valor);
   if (isNaN(d.getTime())) return String(valor);
-  const dia = String(d.getDate()).padStart(2, "0");
-  const mes = String(d.getMonth() + 1).padStart(2, "0");
-  const ano = d.getFullYear();
-  if (!comHora) return `${dia}/${mes}/${ano}`;
-  return `${dia}/${mes}/${ano} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  // Formata no fuso do Brasil — senão no servidor (UTC) a hora sai 3h adiantada (logs errados).
+  const TZ = "America/Sao_Paulo";
+  const data = new Intl.DateTimeFormat("pt-BR", { timeZone: TZ, day: "2-digit", month: "2-digit", year: "numeric" }).format(d);
+  if (!comHora) return data;
+  const hora = new Intl.DateTimeFormat("pt-BR", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hour12: false }).format(d);
+  return `${data} ${hora}`;
 }

@@ -1,9 +1,11 @@
 "use client";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, type CSSProperties, type MouseEvent as RMouseEvent } from "react";
 
 interface Peca { id: number; code: string; name: string; reference: string; qtd: number | null; unit: string | null; compravel?: boolean; figura?: any; figura_id?: string }
 interface Figura { id: string; code: string; name: string; secao: string; thumb_url: string | null; image_url: string | null; hotspots?: { reference: string; x: number; y: number }[]; pecas?: Peca[] }
 interface Secao { secao: string; ordem: number; figuras: number; thumb?: string | null }
+const zoomBtn: CSSProperties = { width: 34, height: 34, borderRadius: 9, border: "1px solid #e2e8f0", background: "rgba(255,255,255,0.95)", color: "#334155", fontSize: 18, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.12)", lineHeight: 1 };
+const fsBtn: CSSProperties = { padding: "8px 14px", borderRadius: 9, border: "1px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.1)", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 7 };
 interface Modelo { slug: string; nome: string; image_url: string | null; figuras?: number; marca?: string | null; tipo?: string | null; familia?: string | null; manual_url?: string | null; manual_nome?: string | null }
 interface Marca { slug: string; nome: string; logo_url: string | null; modelos: number; tipos: string[] }
 // Linha de produto: agrupa as variantes num card só (ex.: PST DUO tem 62 variantes de chassi/versão).
@@ -51,6 +53,195 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
   const [cliSel, setCliSel] = useState<any | null>(null);
   const [criando, setCriando] = useState(false);
   const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const listScrollRef = useRef<HTMLDivElement | null>(null);
+
+  // Zoom + arrastar (pan) da imagem da figura.
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const panRef = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
+  // Menu de gerar PDF
+  const [pdfMenu, setPdfMenu] = useState(false);
+  const [gerandoPdf, setGerandoPdf] = useState(false);
+  // Diálogo de tamanho da imagem antes de imprimir (molde A4 com escala arrastável)
+  const [printDlg, setPrintDlg] = useState<{ comPecas: boolean } | null>(null);
+  const [printScale, setPrintScale] = useState(0.78); // fração da largura útil da folha
+  const a4Ref = useRef<HTMLDivElement | null>(null);
+  const escalaDrag = useRef(false);
+  // Tela cheia + desenho (caneta com cores) + zoom
+  const [fullscreen, setFullscreen] = useState(false);
+  const [fsZoom, setFsZoom] = useState(1);
+  const [penColor, setPenColor] = useState("#dc2626");
+  const [copiado, setCopiado] = useState<string | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const fsImgRef = useRef<HTMLImageElement | null>(null);
+  const desenhando = useRef(false);
+
+  const CORES = ["#dc2626", "#2563eb", "#16a34a", "#f59e0b", "#7c3aed", "#000000", "#ffffff"];
+
+  const ajustarCanvas = useCallback(() => {
+    const img = fsImgRef.current, cv = canvasRef.current;
+    if (!img || !cv) return;
+    cv.width = img.clientWidth; cv.height = img.clientHeight;
+  }, []);
+  // Converte a posição do mouse para coordenadas do buffer do canvas (robusto ao zoom).
+  const pontoCanvas = (e: RMouseEvent<HTMLCanvasElement>) => {
+    const cv = canvasRef.current!;
+    const r = cv.getBoundingClientRect();
+    return { x: (e.clientX - r.left) * (cv.width / r.width), y: (e.clientY - r.top) * (cv.height / r.height) };
+  };
+  const iniciarTraco = useCallback((e: RMouseEvent<HTMLCanvasElement>) => {
+    const cv = canvasRef.current; if (!cv) return;
+    const ctx = cv.getContext("2d"); if (!ctx) return;
+    desenhando.current = true;
+    const p = pontoCanvas(e);
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+  }, []);
+  const traco = useCallback((e: RMouseEvent<HTMLCanvasElement>) => {
+    if (!desenhando.current) return;
+    const cv = canvasRef.current; if (!cv) return;
+    const ctx = cv.getContext("2d"); if (!ctx) return;
+    const p = pontoCanvas(e);
+    ctx.strokeStyle = penColor; ctx.lineWidth = 3; ctx.lineCap = "round"; ctx.lineJoin = "round";
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+  }, [penColor]);
+  const terminarTraco = useCallback(() => { desenhando.current = false; }, []);
+  const limparDesenho = useCallback(() => {
+    const cv = canvasRef.current; if (!cv) return;
+    cv.getContext("2d")?.clearRect(0, 0, cv.width, cv.height);
+  }, []);
+  const copiarCodigo = useCallback((code: string) => {
+    navigator.clipboard?.writeText(code).then(() => { setCopiado(code); setTimeout(() => setCopiado(null), 1400); }).catch(() => {});
+  }, []);
+
+  // Arrastar o canto da imagem no molde A4 para redimensionar.
+  const arrastarEscala = useCallback((e: RMouseEvent<HTMLDivElement>) => {
+    if (!escalaDrag.current || !a4Ref.current) return;
+    const r = a4Ref.current.getBoundingClientRect();
+    const marginFrac = 0.06;
+    const contentW = r.width * (1 - 2 * marginFrac);
+    const localX = e.clientX - r.left - r.width * marginFrac;
+    setPrintScale(Math.min(1, Math.max(0.15, localX / contentW)));
+  }, []);
+
+  // PDF do desenho feito na tela cheia (imagem + traços da caneta).
+  const gerarPdfDesenho = useCallback(async (acao: "imprimir" | "baixar") => {
+    if (!figura?.image_url) return;
+    setGerandoPdf(true);
+    try {
+      const resp = await fetch(figura.image_url);
+      const blob = await resp.blob();
+      const baseUrl: string = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result as string); fr.onerror = rej; fr.readAsDataURL(blob); });
+      const baseImg = new Image();
+      baseImg.src = baseUrl;
+      await baseImg.decode();
+      const W = imgDim.w || baseImg.naturalWidth || 1, H = imgDim.h || baseImg.naturalHeight || 1;
+      const tmp = document.createElement("canvas");
+      tmp.width = W; tmp.height = H;
+      const tctx = tmp.getContext("2d");
+      if (!tctx) throw new Error("sem contexto");
+      tctx.drawImage(baseImg, 0, 0, W, H);
+      if (canvasRef.current && canvasRef.current.width > 0) tctx.drawImage(canvasRef.current, 0, 0, W, H);
+      const dataUrl = tmp.toDataURL("image/png");
+      const { default: JsPDF } = await import("jspdf");
+      const doc = new JsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pageW = doc.internal.pageSize.getWidth();
+      const pageH = doc.internal.pageSize.getHeight();
+      const margin = 10;
+      const maxW = pageW - margin * 2;
+      const ratio = H / W;
+      let iw = maxW; let ih = iw * ratio;
+      const maxH = pageH - margin * 2;
+      if (ih > maxH) { ih = maxH; iw = ih / ratio; }
+      doc.addImage(dataUrl, "PNG", margin + (maxW - iw) / 2, margin, iw, ih);
+      const nome = `${(figura.code || "figura").replace(/[^\w.-]+/g, "_")}-desenho.pdf`;
+      if (acao === "imprimir") { doc.autoPrint(); const u = doc.output("bloburl"); const w = window.open(u, "_blank"); if (!w) { doc.save(nome); setToast("Pop-up bloqueado — baixei o PDF."); setTimeout(() => setToast(""), 2500); } }
+      else doc.save(nome);
+    } catch { setToast("Erro ao gerar o PDF."); setTimeout(() => setToast(""), 2000); }
+    setGerandoPdf(false);
+  }, [figura, imgDim]);
+
+  // Auto-scroll: leva a linha da peça `ref` para o centro do painel DIREITO (lista),
+  // scrollando só esse container (nunca a página/modal). Usado ao passar o mouse
+  // numa bolinha ou ao clicar nela. Vale para todos os catálogos (é o mesmo componente).
+  const scrollParaRef = useCallback((ref: string) => {
+    const cont = listScrollRef.current;
+    const row = rowRefs.current[ref];
+    if (!cont || !row) return;
+    const cRect = cont.getBoundingClientRect();
+    const rRect = row.getBoundingClientRect();
+    const delta = (rRect.top - cRect.top) - (cont.clientHeight / 2 - row.clientHeight / 2);
+    cont.scrollTo({ top: cont.scrollTop + delta, behavior: "smooth" });
+  }, []);
+
+  // Reseta zoom/pan sempre que abre outra figura.
+  useEffect(() => { setZoom(1); setPan({ x: 0, y: 0 }); setPdfMenu(false); }, [figura?.id]);
+
+  // Zoom pela roda do mouse (listener nativo não-passivo para poder previnir o scroll).
+  useEffect(() => {
+    const el = imgBoxRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (editando) return;
+      e.preventDefault();
+      const fator = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+      setZoom((z) => {
+        const nz = Math.min(6, Math.max(1, z * fator));
+        if (nz === 1) setPan({ x: 0, y: 0 });
+        return nz;
+      });
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [editando, figura?.id]);
+
+  // Gera PDF da figura (com ou sem a lista de peças da direita).
+  // acao: "imprimir" abre na máquina de impressão; "baixar" só faz download.
+  // wf = fator de largura da imagem (0..1 da largura útil da folha).
+  const gerarPdf = useCallback(async (comPecas: boolean, acao: "imprimir" | "baixar", wf = 0.78) => {
+    if (!figura?.image_url) return;
+    setGerandoPdf(true);
+    try {
+      const [{ default: JsPDF }, autoMod] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
+      const autoTable = ((autoMod as unknown) as { default: (doc: unknown, opts: unknown) => void }).default;
+      const resp = await fetch(figura.image_url);
+      const blob = await resp.blob();
+      const dataUrl: string = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result as string); fr.onerror = rej; fr.readAsDataURL(blob); });
+      const fmt = blob.type.includes("png") ? "PNG" : "JPEG";
+      const doc = new JsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pageW = doc.internal.pageSize.getWidth();
+      const margin = 12;
+      let y = margin;
+      doc.setFontSize(13); doc.setTextColor(30);
+      doc.text(`${figura.code || ""}  ${figura.name || ""}`.trim(), margin, y); y += 6;
+      if (modeloSel?.nome) { doc.setFontSize(10); doc.setTextColor(120); doc.text(String(modeloSel.nome), margin, y); y += 5; }
+      const maxW = pageW - margin * 2;
+      const ratio = (imgDim.h || 1) / (imgDim.w || 1);
+      let imgW = maxW * Math.min(1, Math.max(0.1, wf)); let imgH = imgW * ratio;
+      const maxImgH = comPecas ? 150 : 250;
+      if (imgH > maxImgH) { imgH = maxImgH; imgW = imgH / ratio; }
+      doc.addImage(dataUrl, fmt, margin + (maxW - imgW) / 2, y, imgW, imgH);
+      y += imgH + 6;
+      if (comPecas) {
+        const rows = (figura.pecas || []).map((p) => [p.reference, p.code, p.name, `${p.qtd ?? ""} ${p.unit ?? ""}`.trim()]);
+        autoTable(doc, { startY: y, head: [["Ref", "Código", "Nome", "Qtd"]], body: rows, styles: { fontSize: 8, cellPadding: 1.5 }, headStyles: { fillColor: [220, 38, 38] }, margin: { left: margin, right: margin } });
+      }
+      const nome = `${(figura.code || "figura").replace(/[^\w.-]+/g, "_")}.pdf`;
+      if (acao === "imprimir") {
+        doc.autoPrint();
+        const url = doc.output("bloburl");
+        const w = window.open(url, "_blank");
+        if (!w) { doc.save(nome); setToast("Pop-up bloqueado — baixei o PDF."); setTimeout(() => setToast(""), 2500); }
+      } else {
+        doc.save(nome);
+      }
+    } catch {
+      setToast("Erro ao gerar o PDF."); setTimeout(() => setToast(""), 2000);
+    }
+    setGerandoPdf(false);
+    setPdfMenu(false);
+  }, [figura, imgDim, modeloSel]);
 
   const addToCart = useCallback((p: { code: string; name: string }, qty = 1) => {
     setCart((prev) => {
@@ -238,7 +429,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
       existentes.set(r, { reference: r, x: Math.round(W * 0.04 + (i % 18) * W * 0.05), y: Math.round((imgDim.h || 700) * (0.03 + Math.floor(i / 18) * 0.05)) });
     });
     setHsEdit([...existentes.values()]);
-    setEditando(true); setPecaSel(null); setRefHover(null);
+    setEditando(true); setPecaSel(null); setRefHover(null); setZoom(1); setPan({ x: 0, y: 0 });
   }, [figura, imgDim]);
 
   const moverBolinha = useCallback((clientX: number, clientY: number) => {
@@ -289,8 +480,8 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
     setRefHover(ref);
     setPecaSel(p);
     setQtdSel(p?.qtd && p.qtd > 0 ? p.qtd : 1); // já vem com a quantidade que o desenho pede
-    rowRefs.current[ref]?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }, [figura]);
+    scrollParaRef(ref);
+  }, [figura, scrollParaRef]);
 
   const corSecao: Record<string, string> = { Motor: "#dc2626", "Transmissão": "#2563eb", "Sistema Hidráulico": "#7c3aed", "Eixo Dianteiro": "#0891b2", "Elétrica": "#ca8a04", Lataria: "#0d9488", Freio: "#be123c", Embreagem: "#9333ea", "Diferencial": "#0369a1", "Direção": "#65a30d" };
 
@@ -589,12 +780,46 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
                   <div style={{ fontSize: 11, fontWeight: 700, color: "#dc2626", letterSpacing: 0.5 }}>{figura.code}</div>
                   <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}>{figura.name}</div>
                 </div>
-                {/* Editar bolinhas — só Ventura, enquanto ajustamos as posições */}
-                {podeEditar && figura.image_url && !editando && (
-                  <button onClick={iniciarEdicao} title="Ajustar a posição das bolinhas" style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 7, padding: "8px 13px", borderRadius: 9, border: "1.5px solid #c7d2fe", background: "#eef2ff", color: "#4338ca", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
-                    <i className="fas fa-crosshairs" /> Editar bolinhas
-                  </button>
-                )}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                  {/* Gerar PDF (com ou sem a lista de peças) */}
+                  {figura.image_url && !editando && (
+                    <div style={{ position: "relative" }}>
+                      <button onClick={() => setPdfMenu((o) => !o)} disabled={gerandoPdf} title="Baixar esta figura em PDF"
+                        style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 13px", borderRadius: 9, border: "1.5px solid #fecaca", background: "#fff5f5", color: "#dc2626", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                        <i className={`fas ${gerandoPdf ? "fa-spinner fa-spin" : "fa-file-pdf"}`} /> {gerandoPdf ? "Gerando..." : "Gerar PDF"}
+                        {!gerandoPdf && <i className="fas fa-chevron-down" style={{ fontSize: 9 }} />}
+                      </button>
+                      {pdfMenu && !gerandoPdf && (
+                        <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 40, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, boxShadow: "0 12px 30px rgba(0,0,0,0.14)", overflow: "hidden", minWidth: 210 }}>
+                          {([
+                            { titulo: "Imprimir", icon: "fa-print", acao: "imprimir" as const },
+                            { titulo: "Baixar", icon: "fa-download", acao: "baixar" as const },
+                          ]).map((grp, gi) => (
+                            <div key={grp.acao} style={{ borderTop: gi > 0 ? "1px solid #eef0f3" : "none" }}>
+                              <div style={{ padding: "8px 13px 4px", fontSize: 10.5, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 0.5, display: "flex", alignItems: "center", gap: 7 }}>
+                                <i className={`fas ${grp.icon}`} /> {grp.titulo}
+                              </div>
+                              <button onClick={() => { if (grp.acao === "imprimir") { setPrintDlg({ comPecas: true }); setPdfMenu(false); } else gerarPdf(true, "baixar"); }} style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", padding: "9px 15px", border: "none", background: "transparent", cursor: "pointer", fontSize: 13, color: "#0f172a", textAlign: "left" }}
+                                onMouseEnter={(e) => (e.currentTarget.style.background = "#f8fafc")} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+                                <i className="fas fa-list" style={{ color: "#dc2626", width: 15 }} /> Com peças
+                              </button>
+                              <button onClick={() => { if (grp.acao === "imprimir") { setPrintDlg({ comPecas: false }); setPdfMenu(false); } else gerarPdf(false, "baixar"); }} style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", padding: "9px 15px", border: "none", background: "transparent", cursor: "pointer", fontSize: 13, color: "#0f172a", textAlign: "left" }}
+                                onMouseEnter={(e) => (e.currentTarget.style.background = "#f8fafc")} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+                                <i className="fas fa-image" style={{ color: "#64748b", width: 15 }} /> Só o desenho
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {/* Editar bolinhas — só Ventura, enquanto ajustamos as posições */}
+                  {podeEditar && figura.image_url && !editando && (
+                    <button onClick={iniciarEdicao} title="Ajustar a posição das bolinhas" style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 13px", borderRadius: 9, border: "1.5px solid #c7d2fe", background: "#eef2ff", color: "#4338ca", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                      <i className="fas fa-crosshairs" /> Editar bolinhas
+                    </button>
+                  )}
+                </div>
               </div>
               {/* Aviso: catálogo Ventura em ajuste das bolinhas */}
               {podeEditar && !editando && (
@@ -604,28 +829,42 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
                 </div>
               )}
               <div ref={imgBoxRef}
-                onMouseMove={editando ? (e) => moverBolinha(e.clientX, e.clientY) : undefined}
-                onMouseUp={editando ? () => setArrastando(null) : undefined}
-                onMouseLeave={editando ? () => setArrastando(null) : undefined}
-                style={{ position: "relative", width: "100%", background: "linear-gradient(180deg,#fbfcfe,#f1f4f8)", borderRadius: 12, overflow: "hidden", border: editando ? "2px solid #6366f1" : "1px solid #eef1f6", display: "flex", alignItems: "center", justifyContent: "center", cursor: arrastando != null ? "grabbing" : "default", userSelect: "none" }}>
+                onMouseMove={(e) => { if (editando) { moverBolinha(e.clientX, e.clientY); return; } if (panRef.current) { const d = panRef.current; setPan({ x: d.px + (e.clientX - d.x), y: d.py + (e.clientY - d.y) }); } }}
+                onMouseUp={() => { if (editando) setArrastando(null); else panRef.current = null; }}
+                onMouseLeave={() => { if (editando) setArrastando(null); else panRef.current = null; }}
+                style={{ position: "relative", width: "100%", background: "linear-gradient(180deg,#fbfcfe,#f1f4f8)", borderRadius: 12, overflow: "hidden", border: editando ? "2px solid #6366f1" : "1px solid #eef1f6", display: "flex", alignItems: "center", justifyContent: "center", cursor: arrastando != null ? "grabbing" : (!editando && zoom > 1 ? "grab" : "default"), userSelect: "none" }}>
                 {figura.image_url ? (
                   <>
-                    <img src={figura.image_url} alt={figura.name} draggable={false} onLoad={(e) => setImgDim({ w: (e.target as HTMLImageElement).naturalWidth || 1, h: (e.target as HTMLImageElement).naturalHeight || 1 })} style={{ width: "100%", display: "block" }} />
-                    {/* MODO NORMAL: bolinhas clicáveis */}
-                    {!editando && (figura.hotspots || []).map((h, i) => {
-                      const ativo = refHover === h.reference;
-                      return (
-                        <button key={`${h.reference}-${i}`} onClick={() => abrirPecaDaBolinha(h.reference)}
-                          onMouseEnter={() => { setRefHover(h.reference); rowRefs.current[h.reference]?.scrollIntoView({ block: "nearest", behavior: "smooth" }); }} onMouseLeave={() => !pecaSel && setRefHover(null)}
-                          style={{ position: "absolute", left: `${(h.x / imgDim.w) * 100}%`, top: `${(h.y / imgDim.h) * 100}%`, transform: "translate(-50%,-50%)", width: ativo ? 26 : 20, height: ativo ? 26 : 20, borderRadius: "50%", border: "2px solid #fff", background: ativo ? "#dc2626" : "rgba(37,99,235,0.9)", color: "#fff", fontSize: ativo ? 12 : 10, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 5px rgba(0,0,0,0.4)", transition: "all .12s", zIndex: ativo ? 3 : 2 }}>{h.reference}</button>
-                      );
-                    })}
-                    {/* MODO EDIÇÃO: bolinhas arrastáveis */}
-                    {editando && hsEdit.map((h, i) => (
-                      <div key={`e-${h.reference}-${i}`} onMouseDown={(e) => { e.preventDefault(); setArrastando(i); }}
-                        title={`Ref ${h.reference} — arraste para o número`}
-                        style={{ position: "absolute", left: `${(h.x / imgDim.w) * 100}%`, top: `${(h.y / imgDim.h) * 100}%`, transform: "translate(-50%,-50%)", width: 22, height: 22, borderRadius: "50%", border: "2px solid #fff", background: arrastando === i ? "#4338ca" : "#dc2626", color: "#fff", fontSize: 11, fontWeight: 800, cursor: "grab", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 6px rgba(0,0,0,0.5)", zIndex: arrastando === i ? 6 : 5 }}>{h.reference}</div>
-                    ))}
+                    {/* Wrapper com zoom/pan — a imagem e as bolinhas escalam juntas */}
+                    <div style={{ width: "100%", transformOrigin: "center center", transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transition: panRef.current ? "none" : "transform .1s ease", willChange: "transform" }}>
+                      <img src={figura.image_url} alt={figura.name} draggable={false}
+                        onMouseDown={(e) => { if (!editando && zoom > 1) { e.preventDefault(); panRef.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y }; } }}
+                        onLoad={(e) => setImgDim({ w: (e.target as HTMLImageElement).naturalWidth || 1, h: (e.target as HTMLImageElement).naturalHeight || 1 })} style={{ width: "100%", display: "block" }} />
+                      {/* MODO NORMAL: bolinhas clicáveis */}
+                      {!editando && (figura.hotspots || []).map((h, i) => {
+                        const ativo = refHover === h.reference;
+                        return (
+                          <button key={`${h.reference}-${i}`} onClick={() => abrirPecaDaBolinha(h.reference)}
+                            onMouseEnter={() => { setRefHover(h.reference); scrollParaRef(h.reference); }} onMouseLeave={() => !pecaSel && setRefHover(null)}
+                            style={{ position: "absolute", left: `${(h.x / imgDim.w) * 100}%`, top: `${(h.y / imgDim.h) * 100}%`, transform: `translate(-50%,-50%) scale(${1 / zoom})`, width: ativo ? 26 : 20, height: ativo ? 26 : 20, borderRadius: "50%", border: "2px solid #fff", background: ativo ? "#dc2626" : "rgba(37,99,235,0.9)", color: "#fff", fontSize: ativo ? 12 : 10, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 5px rgba(0,0,0,0.4)", transition: "all .12s", zIndex: ativo ? 3 : 2 }}>{h.reference}</button>
+                        );
+                      })}
+                      {/* MODO EDIÇÃO: bolinhas arrastáveis */}
+                      {editando && hsEdit.map((h, i) => (
+                        <div key={`e-${h.reference}-${i}`} onMouseDown={(e) => { e.preventDefault(); setArrastando(i); }}
+                          title={`Ref ${h.reference} — arraste para o número`}
+                          style={{ position: "absolute", left: `${(h.x / imgDim.w) * 100}%`, top: `${(h.y / imgDim.h) * 100}%`, transform: "translate(-50%,-50%)", width: 22, height: 22, borderRadius: "50%", border: "2px solid #fff", background: arrastando === i ? "#4338ca" : "#dc2626", color: "#fff", fontSize: 11, fontWeight: 800, cursor: "grab", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 6px rgba(0,0,0,0.5)", zIndex: arrastando === i ? 6 : 5 }}>{h.reference}</div>
+                      ))}
+                    </div>
+                    {/* Controles de zoom (fora do wrapper, não escalam) */}
+                    {!editando && (
+                      <div style={{ position: "absolute", top: 8, right: 8, zIndex: 5, display: "flex", flexDirection: "column", gap: 6 }}>
+                        <button title="Aproximar" onClick={() => setZoom((z) => Math.min(6, z * 1.25))} style={zoomBtn}>+</button>
+                        <button title="Afastar" onClick={() => setZoom((z) => { const nz = Math.max(1, z / 1.25); if (nz === 1) setPan({ x: 0, y: 0 }); return nz; })} style={zoomBtn}>−</button>
+                        <button title="Tamanho original" onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }} style={{ ...zoomBtn, fontSize: 13 }}>1:1</button>
+                        <button title="Tela cheia (desenhar)" onClick={() => { setFsZoom(1); setFullscreen(true); }} style={{ ...zoomBtn, fontSize: 13 }}><i className="fas fa-expand" /></button>
+                      </div>
+                    )}
                   </>
                 ) : <div style={{ padding: 50, color: "#cbd5e1" }}><i className="fas fa-image" style={{ fontSize: 36 }} /></div>}
               </div>
@@ -671,20 +910,26 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
             </div>
 
             <div style={{ flex: "1 1 340px", minWidth: 300, display: "flex", flexDirection: "column", maxHeight: "100%" }}>
-              <div style={{ display: "flex", padding: "12px 16px", fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #eef0f3", background: "#fafbfc", position: "sticky", top: 0, zIndex: 1 }}>
-                <span style={{ width: 40 }}>Ref</span><span style={{ width: 124 }}>Código</span><span style={{ flex: 1 }}>Nome</span><span style={{ width: 46 }}>Qtd</span><span style={{ width: 36 }} />
+              <div style={{ display: "flex", padding: "12px 16px", fontSize: 12, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #eef0f3", background: "#fafbfc", position: "sticky", top: 0, zIndex: 1 }}>
+                <span style={{ width: 40 }}>Ref</span><span style={{ width: 172 }}>Código</span><span style={{ flex: 1 }}>Nome</span><span style={{ width: 50 }}>Qtd</span><span style={{ width: 36 }} />
               </div>
-              <div className="cat-scroll" style={{ overflow: "auto", flex: 1 }}>
+              <div ref={listScrollRef} className="cat-scroll" style={{ overflow: "auto", flex: 1 }}>
                 {(figura.pecas || []).map((p) => {
                   const ativo = refHover === p.reference;
                   return (
                     <div key={p.id} ref={(el) => { rowRefs.current[p.reference] = el; }} onMouseEnter={() => setRefHover(p.reference)} onMouseLeave={() => setRefHover(null)}
-                      style={{ display: "flex", alignItems: "center", padding: "10px 16px", borderBottom: "1px solid #f3f5f8", background: ativo ? "#fff7ed" : "transparent", transition: "background .12s" }}>
+                      style={{ display: "flex", alignItems: "center", padding: "11px 16px", borderBottom: "1px solid #f3f5f8", background: ativo ? "#fff7ed" : "transparent", transition: "background .12s" }}>
                       <span style={{ width: 40 }}><span style={{ display: "inline-flex", width: 23, height: 23, borderRadius: "50%", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, background: ativo ? "#dc2626" : "#eef2f7", color: ativo ? "#fff" : "#475569" }}>{p.reference}</span></span>
-                      <code style={{ width: 124, fontSize: 12.5, fontWeight: 700, color: "#dc2626" }}>{p.code}</code>
-                      <span style={{ flex: 1, fontSize: 13, paddingRight: 8, color: "#0f172a" }}>{p.name}</span>
-                      <span style={{ width: 46, fontSize: 12, color: "#64748b" }}>{p.qtd} {p.unit}</span>
-                      <button className="cat-add" onClick={() => addPeca({ code: p.code, name: p.name })} title={onSelecionarPeca ? "Adicionar ao lançamento" : "Adicionar ao carrinho"} style={{ width: 32, height: 32, border: "none", background: "#dc2626", color: "#fff", borderRadius: 8, cursor: "pointer" }}><i className="fas fa-plus" /></button>
+                      <span style={{ width: 172, display: "flex", alignItems: "center", gap: 6 }}>
+                        <code style={{ fontSize: 14.5, fontWeight: 700, color: "#dc2626" }}>{p.code}</code>
+                        <button onClick={() => copiarCodigo(p.code)} title="Copiar código"
+                          style={{ border: "none", background: "transparent", cursor: "pointer", color: copiado === p.code ? "#16a34a" : "#94a3b8", fontSize: 13, padding: 2, flexShrink: 0 }}>
+                          <i className={`fas ${copiado === p.code ? "fa-check" : "fa-copy"}`} />
+                        </button>
+                      </span>
+                      <span style={{ flex: 1, fontSize: 14.5, paddingRight: 8, color: "#0f172a", lineHeight: 1.3 }}>{p.name}</span>
+                      <span style={{ width: 50, fontSize: 13.5, color: "#64748b" }}>{p.qtd} {p.unit}</span>
+                      <button className="cat-add" onClick={() => addPeca({ code: p.code, name: p.name })} title={onSelecionarPeca ? "Adicionar ao lançamento" : "Adicionar ao carrinho"} style={{ width: 32, height: 32, border: "none", background: "#dc2626", color: "#fff", borderRadius: 8, cursor: "pointer", flexShrink: 0 }}><i className="fas fa-plus" /></button>
                     </div>
                   );
                 })}
@@ -764,6 +1009,113 @@ export default function CatalogoNovo({ onSelecionarPeca, userName }: { onSelecio
       )}
 
       {toast && <div style={{ position: "absolute", bottom: 18, left: "50%", transform: "translateX(-50%)", background: "#0f172a", color: "#fff", padding: "10px 18px", borderRadius: 11, fontSize: 13, fontWeight: 600, zIndex: 50, boxShadow: "0 8px 24px rgba(15,23,42,0.3)", display: "flex", alignItems: "center", gap: 8 }}><i className="fas fa-circle-check" style={{ color: "#4ade80" }} /> {toast}</div>}
+
+      {/* Diálogo: tamanho da imagem antes de imprimir */}
+      {printDlg && (
+        <div onClick={(e) => { if (e.target === e.currentTarget) setPrintDlg(null); }}
+          style={{ position: "fixed", inset: 0, zIndex: 4000, background: "rgba(15,23,42,0.5)", backdropFilter: "blur(3px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ width: 420, maxWidth: "94vw", background: "#fff", borderRadius: 16, boxShadow: "0 20px 60px rgba(0,0,0,0.3)", overflow: "hidden" }}>
+            <div style={{ padding: "16px 20px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}><i className="fas fa-print" style={{ color: "#dc2626", marginRight: 8 }} /> Tamanho da imagem</div>
+              <button onClick={() => setPrintDlg(null)} style={{ border: "none", background: "transparent", fontSize: 22, color: "#94a3b8", cursor: "pointer", lineHeight: 1 }}>&times;</button>
+            </div>
+            <div style={{ padding: 20 }}>
+              <div style={{ fontSize: 13, color: "#64748b", marginBottom: 14 }}>Arraste o canto da imagem no molde da folha (A4) para deixar do tamanho que quiser {printDlg.comPecas ? "— a lista de peças entra abaixo." : "."}</div>
+              {/* Molde A4 */}
+              {(() => {
+                const A4W = 260; const A4H = Math.round(A4W * 297 / 210);
+                const marginFrac = 0.06;
+                const contentW = A4W * (1 - 2 * marginFrac);
+                const ratio = (imgDim.h || 1) / (imgDim.w || 1);
+                const iw = contentW * printScale;
+                const ih = iw * ratio;
+                const left = A4W * marginFrac;
+                const top = A4H * marginFrac;
+                return (
+                  <div style={{ display: "flex", justifyContent: "center" }}>
+                    <div ref={a4Ref}
+                      onMouseMove={arrastarEscala}
+                      onMouseUp={() => (escalaDrag.current = false)}
+                      onMouseLeave={() => (escalaDrag.current = false)}
+                      style={{ position: "relative", width: A4W, height: A4H, background: "#fff", border: "1px solid #cbd5e1", boxShadow: "0 6px 20px rgba(0,0,0,0.10)", borderRadius: 4 }}>
+                      {figura?.image_url && (
+                        <img src={figura.image_url} alt="" draggable={false} style={{ position: "absolute", left, top, width: iw, height: ih, objectFit: "fill", pointerEvents: "none" }} />
+                      )}
+                      {/* alça de redimensionar (canto inferior direito) */}
+                      <div onMouseDown={(e) => { e.preventDefault(); escalaDrag.current = true; }}
+                        title="Arraste para redimensionar"
+                        style={{ position: "absolute", left: left + iw - 9, top: top + ih - 9, width: 18, height: 18, borderRadius: "50%", background: "#dc2626", border: "2px solid #fff", boxShadow: "0 1px 5px rgba(0,0,0,0.4)", cursor: "nwse-resize" }} />
+                      {/* dica de peças */}
+                      {printDlg.comPecas && (
+                        <div style={{ position: "absolute", left, right: left, top: top + ih + 6, display: "flex", flexDirection: "column", gap: 3 }}>
+                          {[0, 1, 2, 3].map((i) => <div key={i} style={{ height: 4, background: "#eef0f3", borderRadius: 2 }} />)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+              {/* Slider */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 16 }}>
+                <i className="fas fa-image" style={{ color: "#94a3b8", fontSize: 12 }} />
+                <input type="range" min={15} max={100} value={Math.round(printScale * 100)} onChange={(e) => setPrintScale(parseInt(e.target.value) / 100)} style={{ flex: 1 }} />
+                <i className="fas fa-image" style={{ color: "#94a3b8", fontSize: 20 }} />
+                <span style={{ width: 42, textAlign: "right", fontSize: 13, fontWeight: 700, color: "#475569" }}>{Math.round(printScale * 100)}%</span>
+              </div>
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: "14px 20px", borderTop: "1px solid #f1f5f9" }}>
+              <button onClick={() => setPrintDlg(null)} style={{ padding: "10px 18px", borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", color: "#475569", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Cancelar</button>
+              <button onClick={() => { const cp = printDlg.comPecas; setPrintDlg(null); gerarPdf(cp, "baixar", printScale); }} disabled={gerandoPdf}
+                style={{ padding: "10px 16px", borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", color: "#334155", fontSize: 14, fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8 }}>
+                <i className="fas fa-download" /> Baixar
+              </button>
+              <button onClick={() => { const cp = printDlg.comPecas; setPrintDlg(null); gerarPdf(cp, "imprimir", printScale); }} disabled={gerandoPdf}
+                style={{ padding: "10px 20px", borderRadius: 10, border: "none", background: "#dc2626", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8 }}>
+                <i className="fas fa-print" /> Imprimir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tela cheia com caneta para desenhar sobre o desenho */}
+      {fullscreen && figura?.image_url && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 5000, background: "rgba(15,23,42,0.94)", display: "flex", flexDirection: "column" }}>
+          {/* Barra de ferramentas */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", borderBottom: "1px solid rgba(255,255,255,0.12)", flexWrap: "wrap" }}>
+            <span style={{ color: "#fff", fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}><i className="fas fa-pen" /> Caneta</span>
+            <div style={{ display: "flex", gap: 8 }}>
+              {CORES.map((c) => (
+                <button key={c} onClick={() => setPenColor(c)} title={c}
+                  style={{ width: 26, height: 26, borderRadius: "50%", background: c, cursor: "pointer", border: penColor === c ? "3px solid #fff" : "2px solid rgba(255,255,255,0.35)", boxShadow: penColor === c ? "0 0 0 2px #dc2626" : "none" }} />
+              ))}
+            </div>
+            <button onClick={limparDesenho} style={fsBtn}><i className="fas fa-eraser" /> Limpar</button>
+            {/* Zoom */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: 6 }}>
+              <button title="Afastar" onClick={() => setFsZoom((z) => Math.max(1, +(z / 1.25).toFixed(3)))} style={{ ...fsBtn, padding: "6px 12px", fontSize: 16 }}>−</button>
+              <span style={{ color: "#cbd5e1", fontSize: 12, width: 40, textAlign: "center" }}>{Math.round(fsZoom * 100)}%</span>
+              <button title="Aproximar" onClick={() => setFsZoom((z) => Math.min(6, +(z * 1.25).toFixed(3)))} style={{ ...fsBtn, padding: "6px 12px", fontSize: 16 }}>+</button>
+            </div>
+            <div style={{ flex: 1 }} />
+            <button onClick={() => gerarPdfDesenho("baixar")} disabled={gerandoPdf} style={fsBtn}><i className="fas fa-download" /> Baixar PDF</button>
+            <button onClick={() => gerarPdfDesenho("imprimir")} disabled={gerandoPdf} style={{ ...fsBtn, background: "rgba(255,255,255,0.16)" }}><i className="fas fa-print" /> Imprimir</button>
+            <button onClick={() => { limparDesenho(); setFullscreen(false); }} style={{ ...fsBtn, background: "#dc2626", border: "none" }}><i className="fas fa-times" /> Fechar</button>
+          </div>
+          {/* Imagem + canvas de desenho (com zoom) */}
+          <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "flex-start", justifyContent: "center", overflow: "auto", padding: 16 }}>
+            <div style={{ transform: `scale(${fsZoom})`, transformOrigin: "top center", transition: "transform .1s ease" }}>
+              <div style={{ position: "relative", lineHeight: 0 }}>
+                <img ref={fsImgRef} src={figura.image_url} alt={figura.name} draggable={false} onLoad={ajustarCanvas}
+                  style={{ maxWidth: "92vw", maxHeight: "80vh", display: "block", userSelect: "none" }} />
+                <canvas ref={canvasRef}
+                  onMouseDown={iniciarTraco} onMouseMove={traco} onMouseUp={terminarTraco} onMouseLeave={terminarTraco}
+                  style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", cursor: "crosshair" }} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

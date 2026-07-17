@@ -736,7 +736,7 @@ body {
 }
 .ppv-topbar-title {
   font-size: 17px;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 0.5px;
 }
 .ppv-topbar-nav {
@@ -751,7 +751,7 @@ body {
   color: rgba(255,255,255,0.6);
   font-family: 'Poppins', sans-serif;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -767,7 +767,7 @@ body {
   background: white;
   color: var(--ppv-primary-dark);
   border-color: white;
-  font-weight: 700;
+  font-weight: 500;
 }
 .ppv-topbar-nav-btn i { font-size: 14px; }
 
@@ -784,7 +784,7 @@ body {
   color: rgba(255,255,255,0.8);
   font-family: 'Poppins', sans-serif;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1051,17 +1051,21 @@ body {
 }
 
 .ppv-modal-container {
-  width: 100%;
-  max-width: 1160px;
+  width: 96vw;
+  max-width: 1760px;
   margin: 0 auto;
-  padding-bottom: 30px;
   animation: ppvDrawerSlideIn 0.25s ease-out;
   display: flex;
   gap: 0;
+  background: #fff;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(0,0,0,0.05);
+  max-height: 90vh;
   transition: max-width 0.25s ease;
 }
 .ppv-modal-container.with-logs {
-  max-width: 1460px;
+  max-width: 1720px;
 }
 @keyframes ppvDrawerSlideIn {
   from { opacity: 0; transform: translateY(20px) scale(0.98); }
@@ -1070,9 +1074,7 @@ body {
 
 .ppv-drawer {
   background: var(--ppv-primary-light);
-  border-radius: 16px;
-  overflow: hidden;
-  box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(0,0,0,0.05);
+  border-radius: 0;
   max-height: 90vh;
   overflow-y: auto;
   scroll-behavior: smooth;
@@ -1080,8 +1082,13 @@ body {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  font-size: 15px;
+  font-size: 16px;
 }
+.ppv-drawer .ppv-summary-name { font-weight: 600; font-size: 19px; }
+.ppv-drawer .ppv-readonly-label { font-size: 12px; font-weight: 500; }
+.ppv-drawer .ppv-readonly-value { font-size: 15px; font-weight: 500; }
+.ppv-drawer label { font-size: 12.5px; font-weight: 600; }
+.ppv-drawer .ppv-card-title { font-weight: 600; }
 .ppv-modal-container.with-logs .ppv-drawer {
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
@@ -1092,30 +1099,29 @@ body {
 
 /* Coluna de ações à direita (estilo Omie) */
 .ppv-action-rail {
-  width: 208px;
+  width: 210px;
   flex-shrink: 0;
-  align-self: flex-start;
-  background: #fff;
-  border-radius: 16px;
-  margin-left: 12px;
-  padding: 14px 12px;
-  box-shadow: 0 25px 60px -12px rgba(0,0,0,0.3), 0 0 0 1px rgba(0,0,0,0.05);
+  align-self: stretch;
+  background: #fbfcfe;
+  border-left: 1px solid #E2E8F0;
+  padding: 16px 12px;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 3px;
 }
 .ppv-rail-btn {
-  display: flex; align-items: center; gap: 11px;
-  padding: 11px 13px; border-radius: 10px; border: none;
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px; border-radius: 10px; border: none;
   background: transparent; color: #334155;
-  font-size: 13.5px; font-weight: 600; cursor: pointer;
+  font-size: 15.5px; font-weight: 500; cursor: pointer;
   text-align: left; width: 100%; transition: background .12s;
   font-family: inherit;
 }
-.ppv-rail-btn i { width: 18px; text-align: center; color: #94a3b8; font-size: 15px; }
+.ppv-rail-btn i { width: 20px; text-align: center; color: #94a3b8; font-size: 17px; }
 .ppv-rail-btn:hover:not(:disabled) { background: #f1f5f9; }
 .ppv-rail-btn:disabled { opacity: .5; cursor: not-allowed; }
-.ppv-rail-btn.primary { background: #dc2626; color: #fff; margin-bottom: 4px; }
+.ppv-rail-btn.primary { background: #dc2626; color: #fff; margin-bottom: 4px; font-weight: 600; }
 .ppv-rail-btn.primary i { color: #fff; }
 .ppv-rail-btn.primary:hover:not(:disabled) { background: #b91c1c; }
 .ppv-rail-btn.ghost { color: #64748b; }
@@ -1309,6 +1315,18 @@ body {
   margin-bottom: 12px;
   transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
   outline: none;
+}
+.ppv-drawer input[type="checkbox"],
+.ppv-drawer input[type="radio"] {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  padding: 0;
+  margin: 0;
+  border-radius: 4px;
+  flex-shrink: 0;
+  accent-color: var(--ppv-primary, #dc2626);
+  cursor: pointer;
 }
 .ppv-drawer input:focus,
 .ppv-drawer select:focus,

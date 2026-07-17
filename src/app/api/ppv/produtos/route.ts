@@ -12,14 +12,19 @@ export async function GET(req: NextRequest) {
 
   const query = parsed.data.termo.replace(/ /g, "%");
   const resultados: ProdutoBusca[] = [];
+  // Códigos que já vieram do Omie (Produtos_Completos) — o Omie tem prioridade:
+  // se o mesmo código existir também em Produtos_Manuais, o manual é descartado.
+  const codigosOmie = new Set<string>();
 
   try {
     const res1 = await supabaseFetch<Record<string, unknown>[]>(
       `${TBL_PRODUTOS}?or=(Codigo_Produto.ilike.*${query}*,Descricao_Produto.ilike.*${query}*)&select=Codigo_Produto,Descricao_Produto,Preco_Venda,Empresa&limit=40`
     );
     res1.forEach((row) => {
+      const codigo = String(getValorInsensivel(row, "Codigo_Produto", "codigo") || "").trim();
+      codigosOmie.add(codigo.toUpperCase());
       resultados.push({
-        codigo: String(getValorInsensivel(row, "Codigo_Produto", "codigo") || "").trim(),
+        codigo,
         descricao: String(getValorInsensivel(row, "Descricao_Produto", "descricao") || "").trim(),
         preco: parseFloat(String(getValorInsensivel(row, "Preco_Venda", "preco") || 0)),
         origem: "completos",
@@ -35,10 +40,13 @@ export async function GET(req: NextRequest) {
       `${TBL_PRODUTOS_MANUAIS}?or=(Prod_Codigo.ilike.*${query}*,Prod_Descricao.ilike.*${query}*)&select=*&limit=20`
     );
     res2.forEach((row) => {
+      const codigo = String(row.Prod_Codigo || "").trim();
+      // Prioridade do Omie: pula o manual se já existe um do Omie com o mesmo código.
+      if (codigosOmie.has(codigo.toUpperCase())) return;
       const precoRaw = row.Prod_Preco;
       resultados.push({
         id_manual: row.id as number,
-        codigo: String(row.Prod_Codigo || "").trim(),
+        codigo,
         descricao: String(row.Prod_Descricao || "").trim(),
         preco: typeof precoRaw === "string"
           ? parseFloat(precoRaw.replace(",", "."))

@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import ModalBuscaCliente from "./ModalBuscaCliente";
 import { usePermissoes } from "@/hooks/usePermissoes";
 import ModalDevolucao from "./ModalDevolucao";
+import ModalProdutoEstoque from "./ModalProdutoEstoque";
 import ModalImportarKit from "@/components/orcamentos/ModalImportarKit";
 import { MSG_SEM_PERMISSAO } from "@/lib/permissoes/ui";
 
@@ -19,6 +20,7 @@ interface Props {
   ppvId: string | null;
   onClose: () => void;
   onBuscaProduto: () => void;
+  onAbrirCatalogo: () => void;
   onBuscaOS: () => void;
   onBuscaCliente: () => void;
   modalOSId: string;
@@ -33,7 +35,7 @@ interface Props {
 }
 
 export default function PPVDrawer({
-  open, ppvId, onClose, onBuscaProduto, onBuscaOS, onBuscaCliente,
+  open, ppvId, onClose, onBuscaProduto, onAbrirCatalogo, onBuscaOS, onBuscaCliente,
   modalOSId, modalOSDisplay, modalProdDisplay, modalProdCodigo,
   onModalProdDisplayChange, onSetModalOS,
   modalClienteNome, onClienteConsumido, onDirty,
@@ -55,7 +57,7 @@ export default function PPVDrawer({
   const [tipoPedido, setTipoPedido] = useState("Pedido");
   const [projeto, setProjeto] = useState("");
   // Projetos do banco (cronograma) — pra escolher em vez de digitar / usar o da OS
-  const [projetosDB, setProjetosDB] = useState<{ id: string; nome: string; status: string; os_ref: string | null }[]>([]);
+  const [projetosDB, setProjetosDB] = useState<{ nome: string }[]>([]);
   const [projDropdown, setProjDropdown] = useState(false);
   const [projBusca, setProjBusca] = useState("");
   const [usarProjetoOS, setUsarProjetoOS] = useState(true); // puxar o projeto da OS quando vazio
@@ -83,6 +85,7 @@ export default function PPVDrawer({
 
   const [devolucaoOpen, setDevolucaoOpen] = useState(false);
   const [devolucaoProd, setDevolucaoProd] = useState<{ codigo: string; descricao: string; preco: number; max: number } | null>(null);
+  const [detalheProd, setDetalheProd] = useState<{ codigo: string; descricao: string } | null>(null);
   const [confirmandoDev, setConfirmandoDev] = useState(false);
 
   const [editandoPrecoCod, setEditandoPrecoCod] = useState<string | null>(null);
@@ -363,30 +366,6 @@ export default function PPVDrawer({
             <div className="ppv-drawer-header">
               <div className="ppv-drawer-header-left">
                 <span className="ppv-drawer-header-title">#{ppvId}</span>
-                <span style={{
-                  fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.5px",
-                  padding: "4px 12px", borderRadius: 6,
-                  background: tipoPedido === "Remessa" ? "#E0E7FF" : "#FEF3C7",
-                  color: tipoPedido === "Remessa" ? "#3730A3" : "#92400E",
-                  border: `1px solid ${tipoPedido === "Remessa" ? "#C7D2FE" : "#FDE68A"}`,
-                }}>
-                  <i className={`fas ${tipoPedido === "Remessa" ? "fa-dolly" : "fa-file-invoice-dollar"}`} style={{ marginRight: 5 }} />
-                  {tipoPedido === "Remessa" ? "Remessa" : "Pedido de Venda"}
-                </span>
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value)}
-                  disabled={!podeEditar}
-                  title="Alterar status do PPV"
-                  style={{
-                    fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px",
-                    padding: "4px 12px", borderRadius: 6,
-                    background: statusColor.bg, color: statusColor.text,
-                    border: "none", outline: "none", cursor: podeEditar ? "pointer" : "not-allowed", maxWidth: 300,
-                  }}
-                >
-                  {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                </select>
               </div>
               <div className="ppv-drawer-header-actions">
                 <button className="ppv-btn-close" onClick={onClose}>
@@ -404,36 +383,80 @@ export default function PPVDrawer({
               <>
                 <div className="ppv-drawer-body">
 
-                  {/* ── Summary card ── */}
+                  {/* ── Cabeçalho: Cliente + dados + totais (horizontal, estilo Omie) ── */}
                   {details && (
                     <div className="ppv-summary">
-                      <div className="ppv-summary-main">
-                        <div className="ppv-summary-client">
-                          <i className="fas fa-user" />
-                          <div>
-                            <div className="ppv-summary-name">{cliente || "..."}</div>
-                            {clienteDoc && <div className="ppv-summary-sub">{clienteDoc}</div>}
+                      {/* Linha do cliente — estilo Omie (campo + lupa) */}
+                      <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                        <div style={{ width: 46, height: 46, borderRadius: 10, background: "#dc2626", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 600, flexShrink: 0 }}>
+                          {(cliente || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?"}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <label style={{ textTransform: "none", letterSpacing: 0, fontWeight: 500, marginBottom: 5, color: "#64748b" }}>Cliente</label>
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <input type="text" value={cliente || ""} readOnly onClick={() => setBuscaClienteOpen(true)} placeholder="Clique na lupa para escolher o cliente..."
+                              style={{ marginBottom: 0, flex: 1, cursor: "pointer", fontWeight: 500 }} />
+                            <button type="button" onClick={() => setBuscaClienteOpen(true)} title="Trocar cliente"
+                              style={{ flexShrink: 0, width: 44, borderRadius: 8, border: "1.5px solid #E2E8F0", background: "#fff", color: "#334155", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>
+                              <i className="fas fa-search" />
+                            </button>
+                          </div>
+                          <div className="ppv-summary-details" style={{ borderTop: "none", paddingTop: 8, gap: 14 }}>
+                            <span><i className="fas fa-user-cog" /> {tecnico || "..."}</span>
+                            <span><i className="far fa-calendar" /> {formatarDataFrontend(details.data)}</span>
+                            <span><i className="fas fa-tag" /> {tipoPedido}</span>
+                            {modalOSDisplay && <span><i className="fas fa-link" /> {modalOSDisplay}</span>}
                           </div>
                         </div>
                       </div>
-                      <div className="ppv-summary-details">
-                        <span><i className="fas fa-user-cog" /> {tecnico || "..."}</span>
-                        <span><i className="far fa-calendar" /> {formatarDataFrontend(details.data)}</span>
-                        <span><i className="fas fa-tag" /> {tipoPedido}</span>
-                        {modalOSDisplay && <span><i className="fas fa-link" /> {modalOSDisplay}</span>}
+                      {/* CPF/CNPJ · Cidade · Endereço em linha */}
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 2fr", gap: 10, marginTop: 12 }}>
+                        {[["CPF / CNPJ", clienteDoc], ["Cidade", clienteCidade], ["Endereço", clienteEndereco]].map(([rot, val]) => (
+                          <div key={rot} className="ppv-readonly-field">
+                            <div className="ppv-readonly-label">{rot}</div>
+                            <div className="ppv-readonly-value">{val || "—"}</div>
+                          </div>
+                        ))}
                       </div>
-                      {/* Faixa de totais estilo Omie */}
-                      <div style={{ display: "grid", gridTemplateColumns: valorDesconto > 0 ? "1fr 1fr 1fr" : "1fr 1fr", gap: 10, marginTop: 14 }}>
+                      {/* Totais em caixas */}
+                      <div style={{ display: "grid", gridTemplateColumns: valorDesconto > 0 ? "1fr 1fr" : "1fr", gap: 10, marginTop: 10 }}>
                         {[
-                          { rot: "Total de Mercadorias", val: formatarMoeda(totalSemDesconto), forte: false },
                           ...(valorDesconto > 0 ? [{ rot: `Desconto${desconto > 0 ? ` (${desconto.toFixed(1).replace(".", ",")}%)` : ""}`, val: "-" + formatarMoeda(valorDesconto), forte: false }] : []),
                           { rot: "Valor Total do Pedido", val: formatarMoeda(totalFinal), forte: true },
                         ].map((c, i) => (
-                          <div key={i} style={{ background: c.forte ? "#FEF2F2" : "#F8FAFC", border: `1px solid ${c.forte ? "#FECACA" : "#E2E8F0"}`, borderRadius: 10, padding: "9px 13px" }}>
-                            <div style={{ fontSize: 10.5, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: 0.4 }}>{c.rot}</div>
-                            <div style={{ fontSize: c.forte ? 19 : 15, fontWeight: 800, marginTop: 2, color: c.forte ? "#dc2626" : "#0f172a" }}>{c.val}</div>
+                          <div key={i} style={{ background: c.forte ? "#FEF2F2" : "#F8FAFC", border: `1px solid ${c.forte ? "#FECACA" : "#E2E8F0"}`, borderRadius: 10, padding: "10px 14px" }}>
+                            <div style={{ fontSize: 12, fontWeight: 500, color: "#94A3B8", textTransform: "uppercase", letterSpacing: 0.4 }}>{c.rot}</div>
+                            <div style={{ fontSize: c.forte ? 22 : 17, fontWeight: 500, marginTop: 3, color: c.forte ? "#dc2626" : "#0f172a" }}>{c.val}</div>
                           </div>
                         ))}
+                      </div>
+                      {/* Desconto (% ou R$) no topo */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
+                        <span style={{ fontSize: 14, color: "#64748b" }}>Desconto:</span>
+                        <div style={{ display: "flex", background: "#F1F5F9", borderRadius: 8, padding: 3 }}>
+                          {(["pct", "valor"] as const).map((m) => (
+                            <button key={m} type="button" onClick={() => setDescontoModo(m)}
+                              style={{ padding: "6px 13px", borderRadius: 6, border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer",
+                                background: descontoModo === m ? "#fff" : "transparent", color: descontoModo === m ? "#dc2626" : "#64748B",
+                                boxShadow: descontoModo === m ? "0 1px 3px rgba(0,0,0,0.1)" : "none" }}>
+                              {m === "pct" ? "%" : "R$"}
+                            </button>
+                          ))}
+                        </div>
+                        {descontoModo === "pct" ? (
+                          <input type="number" value={desconto || ""} min={0} max={100} step={0.5} placeholder="0"
+                            onChange={(e) => { const v = parseFloat(e.target.value); setDesconto(isNaN(v) ? 0 : Math.min(100, Math.max(0, v))); }}
+                            style={{ width: 110, textAlign: "center", fontSize: 15, marginBottom: 0 }} />
+                        ) : (
+                          <input type="number" value={valorDesconto ? Number(valorDesconto.toFixed(2)) : ""} min={0} max={totalSemDesconto} step={1} placeholder="0,00"
+                            onChange={(e) => { const v = parseFloat(e.target.value); const val = isNaN(v) ? 0 : Math.min(totalSemDesconto, Math.max(0, v)); setDesconto(totalSemDesconto > 0 ? (val / totalSemDesconto) * 100 : 0); }}
+                            style={{ width: 130, textAlign: "center", fontSize: 15, marginBottom: 0 }} />
+                        )}
+                        {desconto > 0 && (
+                          <span style={{ fontSize: 14, color: "#10B981", fontWeight: 600 }}>
+                            {descontoModo === "pct" ? `-${formatarMoeda(valorDesconto)}` : `${desconto.toFixed(1).replace(".", ",")}%`}
+                          </span>
+                        )}
                       </div>
                     </div>
                   )}
@@ -477,86 +500,44 @@ export default function PPVDrawer({
                     </div>
                   )}
 
-                  {/* ── Enviar ao Omie — última seção do modal (order alto) ── */}
-                  <div className="ppv-card" style={{ order: 20 }}>
-                    <div className="ppv-card-title"><i className="fas fa-cloud-upload-alt" /> Enviar para o Omie</div>
-                    {!pedidoOmie ? (
-                      <button
-                        className="ppv-btn-omie"
-                        style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
-                        onClick={enviarOmie}
-                        disabled={enviandoOmie || !podeOmie}
-                        title={!podeOmie ? MSG_SEM_PERMISSAO : undefined}
-                      >
-                        {enviandoOmie ? (
-                          <><i className="fas fa-spinner fa-spin" /> Enviando...</>
-                        ) : (
-                          <><i className="fas fa-cloud-upload-alt" /> Enviar para Omie</>
-                        )}
-                      </button>
-                    ) : (
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 10, background: "#ECFDF5", border: "1px solid #A7F3D0", color: "#047857", fontWeight: 700, fontSize: 13 }}>
-                        <i className="fas fa-check-circle" /> Enviado para Omie (Pedido: {pedidoOmie})
-                      </div>
-                    )}
-                  </div>
-
-                  {/* ── Cliente ── */}
-                  <div className="ppv-card">
-                    <div className="ppv-card-title" style={{ justifyContent: "space-between" }}>
-                      <span><i className="fas fa-user" /> Cliente</span>
-                      <button type="button" onClick={() => setBuscaClienteOpen(true)} className="ppv-card-title-action">
-                        <i className="fas fa-exchange-alt" /> Trocar
-                      </button>
-                    </div>
-                    <div className="ppv-client-name">{cliente || "—"}</div>
-                    <div className="ppv-row" style={{ gap: 12 }}>
-                      <div className="ppv-readonly-field" style={{ flex: 1 }}>
-                        <div className="ppv-readonly-label">CPF / CNPJ</div>
-                        <div className="ppv-readonly-value">{clienteDoc || "—"}</div>
-                      </div>
-                      <div className="ppv-readonly-field" style={{ flex: 1 }}>
-                        <div className="ppv-readonly-label">Cidade</div>
-                        <div className="ppv-readonly-value">{clienteCidade || "—"}</div>
-                      </div>
-                    </div>
-                    <div className="ppv-readonly-field" style={{ marginTop: 10 }}>
-                      <div className="ppv-readonly-label">Endereço</div>
-                      <div className="ppv-readonly-value">{clienteEndereco || "—"}</div>
-                    </div>
-                  </div>
 
                   {/* ── Pedido ── */}
                   <div className="ppv-card">
                     <div className="ppv-card-title"><i className="fas fa-clipboard-list" /> Informações do Pedido</div>
-                    <div className="ppv-row">
-                      <div style={{ flex: 1 }}>
+                    {/* Campos em linha (horizontal, estilo Omie) */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 16 }}>
+                      <div>
+                        <label>Fase</label>
+                        <select value={status} onChange={(e) => setStatus(e.target.value)} disabled={!podeEditar} title="Alterar a fase do PPV"
+                          style={{ marginBottom: 0, fontWeight: 700, color: statusColor.text, background: statusColor.bg }}>
+                          {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value} style={{ color: "#0f172a", background: "#fff" }}>{s.label}</option>)}
+                        </select>
+                      </div>
+                      <div>
                         <label>Técnico *</label>
-                        <select value={tecnico} onChange={(e) => setTecnico(e.target.value)}>
+                        <select value={tecnico} onChange={(e) => setTecnico(e.target.value)} style={{ marginBottom: 0 }}>
                           <option value="">Selecionar...</option>
                           {tecnicos.map((t) => <option key={t} value={t}>{t}</option>)}
                         </select>
                       </div>
-                      <div style={{ flex: 1 }}>
+                      <div>
                         <label>Tipo do Pedido *</label>
-                        <select value={tipoPedido} onChange={(e) => setTipoPedido(e.target.value)}>
+                        <select value={tipoPedido} onChange={(e) => setTipoPedido(e.target.value)} style={{ marginBottom: 0 }}>
                           {TIPOS_PEDIDO.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                         </select>
                       </div>
-                    </div>
-                    <div className="ppv-row">
-                      <div style={{ flex: 1 }}>
+                      <div>
                         <label>Motivo de Saída *</label>
-                        <select value={motivoSaida} onChange={(e) => setMotivoSaida(e.target.value)}>
+                        <select value={motivoSaida} onChange={(e) => setMotivoSaida(e.target.value)} style={{ marginBottom: 0 }}>
                           {MOTIVOS_SAIDA.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
                         </select>
                       </div>
-                      <div style={{ flex: 1 }}>
+                      <div>
                         <label>O.S. Vinculada</label>
                         <input type="text" value={modalOSDisplay} readOnly placeholder="Clique para vincular OS..." onClick={onBuscaOS} style={{ cursor: "pointer", fontWeight: 600, marginBottom: 0 }} />
                       </div>
                     </div>
-                    <div className="ppv-row">
+                    <div className="ppv-row" style={{ marginTop: 16 }}>
                       <div style={{ flex: 1, position: "relative" }}>
                         <label>Projeto</label>
                         <div style={{ display: "flex", gap: 8 }}>
@@ -567,7 +548,7 @@ export default function PPVDrawer({
                           <button type="button" title="Escolher um projeto do banco"
                             onClick={() => {
                               setProjDropdown((o) => !o); setProjBusca("");
-                              if (projetosDB.length === 0) fetch("/api/ppv/projetos").then((r) => r.json()).then((d) => setProjetosDB(Array.isArray(d) ? d : [])).catch(() => {});
+                              if (projetosDB.length === 0) fetch("/api/pos/buscas/projetos").then((r) => r.json()).then((d) => setProjetosDB(Array.isArray(d) ? d : [])).catch(() => {});
                             }}
                             style={{ flexShrink: 0, padding: "0 14px", borderRadius: 10, border: "1px solid #E2E8F0", background: projDropdown ? "#EFF6FF" : "#fff", color: "#334155", fontSize: 12.5, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
                             <i className="fas fa-database" style={{ fontSize: 12 }} /> Do banco
@@ -575,7 +556,7 @@ export default function PPVDrawer({
                         </div>
                         {/* Opção de puxar (ou não) o projeto da OS — só quando há OS vinculada */}
                         {modalOSId && (
-                          <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, fontSize: 12, color: "#64748b", cursor: "pointer", fontWeight: 500 }}>
+                          <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, marginBottom: 0, fontSize: 12.5, color: "#64748b", cursor: "pointer", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>
                             <input type="checkbox" checked={usarProjetoOS} onChange={(e) => { setUsarProjetoOS(e.target.checked); if (e.target.checked) setProjeto(""); }} />
                             Usar o projeto da OS vinculada (desmarque para escolher outro ou nenhum)
                           </label>
@@ -587,13 +568,12 @@ export default function PPVDrawer({
                                 style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 13, boxSizing: "border-box", marginBottom: 0 }} />
                             </div>
                             <div style={{ overflow: "auto" }}>
-                              {projetosDB.filter((p) => p.nome.toLowerCase().includes(projBusca.trim().toLowerCase())).slice(0, 60).map((p) => (
-                                <button type="button" key={p.id} onClick={() => { setUsarProjetoOS(false); setProjeto(p.nome); setProjDropdown(false); }}
+                              {projetosDB.filter((p) => p.nome.toLowerCase().includes(projBusca.trim().toLowerCase())).slice(0, 60).map((p, i) => (
+                                <button type="button" key={`${p.nome}-${i}`} onClick={() => { setUsarProjetoOS(false); setProjeto(p.nome); setProjDropdown(false); }}
                                   style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left", padding: "9px 12px", border: "none", background: "transparent", cursor: "pointer", borderBottom: "1px solid #F5F5F5" }}
                                   onMouseEnter={(e) => (e.currentTarget.style.background = "#F8FAFC")} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
-                                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: p.status === "ativo" ? "#22c55e" : p.status === "concluido" ? "#94a3b8" : "#f59e0b", flexShrink: 0 }} />
-                                  <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: "#1e293b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.nome}</span>
-                                  {p.os_ref && <span style={{ fontSize: 10.5, color: "#94a3b8" }}>OS {p.os_ref}</span>}
+                                  <i className="fas fa-cog" style={{ fontSize: 11, color: "#94a3b8", flexShrink: 0 }} />
+                                  <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 500, color: "#1e293b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.nome}</span>
                                 </button>
                               ))}
                               {projetosDB.length === 0 && <div style={{ padding: 20, textAlign: "center", color: "#94a3b8", fontSize: 12.5 }}>Carregando...</div>}
@@ -615,30 +595,56 @@ export default function PPVDrawer({
                   <div className="ppv-card">
                     <div className="ppv-card-title"><i className="fas fa-boxes" /> Itens &amp; Materiais</div>
 
-                    {/* Importar Kit de Revisão */}
-                    <button type="button" onClick={() => setKitModalOpen(true)} disabled={importandoKit || !ppvId || !podeItem}
-                      title={!podeItem ? MSG_SEM_PERMISSAO : undefined}
-                      style={{
-                        width: "100%", marginBottom: 14, padding: "12px 16px", borderRadius: 12,
-                        border: "1px solid #99F6E4", background: "linear-gradient(135deg, #F0FDFA, #ECFEFF)",
-                        cursor: importandoKit || !ppvId || !podeItem ? "not-allowed" : "pointer", opacity: importandoKit || !ppvId || !podeItem ? 0.6 : 1,
-                        display: "flex", alignItems: "center", gap: 12, textAlign: "left", transition: "all .15s",
-                      }}
-                      onMouseEnter={(e) => { if (!importandoKit && ppvId && podeItem) e.currentTarget.style.boxShadow = "0 4px 14px rgba(13,148,136,0.18)"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; }}>
-                      <span style={{ width: 38, height: 38, borderRadius: 10, background: "linear-gradient(135deg, #0d9488, #0f766e)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", flexShrink: 0, boxShadow: "0 2px 6px rgba(13,148,136,0.35)" }}>
-                        {importandoKit ? <i className="fas fa-spinner fa-spin" style={{ fontSize: 15 }} /> : <i className="fas fa-tools" style={{ fontSize: 15 }} />}
-                      </span>
-                      <span style={{ flex: 1, minWidth: 0 }}>
-                        <span style={{ display: "block", fontSize: 14, fontWeight: 700, color: "#0f766e" }}>
-                          {importandoKit ? "Importando kit..." : "Importar Kit de Revisão"}
+                    {/* Ações de itens: Importar Kit + Catálogo (par) */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+                      {/* Importar Kit de Revisão */}
+                      <button type="button" onClick={() => setKitModalOpen(true)} disabled={importandoKit || !ppvId || !podeItem}
+                        title={!podeItem ? MSG_SEM_PERMISSAO : undefined}
+                        style={{
+                          padding: "14px 16px", borderRadius: 14, border: "1px solid #99F6E4",
+                          background: "linear-gradient(135deg, #F0FDFA, #ECFEFF)",
+                          cursor: importandoKit || !ppvId || !podeItem ? "not-allowed" : "pointer", opacity: importandoKit || !ppvId || !podeItem ? 0.55 : 1,
+                          display: "flex", alignItems: "center", gap: 12, textAlign: "left", transition: "all .15s",
+                        }}
+                        onMouseEnter={(e) => { if (!importandoKit && ppvId && podeItem) e.currentTarget.style.boxShadow = "0 6px 18px rgba(13,148,136,0.20)"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; }}>
+                        <span style={{ width: 42, height: 42, borderRadius: 12, background: "linear-gradient(135deg, #14b8a6, #0f766e)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", flexShrink: 0, boxShadow: "0 3px 8px rgba(13,148,136,0.35)" }}>
+                          {importandoKit ? <i className="fas fa-spinner fa-spin" style={{ fontSize: 16 }} /> : <i className="fas fa-tools" style={{ fontSize: 16 }} />}
                         </span>
-                        <span style={{ display: "block", fontSize: 11.5, color: "#5EAaa8" }}>
-                          Revisão, manutenção ou quadriciclo — escolha o modelo
+                        <span style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ display: "block", fontSize: 14.5, fontWeight: 600, color: "#0f766e" }}>
+                            {importandoKit ? "Importando kit..." : "Importar Kit"}
+                          </span>
+                          <span style={{ display: "block", fontSize: 12, color: "#5EAaa8", marginTop: 1 }}>
+                            Revisão por modelo e horas
+                          </span>
                         </span>
-                      </span>
-                      <i className="fas fa-chevron-right" style={{ fontSize: 13, color: "#0d9488", flexShrink: 0 }} />
-                    </button>
+                      </button>
+
+                      {/* Catálogo de Peças */}
+                      <button type="button" onClick={onAbrirCatalogo} disabled={!ppvId || !podeItem}
+                        title={!podeItem ? MSG_SEM_PERMISSAO : undefined}
+                        style={{
+                          padding: "14px 16px", borderRadius: 14, border: "1px solid #FBCFE8",
+                          background: "linear-gradient(135deg, #FFF1F2, #FDF2F8)",
+                          cursor: !ppvId || !podeItem ? "not-allowed" : "pointer", opacity: !ppvId || !podeItem ? 0.55 : 1,
+                          display: "flex", alignItems: "center", gap: 12, textAlign: "left", transition: "all .15s",
+                        }}
+                        onMouseEnter={(e) => { if (ppvId && podeItem) e.currentTarget.style.boxShadow = "0 6px 18px rgba(219,39,119,0.18)"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; }}>
+                        <span style={{ width: 42, height: 42, borderRadius: 12, background: "linear-gradient(135deg, #f43f5e, #be123c)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", flexShrink: 0, boxShadow: "0 3px 8px rgba(190,18,60,0.32)" }}>
+                          <i className="fas fa-book-open" style={{ fontSize: 16 }} />
+                        </span>
+                        <span style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ display: "block", fontSize: 14.5, fontWeight: 600, color: "#be123c" }}>
+                            Catálogo
+                          </span>
+                          <span style={{ display: "block", fontSize: 12, color: "#e07a97", marginTop: 1 }}>
+                            Busque a peça pela figura
+                          </span>
+                        </span>
+                      </button>
+                    </div>
 
                     {/* Kits importados — remover o kit inteiro de uma vez */}
                     {(details?.kits || []).length > 0 && (
@@ -661,10 +667,10 @@ export default function PPVDrawer({
                     )}
 
                     {/* Adicionar item */}
-                    <label>Adicionar Produto</label>
+                    <label style={{ fontWeight: 500, textTransform: "none", letterSpacing: 0, fontSize: 13 }}>Adicionar Produto</label>
                     <div style={{ display: "flex", gap: 10, marginBottom: produtosComSaldo.length > 0 ? 16 : 0 }}>
-                      <input type="text" value={modalProdDisplay} readOnly placeholder="Clique para buscar produto..." onClick={onBuscaProduto} style={{ cursor: "pointer", fontWeight: modalProdDisplay ? 600 : 400, flex: 1, marginBottom: 0 }} />
-                      <input type="number" value={qtdExtra} onChange={(e) => setQtdExtra(parseInt(e.target.value) || 1)} min={1} style={{ width: 70, textAlign: "center", fontWeight: 700, marginBottom: 0 }} />
+                      <input type="text" value={modalProdDisplay} readOnly placeholder="Clique para buscar produto..." onClick={onBuscaProduto} style={{ cursor: "pointer", fontWeight: 500, flex: 1, marginBottom: 0, fontSize: 15 }} />
+                      <input type="number" value={qtdExtra} onChange={(e) => setQtdExtra(parseInt(e.target.value) || 1)} min={1} style={{ width: 70, textAlign: "center", fontWeight: 500, marginBottom: 0, fontSize: 15 }} />
                       <button type="button" onClick={addExtra} disabled={addingExtra || !podeItem} title={!podeItem ? MSG_SEM_PERMISSAO : undefined} className="ppv-btn-save" style={{ padding: "10px 18px", whiteSpace: "nowrap", fontSize: 13 }}>
                         {addingExtra ? <i className="fas fa-spinner fa-spin" /> : <><i className="fas fa-plus" /> Adicionar</>}
                       </button>
@@ -674,7 +680,7 @@ export default function PPVDrawer({
                     {produtosComSaldo.length > 0 && (
                       <div style={{ border: "1px solid var(--ppv-border, #E2E8F0)", borderRadius: 12, overflow: "hidden" }}>
                         {/* Cabeçalho */}
-                        <div style={{ display: "grid", gridTemplateColumns: "minmax(130px,1.1fr) 74px minmax(150px,1.8fr) 116px 118px 56px", gap: 8, alignItems: "center", padding: "9px 14px", background: "#F8FAFC", borderBottom: "1px solid var(--ppv-border, #E2E8F0)", fontSize: 10.5, fontWeight: 800, color: "#94A3B8", textTransform: "uppercase", letterSpacing: 0.4 }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "168px 82px minmax(220px,1fr) 132px 132px 50px", gap: 10, alignItems: "center", padding: "11px 16px", background: "#F8FAFC", borderBottom: "1px solid var(--ppv-border, #E2E8F0)", fontSize: 12.5, fontWeight: 500, color: "#94A3B8", textTransform: "uppercase", letterSpacing: 0.3 }}>
                           <span>Produto</span><span style={{ textAlign: "center" }}>Qtd</span><span>Descrição</span><span style={{ textAlign: "right" }}>Preço un.</span><span style={{ textAlign: "right" }}>Total</span><span />
                         </div>
                         {produtosComSaldo.map((p, i) => {
@@ -683,18 +689,22 @@ export default function PPVDrawer({
                           const editando = editandoPrecoCod === p.codigo;
                           const isPrimario = (p.empresa || "").toLowerCase().includes("primari");
                           return (
-                            <div key={p.codigo} style={{ display: "grid", gridTemplateColumns: "minmax(130px,1.1fr) 74px minmax(150px,1.8fr) 116px 118px 56px", gap: 8, alignItems: "center", padding: "10px 14px", borderBottom: i < produtosComSaldo.length - 1 ? "1px solid #F1F5F9" : "none", background: isDevolvido ? "#FAFAFA" : "#fff", opacity: isDevolvido ? 0.7 : 1, fontSize: 13 }}>
+                            <div key={p.codigo} style={{ display: "grid", gridTemplateColumns: "168px 82px minmax(220px,1fr) 132px 132px 50px", gap: 10, alignItems: "center", padding: "14px 16px", borderBottom: i < produtosComSaldo.length - 1 ? "1px solid #E2E8F0" : "none", background: isDevolvido ? "#FAFAFA" : "#fff", opacity: isDevolvido ? 0.7 : 1, fontSize: 15.5 }}>
                               {/* Produto */}
                               <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
-                                <span style={{ fontWeight: 700, color: "#0f172a", textDecoration: isDevolvido ? "line-through" : "none" }}>{p.codigo}</span>
-                                {p.empresa && <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 6, background: isPrimario ? "#DBEAFE" : "#FEE2E2", color: isPrimario ? "#2563EB" : "#DC2626" }}>{isPrimario ? "CASTRO" : "NOVA"}</span>}
+                                <button type="button" onClick={() => setDetalheProd({ codigo: p.codigo, descricao: p.descricao })}
+                                  title="Ver informações do produto (estoque, CMC, valor...)"
+                                  style={{ padding: 0, border: "none", background: "transparent", cursor: "pointer", fontWeight: 500, fontSize: "inherit", fontFamily: "inherit", color: "#2563EB", textDecoration: isDevolvido ? "line-through" : "none", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                                  {p.codigo}<i className="fas fa-circle-info" style={{ fontSize: 11, color: "#93C5FD" }} />
+                                </button>
+                                {p.empresa && <span style={{ fontSize: 11, fontWeight: 500, padding: "1px 7px", borderRadius: 6, background: isPrimario ? "#DBEAFE" : "#FEE2E2", color: isPrimario ? "#2563EB" : "#DC2626" }}>{isPrimario ? "CASTRO" : "NOVA"}</span>}
                               </div>
                               {/* Qtd / saldo + status */}
-                              <div style={{ textAlign: "center", lineHeight: 1.25 }}>
-                                <div style={{ fontWeight: 700 }}>{p.saldo}</div>
+                              <div style={{ textAlign: "center", lineHeight: 1.3 }}>
+                                <div style={{ fontWeight: 500 }}>{p.saldo}</div>
                                 {p.qtdDev > 0
-                                  ? <div style={{ fontSize: 10.5, color: "#EF4444" }}>de {p.quantidade} · dev {p.qtdDev}</div>
-                                  : <div style={{ fontSize: 10, fontWeight: 700, color: isParcial ? "#B45309" : "#16A34A" }}>{isDevolvido ? "DEVOLVIDO" : isParcial ? "PARCIAL" : "ATIVO"}</div>}
+                                  ? <div style={{ fontSize: 11.5, color: "#EF4444" }}>de {p.quantidade} · dev {p.qtdDev}</div>
+                                  : <div style={{ fontSize: 11, fontWeight: 500, color: isParcial ? "#B45309" : "#16A34A" }}>{isDevolvido ? "DEVOLVIDO" : isParcial ? "PARCIAL" : "ATIVO"}</div>}
                               </div>
                               {/* Descrição */}
                               <div style={{ minWidth: 0, color: "#475569", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={p.descricao}>{p.descricao}</div>
@@ -704,7 +714,7 @@ export default function PPVDrawer({
                                   <div style={{ display: "flex", alignItems: "center", gap: 4, justifyContent: "flex-end" }}>
                                     <input type="number" step="0.01" min="0" autoFocus value={editandoPrecoVal} onChange={(e) => setEditandoPrecoVal(e.target.value)}
                                       onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); salvarPrecoItem(p.codigo); } if (e.key === "Escape") { setEditandoPrecoCod(null); setEditandoPrecoVal(""); } }}
-                                      disabled={salvandoPreco} style={{ width: 74, padding: "4px 6px", marginBottom: 0, fontSize: 12.5, fontWeight: 700, textAlign: "right" }} />
+                                      disabled={salvandoPreco} style={{ width: 84, padding: "5px 7px", marginBottom: 0, fontSize: 14, fontWeight: 500, textAlign: "right" }} />
                                     <button type="button" onClick={() => salvarPrecoItem(p.codigo)} disabled={salvandoPreco} title="Salvar" style={{ background: "#10B981", color: "#fff", border: "none", borderRadius: 6, width: 26, height: 26, cursor: "pointer", fontSize: 11, flexShrink: 0 }}><i className={`fas ${salvandoPreco ? "fa-spinner fa-spin" : "fa-check"}`} /></button>
                                     <button type="button" onClick={() => { setEditandoPrecoCod(null); setEditandoPrecoVal(""); }} disabled={salvandoPreco} title="Cancelar" style={{ background: "#EF4444", color: "#fff", border: "none", borderRadius: 6, width: 26, height: 26, cursor: "pointer", fontSize: 11, flexShrink: 0 }}><i className="fas fa-times" /></button>
                                   </div>
@@ -716,7 +726,7 @@ export default function PPVDrawer({
                                 )}
                               </div>
                               {/* Total */}
-                              <div style={{ textAlign: "right", fontWeight: 700, color: "#0f172a", whiteSpace: "nowrap" }}>{formatarMoeda(p.saldo * p.preco)}</div>
+                              <div style={{ textAlign: "right", fontWeight: 500, color: "#0f172a", whiteSpace: "nowrap" }}>{formatarMoeda(p.saldo * p.preco)}</div>
                               {/* Ação: devolver */}
                               <div style={{ textAlign: "right" }}>
                                 {p.saldo > 0 && !editando && (
@@ -728,50 +738,6 @@ export default function PPVDrawer({
                         })}
                       </div>
                     )}
-                  </div>
-
-                  {/* ── Desconto (% ou valor) ── */}
-                  <div className="ppv-card">
-                    <div className="ppv-card-title"><i className="fas fa-percent" /> Desconto</div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      {/* toggle % / R$ */}
-                      <div style={{ display: "flex", background: "#F1F5F9", borderRadius: 8, padding: 3 }}>
-                        {(["pct", "valor"] as const).map((m) => (
-                          <button key={m} type="button" onClick={() => setDescontoModo(m)}
-                            style={{ padding: "6px 12px", borderRadius: 6, border: "none", fontSize: 13, fontWeight: 800, cursor: "pointer",
-                              background: descontoModo === m ? "#fff" : "transparent", color: descontoModo === m ? "#dc2626" : "#64748B",
-                              boxShadow: descontoModo === m ? "0 1px 3px rgba(0,0,0,0.1)" : "none" }}>
-                            {m === "pct" ? "%" : "R$"}
-                          </button>
-                        ))}
-                      </div>
-                      {descontoModo === "pct" ? (
-                        <input type="number" value={desconto || ""} min={0} max={100} step={0.5} placeholder="0"
-                          onChange={(e) => { const v = parseFloat(e.target.value); setDesconto(isNaN(v) ? 0 : Math.min(100, Math.max(0, v))); }}
-                          style={{ width: 100, textAlign: "center", fontWeight: 700, marginBottom: 0 }} />
-                      ) : (
-                        <input type="number" value={valorDesconto ? Number(valorDesconto.toFixed(2)) : ""} min={0} max={totalSemDesconto} step={1} placeholder="0,00"
-                          onChange={(e) => { const v = parseFloat(e.target.value); const val = isNaN(v) ? 0 : Math.min(totalSemDesconto, Math.max(0, v)); setDesconto(totalSemDesconto > 0 ? (val / totalSemDesconto) * 100 : 0); }}
-                          style={{ width: 120, textAlign: "center", fontWeight: 700, marginBottom: 0 }} />
-                      )}
-                      {desconto > 0 && (
-                        <span style={{ fontSize: 13, color: "#10B981", fontWeight: 700 }}>
-                          {descontoModo === "pct" ? `-${formatarMoeda(valorDesconto)}` : `${desconto.toFixed(1).replace(".", ",")}%`}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* ── Total bar ── */}
-                  <div className="ppv-total-bar">
-                    <div className="ppv-total-breakdown">
-                      <span>Saídas: {formatarMoeda(tOrig)}</span>
-                      {tDev > 0 && <span>Devoluções: -{formatarMoeda(tDev)}</span>}
-                      {desconto > 0 && <span style={{ color: "#10B981" }}>Desconto ({desconto}%): -{formatarMoeda(valorDesconto)}</span>}
-                    </div>
-                    <div className="ppv-total-value">
-                      {formatarMoeda(totalFinal)}
-                    </div>
                   </div>
 
                 </div>
@@ -793,6 +759,16 @@ export default function PPVDrawer({
               <button className="ppv-rail-btn" onClick={() => setShowLogs(!showLogs)}>
                 <i className="fas fa-history" /> Histórico
               </button>
+              <div className="ppv-rail-sep" />
+              {!pedidoOmie ? (
+                <button className="ppv-rail-btn" onClick={enviarOmie} disabled={enviandoOmie || !podeOmie} title={!podeOmie ? MSG_SEM_PERMISSAO : undefined}>
+                  <i className={`fas ${enviandoOmie ? "fa-spinner fa-spin" : "fa-cloud-upload-alt"}`} /> {enviandoOmie ? "Enviando..." : "Enviar Omie"}
+                </button>
+              ) : (
+                <div className="ppv-rail-btn" style={{ color: "#047857", cursor: "default" }} title={`Pedido Omie: ${pedidoOmie}`}>
+                  <i className="fas fa-check-circle" style={{ color: "#047857" }} /> Enviado Omie
+                </div>
+              )}
               <div className="ppv-rail-sep" />
               <button className="ppv-rail-btn ghost" onClick={onClose}>
                 <i className="fas fa-times" /> Fechar
@@ -832,6 +808,7 @@ export default function PPVDrawer({
       </div>
 
       <ModalDevolucao open={devolucaoOpen} produto={devolucaoProd} onClose={() => setDevolucaoOpen(false)} onConfirm={confirmarDevolucao} confirmando={confirmandoDev} />
+      <ModalProdutoEstoque open={!!detalheProd} codigo={detalheProd?.codigo || null} descricao={detalheProd?.descricao} onClose={() => setDetalheProd(null)} />
       <ModalImportarKit open={kitModalOpen} onClose={() => setKitModalOpen(false)} onImportar={(produtos) => importarKitItens(produtos)} />
       {/* Busca de cliente do PRÓPRIO drawer — escreve direto no estado daqui */}
       <ModalBuscaCliente open={buscaClienteOpen} onClose={() => setBuscaClienteOpen(false)} onSelect={aplicarCliente} />

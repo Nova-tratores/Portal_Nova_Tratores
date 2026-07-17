@@ -1,6 +1,6 @@
 'use client';
 // Busca de produto (home do módulo Estoque). Portado de GET / (server.js:11887).
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
@@ -33,14 +33,18 @@ export default function EstoqueBuscaPage() {
   const [erro, setErro] = useState('');
   const [dados, setDados] = useState<BuscarResult | null>(null);
   const [cmc, setCmc] = useState<HistoricoPonto[] | null>(null);
+  const [observacoes, setObservacoes] = useState('');
+  const [salvandoObs, setSalvandoObs] = useState(false);
+  const [obsSalva, setObsSalva] = useState(false);
 
-  const buscar = useCallback(async () => {
-    const c = codigo.trim();
+  const buscar = useCallback(async (override?: string) => {
+    const c = (override ?? codigo).trim();
     if (!c) return;
     setCarregando(true);
     setErro('');
     setDados(null);
     setCmc(null);
+    setObservacoes('');
     try {
       const r = await fetch(`/api/estoque/buscar?codigo=${encodeURIComponent(c)}${contaParam}`);
       const d = await r.json();
@@ -49,6 +53,12 @@ export default function EstoqueBuscaPage() {
         return;
       }
       setDados(d as BuscarResult);
+      // Observação salva do produto (portal), em paralelo.
+      setObsSalva(false);
+      fetch(`/api/produtos/observacao?codigo=${encodeURIComponent(c)}`)
+        .then((res) => res.json())
+        .then((od) => setObservacoes(od?.observacao || ''))
+        .catch(() => {});
       // CMC em paralelo (não bloqueia a renderização dos cards).
       fetch(`/api/estoque/cmc-historico?codigo=${encodeURIComponent(c)}${contaParam}`)
         .then((res) => res.json())
@@ -62,6 +72,29 @@ export default function EstoqueBuscaPage() {
       setCarregando(false);
     }
   }, [codigo, contaParam]);
+
+  async function salvarObs() {
+    const c = codigo.trim();
+    if (!c) return;
+    setSalvandoObs(true);
+    setObsSalva(false);
+    try {
+      await fetch('/api/produtos/observacao', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codigo: c, observacao: observacoes, atualizadoPor: userProfile?.nome || '' }),
+      });
+      setObsSalva(true);
+    } catch { /* silencioso */ }
+    setSalvandoObs(false);
+  }
+
+  // Auto-busca quando vem com ?codigo=XXX na URL (ex.: "Ver mais detalhes" do PPV).
+  useEffect(() => {
+    const cod = new URLSearchParams(window.location.search).get('codigo');
+    if (cod) { setCodigo(cod); buscar(cod); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!permLoading && userProfile && !temAcesso('estoque')) return <SemPermissao />;
 
@@ -90,7 +123,7 @@ export default function EstoqueBuscaPage() {
           style={{ padding: '10px 16px', border: '1px solid #e0e0e0', background: '#fff', color: '#333', borderRadius: 10, fontSize: 13, width: 320, outline: 'none' }}
         />
         <button
-          onClick={buscar}
+          onClick={() => buscar()}
           disabled={carregando}
           style={{ padding: '10px 22px', background: carregando ? '#bbb' : '#dc2626', color: '#fff', border: 'none', borderRadius: 10, cursor: carregando ? 'wait' : 'pointer', fontSize: 13, fontWeight: 600 }}
         >
@@ -126,6 +159,27 @@ export default function EstoqueBuscaPage() {
               <InfoItem label="Est.Min" valor={dados.estoque.est_min} />
             </InfoGrid>
           </Card>
+
+          {/* Observações — bloco amarelo destacado (por enquanto só visual/leitura). */}
+          <div style={{ background: '#FDE047', border: '1px solid #EAB308', borderLeft: '5px solid #CA8A04', borderRadius: 12, padding: 18, marginBottom: 12, boxShadow: '0 2px 10px rgba(202,138,4,.25)' }}>
+            <h2 style={{ color: '#713F12', marginBottom: 12, fontSize: '.95rem', fontWeight: 700, borderBottom: '1px solid #CA8A04', paddingBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <i className="fas fa-triangle-exclamation" style={{ color: '#A16207' }} /> Observações
+            </h2>
+            <textarea
+              value={observacoes}
+              onChange={(e) => { setObservacoes(e.target.value); setObsSalva(false); }}
+              placeholder="Observações sobre este produto..."
+              rows={3}
+              style={{ width: '100%', resize: 'vertical', padding: '10px 12px', borderRadius: 8, border: '1px solid #CA8A04', background: '#FDE047', color: '#713F12', fontSize: '.85rem', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+            />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12, marginTop: 10 }}>
+              {obsSalva && <span style={{ color: '#166534', fontSize: '.78rem', fontWeight: 600 }}><i className="fas fa-check" /> Salvo</span>}
+              <button type="button" onClick={salvarObs} disabled={salvandoObs}
+                style={{ padding: '9px 20px', borderRadius: 8, border: 'none', background: salvandoObs ? '#A16207' : '#CA8A04', color: '#fff', fontSize: '.82rem', fontWeight: 600, cursor: salvandoObs ? 'wait' : 'pointer' }}>
+                {salvandoObs ? 'Salvando...' : 'Salvar observação'}
+              </button>
+            </div>
+          </div>
 
           {v && (
             <Card titulo="Vendas por Periodo">

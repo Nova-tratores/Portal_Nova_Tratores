@@ -12,9 +12,13 @@ interface Props {
   onClose: () => void;
   onSelect: (codigo: string, descricao: string, preco: number, empresa?: string) => void;
   onEditManual?: (id: number, codigo: string, descricao: string, preco: number) => void;
+  /** Abre já na aba de catálogo (botão "Catálogo" do drawer). */
+  abrirNoCatalogo?: boolean;
+  /** Peça do catálogo não cadastrada → criar produto provisório (code + nome). */
+  onCriarProvisorio?: (code: string, name: string) => void;
 }
 
-export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEditManual }: Props) {
+export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEditManual, abrirNoCatalogo, onCriarProvisorio }: Props) {
   const { cacheProduct, showToast } = usePPV();
   const [termo, setTermo] = useState("");
   const [resultados, setResultados] = useState<ProdutoBusca[]>([]);
@@ -31,11 +35,11 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
     if (open) {
       setTermo("");
       setResultados([]);
-      setVerCatalogo(false);
+      setVerCatalogo(!!abrirNoCatalogo);
       setMensagem("Digite para pesquisar produtos...");
-      setTimeout(() => inputRef.current?.focus(), 200);
+      if (!abrirNoCatalogo) setTimeout(() => inputRef.current?.focus(), 200);
     }
-  }, [open]);
+  }, [open, abrirNoCatalogo]);
 
   const buscar = useCallback(async (searchTermo: string) => {
     if (searchTermo.trim().length < 2) {
@@ -111,6 +115,31 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
     );
   }
 
+  // Peça escolhida no catálogo: só adiciona se o código já for cadastrado (Omie tem
+  // prioridade sobre manual). Se não existir, abre a criação provisória com aviso.
+  async function selecionarPecaCatalogo(code: string, name: string) {
+    const cod = (code || "").trim();
+    if (!cod) return;
+    try {
+      const data = await api.buscarProdutos(cod);
+      const exatos = (data || []).filter((p) => p.codigo.trim().toUpperCase() === cod.toUpperCase());
+      const escolhido = exatos.find((p) => p.origem === "completos") || exatos[0];
+      if (escolhido) {
+        onSelect(escolhido.codigo, escolhido.descricao, escolhido.preco, escolhido.empresa);
+        onClose();
+      } else if (onCriarProvisorio) {
+        onCriarProvisorio(cod, name);
+      } else {
+        setVerCatalogo(false);
+        setTermo(cod);
+        buscar(cod);
+        showToast("error", "Peça não cadastrada no Omie.");
+      }
+    } catch {
+      showToast("error", "Erro ao verificar a peça.");
+    }
+  }
+
   if (!open) return null;
 
   return (
@@ -128,8 +157,17 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
           </div>
         </div>
         {verCatalogo ? (
-          <div className="flex-1 overflow-hidden p-3" style={{ minHeight: 0 }}>
-            <CatalogoNovo onSelecionarPeca={(p) => { setVerCatalogo(false); setTermo(p.code); buscar(p.code); }} />
+          <div className="flex flex-1 flex-col overflow-hidden p-3" style={{ minHeight: 0 }}>
+            <div className="mb-2 flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-[12px] leading-snug text-amber-800">
+              <i className="fas fa-circle-info mt-0.5 text-amber-500" />
+              <span>
+                Só dá pra adicionar peças <b>já cadastradas no Omie</b>. Se a peça escolhida não existir, abre a tela pra
+                <b> criar provisoriamente</b> — mas o ideal é sempre usar o produto oficial do Omie.
+              </span>
+            </div>
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <CatalogoNovo onSelecionarPeca={(p) => selecionarPecaCatalogo(p.code, p.name)} />
+            </div>
           </div>
         ) : (
         <div className="flex-1 overflow-y-auto bg-[#FFFAF5] px-10 py-7">

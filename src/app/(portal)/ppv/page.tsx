@@ -105,25 +105,16 @@ function PPVApp() {
   const [buscaOSOpen, setBuscaOSOpen] = useState(false);
   const [buscaProdutoOpen, setBuscaProdutoOpen] = useState(false);
   const [buscaProdutoMode, setBuscaProdutoMode] = useState<"main" | "modal" | "edit">("main");
+  const [buscaProdutoCatalogo, setBuscaProdutoCatalogo] = useState(false);
   const [produtoManualOpen, setProdutoManualOpen] = useState(false);
   const [produtoManualEdit, setProdutoManualEdit] = useState<{ id: string; codigo: string; descricao: string; preco: number } | null>(null);
+  const [produtoManualProvisorio, setProdutoManualProvisorio] = useState(false);
 
   // Sync produtos
   const [syncingProdutos, setSyncingProdutos] = useState(false);
   const [showGerenciarKits, setShowGerenciarKits] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
 
-  // Menu cascata da topbar
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!menuOpen) return;
-    function onDoc(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
-    }
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, [menuOpen]);
 
   async function syncPrecosOmie() {
     setSyncingProdutos(true);
@@ -190,7 +181,24 @@ function PPVApp() {
   function handleBuscaProduto(ctx: "main" | "modal" | "edit") {
     prodContext.current = ctx;
     setBuscaProdutoMode(ctx);
+    setBuscaProdutoCatalogo(false);
     setBuscaProdutoOpen(true);
+  }
+
+  // Abre a busca de produto já na aba de catálogo (botão "Catálogo" do drawer/form).
+  function handleAbrirCatalogo(ctx: "main" | "modal") {
+    prodContext.current = ctx;
+    setBuscaProdutoMode(ctx);
+    setBuscaProdutoCatalogo(true);
+    setBuscaProdutoOpen(true);
+  }
+
+  // Peça do catálogo não cadastrada no Omie → cria produto provisório pré-preenchido.
+  function handleCriarProvisorio(codigo: string, descricao: string) {
+    setBuscaProdutoOpen(false);
+    setProdutoManualEdit({ id: "", codigo, descricao, preco: 0 });
+    setProdutoManualProvisorio(true);
+    setProdutoManualOpen(true);
   }
 
   function handleSelectProduto(codigo: string, descricao: string, preco: number, empresa?: string) {
@@ -206,6 +214,7 @@ function PPVApp() {
   function handleEditManual(id: number, codigo: string, descricao: string, preco: number) {
     setBuscaProdutoOpen(false);
     setProdutoManualEdit({ id: String(id), codigo, descricao, preco });
+    setProdutoManualProvisorio(false);
     setProdutoManualOpen(true);
   }
 
@@ -261,8 +270,12 @@ function PPVApp() {
           <span className="ppv-topbar-title">NOVA <span style={{ fontWeight: 400 }}>PPV</span></span>
         </div>
 
-        {/* Ações à direita: Novo Lançamento + Menu cascata */}
+        {/* Ações à direita: abas (Gestão, Novo, Catálogo, Kits) + botões */}
         <div className="ppv-topbar-actions">
+          {/* Abas */}
+          <button className={`ppv-topbar-nav-btn ${activeTab === "kanbanTab" ? "active" : ""}`} onClick={() => setActiveTab("kanbanTab")}>
+            <i className="fas fa-th-large" /> Gestão
+          </button>
           <button
             className={`ppv-topbar-nav-btn ${activeTab === "formTab" ? "active" : ""} disabled:opacity-50 disabled:cursor-not-allowed`}
             onClick={() => setActiveTab("formTab")}
@@ -271,67 +284,45 @@ function PPVApp() {
           >
             <i className="fas fa-plus-circle" /> Novo Lançamento
           </button>
+          {podeCatalogo && (
+            <button className={`ppv-topbar-nav-btn ${activeTab === "catalogoTab" ? "active" : ""}`} onClick={() => setActiveTab("catalogoTab")}>
+              <i className="fas fa-cogs" /> Catálogo
+            </button>
+          )}
+          {podeCatalogo && (
+            <button className="ppv-topbar-nav-btn" onClick={() => setShowGerenciarKits(true)}>
+              <i className="fas fa-tools" /> Gerenciar Kits
+            </button>
+          )}
 
-          <div style={{ position: "relative" }} ref={menuRef}>
-          <button className="ppv-topbar-action-btn" onClick={() => setMenuOpen((o) => !o)}>
-            <i className="fas fa-bars" /> Menu
-            <i className="fas fa-chevron-down" style={{ fontSize: 10, marginLeft: 6, transform: menuOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
-          </button>
-
-          {menuOpen && (() => {
-            const item = (icon: string, label: string, onClick: () => void, opts?: { active?: boolean; disabled?: boolean; danger?: boolean }) => (
-              <button
-                disabled={opts?.disabled}
-                onClick={() => { onClick(); setMenuOpen(false); }}
-                style={{
-                  display: "flex", alignItems: "center", gap: 11, padding: "10px 12px", width: "100%",
-                  border: "none", borderRadius: 8, cursor: opts?.disabled ? "not-allowed" : "pointer",
-                  background: opts?.active ? "var(--ppv-primary-light, #FEF2F2)" : "transparent",
-                  color: opts?.active ? "var(--ppv-primary)" : "var(--ppv-text)",
-                  fontSize: 13, fontWeight: 600, textAlign: "left", fontFamily: "'Poppins', sans-serif",
-                  opacity: opts?.disabled ? 0.6 : 1, transition: "background 0.12s",
-                }}
-                onMouseEnter={(e) => { if (!opts?.disabled && !opts?.active) e.currentTarget.style.background = "#F1F5F9"; }}
-                onMouseLeave={(e) => { if (!opts?.active) e.currentTarget.style.background = "transparent"; }}
-              >
-                <i className={`fas ${icon}`} style={{ width: 16, textAlign: "center", color: opts?.active ? "var(--ppv-primary)" : "var(--ppv-accent)" }} />
-                {label}
+          {/* Botões secundários */}
+          {podeCatalogo && (
+            <>
+              <div style={{ width: 1, height: 24, background: "rgba(255,255,255,0.22)", margin: "0 4px", alignSelf: "center" }} />
+              <button className="ppv-topbar-action-btn" onClick={() => { setProdutoManualEdit(null); setProdutoManualProvisorio(false); setProdutoManualOpen(true); }}>
+                <i className="fas fa-box-open" /> Criar Produto
               </button>
-            );
-            return (
-              <div style={{
-                position: "absolute", right: 0, top: "calc(100% + 8px)", zIndex: 100,
-                minWidth: 240, background: "#fff", borderRadius: 12,
-                border: "1px solid var(--ppv-border-light)", boxShadow: "0 12px 32px rgba(0,0,0,0.16)",
-                padding: 6, display: "flex", flexDirection: "column", gap: 2,
-              }}>
-                {item("fa-th-large", "Gestão (Kanban)", () => setActiveTab("kanbanTab"), { active: activeTab === "kanbanTab" })}
-                {podeCatalogo && (
-                  <>
-                    {item("fa-cogs", "Catálogo", () => setActiveTab("catalogoTab"), { active: activeTab === "catalogoTab" })}
-                    <div style={{ height: 1, background: "var(--ppv-border-light)", margin: "4px 8px" }} />
-                    {item("fa-box-open", "Criar Produto", () => { setProdutoManualEdit(null); setProdutoManualOpen(true); })}
-                    {item("fa-edit", "Editar Produto", () => handleBuscaProduto("edit"))}
-                    {item("fa-tools", "Gerenciar Kits", () => setShowGerenciarKits(true))}
-                    {item(`fa-sync-alt ${syncingProdutos ? "fa-spin" : ""}`, syncingProdutos ? "Sincronizando..." : "Sync Preços Omie", syncPrecosOmie, { disabled: syncingProdutos })}
-                  </>
+              <button className="ppv-topbar-action-btn" onClick={() => handleBuscaProduto("edit")}>
+                <i className="fas fa-edit" /> Editar Produto
+              </button>
+              <div style={{ position: "relative" }}>
+                <button className="ppv-topbar-action-btn" onClick={syncPrecosOmie} disabled={syncingProdutos}>
+                  <i className={`fas fa-sync-alt ${syncingProdutos ? "fa-spin" : ""}`} /> {syncingProdutos ? "Sincronizando..." : "Sync Preços"}
+                </button>
+                {syncResult && (
+                  <span style={{
+                    position: 'absolute', top: '110%', right: 0, whiteSpace: 'nowrap',
+                    background: syncResult.startsWith('Erro') ? '#FEE2E2' : '#D1FAE5',
+                    color: syncResult.startsWith('Erro') ? '#DC2626' : '#065F46',
+                    fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 6,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)', zIndex: 50,
+                  }}>
+                    {syncResult}
+                  </span>
                 )}
               </div>
-            );
-          })()}
-
-          {syncResult && (
-            <span style={{
-              position: 'absolute', top: '110%', right: 0, whiteSpace: 'nowrap',
-              background: syncResult.startsWith('Erro') ? '#FEE2E2' : '#D1FAE5',
-              color: syncResult.startsWith('Erro') ? '#DC2626' : '#065F46',
-              fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 6,
-              boxShadow: '0 2px 8px rgba(0,0,0,0.1)', zIndex: 50,
-            }}>
-              {syncResult}
-            </span>
+            </>
           )}
-          </div>
         </div>
       </div>
 
@@ -382,6 +373,7 @@ function PPVApp() {
       <PPVDrawer
         open={detailsOpen} ppvId={detailsPPVId} onClose={closeDetails}
         onBuscaProduto={() => handleBuscaProduto("modal")} onBuscaOS={() => handleBuscaOS("modal")}
+        onAbrirCatalogo={() => handleAbrirCatalogo("modal")}
         onBuscaCliente={() => handleBuscaCliente("modal")}
         modalOSId={modalOSId} modalOSDisplay={modalOSDisplay}
         modalProdDisplay={modalProdDisplay} modalProdCodigo={modalProdCodigo}
@@ -394,8 +386,8 @@ function PPVApp() {
 
       <ModalBuscaCliente open={buscaClienteOpen} onClose={() => setBuscaClienteOpen(false)} onSelect={handleSelectCliente} />
       <ModalBuscaOS open={buscaOSOpen} onClose={() => setBuscaOSOpen(false)} onSelect={handleSelectOS} />
-      <ModalBuscaProduto open={buscaProdutoOpen} mode={buscaProdutoMode} onClose={() => setBuscaProdutoOpen(false)} onSelect={handleSelectProduto} onEditManual={handleEditManual} />
-      <ModalProdutoManual open={produtoManualOpen} onClose={() => setProdutoManualOpen(false)} onSaved={() => {}} editData={produtoManualEdit} />
+      <ModalBuscaProduto open={buscaProdutoOpen} mode={buscaProdutoMode} onClose={() => setBuscaProdutoOpen(false)} onSelect={handleSelectProduto} onEditManual={handleEditManual} abrirNoCatalogo={buscaProdutoCatalogo} onCriarProvisorio={handleCriarProvisorio} />
+      <ModalProdutoManual open={produtoManualOpen} onClose={() => setProdutoManualOpen(false)} onSaved={() => {}} editData={produtoManualEdit} provisorio={produtoManualProvisorio} />
       <ModalRevisoes open={showGerenciarKits} onClose={() => setShowGerenciarKits(false)} onSaved={recarregarRevisoes} />
     </div>
   );

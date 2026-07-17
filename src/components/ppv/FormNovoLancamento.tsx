@@ -38,7 +38,7 @@ export default function FormNovoLancamento({
   const [motivoSaida, setMotivoSaida] = useState(MOTIVOS_SAIDA[0].value);
   const [tecnico, setTecnico] = useState("");
   const [projeto, setProjeto] = useState("");
-  const [projetosDB, setProjetosDB] = useState<{ id: string; nome: string; status: string; os_ref: string | null }[]>([]);
+  const [projetosDB, setProjetosDB] = useState<{ nome: string }[]>([]);
   const [projDropdown, setProjDropdown] = useState(false);
   const [projBusca, setProjBusca] = useState("");
   const [usarProjetoOS, setUsarProjetoOS] = useState(true);
@@ -276,7 +276,7 @@ export default function FormNovoLancamento({
               <button type="button" title="Escolher um projeto do banco"
                 onClick={() => {
                   setProjDropdown((o) => !o); setProjBusca("");
-                  if (projetosDB.length === 0) fetch("/api/ppv/projetos").then((r) => r.json()).then((d) => setProjetosDB(Array.isArray(d) ? d : [])).catch(() => {});
+                  if (projetosDB.length === 0) fetch("/api/pos/buscas/projetos").then((r) => r.json()).then((d) => setProjetosDB(Array.isArray(d) ? d : [])).catch(() => {});
                 }}
                 style={{ flexShrink: 0, padding: "0 14px", borderRadius: 10, border: "1px solid #E2E8F0", background: projDropdown ? "#EFF6FF" : "#fff", color: "#334155", fontSize: 12.5, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
                 <i className="fas fa-database" style={{ fontSize: 12 }} /> Do banco
@@ -289,13 +289,12 @@ export default function FormNovoLancamento({
                     style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 13, boxSizing: "border-box" }} />
                 </div>
                 <div style={{ overflow: "auto" }}>
-                  {projetosDB.filter((p) => p.nome.toLowerCase().includes(projBusca.trim().toLowerCase())).slice(0, 60).map((p) => (
-                    <button type="button" key={p.id} onClick={() => { setUsarProjetoOS(false); setProjeto(p.nome); setProjDropdown(false); }}
+                  {projetosDB.filter((p) => p.nome.toLowerCase().includes(projBusca.trim().toLowerCase())).slice(0, 60).map((p, i) => (
+                    <button type="button" key={`${p.nome}-${i}`} onClick={() => { setUsarProjetoOS(false); setProjeto(p.nome); setProjDropdown(false); }}
                       style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left", padding: "9px 12px", border: "none", background: "transparent", cursor: "pointer", borderBottom: "1px solid #F5F5F5" }}
                       onMouseEnter={(e) => (e.currentTarget.style.background = "#F8FAFC")} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
-                      <span style={{ width: 7, height: 7, borderRadius: "50%", background: p.status === "ativo" ? "#22c55e" : p.status === "concluido" ? "#94a3b8" : "#f59e0b", flexShrink: 0 }} />
-                      <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: "#1e293b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.nome}</span>
-                      {p.os_ref && <span style={{ fontSize: 10.5, color: "#94a3b8" }}>OS {p.os_ref}</span>}
+                      <i className="fas fa-cog" style={{ fontSize: 11, color: "#94a3b8", flexShrink: 0 }} />
+                      <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 500, color: "#1e293b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.nome}</span>
                     </button>
                   ))}
                   {projetosDB.length === 0 && <div style={{ padding: 20, textAlign: "center", color: "#94a3b8", fontSize: 12.5 }}>Carregando...</div>}
