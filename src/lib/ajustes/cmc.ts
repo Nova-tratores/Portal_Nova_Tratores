@@ -484,7 +484,9 @@ export async function listarAjusteCustosProdutos(conta: Conta, force = false): P
     const { data, error } = await supabase
       .from('produtos')
       .select('codigo_produto, codigo, descricao, estoque, cmc, atualizado_em, inativo, arquivado')
-      .eq('conta_omie', conta)
+      // a tabela `produtos` grava conta_omie em minúscula ('nova'/'castro'),
+      // ao contrário do resto do módulo (maiúscula)
+      .eq('conta_omie', conta.toLowerCase())
       .order('codigo_produto', { ascending: true })
       .range(from, from + PAGE - 1);
     if (error) throw error;
