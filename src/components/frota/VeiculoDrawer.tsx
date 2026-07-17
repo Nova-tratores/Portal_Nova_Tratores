@@ -589,7 +589,10 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                           ? <span style={{ color: v.exercicio_crlv < new Date().getFullYear() ? '#b91c1c' : '#15803d' }}>{v.exercicio_crlv}{v.exercicio_crlv < new Date().getFullYear() ? ' — atrasado' : ''}</span>
                           : '—'}
                       />
-                      <Linha rotulo="Hodômetro (rastreador)" valor={det.km_odometro != null ? `${det.km_odometro.toLocaleString('pt-BR')} km` : '—'} />
+                      <Linha
+                        rotulo={`Hodômetro${det.km_odometro_fonte === 'digitado' ? ' (digitado na bomba)' : det.km_odometro_fonte === 'rastreador' ? ' (rastreador)' : ''}`}
+                        valor={det.km_odometro != null ? `${det.km_odometro.toLocaleString('pt-BR')} km` : '—'}
+                      />
                       <Linha rotulo="Tanque" valor={v.capacidade_tanque != null ? `${v.capacidade_tanque} L` : '—'} />
                       <Linha rotulo="Seguradora" valor={v.seguradora} />
                       <Linha rotulo="Apólice" valor={v.numero_apolice} />
@@ -993,7 +996,11 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                   <span style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>Nenhum abastecimento.</span>
                 ) : det.abastecimentos.map((a, i) => (
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12, color: 'var(--portal-text-secondary)' }}>
-                    <span>{fmtData(a.data_transacao)} · {Number(a.litros).toFixed(1)} L{a.posto_nome ? ` · ${a.posto_nome}` : ''}</span>
+                    <span>
+                      {fmtData(a.data_transacao)} · {Number(a.litros).toFixed(1)} L
+                      {a.hodometro != null && Number(a.hodometro) > 0 && ` · ${Number(a.hodometro).toLocaleString('pt-BR')} km`}
+                      {a.posto_nome ? ` · ${a.posto_nome}` : ''}
+                    </span>
                     <strong style={{ color: 'var(--portal-text)' }}>{fmtRS(Number(a.valor_total))}</strong>
                   </div>
                 ))}

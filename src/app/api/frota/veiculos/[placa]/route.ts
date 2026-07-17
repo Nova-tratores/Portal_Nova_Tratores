@@ -100,6 +100,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ plac
 
   const ultOdo = (odo.data || [])[0];
 
+  // Hodômetro: rastreador primeiro; sem rastreador, vale o DIGITADO no último
+  // abastecimento do cartão (o motorista informa na bomba)
+  const kmRastreador = ultOdo ? Number(ultOdo.km_adesao ?? ultOdo.km_rastreador) || null : null;
+  const kmDigitado = (abast.data || [])
+    .map((a) => Number(a.hodometro))
+    .find((h) => Number.isFinite(h) && h > 100) || null;
+
   // Uso & Ignição (30 dias) — só dias com telemetria
   const diasUso = (dias.data || []).filter((d) => (d.posicoes_total || 0) > 0);
   const uso_30d = {
@@ -125,7 +132,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ plac
     manutencoes: manut.data || [],
     abastecimentos: abast.data || [],
     custos_12m: custos12m,
-    km_odometro: ultOdo ? Number(ultOdo.km_adesao ?? ultOdo.km_rastreador) || null : null,
+    km_odometro: kmRastreador ?? kmDigitado,
+    km_odometro_fonte: kmRastreador != null ? 'rastreador' : kmDigitado != null ? 'digitado' : null,
     uso_30d,
     documentos: documentos.data || [],
   });

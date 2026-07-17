@@ -173,7 +173,8 @@ export interface VeiculoDetalhe {
     motorista_nome: string | null;
   }[];
   custos_12m: { tipo: string; total: number }[];
-  km_odometro: number | null; // última leitura real do rastreador
+  km_odometro: number | null; // rastreador; sem rastreador, o digitado na bomba
+  km_odometro_fonte: 'rastreador' | 'digitado' | null;
   documentos: {
     id: string;
     tipo: string;

@@ -27,6 +27,9 @@ interface LinhaTco {
   ativo: boolean;
   status: string | null;
   km: number;
+  // 'rastreador' = frota_dias; 'digitado' = delta do hodômetro informado nos
+  // abastecimentos do cartão e nas requisições (carros SEM rastreador)
+  km_fonte: 'rastreador' | 'digitado' | null;
   combustivel: number;
   manutencao: number;
   multas: number;
@@ -50,20 +53,27 @@ const FONTE_LABEL: Record<string, string> = {
   manual: 'lançamento manual',
 };
 
-async function buscarTudo(tabela: string, colunas: string, de: string): Promise<any[]> {
+async function buscarTudo(tabela: string, colunas: string, de: string, colunaData = 'data'): Promise<any[]> {
   // PostgREST devolve no máx. 1000 por request — pagina até secar
   const out: any[] = [];
   for (let offset = 0; offset < 20_000; offset += 1000) {
     const { data, error } = await supabase
       .from(tabela)
       .select(colunas)
-      .gte('data', de)
+      .gte(colunaData, de)
       .range(offset, offset + 999);
     if (error) throw new Error(`${tabela}: ${error.message}`);
     out.push(...(data || []));
     if (!data || data.length < 1000) break;
   }
   return out;
+}
+
+// hodômetro digitado vem em TEXTO nos formatos misturados ("353.602", "436473")
+// — hodômetro é inteiro, então só os dígitos interessam
+function parseHodometro(v: unknown): number | null {
+  const n = Number(String(v ?? '').replace(/\D/g, ''));
+  return Number.isFinite(n) && n > 100 && n < 2_000_000 ? n : null;
 }
 
 export default function FrotaCustosPage() {
@@ -83,15 +93,21 @@ export default function FrotaCustosPage() {
       de.setMonth(de.getMonth() - meses);
       const deIso = de.toISOString().slice(0, 10);
 
-      const [veic, custos, dias] = await Promise.all([
-        supabase.from('frota_veiculos').select('id, placa, modelo, descricao, marca, tem_rastreador, tipo_registro, placa_exibicao, ativo, status'),
+      const [veic, custos, dias, abastHod, reqsHod] = await Promise.all([
+        supabase.from('frota_veiculos').select('id, placa, modelo, descricao, marca, tem_rastreador, tipo_registro, placa_exibicao, ativo, status, supa_placa_id'),
         buscarTudo('vw_frota_custos', 'veiculo_id, tipo, valor, data, fonte', deIso),
         buscarTudo('frota_dias', 'veiculo_id, km_total, km_odometro', deIso),
+        // hodômetro DIGITADO nos abastecimentos do cartão (pro km dos sem rastreador)
+        buscarTudo('abastecimentos', 'placa, hodometro', deIso, 'data_transacao'),
+        // idem nas requisições veiculares (Requisicao.veiculo = SupaPlacas.IdPlaca)
+        buscarTudo('Requisicao', 'veiculo, hodometro', deIso),
       ]);
       if (veic.error) throw new Error(veic.error.message);
       setEntradas(custos as EntradaCusto[]);
 
       const porVeiculo = new Map<string, LinhaTco>();
+      const porPlaca = new Map<string, string>();      // placa -> veiculo_id
+      const porIdPlaca = new Map<string, string>();    // SupaPlacas.IdPlaca -> veiculo_id
       for (const v of veic.data || []) {
         porVeiculo.set(v.id, {
           veiculo_id: v.id,
@@ -101,9 +117,25 @@ export default function FrotaCustosPage() {
           avulso: v.tipo_registro !== 'veiculo',
           ativo: !!v.ativo,
           status: v.status || null,
-          km: 0, combustivel: 0, manutencao: 0, multas: 0, outros: 0, total: 0,
+          km: 0, km_fonte: null, combustivel: 0, manutencao: 0, multas: 0, outros: 0, total: 0,
         });
+        porPlaca.set(v.placa, v.id);
+        if (v.supa_placa_id != null) porIdPlaca.set(String(v.supa_placa_id), v.id);
       }
+
+      // hodômetros digitados por veículo (cartão + requisição) — o delta
+      // máx−mín no período vira o km de quem não tem rastreador
+      const hodometros = new Map<string, number[]>();
+      const anotarHod = (veiculoId: string | undefined, valor: unknown) => {
+        if (!veiculoId) return;
+        const h = parseHodometro(valor);
+        if (h == null) return;
+        const l = hodometros.get(veiculoId) || [];
+        l.push(h);
+        hodometros.set(veiculoId, l);
+      };
+      for (const a of abastHod) anotarHod(porPlaca.get(String(a.placa)), a.hodometro);
+      for (const r of reqsHod) anotarHod(porIdPlaca.get(String(r.veiculo ?? '')), r.hodometro);
       for (const c of custos) {
         const l = porVeiculo.get(c.veiculo_id);
         if (!l) continue;
@@ -117,7 +149,21 @@ export default function FrotaCustosPage() {
       }
       for (const d of dias) {
         const l = porVeiculo.get(d.veiculo_id);
-        if (l) l.km += Number(d.km_odometro ?? d.km_total) || 0;
+        if (l) {
+          l.km += Number(d.km_odometro ?? d.km_total) || 0;
+          if (l.km > 0) l.km_fonte = 'rastreador';
+        }
+      }
+      // sem rastreador (ou sem dias fechados): km = delta do hodômetro digitado
+      for (const l of porVeiculo.values()) {
+        if (l.km > 0) continue;
+        const hs = hodometros.get(l.veiculo_id) || [];
+        if (hs.length < 2) continue;
+        const delta = Math.max(...hs) - Math.min(...hs);
+        if (delta > 0 && delta < 150_000) {
+          l.km = delta;
+          l.km_fonte = 'digitado';
+        }
       }
 
       setLinhas(
@@ -206,8 +252,22 @@ export default function FrotaCustosPage() {
                         <span style={{ marginLeft: 6, fontSize: 9.5, fontWeight: 800, color: '#475569', background: '#e2e8f0', borderRadius: 999, padding: '2px 7px' }}>ARQUIVADO</span>
                       )}
                     </td>
-                    <td style={td} title={l.tem_rastreador ? undefined : 'Sem rastreador — km indisponível'}>
-                      {l.tem_rastreador ? Math.round(l.km).toLocaleString('pt-BR') : '—'}
+                    <td
+                      style={td}
+                      title={
+                        l.km_fonte === 'digitado'
+                          ? 'Km pelo HODÔMETRO DIGITADO (cartão combustível + requisições) — sem rastreador'
+                          : l.km_fonte === 'rastreador'
+                            ? 'Km do rastreador (dias fechados)'
+                            : 'Sem rastreador e sem hodômetro digitado no período'
+                      }
+                    >
+                      {l.km > 0 ? (
+                        <>
+                          {Math.round(l.km).toLocaleString('pt-BR')}
+                          {l.km_fonte === 'digitado' && <span style={{ color: '#b45309', fontWeight: 700 }}> *</span>}
+                        </>
+                      ) : '—'}
                     </td>
                     <td style={td}>{l.combustivel ? fmtRS(l.combustivel) : '—'}</td>
                     <td style={td}>{l.manutencao ? fmtRS(l.manutencao) : '—'}</td>
@@ -232,6 +292,13 @@ export default function FrotaCustosPage() {
               </tr>
             </tbody>
           </table>
+        </div>
+      )}
+
+      {!carregando && carros.some((l) => l.km_fonte === 'digitado') && (
+        <div style={{ marginTop: 8, fontSize: 11.5, color: 'var(--portal-text-muted)' }}>
+          <span style={{ color: '#b45309', fontWeight: 700 }}>*</span> km pelo <strong>hodômetro digitado</strong> (na
+          bomba do cartão combustível e nas requisições) — veículo sem rastreador.
         </div>
       )}
 
