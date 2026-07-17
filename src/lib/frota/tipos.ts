@@ -1,5 +1,28 @@
 // Tipos do módulo Frota (lado do cliente e das rotas /api/frota).
 
+// Subtipo do veículo (campo tipo_veiculo — a Rota Exata preenche "carro" pros
+// rastreados; o resto é escolhido no cadastro/Ficha). Carretinha/reboque tem
+// placa, CRLV e documentos como qualquer veículo — só não tem motor, então os
+// blocos de rastreador/combustível degradam sozinhos.
+export const SUBTIPOS_VEICULO: { valor: string; label: string }[] = [
+  { valor: 'carro', label: 'Carro' },
+  { valor: 'caminhonete', label: 'Caminhonete / SUV' },
+  { valor: 'caminhao', label: 'Caminhão' },
+  { valor: 'moto', label: 'Moto' },
+  { valor: 'quadriciclo', label: 'Quadriciclo' },
+  { valor: 'carretinha', label: 'Carretinha (reboque)' },
+  { valor: 'outro', label: 'Outro' },
+];
+
+/** Rótulo do subtipo (aceita valores fora do catálogo, ex.: vindos da RE). */
+export function labelSubtipo(v: string | null | undefined): string | null {
+  if (!v) return null;
+  return SUBTIPOS_VEICULO.find((s) => s.valor === v.toLowerCase())?.label || v;
+}
+
+/** Subtipos que ganham badge no card (os "diferentes" — carro é o default). */
+export const SUBTIPOS_DESTAQUE = new Set(['carretinha', 'quadriciclo', 'moto', 'caminhao']);
+
 export interface FrotaVeiculo {
   id: string;
   placa: string;

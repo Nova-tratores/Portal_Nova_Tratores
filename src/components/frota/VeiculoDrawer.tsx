@@ -14,6 +14,7 @@ import AbastecimentosModal from '@/components/frota/AbastecimentosModal';
 import TrajetosModal from '@/components/frota/TrajetosModal';
 import { formatarPlaca } from '@/lib/frota/placa';
 import { checklistPreVenda, pendenciasDoVeiculo } from '@/lib/frota/pendencias';
+import { SUBTIPOS_VEICULO, labelSubtipo } from '@/lib/frota/tipos';
 import type { Motorista, VeiculoDetalhe } from '@/lib/frota/tipos';
 
 interface Props {
@@ -159,6 +160,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
       ano: v.ano != null ? String(v.ano) : '', cor: v.cor || '',
       chassi: v.chassi || '', renavam: v.renavam || '', combustivel: v.combustivel || '',
       categoria: v.categoria || 'outros', status: v.status || 'ativo',
+      tipo_veiculo: v.tipo_veiculo || '',
       seguradora: v.seguradora || '', numero_apolice: v.numero_apolice || '',
       proprietario: v.proprietario || '',
       exercicio_crlv: v.exercicio_crlv != null ? String(v.exercicio_crlv) : '',
@@ -577,6 +579,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                       <Linha rotulo="Combustível" valor={v.combustivel} />
                       <Linha rotulo="Chassi" valor={v.chassi} />
                       <Linha rotulo="RENAVAM" valor={v.renavam} />
+                      <Linha rotulo="Tipo" valor={labelSubtipo(v.tipo_veiculo)} />
                       <Linha rotulo="Categoria" valor={v.categoria} />
                       <Linha rotulo="Status" valor={v.status} />
                       <Linha rotulo="Proprietário" valor={v.proprietario} />
@@ -708,6 +711,16 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                         Status
                         <select value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))} style={inputStyle}>
                           {['ativo', 'manutencao', 'parado', 'vendido', 'locado'].map((s) => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      </label>
+                      <label title="Carretinha/reboque tem placa e documentos como qualquer veículo — só não tem motor" style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase' }}>
+                        Tipo do veículo
+                        <select value={form.tipo_veiculo} onChange={(e) => setForm((f) => ({ ...f, tipo_veiculo: e.target.value }))} style={inputStyle}>
+                          <option value="">—</option>
+                          {SUBTIPOS_VEICULO.map((s) => <option key={s.valor} value={s.valor}>{s.label}</option>)}
+                          {form.tipo_veiculo && !SUBTIPOS_VEICULO.some((s) => s.valor === form.tipo_veiculo) && (
+                            <option value={form.tipo_veiculo}>{form.tipo_veiculo}</option>
+                          )}
                         </select>
                       </label>
                     </div>

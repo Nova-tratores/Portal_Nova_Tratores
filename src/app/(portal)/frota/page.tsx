@@ -15,6 +15,7 @@ import { authHeaders } from '@/lib/auth/client';
 import { supabase } from '@/lib/supabase';
 import { ehAvulsa, formatarPlaca, resolverPlaca } from '@/lib/frota/placa';
 import VeiculoDrawer from '@/components/frota/VeiculoDrawer';
+import { SUBTIPOS_VEICULO, SUBTIPOS_DESTAQUE, labelSubtipo } from '@/lib/frota/tipos';
 import type { VeiculoLista } from '@/lib/frota/tipos';
 
 const fmtRS = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
@@ -49,7 +50,7 @@ export default function FrotaHome() {
 
   // cadastro de veículo novo (o Frota é o ÚNICO lugar de cadastro — Fase 5)
   const [novoAberto, setNovoAberto] = useState(false);
-  const [novo, setNovo] = useState({ placa: '', marca: '', modelo: '', ano: '' });
+  const [novo, setNovo] = useState({ placa: '', marca: '', modelo: '', ano: '', tipo_veiculo: 'carro' });
   const [criando, setCriando] = useState(false);
 
   const criarVeiculo = async () => {
@@ -64,7 +65,7 @@ export default function FrotaHome() {
       const d = await r.json();
       if (!r.ok) { alert(d.error || 'Falha ao cadastrar.'); return; }
       setNovoAberto(false);
-      setNovo({ placa: '', marca: '', modelo: '', ano: '' });
+      setNovo({ placa: '', marca: '', modelo: '', ano: '', tipo_veiculo: 'carro' });
       await carregar();
       setPlacaAberta(d.veiculo.placa); // já abre a Ficha pra completar os dados
     } catch (e) { alert(String(e)); } finally { setCriando(false); }
@@ -268,6 +269,16 @@ export default function FrotaHome() {
                   />
                 </label>
               ))}
+              <label style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 3, fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase' }}>
+                Tipo do veículo
+                <select
+                  value={novo.tipo_veiculo}
+                  onChange={(e) => setNovo((f) => ({ ...f, tipo_veiculo: e.target.value }))}
+                  style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13 }}
+                >
+                  {SUBTIPOS_VEICULO.map((s) => <option key={s.valor} value={s.valor}>{s.label}</option>)}
+                </select>
+              </label>
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button onClick={() => setNovoAberto(false)} style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'transparent', color: 'var(--portal-text-secondary)', fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
@@ -307,6 +318,11 @@ export default function FrotaHome() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                 <strong style={{ fontSize: 15, fontWeight: 800, color: 'var(--portal-text)' }}>{formatarPlaca(v.placa)}</strong>
                 {v.tem_rastreador && <Satellite size={13} color="#0f766e" aria-label="Rastreado" />}
+                {v.tipo_veiculo && SUBTIPOS_DESTAQUE.has(v.tipo_veiculo.toLowerCase()) && (
+                  <span style={{ fontSize: 9.5, fontWeight: 800, color: '#0369a1', background: '#e0f2fe', borderRadius: 999, padding: '2px 7px', letterSpacing: 0.4, textTransform: 'uppercase' }}>
+                    {labelSubtipo(v.tipo_veiculo)}
+                  </span>
+                )}
                 {v.status === 'vendido' && (
                   <span title={`Vendido${v.venda_comprador ? ` para ${v.venda_comprador}` : ''}${v.venda_data ? ` em ${new Date(`${v.venda_data}T00:00:00`).toLocaleDateString('pt-BR')}` : ''}`} style={{ fontSize: 9.5, fontWeight: 800, color: '#6d28d9', background: '#ede9fe', borderRadius: 999, padding: '2px 7px', letterSpacing: 0.4 }}>
                     VENDIDO

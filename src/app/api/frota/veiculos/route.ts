@@ -144,6 +144,7 @@ export async function POST(req: NextRequest) {
       ano: Number.isFinite(ano) && ano > 1950 ? ano : null,
       cor: txt('cor'),
       combustivel: txt('combustivel'),
+      tipo_veiculo: txt('tipo_veiculo'), // subtipo: carro/caminhão/moto/quadriciclo/carretinha…
       categoria: txt('categoria') || 'outros',
       proprietario: txt('proprietario'),
       observacoes: txt('observacoes'),
