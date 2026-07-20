@@ -10,7 +10,7 @@
 // quadriciclos) entram numa linha separada: o cartão pagou de verdade, mas
 // não são carros — não têm km nem entram no ranking.
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
-import { DollarSign, Fuel, Wrench, ShieldAlert, Gauge, X } from 'lucide-react';
+import { DollarSign, ExternalLink, Fuel, Wrench, ShieldAlert, Gauge, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { formatarPlaca, PLACAS_AVULSAS } from '@/lib/frota/placa';
 
@@ -45,6 +45,7 @@ interface EntradaCusto {
   valor: number;
   fonte: string | null;
   descricao: string | null; // título da requisição / posto do abastecimento / etc.
+  ref_id: string | null; // id na fonte (só requisição por ora) — vira link
 }
 
 const FONTE_LABEL: Record<string, string> = {
@@ -102,10 +103,11 @@ export default function FrotaCustosPage() {
       de.setMonth(de.getMonth() - meses);
       const deIso = de.toISOString().slice(0, 10);
 
-      // a coluna descricao chegou na view v3.1 — se a migração ainda não rodou,
-      // cai pro select antigo em vez de derrubar a tela inteira
+      // descricao chegou na view v3.1, ref_id na v3.2 — se a migração ainda
+      // não rodou, cai pro select anterior em vez de derrubar a tela inteira
       const buscarCustos = () =>
-        buscarTudo('vw_frota_custos', 'veiculo_id, tipo, valor, data, fonte, descricao', deIso)
+        buscarTudo('vw_frota_custos', 'veiculo_id, tipo, valor, data, fonte, descricao, ref_id', deIso)
+          .catch(() => buscarTudo('vw_frota_custos', 'veiculo_id, tipo, valor, data, fonte, descricao', deIso))
           .catch(() => buscarTudo('vw_frota_custos', 'veiculo_id, tipo, valor, data, fonte', deIso));
 
       const [veic, custos, dias, abastHod, reqsHod] = await Promise.all([
@@ -432,7 +434,17 @@ function ModalCustos({ linha, meses, entradas, onClose }: {
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 10px 4px 22px', fontSize: 12, color: 'var(--portal-text-secondary)', borderBottom: '1px dashed var(--portal-border)' }}>
                   <span style={{ minWidth: 70 }}>{fmtData(e.data)}</span>
                   <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={e.descricao || ''}>
-                    {e.descricao || <span style={{ color: 'var(--portal-text-muted)' }}>—</span>}
+                    {e.fonte === 'requisicao' && e.ref_id ? (
+                      <a
+                        href={`/requisicoes?req=${e.ref_id}`}
+                        title="Abrir a requisição"
+                        style={{ color: 'var(--portal-text)', textDecoration: 'none', fontWeight: 600 }}
+                      >
+                        {e.descricao || 'Requisição'} <ExternalLink size={11} style={{ verticalAlign: '-1px', color: '#0d9488' }} />
+                      </a>
+                    ) : (
+                      e.descricao || <span style={{ color: 'var(--portal-text-muted)' }}>—</span>
+                    )}
                     <span style={{ color: 'var(--portal-text-muted)', fontSize: 10.5 }}> · {FONTE_LABEL[e.fonte || ''] || e.fonte || '—'}</span>
                   </span>
                   <strong style={{ color: 'var(--portal-text)', whiteSpace: 'nowrap' }}>{fmtRS2(Number(e.valor))}</strong>

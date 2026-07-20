@@ -15,6 +15,9 @@
 -- foi cada lançamento (título da requisição, posto + combustível + litros do
 -- abastecimento, descrição da manutenção/multa), não só "requisição R$ X".
 --
+-- v3.2: coluna `ref_id` — id do registro na fonte (por ora só a requisição
+-- preenche; o modal do TCO usa pra linkar direto em /requisicoes?req=ID).
+--
 -- Anti-duplo-conto continua: /custos do RE sem multa nem combustível;
 -- frota_manutencoes só origem='manual' (a requisição de manutenção entra AQUI,
 -- não existe em frota_manutencoes).
@@ -39,12 +42,14 @@ CREATE VIEW vw_frota_custos AS
            nullif(a.posto_nome, ''),
            nullif(a.combustivel, ''),
            CASE WHEN a.litros > 0 THEN round(a.litros::numeric, 1)::text || ' l' END
-         ), '')                  AS descricao
+         ), '')                  AS descricao,
+         NULL::text              AS ref_id
     FROM abastecimentos a
     JOIN frota_veiculos f ON f.placa = frota_resolver_placa(a.placa)
 UNION ALL
   SELECT c.veiculo_id, c.placa, c.dt_lancamento, c.tipo_custo, c.valor, 'rotaexata',
-         nullif(concat_ws(' · ', nullif(c.descricao, ''), nullif(c.fornecedor, '')), '')
+         nullif(concat_ws(' · ', nullif(c.descricao, ''), nullif(c.fornecedor, '')), ''),
+         NULL::text
     FROM frota_custos c
    WHERE NOT c.eh_combustivel
      AND NOT c.ignorar_no_total
@@ -54,13 +59,15 @@ UNION ALL
          nullif(concat_ws(' · ',
            coalesce(nullif(m.descricao, ''), nullif(m.observacao, '')),
            nullif(m.fornecedor, '')
-         ), '')
+         ), ''),
+         NULL::text
     FROM frota_manutencoes m
    WHERE m.origem = 'manual'
      AND m.dt_realizado IS NOT NULL AND m.valor_total IS NOT NULL
 UNION ALL
   SELECT mu.veiculo_id, mu.placa, mu.dt_multa::date, 'Multa', mu.valor, 'multa',
-         nullif(concat_ws(' · ', nullif(mu.descricao, ''), nullif(mu.local_endereco, '')), '')
+         nullif(concat_ws(' · ', nullif(mu.descricao, ''), nullif(mu.local_endereco, '')), ''),
+         NULL::text
     FROM frota_multas mu
    WHERE mu.valor IS NOT NULL
 UNION ALL
@@ -75,7 +82,8 @@ UNION ALL
          END,
          frota_parse_valor(r.valor_despeza),
          'requisicao',
-         nullif(concat_ws(' · ', nullif(r.titulo, ''), nullif(r.fornecedor, '')), '')
+         nullif(concat_ws(' · ', nullif(r.titulo, ''), nullif(r.fornecedor, '')), ''),
+         r.id::text
     FROM "Requisicao" r
     JOIN frota_veiculos f ON f.supa_placa_id::text = r.veiculo::text
    WHERE r.tipo IN ('Veicular Manutenção', 'Veicular Abastecimento',
