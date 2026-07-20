@@ -2733,8 +2733,8 @@ body {
 }
 
 .modal-container {
-  width: 100%;
-  max-width: 920px;
+  width: 98vw;
+  max-width: 1850px;
   margin: 0 auto;
   padding-bottom: 30px;
   animation: posDrawerSlideIn 0.25s ease-out;
@@ -2744,7 +2744,7 @@ body {
 }
 
 .modal-container:has(.log-panel) {
-  max-width: 1240px;
+  max-width: 1980px;
 }
 
 @keyframes posDrawerSlideIn {
@@ -2990,7 +2990,7 @@ body {
 
 .os-drawer label {
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 500;
   color: var(--text-light);
   text-transform: uppercase;
   letter-spacing: 0.4px;
@@ -3034,8 +3034,8 @@ body {
 }
 
 .os-header-title {
-  font-size: 18px;
-  font-weight: 800;
+  font-size: 19px;
+  font-weight: 600;
   color: var(--text);
   letter-spacing: -0.3px;
 }
@@ -3110,13 +3110,13 @@ body {
   gap: 16px;
 }
 
-/* Summary card at top (edit mode) */
+/* Summary card at top (edit mode) — estilo Omie: branco e limpo */
 .os-summary {
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-  border: none;
+  background: #fff;
+  border: 1px solid var(--border);
   border-radius: 14px;
   padding: 20px 24px;
-  color: white;
+  color: var(--text);
 }
 
 .os-summary-main {
@@ -3135,19 +3135,19 @@ body {
 
 .os-summary-client > i {
   font-size: 22px;
-  color: rgba(255,255,255,0.5);
+  color: var(--primary);
 }
 
 .os-summary-name {
-  font-size: 17px;
+  font-size: 19px;
   font-weight: 600;
-  color: #fff;
+  color: var(--text);
   word-break: break-word;
 }
 
 .os-summary-sub {
-  font-size: 13px;
-  color: rgba(255,255,255,0.9);
+  font-size: 13.5px;
+  color: var(--text-light);
   font-weight: 500;
   letter-spacing: 0.2px;
   margin-top: 2px;
@@ -3155,8 +3155,8 @@ body {
 
 .os-summary-total {
   font-size: 24px;
-  font-weight: 800;
-  color: #fff;
+  font-weight: 600;
+  color: var(--accent);
   letter-spacing: -0.5px;
 }
 
@@ -3189,10 +3189,10 @@ body {
 }
 
 .os-card-title {
-  font-size: 11px;
-  font-weight: 800;
+  font-size: 12.5px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.8px;
+  letter-spacing: 0.5px;
   color: var(--text-light);
   margin-bottom: 16px;
   display: flex;
@@ -3610,6 +3610,154 @@ body {
   opacity: 0.5;
   cursor: not-allowed;
   box-shadow: none;
+}
+
+/* ── Coluna de ações à direita (estilo Omie) ── */
+.os-action-rail {
+  width: 232px;
+  flex-shrink: 0;
+  align-self: stretch;
+  background: #fff;
+  border-left: 1px solid var(--border);
+  border-radius: 0 16px 16px 0;
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+  max-height: 90vh;
+}
+.modal-container:has(.os-action-rail) .drawer {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.modal-container:has(.log-panel) .os-action-rail {
+  border-radius: 0;
+}
+.os-rail-btn {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-family: 'Poppins', sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: background 0.12s, filter 0.12s;
+}
+.os-rail-btn i {
+  width: 18px;
+  text-align: center;
+  font-size: 15px;
+  flex-shrink: 0;
+  color: var(--text-light);
+}
+.os-rail-btn:hover {
+  background: var(--primary-light);
+}
+.os-rail-btn.primary {
+  background: linear-gradient(135deg, var(--accent), #D42A36);
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(196, 30, 42, 0.25);
+}
+.os-rail-btn.primary i { color: rgba(255,255,255,0.9); }
+.os-rail-btn.primary:hover { filter: brightness(1.06); background: linear-gradient(135deg, var(--accent), #D42A36); }
+.os-rail-btn.omie {
+  background: #0EA5E9;
+  color: #fff;
+  font-weight: 600;
+}
+.os-rail-btn.omie i { color: rgba(255,255,255,0.9); }
+.os-rail-btn.omie:hover { filter: brightness(1.06); background: #0EA5E9; }
+.os-rail-btn.interna {
+  background: #7C3AED;
+  color: #fff;
+  font-weight: 600;
+}
+.os-rail-btn.interna i { color: rgba(255,255,255,0.9); }
+.os-rail-btn.interna:hover { filter: brightness(1.06); background: #7C3AED; }
+.os-rail-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: none;
+}
+.os-rail-sep {
+  height: 1px;
+  background: var(--border);
+  margin: 8px 6px;
+}
+.os-rail-hint {
+  font-size: 11px;
+  color: var(--text-light);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 700;
+  padding: 4px 14px 2px;
+}
+
+/* ── Abas do drawer (estilo Omie: Ordem de Serviço / Peças) ── */
+.os-tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: 4px;
+}
+.os-tab {
+  padding: 10px 20px;
+  border: none;
+  background: transparent;
+  font-family: 'Poppins', sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-light);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: color 0.12s, border-color 0.12s;
+}
+.os-tab:hover { color: var(--text); }
+.os-tab.active {
+  color: var(--primary);
+  font-weight: 600;
+  border-bottom-color: var(--primary);
+}
+.os-tab .os-tab-badge {
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--primary-light);
+  color: var(--primary);
+  border-radius: 10px;
+  padding: 1px 8px;
+}
+.os-tab-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+@media (max-width: 640px) {
+  .os-action-rail {
+    width: 100%;
+    align-self: auto;
+    border-left: none;
+    border-top: 1px solid var(--border);
+    border-radius: 0;
+    max-height: none;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .os-rail-btn { width: auto; flex: 1 1 45%; }
+  .modal-container:has(.os-action-rail) { flex-direction: column; }
 }
 
 /* Lembretes */

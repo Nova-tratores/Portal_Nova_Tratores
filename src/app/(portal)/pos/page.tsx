@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissoes } from "@/hooks/usePermissoes";
 import SemPermissao from "@/components/SemPermissao";
@@ -105,6 +105,19 @@ function PosPageInner() {
   // Refresh ao voltar para a aba
   useRefreshOnFocus(fetchOrders);
 
+  // Abre a OS que veio na URL (/pos?id=OS-XXXX) uma vez, ao montar.
+  const urlHandledRef = useRef(false);
+  useEffect(() => {
+    if (urlHandledRef.current || typeof window === "undefined") return;
+    urlHandledRef.current = true;
+    const id = new URLSearchParams(window.location.search).get("id");
+    if (id) {
+      setDrawerMode("edit");
+      setSelectedOsId(id);
+      setDrawerVisible(true);
+    }
+  }, []);
+
   const handleNewOS = () => {
     if (!podeCriar) return;
     setDrawerMode("create");
@@ -116,6 +129,8 @@ function PosPageInner() {
     setDrawerMode("edit");
     setSelectedOsId(order.id);
     setDrawerVisible(true);
+    // URL reflete o card aberto (/pos?id=OS-XXXX), pra copiar/compartilhar o link.
+    if (typeof window !== "undefined") window.history.replaceState(null, "", `/pos?id=${encodeURIComponent(order.id)}`);
   };
 
   // ── Envio ao Omie (manual, pelos botões da fase "Enviar Omie") ──
@@ -183,6 +198,8 @@ function PosPageInner() {
   const handleDrawerClose = () => {
     setDrawerVisible(false);
     setSelectedOsId(null);
+    // Volta a URL pra /pos ao fechar o card.
+    if (typeof window !== "undefined") window.history.replaceState(null, "", "/pos");
   };
 
   const handleSaved = () => {

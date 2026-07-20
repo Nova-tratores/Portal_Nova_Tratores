@@ -44,7 +44,6 @@ const S_CLIENT_ITEM_SUB = { fontSize: 11, color: "var(--portal-text-secondary)" 
 const S_REQ_MATERIAL = { color: "var(--portal-text-secondary)", flex: 1, textAlign: "right" as const, fontSize: 12 };
 const S_PRODUTO_VALOR = { fontWeight: 600 };
 const S_SPINNER_LOADING = { width: 28, height: 28, borderColor: "var(--portal-border)", borderTopColor: "var(--portal-text-secondary)" };
-const S_SPINNER_OMIE = { width: 14, height: 14, borderColor: "rgba(255,255,255,0.3)", borderTopColor: "#fff", display: "inline-block" as const, verticalAlign: "middle" as const, marginRight: 8 };
 const S_MR6 = { marginRight: 6 };
 const S_DISC_BADGE = { fontSize: 11, color: "#C41E2A", fontWeight: 700, marginLeft: "auto" };
 const S_REQ_BOLD = { fontWeight: 600 };
@@ -114,6 +113,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   const [addProdQtd, setAddProdQtd] = useState(1);
   const [addingProduto, setAddingProduto] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [aba, setAba] = useState<"os" | "ppv">("os");
   const [loadingData, setLoadingData] = useState(false);
   // Incrementado após importar um orçamento → força recarregar os dados da OS
   const [reloadKey, setReloadKey] = useState(0);
@@ -609,6 +609,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
     setServicoOficina(false);
     setServicoInterno(false);
     setAlimentacoes([]);
+    setAba("os");
   }, []);
 
   // ── Effects ──
@@ -628,6 +629,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
     }
 
     if (mode === "edit" && osId) {
+      setAba("os");
       setLoadingData(true);
       fetch(`/api/pos/ordens/${osId}`, { signal: ac.signal })
         .then((r) => r.json())
@@ -737,24 +739,6 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                 )}
               </div>
               <div className="os-header-actions">
-                {mode === "edit" && (
-                  <>
-                    <button className="os-btn-ghost" onClick={() => {
-                      const w = window.open("", "_blank");
-                      if (w) {
-                        fetch(`/api/pos/ordens/${osId}/print`).then(r => r.text()).then(html => {
-                          w.document.write(html);
-                          w.document.close();
-                        });
-                      }
-                    }}>
-                      <i className="fas fa-print" /> {servicoInterno ? "Comprovante" : "Imprimir"}
-                    </button>
-                    <button className="os-btn-ghost" onClick={() => setShowLogs(!showLogs)}>
-                      <i className="fas fa-history" /> Log
-                    </button>
-                  </>
-                )}
                 <button className="os-btn-close" onClick={onClose}>
                   <i className="fas fa-times" />
                 </button>
@@ -769,6 +753,24 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
             ) : (
               <>
                 <div className="os-body">
+
+                  {/* ── Abas (edit): Ordem de Serviço / Peças (PPV) ── */}
+                  {mode === "edit" && (
+                    <div className="os-tabs">
+                      <button type="button" className={`os-tab ${aba === "os" ? "active" : ""}`} onClick={() => setAba("os")}>
+                        <i className="fas fa-file-lines" /> Ordem de Serviço
+                      </button>
+                      <button type="button" className={`os-tab ${aba === "ppv" ? "active" : ""}`} onClick={() => setAba("ppv")}>
+                        <i className="fas fa-boxes" /> PPV / Requisições
+                        {(produtos.length > 0 || requisicoes.length > 0) && (
+                          <span className="os-tab-badge">{produtos.length + requisicoes.length}</span>
+                        )}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* ── Painel: Ordem de Serviço ── */}
+                  <div className="os-tab-panel" style={{ display: aba === "os" ? "flex" : "none" }}>
 
                   {/* ── Summary card (edit mode) ── */}
                   {mode === "edit" && clienteInfo && (
@@ -1009,33 +1011,21 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                     </div>
                   )}
 
-                  {/* Enviar ao Omie — última seção do modal (order alto) */}
-                  {mode === "edit" && (
+                  {/* Estado do envio ao Omie (o botão de ação foi para a coluna à direita) */}
+                  {mode === "edit" && ordemOmie && (
                     <div className="os-card" style={{ order: 20 }}>
                       <div className="os-card-title"><i className="fas fa-cloud-upload-alt" /> {servicoInterno ? "Concluir ordem interna" : "Enviar para o Omie"}</div>
-                      {!ordemOmie && !(servicoInterno && status === "Concluída") && (
-                        <button className="os-btn-omie" onClick={enviarParaOmie} disabled={enviandoOmie || (servicoInterno ? !podeConcluir : !podeOmie)}
-                          title={(servicoInterno ? !podeConcluir : !podeOmie) ? MSG_SEM_PERMISSAO : undefined}
-                          style={servicoInterno ? { background: '#7C3AED' } : undefined}>
-                          {enviandoOmie ? (
-                            <><div className="spinner-inner" style={S_SPINNER_OMIE} /> {servicoInterno ? 'Concluindo...' : 'Enviando...'}</>
-                          ) : servicoInterno ? (
-                            <><i className="fas fa-clipboard-check" /> Concluir Ordem Interna</>
-                          ) : (
-                            <><i className="fas fa-cloud-upload-alt" /> Enviar para Omie</>
-                          )}
-                        </button>
-                      )}
-                      {ordemOmie && (
-                        <div className="os-omie-badge">
-                          <i className="fas fa-check-circle" /> {servicoInterno ? 'Remessa gerada' : 'Enviado para Omie'} (ID: {ordemOmie})
-                        </div>
-                      )}
-                      {!ordemOmie && servicoInterno && status === "Concluída" && (
-                        <div className="os-omie-badge" style={{ background: '#F3E8FF', color: '#6D28D9', borderColor: '#C4B5FD' }}>
-                          <i className="fas fa-check-circle" /> Ordem interna concluída (sem peças)
-                        </div>
-                      )}
+                      <div className="os-omie-badge">
+                        <i className="fas fa-check-circle" /> {servicoInterno ? 'Remessa gerada' : 'Enviado para Omie'} (ID: {ordemOmie})
+                      </div>
+                    </div>
+                  )}
+                  {mode === "edit" && !ordemOmie && servicoInterno && status === "Concluída" && (
+                    <div className="os-card" style={{ order: 20 }}>
+                      <div className="os-card-title"><i className="fas fa-cloud-upload-alt" /> Concluir ordem interna</div>
+                      <div className="os-omie-badge" style={{ background: '#F3E8FF', color: '#6D28D9', borderColor: '#C4B5FD' }}>
+                        <i className="fas fa-check-circle" /> Ordem interna concluída (sem peças)
+                      </div>
                     </div>
                   )}
 
@@ -1533,6 +1523,10 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                     <textarea rows={10} value={servSolicitado} onChange={(e) => setServSolicitado(e.target.value)} style={S_MONO_MB0} />
                   </div>
 
+                  </div>{/* fim painel Ordem de Serviço (parte 1) */}
+
+                  {/* ── Painel: Peças / PPV ── */}
+                  <div className="os-tab-panel" style={{ display: aba === "ppv" ? "flex" : "none" }}>
                   {/* ── PPV & Requisições (edit) ── */}
                   {mode === "edit" && (
                     <div className="os-card">
@@ -1641,7 +1635,10 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                       )}
                     </div>
                   )}
+                  </div>{/* fim painel Peças / PPV */}
 
+                  {/* ── Painel: Ordem de Serviço (parte 2) ── */}
+                  <div className="os-tab-panel" style={{ display: aba === "os" ? "flex" : "none" }}>
                   {/* ── Financeiro ── */}
                   <div className="os-card os-card-financial">
                     <div className="os-card-title"><i className="fas fa-calculator" /> Financeiro</div>
@@ -1879,18 +1876,67 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                       </div>
                     </div>
                   </div>
+                  </div>{/* fim painel Ordem de Serviço (parte 2) */}
 
-                </div>
-
-                {/* Footer */}
-                <div className="os-footer">
-                  <button className="os-btn-cancel" onClick={onClose}>Cancelar</button>
-                  <button className="os-btn-save" onClick={salvar} disabled={saving || (mode === "edit" && loadingData) || (mode === "edit" && !podeEditar)} title={(mode === "edit" && !podeEditar) ? MSG_SEM_PERMISSAO : undefined}>
-                    {saving ? "Salvando..." : (mode === "edit" && loadingData) ? "Carregando..." : mode === "create" ? "Criar Ordem" : (mode === "edit" && !podeEditar) ? "Somente leitura" : "Salvar Alterações"}
-                  </button>
                 </div>
               </>
             )}
+          </div>
+
+          {/* ── Coluna de ações à direita (estilo Omie) ── */}
+          <div className="os-action-rail">
+            <button
+              className="os-rail-btn primary"
+              onClick={salvar}
+              disabled={saving || (mode === "edit" && loadingData) || (mode === "edit" && !podeEditar)}
+              title={(mode === "edit" && !podeEditar) ? MSG_SEM_PERMISSAO : undefined}
+            >
+              <i className="fas fa-floppy-disk" />
+              {saving ? "Salvando..." : (mode === "edit" && loadingData) ? "Carregando..." : mode === "create" ? "Criar Ordem" : (mode === "edit" && !podeEditar) ? "Somente leitura" : "Salvar"}
+            </button>
+
+            {mode === "edit" && (
+              <>
+                <button
+                  className="os-rail-btn"
+                  onClick={() => {
+                    const w = window.open("", "_blank");
+                    if (w) {
+                      fetch(`/api/pos/ordens/${osId}/print`).then(r => r.text()).then(html => {
+                        w.document.write(html);
+                        w.document.close();
+                      });
+                    }
+                  }}
+                >
+                  <i className="fas fa-print" /> {servicoInterno ? "Comprovante" : "Imprimir"}
+                </button>
+
+                <button className="os-rail-btn" onClick={() => setShowLogs(!showLogs)}>
+                  <i className="fas fa-clock-rotate-left" /> Histórico / Log
+                </button>
+
+                {!ordemOmie && !(servicoInterno && status === "Concluída") && (
+                  <button
+                    className={`os-rail-btn ${servicoInterno ? "interna" : "omie"}`}
+                    onClick={enviarParaOmie}
+                    disabled={enviandoOmie || (servicoInterno ? !podeConcluir : !podeOmie)}
+                    title={(servicoInterno ? !podeConcluir : !podeOmie) ? MSG_SEM_PERMISSAO : undefined}
+                  >
+                    {enviandoOmie
+                      ? <><i className="fas fa-spinner fa-spin" /> {servicoInterno ? "Concluindo..." : "Enviando..."}</>
+                      : servicoInterno
+                        ? <><i className="fas fa-clipboard-check" /> Concluir Interna</>
+                        : <><i className="fas fa-cloud-upload-alt" /> Enviar para Omie</>}
+                  </button>
+                )}
+              </>
+            )}
+
+            <div className="os-rail-sep" />
+            <button className="os-rail-btn" onClick={onClose}>
+              <i className="fas fa-xmark" /> Fechar
+            </button>
           </div>
 
           {mode === "edit" && <LogPanel osId={osId} visible={showLogs} refreshKey={logRefreshKey} />}
