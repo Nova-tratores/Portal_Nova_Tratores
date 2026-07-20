@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizarPlaca, parseCsvAbastecimento, parseDataBR, parseNumeroBR, splitCsv } from '../parse';
+import { normalizarNomePessoa, normalizarPlaca, parseCsvAbastecimento, parseDataBR, parseNumeroBR, splitCsv } from '../parse';
 import {
   anomaliasConsumo, consumoPorVeiculo, curvaAbc, intervalosAbastecimento, localBR,
   porCombustivel, porVeiculo, type LinhaDash,
@@ -34,6 +34,26 @@ describe('parseDataBR', () => {
   });
 });
 
+describe('normalizarNomePessoa', () => {
+  it('unifica caixa — "NICOLAS DARIO" e "Nicolas Dario" viram a MESMA string', () => {
+    expect(normalizarNomePessoa('NICOLAS DARIO')).toBe('Nicolas Dario');
+    expect(normalizarNomePessoa('Nicolas Dario')).toBe('Nicolas Dario');
+    expect(normalizarNomePessoa('nicolas   dario ')).toBe('Nicolas Dario'); // espaços duplos
+  });
+
+  it('preposições minúsculas (menos no início)', () => {
+    expect(normalizarNomePessoa('MARIANO RAMOS DO VAL')).toBe('Mariano Ramos do Val');
+    expect(normalizarNomePessoa('Mariano Ramos Do Val')).toBe('Mariano Ramos do Val');
+    expect(normalizarNomePessoa('DA SILVA')).toBe('Da Silva'); // início não abaixa
+  });
+
+  it('vazio/null → null', () => {
+    expect(normalizarNomePessoa('')).toBeNull();
+    expect(normalizarNomePessoa('   ')).toBeNull();
+    expect(normalizarNomePessoa(null)).toBeNull();
+  });
+});
+
 describe('normalizarPlaca', () => {
   it('maiúscula, sem hífen/espaço', () => {
     expect(normalizarPlaca('sec-1f03 ')).toBe('SEC1F03');
@@ -59,7 +79,7 @@ describe('parseCsvAbastecimento', () => {
     expect(l.valor_unitario).toBe(6.69);
     expect(l.valor_total).toBe(77.91);
     expect(l.combustivel).toBe('Gasolina Comum');
-    expect(l.motorista_nome).toBe('PEDRO FAVARO');
+    expect(l.motorista_nome).toBe('Pedro Favaro'); // normalizado (Title Case) na importação
     expect(l.posto_nome).toBe('AUTO POSTO 2001');
     expect(l.posto_cidade).toBe('Piraju');
     expect(l.filial_nome).toBe('CASTRO PECAS E MAQUINAS AGRICOLAS LTDA');

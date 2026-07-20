@@ -27,6 +27,11 @@ export function decodificarCsv(buf: ArrayBuffer | Uint8Array): string {
   return texto.charCodeAt(0) === 0xfeff ? texto.slice(1) : texto;
 }
 
+// Re-export: o CSV da operadora alterna a caixa do nome do motorista entre
+// meses — normalizamos na importação (a lib compartilhada vive em lib/texto).
+export { normalizarNomePessoa } from '@/lib/texto';
+import { normalizarNomePessoa } from '@/lib/texto';
+
 // "1.542,17" -> 1542.17 | "" -> null. Aceita negativos e "R$ ".
 export function parseNumeroBR(s: string | null | undefined): number | null {
   if (s == null) return null;
@@ -204,8 +209,9 @@ export function parseCsvAbastecimento(csvTexto: string): ResultadoParse {
     vistas.add(chave);
 
     const motoristaBruto = texto(cel(row, 'motorista_nome'));
-    const motorista =
-      motoristaBruto && normalizarCabecalho(motoristaBruto) === SEM_MOTORISTA ? null : motoristaBruto;
+    const motorista = normalizarNomePessoa(
+      motoristaBruto && normalizarCabecalho(motoristaBruto) === SEM_MOTORISTA ? null : motoristaBruto,
+    );
 
     linhas.push({
       placa,

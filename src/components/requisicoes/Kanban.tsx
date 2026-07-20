@@ -3,6 +3,7 @@ import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import CardCapaReq from './CardCapaReq';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { normalizarNomePessoa } from '@/lib/texto';
 import { Search, Calendar, Building2, X, Layout, UserCircle, Layers, SlidersHorizontal, Receipt, FileDown, Info, Plus, FolderOpen, FolderPlus, RotateCcw, Car, Filter, ArrowLeft, Check, Tag } from 'lucide-react';
 
 const LISTA_FORNECEDORES_CADASTRADOS = ["Rodrigo Torneiro (Panda)"];
@@ -178,9 +179,12 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
     { key: 'status', label: 'Fase', Icon: Layout },
   ]), []);
 
-  // Valor "bruto" de cada campo numa requisição (o que é comparado no filtro)
+  // Valor "bruto" de cada campo numa requisição (o que é comparado no filtro).
+  // Solicitante é NORMALIZADO (Title Case): "NICOLAS DARIO" e "Nicolas Dario"
+  // são a mesma pessoa — sem isso o facet mostrava o nome duplicado, um pra
+  // cada caixa em que foi digitado.
   const valorCampo = useCallback((r: any, campo: string): string => {
-    if (campo === 'solicitante') return nomeSolicitante(r.solicitante);
+    if (campo === 'solicitante') return normalizarNomePessoa(nomeSolicitante(r.solicitante)) || '';
     if (campo === 'veiculo') return String(r.veiculo ?? '').trim();
     return String(r[campo] ?? '').trim();
   }, [nomeSolicitante]);
