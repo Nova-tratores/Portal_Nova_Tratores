@@ -8,15 +8,17 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Car, Search, Satellite, ShieldAlert, User as UserIcon, AlertTriangle,
   FileWarning, MapPin, Truck, Fuel, Droplets, OctagonAlert, Plus, Loader2, X,
+  Users, IdCard,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import { authHeaders } from '@/lib/auth/client';
 import { supabase } from '@/lib/supabase';
 import { ehAvulsa, formatarPlaca, resolverPlaca } from '@/lib/frota/placa';
+import { podeTelaFrota } from '@/lib/permissoes/frota';
 import VeiculoDrawer from '@/components/frota/VeiculoDrawer';
 import { SUBTIPOS_VEICULO, SUBTIPOS_DESTAQUE, labelSubtipo } from '@/lib/frota/tipos';
-import type { VeiculoLista } from '@/lib/frota/tipos';
+import type { MotoristaRH, VeiculoLista } from '@/lib/frota/tipos';
 
 const fmtRS = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 
@@ -37,8 +39,9 @@ const COR_LOC: Record<string, string> = {
 
 export default function FrotaHome() {
   const { userProfile } = useAuth();
-  const { pode } = usePermissoes(userProfile?.id);
+  const { pode, permissoes, isAdmin } = usePermissoes(userProfile?.id);
   const [veiculos, setVeiculos] = useState<VeiculoLista[]>([]);
+  const [motoristas, setMotoristas] = useState<MotoristaRH[] | null>(null);
   const [atipicas7d, setAtipicas7d] = useState<number | null>(null);
   const [locs, setLocs] = useState<Record<string, Localizacao>>({});
   const [combustivel, setCombustivel] = useState<{ gasto30: number; litros30: number; abast30: number } | null>(null);
@@ -104,6 +107,23 @@ export default function FrotaHome() {
     })();
   }, []);
 
+  // Motoristas (RH) — pro KPI de CNH e o bloco-resumo embaixo. Só busca se a
+  // pessoa pode ver a tela; falha → bloco some (é opcional, não derruba a home).
+  const podeVerMotoristas = podeTelaFrota(permissoes?.modulos_permitidos ?? [], isAdmin, 'motoristas');
+  useEffect(() => {
+    if (!podeVerMotoristas) return;
+    let vivo = true;
+    (async () => {
+      try {
+        const r = await fetch('/api/frota/motoristas/rh', { headers: await authHeaders() });
+        if (!r.ok) return;
+        const d = await r.json();
+        if (vivo) setMotoristas(d.motoristas || []);
+      } catch { /* resumo é opcional */ }
+    })();
+    return () => { vivo = false; };
+  }, [podeVerMotoristas]);
+
   // Localização atual (Rota Exata + geocode) — chega DEPOIS da lista, de
   // propósito: é externa e lenta; os cards aparecem na hora e os rótulos vão
   // pingando quando prontos.
@@ -147,6 +167,14 @@ export default function FrotaHome() {
   const multasRS = soCarros.reduce((s, v) => s + (v.valor_multas_abertas || 0), 0);
   const docsN = soCarros.reduce((s, v) => s + (v.docs_vencendo || 0), 0);
 
+  // motoristas (RH): só os ATIVOS contam pro KPI de CNH
+  const motAtivos = (motoristas || []).filter((m) =>
+    m.status_rh != null ? !['demitido', 'inativo'].includes(m.status_rh) : m.ativo_portal,
+  );
+  const cnhVencida = motAtivos.filter((m) => m.situacao_cnh === 'vencida').length;
+  const cnhVencendo = motAtivos.filter((m) => m.situacao_cnh === 'vencendo').length;
+  const motComPendencia = (motoristas || []).filter((m) => (m.pendencias || []).length > 0);
+
   return (
     <div style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
       {/* Cabeçalho */}
@@ -180,6 +208,15 @@ export default function FrotaHome() {
           valor={veiculos.length ? String(docsN) : '—'}
           cor={docsN > 0 ? '#b45309' : undefined}
         />
+        {podeVerMotoristas && (
+          <Kpi
+            icone={<IdCard size={16} />}
+            rotulo="CNH vencida · vencendo"
+            valor={motoristas ? `${cnhVencida} · ${cnhVencendo}` : '—'}
+            cor={cnhVencida > 0 ? '#b91c1c' : cnhVencendo > 0 ? '#b45309' : undefined}
+            href="/frota/motoristas"
+          />
+        )}
         <Kpi
           icone={<OctagonAlert size={16} />}
           rotulo="Paradas atípicas (7d)"
@@ -378,6 +415,68 @@ export default function FrotaHome() {
           </button>
         ))}
       </div>
+
+      {/* Motoristas (RH) — resumo compacto; a aba completa é /frota/motoristas */}
+      {podeVerMotoristas && motoristas && (
+        <div style={{ marginTop: 28 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
+            <h3 style={{ fontSize: 18, fontWeight: 800, margin: 0, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Users size={17} color="#0d9488" /> Motoristas
+            </h3>
+            <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted)' }}>
+              {motAtivos.length} ativos · {motAtivos.filter((m) => m.e_motorista).length} motoristas
+              {motComPendencia.length > 0 && (
+                <> · <strong style={{ color: '#b91c1c' }}>{motComPendencia.length} com pendência de CNH</strong></>
+              )}
+            </span>
+            <div style={{ flex: 1 }} />
+            <Link href="/frota/motoristas" style={{ fontSize: 12.5, fontWeight: 700, color: '#0d9488', textDecoration: 'none' }}>
+              Ver todos →
+            </Link>
+          </div>
+          {motComPendencia.length === 0 ? (
+            <div style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)' }}>
+              CNHs em dia ✓ — ninguém com pendência.
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10 }}>
+              {motComPendencia.slice(0, 8).map((m) => (
+                <Link
+                  key={m.rh_id || m.id}
+                  href="/frota/motoristas"
+                  title={`Pendências:\n• ${m.pendencias.join('\n• ')}`}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none',
+                    background: 'rgba(220, 38, 38, 0.06)', border: '1px solid #ef4444',
+                    borderRadius: 10, padding: '8px 12px',
+                  }}
+                >
+                  {m.foto_url ? (
+                    <img src={m.foto_url} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', background: 'var(--portal-bg-secondary)', flexShrink: 0 }} />
+                  ) : (
+                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--portal-bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <UserIcon size={16} color="var(--portal-text-muted)" />
+                    </div>
+                  )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--portal-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {m.nome}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#b91c1c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {m.pendencias[0]}
+                    </div>
+                  </div>
+                </Link>
+              ))}
+              {motComPendencia.length > 8 && (
+                <Link href="/frota/motoristas" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 700, color: '#0d9488', textDecoration: 'none', border: '1px dashed var(--portal-border)', borderRadius: 10, padding: '8px 12px' }}>
+                  + {motComPendencia.length - 8} outros →
+                </Link>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {placaAberta && (
         <VeiculoDrawer

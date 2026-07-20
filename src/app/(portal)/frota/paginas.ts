@@ -34,6 +34,9 @@ export const PAGINAS_FROTA: PaginaFrota[] = [
   // lendo Placas.valor_mercado normalmente).
   // Documentos NÃO têm tela própria (decisão do usuário): vivem na Ficha do
   // Veículo. A ação frota:documentos:editar (nas extras) controla a escrita.
+  // Motoristas: funcionários do RH (Supabase próprio, sem salário) + CNH e
+  // vínculos da frota. Só CNH/flag motorista editáveis aqui — o cadastro é do RH.
+  { key: 'frota:motoristas',         label: 'Motoristas',        href: '/frota/motoristas',         grupo: 'Cadastro' },
   { key: 'frota:mapa',               label: 'Mapa',              href: '/frota/mapa',               grupo: 'Operação' },
   { key: 'frota:paradas',            label: 'Paradas',           href: '/frota/paradas',            grupo: 'Operação' },
   { key: 'frota:multas',             label: 'Multas',            href: '/frota/multas',             grupo: 'Operação' },

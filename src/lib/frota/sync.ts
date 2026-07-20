@@ -95,6 +95,24 @@ async function mapaMotoristas(supabase: ReturnType<typeof db>) {
   return porReId;
 }
 
+// campos_manuais por re_id — o humano editou no portal (aba Motoristas), o
+// sync nunca mais toca (mesma regra dos veículos)
+async function mapaManuaisMotoristas(supabase: ReturnType<typeof db>) {
+  const { data, error } = await supabase
+    .from('frota_motoristas')
+    .select('re_id, e_motorista, campos_manuais');
+  if (error) throw new Error(`frota_motoristas: ${error.message}`);
+  const porReId = new Map<number, { e_motorista: boolean; campos_manuais: string[] }>();
+  for (const m of data || []) {
+    if (m.re_id == null) continue;
+    porReId.set(Number(m.re_id), {
+      e_motorista: !!m.e_motorista,
+      campos_manuais: Array.isArray(m.campos_manuais) ? m.campos_manuais : [],
+    });
+  }
+  return porReId;
+}
+
 // =============================================================================
 // CADASTRO — /usuarios, /adesoes, /motoristas, /destinos, /odometro
 // =============================================================================
@@ -104,25 +122,32 @@ export async function syncCadastro() {
   const resumo: Record<string, number> = {};
 
   // 1) /usuarios -> frota_motoristas (o RE usa 0/1 para flags)
+  // e_motorista editado no portal (campos_manuais) preserva o valor do banco —
+  // o humano venceu; o resto do cadastro continua vindo da origem.
   const usuarios = await fetchTudo('/usuarios');
+  const manuais = await mapaManuaisMotoristas(supabase);
   await upsertLotes(
     supabase,
     'frota_motoristas',
     usuarios
       .filter((u: any) => u.id != null && str(u.nome))
-      .map((u: any) => ({
-        re_id: Number(u.id),
-        nome: String(u.nome).trim(),
-        cpf: str(u.cpf),
-        email: str(u.email),
-        telefone: str(u.telefone),
-        cargo: str(u.cargo),
-        ativo: u.ativo === 1 || u.ativo === true,
-        gestor: u.gestor === 1 || u.gestor === true,
-        e_motorista: u.motorista === 1 || u.motorista === true,
-        re_raw: u,
-        visto_em: agora,
-      })),
+      .map((u: any) => {
+        const atual = manuais.get(Number(u.id));
+        const travouFlag = atual?.campos_manuais.includes('e_motorista');
+        return {
+          re_id: Number(u.id),
+          nome: String(u.nome).trim(),
+          cpf: str(u.cpf),
+          email: str(u.email),
+          telefone: str(u.telefone),
+          cargo: str(u.cargo),
+          ativo: u.ativo === 1 || u.ativo === true,
+          gestor: u.gestor === 1 || u.gestor === true,
+          e_motorista: travouFlag ? atual!.e_motorista : u.motorista === 1 || u.motorista === true,
+          re_raw: u,
+          visto_em: agora,
+        };
+      }),
     're_id',
   );
   resumo.motoristas = usuarios.length;
@@ -343,6 +368,7 @@ export async function syncEventos() {
   const resumo: Record<string, number> = {};
   const { porPlaca, porAdesao } = await mapaVeiculos(supabase);
   const porReId = await mapaMotoristas(supabase);
+  const manuaisMot = await mapaManuaisMotoristas(supabase);
 
   const acharVeiculo = (adesao: any): Veiculo | undefined => {
     const porId = adesao?.id != null ? porAdesao.get(Number(adesao.id)) : undefined;
@@ -410,15 +436,16 @@ export async function syncEventos() {
       // entram neste payload (senão o sync sobrescreveria a decisão do RH).
     });
 
-    // brinde: a multa traz CNH/validade do motorista — enriquece o cadastro
+    // brinde: a multa traz CNH/validade do motorista — enriquece o cadastro.
+    // Campo editado no portal (campos_manuais) NÃO é sobrescrito pelo brinde.
     if (motoristaReId != null && (str(m.motorista?.cnh) || dia(m.motorista?.cnh_validade))) {
-      await supabase
-        .from('frota_motoristas')
-        .update({
-          cnh: str(m.motorista?.cnh),
-          cnh_validade: dia(m.motorista?.cnh_validade),
-        })
-        .eq('re_id', motoristaReId);
+      const travados = manuaisMot.get(motoristaReId)?.campos_manuais || [];
+      const upd: Record<string, unknown> = {};
+      if (!travados.includes('cnh')) upd.cnh = str(m.motorista?.cnh);
+      if (!travados.includes('cnh_validade')) upd.cnh_validade = dia(m.motorista?.cnh_validade);
+      if (Object.keys(upd).length > 0) {
+        await supabase.from('frota_motoristas').update(upd).eq('re_id', motoristaReId);
+      }
     }
   }
   await upsertLotes(supabase, 'frota_multas', linhasMultas, 're_id');

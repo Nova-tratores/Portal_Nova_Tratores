@@ -199,6 +199,7 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     ...PAGINAS_FROTA.map((p) => ({ id: p.key.replace('frota:', ''), label: p.label })),
     { id: 'veiculos:editar', label: 'Veículos — editar a ficha' },
     { id: 'veiculos:responsavel', label: 'Veículos — trocar o responsável' },
+    { id: 'motoristas:editar', label: 'Motoristas — editar CNH / flag motorista' },
     { id: 'multas:editar', label: 'Multas — mudar status / desconto' },
     { id: 'paradas:justificar', label: 'Paradas — justificar / ignorar atípicas' },
     // 'patio:editar' morreu com a tela de pátio (13/07) — as APIs que restaram

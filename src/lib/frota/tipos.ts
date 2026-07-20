@@ -110,6 +110,70 @@ export interface Motorista {
   e_motorista: boolean;
 }
 
+// ── Aba Motoristas (Frota ↔ RH) ──────────────────────────────────────────────
+// Item da lista mesclada RH × frota_motoristas. O CPF cru NUNCA trafega —
+// só a máscara. Salário nem existe no payload (o select do rh.ts é explícito).
+export interface MotoristaRH {
+  id: string | null; // frota_motoristas.id (null = funcionário do RH ainda sem linha local)
+  rh_id: string | null; // rh_funcionarios.id (null = só existe no portal/Rota Exata)
+  nome: string;
+  cpf_mascarado: string | null;
+  origem: 'ambos' | 'rh' | 'portal';
+  // RH — só leitura (dono do cadastro é o RH)
+  empresa: string | null; // NOVA | CASTRO
+  cargo: string | null;
+  departamento: string | null;
+  status_rh: string | null; // ativo|ferias|afastado|inativo|demitido — null se fora do RH
+  data_admissao: string | null;
+  data_demissao: string | null;
+  tipo_contrato: string | null;
+  telefone: string | null;
+  email: string | null;
+  cidade: string | null;
+  estado: string | null;
+  foto_url: string | null; // assinada (TTL 1h) ou pública
+  // Portal — editável (frota:motoristas:editar)
+  e_motorista: boolean;
+  gestor: boolean;
+  ativo_portal: boolean;
+  cnh: string | null;
+  cnh_categoria: string | null;
+  cnh_validade: string | null;
+  // Derivados (lib pura motoristas.ts)
+  situacao_cnh: 'ok' | 'vencendo' | 'vencida' | 'sem_validade' | 'sem_cnh';
+  pendencias: string[]; // 1+ = card vermelho
+  responsavel_por_veiculo: boolean;
+}
+
+// Ficha completa (drawer): RH menos salário + vínculos da frota.
+export interface MotoristaDetalhe {
+  motorista: MotoristaRH;
+  rh: {
+    rg: string | null;
+    data_nascimento: string | null;
+    sexo: string | null;
+    estado_civil: string | null;
+    endereco: string | null;
+    bairro: string | null;
+    cidade: string | null;
+    estado: string | null;
+    cep: string | null;
+    atualizado_em: string | null;
+  } | null;
+  veiculos: { veiculo_id: string; placa: string; modelo: string | null; inicio: string; fim: string | null }[];
+  multas: {
+    id: string;
+    placa: string;
+    dt_multa: string | null;
+    descricao: string | null;
+    pontos: number | null;
+    valor: number | null;
+    status_interno: string | null;
+  }[];
+  multas_total: { qtd: number; valor: number; pontos: number };
+  documentos_rh: { id: string; tipo: string; descricao: string | null; data_validade: string | null; url: string | null }[];
+}
+
 export interface Multa {
   id: string;
   placa: string;
