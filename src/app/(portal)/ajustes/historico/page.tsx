@@ -16,6 +16,7 @@ interface CorrecaoLinha {
   codigo_integracao?: string | null;
   descricao_produto?: string;
   codigo_local_estoque?: number | string | null;
+  local_nome?: string | null;
   cmc_anterior?: number | null;
   cmc_aplicado?: number | null;
   cmc_sugerido?: number | null;
@@ -167,10 +168,10 @@ export default function AjustesHistoricoPage() {
                         <span style={{ display: 'inline-block', padding: '1px 6px', borderRadius: 4, fontSize: '.68rem', background: l.origem === 'estoque_negativo' ? '#fee2e2' : '#f1f5f9', color: l.origem === 'estoque_negativo' ? '#991b1b' : '#475569' }}>{origemLabel}</span>
                       </td>
                       <td style={tdStyle}>
-                        <span style={{ fontFamily: 'monospace', fontSize: '.72rem' }}>{l.codigo_produto != null ? l.codigo_produto : (l.codigo_integracao || '')}</span>
+                        <span style={{ fontFamily: 'monospace', fontSize: '.72rem' }}>{l.codigo_integracao || (l.codigo_produto != null ? '#' + l.codigo_produto : '')}</span>
                         {l.descricao_produto && <div style={{ fontSize: '.7rem', color: '#64748b' }}>{l.descricao_produto}</div>}
                       </td>
-                      <td style={{ ...tdStyle, fontSize: '.72rem' }}>{l.codigo_local_estoque != null ? l.codigo_local_estoque : ''}</td>
+                      <td style={{ ...tdStyle, fontSize: '.72rem' }}>{l.local_nome || (l.codigo_local_estoque != null ? '#' + l.codigo_local_estoque : '')}</td>
                       <td style={{ ...tdStyle, textAlign: 'right' }}>{fmtBRL(l.cmc_anterior)}</td>
                       <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 500, color: l.status === 'aplicado' ? '#047857' : undefined }}>{fmtBRL(l.cmc_aplicado)}</td>
                       <td style={{ ...tdStyle, textAlign: 'right', color: '#64748b' }}>{fmtBRL(l.cmc_sugerido)}</td>
