@@ -22,7 +22,25 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     .select("id, code, name, reference, qtd, unit, compravel")
     .eq("figura_id", id);
 
-  const ordenadas = (pecas || []).sort((a, b) => {
+  // A tabela tem linhas duplicadas (vindas de importações repetidas): o mesmo
+  // código aparece várias vezes com a mesma referência, e ainda uma versão com
+  // referência vazia. Deduplica por (referência + código), preferindo a linha
+  // que tem quantidade preenchida, e descarta a versão "sem referência" quando
+  // o mesmo código já tem uma referência real no desenho.
+  const norm = (v: unknown) => String(v ?? "").trim();
+  const melhor = new Map<string, NonNullable<typeof pecas>[number]>();
+  for (const p of pecas || []) {
+    const key = `${norm(p.reference)}||${norm(p.code)}`;
+    const atual = melhor.get(key);
+    if (!atual || (p.qtd != null && atual.qtd == null)) melhor.set(key, p);
+  }
+  let unicas = [...melhor.values()];
+  const codigosComRef = new Set(
+    unicas.filter((p) => norm(p.reference) !== "").map((p) => norm(p.code))
+  );
+  unicas = unicas.filter((p) => !(norm(p.reference) === "" && codigosComRef.has(norm(p.code))));
+
+  const ordenadas = unicas.sort((a, b) => {
     const na = parseInt(String(a.reference || "0"), 10) || 0;
     const nb = parseInt(String(b.reference || "0"), 10) || 0;
     return na - nb;
