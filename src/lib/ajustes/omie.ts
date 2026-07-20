@@ -754,6 +754,14 @@ export async function alterarRecebimentoItens(conta: Conta, args: Record<string,
   if (idReceb != null) ide.nIdReceb = Number(idReceb) || idReceb;
   else if (chaveNFe) ide.cChaveNfe = String(chaveNFe);
   const itensRecebimentoEditar = itens.map((it: any) => {
+    const cAcao = String(it.cAcao || 'EDITAR');
+    const itensIde = { nSequencia: Number(it.nSequencia) || it.nSequencia, cAcao };
+    // O Omie SO aceita itensAjustes/itensCustoEstoque/itensInfoAdicEditar/itensAtualPreco
+    // quando cAcao === 'EDITAR'. Para NOVO/ASSOCIAR etc. esses blocos sao proibidos
+    // (ERROR: Quando a tag [cAcao] e' diferente de 'EDITAR' as tag [...] nao devem ser
+    // informadas - testado em runtime). Nesses casos mandamos SO o itensIde.
+    if (cAcao !== 'EDITAR') return { itensIde };
+
     const ajustes: Record<string, any> = {};
     if (it.cCFOPEntrada) ajustes.cCFOPEntrada = String(it.cCFOPEntrada);
     if (it.cNaoGerarFinanceiro != null) ajustes.cNaoGerarFinanceiro = it.cNaoGerarFinanceiro === 'S' || it.cNaoGerarFinanceiro === true ? 'S' : 'N';
@@ -763,7 +771,7 @@ export async function alterarRecebimentoItens(conta: Conta, args: Record<string,
     // tipo complexo [itensAjustes] - testado em runtime, NF 55693). Removidas.
     // Se um dia formos setar categoria no recebimento (Fase 3), e' em outro bloco.
     const bloco: Record<string, any> = {
-      itensIde: { nSequencia: Number(it.nSequencia) || it.nSequencia, cAcao: String(it.cAcao || 'EDITAR') },
+      itensIde,
       itensAjustes: ajustes
     };
     // flags da aba "Custo de Estoque" do recebimento (Omie web tem 8 checkboxes
