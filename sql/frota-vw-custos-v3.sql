@@ -1,10 +1,9 @@
 -- =============================================================================
--- Frota — v3 da vw_frota_custos: REQUISIÇÕES entram na conta do veículo
+-- Frota — v3.1 da vw_frota_custos: REQUISIÇÕES na conta + coluna DESCRICAO
 --
--- Motivo: as requisições marcadas pra um veículo (Requisicao.veiculo =
--- SupaPlacas.IdPlaca) nunca entravam no TCO — só cartão combustível, custos da
--- Rota Exata, manutenções manuais e multas. No banco há ~520 requisições
--- veiculares (levantado em 17/07/2026):
+-- v3: as requisições marcadas pra um veículo (Requisicao.veiculo =
+-- SupaPlacas.IdPlaca) entram no TCO — ~520 requisições veiculares
+-- (levantado em 17/07/2026):
 --   'Frota-Veículos' + 'Frota-Veiculos' (403)  → tipo "Despesa de frota"
 --   'Veicular Manutenção' (94)                 → tipo "Manutenção"
 --   'Veicular Abastecimento' (22)              → tipo "Combustível"
@@ -12,16 +11,20 @@
 -- Lixeira fica fora. valor_despeza é TEXTO em formatos misturados (BR e US) —
 -- frota_parse_valor trata os dois e devolve NULL pro que não é número.
 --
+-- v3.1: coluna `descricao` em todas as fontes — o extrato do modal mostra O QUE
+-- foi cada lançamento (título da requisição, posto + combustível + litros do
+-- abastecimento, descrição da manutenção/multa), não só "requisição R$ X".
+--
 -- Anti-duplo-conto continua: /custos do RE sem multa nem combustível;
 -- frota_manutencoes só origem='manual' (a requisição de manutenção entra AQUI,
 -- não existe em frota_manutencoes).
 --
 -- Correr no Supabase: SQL Editor -> colar -> Run. Idempotente.
 --
--- DROP + CREATE (não CREATE OR REPLACE): o braço novo muda o tipo inferido da
--- coluna `valor` (numeric(12,2) -> numeric) e o Postgres não deixa REPLACE
--- mudar tipo de coluna (erro 42P16). Dropar a view é seguro — nada depende
--- dela além das telas, e os grants são refeitos logo abaixo.
+-- DROP + CREATE (não CREATE OR REPLACE): o braço das requisições muda o tipo
+-- inferido da coluna `valor` (numeric(12,2) -> numeric) e o Postgres não deixa
+-- REPLACE mudar tipo/lista de colunas (erro 42P16). Dropar é seguro — nada
+-- depende da view além das telas, e os grants são refeitos logo abaixo.
 -- =============================================================================
 DROP VIEW IF EXISTS vw_frota_custos;
 
@@ -31,22 +34,33 @@ CREATE VIEW vw_frota_custos AS
          a.data_transacao::date  AS data,
          'Combustível'           AS tipo,
          a.valor_total           AS valor,
-         'abastecimentos'        AS fonte
+         'abastecimentos'        AS fonte,
+         nullif(concat_ws(' · ',
+           nullif(a.posto_nome, ''),
+           nullif(a.combustivel, ''),
+           CASE WHEN a.litros > 0 THEN round(a.litros::numeric, 1)::text || ' l' END
+         ), '')                  AS descricao
     FROM abastecimentos a
     JOIN frota_veiculos f ON f.placa = frota_resolver_placa(a.placa)
 UNION ALL
-  SELECT c.veiculo_id, c.placa, c.dt_lancamento, c.tipo_custo, c.valor, 'rotaexata'
+  SELECT c.veiculo_id, c.placa, c.dt_lancamento, c.tipo_custo, c.valor, 'rotaexata',
+         nullif(concat_ws(' · ', nullif(c.descricao, ''), nullif(c.fornecedor, '')), '')
     FROM frota_custos c
    WHERE NOT c.eh_combustivel
      AND NOT c.ignorar_no_total
      AND lower(coalesce(c.tipo_custo, '')) NOT LIKE '%multa%'
 UNION ALL
-  SELECT m.veiculo_id, m.placa, m.dt_realizado, 'Manutenção', m.valor_total, 'manutencao'
+  SELECT m.veiculo_id, m.placa, m.dt_realizado, 'Manutenção', m.valor_total, 'manutencao',
+         nullif(concat_ws(' · ',
+           coalesce(nullif(m.descricao, ''), nullif(m.observacao, '')),
+           nullif(m.fornecedor, '')
+         ), '')
     FROM frota_manutencoes m
    WHERE m.origem = 'manual'
      AND m.dt_realizado IS NOT NULL AND m.valor_total IS NOT NULL
 UNION ALL
-  SELECT mu.veiculo_id, mu.placa, mu.dt_multa::date, 'Multa', mu.valor, 'multa'
+  SELECT mu.veiculo_id, mu.placa, mu.dt_multa::date, 'Multa', mu.valor, 'multa',
+         nullif(concat_ws(' · ', nullif(mu.descricao, ''), nullif(mu.local_endereco, '')), '')
     FROM frota_multas mu
    WHERE mu.valor IS NOT NULL
 UNION ALL
@@ -60,7 +74,8 @@ UNION ALL
            ELSE 'Despesa de frota'
          END,
          frota_parse_valor(r.valor_despeza),
-         'requisicao'
+         'requisicao',
+         nullif(concat_ws(' · ', nullif(r.titulo, ''), nullif(r.fornecedor, '')), '')
     FROM "Requisicao" r
     JOIN frota_veiculos f ON f.supa_placa_id::text = r.veiculo::text
    WHERE r.tipo IN ('Veicular Manutenção', 'Veicular Abastecimento',

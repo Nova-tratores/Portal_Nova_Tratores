@@ -44,6 +44,7 @@ interface EntradaCusto {
   tipo: string;
   valor: number;
   fonte: string | null;
+  descricao: string | null; // título da requisição / posto do abastecimento / etc.
 }
 
 const FONTE_LABEL: Record<string, string> = {
@@ -101,9 +102,15 @@ export default function FrotaCustosPage() {
       de.setMonth(de.getMonth() - meses);
       const deIso = de.toISOString().slice(0, 10);
 
+      // a coluna descricao chegou na view v3.1 — se a migração ainda não rodou,
+      // cai pro select antigo em vez de derrubar a tela inteira
+      const buscarCustos = () =>
+        buscarTudo('vw_frota_custos', 'veiculo_id, tipo, valor, data, fonte, descricao', deIso)
+          .catch(() => buscarTudo('vw_frota_custos', 'veiculo_id, tipo, valor, data, fonte', deIso));
+
       const [veic, custos, dias, abastHod, reqsHod] = await Promise.all([
         supabase.from('frota_veiculos').select('id, placa, modelo, descricao, marca, tem_rastreador, tipo_registro, placa_exibicao, ativo, status, supa_placa_id, categoria'),
-        buscarTudo('vw_frota_custos', 'veiculo_id, tipo, valor, data, fonte', deIso),
+        buscarCustos(),
         buscarTudo('frota_dias', 'veiculo_id, km_total, km_odometro', deIso),
         // hodômetro DIGITADO nos abastecimentos do cartão (pro km dos sem rastreador)
         buscarTudo('abastecimentos', 'placa, hodometro', deIso, 'data_transacao'),
@@ -424,8 +431,11 @@ function ModalCustos({ linha, meses, entradas, onClose }: {
               {g.itens.map((e, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 10px 4px 22px', fontSize: 12, color: 'var(--portal-text-secondary)', borderBottom: '1px dashed var(--portal-border)' }}>
                   <span style={{ minWidth: 70 }}>{fmtData(e.data)}</span>
-                  <span style={{ flex: 1, color: 'var(--portal-text-muted)', fontSize: 11 }}>{FONTE_LABEL[e.fonte || ''] || e.fonte || '—'}</span>
-                  <strong style={{ color: 'var(--portal-text)' }}>{fmtRS2(Number(e.valor))}</strong>
+                  <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={e.descricao || ''}>
+                    {e.descricao || <span style={{ color: 'var(--portal-text-muted)' }}>—</span>}
+                    <span style={{ color: 'var(--portal-text-muted)', fontSize: 10.5 }}> · {FONTE_LABEL[e.fonte || ''] || e.fonte || '—'}</span>
+                  </span>
+                  <strong style={{ color: 'var(--portal-text)', whiteSpace: 'nowrap' }}>{fmtRS2(Number(e.valor))}</strong>
                 </div>
               ))}
             </div>
