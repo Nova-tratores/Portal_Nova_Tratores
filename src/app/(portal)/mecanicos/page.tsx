@@ -11,7 +11,7 @@ import {
   Users, ArrowLeft, Wrench,
   AlertTriangle, CheckCircle, XCircle, Plus,
   ChevronDown, ChevronLeft, ChevronRight, Package, FileText, ShoppingCart, AlertOctagon,
-  Trophy, Calendar, BarChart3, TrendingUp, TrendingDown, Minus
+  Trophy, Calendar, BarChart3, TrendingUp, TrendingDown, Minus, Truck, X
 } from 'lucide-react'
 
 interface Mecanico {
@@ -130,9 +130,12 @@ interface MecanicoDetalhe extends Mecanico {
   requisicoes: Requisicao[]
   alertas: Alerta[]
   gps: { kmMes: number; dias: number; dirigindoMin: number; paradoForaMin: number }
-  veiculo: { placa: string; descricao: string } | null
+  veiculo: { placa: string; descricao: string; adesao_id: number | null; motorista_id: number | null } | null
   data_entrada: string | null
 }
+
+interface VeiculoRE { id: number; placa: string; descricao: string }
+interface MotoristaRE { id: number; nome: string; cargo?: string; cpf?: string }
 
 interface GPSDia {
   km: number
@@ -188,6 +191,14 @@ export default function MecanicosPage() {
   const tecnicoParam = searchParams.get('tecnico')
 
   const [mecanicos, setMecanicos] = useState<Mecanico[]>([])
+  const [mesLista, setMesLista] = useState<string>("")
+  // Vincular veículo ao técnico (reflete na Rota Exata)
+  const [vincOpen, setVincOpen] = useState(false)
+  const [veiculosRE, setVeiculosRE] = useState<VeiculoRE[]>([])
+  const [motoristasRE, setMotoristasRE] = useState<MotoristaRE[]>([])
+  const [vincVeiculo, setVincVeiculo] = useState<number | "">("")
+  const [vincMotorista, setVincMotorista] = useState<number | "">("")
+  const [vincSaving, setVincSaving] = useState(false)
   const [resumoGeral, setResumoGeral] = useState<{ receitaTotal: number; despesaTotal: number; despesaOperacional: number; custoRH: number; qtdOS: number; qtdPV: number; ranking: { nome: string; valor: number; qtd: number }[] } | null>(null)
   const [detalhe, setDetalhe] = useState<MecanicoDetalhe | null>(null)
   const [loading, setLoading] = useState(true)
@@ -255,6 +266,7 @@ export default function MecanicosPage() {
       if (data && data.mecanicos) {
         setMecanicos(data.mecanicos)
         setResumoGeral(data.resumo || null)
+        if (data.mes) setMesLista(data.mes)
       } else {
         setMecanicos(Array.isArray(data) ? data : [])
       }
@@ -281,6 +293,85 @@ export default function MecanicosPage() {
     }
     setLoading(false)
   }, [])
+
+  // Sugere o motorista da Rota Exata mais parecido com o nome do técnico.
+  const sugerirMotorista = useCallback((tecNome: string, lista: MotoristaRE[]): number | "" => {
+    const norm = (s: string) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\b(de|da|dos|do)\b/g, ' ').replace(/\s+/g, ' ').trim()
+    const alvo = new Set(norm(tecNome).split(' ').filter(Boolean))
+    let melhor: { id: number; score: number } | null = null
+    for (const m of lista) {
+      const toks = norm(m.nome).split(' ').filter(Boolean)
+      let score = 0
+      for (const t of toks) if (alvo.has(t)) score++
+      if (score > 0 && (!melhor || score > melhor.score)) melhor = { id: m.id, score }
+    }
+    return melhor ? melhor.id : ""
+  }, [])
+
+  const abrirVincular = useCallback(async () => {
+    if (!detalhe) return
+    setVincOpen(true)
+    setVincVeiculo(detalhe.veiculo?.adesao_id || "")
+    setVincMotorista(detalhe.veiculo?.motorista_id || "")
+    try {
+      const [vRes, mRes] = await Promise.all([
+        fetch('/api/pos/rastreamento?acao=veiculos'),
+        fetch('/api/pos/rastreamento?acao=usuarios_motoristas'),
+      ])
+      const veics: VeiculoRE[] = vRes.ok ? await vRes.json() : []
+      const mots: MotoristaRE[] = mRes.ok ? await mRes.json() : []
+      veics.sort((a, b) => (a.placa || '').localeCompare(b.placa || ''))
+      mots.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''))
+      setVeiculosRE(veics)
+      setMotoristasRE(mots)
+      // Se ainda não há motorista escolhido, sugere pelo nome
+      if (!detalhe.veiculo?.motorista_id) {
+        const sug = sugerirMotorista(detalhe.tecnico_nome || detalhe.nome, mots)
+        if (sug) setVincMotorista(sug)
+      }
+    } catch (e) { console.error(e) }
+  }, [detalhe, sugerirMotorista])
+
+  const salvarVincular = useCallback(async () => {
+    if (!detalhe || !vincVeiculo || !vincMotorista) { alert('Escolha o veículo e o motorista da Rota Exata.'); return }
+    const vei = veiculosRE.find(v => v.id === vincVeiculo)
+    setVincSaving(true)
+    try {
+      const res = await fetch('/api/pos/rastreamento', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          acao: 'vincular_veiculo_tecnico',
+          tecnico_nome: detalhe.tecnico_nome || detalhe.nome,
+          adesao_id: vincVeiculo, motorista_id: vincMotorista,
+          placa: vei?.placa || '', descricao: vei?.descricao || '',
+        }),
+      })
+      const d = await res.json()
+      if (!res.ok) { alert(d.error || 'Erro ao vincular.'); setVincSaving(false); return }
+      const re = d.rotaexata || {}
+      if (re.erro) alert(`Vínculo salvo no portal, mas a Rota Exata falhou:\n${re.erro}`)
+      else alert(`Veículo vinculado!\nRota Exata: ${re.criado ? 'motorista vinculado' : 'sem alteração'}${re.finalizados ? ` · ${re.finalizados} vínculo(s) anterior(es) finalizado(s)` : ''}.`)
+      setVincOpen(false)
+      await carregarDetalhe(detalhe.tecnico_nome || detalhe.nome)
+    } catch (e) { alert('Erro ao vincular.') }
+    setVincSaving(false)
+  }, [detalhe, vincVeiculo, vincMotorista, veiculosRE, carregarDetalhe])
+
+  const desvincularVeiculoTec = useCallback(async () => {
+    if (!detalhe?.veiculo) return
+    if (!confirm(`Desvincular o veículo ${detalhe.veiculo.placa} de ${detalhe.nome}? Isso também finaliza o motorista na Rota Exata.`)) return
+    setVincSaving(true)
+    try {
+      const res = await fetch('/api/pos/rastreamento', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ acao: 'desvincular_veiculo_tecnico', tecnico_nome: detalhe.tecnico_nome || detalhe.nome, motorista_id: detalhe.veiculo.motorista_id }),
+      })
+      const d = await res.json()
+      if (!res.ok) { alert(d.error || 'Erro ao desvincular.'); setVincSaving(false); return }
+      await carregarDetalhe(detalhe.tecnico_nome || detalhe.nome)
+    } catch (e) { alert('Erro ao desvincular.') }
+    setVincSaving(false)
+  }, [detalhe, carregarDetalhe])
 
   const carregarRelatorio = useCallback(async (tecNome: string, mes: string) => {
     if (relCarregado) return
@@ -519,7 +610,7 @@ export default function MecanicosPage() {
     ]
 
     return (
-      <div style={{ padding: '28px 24px', maxWidth: 1200, margin: '0 auto' }}>
+      <div style={{ padding: '28px 32px', maxWidth: '100%', margin: 0 }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20, paddingBottom: 20, borderBottom: '1px solid #F1F5F9' }}>
           <button onClick={voltarLista} style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
@@ -554,6 +645,32 @@ export default function MecanicosPage() {
           <InfoPill label="Dirigindo" value={detalhe.gps.dirigindoMin >= 60 ? `${Math.floor(detalhe.gps.dirigindoMin / 60)}h${detalhe.gps.dirigindoMin % 60 > 0 ? String(detalhe.gps.dirigindoMin % 60).padStart(2, '0') + 'min' : ''}` : `${detalhe.gps.dirigindoMin || 0}min`} color="#059669" />
           <InfoPill label="Parado Fora" value={detalhe.gps.paradoForaMin >= 60 ? `${Math.floor(detalhe.gps.paradoForaMin / 60)}h${detalhe.gps.paradoForaMin % 60 > 0 ? String(detalhe.gps.paradoForaMin % 60).padStart(2, '0') + 'min' : ''}` : `${detalhe.gps.paradoForaMin || 0}min`} color="#D97706" />
           <InfoPill label="Dias GPS" value={`${detalhe.gps.dias} dias`} />
+        </div>
+
+        {/* Veículo (Rota Exata) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 20, padding: '14px 16px', background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8 }}>
+          <div style={{ width: 38, height: 38, borderRadius: 8, background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Truck size={18} color="#2563EB" />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: 0.4 }}>Veiculo (Rota Exata)</div>
+            {detalhe.veiculo ? (
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>
+                {detalhe.veiculo.placa}{detalhe.veiculo.descricao ? ` · ${detalhe.veiculo.descricao}` : ''}
+                {!detalhe.veiculo.motorista_id && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 600, color: '#D97706' }}>(sem motorista na Rota Exata)</span>}
+              </div>
+            ) : (
+              <div style={{ fontSize: 13, color: '#9CA3AF' }}>Nenhum veiculo vinculado</div>
+            )}
+          </div>
+          <button onClick={abrirVincular} {...gateBtn(podeCriarOc)} style={{ ...estiloSemPermissao(podeCriarOc), padding: '8px 14px', borderRadius: 8, border: 'none', background: '#2563EB', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+            <Truck size={14} /> {detalhe.veiculo ? 'Trocar veiculo' : 'Vincular veiculo'}
+          </button>
+          {detalhe.veiculo && (
+            <button onClick={desvincularVeiculoTec} {...gateBtn(podeCriarOc)} disabled={vincSaving || !podeCriarOc} style={{ ...estiloSemPermissao(podeCriarOc), padding: '8px 12px', borderRadius: 8, border: '1px solid #FECACA', background: '#FEF2F2', color: '#DC2626', fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
+              Desvincular
+            </button>
+          )}
         </div>
 
         {/* Tabs */}
@@ -1239,6 +1356,40 @@ export default function MecanicosPage() {
           </div>
         </div>
 
+        {/* Modal: vincular veículo ao técnico */}
+        {vincOpen && (
+          <div onClick={() => !vincSaving && setVincOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, width: 460, maxWidth: '100%', boxShadow: '0 20px 50px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 18px', borderBottom: '1px solid #F1F5F9' }}>
+                <Truck size={18} color="#2563EB" />
+                <div style={{ flex: 1, fontSize: 15, fontWeight: 700, color: '#111827' }}>Vincular veiculo · {detalhe.nome}</div>
+                <button onClick={() => setVincOpen(false)} disabled={vincSaving} style={{ border: 'none', background: '#F1F5F9', borderRadius: 8, width: 30, height: 30, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={15} color="#6B7280" /></button>
+              </div>
+              <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#6B7280', marginBottom: 5 }}>Veiculo (Rota Exata)</label>
+                  <select value={vincVeiculo} onChange={e => setVincVeiculo(e.target.value ? Number(e.target.value) : "")} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 14, background: '#fff' }}>
+                    <option value="">Selecione o veiculo...</option>
+                    {veiculosRE.map(v => <option key={v.id} value={v.id}>{v.placa}{v.descricao ? ` — ${v.descricao}` : ''}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#6B7280', marginBottom: 5 }}>Motorista na Rota Exata</label>
+                  <select value={vincMotorista} onChange={e => setVincMotorista(e.target.value ? Number(e.target.value) : "")} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 14, background: '#fff' }}>
+                    <option value="">Selecione o motorista...</option>
+                    {motoristasRE.map(m => <option key={m.id} value={m.id}>{m.nome}{m.cargo ? ` (${m.cargo})` : ''}</option>)}
+                  </select>
+                  <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 5 }}>É quem vai aparecer dirigindo o veiculo na Rota Exata. Sugeri o mais parecido — confira.</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '14px 18px', borderTop: '1px solid #F1F5F9' }}>
+                <button onClick={() => setVincOpen(false)} disabled={vincSaving} style={{ padding: '9px 16px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', fontSize: 13, fontWeight: 600, color: '#6B7280', cursor: 'pointer' }}>Cancelar</button>
+                <button onClick={salvarVincular} disabled={vincSaving || !vincVeiculo || !vincMotorista} style={{ padding: '9px 18px', borderRadius: 8, border: 'none', background: vincSaving || !vincVeiculo || !vincMotorista ? '#93C5FD' : '#2563EB', color: '#fff', fontSize: 13, fontWeight: 700, cursor: vincSaving ? 'default' : 'pointer' }}>{vincSaving ? 'Salvando...' : 'Vincular'}</button>
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
     )
   }
@@ -1252,7 +1403,14 @@ export default function MecanicosPage() {
         </div>
         <div>
           <h1 style={{ fontSize: 17, fontWeight: 700, color: '#111827', margin: 0 }}>Janela Mecanicos</h1>
-          <p style={{ fontSize: 12, color: '#6B7280', margin: 0 }}>Tecnicos, ocorrencias e desempenho</p>
+          <p style={{ fontSize: 12, color: '#6B7280', margin: 0 }}>
+            Tecnicos, ocorrencias e desempenho
+            {mesLista && (() => {
+              const [a, m] = mesLista.split('-').map(Number)
+              const nome = new Date(a, m - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+              return <> · <span style={{ fontWeight: 600, color: '#2563EB' }}>{nome}</span></>
+            })()}
+          </p>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
           <SyncBadge status={realtimeStatus} />

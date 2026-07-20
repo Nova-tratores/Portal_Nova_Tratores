@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { normalizarPlaca } from '@/lib/frota/placa'
+import { supabase } from '@/lib/pos/supabase'
 
 const API_URL = process.env.ROTAEXATA_API_URL || 'https://api.rotaexata.com.br'
 const EMAIL = process.env.ROTAEXATA_EMAIL || ''
@@ -544,6 +545,80 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
     const acao = body.acao
+
+    // Vincula um VEÍCULO a um TÉCNICO: grava o vínculo local (tecnico_veiculos,
+    // que o portal usa pra ler o GPS certo) E reflete na Rota Exata como
+    // "motorista" do veículo. Modo SUBSTITUIR: finaliza os outros veículos ativos
+    // desse motorista antes de criar o novo (1 veículo ativo por técnico).
+    if (acao === 'vincular_veiculo_tecnico') {
+      const { tecnico_nome, adesao_id, placa, descricao, motorista_id } = body
+      if (!tecnico_nome || !adesao_id || !motorista_id) {
+        return NextResponse.json({ error: 'tecnico_nome, adesao_id e motorista_id obrigatórios' }, { status: 400 })
+      }
+
+      const rota: { finalizados: number; criado: boolean; erro?: string } = { finalizados: 0, criado: false }
+      try {
+        const token = await getToken()
+        const lista = await fetchRotaExata('/motoristas', { limit: '200', page: '0' })
+        const ativosDoMotorista = (lista.data || []).filter(
+          (m: any) => String(m.motorista_id || m.motorista?.id) === String(motorista_id) && !m.final
+        )
+        let jaNoVeiculo = false
+        for (const v of ativosDoMotorista) {
+          if (String(v.adesao_id) === String(adesao_id)) { jaNoVeiculo = true; continue }
+          const del = await fetch(`${API_URL}/motoristas/${v._id}`, { method: 'DELETE', headers: { Authorization: token } })
+          if (del.ok) rota.finalizados++
+        }
+        if (jaNoVeiculo) {
+          rota.criado = true
+        } else {
+          const res = await fetch(`${API_URL}/motoristas`, {
+            method: 'POST',
+            headers: { Authorization: token, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ adesao_id, motorista_id }),
+          })
+          if (res.ok) rota.criado = true
+          else { const t = await res.text(); rota.erro = `Rota Exata POST /motoristas ${res.status}: ${t}` }
+        }
+      } catch (e: any) {
+        rota.erro = e?.message || 'falha ao falar com a Rota Exata'
+      }
+
+      // Vínculo local (sempre grava — é o que o portal usa pro GPS do técnico)
+      const patch = { adesao_id, placa: placa || '', descricao: descricao || '', motorista_id }
+      const { data: ex } = await supabase.from('tecnico_veiculos').select('id').eq('tecnico_nome', tecnico_nome).maybeSingle()
+      if (ex) await supabase.from('tecnico_veiculos').update(patch).eq('id', ex.id)
+      else await supabase.from('tecnico_veiculos').insert({ tecnico_nome, ...patch })
+
+      return NextResponse.json({ ok: true, rotaexata: rota })
+    }
+
+    // Desvincula o veículo do técnico: remove o vínculo local e finaliza o(s)
+    // vínculo(s) ativo(s) do motorista na Rota Exata.
+    if (acao === 'desvincular_veiculo_tecnico') {
+      const { tecnico_nome, motorista_id } = body
+      if (!tecnico_nome) {
+        return NextResponse.json({ error: 'tecnico_nome obrigatório' }, { status: 400 })
+      }
+      const rota: { finalizados: number; erro?: string } = { finalizados: 0 }
+      if (motorista_id) {
+        try {
+          const token = await getToken()
+          const lista = await fetchRotaExata('/motoristas', { limit: '200', page: '0' })
+          const ativos = (lista.data || []).filter(
+            (m: any) => String(m.motorista_id || m.motorista?.id) === String(motorista_id) && !m.final
+          )
+          for (const v of ativos) {
+            const del = await fetch(`${API_URL}/motoristas/${v._id}`, { method: 'DELETE', headers: { Authorization: token } })
+            if (del.ok) rota.finalizados++
+          }
+        } catch (e: any) {
+          rota.erro = e?.message || 'falha ao falar com a Rota Exata'
+        }
+      }
+      await supabase.from('tecnico_veiculos').delete().eq('tecnico_nome', tecnico_nome)
+      return NextResponse.json({ ok: true, rotaexata: rota })
+    }
 
     if (acao === 'vincular_motorista') {
       const { adesao_id, motorista_id } = body

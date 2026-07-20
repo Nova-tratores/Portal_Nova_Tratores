@@ -9,6 +9,31 @@ const sbAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
+// Mês de referência dos cards/perfil: o atual, ou — se ainda não houver OS neste
+// mês (a base do Omie costuma estar alguns dias atrás) — o mês mais recente que
+// tem OS. Assim os cards nunca aparecem zerados no começo do mês.
+async function resolverMesReferencia(): Promise<string> {
+  const now = new Date();
+  const mesAtual = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const primeiro = `${mesAtual}-01`;
+  const ultimo = `${mesAtual}-${new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()}`;
+  const { count } = await supabase
+    .from("Ordens_Omie")
+    .select("os_num", { count: "exact", head: true })
+    .neq("status", "Cancelada")
+    .gte("data", primeiro)
+    .lte("data", ultimo);
+  if ((count || 0) > 0) return mesAtual;
+  const { data: ult } = await supabase
+    .from("Ordens_Omie")
+    .select("data")
+    .neq("status", "Cancelada")
+    .order("data", { ascending: false })
+    .limit(1);
+  const d = ult && ult[0] && ult[0].data ? String(ult[0].data) : primeiro;
+  return d.slice(0, 7);
+}
+
 /**
  * GET /api/mecanicos
  * Lista mecânicos do portal (financeiro_usu + portal_permissoes com mecanico_role)
@@ -64,8 +89,7 @@ export async function GET(req: NextRequest) {
       // Buscar dados extras para perfil individual
       const tecNome = found.tecnico_nome || found.nome;
       const mesParam = req.nextUrl.searchParams.get("mes");
-      const now = new Date();
-      const mesAtual = mesParam || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      const mesAtual = mesParam || await resolverMesReferencia();
       const [anoMes, mesMes] = mesAtual.split("-").map(Number);
       const primeiro = `${mesAtual}-01`;
       const ultimo = `${mesAtual}-${new Date(anoMes, mesMes, 0).getDate()}`;
@@ -486,12 +510,13 @@ export async function GET(req: NextRequest) {
       // Buscar veiculo vinculado do tecnico (mesmo que o mapeamento tecnico)
       const { data: vinculos } = await supabase
         .from("tecnico_veiculos")
-        .select("placa, tecnico_nome, adesao_id")
+        .select("placa, tecnico_nome, adesao_id, motorista_id")
         .eq("tecnico_nome", tecNome);
 
-      let veiculoInfo: { placa: string; descricao: string } | null = null;
+      let veiculoInfo: { placa: string; descricao: string; adesao_id: number | null; motorista_id: number | null } | null = null;
       if (vinculos && vinculos.length > 0) {
         const vinc = vinculos[0];
+        const base = { placa: vinc.placa, adesao_id: vinc.adesao_id ?? null, motorista_id: vinc.motorista_id ?? null };
         try {
           const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000';
           const veicRes = await fetch(`${baseUrl}/api/pos/rastreamento?acao=veiculos`);
@@ -499,12 +524,12 @@ export async function GET(req: NextRequest) {
             const veicList = await veicRes.json();
             const placaNorm = (vinc.placa || '').replace(/[^A-Z0-9]/g, '').toUpperCase();
             const found_v = veicList.find((v: any) => (v.placa || '').replace(/[^A-Z0-9]/g, '').toUpperCase() === placaNorm);
-            veiculoInfo = { placa: vinc.placa, descricao: found_v?.descricao || found_v?.modelo || '' };
+            veiculoInfo = { ...base, descricao: found_v?.descricao || found_v?.modelo || '' };
           } else {
-            veiculoInfo = { placa: vinc.placa, descricao: '' };
+            veiculoInfo = { ...base, descricao: '' };
           }
         } catch {
-          veiculoInfo = { placa: vinc.placa, descricao: '' };
+          veiculoInfo = { ...base, descricao: '' };
         }
       }
 
@@ -539,11 +564,12 @@ export async function GET(req: NextRequest) {
     }
 
     // Retornar lista completa (para a tela principal)
-    // Buscar contagem de ordens do mes para cada tecnico
-    const now = new Date();
-    const mesAtual = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    // Buscar contagem de ordens do mes para cada tecnico. Usa o mês de referência
+    // (atual ou o último com OS) pra os cards não ficarem zerados.
+    const mesAtual = req.nextUrl.searchParams.get("mes") || await resolverMesReferencia();
+    const [anoRef, mesRef] = mesAtual.split("-").map(Number);
     const primeiro = `${mesAtual}-01`;
-    const ultimo = `${mesAtual}-${new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()}`;
+    const ultimo = `${mesAtual}-${new Date(anoRef, mesRef, 0).getDate()}`;
 
     const { data: ordens } = await supabase
       .from("Ordens_Omie")
@@ -692,7 +718,7 @@ export async function GET(req: NextRequest) {
       ranking: rankingL,
     };
 
-    return NextResponse.json({ mecanicos: resultado, resumo: resumoGeral });
+    return NextResponse.json({ mecanicos: resultado, resumo: resumoGeral, mes: mesAtual });
   } catch (e: any) {
     console.error("[mecanicos]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
