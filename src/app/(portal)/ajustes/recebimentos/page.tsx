@@ -3,7 +3,7 @@
 // Lista NFs de fornecedor pendentes; destaca sinal de garantia/impacto no CMC; permite
 // "dar entrada" revisando/editando o CFOP de entrada por item (default = cfopEntradaSugerido).
 // SEM dropdown de categoria/departamento (adiado p/ Fase 3).
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
@@ -67,6 +67,15 @@ interface RecebPayload {
   totalItensRisco?: number; recebimentos?: Recebimento[]; erro?: string;
 }
 interface ResultadoCard { tipo: 'ok' | 'erro'; texto: string }
+interface SugestaoCusto { cmcSugerido: number | null; estrategia: string; baseadoEm: { data?: string; doc?: string; origem?: string } | null; distorcido: boolean; erro?: string }
+const ESTRAT_LABEL: Record<string, string> = {
+  cmc_antes_de_negativo: 'CMC de antes de ficar negativo',
+  maior_cmc_compra: 'maior CMC de uma compra',
+  ultimo_custo_normal: 'último custo de compra normal',
+  mediana_custos_normais: 'mediana dos custos normais',
+  manual: 'sem base histórica — confira o valor',
+  erro: 'erro ao buscar histórico — confira',
+};
 
 // ---------- helpers ----------
 const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -437,12 +446,49 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
   });
   const [corrResult, setCorrResult] = useState<Record<number, ResultadoCard>>({});
   const [corrigindo, setCorrigindo] = useState(false);
+  // custo real sugerido por produto (busca sob demanda ao abrir a correcao); pre-preenche
+  // o "CMC a restaurar" com o custo ANTES da distorcao (nao o CMC imediato anterior).
+  const [sugestoes, setSugestoes] = useState<Record<string, SugestaoCusto>>({});
+  const [carregandoSug, setCarregandoSug] = useState(false);
+  const editouAlvo = useRef<Set<number>>(new Set()); // linhas onde o usuario digitou manualmente
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
+
+  // ao entrar na fase de correcao, busca o custo REAL de cada item em risco e
+  // pre-preenche o alvo (so onde o usuario ainda nao editou).
+  useEffect(() => {
+    if (fase !== 'correcao' || riscos.length === 0) return;
+    let cancel = false;
+    (async () => {
+      setCarregandoSug(true);
+      try {
+        const resp = await fetch(`/api/ajustes/recebimentos/sugerir-custo?conta=${encodeURIComponent(conta)}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ conta, itens: riscos.map((it) => ({ codigoProduto: it.idProduto, cmcAtual: it.cmcAtual })) }),
+        });
+        const d = await resp.json();
+        if (cancel) return;
+        const map = (d.sugestoes || {}) as Record<string, SugestaoCusto>;
+        setSugestoes(map);
+        setCmcAlvo((prev) => {
+          const novo = { ...prev };
+          riscos.forEach((it, i) => {
+            if (editouAlvo.current.has(i)) return;
+            const s = map[String(it.idProduto)];
+            if (s && s.cmcSugerido != null && Number(s.cmcSugerido) > 0) novo[i] = String(s.cmcSugerido);
+          });
+          return novo;
+        });
+      } catch { /* mantem o default (cmcAtual) */ }
+      finally { if (!cancel) setCarregandoSug(false); }
+    })();
+    return () => { cancel = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fase]);
 
   const usarOmie = () => {
     const novo: Record<number, string> = {};
@@ -610,7 +656,9 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
                   </tr>
                 </thead>
                 <tbody>
-                  {riscos.map((it, i) => (
+                  {riscos.map((it, i) => {
+                    const sug = it.idProduto != null ? sugestoes[String(it.idProduto)] : undefined;
+                    return (
                     <tr key={i}>
                       <td style={mTd}>
                         {it.descricaoProduto || it.codigoProdutoInt || '?'}
@@ -618,17 +666,28 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
                       </td>
                       <td style={{ ...mTd, textAlign: 'right', color: '#b91c1c' }}>{fmtBRL(it.cmcProjetado)}</td>
                       <td style={{ ...mTd, textAlign: 'right' }}>
-                        <input type="number" step="0.01" value={cmcAlvo[i] ?? ''} onChange={(e) => setCmcAlvo((s) => ({ ...s, [i]: e.target.value }))}
+                        <input type="number" step="0.01" value={cmcAlvo[i] ?? ''}
+                          onChange={(e) => { editouAlvo.current.add(i); setCmcAlvo((s) => ({ ...s, [i]: e.target.value })); }}
                           disabled={corrResult[i]?.tipo === 'ok'}
                           style={{ border: '1px solid #cbd5e1', borderRadius: 4, padding: '2px 6px', width: 100, textAlign: 'right', fontSize: '.72rem' }} />
+                        {carregandoSug && !sug ? (
+                          <div style={{ fontSize: '.62rem', color: '#94a3b8', marginTop: 2 }}>buscando custo real…</div>
+                        ) : sug ? (
+                          <div style={{ fontSize: '.62rem', marginTop: 2, color: sug.distorcido ? '#b45309' : '#94a3b8' }} title={sug.baseadoEm ? `base: ${sug.baseadoEm.origem || ''} ${sug.baseadoEm.doc || ''} ${sug.baseadoEm.data || ''}` : ''}>
+                            {sug.distorcido ? '⚠ ' : ''}sugerido: {ESTRAT_LABEL[sug.estrategia] || sug.estrategia}
+                          </div>
+                        ) : null}
                       </td>
                       <td style={{ ...mTd, fontSize: '.72rem', color: corrResult[i]?.tipo === 'ok' ? '#047857' : (corrResult[i]?.tipo === 'erro' ? '#dc2626' : '#94a3b8') }}>{corrResult[i]?.texto || '—'}</td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
-            <div style={{ fontSize: '.7rem', color: '#94a3b8', marginTop: 8 }}>O ajuste é aplicado no local de maior saldo do produto (resolvido automaticamente).</div>
+            <div style={{ fontSize: '.7rem', color: '#94a3b8', marginTop: 8 }}>
+              O campo <b>CMC a restaurar</b> já vem preenchido com o <b>custo real</b> estimado (o CMC de antes da distorção, ex.: antes de o produto ficar negativo) — não o CMC imediato anterior. <b>Confira e edite</b> se souber o custo certo. ⚠ = o CMC atual parece bem abaixo do custo real. O ajuste é aplicado no local de maior saldo do produto.
+            </div>
           </>)}
         </div>
         <div style={{ borderTop: '1px solid #e2e8f0', padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 8 }}>
