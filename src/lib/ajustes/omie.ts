@@ -758,9 +758,10 @@ export async function alterarRecebimentoItens(conta: Conta, args: Record<string,
     if (it.cCFOPEntrada) ajustes.cCFOPEntrada = String(it.cCFOPEntrada);
     if (it.cNaoGerarFinanceiro != null) ajustes.cNaoGerarFinanceiro = it.cNaoGerarFinanceiro === 'S' || it.cNaoGerarFinanceiro === true ? 'S' : 'N';
     if (it.cNaoGerarMovEstoque != null) ajustes.cNaoGerarMovEstoque = it.cNaoGerarMovEstoque === 'S' || it.cNaoGerarMovEstoque === true ? 'S' : 'N';
-    // Categoria e departamento por item (TBC nomenclatura no Omie - testar em runtime)
-    if (it.cCodCategoria) ajustes.cCodCategoria = String(it.cCodCategoria);
-    if (it.cCodDepartamento) ajustes.cCodDepartamento = String(it.cCodDepartamento);
+    // OBS: categoria/departamento NAO fazem parte de itensAjustes no Omie
+    // (ERROR: Tag [CCODCATEGORIA]/[CCODDEPARTAMENTO] nao faz parte da estrutura do
+    // tipo complexo [itensAjustes] - testado em runtime, NF 55693). Removidas.
+    // Se um dia formos setar categoria no recebimento (Fase 3), e' em outro bloco.
     const bloco: Record<string, any> = {
       itensIde: { nSequencia: Number(it.nSequencia) || it.nSequencia, cAcao: String(it.cAcao || 'EDITAR') },
       itensAjustes: ajustes
