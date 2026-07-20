@@ -15,6 +15,8 @@ export default function FormModal({ onClose, initialData }) {
   const [buscaEq, setBuscaEq] = useState(initialData?.modelo || '')
   const [showCli, setShowCli] = useState(false)
   const [showEq, setShowEq] = useState(false)
+  // Valor por unidade (derivado) — a QUANTIDADE multiplica o VALOR TOTAL a partir dele.
+  const [valorUnit, setValorUnit] = useState(0)
 
   const [formData, setFormData] = useState({
     Cliente: initialData?.cliente || '',
@@ -50,6 +52,21 @@ export default function FormModal({ onClose, initialData }) {
     diant_min_max_trator: '',
     tras_min_max_trator: ''
   })
+
+  // QUANTIDADE muda -> VALOR TOTAL = valor por unidade x quantidade.
+  const onChangeQtd = (v) => {
+    const prevQ = parseInt(formData.Qtd_Eqp) || 1
+    const unit = valorUnit || ((parseFloat(formData.Valor_Total) || 0) / prevQ)
+    const nQ = parseInt(v)
+    setValorUnit(unit)
+    setFormData({ ...formData, Qtd_Eqp: v, Valor_Total: (nQ && unit) ? (unit * nQ).toFixed(2) : formData.Valor_Total })
+  }
+  // Usuário edita o VALOR TOTAL -> recalcula o valor por unidade (total / quantidade).
+  const onChangeTotal = (v) => {
+    const q = parseInt(formData.Qtd_Eqp) || 1
+    setValorUnit((parseFloat(v) || 0) / q)
+    setFormData({ ...formData, Valor_Total: v })
+  }
 
   useEffect(() => {
     async function carregarDados() {
@@ -272,13 +289,14 @@ export default function FormModal({ onClose, initialData }) {
                   </div>
                   <div className="flex">
                     <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>DIANTEIRA MIN/MAX</label><input value={formData.diant_min_max_trator} onChange={e => setFormData({ ...formData, diant_min_max_trator: e.target.value })} className={inputStyle} /></div>
-                    <div className="flex-1 p-3 flex flex-col"><label className={labelStyle}>TRASEIRA MIN/MAX</label><input value={formData.tras_min_max_trator} onChange={e => setFormData({ ...formData, tras_min_max_trator: e.target.value })} className={inputStyle} /></div>
+                    <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>TRASEIRA MIN/MAX</label><input value={formData.tras_min_max_trator} onChange={e => setFormData({ ...formData, tras_min_max_trator: e.target.value })} className={inputStyle} /></div>
+                    <div className="flex-1 p-3 flex flex-col"><label className={labelStyle}>QUANTIDADE</label><input type="number" min="1" value={formData.Qtd_Eqp} onChange={e => onChangeQtd(e.target.value)} className={inputStyle} /></div>
                   </div>
                 </>
               ) : (
                 <div className="flex">
                   <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>FINAME / NCM</label><input value={formData['Niname/NCM']} onChange={e => setFormData({ ...formData, 'Niname/NCM': e.target.value })} className={inputStyle} /></div>
-                  <div className="flex-1 p-3 flex flex-col"><label className={labelStyle}>QUANTIDADE</label><input type="number" value={formData.Qtd_Eqp} onChange={e => setFormData({ ...formData, Qtd_Eqp: e.target.value })} className={inputStyle} /></div>
+                  <div className="flex-1 p-3 flex flex-col"><label className={labelStyle}>QUANTIDADE</label><input type="number" min="1" value={formData.Qtd_Eqp} onChange={e => onChangeQtd(e.target.value)} className={inputStyle} /></div>
                 </div>
               )}
             </div>
@@ -286,7 +304,16 @@ export default function FormModal({ onClose, initialData }) {
             <div className="text-xs font-black text-red-600 uppercase">III. CONDICOES FINANCEIRAS</div>
             <div className="border border-zinc-200 bg-white rounded-xl overflow-hidden">
               <div className="flex border-b border-zinc-200">
-                <div className="flex-1 p-3 flex flex-col"><label className={labelStyle}>VALOR TOTAL (R$)</label><input type="number" step="0.01" value={formData.Valor_Total} onChange={e => setFormData({ ...formData, Valor_Total: e.target.value })} className={`${inputStyle} text-red-600`} /></div>
+                <div className="flex-1 p-3 flex flex-col">
+                  <label className={labelStyle}>VALOR TOTAL (R$)</label>
+                  <input type="number" step="0.01" value={formData.Valor_Total} onChange={e => onChangeTotal(e.target.value)} className={`${inputStyle} text-red-600`} />
+                  {(parseInt(formData.Qtd_Eqp) || 1) > 1 && (
+                    <div className="mt-2 flex items-start gap-2 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+                      <span>ℹ️</span>
+                      <span>A quantidade multiplica o valor total: <b>{parseInt(formData.Qtd_Eqp)}</b> × R$ {(valorUnit || ((parseFloat(formData.Valor_Total) || 0) / (parseInt(formData.Qtd_Eqp) || 1))).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} = <b>R$ {(parseFloat(formData.Valor_Total) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</b></span>
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="flex border-b border-zinc-200">
                 <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>PRAZO DE ENTREGA</label><input type="text" value={formData.Prazo_Entrega} onChange={e => setFormData({ ...formData, Prazo_Entrega: e.target.value })} placeholder="Ex: 30 dias, a combinar..." className={inputStyle} /></div>
