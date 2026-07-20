@@ -209,6 +209,9 @@ function renderizarUltimaInteracao(op: Oportunidade): string | null {
     case "R5_pecas": {
       return pvFormatado();
     }
+    case "R6_fora_garantia": // só a variante "perdeu por falta de revisão" tem referência
+      if (d.motivo !== "revisao_vencida") return null;
+    // eslint-disable-next-line no-fallthrough
     case "R7_garantia_risco": {
       const os = osFormatado("ultima_os_id", "ultima_os_data", "ultima_os_tipo");
       if (os) return os;
@@ -268,6 +271,15 @@ function renderizarDetalhes(op: Oportunidade): string {
     }
     case "R6_fora_garantia": {
       const tipo = (d.tipo as string | undefined) || "Equipamento";
+      // Variante "perdeu por falta de revisão anual" (vinda da computação R7):
+      // o prazo total ainda valia, mas o cliente estourou os 12 meses sem revisar.
+      if (d.motivo === "revisao_vencida") {
+        const ultima = typeof d.referencia === "string" ? new Date(d.referencia).toLocaleDateString("pt-BR") : "";
+        const limite = typeof d.data_limite === "string" ? new Date(d.data_limite).toLocaleDateString("pt-BR") : "";
+        const fim = typeof d.fim_garantia === "string" ? new Date(d.fim_garantia).toLocaleDateString("pt-BR") : "";
+        const meses = d.meses_sem_revisao as number | undefined;
+        return `${tipo} PERDEU a garantia por falta de revisão anual — última revisão em ${ultima}, prazo venceu em ${limite} (${meses} meses sem revisar). A garantia iria até ${fim}. Oferecer revisão paga / reativação.`;
+      }
       const venda = typeof d.data_venda === "string" ? new Date(d.data_venda).toLocaleDateString("pt-BR") : "";
       const fim = typeof d.fim_garantia === "string" ? new Date(d.fim_garantia).toLocaleDateString("pt-BR") : "";
       const meses = d.garantia_meses as number | undefined;
@@ -279,10 +291,12 @@ function renderizarDetalhes(op: Oportunidade): string {
       const tipo = (d.tipo as string | undefined) || "Equipamento";
       const meses = d.meses_sem_revisao as number | undefined;
       const ultima = typeof d.referencia === "string" ? new Date(d.referencia).toLocaleDateString("pt-BR") : "";
-      const limite = typeof d.data_limite === "string" ? new Date(d.data_limite).toLocaleDateString("pt-BR") : "";
+      const limiteDt = typeof d.data_limite === "string" ? new Date(d.data_limite) : null;
+      const limite = limiteDt ? limiteDt.toLocaleDateString("pt-BR") : "";
       const fim = typeof d.fim_garantia === "string" ? new Date(d.fim_garantia).toLocaleDateString("pt-BR") : "";
-      const estourado = d.prazo_estourado ? " (PRAZO ESTOUROU)" : "";
-      return `${tipo} NA garantia sem revisão há ${meses} meses (última em ${ultima}). Revisão anual vence ${limite}${estourado} — sem ela perde a garantia, válida até ${fim}. Ligar e agendar.`;
+      const diasRestantes = limiteDt ? Math.max(0, Math.ceil((limiteDt.getTime() - Date.now()) / 86400000)) : null;
+      const faltam = diasRestantes != null ? ` (faltam ${diasRestantes} dias)` : "";
+      return `${tipo} NA garantia sem revisão há ${meses} meses (última em ${ultima}). Revisão anual vence ${limite}${faltam} — sem ela perde a garantia, válida até ${fim}. Ligar e agendar.`;
     }
     case "R4_followup": {
       const dias = d.dias_desde_ultimo as number | undefined;

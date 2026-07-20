@@ -40,7 +40,7 @@ const COLUNAS: ColunaDef[] = [
     titulo: "Garantia em risco",
     emoji: "⏳",
     cor: "#e11d48",
-    explicacao: "Tratores e pulverizadores AINDA na garantia cuja última revisão já passou de 10 meses. A revisão anual é condição da garantia — estourou 12 meses sem revisar, perdeu. Ligar e agendar antes do prazo.",
+    explicacao: "Tratores e pulverizadores na garantia com a última revisão entre 10 e 12 meses atrás — ainda dá tempo de salvar. A revisão anual é condição da garantia; quem já estourou os 12 meses aparece em Fora de garantia. Ligar e agendar antes do prazo.",
   },
   {
     regra: "R2_sem_os",
@@ -54,7 +54,7 @@ const COLUNAS: ColunaDef[] = [
     titulo: "Fora de garantia",
     emoji: "🛡️",
     cor: "#0ea5e9",
-    explicacao: "Equipamentos que saíram da garantia (por tempo ou horas, conforme a marca). Bom momento pra oferecer revisão paga, garantia estendida ou contrato de manutenção.",
+    explicacao: "Equipamentos que saíram da garantia — por tempo OU porque estouraram 12 meses sem a revisão anual. Bom momento pra oferecer revisão paga, garantia estendida ou contrato de manutenção.",
   },
   {
     regra: "R5_pecas",

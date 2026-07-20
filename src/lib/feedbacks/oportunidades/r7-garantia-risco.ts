@@ -1,16 +1,20 @@
-// R7 — Garantia em risco: última revisão feita há 10+ meses.
+// R7 — Garantia em risco: última revisão feita entre 10 e 12 meses atrás.
 //
 // A garantia (Mahindra e afins) é CONDICIONADA à revisão anual: quem fez a
 // última revisão há mais de `meses_aviso` (default 10) meses está a caminho de
-// estourar o prazo de `meses_perda` (default 12) e perder a garantia — mesmo
-// que o prazo total (5 anos etc.) ainda esteja de pé. É o alerta pra ligar e
-// agendar ANTES de vencer. Se enquadram tratores e pulverizadores:
+// estourar o prazo de `meses_perda` (default 12). É o alerta pra ligar e
+// agendar ANTES de vencer — por isso a coluna só mostra quem AINDA dá tempo.
+// Quem já estourou os 12 meses PERDEU a garantia: esses não ficam aqui — a
+// mesma computação os devolve em formato R6 (`perdidas`) e o orquestrador os
+// joga na coluna "Fora de garantia" (decisão do usuário, 17/07/2026).
+//
+// Se enquadram tratores e pulverizadores:
 //
 //   1) TRATORES (tabela `tratores`): só quem JÁ FEZ pelo menos uma revisão
 //      registrada (50h, 300h...). Referência = a mais recente entre a revisão
 //      registrada e a última OS do chassi/cliente (revisão feita mas não
 //      anotada no cadastro conta). Ainda na garantia por tempo (60m; CBU/L 12m
-//      — mesma régua da R6); quem já saiu é assunto da R6.
+//      — mesma régua da R6); quem já saiu por tempo é assunto da R6 clássica.
 //   2) PULVERIZADORES (pedidos de venda): só MÁQUINA — família "Pulverizador"
 //      ou item "pulveriz" com valor >= `valor_minimo_pulverizador` (default
 //      R$ 5.000). Peças de pulverizador (bico, trava, tubo… R$ 15–380) NÃO
@@ -18,8 +22,7 @@
 //      anotadas, a referência é a última OS do cliente (ou a própria venda).
 //      Garantia por `garantia_meses_pulverizador` (default 36, ajustável).
 //
-// Prioridade: 'Urgente' quando o prazo de 12 meses já estourou (ou estoura em
-// 30 dias); 'Normal' na janela de aviso.
+// Prioridade: 'Urgente' quando faltam menos de 30 dias pro prazo estourar.
 
 import { supabaseAdmin as supabase } from "@/lib/server/supabase-admin";
 import { REVISOES_LISTA, type Trator } from "@/lib/revisoes/types";
@@ -42,6 +45,22 @@ interface OportunidadeR7 {
   chassis: string | null;
   detalhes: Record<string, unknown>;
   prioridade: "Urgente" | "Normal";
+}
+
+// Quem estourou o prazo vai pra coluna "Fora de garantia" (formato R6).
+interface OportunidadePerdida {
+  regra: "R6_fora_garantia";
+  codigo_omie: string | null;
+  cliente_nome: string;
+  trator: string | null;
+  chassis: string | null;
+  detalhes: Record<string, unknown>;
+  prioridade: "Urgente" | "Normal";
+}
+
+export interface ResultadoR7 {
+  emRisco: OportunidadeR7[];
+  perdidas: OportunidadePerdida[];
 }
 
 interface ItemEnriquecido { familia?: string | null; descricao?: string | null; valor_unitario?: number | null }
@@ -84,13 +103,33 @@ function ultimaRevisaoRegistrada(t: Trator): { data: Date; rotulo: string } | nu
   return out;
 }
 
-export async function computarR7(parametros: ParametrosR7 = {}): Promise<OportunidadeR7[]> {
+// O orquestrador chama duas vezes na mesma recomputação (uma pro R7, outra pra
+// somar as `perdidas` ao R6). Memoiza por 2 minutos pra não varrer o banco em
+// dobro — tratores + índice de OS + pedidos são varreduras completas.
+let memoKey = "";
+let memoAt = 0;
+let memoPromise: Promise<ResultadoR7> | null = null;
+
+export function computarR7Completo(parametros: ParametrosR7 = {}): Promise<ResultadoR7> {
+  const k = JSON.stringify(parametros);
+  if (memoPromise && memoKey === k && Date.now() - memoAt < 120_000) return memoPromise;
+  memoKey = k;
+  memoAt = Date.now();
+  memoPromise = computarR7Inner(parametros).catch((e) => {
+    memoPromise = null; // não cachear erro
+    throw e;
+  });
+  return memoPromise;
+}
+
+async function computarR7Inner(parametros: ParametrosR7): Promise<ResultadoR7> {
   const mesesAviso = parametros.meses_aviso ?? 10;
   const mesesPerda = parametros.meses_perda ?? 12;
   const garantiaPulv = parametros.garantia_meses_pulverizador ?? 36;
   const valorMinPulv = parametros.valor_minimo_pulverizador ?? 5000;
   const hoje = new Date();
-  const out: OportunidadeR7[] = [];
+  const emRisco: OportunidadeR7[] = [];
+  const perdidas: OportunidadePerdida[] = [];
 
   const mapOmie = await carregarMapaClientes();
   const tratores = await lerTudo<Trator>((from, to) =>
@@ -99,28 +138,43 @@ export async function computarR7(parametros: ParametrosR7 = {}): Promise<Oportun
   const chassisConhecidos = tratores.map((t) => t.Chassis || "").filter(Boolean);
   const indiceOS = await carregarIndiceOSCompleto(chassisConhecidos);
 
+  // Classifica pela referência: aquém do aviso = nada; entre aviso e perda =
+  // "em risco" (R7); estourou = "perdida" (vira card na coluna R6).
   function montar(
-    base: Omit<OportunidadeR7, "prioridade" | "detalhes">,
+    base: Omit<OportunidadeR7, "regra" | "prioridade" | "detalhes">,
     referencia: Date,
     detalhesExtras: Record<string, unknown>
   ) {
     const mesesSem = (hoje.getTime() - referencia.getTime()) / MS_MES;
     if (mesesSem < mesesAviso) return;
     const dataLimite = addMeses(referencia, mesesPerda);
-    const estourado = dataLimite <= hoje;
-    const urgente = estourado || dataLimite.getTime() - hoje.getTime() < 30 * 86400000;
-    out.push({
+    const detalhes = {
+      ...detalhesExtras,
+      referencia: referencia.toISOString(),
+      meses_sem_revisao: Math.round(mesesSem * 10) / 10,
+      data_limite: dataLimite.toISOString(),
+    };
+    if (dataLimite <= hoje) {
+      perdidas.push({
+        ...base,
+        regra: "R6_fora_garantia",
+        prioridade: "Normal",
+        detalhes: {
+          ...detalhes,
+          motivo: "revisao_vencida",
+          sugestao: `Perdeu a garantia por falta de revisão anual (prazo venceu em ${dataLimite.toLocaleDateString("pt-BR")}). Oferecer revisão paga, reativação ou plano de manutenção.`,
+        },
+      });
+      return;
+    }
+    const urgente = dataLimite.getTime() - hoje.getTime() < 30 * 86400000;
+    emRisco.push({
       ...base,
+      regra: "R7_garantia_risco",
       prioridade: urgente ? "Urgente" : "Normal",
       detalhes: {
-        ...detalhesExtras,
-        referencia: referencia.toISOString(),
-        meses_sem_revisao: Math.round(mesesSem * 10) / 10,
-        data_limite: dataLimite.toISOString(),
-        prazo_estourado: estourado,
-        sugestao: estourado
-          ? `Prazo da revisão anual ESTOUROU em ${dataLimite.toLocaleDateString("pt-BR")} — ligar já e agendar a revisão pra tentar preservar a garantia.`
-          : `Revisão anual vence em ${dataLimite.toLocaleDateString("pt-BR")}. Agendar a revisão antes disso pra não perder a garantia.`,
+        ...detalhes,
+        sugestao: `Revisão anual vence em ${dataLimite.toLocaleDateString("pt-BR")}. Agendar a revisão antes disso pra não perder a garantia.`,
       },
     });
   }
@@ -133,7 +187,7 @@ export async function computarR7(parametros: ParametrosR7 = {}): Promise<Oportun
 
     const garantiaMeses = temCbuOuL(t.Modelo || "") ? MESES_TRATOR_CURTO : MESES_TRATOR_LONGO;
     const fimGarantia = addMeses(entrega, garantiaMeses);
-    if (fimGarantia < hoje) continue; // já saiu da garantia — assunto da R6
+    if (fimGarantia < hoje) continue; // já saiu por tempo — a R6 clássica cobre
 
     const ultimaRev = ultimaRevisaoRegistrada(t);
     if (!ultimaRev) continue; // nunca fez revisão — a R1 é quem cobra a primeira
@@ -146,7 +200,6 @@ export async function computarR7(parametros: ParametrosR7 = {}): Promise<Oportun
 
     montar(
       {
-        regra: "R7_garantia_risco",
         codigo_omie: mapOmie.get(norm(t.Cliente)) ?? null,
         cliente_nome: t.Cliente,
         trator: `${t.Modelo || ""} — ${t.Chassis || ""}`.trim(),
@@ -160,6 +213,7 @@ export async function computarR7(parametros: ParametrosR7 = {}): Promise<Oportun
         cidade: t.Cidade,
         vendedor: t.Vendedor,
         entrega_data: entrega.toISOString(),
+        data_venda: entrega.toISOString(), // o card R6 usa data_venda
         garantia_meses: garantiaMeses,
         fim_garantia: fimGarantia.toISOString(),
         ultima_revisao: ultimaRev.data.toISOString(),
@@ -174,7 +228,7 @@ export async function computarR7(parametros: ParametrosR7 = {}): Promise<Oportun
     );
   }
 
-  // ===== 2) PULVERIZADORES — dos pedidos de venda (item/projeto "pulveriz") =====
+  // ===== 2) PULVERIZADORES — dos pedidos de venda (só máquina) =====
   const pedidos = await lerTudo<PedidoRow>((from, to) =>
     supabase
       .from("pedidos_venda_relatorio")
@@ -213,7 +267,6 @@ export async function computarR7(parametros: ParametrosR7 = {}): Promise<Oportun
 
     montar(
       {
-        regra: "R7_garantia_risco",
         codigo_omie: mapOmie.get(norm(p.cliente)) ?? null,
         cliente_nome: p.cliente as string,
         trator: desc.slice(0, 90),
@@ -225,6 +278,7 @@ export async function computarR7(parametros: ParametrosR7 = {}): Promise<Oportun
         fonte: "pedido",
         garantia_meses: garantiaPulv,
         fim_garantia: fimGarantia.toISOString(),
+        data_venda: dataVenda.toISOString(),
         referencia_fonte: osMaisRecente ? "os" : "venda",
         ultimo_pedido_numero: p.numero_venda,
         ultimo_pedido: dataVenda.toISOString(),
@@ -239,8 +293,8 @@ export async function computarR7(parametros: ParametrosR7 = {}): Promise<Oportun
     );
   }
 
-  console.log(`[R7] oportunidades geradas: ${out.length}`);
-  return out;
+  console.log(`[R7] em risco: ${emRisco.length} · perdidas (→R6): ${perdidas.length}`);
+  return { emRisco, perdidas };
 }
 
 async function carregarMapaClientes(): Promise<Map<string, string>> {
