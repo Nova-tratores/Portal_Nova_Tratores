@@ -166,6 +166,73 @@ export function calcularSugestao(produtoInfo: any, movimentos: any[]): any {
   return { cmcSugerido: num(produtoInfo.cmcAtual), estrategiaSugestao: 'manual' };
 }
 
+// Sugere o CUSTO REAL de UM produto (para pre-preencher o "CMC a restaurar" ao dar
+// entrada numa NF de garantia). O CMC "imediato anterior" (cmcAtual) nao serve
+// quando o produto ja vinha distorcido - tipicamente por estoque negativo, que
+// afunda o custo medio progressivamente. Reusa a MESMA estrategia da tela de
+// negativos: procura o CMC vigente ANTES do 1o episodio negativo; senao o maior
+// CMC de uma compra; senao devolve o cmcAtual como fallback ('manual').
+// LE do Omie (MovimentoEstoque, 24m) - chamar SOB DEMANDA (nao no bulk da lista).
+export async function sugerirCustoRealProduto(
+  conta: Conta,
+  codigoProduto: number,
+  opts: { cmcAtualFallback?: number | null } = {},
+): Promise<{ cmcSugerido: number | null; estrategia: string; baseadoEm: any; distorcido: boolean }> {
+  const fallback = opts.cmcAtualFallback != null ? num(opts.cmcAtualFallback) : null;
+  const ate = hoje();
+  const deBR = fmtBR(addMeses(ate, -24));
+  const ateBR = fmtBR(ate);
+  let movimentos: any[] = [];
+  try { movimentos = await obterMovimentosProduto(conta, codigoProduto, deBR, ateBR); }
+  catch { movimentos = []; }
+
+  const refBase = (ref: any) => ref ? { data: ref.data, doc: ref.numDoc, origem: ref.desOrigem || ref.codOrigem } : null;
+  const decidir = (cmc: number | null, estrat: string, ref: any) => ({
+    cmcSugerido: cmc,
+    estrategia: estrat,
+    baseadoEm: refBase(ref),
+    // distorcido = o CMC atual esta notavelmente ABAIXO do custo real sugerido (>3%).
+    distorcido: !!(cmc != null && cmc > 0 && fallback != null && fallback < cmc * 0.97),
+  });
+
+  // maior CMC de uma compra (fallback de nivel produto)
+  let melhorCompra: any = null;
+  for (const m of movimentos) {
+    if (m.cancelado) continue;
+    if (!(m.qtdeEntrada > 0) || !(m.cmcAtual > 0)) continue;
+    if (!/compra/i.test(m.desOrigem || '') && !/^COM/.test(m.codOrigem || '')) continue;
+    if (melhorCompra == null || m.cmcAtual > melhorCompra.cmcAtual) melhorCompra = m;
+  }
+
+  // 1) CMC vigente antes do 1o episodio negativo (simula o zeramento do SLD com offset)
+  let offset = 0, negAberto = false;
+  for (let j = 0; j < movimentos.length; j++) {
+    const m = movimentos[j];
+    if (m.cancelado || m.qtdeAtual == null) continue;
+    const adj = num(m.qtdeAtual) + offset;
+    if (adj < 0) {
+      if (!negAberto) {
+        if (m.cmcAnterior != null && m.cmcAnterior > 0) return decidir(m.cmcAnterior, 'cmc_antes_de_negativo', m);
+        for (let k = j - 1; k >= 0; k--) {
+          if (!movimentos[k].cancelado && movimentos[k].cmcAtual != null && movimentos[k].cmcAtual > 0) {
+            return decidir(movimentos[k].cmcAtual, 'cmc_antes_de_negativo', movimentos[k]);
+          }
+        }
+        negAberto = true;
+        offset = -num(m.qtdeAtual);
+      }
+    } else {
+      negAberto = false;
+    }
+  }
+
+  // 2) maior CMC de compra
+  if (melhorCompra) return decidir(melhorCompra.cmcAtual, 'maior_cmc_compra', melhorCompra);
+
+  // 3) sem base melhor: mantem o cmcAtual (nao ha o que "restaurar" automaticamente)
+  return decidir(fallback, 'manual', null);
+}
+
 // (re)classifica os itens de um produto contra uma referencia de custo e
 // devolve { nfsGarantia, entradasNormais, cfopsGarantia }.
 function segregarItens(itens: any[], cfg: AjustesConfig, referenciaCusto: number, conta: Conta, nfsComGarantiaSet: Set<string> | null): any {
