@@ -9,7 +9,7 @@
 // Os "baldes" avulsos (CLI0002 clientes / TRA0001 tratores / 0000000
 // quadriciclos) entram numa linha separada: o cartão pagou de verdade, mas
 // não são carros — não têm km nem entram no ranking.
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { DollarSign, Fuel, Wrench, ShieldAlert, Gauge, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { formatarPlaca, PLACAS_AVULSAS } from '@/lib/frota/placa';
@@ -26,6 +26,7 @@ interface LinhaTco {
   avulso: boolean;
   ativo: boolean;
   status: string | null;
+  categoria: string | null; // departamento (comercial / oficina / outros)
   km: number;
   // 'rastreador' = frota_dias; 'digitado' = delta do hodômetro informado nos
   // abastecimentos do cartão e nas requisições (carros SEM rastreador)
@@ -51,6 +52,13 @@ const FONTE_LABEL: Record<string, string> = {
   rotaexata: 'Rota Exata',
   multa: 'multa de trânsito',
   manual: 'lançamento manual',
+};
+
+// departamentos (frota_veiculos.categoria)
+const DEPTO_LABEL: Record<string, string> = {
+  comercial: 'Comercial',
+  oficina: 'Oficina',
+  outros: 'Outros',
 };
 
 async function buscarTudo(tabela: string, colunas: string, de: string, colunaData = 'data'): Promise<any[]> {
@@ -94,7 +102,7 @@ export default function FrotaCustosPage() {
       const deIso = de.toISOString().slice(0, 10);
 
       const [veic, custos, dias, abastHod, reqsHod] = await Promise.all([
-        supabase.from('frota_veiculos').select('id, placa, modelo, descricao, marca, tem_rastreador, tipo_registro, placa_exibicao, ativo, status, supa_placa_id'),
+        supabase.from('frota_veiculos').select('id, placa, modelo, descricao, marca, tem_rastreador, tipo_registro, placa_exibicao, ativo, status, supa_placa_id, categoria'),
         buscarTudo('vw_frota_custos', 'veiculo_id, tipo, valor, data, fonte', deIso),
         buscarTudo('frota_dias', 'veiculo_id, km_total, km_odometro', deIso),
         // hodômetro DIGITADO nos abastecimentos do cartão (pro km dos sem rastreador)
@@ -117,6 +125,7 @@ export default function FrotaCustosPage() {
           avulso: v.tipo_registro !== 'veiculo',
           ativo: !!v.ativo,
           status: v.status || null,
+          categoria: v.categoria || null,
           km: 0, km_fonte: null, combustivel: 0, manutencao: 0, multas: 0, outros: 0, total: 0,
         });
         porPlaca.set(v.placa, v.id);
@@ -187,6 +196,21 @@ export default function FrotaCustosPage() {
   const soma = (ls: LinhaTco[], k: keyof LinhaTco) => ls.reduce((s, l) => s + (l[k] as number), 0);
   const linhaModal = modalId ? linhas.find((l) => l.veiculo_id === modalId) || null : null;
 
+  // separação por DEPARTAMENTO (frota_veiculos.categoria) — departamento que
+  // mais gasta primeiro; dentro dele os veículos já vêm por total desc
+  const departamentos = useMemo(() => {
+    const m = new Map<string, LinhaTco[]>();
+    for (const l of carros) {
+      const key = (l.categoria || 'outros').toLowerCase();
+      const ls = m.get(key) || [];
+      ls.push(l);
+      m.set(key, ls);
+    }
+    return [...m.entries()]
+      .map(([key, ls]) => ({ key, ls, total: ls.reduce((s, x) => s + x.total, 0) }))
+      .sort((a, b) => b.total - a.total);
+  }, [carros]);
+
   const th: React.CSSProperties = { fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase', letterSpacing: 0.4, textAlign: 'right', padding: '10px 12px' };
   const td: React.CSSProperties = { fontSize: 12.5, color: 'var(--portal-text-secondary)', textAlign: 'right', padding: '8px 12px', whiteSpace: 'nowrap' };
 
@@ -197,7 +221,7 @@ export default function FrotaCustosPage() {
           <DollarSign size={20} color="#0d9488" /> Custos & TCO
         </h2>
         <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted)' }}>
-          combustível + manutenção + multas ÷ km rodado — quem custa caro aparece primeiro
+          combustível + manutenção + multas + requisições ÷ km rodado — por departamento; quem custa caro primeiro
         </span>
         <div style={{ flex: 1 }} />
         <select value={meses} onChange={(e) => setMeses(Number(e.target.value))} style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 12.5 }}>
@@ -233,7 +257,25 @@ export default function FrotaCustosPage() {
               </tr>
             </thead>
             <tbody>
-              {carros.map((l) => {
+              {departamentos.map((dep) => {
+                const kmDep = soma(dep.ls, 'km');
+                const rkmDep = kmDep >= 50 ? dep.total / kmDep : null;
+                return (
+                <Fragment key={dep.key}>
+              <tr style={{ borderTop: '2px solid var(--portal-border)', background: 'var(--portal-bg-secondary)' }}>
+                <td style={{ ...td, textAlign: 'left', fontWeight: 800, color: 'var(--portal-text)', textTransform: 'uppercase', fontSize: 11.5, letterSpacing: 0.5 }}>
+                  {DEPTO_LABEL[dep.key] || dep.key}
+                  <span style={{ fontWeight: 600, color: 'var(--portal-text-muted)', textTransform: 'none', letterSpacing: 0 }}> · {dep.ls.length} veículo{dep.ls.length !== 1 ? 's' : ''}</span>
+                </td>
+                <td style={{ ...td, fontWeight: 700 }}>{kmDep > 0 ? Math.round(kmDep).toLocaleString('pt-BR') : '—'}</td>
+                <td style={{ ...td, fontWeight: 700 }}>{fmtRS(soma(dep.ls, 'combustivel'))}</td>
+                <td style={{ ...td, fontWeight: 700 }}>{fmtRS(soma(dep.ls, 'manutencao'))}</td>
+                <td style={{ ...td, fontWeight: 700, color: soma(dep.ls, 'multas') > 0 ? '#b91c1c' : undefined }}>{fmtRS(soma(dep.ls, 'multas'))}</td>
+                <td style={{ ...td, fontWeight: 700 }}>{fmtRS(soma(dep.ls, 'outros'))}</td>
+                <td style={{ ...td, fontWeight: 800, color: 'var(--portal-text)' }}>{fmtRS(dep.total)}</td>
+                <td style={{ ...td, fontWeight: 700 }}>{rkmDep != null ? fmtRS2(rkmDep) : '—'}</td>
+              </tr>
+              {dep.ls.map((l) => {
                 const rkm = l.km >= 50 ? l.total / l.km : null; // km de menos = divisão mentirosa
                 return (
                   <tr
@@ -278,6 +320,9 @@ export default function FrotaCustosPage() {
                       {rkm != null ? fmtRS2(rkm) : '—'}
                     </td>
                   </tr>
+                );
+              })}
+                </Fragment>
                 );
               })}
               <tr style={{ borderTop: '2px solid var(--portal-border)', background: 'var(--portal-bg-secondary)' }}>
