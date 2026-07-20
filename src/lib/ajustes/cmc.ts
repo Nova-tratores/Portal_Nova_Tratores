@@ -465,7 +465,57 @@ export async function listarHistorico(conta?: Conta, produto?: number | null): P
   if (produto != null && Number.isFinite(produto)) q = q.eq('codigo_produto', produto);
   const { data, error } = await q;
   if (error) throw new Error(error.message);
-  return data || [];
+  const rows = (data || []) as any[];
+  if (rows.length === 0) return rows;
+
+  // A tabela cmc_correcoes guarda só CÓDIGOS (codigo_produto = nCodProd interno,
+  // codigo_local_estoque = id do local). Enriquecemos com os NOMES reais para a tela:
+  //  - nome do local via ListarLocaisEstoque (cacheado por conta);
+  //  - SKU (codigo) + descrição via tabela `produtos` (conta_omie em MINÚSCULA).
+  // Best-effort: qualquer falha aqui não pode derrubar o histórico.
+  const contas = [...new Set(rows.map((r) => r.conta_omie).filter(Boolean))] as Conta[];
+
+  const localPorConta = new Map<string, Map<string, string>>();
+  const prodPorConta = new Map<string, Map<string, { codigo: string | null; descricao: string | null }>>();
+
+  await Promise.all(contas.map(async (c) => {
+    // locais (id -> nome)
+    try {
+      const locais = await locaisDaConta(c);
+      const m = new Map<string, string>();
+      for (const l of locais || []) m.set(String(l.id), l.nome);
+      localPorConta.set(c, m);
+    } catch { /* sem nome de local */ }
+
+    // produtos (codigo_produto -> { codigo(SKU), descricao }) — só os presentes nas linhas
+    try {
+      const ids = [...new Set(
+        rows.filter((r) => r.conta_omie === c && r.codigo_produto != null).map((r) => Number(r.codigo_produto)),
+      )];
+      const m = new Map<string, { codigo: string | null; descricao: string | null }>();
+      for (let i = 0; i < ids.length; i += 300) {
+        const fatia = ids.slice(i, i + 300);
+        const { data: prods } = await supabase
+          .from('produtos')
+          .select('codigo_produto, codigo, descricao')
+          .eq('conta_omie', String(c).toLowerCase())
+          .in('codigo_produto', fatia);
+        for (const p of prods || []) m.set(String(p.codigo_produto), { codigo: p.codigo || null, descricao: p.descricao || null });
+      }
+      prodPorConta.set(c, m);
+    } catch { /* sem SKU/descrição da tabela produtos */ }
+  }));
+
+  return rows.map((r) => {
+    const lm = localPorConta.get(r.conta_omie);
+    const prod = prodPorConta.get(r.conta_omie)?.get(String(r.codigo_produto));
+    return {
+      ...r,
+      local_nome: (lm && r.codigo_local_estoque != null ? lm.get(String(r.codigo_local_estoque)) : null) || null,
+      codigo_integracao: r.codigo_integracao || prod?.codigo || null,
+      descricao_produto: r.descricao_produto || prod?.descricao || null,
+    };
+  });
 }
 
 // ---- Ajuste de custos ----
