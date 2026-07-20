@@ -21,9 +21,11 @@ const supabase = createClient(
   { auth: { persistSession: false } },
 );
 
-const EDITAVEIS = new Set(['cnh', 'cnh_categoria', 'cnh_validade', 'e_motorista']);
+// 'ativo' só faz sentido pra quem é FORA DO RH (a Rota Exata ainda marca como
+// ativo gente que já saiu); pra quem está no RH, o status vem de lá.
+const EDITAVEIS = new Set(['cnh', 'cnh_categoria', 'cnh_validade', 'e_motorista', 'ativo']);
 // o sync também escreve estes → editar trava contra o sync (campos_manuais)
-const SINCADOS = new Set(['cnh', 'cnh_validade', 'e_motorista']);
+const SINCADOS = new Set(['cnh', 'cnh_validade', 'e_motorista', 'ativo']);
 const CATEGORIAS = new Set(['A', 'B', 'C', 'D', 'E', 'AB', 'AC', 'AD', 'AE']);
 
 interface LinhaLocal {
@@ -56,7 +58,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const upd: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(body)) {
     if (!EDITAVEIS.has(k)) continue;
-    if (k === 'e_motorista') upd[k] = !!v;
+    if (k === 'e_motorista' || k === 'ativo') upd[k] = !!v;
     else upd[k] = typeof v === 'string' && v.trim() === '' ? null : v;
   }
   if (Object.keys(upd).length === 0) return NextResponse.json({ error: 'Nada pra salvar' }, { status: 400 });

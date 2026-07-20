@@ -100,13 +100,14 @@ async function mapaMotoristas(supabase: ReturnType<typeof db>) {
 async function mapaManuaisMotoristas(supabase: ReturnType<typeof db>) {
   const { data, error } = await supabase
     .from('frota_motoristas')
-    .select('re_id, e_motorista, campos_manuais');
+    .select('re_id, e_motorista, ativo, campos_manuais');
   if (error) throw new Error(`frota_motoristas: ${error.message}`);
-  const porReId = new Map<number, { e_motorista: boolean; campos_manuais: string[] }>();
+  const porReId = new Map<number, { e_motorista: boolean; ativo: boolean; campos_manuais: string[] }>();
   for (const m of data || []) {
     if (m.re_id == null) continue;
     porReId.set(Number(m.re_id), {
       e_motorista: !!m.e_motorista,
+      ativo: !!m.ativo,
       campos_manuais: Array.isArray(m.campos_manuais) ? m.campos_manuais : [],
     });
   }
@@ -134,6 +135,9 @@ export async function syncCadastro() {
       .map((u: any) => {
         const atual = manuais.get(Number(u.id));
         const travouFlag = atual?.campos_manuais.includes('e_motorista');
+        // 'ativo' travado = desligado pelo portal (a Rota Exata ainda marca
+        // como ativo gente que já saiu da empresa)
+        const travouAtivo = atual?.campos_manuais.includes('ativo');
         return {
           re_id: Number(u.id),
           nome: String(u.nome).trim(),
@@ -141,7 +145,7 @@ export async function syncCadastro() {
           email: str(u.email),
           telefone: str(u.telefone),
           cargo: str(u.cargo),
-          ativo: u.ativo === 1 || u.ativo === true,
+          ativo: travouAtivo ? atual!.ativo : u.ativo === 1 || u.ativo === true,
           gestor: u.gestor === 1 || u.gestor === true,
           e_motorista: travouFlag ? atual!.e_motorista : u.motorista === 1 || u.motorista === true,
           re_raw: u,

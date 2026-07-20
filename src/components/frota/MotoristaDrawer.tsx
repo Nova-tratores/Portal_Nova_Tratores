@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { authHeaders } from '@/lib/auth/client';
 import { formatarPlaca } from '@/lib/frota/placa';
+import { validarCnh } from '@/lib/frota/motoristas';
 import type { MotoristaDetalhe } from '@/lib/frota/tipos';
 
 interface Props {
@@ -104,27 +105,40 @@ export default function MotoristaDrawer({ rhId, portalId, nome, podeEditar, onCl
   }, [rhId, portalId]);
   useEffect(() => { carregar(); }, [carregar]);
 
-  const salvar = async () => {
+  const patch = async (body: Record<string, unknown>): Promise<boolean> => {
     const alvo = det?.motorista.id || portalId || rhId;
-    if (!alvo) return;
+    if (!alvo) return false;
     setSalvando(true);
     try {
       const r = await fetch(`/api/frota/motoristas/${alvo}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
-        body: JSON.stringify({
-          cnh: form.cnh,
-          cnh_categoria: form.cnh_categoria,
-          cnh_validade: form.cnh_validade,
-          e_motorista: form.e_motorista,
-        }),
+        body: JSON.stringify(body),
       });
       const d = await r.json();
-      if (!r.ok) { alert(d.error || 'Falha ao salvar.'); return; }
-      setEditando(false);
+      if (!r.ok) { alert(d.error || 'Falha ao salvar.'); return false; }
       await carregar();
       onMudou?.();
-    } catch (e) { alert(String(e)); } finally { setSalvando(false); }
+      return true;
+    } catch (e) { alert(String(e)); return false; } finally { setSalvando(false); }
+  };
+
+  const salvar = async () => {
+    const ok = await patch({
+      cnh: form.cnh,
+      cnh_categoria: form.cnh_categoria,
+      cnh_validade: form.cnh_validade,
+      e_motorista: form.e_motorista,
+    });
+    if (ok) setEditando(false);
+  };
+
+  // FORA DO RH: a Rota Exata ainda marca como ativo gente que já saiu — aqui o
+  // portal desliga por conta própria (campo travado contra o sync).
+  const alternarAtivo = async () => {
+    const desligar = det?.motorista.ativo_portal !== false;
+    if (desligar && !confirm(`Marcar ${det?.motorista.nome || nome} como DESLIGADO?\nEle sai dos ativos e não é mais cobrado por CNH.`)) return;
+    await patch({ ativo: !desligar });
   };
 
   const m = det?.motorista;
@@ -197,6 +211,21 @@ export default function MotoristaDrawer({ rhId, portalId, nome, podeEditar, onCl
                   />
                 )}
               </div>
+              {m.origem === 'portal' && podeEditar && (
+                <button
+                  onClick={alternarAtivo}
+                  disabled={salvando}
+                  title="Só pra quem está FORA do RH — pra quem está no RH, o desligamento é feito lá"
+                  style={{
+                    alignSelf: 'flex-start', padding: '7px 12px', borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
+                    border: '1px solid var(--portal-border)',
+                    background: m.ativo_portal ? 'var(--portal-bg-input)' : '#0d9488',
+                    color: m.ativo_portal ? '#b91c1c' : '#fff',
+                  }}
+                >
+                  {m.ativo_portal ? 'Marcar como desligado' : 'Reativar (voltou pra empresa)'}
+                </button>
+              )}
             </Secao>
           )}
 
@@ -219,6 +248,20 @@ export default function MotoristaDrawer({ rhId, portalId, nome, podeEditar, onCl
                     <Linha rotulo="É motorista?" valor={m.e_motorista ? 'Sim' : 'Não'} />
                     {m.gestor && <Linha rotulo="Gestor (Rota Exata)" valor="Sim" />}
                   </div>
+                  {m.cnh && !validarCnh(m.cnh) && (
+                    <div style={{ fontSize: 11.5, color: '#b45309', background: '#fef3c7', border: '1px solid #f59e0b', borderRadius: 8, padding: '6px 10px' }}>
+                      ⚠ O número da CNH não passa no validador (dígito verificador) — confira a digitação.
+                    </div>
+                  )}
+                  <a
+                    href="https://portalservicos.senatran.serpro.gov.br/"
+                    target="_blank"
+                    rel="noreferrer"
+                    title="Consulta oficial de situação e pontos — exige login gov.br do condutor"
+                    style={{ alignSelf: 'flex-start', fontSize: 12, fontWeight: 700, color: '#0d9488', textDecoration: 'none' }}
+                  >
+                    Consultar CNH na Senatran ↗
+                  </a>
                   {podeEditar && (
                     <button
                       onClick={() => setEditando(true)}
@@ -234,7 +277,12 @@ export default function MotoristaDrawer({ rhId, portalId, nome, podeEditar, onCl
                     <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase' }}>
                       Nº da CNH
                       <input value={form.cnh} onChange={(e) => setForm((f) => ({ ...f, cnh: e.target.value }))} placeholder="00000000000"
-                        style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13 }} />
+                        style={{ padding: '8px 10px', borderRadius: 8, border: `1px solid ${form.cnh.trim() && !validarCnh(form.cnh) ? '#f59e0b' : 'var(--portal-border)'}`, background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13 }} />
+                      {form.cnh.trim() !== '' && (
+                        <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'none', color: validarCnh(form.cnh) ? '#15803d' : '#b45309' }}>
+                          {validarCnh(form.cnh) ? '✓ número válido' : '⚠ dígito verificador não confere'}
+                        </span>
+                      )}
                     </label>
                     <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase' }}>
                       Categoria

@@ -6,7 +6,7 @@
 // Só CNH + flag motorista são editáveis aqui — o cadastro é do RH.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Users, Search, User as UserIcon, AlertTriangle, IdCard, Car,
+  Users, Search, User as UserIcon, AlertTriangle, IdCard, Car, ShieldAlert,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
@@ -15,6 +15,8 @@ import MotoristaDrawer from '@/components/frota/MotoristaDrawer';
 import type { MotoristaRH } from '@/lib/frota/tipos';
 
 const DESLIGADO = new Set(['demitido', 'inativo']);
+
+const fmtRS = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 
 function ehAtivo(m: MotoristaRH): boolean {
   if (m.status_rh != null) return !DESLIGADO.has(m.status_rh);
@@ -231,6 +233,14 @@ export default function FrotaMotoristasPage() {
                 {m.responsavel_por_veiculo && (
                   <span title="Responsável por veículo da frota" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10.5, fontWeight: 700, color: '#0f766e' }}>
                     <Car size={11} /> com carro
+                  </span>
+                )}
+                {m.multas_abertas > 0 && (
+                  <span
+                    title={`${m.multas_abertas} multa(s) em aberto · ${fmtRS(m.valor_multas_abertas)} · ${m.pontos_multas_abertas} ponto(s) — detalhe na ficha`}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10.5, fontWeight: 700, color: '#b91c1c' }}
+                  >
+                    <ShieldAlert size={11} /> {m.multas_abertas} · {fmtRS(m.valor_multas_abertas)}
                   </span>
                 )}
               </div>

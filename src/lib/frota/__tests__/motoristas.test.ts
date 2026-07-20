@@ -4,6 +4,7 @@ import {
   normalizarCpf,
   pendenciasDoMotorista,
   situacaoCnh,
+  validarCnh,
   type DadosPendenciaMotorista,
 } from '../motoristas';
 
@@ -35,6 +36,23 @@ describe('normalizarCpf / mascararCpf', () => {
     expect(mascararCpf('52998224725')).toBe('***.***.***-25');
     expect(mascararCpf('1234')).toBeNull(); // incompleto = nem mascarado sai
     expect(mascararCpf(null)).toBeNull();
+  });
+});
+
+describe('validarCnh — dígitos verificadores (DENATRAN)', () => {
+  it('aceita registro com DVs corretos', () => {
+    // 123456789 → dv1: soma 165 % 11 = 0 → 0; dv2: soma 285 % 11 = 10 → 0
+    expect(validarCnh('12345678900')).toBe(true);
+    expect(validarCnh('123.456.789-00')).toBe(true); // com máscara também
+  });
+
+  it('recusa DV errado, tamanho errado e repetição', () => {
+    expect(validarCnh('12345678901')).toBe(false); // dv2 errado
+    expect(validarCnh('12345678910')).toBe(false); // dv1 errado
+    expect(validarCnh('11111111111')).toBe(false); // repetido
+    expect(validarCnh('1234567890')).toBe(false); // 10 dígitos
+    expect(validarCnh('')).toBe(false);
+    expect(validarCnh(null)).toBe(false);
   });
 });
 

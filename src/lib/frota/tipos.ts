@@ -143,6 +143,11 @@ export interface MotoristaRH {
   situacao_cnh: 'ok' | 'vencendo' | 'vencida' | 'sem_validade' | 'sem_cnh';
   pendencias: string[]; // 1+ = card vermelho
   responsavel_por_veiculo: boolean;
+  // multas EM ABERTO do motorista (mesma régua dos veículos: fora de
+  // paga/descontada/arquivada), casadas por motorista_id e por CPF
+  multas_abertas: number;
+  valor_multas_abertas: number;
+  pontos_multas_abertas: number;
 }
 
 // Ficha completa (drawer): RH menos salário + vínculos da frota.

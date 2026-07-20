@@ -19,6 +19,32 @@ export function mascararCpf(s: string | null | undefined): string | null {
   return `***.***.***-${d.slice(-2)}`;
 }
 
+/**
+ * VALIDADOR de CNH — confere os 2 dígitos verificadores do registro nacional
+ * (algoritmo do DENATRAN, offline). true = estrutura válida. É um aviso, não
+ * uma prova: a consulta OFICIAL de situação/pontos é na Senatran (gov.br).
+ */
+export function validarCnh(numero: string | null | undefined): boolean {
+  const d = String(numero ?? '').replace(/\D/g, '');
+  if (d.length !== 11) return false;
+  if (/^(\d)\1{10}$/.test(d)) return false; // 11111111111 etc.
+
+  let soma = 0;
+  for (let i = 0, peso = 9; i < 9; i++, peso--) soma += Number(d[i]) * peso;
+  let dsc = 0;
+  let dv1 = soma % 11;
+  if (dv1 >= 10) { dv1 = 0; dsc = 2; }
+
+  soma = 0;
+  for (let i = 0, peso = 1; i < 9; i++, peso++) soma += Number(d[i]) * peso;
+  const resto = soma % 11;
+  let dv2 = resto >= 10 ? 0 : resto;
+  dv2 -= dsc;
+  if (dv2 < 0) dv2 += 11;
+
+  return dv1 === Number(d[9]) && dv2 === Number(d[10]);
+}
+
 export type SituacaoCnh = 'ok' | 'vencendo' | 'vencida' | 'sem_validade' | 'sem_cnh';
 
 /** Situação da habilitação. `validade` em 'YYYY-MM-DD'. */
@@ -64,6 +90,7 @@ export function montarMotoristaRH(
   local: LinhaLocalMotorista | null,
   responsavelPorVeiculo: boolean,
   hoje: Date = new Date(),
+  multasAbertas: { n: number; valor: number; pontos: number } = { n: 0, valor: 0, pontos: 0 },
 ): MotoristaRH {
   const cnh = local?.cnh ?? null;
   const cnhValidade = local?.cnh_validade ?? null;
@@ -107,6 +134,9 @@ export function montarMotoristaRH(
       hoje,
     ),
     responsavel_por_veiculo: responsavelPorVeiculo,
+    multas_abertas: multasAbertas.n,
+    valor_multas_abertas: multasAbertas.valor,
+    pontos_multas_abertas: multasAbertas.pontos,
   };
 }
 

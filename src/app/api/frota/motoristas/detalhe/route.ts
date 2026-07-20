@@ -87,8 +87,13 @@ export async function GET(req: NextRequest) {
     for (const m of [...(multasIdR.data || []), ...(multasCpfR.data || [])]) multasMap.set(m.id, m);
     const multas = [...multasMap.values()].sort((a, b) => String(b.dt_multa || '').localeCompare(String(a.dt_multa || '')));
 
+    const abertas = multas.filter((m) => !['paga', 'descontada', 'arquivada'].includes(m.status_interno || ''));
     const detalhe: MotoristaDetalhe = {
-      motorista: montarMotoristaRH(rhFunc, local, responsavel),
+      motorista: montarMotoristaRH(rhFunc, local, responsavel, new Date(), {
+        n: abertas.length,
+        valor: abertas.reduce((s, m) => s + (Number(m.valor) || 0), 0),
+        pontos: abertas.reduce((s, m) => s + (Number(m.pontos) || 0), 0),
+      }),
       rh: rhFunc
         ? {
             rg: rhFunc.rg,

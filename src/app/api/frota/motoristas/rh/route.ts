@@ -38,10 +38,15 @@ export async function GET(req: NextRequest) {
   if (!podeFrota(auth, 'motoristas')) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
 
   try {
-    const [funcionarios, locais, resp] = await Promise.all([
+    const [funcionarios, locais, resp, multasR] = await Promise.all([
       listarFuncionariosRH(), // cacheado 5 min; [] se env não configurada
       listarLocais(),
       supabase.from('frota_responsaveis').select('motorista_id').is('fim', null).not('motorista_id', 'is', null),
+      // multas EM ABERTO (mesma régua dos cards de veículo)
+      supabase
+        .from('frota_multas')
+        .select('motorista_id, motorista_cpf, valor, pontos')
+        .not('status_interno', 'in', '("paga","descontada","arquivada")'),
     ]);
     const respSet = new Set((resp.data || []).map((r) => r.motorista_id as string));
 
@@ -56,6 +61,15 @@ export async function GET(req: NextRequest) {
     const hoje = new Date();
     const usados = new Set<string>();
     const out: MotoristaRH[] = [];
+    // índices pra pendurar as multas na pessoa certa (id local > CPF)
+    const idxPorLocalId = new Map<string, number>();
+    const idxPorCpf = new Map<string, number>();
+    const anotar = (m: MotoristaRH, localId: string | null, cpfRaw: string | null | undefined) => {
+      const i = out.push(m) - 1;
+      if (localId) idxPorLocalId.set(localId, i);
+      const d = normalizarCpf(cpfRaw);
+      if (d.length === 11 && !idxPorCpf.has(d)) idxPorCpf.set(d, i);
+    };
 
     for (const f of funcionarios) {
       let local = porPessoa.get(f.id) || null;
@@ -68,11 +82,22 @@ export async function GET(req: NextRequest) {
         if (usados.has(local.id)) local = null; // homônimo de CPF? o primeiro venceu
         else usados.add(local.id);
       }
-      out.push(montarMotoristaRH(f, local, !!local && respSet.has(local.id), hoje));
+      anotar(montarMotoristaRH(f, local, !!local && respSet.has(local.id), hoje), local?.id ?? null, f.cpf ?? local?.cpf);
     }
     for (const l of locais) {
       if (usados.has(l.id)) continue;
-      out.push(montarMotoristaRH(null, l, respSet.has(l.id), hoje));
+      anotar(montarMotoristaRH(null, l, respSet.has(l.id), hoje), l.id, l.cpf);
+    }
+
+    // multas em aberto → soma na pessoa (cada multa conta UMA vez)
+    for (const mu of multasR.data || []) {
+      const i =
+        (mu.motorista_id && idxPorLocalId.get(mu.motorista_id)) ??
+        idxPorCpf.get(normalizarCpf(mu.motorista_cpf));
+      if (i == null) continue;
+      out[i].multas_abertas += 1;
+      out[i].valor_multas_abertas += Number(mu.valor) || 0;
+      out[i].pontos_multas_abertas += Number(mu.pontos) || 0;
     }
 
     out.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
