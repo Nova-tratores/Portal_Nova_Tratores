@@ -44,8 +44,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
     const { error } = await supabase.from("carrinhos").update(patch).eq("id", id);
     if (error) throw error;
-    if (b.status === "fechado" || b.status === "aberto") {
-      await supabase.from("carrinho_historico").insert({ carrinho_id: id, quem, acao: b.status === "fechado" ? "fechar" : "reabrir", detalhe: "" });
+    if (b.status) {
+      const acao = b.status === "fechado" ? "fechar" : b.status === "lixeira" ? "excluir" : "reabrir";
+      const detalhe = b.status === "lixeira" ? "Movido para a lixeira" : b.status === "aberto" ? "Reaberto" : "";
+      await supabase.from("carrinho_historico").insert({ carrinho_id: id, quem, acao, detalhe });
     } else {
       await supabase.from("carrinho_historico").insert({ carrinho_id: id, quem, acao: "editar", detalhe: "Dados do carrinho atualizados" });
     }
