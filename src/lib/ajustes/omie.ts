@@ -753,12 +753,16 @@ export async function alterarRecebimentoItens(conta: Conta, args: Record<string,
   if (idReceb != null) ide.nIdReceb = Number(idReceb) || idReceb;
   else if (chaveNFe) ide.cChaveNfe = String(chaveNFe);
   const itensRecebimentoEditar = itens.map((it: any) => {
-    const cAcao = String(it.cAcao || 'EDITAR');
+    // O Omie so documenta 2 acoes: EDITAR e IGNORAR. O antigo 'NOVO' (item cujo produto
+    // nao existe no cadastro) NAO e' acao valida: o recebimento pendente ja traz
+    // cAdicionarNovo='S', entao editamos a linha (EDITAR) para informar o CFOP e o Omie
+    // cria o produto ao concluir. Sem EDITAR+cCFOPEntrada o Omie recusa concluir
+    // (ERROR: "O item N esta sem o CFOP para o Recebimento"). Testado em runtime NF 55693.
+    const cAcao = String(it.cAcao || 'EDITAR') === 'IGNORAR' ? 'IGNORAR' : 'EDITAR';
     const itensIde = { nSequencia: Number(it.nSequencia) || it.nSequencia, cAcao };
-    // O Omie SO aceita itensAjustes/itensCustoEstoque/itensInfoAdicEditar/itensAtualPreco
-    // quando cAcao === 'EDITAR'. Para NOVO/ASSOCIAR etc. esses blocos sao proibidos
+    // IGNORAR (unica acao != EDITAR) nao aceita itensAjustes/itensCustoEstoque
     // (ERROR: Quando a tag [cAcao] e' diferente de 'EDITAR' as tag [...] nao devem ser
-    // informadas - testado em runtime). Nesses casos mandamos SO o itensIde.
+    // informadas). Nesse caso mandamos SO o itensIde.
     if (cAcao !== 'EDITAR') return { itensIde };
 
     const ajustes: Record<string, any> = {};
