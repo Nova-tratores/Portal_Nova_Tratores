@@ -393,13 +393,20 @@ function ModalCustos({ linha, meses, entradas, onClose }: {
       l.push(e);
       porTipo.set(t, l);
     }
+    // manutenções primeiro (pedido do usuário); o resto por total desc
+    const ehManut = (t: string) => t.toLowerCase().includes('manut');
     return [...porTipo.entries()]
       .map(([tipo, itens]) => ({
         tipo,
         itens: [...itens].sort((a, b) => String(b.data).localeCompare(String(a.data))),
         total: itens.reduce((s, i) => s + (Number(i.valor) || 0), 0),
       }))
-      .sort((a, b) => b.total - a.total);
+      .sort((a, b) => {
+        const ma = ehManut(a.tipo) ? 0 : 1;
+        const mb = ehManut(b.tipo) ? 0 : 1;
+        if (ma !== mb) return ma - mb;
+        return b.total - a.total;
+      });
   }, [entradas]);
 
   return (
