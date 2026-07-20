@@ -36,6 +36,13 @@ const COLUNAS: ColunaDef[] = [
     explicacao: "Clientes próximos de uma revisão obrigatória (50h, 300h ou 600h). Se não fizer a revisão no prazo, perde a garantia.",
   },
   {
+    regra: "R7_garantia_risco",
+    titulo: "Garantia em risco",
+    emoji: "⏳",
+    cor: "#e11d48",
+    explicacao: "Tratores e pulverizadores AINDA na garantia cuja última revisão já passou de 10 meses. A revisão anual é condição da garantia — estourou 12 meses sem revisar, perdeu. Ligar e agendar antes do prazo.",
+  },
+  {
     regra: "R2_sem_os",
     titulo: "Sem OS recente",
     emoji: "🏗️",
@@ -82,7 +89,7 @@ interface Props {
 export default function KanbanOportunidades({ oportunidades, onAtender, onDispensar, onVerHistorico }: Props) {
   const porRegra = useMemo(() => {
     const m: Record<RegraOportunidade, Oportunidade[]> = {
-      R1_revisao: [], R2_sem_os: [], R3_upsell: [], R4_followup: [], R5_pecas: [], R6_fora_garantia: [],
+      R1_revisao: [], R2_sem_os: [], R3_upsell: [], R4_followup: [], R5_pecas: [], R6_fora_garantia: [], R7_garantia_risco: [],
     };
     for (const op of oportunidades) {
       if (m[op.regra]) m[op.regra].push(op);
@@ -102,6 +109,7 @@ export default function KanbanOportunidades({ oportunidades, onAtender, onDispen
     R4_followup: PAGE_SIZE,
     R5_pecas: PAGE_SIZE,
     R6_fora_garantia: PAGE_SIZE,
+    R7_garantia_risco: PAGE_SIZE,
   });
 
   function verMais(regra: RegraOportunidade) {

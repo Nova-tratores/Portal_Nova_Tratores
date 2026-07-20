@@ -14,6 +14,7 @@ import type { FeedbackRegistro, Oportunidade, RegraOportunidade, StatusOportunid
 // - R4 follow-up        → CRM (confirmar satisfacao do servico anterior)
 // - R5 venda de pecas   → RFM (cliente sem comprar peca ha tempo)
 // - R6 fora de garantia → RFM (oferecer revisao paga / garantia estendida)
+// - R7 garantia em risco → CRM (agendar a revisao anual antes de perder a garantia)
 const TIPO_PADRAO_POR_REGRA: Record<RegraOportunidade, TipoFeedback> = {
   R1_revisao:  "crm",
   R2_sem_os:   "rfm",
@@ -21,6 +22,7 @@ const TIPO_PADRAO_POR_REGRA: Record<RegraOportunidade, TipoFeedback> = {
   R4_followup: "crm",
   R5_pecas:    "rfm",
   R6_fora_garantia: "rfm",
+  R7_garantia_risco: "crm",
 };
 
 function prefillDoOportunidade(op: Oportunidade): Partial<FeedbackRegistro> {
@@ -42,6 +44,8 @@ function prefillDoOportunidade(op: Oportunidade): Partial<FeedbackRegistro> {
       base.servico = `Confirmacao revisao ${alvo}`.trim();
     } else if (op.regra === "R4_followup") {
       base.servico = "Follow-up apos feedback";
+    } else if (op.regra === "R7_garantia_risco") {
+      base.servico = "Agendamento revisao anual (garantia)";
     }
     base.feedback = sugestao;
   } else {
