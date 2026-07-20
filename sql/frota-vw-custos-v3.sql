@@ -17,8 +17,15 @@
 -- não existe em frota_manutencoes).
 --
 -- Correr no Supabase: SQL Editor -> colar -> Run. Idempotente.
+--
+-- DROP + CREATE (não CREATE OR REPLACE): o braço novo muda o tipo inferido da
+-- coluna `valor` (numeric(12,2) -> numeric) e o Postgres não deixa REPLACE
+-- mudar tipo de coluna (erro 42P16). Dropar a view é seguro — nada depende
+-- dela além das telas, e os grants são refeitos logo abaixo.
 -- =============================================================================
-CREATE OR REPLACE VIEW vw_frota_custos AS
+DROP VIEW IF EXISTS vw_frota_custos;
+
+CREATE VIEW vw_frota_custos AS
   SELECT f.id                    AS veiculo_id,
          f.placa,
          a.data_transacao::date  AS data,
@@ -62,6 +69,13 @@ UNION ALL
      AND r.data IS NOT NULL
      AND frota_parse_valor(r.valor_despeza) IS NOT NULL
      AND frota_parse_valor(r.valor_despeza) > 0;
+
+-- Grants (o DROP levou os antigos): mesmo padrão do módulo — autenticado lê
+REVOKE ALL ON vw_frota_custos FROM anon;
+GRANT SELECT ON vw_frota_custos TO authenticated;
+GRANT SELECT ON vw_frota_custos TO service_role;
+
+NOTIFY pgrst, 'reload schema';
 
 -- Conferência (rode depois):
 -- SELECT fonte, tipo, count(*), round(sum(valor)) FROM vw_frota_custos
