@@ -128,6 +128,13 @@ export default function EstoqueNegativoPage() {
   const [corrigidosExtra, setCorrigidosExtra] = useState(0);
   const [precisaRevalidar, setPrecisaRevalidar] = useState(false);
 
+  // correcao em massa (selecao por episodio)
+  const [sel, setSel] = useState<Record<string, boolean>>({});
+  const [massaRodando, setMassaRodando] = useState(false);
+  const [massaProgresso, setMassaProgresso] = useState('');
+  const [massaResumo, setMassaResumo] = useState('');
+  const cancelarMassa = useRef(false);
+
   const [modalProd, setModalProd] = useState<ProdutoNegativo | null>(null);
 
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -158,6 +165,8 @@ export default function EstoqueNegativoPage() {
     setResultados({});
     setCorrigidosExtra(0);
     setPrecisaRevalidar(false);
+    setSel({});
+    setMassaResumo('');
   }, []);
 
   const carregar = useCallback(async (force: boolean) => {
@@ -288,9 +297,85 @@ export default function EstoqueNegativoPage() {
     }
   }, [resultados, corrigirEpisodio]);
 
+  // Correcao EM MASSA: aplica os episodios SELECIONADOS, produto a produto, sempre
+  // do episodio mais antigo para o mais recente (a ordem importa: cada SLD zera o
+  // saldo e o Omie reprocessa o resto). Na 1a falha de um produto, pula para o
+  // proximo produto (nao adianta seguir naquele com o saldo desatualizado).
+  const corrigirSelecionados = useCallback(async () => {
+    if (massaRodando || !dados?.produtos) return;
+    type ItemMassa = { p: ProdutoNegativo; i: number; ep: Episodio; kk: string };
+    let grupos: ItemMassa[][] = [];
+    for (const p of dados.produtos) {
+      if (p.codigoProduto == null || !localMaisNegativo(p)) continue;
+      const doProduto = episodiosDe(p)
+        .map((ep, i) => ({ p, i, ep, kk: epKey(p, i) }))
+        .filter(({ ep, kk }) => sel[kk] && !ep.jaCorrigido && !resultados[kk]);
+      if (doProduto.length) grupos.push(doProduto);
+    }
+    if (!grupos.length) { alert('Nenhum episodio selecionado para corrigir.'); return; }
+
+    const suspeitos = grupos.filter((g) => g[0].p.suspeitaEmpresaErrada).length;
+    if (suspeitos > 0 && !confirm(`${suspeitos} produto(s) selecionado(s) tem SUSPEITA de venda faturada na empresa errada — nesses casos o recomendado e' a CONTAGEM FISICA, nao o ajuste retroativo.\n\nOK = incluir mesmo assim · Cancelar = corrigir so os demais`)) {
+      grupos = grupos.filter((g) => !g[0].p.suspeitaEmpresaErrada);
+    }
+    const total = grupos.reduce((n, g) => n + g.length, 0);
+    if (!total) { alert('Nenhum episodio restante para corrigir.'); return; }
+    if (!confirm(`CORRECAO EM MASSA: vai aplicar ${total} ajuste(s) retroativo(s) em ${grupos.length} produto(s), um por vez, do episodio mais antigo para o mais recente.\n\nCada ajuste ZERA o saldo na data e seta o CMC; o Omie reprocessa os movimentos posteriores (o saldo de hoje muda). Mexe em periodos contabeis ja fechados — confirme que esta alinhado com a contabilidade.\n\nDeixe esta aba ABERTA ate terminar. Continuar?`)) return;
+
+    setMassaRodando(true);
+    setMassaResumo('');
+    cancelarMassa.current = false;
+    let feitos = 0, falhas = 0, pulados = 0, n = 0;
+    try {
+      for (const grupo of grupos) {
+        if (cancelarMassa.current) break;
+        for (const { p, i, ep, kk } of grupo) {
+          if (cancelarMassa.current) break;
+          n++;
+          setMassaProgresso(`${n}/${total} — ${p.codigoProduto} ${p.descricao || ''}`);
+          // valida os campos editaveis aqui (sem alert por linha, diferente do fluxo individual)
+          const novoCMC = Number(String(cmcEdit[kk] ?? '').replace(',', '.'));
+          const codLocal = localSel[kk] === '' || localSel[kk] == null ? null : Number(localSel[kk]);
+          if (!(novoCMC > 0) || codLocal == null || !dataEdit[kk]) {
+            setResultados((s) => ({ ...s, [kk]: { tipo: 'erro', texto: 'pulado na correcao em massa: preencha CMC (>0), data e local' } }));
+            pulados++;
+            break; // nao aplica os episodios seguintes fora de ordem
+          }
+          const ok = await corrigirEpisodio(p, i, ep, true);
+          if (!ok) { falhas++; break; }
+          feitos++;
+          setSel((s) => ({ ...s, [kk]: false }));
+          await new Promise((r) => setTimeout(r, 350)); // folga entre escritas no Omie
+        }
+      }
+    } finally {
+      setMassaRodando(false);
+      setMassaProgresso('');
+    }
+    setMassaResumo(`${cancelarMassa.current ? 'Interrompida' : 'Concluida'}: ${feitos} aplicada(s), ${falhas} falha(s), ${pulados} pulada(s) por dados incompletos.${feitos ? ' Revarra ("Atualizar") para confirmar o resultado.' : ''}`);
+  }, [massaRodando, dados, sel, resultados, cmcEdit, localSel, dataEdit, corrigirEpisodio]);
+
   if (!permLoading && userProfile && !pode('ajustes', 'negativos')) return <SemPermissao />;
 
   const jaCorrigidos = (dados?.produtos || []).reduce((n, p) => n + episodiosDe(p).filter((e) => e.jaCorrigido).length, 0) + corrigidosExtra;
+
+  // chaves dos episodios que ainda dao para corrigir (para a selecao em massa)
+  const corrigiveis: string[] = [];
+  (dados?.produtos || []).forEach((p) => {
+    if (p.codigoProduto == null || !localMaisNegativo(p)) return;
+    episodiosDe(p).forEach((ep, i) => {
+      const kk = epKey(p, i);
+      if (!ep.jaCorrigido && !resultados[kk]) corrigiveis.push(kk);
+    });
+  });
+  const nSel = corrigiveis.reduce((c, kk) => c + (sel[kk] ? 1 : 0), 0);
+  const todosSel = corrigiveis.length > 0 && nSel === corrigiveis.length;
+  const toggleTodos = () => {
+    if (todosSel) { setSel({}); return; }
+    const s: Record<string, boolean> = {};
+    corrigiveis.forEach((kk) => { s[kk] = true; });
+    setSel(s);
+  };
 
   return (
     <div style={{ maxWidth: 1300, margin: '0 auto', padding: '20px 24px' }}>
@@ -302,8 +387,8 @@ export default function EstoqueNegativoPage() {
           </p>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
-          <button onClick={() => iniciar(false)} disabled={rodando || !conta} style={{ padding: '7px 14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: rodando ? 'wait' : 'pointer', opacity: rodando || !conta ? 0.5 : 1 }}>Buscar produtos negativos</button>
-          <button onClick={() => iniciar(true)} disabled={rodando || !conta} title="Refaz a varredura ignorando o cache" style={{ padding: '7px 14px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: rodando ? 'wait' : 'pointer', opacity: rodando || !conta ? 0.5 : 1 }}>Atualizar</button>
+          <button onClick={() => iniciar(false)} disabled={rodando || massaRodando || !conta} style={{ padding: '7px 14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: rodando ? 'wait' : 'pointer', opacity: rodando || massaRodando || !conta ? 0.5 : 1 }}>Buscar produtos negativos</button>
+          <button onClick={() => iniciar(true)} disabled={rodando || massaRodando || !conta} title="Refaz a varredura ignorando o cache" style={{ padding: '7px 14px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: rodando ? 'wait' : 'pointer', opacity: rodando || massaRodando || !conta ? 0.5 : 1 }}>Atualizar</button>
           <ContaSelector />
         </div>
       </div>
@@ -340,11 +425,33 @@ export default function EstoqueNegativoPage() {
             <Kpi label="Ultima varredura" valor={dados?.geradoEm ? new Date(dados.geradoEm).toLocaleString('pt-BR') : (dados?.cachedEm ? new Date(dados.cachedEm).toLocaleString('pt-BR') + ' (cache)' : '--')} pequeno />
           </div>
 
+          {dados && (dados.produtos || []).length > 0 && !rodando && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 10, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 12px', fontSize: '.78rem' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', color: '#334155' }}>
+                <input type="checkbox" checked={todosSel} disabled={massaRodando || !corrigiveis.length} onChange={toggleTodos} />
+                Selecionar todos os corrigiveis ({corrigiveis.length})
+              </label>
+              <button onClick={corrigirSelecionados} disabled={massaRodando || aplicandoKey != null || nSel === 0} style={{ padding: '5px 12px', background: massaRodando || nSel === 0 ? '#e2e8f0' : '#b91c1c', color: massaRodando || nSel === 0 ? '#94a3b8' : '#fff', border: 'none', borderRadius: 6, fontSize: '.78rem', fontWeight: 600, cursor: massaRodando || nSel === 0 ? 'not-allowed' : 'pointer' }}>
+                {massaRodando ? 'Corrigindo em massa...' : `Corrigir selecionados (${nSel})`}
+              </button>
+              {massaRodando && (
+                <>
+                  <span style={{ color: '#64748b' }}>⏳ {massaProgresso}</span>
+                  <button onClick={() => { cancelarMassa.current = true; }} style={{ padding: '5px 12px', background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca', borderRadius: 6, fontSize: '.78rem', cursor: 'pointer' }}>Parar apos o atual</button>
+                </>
+              )}
+              {!massaRodando && massaResumo && <span style={{ color: '#334155' }}>{massaResumo}</span>}
+            </div>
+          )}
+
           <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>
+                    <th style={{ ...thStyle, width: 30, textAlign: 'center' }} title="Selecionar para correcao em massa">
+                      <input type="checkbox" checked={todosSel} disabled={massaRodando || !corrigiveis.length} onChange={toggleTodos} />
+                    </th>
                     <th style={thStyle}>Produto</th>
                     <th style={{ ...thStyle, textAlign: 'right' }}>CMC atual</th>
                     <th style={{ ...thStyle, textAlign: 'right' }}>Saldo</th>
@@ -358,13 +465,13 @@ export default function EstoqueNegativoPage() {
                 </thead>
                 <tbody>
                   {rodando ? (
-                    <tr><td colSpan={9} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>Varredura em andamento… {etapa}</td></tr>
+                    <tr><td colSpan={10} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>Varredura em andamento… {etapa}</td></tr>
                   ) : semDados ? (
-                    <tr><td colSpan={9} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>Nenhuma varredura ainda. Clique em <b>Buscar produtos negativos</b> para iniciar.</td></tr>
+                    <tr><td colSpan={10} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>Nenhuma varredura ainda. Clique em <b>Buscar produtos negativos</b> para iniciar.</td></tr>
                   ) : !dados ? (
-                    <tr><td colSpan={9} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>Carregando…</td></tr>
+                    <tr><td colSpan={10} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>Carregando…</td></tr>
                   ) : (dados.produtos || []).length === 0 ? (
-                    <tr><td colSpan={9} style={{ padding: '40px', textAlign: 'center', color: '#059669' }}>Nenhum produto com estoque negativo. 🎉</td></tr>
+                    <tr><td colSpan={10} style={{ padding: '40px', textAlign: 'center', color: '#059669' }}>Nenhum produto com estoque negativo. 🎉</td></tr>
                   ) : (
                     dados.produtos!.flatMap((p) => {
                       const locais = p.porLocal || [];
@@ -383,6 +490,9 @@ export default function EstoqueNegativoPage() {
                         const ultimoDoProduto = i === eps.length - 1;
                         return (
                           <tr key={kk} style={{ background: bg, borderBottom: ultimoDoProduto ? '2px solid #e2e8f0' : '1px solid #f8fafc' }}>
+                            <td style={{ ...tdStyle, textAlign: 'center' }}>
+                              <input type="checkbox" checked={!!sel[kk]} disabled={!temComoCorrigir || massaRodando} onChange={(e) => { const v = e.target.checked; setSel((s) => ({ ...s, [kk]: v })); }} />
+                            </td>
                             <td style={tdStyle}>
                               {i === 0 ? (
                                 <>
@@ -428,9 +538,9 @@ export default function EstoqueNegativoPage() {
                             <td style={{ ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' }}>
                               {i === 0 && <button onClick={() => setModalProd(p)} style={{ padding: '3px 8px', fontSize: '.72rem', background: '#f1f5f9', border: 'none', borderRadius: 4, cursor: 'pointer', marginRight: 4 }}>Detalhes</button>}
                               {i === 0 && multi && (
-                                <button onClick={() => corrigirTodos(p, eps)} disabled={aplicandoKey != null || p.jaCorrigido} title="Aplica todos os episodios pendentes, do mais antigo para o mais recente" style={{ padding: '3px 8px', fontSize: '.72rem', border: 'none', borderRadius: 4, cursor: aplicandoKey != null || p.jaCorrigido ? 'not-allowed' : 'pointer', background: aplicandoKey != null || p.jaCorrigido ? '#e2e8f0' : '#0f766e', color: aplicandoKey != null || p.jaCorrigido ? '#94a3b8' : '#fff', marginRight: 4 }}>Corrigir todos</button>
+                                <button onClick={() => corrigirTodos(p, eps)} disabled={aplicandoKey != null || massaRodando || p.jaCorrigido} title="Aplica todos os episodios pendentes, do mais antigo para o mais recente" style={{ padding: '3px 8px', fontSize: '.72rem', border: 'none', borderRadius: 4, cursor: aplicandoKey != null || massaRodando || p.jaCorrigido ? 'not-allowed' : 'pointer', background: aplicandoKey != null || massaRodando || p.jaCorrigido ? '#e2e8f0' : '#0f766e', color: aplicandoKey != null || massaRodando || p.jaCorrigido ? '#94a3b8' : '#fff', marginRight: 4 }}>Corrigir todos</button>
                               )}
-                              <button onClick={() => corrigirEpisodio(p, i, ep)} disabled={!temComoCorrigir || aplicandoKey === kk} style={{ padding: '3px 8px', fontSize: '.72rem', border: 'none', borderRadius: 4, cursor: temComoCorrigir ? 'pointer' : 'not-allowed', background: temComoCorrigir ? '#059669' : '#e2e8f0', color: temComoCorrigir ? '#fff' : '#94a3b8' }}>
+                              <button onClick={() => corrigirEpisodio(p, i, ep)} disabled={!temComoCorrigir || aplicandoKey === kk || massaRodando} style={{ padding: '3px 8px', fontSize: '.72rem', border: 'none', borderRadius: 4, cursor: temComoCorrigir && !massaRodando ? 'pointer' : 'not-allowed', background: temComoCorrigir && !massaRodando ? '#059669' : '#e2e8f0', color: temComoCorrigir && !massaRodando ? '#fff' : '#94a3b8' }}>
                                 {res?.tipo === 'ok' || jaCorr ? 'Corrigido' : aplicandoKey === kk ? 'aplicando...' : 'Corrigir'}
                               </button>
                               {res && <div style={{ fontSize: '.68rem', marginTop: 2, color: res.tipo === 'ok' ? '#047857' : '#dc2626' }}>{res.texto}</div>}
