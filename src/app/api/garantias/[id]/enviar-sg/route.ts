@@ -16,6 +16,7 @@ import type {
   TipoGarantiaSG,
 } from '@/lib/garantias/sg-mahindra';
 import { registrarEvento } from '@/lib/garantias/server';
+import { formatarTextosSG } from '@/lib/garantias/sg-textos';
 import type { GarantiaDetalhe } from '@/lib/garantias/types';
 
 const transporter = nodemailer.createTransport({
@@ -345,6 +346,48 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const ufMatch = enderecoFull.match(/\(([A-Z]{2})\)|\b([A-Z]{2})\b\s*$/);
   const ufDetectado = ufMatch ? (ufMatch[1] || ufMatch[2] || 'SP') : 'SP';
   const cep = await buscarCepViaCEP(ufDetectado, cidade, enderecoPart1);
+
+  // 4b. AUTO-FORMATAÇÃO: se vai GERAR uma SG nova e os textos ainda não foram
+  // formatados (nem pelo botão, nem numa geração anterior), o Tratorilson roda
+  // sozinho aqui. Best-effort: IA indisponível → segue com o relato cru (a
+  // geração da SG nunca trava por causa disso).
+  const vaiGerarNova = apenasGerar || !anexoExistente;
+  if (vaiGerarNova && !textosSG.reclamacao && !textosSG.diagnostico && !textosSG.acao_tomada) {
+    try {
+      const textos = await formatarTextosSG({
+        reclamacaoBruta: osRes.data?.Serv_Solicitado || null,
+        diagnosticoBruto: tecRes.data?.Motivo || null,
+        acaoBruta: tecRes.data?.ServicoRealizado || null,
+        pecas: pecasUtilizadas.map((p) => String(p.descricao || '').trim()).filter(Boolean),
+        servicosTerceiros: requisicoesParaSG.map((r) => String(r.titulo || '').trim()).filter(Boolean),
+        modelo: garantia.modelo,
+      });
+      textosSG.reclamacao = textos.reclamacao;
+      textosSG.diagnostico = textos.diagnostico;
+      textosSG.acao_tomada = textos.acao_tomada;
+      textosSG.observacoes = textos.observacoes;
+      // salva pro garantista poder revisar depois (e pras próximas gerações)
+      await supabase
+        .from(TBL_GARANTIAS)
+        .update({
+          checklist_respostas: {
+            ...respostasSG,
+            sg_reclamacao: textos.reclamacao,
+            sg_diagnostico: textos.diagnostico,
+            sg_acao_tomada: textos.acao_tomada,
+            sg_observacoes: textos.observacoes || '',
+          },
+        })
+        .eq('id', id);
+      await registrarEvento(id, {
+        tipo: 'sg_textos_formatados',
+        ator,
+        detalhe: 'Textos formatados automaticamente pelo Tratorilson ao gerar a SG (revisáveis no drawer).',
+      });
+    } catch (e) {
+      console.warn('[SG] Tratorilson indisponível — gerando com o relato cru:', e instanceof Error ? e.message : e);
+    }
+  }
 
   // 5. Decide entre USAR o anexo existente (versão revisada pelo garantista)
   // ou GERAR um novo. Regra:

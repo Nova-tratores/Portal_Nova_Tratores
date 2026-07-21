@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   X, Loader2, ExternalLink, Package, ShieldCheck, Factory, Send,
   AlertTriangle, CheckCircle2, XCircle, Save, History, FileWarning, MapPin, RefreshCw, ImagePlus,
-  Mail, ChevronDown, ChevronUp, FileText, Download, Sparkles,
+  Mail, ChevronDown, ChevronUp, FileText, Download,
 } from 'lucide-react';
 import type { GarantiaDetalhe, Montadora, ChecklistField } from '@/lib/garantias/types';
 import { STATUS_LABEL, STATUS_COR } from '@/lib/garantias/constants';
@@ -936,70 +936,6 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                           <span style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>
                             Define qual quadradinho será marcado na SG. Alterar aqui regera o arquivo na próxima geração.
                           </span>
-                        </div>
-
-                        {/* Textos da SG — o Tratorilson formata o relato cru do técnico; o garantista revisa */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, border: '1px solid var(--portal-border)', borderRadius: 10, padding: 12, background: 'var(--portal-bg-card)' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--portal-text-muted)', textTransform: 'uppercase', letterSpacing: 0.4 }}>
-                              Textos da SG
-                            </label>
-                            <div style={{ flex: 1 }} />
-                            <button
-                              onClick={() =>
-                                chamar('formatar_textos', `/api/garantias/${garantiaId}/formatar-textos`, {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ ator: userName }),
-                                })
-                              }
-                              disabled={!!busy}
-                              style={btn('linear-gradient(135deg,#0d9488,#0f766e)', !!busy)}
-                            >
-                              {busy === 'formatar_textos' ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />}
-                              Formatar com o Tratorilson
-                            </button>
-                          </div>
-                          <span style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>
-                            O Tratorilson lê o relato cru do técnico na OS e devolve os 4 campos formatados —
-                            revise/ajuste abaixo e salve. Sem textos aqui, a SG usa o relato cru da OS.
-                            Observações só é preenchida quando há algo relevante (ex.: itens em serviços de terceiros).
-                          </span>
-                          {([
-                            ['sg_reclamacao', 'Reclamação do cliente', 3],
-                            ['sg_diagnostico', 'Diagnóstico', 4],
-                            ['sg_acao_tomada', 'Ação tomada', 4],
-                            ['sg_observacoes', 'Observações (só se necessário)', 2],
-                          ] as [string, string, number][]).map(([chave, rotulo, linhas]) => (
-                            <label key={chave} style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, fontWeight: 600, color: 'var(--portal-text-muted)', textTransform: 'uppercase', letterSpacing: 0.4 }}>
-                              {rotulo}
-                              <textarea
-                                value={(respostas[chave] as string) || ''}
-                                onChange={(e) => setRespostas({ ...respostas, [chave]: e.target.value })}
-                                rows={linhas}
-                                placeholder="(vazio — a SG usa o texto cru da OS)"
-                                style={{
-                                  padding: '8px 10px', borderRadius: 8, border: '1px solid var(--portal-border)',
-                                  background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 12.5,
-                                  fontFamily: 'inherit', resize: 'vertical', textTransform: 'none', fontWeight: 400,
-                                }}
-                              />
-                            </label>
-                          ))}
-                          <button
-                            onClick={() =>
-                              chamar('salvar_textos', `/api/garantias/${garantiaId}/checklist`, {
-                                method: 'PATCH',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ checklist_respostas: respostas, garantista_nome: userName }),
-                              })
-                            }
-                            disabled={!!busy}
-                            style={btn('#475569', !!busy)}
-                          >
-                            {busy === 'salvar_textos' ? <Loader2 size={14} className="spin" /> : <Save size={14} />}
-                            Salvar textos
-                          </button>
                         </div>
 
                         <GarantiaAnexos
