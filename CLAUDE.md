@@ -52,7 +52,7 @@ Objetivo: Tratorilson **atende clientes no WhatsApp** (revisão / manutenção /
   - ⚠️ A chave **OpenAI está no `.env.local` local mas FALTA no Railway** (em produção usa Groq por enquanto). Pôr `AI_PROVIDER=openai` + `OPENAI_API_KEY` no Railway para usar a OpenAI em produção.
 - **Outras (já no Railway):** Omie (`OMIE_APP_KEY/SECRET...`), Gmail (`GMAIL_USER`, `GMAIL_APP_PASSWORD`), `ORS_API_KEY`, Rotaexata, etc.
 - **WhatsApp (a adicionar ao publicar):** `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_VERIFY_TOKEN` (inventar um), e opcional `WHATSAPP_APP_SECRET`.
-- **Auditoria ajustes:** `CMC_HMAC_SECRET` (inventar um segredo forte) — assina (HMAC-SHA256) cada correção de estoque negativo gravada em `cmc_correcoes`, para tamper-evidence. Se faltar, a correção ainda funciona mas fica **sem assinatura**. Pôr no `.env.local` e no Railway. **Migration a aplicar no Supabase:** `sql/cmc-correcoes-assinatura.sql` (colunas `assinatura` + `assinatura_payload`).
+- **Auditoria ajustes:** `CMC_HMAC_SECRET` (inventar um segredo forte) — assina (HMAC-SHA256) cada correção de estoque negativo gravada em `cmc_correcoes`, para tamper-evidence. Se faltar, a correção ainda funciona mas fica **sem assinatura**. Pôr no `.env.local` e no Railway. Migration `sql/cmc-correcoes-assinatura.sql` (colunas `assinatura` + `assinatura_payload`) **JÁ APLICADA** no Supabase (03/07/2026).
 
 ## Próximos passos
 1. Construir o **webhook do WhatsApp** (`/api/whatsapp/webhook`: GET verifica, POST recebe) + função de **enviar** + ligação ao assistente (modo cliente — ver `docs/tratorilson-whatsapp.md`).
