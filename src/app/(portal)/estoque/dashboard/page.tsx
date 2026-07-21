@@ -35,6 +35,7 @@ interface Categoria {
 }
 interface DashboardResp {
   periodo: string;
+  modo?: 'mes' | 'ano';
   mes: number;
   ano: number;
   categorias: Categoria[];
@@ -57,6 +58,10 @@ interface ServicoOSRow {
   descricao?: string; tipo?: TipoServico; categoria?: string; categoria_desc?: string;
   qtde?: number; valor_unit?: number; valor_total?: number; conta?: string; tem_nota?: boolean | null;
 }
+
+// Teto de linhas renderizadas nas tabelas de drill-down (o "Ano inteiro" traz
+// milhares). Os totais/somas exibidos sempre consideram TODAS as linhas.
+const LIMITE_LINHAS = 800;
 
 const thStyle: React.CSSProperties = { background: '#fafafa', color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', padding: '9px 10px', textAlign: 'left', borderBottom: '1px solid #eee', fontWeight: 600 };
 const tdStyle: React.CSSProperties = { padding: '8px 10px', borderBottom: '1px solid #f5f5f5', color: '#444', fontSize: '.82rem' };
@@ -85,8 +90,11 @@ export default function DashboardPage() {
   useEffect(() => { setConta(''); }, [setConta]);
 
   const now = new Date();
+  // mes = 0 → "Ano inteiro" (jan–dez do ano selecionado).
   const [mes, setMes] = useState(now.getMonth() + 1);
   const [ano, setAno] = useState(now.getFullYear());
+  const ehAno = mes === 0;
+  const periodoParam = ehAno ? 'mes=0&modo=ano' : 'mes=' + mes;
   const [categoria, setCategoria] = useState('');
   const [metrica, setMetrica] = useState<Metrica>('venda');
 
@@ -125,7 +133,7 @@ export default function DashboardPage() {
     setServItens(null);
     try {
       const catParam = categoria ? `&categoria=${encodeURIComponent(categoria)}` : '';
-      const r = await fetch(`/api/estoque/dashboard?mes=${mes}&ano=${ano}${catParam}${contaParam}`);
+      const r = await fetch(`/api/estoque/dashboard?${periodoParam}&ano=${ano}${catParam}${contaParam}`);
       const d = (await r.json()) as DashboardResp;
       if (d.erro) { setErro(d.erro); return; }
       setDados(d);
@@ -134,7 +142,7 @@ export default function DashboardPage() {
     } finally {
       setCarregando(false);
     }
-  }, [mes, ano, categoria, contaParam]);
+  }, [periodoParam, ano, categoria, contaParam]);
 
   // Carrega opções de categoria ao montar / trocar conta
   useEffect(() => {
@@ -160,10 +168,10 @@ export default function DashboardPage() {
     setVendas(null);
     setVendasCard({ idx: cardIdx, nome });
     const catParam = categoria ? `&categoria=${encodeURIComponent(categoria)}` : '';
-    const r = await fetch(`/api/estoque/dashboard/vendas?mes=${mes}&ano=${ano}&card=${cardIdx}${catParam}${contaParam}`);
+    const r = await fetch(`/api/estoque/dashboard/vendas?${periodoParam}&ano=${ano}&card=${cardIdx}${catParam}${contaParam}`);
     const d = await r.json();
     if (!d.erro) setVendas(d.vendas || []);
-  }, [mes, ano, categoria, contaParam]);
+  }, [periodoParam, ano, categoria, contaParam]);
 
   const abrirOSServicos = useCallback(async () => {
     setOsServicos(null);
@@ -172,7 +180,7 @@ export default function DashboardPage() {
     setOsPendente(false);
     setOsErro('');
     setOsAberto(true);
-    const r = await fetch(`/api/estoque/dashboard/os?mes=${mes}&ano=${ano}${contaParam}`);
+    const r = await fetch(`/api/estoque/dashboard/os?${periodoParam}&ano=${ano}${contaParam}`);
     const d = await r.json();
     if (d.erro) {
       setOsErro(d.erro);
@@ -181,14 +189,14 @@ export default function DashboardPage() {
       setServItens(d.servicos || []);
       setOsPendente(!!d.pendente);
     }
-  }, [mes, ano, contaParam]);
+  }, [periodoParam, ano, contaParam]);
 
   const abrirPedido = useCallback(async (numero: string) => {
     setPedidoItens({ numero, itens: [] });
-    const r = await fetch(`/api/estoque/dashboard/pedido-itens?numero_pedido=${encodeURIComponent(numero)}&mes=${mes}&ano=${ano}${contaParam}`);
+    const r = await fetch(`/api/estoque/dashboard/pedido-itens?numero_pedido=${encodeURIComponent(numero)}&${periodoParam}&ano=${ano}${contaParam}`);
     const d = await r.json();
     setPedidoItens({ numero, itens: d.itens || [] });
-  }, [mes, ano, contaParam]);
+  }, [periodoParam, ano, contaParam]);
 
   const exportarCSV = useCallback(() => {
     if (!vendas) return;
@@ -202,10 +210,10 @@ export default function DashboardPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `vendas_${mes}_${ano}.csv`;
+    a.download = ehAno ? `vendas_ano_${ano}.csv` : `vendas_${mes}_${ano}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [vendas, mes, ano]);
+  }, [vendas, mes, ano, ehAno]);
 
   if (!permLoading && userProfile && !pode('estoque', 'dashboard')) return <SemPermissao />;
 
@@ -231,7 +239,8 @@ export default function DashboardPage() {
 
       {/* Filtros */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 18, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-        <Sel label="Mês" value={mes} onChange={(v) => setMes(parseInt(v))} options={MESES.map((m, i) => ({ value: i + 1, label: m }))} />
+        <Sel label="Período" value={mes} onChange={(v) => setMes(parseInt(v))}
+          options={[{ value: 0, label: 'Ano inteiro' }, ...MESES.map((m, i) => ({ value: i + 1, label: m }))]} />
         <Sel label="Ano" value={ano} onChange={(v) => setAno(parseInt(v))} options={anos.map((y) => ({ value: y, label: String(y) }))} />
         <Sel label="Categoria" value={categoria} onChange={setCategoria} options={[{ value: '', label: 'Todas' }, ...categoriasOpts.map((c) => ({ value: c.codigo, label: c.descricao }))]} />
         <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
@@ -251,7 +260,7 @@ export default function DashboardPage() {
         <>
           {dados.ehMesCorrente && dados.proporcao != null && (
             <div style={{ fontSize: '.75rem', color: '#999', marginBottom: 10 }}>
-              Mês corrente — {dados.diasUteisTranscorridos}/{dados.diasUteisTotal} dias úteis ({Math.round((dados.proporcao || 0) * 100)}%). Comparativos ajustados proporcionalmente; projeção exibida.
+              {dados.modo === 'ano' ? 'Ano corrente' : 'Mês corrente'} — {dados.diasUteisTranscorridos}/{dados.diasUteisTotal} dias úteis ({Math.round((dados.proporcao || 0) * 100)}%). Comparativos ajustados proporcionalmente; projeção exibida.
             </div>
           )}
           {(() => {
@@ -285,7 +294,8 @@ export default function DashboardPage() {
                     </>
                   )}
                   <div style={{ display: 'flex', gap: 10, marginTop: 8, fontSize: '.7rem' }}>
-                    <span style={{ color: varM >= 0 ? '#16a34a' : '#dc2626' }}>Mês ant: {fmtPct(varM)}</span>
+                    {/* No modo "ano inteiro" não existe mês anterior — só o comparativo com o ano passado. */}
+                    {dados.modo !== 'ano' && <span style={{ color: varM >= 0 ? '#16a34a' : '#dc2626' }}>Mês ant: {fmtPct(varM)}</span>}
                     <span style={{ color: varA >= 0 ? '#16a34a' : '#dc2626' }}>Ano ant: {fmtPct(varA)}</span>
                   </div>
                   {proj != null && <div style={{ fontSize: '.7rem', color: '#999', marginTop: 4 }}>Projeção: {fmtRS(proj)}</div>}
@@ -360,10 +370,15 @@ export default function DashboardPage() {
           </div>
           {!vendas ? <div style={{ color: '#888', fontSize: '.85rem' }}>Carregando…</div> : vendas.length === 0 ? <div style={{ color: '#888', fontSize: '.85rem' }}>Sem vendas no período.</div> : (
             <div style={{ overflowX: 'auto' }}>
+              {vendas.length > LIMITE_LINHAS && (
+                <div style={{ color: '#999', fontSize: '.72rem', marginBottom: 6 }}>
+                  Mostrando as {LIMITE_LINHAS} primeiras de {vendas.length.toLocaleString('pt-BR')} linhas — o CSV exporta tudo.
+                </div>
+              )}
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead><tr>{['Pedido', 'Data', 'Descrição', 'Qtd', 'V. Unit', 'V. Total', 'CMC'].map((h) => <th key={h} style={thStyle}>{h}</th>)}</tr></thead>
                 <tbody>
-                  {vendas.slice(0, 500).map((v, i) => (
+                  {vendas.slice(0, LIMITE_LINHAS).map((v, i) => (
                     <tr key={i}>
                       <td style={tdStyle}><button onClick={() => v.numero_pedido && abrirPedido(v.numero_pedido)} style={linkBtn}>{v.numero_pedido}</button></td>
                       <td style={tdStyle}>{v.data_pedido}</td>
@@ -408,7 +423,8 @@ export default function DashboardPage() {
             {osErro && <div style={{ color: '#dc2626', fontSize: '.82rem', marginBottom: 10 }}>{osErro}</div>}
             {osPendente && (
               <div style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', borderRadius: 8, padding: '8px 12px', fontSize: '.78rem', marginBottom: 10 }}>
-                Sincronizando este mês com a Omie em segundo plano — feche e abra o popup novamente em ~1–2 minutos.
+                Sincronizando {ehAno ? 'os meses que faltam' : 'este mês'} com a Omie em segundo plano — feche e abra o popup novamente em ~1–2 minutos.
+                {ehAno && ' (um mês por vez, para não sobrecarregar a Omie)'}
               </div>
             )}
             {osView === 'servicos' ? (
@@ -431,11 +447,19 @@ export default function DashboardPage() {
                       );
                     })}
                   </div>
+                  {(() => {
+                    const n = servItens.filter((s) => !tipoFiltro || s.tipo === tipoFiltro).length;
+                    return n > LIMITE_LINHAS ? (
+                      <div style={{ color: '#999', fontSize: '.72rem', marginBottom: 6 }}>
+                        Mostrando as {LIMITE_LINHAS} primeiras de {n.toLocaleString('pt-BR')} linhas (os totais acima consideram todas).
+                      </div>
+                    ) : null;
+                  })()}
                   <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead><tr>{['OS', 'Data', 'Cliente', 'Serviço', 'Tipo', 'Nota', 'Categoria', ...(contaParam === '' ? ['Conta'] : []), 'Qtd', 'V. Unit', 'V. Total'].map((h) => <th key={h} style={thStyle}>{h}</th>)}</tr></thead>
                       <tbody>
-                        {servItens.filter((s) => !tipoFiltro || s.tipo === tipoFiltro).map((s, i) => (
+                        {servItens.filter((s) => !tipoFiltro || s.tipo === tipoFiltro).slice(0, LIMITE_LINHAS).map((s, i) => (
                           <tr key={i}>
                             <td style={tdStyle}>{s.numero_os}</td>
                             <td style={tdStyle}>{s.data}</td>
@@ -457,10 +481,16 @@ export default function DashboardPage() {
               )
             ) : (
               !osServicos ? (osErro ? null : <div style={{ color: '#888', fontSize: '.85rem' }}>Carregando…</div>) : osServicos.length === 0 ? (osPendente ? null : <div style={{ color: '#888', fontSize: '.85rem' }}>Sem OS faturadas no período.</div>) : (
+                <>
+                {osServicos.length > LIMITE_LINHAS && (
+                  <div style={{ color: '#999', fontSize: '.72rem', marginBottom: 6 }}>
+                    Mostrando as {LIMITE_LINHAS} primeiras de {osServicos.length.toLocaleString('pt-BR')} OS (o total acima considera todas).
+                  </div>
+                )}
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead><tr>{['OS', 'Data', 'Cliente', 'Nota', ...(contaParam === '' ? ['Conta'] : []), 'Valor'].map((h) => <th key={h} style={thStyle}>{h}</th>)}</tr></thead>
                   <tbody>
-                    {osServicos.map((o, i) => (
+                    {osServicos.slice(0, LIMITE_LINHAS).map((o, i) => (
                       <tr key={i}>
                         <td style={tdStyle}>{o.numero_os}</td>
                         <td style={tdStyle}>{o.data}</td>
@@ -472,6 +502,7 @@ export default function DashboardPage() {
                     ))}
                   </tbody>
                 </table>
+                </>
               )
             )}
           </div>

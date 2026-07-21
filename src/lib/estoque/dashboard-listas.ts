@@ -203,17 +203,28 @@ interface VendaRow extends ItemVenda {
   descricao?: string | null;
   codigo_produto?: string | null;
   valor_unitario?: number | string | null;
+  /** Só nas listagens que selecionam a coluna (usado pelo CMC do próprio mês). */
+  mes?: number | null;
 }
 
-async function enriquecerCmc(rows: VendaRow[], mes: number, ano: number, conta: ContaFiltro): Promise<void> {
-  let semCmc = [...new Set(rows.filter((v) => !(num(v.cmc_unitario) > 0)).map((v) => v.codigo_produto).filter(Boolean))] as string[];
+const semCmcCodigos = (rows: VendaRow[]): string[] =>
+  [...new Set(rows.filter((v) => !(num(v.cmc_unitario) > 0)).map((v) => v.codigo_produto).filter(Boolean))] as string[];
+
+/** `mes = null` (ano inteiro): varre os 12 meses do cmc_historico, cada linha com o CMC do SEU mês. */
+async function enriquecerCmc(rows: VendaRow[], mes: number | null, ano: number, conta: ContaFiltro): Promise<void> {
+  let semCmc = semCmcCodigos(rows);
   if (semCmc.length === 0) return;
-  const cmcMesMap = await preCarregarCMCPorMes(semCmc, mes, ano, conta ?? CONTA_DEFAULT);
-  rows.forEach((v) => {
-    if (!(num(v.cmc_unitario) > 0) && cmcMesMap[String(v.codigo_produto)] > 0) v.cmc_unitario = cmcMesMap[String(v.codigo_produto)];
-  });
-  semCmc = [...new Set(rows.filter((v) => !(num(v.cmc_unitario) > 0)).map((v) => v.codigo_produto).filter(Boolean))] as string[];
-  if (semCmc.length === 0) return;
+  const meses = mes != null ? [mes] : Array.from({ length: 12 }, (_, i) => i + 1);
+  for (const m of meses) {
+    const cmcMesMap = await preCarregarCMCPorMes(semCmc, m, ano, conta ?? CONTA_DEFAULT);
+    rows.forEach((v) => {
+      if (num(v.cmc_unitario) > 0) return;
+      if (v.mes != null && v.mes !== m) return;
+      if (cmcMesMap[String(v.codigo_produto)] > 0) v.cmc_unitario = cmcMesMap[String(v.codigo_produto)];
+    });
+    semCmc = semCmcCodigos(rows);
+    if (semCmc.length === 0) return;
+  }
   // produtos.conta_omie é gravado em MINÚSCULAS (≠ vendas_itens etc.), por isso
   // filtramos com conta.toLowerCase() em vez de filtroConta (que zeraria).
   const filtroContaProdutos = <T,>(q: T): T =>
@@ -236,12 +247,16 @@ async function enriquecerCmc(rows: VendaRow[], mes: number, ano: number, conta: 
   });
 }
 
+// Lote das buscas de apoio (descrição/tipo). 200 em vez de 50 corta 4x as
+// idas ao Supabase — decisivo no "Ano inteiro", que traz milhares de linhas.
+const LOTE_LOOKUP = 200;
+
 async function enriquecerDescricao(rows: VendaRow[], conta: ContaFiltro): Promise<void> {
   const codigos = [...new Set(rows.map((v) => v.codigo_produto).filter(Boolean))] as string[];
   if (codigos.length === 0) return;
   const descMap: Record<string, string> = {};
-  for (let i = 0; i < codigos.length; i += 50) {
-    const lote = codigos.slice(i, i + 50);
+  for (let i = 0; i < codigos.length; i += LOTE_LOOKUP) {
+    const lote = codigos.slice(i, i + LOTE_LOOKUP);
     const { data: prods } = await filtroConta(
       supabase.from('Produtos_Completos').select('id_omie,Descricao_Produto').in('id_omie', lote.map((c) => parseInt(c))),
       conta,
@@ -251,9 +266,9 @@ async function enriquecerDescricao(rows: VendaRow[], conta: ContaFiltro): Promis
   rows.forEach((v) => { if (v.codigo_produto && descMap[v.codigo_produto]) v.descricao = descMap[v.codigo_produto]; });
 }
 
-/** Vendas detalhadas do mês, com filtro de card/categoria e enriquecimento. */
+/** Vendas detalhadas do período (`mes = null` → ano inteiro), com filtro de card/categoria e enriquecimento. */
 export async function listarVendas(
-  mes: number,
+  mes: number | null,
   ano: number,
   card: number | null,
   categoria: string | null,
@@ -268,13 +283,18 @@ export async function listarVendas(
     let q = filtroConta(
       supabase
         .from('vendas_itens')
-        .select('numero_pedido,data_pedido,descricao,codigo_produto,quantidade,valor_unitario,valor_total,tipo,familia,codigo_categoria,cmc_unitario')
-        .eq('mes', mes)
+        .select('mes,numero_pedido,data_pedido,descricao,codigo_produto,quantidade,valor_unitario,valor_total,tipo,familia,codigo_categoria,cmc_unitario')
         .eq('ano', ano),
       conta,
     );
+    if (mes != null) q = (q as typeof q).eq('mes', mes);
     if (codigosIgnorar.length > 0) q = (q as typeof q).not('codigo_cliente', 'in', '(' + codigosIgnorar.join(',') + ')');
-    const { data } = await q.order('data_pedido', { ascending: false }).range(offset, offset + 999);
+    // `id` como desempate: sem ele a paginação por data_pedido (muitas linhas na
+    // mesma data) pode repetir/pular registros entre páginas — visível no ano inteiro.
+    const { data } = await q
+      .order('data_pedido', { ascending: false })
+      .order('id', { ascending: true })
+      .range(offset, offset + 999);
     if (!data || data.length === 0) break;
     vendas = vendas.concat(data as VendaRow[]);
     if (data.length < 1000) break;
@@ -287,8 +307,8 @@ export async function listarVendas(
   const codsEnriquecer = [...new Set(vendas.filter((v) => !v.familia).map((v) => v.codigo_produto).filter(Boolean))] as string[];
   if (codsEnriquecer.length > 0) {
     const tipoMap: Record<string, { tipo?: string; familia?: string }> = {};
-    for (let ti = 0; ti < codsEnriquecer.length; ti += 50) {
-      const loteTipo = codsEnriquecer.slice(ti, ti + 50);
+    for (let ti = 0; ti < codsEnriquecer.length; ti += LOTE_LOOKUP) {
+      const loteTipo = codsEnriquecer.slice(ti, ti + LOTE_LOOKUP);
       const resp2 = await filtroConta(supabase.from('produto_tipo').select('codigo_produto,tipo,familia').in('codigo_produto', loteTipo), conta);
       if (resp2.data) (resp2.data as Array<{ codigo_produto: string; tipo?: string; familia?: string }>).forEach((t) => { tipoMap[t.codigo_produto] = t; });
     }
@@ -339,16 +359,17 @@ export async function listarVendas(
 
 // ====================== /api/dashboard/pedido-itens ======================
 
+/** `mes = 0/null` (ano inteiro): não filtra por mês; o CMC sai do próprio mês de cada linha. */
 export async function listarPedidoItens(
   numeroPedido: string,
-  mes: number,
+  mes: number | null,
   ano: number,
   conta: ContaFiltro,
 ): Promise<VendaRow[]> {
   let q = filtroConta(
     supabase
       .from('vendas_itens')
-      .select('numero_pedido,data_pedido,descricao,codigo_produto,quantidade,valor_unitario,valor_total,tipo,familia,codigo_categoria,cmc_unitario')
+      .select('mes,numero_pedido,data_pedido,descricao,codigo_produto,quantidade,valor_unitario,valor_total,tipo,familia,codigo_categoria,cmc_unitario')
       .eq('numero_pedido', numeroPedido),
     conta,
   );
@@ -359,7 +380,7 @@ export async function listarPedidoItens(
   if (itens.length === 0) return itens;
 
   await enriquecerDescricao(itens, conta);
-  if (mes && ano) await enriquecerCmc(itens, mes, ano, conta);
+  if (ano) await enriquecerCmc(itens, mes || null, ano, conta);
   return itens;
 }
 
