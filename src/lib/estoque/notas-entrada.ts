@@ -265,17 +265,34 @@ function cnpjFromChaveNFe(chave: unknown): string | null {
   return d.substring(6, 20);
 }
 
-/** ConsultarCliente rápido (timeout via AbortController), sem o wrapper que dorme até 10 min. */
-async function consultarClienteRapido(params: Record<string, unknown>, conta: Conta, timeoutMs = 10000): Promise<Record<string, unknown> | null> {
+/**
+ * Busca um cliente/fornecedor pelo CNPJ (timeout via AbortController, sem o wrapper
+ * que dorme ate 10 min).
+ *
+ * GOTCHA: o `ConsultarCliente` do Omie NAO aceita `cnpj_cpf` — so aceita
+ * `codigo_cliente_omie` / `codigo_cliente_integracao`. Passar CNPJ devolve
+ * "ERROR: Tag [CNPJ_CPF] nao faz parte da estrutura do tipo complexo
+ * [clientes_cadastro_chave]". Por CNPJ o caminho correto e' `ListarClientes` com
+ * `clientesFiltro`. (Testado em runtime 21/07/2026 — antes disso esta funcao
+ * falhava SEMPRE e o enriquecimento do nome do emitente nunca acontecia.)
+ */
+async function buscarClientePorCnpj(cnpjFmt: string, conta: Conta, timeoutMs = 10000): Promise<Record<string, unknown> | null> {
   const { appKey, appSecret } = getCredentials(conta);
-  const body = { app_key: appKey, app_secret: appSecret, call: 'ConsultarCliente', param: [params] };
+  const body = {
+    app_key: appKey,
+    app_secret: appSecret,
+    call: 'ListarClientes',
+    param: [{ pagina: 1, registros_por_pagina: 1, apenas_importado_api: 'N', clientesFiltro: { cnpj_cpf: cnpjFmt } }],
+  };
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), timeoutMs);
   try {
     const res = await fetch('https://app.omie.com.br/api/v1/geral/clientes/', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: ctl.signal,
     });
-    return (await res.json()) as Record<string, unknown>;
+    const json = (await res.json()) as { faultstring?: string; clientes_cadastro?: Array<Record<string, unknown>> };
+    if (json.faultstring) return null;
+    return json.clientes_cadastro?.[0] ?? null;
   } catch {
     return null;
   } finally {
@@ -349,9 +366,9 @@ export async function enriquecerNotasMes(mes: number, ano: number, conta: ContaF
     for (const cnpj of cnpjFaltantes) {
       if (backfillEnrStatus[k] !== s) return s;
       try {
-        const r = await consultarClienteRapido({ cnpj_cpf: fmtCnpjBR(cnpj) }, contaConcreta, 10000);
+        const r = await buscarClientePorCnpj(fmtCnpjBR(cnpj), contaConcreta, 10000);
         s.consultarClientes_calls = (s.consultarClientes_calls || 0) + 1;
-        if (r && !r.faultstring) {
+        if (r) {
           const nome = (r.razao_social || r.nome_fantasia) as string | undefined;
           if (nome) cnpjNomeMap[cnpj] = nome;
         }
