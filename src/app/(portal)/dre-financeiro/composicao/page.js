@@ -80,10 +80,23 @@ function corDoNodeBorda(tp, grupo) {
 // Carregamento das libs de grafico (Chart.js + plugin treemap) via CDN, uma
 // unica vez. Mesmas versoes da fonte (composicao.ejs).
 // ---------------------------------------------------------------------------
+// ATENCAO: nao basta testar `window.Chart` para decidir se ja esta tudo carregado.
+// Varias telas do modulo (aderencia, margens, curva-saldo, ...) carregam SO o
+// chart.umd, sem o plugin treemap. Ao navegar (client-side) de uma delas para ca,
+// window.Chart ja existe mas o controller 'treemap' NAO esta registado, e o
+// new Chart({type:'treemap'}) rebenta dentro do useEffect -> a error boundary do
+// Next mostra "Application error: a client-side exception has occurred".
+// Por isso o teste e' pelo REGISTO do controller, e o chart.umd so e' (re)carregado
+// se ainda nao existir.
+function treemapPronto() {
+  if (typeof window === 'undefined' || !window.Chart) return false
+  try { return !!window.Chart.registry.getController('treemap') } catch { return false }
+}
+
 let chartLibPromise = null
 function carregarChartLibs() {
   if (typeof window === 'undefined') return Promise.resolve()
-  if (window.Chart) return Promise.resolve()
+  if (treemapPronto()) return Promise.resolve()
   if (chartLibPromise) return chartLibPromise
   function addScript(src) {
     return new Promise((resolve, reject) => {
@@ -97,7 +110,10 @@ function carregarChartLibs() {
       document.head.appendChild(s)
     })
   }
-  chartLibPromise = addScript('https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js')
+  const base = window.Chart
+    ? Promise.resolve()
+    : addScript('https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js')
+  chartLibPromise = base
     .then(() => addScript('https://cdn.jsdelivr.net/npm/chartjs-chart-treemap@3.1.0/dist/chartjs-chart-treemap.min.js'))
   return chartLibPromise
 }
@@ -163,6 +179,17 @@ export default function ComposicaoPage() {
   // =========================================================================
   useEffect(() => {
     if (!chartReady || !dados || !window.Chart) return
+    // Rede de seguranca: um erro do Chart.js aqui dentro sobe para a error boundary
+    // do Next e derruba a TELA INTEIRA ("Application error"). Melhor perder so o
+    // grafico e manter KPIs/legenda/modal a funcionar.
+    try {
+      montarTreemap()
+    } catch (e) {
+      console.error('[composicao] falha ao montar o treemap:', e)
+      if (treemapInst.current) { try { treemapInst.current.destroy() } catch { } treemapInst.current = null }
+    }
+
+    function montarTreemap() {
     const folhas = dados.folhas || []
     // Sem folhas: destroi o chart (o JSX abaixo mostra o aviso "Nenhum dado...").
     if (folhas.length === 0) {
@@ -244,6 +271,7 @@ export default function ComposicaoPage() {
         }
       }
     })
+    }
   }, [chartReady, dados])
 
   // Limpa o chart ao desmontar.
