@@ -16,7 +16,24 @@
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME !== 'nodejs') return;
 
-  const g = globalThis as unknown as { __estoqueSchedulersStarted?: boolean };
+  const g = globalThis as unknown as { __estoqueSchedulersStarted?: boolean; __safetyNetInstalled?: boolean };
+
+  // Rede de segurança do processo: no Node moderno, uma Promise rejeitada sem
+  // catch (ou exceção síncrona solta) DERRUBA o processo inteiro — e os syncs
+  // de background em fire-and-forget tornam isso fácil de acontecer. Cada
+  // queda = portal fora do ar ~1 min + crons levando 502 (fim de semana de
+  // 18-19/07/2026: ~13 quedas, 20 crons falhados). Logar e seguir vivo é um
+  // trade-off consciente: melhor que matar todas as requests em andamento.
+  if (!g.__safetyNetInstalled) {
+    g.__safetyNetInstalled = true;
+    process.on('unhandledRejection', (reason) => {
+      console.error('[safety-net] unhandledRejection (processo segue vivo):', reason);
+    });
+    process.on('uncaughtException', (err) => {
+      console.error('[safety-net] uncaughtException (processo segue vivo):', err);
+    });
+  }
+
   if (g.__estoqueSchedulersStarted) return;
   g.__estoqueSchedulersStarted = true;
 
