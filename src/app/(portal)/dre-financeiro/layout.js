@@ -9,7 +9,9 @@ import { usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
+import AjudaTela from '@/components/dre-financeiro/AjudaTela'
 import { useDreConta } from '@/lib/dre-financeiro/format'
+import { AJUDA } from '@/lib/dre-financeiro/ajuda'
 
 // Cor verde do grupo "financeiro" do portal (usada no titulo + seletor de conta).
 const VERDE = '#10B981'
@@ -123,6 +125,8 @@ export default function DreFinanceiroLayout({ children }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: VERDE, display: 'inline-block' }} />
             <span style={{ fontWeight: 700, fontSize: '16px', color: '#1e293b' }}>DRE Financeiro</span>
+            {/* "?" com a explicacao da ABA ATUAL (texto em lib/dre-financeiro/ajuda.js) */}
+            <AjudaTela pathname={pathname} />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span style={{ fontSize: '11px', color: '#64748b' }}>Conta</span>
@@ -180,6 +184,7 @@ export default function DreFinanceiroLayout({ children }) {
                   <Link
                     key={item.href}
                     href={item.href}
+                    title={AJUDA[item.href]?.resumo}
                     style={{
                       padding: '5px 11px', borderRadius: '8px', fontSize: '13px',
                       fontWeight: ativo ? 700 : 500, textDecoration: 'none', transition: '0.15s',
