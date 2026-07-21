@@ -8,12 +8,15 @@ export const maxDuration = 60;
 // Drill-down "vendas" do card Serviços: OS + itens de serviço, lidos DIRETO do
 // Supabase (os_servicos_itens, preenchida pelo refresh BG do os_mensal). Mês
 // ainda não sincronizado volta pendente=true e o refresh é agendado.
+// `modo=ano` (ou mes=0) lista o ano inteiro.
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const conta = parseConta(sp.get('conta'));
-  const mes = parseInt(sp.get('mes') || '');
+  const mesParam = parseInt(sp.get('mes') || '');
   const ano = parseInt(sp.get('ano') || '');
-  if (!mes || !ano) return NextResponse.json({ erro: 'Informe mes e ano' });
+  const ehAno = sp.get('modo') === 'ano' || mesParam === 0;
+  const mes = ehAno ? null : mesParam;
+  if (!ano || (!ehAno && !mes)) return NextResponse.json({ erro: 'Informe mes e ano' });
   try {
     const r = await obterServicosPopup(mes, ano, conta);
     return NextResponse.json({ os: r.os, servicos: r.servicos, pendente: r.pendente, total: r.os.length });

@@ -66,6 +66,30 @@ export function diasUteisAteHoje(ano: number, mes: number): number {
   return count;
 }
 
+/** True se `ano` é o ano corrente. */
+export function ehAnoAtual(ano: number): boolean {
+  return ano === new Date().getFullYear();
+}
+
+/** Dias úteis (seg-sex) em um ano inteiro. Não considera feriados. */
+export function diasUteisDoAno(ano: number): number {
+  let count = 0;
+  for (let m = 1; m <= 12; m++) count += diasUteisDoMes(ano, m);
+  return count;
+}
+
+/**
+ * Dias úteis transcorridos de 1/jan até hoje (inclusive). Se o ano não for o
+ * atual, retorna o total de dias úteis do ano.
+ */
+export function diasUteisAteHojeNoAno(ano: number): number {
+  if (!ehAnoAtual(ano)) return diasUteisDoAno(ano);
+  const mesAtual = new Date().getMonth() + 1;
+  let count = 0;
+  for (let m = 1; m <= mesAtual; m++) count += diasUteisAteHoje(ano, m);
+  return count;
+}
+
 /** Máscara CNPJ BR (00.000.000/0000-00) — usada para casar com Clientes_Omie. */
 export function fmtCnpjBR(cnpj: string | null | undefined): string {
   const d = (cnpj || '').replace(/\D/g, '');

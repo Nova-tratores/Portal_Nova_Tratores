@@ -22,7 +22,7 @@ import {
   temItensCacheados,
   type Pedido,
 } from './vendas-sync';
-import { obterTotalOS, buscarTodasOS, buscarOSPeriodo } from './os';
+import { obterTotalOS, buscarTodasOS, buscarTodasOSDetalhado, buscarOSPeriodo } from './os';
 import { carregarCategorias, getCategoriasConfig, tipoMatchCategoria, type CategoriaConfig } from './categorias';
 import { gerarMesesEsperados, getContasOmie, type Conta } from './conta';
 
@@ -275,9 +275,12 @@ export async function popularOS(contasAlvo: Conta[]): Promise<Array<{ conta: Con
   return Promise.all(
     contasAlvo.map(async (conta) => {
       const mesesParaCarregar = gerarMesesEsperados(conta);
+      // Baixa a listagem ANTES de apagar: com a Omie truncando, o delete deixaria
+      // o os_mensal vazio e os meses seriam repopulados com zeros.
+      const { lista: todas, completo } = await buscarTodasOSDetalhado(conta);
+      if (!completo) throw new Error('popularOS [' + conta + ']: ListarOS veio truncado — nada foi apagado, tente de novo');
       await supabase.from('os_mensal').delete().eq('conta_omie', conta);
       await supabase.from('cache_controle').delete().eq('tipo', 'os').eq('conta_omie', conta);
-      const todas = await buscarTodasOS(conta);
       for (const p of mesesParaCarregar) {
         const de = fmtD(new Date(p.ano, p.mes - 1, 1));
         const ate = fmtD(new Date(p.ano, p.mes, 0));

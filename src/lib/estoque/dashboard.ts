@@ -2,11 +2,17 @@
 // cards com comparativos (mês anterior, ano anterior) e projeção do mês corrente.
 // Portado de obterDadosPeriodo + handler /api/dashboard (server.js:1373/1395).
 
-import { obterItensProdutos } from './vendas-sync';
-import { obterTotaisOS, obterTiposComNotaMes } from './os';
-import { agregarCards, getCategoriasConfig } from './categorias';
-import { ehMesAtual, diasUteisDoMes, diasUteisAteHoje, sleep, MESES_CURTO } from './utils';
+import { obterItensProdutos, buscarItensDoBanco } from './vendas-sync';
+import { obterTotaisOS, obterTotaisOSAno, obterTiposComNotaMes, type TotaisOS } from './os';
+import { agregarCards, getCategoriasConfig, type ItemVenda } from './categorias';
+import {
+  ehMesAtual, ehAnoAtual, diasUteisDoMes, diasUteisAteHoje, diasUteisDoAno,
+  diasUteisAteHojeNoAno, sleep, MESES_CURTO,
+} from './utils';
 import type { ContaFiltro } from './conta';
+
+/** Período do dashboard: um mês ou o ano inteiro (jan–dez). */
+export type ModoPeriodo = 'mes' | 'ano';
 
 interface DadosPeriodo {
   card1: number;
@@ -23,16 +29,12 @@ interface DadosPeriodo {
   totalGeral: number;
 }
 
-/** Monta dados de um período (produtos + OS). filtroCategoria afeta só os cards de produto. */
-export async function obterDadosPeriodo(
-  mes: number,
-  ano: number,
+/** Agrega itens de produto + totais de OS nos cards do dashboard. */
+async function montarDados(
+  itens: ItemVenda[],
+  os: TotaisOS,
   filtroCategoria: string | null,
-  conta: ContaFiltro,
 ): Promise<DadosPeriodo> {
-  const itens = await obterItensProdutos(mes, ano, conta);
-  await sleep(500);
-  const os = await obterTotaisOS(mes, ano, conta);
   const totalOS = os.total;
 
   const cats = await getCategoriasConfig();
@@ -59,6 +61,40 @@ export async function obterDadosPeriodo(
   };
 }
 
+/** Monta dados de um mês (produtos + OS). filtroCategoria afeta só os cards de produto. */
+export async function obterDadosPeriodo(
+  mes: number,
+  ano: number,
+  filtroCategoria: string | null,
+  conta: ContaFiltro,
+): Promise<DadosPeriodo> {
+  const itens = await obterItensProdutos(mes, ano, conta);
+  await sleep(500);
+  const os = await obterTotaisOS(mes, ano, conta);
+  return montarDados(itens, os, filtroCategoria);
+}
+
+/**
+ * Monta dados de um ANO inteiro (jan–dez) somando os 12 meses.
+ * Lê SÓ o que já está no banco: meses passados sem cache não disparam sync
+ * (12 syncs Omie concorrentes) — aparecem quando o mês for aberto na visão
+ * mensal ou pelo cron noturno. O mês corrente segue o caminho normal
+ * (cache + refresh em background).
+ */
+export async function obterDadosAno(
+  ano: number,
+  filtroCategoria: string | null,
+  conta: ContaFiltro,
+): Promise<DadosPeriodo> {
+  const meses = Array.from({ length: 12 }, (_, i) => i + 1);
+  const listas = await Promise.all(
+    meses.map((m) => (ehMesAtual(m, ano) ? obterItensProdutos(m, ano, conta) : buscarItensDoBanco(m, ano, conta))),
+  );
+  const itens = listas.flatMap((l) => l || []);
+  const os = await obterTotaisOSAno(ano, conta);
+  return montarDados(itens, os, filtroCategoria);
+}
+
 export interface DashboardCategoria {
   nome: string;
   valorAtual: number;
@@ -83,39 +119,60 @@ export interface DashboardCategoria {
 
 export interface DashboardResponse {
   periodo: string;
+  modo: ModoPeriodo;
+  /** 0 no modo 'ano'. */
   mes: number;
   ano: number;
   categorias: DashboardCategoria[];
+  /** No modo 'ano': o ano selecionado é o corrente (dados parciais). */
   ehMesCorrente: boolean;
   proporcao: number | null;
   diasUteisTranscorridos: number | null;
   diasUteisTotal: number | null;
 }
 
-/** Monta a resposta completa do /api/dashboard para (mes, ano, categoria, conta). */
+const DADOS_ZERADOS: DadosPeriodo = {
+  card1: 0, card2: 0, card3: 0, cards: [], custosCards: [], nomesCat: [],
+  totalOS: 0, osNota: null, osInterno: null, totalPecas: 0, totalCustoPecas: 0, totalGeral: 0,
+};
+
+/**
+ * Monta a resposta completa do /api/dashboard.
+ * `modo = 'mes'`: período = selMes/selAno; compara com o mês anterior e com o
+ * mesmo mês do ano anterior.
+ * `modo = 'ano'`: período = jan–dez de selAno; só compara com o ano anterior
+ * (não existe "mês anterior"). No ano corrente os comparativos são ajustados
+ * pelos dias úteis já transcorridos no ano e a projeção é do ano fechado.
+ */
 export async function montarDashboard(
   selMes: number,
   selAno: number,
   filtroCategoria: string | null,
   conta: ContaFiltro,
+  modo: ModoPeriodo = 'mes',
 ): Promise<DashboardResponse> {
+  const ehAno = modo === 'ano';
   const mesAntDate = new Date(selAno, selMes - 2, 1);
   const mesAnt = mesAntDate.getMonth() + 1;
   const anoMesAnt = mesAntDate.getFullYear();
   const anoAnoAnt = selAno - 1;
 
-  const atual = await obterDadosPeriodo(selMes, selAno, filtroCategoria, conta);
-  const anterior = await obterDadosPeriodo(mesAnt, anoMesAnt, filtroCategoria, conta);
-  const anoAnt = await obterDadosPeriodo(selMes, anoAnoAnt, filtroCategoria, conta);
+  const atual = ehAno
+    ? await obterDadosAno(selAno, filtroCategoria, conta)
+    : await obterDadosPeriodo(selMes, selAno, filtroCategoria, conta);
+  const anterior = ehAno ? DADOS_ZERADOS : await obterDadosPeriodo(mesAnt, anoMesAnt, filtroCategoria, conta);
+  const anoAnt = ehAno
+    ? await obterDadosAno(anoAnoAnt, filtroCategoria, conta)
+    : await obterDadosPeriodo(selMes, anoAnoAnt, filtroCategoria, conta);
 
   const calcVar = (a: number, b: number) => (b > 0 ? ((a - b) / b) * 100 : a > 0 ? 100 : 0);
 
-  const ehMesCorrente = ehMesAtual(selMes, selAno);
-  const totalDU = ehMesCorrente ? diasUteisDoMes(selAno, selMes) : 0;
-  const transcorridoDU = ehMesCorrente ? diasUteisAteHoje(selAno, selMes) : 0;
-  const proporcao = ehMesCorrente && totalDU > 0 ? transcorridoDU / totalDU : 1;
-  const ajustar = (v: number) => (ehMesCorrente ? v * proporcao : v);
-  const projetar = (v: number) => (ehMesCorrente && proporcao > 0 ? v / proporcao : null);
+  const ehCorrente = ehAno ? ehAnoAtual(selAno) : ehMesAtual(selMes, selAno);
+  const totalDU = !ehCorrente ? 0 : ehAno ? diasUteisDoAno(selAno) : diasUteisDoMes(selAno, selMes);
+  const transcorridoDU = !ehCorrente ? 0 : ehAno ? diasUteisAteHojeNoAno(selAno) : diasUteisAteHoje(selAno, selMes);
+  const proporcao = ehCorrente && totalDU > 0 ? transcorridoDU / totalDU : 1;
+  const ajustar = (v: number) => (ehCorrente ? v * proporcao : v);
+  const projetar = (v: number) => (ehCorrente && proporcao > 0 ? v / proporcao : null);
 
   const montarCategoria = (
     nome: string,
@@ -165,7 +222,7 @@ export async function montarDashboard(
     servicos.valorNota = atual.osNota;
     servicos.valorInterno = atual.osInterno;
   }
-  const tipos = await obterTiposComNotaMes(selMes, selAno, conta);
+  const tipos = await obterTiposComNotaMes(ehAno ? null : selMes, selAno, conta);
   if (tipos) {
     servicos.valorHR = tipos.hr;
     servicos.valorKM = tipos.km;
@@ -188,13 +245,14 @@ export async function montarDashboard(
   ];
 
   return {
-    periodo: MESES_CURTO[selMes - 1] + ' ' + selAno,
-    mes: selMes,
+    periodo: ehAno ? 'Ano ' + selAno : MESES_CURTO[selMes - 1] + ' ' + selAno,
+    modo,
+    mes: ehAno ? 0 : selMes,
     ano: selAno,
     categorias,
-    ehMesCorrente,
-    proporcao: ehMesCorrente ? proporcao : null,
-    diasUteisTranscorridos: ehMesCorrente ? transcorridoDU : null,
-    diasUteisTotal: ehMesCorrente ? totalDU : null,
+    ehMesCorrente: ehCorrente,
+    proporcao: ehCorrente ? proporcao : null,
+    diasUteisTranscorridos: ehCorrente ? transcorridoDU : null,
+    diasUteisTotal: ehCorrente ? totalDU : null,
   };
 }

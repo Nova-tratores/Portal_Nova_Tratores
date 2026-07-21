@@ -5,16 +5,18 @@ import { listarVendas } from '@/lib/estoque/dashboard-listas';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-// Vendas detalhadas do mês (com filtro de card/categoria). Portado de
-// /api/dashboard/vendas (server.js:3116).
+// Vendas detalhadas do mês (com filtro de card/categoria). `modo=ano` (ou
+// mes=0) lista o ano inteiro. Portado de /api/dashboard/vendas (server.js:3116).
 export async function GET(req: NextRequest) {
   const conta = parseConta(req.nextUrl.searchParams.get('conta'));
   const sp = req.nextUrl.searchParams;
-  const mes = parseInt(sp.get('mes') || '');
+  const mesParam = parseInt(sp.get('mes') || '');
   const ano = parseInt(sp.get('ano') || '');
+  const ehAno = sp.get('modo') === 'ano' || mesParam === 0;
+  const mes = ehAno ? null : mesParam;
   const card = sp.get('card') ? parseInt(sp.get('card')!) : null;
   const categoria = sp.get('categoria') || null;
-  if (!mes || !ano) return NextResponse.json({ erro: 'Informe mes e ano' });
+  if (!ano || (!ehAno && !mes)) return NextResponse.json({ erro: 'Informe mes e ano' });
   try {
     const vendas = await listarVendas(mes, ano, card, categoria, conta);
     return NextResponse.json({ vendas, total: vendas.length });
