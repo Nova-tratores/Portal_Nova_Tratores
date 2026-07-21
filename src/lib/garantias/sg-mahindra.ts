@@ -163,6 +163,14 @@ interface DadosSG {
   requisicoes: RequisicaoSG[];
   tipoGarantia: TipoGarantiaSG;
   fotos: Record<string, FotoBuffer>; // chave = nome do campo (ex: FotoChassis)
+  // Textos formatados pelo Tratorilson (checklist_respostas.sg_*), revisados
+  // pelo garantista — quando presentes, vencem o relato cru da OS.
+  textos?: {
+    reclamacao?: string | null;
+    diagnostico?: string | null;
+    acao_tomada?: string | null;
+    observacoes?: string | null;
+  } | null;
 }
 
 function set(cell: ExcelJS.Cell, value: string | number | null | undefined) {
@@ -239,6 +247,7 @@ export async function gerarSGMahindra(
     requisicoes,
     tipoGarantia,
     fotos,
+    textos,
   }: DadosSG,
   baseUrl?: string,
 ): Promise<Buffer> {
@@ -318,11 +327,16 @@ export async function gerarSGMahindra(
   set(sheet.getCell(celulaTipoGarantia(tipoGarantia)), 'X');
 
   // ── Ocorrência ──────────────────────────────────────────────────────
+  // Texto formatado (Tratorilson, revisado pelo garantista) vence o cru da OS;
+  // na SG vai em MAIÚSCULAS (padrão dos modelos da Mahindra).
+  const caps = (s: string | null | undefined) => (s?.trim() ? s.trim().toUpperCase() : undefined);
   set(sheet.getCell('B45'), fmtData(tecnico?.DataInicio || garantia.created_at));
-  set(sheet.getCell('B47'), os?.Serv_Solicitado);
-  set(sheet.getCell('B49'), tecnico?.Motivo);
-  set(sheet.getCell('B53'), tecnico?.ServicoRealizado);
-  // B55 (Observações) intencionalmente NÃO preenchida — pedido do usuário
+  set(sheet.getCell('B47'), caps(textos?.reclamacao) || os?.Serv_Solicitado);
+  set(sheet.getCell('B49'), caps(textos?.diagnostico) || tecnico?.Motivo);
+  set(sheet.getCell('B53'), caps(textos?.acao_tomada) || tecnico?.ServicoRealizado);
+  // B55 (Observações): só quando o Tratorilson/garantista escreveu algo —
+  // sem texto formatado, continua vazia (decisão antiga mantida)
+  set(sheet.getCell('B55'), caps(textos?.observacoes));
 
   // ── OS e valores ────────────────────────────────────────────────────
   set(sheet.getCell('B58'), soNumeroOS(garantia.id_ordem));

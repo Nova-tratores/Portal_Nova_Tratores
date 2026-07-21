@@ -218,6 +218,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       'tipo_garantia_sg'
     ] as TipoGarantiaSG) || 'produto_garantia';
 
+  // Textos formatados pelo Tratorilson (e revisados pelo garantista) — quando
+  // existem, o gerador os usa no lugar do relato cru da OS
+  const respostasSG = (garantia.checklist_respostas as Record<string, unknown> | null) || {};
+  const textosSG = {
+    reclamacao: (respostasSG['sg_reclamacao'] as string) || null,
+    diagnostico: (respostasSG['sg_diagnostico'] as string) || null,
+    acao_tomada: (respostasSG['sg_acao_tomada'] as string) || null,
+    observacoes: (respostasSG['sg_observacoes'] as string) || null,
+  };
+
   const cnpjCliente = String(osRes.data?.Cnpj_Cliente || '').replace(/\D/g, '');
   const [tratorRes, requisicoesOsRes, clienteRes] = await Promise.all([
     chassis
@@ -370,6 +380,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           requisicoes: requisicoesParaSG,
           tipoGarantia,
           fotos: fotosBuffer,
+          textos: textosSG,
         },
         req.nextUrl.origin,
       );
@@ -387,6 +398,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         requisicoes: requisicoesParaSG,
         tipoGarantia,
         fotos: fotosBuffer,
+        textos: textosSG,
       },
       req.nextUrl.origin,
     );
