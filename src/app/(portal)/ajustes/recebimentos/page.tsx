@@ -3,7 +3,7 @@
 // Lista NFs de fornecedor pendentes; destaca sinal de garantia/impacto no CMC; permite
 // "dar entrada" revisando/editando o CFOP de entrada por item (default = cfopEntradaSugerido).
 // SEM dropdown de categoria/departamento (adiado p/ Fase 3).
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { Fragment, useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
@@ -67,6 +67,16 @@ interface RecebPayload {
   totalItensRisco?: number; recebimentos?: Recebimento[]; erro?: string;
 }
 interface ResultadoCard { tipo: 'ok' | 'erro'; texto: string }
+// autocomplete de produto (/api/ajustes/movimentacao/buscar-produto)
+interface ProdutoSugestao { codigoProduto: number; codigo: string; descricao: string; estoque: number | null }
+// o que fazer com um item que o Omie traz como "produto novo"
+type AcaoItem = 'novo' | 'associar' | 'ignorar';
+// retorno de /api/ajustes/dar-entrada-recebimento p/ itens associados (impacto no CMC)
+interface AssociadoInfo {
+  nSequencia: number | string; idProduto: number; descricaoProduto?: string | null;
+  cmcAtual: number | null; saldoAtual: number | null; cmcProjetado: number | null;
+  impactoCMC: number | null; impactoPct: number | null; alerta: boolean; precoUnit?: number | null;
+}
 interface SugestaoCusto { cmcSugerido: number | null; estrategia: string; baseadoEm: { data?: string; doc?: string; origem?: string } | null; distorcido: boolean; erro?: string }
 const ESTRAT_LABEL: Record<string, string> = {
   cmc_antes_de_negativo: 'CMC de antes de ficar negativo',
@@ -420,6 +430,84 @@ function itensEmRisco(r: Recebimento): ItemReceb[] {
   return (r.itens || []).filter((it) => it.alerta && it.idProduto && (it.cmcAtual || 0) > 0);
 }
 
+// ---------- autocomplete de produto (p/ associar um item a um produto existente) ----------
+// Reusa /api/ajustes/movimentacao/buscar-produto (tabela `produtos`, ja com fallback
+// fuzzy p/ 1<->I<->l e 0<->O nos SKUs). `codigoProduto` = id interno do Omie.
+function BuscaProduto({ conta, termoInicial, valor, onSelecionar, disabled }: {
+  conta: string; termoInicial: string; valor: ProdutoSugestao | null;
+  onSelecionar: (p: ProdutoSugestao | null) => void; disabled?: boolean;
+}) {
+  const [termo, setTermo] = useState(termoInicial);
+  const [sugestoes, setSugestoes] = useState<ProdutoSugestao[]>([]);
+  const [buscando, setBuscando] = useState(false);
+  const [aberto, setAberto] = useState(false);
+  const [digitou, setDigitou] = useState(false);
+
+  useEffect(() => {
+    if (!digitou || !conta) return;
+    const t = termo.trim();
+    if (t.length < 2) { setSugestoes([]); setAberto(false); return; }
+    const timer = setTimeout(async () => {
+      setBuscando(true);
+      try {
+        const r = await fetch(`/api/ajustes/movimentacao/buscar-produto?conta=${encodeURIComponent(conta)}&termo=${encodeURIComponent(t)}`);
+        const d = await r.json();
+        setSugestoes(d.produtos || []);
+        setAberto(true);
+      } catch { /* silencioso */ } finally { setBuscando(false); }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [termo, digitou, conta]);
+
+  if (valor) {
+    return (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: '.7rem', background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#065f46', borderRadius: 4, padding: '2px 6px' }}>
+          <b style={{ fontFamily: 'monospace' }}>{valor.codigo}</b> {valor.descricao}
+          <span style={{ color: '#94a3b8', fontFamily: 'monospace' }}> #{valor.codigoProduto}</span>
+          {valor.estoque != null && <span style={{ color: '#64748b' }}> · saldo {fmtSaldo(valor.estoque)}</span>}
+        </span>
+        {!disabled && (
+          <button type="button" onClick={() => { onSelecionar(null); setTermo(termoInicial); setDigitou(false); }}
+            style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: '.65rem', textDecoration: 'underline', cursor: 'pointer' }}>trocar</button>
+        )}
+      </span>
+    );
+  }
+
+  return (
+    <span style={{ position: 'relative', display: 'inline-block' }}>
+      <input
+        type="text" value={termo} disabled={disabled}
+        onChange={(e) => { setTermo(e.target.value); setDigitou(true); }}
+        onFocus={() => { if (sugestoes.length) setAberto(true); }}
+        onBlur={() => setTimeout(() => setAberto(false), 150)}
+        placeholder="SKU ou descricao do produto..."
+        style={{ border: '1px solid #cbd5e1', borderRadius: 4, padding: '3px 6px', width: 260, fontSize: '.72rem' }}
+      />
+      {buscando && <span style={{ fontSize: '.62rem', color: '#94a3b8', marginLeft: 4 }}>buscando…</span>}
+      {aberto && sugestoes.length > 0 && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 60, background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6, boxShadow: '0 6px 18px rgba(0,0,0,.12)', maxHeight: 220, overflowY: 'auto', width: 340 }}>
+          {sugestoes.map((p) => (
+            <div key={p.codigoProduto} onMouseDown={() => { onSelecionar(p); setAberto(false); setDigitou(false); }}
+              style={{ padding: '5px 8px', fontSize: '.7rem', cursor: 'pointer', borderBottom: '1px solid #f1f5f9' }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = '#f8fafc')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = '#fff')}>
+              <b style={{ fontFamily: 'monospace' }}>{p.codigo}</b> — {p.descricao}
+              <span style={{ color: '#94a3b8' }}> · saldo {fmtSaldo(p.estoque)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {aberto && !buscando && sugestoes.length === 0 && termo.trim().length >= 2 && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 60, background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '5px 8px', fontSize: '.68rem', color: '#94a3b8', width: 340 }}>
+          nenhum produto encontrado (a base local sincroniza por cron — produto criado hoje pode nao aparecer)
+        </div>
+      )}
+    </span>
+  );
+}
+
 // ---------- modal "dar entrada" ----------
 function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConcluido }: {
   r: Recebimento; conta: string; criadoPor: string; userId: string | null; userNome: string | null;
@@ -436,9 +524,18 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
   const [enviando, setEnviando] = useState(false);
   const [statusModal, setStatusModal] = useState('');
 
+  // itens que o Omie criaria como produto NOVO: o usuario decide novo/associar/ignorar
+  const [acoes, setAcoes] = useState<Record<number, AcaoItem>>({});
+  const [assoc, setAssoc] = useState<Record<number, ProdutoSugestao | null>>({});
+  const acaoDe = (it: ItemReceb, i: number): AcaoItem => acoes[i] || (it.criarNovo ? 'novo' : 'novo');
+
   // 2a fase: correcao do CMC distorcido por garantia
   const [fase, setFase] = useState<'entrada' | 'correcao'>('entrada');
-  const riscos = itensEmRisco(r);
+  // itens associados a um produto existente que baixaram o CMC entram na correcao
+  // junto com os de garantia (o backend projeta o impacto ANTES de concluir).
+  const [riscosExtra, setRiscosExtra] = useState<ItemReceb[]>([]);
+  const riscosBase = useMemo(() => itensEmRisco(r), [r]);
+  const riscos = useMemo(() => [...riscosBase, ...riscosExtra], [riscosBase, riscosExtra]);
   const [cmcAlvo, setCmcAlvo] = useState<Record<number, string>>(() => {
     const init: Record<number, string> = {};
     riscos.forEach((it, i) => { init[i] = String(it.cmcAtual ?? ''); });
@@ -497,16 +594,39 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
   };
 
   const confirmar = async () => {
+    // valida os itens marcados p/ associar (produto obrigatorio)
+    const semProduto = (r.itens || []).findIndex((it, i) => it.criarNovo && acaoDe(it, i) === 'associar' && !assoc[i]);
+    if (semProduto >= 0) {
+      alert(`Escolha o produto para associar no item "${(r.itens || [])[semProduto].descricaoProduto || (r.itens || [])[semProduto].codigoProdutoInt || semProduto + 1}" (ou volte para "criar novo").`);
+      return;
+    }
     const itens = (r.itens || []).map((it, i) => {
       const seq = it.nSequencia;
       const cfop = (cfops[i] || '').trim();
+      const acao = it.criarNovo ? acaoDe(it, i) : 'novo';
+      const p = acao === 'associar' ? assoc[i] : null;
       return {
         nSequencia: (seq == null || seq === '' ? null : (isNaN(Number(seq)) ? seq : Number(seq))),
-        cAcao: it.criarNovo ? 'NOVO' : 'EDITAR',
+        // 'NOVO' nao e' acao valida no Omie: o item ja vem com cAdicionarNovo='S' e o
+        // produto e' criado ao concluir. Aqui so' EDITAR (leva o CFOP) ou IGNORAR.
+        cAcao: acao === 'ignorar' ? 'IGNORAR' : 'EDITAR',
         cfopEntrada: cfop || undefined,
+        associarIdProduto: p ? p.codigoProduto : undefined,
+        qtde: p ? it.qtde : undefined,
+        precoUnit: p ? it.precoUnit : undefined,
+        descricaoProduto: p ? `${p.codigo} — ${p.descricao}` : undefined,
       };
     });
-    if (!confirm(`Confirmar entrada da NF ${r.numeroNFe || '?'}?\n\nIsso PROCESSA a NF no Omie${naoFin ? ', SEM gerar contas a pagar' : ''}${naoMov ? ', SEM movimentar estoque' : ''}. Continuar?`)) return;
+    const assocTxt = (r.itens || [])
+      .map((it, i) => (it.criarNovo && acaoDe(it, i) === 'associar' && assoc[i] ? `\n  · "${it.descricaoProduto || it.codigoProdutoInt}" → ${assoc[i]!.codigo} ${assoc[i]!.descricao}` : ''))
+      .join('');
+    const ignTxt = (r.itens || []).filter((it, i) => it.criarNovo && acaoDe(it, i) === 'ignorar').length;
+    if (!confirm(
+      `Confirmar entrada da NF ${r.numeroNFe || '?'}?\n\nIsso PROCESSA a NF no Omie${naoFin ? ', SEM gerar contas a pagar' : ''}${naoMov ? ', SEM movimentar estoque' : ''}.`
+      + (assocTxt ? `\n\nItens que serao ASSOCIADOS a produtos existentes (so' da p/ desfazer revertendo o recebimento):${assocTxt}` : '')
+      + (ignTxt ? `\n\n${ignTxt} item(ns) serao IGNORADOS.` : '')
+      + '\n\nContinuar?',
+    )) return;
     setEnviando(true);
     setStatusModal('processando no Omie...');
     try {
@@ -520,8 +640,28 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
       });
       const d = await resp.json();
       if (d.ok) {
+        // itens associados a um produto existente que derrubaram o CMC entram na
+        // correcao junto com os de garantia (o card nao os tinha como "em risco",
+        // porque na hora da analise eles ainda eram "produto novo").
+        const extras: ItemReceb[] = ((d.associados || []) as AssociadoInfo[])
+          .filter((a) => a.alerta && a.idProduto && (a.cmcAtual || 0) > 0)
+          .map((a) => ({
+            nSequencia: a.nSequencia, idProduto: a.idProduto,
+            descricaoProduto: a.descricaoProduto || null, codigoProdutoInt: null,
+            cmcAtual: a.cmcAtual, saldoAtual: a.saldoAtual, cmcProjetado: a.cmcProjetado,
+            impactoCMC: a.impactoCMC, impactoPct: a.impactoPct, alerta: true,
+            precoUnit: a.precoUnit ?? undefined, tipoItem: 'existente',
+          }));
+        if (extras.length > 0) {
+          setRiscosExtra(extras);
+          setCmcAlvo((s) => {
+            const novo = { ...s };
+            extras.forEach((e, i) => { novo[riscosBase.length + i] = String(e.cmcAtual ?? ''); });
+            return novo;
+          });
+        }
         onConcluido(recKey(r), { tipo: 'ok', texto: `✔ entrada processada${d.ajustado ? ' (com ajustes)' : ''}${d.descStatus ? ' · ' + d.descStatus : ''}` });
-        if (riscos.length > 0) {
+        if (riscosBase.length + extras.length > 0) {
           // mantem o modal aberto p/ corrigir o CMC que acabou de baixar
           setEnviando(false);
           setStatusModal('entrada processada. Reveja a correção do custo abaixo.');
@@ -618,8 +758,12 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
                 </tr>
               </thead>
               <tbody>
-                {(r.itens || []).map((it, i) => (
-                  <tr key={i}>
+                {(r.itens || []).map((it, i) => {
+                  const acao = it.criarNovo ? acaoDe(it, i) : 'novo';
+                  const ignorado = acao === 'ignorar';
+                  return (
+                  <Fragment key={i}>
+                  <tr style={ignorado ? { opacity: 0.5 } : undefined}>
                     <td style={mTd}>
                       {it.descricaoProduto || it.codigoProdutoInt || '?'}
                       {it.criarNovo ? <span style={{ marginLeft: 4, fontSize: '.6rem', padding: '0 5px', borderRadius: 4, background: '#fef3c7', color: '#92400e' }}>novo</span> : (it.idProduto ? <span style={{ fontFamily: 'monospace', fontSize: '.6rem', color: '#94a3b8' }}> #{it.idProduto}</span> : null)}
@@ -627,23 +771,54 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
                     <td style={{ ...mTd, fontFamily: 'monospace' }}>{it.cfop || ''}</td>
                     <td style={{ ...mTd, fontFamily: 'monospace', color: '#64748b' }}>{it.cfopEntrada || '(ao processar)'}</td>
                     <td style={mTd}>
-                      <input type="text" value={cfops[i] ?? ''} onChange={(e) => setCfops((s) => ({ ...s, [i]: e.target.value }))}
+                      <input type="text" value={cfops[i] ?? ''} disabled={ignorado} onChange={(e) => setCfops((s) => ({ ...s, [i]: e.target.value }))}
                         placeholder={it.cfopEntradaSugerido || cfopEntradaEquiv(it.cfop) || '1.949'}
                         style={{ border: '1px solid #cbd5e1', borderRadius: 4, padding: '2px 6px', width: 90, fontFamily: 'monospace', fontSize: '.72rem' }} />
                     </td>
                     <td style={{ ...mTd, textAlign: 'right' }}>{fmtSaldo(it.qtde)}</td>
                     <td style={{ ...mTd, textAlign: 'right' }}>{fmtBRL(it.precoUnit)}</td>
                   </tr>
-                ))}
+                  {it.criarNovo && (
+                    <tr>
+                      <td colSpan={6} style={{ ...mTd, background: '#fffbeb', paddingTop: 6, paddingBottom: 6 }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '.65rem', color: '#92400e', textTransform: 'uppercase', letterSpacing: '.4px' }}>este item nao existe no cadastro:</span>
+                          {([['novo', 'Criar produto novo'], ['associar', 'Associar a um existente'], ['ignorar', 'Ignorar item']] as [AcaoItem, string][]).map(([v, label]) => (
+                            <label key={v} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '.72rem', cursor: 'pointer' }}>
+                              <input type="radio" name={`acao-${i}`} checked={acao === v}
+                                onChange={() => { setAcoes((s) => ({ ...s, [i]: v })); if (v !== 'associar') setAssoc((s) => ({ ...s, [i]: null })); }} />
+                              {label}
+                            </label>
+                          ))}
+                          {acao === 'associar' && (
+                            <BuscaProduto
+                              conta={conta}
+                              termoInicial={it.codigoProdutoInt || it.descricaoProduto || ''}
+                              valor={assoc[i] || null}
+                              onSelecionar={(p) => setAssoc((s) => ({ ...s, [i]: p }))}
+                            />
+                          )}
+                        </span>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
-          <div style={{ fontSize: '.7rem', color: '#94a3b8', marginTop: 8 }}>Deixe um CFOP de entrada em branco para o Omie decidir aquele item.</div>
+          <div style={{ fontSize: '.7rem', color: '#94a3b8', marginTop: 8 }}>
+            Deixe um CFOP de entrada em branco para o Omie decidir aquele item.
+            {(r.itens || []).some((it) => it.criarNovo) && (
+              <> Itens marcados como <b>novo</b> nao existem no cadastro: por padrao o Omie <b>cria o produto</b> ao concluir — escolha <b>associar</b> para ligar a um produto ja cadastrado (⚠ so' se desfaz revertendo o recebimento) ou <b>ignorar</b> para deixar o item de fora.</>
+            )}
+          </div>
           </>)}
 
           {fase === 'correcao' && (<>
             <div style={{ fontSize: '.74rem', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 6, padding: 8, marginBottom: 12, color: '#065f46' }}>
-              ✔ <b>Entrada processada no Omie.</b> Os itens abaixo baixaram o CMC (entrada de garantia). Reveja o <b>CMC a restaurar</b> (= CMC anterior) e clique em <b>Corrigir custo</b> — isso aplica um ajuste no Omie e fica registrado como feito por você.
+              ✔ <b>Entrada processada no Omie.</b> Os itens abaixo baixaram o CMC (entrada de garantia{riscosExtra.length > 0 ? ' ou item associado a um produto existente' : ''}). Reveja o <b>CMC a restaurar</b> (= CMC anterior) e clique em <b>Corrigir custo</b> — isso aplica um ajuste no Omie e fica registrado como feito por você.
             </div>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #e2e8f0', borderRadius: 6 }}>

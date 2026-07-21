@@ -741,7 +741,8 @@ export function cfopEntradaEquivalente(cfopSaida: any): string | null {
 }
 
 // AlterarRecebimento - edita itens de um recebimento ANTES de concluir.
-// itens: [{ nSequencia, cAcao ('EDITAR'|'NOVO'|...), cCFOPEntrada, cNaoGerarFinanceiro ('S'/'N'), cNaoGerarMovEstoque ('S'/'N') }].
+// itens: [{ nSequencia, cAcao ('EDITAR'|'IGNORAR'|'ASSOCIAR-PRODUTO'), nIdProdutoExistente,
+//           cCFOPEntrada, cNaoGerarFinanceiro ('S'/'N'), cNaoGerarMovEstoque ('S'/'N') }].
 // Monta itensRecebimentoEditar[] com itensIde + itensAjustes. ATENCAO: estrutura
 // do AlterarRecebimento da Omie e' complexa - testar em runtime; se reclamar de
 // campos faltando, ajustar (pode precisar reenviar mais campos de cada item).
@@ -754,14 +755,23 @@ export async function alterarRecebimentoItens(conta: Conta, args: Record<string,
   if (idReceb != null) ide.nIdReceb = Number(idReceb) || idReceb;
   else if (chaveNFe) ide.cChaveNfe = String(chaveNFe);
   const itensRecebimentoEditar = itens.map((it: any) => {
-    // O Omie so documenta 2 acoes: EDITAR e IGNORAR. O antigo 'NOVO' (item cujo produto
-    // nao existe no cadastro) NAO e' acao valida: o recebimento pendente ja traz
-    // cAdicionarNovo='S', entao editamos a linha (EDITAR) para informar o CFOP e o Omie
-    // cria o produto ao concluir. Sem EDITAR+cCFOPEntrada o Omie recusa concluir
-    // (ERROR: "O item N esta sem o CFOP para o Recebimento"). Testado em runtime NF 55693.
-    const cAcao = String(it.cAcao || 'EDITAR') === 'IGNORAR' ? 'IGNORAR' : 'EDITAR';
-    const itensIde = { nSequencia: Number(it.nSequencia) || it.nSequencia, cAcao };
-    // IGNORAR (unica acao != EDITAR) nao aceita itensAjustes/itensCustoEstoque
+    // Acoes que usamos: EDITAR (default), IGNORAR e ASSOCIAR-PRODUTO. O antigo 'NOVO'
+    // (item cujo produto nao existe no cadastro) NAO precisa ser pedido: o recebimento
+    // pendente ja traz cAdicionarNovo='S', entao editamos a linha (EDITAR) para informar
+    // o CFOP e o Omie cria o produto ao concluir. Sem EDITAR+cCFOPEntrada o Omie recusa
+    // concluir (ERROR: "O item N esta sem o CFOP para o Recebimento"). Testado NF 55693.
+    const pedida = String(it.cAcao || 'EDITAR').toUpperCase();
+    const cAcao = pedida === 'IGNORAR' || pedida === 'ASSOCIAR-PRODUTO' ? pedida : 'EDITAR';
+    const itensIde: Record<string, any> = { nSequencia: Number(it.nSequencia) || it.nSequencia, cAcao };
+    // ASSOCIAR-PRODUTO liga o item da NF a um produto JA cadastrado (em vez de criar um
+    // novo). Exige nIdProdutoExistente e, como toda acao != EDITAR, vai sozinha - o CFOP
+    // tem de ir numa 2a chamada com cAcao=EDITAR (ver darEntradaRecebimento).
+    if (cAcao === 'ASSOCIAR-PRODUTO') {
+      const idProd = Number(it.nIdProdutoExistente);
+      if (!(idProd > 0)) throw new Error(`item ${it.nSequencia}: ASSOCIAR-PRODUTO exige nIdProdutoExistente`);
+      itensIde.nIdProdutoExistente = idProd;
+    }
+    // IGNORAR/ASSOCIAR-PRODUTO nao aceitam itensAjustes/itensCustoEstoque
     // (ERROR: Quando a tag [cAcao] e' diferente de 'EDITAR' as tag [...] nao devem ser
     // informadas). Nesse caso mandamos SO o itensIde.
     if (cAcao !== 'EDITAR') return { itensIde };
