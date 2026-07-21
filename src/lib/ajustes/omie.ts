@@ -1233,21 +1233,28 @@ export async function listarClientesResumido(conta: Conta, opts: Record<string, 
   return itens;
 }
 
-// Lista usuarios do sistema (pra resolver login Omie -> nome). Usado pra
-// exibir "Criado por" no pedido (cabec.infoCadastro.uInc).
+// Lista usuarios do sistema (pra resolver o codigo do usuario Omie -> nome).
+// Usado pra exibir "Criado por" no pedido (infoCadastro.uInc).
+// Validado em runtime (21/07/2026) contra as duas contas:
+//  - "ListarUsuariosResumido" NAO existe ("Method not exists").
+//  - "ListarUsuarios" so aceita nPagina/nRegPorPagina (pagina/registros_por_pagina
+//    devolve 'Tag [PAGINA] nao faz parte da estrutura...') e a lista vem em
+//    `listaUsuarios` — nenhuma das chaves que tentavamos antes.
+//  - Cada item: { cNome: 'P000454175', cNomeCompl: 'Nome Real', cEmail, nCodUsuario }.
+//    ATENCAO: `cNome` e' o CODIGO interno (o mesmo valor de uInc); o nome de
+//    verdade esta em `cNomeCompl`.
 export async function listarUsuarios(conta: Conta): Promise<any[]> {
-  // Tenta variantes da call (Omie nao documenta de forma consistente)
-  for (const candidato of [
-    { ep: '/geral/usuarios/', call: 'ListarUsuariosResumido' },
-    { ep: '/geral/usuarios/', call: 'ListarUsuarios' }
-  ]) {
-    try {
-      const r = await omieRequest(candidato.ep, candidato.call, { pagina: 1, registros_por_pagina: 500 }, conta);
-      const lista = r.usuario_resumido_cadastro || r.usuarios_cadastro || r.cadastros || r.usuarios || [];
-      if (Array.isArray(lista)) return lista;
-    } catch (e) { /* tenta proxima */ }
-  }
-  return [];
+  const todos: any[] = [];
+  let pagina = 1, totalPaginas = 1;
+  do {
+    const r = await omieRequest('/geral/usuarios/', 'ListarUsuarios', { nPagina: pagina, nRegPorPagina: 500 }, conta);
+    const lista = r.listaUsuarios || [];
+    for (const u of (Array.isArray(lista) ? lista : [lista])) if (u) todos.push(u);
+    totalPaginas = num(r.nTotPaginas) || 1;
+    pagina++;
+    if (pagina <= totalPaginas) await sleep(SLEEP_BETWEEN_PAGES);
+  } while (pagina <= totalPaginas);
+  return todos;
 }
 
 // Lista etapas configuradas do pedido (cEtapa -> descricao). Cada conta tem suas.
