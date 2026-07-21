@@ -1,9 +1,11 @@
 'use client'
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { useAuth } from '@/hooks/useAuth'
+import { useAuth, revalidarSessao } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import { useChat } from '@/hooks/useChat'
 import { useNotificacoes } from '@/hooks/useNotificacoes'
+import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
+import AcessoBloqueado from '@/components/AcessoBloqueado'
 import { usePathname, useRouter } from 'next/navigation'
 import TratorinoChat from '@/components/TratorinoChat'
 import {
@@ -175,10 +177,14 @@ const SONS_NOTIFICACAO = [
 ]
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
-  const { userProfile, setUserProfile, loading, handleLogout } = useAuth()
+  const { userProfile, setUserProfile, loading, handleLogout, bloqueio } = useAuth()
   const { permissoes, isAdmin, temAcesso, loading: loadingPerm } = usePermissoes(userProfile?.id)
   const chatData = useChat(userProfile?.id)
   const notifData = useNotificacoes(userProfile?.id)
+
+  // Aba parada horas (ou máquina que dormiu): ao voltar o foco, confirmar no servidor
+  // que a sessão continua de pé em vez de seguir a mostrar o portal como se estivesse.
+  useRefreshOnFocus(revalidarSessao, 60_000)
 
   // Onde o Tratorilson aparece: 'flutuante' (ícone móvel) ou 'chat' (conversa fixa no painel de Mensagens)
   const [tratorilsonLocal, setTratorilsonLocal] = useState<'flutuante' | 'chat'>('flutuante')
@@ -528,6 +534,12 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     )
   }
 
+  // Sem perfil não se renderiza portal nenhum: era daqui que saía o utilizador
+  // genérico "Usuário / Colaborador", com o menu encolhido, a fingir um login.
+  if (bloqueio || !userProfile) {
+    return <AcessoBloqueado motivo={bloqueio ?? 'erro'} />
+  }
+
   return (
     <div className={tema === 'dark' ? 'portal-dark' : ''} style={{ minHeight: '100vh', background: 'var(--portal-bg)', position: 'relative' }}>
       {/* ===== TOP BAR (maior) ===== */}
@@ -858,7 +870,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               flexShrink: 0
             }}>
-              {userProfile?.avatar_url ? (
+              {userProfile.avatar_url ? (
                 <img src={userProfile.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : (
                 <UserIcon size={20} color="#fff" />
@@ -866,10 +878,10 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
             </div>
             <div>
               <p style={{ fontSize: '13px', fontWeight: '600', color: '#ffffff', lineHeight: '1.2', margin: 0 }}>
-                {userProfile?.nome || 'Usuário'}
+                {userProfile.nome}
               </p>
               <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.7)', fontWeight: '400', margin: 0, marginTop: '2px' }}>
-                {userProfile?.funcao || 'Colaborador'}
+                {userProfile.funcao}
               </p>
             </div>
           </div>
@@ -899,7 +911,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               marginBottom: '10px'
             }}>
-              {userProfile?.avatar_url ? (
+              {userProfile.avatar_url ? (
                 <img src={userProfile.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '12px' }} />
               ) : (
                 <div style={{
@@ -912,10 +924,10 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               )}
             </div>
             <p style={{ fontSize: '14px', fontWeight: '700', color: 'var(--portal-text)', marginBottom: '2px' }}>
-              {userProfile?.nome || 'Usuário'}
+              {userProfile.nome}
             </p>
             <p style={{ fontSize: '11px', color: '#dc2626', fontWeight: '600', letterSpacing: '1px' }}>
-              {userProfile?.funcao || 'Colaborador'}
+              {userProfile.funcao}
             </p>
           </div>
           </div>
