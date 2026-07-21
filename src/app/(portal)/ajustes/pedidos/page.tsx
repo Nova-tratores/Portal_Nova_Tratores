@@ -209,7 +209,7 @@ export default function PedidosPage() {
     } finally { setAplicando(false); }
   }, [pedidoSel, razao, conta, criadoPor, router, fecharModal, buscarAbertos]);
 
-  const exportar = useCallback((fmt: 'csv' | 'pdf') => {
+  const exportar = useCallback((fmt: 'csv' | 'xlsx' | 'pdf') => {
     if (!conta) { alert('Selecione NOVA ou CASTRO no menu.'); return; }
     let qs = contaParam.replace(/^&/, '');
     if (de) qs += '&de=' + encodeURIComponent(de);
@@ -270,6 +270,7 @@ export default function PedidosPage() {
               <button onClick={() => buscarAbertos(false)} disabled={carregando || !conta} style={{ padding: '7px 14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer', opacity: carregando || !conta ? 0.5 : 1 }}>Buscar</button>
               <button onClick={() => buscarAbertos(true)} disabled={carregando || !conta} title="Refaz a busca ignorando o cache" style={{ padding: '7px 14px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer', opacity: carregando || !conta ? 0.5 : 1 }}>Atualizar</button>
               <button onClick={() => exportar('csv')} style={{ padding: '7px 12px', background: '#f1f5f9', color: '#334155', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer' }}>CSV</button>
+              <button onClick={() => exportar('xlsx')} title="Excel (.xlsx) com datas e valores ja' tipados" style={{ padding: '7px 12px', background: '#dcfce7', color: '#166534', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer' }}>Excel</button>
               <button onClick={() => exportar('pdf')} style={{ padding: '7px 12px', background: '#f1f5f9', color: '#334155', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer' }}>PDF</button>
             </>
           )}
