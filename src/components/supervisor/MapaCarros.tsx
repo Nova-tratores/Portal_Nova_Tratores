@@ -28,6 +28,9 @@ interface Props {
   // quem estava com o carro no dia (o /frota/mapa liga na vw_frota_uso_diario,
   // que lê o check-in do app dos mecânicos) — aparece no topo da timeline
   resolverMotorista?: (placa: string, data: string) => Promise<string | null>
+  // "voar até" um ponto (busca de cliente do /frota/mapa) — default: nada,
+  // o supervisor fica como era
+  foco?: { lat: number; lng: number; nome?: string; subtitulo?: string } | null
 }
 
 const COR_LOCAL: Record<string, string> = {
@@ -47,7 +50,7 @@ const fmtH = (iso: string) => { if (!iso) return '--:--'; try { const d = new Da
 const fmtT = (min: number) => min >= 60 ? Math.floor(min / 60) + 'h' + (min % 60 > 0 ? String(min % 60).padStart(2, '0') + 'min' : '') : min + 'min'
 const fmtData = (d: string) => { if (!d) return ''; const [y, m, dia] = d.split('-'); return `${dia}/${m}/${y.slice(2)}` }
 
-export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVisitaClick, fmtVisita, fontePosicoes = 'carros', tituloPainel = 'CARROS COMERCIAIS', locais = [], resolverMotorista }: Props) {
+export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVisitaClick, fmtVisita, fontePosicoes = 'carros', tituloPainel = 'CARROS COMERCIAIS', locais = [], resolverMotorista, foco = null }: Props) {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstance = useRef<any>(null)
   const liveLayerRef = useRef<any>(null)
@@ -96,6 +99,21 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
     visitasLayerRef.current = L.layerGroup().addTo(mapInstance.current)
     locaisLayerRef.current = L.layerGroup().addTo(mapInstance.current)
   }, [ready])
+
+  // "Voar até" o ponto buscado (cliente/local) — abre um popup no destino.
+  useEffect(() => {
+    if (!ready || !mapInstance.current || !foco?.lat || !foco?.lng) return
+    const L = (window as any).L
+    const esc = (s: string) => String(s).replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c] || c))
+    mapInstance.current.flyTo([foco.lat, foco.lng], 15, { duration: 1.1 })
+    L.popup({ offset: [0, -4] })
+      .setLatLng([foco.lat, foco.lng])
+      .setContent(
+        `<b>${esc(foco.nome || 'Local')}</b>` +
+        (foco.subtitulo ? `<br/><span style="font-size:11px;color:#666">${esc(foco.subtitulo)}</span>` : ''),
+      )
+      .openOn(mapInstance.current)
+  }, [foco, ready])
 
   // Camada de lugares conhecidos (geocercas + propriedades de clientes) —
   // pins pequenos pra não competir com os carros; botão liga/desliga.

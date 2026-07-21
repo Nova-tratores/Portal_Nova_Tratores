@@ -5,9 +5,9 @@
 // todos os 16 rastreados, não só os carros do comercial. Também desenha a
 // camada de LOCAIS: geocercas da Rota Exata + propriedades de clientes do
 // portal (as geocodificadas).
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { Map as MapIcon } from 'lucide-react';
+import { Map as MapIcon, Search, X } from 'lucide-react';
 import { authHeaders } from '@/lib/auth/client';
 import { supabase } from '@/lib/supabase';
 import { formatarPlaca, resolverPlaca } from '@/lib/frota/placa';
@@ -30,11 +30,18 @@ const TIPO_CORES: Record<string, { bg: string; text: string }> = {
   email: { bg: '#EDE9FE', text: '#7C3AED' },
 };
 
+// busca sem acento/caixa ("joao" acha "JOÃO")
+const semAcento = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
 export default function FrotaMapaPage() {
   const [carros, setCarros] = useState<CarroMapa[]>([]);
   const [locais, setLocais] = useState<LocalPin[]>([]);
   const [visitas, setVisitas] = useState<any[]>([]);
   const [erro, setErro] = useState('');
+  // busca de cliente/local: escolher → o mapa voa até lá
+  const [busca, setBusca] = useState('');
+  const [buscaAberta, setBuscaAberta] = useState(false);
+  const [foco, setFoco] = useState<{ lat: number; lng: number; nome?: string; subtitulo?: string } | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -118,15 +125,78 @@ export default function FrotaMapaPage() {
     return rows?.[0]?.pessoa_nome || null;
   }, []);
 
+  // resultados da busca: clientes (propriedades) primeiro, depois geocercas
+  const resultadosBusca = useMemo(() => {
+    const q = semAcento(busca.trim());
+    if (q.length < 2) return [];
+    return locais
+      .filter((l) => l.lat && l.lng && semAcento(l.nome || '').includes(q))
+      .sort((a, b) => {
+        const pa = a.classe === 'propriedade' ? 0 : 1;
+        const pb = b.classe === 'propriedade' ? 0 : 1;
+        if (pa !== pb) return pa - pb;
+        return (a.nome || '').localeCompare(b.nome || '', 'pt-BR');
+      })
+      .slice(0, 8);
+  }, [locais, busca]);
+
+  const irPara = (l: LocalPin) => {
+    setFoco({ lat: l.lat, lng: l.lng, nome: l.nome || undefined, subtitulo: l.subtitulo || undefined });
+    setBusca(l.nome || '');
+    setBuscaAberta(false);
+  };
+
   return (
     <div style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
         <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 8 }}>
           <MapIcon size={20} color="#0d9488" /> Mapa & rastreamento
         </h2>
         <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted)' }}>
           {carros.length} veículos rastreados · escolha um carro e uma data pra ver o trajeto e as paradas
         </span>
+        <div style={{ flex: 1 }} />
+        {/* Busca de cliente/local: escolher → o mapa voa até lá */}
+        <div style={{ position: 'relative', width: 300 }}>
+          <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--portal-text-muted)' }} />
+          <input
+            value={busca}
+            onChange={(e) => { setBusca(e.target.value); setBuscaAberta(true); }}
+            onFocus={() => setBuscaAberta(true)}
+            placeholder={`Buscar cliente/local no mapa… (${locais.length})`}
+            style={{ width: '100%', padding: '8px 30px 8px 30px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13 }}
+          />
+          {busca && (
+            <button
+              onClick={() => { setBusca(''); setFoco(null); setBuscaAberta(false); }}
+              title="Limpar"
+              style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', cursor: 'pointer', color: 'var(--portal-text-muted)', padding: 2 }}
+            >
+              <X size={14} />
+            </button>
+          )}
+          {buscaAberta && resultadosBusca.length > 0 && (
+            <div style={{ position: 'absolute', top: '110%', left: 0, right: 0, zIndex: 1200, background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 10, overflow: 'hidden', boxShadow: '0 12px 32px rgba(0,0,0,0.25)' }}>
+              {resultadosBusca.map((l, i) => (
+                <button
+                  key={`${l.nome}-${i}`}
+                  onClick={() => irPara(l)}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none', borderTop: i > 0 ? '1px solid var(--portal-border)' : 'none', background: 'transparent', cursor: 'pointer' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--portal-bg-secondary)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                >
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--portal-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.nome}</div>
+                  <div style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>{l.subtitulo || ''}</div>
+                </button>
+              ))}
+            </div>
+          )}
+          {buscaAberta && busca.trim().length >= 2 && resultadosBusca.length === 0 && (
+            <div style={{ position: 'absolute', top: '110%', left: 0, right: 0, zIndex: 1200, background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 10, padding: '10px 12px', fontSize: 12, color: 'var(--portal-text-muted)', boxShadow: '0 12px 32px rgba(0,0,0,0.25)' }}>
+              Nenhum cliente/local com esse nome (só aparecem os com endereço geocodificado).
+            </div>
+          )}
+        </div>
       </div>
       {erro && <div style={{ color: '#b91c1c', fontSize: 13, marginBottom: 10 }}>{erro}</div>}
       {/* O MapaCarros usa height:100% — sem um pai com ALTURA EXPLÍCITA o
@@ -141,6 +211,7 @@ export default function FrotaMapaPage() {
           tipoCores={TIPO_CORES}
           fmtVisita={(iso) => { try { return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); } catch { return iso || ''; } }}
           resolverMotorista={resolverMotorista}
+          foco={foco}
         />
       </div>
     </div>
