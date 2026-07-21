@@ -13,7 +13,7 @@ import { supabase } from './supabase';
 import * as cache from './cache';
 import { getConfig } from './config';
 import { analisarRecebimentosPendentes } from './analise';
-import { alterarRecebimentoItens, concluirRecebimento } from './omie';
+import { alterarRecebimentoItens, concluirRecebimento, obterPosicaoEstoqueProduto } from './omie';
 
 // conta_omie nas tabelas recebimento_* e MINUSCULO ('nova'/'castro'); a Conta do
 // modulo /ajustes e MAIUSCULA. Esta ponte e obrigatoria p/ casar com recebimento_meta.
@@ -170,11 +170,35 @@ export async function obterRecebimentosPendentes(
   return { ...payload, fonte: 'omie' };
 }
 
+/** Item associado a um produto existente: impacto no CMC projetado (pre-entrada). */
+export interface AssociadoInfo {
+  nSequencia: number | string;
+  idProduto: number;
+  descricaoProduto?: string | null;
+  cmcAtual: number | null;
+  saldoAtual: number | null;
+  cmcProjetado: number | null;
+  impactoCMC: number | null;
+  impactoPct: number | null;
+  alerta: boolean;
+  precoUnit?: number | null;
+}
+
 export interface DarEntradaArgs {
   conta: Conta;
   idReceb?: number | string | null;
   chaveNFe?: string | null;
-  itens?: Array<{ nSequencia: number | string; cAcao?: string; cfopEntrada?: string }>;
+  itens?: Array<{
+    nSequencia: number | string;
+    cAcao?: string;
+    cfopEntrada?: string;
+    /** id Omie do produto a associar (item que viria como "produto novo"). */
+    associarIdProduto?: number | null;
+    /** so p/ projetar o impacto no CMC do produto associado */
+    qtde?: number | null;
+    precoUnit?: number | null;
+    descricaoProduto?: string | null;
+  }>;
   naoGerarFinanceiro?: boolean;
   naoGerarMovEstoque?: boolean;
   codCategoria?: string | null;
@@ -187,8 +211,68 @@ export interface DarEntradaArgs {
 }
 
 /**
+ * Passe 1 do "dar entrada": liga itens que viriam como PRODUTO NOVO a produtos ja
+ * cadastrados (cAcao=ASSOCIAR-PRODUTO). Vai numa chamada SEPARADA porque o Omie
+ * recusa itensAjustes (onde vai o cCFOPEntrada) quando cAcao != 'EDITAR' - o CFOP
+ * desses mesmos itens vai no passe 2, junto com o resto.
+ *
+ * Antes de associar, projeta o impacto no CMC do produto escolhido (PosicaoEstoque
+ * ainda e' a de ANTES da entrada), para a tela oferecer a correcao de custo depois:
+ * associar uma peca barata a um SKU caro derruba o CMC igual a NF de garantia.
+ */
+async function associarProdutosExistentes(
+  conta: Conta,
+  idReceb: number | string | null,
+  chaveNFe: string | null,
+  itens: NonNullable<DarEntradaArgs['itens']>,
+): Promise<{ resposta: any; associados: AssociadoInfo[] }> {
+  const associados: AssociadoInfo[] = [];
+  for (const it of itens) {
+    const idProduto = Number(it.associarIdProduto);
+    const qtde = Number(it.qtde) || 0;
+    const precoUnit = Number(it.precoUnit) || 0;
+    const info: AssociadoInfo = {
+      nSequencia: it.nSequencia,
+      idProduto,
+      descricaoProduto: it.descricaoProduto ?? null,
+      cmcAtual: null, saldoAtual: null, cmcProjetado: null,
+      impactoCMC: null, impactoPct: null, alerta: false,
+      precoUnit: precoUnit || null,
+    };
+    try {
+      const pos = await obterPosicaoEstoqueProduto(conta, idProduto, { codigoLocalEstoque: 0 });
+      const saldo = Number(pos.saldo) || 0;
+      const cmc = Number(pos.cmc) || 0;
+      info.saldoAtual = saldo;
+      info.cmcAtual = cmc;
+      if (saldo + qtde > 0 && precoUnit >= 0) {
+        const proj = (saldo * cmc + qtde * precoUnit) / (saldo + qtde);
+        info.cmcProjetado = proj;
+        info.impactoCMC = cmc > 0 ? proj - cmc : null;
+        info.impactoPct = cmc > 0 ? (proj - cmc) / cmc : null;
+        info.alerta = cmc > 0 && proj < cmc * 0.97; // mesmo criterio da analise (queda > 3%)
+      }
+    } catch (e: any) {
+      console.warn(`[receb] PosicaoEstoque prod ${idProduto}:`, e?.message);
+    }
+    associados.push(info);
+  }
+
+  const resposta = await alterarRecebimentoItens(conta, {
+    idReceb, chaveNFe,
+    itens: itens.map((it) => ({
+      nSequencia: it.nSequencia,
+      cAcao: 'ASSOCIAR-PRODUTO',
+      nIdProdutoExistente: Number(it.associarIdProduto),
+    })),
+  });
+  return { resposta, associados };
+}
+
+/**
  * Dá entrada (conclui) um recebimento de NF-e. SEMPRE chama AlterarRecebimento
  * quando há itens (para forçar nosso set de "custo de estoque"), depois ConcluirRecebimento.
+ * Itens com `associarIdProduto` levam antes um AlterarRecebimento só de associação.
  * Portado de /api/dar-entrada-recebimento (server.js:1491).
  */
 export async function darEntradaRecebimento(b: DarEntradaArgs): Promise<any> {
@@ -203,10 +287,23 @@ export async function darEntradaRecebimento(b: DarEntradaArgs): Promise<any> {
   const codCategoria = b.codCategoria != null ? String(b.codCategoria) : null;
   const codDepartamento = b.codDepartamento != null ? String(b.codDepartamento) : null;
 
+  // passe 1: associacoes (item "produto novo" -> produto ja cadastrado)
+  const aAssociar = itensIn.filter((it) => Number(it.associarIdProduto) > 0);
+  let associados: AssociadoInfo[] = [];
+  let respAssociar: any = null;
+  if (aAssociar.length > 0) {
+    const r1 = await associarProdutosExistentes(conta, idReceb, chaveNFe, aAssociar);
+    respAssociar = r1.resposta;
+    associados = r1.associados;
+  }
+
+  // passe 2: CFOP de entrada + flags de custo de estoque (inclusive nos associados)
   if (itensIn.length > 0) {
     const itensEditar = itensIn.map((it) => ({
       nSequencia: it.nSequencia,
-      cAcao: it.cAcao || 'EDITAR',
+      // aqui so' EDITAR ou IGNORAR: a associacao ja foi feita no passe 1 e este passe
+      // precisa de EDITAR para poder levar itensAjustes (CFOP).
+      cAcao: String(it.cAcao || '').toUpperCase() === 'IGNORAR' ? 'IGNORAR' : 'EDITAR',
       cCFOPEntrada: it.cfopEntrada || undefined,
       cNaoGerarFinanceiro: b.naoGerarFinanceiro != null ? (b.naoGerarFinanceiro ? 'S' : 'N') : undefined,
       cNaoGerarMovEstoque: b.naoGerarMovEstoque != null ? (b.naoGerarMovEstoque ? 'S' : 'N') : undefined,
@@ -233,6 +330,8 @@ export async function darEntradaRecebimento(b: DarEntradaArgs): Promise<any> {
         naoGerarFinanceiro: b.naoGerarFinanceiro,
         naoGerarMovEstoque: b.naoGerarMovEstoque,
         cfops: itensIn.map((i) => ({ s: i.nSequencia, c: i.cfopEntrada })),
+        associacoes: aAssociar.map((i) => ({ s: i.nSequencia, idProduto: i.associarIdProduto })),
+        respAssociar,
         respAlterar: alterado,
         respConcluir: r.rawResponse,
       },
@@ -255,9 +354,13 @@ export async function darEntradaRecebimento(b: DarEntradaArgs): Promise<any> {
       naoGerarFinanceiro: b.naoGerarFinanceiro,
       naoGerarMovEstoque: b.naoGerarMovEstoque,
       cfops: itensIn.map((i) => ({ s: i.nSequencia, c: i.cfopEntrada })),
+      associacoes: associados.map((a) => ({
+        s: a.nSequencia, idProduto: a.idProduto, desc: a.descricaoProduto,
+        cmcAtual: a.cmcAtual, cmcProjetado: a.cmcProjetado, alerta: a.alerta,
+      })),
     },
-    resultado: { idReceb: r.idReceb, descStatus: r.descStatus, ajustado: !!alterado },
+    resultado: { idReceb: r.idReceb, descStatus: r.descStatus, ajustado: !!alterado, associados: associados.length },
   });
 
-  return { ok: true, idReceb: r.idReceb, descStatus: r.descStatus, ajustado: !!alterado };
+  return { ok: true, idReceb: r.idReceb, descStatus: r.descStatus, ajustado: !!alterado, associados };
 }
