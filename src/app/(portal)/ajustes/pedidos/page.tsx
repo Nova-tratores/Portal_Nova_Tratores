@@ -55,6 +55,24 @@ function isoOffset(dias: number): string {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 
+// "Criado por"/"Alterado por": a API devolve o codigo interno do usuario Omie
+// (ex. "P000454031") e o servidor troca pelo nome. Quando o nome volta IGUAL ao
+// codigo e' porque o usuario nao esta mais no cadastro (inativo/removido) — a
+// Omie nao expoe esses via API. Marcamos como codigo cru p/ nao parecer um nome.
+function ehCodigoOmie(nome?: string | null, login?: string | null): boolean {
+  return !!nome && (nome === login || /^P\d{6,}$/.test(nome));
+}
+function CelulaUsuario({ nome, login }: { nome?: string | null; login?: string | null }) {
+  const valor = nome || login;
+  if (!valor) return <>-</>;
+  if (!ehCodigoOmie(valor, login)) return <>{valor}</>;
+  return (
+    <span style={{ color: '#94a3b8', fontFamily: 'monospace', fontSize: '.7rem' }} title={`Codigo interno do usuario Omie (${valor}). O usuario nao consta mais no cadastro da conta — provavelmente foi inativado/removido no Omie.`}>
+      {valor}
+    </span>
+  );
+}
+
 const thStyle: React.CSSProperties = { background: '#f8fafc', color: '#475569', fontSize: '.65rem', textTransform: 'uppercase', letterSpacing: '.4px', padding: '8px 10px', textAlign: 'left', borderBottom: '1px solid #e2e8f0', fontWeight: 600, whiteSpace: 'nowrap' };
 const tdStyle: React.CSSProperties = { padding: '8px 10px', borderBottom: '1px solid #f1f5f9', color: '#334155', fontSize: '.82rem' };
 
@@ -339,7 +357,7 @@ export default function PedidosPage() {
                           <td style={{ ...tdStyle, textAlign: 'right', fontSize: '.72rem', ...corDias }}>{dias != null ? dias : '-'}</td>
                           <td style={{ ...tdStyle, textAlign: 'right', fontSize: '.72rem', ...corParado }} title={(p.alteradoPorNome || p.alteradoPorLogin) ? 'alteracao por ' + (p.alteradoPorNome || p.alteradoPorLogin) : ''}>{parado != null ? parado : '-'}</td>
                           <td style={{ ...tdStyle, fontSize: '.78rem' }}>{p.nomeCliente || ('cli #' + (p.codigoCliente || '?'))}</td>
-                          <td style={{ ...tdStyle, fontSize: '.72rem' }}>{p.criadoPorNome || p.criadoPorLogin || '-'}</td>
+                          <td style={{ ...tdStyle, fontSize: '.72rem' }}><CelulaUsuario nome={p.criadoPorNome} login={p.criadoPorLogin} /></td>
                           <td style={{ ...tdStyle, fontSize: '.72rem' }}>{p.etapaNome || p.etapa || ''}</td>
                           <td style={{ ...tdStyle, textAlign: 'right' }}>{(p.itens || []).length}</td>
                           <td style={{ ...tdStyle, textAlign: 'right' }}>{fmtBRL(p.valorTotal)}</td>
@@ -460,8 +478,8 @@ export default function PedidosPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 18px', marginBottom: 12, fontSize: '.76rem', color: '#475569' }}>
                 <div>Cliente: <b>{detalheSel.nomeCliente || ('#' + (detalheSel.codigoCliente || '?'))}</b></div>
                 <div>Etapa: <b>{detalheSel.etapaNome || detalheSel.etapa || '?'}</b></div>
-                <div>Criado por: <b>{detalheSel.criadoPorNome || detalheSel.criadoPorLogin || '-'}</b></div>
-                <div>Alterado por: <b>{detalheSel.alteradoPorNome || detalheSel.alteradoPorLogin || '-'}</b></div>
+                <div>Criado por: <b><CelulaUsuario nome={detalheSel.criadoPorNome} login={detalheSel.criadoPorLogin} /></b></div>
+                <div>Alterado por: <b><CelulaUsuario nome={detalheSel.alteradoPorNome} login={detalheSel.alteradoPorLogin} /></b></div>
                 <div>Inclusao: <b>{detalheSel.dataInclusao || '?'}</b></div>
                 <div>Previsao: <b>{detalheSel.dataPrevisao || '?'}</b></div>
                 <div>Dias parado na etapa: <b>{detalheSel.diasParadoEtapa != null ? detalheSel.diasParadoEtapa : '-'}</b></div>

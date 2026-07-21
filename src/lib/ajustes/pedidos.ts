@@ -42,28 +42,29 @@ function diasDesdeBR(dataBR: string | null | undefined): number | null {
 
 // ---- Mapas (clientes / etapas / usuarios) com cache ----
 
-// Mapa login_omie -> nome do usuario, por conta (cache 12h). Usado pra mostrar
-// "Criado por" no pedido (cabec.infoCadastro.uInc traz o login).
+// Mapa identificador_omie -> nome do usuario, por conta (cache 12h). Usado pra
+// mostrar "Criado por"/"Alterado por" no pedido: infoCadastro.uInc/uAlt trazem o
+// CODIGO interno do usuario (ex.: "P000454175"), nunca o nome.
+//
+// Shape confirmado em runtime (ListarUsuarios): { cNome, cNomeCompl, cEmail,
+// nCodUsuario }. Cuidado com a nomenclatura invertida da Omie: `cNome` e' o
+// codigo (== uInc) e `cNomeCompl` e' o nome de verdade. Indexamos tambem por
+// nCodUsuario e email por seguranca.
 export async function obterMapaUsuarios(conta: Conta): Promise<Record<string, string>> {
   const chave = `usuarios_map:${conta}`;
   const hit = cache.get<Record<string, string>>(chave);
   if (hit) return hit.valor;
   let arr: any[] = [];
   try { arr = await listarUsuarios(conta); } catch (e) { console.warn('[usuarios]', (e as Error).message); }
-  // Diagnostico temporario: o Omie nao documenta de forma consistente o shape do
-  // usuario nem o que `uInc` (criadoPorLogin) realmente contem (login/email/codigo).
-  // Logamos o 1o objeto pra confirmar os nomes de campo e ajustar as chaves abaixo.
-  if ((arr || []).length) console.log('[usuarios] amostra:', JSON.stringify(arr[0]));
   const map: Record<string, string> = {};
   const por = (k: any, nome: string) => { if (k != null && k !== '') map[String(k).toUpperCase()] = nome; };
   for (const u of (arr || [])) {
-    const nome = u.cNome || u.nome || u.cNomeCompleto || u.nomeCompleto || u.cLogin || u.login || null;
+    const nome = u.cNomeCompl || u.cNomeCompleto || u.nomeCompleto || u.nome || null;
     if (!nome) continue;
-    // `uInc` pode vir como login, email OU codigo numerico — indexamos sob todas
-    // as chaves identificadoras plausiveis pra garantir o casamento no lookup.
-    por(u.cLogin, nome); por(u.login, nome); por(u.cUsuario, nome); por(u.usuario, nome);
+    por(u.cNome, nome);        // codigo interno — e' o que casa com uInc/uAlt
+    por(u.nCodUsuario, nome);
     por(u.cEmail, nome); por(u.email, nome);
-    por(u.nCodigo, nome); por(u.codigo, nome); por(u.nCod, nome); por(u.cCodigo, nome); por(u.nCodVendedor, nome);
+    por(u.cLogin, nome); por(u.login, nome);
   }
   cache.set(chave, map, 43200); // 12h
   return map;
