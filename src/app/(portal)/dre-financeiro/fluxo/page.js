@@ -98,10 +98,19 @@ function corAno(idx) { return CORES_ANO[idx % CORES_ANO.length] }
 // Carregamento das libs de grafico (ECharts + Chart.js + plugin treemap) via CDN,
 // uma unica vez. Mesmas versoes da fonte (fluxo.ejs).
 // ---------------------------------------------------------------------------
+// NAO testar so `window.Chart`: outras telas do modulo (aderencia, margens, ...)
+// carregam SO o chart.umd, sem o treemap. Vindo de uma delas por navegacao
+// client-side, window.Chart existe mas o controller 'treemap' nao esta registado
+// e o new Chart({type:'treemap'}) rebenta -> "Application error" na tela toda.
+function treemapPronto() {
+  if (typeof window === 'undefined' || !window.Chart) return false
+  try { return !!window.Chart.registry.getController('treemap') } catch { return false }
+}
+
 let chartLibPromise = null
 function carregarChartLibs() {
   if (typeof window === 'undefined') return Promise.resolve()
-  if (window.echarts && window.Chart) return Promise.resolve()
+  if (window.echarts && treemapPronto()) return Promise.resolve()
   if (chartLibPromise) return chartLibPromise
   function addScript(src) {
     return new Promise((resolve, reject) => {
@@ -115,8 +124,11 @@ function carregarChartLibs() {
       document.head.appendChild(s)
     })
   }
-  chartLibPromise = addScript('https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js')
-    .then(() => addScript('https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js'))
+  const base = window.echarts
+    ? Promise.resolve()
+    : addScript('https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js')
+  chartLibPromise = base
+    .then(() => (window.Chart ? null : addScript('https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js')))
     .then(() => addScript('https://cdn.jsdelivr.net/npm/chartjs-chart-treemap@3.1.0/dist/chartjs-chart-treemap.min.js'))
   return chartLibPromise
 }

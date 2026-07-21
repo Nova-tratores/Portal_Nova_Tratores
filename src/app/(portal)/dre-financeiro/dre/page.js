@@ -143,10 +143,19 @@ function defaultsPeriodo() {
 }
 
 // Carrega Chart.js + plugin treemap via CDN uma unica vez (mesmas versoes da fonte).
+// NAO testar so `window.Chart`: outras telas do modulo (aderencia, margens, ...)
+// carregam SO o chart.umd, sem o treemap. Vindo de uma delas por navegacao
+// client-side, window.Chart existe mas o controller 'treemap' nao esta registado
+// e o new Chart({type:'treemap'}) rebenta -> "Application error" na tela toda.
+function treemapPronto() {
+  if (typeof window === 'undefined' || !window.Chart) return false
+  try { return !!window.Chart.registry.getController('treemap') } catch { return false }
+}
+
 let chartLibPromise = null
 function carregarChartLib() {
   if (typeof window === 'undefined') return Promise.resolve()
-  if (window.Chart) return Promise.resolve()
+  if (treemapPronto()) return Promise.resolve()
   if (chartLibPromise) return chartLibPromise
   function addScript(src) {
     return new Promise((resolve, reject) => {
@@ -158,7 +167,10 @@ function carregarChartLib() {
       document.head.appendChild(s)
     })
   }
-  chartLibPromise = addScript('https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js')
+  const base = window.Chart
+    ? Promise.resolve()
+    : addScript('https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js')
+  chartLibPromise = base
     .then(() => addScript('https://cdn.jsdelivr.net/npm/chartjs-chart-treemap@3.1.0/dist/chartjs-chart-treemap.min.js'))
   return chartLibPromise
 }
