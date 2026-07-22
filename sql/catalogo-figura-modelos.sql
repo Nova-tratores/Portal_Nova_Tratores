@@ -5,8 +5,10 @@
 -- Depois disto, a consulta de figuras por modelo passa a usar esta tabela,
 -- e a Valtra entra SEM duplicar figura/peça (1.590 figuras em vez de ~8.450).
 
+-- OBS: catalogo_figuras.id é TEXT (os valores parecem uuid, mas o tipo é text),
+-- então figura_id aqui também precisa ser text — senão a FK não compila.
 CREATE TABLE IF NOT EXISTS catalogo_figura_modelos (
-  figura_id uuid NOT NULL REFERENCES catalogo_figuras(id) ON DELETE CASCADE,
+  figura_id text NOT NULL REFERENCES catalogo_figuras(id) ON DELETE CASCADE,
   modelo    text NOT NULL,
   PRIMARY KEY (figura_id, modelo)
 );
