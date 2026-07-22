@@ -201,6 +201,7 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'veiculos:responsavel', label: 'Veículos — trocar o responsável' },
     { id: 'motoristas:editar', label: 'Motoristas — editar CNH / flag motorista' },
     { id: 'multas:editar', label: 'Multas — mudar status / desconto' },
+    { id: 'avarias:editar', label: 'Avarias — registrar / mudar status' },
     { id: 'paradas:justificar', label: 'Paradas — justificar / ignorar atípicas' },
     // 'patio:editar' morreu com a tela de pátio (13/07) — as APIs que restaram
     // (valor FIPE, imagem do veículo) passaram a exigir veiculos:editar.

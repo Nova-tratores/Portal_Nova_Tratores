@@ -40,6 +40,9 @@ export const PAGINAS_FROTA: PaginaFrota[] = [
   { key: 'frota:mapa',               label: 'Mapa',              href: '/frota/mapa',               grupo: 'Operação' },
   { key: 'frota:paradas',            label: 'Paradas',           href: '/frota/paradas',            grupo: 'Operação' },
   { key: 'frota:multas',             label: 'Multas',            href: '/frota/multas',             grupo: 'Operação' },
+  // Avarias: danos de veículo atribuíveis a motorista (registro manual).
+  // A cobrança tem fim no RH (fila em Descontos → Avarias da frota).
+  { key: 'frota:avarias',            label: 'Avarias',           href: '/frota/avarias',            grupo: 'Operação' },
   { key: 'frota:manutencoes',        label: 'Manutenções',       href: '/frota/manutencoes',        grupo: 'Operação' },
   { key: 'frota:abastecimento',      label: 'Abastecimento',     href: '/frota/abastecimento',      grupo: 'Custos' },
   { key: 'frota:abastecimento:flex', label: 'Álcool × Gasolina', href: '/frota/abastecimento/flex', grupo: 'Custos' },
