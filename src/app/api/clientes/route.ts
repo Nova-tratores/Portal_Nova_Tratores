@@ -76,8 +76,15 @@ export async function GET(req: NextRequest) {
         const remM = ref.match(/^REM\s*(\d+)$/i);
         const num = remM ? remM[1] : (ref.match(/\d+/g) || []).join("");
         if (!num) return null;
-        return { num, empresa: /castro/i.test(ref) ? "Castro Pecas" : o.empresa };
-      }).filter(Boolean) as { num: string; empresa: string }[];
+        // Guarda de qual OS veio a referência: o card do financeiro nasce da OS
+        // (omie_empresa = empresa da OS), mesmo quando o PV é da Castro.
+        return {
+          num,
+          empresa: /castro/i.test(ref) ? "Castro Pecas" : o.empresa,
+          num_os: String(o.num_os || ""),
+          os_empresa: String(o.empresa || ""),
+        };
+      }).filter(Boolean) as { num: string; empresa: string; num_os: string; os_empresa: string }[];
       const numPedidos = [...new Set(pedidoPares.map(p => p.num))];
 
       let pedidos: any[] = [];
@@ -117,11 +124,22 @@ export async function GET(req: NextRequest) {
           .or(ors.join(","));
         cards = ch || [];
       }
+      // Indexa por número + EMPRESA: a Castro tem OS/PV com o mesmo número da
+      // Nova, e a busca acima traz cards de outros clientes que repetem o número.
+      // Sem a empresa na chave, um card podia colar na OS/PV errada.
       const cardPorOS = new Map<string, any>();
       const cardPorPV = new Map<string, any>();
       for (const c of cards) {
-        if (c.omie_num_os) cardPorOS.set(String(c.omie_num_os), c);
-        if (c.omie_num_pedido) cardPorPV.set(String(c.omie_num_pedido), c);
+        const emp = String(c.omie_empresa || "");
+        if (c.omie_num_os) cardPorOS.set(`${c.omie_num_os}|${emp}`, c);
+        if (c.omie_num_pedido) cardPorPV.set(`${c.omie_num_pedido}|${emp}`, c);
+      }
+      // PV -> OS que o referencia. O card do PV é o card daquela OS (é ele que
+      // carrega as duas notas), então buscamos pelo lado da OS. Isso mantém o
+      // caso "CASTRO 4133": PV na Castro, card na Nova.
+      const osPorPV = new Map<string, { num_os: string; os_empresa: string }>();
+      for (const p of pedidoPares) {
+        if (p.num_os) osPorPV.set(`${p.num}|${p.empresa}`, { num_os: p.num_os, os_empresa: p.os_empresa });
       }
 
       // -------- Mapear o POS (Ordem_Servico_Tecnicos) e o PPV (pedidos) ORIGINAIS --------
@@ -170,7 +188,7 @@ export async function GET(req: NextRequest) {
         const idOrdem = posPorOS.get(String(o.num_os)) || null;
         return {
           ...o,
-          financeiro: fin(cardPorOS.get(String(o.num_os))),
+          financeiro: fin(cardPorOS.get(`${o.num_os}|${o.empresa}`)),
           // documento REAL do POS quando existe; senão a remontagem do Omie
           pos_id: idOrdem,
           pos_pdf: idOrdem ? `/api/pos/ordens/${idOrdem}/print` : reconstrOS(o),
@@ -179,9 +197,14 @@ export async function GET(req: NextRequest) {
       });
       const pvsEnr = todosPVs.map((p: any) => {
         const idPedido = ppvPorPV.get(String(p.num_pedido)) || null;
+        // 1º pela OS que referencia o PV (card nasce da OS, vale p/ PV da Castro);
+        // 2º pelo próprio PV, quando o card não veio de nenhuma OS.
+        const chavePV = `${p.num_pedido}|${p.empresa}`;
+        const viaOS = osPorPV.get(chavePV);
+        const cardPV = (viaOS && cardPorOS.get(`${viaOS.num_os}|${viaOS.os_empresa}`)) || cardPorPV.get(chavePV) || null;
         return {
           ...p,
-          financeiro: fin(cardPorPV.get(String(p.num_pedido))),
+          financeiro: fin(cardPV),
           // documento REAL do PPV quando existe; senão a remontagem do Omie
           ppv_id: idPedido,
           pv_pdf: idPedido ? `/api/ppv/pdf?id=${idPedido}` : reconstrPV(p),
