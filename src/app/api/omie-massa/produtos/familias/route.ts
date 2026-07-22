@@ -1,8 +1,9 @@
-// GET → famílias de produtos (produto_tipo, conta NOVA) com contagem,
-// para o seletor da aba Produtos do módulo Omie em Massa.
+// GET → famílias de produtos (produto_tipo) com contagem, para o seletor da aba
+// Produtos do módulo Omie em Massa. `?conta=NOVA|CASTRO` (default NOVA).
 import { NextResponse } from 'next/server';
 import { autenticar } from '@/lib/auth/server';
 import { familiasPorProduto } from '@/lib/omie-massa/supabase';
+import { contaDaQuery } from '@/lib/omie-massa/omie';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,7 +15,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Sem permissão (ajustes:omie-massa)' }, { status: 403 });
   }
   try {
-    const fam = await familiasPorProduto();
+    const fam = await familiasPorProduto(contaDaQuery(new URL(req.url).searchParams.get('conta')));
     const contagem = new Map<string, number>();
     for (const f of fam.values()) contagem.set(f, (contagem.get(f) || 0) + 1);
     const familias = [...contagem.entries()]

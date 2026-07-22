@@ -5,7 +5,7 @@
 //        em produtos o Omie preserva o resto e "inativo" é editável).
 import { NextResponse } from 'next/server';
 import { autenticar } from '@/lib/auth/server';
-import { omieProdutoCall, diffProduto, pausa, PAUSA_MS, type ProdutoOmie } from '@/lib/omie-massa/omie';
+import { omieProdutoCall, diffProduto, pausa, PAUSA_MS, cestDe, origemDe, contaDaQuery, contaLow, type ProdutoOmie } from '@/lib/omie-massa/omie';
 import { supabaseAdmin as supabase, norm, familiasPorProduto } from '@/lib/omie-massa/supabase';
 import { decodeOmieTexto } from '@/lib/omie/texto';
 
@@ -28,6 +28,7 @@ export async function GET(req: Request) {
   const { erro } = await checarAcesso(req);
   if (erro) return erro;
   const url = new URL(req.url);
+  const conta = contaDaQuery(url.searchParams.get('conta'));
   const filtroFamilia = url.searchParams.get('familia') || '';
   const ordenar = url.searchParams.get('ordenar') === 'estoque' ? 'estoque' : 'vendas';
   const top = Math.min(Math.max(parseInt(url.searchParams.get('top') || '50', 10) || 50, 1), 300);
@@ -37,7 +38,7 @@ export async function GET(req: Request) {
   const ano = parseInt(url.searchParams.get('ano') || String(mesAnterior.getFullYear()), 10);
 
   try {
-    const famPorProd = await familiasPorProduto();
+    const famPorProd = await familiasPorProduto(conta);
 
     // Estoque atual (tabela produtos usa conta MINÚSCULA)
     interface ProdBase { codigo_produto: string; codigo: string; descricao: string; estoque: number }
@@ -45,7 +46,8 @@ export async function GET(req: Request) {
     for (let from = 0; ; from += 1000) {
       const { data, error } = await supabase.from('produtos')
         .select('codigo_produto, codigo, descricao, estoque')
-        .eq('conta_omie', 'nova').eq('arquivado', false)
+        .eq('conta_omie', contaLow(conta)).eq('arquivado', false)
+        .order('codigo_produto')
         .range(from, from + 999);
       if (error) throw new Error(`produtos: ${error.message}`);
       for (const p of data || []) produtos.push({ ...p, codigo_produto: String(p.codigo_produto), estoque: Number(p.estoque) || 0 });
@@ -57,7 +59,8 @@ export async function GET(req: Request) {
     for (let from = 0; ; from += 1000) {
       const { data, error } = await supabase.from('vendas_itens')
         .select('codigo_produto, quantidade, valor_total')
-        .eq('mes', mes).eq('ano', ano).ilike('conta_omie', 'nova')
+        .eq('mes', mes).eq('ano', ano).ilike('conta_omie', contaLow(conta))
+        .order('id')
         .range(from, from + 999);
       if (error) throw new Error(`vendas_itens: ${error.message}`);
       for (const v of data || []) {
@@ -89,17 +92,22 @@ export async function GET(req: Request) {
     const linhas: Array<Record<string, string | number>> = [];
     for (const p of selecionados) {
       try {
-        const o = await omieProdutoCall<ProdutoOmie>('ConsultarProduto', { codigo_produto: Number(p.codigo_produto) });
+        const o = await omieProdutoCall<ProdutoOmie>('ConsultarProduto', { codigo_produto: Number(p.codigo_produto) }, conta);
         linhas.push({
           codigo_produto: Number(p.codigo_produto), codigo: o.codigo ?? p.codigo,
           familia: p.familia, estoque: p.estoque, vendas_qtd: p.vendas_qtd, vendas_valor: p.vendas_valor,
           descricao: decodeOmieTexto(o.descricao ?? ''), descr_detalhada: decodeOmieTexto(o.descr_detalhada ?? ''), valor_unitario: Number(o.valor_unitario ?? 0),
           ncm: o.ncm ?? '', ean: o.ean ?? '', unidade: o.unidade ?? '', inativo: o.inativo ?? 'N',
-          // Classificação fiscal + tributos (clássicos e Reforma IBS/CBS)
-          cest: o.cest ?? '', cfop: o.cfop ?? '',
-          cst_icms: o.cst_icms ?? '', csosn_icms: o.csosn_icms ?? '', aliquota_icms: Number(o.aliquota_icms ?? 0),
-          cst_pis: o.cst_pis ?? '', aliquota_pis: Number(o.aliquota_pis ?? 0),
-          cst_cofins: o.cst_cofins ?? '', aliquota_cofins: Number(o.aliquota_cofins ?? 0),
+          tipoItem: o.tipoItem ?? '',
+          // CEST e Origem vivem em recomendacoes_fiscais — os campos de topo
+          // (`cest`, `origem_imposto`) vêm sempre vazios da Omie.
+          cest: cestDe(o), origem_mercadoria: origemDe(o), cfop: o.cfop ?? '',
+          cst_icms: o.cst_icms ?? '', modalidade_icms: o.modalidade_icms ?? '',
+          csosn_icms: o.csosn_icms ?? '', aliquota_icms: Number(o.aliquota_icms ?? 0),
+          red_base_icms: Number(o.red_base_icms ?? 0), motivo_deson_icms: o.motivo_deson_icms ?? '',
+          per_icms_fcp: Number(o.per_icms_fcp ?? 0), codigo_beneficio: o.codigo_beneficio ?? '',
+          cst_pis: o.cst_pis ?? '', aliquota_pis: Number(o.aliquota_pis ?? 0), red_base_pis: Number(o.red_base_pis ?? 0),
+          cst_cofins: o.cst_cofins ?? '', aliquota_cofins: Number(o.aliquota_cofins ?? 0), red_base_cofins: Number(o.red_base_cofins ?? 0),
           cst_ibs_cbs: o.cst_ibs_cbs ?? '', class_trib: o.class_trib ?? '',
           aliquota_ibs_mun: Number(o.aliquota_ibs_mun ?? 0), aliquota_ibs_uf: Number(o.aliquota_ibs_uf ?? 0), aliquota_cbs: Number(o.aliquota_cbs ?? 0),
           perc_reducao_ibs_mun: Number(o.perc_reducao_ibs_mun ?? 0), perc_reducao_ibs_uf: Number(o.perc_reducao_ibs_uf ?? 0), perc_reducao_cbs: Number(o.perc_reducao_cbs ?? 0),
@@ -121,7 +129,11 @@ interface ResultadoItem { codigo_produto: number; codigo: string; ok: boolean; e
 export async function POST(req: Request) {
   const { erro } = await checarAcesso(req);
   if (erro) return erro;
-  const body = await req.json().catch(() => null) as { alteracoes?: Array<Partial<ProdutoOmie> & { codigo_produto: number }> } | null;
+  const body = await req.json().catch(() => null) as {
+    conta?: string;
+    alteracoes?: Array<Partial<ProdutoOmie> & { codigo_produto: number }>;
+  } | null;
+  const conta = contaDaQuery(body?.conta);
   const alteracoes = body?.alteracoes || [];
   if (!alteracoes.length) return NextResponse.json({ error: 'Nenhuma alteração enviada' }, { status: 400 });
 
@@ -129,7 +141,9 @@ export async function POST(req: Request) {
   for (const row of alteracoes) {
     let atual: ProdutoOmie;
     try {
-      atual = await omieProdutoCall<ProdutoOmie>('ConsultarProduto', { codigo_produto: Number(row.codigo_produto) });
+      // Reconsulta antes de gravar: o diff é sempre contra o estado atual do
+      // Omie (e é daqui que sai o recomendacoes_fiscais completo para o merge).
+      atual = await omieProdutoCall<ProdutoOmie>('ConsultarProduto', { codigo_produto: Number(row.codigo_produto) }, conta);
     } catch (e: unknown) {
       resultados.push({ codigo_produto: Number(row.codigo_produto), codigo: '', ok: false, erro: `consulta falhou: ${e instanceof Error ? e.message : e}`, campos: [] });
       continue;
@@ -140,7 +154,7 @@ export async function POST(req: Request) {
       continue;
     }
     try {
-      await omieProdutoCall('AlterarProduto', payload);
+      await omieProdutoCall('AlterarProduto', payload, conta);
       resultados.push({ codigo_produto: atual.codigo_produto, codigo: atual.codigo, ok: true, campos: mudancas.map((m) => m.campo) });
     } catch (e: unknown) {
       resultados.push({ codigo_produto: atual.codigo_produto, codigo: atual.codigo, ok: false, erro: e instanceof Error ? e.message : String(e), campos: mudancas.map((m) => m.campo) });

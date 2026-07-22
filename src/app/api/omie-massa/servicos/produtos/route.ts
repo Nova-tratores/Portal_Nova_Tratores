@@ -8,7 +8,7 @@
 import { NextResponse } from 'next/server';
 import { autenticar } from '@/lib/auth/server';
 import {
-  listarTodosServicos, consultarServico, listarLocaisEstoque,
+  listarTodosServicos, consultarServico, listarLocaisEstoque, contaDaQuery,
   omieProdutoCall, pausa, PAUSA_MS, type ProdutoOmie, type ProdutoUtilizadoOmie,
 } from '@/lib/omie-massa/omie';
 import { decodeOmieTexto } from '@/lib/omie/texto';
@@ -74,27 +74,28 @@ export async function GET(req: Request) {
   const { erro } = await checarAcesso(req);
   if (erro) return erro;
   const url = new URL(req.url);
+  const conta = contaDaQuery(url.searchParams.get('conta'));
   const nCodServ = Number(url.searchParams.get('nCodServ') || 0);
 
   try {
-    const locais = await listarLocaisEstoque();
+    const locais = await listarLocaisEstoque(conta);
 
     // ---- um serviço só (modal rápido) ----
     if (nCodServ) {
-      const s = await consultarServico(nCodServ);
+      const s = await consultarServico(nCodServ, conta);
       const itens = s.produtosUtilizados?.produtoUtilizado || [];
       const nomes = await nomesDosProdutos([...new Set(itens.map((p) => Number(p.nCodProdutoPU)))]);
       return NextResponse.json({ produtos: montarLinhas(itens, nomes, locais) });
     }
 
     // ---- todos os serviços ----
-    const cadastros = await listarTodosServicos();
+    const cadastros = await listarTodosServicos(conta);
     const composicoes: Array<{ nCodServ: number; cCodigo: string; cDescricao: string; inativo: string; itens: ProdutoUtilizadoOmie[] }> = [];
     for (const cad of cadastros) {
       await pausa(PAUSA_MS);
       let itens: ProdutoUtilizadoOmie[] = [];
       try {
-        const s = await consultarServico(cad.intListar.nCodServ);
+        const s = await consultarServico(cad.intListar.nCodServ, conta);
         itens = s.produtosUtilizados?.produtoUtilizado || [];
       } catch {
         // consulta individual falhou — segue com composição vazia

@@ -15,6 +15,7 @@ import { omieRequest, consultarEstoque as omieConsultarEstoque, type OmieRequest
 import { type Conta } from './conta';
 import { supabase } from './supabase';
 import { sleep } from './utils';
+import { decodeOmieTexto } from '@/lib/omie/texto';
 
 const FAMILIAS_OCULTAS = ['.Inativo', '####Requisição####', 'Sem família'];
 const API_DELAY = 1200; // ms entre chamadas Omie (rate limit)
@@ -51,6 +52,36 @@ interface OmieProdutoCadastro {
   info?: { dInc?: string };
   caracteristicas?: Array<{ cNomeCaract?: string; cConteudo?: string }>;
   imagens?: Array<{ url_imagem?: string }>;
+  // ---- fiscais (alimentam /ajustes/omie-massa; ver sql/produtos-fiscal.sql) ----
+  // CEST e Origem vivem SÓ dentro de recomendacoes_fiscais: os campos de topo
+  // `cest` e `origem_imposto` vêm sempre vazios da Omie.
+  ncm?: string;
+  tipoItem?: string;
+  ean?: string;
+  unidade?: string;
+  recomendacoes_fiscais?: {
+    id_cest?: string;
+    origem_mercadoria?: string;
+    cnpj_fabricante?: string;
+    indicador_escala?: string;
+    cupom_fiscal?: string;
+  } | null;
+  cfop?: string;
+  cst_icms?: string;
+  csosn_icms?: string;
+  aliquota_icms?: number;
+  red_base_icms?: number;
+  motivo_deson_icms?: string;
+  per_icms_fcp?: number;
+  codigo_beneficio?: string;
+  cst_pis?: string;
+  aliquota_pis?: number;
+  red_base_pis?: number;
+  cst_cofins?: string;
+  aliquota_cofins?: number;
+  red_base_cofins?: number;
+  cst_ibs_cbs?: string;
+  class_trib?: string;
 }
 
 interface OmieLocalEstoque {
@@ -83,6 +114,74 @@ interface ProdutoRow {
   cmc?: number;
   valor_estoque?: number;
   imagem_url?: string;
+  // ---- fiscais ----
+  ncm: string;
+  cest: string;
+  origem_mercadoria: string;
+  tipo_item: string;
+  cnpj_fabricante: string;
+  indicador_escala: string;
+  cupom_fiscal: string;
+  ean: string;
+  unidade: string;
+  cfop: string;
+  cst_icms: string;
+  csosn_icms: string;
+  aliquota_icms: number;
+  red_base_icms: number;
+  motivo_deson_icms: string;
+  per_icms_fcp: number;
+  codigo_beneficio: string;
+  cst_pis: string;
+  aliquota_pis: number;
+  red_base_pis: number;
+  cst_cofins: string;
+  aliquota_cofins: number;
+  red_base_cofins: number;
+  cst_ibs_cbs: string;
+  class_trib: string;
+  fiscal_atualizado_em: string;
+}
+
+// Campos fiscais da linha, a partir do cru da Omie. `modalidade_icms` fica de
+// fora de propósito: só o ConsultarProduto o devolve, o ListarProdutos não.
+function camposFiscais(p: OmieProdutoCadastro): Pick<ProdutoRow,
+  'ncm' | 'cest' | 'origem_mercadoria' | 'tipo_item' | 'cnpj_fabricante' | 'indicador_escala'
+  | 'cupom_fiscal' | 'ean' | 'unidade' | 'cfop' | 'cst_icms' | 'csosn_icms' | 'aliquota_icms'
+  | 'red_base_icms' | 'motivo_deson_icms' | 'per_icms_fcp' | 'codigo_beneficio' | 'cst_pis'
+  | 'aliquota_pis' | 'red_base_pis' | 'cst_cofins' | 'aliquota_cofins' | 'red_base_cofins'
+  | 'cst_ibs_cbs' | 'class_trib' | 'fiscal_atualizado_em'> {
+  const rec = p.recomendacoes_fiscais || {};
+  const txt = (v: unknown) => decodeOmieTexto(v ?? '').trim();
+  const num = (v: unknown) => Number(v ?? 0) || 0;
+  return {
+    ncm: txt(p.ncm),
+    cest: txt(rec.id_cest),
+    origem_mercadoria: txt(rec.origem_mercadoria),
+    tipo_item: txt(p.tipoItem),
+    cnpj_fabricante: txt(rec.cnpj_fabricante),
+    indicador_escala: txt(rec.indicador_escala),
+    cupom_fiscal: txt(rec.cupom_fiscal),
+    ean: txt(p.ean),
+    unidade: txt(p.unidade),
+    cfop: txt(p.cfop),
+    cst_icms: txt(p.cst_icms),
+    csosn_icms: txt(p.csosn_icms),
+    aliquota_icms: num(p.aliquota_icms),
+    red_base_icms: num(p.red_base_icms),
+    motivo_deson_icms: txt(p.motivo_deson_icms),
+    per_icms_fcp: num(p.per_icms_fcp),
+    codigo_beneficio: txt(p.codigo_beneficio),
+    cst_pis: txt(p.cst_pis),
+    aliquota_pis: num(p.aliquota_pis),
+    red_base_pis: num(p.red_base_pis),
+    cst_cofins: txt(p.cst_cofins),
+    aliquota_cofins: num(p.aliquota_cofins),
+    red_base_cofins: num(p.red_base_cofins),
+    cst_ibs_cbs: txt(p.cst_ibs_cbs),
+    class_trib: txt(p.class_trib),
+    fiscal_atualizado_em: new Date().toISOString(),
+  };
 }
 
 function dataHojeBR(): string {
@@ -245,13 +344,44 @@ export async function buscarPosicaoEstoqueBulkOmie(conta: Conta, dataPosicao?: s
   return mapa;
 }
 
+// Chaves de sql/produtos-fiscal.sql. Se a migration ainda não tiver sido
+// aplicada no ambiente, o upsert falha com "column ... does not exist" — nesse
+// caso regravamos SEM elas, para um deploy adiantado não derrubar o sync
+// inteiro (que alimenta /visual-estoque). Some sozinho depois da migration.
+const CAMPOS_FISCAIS_ROW = [
+  'ncm', 'cest', 'origem_mercadoria', 'tipo_item', 'cnpj_fabricante', 'indicador_escala',
+  'cupom_fiscal', 'ean', 'unidade', 'cfop', 'cst_icms', 'csosn_icms', 'aliquota_icms',
+  'red_base_icms', 'motivo_deson_icms', 'per_icms_fcp', 'codigo_beneficio', 'cst_pis',
+  'aliquota_pis', 'red_base_pis', 'cst_cofins', 'aliquota_cofins', 'red_base_cofins',
+  'cst_ibs_cbs', 'class_trib', 'fiscal_atualizado_em',
+] as const;
+
+let avisouSemColunasFiscais = false;
+
 async function salvarLoteSupabase(rows: ProdutoRow[]): Promise<void> {
   if (rows.length === 0) return;
   const { error } = await supabase.from('produtos').upsert(rows, { onConflict: 'codigo_produto,conta_omie' });
-  if (error) {
-    console.error('salvarLoteSupabase erro:', error.message);
-    throw new Error(error.message);
+  if (!error) return;
+
+  const semColuna = /column .* does not exist|Could not find the '.*' column/i.test(error.message);
+  if (semColuna) {
+    if (!avisouSemColunasFiscais) {
+      avisouSemColunasFiscais = true;
+      console.warn(`SYNC: colunas fiscais ausentes (${error.message}). Aplique sql/produtos-fiscal.sql. Gravando sem elas por enquanto.`);
+    }
+    const semFiscais = rows.map((r) => {
+      const copia = { ...r } as Record<string, unknown>;
+      for (const c of CAMPOS_FISCAIS_ROW) delete copia[c];
+      return copia;
+    });
+    const retry = await supabase.from('produtos').upsert(semFiscais, { onConflict: 'codigo_produto,conta_omie' });
+    if (!retry.error) return;
+    console.error('salvarLoteSupabase erro (sem fiscais):', retry.error.message);
+    throw new Error(retry.error.message);
   }
+
+  console.error('salvarLoteSupabase erro:', error.message);
+  throw new Error(error.message);
 }
 
 // Fallback per-produto (PosicaoEstoque) reusando o helper de ./omie.
@@ -338,6 +468,7 @@ export async function sincronizarProdutos(conta: Conta): Promise<{ ok: boolean; 
         inativo: false,
         conta_omie: contaLow(conta),
         valor_unitario: Number(produto.valor_unitario) || 0,
+        ...camposFiscais(produto),
       };
 
       // Só atualiza estoque se a consulta foi bem-sucedida (não zera por erro de API).

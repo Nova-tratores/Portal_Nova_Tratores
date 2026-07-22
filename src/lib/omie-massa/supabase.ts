@@ -10,15 +10,17 @@ export const supabaseAdmin = createClient(
 
 export const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 
-// Famílias por produto (produto_tipo, conta NOVA — casing varia, filtra com norm)
-export async function familiasPorProduto(): Promise<Map<string, string>> {
+// Famílias por produto (produto_tipo — o casing de conta_omie varia, filtra com norm).
+// `.order()` explícito: sem ordenação estável o range() pode repetir/pular linhas.
+export async function familiasPorProduto(conta: string = 'NOVA'): Promise<Map<string, string>> {
+  const alvo = norm(conta);
   const fam = new Map<string, string>();
   for (let from = 0; ; from += 1000) {
     const { data, error } = await supabaseAdmin.from('produto_tipo')
-      .select('codigo_produto, familia, conta_omie').range(from, from + 999);
+      .select('codigo_produto, familia, conta_omie').order('codigo_produto').range(from, from + 999);
     if (error) throw new Error(`produto_tipo: ${error.message}`);
     for (const p of data || []) {
-      if (norm(String(p.conta_omie || '')) === 'nova' && p.familia) fam.set(String(p.codigo_produto), String(p.familia));
+      if (norm(String(p.conta_omie || '')) === alvo && p.familia) fam.set(String(p.codigo_produto), String(p.familia));
     }
     if (!data || data.length < 1000) break;
   }

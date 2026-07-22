@@ -1,4 +1,4 @@
-// GET  → lista todos os serviços do cadastro Omie (conta NOVA), achatados.
+// GET  → lista todos os serviços do cadastro Omie, achatados. ?conta=NOVA|CASTRO.
 // POST → aplica alterações em massa: recebe linhas editadas, compara com o
 //        estado atual no Omie e chama AlterarCadastroServico só no que mudou.
 //        "inativo" de serviço é read-only na API: tentamos e verificamos depois.
@@ -6,7 +6,7 @@ import { NextResponse } from 'next/server';
 import { autenticar } from '@/lib/auth/server';
 import {
   listarTodosServicos, servicoParaRow, diffServico, payloadServico,
-  omieServicoCall, pausa, PAUSA_MS, type ServicoRow,
+  omieServicoCall, pausa, PAUSA_MS, contaDaQuery, type ServicoRow,
 } from '@/lib/omie-massa/omie';
 
 export const dynamic = 'force-dynamic';
@@ -27,8 +27,9 @@ async function checarAcesso(req: Request) {
 export async function GET(req: Request) {
   const { erro } = await checarAcesso(req);
   if (erro) return erro;
+  const conta = contaDaQuery(new URL(req.url).searchParams.get('conta'));
   try {
-    const servicos = await listarTodosServicos();
+    const servicos = await listarTodosServicos(conta);
     return NextResponse.json({ servicos: servicos.map(servicoParaRow) });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 502 });
@@ -40,12 +41,13 @@ interface ResultadoItem { nCodServ: number; cCodigo: string; ok: boolean; erro?:
 export async function POST(req: Request) {
   const { erro } = await checarAcesso(req);
   if (erro) return erro;
-  const body = await req.json().catch(() => null) as { alteracoes?: Array<Partial<ServicoRow>> } | null;
+  const body = await req.json().catch(() => null) as { conta?: string; alteracoes?: Array<Partial<ServicoRow>> } | null;
+  const conta = contaDaQuery(body?.conta);
   const alteracoes = body?.alteracoes || [];
   if (!alteracoes.length) return NextResponse.json({ error: 'Nenhuma alteração enviada' }, { status: 400 });
 
   try {
-    const atuais = new Map((await listarTodosServicos()).map((s) => [s.intListar.nCodServ, s]));
+    const atuais = new Map((await listarTodosServicos(conta)).map((s) => [s.intListar.nCodServ, s]));
     const resultados: ResultadoItem[] = [];
     const comInativo: number[] = [];
 
@@ -61,7 +63,7 @@ export async function POST(req: Request) {
         continue;
       }
       try {
-        await omieServicoCall('AlterarCadastroServico', payloadServico(row, atual, mudancas));
+        await omieServicoCall('AlterarCadastroServico', payloadServico(row, atual, mudancas), conta);
         resultados.push({ nCodServ: atual.intListar.nCodServ, cCodigo: atual.cabecalho.cCodigo, ok: true, campos: mudancas.map((m) => m.campo) });
         if (mudancas.some((m) => m.campo === 'inativo')) comInativo.push(atual.intListar.nCodServ);
       } catch (e: unknown) {
@@ -73,7 +75,7 @@ export async function POST(req: Request) {
     // Verifica se o Omie realmente aceitou mudar "inativo" (na doc é read-only)
     let inativoIgnorado: number[] = [];
     if (comInativo.length) {
-      const depois = new Map((await listarTodosServicos()).map((s) => [s.intListar.nCodServ, s.info?.inativo ?? 'N']));
+      const depois = new Map((await listarTodosServicos(conta)).map((s) => [s.intListar.nCodServ, s.info?.inativo ?? 'N']));
       inativoIgnorado = comInativo.filter((cod) => {
         const row = alteracoes.find((r) => Number(r.nCodServ) === cod);
         return row && depois.get(cod) !== String(row.inativo).toUpperCase();

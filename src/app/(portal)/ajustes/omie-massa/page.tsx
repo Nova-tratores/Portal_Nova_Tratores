@@ -12,9 +12,17 @@ import SemPermissao from '@/components/SemPermissao';
 
 // ---------- tipos ----------
 type Row = Record<string, string | number>;
-interface Col { key: string; label: string; w: number; tipo?: 'num' | 'sn'; ro?: boolean }
+type Conta = 'NOVA' | 'CASTRO';
+type Aba = 'servicos' | 'produtos' | 'fiscal' | 'ncm';
+interface Col { key: string; label: string; w: number; tipo?: 'num' | 'sn'; ro?: boolean; dica?: string }
 interface Resultado { ok: boolean; erro?: string; campos: string[]; cCodigo?: string; codigo?: string; nCodServ?: number; codigo_produto?: number }
 interface Familia { nome: string; produtos: number }
+// Agrupamento por NCM — é no Cenário Fiscal por NCM que a tributação real mora.
+interface GrupoNcm {
+  ncm: string; produtos: number; cests: string[]; origens: string[];
+  semCest: number; semOrigem: number; divergente: boolean;
+}
+interface ResumoFiscal { semNcm: number; semCest: number; semOrigem: number; atualizadoEm: string | null }
 // "Produtos Utilizados" — composição de produtos do serviço no cadastro do Omie
 interface ProdutoServ { codigo_produto: number; codigo: string; descricao: string; qtde: number; local: string }
 interface ServComProdutos { nCodServ: number; cCodigo: string; cDescricao: string; inativo: string; produtos: ProdutoServ[] }
@@ -54,6 +62,53 @@ const COLS_SERV: Col[] = [
   { key: 'nPercReducaoIbsUf', label: 'Red. IBS Est', w: 85, tipo: 'num' },
   { key: 'nPercReducaoCbs', label: 'Red. CBS', w: 75, tipo: 'num' },
 ];
+// Colunas fiscais EDITÁVEIS de produto — compartilhadas pela aba Produtos
+// (ao vivo) e pela aba Fiscal (cache do banco).
+//
+// ATENÇÃO ao que NÃO está aqui: IPI, e "Tipo de Cálculo" de IPI/PIS. Esses
+// campos não existem no cadastro de produto da Omie — vivem no Cenário Fiscal
+// → Tributação por NCM, que não tem API. Ver o aviso na tela.
+//
+// CEST e Origem gravam dentro de `recomendacoes_fiscais` (a API ignora em
+// silêncio um bloco parcial — o merge é feito no servidor, em diffProduto).
+const COLS_FISCAL_EDIT: Col[] = [
+  { key: 'ncm', label: 'NCM', w: 95 },
+  { key: 'cest', label: 'CEST', w: 90, dica: 'Vem de Recomendações Fiscais → CEST. A Omie valida o CEST contra o NCM do produto.' },
+  { key: 'origem_mercadoria', label: 'Origem', w: 70, dica: 'Origem da mercadoria (0–8), em Recomendações Fiscais.' },
+  { key: 'tipoItem', label: 'Tipo item', w: 75 },
+  { key: 'cfop', label: 'CFOP', w: 70 },
+  { key: 'ean', label: 'EAN', w: 110 },
+  { key: 'unidade', label: 'Unidade', w: 70 },
+  // ICMS — exceções por produto (o padrão vem do Cenário Fiscal por NCM)
+  { key: 'cst_icms', label: 'CST ICMS', w: 75 },
+  { key: 'modalidade_icms', label: 'Modalid. BC ICMS', w: 105, dica: 'Só vem na consulta individual — use "Detalhar" para preencher.' },
+  { key: 'csosn_icms', label: 'CSOSN', w: 70 },
+  { key: 'aliquota_icms', label: '% ICMS', w: 65, tipo: 'num' },
+  { key: 'red_base_icms', label: 'Red. BC ICMS', w: 85, tipo: 'num' },
+  { key: 'motivo_deson_icms', label: 'Mot. deson.', w: 85 },
+  { key: 'per_icms_fcp', label: '% FCP', w: 60, tipo: 'num' },
+  { key: 'codigo_beneficio', label: 'Cód. benefício', w: 95 },
+  // PIS / COFINS
+  { key: 'cst_pis', label: 'CST PIS', w: 65 },
+  { key: 'aliquota_pis', label: '% PIS', w: 60, tipo: 'num' },
+  { key: 'red_base_pis', label: 'Red. BC PIS', w: 80, tipo: 'num' },
+  { key: 'cst_cofins', label: 'CST COFINS', w: 80 },
+  { key: 'aliquota_cofins', label: '% COFINS', w: 70, tipo: 'num' },
+  { key: 'red_base_cofins', label: 'Red. BC COFINS', w: 95, tipo: 'num' },
+];
+
+// Aba Fiscal: contexto (só leitura, vindo do cache) + as colunas editáveis.
+const COLS_FISCAL: Col[] = [
+  { key: 'codigo_produto', label: 'Cód. Omie', w: 105, ro: true },
+  { key: 'codigo', label: 'Código', w: 120, ro: true },
+  { key: 'descricao', label: 'Descrição', w: 280, ro: true },
+  { key: 'familia_nome', label: 'Família', w: 110, ro: true },
+  { key: 'estoque', label: 'Estoque', w: 70, ro: true },
+  ...COLS_FISCAL_EDIT,
+  { key: 'cst_ibs_cbs', label: 'CST IBS/CBS', w: 85 },
+  { key: 'class_trib', label: 'Class. Trib.', w: 85 },
+];
+
 const COLS_PROD: Col[] = [
   { key: 'codigo_produto', label: 'Cód. Omie', w: 105, ro: true },
   { key: 'codigo', label: 'Código', w: 120, ro: true },
@@ -64,19 +119,7 @@ const COLS_PROD: Col[] = [
   { key: 'descricao', label: 'Descrição', w: 300 },
   { key: 'descr_detalhada', label: 'Descr. detalhada', w: 300 },
   { key: 'valor_unitario', label: 'Valor unit. (R$)', w: 105, tipo: 'num' },
-  { key: 'ncm', label: 'NCM', w: 95 },
-  { key: 'cest', label: 'CEST', w: 90 },
-  { key: 'cfop', label: 'CFOP', w: 70 },
-  { key: 'ean', label: 'EAN', w: 110 },
-  { key: 'unidade', label: 'Unidade', w: 70 },
-  // ICMS/PIS/COFINS (clássicos)
-  { key: 'cst_icms', label: 'CST ICMS', w: 75 },
-  { key: 'csosn_icms', label: 'CSOSN', w: 70 },
-  { key: 'aliquota_icms', label: '% ICMS', w: 65, tipo: 'num' },
-  { key: 'cst_pis', label: 'CST PIS', w: 65 },
-  { key: 'aliquota_pis', label: '% PIS', w: 60, tipo: 'num' },
-  { key: 'cst_cofins', label: 'CST COFINS', w: 80 },
-  { key: 'aliquota_cofins', label: '% COFINS', w: 70, tipo: 'num' },
+  ...COLS_FISCAL_EDIT,
   // Reforma Tributária (IBS/CBS)
   { key: 'cst_ibs_cbs', label: 'CST IBS/CBS', w: 85 },
   { key: 'class_trib', label: 'Class. Trib.', w: 85 },
@@ -87,6 +130,13 @@ const COLS_PROD: Col[] = [
   { key: 'perc_reducao_ibs_uf', label: 'Red. IBS Est', w: 85, tipo: 'num' },
   { key: 'perc_reducao_cbs', label: 'Red. CBS', w: 75, tipo: 'num' },
   { key: 'inativo', label: 'Inativo', w: 62, tipo: 'sn' },
+];
+
+const ABAS: Array<[Aba, string]> = [
+  ['servicos', 'Serviços'],
+  ['produtos', 'Produtos (ao vivo)'],
+  ['fiscal', 'Fiscal'],
+  ['ncm', 'Por NCM'],
 ];
 
 // ---------- helpers ----------
@@ -133,7 +183,11 @@ function GridEditavel({ cols, rows, idKey, edits, setEdits, filtro, acao }: {
         <thead>
           <tr>
             {acao && <th style={{ ...thStyle, minWidth: 70 }}>{acao.label}</th>}
-            {cols.map((c) => <th key={c.key} style={{ ...thStyle, minWidth: c.w }}>{c.label}</th>)}
+            {cols.map((c) => (
+              <th key={c.key} style={{ ...thStyle, minWidth: c.w }} title={c.dica}>
+                {c.label}{c.dica && <span style={{ color: '#94a3b8', marginLeft: 3 }}>?</span>}
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody>
@@ -183,12 +237,68 @@ function GridEditavel({ cols, rows, idKey, edits, setEdits, filtro, acao }: {
   );
 }
 
+// ---------- visão por NCM (só leitura) ----------
+// A tributação real é por NCM no Cenário Fiscal. Quando produtos do MESMO NCM
+// têm CEST ou Origem diferentes (ou uns preenchidos e outros não), quase sempre
+// é erro de cadastro — é isso que a coluna "divergente" aponta.
+function TabelaNcm({ grupos, soDivergentes, filtro, aoEscolher }: {
+  grupos: GrupoNcm[]; soDivergentes: boolean; filtro: string; aoEscolher: (ncm: string) => void;
+}) {
+  const visiveis = useMemo(() => {
+    const f = filtro.trim().toLowerCase();
+    return grupos.filter((g) => (!soDivergentes || g.divergente) && (!f || g.ncm.toLowerCase().includes(f)));
+  }, [grupos, soDivergentes, filtro]);
+
+  const lista = (vals: string[], faltando: number) => {
+    const partes = vals.length ? vals.join(', ') : '—';
+    return faltando ? `${partes}  (${faltando} em branco)` : partes;
+  };
+
+  return (
+    <div style={{ overflow: 'auto', maxHeight: 'calc(100vh - 320px)', border: '1px solid #e2e8f0', borderRadius: 8, background: '#fff' }}>
+      <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+        <thead>
+          <tr>
+            {['NCM', 'Produtos', 'CEST(s) no NCM', 'Origem(ns) no NCM', ''].map((h, i) => (
+              <th key={i} style={{ ...thStyle, minWidth: i === 0 ? 110 : undefined }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {visiveis.map((g) => (
+            <tr key={g.ncm} style={{ background: g.divergente ? '#fffbeb' : undefined }}>
+              <td style={{ borderBottom: '1px solid #f1f5f9', padding: '5px 8px', fontSize: '.78rem', color: '#0f172a', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                {g.ncm}
+                {g.divergente && <span title="Produtos do mesmo NCM com CEST ou Origem diferentes — provável erro de cadastro"
+                  style={{ marginLeft: 6, fontSize: '.66rem', color: '#b45309', border: '1px solid #fcd34d', borderRadius: 6, padding: '1px 5px' }}>divergente</span>}
+              </td>
+              <td style={{ borderBottom: '1px solid #f1f5f9', padding: '5px 8px', fontSize: '.78rem', color: '#334155', textAlign: 'right', width: 80 }}>{g.produtos}</td>
+              <td style={{ borderBottom: '1px solid #f1f5f9', padding: '5px 8px', fontSize: '.78rem', color: g.cests.length > 1 ? '#b45309' : '#475569' }}>{lista(g.cests, g.semCest)}</td>
+              <td style={{ borderBottom: '1px solid #f1f5f9', padding: '5px 8px', fontSize: '.78rem', color: g.origens.length > 1 ? '#b45309' : '#475569' }}>{lista(g.origens, g.semOrigem)}</td>
+              <td style={{ borderBottom: '1px solid #f1f5f9', padding: '2px 8px', width: 90 }}>
+                {g.ncm !== '(sem NCM)' && (
+                  <button onClick={() => aoEscolher(g.ncm)} style={{ ...btn, padding: '3px 10px', fontSize: '.72rem' }}
+                    title="Abrir estes produtos na aba Fiscal">ver</button>
+                )}
+              </td>
+            </tr>
+          ))}
+          {!visiveis.length && (
+            <tr><td colSpan={5} style={{ padding: 24, textAlign: 'center', color: '#94a3b8', fontSize: '.85rem' }}>Nenhum NCM.</td></tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 // ---------- página ----------
 export default function OmieMassaPage() {
   const { userProfile } = useAuth();
   const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
 
-  const [aba, setAba] = useState<'servicos' | 'produtos'>('servicos');
+  const [aba, setAba] = useState<Aba>('servicos');
+  const [conta, setConta] = useState<Conta>('NOVA');
   const [filtro, setFiltro] = useState('');
   // "aplicar à coluna": preenche um valor em todas as linhas visíveis da aba
   const [fillCol, setFillCol] = useState('');
@@ -212,6 +322,25 @@ export default function OmieMassaPage() {
   const [fAno, setFAno] = useState(mesPassado.getFullYear());
   const [prodInfo, setProdInfo] = useState('');
 
+  // fiscal (cache do banco — abre em ~1s, sem bater no Omie)
+  const [fiscalRows, setFiscalRows] = useState<Row[]>([]);
+  const [fiscalEdits, setFiscalEdits] = useState<Record<string, Record<string, string>>>({});
+  const [fiscalLoading, setFiscalLoading] = useState(false);
+  const [fNcm, setFNcm] = useState('');
+  const [fBusca, setFBusca] = useState('');
+  const [fVazio, setFVazio] = useState<'' | 'semCest' | 'semOrigem' | 'semNcm'>('');
+  const [fPagina, setFPagina] = useState(1);
+  const [fTotal, setFTotal] = useState(0);
+  const [fResumo, setFResumo] = useState<ResumoFiscal | null>(null);
+  const [detalhando, setDetalhando] = useState(false);
+  const POR_PAGINA = 200;
+
+  // fiscal por NCM
+  const [grupos, setGrupos] = useState<GrupoNcm[]>([]);
+  const [gruposLoading, setGruposLoading] = useState(false);
+  const [gruposDiv, setGruposDiv] = useState(0);
+  const [soDivergentes, setSoDivergentes] = useState(false);
+
   const [erro, setErro] = useState('');
   const [modal, setModal] = useState<null | { itens: Array<{ id: string; rotulo: string; difs: Array<{ campo: string; de: string; para: string }> }> }>(null);
   const [aplicando, setAplicando] = useState(false);
@@ -231,27 +360,27 @@ export default function OmieMassaPage() {
   const carregarServicos = useCallback(async () => {
     setServLoading(true); setErro(''); setServEdits({}); setResultado(null);
     try {
-      const res = await fetch('/api/omie-massa/servicos', { headers: await authHeaders() });
+      const res = await fetch(`/api/omie-massa/servicos?conta=${conta}`, { headers: await authHeaders() });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
       setServRows(json.servicos || []);
     } catch (e: unknown) { setErro(e instanceof Error ? e.message : String(e)); }
     setServLoading(false);
-  }, [authHeaders]);
+  }, [authHeaders, conta]);
 
   // ---- carregar produtos ----
   const carregarFamilias = useCallback(async () => {
     try {
-      const res = await fetch('/api/omie-massa/produtos/familias', { headers: await authHeaders() });
+      const res = await fetch(`/api/omie-massa/produtos/familias?conta=${conta}`, { headers: await authHeaders() });
       const json = await res.json();
       if (res.ok) setFamilias(json.familias || []);
     } catch { /* seletor fica vazio */ }
-  }, [authHeaders]);
+  }, [authHeaders, conta]);
 
   const buscarProdutos = useCallback(async () => {
     setProdLoading(true); setErro(''); setProdEdits({}); setResultado(null); setProdInfo('');
     try {
-      const q = new URLSearchParams({ familia: fFamilia, ordenar: fOrdenar, top: String(fTop), mes: String(fMes), ano: String(fAno) });
+      const q = new URLSearchParams({ conta, familia: fFamilia, ordenar: fOrdenar, top: String(fTop), mes: String(fMes), ano: String(fAno) });
       const res = await fetch(`/api/omie-massa/produtos?${q}`, { headers: await authHeaders() });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
@@ -259,13 +388,83 @@ export default function OmieMassaPage() {
       setProdInfo(`${(json.produtos || []).length} de ${json.totalCandidatos} produtos (vendas ${json.mes}/${json.ano})`);
     } catch (e: unknown) { setErro(e instanceof Error ? e.message : String(e)); }
     setProdLoading(false);
-  }, [authHeaders, fFamilia, fOrdenar, fTop, fMes, fAno]);
+  }, [authHeaders, conta, fFamilia, fOrdenar, fTop, fMes, fAno]);
 
+  // ---- carregar catálogo fiscal (do cache local, não do Omie) ----
+  const buscarFiscal = useCallback(async (pagina = 1) => {
+    setFiscalLoading(true); setErro(''); setFiscalEdits({}); setResultado(null);
+    try {
+      const q = new URLSearchParams({ conta, ncm: fNcm, busca: fBusca, pagina: String(pagina), porPagina: String(POR_PAGINA) });
+      if (fVazio) q.set(fVazio, '1');
+      const res = await fetch(`/api/omie-massa/fiscal?${q}`, { headers: await authHeaders() });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      setFiscalRows(json.linhas || []);
+      setFTotal(json.total || 0);
+      setFResumo(json.resumo || null);
+      setFPagina(json.pagina || pagina);
+      if (json.aviso) setErro(json.aviso);
+    } catch (e: unknown) { setErro(e instanceof Error ? e.message : String(e)); }
+    setFiscalLoading(false);
+  }, [authHeaders, conta, fNcm, fBusca, fVazio]);
+
+  const buscarGrupos = useCallback(async () => {
+    setGruposLoading(true); setErro('');
+    try {
+      const res = await fetch(`/api/omie-massa/fiscal?conta=${conta}&agrupar=ncm`, { headers: await authHeaders() });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      setGrupos(json.grupos || []);
+      setGruposDiv(json.divergentes || 0);
+    } catch (e: unknown) { setErro(e instanceof Error ? e.message : String(e)); }
+    setGruposLoading(false);
+  }, [authHeaders, conta]);
+
+  const baixarCsvFiscal = useCallback(async () => {
+    const q = new URLSearchParams({ conta, ncm: fNcm, busca: fBusca, formato: 'csv' });
+    if (fVazio) q.set(fVazio, '1');
+    const res = await fetch(`/api/omie-massa/fiscal?${q}`, { headers: await authHeaders() });
+    if (!res.ok) { setErro('falha ao gerar o CSV'); return; }
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `catalogo-fiscal-${conta.toLowerCase()}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }, [authHeaders, conta, fNcm, fBusca, fVazio]);
+
+  // Preenche os campos que o cache não tem (só o ConsultarProduto devolve
+  // modalidade_icms) nas linhas visíveis — 1 chamada Omie por linha.
+  const detalharVisiveis = useCallback(async () => {
+    if (!fiscalRows.length) return;
+    setDetalhando(true); setErro('');
+    try {
+      const codigos = fiscalRows.map((r) => Number(r.codigo_produto));
+      const res = await fetch('/api/omie-massa/fiscal/detalhar', {
+        method: 'POST', headers: await authHeaders(),
+        body: JSON.stringify({ conta, codigos }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      const porCodigo = new Map<number, Row>((json.detalhes || []).map((d: Row) => [Number(d.codigo_produto), d]));
+      setFiscalRows((prev) => prev.map((r) => {
+        const d = porCodigo.get(Number(r.codigo_produto));
+        return d ? { ...r, ...d } : r;
+      }));
+    } catch (e: unknown) { setErro(e instanceof Error ? e.message : String(e)); }
+    setDetalhando(false);
+  }, [authHeaders, conta, fiscalRows]);
+
+  // Carga inicial e, depois, a cada troca de conta (que invalida tudo que já
+  // estava na tela — os cadastros são de outra empresa).
   useEffect(() => {
     if (permLoading || !pode('ajustes', 'omie-massa')) return;
+    setProdRows([]); setFiscalRows([]); setGrupos([]);
+    setServEdits({}); setProdEdits({}); setFiscalEdits({});
+    setResultado(null); setProdInfo(''); setFTotal(0); setFResumo(null);
     carregarServicos();
     carregarFamilias();
-  }, [permLoading]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [permLoading, conta]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- "Produtos Utilizados" de um serviço (modal rápido) ----
   const verProdutosServico = useCallback(async (r: Row) => {
@@ -329,10 +528,12 @@ export default function OmieMassaPage() {
   }, [prodRows]);
 
   // ---- diff pendente da aba ativa ----
-  const cols = aba === 'servicos' ? COLS_SERV : COLS_PROD;
-  const rows = aba === 'servicos' ? servRows : prodRows;
-  const edits = aba === 'servicos' ? servEdits : prodEdits;
-  const setEdits = aba === 'servicos' ? setServEdits : setProdEdits;
+  // A aba Fiscal edita os MESMOS cadastros de produto da aba Produtos — só muda
+  // a fonte de leitura (cache do banco vs. Omie ao vivo). A gravação é a mesma.
+  const cols = aba === 'servicos' ? COLS_SERV : aba === 'fiscal' ? COLS_FISCAL : COLS_PROD;
+  const rows = aba === 'servicos' ? servRows : aba === 'fiscal' ? fiscalRows : prodRows;
+  const edits = aba === 'servicos' ? servEdits : aba === 'fiscal' ? fiscalEdits : prodEdits;
+  const setEdits = aba === 'servicos' ? setServEdits : aba === 'fiscal' ? setFiscalEdits : setProdEdits;
   const idKey = aba === 'servicos' ? 'nCodServ' : 'codigo_produto';
 
   // linhas que passam no filtro de texto (mesma regra do GridEditavel)
@@ -384,16 +585,34 @@ export default function OmieMassaPage() {
     setAplicando(true); setErro('');
     try {
       const url = aba === 'servicos' ? '/api/omie-massa/servicos' : '/api/omie-massa/produtos';
+      const enviadas = pendencias;
       const res = await fetch(url, {
         method: 'POST', headers: await authHeaders(),
-        body: JSON.stringify({ alteracoes: pendencias.map((p) => p.alteracao) }),
+        body: JSON.stringify({ conta, alteracoes: enviadas.map((p) => p.alteracao) }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
       setResultado(json);
       setModal(null);
       setEdits({});
-      if (aba === 'servicos') carregarServicos(); else buscarProdutos();
+      if (aba === 'servicos') carregarServicos();
+      else if (aba === 'produtos') buscarProdutos();
+      else {
+        // Aba Fiscal: NÃO recarrega do banco. O cache local só é atualizado pelo
+        // cron de produtos, então reler agora traria o valor ANTIGO de volta e
+        // pareceria que a gravação falhou. Aplica na tela o que o Omie aceitou.
+        const okIds = new Set(
+          (json.resultados as Resultado[] || [])
+            .filter((r) => r.ok && r.campos.length)
+            .map((r) => String(r.codigo_produto)),
+        );
+        setFiscalRows((prev) => prev.map((r) => {
+          const id = String(r[idKey]);
+          if (!okIds.has(id)) return r;
+          const p = enviadas.find((x) => x.id === id);
+          return p ? { ...r, ...p.alteracao } : r;
+        }));
+      }
     } catch (e: unknown) { setErro(e instanceof Error ? e.message : String(e)); }
     setAplicando(false);
   };
@@ -412,15 +631,36 @@ export default function OmieMassaPage() {
             Edite os cadastros direto na tabela (conta NOVA). Nada é gravado até você revisar e confirmar.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          {(['servicos', 'produtos'] as const).map((t) => (
-            <button key={t} onClick={() => { setAba(t); setResultado(null); setFiltro(''); setFillCol(''); setFillVal(''); }}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <select value={conta} onChange={(e) => setConta(e.target.value as Conta)}
+            style={{ ...btn, cursor: 'pointer', fontWeight: 700 }}
+            title="Empresa do Omie cujos cadastros estão sendo editados">
+            <option value="NOVA">Nova</option>
+            <option value="CASTRO">Castro</option>
+          </select>
+          {ABAS.map(([t, rotulo]) => (
+            <button key={t} onClick={() => {
+              setAba(t); setResultado(null); setFiltro(''); setFillCol(''); setFillVal('');
+              if (t === 'fiscal' && !fiscalRows.length) buscarFiscal(1);
+              if (t === 'ncm' && !grupos.length) buscarGrupos();
+            }}
               style={{ ...btn, ...(aba === t ? { background: '#0f172a', color: '#fff', border: '1px solid #0f172a' } : {}) }}>
-              {t === 'servicos' ? `Serviços (${servRows.length})` : 'Produtos'}
+              {t === 'servicos' ? `${rotulo} (${servRows.length})` : rotulo}
             </button>
           ))}
         </div>
       </div>
+
+      {/* O ponto que mais confunde: metade dos campos fiscais NÃO é do produto. */}
+      {(aba === 'fiscal' || aba === 'ncm') && (
+        <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e40af', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: '.78rem', lineHeight: 1.5 }}>
+          <strong>IPI, CST de ICMS/PIS/COFINS e &quot;Tipo de Cálculo&quot; não são editáveis aqui.</strong>{' '}
+          Esses campos são definidos por <strong>NCM</strong>, no <strong>Cenário Fiscal</strong> do Omie, e a API não os expõe —
+          por isso vêm em branco em praticamente todo o catálogo. O que existe por produto e dá para
+          corrigir em massa é: <strong>NCM, CEST, Origem, Tipo do item</strong> e as <em>exceções</em> fiscais.
+          Use a aba <strong>Por NCM</strong> para achar cadastros divergentes.
+        </div>
+      )}
 
       {/* filtros */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
@@ -455,6 +695,42 @@ export default function OmieMassaPage() {
               Descrição → detalhada (vazios)
             </button>
             {prodInfo && <span style={{ fontSize: '.75rem', color: '#64748b' }}>{prodInfo}</span>}
+          </>
+        )}
+        {aba === 'fiscal' && (
+          <>
+            <input placeholder="NCM (ex.: 8708)" value={fNcm} onChange={(e) => setFNcm(e.target.value)}
+              style={{ ...btn, cursor: 'text', width: 130, fontWeight: 400 }} />
+            <input placeholder="Código ou descrição…" value={fBusca} onChange={(e) => setFBusca(e.target.value)}
+              style={{ ...btn, cursor: 'text', minWidth: 200, fontWeight: 400 }} />
+            <select value={fVazio} onChange={(e) => setFVazio(e.target.value as typeof fVazio)} style={{ ...btn, cursor: 'pointer' }}>
+              <option value="">Todos os produtos</option>
+              <option value="semCest">Só sem CEST</option>
+              <option value="semOrigem">Só sem Origem</option>
+              <option value="semNcm">Só sem NCM</option>
+            </select>
+            <button onClick={() => buscarFiscal(1)} disabled={fiscalLoading} style={btnPrim}>
+              {fiscalLoading ? 'Buscando…' : 'Buscar'}
+            </button>
+            <button onClick={baixarCsvFiscal} disabled={fiscalLoading || !fiscalRows.length} style={btn}
+              title="Baixa TODAS as linhas do filtro atual (não só a página) — é assim que se vê o catálogo inteiro de uma vez">
+              Baixar CSV
+            </button>
+            <button onClick={detalharVisiveis} disabled={detalhando || !fiscalRows.length} style={btn}
+              title="Consulta produto a produto no Omie para preencher a Modalidade da BC do ICMS (o cache não tem esse campo). Demora ~1s por linha.">
+              {detalhando ? 'Detalhando…' : 'Detalhar página'}
+            </button>
+          </>
+        )}
+        {aba === 'ncm' && (
+          <>
+            <button onClick={buscarGrupos} disabled={gruposLoading} style={btn}>
+              {gruposLoading ? 'Carregando…' : 'Recarregar'}
+            </button>
+            <label style={{ fontSize: '.78rem', color: '#475569', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <input type="checkbox" checked={soDivergentes} onChange={(e) => setSoDivergentes(e.target.checked)} />
+              Só divergentes ({gruposDiv})
+            </label>
           </>
         )}
         {aba === 'servicos' && (
@@ -507,8 +783,31 @@ export default function OmieMassaPage() {
         </div>
       )}
 
-      {loading && !rows.length
-        ? <div style={{ padding: 60, textAlign: 'center', color: '#64748b', fontSize: '.9rem' }}>Consultando o Omie… (pode levar alguns segundos)</div>
+      {/* aba Fiscal: panorama do catálogo + paginação (a grade nunca renderiza
+          o catálogo inteiro — são milhares de linhas × dezenas de inputs) */}
+      {aba === 'fiscal' && fResumo && (
+        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10, fontSize: '.76rem', color: '#475569' }}>
+          <span><strong>{fTotal.toLocaleString('pt-BR')}</strong> produto(s) no filtro</span>
+          <span>sem NCM: <strong>{fResumo.semNcm.toLocaleString('pt-BR')}</strong></span>
+          <span>sem CEST: <strong>{fResumo.semCest.toLocaleString('pt-BR')}</strong></span>
+          <span>sem Origem: <strong>{fResumo.semOrigem.toLocaleString('pt-BR')}</strong></span>
+          {fResumo.atualizadoEm && (
+            <span style={{ color: '#94a3b8' }}>
+              cache de {new Date(fResumo.atualizadoEm).toLocaleString('pt-BR')} (atualiza no sync diário de produtos)
+            </span>
+          )}
+        </div>
+      )}
+
+      {aba === 'ncm' ? (
+        gruposLoading && !grupos.length
+          ? <div style={{ padding: 60, textAlign: 'center', color: '#64748b', fontSize: '.9rem' }}>Agrupando o catálogo por NCM…</div>
+          : <TabelaNcm grupos={grupos} soDivergentes={soDivergentes} filtro={filtro}
+              aoEscolher={(ncm) => { setAba('fiscal'); setFNcm(ncm); setFVazio(''); setFBusca(''); buscarFiscal(1); }} />
+      ) : loading && !rows.length
+        ? <div style={{ padding: 60, textAlign: 'center', color: '#64748b', fontSize: '.9rem' }}>
+            {aba === 'fiscal' ? 'Lendo o catálogo fiscal…' : 'Consultando o Omie… (pode levar alguns segundos)'}
+          </div>
         : <GridEditavel cols={cols} rows={rows} idKey={idKey} edits={edits} setEdits={setEdits} filtro={filtro}
             acao={aba === 'servicos' ? {
               label: 'Produtos',
@@ -519,6 +818,22 @@ export default function OmieMassaPage() {
                 </button>
               ),
             } : undefined} />}
+
+      {/* paginação da aba Fiscal */}
+      {aba === 'fiscal' && fTotal > POR_PAGINA && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 10, fontSize: '.78rem', color: '#475569' }}>
+          <button onClick={() => buscarFiscal(fPagina - 1)} disabled={fiscalLoading || fPagina <= 1} style={{ ...btn, opacity: fPagina <= 1 ? 0.5 : 1 }}>← Anterior</button>
+          <span>
+            {((fPagina - 1) * POR_PAGINA + 1).toLocaleString('pt-BR')}–{Math.min(fPagina * POR_PAGINA, fTotal).toLocaleString('pt-BR')}
+            {' de '}{fTotal.toLocaleString('pt-BR')}
+          </span>
+          <button onClick={() => buscarFiscal(fPagina + 1)} disabled={fiscalLoading || fPagina * POR_PAGINA >= fTotal}
+            style={{ ...btn, opacity: fPagina * POR_PAGINA >= fTotal ? 0.5 : 1 }}>Próxima →</button>
+          {!!Object.keys(fiscalEdits).length && (
+            <span style={{ color: '#b45309' }}>trocar de página descarta as edições não aplicadas</span>
+          )}
+        </div>
+      )}
 
       {/* barra de pendências */}
       {pendencias.length > 0 && (

@@ -1,13 +1,17 @@
-// Alteração em massa de cadastros do Omie (conta NOVA) — usado pelas rotas
-// /api/omie-massa/*. Mesma lógica dos scripts scripts/servicos-omie-*.ts e
-// scripts/produtos-omie-*.ts, mas lendo credenciais do process.env.
+// Alteração em massa de cadastros do Omie (conta NOVA ou CASTRO) — usado pelas
+// rotas /api/omie-massa/*. Mesma lógica dos scripts scripts/servicos-omie-*.ts
+// e scripts/produtos-omie-*.ts, com as credenciais vindo de lib/estoque/conta.
 //
 // Serviços: AlterarCadastroServico exige o registro completo → o diff faz
 // merge (atual + edições). O campo "inativo" de serviço é SÓ LEITURA na API;
 // tentamos enviar e o chamador verifica depois se pegou.
-// Produtos: AlterarProduto altera apenas os campos enviados; "inativo" é editável.
+// Produtos: AlterarProduto altera apenas os campos de TOPO enviados e "inativo"
+// é editável — MAS o bloco aninhado `recomendacoes_fiscais` (CEST/Origem) é
+// IGNORADO EM SILÊNCIO se vier parcial: tem que ir completo. Medido em
+// 22/07/2026 (enviar só { origem_mercadoria } retorna sucesso e não grava).
 
 import { decodeOmieTexto } from '@/lib/omie/texto';
+import { getCredentials, CONTA_DEFAULT, type Conta } from '@/lib/estoque/conta';
 
 const OMIE_SERV_URL = 'https://app.omie.com.br/api/v1/servicos/servico/';
 const OMIE_PROD_URL = 'https://app.omie.com.br/api/v1/geral/produtos/';
@@ -16,25 +20,29 @@ export const PAUSA_MS = 150; // entre chamadas, p/ rate limit do Omie
 
 export const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function omieCall<T>(url: string, call: string, param: object): Promise<T> {
+/** `?conta=NOVA|CASTRO` das rotas — default NOVA (comportamento anterior do módulo). */
+export const contaDaQuery = (raw: string | null | undefined): Conta =>
+  (String(raw || '').toUpperCase() === 'CASTRO' ? 'CASTRO' : CONTA_DEFAULT);
+/** conta_omie na tabela `produtos` é MINÚSCULA; o tipo Conta é MAIÚSCULO. */
+export const contaLow = (c: Conta): string => String(c).toLowerCase();
+
+// Credenciais por conta (NOVA/CASTRO) vêm de lib/estoque/conta — mesma fonte do
+// resto do portal. Sem `conta`, cai na CONTA_DEFAULT (NOVA), como era antes.
+async function omieCall<T>(url: string, call: string, param: object, conta: Conta = CONTA_DEFAULT): Promise<T> {
+  const { appKey, appSecret } = getCredentials(conta);
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      call,
-      app_key: process.env.OMIE_APP_KEY || process.env.OMIE_APP_KEY_NOVA || '',
-      app_secret: process.env.OMIE_APP_SECRET || process.env.OMIE_APP_SECRET_NOVA || '',
-      param: [param],
-    }),
+    body: JSON.stringify({ call, app_key: appKey, app_secret: appSecret, param: [param] }),
   });
   const json = await res.json();
   if (json.faultstring) throw new Error(String(json.faultstring));
   return json as T;
 }
 
-export const omieServicoCall = <T,>(call: string, param: object) => omieCall<T>(OMIE_SERV_URL, call, param);
-export const omieProdutoCall = <T,>(call: string, param: object) => omieCall<T>(OMIE_PROD_URL, call, param);
-export const omieLocalCall = <T,>(call: string, param: object) => omieCall<T>(OMIE_LOCAL_URL, call, param);
+export const omieServicoCall = <T,>(call: string, param: object, conta?: Conta) => omieCall<T>(OMIE_SERV_URL, call, param, conta);
+export const omieProdutoCall = <T,>(call: string, param: object, conta?: Conta) => omieCall<T>(OMIE_PROD_URL, call, param, conta);
+export const omieLocalCall = <T,>(call: string, param: object, conta?: Conta) => omieCall<T>(OMIE_LOCAL_URL, call, param, conta);
 
 // ---------------- Serviços ----------------
 
@@ -72,13 +80,13 @@ export const CAMPOS_SERV_RET = ['cRetISS', 'cRetPIS', 'cRetCOFINS', 'cRetCSLL', 
 // Campos texto da Reforma Tributária (vivem em impostos, mas não são S/N)
 export const CAMPOS_SERV_REFORMA_TXT = ['cCstIbsCbs', 'cClassTrib', 'cIndOper'] as const;
 
-export async function listarTodosServicos(): Promise<ServicoOmie[]> {
+export async function listarTodosServicos(conta?: Conta): Promise<ServicoOmie[]> {
   const servicos: ServicoOmie[] = [];
   let pagina = 1;
   let totPaginas = 1;
   do {
     const r = await omieServicoCall<{ nTotPaginas: number; cadastros?: ServicoOmie[] }>(
-      'ListarCadastroServico', { nPagina: pagina, nRegPorPagina: 50 },
+      'ListarCadastroServico', { nPagina: pagina, nRegPorPagina: 50 }, conta,
     );
     totPaginas = r.nTotPaginas;
     servicos.push(...(r.cadastros || []));
@@ -106,17 +114,17 @@ export interface ServicoConsultaOmie extends ServicoOmie {
   } | null;
 }
 
-export const consultarServico = (nCodServ: number) =>
-  omieServicoCall<ServicoConsultaOmie>('ConsultarCadastroServico', { nCodServ });
+export const consultarServico = (nCodServ: number, conta?: Conta) =>
+  omieServicoCall<ServicoConsultaOmie>('ConsultarCadastroServico', { nCodServ }, conta);
 
 // Mapa codigo_local_estoque → descrição ("Estoque Balcão" etc.)
-export async function listarLocaisEstoque(): Promise<Map<number, string>> {
+export async function listarLocaisEstoque(conta?: Conta): Promise<Map<number, string>> {
   const locais = new Map<number, string>();
   let pagina = 1;
   let totPaginas = 1;
   do {
     const r = await omieLocalCall<{ nTotPaginas: number; locaisEncontrados?: Array<{ codigo_local_estoque: number; descricao: string }> }>(
-      'ListarLocaisEstoque', { nPagina: pagina, nRegPorPagina: 50 },
+      'ListarLocaisEstoque', { nPagina: pagina, nRegPorPagina: 50 }, conta,
     );
     totPaginas = r.nTotPaginas;
     for (const l of r.locaisEncontrados || []) locais.set(Number(l.codigo_local_estoque), decodeOmieTexto(l.descricao));
@@ -192,6 +200,19 @@ export function payloadServico(row: Partial<ServicoRow>, atual: ServicoOmie, mud
 
 // ---------------- Produtos ----------------
 
+// Bloco "Recomendações fiscais" do cadastro. É ONDE MORAM o CEST e a Origem de
+// verdade — os campos de topo `cest` e `origem_imposto` vêm sempre vazios da
+// Omie e `origem_imposto` nem sequer é gravável (medido em 22/07/2026).
+export interface RecomendacoesFiscais {
+  id_cest?: string;
+  origem_mercadoria?: string;
+  cnpj_fabricante?: string;
+  indicador_escala?: string;
+  cupom_fiscal?: string;
+  market_place?: string;
+  id_preco_tabelado?: number;
+}
+
 export interface ProdutoOmie {
   codigo_produto: number;
   codigo: string;
@@ -202,17 +223,26 @@ export interface ProdutoOmie {
   ean: string;
   unidade: string;
   inativo: 'S' | 'N';
+  tipoItem: string;
+  recomendacoes_fiscais?: RecomendacoesFiscais | null;
   // Classificação fiscal
-  cest: string;
+  cest: string;      // fantasma: sempre vazio; o valor real é recomendacoes_fiscais.id_cest
   cfop: string;
   // ICMS/PIS/COFINS (clássicos)
   cst_icms: string;
+  modalidade_icms: string;   // só o ConsultarProduto devolve (ListarProdutos não)
   csosn_icms: string;
   aliquota_icms: number;
+  red_base_icms: number;
+  motivo_deson_icms: string;
+  per_icms_fcp: number;
+  codigo_beneficio: string;
   cst_pis: string;
   aliquota_pis: number;
+  red_base_pis: number;
   cst_cofins: string;
   aliquota_cofins: number;
+  red_base_cofins: number;
   // Reforma Tributária (IBS/CBS)
   cst_ibs_cbs: string;
   class_trib: string;
@@ -224,19 +254,39 @@ export interface ProdutoOmie {
   perc_reducao_cbs: number;
 }
 
+// Campos de TOPO graváveis. `cest` NÃO entra aqui de propósito (é o fantasma);
+// CEST e Origem são tratados à parte, dentro de recomendacoes_fiscais.
 export const CAMPOS_PROD_TXT = [
-  'descricao', 'descr_detalhada', 'ncm', 'ean', 'unidade',
-  'cest', 'cfop', 'cst_icms', 'csosn_icms', 'cst_pis', 'cst_cofins',
-  'cst_ibs_cbs', 'class_trib',
+  'descricao', 'descr_detalhada', 'ncm', 'ean', 'unidade', 'tipoItem',
+  'cfop', 'cst_icms', 'modalidade_icms', 'csosn_icms', 'motivo_deson_icms',
+  'codigo_beneficio', 'cst_pis', 'cst_cofins', 'cst_ibs_cbs', 'class_trib',
 ] as const;
 export const CAMPOS_PROD_NUM = [
-  'valor_unitario', 'aliquota_icms', 'aliquota_pis', 'aliquota_cofins',
+  'valor_unitario', 'aliquota_icms', 'red_base_icms', 'per_icms_fcp',
+  'aliquota_pis', 'red_base_pis', 'aliquota_cofins', 'red_base_cofins',
   'aliquota_ibs_mun', 'aliquota_ibs_uf', 'aliquota_cbs',
   'perc_reducao_ibs_mun', 'perc_reducao_ibs_uf', 'perc_reducao_cbs',
 ] as const;
 
-export function diffProduto(row: Partial<ProdutoOmie> & { inativo?: string }, atual: ProdutoOmie): { payload: Record<string, string | number>; mudancas: MudancaCampo[] } {
-  const payload: Record<string, string | number> = { codigo_produto: Number(atual.codigo_produto) };
+// Chaves que o frontend usa para os dois campos aninhados, mapeadas para dentro
+// de recomendacoes_fiscais.
+export const CAMPOS_PROD_REC: Array<{ chave: 'cest' | 'origem_mercadoria'; dentro: keyof RecomendacoesFiscais }> = [
+  { chave: 'cest', dentro: 'id_cest' },
+  { chave: 'origem_mercadoria', dentro: 'origem_mercadoria' },
+];
+
+/** CEST real de um produto (o campo de topo é sempre vazio). */
+export const cestDe = (p: { cest?: string; recomendacoes_fiscais?: RecomendacoesFiscais | null }) =>
+  String(p.recomendacoes_fiscais?.id_cest ?? '').trim();
+/** Origem da mercadoria (0–8). Vive só dentro de recomendacoes_fiscais. */
+export const origemDe = (p: { recomendacoes_fiscais?: RecomendacoesFiscais | null }) =>
+  String(p.recomendacoes_fiscais?.origem_mercadoria ?? '').trim();
+
+export function diffProduto(
+  row: Partial<ProdutoOmie> & { inativo?: string; cest?: string; origem_mercadoria?: string },
+  atual: ProdutoOmie,
+): { payload: Record<string, unknown>; mudancas: MudancaCampo[] } {
+  const payload: Record<string, unknown> = { codigo_produto: Number(atual.codigo_produto) };
   const mudancas: MudancaCampo[] = [];
   for (const c of CAMPOS_PROD_TXT) {
     const para = row[c];
@@ -253,6 +303,26 @@ export function diffProduto(row: Partial<ProdutoOmie> & { inativo?: string }, at
       mudancas.push({ campo: c, de: Number(atual[c] ?? 0), para: Number(para) });
     }
   }
+
+  // Aninhados (CEST / Origem). GOTCHA MEDIDO: a Omie IGNORA EM SILÊNCIO um
+  // recomendacoes_fiscais parcial — devolve sucesso e não grava nada. O bloco
+  // tem que ir SEMPRE completo, partindo do atual. (22/07/2026)
+  const recAtual: RecomendacoesFiscais = { ...(atual.recomendacoes_fiscais || {}) };
+  const recNovo: RecomendacoesFiscais = { ...recAtual };
+  let mexeuNoRec = false;
+  for (const { chave, dentro } of CAMPOS_PROD_REC) {
+    const para = row[chave];
+    if (para === undefined) continue;
+    const de = String(recAtual[dentro] ?? '').trim();
+    const novo = String(para).trim();
+    if (novo !== de) {
+      (recNovo as Record<string, unknown>)[dentro] = novo;
+      mudancas.push({ campo: chave, de, para: novo });
+      mexeuNoRec = true;
+    }
+  }
+  if (mexeuNoRec) payload.recomendacoes_fiscais = recNovo;
+
   if (row.inativo !== undefined && String(row.inativo).toUpperCase() !== (atual.inativo ?? 'N')) {
     payload.inativo = String(row.inativo).toUpperCase();
     mudancas.push({ campo: 'inativo', de: atual.inativo ?? 'N', para: String(row.inativo).toUpperCase() });
