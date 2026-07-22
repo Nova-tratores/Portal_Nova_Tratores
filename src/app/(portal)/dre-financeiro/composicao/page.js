@@ -29,11 +29,12 @@
 // da fonte) carregadas via CDN num <script> dinamico, uma unica vez.
 // =============================================================================
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import { useDreConta, nomeMes } from '@/lib/dre-financeiro/format'
+import { NATUREZAS, DESCRICAO_NATUREZA, naturezaDoGrupo } from '@/lib/dre-financeiro/natureza'
 
 // ---------------------------------------------------------------------------
 // Formatadores locais (identicos aos do <script> da fonte). Mantidos inline para
@@ -132,6 +133,10 @@ export default function ComposicaoPage() {
   const [mes, setMes] = useState(hoje.getMonth() + 1)
   const [ano, setAno] = useState(hoje.getFullYear())
 
+  // Natureza DRE selecionada (null = todas). Custo x despesa x receita nao existe
+  // nas tabelas do Omie: sai do grupo_categoria via naturezaDoGrupo.
+  const [natureza, setNatureza] = useState(null)
+
   // Dados de /api/composicao + arvore p/ o drill-down do modal.
   const [dados, setDados] = useState(null)
   const arvore = useRef(null)
@@ -156,13 +161,17 @@ export default function ComposicaoPage() {
   }, [])
 
   // =========================================================================
-  // Carregar(): fetch em /api/composicao (port fiel da funcao homonima da fonte).
-  // Reage a conta/tipo/mes/ano.
+  // Carregar(): fetch em /api/composicao.
+  //
+  // Busca SEMPRE tipo=ambos: a faixa de naturezas precisa de receitas e saidas
+  // ao mesmo tempo pra mostrar o bolo inteiro. Com os dois lados em maos, o
+  // toggle A Pagar/A Receber vira filtro no cliente — de brinde, trocar o
+  // toggle deixa de refazer requisicao. Reage so a conta/mes/ano.
   // =========================================================================
   useEffect(() => {
     setDados(null)
     arvore.current = null
-    const qs = 'conta=' + conta + '&tipo=' + tipo + '&mes=' + mes + '&ano=' + ano
+    const qs = 'conta=' + conta + '&tipo=ambos&mes=' + mes + '&ano=' + ano
     let ativo = true
     fetch('/api/dre-financeiro/composicao?' + qs).then((r) => r.json()).then((d) => {
       if (!ativo) return
@@ -171,7 +180,71 @@ export default function ComposicaoPage() {
       setDados(d)
     }).catch((e) => { if (ativo) alert('Erro: ' + e.message) })
     return () => { ativo = false }
-  }, [conta, tipo, mes, ano])
+  }, [conta, mes, ano])
+
+  // =========================================================================
+  // Derivados: natureza por folha, resumo da faixa e recorte (tipo + natureza).
+  // Tudo o que a tela mostra (treemap, KPIs, legenda) sai do recorte, senao o
+  // cabecalho passa a contradizer o grafico.
+  // =========================================================================
+  const folhasComNatureza = useMemo(
+    () => (dados?.folhas || []).map((f) => ({ ...f, natureza: naturezaDoGrupo(f.tipo, f.grupo) })),
+    [dados],
+  )
+
+  const totalGeral = useMemo(
+    () => folhasComNatureza.reduce((s, f) => s + f.valor, 0),
+    [folhasComNatureza],
+  )
+
+  // Resumo por natureza: sempre sobre o TOTAL do mes (nao sobre o recorte),
+  // pra faixa continuar servindo de mapa mesmo com um filtro ativo.
+  const resumoNaturezas = useMemo(() => {
+    const m = {}
+    folhasComNatureza.forEach((f) => {
+      if (!m[f.natureza]) m[f.natureza] = { valor: 0, categorias: 0 }
+      m[f.natureza].valor += f.valor
+      m[f.natureza].categorias++
+    })
+    return m
+  }, [folhasComNatureza])
+
+  const folhasFiltradas = useMemo(() => folhasComNatureza.filter((f) => {
+    if (natureza && f.natureza !== natureza) return false
+    if (tipo !== 'ambos' && f.tipo !== tipo) return false
+    return true
+  }), [folhasComNatureza, natureza, tipo])
+
+  // Grupos derivados do recorte (a lista `grupos` da API e sempre a do mes inteiro).
+  const gruposFiltrados = useMemo(() => {
+    const m = new Map()
+    folhasFiltradas.forEach((f) => {
+      const k = f.tipo + '|' + f.grupo
+      const g = m.get(k) || { nome: f.grupo, tipo: f.tipo, valor: 0 }
+      g.valor += f.valor
+      m.set(k, g)
+    })
+    return [...m.values()].sort((a, b) => b.valor - a.valor)
+  }, [folhasFiltradas])
+
+  // Clicar na faixa alinha o toggle de tipo, em vez de deixar os dois brigando
+  // (ex.: "Receitas" com o toggle em A Pagar daria tela vazia).
+  function escolherNatureza(chave) {
+    const nova = natureza === chave ? null : chave
+    setNatureza(nova)
+    if (!nova) return
+    const def = NATUREZAS.find((n) => n.chave === nova)
+    setTipo(def && def.tipo ? def.tipo : 'ambos')
+  }
+
+  // Caminho inverso: trocar o tipo larga a natureza que nao cabe nele (escolher
+  // "A Pagar" com Receitas ativo daria tela vazia sem explicacao).
+  function escolherTipo(novoTipo) {
+    setTipo(novoTipo)
+    if (!natureza || novoTipo === 'ambos') return
+    const def = NATUREZAS.find((n) => n.chave === natureza)
+    if (def && def.tipo && def.tipo !== novoTipo) setNatureza(null)
+  }
 
   // =========================================================================
   // Render do Treemap (Chart.js). Port fiel do bloco de chart da fonte.
@@ -190,7 +263,8 @@ export default function ComposicaoPage() {
     }
 
     function montarTreemap() {
-    const folhas = dados.folhas || []
+    // Recorte atual (tipo + natureza), nao a lista crua da API.
+    const folhas = folhasFiltradas
     // Sem folhas: destroi o chart (o JSX abaixo mostra o aviso "Nenhum dado...").
     if (folhas.length === 0) {
       if (treemapInst.current) { treemapInst.current.destroy(); treemapInst.current = null }
@@ -272,7 +346,7 @@ export default function ComposicaoPage() {
       }
     })
     }
-  }, [chartReady, dados])
+  }, [chartReady, dados, folhasFiltradas])
 
   // Limpa o chart ao desmontar.
   useEffect(() => {
@@ -331,15 +405,16 @@ export default function ComposicaoPage() {
   // Classes dos toggles inativos (espelham a fonte).
   const inativoToggle = 'bg-white text-slate-700 hover:bg-slate-100'
 
-  // --- KPIs (port fiel da montagem da fonte) --------------------------------
-  const grupos = dados ? (dados.grupos || []) : []
-  const folhas = dados ? (dados.folhas || []) : []
+  // --- KPIs (mesma montagem da fonte, agora sobre o recorte) ----------------
+  const grupos = gruposFiltrados
+  const folhas = folhasFiltradas
+  const totalRecorte = folhas.reduce((s, f) => s + f.valor, 0)
   const topCat = folhas[0]
-  const kpiTotal = dados ? fmtBRL(dados.total) : '--'
+  const kpiTotal = dados ? fmtBRL(totalRecorte) : '--'
   const kpiGrupos = dados ? grupos.length : '--'
   const kpiCategorias = dados ? folhas.length : '--'
   const kpiTopNome = topCat ? topCat.categoria : '--'
-  const kpiTopValor = topCat ? (fmtBRL(topCat.valor) + ' (' + (100 * topCat.valor / (dados.total || 1)).toFixed(1) + '%)') : '--'
+  const kpiTopValor = topCat ? (fmtBRL(topCat.valor) + ' (' + (100 * topCat.valor / (totalRecorte || 1)).toFixed(1) + '%)') : '--'
 
   // --- Legenda de grupos (badge) --------------------------------------------
   function BadgeGrupo({ g }) {
@@ -366,20 +441,65 @@ export default function ComposicaoPage() {
         <span className="text-xs text-slate-500 ml-2">Modo:</span>
         {/* Toggle de TIPO (replicado da header global da fonte) */}
         <div className="inline-flex rounded-md border border-slate-300 overflow-hidden text-sm">
-          <button type="button" onClick={() => setTipo('pagar')}
+          <button type="button" onClick={() => escolherTipo('pagar')}
             className={'px-3 py-1 transition ' + (tipo === 'pagar' ? 'bg-red-600 text-white' : inativoToggle)}>A Pagar</button>
-          <button type="button" onClick={() => setTipo('receber')}
+          <button type="button" onClick={() => escolherTipo('receber')}
             className={'px-3 py-1 transition border-l border-slate-300 ' + (tipo === 'receber' ? 'bg-emerald-600 text-white' : inativoToggle)}>A Receber</button>
-          <button type="button" onClick={() => setTipo('ambos')}
+          <button type="button" onClick={() => escolherTipo('ambos')}
             className={'px-3 py-1 transition border-l border-slate-300 ' + (tipo === 'ambos' ? 'bg-slate-800 text-white' : inativoToggle)}>Ambos</button>
         </div>
         <span className="text-xs font-semibold text-slate-700">{labelTipo}</span>
       </div>
 
+      {/* Faixa por natureza DRE (custo x despesa x receita). Clicar filtra o resto
+          da tela; clicar de novo limpa. Naturezas sem valor no mes ficam de fora. */}
+      {dados && (
+        <div className="mb-4">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xs text-slate-500 uppercase tracking-wide">Natureza</span>
+            {natureza && (
+              <button onClick={() => escolherNatureza(natureza)}
+                className="text-xs text-slate-500 underline hover:text-slate-800">limpar filtro</button>
+            )}
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+            {NATUREZAS.filter((n) => resumoNaturezas[n.chave]).map((n) => {
+              const r = resumoNaturezas[n.chave]
+              const pct = totalGeral > 0 ? (100 * r.valor / totalGeral) : 0
+              const ativo = natureza === n.chave
+              return (
+                <button key={n.chave} type="button" onClick={() => escolherNatureza(n.chave)}
+                  title={DESCRICAO_NATUREZA[n.chave]}
+                  className={'text-left rounded-lg border p-3 transition ' + (ativo ? 'bg-slate-50 ring-2' : 'bg-white hover:bg-slate-50')}
+                  style={{ borderColor: n.cor, ...(ativo ? { boxShadow: '0 0 0 2px ' + n.cor } : null) }}>
+                  <div className="flex items-center gap-1.5">
+                    <span className="inline-block w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: n.cor }} />
+                    <span className="text-xs font-semibold text-slate-700 truncate">{n.rotulo}</span>
+                  </div>
+                  <div className="text-lg font-bold text-slate-800 mt-1 leading-tight">{fmtBRLcurto(r.valor)}</div>
+                  <div className="text-[11px] text-slate-500">{pct.toFixed(1)}% &middot; {r.categorias} cat.</div>
+                </button>
+              )
+            })}
+          </div>
+          {/* O "custo" daqui e' compra paga, nao o CMV do DRE. Sem este aviso a
+              comparacao com a aba DRE vira duvida recorrente. */}
+          {resumoNaturezas.custo && (
+            <div className="text-[11px] text-slate-500 mt-2">
+              <strong className="font-semibold">Custos</strong> = grupo &quot;Despesas Diretas&quot; do Omie (compra de mercadoria), pela <strong className="font-semibold">data de vencimento do título</strong>.
+              Não é o CMV da aba DRE, que é por competência e sai do CMC das vendas — os dois não batem por definição.
+              <strong className="font-semibold"> Investimento</strong> é CAPEX e não entra no DRE.
+            </div>
+          )}
+        </div>
+      )}
+
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <div className="bg-white rounded-lg border border-slate-200 p-4">
-          <div className="text-xs text-slate-500 uppercase tracking-wide">Total no mes</div>
+          <div className="text-xs text-slate-500 uppercase tracking-wide">
+            Total no mes{natureza ? ' · ' + (NATUREZAS.find((n) => n.chave === natureza) || {}).rotulo : ''}
+          </div>
           <div className="text-2xl font-bold text-slate-800 mt-1">{kpiTotal}</div>
         </div>
         <div className="bg-white rounded-lg border border-slate-200 p-4">
@@ -428,7 +548,12 @@ export default function ComposicaoPage() {
       {/* Treemap */}
       <div className="bg-white border border-slate-200 rounded-lg p-3 mb-6">
         {semDados ? (
-          <div className="text-slate-500 text-center py-12">Nenhum dado neste periodo. Sincronize ou troque o mes.</div>
+          <div className="text-slate-500 text-center py-12">
+            {/* Distingue "mes vazio" de "filtro vazio" — sem isto o usuario acha que faltou sincronizar. */}
+            {totalGeral > 0
+              ? 'Nada neste recorte. Limpe o filtro de natureza ou troque o modo.'
+              : 'Nenhum dado neste periodo. Sincronize ou troque o mes.'}
+          </div>
         ) : (
           <div style={{ position: 'relative', height: 560 }}>
             <canvas ref={treemapRef} />
