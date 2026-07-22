@@ -455,12 +455,20 @@ export default function ComposicaoPage() {
           da tela; clicar de novo limpa. Naturezas sem valor no mes ficam de fora. */}
       {dados && (
         <div className="mb-4">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-xs text-slate-500 uppercase tracking-wide">Natureza</span>
-            {natureza && (
-              <button onClick={() => escolherNatureza(natureza)}
-                className="text-xs text-slate-500 underline hover:text-slate-800">limpar filtro</button>
-            )}
+          {/* O filtro so serve se o usuario perceber que os cartoes SAO botoes: dai
+              o rotulo em modo imperativo, a dica ao lado, o chip "Todas" sempre
+              visivel (estado neutro explicito) e o check no cartao selecionado. */}
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
+            <span className="text-xs text-slate-500 uppercase tracking-wide">Filtrar por natureza</span>
+            <span className="text-[11px] text-slate-400">clique num cartão para ver só essa parte do mês</span>
+            <button type="button" onClick={() => setNatureza(null)}
+              title="Mostrar todas as naturezas"
+              className={'ml-auto cursor-pointer text-xs px-2.5 py-1 rounded-full border transition '
+                + (natureza
+                  ? 'bg-white border-slate-300 text-slate-600 hover:bg-slate-100'
+                  : 'bg-slate-800 border-slate-800 text-white')}>
+              {natureza ? '✕ Limpar filtro' : '✓ Todas'}
+            </button>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
             {NATUREZAS.filter((n) => resumoNaturezas[n.chave]).map((n) => {
@@ -469,12 +477,15 @@ export default function ComposicaoPage() {
               const ativo = natureza === n.chave
               return (
                 <button key={n.chave} type="button" onClick={() => escolherNatureza(n.chave)}
-                  title={DESCRICAO_NATUREZA[n.chave]}
-                  className={'text-left rounded-lg border p-3 transition ' + (ativo ? 'bg-slate-50 ring-2' : 'bg-white hover:bg-slate-50')}
+                  title={DESCRICAO_NATUREZA[n.chave] + (ativo ? '\n\n(clique de novo para remover o filtro)' : '\n\n(clique para ver só isto)')}
+                  aria-pressed={ativo}
+                  className={'relative cursor-pointer text-left rounded-lg border p-3 transition '
+                    + (ativo ? 'bg-slate-50 ring-2' : 'bg-white hover:bg-slate-50 hover:shadow-sm hover:-translate-y-px')}
                   style={{ borderColor: n.cor, ...(ativo ? { boxShadow: '0 0 0 2px ' + n.cor } : null) }}>
                   <div className="flex items-center gap-1.5">
                     <span className="inline-block w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: n.cor }} />
                     <span className="text-xs font-semibold text-slate-700 truncate">{n.rotulo}</span>
+                    {ativo && <span className="ml-auto text-xs font-bold shrink-0" style={{ color: n.cor }}>✓</span>}
                   </div>
                   <div className="text-lg font-bold text-slate-800 mt-1 leading-tight">{fmtBRLcurto(r.valor)}</div>
                   <div className="text-[11px] text-slate-500">{pct.toFixed(1)}% &middot; {r.categorias} cat.</div>
