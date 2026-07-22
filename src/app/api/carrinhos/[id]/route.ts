@@ -6,13 +6,15 @@ import { TBL_PRODUTOS, TBL_PRODUTOS_MANUAIS } from "@/lib/ppv/constants";
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   try {
-    const { data: carrinho, error } = await supabase.from("carrinhos").select("*").eq("id", id).maybeSingle();
-    if (error) throw error;
-    if (!carrinho) return NextResponse.json({ error: "não encontrado" }, { status: 404 });
-    const [{ data: itens }, { data: historico }] = await Promise.all([
+    // As três consultas são independentes: em paralelo em vez de esperar o
+    // carrinho pra só então buscar itens/histórico.
+    const [{ data: carrinho, error }, { data: itens }, { data: historico }] = await Promise.all([
+      supabase.from("carrinhos").select("*").eq("id", id).maybeSingle(),
       supabase.from("carrinho_itens").select("*").eq("carrinho_id", id).order("criado_em", { ascending: true }),
       supabase.from("carrinho_historico").select("*").eq("carrinho_id", id).order("quando", { ascending: false }),
     ]);
+    if (error) throw error;
+    if (!carrinho) return NextResponse.json({ error: "não encontrado" }, { status: 404 });
 
     // Marca quais itens já são cadastrados (Omie ou manual) — pra Fase 2.
     const codes = [...new Set((itens || []).map((i) => String(i.codigo || "").trim()).filter(Boolean))];
@@ -26,7 +28,15 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       for (const r of c2 || []) registrados.add(String(r.Prod_Codigo).trim().toUpperCase());
     }
     const itensMarcados = (itens || []).map((i) => ({ ...i, cadastrado: registrados.has(String(i.codigo || "").trim().toUpperCase()) }));
-    return NextResponse.json({ carrinho, itens: itensMarcados, historico: historico || [] });
+
+    // Marca do modelo: define pra qual catálogo externo (Zeitten) dá pra exportar.
+    let marca: string | null = null;
+    if (carrinho.modelo) {
+      const { data: mod } = await supabase
+        .from("catalogo_modelos").select("marca").eq("nome", carrinho.modelo).limit(1).maybeSingle();
+      marca = mod?.marca || null;
+    }
+    return NextResponse.json({ carrinho: { ...carrinho, marca }, itens: itensMarcados, historico: historico || [] });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : (e && typeof e === "object" ? JSON.stringify(e) : "erro") }, { status: 500 });
   }

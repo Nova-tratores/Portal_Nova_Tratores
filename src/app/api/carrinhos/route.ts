@@ -5,17 +5,26 @@ import { supabase } from "@/lib/pos/supabase";
 export async function GET(req: NextRequest) {
   const status = req.nextUrl.searchParams.get("status") || "aberto";
   try {
-    // Rede de segurança: fecha os expirados (7 dias) antes de listar os abertos.
-    if (status === "aberto") {
-      const agora = new Date().toISOString();
-      await supabase.from("carrinhos").update({ status: "fechado", atualizado_em: agora }).eq("status", "aberto").lt("expira_em", agora);
-    }
-    const { data: carrinhos, error } = await supabase
+    const { data: brutos, error } = await supabase
       .from("carrinhos")
       .select("*")
       .eq("status", status)
       .order("atualizado_em", { ascending: false });
     if (error) throw error;
+
+    // Rede de segurança pros expirados (7 dias). Antes isso era um UPDATE antes
+    // de TODA listagem — uma escrita a cada leitura, mesmo sem nada a fechar.
+    // Agora só grava quando realmente existe carrinho vencido (o cron diário é
+    // quem normalmente faz esse trabalho).
+    let carrinhos = brutos || [];
+    if (status === "aberto") {
+      const agora = new Date().toISOString();
+      const vencidos = carrinhos.filter((c) => c.expira_em && c.expira_em < agora).map((c) => c.id);
+      if (vencidos.length) {
+        await supabase.from("carrinhos").update({ status: "fechado", atualizado_em: agora }).in("id", vencidos);
+        carrinhos = carrinhos.filter((c) => !vencidos.includes(c.id));
+      }
+    }
 
     const ids = (carrinhos || []).map((c) => c.id);
     const contagem: Record<string, number> = {};
