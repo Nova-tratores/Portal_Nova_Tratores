@@ -1068,7 +1068,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
         {/* ===== DETALHE DA FIGURA (vista explodida + peças) ===== */}
         {vista === "figura" && figura && (
           <div style={{ display: "flex", gap: 0, height: "100%", flexWrap: "wrap", background: "#fff" }}>
-            <div ref={leftPanelRef} style={{ flex: "1 1 360px", minWidth: 300, padding: 18, borderRight: "1px solid #eef0f3", overflowY: "auto", maxHeight: "100%" }}>
+            <div ref={leftPanelRef} style={{ flex: "1 1 360px", minWidth: 300, padding: 18, borderRight: "1px solid #eef0f3", overflowY: "auto", maxHeight: "100%", display: "flex", flexDirection: "column" }}>
               <div style={{ marginBottom: 12, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 700, color: "#dc2626", letterSpacing: 0.5 }}>{figura.code}</div>
@@ -1126,7 +1126,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                 onMouseMove={(e) => { if (editando) { moverBolinha(e.clientX, e.clientY); return; } if (panRef.current) { const d = panRef.current; setPan({ x: d.px + (e.clientX - d.x), y: d.py + (e.clientY - d.y) }); } }}
                 onMouseUp={() => { if (editando) setArrastando(null); else panRef.current = null; }}
                 onMouseLeave={() => { if (editando) setArrastando(null); else panRef.current = null; }}
-                style={{ position: "relative", width: "100%", background: "linear-gradient(180deg,#fbfcfe,#f1f4f8)", borderRadius: 12, overflow: "hidden", border: editando ? "2px solid #6366f1" : "1px solid #eef1f6", display: "flex", alignItems: "center", justifyContent: "center", cursor: arrastando != null ? "grabbing" : (!editando && zoom > 1 ? "grab" : "default"), userSelect: "none" }}>
+                style={{ position: "relative", width: "100%", flex: 1, minHeight: 360, background: "linear-gradient(180deg,#fbfcfe,#f1f4f8)", borderRadius: 12, overflow: "hidden", border: editando ? "2px solid #6366f1" : "1px solid #eef1f6", display: "flex", alignItems: "center", justifyContent: "center", cursor: arrastando != null ? "grabbing" : (!editando && zoom > 1 ? "grab" : "default"), userSelect: "none" }}>
                 {figura.image_url ? (
                   <>
                     {/* Wrapper com zoom/pan — a imagem e as bolinhas escalam juntas */}
