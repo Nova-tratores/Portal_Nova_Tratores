@@ -1068,7 +1068,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
         {/* ===== DETALHE DA FIGURA (vista explodida + peças) ===== */}
         {vista === "figura" && figura && (
           <div style={{ display: "flex", gap: 0, height: "100%", flexWrap: "wrap", background: "#fff" }}>
-            <div ref={leftPanelRef} style={{ flex: "1 1 360px", minWidth: 300, padding: 18, borderRight: "1px solid #eef0f3", overflowY: "auto", maxHeight: "100%", display: "flex", flexDirection: "column" }}>
+            <div ref={leftPanelRef} style={{ flex: "1 1 360px", minWidth: 300, padding: 18, borderRight: "1px solid #eef0f3", overflowY: "auto", scrollbarGutter: "stable", maxHeight: "100%", display: "flex", flexDirection: "column" }}>
               <div style={{ marginBottom: 12, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 700, color: "#dc2626", letterSpacing: 0.5 }}>{figura.code}</div>
@@ -1137,7 +1137,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                         onMouseDown={(e) => { if (!editando && zoom > 1) { e.preventDefault(); panRef.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y }; } }}
                         onLoad={(e) => setImgDim({ w: (e.target as HTMLImageElement).naturalWidth || 1, h: (e.target as HTMLImageElement).naturalHeight || 1 })}
                         // cabe inteira na tela: limita pela ALTURA disponível, não só pela largura
-                        style={{ maxWidth: "100%", maxHeight: "calc(100vh - 230px)", width: "auto", margin: "0 auto", display: "block" }} />
+                        style={{ maxWidth: "100%", maxHeight: "calc(100vh - 210px)", width: "auto", display: "block" }} />
                       {/* MODO NORMAL: bolinhas clicáveis */}
                       {!editando && (figura.hotspots || []).map((h, i) => {
                         const ativo = refHover === h.reference;
@@ -1208,7 +1208,10 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
 
               {/* Peça em foco: passar o mouse na bolinha já mostra a tira; clicar
                   fixa (aí dá pra escolher quantidade e adicionar). */}
-              {(() => { const pecaTira = pecaSel || (refHover ? (figura.pecas || []).find((x) => x.reference === refHover) || null : null); return pecaTira && (
+              {/* Tira do rodapé (qtd + adicionar) só no CLIQUE: no hover ela
+                  empurrava o layout, movia a bolinha e criava tremedeira. No
+                  hover fica só a ficha flutuante acima (que não mexe no layout). */}
+              {(() => { const pecaTira = pecaSel; return pecaTira && (
                 <div style={{ position: "sticky", bottom: 0, zIndex: 8, marginTop: 12, borderRadius: 12, border: "1.5px solid #fecaca", background: "#fff7f7", padding: "13px 15px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", boxShadow: "0 -6px 18px rgba(0,0,0,0.10)" }}>
                   <span style={{ display: "inline-flex", width: 38, height: 38, borderRadius: "50%", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 500, background: "#dc2626", color: "#fff", flexShrink: 0 }}>{pecaTira.reference}</span>
                   <div style={{ flex: "1 1 180px", minWidth: 0 }}>
