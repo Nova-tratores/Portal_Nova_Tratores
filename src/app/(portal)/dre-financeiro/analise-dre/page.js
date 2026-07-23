@@ -52,13 +52,34 @@ function rotuloMes(k) {
 function corValor(v) { if (v > 0) return 'text-emerald-700'; if (v < 0) return 'text-red-700'; return 'text-slate-500' }
 function corVar(p) { if (p === null || !isFinite(p)) return 'adre-var-neutral'; if (p > 0.1) return 'adre-var-up'; if (p < -0.1) return 'adre-var-down'; return 'adre-var-neutral' }
 
-// Defaults: jan/2023 ate mes anterior (port fiel de setupDefaults()).
+// Defaults: 1o dia do ANO ANTERIOR ate o mes atual (o dia em que o usuario abre).
+// Ex.: aberto em jul/2026 -> de jan/2025 ate jul/2026.
 function defaultsPeriodo() {
   var hoje = new Date()
-  var fim = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1)
-  var ini = new Date(2023, 0, 1)
+  var ini = new Date(hoje.getFullYear() - 1, 0, 1) // 1o de janeiro do ano passado
+  var fim = new Date(hoje.getFullYear(), hoje.getMonth(), 1) // mes corrente
   function ym(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') }
   return { desde: ym(ini), ate: ym(fim) }
+}
+
+// ehPeca(fam): true se a familia comeca com "pec"/"peç" (port do helper da tela
+// Margens). Usado no popup de composicao para separar maquinas de pecas.
+function ehPeca(fam) {
+  return /^pe[çc]/i.test(String(fam || '').normalize('NFD').replace(/[̀-ͯ]/g, ''))
+}
+// Cor da margem por faixa (port fiel da tela Margens).
+function corMargem(pct) {
+  return pct >= 30 ? 'text-emerald-700' : (pct >= 15 ? 'text-blue-700' : (pct >= 0 ? 'text-amber-700' : 'text-red-700'))
+}
+// Mes de referencia (foco) para os blocos que olham "o mes atual": se ha um mes
+// focado (clique no grafico) e ele esta no recorte, usa-o; senao o ultimo mes.
+// mesAnt = mes imediatamente anterior DENTRO do recorte; anoAnt = mesmo mes -1 ano.
+function refMeses(meses, mesFoco) {
+  var mesAtual = (mesFoco && meses.indexOf(mesFoco) >= 0) ? mesFoco : meses[meses.length - 1]
+  var idx = meses.indexOf(mesAtual)
+  var mesAnt = idx > 0 ? meses[idx - 1] : null
+  var pa = mesAtual.split('-'); var anoAnt = (parseInt(pa[0], 10) - 1) + '-' + pa[1]
+  return { mesAtual: mesAtual, mesAnt: mesAnt, anoAnt: anoAnt }
 }
 
 export default function AnaliseDre() {
@@ -82,6 +103,19 @@ export default function AnaliseDre() {
   const def = defaultsPeriodo()
   const [desde, setDesde] = useState(def.desde)
   const [ate, setAte] = useState(def.ate)
+
+  // Mes "focado" por clique num dos 2 graficos (null = ultimo mes do recorte).
+  // Um clique simples foca o mes: destaca nos 2 graficos e REAPRESENTA os KPIs,
+  // Insights e a Tabela horizontal em torno dele. (Duplo clique na LINHA abre o
+  // popup de composicao — ver popupMes.)
+  const [mesFoco, setMesFoco] = useState(null)
+
+  // Popup de composicao do mes (duplo clique numa bolinha do grafico de linha):
+  // waterfall do DRE do mes + tabela por maquina (venda minima p/ ficar positiva).
+  const [popupMes, setPopupMes] = useState(null)     // 'YYYY-MM' aberto (null = fechado)
+  const [popupItens, setPopupItens] = useState(null) // vendas do mes (fetch /margens)
+  const [popupRateio, setPopupRateio] = useState(null) // { porMes } (fetch /rateio)
+  const [popupCarregando, setPopupCarregando] = useState(false)
 
   // Refs dos canvas + instancias Chart.js
   const refCanvasMargens = useRef(null)
@@ -136,7 +170,9 @@ export default function AnaliseDre() {
 
   // carregar() no mount, ao trocar regime e ao trocar a conta (replica o
   // comportamento do EJS: carregar() inicial + setRegime chamava carregar()).
-  useEffect(() => { carregar() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [regime, conta])
+  // Ao trocar de base tambem limpamos o foco e fechamos o popup (o mes focado
+  // pode nao existir no novo recorte).
+  useEffect(() => { setMesFoco(null); setPopupMes(null); carregar() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [regime, conta])
 
   // =====================================================================
   // Granularidade: colunas e valor por coluna (port fiel)
@@ -207,16 +243,15 @@ export default function AnaliseDre() {
   const calcMomYoy = useCallback((getVal) => {
     if (!dados || !dados.meses || !dados.meses.length) return { mom: null, yoy: null }
     var meses = dados.meses
-    var mesAtual = meses[meses.length - 1]
-    var mesAnt = meses[meses.length - 2] || null
-    var pa = mesAtual.split('-'); var anoAnt = (parseInt(pa[0], 10) - 1) + '-' + pa[1]
+    var rm = refMeses(meses, mesFoco)
+    var mesAtual = rm.mesAtual, mesAnt = rm.mesAnt, anoAnt = rm.anoAnt
     var v = getVal(mesAtual)
     var vA = mesAnt ? getVal(mesAnt) : null
     var vY = getVal(anoAnt)
     var mom = (vA && Math.abs(vA) > 1e-6) ? ((v - vA) / Math.abs(vA)) * 100 : null
     var yoy = (vY && Math.abs(vY) > 1e-6) ? ((v - vY) / Math.abs(vY)) * 100 : null
     return { mom: mom, yoy: yoy, valor: v, mesAtual: mesAtual, mesAnt: mesAnt, anoAnt: anoAnt, valorAnt: vA, valorAnoAnt: vY }
-  }, [dados])
+  }, [dados, mesFoco])
 
   // =====================================================================
   // KPIs (Bloco 1) - calcula os 5 cards (port fiel de renderKPIs)
@@ -241,9 +276,8 @@ export default function AnaliseDre() {
       return rlo > 0 ? (ll2 / rlo) * 100 : 0
     }
     var meses = dados.meses
-    var mesAtual = meses[meses.length - 1]
-    var mesAnt = meses[meses.length - 2] || null
-    var pa = mesAtual.split('-'); var anoAnt = (parseInt(pa[0], 10) - 1) + '-' + pa[1]
+    var rm = refMeses(meses, mesFoco)
+    var mesAtual = rm.mesAtual, mesAnt = rm.mesAnt, anoAnt = rm.anoAnt
     var mlAtual = getML(mesAtual)
     var mlAnt = mesAnt ? getML(mesAnt) : null
     var mlAnoAnt = getML(anoAnt)
@@ -277,9 +311,8 @@ export default function AnaliseDre() {
       return { vazio: <div className="text-xs text-slate-400">Periodo curto demais para insights (precisa &gt;= 2 meses).</div> }
     }
     var meses = dados.meses
-    var mesAtual = meses[meses.length - 1]
-    var mesAnt = meses[meses.length - 2] || null
-    var pa = mesAtual.split('-'); var anoAnt = (parseInt(pa[0], 10) - 1) + '-' + pa[1]
+    var rm = refMeses(meses, mesFoco)
+    var mesAtual = rm.mesAtual, mesAnt = rm.mesAnt, anoAnt = rm.anoAnt
     var temMesAnt = !!mesAnt
     var temAnoAnt = dados.meses.indexOf(anoAnt) >= 0 // soh se de fato ha dado do ano passado
 
@@ -380,7 +413,7 @@ export default function AnaliseDre() {
       var media = serie.reduce(function (s, v) { return s + v }, 0) / serie.length
       var desv = Math.sqrt(serie.reduce(function (s, v) { return s + (v - media) * (v - media) }, 0) / serie.length)
       if (desv < 1e-6) return
-      var vAtual = serie[serie.length - 1]
+      var vAtual = pm[mesAtual] || 0
       var z = (vAtual - media) / desv
       if (Math.abs(z) > 2) {
         alertasZ.push({
@@ -458,9 +491,8 @@ export default function AnaliseDre() {
   function calcLinhasTabela() {
     if (!dados || !dados.meses) return []
     var meses = dados.meses
-    var mesAtual = meses[meses.length - 1]
-    var mesAnt = meses[meses.length - 2] || null
-    var pa = mesAtual.split('-'); var anoAnt = (parseInt(pa[0], 10) - 1) + '-' + pa[1]
+    var rm = refMeses(meses, mesFoco)
+    var mesAtual = rm.mesAtual, mesAnt = rm.mesAnt, anoAnt = rm.anoAnt
     var cons = dados.consolidado || {}
     var qCol = colunasAtuais().length
 
@@ -524,6 +556,35 @@ export default function AnaliseDre() {
     var Chart = window.Chart
     var colunas = colunasAtuais()
     var labels = colunas.map(rotuloColuna)
+
+    // --- Foco (clique num mes): indice da coluna a destacar nos 2 graficos ---
+    // colDeMes: mes 'YYYY-MM' -> chave de coluna (na granularidade 'ano' e o ano).
+    function colDeMes(k) { return granularidade === 'ano' ? String(k).split('-')[0] : k }
+    // mesDaColuna: coluna clicada -> mes representativo p/ focar ('ano' pega o
+    // ultimo mes daquele ano presente no recorte).
+    function mesDaColuna(k) {
+      if (granularidade !== 'ano') return k
+      var doAno = dados.meses.filter(function (m) { return m.split('-')[0] === String(k) })
+      return doAno.length ? doAno[doAno.length - 1] : null
+    }
+    var focoIdx = mesFoco ? colunas.indexOf(colDeMes(mesFoco)) : -1
+    var pointRadiusArr = colunas.map(function (_, i) { return i === focoIdx ? 6 : 3 })
+    var pointBWArr = colunas.map(function (_, i) { return i === focoIdx ? 3 : 1 })
+    var pointBorderArr = colunas.map(function (_, i) { return i === focoIdx ? '#f59e0b' : 'transparent' })
+
+    // Handlers de clique compartilhados pelos 2 graficos.
+    function focar(idx) {
+      var k = colunas[idx]; if (k == null) return
+      var mk = mesDaColuna(k)
+      if (mk) setMesFoco(mk)
+    }
+    function abrirPopupNoIdx(idx) {
+      var k = colunas[idx]; if (k == null || granularidade === 'ano') return
+      setMesFoco(k); setPopupMes(k)
+    }
+    function onClickChart(evt, els) { if (els && els.length) focar(els[0].index) }
+    function onHoverChart(evt, els) { if (evt.native && evt.native.target) evt.native.target.style.cursor = els.length ? 'pointer' : 'default' }
+
     // valorColuna (chamado dentro de cada valXxxCol) ja agrega corretamente
     // de acordo com a granularidade. Nao precisa de soma adicional aqui.
     function numBruta(k) { return valTipoCol('1. Lucro Bruto', k) }
@@ -567,14 +628,16 @@ export default function AnaliseDre() {
         data: {
           labels: labels,
           datasets: [
-            { type: 'line', label: lblBruta, data: plotSerie(mBruta), rawData: mBruta, borderColor: '#1e293b', backgroundColor: 'rgba(30,41,59,0.05)', borderWidth: 2, pointRadius: 3, tension: 0.2, fill: false },
-            { type: 'line', label: lblOper, data: plotSerie(mOper), rawData: mOper, borderColor: '#7c3aed', backgroundColor: 'rgba(124,58,237,0.05)', borderWidth: 2, pointRadius: 3, tension: 0.2, fill: false },
-            { type: 'line', label: lblLiq, data: plotSerie(mLiq), rawData: mLiq, borderColor: '#dc2626', backgroundColor: 'rgba(220,38,38,0.05)', borderWidth: 2, pointRadius: 3, tension: 0.2, fill: false }
+            { type: 'line', label: lblBruta, data: plotSerie(mBruta), rawData: mBruta, borderColor: '#1e293b', backgroundColor: 'rgba(30,41,59,0.05)', borderWidth: 2, pointRadius: pointRadiusArr, pointHoverRadius: 6, pointBorderColor: pointBorderArr, pointBorderWidth: pointBWArr, tension: 0.2, fill: false },
+            { type: 'line', label: lblOper, data: plotSerie(mOper), rawData: mOper, borderColor: '#7c3aed', backgroundColor: 'rgba(124,58,237,0.05)', borderWidth: 2, pointRadius: pointRadiusArr, pointHoverRadius: 6, pointBorderColor: pointBorderArr, pointBorderWidth: pointBWArr, tension: 0.2, fill: false },
+            { type: 'line', label: lblLiq, data: plotSerie(mLiq), rawData: mLiq, borderColor: '#dc2626', backgroundColor: 'rgba(220,38,38,0.05)', borderWidth: 2, pointRadius: pointRadiusArr, pointHoverRadius: 6, pointBorderColor: pointBorderArr, pointBorderWidth: pointBWArr, tension: 0.2, fill: false }
           ]
         },
         options: {
           responsive: true, maintainAspectRatio: false,
           interaction: { mode: 'index', intersect: false },
+          onClick: onClickChart,
+          onHover: onHoverChart,
           scales: {
             x: { ticks: { autoSkip: false, maxRotation: 90, minRotation: 0, font: { size: 9 } } },
             y: emRS
@@ -605,11 +668,18 @@ export default function AnaliseDre() {
         data: {
           labels: labels,
           datasets: [
-            { type: 'bar', label: 'Receita Bruta', data: receita, backgroundColor: 'rgba(16,185,129,0.7)', borderColor: '#059669', borderWidth: 1 }
+            {
+              type: 'bar', label: 'Receita Bruta', data: receita,
+              backgroundColor: colunas.map(function (_, i) { return i === focoIdx ? 'rgba(5,150,105,0.95)' : 'rgba(16,185,129,0.7)' }),
+              borderColor: colunas.map(function (_, i) { return i === focoIdx ? '#f59e0b' : '#059669' }),
+              borderWidth: colunas.map(function (_, i) { return i === focoIdx ? 2 : 1 })
+            }
           ]
         },
         options: {
           responsive: true, maintainAspectRatio: false,
+          onClick: onClickChart,
+          onHover: onHoverChart,
           scales: {
             x: { ticks: { autoSkip: false, maxRotation: 90, minRotation: 0, font: { size: 9 } } },
             y: { position: 'left', ticks: { callback: function (v) { return fmtBRLs(v) } } }
@@ -622,14 +692,25 @@ export default function AnaliseDre() {
       })
     }
 
+    // Duplo clique numa bolinha do grafico de LINHA abre o popup de composicao
+    // do mes (evento nativo — clique simples ja e tratado por onClick=focar).
+    var canvasM = refCanvasMargens.current
+    function onDbl(e) {
+      if (!chartMargensRef.current) return
+      var els = chartMargensRef.current.getElementsAtEventForMode(e, 'index', { intersect: false }, false)
+      if (els && els.length) abrirPopupNoIdx(els[0].index)
+    }
+    if (canvasM) canvasM.addEventListener('dblclick', onDbl)
+
     var infoTxt = colunas.length + ' colunas · regime ' + (regime === 'competencia' ? 'Competência' : 'Omie')
     if (!emRS) {
       var nZonaLog = todosPct.filter(function (v) { return v !== null && isFinite(v) && (v < LIN_MIN || v > LIN_MAX) }).length
       if (nZonaLog > 0) infoTxt += ' · ' + nZonaLog + ' ponto(s) na zona log (fora de ' + LIN_MIN + '%..' + LIN_MAX + '%)'
     }
     setChartInfo(infoTxt)
+    return function () { if (canvasM) canvasM.removeEventListener('dblclick', onDbl) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chartPronto, dados, granularidade, margemModo, regime])
+  }, [chartPronto, dados, granularidade, margemModo, regime, mesFoco])
 
   // Destroi as instancias Chart.js ao desmontar a tela.
   useEffect(() => {
@@ -640,14 +721,40 @@ export default function AnaliseDre() {
   }, [])
 
   // =====================================================================
+  // Popup de composicao do mes: busca as vendas do mes (/margens) e os
+  // insumos de rateio (/rateio) para montar a tabela "por quanto a maquina
+  // deveria ter sido vendida p/ ficar positiva" — mesma logica da tela Margens.
+  // Fetch sob demanda, so quando um mes e aberto por duplo clique.
+  // =====================================================================
+  useEffect(() => {
+    if (!popupMes) { setPopupItens(null); setPopupRateio(null); return }
+    var ativo = true
+    setPopupCarregando(true)
+    setPopupItens(null); setPopupRateio(null)
+    var qsConta = 'conta=' + encodeURIComponent(conta)
+    Promise.all([
+      fetch('/api/dre-financeiro/margens?' + qsConta + '&taxa=1&desde=' + popupMes).then(function (r) { return r.json() }),
+      fetch('/api/dre-financeiro/margens/rateio?' + qsConta + '&desde=' + popupMes + '&ate=' + popupMes).then(function (r) { return r.json() })
+    ]).then(function (res) {
+      if (!ativo) return
+      setPopupCarregando(false)
+      setPopupItens((res[0] && !res[0].erro && res[0].itens) ? res[0].itens : [])
+      setPopupRateio((res[1] && !res[1].erro && res[1].porMes) ? res[1].porMes : null)
+    }).catch(function () {
+      if (!ativo) return
+      setPopupCarregando(false); setPopupItens([]); setPopupRateio(null)
+    })
+    return function () { ativo = false }
+  }, [popupMes, conta])
+
+  // =====================================================================
   // Export CSV (port fiel de exportarCSV)
   // =====================================================================
   function exportarCSV() {
     if (!dados) { alert('Carregue os dados primeiro.'); return }
     var meses = dados.meses
-    var mesAtual = meses[meses.length - 1]
-    var mesAnt = meses[meses.length - 2] || null
-    var pa = mesAtual.split('-'); var anoAnt = (parseInt(pa[0], 10) - 1) + '-' + pa[1]
+    var rm = refMeses(meses, mesFoco)
+    var mesAtual = rm.mesAtual, mesAnt = rm.mesAnt, anoAnt = rm.anoAnt
 
     function esc(v) {
       var s = (v === null || v === undefined) ? '' : String(v)
@@ -729,6 +836,56 @@ export default function AnaliseDre() {
   const insights = dados ? calcInsights() : null
   const linhasTabela = dados ? calcLinhasTabela() : []
 
+  // ===== Dados do popup de composicao do mes (duplo clique na linha) ==========
+  // Waterfall do DRE do mes (via helpers val*Col) + tabela por maquina com a
+  // "venda minima p/ ficar positiva" (break-even de caixa e c/ despesas rateadas).
+  const popup = (() => {
+    if (!popupMes || !dados) return null
+    const k = popupMes
+    const rb = valReceitaBrutaCol(k)
+    const rlo = valRLOCol(k)
+    const lb = valTipoCol('1. Lucro Bruto', k)
+    const despTotal = valTipoCol('2. Despesas', k)
+    const despFin = valContaCol('2. Despesas', '11. Fixas', '03. Despesas Financeiras', k)
+    const despOp = despTotal - despFin
+    const lop = lb + despOp
+    const ll = lb + despTotal
+    const waterfall = [
+      { label: 'Receita Bruta de Vendas', valor: rb, tipo: 'linha' },
+      { label: '(−) Deduções / impostos s/ vendas', valor: rlo - rb, tipo: 'linha' },
+      { label: '= Receita Líquida Operacional', valor: rlo, tipo: 'subtotal' },
+      { label: '(−) CMV (custo das mercadorias)', valor: lb - rlo, tipo: 'linha' },
+      { label: '= Lucro Bruto', valor: lb, tipo: 'subtotal' },
+      { label: '(−) Despesas operacionais', valor: despOp, tipo: 'linha' },
+      { label: '= Lucro Operacional (EBIT)', valor: lop, tipo: 'resultado' },
+      { label: '(−) Despesas financeiras', valor: despFin, tipo: 'linha' },
+      { label: '= Lucro Líquido', valor: ll, tipo: 'resultado' },
+    ]
+    // Tabela por maquina (so quando o fetch das vendas do mes chegou)
+    let maquinas = null, fd = null, agg = null
+    if (popupItens) {
+      const doMes = popupItens.filter((it) => (it.ano + '-' + String(it.mes).padStart(2, '0')) === k)
+      const recMes = doMes.reduce((s, it) => s + (Number(it.receita) || 0), 0)
+      const rt = popupRateio ? popupRateio[k] : null
+      const servicos = rt ? (Number(rt.servicos) || 0) : 0
+      const despesasMes = rt ? (Number(rt.despesas) || 0) : 0
+      const denom = recMes + servicos
+      fd = (rt && denom > 0) ? despesasMes / denom : null
+      maquinas = doMes.filter((it) => !ehPeca(it.familia)).map((it) => {
+        const posDre = (fd !== null && fd < 1) ? it.custo_total / (1 - fd) : null
+        return Object.assign({}, it, { posDre })
+      }).sort((a, b) => a.margem_pct - b.margem_pct)
+      const tot = maquinas.reduce((s, it) => {
+        s.receita += it.receita; s.custo_total += it.custo_total; s.lucro += it.margem_real
+        if (it.margem_real < 0) { s.neg += 1; s.faltou += (it.custo_total - it.receita) }
+        s.posDreSum += (it.posDre != null ? it.posDre : it.custo_total)
+        return s
+      }, { receita: 0, custo_total: 0, lucro: 0, neg: 0, faltou: 0, posDreSum: 0 })
+      agg = Object.assign({}, tot, { n: maquinas.length, fd, servicos, despesasMes, recMes })
+    }
+    return { k, lb, lop, ll, waterfall, maquinas, agg }
+  })()
+
   return (
     <>
       {/* CSS especifico desta tela (port fiel do <style> do EJS) */}
@@ -771,7 +928,17 @@ export default function AnaliseDre() {
         </div>
       </div>
 
-      <div id="adre-status" className="text-xs text-slate-500 mb-3">{status}</div>
+      <div id="adre-status" className="text-xs text-slate-500 mb-3 flex items-center gap-2 flex-wrap">
+        <span>{status}</span>
+        {mesFoco ? (
+          <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 rounded px-2 py-0.5 text-[11px] font-medium">
+            Foco: {rotuloMes(mesFoco)}
+            <button onClick={() => setMesFoco(null)} className="text-amber-700 hover:text-amber-950 leading-none" title="Voltar ao último mês do recorte">&times;</button>
+          </span>
+        ) : (
+          <span className="text-[11px] text-slate-400">Clique num mês nos gráficos para focar · duplo clique numa bolinha da linha abre a composição</span>
+        )}
+      </div>
 
       {/* Bloco 1: KPIs do periodo */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4" id="adre-kpis">
@@ -840,7 +1007,10 @@ export default function AnaliseDre() {
       {/* Bloco 3: Insights automaticos */}
       <div className="bg-white border border-slate-200 rounded-lg p-3 mb-4">
         <div className="flex items-center justify-between mb-2">
-          <div className="text-xs uppercase tracking-wide text-slate-500">Insights automáticos</div>
+          <div className="text-xs uppercase tracking-wide text-slate-500">
+            Insights automáticos
+            {mesFoco && <span className="ml-2 normal-case tracking-normal text-amber-700 font-medium">— mês em foco: {rotuloMes(mesFoco)}</span>}
+          </div>
           <div className="text-[10px] text-slate-400">organizado por horizonte temporal · top 5 por seção</div>
         </div>
         <div id="adre-insights" className="space-y-2">
@@ -857,7 +1027,10 @@ export default function AnaliseDre() {
       {/* Bloco 4: Tabela horizontal */}
       <div className="bg-white border border-slate-200 rounded-lg overflow-hidden mb-4">
         <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wide text-slate-600 flex items-center justify-between flex-wrap gap-2">
-          <span>Tabela horizontal — variações por linha</span>
+          <span>
+            Tabela horizontal — variações por linha
+            {mesFoco && <span className="ml-2 normal-case tracking-normal text-amber-700 font-medium">— MoM/YoY relativos a {rotuloMes(mesFoco)}</span>}
+          </span>
           <div className="flex items-center gap-3">
             <label className="text-[10px]"><input type="checkbox" checked={mostrarGrupos} onChange={(e) => setMostrarGrupos(e.target.checked)} /> grupos</label>
             <label className="text-[10px]"><input type="checkbox" checked={mostrarContas} onChange={(e) => setMostrarContas(e.target.checked)} /> contas (nível 3)</label>
@@ -891,6 +1064,124 @@ export default function AnaliseDre() {
           </table>
         </div>
       </div>
+
+      {/* Popup: composicao do mes (duplo clique numa bolinha do grafico de linha) */}
+      {popup && (
+        <>
+          <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setPopupMes(null)} />
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[96vw] max-w-[1100px] max-h-[88vh] bg-white rounded-lg shadow-2xl z-50 flex flex-col">
+            <div className="border-b border-slate-200 px-5 py-3 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="font-semibold text-slate-800">Composição de {rotuloMes(popup.k)}</h2>
+                <div className="text-xs text-slate-500 mt-0.5">
+                  Lucro Bruto <b className={corValor(popup.lb)}>{fmtBRL(popup.lb)}</b>
+                  {' · '}Lucro Operacional <b className={corValor(popup.lop)}>{fmtBRL(popup.lop)}</b>
+                  {' · '}Lucro Líquido <b className={corValor(popup.ll)}>{fmtBRL(popup.ll)}</b>
+                  {' · '}regime {regime === 'competencia' ? 'Competência' : 'Omie'}
+                </div>
+              </div>
+              <button onClick={() => setPopupMes(null)} className="text-slate-500 hover:text-slate-900 text-2xl leading-none">&times;</button>
+            </div>
+
+            <div className="overflow-y-auto p-4 space-y-4">
+              {/* Waterfall do DRE do mes */}
+              <div>
+                <div className="text-xs uppercase tracking-wide text-slate-500 mb-2">O que compõe o resultado do mês</div>
+                <div className="border border-slate-200 rounded overflow-hidden">
+                  {popup.waterfall.map((w, i) => {
+                    const isRes = w.tipo === 'resultado'
+                    const isSub = w.tipo === 'subtotal'
+                    return (
+                      <div key={i} className={'flex justify-between px-3 py-1.5 text-sm '
+                        + (isRes ? 'bg-slate-100 font-bold border-t border-slate-300 ' : (isSub ? 'bg-slate-50 font-semibold ' : ''))
+                        + (i > 0 ? 'border-t border-slate-100' : '')}>
+                        <span className={isRes || isSub ? 'text-slate-800' : 'text-slate-600'}>{w.label}</span>
+                        <span className={corValor(w.valor)}>{fmtBRL(w.valor)}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Tabela por maquina: venda minima p/ ficar positiva */}
+              <div>
+                <div className="text-xs uppercase tracking-wide text-slate-500 mb-2 flex items-center gap-2 flex-wrap">
+                  <span>Máquinas vendidas no mês — por quanto precisariam ter sido vendidas p/ ficar positivas</span>
+                </div>
+                {popupCarregando ? (
+                  <div className="text-xs text-slate-400 py-4 text-center">Carregando vendas do mês…</div>
+                ) : !popup.maquinas ? (
+                  <div className="text-xs text-slate-400 py-4 text-center">Sem dados de vendas.</div>
+                ) : popup.maquinas.length === 0 ? (
+                  <div className="text-xs text-slate-400 py-4 text-center">Nenhuma máquina vendida neste mês.</div>
+                ) : (
+                  <>
+                    {popup.agg && (
+                      <div className="text-xs text-slate-500 mb-2">
+                        {popup.agg.n} máquinas · venda {fmtBRL(popup.agg.receita)} · lucro real{' '}
+                        <b className={corValor(popup.agg.lucro)}>{fmtBRL(popup.agg.lucro)}</b>
+                        {popup.agg.neg > 0 && <> · <span className="text-red-700">{popup.agg.neg} com prejuízo (faltou {fmtBRL(popup.agg.faltou)})</span></>}
+                        {popup.agg.fd !== null && <> · despesa rateada do mês = <b>{(popup.agg.fd * 100).toFixed(1)}%</b> da receita</>}
+                      </div>
+                    )}
+                    <div className="border border-slate-200 rounded overflow-x-auto max-h-[38vh] overflow-y-auto">
+                      <table className="w-full text-xs">
+                        <thead className="bg-slate-50 text-slate-600 sticky top-0">
+                          <tr>
+                            <th className="text-left px-3 py-2">Produto</th>
+                            <th className="text-left px-3 py-2">Cliente</th>
+                            <th className="text-right px-3 py-2">Vendido por</th>
+                            <th className="text-right px-3 py-2" title="Custo das mercadorias vendidas">CMV</th>
+                            <th className="text-right px-3 py-2" title="Custo do capital empatado até a venda">Capital</th>
+                            <th className="text-right px-3 py-2" title="(receita − CMV − capital) / receita">Mg líq. %</th>
+                            <th className="text-right px-3 py-2" title="CMV + Capital: vendendo acima disso, a venda cobre o caixa. 'c/ despesas' inclui a despesa do mês rateada pela receita total">Venda p/ positivo</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {popup.maquinas.map((it, idx) => {
+                            const corMg = corMargem(it.margem_pct)
+                            const faltou = it.custo_total - it.receita
+                            return (
+                              <tr key={idx} className={'border-b border-slate-100 ' + (it.margem_real < 0 ? 'bg-red-50' : (it.sem_cmc ? 'bg-amber-50' : ''))}>
+                                <td className="px-3 py-1.5 truncate max-w-[240px]" title={(it.descricao || '') + ' · ' + it.familia}>
+                                  {it.descricao || '(sem)'}
+                                  <span className="text-slate-400 text-[10px]"> · {it.familia}</span>
+                                </td>
+                                <td className="px-3 py-1.5 truncate max-w-[150px] text-slate-700" title={it.cliente || ''}>{it.cliente || '-'}</td>
+                                <td className="px-3 py-1.5 text-right font-medium">{fmtBRL(it.receita)}</td>
+                                <td className="px-3 py-1.5 text-right text-slate-600">{it.sem_cmc ? <span className="text-amber-700">s/ CMC</span> : fmtBRL(it.cmv)}</td>
+                                <td className="px-3 py-1.5 text-right text-amber-700">{fmtBRL(it.custo_capital)}</td>
+                                <td className={'px-3 py-1.5 text-right font-bold ' + corMg}>{it.margem_pct.toFixed(1)}%</td>
+                                <td className="px-3 py-1.5 text-right whitespace-nowrap">
+                                  {it.margem_real < 0 ? (
+                                    <>
+                                      <span className="font-bold text-red-700">≥ {fmtBRL(it.custo_total)}</span>
+                                      <div className="text-[10px] text-red-600">faltou {fmtBRL(faltou)}</div>
+                                    </>
+                                  ) : (
+                                    <span className="text-slate-500">≥ {fmtBRL(it.custo_total)}</span>
+                                  )}
+                                  {it.posDre != null && (
+                                    <div className="text-[10px] text-violet-700" title="Preço mínimo cobrindo também a despesa do mês rateada pela receita">c/ despesas ≥ {fmtBRL(it.posDre)}</div>
+                                  )}
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="px-4 py-2 border-t border-slate-200 text-[11px] text-slate-500">
+              "Venda p/ positivo" = CMV + Capital empatado (break-even de caixa); "c/ despesas" inclui a despesa do mês rateada pela receita total (máquinas + peças + serviços) — mesma lógica da tela Margens.
+            </div>
+          </div>
+        </>
+      )}
     </>
   )
 }
