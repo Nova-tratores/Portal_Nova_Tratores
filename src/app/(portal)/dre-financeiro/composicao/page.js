@@ -53,6 +53,12 @@ function fmtBRLcurto(n) {
   if (v >= 1000) return 'R$ ' + (v / 1000).toFixed(0) + 'k'
   return 'R$ ' + v.toFixed(0)
 }
+// ISO YYYY-MM-DD -> DD/MM/YYYY (ignora a parte de hora se vier junto).
+function fmtData(iso) {
+  if (!iso) return '—'
+  const d = String(iso).slice(0, 10).split('-')
+  return d.length === 3 ? d[2] + '/' + d[1] + '/' + d[0] : String(iso)
+}
 
 // ---------------------------------------------------------------------------
 // Hash deterministico para cor consistente do grupo entre sessoes (port fiel).
@@ -180,6 +186,19 @@ export default function ComposicaoPage() {
   const [modalTitulo, setModalTitulo] = useState('Top terceiros')
   const [modalSubtitulo, setModalSubtitulo] = useState('') // HTML (port fiel do innerHTML)
   const [modalCorpo, setModalCorpo] = useState({ tipo: 'vazio' })
+
+  // Contexto da categoria aberta no modal — alimenta os drill-downs (títulos de
+  // um terceiro) e a aba "Modelo". Guardado à parte pra não refazer o cálculo.
+  const [modalCtx, setModalCtx] = useState(null) // { tp, grupo, categoria, valorTotal, de, ate, conta, podeModelo }
+  // Aba do popup: 'cliente' (os títulos, exato) x 'modelo' (vendas cruzadas por
+  // período+cliente — só existe em categorias de receita).
+  const [vistaPopup, setVistaPopup] = useState('cliente')
+  // Aba Modelo: carregada sob demanda (1ª vez que se abre a aba). O cache vive
+  // no modalCtx.categoria — trocar de categoria reabre o modal e zera isto.
+  const [modeloState, setModeloState] = useState({ loading: false, dados: null, erro: null })
+  // Drill aberto DENTRO do modal: títulos de um terceiro OU vendas de um modelo.
+  // null = mostra a lista principal (terceiros ou modelos) da aba atual.
+  const [drill, setDrill] = useState(null)
 
   // Refs do treemap
   const treemapRef = useRef(null)
@@ -445,6 +464,13 @@ export default function ComposicaoPage() {
       (labelTp ? '<span class="font-semibold ' + (tp === 'receber' ? 'text-emerald-700' : 'text-red-700') + '">' + labelTp + '</span> &middot; ' : '')
       + 'Grupo: ' + grupo + ' &middot; ' + fmtBRL(valorTotal)
     )
+    // "Modelo" só existe em vendas (vendas_itens/produtos) — só oferecemos a aba
+    // para categorias de RECEITA (venda de tratores). Ver /api/composicao/modelo.
+    const podeModelo = tp === 'receber' && naturezaDoGrupo(tp, grupo) === 'receita'
+    setModalCtx({ tp, grupo, categoria, valorTotal, de, ate, conta, podeModelo })
+    setVistaPopup('cliente')
+    setModeloState({ loading: false, dados: null, erro: null })
+    setDrill(null)
     setModalCorpo({ tipo: 'carregando' })
     setModalAberto(true)
 
@@ -461,7 +487,54 @@ export default function ComposicaoPage() {
     setModalCorpo({ tipo: 'terceiros', lista, tp, grupo })
   }
 
-  function fecharModal() { setModalAberto(false) }
+  function fecharModal() { setModalAberto(false); setDrill(null) }
+
+  // Trocar de aba. Ao entrar na aba "Modelo" pela 1ª vez, dispara o fetch do
+  // cruzamento período+cliente (aproximado — ver /api/composicao/modelo).
+  function trocarVista(v) {
+    setDrill(null)
+    setVistaPopup(v)
+    if (v === 'modelo' && modalCtx && !modeloState.dados && !modeloState.loading) carregarModelo()
+  }
+
+  function carregarModelo() {
+    const c = modalCtx
+    if (!c) return
+    setModeloState({ loading: true, dados: null, erro: null })
+    const qs = 'conta=' + c.conta + '&de=' + c.de + '&ate=' + c.ate
+      + '&grupo=' + encodeURIComponent(c.grupo) + '&categoria=' + encodeURIComponent(c.categoria)
+    fetch('/api/dre-financeiro/composicao/modelo?' + qs)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.erro) { setModeloState({ loading: false, dados: null, erro: d.erro }); return }
+        setModeloState({ loading: false, dados: d, erro: null })
+      })
+      .catch((e) => setModeloState({ loading: false, dados: null, erro: e.message }))
+  }
+
+  // Drill de um terceiro (cliente/fornecedor) -> lista de títulos que o compõem.
+  function abrirDrillTerceiro(terceiro) {
+    const c = modalCtx
+    if (!c) return
+    setDrill({ modo: 'titulos', terceiro, loading: true, lista: [], total: 0, erro: null })
+    const qs = 'conta=' + c.conta + '&tipo=' + c.tp + '&de=' + c.de + '&ate=' + c.ate
+      + '&grupo=' + encodeURIComponent(c.grupo) + '&categoria=' + encodeURIComponent(c.categoria)
+      + '&terceiro=' + encodeURIComponent(terceiro)
+    fetch('/api/dre-financeiro/composicao/detalhe?' + qs)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.erro) { setDrill({ modo: 'titulos', terceiro, loading: false, lista: [], total: 0, erro: d.erro }); return }
+        setDrill({ modo: 'titulos', terceiro, loading: false, lista: d.titulos || [], total: d.total || 0, erro: null })
+      })
+      .catch((e) => setDrill({ modo: 'titulos', terceiro, loading: false, lista: [], total: 0, erro: e.message }))
+  }
+
+  // Drill de um modelo -> vendas que o compõem (já vieram no payload da aba).
+  function abrirDrillModelo(m) {
+    setDrill({ modo: 'vendas', modelo: m.modelo, lista: m.vendas || [], total: m.valor || 0, erro: null })
+  }
+
+  function voltarDrill() { setDrill(null) }
 
   // Esc fecha o modal (port fiel do keydown da fonte).
   useEffect(() => {
@@ -749,7 +822,7 @@ export default function ComposicaoPage() {
             <canvas ref={treemapRef} />
           </div>
         )}
-        <div className="text-xs text-slate-500 mt-2">Clique numa celula para ver os top terceiros da categoria.</div>
+        <div className="text-xs text-slate-500 mt-2">Clique numa célula para ver os terceiros da categoria — e depois num cliente/fornecedor para ver os títulos que o compõem. Em categorias de receita há também a aba <strong>Por Modelo</strong>.</div>
       </div>
 
       {/* Modal de top terceiros */}
@@ -764,8 +837,36 @@ export default function ComposicaoPage() {
               </div>
               <button onClick={fecharModal} className="text-slate-500 hover:text-slate-900 text-2xl leading-none">×</button>
             </div>
+
+            {/* Abas Cliente x Modelo — só em categorias de receita (venda). A aba
+                Modelo cruza com vendas por período+cliente e NÃO reconcilia com o
+                valor financeiro; o aviso fica dentro da própria aba. */}
+            {modalCtx?.podeModelo && !drill && (
+              <div className="px-5 pt-3 flex items-center gap-2 flex-wrap">
+                <div className="inline-flex rounded-md border border-slate-300 overflow-hidden text-sm">
+                  <button type="button" onClick={() => trocarVista('cliente')}
+                    className={'px-3 py-1 transition ' + (vistaPopup === 'cliente' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}>
+                    Por Cliente
+                  </button>
+                  <button type="button" onClick={() => trocarVista('modelo')}
+                    className={'px-3 py-1 transition border-l border-slate-300 ' + (vistaPopup === 'modelo' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}>
+                    Por Modelo
+                  </button>
+                </div>
+                <span className="text-[11px] text-slate-400">
+                  {vistaPopup === 'modelo' ? 'vendas dos mesmos clientes no período (aproximado)' : 'os títulos desta categoria (exato)'}
+                </span>
+              </div>
+            )}
+
             <div className="p-5 overflow-y-auto">
-              <ModalCorpo corpo={modalCorpo} />
+              {drill ? (
+                <DrillView drill={drill} onVoltar={voltarDrill} />
+              ) : vistaPopup === 'modelo' && modalCtx?.podeModelo ? (
+                <ModeloView state={modeloState} onRecarregar={carregarModelo} onModelo={abrirDrillModelo} />
+              ) : (
+                <ModalCorpo corpo={modalCorpo} onTerceiro={abrirDrillTerceiro} />
+              )}
             </div>
           </div>
         </>
@@ -779,7 +880,7 @@ export default function ComposicaoPage() {
 // com "+ N outros" agregado. Port fiel da montagem de HTML da fonte (abrirModal),
 // convertido para JSX.
 // ===========================================================================
-function ModalCorpo({ corpo }) {
+function ModalCorpo({ corpo, onTerceiro }) {
   if (!corpo || corpo.tipo === 'vazio') return null
   if (corpo.tipo === 'carregando') return <div className="text-slate-500 text-sm">Carregando...</div>
   if (corpo.tipo === 'sem-dados') return <div className="text-slate-500 text-sm">Sem dados.</div>
@@ -796,14 +897,19 @@ function ModalCorpo({ corpo }) {
         {top.map((t, i) => {
           const pct = totalCat > 0 ? (100 * t.valor / totalCat) : 0
           const barPct = (100 * t.valor / maxVal)
+          // Cada linha abre a lista dos títulos que compõem o valor do terceiro.
           return (
-            <div key={i} className="border border-slate-200 rounded-lg p-3">
+            <button key={i} type="button" onClick={() => onTerceiro && onTerceiro(t.nome)}
+              title="Ver os títulos que compõem este valor" className="w-full text-left border border-slate-200 rounded-lg p-3 hover:border-slate-400 hover:bg-slate-50 transition cursor-pointer">
               <div className="flex items-start justify-between gap-2 mb-1">
                 <div className="font-medium text-slate-800 text-sm flex items-center gap-2">
                   <span className="text-xs text-slate-400 font-mono">{i + 1}.</span>
                   <span>{t.nome}</span>
                 </div>
-                <div className="text-right text-xs text-slate-500">{pct.toFixed(1)}%</div>
+                <div className="text-right text-xs text-slate-500 flex items-center gap-1">
+                  {pct.toFixed(1)}%
+                  <span className="text-slate-300">›</span>
+                </div>
               </div>
               <div className="flex items-center gap-3">
                 <div className="flex-1 bg-slate-100 rounded-full h-2">
@@ -811,7 +917,7 @@ function ModalCorpo({ corpo }) {
                 </div>
                 <div className="text-right font-bold text-slate-800 text-sm whitespace-nowrap">{fmtBRL(t.valor)}</div>
               </div>
-            </div>
+            </button>
           )
         })}
         {lista.length > 10 && (
@@ -822,4 +928,157 @@ function ModalCorpo({ corpo }) {
   }
 
   return null
+}
+
+// ===========================================================================
+// DrillView: dentro do modal, mostra o que compõe UM item —
+//  - modo 'titulos': os títulos financeiros de um cliente/fornecedor;
+//  - modo 'vendas' : as vendas (NF) que somam o valor de um modelo.
+// Um "← voltar" retorna à lista principal da aba.
+// ===========================================================================
+function DrillView({ drill, onVoltar }) {
+  const titulo = drill.modo === 'titulos' ? drill.terceiro : drill.modelo
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <button type="button" onClick={onVoltar}
+          className="text-sm text-slate-600 hover:text-slate-900 flex items-center gap-1">
+          <span className="text-lg leading-none">←</span> voltar
+        </button>
+        <div className="text-right">
+          <div className="text-sm font-semibold text-slate-800 truncate max-w-[22rem]">{titulo}</div>
+          <div className="text-xs text-slate-500">{fmtBRL(drill.total)}</div>
+        </div>
+      </div>
+
+      {drill.loading && <div className="text-slate-500 text-sm">Carregando…</div>}
+      {drill.erro && <div className="text-red-600 text-sm">Erro: {drill.erro}</div>}
+
+      {!drill.loading && !drill.erro && drill.modo === 'titulos' && (
+        drill.lista.length === 0
+          ? <div className="text-slate-500 text-sm">Sem títulos.</div>
+          : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-xs text-slate-500 border-b border-slate-200">
+                    <th className="text-left font-medium py-1.5 pr-2">Documento</th>
+                    <th className="text-left font-medium py-1.5 pr-2">Vencimento</th>
+                    <th className="text-left font-medium py-1.5 pr-2">Pago em</th>
+                    <th className="text-right font-medium py-1.5">Valor</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {drill.lista.map((t, i) => (
+                    <tr key={i} className="border-b border-slate-100">
+                      <td className="py-1.5 pr-2 text-slate-800">{t.documento || '—'}</td>
+                      <td className="py-1.5 pr-2 text-slate-600">{fmtData(t.data_vencimento)}</td>
+                      <td className="py-1.5 pr-2 text-slate-600">{fmtData(t.data_pagamento)}</td>
+                      <td className="py-1.5 text-right font-medium text-slate-800 whitespace-nowrap">{fmtBRL(t.valor)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+      )}
+
+      {!drill.loading && !drill.erro && drill.modo === 'vendas' && (
+        drill.lista.length === 0
+          ? <div className="text-slate-500 text-sm">Sem vendas.</div>
+          : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-xs text-slate-500 border-b border-slate-200">
+                    <th className="text-left font-medium py-1.5 pr-2">Data</th>
+                    <th className="text-left font-medium py-1.5 pr-2">Cliente</th>
+                    <th className="text-left font-medium py-1.5 pr-2">Descrição</th>
+                    <th className="text-right font-medium py-1.5 pr-2">Qtd</th>
+                    <th className="text-right font-medium py-1.5">Valor</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {drill.lista.map((v, i) => (
+                    <tr key={i} className="border-b border-slate-100">
+                      <td className="py-1.5 pr-2 text-slate-600 whitespace-nowrap">{fmtData(v.data)}</td>
+                      <td className="py-1.5 pr-2 text-slate-800">{v.cliente}</td>
+                      <td className="py-1.5 pr-2 text-slate-600">{v.descricao}</td>
+                      <td className="py-1.5 pr-2 text-right text-slate-600">{v.quantidade}</td>
+                      <td className="py-1.5 text-right font-medium text-slate-800 whitespace-nowrap">{fmtBRL(v.valor)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+      )}
+    </div>
+  )
+}
+
+// ===========================================================================
+// ModeloView: aba "Por Modelo" do popup. Vendas dos mesmos clientes no período,
+// agregadas por modelo (barras). Clicar num modelo abre as vendas (DrillView).
+// Deixa explícito que é aproximado (financeiro x vendas não reconciliam).
+// ===========================================================================
+function ModeloView({ state, onRecarregar, onModelo }) {
+  if (state.loading) return <div className="text-slate-500 text-sm">Cruzando com as vendas do período…</div>
+  if (state.erro) return (
+    <div className="text-sm">
+      <div className="text-red-600 mb-2">Erro: {state.erro}</div>
+      <button type="button" onClick={onRecarregar} className="text-slate-600 hover:text-slate-900 underline">tentar de novo</button>
+    </div>
+  )
+  const d = state.dados
+  if (!d) return null
+  const modelos = d.modelos || []
+  const maxVal = modelos[0] ? modelos[0].valor : 1
+
+  return (
+    <div>
+      {/* Financeiro (categoria) x vendas cruzadas — os dois NÃO batem por definição. */}
+      <div className="text-[11px] text-slate-500 bg-slate-50 border border-slate-200 rounded-lg p-2.5 mb-3">
+        Vendas de <strong>{d.clientes}</strong> cliente(s) desta categoria no período, por modelo (de <code>vendas_itens</code>, sem peças).
+        Total em vendas <strong>{fmtBRL(d.totalVendas)}</strong> vs. financeiro da categoria <strong>{fmtBRL(d.totalFinanceiro)}</strong> —
+        os dois <strong>não reconciliam</strong> (regime de caixa × competência, títulos parciais, serviço/peça na mesma categoria).
+      </div>
+
+      {modelos.length === 0 ? (
+        <div className="text-slate-500 text-sm">
+          {d.aviso || 'Nenhuma venda de trator (com modelo cadastrado) desses clientes no período.'}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {modelos.map((m, i) => {
+            const pct = d.totalVendas > 0 ? (100 * m.valor / d.totalVendas) : 0
+            const barPct = (100 * m.valor / maxVal)
+            return (
+              <button key={i} type="button" onClick={() => onModelo && onModelo(m)}
+                title="Ver as vendas deste modelo"
+                className="w-full text-left border border-slate-200 rounded-lg p-3 hover:border-slate-400 hover:bg-slate-50 transition cursor-pointer">
+                <div className="flex items-start justify-between gap-2 mb-1">
+                  <div className="font-medium text-slate-800 text-sm flex items-center gap-2">
+                    <span className="text-xs text-slate-400 font-mono">{i + 1}.</span>
+                    <span>{m.modelo}</span>
+                    <span className="text-[11px] text-slate-400">{m.qtd} un.</span>
+                  </div>
+                  <div className="text-right text-xs text-slate-500 flex items-center gap-1">
+                    {pct.toFixed(1)}%
+                    <span className="text-slate-300">›</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 bg-slate-100 rounded-full h-2">
+                    <div className="h-2 rounded-full bg-emerald-500" style={{ width: barPct + '%' }} />
+                  </div>
+                  <div className="text-right font-bold text-slate-800 text-sm whitespace-nowrap">{fmtBRL(m.valor)}</div>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
 }
