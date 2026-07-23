@@ -146,8 +146,16 @@ export default function ComposicaoPage() {
 
   // Mes/ano navegaveis (na fonte vinham por querystring; aqui sao estado).
   const hoje = new Date()
+  const anoAtual = hoje.getFullYear()
   const [mes, setMes] = useState(hoje.getMonth() + 1)
   const [ano, setAno] = useState(hoje.getFullYear())
+
+  // Periodo mostrado. 'mes' preserva a navegacao mensal original (o default); os
+  // demais viram um intervalo de/ate que a API ja aceita. A API pagina, entao
+  // ano/3-anos vem completos (senao truncaria em 1000 linhas — ver route.ts).
+  const [preset, setPreset] = useState('mes') // 'mes'|'ano-atual'|'ano-anterior'|'3-anos'|'custom'
+  const [deCustom, setDeCustom] = useState('')  // ISO YYYY-MM-DD
+  const [ateCustom, setAteCustom] = useState('')
 
   // Natureza DRE selecionada (null = todas). Custo x despesa x receita nao existe
   // nas tabelas do Omie: sai do grupo_categoria via naturezaDoGrupo.
@@ -180,6 +188,19 @@ export default function ComposicaoPage() {
   // Label do modo (A Pagar / A Receber / Pagar + Receber) — port fiel
   const labelTipo = tipo === 'pagar' ? 'A Pagar' : (tipo === 'receber' ? 'A Receber' : 'Pagar + Receber')
 
+  // Intervalo efetivo (ISO) + rotulo, derivados do preset. O 'mes' usa mes/ano
+  // (dia 1 ao ultimo do mes); os presets anuais e o custom viram de/ate direto.
+  const { de, ate, periodoLabel } = useMemo(() => {
+    const iso = (y, m, d) => y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0')
+    const ultimoDia = (y, m) => new Date(y, m, 0).getDate()
+    const brl = (s) => (s ? s.split('-').reverse().join('/') : '')
+    if (preset === 'ano-atual') return { de: iso(anoAtual, 1, 1), ate: iso(anoAtual, 12, 31), periodoLabel: 'Ano ' + anoAtual }
+    if (preset === 'ano-anterior') return { de: iso(anoAtual - 1, 1, 1), ate: iso(anoAtual - 1, 12, 31), periodoLabel: 'Ano ' + (anoAtual - 1) }
+    if (preset === '3-anos') return { de: iso(anoAtual - 2, 1, 1), ate: iso(anoAtual, 12, 31), periodoLabel: (anoAtual - 2) + ' – ' + anoAtual }
+    if (preset === 'custom') return { de: deCustom, ate: ateCustom, periodoLabel: (deCustom && ateCustom) ? brl(deCustom) + ' – ' + brl(ateCustom) : 'Escolha as datas' }
+    return { de: iso(ano, mes, 1), ate: iso(ano, mes, ultimoDia(ano, mes)), periodoLabel: nomeMes(mes) + ' ' + ano }
+  }, [preset, mes, ano, deCustom, ateCustom, anoAtual])
+
   // Carrega as libs uma vez.
   useEffect(() => {
     carregarChartLibs().then(() => setChartReady(true)).catch(() => setChartReady(false))
@@ -194,9 +215,11 @@ export default function ComposicaoPage() {
   // toggle deixa de refazer requisicao. Reage so a conta/mes/ano.
   // =========================================================================
   useEffect(() => {
+    // Custom com data faltando: nao dispara (a API assumiria o mes corrente).
+    if (!de || !ate) { setDados(null); arvore.current = null; return }
     setDados(null)
     arvore.current = null
-    const qs = 'conta=' + conta + '&tipo=ambos&mes=' + mes + '&ano=' + ano
+    const qs = 'conta=' + conta + '&tipo=ambos&de=' + de + '&ate=' + ate
     let ativo = true
     fetch('/api/dre-financeiro/composicao?' + qs).then((r) => r.json()).then((d) => {
       if (!ativo) return
@@ -205,7 +228,7 @@ export default function ComposicaoPage() {
       setDados(d)
     }).catch((e) => { if (ativo) alert('Erro: ' + e.message) })
     return () => { ativo = false }
-  }, [conta, mes, ano])
+  }, [conta, de, ate])
 
   // =========================================================================
   // Derivados: natureza por folha, resumo da faixa e recorte (tipo + natureza).
@@ -500,12 +523,44 @@ export default function ComposicaoPage() {
 
   return (
     <>
-      {/* Toolbar de mes */}
+      {/* Seletor de periodo: mes navegavel (default) ou intervalos salvos/custom.
+          O intervalo vira de/ate na API, que pagina — ano/3-anos vem completos. */}
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
+        <span className="text-xs text-slate-500 uppercase tracking-wide mr-1">Período</span>
+        {[
+          ['mes', 'Mês'],
+          ['ano-atual', 'Este ano (' + anoAtual + ')'],
+          ['ano-anterior', 'Ano passado (' + (anoAtual - 1) + ')'],
+          ['3-anos', 'Últimos 3 anos'],
+          ['custom', 'Personalizado'],
+        ].map(([k, lbl]) => (
+          <button key={k} type="button" onClick={() => setPreset(k)} aria-pressed={preset === k}
+            className={'text-sm px-3 py-1 rounded-full border transition cursor-pointer '
+              + (preset === k ? 'bg-slate-800 border-slate-800 text-white' : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100')}>
+            {lbl}
+          </button>
+        ))}
+        {preset === 'custom' && (
+          <span className="inline-flex items-center gap-1 text-sm ml-1">
+            <input type="date" value={deCustom} onChange={(e) => setDeCustom(e.target.value)}
+              className="border border-slate-300 rounded px-2 py-1" />
+            <span className="text-slate-400">até</span>
+            <input type="date" value={ateCustom} onChange={(e) => setAteCustom(e.target.value)}
+              className="border border-slate-300 rounded px-2 py-1" />
+          </span>
+        )}
+      </div>
+
+      {/* Toolbar de mes (setas so no modo mensal) */}
       <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <button onClick={mesAnterior} className="px-3 py-1 border border-slate-300 rounded bg-white hover:bg-slate-100">&larr;</button>
-        <h1 className="text-2xl font-semibold text-slate-800 min-w-[180px] text-center">{nomeMes(mes)} {ano}</h1>
-        <button onClick={mesProximo} className="px-3 py-1 border border-slate-300 rounded bg-white hover:bg-slate-100">&rarr;</button>
-        <button onClick={irHoje} className="px-3 py-1 border border-slate-300 rounded bg-white hover:bg-slate-100 text-sm">Hoje</button>
+        {preset === 'mes' && (
+          <button onClick={mesAnterior} className="px-3 py-1 border border-slate-300 rounded bg-white hover:bg-slate-100">&larr;</button>
+        )}
+        <h1 className="text-2xl font-semibold text-slate-800 min-w-[180px] text-center">{periodoLabel}</h1>
+        {preset === 'mes' && (<>
+          <button onClick={mesProximo} className="px-3 py-1 border border-slate-300 rounded bg-white hover:bg-slate-100">&rarr;</button>
+          <button onClick={irHoje} className="px-3 py-1 border border-slate-300 rounded bg-white hover:bg-slate-100 text-sm">Hoje</button>
+        </>)}
         <span className="text-xs text-slate-500 ml-2">Modo:</span>
         {/* Toggle de TIPO (replicado da header global da fonte) */}
         <div className="inline-flex rounded-md border border-slate-300 overflow-hidden text-sm">
@@ -528,7 +583,7 @@ export default function ComposicaoPage() {
               visivel (estado neutro explicito) e o check no cartao selecionado. */}
           <div className="flex items-center gap-2 mb-2 flex-wrap">
             <span className="text-xs text-slate-500 uppercase tracking-wide">Filtrar por natureza</span>
-            <span className="text-[11px] text-slate-400">clique num cartão para ver só essa parte do mês</span>
+            <span className="text-[11px] text-slate-400">clique num cartão para ver só essa parte do período</span>
             {/* Devolucao aparece dos DOIS lados (saida "Devolucoes de Vendas" e
                 entrada "Devolucoes"/"DevolucoeseOutras Saidas") e distorce a
                 leitura do mes. O checkbox tira as duas de uma vez. */}
@@ -592,7 +647,7 @@ export default function ComposicaoPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <div className="bg-white rounded-lg border border-slate-200 p-4">
           <div className="text-xs text-slate-500 uppercase tracking-wide">
-            Total no mes{natureza ? ' · ' + (NATUREZAS.find((n) => n.chave === natureza) || {}).rotulo : ''}
+            Total do período{natureza ? ' · ' + (NATUREZAS.find((n) => n.chave === natureza) || {}).rotulo : ''}
             {grupoSel ? ' · ' + grupoSel.slice(grupoSel.indexOf('|') + 1) : ''}
             {semDevolucoes ? ' · sem devoluções' : ''}
           </div>
@@ -676,12 +731,18 @@ export default function ComposicaoPage() {
 
       {/* Treemap */}
       <div className="bg-white border border-slate-200 rounded-lg p-3 mb-6">
-        {semDados ? (
+        {preset === 'custom' && (!de || !ate) ? (
+          <div className="text-slate-500 text-center py-12">Escolha as datas de início e fim do intervalo.</div>
+        ) : !dados ? (
+          // Periodos longos (ano/3-anos) levam alguns segundos: a API pagina milhares
+          // de titulos. Sem este aviso o card fica em branco e parece travado.
+          <div className="text-slate-500 text-center py-12">Carregando o período…</div>
+        ) : semDados ? (
           <div className="text-slate-500 text-center py-12">
-            {/* Distingue "mes vazio" de "filtro vazio" — sem isto o usuario acha que faltou sincronizar. */}
+            {/* Distingue "periodo vazio" de "filtro vazio" — sem isto o usuario acha que faltou sincronizar. */}
             {totalGeral > 0
               ? 'Nada neste recorte. Limpe o filtro de grupo ou de natureza, ou troque o modo.'
-              : 'Nenhum dado neste periodo. Sincronize ou troque o mes.'}
+              : 'Nenhum dado neste período. Sincronize ou troque o período.'}
           </div>
         ) : (
           <div style={{ position: 'relative', height: 560 }}>
