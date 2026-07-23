@@ -33,6 +33,56 @@ function pegaTipo(request: NextRequest): string {
   return (TIPOS_VALIDOS as Set<string>).has(t) ? t : 'pagar'
 }
 
+// ---------------------------------------------------------------------------
+// Busca paginada dos titulos do periodo.
+//
+// POR QUE PAGINAR: o PostgREST/Supabase corta TODA resposta em 1000 linhas
+// (db-max-rows), silenciosamente e sem erro — o `.limit(50000)` que estava aqui
+// NAO adiantava nada. Ate' funcionava por acaso na visao mensal (um mes tem
+// ~500-700 titulos), mas qualquer periodo anual truncava feio: 2026 sozinho tem
+// 4.881 contas a pagar (so' vinham 1.000 -> total ~80% menor) e 3 anos, 24.204.
+// Com o seletor de intervalo/periodos salvos isso viraria numero errado calado.
+//
+// COMO: conta exato via HEAD, depois dispara ceil(total/1000) requests de 1000
+// em paralelo, ordenados por `id` (chave estavel — sem .order() as paginas
+// podem repetir/perder linhas na fronteira; ver o padrao de selectPaginado).
+const PAG = 1000
+
+async function contarTitulos(sb: any, tabela: string, conta: string, ini: string, fim: string): Promise<number> {
+  let q = sb.from(tabela)
+    .select('id', { count: 'exact', head: true })
+    .gte('data_vencimento', ini)
+    .lte('data_vencimento', fim)
+  q = aplicarConta(q, conta)
+  const { count, error } = await q
+  if (error) throw new Error(error.message)
+  return count || 0
+}
+
+async function buscarTitulos(sb: any, tabela: string, colNome: string, conta: string, ini: string, fim: string): Promise<any[]> {
+  const total = await contarTitulos(sb, tabela, conta, ini, fim)
+  const paginas = Math.ceil(total / PAG)
+  const reqs: Promise<any>[] = []
+  for (let p = 0; p < paginas; p++) {
+    const from = p * PAG
+    let q = sb.from(tabela)
+      .select(`grupo_categoria,descricao_categoria,codigo_categoria,${colNome},valor_documento`)
+      .gte('data_vencimento', ini)
+      .lte('data_vencimento', fim)
+      .order('id')
+      .range(from, from + PAG - 1)
+    q = aplicarConta(q, conta)
+    reqs.push(q)
+  }
+  const lotes = await Promise.all(reqs)
+  const linhas: any[] = []
+  for (const { data, error } of lotes) {
+    if (error) throw new Error(error.message)
+    if (data) linhas.push(...data)
+  }
+  return linhas
+}
+
 export async function GET(request: NextRequest) {
   if (!supabase) return NextResponse.json({ erro: 'Supabase nao configurado' }, { status: 500 })
   try {
@@ -58,16 +108,9 @@ export async function GET(request: NextRequest) {
     for (const t of tipos) {
       const tabela = tabelaPorTipo(t)
       const colNome = colunaNomePorTipo(t)
-      let q = supabase.from(tabela)
-        .select(`grupo_categoria,descricao_categoria,codigo_categoria,${colNome},valor_documento`)
-        .gte('data_vencimento', ini)
-        .lte('data_vencimento', fim)
-        .limit(50000)
-      q = aplicarConta(q, conta)
-      const { data, error } = await q
-      if (error) throw new Error(error.message)
+      const data = await buscarTitulos(supabase, tabela, colNome, conta, ini, fim)
 
-      ;(data || []).forEach((r: any) => {
+      data.forEach((r: any) => {
         const valor = Number(r.valor_documento) || 0
         if (valor <= 0) return
         const grupo = r.grupo_categoria || SEM_GRUPO
@@ -108,6 +151,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       conta, tipo, mes, ano,
+      de: ini, ate: fim,
       total,
       grupos,
       folhas,
