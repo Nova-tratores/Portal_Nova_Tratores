@@ -5,8 +5,10 @@
 // Mantem EXATAMENTE os calculos e o comportamento do original:
 //  - Toolbar de mes: ← mes anterior / titulo / mes proximo → / Hoje + label do modo.
 //  - 4 KPIs: Total no mes, Grupos, Categorias, Top categoria (+ valor/percentual).
-//  - Legenda de grupos (no modo "ambos" separada em Saidas/Entradas, top 8 cada;
-//    nos demais modos, top 12).
+//  - Legenda de grupos (no modo "ambos" separada em Saidas/Entradas). NAO e' mais
+//    so legenda: cada grupo FILTRA o treemap (um por vez), e os rotulos
+//    Todos/Saidas/Entradas escrevem no mesmo estado do toggle de tipo do topo.
+//    O corte de top 8/12 da fonte saiu — cortar a lista esconderia filtros.
 //  - Treemap (Chart.js 4.4.0 + chartjs-chart-treemap 3.1.0) — cada folha = 1
 //    categoria; cor define o grupo (HSL deterministica por hash do nome).
 //  - Modal de drill-down: top 10 terceiros da categoria (barras horizontais),
@@ -119,6 +121,20 @@ function carregarChartLibs() {
   return chartLibPromise
 }
 
+// Agrega folhas em grupos (chave "tipo|nome", igual a da arvore de drill-down),
+// do maior valor pro menor. Usada duas vezes: no recorte final (KPIs) e no
+// recorte sem o filtro de grupo (legenda).
+function agregarGrupos(folhas) {
+  const m = new Map()
+  folhas.forEach((f) => {
+    const k = f.tipo + '|' + f.grupo
+    const g = m.get(k) || { chave: k, nome: f.grupo, tipo: f.tipo, valor: 0 }
+    g.valor += f.valor
+    m.set(k, g)
+  })
+  return [...m.values()].sort((a, b) => b.valor - a.valor)
+}
+
 export default function ComposicaoPage() {
   const { userProfile, loading } = useAuth()
   const { temAcesso, pode, loading: loadingPerm } = usePermissoes(userProfile?.id)
@@ -136,6 +152,15 @@ export default function ComposicaoPage() {
   // Natureza DRE selecionada (null = todas). Custo x despesa x receita nao existe
   // nas tabelas do Omie: sai do grupo_categoria via naturezaDoGrupo.
   const [natureza, setNatureza] = useState(null)
+
+  // Grupo selecionado na legenda (null = todos). Chave "tipo|nome" — a MESMA da
+  // arvore do drill-down; o nome sozinho colidiria (ha "Devolucoes" nos dois lados).
+  const [grupoSel, setGrupoSel] = useState(null)
+
+  // Esconder devolucoes dos DOIS lados (saida "Devolucoes de Vendas" e entrada
+  // "Devolucoes"/"DevolucoeseOutras Saidas"). Desmarcado por padrao: o mes cheio
+  // continua sendo o default: esconder e' uma escolha explicita do usuario.
+  const [semDevolucoes, setSemDevolucoes] = useState(false)
 
   // Dados de /api/composicao + arvore p/ o drill-down do modal.
   const [dados, setDados] = useState(null)
@@ -192,58 +217,92 @@ export default function ComposicaoPage() {
     [dados],
   )
 
+  // Base de TUDO o que a tela mostra. As devolucoes saem daqui (e nao so do
+  // treemap) pra faixa de natureza, KPIs e legenda contarem a mesma historia —
+  // com o checkbox ligado o cartao "Deducoes" tem de sumir junto.
+  const folhasBase = useMemo(
+    () => (semDevolucoes ? folhasComNatureza.filter((f) => f.natureza !== 'deducao') : folhasComNatureza),
+    [folhasComNatureza, semDevolucoes],
+  )
+
   const totalGeral = useMemo(
-    () => folhasComNatureza.reduce((s, f) => s + f.valor, 0),
-    [folhasComNatureza],
+    () => folhasBase.reduce((s, f) => s + f.valor, 0),
+    [folhasBase],
   )
 
   // Resumo por natureza: sempre sobre o TOTAL do mes (nao sobre o recorte),
   // pra faixa continuar servindo de mapa mesmo com um filtro ativo.
   const resumoNaturezas = useMemo(() => {
     const m = {}
-    folhasComNatureza.forEach((f) => {
+    folhasBase.forEach((f) => {
       if (!m[f.natureza]) m[f.natureza] = { valor: 0, categorias: 0 }
       m[f.natureza].valor += f.valor
       m[f.natureza].categorias++
     })
     return m
-  }, [folhasComNatureza])
+  }, [folhasBase])
 
-  const folhasFiltradas = useMemo(() => folhasComNatureza.filter((f) => {
+  // Recorte SEM o filtro de grupo — e' o que alimenta a legenda. Se a legenda
+  // saisse do recorte final, escolher um grupo deixaria um badge so na tela e o
+  // usuario ficaria preso sem conseguir trocar de grupo.
+  const folhasSemGrupo = useMemo(() => folhasBase.filter((f) => {
     if (natureza && f.natureza !== natureza) return false
     if (tipo !== 'ambos' && f.tipo !== tipo) return false
     return true
-  }), [folhasComNatureza, natureza, tipo])
+  }), [folhasBase, natureza, tipo])
+
+  const folhasFiltradas = useMemo(
+    () => (grupoSel ? folhasSemGrupo.filter((f) => f.tipo + '|' + f.grupo === grupoSel) : folhasSemGrupo),
+    [folhasSemGrupo, grupoSel],
+  )
 
   // Grupos derivados do recorte (a lista `grupos` da API e sempre a do mes inteiro).
-  const gruposFiltrados = useMemo(() => {
-    const m = new Map()
-    folhasFiltradas.forEach((f) => {
-      const k = f.tipo + '|' + f.grupo
-      const g = m.get(k) || { nome: f.grupo, tipo: f.tipo, valor: 0 }
-      g.valor += f.valor
-      m.set(k, g)
-    })
-    return [...m.values()].sort((a, b) => b.valor - a.valor)
-  }, [folhasFiltradas])
+  const gruposFiltrados = useMemo(() => agregarGrupos(folhasFiltradas), [folhasFiltradas])
+  // Legenda: todos os grupos do recorte sem o filtro de grupo (ver folhasSemGrupo).
+  const gruposLegenda = useMemo(() => agregarGrupos(folhasSemGrupo), [folhasSemGrupo])
 
-  // Clicar na faixa alinha o toggle de tipo, em vez de deixar os dois brigando
-  // (ex.: "Receitas" com o toggle em A Pagar daria tela vazia).
+  // Os tres filtros (tipo x natureza x grupo) se alinham em vez de brigar: cada
+  // escolha larga o que nao cabe nela. Sem isto e' facil chegar a combinacoes
+  // vazias (ex.: "Receitas" com o toggle em A Pagar) sem entender o porque.
+  function grupoCabe(chave, tp, nat) {
+    if (!chave) return true
+    const i = chave.indexOf('|')
+    const gTipo = chave.slice(0, i), gNome = chave.slice(i + 1)
+    if (tp !== 'ambos' && gTipo !== tp) return false
+    if (nat && naturezaDoGrupo(gTipo, gNome) !== nat) return false
+    return true
+  }
+
+  // Clicar na faixa alinha o toggle de tipo.
   function escolherNatureza(chave) {
     const nova = natureza === chave ? null : chave
     setNatureza(nova)
-    if (!nova) return
-    const def = NATUREZAS.find((n) => n.chave === nova)
-    setTipo(def && def.tipo ? def.tipo : 'ambos')
+    const def = nova ? NATUREZAS.find((n) => n.chave === nova) : null
+    const novoTipo = nova ? (def && def.tipo ? def.tipo : 'ambos') : tipo
+    if (nova) setTipo(novoTipo)
+    if (!grupoCabe(grupoSel, novoTipo, nova)) setGrupoSel(null)
   }
 
   // Caminho inverso: trocar o tipo larga a natureza que nao cabe nele (escolher
   // "A Pagar" com Receitas ativo daria tela vazia sem explicacao).
   function escolherTipo(novoTipo) {
     setTipo(novoTipo)
-    if (!natureza || novoTipo === 'ambos') return
-    const def = NATUREZAS.find((n) => n.chave === natureza)
-    if (def && def.tipo && def.tipo !== novoTipo) setNatureza(null)
+    let novaNat = natureza
+    if (natureza && novoTipo !== 'ambos') {
+      const def = NATUREZAS.find((n) => n.chave === natureza)
+      if (def && def.tipo && def.tipo !== novoTipo) { novaNat = null; setNatureza(null) }
+    }
+    if (!grupoCabe(grupoSel, novoTipo, novaNat)) setGrupoSel(null)
+  }
+
+  // Clicar num grupo da legenda: filtra o treemap por ele e puxa o toggle de
+  // tipo junto (o grupo so existe de um dos lados). Clicar de novo limpa.
+  function escolherGrupo(g) {
+    if (grupoSel === g.chave) { setGrupoSel(null); return }
+    setGrupoSel(g.chave)
+    setTipo(g.tipo)
+    const nat = naturezaDoGrupo(g.tipo, g.nome)
+    if (natureza && natureza !== nat) setNatureza(null)
   }
 
   // =========================================================================
@@ -416,15 +475,24 @@ export default function ComposicaoPage() {
   const kpiTopNome = topCat ? topCat.categoria : '--'
   const kpiTopValor = topCat ? (fmtBRL(topCat.valor) + ' (' + (100 * topCat.valor / (totalRecorte || 1)).toFixed(1) + '%)') : '--'
 
-  // --- Legenda de grupos (badge) --------------------------------------------
+  // --- Legenda de grupos (badge = filtro) -----------------------------------
+  // O quadradinho de cor continua sendo a ligacao visual com o treemap; o badge
+  // agora tambem FILTRA. Grupo nao selecionado fica esmaecido quando ha selecao,
+  // pra ficar obvio o que esta em cena.
   function BadgeGrupo({ g }) {
     const c = corDoNode(g.tipo, g.nome), cb = corDoNodeBorda(g.tipo, g.nome)
+    const ativo = grupoSel === g.chave
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border" style={{ borderColor: cb }}>
+      <button type="button" onClick={() => escolherGrupo(g)} aria-pressed={ativo}
+        title={g.nome + (ativo ? ' — clique de novo para mostrar todos os grupos' : ' — clique para ver só este grupo')}
+        className={'inline-flex items-center gap-1 px-2 py-0.5 rounded border cursor-pointer transition hover:bg-slate-50 '
+          + (ativo ? 'ring-2 bg-slate-50' : (grupoSel ? 'opacity-60' : ''))}
+        style={{ borderColor: cb, ...(ativo ? { boxShadow: '0 0 0 2px ' + cb } : null) }}>
         <span className="inline-block w-3 h-3 rounded-sm" style={{ background: c }} />
         <span className="text-slate-700 font-medium">{g.nome}</span>
         <span className="text-slate-500">{fmtBRLcurto(g.valor)}</span>
-      </span>
+        {ativo && <span className="font-bold" style={{ color: cb }}>✓</span>}
+      </button>
     )
   }
 
@@ -461,6 +529,21 @@ export default function ComposicaoPage() {
           <div className="flex items-center gap-2 mb-2 flex-wrap">
             <span className="text-xs text-slate-500 uppercase tracking-wide">Filtrar por natureza</span>
             <span className="text-[11px] text-slate-400">clique num cartão para ver só essa parte do mês</span>
+            {/* Devolucao aparece dos DOIS lados (saida "Devolucoes de Vendas" e
+                entrada "Devolucoes"/"DevolucoeseOutras Saidas") e distorce a
+                leitura do mes. O checkbox tira as duas de uma vez. */}
+            <label className="ml-auto flex items-center gap-1.5 text-[11px] text-slate-600 cursor-pointer select-none"
+              title={'Tira as devoluções dos dois lados: "Devoluções de Vendas" (saída) e "Devoluções" / "DevoluçõeseOutras Saidas" (entrada).\nAfeta o treemap, os KPIs, a faixa de natureza e a legenda.'}>
+              <input type="checkbox" checked={semDevolucoes}
+                onChange={(e) => {
+                  setSemDevolucoes(e.target.checked)
+                  // Esconder devolucoes com o filtro "Deducoes" ligado daria tela
+                  // vazia — larga os filtros que acabaram de perder o conteudo.
+                  setGrupoSel(null)
+                  if (e.target.checked && natureza === 'deducao') setNatureza(null)
+                }} />
+              Esconder devoluções
+            </label>
             <button type="button" onClick={() => setNatureza(null)}
               title="Mostrar todas as naturezas"
               className={'ml-auto cursor-pointer text-xs px-2.5 py-1 rounded-full border transition '
@@ -510,6 +593,8 @@ export default function ComposicaoPage() {
         <div className="bg-white rounded-lg border border-slate-200 p-4">
           <div className="text-xs text-slate-500 uppercase tracking-wide">
             Total no mes{natureza ? ' · ' + (NATUREZAS.find((n) => n.chave === natureza) || {}).rotulo : ''}
+            {grupoSel ? ' · ' + grupoSel.slice(grupoSel.indexOf('|') + 1) : ''}
+            {semDevolucoes ? ' · sem devoluções' : ''}
           </div>
           <div className="text-2xl font-bold text-slate-800 mt-1">{kpiTotal}</div>
         </div>
@@ -528,32 +613,65 @@ export default function ComposicaoPage() {
         </div>
       </div>
 
-      {/* Legenda de grupos - separada por tipo no modo "ambos" */}
-      <div className="flex flex-wrap gap-2 mb-3 text-xs">
-        {tipo === 'ambos' ? (
-          (() => {
-            const saidas = grupos.filter((g) => g.tipo === 'pagar').slice(0, 8)
-            const entradas = grupos.filter((g) => g.tipo === 'receber').slice(0, 8)
-            return (
-              <>
-                {saidas.length > 0 && (
-                  <>
-                    <div className="w-full text-xs text-red-700 font-semibold mb-1 mt-1">Saidas</div>
-                    <div className="flex flex-wrap gap-2 w-full mb-2">{saidas.map((g, i) => <BadgeGrupo key={'s' + i} g={g} />)}</div>
-                  </>
-                )}
-                {entradas.length > 0 && (
-                  <>
-                    <div className="w-full text-xs text-emerald-700 font-semibold mb-1">Entradas</div>
-                    <div className="flex flex-wrap gap-2 w-full">{entradas.map((g, i) => <BadgeGrupo key={'e' + i} g={g} />)}</div>
-                  </>
-                )}
-              </>
-            )
-          })()
-        ) : (
-          grupos.slice(0, 12).map((g, i) => <BadgeGrupo key={i} g={g} />)
-        )}
+      {/* Legenda de grupos — agora e' o filtro fino da tela (o de natureza e' o
+          grosso). Sai de gruposLegenda (recorte SEM o filtro de grupo): assim os
+          outros grupos continuam a vista e clicaveis depois de escolher um.
+          Sem corte de top 8/12 — cortar a lista aqui esconderia filtros. */}
+      <div className="mb-3 text-xs">
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
+          <span className="text-slate-500 uppercase tracking-wide">Filtrar por grupo</span>
+          <span className="text-[11px] text-slate-400">clique num grupo para remontar o treemap só com ele</span>
+          {/* Mesmo estado do toggle "A Pagar / A Receber / Ambos" la de cima:
+              sao dois pontos de acesso pro mesmo filtro, nunca dois filtros. */}
+          <div className="ml-auto inline-flex rounded-md border border-slate-300 overflow-hidden">
+            <button type="button" onClick={() => { escolherTipo('ambos'); setGrupoSel(null) }}
+              title="Mostrar entradas e saidas"
+              className={'px-2.5 py-1 transition ' + (tipo === 'ambos' ? 'bg-slate-800 text-white' : inativoToggle)}>Todos</button>
+            <button type="button" onClick={() => escolherTipo('pagar')}
+              title="So o que sai (contas a pagar)"
+              className={'px-2.5 py-1 transition border-l border-slate-300 ' + (tipo === 'pagar' ? 'bg-red-600 text-white' : inativoToggle)}>Saídas</button>
+            <button type="button" onClick={() => escolherTipo('receber')}
+              title="So o que entra (contas a receber)"
+              className={'px-2.5 py-1 transition border-l border-slate-300 ' + (tipo === 'receber' ? 'bg-emerald-600 text-white' : inativoToggle)}>Entradas</button>
+          </div>
+          {grupoSel && (
+            <button type="button" onClick={() => setGrupoSel(null)}
+              className="text-xs px-2.5 py-1 rounded-full border bg-white border-slate-300 text-slate-600 hover:bg-slate-100">
+              ✕ Limpar grupo
+            </button>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {tipo === 'ambos' ? (
+            (() => {
+              const saidas = gruposLegenda.filter((g) => g.tipo === 'pagar')
+              const entradas = gruposLegenda.filter((g) => g.tipo === 'receber')
+              return (
+                <>
+                  {saidas.length > 0 && (
+                    <>
+                      {/* O rotulo da secao tambem filtra (= "Saidas" do seletor acima). */}
+                      <button type="button" onClick={() => escolherTipo('pagar')}
+                        title="Ver só as saidas"
+                        className="w-full text-left text-xs text-red-700 font-semibold mb-1 mt-1 hover:underline cursor-pointer">Saidas</button>
+                      <div className="flex flex-wrap gap-2 w-full mb-2">{saidas.map((g) => <BadgeGrupo key={g.chave} g={g} />)}</div>
+                    </>
+                  )}
+                  {entradas.length > 0 && (
+                    <>
+                      <button type="button" onClick={() => escolherTipo('receber')}
+                        title="Ver só as entradas"
+                        className="w-full text-left text-xs text-emerald-700 font-semibold mb-1 hover:underline cursor-pointer">Entradas</button>
+                      <div className="flex flex-wrap gap-2 w-full">{entradas.map((g) => <BadgeGrupo key={g.chave} g={g} />)}</div>
+                    </>
+                  )}
+                </>
+              )
+            })()
+          ) : (
+            gruposLegenda.map((g) => <BadgeGrupo key={g.chave} g={g} />)
+          )}
+        </div>
       </div>
 
       {/* Treemap */}
@@ -562,7 +680,7 @@ export default function ComposicaoPage() {
           <div className="text-slate-500 text-center py-12">
             {/* Distingue "mes vazio" de "filtro vazio" — sem isto o usuario acha que faltou sincronizar. */}
             {totalGeral > 0
-              ? 'Nada neste recorte. Limpe o filtro de natureza ou troque o modo.'
+              ? 'Nada neste recorte. Limpe o filtro de grupo ou de natureza, ou troque o modo.'
               : 'Nenhum dado neste periodo. Sincronize ou troque o mes.'}
           </div>
         ) : (

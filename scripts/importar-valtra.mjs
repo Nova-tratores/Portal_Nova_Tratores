@@ -15,7 +15,14 @@ import { createHash, randomUUID } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 
 const DADOS = 'catalogos/valtra-dados'
-const TELAS = 'C:/Users/José Ortiz- Pós Vend/Downloads/Catalogo Valtra/cat_valt/telas'
+// Desenhos das peças: os .PHF de ilust/full (PCX modificado da OiC) convertidos
+// pra PNG por scripts/valtra-phf-para-png.mjs. NÃO é a pasta `telas`, que só tem
+// as telas do próprio programa (menus/ajuda).
+// HD = decodificado de ilust/zoom (1,76x maior que ilust/full). Como as
+// coordenadas do CLI estão em pixels da versão `full`, ao usar a HD é preciso
+// escalar os hotspots pelo fator real de cada figura (ver `fator` abaixo).
+const IMGS_HD = 'catalogos/valtra-img-hd'
+const IMGS = 'catalogos/valtra-img'
 const BUCKET = 'catalogo'
 const MARCA = 'Valtra'
 
@@ -39,17 +46,29 @@ const uuidFig = (pag) => {
 const slugify = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 
 // ---------- dimensões do JPEG (pra converter hotspot 0-10000 -> pixel) ----------
-function dimensoesJPEG(buf) {
-  let i = 2
-  while (i < buf.length) {
-    if (buf[i] !== 0xFF) { i++; continue }
-    const m = buf[i + 1]
-    if (m >= 0xC0 && m <= 0xCF && m !== 0xC4 && m !== 0xC8 && m !== 0xCC) {
-      return { h: buf.readUInt16BE(i + 5), w: buf.readUInt16BE(i + 7) }
-    }
-    i += 2 + buf.readUInt16BE(i + 2)
+// A rede cai no meio de importações longas (fetch failed). Tenta de novo antes
+// de desistir — sem isso, a figura ficava sem imagem e era preciso re-rodar tudo.
+async function comRetry(rotulo, fn, tentativas = 4) {
+  let ultimo
+  for (let i = 1; i <= tentativas; i++) {
+    try {
+      const r = await fn()
+      if (!r?.error) return r
+      ultimo = r.error
+    } catch (e) { ultimo = e }
+    if (i < tentativas) await new Promise((r) => setTimeout(r, 400 * i * i))
   }
-  return null
+  console.log(`  ! ${rotulo}: ${ultimo?.message || ultimo} (após ${tentativas} tentativas)`)
+  return { error: ultimo }
+}
+
+// Coordenada do CLI vem com zeros à esquerda suprimidos; o original repõe até 4 dígitos.
+const pad4 = (s) => { let t = String(s ?? '').trim(); while (t.length < 4) t = '0' + t; return t }
+
+// PNG: largura/altura ficam no chunk IHDR, sempre nos bytes 16..23.
+function dimensoesPNG(buf) {
+  if (buf.length < 24 || buf.readUInt32BE(0) !== 0x89504e47) return null
+  return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) }
 }
 
 // ---------- 1. tabelas de apoio ----------
@@ -108,42 +127,65 @@ for (const f of alvo) {
   try {
     const fid = uuidFig(f.pag)
 
-    // ---- imagem (telas/<pag>.<largura>.jpg — pega a maior) ----
-    let imageUrl = null, dim = null
-    for (const larg of ['1024', '800', '640']) {
-      const p = `${TELAS}/${f.pag}.${larg}.jpg`
-      if (!existsSync(p)) continue
+    // ---- imagem: casa pela coluna ILUST do índice (não pela página!) ----
+    // ilust "00000690" -> catalogos/valtra-img/00000690.png. Várias páginas
+    // podem apontar pra MESMA ilustração — daí o cache por caminho.
+    let imageUrl = null, dim = null, fator = { x: 1, y: 1 }
+    // Prefere a HD; se faltar, usa a normal.
+    const pHd = `${IMGS_HD}/${f.ilust}.png`
+    const pSd = `${IMGS}/${f.ilust}.png`
+    const p = f.ilust && existsSync(pHd) ? pHd : pSd
+    if (f.ilust && existsSync(p)) {
       const buf = readFileSync(p)
-      dim = dimensoesJPEG(buf)
-      const path = `valtra/${f.pag}.jpg`
+      dim = dimensoesPNG(buf)
+      // Hotspots vêm em pixels da imagem `full`: se a imagem servida for a HD,
+      // escala pela razão real entre as duas (varia ~1,759–1,766 por figura).
+      if (p === pHd && existsSync(pSd) && dim) {
+        const dSd = dimensoesPNG(readFileSync(pSd))
+        if (dSd && dSd.w > 0 && dSd.h > 0) fator = { x: dim.w / dSd.w, y: dim.h / dSd.h }
+      }
+      const path = `valtra/${f.ilust}.png`
       if (cacheImg.has(path)) { imageUrl = cacheImg.get(path) }
       else if (!dry) {
-        const up = await sb.storage.from(BUCKET).upload(path, buf, { contentType: 'image/jpeg', upsert: true })
+        const up = await comRetry(`upload ${f.ilust}`, () =>
+          sb.storage.from(BUCKET).upload(path, buf, { contentType: 'image/png', upsert: true }))
         if (!up.error) { imageUrl = sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl; cacheImg.set(path, imageUrl) }
       } else { imageUrl = `(dry)${path}` }
-      break
     }
     if (!imageUrl) semImg++
 
     // ---- hotspots (CLI) ----
+    // As 4 colunas de coordenada NÃO são x/y/w/h em escala 0-10000: os dígitos
+    // vêm EMBARALHADOS entre elas e o resultado já é o CENTRO em PIXELS da
+    // imagem. Receita extraída do bytecode do próprio catálogo
+    // (oic.mmt.Ilustracao.addItem, em _oic_mmt.jar):
+    //   campos A=c[2] B=c[3] C=c[4] D=c[5], cada um preenchido com '0' à esquerda até 4 dígitos
+    //   centroX = C[0] C[2] A[3] A[1]
+    //   centroY = D[0] D[2] B[3] B[1]
+    //   (a bolinha é um círculo de raio fixo 9 — largura/altura 18 no original)
     const hotspots = []
+    const vistosHot = new Set()
     const balaoPorCodigo = new Map()
     const fCli = `${DADOS}/${f.pag}.CLI.txt`
     if (existsSync(fCli)) {
       for (const l of ler(`${f.pag}.CLI.txt`)) {
         const c = l.split('\t')
         const code = (c[0] || '').split('@')[0].trim()
-        const x = Number(c[2]), y = Number(c[3]), w = Number(c[4]), h = Number(c[5])
         const ref = (c[7] || '').trim()
-        if (!code || !Number.isFinite(x)) continue
+        if (!code) continue
         if (ref && !balaoPorCodigo.has(code)) balaoPorCodigo.set(code, ref)
-        if (dim) {
-          hotspots.push({
-            id: randomUUID(), reference: ref || '',
-            x: Math.round(((x + w / 2) / 10000) * dim.w),
-            y: Math.round(((y + h / 2) / 10000) * dim.h),
-          })
-        }
+        const A = pad4(c[2]), B = pad4(c[3]), C = pad4(c[4]), D = pad4(c[5])
+        const cxSd = parseInt(C[0] + C[2] + A[3] + A[1], 10)
+        const cySd = parseInt(D[0] + D[2] + B[3] + B[1], 10)
+        if (!Number.isFinite(cxSd) || !Number.isFinite(cySd)) continue
+        const cx = Math.round(cxSd * fator.x)
+        const cy = Math.round(cySd * fator.y)
+        // fora da imagem = linha inválida; várias peças dividem o mesmo balão
+        if (dim && (cx > dim.w || cy > dim.h)) continue
+        const k = `${cx},${cy},${ref}`
+        if (vistosHot.has(k)) continue
+        vistosHot.add(k)
+        hotspots.push({ id: randomUUID(), reference: ref || '', x: cx, y: cy })
       }
     }
 
@@ -162,18 +204,37 @@ for (const f of alvo) {
         })
       }
     }
+    // O LTP repete o mesmo código+balão em algumas figuras. Mantém a 1ª ocorrência
+    // (o índice único catalogo_pecas_figura_code_ref_uidx recusa a repetição).
+    if (pecas.length) {
+      const vistos = new Set()
+      const unicas = []
+      for (const p of pecas) {
+        const k = `${p.code}|${p.reference}`
+        if (vistos.has(k)) continue
+        vistos.add(k)
+        unicas.push(p)
+      }
+      pecas.length = 0
+      pecas.push(...unicas)
+    }
 
     if (dry) { okFig++; okPecas += pecas.length; okHot += hotspots.length; continue }
 
     // ---- grava figura ----
     const secaoNome = secoes.get(f.grupo) || 'Geral'
-    const { error: ef } = await sb.from('catalogo_figuras').upsert({
+    const linha = {
       id: fid, code: f.code || f.pag, name: f.name, secao: secaoNome,
       secao_ordem: Math.max(0, ordemSecao.indexOf(f.grupo)), ordem: Number(f.pag) || 0,
-      image_url: imageUrl, thumb_url: imageUrl, hotspots,
+      hotspots,
       path: [`Valtra`, secaoNome, f.name].join(','), modelo: f.modelos[0] ? modelos.get(f.modelos[0]) || f.modelos[0] : null,
-    }, { onConflict: 'id' })
-    if (ef) { erros++; console.log(`  ! figura ${f.pag}: ${ef.message}`); continue }
+    }
+    // Só toca na imagem quando conseguimos uma URL: se o upload falhou (rede),
+    // gravar null APAGARIA a imagem boa de uma rodada anterior.
+    if (imageUrl) { linha.image_url = imageUrl; linha.thumb_url = imageUrl }
+    const { error: ef } = await comRetry(`figura ${f.pag}`, () =>
+      sb.from('catalogo_figuras').upsert(linha, { onConflict: 'id' }))
+    if (ef) { erros++; continue }
     okFig++; okHot += hotspots.length
 
     // ---- aplicação (figura serve N modelos) ----
