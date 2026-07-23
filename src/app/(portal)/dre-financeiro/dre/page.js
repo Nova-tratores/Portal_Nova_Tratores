@@ -13,6 +13,11 @@
 //  - Card de operacoes intercompany (so no regime Omie).
 //  - Export CSV.
 //
+// Acrescimo ao port: checkbox "esconder devolucoes" (desmarcado por padrao).
+// Ele NAO refaz requisicao — poda a arvore no cliente (lib/dre-financeiro/deducoes.js)
+// entre o estado `dadosRaw` e o `dados` que a tela inteira consome, e por isso
+// vale de graca pra KPIs, cascata, tabela, graficos e CSV.
+//
 // Chart.js 4.4.0 + chartjs-chart-treemap 3.1.0 sao carregados via CDN (mesmo
 // que a fonte) num <script> dinamico; os graficos usam refs/canvas imperativos.
 // A tabela/KPIs/modal sao renderizados via JSX/React (estado e handlers React).
@@ -27,6 +32,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import { useDreConta } from '@/lib/dre-financeiro/format'
+import { removerDevolucoes } from '@/lib/dre-financeiro/deducoes'
 
 // ---------------------------------------------------------------------------
 // Constantes de layout (espelham as do <script> da fonte)
@@ -184,9 +190,21 @@ export default function DrePage() {
 
   // --- Estado de dados/controles (espelha as vars do IIFE da fonte) ---------
   const def = defaultsPeriodo()
-  const [dados, setDados] = useState(null)
+  // dadosRaw = o que a API devolveu; `dados` (abaixo) e' o que a tela consome,
+  // ja com o recorte do checkbox de devolucoes aplicado.
+  const [dadosRaw, setDadosRaw] = useState(null)
   const [status, setStatus] = useState('')
   const [carregando, setCarregando] = useState(false)
+
+  // Esconder devolucoes: tira a linha de deducao de receita da arvore INTEIRA,
+  // no cliente (nao refaz requisicao — desmarcar volta ao original na hora).
+  // Desmarcado por padrao: sem devolucoes NAO e' a DRE padrao, e' um recorte.
+  const [semDevolucoes, setSemDevolucoes] = useState(false)
+  const { dados, devolucoesRemovidas } = useMemo(() => {
+    if (!dadosRaw || !semDevolucoes) return { dados: dadosRaw, devolucoesRemovidas: 0 }
+    const r = removerDevolucoes(dadosRaw)
+    return { dados: r.dados, devolucoesRemovidas: r.removido }
+  }, [dadosRaw, semDevolucoes])
 
   const [regime, setRegime] = useState('competencia') // 'competencia' | 'omie'
   const [modoExibicao, setModoExibicao] = useState('rs') // 'rs' | 'pct'
@@ -437,7 +455,7 @@ export default function DrePage() {
       } else {
         setStatus('Movimentos lidos: NOVA=' + d.contagem.nova_total + ' (intercompany=' + d.contagem.nova_intercompany + ') · CASTRO=' + d.contagem.castro_total + ' (intercompany=' + d.contagem.castro_intercompany + ')')
       }
-      setDados(d)
+      setDadosRaw(d)
     }).catch((e) => {
       setCarregando(false)
       setStatus('Erro: ' + e.message)
@@ -1235,7 +1253,9 @@ export default function DrePage() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = 'dre-' + regime + '-' + desde + '_' + ate + '.csv'
+    // Sufixo no nome: o CSV sai do mesmo recorte da tela, e um arquivo sem
+    // devolucoes nao pode ser confundido depois com a DRE cheia.
+    a.download = 'dre-' + regime + '-' + desde + '_' + ate + (semDevolucoes ? '-sem-devolucoes' : '') + '.csv'
     document.body.appendChild(a); a.click(); document.body.removeChild(a)
     URL.revokeObjectURL(url)
   }
@@ -1571,6 +1591,13 @@ export default function DrePage() {
             <button onClick={() => setModoExibicao('pct')} title="Cada linha como % da Receita Liquida Operacional (analise vertical)"
               className={'px-3 py-1 text-xs border-l border-slate-300 ' + (modoExibicao === 'pct' ? tgAtivo : tgInativo)}>% RL</button>
           </div>
+          {/* Recorte "sem devolucoes": puramente no cliente, sem refetch. O aviso
+              ambar ao lado dos KPIs existe pra ninguem ler o numero por engano. */}
+          <label className="ml-2 flex items-center gap-1.5 cursor-pointer select-none"
+            title={'Tira a linha de devolução de vendas (Deduções de Receita) da DRE inteira: KPIs, cascata, tabela, gráficos e CSV.\nAtenção: sem devoluções NÃO é a DRE padrão — é um recorte para leitura.'}>
+            <input type="checkbox" checked={semDevolucoes} onChange={(e) => setSemDevolucoes(e.target.checked)} />
+            esconder devoluções
+          </label>
           <div className="ml-2 inline-flex rounded border border-slate-300 overflow-hidden">
             <button onClick={() => setGranularidade('mes')} title="Mostrar colunas mes a mes"
               className={'px-3 py-1 text-xs ' + (granularidade === 'mes' ? tgAtivo : tgInativo)}>Mes</button>
@@ -1592,6 +1619,26 @@ export default function DrePage() {
       {aba === 'consolidado' && (
       <>
       <div className="text-xs text-slate-500 mb-3">{status}</div>
+
+      {/* Aviso do recorte "sem devolucoes". Fica ACIMA dos KPIs de proposito: os
+          numeros abaixo deixaram de ser a DRE padrao e isso nao pode passar
+          despercebido. Se nada foi removido, diz isso em vez de fingir efeito. */}
+      {semDevolucoes && (
+        <div className="mb-3 px-3 py-2 rounded border border-amber-300 bg-amber-50 text-xs text-amber-900">
+          {devolucoesRemovidas > 0 ? (
+            <>
+              <strong className="font-semibold">Sem devoluções.</strong> {fmtBRL(devolucoesRemovidas)} de
+              devoluções de vendas estão fora de todos os números desta tela (KPIs, cascata, tabela, gráficos e CSV).
+              Não é a DRE padrão — desmarque para voltar.
+            </>
+          ) : (
+            <>
+              <strong className="font-semibold">Nada a esconder:</strong> não há linha de devolução reconhecível
+              no período/regime carregado, então os números continuam iguais.
+            </>
+          )}
+        </div>
+      )}
 
       {/* KPIs Consolidado */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
