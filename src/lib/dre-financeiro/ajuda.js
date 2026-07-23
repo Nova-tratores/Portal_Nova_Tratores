@@ -204,12 +204,14 @@ export const AJUDA = {
       'Alterne o regime entre Competência (padrão — o valor cai no mês do fato) e Omie (o valor cai no mês do pagamento).',
       'Clique nas linhas da tabela para abrir/fechar os níveis; clique numa célula para o detalhamento com a lista de movimentos.',
       'No gráfico de despesas, ligue/desligue linhas na legenda — "Pagamento de Empréstimos" vem desligado de propósito, para não achatar as demais.',
+      'Marque "esconder devoluções" para ler o mês sem as devoluções de venda: a linha sai da tabela e todos os números (KPIs, cascata, gráficos, CSV) são recalculados. Um aviso mostra quanto ficou de fora.',
       'Exportar CSV baixa a tabela como está na tela.',
     ],
     termos: [
       { t: 'Competência', d: 'O valor pertence ao mês em que o fato aconteceu (a venda/o serviço), não ao mês do pagamento.' },
       { t: 'Regime Omie', d: 'O valor pertence ao mês em que o dinheiro entrou/saiu — a visão de caixa do Omie.' },
       { t: 'Intercompany', d: 'Operações entre NOVA e CASTRO, separadas para não inflar o consolidado.' },
+      { t: 'Deduções de Receita', d: 'As devoluções de venda, que abatem a receita bruta. Escondê-las dá uma leitura da operação sem o vai-e-vem, mas deixa de ser a DRE padrão.' },
     ],
   },
 
@@ -244,12 +246,16 @@ export const AJUDA = {
       'como um retângulo proporcional, colorido pelo grupo a que pertence.',
     comoUsar: [
       'Navegue entre os meses com ← / → ou volte ao atual com Hoje.',
-      'Escolha o tipo: A Pagar, A Receber ou Ambos.',
+      'Escolha o tipo: A Pagar, A Receber ou Ambos — os botões Todos / Saídas / Entradas da legenda fazem exatamente a mesma coisa.',
+      'Clique num cartão da faixa de natureza (Receitas, Custos, Despesas...) para ver só aquela parte do mês.',
+      'Clique num grupo da legenda (ex.: "Despesas com Pessoal") para o treemap se remontar só com ele; clique de novo para voltar a todos.',
+      'Marque "Esconder devoluções" para tirar as devoluções dos dois lados — elas somem do treemap, dos KPIs e da faixa de natureza.',
       'Clique num retângulo do treemap: abre os 10 maiores terceiros daquela categoria (o restante vira "+ N outros"). Esc fecha.',
     ],
     termos: [
       { t: 'Treemap', d: 'Gráfico de retângulos: a área de cada um é proporcional ao valor.' },
-      { t: 'Grupo', d: 'O agrupamento contábil acima da categoria; aqui define a cor do retângulo.' },
+      { t: 'Grupo', d: 'O agrupamento contábil acima da categoria; aqui define a cor do retângulo e serve de filtro na legenda.' },
+      { t: 'Devoluções', d: 'Aparecem dos dois lados: "Devoluções de Vendas" como saída e "Devoluções" / "DevoluçõeseOutras Saidas" como entrada.' },
     ],
   },
 
