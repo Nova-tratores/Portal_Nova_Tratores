@@ -55,16 +55,14 @@ const jsonCache = (data: unknown) => NextResponse.json(data, { headers: CACHE })
 // Aqui a mesma imagem sai com ~36 KB, sem precisar gerar/armazenar nada.
 // 480 e não 320: os cards do catálogo foram aumentados (250–310px), e em tela
 // retina isso pede ~2x a largura do card pra não sair macio.
-const LARGURA_THUMB = 480;
+// ATENÇÃO — custo: a transformação na hora (render/image?width=…) é cobrada pelo
+// Supabase por CADA imagem distinta transformada no mês ("Storage Image
+// Transformations"). Com 4.197 figuras isso estourou o incluído do plano.
+// Solução: servir o arquivo ESTÁTICO direto (conta só como egress comum, barato).
+// As miniaturas estáticas são geradas por scripts/thumbs-catalogo.mjs e o thumb_url
+// já aponta pra elas; aqui só devolvemos a URL como está, SEM transformar.
 function miniatura(url: string | null | undefined): string | null {
-  if (!url) return null;
-  const i = url.indexOf("/storage/v1/object/public/");
-  if (i < 0) return url; // não é do storage: devolve como está
-  const base = url.slice(0, i);
-  const caminho = url.slice(i + "/storage/v1/object/public/".length);
-  // resize=contain é OBRIGATÓRIO: sem ele o padrão é "cover", que mantém a altura
-  // original e CORTA a imagem (a capa saía 320x1284 em vez de 320x257).
-  return `${base}/storage/v1/render/image/public/${caminho}?width=${LARGURA_THUMB}&resize=contain&quality=60`;
+  return url || null;
 }
 
 export async function GET(req: NextRequest) {
