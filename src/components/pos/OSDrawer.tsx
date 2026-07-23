@@ -795,6 +795,22 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                     </div>
                   )}
 
+                  {/* ── Resumo do PPV/peças na aba principal (as peças vivem na aba
+                        "PPV / Requisições"; aqui fica o atalho pra não passarem batido) ── */}
+                  {mode === "edit" && produtos.length > 0 && (
+                    <button type="button" onClick={() => setAba("ppv")}
+                      className="os-card" style={{ order: -5.7, borderLeft: "3px solid #dc2626", textAlign: "left", cursor: "pointer", width: "100%", display: "flex", alignItems: "center", gap: 14, background: "#fff" }}>
+                      <span style={{ width: 42, height: 42, borderRadius: 11, background: "#fef2f2", color: "#dc2626", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
+                        <i className="fas fa-boxes" />
+                      </span>
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ display: "block", fontSize: 15, color: "var(--text)" }}>{produtos.length} peça(s) no PPV {ppvIds.join(", ")}</span>
+                        <span style={{ display: "block", fontSize: 13, color: "var(--text-light)", marginTop: 2 }}>Total R$ {totalPecas.toFixed(2).replace(".", ",")} · clique pra ver na aba PPV / Requisições</span>
+                      </span>
+                      <i className="fas fa-arrow-right" style={{ color: "var(--text-light)" }} />
+                    </button>
+                  )}
+
                   {/* ── Omie: números enviados + log (edit mode) ── */}
                   {mode === "edit" && (ordemOmie || pedidoVenda || omieLog) && (
                     <div className="os-card" style={{ order: -5.5, borderLeft: "3px solid #0EA5E9" }}>

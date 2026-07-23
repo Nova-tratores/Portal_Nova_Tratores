@@ -86,6 +86,18 @@ export default function OrcamentoLista({ onNovo, onEditar, podeCriar = true, pod
         const horas = orc.mao_obra?.horas || 0
         const km = orc.deslocamento?.km || 0
         const itensDesc = (orc.itens || []).map((i: any) => `${i.quantidade}x ${i.descricao}`).join(', ')
+        // Descrição da OS: mantém o template padrão do POS e coloca as Observações
+        // do orçamento DEPOIS de "Serviço Realizado:", sem apagar o resto do bloco.
+        // (Antes a descrição virava só "Ref. Orçamento …", perdendo o template.)
+        const TEMPLATE = "Modelo: \nChassis: \nHorimetro: \n\nSolicitação do cliente: \nServiço Realizado: "
+        const marca = "Serviço Realizado:"
+        const obsOrc = String(orc.observacao || "").trim()
+        const rodape = `Ref. Orçamento ${orc.numero}${itensDesc ? ' — ' + itensDesc : ''}`
+        const trecho = [obsOrc, rodape].filter(Boolean).join("\n")
+        const idx = TEMPLATE.indexOf(marca)
+        const descricaoOS = idx >= 0
+          ? TEMPLATE.slice(0, idx + marca.length) + " " + trecho + TEMPLATE.slice(idx + marca.length)
+          : `${TEMPLATE}\n${trecho}`
         const res = await fetch('/api/pos/ordens', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -98,7 +110,7 @@ export default function OrcamentoLista({ onNovo, onEditar, podeCriar = true, pod
             tipoServico: 'Manutenção',
             revisao: '',
             projeto: '',
-            servicoSolicitado: `Ref. Orçamento ${orc.numero}${itensDesc ? ' — ' + itensDesc : ''}`,
+            servicoSolicitado: descricaoOS,
             qtdHoras: horas,
             qtdKm: km,
             descontoValor: 0,
