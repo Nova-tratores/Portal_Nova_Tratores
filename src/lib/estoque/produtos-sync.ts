@@ -40,7 +40,7 @@ interface OmieFamilia {
   descricao?: string;
 }
 
-interface OmieProdutoCadastro {
+export interface OmieProdutoCadastro {
   codigo_produto: number;
   codigo?: string;
   descricao?: string;
@@ -145,7 +145,7 @@ interface ProdutoRow {
 
 // Campos fiscais da linha, a partir do cru da Omie. `modalidade_icms` fica de
 // fora de propósito: só o ConsultarProduto o devolve, o ListarProdutos não.
-function camposFiscais(p: OmieProdutoCadastro): Pick<ProdutoRow,
+export function camposFiscais(p: OmieProdutoCadastro): Pick<ProdutoRow,
   'ncm' | 'cest' | 'origem_mercadoria' | 'tipo_item' | 'cnpj_fabricante' | 'indicador_escala'
   | 'cupom_fiscal' | 'ean' | 'unidade' | 'cfop' | 'cst_icms' | 'csosn_icms' | 'aliquota_icms'
   | 'red_base_icms' | 'motivo_deson_icms' | 'per_icms_fcp' | 'codigo_beneficio' | 'cst_pis'
@@ -235,7 +235,7 @@ async function syncFamilias(conta: Conta): Promise<Record<number, string>> {
   return mapa;
 }
 
-async function buscarTodosProdutosDaOmie(conta: Conta): Promise<OmieProdutoCadastro[]> {
+export async function buscarTodosProdutosDaOmie(conta: Conta): Promise<OmieProdutoCadastro[]> {
   const todos: OmieProdutoCadastro[] = [];
   let pagina = 1;
   let totalPaginas = 1;
