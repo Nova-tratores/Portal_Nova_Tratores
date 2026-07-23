@@ -16,11 +16,18 @@
 //   --conta NOVA|CASTRO   só uma conta (default: todas as configuradas)
 //   --desde AAAA-MM       ignora meses anteriores a este (default: nov/2022)
 //   --saida arquivo.csv   default scripts/os-mensal-auditoria.csv
+//   --aplicar             REGRAVA os meses fechados divergentes em os_mensal
+//                         (+ os_servicos_itens). Sem a flag é só relatório.
 //
-// NÃO grava nada em `os_mensal` — é só relatório. (Ressalva honesta: o
-// recálculo passa por classificarNfseOS, que preenche o cache `os_nfse` das OS
-// ainda não verificadas — exatamente a mesma gravação que o portal já faz ao
-// abrir o mês na tela.)
+// Sem --aplicar NÃO grava nada em `os_mensal` — é só relatório. (Ressalva
+// honesta: mesmo assim o recálculo passa por classificarNfseOS, que preenche o
+// cache `os_nfse` das OS ainda não verificadas — a mesma gravação que o portal
+// já faz ao abrir o mês na tela.)
+//
+// Com --aplicar: para cada mês FECHADO com |diff| >= 0,01 e listagem COMPLETA,
+// faz upsert de valor_total/valor_nota/valor_interno (sem delete) e regrava
+// os_servicos_itens do mês. O mês corrente NUNCA é tocado — o portal o
+// reescreve sozinho. Idempotente: rodar de novo não muda mais nada.
 //
 // Roda LOCAL de propósito: no Railway um job destes seria cortado aos 5 min.
 
@@ -58,6 +65,8 @@ interface LinhaAuditoria {
   diffPct: number;
   notaGravada: number | null;
   notaRecalc: number;
+  /** Mês corrente: o gravado é um snapshot do último refresh, então divergir é NORMAL. */
+  corrente: boolean;
 }
 
 async function main() {
@@ -66,19 +75,22 @@ async function main() {
   const env = lerEnvLocal();
   for (const [k, v] of Object.entries(env)) if (!process.env[k]) process.env[k] = v;
 
-  const { buscarTodasOSDetalhado, buscarOSPeriodo } = await import('../src/lib/estoque/os');
+  const { buscarTodasOSDetalhado, buscarOSPeriodo, sincronizarServicosItens } = await import('../src/lib/estoque/os');
   const { getContasOmie, gerarMesesEsperados } = await import('../src/lib/estoque/conta');
   const { supabase } = await import('../src/lib/estoque/supabase');
   const { fmtD } = await import('../src/lib/estoque/utils');
 
   const contaFlag = (flag('conta') || '').toUpperCase();
   const desde = flag('desde'); // AAAA-MM
+  const aplicar = process.argv.includes('--aplicar'); // regrava; sem isso, só relatório
   const saida = resolve(flag('saida') || resolve(__dirname, 'os-mensal-auditoria.csv'));
   const contas = getContasOmie().map((c) => c.id).filter((c) => !contaFlag || c === contaFlag);
   if (contas.length === 0) throw new Error('Nenhuma conta Omie configurada (ou --conta inválida)');
 
   const now = new Date();
   const resultados: LinhaAuditoria[] = [];
+  let regravados = 0;
+  if (aplicar) console.log('MODO --aplicar: meses fechados divergentes serão REGRAVADOS em os_mensal.\n');
 
   for (const conta of contas as Conta[]) {
     console.log(`\n=== ${conta} ===`);
@@ -123,10 +135,27 @@ async function main() {
       const diffPct = gravado > 0 ? (diff / gravado) * 100 : t.total > 0 ? 100 : 0;
       resultados.push({
         conta, mes: m.mes, ano: m.ano, gravado, recalculado: t.total, diff, diffPct,
-        notaGravada: g ? g.nota : null, notaRecalc: t.nota,
+        notaGravada: g ? g.nota : null, notaRecalc: t.nota, corrente: ehCorrente,
       });
-      const marca = Math.abs(diff) < 0.01 ? 'ok  ' : Math.abs(diffPct) >= 5 ? '>>>>' : '  ~ ';
-      console.log(`  ${marca} ${String(m.mes).padStart(2, '0')}/${m.ano}  gravado ${fmtBR(gravado).padStart(14)}  real ${fmtBR(t.total).padStart(14)}  diff ${fmtBR(diff).padStart(13)} (${diffPct.toFixed(1)}%)`);
+      const marca = Math.abs(diff) < 0.01 ? 'ok  ' : ehCorrente ? 'hoje' : Math.abs(diffPct) >= 5 ? '>>>>' : '  ~ ';
+      const nota = ehCorrente ? '  (mes corrente: gravado e snapshot, diff esperado)' : '';
+      console.log(`  ${marca} ${String(m.mes).padStart(2, '0')}/${m.ano}  gravado ${fmtBR(gravado).padStart(14)}  real ${fmtBR(t.total).padStart(14)}  diff ${fmtBR(diff).padStart(13)} (${diffPct.toFixed(1)}%)${nota}`);
+
+      // Regravação: só meses FECHADOS divergentes, com listagem completa (t.completo
+      // já garantido acima). Upsert sem delete + regrava os_servicos_itens do mês,
+      // para o popup/composição HR-KM não ficarem vazios com o card cheio.
+      if (aplicar && !ehCorrente && Math.abs(diff) >= 0.01) {
+        const { error } = await supabase.from('os_mensal').upsert(
+          { mes: m.mes, ano: m.ano, valor_total: t.total, valor_nota: t.nota, valor_interno: t.interno, conta_omie: conta },
+          { onConflict: 'mes,ano,conta_omie' },
+        );
+        if (error) { console.log(`       ✗ upsert falhou: ${error.message}`); continue; }
+        try { await sincronizarServicosItens(m.mes, m.ano, conta); } catch (e) {
+          console.log(`       (os_servicos_itens ${m.mes}/${m.ano} falhou: ${(e as Error).message})`);
+        }
+        regravados++;
+        console.log(`       ✓ regravado: ${fmtBR(gravado)} → ${fmtBR(t.total)}`);
+      }
     }
 
     const { count: nfseDepois } = await supabase
@@ -135,15 +164,20 @@ async function main() {
     if (novas > 0) console.log(`  (${novas} OS foram verificadas na Omie via StatusOS e entraram no cache os_nfse)`);
   }
 
-  const comDiff = resultados.filter((r) => Math.abs(r.diff) >= 0.01);
+  // O mês corrente fica FORA das contas: ali o gravado é um snapshot do último
+  // refresh e diverge por natureza — o próprio portal o reescreve sozinho.
+  const fechados = resultados.filter((r) => !r.corrente);
+  const comDiff = fechados.filter((r) => Math.abs(r.diff) >= 0.01);
   const graves = comDiff.filter((r) => Math.abs(r.diffPct) >= 5);
   const somaDiff = comDiff.reduce((s, r) => s + r.diff, 0);
 
-  console.log('\n=== RESUMO ===');
-  console.log(`Meses auditados:        ${resultados.length}`);
+  console.log('\n=== RESUMO (meses fechados; o corrente fica de fora) ===');
+  console.log(`Meses auditados:        ${fechados.length}`);
   console.log(`Com diferença:          ${comDiff.length}`);
   console.log(`Diferença >= 5%:        ${graves.length}`);
   console.log(`Soma das diferenças:    ${fmtBR(somaDiff)}  (positivo = o gravado está A MENOS)`);
+  if (aplicar) console.log(`Meses REGRAVADOS:       ${regravados}`);
+  else if (comDiff.length > 0) console.log('(rode de novo com --aplicar para regravar os divergentes)');
   if (graves.length > 0) {
     console.log('\nPiores casos:');
     [...graves].sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff)).slice(0, 15).forEach((r) => {
@@ -151,16 +185,19 @@ async function main() {
     });
   }
 
-  const head = ['conta', 'mes', 'ano', 'gravado', 'recalculado', 'diff', 'diff_pct', 'nota_gravada', 'nota_recalc'];
+  const head = ['conta', 'mes', 'ano', 'gravado', 'recalculado', 'diff', 'diff_pct', 'nota_gravada', 'nota_recalc', 'mes_corrente'];
   const linhas = [...resultados]
     .sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff))
     .map((r) => [
       r.conta, r.mes, r.ano, csvNum(r.gravado), csvNum(r.recalculado), csvNum(r.diff),
       csvNum(r.diffPct), r.notaGravada == null ? '' : csvNum(r.notaGravada), csvNum(r.notaRecalc),
+      r.corrente ? 'S' : 'N',
     ].join(';'));
   writeFileSync(saida, '﻿' + [head.join(';'), ...linhas].join('\r\n'), 'utf8');
   console.log(`\nCSV: ${saida}`);
-  console.log('Nada foi gravado em os_mensal.');
+  console.log(aplicar
+    ? `os_mensal atualizado: ${regravados} mes(es) regravado(s).`
+    : 'Nada foi gravado em os_mensal (modo relatório).');
 }
 
 if (require.main === module) {
