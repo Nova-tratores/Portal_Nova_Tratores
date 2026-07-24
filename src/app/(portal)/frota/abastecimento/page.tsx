@@ -385,7 +385,10 @@ export default function AbastecimentoPage() {
         </a>
       </div>
       <p style={{ color: '#888', fontSize: '.82rem', marginBottom: 16 }}>
-        Gastos com combustível por veículo, motorista e posto — importados do relatório mensal da operadora.
+        Gastos com combustível por veículo, motorista e posto — relatório mensal da operadora do cartão
+        <strong style={{ color: '#666' }}> + requisições de abastecimento</strong> (Veicular, Trator e Quadri — entram
+        sozinhas assim que vão pro financeiro). Trator/Quadri aparecem agrupados como{' '}
+        <strong style={{ color: '#666' }}>TRATOR</strong> e <strong style={{ color: '#666' }}>QUADRI</strong>.
         Clique nas barras e linhas dos gráficos para ver os abastecimentos que compõem cada valor.
       </p>
 

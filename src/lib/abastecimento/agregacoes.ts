@@ -39,11 +39,15 @@ export interface LinhaDash {
   capacidade_tanque: number | null;
   ordem_servico: string | null;
   departamento: string | null;
+  // 'requisicao' = veio de uma requisição de abastecimento (só tem a DATA,
+  // sem hora real da bomba) — fica fora do heatmap e dos intervalos.
+  origem?: 'cartao' | 'requisicao';
 }
 
-// Placas "especiais" da operadora (abastecimento avulso de clientes/tratores):
-// entram nos gastos mas ficam fora do cálculo de km/l (não têm hodômetro real).
-const PLACAS_SEM_CONSUMO = new Set(['CLI0002', 'TRA0001']);
+// Placas "especiais" da operadora (abastecimento avulso de clientes/tratores)
+// e as pseudo-placas das requisições de Trator/Quadri: entram nos gastos mas
+// ficam fora do cálculo de km/l (não têm hodômetro real de km).
+const PLACAS_SEM_CONSUMO = new Set(['CLI0002', 'TRA0001', 'TRATOR', 'QUADRI', '(sem placa)']);
 
 // Filtro de sanidade do km/l: hodômetro é digitado pelo motorista e vem com
 // erros grosseiros no arquivo real (deltas de -99.359 km e +100.259 km).
@@ -255,7 +259,9 @@ export function trechosPorVeiculo(linhas: LinhaDash[]): Map<string, TrechosVeicu
 
   const resultado = new Map<string, TrechosVeiculo>();
   for (const [placa, regs] of porPlaca) {
-    regs.sort((a, b) => a.data_transacao.localeCompare(b.data_transacao));
+    // por TEMPO, não por string: cartão vem em UTC e requisição em -03:00 —
+    // comparar o ISO cru embaralharia marcos do mesmo dia entre as fontes
+    regs.sort((a, b) => new Date(a.data_transacao).getTime() - new Date(b.data_transacao).getTime());
     const tv: TrechosVeiculo = {
       trechos: [],
       descartados: 0,
@@ -352,6 +358,9 @@ export function anomaliasConsumo(linhasExt: LinhaDash[]): AnomaliaConsumo[] {
 export function intervalosAbastecimento(linhas: LinhaDash[]): IntervaloPonto[] {
   const porPlaca = new Map<string, LinhaDash[]>();
   for (const l of linhas) {
+    // requisição não tem hora real (data vira meio-dia): entrar aqui geraria
+    // "dois abastecimentos em menos de 6h" falso — auditoria é só do cartão
+    if (l.origem === 'requisicao') continue;
     const arr = porPlaca.get(l.placa) || [];
     arr.push(l);
     porPlaca.set(l.placa, arr);
@@ -384,6 +393,7 @@ export function intervalosAbastecimento(linhas: LinhaDash[]): IntervaloPonto[] {
 export function heatmapDiaHora(linhas: LinhaDash[]): HeatmapCelula[] {
   const celulas = new Map<string, HeatmapCelula>();
   for (const l of linhas) {
+    if (l.origem === 'requisicao') continue; // sem hora real — poluiria o meio-dia
     const { dia, hora } = localBR(l.data_transacao);
     const chave = `${dia}|${hora}`;
     const c = celulas.get(chave) || { dia, hora, qtd: 0, valor: 0 };

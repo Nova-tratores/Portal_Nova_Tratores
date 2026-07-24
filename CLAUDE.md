@@ -30,6 +30,12 @@
 - Persona reescrita para tom **natural/humano** (mantém regras de segurança).
 - Saudação mais calorosa + **sugestões rápidas** (chips) + opção de **"fixar"** a janela no canto (`TratorinoChat.tsx`).
 
+### Abastecimento ∪ Requisições (24/07/2026)
+- A tela **Frota → Abastecimento** agora une DUAS fontes NA LEITURA (nada é escrito em `abastecimentos`): CSV do cartão-frota + requisições de abastecimento (Veicular/Trator/Quadri). **Só requisição com `status='financeiro'`** conta (decisão do usuário: em aberto o valor não é confirmado); como é leitura ao vivo, as antigas já no financeiro entraram sozinhas, sem backfill. Lib: `src/lib/abastecimento/requisicoes.ts` (parse BR/US de valor/litros, hodômetro só-dígitos, resolve placa via `frota_veiculos.supa_placa_id`).
+- Trator/Quadri não têm placa → pseudo-placas **TRATOR**/**QUADRI** (chassis fica no "modelo" na aba Transações; nos rankings viram "Tratores/Quadriciclos (requisições)").
+- Requisição só tem DATA (vira meio-dia -03:00) e não informa combustível → fica **fora** do heatmap dia×hora, da auditoria de intervalos e do km/L (`PLACAS_SEM_CONSUMO` + `origem: 'requisicao'` em `agregacoes.ts`).
+- Coluna/selo **Origem** (Cartão × Req. #id com link pro card) na aba Transações, no popup de drill-down, no CSV e no PDF analítico.
+
 ### Tickets internos (v1 — julho/2026)
 - Módulo `/tickets` (motor genérico do doc "conceito-sistema-tickets", ADRs 001–007): fila/pedidos/acompanhando/gerencial, timeline imutável, transferência sem aceite, participantes permanentes, resolvido→fechado (auto-fecha em 7 dias via GitHub Actions `tickets-auto-fechar.yml`).
 - Tabelas em `public` (`tickets`, `tickets_participantes`, `tickets_eventos`); leitura via RLS (`tickets_pode_ver`), escrita SÓ via `/api/tickets/*` (service role). Migration `sql/create-tickets.sql` **JÁ APLICADA** no Supabase (10/07/2026, verificada via REST).

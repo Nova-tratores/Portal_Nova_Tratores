@@ -10,6 +10,7 @@ import { authHeaders } from '@/lib/auth/client';
 import { FileDown, FileSpreadsheet, LayoutGrid, List, X } from 'lucide-react';
 import { fmtRS } from '@/components/estoque/ui';
 import TabelaOrdenavel, { type ColunaDef } from '@/components/abastecimento/TabelaOrdenavel';
+import { SeloOrigem } from '@/components/abastecimento/TabelaTransacoes';
 import { gerarPdfTransacoes } from '@/lib/abastecimento/pdf';
 import { gerarCsvTransacoes } from '@/lib/abastecimento/csv';
 import type { TransacaoRow, TransacoesResp } from '@/lib/abastecimento/tipos';
@@ -17,10 +18,17 @@ import type { TransacaoRow, TransacoesResp } from '@/lib/abastecimento/tipos';
 function fmtDataHora(iso: string): string {
   return new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
+// requisição só tem a DATA — mostrar "12:00" seria hora inventada
+function fmtDataLinha(l: TransacaoRow): string {
+  return l.origem === 'requisicao'
+    ? new Date(l.data_transacao).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: '2-digit' })
+    : fmtDataHora(l.data_transacao);
+}
 
 // Colunas do popup: `valor` cru p/ ordenar/filtrar, `render` p/ exibir.
 export const COLUNAS_POPUP: ColunaDef<TransacaoRow>[] = [
-  { chave: 'data', titulo: 'Data/Hora', valor: (l) => l.data_transacao, render: (l) => fmtDataHora(l.data_transacao) },
+  { chave: 'data', titulo: 'Data/Hora', valor: (l) => l.data_transacao, render: (l) => fmtDataLinha(l) },
+  { chave: 'origem', titulo: 'Origem', valor: (l) => (l.origem === 'requisicao' ? `Requisição #${l.req_id}` : 'Cartão'), render: (l) => <SeloOrigem l={l} /> },
   { chave: 'placa', titulo: 'Placa', valor: (l) => l.placa, render: (l) => <strong>{l.placa}</strong> },
   { chave: 'motorista', titulo: 'Motorista', valor: (l) => l.motorista_nome || 'Sem motorista', render: (l) => l.motorista_nome || 'Sem motorista' },
   { chave: 'posto', titulo: 'Posto', valor: (l) => l.posto_nome, render: (l) => l.posto_nome || '—' },

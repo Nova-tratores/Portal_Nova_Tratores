@@ -24,6 +24,12 @@ function fmtDataHora(iso: string): string {
     day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit',
   });
 }
+// requisição só tem a DATA (sem hora real da bomba)
+function fmtDataLinha(l: TransacaoRow): string {
+  return l.origem === 'requisicao'
+    ? new Date(l.data_transacao).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: '2-digit' })
+    : fmtDataHora(l.data_transacao);
+}
 function fmtDataBR(isoDia: string): string {
   const [a, m, d] = isoDia.split('-');
   return `${d}/${m}/${a}`;
@@ -96,9 +102,10 @@ export async function gerarPdfTransacoes(opts: {
   autoTable(doc, {
     ...ESTILO_TABELA,
     startY,
-    head: [['Data/Hora', 'Placa', 'Modelo', 'Motorista', 'Posto', 'Combustível', 'Litros', 'R$/L', 'Total', 'Hodômetro', 'OS']],
+    head: [['Data/Hora', 'Origem', 'Placa', 'Modelo', 'Motorista', 'Posto', 'Combustível', 'Litros', 'R$/L', 'Total', 'Hodômetro', 'OS']],
     body: opts.linhas.map((l) => [
-      fmtDataHora(l.data_transacao),
+      fmtDataLinha(l),
+      l.origem === 'requisicao' ? `Req #${l.req_id}` : 'Cartão',
       l.placa,
       l.modelo_veiculo || '—',
       l.motorista_nome || 'Sem motorista',
@@ -111,11 +118,11 @@ export async function gerarPdfTransacoes(opts: {
       l.ordem_servico || '—',
     ]),
     foot: [[
-      { content: `${opts.linhas.length} abastecimento(s)`, colSpan: 6 },
+      { content: `${opts.linhas.length} abastecimento(s)`, colSpan: 7 },
       fmtL(opts.somaLitros), '', fmtRS(opts.somaValor), '', '',
     ]],
     footStyles: { fillColor: [245, 245, 245] as [number, number, number], textColor: 40, fontStyle: 'bold' as const },
-    columnStyles: { 6: { halign: 'right' }, 7: { halign: 'right' }, 8: { halign: 'right' }, 9: { halign: 'right' } },
+    columnStyles: { 7: { halign: 'right' }, 8: { halign: 'right' }, 9: { halign: 'right' }, 10: { halign: 'right' } },
   });
 
   rodapePaginas(doc);

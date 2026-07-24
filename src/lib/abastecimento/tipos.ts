@@ -87,6 +87,11 @@ export interface TransacaoRow {
   valor_total: number | null;
   hodometro: number | null;
   ordem_servico: string | null;
+  // Fonte da linha: CSV do cartão-frota ou requisição de abastecimento
+  // (Veicular/Trator/Quadri). Ausente = cartão (linhas antigas em cache).
+  origem?: 'cartao' | 'requisicao';
+  req_id?: number | null; // id da Requisicao (p/ linkar o card)
+  req_tipo?: string | null;
 }
 
 export interface TransacoesResp {

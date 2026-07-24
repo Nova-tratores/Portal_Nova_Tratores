@@ -2,6 +2,12 @@
 // filtros. Alimenta: a tabela de "últimos abastecimentos", o popup de
 // drill-down dos gráficos e o relatório PDF.
 //
+// Duas fontes unidas na leitura: tabela `abastecimentos` (CSV do cartão) +
+// requisições de abastecimento (Veicular/Trator/Quadri) — ver
+// src/lib/abastecimento/requisicoes.ts. A requisição não tem hora nem
+// combustível: fica fora do drill-down dia/hora e some quando o filtro de
+// combustível está ativo.
+//
 // Params: de, ate (YYYY-MM-DD) | mes (YYYY-MM, atalho que vira de/ate) |
 //         filial, placa, motorista, posto, combustivel, os |
 //         limit (padrão 100, máx 1000; 0 = tudo p/ PDF), offset
@@ -11,6 +17,7 @@ import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
 import { podeFrota } from '@/lib/frota/server';
 import { localBR } from '@/lib/abastecimento/agregacoes';
+import { buscarReqsAbastecimento, type ReqAbastecimento } from '@/lib/abastecimento/requisicoes';
 import type { TransacaoRow, TransacoesResp } from '@/lib/abastecimento/tipos';
 
 export const runtime = 'nodejs';
@@ -31,6 +38,36 @@ function proximoMes(mes: string): string {
   const [ano, m] = mes.split('-').map(Number);
   return m === 12 ? `${ano + 1}-01` : `${ano}-${String(m + 1).padStart(2, '0')}`;
 }
+
+function ultimoDiaDoMes(mes: string): string {
+  const [ano, m] = mes.split('-').map(Number);
+  return `${mes}-${String(new Date(Date.UTC(ano, m, 0)).getUTCDate()).padStart(2, '0')}`;
+}
+
+// requisição -> TransacaoRow (id negativo: nunca colide com o id do cartão)
+function reqParaTransacao(r: ReqAbastecimento): TransacaoRow {
+  return {
+    id: -r.req_id,
+    data_transacao: r.data_transacao,
+    placa: r.placa,
+    modelo_veiculo: r.modelo_veiculo,
+    departamento: r.departamento,
+    filial_nome: r.filial_nome,
+    motorista_nome: r.motorista_nome,
+    posto_nome: r.posto_nome,
+    combustivel: r.combustivel,
+    litros: r.litros,
+    valor_unitario: r.valor_unitario,
+    valor_total: r.valor_total,
+    hodometro: r.hodometro,
+    ordem_servico: r.ordem_servico,
+    origem: 'requisicao',
+    req_id: r.req_id,
+    req_tipo: r.req_tipo,
+  };
+}
+
+const tempoDe = (iso: string) => new Date(iso).getTime();
 
 export async function GET(req: NextRequest) {
   // Rodava com service role e sem autenticação nenhuma (ver dashboard/route.ts).
@@ -98,6 +135,7 @@ export async function GET(req: NextRequest) {
               valor_unitario: l.valor_unitario == null ? null : Number(l.valor_unitario),
               valor_total: l.valor_total == null ? null : Number(l.valor_total),
               hodometro: l.hodometro == null ? null : Number(l.hodometro),
+              origem: 'cartao',
             });
           }
         }
@@ -112,11 +150,35 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(resp);
     }
 
-    // totais do filtro (contagem + somas) — uma passada paginada leve
-    let total = 0;
+    // ----- fonte 2: requisições de abastecimento (poucas — filtra em JS) -----
+    const reqDe = mes ? `${mes}-01` : de;
+    const reqAte = mes ? ultimoDiaDoMes(mes) : ate;
+    const bateFiltroReq = (r: ReqAbastecimento): boolean => {
+      for (const [param, col] of [
+        ['filial', 'filial_nome'],
+        ['placa', 'placa'],
+        ['motorista', 'motorista_nome'],
+        ['posto', 'posto_nome'],
+        ['combustivel', 'combustivel'],
+        ['os', 'ordem_servico'],
+        ['departamento', 'departamento'],
+      ] as const) {
+        const v = sp.get(param);
+        if (!v) continue;
+        if (param === 'motorista' && v === '__sem__') {
+          if (r.motorista_nome != null) return false;
+          continue;
+        }
+        if (r[col] !== v) return false;
+      }
+      return true;
+    };
+    const reqs = (await buscarReqsAbastecimento(supabase, reqDe, reqAte)).filter(bateFiltroReq);
+
+    // totais do filtro (contagem + somas do cartão) — uma passada paginada leve
+    let totalCartao = 0;
     let somaValor = 0;
     let somaLitros = 0;
-    const linhas: TransacaoRow[] = [];
 
     for (let off = 0; ; off += PAGINA) {
       const { data, error, count } = await filtros(
@@ -125,32 +187,45 @@ export async function GET(req: NextRequest) {
         .order('data_transacao', { ascending: false })
         .range(off, off + PAGINA - 1);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-      if (off === 0 && typeof count === 'number') total = count;
+      if (off === 0 && typeof count === 'number') totalCartao = count;
       for (const l of data || []) {
         somaValor += Number((l as { valor_total: unknown }).valor_total) || 0;
         somaLitros += Number((l as { litros: unknown }).litros) || 0;
       }
       if (!data || data.length < PAGINA) break;
     }
+    for (const r of reqs) {
+      somaValor += r.valor_total || 0;
+      somaLitros += r.litros;
+    }
+    const total = totalCartao + reqs.length;
 
-    // linhas pedidas (janela limit/offset, ou tudo para o PDF)
+    // linhas pedidas (janela limit/offset, ou tudo para o PDF). Pro merge por
+    // data ficar certo, busca as primeiras `fim` linhas do cartão (as
+    // requisições já estão todas em memória), une, ordena e corta a janela.
     const fim = tudo ? total : Math.min(offset + limit, total);
-    for (let off = offset; off < fim; off += PAGINA) {
+    const cartao: TransacaoRow[] = [];
+    const fimCartao = Math.min(fim, totalCartao);
+    for (let off = 0; off < fimCartao; off += PAGINA) {
       const { data, error } = await filtros(supabase.from('abastecimentos').select(COLS))
         .order('data_transacao', { ascending: false })
-        .range(off, Math.min(off + PAGINA, fim) - 1);
+        .range(off, Math.min(off + PAGINA, fimCartao) - 1);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
       for (const l of (data || []) as unknown as TransacaoRow[]) {
-        linhas.push({
+        cartao.push({
           ...l,
           litros: Number(l.litros) || 0,
           valor_unitario: l.valor_unitario == null ? null : Number(l.valor_unitario),
           valor_total: l.valor_total == null ? null : Number(l.valor_total),
           hodometro: l.hodometro == null ? null : Number(l.hodometro),
+          origem: 'cartao',
         });
       }
       if (!data || data.length < PAGINA) break;
     }
+    const linhas = [...cartao, ...reqs.map(reqParaTransacao)]
+      .sort((a, b) => tempoDe(b.data_transacao) - tempoDe(a.data_transacao))
+      .slice(offset, fim);
 
     const resp: TransacoesResp = { linhas, total, somaValor, somaLitros };
     return NextResponse.json(resp);

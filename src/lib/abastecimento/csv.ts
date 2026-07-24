@@ -27,15 +27,22 @@ function fmtDataHora(iso: string): string {
     day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
   });
 }
+// requisição só tem a DATA (sem hora real da bomba)
+function fmtDataLinha(l: TransacaoRow): string {
+  return l.origem === 'requisicao'
+    ? new Date(l.data_transacao).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+    : fmtDataHora(l.data_transacao);
+}
 
 export function gerarCsvTransacoes(opts: {
   periodo: { de: string; ate: string };
   linhas: TransacaoRow[];
 }) {
   baixarCsv(`abastecimentos_${opts.periodo.de}_a_${opts.periodo.ate}.csv`, [
-    ['Data/Hora', 'Placa', 'Modelo', 'Departamento', 'Motorista', 'Posto', 'Combustível', 'Litros', 'R$/L', 'Total (R$)', 'Hodômetro', 'OS', 'Filial'],
+    ['Data/Hora', 'Origem', 'Placa', 'Modelo', 'Departamento', 'Motorista', 'Posto', 'Combustível', 'Litros', 'R$/L', 'Total (R$)', 'Hodômetro', 'OS', 'Filial'],
     ...opts.linhas.map((l) => [
-      fmtDataHora(l.data_transacao),
+      fmtDataLinha(l),
+      l.origem === 'requisicao' ? `Requisição #${l.req_id}` : 'Cartão',
       l.placa,
       l.modelo_veiculo,
       l.departamento,
