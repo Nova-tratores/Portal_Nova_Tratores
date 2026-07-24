@@ -4,7 +4,8 @@ import CardCapaReq from './CardCapaReq';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { normalizarNomePessoa } from '@/lib/texto';
-import { Search, Calendar, Building2, X, Layout, UserCircle, Layers, SlidersHorizontal, Receipt, FileDown, Info, Plus, FolderOpen, FolderPlus, RotateCcw, Car, Filter, ArrowLeft, Check, Tag } from 'lucide-react';
+import { Search, Calendar, Building2, X, Layout, UserCircle, Layers, SlidersHorizontal, Receipt, FileDown, Info, Plus, FolderOpen, FolderPlus, RotateCcw, Car, Filter, ArrowLeft, Check, Tag, ArrowLeftRight } from 'lucide-react';
+import CompararReqs from './CompararReqs';
 
 const LISTA_FORNECEDORES_CADASTRADOS = ["Rodrigo Torneiro (Panda)"];
 
@@ -41,6 +42,8 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
   const [filtroCampo, setFiltroCampo] = useState<string | null>(null);
   const [filtroValorBusca, setFiltroValorBusca] = useState('');
   const filtroMenuRef = useRef<HTMLDivElement>(null);
+  const grupoMenuRef = useRef<HTMLDivElement>(null);
+  const [grupoMenu, setGrupoMenu] = useState(false);
 
   // ── Grupos (coletivos) de requisições ──
   const { userProfile } = useAuth();
@@ -235,6 +238,15 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
     return () => document.removeEventListener('mousedown', onDoc);
   }, [filtroMenu]);
 
+  useEffect(() => {
+    if (!grupoMenu) return;
+    const onDoc = (e: MouseEvent) => {
+      if (grupoMenuRef.current && !grupoMenuRef.current.contains(e.target as Node)) setGrupoMenu(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [grupoMenu]);
+
   const filtradas = useMemo(() => {
     const q = filtroBusca.trim().toLowerCase();
     const idsGrupo = grupoAtivo ? new Set((grupoAtivo.membros || []).map((x: any) => Number(x))) : null;
@@ -374,6 +386,24 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
     doc.save(nomeArquivo);
   };
 
+  // ── Comparar duas requisições ──
+  // No modo comparação o clique no card SELECIONA em vez de abrir; ao juntar
+  // duas, a tela lado a lado abre sozinha.
+  const [modoComparar, setModoComparar] = useState(false);
+  const [escolhidas, setEscolhidas] = useState<any[]>([]);
+  const [comparando, setComparando] = useState<[any, any] | null>(null);
+
+  const escolherParaComparar = useCallback((req: any) => {
+    setEscolhidas(prev => {
+      if (prev.some(r => String(r.id) === String(req.id))) return prev.filter(r => String(r.id) !== String(req.id));
+      const nova = [...prev, req].slice(-2);
+      if (nova.length === 2) setComparando([nova[0], nova[1]]);
+      return nova;
+    });
+  }, []);
+
+  const sairDaComparacao = () => { setModoComparar(false); setEscolhidas([]); setComparando(null); };
+
   const pillBase = "px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap";
   const pillActive = "bg-red-600 text-white border-red-600";
   const pillInactive = "bg-white text-zinc-500 border-zinc-200 hover:border-red-300 hover:text-red-600";
@@ -510,31 +540,59 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
           <div className="w-px h-5 bg-zinc-200" />
 
           {/* GRUPOS (coletivos de requisições) */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-[11px] font-bold text-zinc-500 flex items-center gap-1"><Layers size={12}/> Grupos:</span>
-            {gruposAbertos.length === 0 && (
-              <span className="text-[11px] text-zinc-400 italic">nenhum aberto</span>
+          {/* Grupos num dropdown só — antes eram N pílulas soltas poluindo a barra */}
+          <div className="relative" ref={grupoMenuRef}>
+            <button
+              onClick={() => setGrupoMenu(v => !v)}
+              title="Filtrar por grupo, criar ou gerenciar grupos"
+              className={`${pillBase} ${grupoFiltro != null || grupoMenu ? pillActive : pillInactive}`}
+            >
+              <Layers size={13} /> {grupoFiltro != null ? (gruposAbertos.find((g: any) => g.id === grupoFiltro)?.nome || 'Grupos') : 'Grupos'}
+              {grupoFiltro != null
+                ? <X size={12} className="ml-0.5" onClick={(e) => { e.stopPropagation(); setGrupoFiltro(null); }} />
+                : gruposAbertos.length > 0 && <span className="ml-0.5 text-[10px] font-bold px-1.5 rounded-full bg-zinc-100 text-zinc-500">{gruposAbertos.length}</span>}
+            </button>
+
+            {grupoMenu && (
+              <div className="absolute left-0 top-full mt-1.5 z-40 w-72 bg-white rounded-xl shadow-2xl border border-zinc-200 overflow-hidden">
+                <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-400">Filtrar por grupo</div>
+                <div className="max-h-[300px] overflow-y-auto pb-1">
+                  {gruposAbertos.length === 0 ? (
+                    <div className="px-3 py-2 text-[13px] text-zinc-400 italic">Nenhum grupo aberto</div>
+                  ) : gruposAbertos.map((g: any) => {
+                    const ativo = grupoFiltro === g.id;
+                    return (
+                      <button key={g.id} onClick={() => { setGrupoFiltro(ativo ? null : g.id); setGrupoMenu(false); }}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 text-[13px] transition-colors ${ativo ? 'bg-red-50 text-red-600' : 'text-zinc-700 hover:bg-zinc-50'}`}>
+                        <FolderOpen size={14} className={ativo ? 'text-red-500' : 'text-zinc-400'} />
+                        <span className="flex-1 text-left font-medium truncate">{g.nome}</span>
+                        <span className={`text-[10px] font-bold px-1.5 rounded-full ${ativo ? 'bg-red-100 text-red-600' : 'bg-zinc-100 text-zinc-500'}`}>{(g.membros || []).length}</span>
+                        {ativo && <X size={13} />}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="flex items-center gap-2 p-2 border-t border-zinc-100 bg-zinc-50/60">
+                  <button onClick={() => { setGrupoMenu(false); setNovoGrupoNome(''); setShowCriar(true); }}
+                    className="flex-1 text-[12px] font-bold px-3 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 flex items-center justify-center gap-1.5">
+                    <Plus size={14} /> Novo grupo
+                  </button>
+                  <button onClick={() => { setGrupoMenu(false); setShowGerenciar(true); }}
+                    className="flex-1 text-[12px] font-semibold px-3 py-2 rounded-lg border border-zinc-300 text-zinc-600 hover:border-zinc-500 flex items-center justify-center gap-1.5">
+                    <SlidersHorizontal size={13} /> Gerenciar{grupos.length > 0 ? ` (${grupos.length})` : ''}
+                  </button>
+                </div>
+              </div>
             )}
-            {gruposAbertos.map((g: any) => {
-              const ativo = grupoFiltro === g.id;
-              return (
-                <button key={g.id} onClick={() => setGrupoFiltro(ativo ? null : g.id)}
-                  className={`text-[12px] font-semibold px-3 py-1.5 rounded-full border transition-colors flex items-center gap-1.5 ${ativo ? 'bg-red-600 text-white border-red-600 shadow-sm' : 'bg-white text-zinc-700 border-zinc-300 hover:border-red-400'}`}>
-                  <FolderOpen size={13} /> {g.nome}
-                  <span className={`ml-0.5 text-[10px] font-bold px-1.5 rounded-full ${ativo ? 'bg-white/25' : 'bg-zinc-100 text-zinc-500'}`}>{(g.membros || []).length}</span>
-                  {ativo && <X size={12} className="ml-0.5" />}
-                </button>
-              );
-            })}
-            <button onClick={() => { setNovoGrupoNome(''); setShowCriar(true); }} title="Novo grupo"
-              className="text-[12px] font-bold px-3 py-1.5 rounded-full bg-red-600 text-white hover:bg-red-700 flex items-center gap-1.5">
-              <Plus size={14} /> Novo grupo
-            </button>
-            <button onClick={() => setShowGerenciar(true)} title="Gerenciar grupos"
-              className="text-[12px] font-semibold px-3 py-1.5 rounded-full border border-zinc-300 text-zinc-600 hover:border-zinc-500 flex items-center gap-1.5">
-              <SlidersHorizontal size={13} /> Gerenciar{grupos.length > 0 ? ` (${grupos.length})` : ''}
-            </button>
           </div>
+
+          <button
+            onClick={() => (modoComparar ? sairDaComparacao() : setModoComparar(true))}
+            title="Escolher duas requisições e ver lado a lado"
+            className={`${pillBase} ${modoComparar ? pillActive : 'bg-white text-zinc-600 border-zinc-200 hover:border-red-300 hover:text-red-600'}`}
+          >
+            <ArrowLeftRight size={12} /> Comparar
+          </button>
 
           {/* Contador + Limpar */}
           {temFiltroAtivo && (
@@ -546,6 +604,27 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
             </>
           )}
         </div>
+
+        {/* Barra do modo comparação */}
+        {modoComparar && (
+          <div className="mt-2 flex items-center gap-3 flex-wrap bg-amber-50 border border-amber-200 rounded-xl px-4 py-2">
+            <span className="text-[13px] font-bold text-amber-800 flex items-center gap-1.5"><ArrowLeftRight size={14} /> Modo comparação</span>
+            <span className="text-[12px] text-amber-700">
+              {escolhidas.length === 0 ? 'Clique em duas requisições, em qualquer coluna.'
+                : escolhidas.length === 1 ? `#${escolhidas[0].id} escolhida — falta a segunda.`
+                : `#${escolhidas[0].id} × #${escolhidas[1].id}`}
+            </span>
+            <div className="ml-auto flex items-center gap-2">
+              {escolhidas.length === 2 && (
+                <button onClick={() => setComparando([escolhidas[0], escolhidas[1]])} className="text-[11px] font-semibold text-white bg-amber-600 px-2.5 py-1 rounded-full hover:bg-amber-700">Ver lado a lado</button>
+              )}
+              {escolhidas.length > 0 && (
+                <button onClick={() => setEscolhidas([])} className="text-[11px] font-semibold text-zinc-600 bg-white border border-zinc-200 px-2.5 py-1 rounded-full hover:border-zinc-400">Limpar escolha</button>
+              )}
+              <button onClick={sairDaComparacao} className="text-zinc-400 hover:text-red-500"><X size={14} /></button>
+            </div>
+          </div>
+        )}
 
         {/* Banner do grupo ativo */}
         {grupoAtivo && (
@@ -754,6 +833,9 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
                           usuarioAtual={usuarioAtual}
                           onGruposChange={recarregarGrupos}
                           onExpandirGrupo={(id: number) => setGrupoFiltro(id)}
+                          modoComparar={modoComparar}
+                          escolhidoParaComparar={escolhidas.some((r: any) => String(r.id) === String(req.id))}
+                          onEscolherComparar={escolherParaComparar}
                         />
                       ))}
                       {items.length > (limitesPorColuna[col.id] || CARDS_POR_VEZ) && (
@@ -777,6 +859,16 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
           })}
         </div>
       </div>
+
+      {comparando && (
+        <CompararReqs
+          a={comparando[0]}
+          b={comparando[1]}
+          dadosCompartilhados={dadosCompartilhados}
+          onFechar={() => setComparando(null)}
+          onTrocar={() => { setComparando(null); setEscolhidas([]); }}
+        />
+      )}
     </div>
   );
 }

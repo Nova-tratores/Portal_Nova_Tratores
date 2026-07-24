@@ -474,6 +474,35 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     return (permissoes?.modulos_permitidos || []).some(m => m.startsWith(item.id + ':'))
   }), [temAcesso, permissoes])
 
+  // ══ Atalhos dos apps mais usados (ao lado da logo) ══
+  // Contamos a VISITA da rota, não o clique no card do dashboard: assim entra na
+  // conta quem chegou pelo menu lateral, por notificação ou por link direto.
+  const usoKey = userProfile?.id ? `portal-uso-${userProfile.id}` : ''
+  const [uso, setUso] = useState<Record<string, number>>({})
+
+  // Só depende da ROTA — nada de identidade de função aqui. `filteredNavItems`
+  // muda de identidade a cada render (o temAcesso do usePermissoes não é
+  // memoizado); usá-lo como dependência de um efeito que faz setState vira
+  // laço infinito. Por isso a lista sai de um useMemo, e não de um estado.
+  useEffect(() => {
+    if (!usoKey || !pathname) { setUso({}); return }
+    let atual: Record<string, number> = {}
+    try { atual = JSON.parse(localStorage.getItem(usoKey) || '{}') } catch { }
+    const item = navItems
+      .filter(i => !i.external && i.href !== '/dashboard' && (pathname === i.href || pathname.startsWith(i.href + '/')))
+      .sort((a, b) => b.href.length - a.href.length)[0]   // rota mais específica vence
+    if (item) {
+      atual = { ...atual, [item.id]: (atual[item.id] || 0) + 1 }
+      localStorage.setItem(usoKey, JSON.stringify(atual))
+    }
+    setUso(atual)
+  }, [pathname, usoKey])
+
+  const maisUsados = useMemo(() => filteredNavItems
+    .filter(i => i.id !== 'dashboard' && (uso[i.id] || 0) > 0)
+    .sort((a, b) => (uso[b.id] || 0) - (uso[a.id] || 0))
+    .slice(0, 4), [filteredNavItems, uso])
+
   const groupedNav = useMemo(() => {
     const groups: { key: string; config: typeof GROUP_CONFIG[string]; items: NavItem[] }[] = []
     for (const gk of GROUP_ORDER) {
@@ -572,6 +601,44 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               style={{ height: '50px' }}
             />
           </Link>
+
+          {/* Apps mais usados — atalho direto, sem passar pelo dashboard.
+              Escondidos em tela estreita (a top bar não comporta). */}
+          {maisUsados.length > 0 && (
+            <div className="topbar-atalhos" style={{
+              display: 'flex', alignItems: 'center', gap: 3,
+              paddingLeft: 14, borderLeft: '1px solid var(--portal-border)',
+            }}>
+              {maisUsados.map(item => {
+                const ativo = pathname === item.href || pathname.startsWith(item.href + '/')
+                const cor = GROUP_CONFIG[item.group]?.color || '#dc2626'
+                const curto = item.name.replace(/\s*\(.*?\)\s*/g, '').trim()
+                return (
+                  <Link
+                    key={item.id}
+                    href={item.href}
+                    title={`${item.name} — atalho (um dos seus mais usados)`}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 7,
+                      padding: '8px 13px', borderRadius: 10, textDecoration: 'none',
+                      background: ativo ? `${cor}18` : 'transparent',
+                      color: ativo ? cor : 'var(--portal-text-secondary)',
+                      fontSize: 13.5, fontWeight: 400, whiteSpace: 'nowrap',
+                      transition: 'background .18s, color .18s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = `${cor}18`; e.currentTarget.style.color = cor }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = ativo ? `${cor}18` : 'transparent'
+                      e.currentTarget.style.color = ativo ? cor : 'var(--portal-text-secondary)'
+                    }}
+                  >
+                    <span style={{ display: 'flex', color: cor }}>{item.icon}</span>
+                    {curto}
+                  </Link>
+                )
+              })}
+            </div>
+          )}
         </div>
 
         {/* Right: chat + sino + user */}
@@ -1656,6 +1723,11 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
       {/* ===== CSS ===== */}
       <style>{`
+        /* Atalhos da top bar: vão sumindo conforme a tela aperta, do último
+           para o primeiro, para nunca empurrarem o sino e o avatar. */
+        @media (max-width: 1500px) { .topbar-atalhos a:nth-child(4) { display: none; } }
+        @media (max-width: 1320px) { .topbar-atalhos a:nth-child(3) { display: none; } }
+        @media (max-width: 1150px) { .topbar-atalhos { display: none !important; } }
         @keyframes toastSlideIn {
           from { opacity: 0; transform: translateX(120%); }
           to { opacity: 1; transform: translateX(0); }

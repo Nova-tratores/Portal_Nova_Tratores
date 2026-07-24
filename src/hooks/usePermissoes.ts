@@ -8,6 +8,8 @@ interface Permissoes {
   is_admin: boolean
   is_dev?: boolean
   categoria: string
+  mecanico_role?: string | null
+  mecanico_tecnico_nome?: string | null
   modulos_permitidos: string[]
 }
 

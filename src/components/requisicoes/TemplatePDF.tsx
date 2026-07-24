@@ -27,7 +27,7 @@ const FORNECEDORES_CADASTRADOS: any = {
   "Rodrigo Torneiro (Panda)": { cnpj: "PRÓPRIO", endereco: "Oficina de Manutenção" }
 };
 
-export default function TemplatePDF({ req }: { req: any, onUpdate?: any, onPrint?: any }) {
+export default function TemplatePDF({ req, anexos = [] }: { req: any, anexos?: { label: string; dataUrl: string }[], onUpdate?: any, onPrint?: any }) {
   const [nomeSolicitante, setNomeSolicitante] = useState(req?.solicitante || '---');
   const [placaVeiculo, setPlacaVeiculo] = useState(req?.veiculo || '---');
   const [cotacaoData, setCotacaoData] = useState<any>(null);
@@ -100,6 +100,9 @@ export default function TemplatePDF({ req }: { req: any, onUpdate?: any, onPrint
           .print-template-container { display: block !important; background: white !important; width: 100%; }
           .pdf-content { padding: 0 !important; background: white !important; color: black !important; }
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          /* Cada anexo escolhido vira uma folha nova depois da requisição */
+          .pdf-anexo { break-before: page; page-break-before: always; text-align: center; }
+          .pdf-anexo img { max-width: 100%; max-height: 258mm; object-fit: contain; display: block; margin: 4mm auto 0; }
         }
       `}} />
 
@@ -318,6 +321,17 @@ export default function TemplatePDF({ req }: { req: any, onUpdate?: any, onPrint
           <span className="tracking-widest">Cód: {req.id?.toString().padStart(8, '0')}</span>
         </div>
       </div>
+
+      {/* Anexos escolhidos na hora de imprimir — um por folha */}
+      {anexos.map((a, i) => (
+        <div key={i} className="pdf-anexo">
+          <div className="flex justify-between items-center text-[10px] uppercase font-black border-b-2 border-black pb-1">
+            <span>Requisição {req.id?.toString().padStart(8, '0')} — {req.titulo || ''}</span>
+            <span>{a.label}</span>
+          </div>
+          <img src={a.dataUrl} alt={a.label} />
+        </div>
+      ))}
     </div>
   );
 }

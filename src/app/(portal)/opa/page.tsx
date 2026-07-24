@@ -29,6 +29,8 @@ interface Opa {
   resolvido_por_nome: string | null
   resolvido_por_tipo: string | null
   resolvido_at: string | null
+  responsavel: string | null
+  solucao: string | null
   created_at: string
   anexos?: OpaAnexo[]
   views?: OpaView[]
@@ -46,6 +48,13 @@ export default function OpaPage() {
   const [showModal, setShowModal] = useState(false)
   const [expandido, setExpandido] = useState<string | null>(null)
   const [resolvendo, setResolvendo] = useState<string | null>(null)
+
+  // Responsável + solução (editáveis pelo criador do Opa)
+  const [usuarios, setUsuarios] = useState<{ nome: string }[]>([])
+  const [editRespId, setEditRespId] = useState<string | null>(null)   // opa em edição
+  const [respTmp, setRespTmp] = useState('')
+  const [solTmp, setSolTmp] = useState('')
+  const [salvandoResp, setSalvandoResp] = useState(false)
 
   // Form
   const [titulo, setTitulo] = useState('')
@@ -87,6 +96,12 @@ export default function OpaPage() {
   }, [])
 
   useEffect(() => { carregar() }, [carregar])
+
+  // Lista de usuários pro seletor de responsável
+  useEffect(() => {
+    supabase.from('financeiro_usu').select('nome').eq('ativo', true).order('nome')
+      .then(({ data }) => setUsuarios((data || []).filter((u: any) => u.nome)))
+  }, [])
 
   // Realtime
   useEffect(() => {
@@ -165,6 +180,24 @@ export default function OpaPage() {
     })
     auditLog({ sistema: 'opa', acao: 'resolver', entidade: 'opa', entidade_id: opa.id, entidade_label: `Opa: ${opa.titulo}` })
     setResolvendo(null)
+    carregar()
+  }
+
+  const abrirEdicaoResp = (opa: Opa) => {
+    setEditRespId(opa.id)
+    setRespTmp(opa.responsavel || '')
+    setSolTmp(opa.solucao || '')
+  }
+
+  const salvarResp = async (opa: Opa) => {
+    setSalvandoResp(true)
+    await supabase.from('portal_opas').update({
+      responsavel: respTmp.trim() || null,
+      solucao: solTmp.trim() || null,
+    }).eq('id', opa.id)
+    auditLog({ sistema: 'opa', acao: 'editar', entidade: 'opa', entidade_id: opa.id, entidade_label: `Opa: ${opa.titulo}` })
+    setSalvandoResp(false)
+    setEditRespId(null)
     carregar()
   }
 
@@ -282,6 +315,9 @@ export default function OpaPage() {
                         <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}><Paperclip size={11} /> {opa.anexos!.length}</span>
                       )}
                       <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}><Eye size={11} /> {opa.views?.length || 0}</span>
+                      {opa.responsavel && (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#dc2626', fontWeight: 600 }}><User size={11} /> {opa.responsavel}</span>
+                      )}
                       {resolvido && opa.resolvido_por_nome && (
                         <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#059669', fontWeight: 600 }}>
                           <CheckCircle2 size={11} /> por {opa.resolvido_por_nome}{opa.resolvido_por_tipo === 'tecnico' ? ' (técnico)' : ''}
@@ -316,6 +352,70 @@ export default function OpaPage() {
                         })}
                       </div>
                     )}
+
+                    {/* Responsável + solução (o criador do Opa preenche) */}
+                    {(() => {
+                      const souCriador = !!userProfile && opa.criado_por === userProfile.id
+                      const podeEditar = souCriador || isAdmin
+                      const editando = editRespId === opa.id
+                      const temAlgo = opa.responsavel || opa.solucao
+
+                      if (editando) return (
+                        <div style={{ marginTop: 16, padding: 16, borderRadius: 12, background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)' }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text-secondary)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}><User size={13} /> Responsável</div>
+                          <input list={`usuarios-${opa.id}`} value={respTmp} onChange={e => setRespTmp(e.target.value)}
+                            placeholder="Quem vai resolver?" style={{ ...INP, marginBottom: 12 }} />
+                          <datalist id={`usuarios-${opa.id}`}>
+                            {usuarios.map((u, i) => <option key={i} value={u.nome} />)}
+                          </datalist>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text-secondary)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}><CheckCircle2 size={13} /> Solução</div>
+                          <textarea value={solTmp} onChange={e => setSolTmp(e.target.value)} rows={3}
+                            placeholder="Descreva a solução..." style={{ ...INP, resize: 'vertical', lineHeight: 1.6 }} />
+                          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                            <button disabled={salvandoResp} onClick={() => salvarResp(opa)} style={{
+                              display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: 'none',
+                              background: '#dc2626', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: salvandoResp ? 0.6 : 1,
+                            }}><Check size={14} /> {salvandoResp ? 'Salvando...' : 'Salvar'}</button>
+                            <button onClick={() => setEditRespId(null)} style={{
+                              padding: '8px 16px', borderRadius: 8, border: '1px solid var(--portal-border)',
+                              background: 'var(--portal-bg-card)', color: 'var(--portal-text-secondary)', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                            }}>Cancelar</button>
+                          </div>
+                        </div>
+                      )
+
+                      if (temAlgo) return (
+                        <div style={{ marginTop: 16, padding: 16, borderRadius: 12, background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)' }}>
+                          {opa.responsavel && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--portal-text)', marginBottom: opa.solucao ? 12 : 0 }}>
+                              <User size={15} style={{ color: '#dc2626', flexShrink: 0 }} />
+                              <span style={{ fontWeight: 600 }}>Responsável:</span> {opa.responsavel}
+                            </div>
+                          )}
+                          {opa.solucao && (
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, color: '#059669', marginBottom: 6 }}><CheckCircle2 size={14} /> Solução</div>
+                              <div style={{ fontSize: 14, lineHeight: 1.7, color: 'var(--portal-text-secondary)', whiteSpace: 'pre-wrap' }}>{opa.solucao}</div>
+                            </div>
+                          )}
+                          {podeEditar && (
+                            <button onClick={() => abrirEdicaoResp(opa)} style={{
+                              marginTop: 12, padding: '6px 12px', borderRadius: 8, border: '1px solid var(--portal-border)',
+                              background: 'var(--portal-bg-card)', color: 'var(--portal-text-secondary)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                            }}>Editar responsável / solução</button>
+                          )}
+                        </div>
+                      )
+
+                      if (podeEditar) return (
+                        <button onClick={() => abrirEdicaoResp(opa)} style={{
+                          marginTop: 16, display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 8,
+                          border: '1px dashed var(--portal-border)', background: 'var(--portal-bg-secondary)',
+                          color: 'var(--portal-text-secondary)', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                        }}><User size={14} /> Indicar responsável e solução</button>
+                      )
+                      return null
+                    })()}
 
                     {/* Quem visualizou */}
                     {opa.views && opa.views.length > 0 && (

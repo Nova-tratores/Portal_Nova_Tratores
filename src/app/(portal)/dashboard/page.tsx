@@ -344,10 +344,27 @@ export default function DashboardPage() {
   }, [filteredSystems, activeFolder, folders, editingFolder, favFilter, favoritos])
 
   // Favoritos para a faixa de destaque (modo "Todos")
+  // Ordem da faixa = ordem do array de favoritos (o usuário arrasta pra mudar),
+  // e não a ordem fixa da lista de sistemas.
   const favoritosSystems = useMemo(
-    () => filteredSystems.filter(s => favoritos.includes(s.id)),
+    () => favoritos
+      .map(id => filteredSystems.find(s => s.id === id))
+      .filter((s): s is SystemCard => Boolean(s)),
     [filteredSystems, favoritos]
   )
+
+  // ── Arrastar favoritos para reordenar ──
+  const [dragFav, setDragFav] = useState<string | null>(null)
+  const reordenarFavorito = (origem: string, destino: string) => {
+    if (origem === destino) return
+    setFavoritos(prev => {
+      const arr = prev.filter(id => id !== origem)
+      const i = arr.indexOf(destino)
+      if (i < 0) return prev
+      arr.splice(i, 0, origem)
+      return arr
+    })
+  }
 
   const groupedDisplayed = useMemo(() => {
     const groups: { key: string; config: typeof DASH_GROUPS[string]; items: typeof displayedSystems }[] = []
@@ -659,13 +676,22 @@ export default function DashboardPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12 }}>
             <Star size={13} fill="#F59E0B" color="#F59E0B" />
             <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--portal-text-secondary)', letterSpacing: 1, textTransform: 'uppercase' }}>Favoritos</span>
+            <span style={{ fontSize: 11.5, color: 'var(--portal-text-secondary)', opacity: .75 }}>
+              — segure e arraste para mudar a ordem
+            </span>
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {favoritosSystems.map(system => (
-              <div key={system.id} onClick={() => openSystem(system)} style={{
+              <div key={system.id} onClick={() => openSystem(system)}
+                draggable
+                onDragStart={e => { setDragFav(system.id); e.dataTransfer.effectAllowed = 'move' }}
+                onDragOver={e => { e.preventDefault(); if (dragFav) reordenarFavorito(dragFav, system.id) }}
+                onDragEnd={() => setDragFav(null)}
+                style={{
                 display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px 7px 8px',
-                borderRadius: 10, cursor: 'pointer', background: 'transparent',
-                border: 'none', transition: 'transform .2s cubic-bezier(.34,1.56,.64,1), box-shadow .2s, background .2s',
+                borderRadius: 10, cursor: dragFav ? 'grabbing' : 'grab', background: 'transparent',
+                opacity: dragFav === system.id ? .45 : 1,
+                border: 'none', transition: 'transform .2s cubic-bezier(.34,1.56,.64,1), box-shadow .2s, background .2s, opacity .15s',
               }}
                 onMouseEnter={e => {
                   e.currentTarget.style.transform = 'translateY(-3px) scale(1.05)'

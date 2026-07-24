@@ -1,0 +1,18 @@
+# Avisos agendados — publica os que chegaram na hora marcada e avisa o criador.
+# Roda a cada 5 minutos (a granularidade do agendamento é ~5 min).
+name: Avisos - Publicar agendados
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Chamar rota de publicação de agendados
+        run: |
+          curl -fsS --max-time 120 -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/avisos/cron/publicar"

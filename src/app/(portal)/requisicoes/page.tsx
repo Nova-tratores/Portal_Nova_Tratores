@@ -50,6 +50,7 @@ function RequisicoesPageInner() {
   const [veiculos, setVeiculos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [reqParaImprimir, setReqParaImprimir] = useState<any>(null);
+  const [anexosParaImprimir, setAnexosParaImprimir] = useState<{ label: string; dataUrl: string }[]>([]);
   const [notificacoes, setNotificacoes] = useState<any[]>([]);
   const [toasts, setToasts] = useState<any[]>([]);
   const [showNotifModal, setShowNotifModal] = useState(false);
@@ -81,12 +82,16 @@ function RequisicoesPageInner() {
       .sort((a: any, b: any) => (b.id || 0) - (a.id || 0));
   }, [requisicoes, filtroRelTipo, filtroRelSetor, filtroRelSolicitante, filtroRelBusca]);
 
-  const dispararImpressao = (dados: any) => {
+  // `anexos` são folhas já convertidas em imagem (ver lib/requisicoes/anexos-pdf):
+  // saem como páginas extras do MESMO documento, depois da requisição.
+  const dispararImpressao = (dados: any, anexos: { label: string; dataUrl: string }[] = []) => {
     setReqParaImprimir(dados);
+    setAnexosParaImprimir(anexos);
     setTimeout(() => {
       window.print();
       setReqParaImprimir(null);
-    }, 800);
+      setAnexosParaImprimir([]);
+    }, anexos.length ? 1400 : 800);   // dá tempo das imagens entrarem no layout
   };
 
   const abrirNotificacao = (idReq: any) => {
@@ -359,7 +364,7 @@ function RequisicoesPageInner() {
 
   return (
     <div style={{ padding: '24px 32px' }}>
-      {reqParaImprimir && <TemplatePDF req={reqParaImprimir} onUpdate={() => {}} onPrint={() => {}} />}
+      {reqParaImprimir && <TemplatePDF req={reqParaImprimir} anexos={anexosParaImprimir} onUpdate={() => {}} onPrint={() => {}} />}
       <ModalTags open={showTagsModal} onClose={() => setShowTagsModal(false)} />
 
       {/* Toasts */}

@@ -8,12 +8,15 @@ import {
   Store, ArrowRight, Gauge,
   Receipt, Eye, ExternalLink, Car,
   Plus, CheckCheck, Building2, User, Cpu,
-  Package, CreditCard, Upload, Check, Lock, ShieldCheck, ShieldAlert, Clock, FolderOpen
+  Package, CreditCard, Upload, Check, Lock, ShieldCheck, ShieldAlert, Clock, FolderOpen, Link2, ChevronDown
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import { isValorAlto, buscarAutorizacaoAtiva, criarPedidoPermissao, consumirAutorizacao, parseValorBR, LIMITE_BLOQUEIO, type Autorizacao } from '@/lib/requisicoes/autorizacao';
 import HistoricoModal from './HistoricoModal';
+import RecorteAnexo from './RecorteAnexo';
+import DialogoImprimirReq from './DialogoImprimirReq';
+import { anexosDaReq, anexosNoDrive as anexosNoDriveDe } from '@/lib/requisicoes/anexos';
 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxyIatVqhjdeBeo4PYNWr992vCsPpvEEjOxabWB7mz5JRJ7BroxnvR8CRIcXIgTfLSm/exec';
 const DEPARTAMENTOS = ["Trator-Loja", "Trator-Cliente", "Oficina", "Comercial"];
@@ -297,9 +300,20 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
     document.body.appendChild(script);
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, fieldName: string) => {
+  // Anexo de imagem passa OBRIGATORIAMENTE pelo recorte antes de subir — as
+  // fotos vinham com mesa e chão em volta do papel. PDF vai direto (não dá pra
+  // recortar aqui, e quem manda PDF já manda o documento enquadrado).
+  const [recorte, setRecorte] = useState<{ arquivo: File; field: string; label: string } | null>(null);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, fieldName: string, label: string) => {
     const file = e.target.files?.[0];
+    e.target.value = '';   // deixa reescolher o MESMO arquivo depois de cancelar
     if (!file) return;
+    if (file.type.startsWith('image/')) { setRecorte({ arquivo: file, field: fieldName, label }); return; }
+    enviarAnexo(file, fieldName);
+  };
+
+  const enviarAnexo = async (file: File, fieldName: string) => {
     setUploading(fieldName);
     setUploadOk(null);
     try {
@@ -318,9 +332,18 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
     }
   };
 
+  // Impressão: o diálogo (DialogoImprimirReq) pergunta quais anexos entram e
+  // devolve as folhas prontas; aqui só disparamos a impressão.
+  const [dlgImprimir, setDlgImprimir] = useState(false);
+
+  const imprimir = (folhas: { label: string; dataUrl: string }[] = []) => {
+    onPrint({ ...localData, solicitante: nomeExibicao, veiculo: veiculoExibicao, impresso_por: userEmail }, folhas);
+  };
+
   const handlePrint = (e?: React.MouseEvent) => {
     e?.stopPropagation();
-    onPrint({ ...localData, solicitante: nomeExibicao, veiculo: veiculoExibicao, impresso_por: userEmail });
+    if (!anexosDisponiveis.length) { imprimir(); return; }   // sem anexo, não há o que perguntar
+    setDlgImprimir(true);
   };
 
   const fecharModal = () => {
@@ -328,8 +351,26 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
     onFechar?.();
   };
 
+  // Link direto pra esta requisição (o Kanban já abre o card com ?req=<id>).
+  const [linkCopiado, setLinkCopiado] = useState(false);
+  const linkDaReq = typeof window !== 'undefined' ? `${window.location.origin}/requisicoes?req=${req.id}` : '';
+  const copiarLink = async () => {
+    try {
+      await navigator.clipboard.writeText(linkDaReq);
+    } catch {
+      // clipboard bloqueado (http/permissão): cai no seletor manual
+      const el = document.createElement('textarea');
+      el.value = linkDaReq; document.body.appendChild(el); el.select();
+      try { document.execCommand('copy'); } catch { /* ignore */ }
+      el.remove();
+    }
+    setLinkCopiado(true);
+    setTimeout(() => setLinkCopiado(false), 2000);
+  };
+
   // ── Grupos (coletivos) desta requisição ──
   const [grupoParaAdd, setGrupoParaAdd] = useState('');
+  const [gruposAberto, setGruposAberto] = useState(false);
   const gruposDaReq = (grupos || []).filter((g: any) => (g.membros || []).map((x: any) => Number(x)).includes(Number(req.id)));
   const gruposDisponiveis = (grupos || []).filter((g: any) => g.status === 'aberto' && !gruposDaReq.some((d: any) => d.id === g.id));
   const alterarGrupoReq = async (grupoId: number, acao: 'add' | 'remove') => {
@@ -354,6 +395,10 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
     aguardando: 'bg-orange-400',
     financeiro: 'bg-indigo-600',
   };
+
+  // Anexos com link utilizável (fora os do Drive antigo, que não têm URL direta).
+  const anexosDisponiveis = anexosDaReq(localData);
+  const anexosNoDrive = anexosNoDriveDe(localData);
 
   const renderAnexo = (label: string, field: string, icon: React.ReactNode) => {
     const fileUrl = getUrlAnexo(localData[field]);
@@ -385,7 +430,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
           justUploaded ? 'bg-emerald-500 text-white' : isUploading ? 'bg-zinc-200 text-zinc-400' : 'bg-zinc-200 text-zinc-600 hover:bg-red-600 hover:text-white'
         }`} title="Upload">
           {justUploaded ? <Check size={12} /> : <Upload size={12} />}
-          <input type="file" className="hidden" onChange={e => handleFileUpload(e, field)} disabled={isUploading} />
+          <input type="file" className="hidden" onChange={e => handleFileUpload(e, field, label)} disabled={isUploading} />
         </label>
       </div>
     );
@@ -475,7 +520,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                 </div>
               </div>
               <button onClick={() => setHistAberto(true)} className="w-10 h-10 flex items-center justify-center rounded-lg bg-white border border-zinc-200 text-zinc-500 hover:bg-zinc-800 hover:text-white hover:border-zinc-800 transition-all shrink-0" title="Histórico"><Clock size={16}/></button>
-              <button onClick={handlePrint} className="w-10 h-10 flex items-center justify-center rounded-lg bg-white border border-zinc-200 text-zinc-500 hover:bg-red-600 hover:text-white hover:border-red-600 transition-all shrink-0" title="Imprimir"><Printer size={16}/></button>
+              <button onClick={handlePrint} className="h-10 px-4 flex items-center gap-2 rounded-lg bg-red-600 border border-red-600 text-white text-sm hover:bg-red-500 transition-all shrink-0" title="Imprimir a requisição com os anexos"><Printer size={16}/> Imprimir</button>
               <button onClick={fecharModal} className="w-10 h-10 flex items-center justify-center rounded-lg bg-white border border-zinc-200 text-zinc-500 hover:bg-red-500 hover:text-white hover:border-red-500 transition-all shrink-0"><X size={18}/></button>
             </div>
 
@@ -505,34 +550,61 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
             {/* CONTEÚDO — Scroll único */}
             <div className="flex-1 overflow-y-auto px-8 py-6 space-y-6">
 
-              {/* ── GRUPOS (coletivos) ── */}
-              <div className="bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <FolderOpen size={14} className="text-red-600" />
+              {/* ── LINK DIRETO ── */}
+              {/* Cada requisição tem o próprio endereço; copiar aqui pra colar no
+                  chat/WhatsApp e a pessoa cair direto neste card. */}
+              <div className="flex items-center gap-3 bg-white border border-zinc-200 rounded-xl px-4 py-2.5">
+                <Link2 size={15} className="text-zinc-400 shrink-0" />
+                <span className="text-[13px] text-zinc-500 font-mono truncate flex-1" title={linkDaReq}>
+                  /requisicoes?req={req.id}
+                </span>
+                <button onClick={copiarLink}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-all shrink-0 ${
+                    linkCopiado ? 'bg-emerald-500 text-white' : 'bg-zinc-100 text-zinc-600 hover:bg-red-600 hover:text-white'
+                  }`}>
+                  {linkCopiado ? <><Check size={14} /> Copiado!</> : <><Link2 size={14} /> Copiar link</>}
+                </button>
+              </div>
+
+              {/* ── GRUPOS (coletivos) — dropdown pra não poluir ── */}
+              {/* Fechado mostra só o resumo (quantos grupos). Abre ao clicar. */}
+              <div className="bg-zinc-50 border border-zinc-200 rounded-xl">
+                <button type="button" onClick={() => setGruposAberto(o => !o)}
+                  className="w-full flex items-center gap-2 px-4 py-3 text-left">
+                  <FolderOpen size={14} className="text-red-600 shrink-0" />
                   <span className="text-[13px] font-bold text-zinc-600">Grupos</span>
-                  {gruposDaReq.length === 0 && <span className="text-[12px] text-zinc-400 italic">esta requisição não está em nenhum grupo</span>}
-                </div>
-                {gruposDaReq.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {gruposDaReq.map((g: any) => (
-                      <span key={g.id} className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-red-700 bg-red-50 border border-red-200 rounded-full pl-2.5 pr-1.5 py-1">
-                        <button onClick={() => onExpandirGrupo?.(g.id)} title="Expandir grupo no kanban" className="hover:underline flex items-center gap-1"><FolderOpen size={12} /> {g.nome}</button>
-                        {g.status !== 'aberto' && <span className="text-[9px] uppercase text-zinc-400">({g.status})</span>}
-                        {podeEditar && (
-                          <button onClick={() => alterarGrupoReq(g.id, 'remove')} title="Remover deste grupo" className="ml-0.5 w-4 h-4 flex items-center justify-center rounded-full text-red-400 hover:bg-red-200 hover:text-red-700"><X size={11} /></button>
-                        )}
-                      </span>
-                    ))}
-                  </div>
-                )}
-                {podeEditar && gruposDisponiveis.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <select value={grupoParaAdd} onChange={e => setGrupoParaAdd(e.target.value)} className="text-[13px] bg-white border border-zinc-200 rounded-lg px-2 py-1.5 outline-none focus:border-red-400 flex-1 max-w-[240px]">
-                      <option value="">Adicionar a um grupo...</option>
-                      {gruposDisponiveis.map((g: any) => <option key={g.id} value={g.id}>{g.nome}</option>)}
-                    </select>
-                    <button onClick={() => grupoParaAdd && alterarGrupoReq(Number(grupoParaAdd), 'add')} disabled={!grupoParaAdd}
-                      className="text-[12px] font-bold text-white bg-red-600 px-3 py-1.5 rounded-lg hover:bg-red-700 disabled:opacity-40 flex items-center gap-1"><Plus size={13} /> Adicionar</button>
+                  <span className="text-[12px] text-zinc-400">
+                    {gruposDaReq.length === 0 ? 'nenhum grupo' : gruposDaReq.length === 1 ? gruposDaReq[0].nome : `${gruposDaReq.length} grupos`}
+                  </span>
+                  <ChevronDown size={16} className={`ml-auto text-zinc-400 transition-transform ${gruposAberto ? 'rotate-180' : ''}`} />
+                </button>
+                {gruposAberto && (
+                  <div className="px-4 pb-3 -mt-1">
+                    {gruposDaReq.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {gruposDaReq.map((g: any) => (
+                          <span key={g.id} className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-red-700 bg-red-50 border border-red-200 rounded-full pl-2.5 pr-1.5 py-1">
+                            <button onClick={() => onExpandirGrupo?.(g.id)} title="Expandir grupo no kanban" className="hover:underline flex items-center gap-1"><FolderOpen size={12} /> {g.nome}</button>
+                            {g.status !== 'aberto' && <span className="text-[9px] uppercase text-zinc-400">({g.status})</span>}
+                            {podeEditar && (
+                              <button onClick={() => alterarGrupoReq(g.id, 'remove')} title="Remover deste grupo" className="ml-0.5 w-4 h-4 flex items-center justify-center rounded-full text-red-400 hover:bg-red-200 hover:text-red-700"><X size={11} /></button>
+                            )}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {podeEditar && gruposDisponiveis.length > 0 ? (
+                      <div className="flex items-center gap-2">
+                        <select value={grupoParaAdd} onChange={e => setGrupoParaAdd(e.target.value)} className="text-[13px] bg-white border border-zinc-200 rounded-lg px-2 py-1.5 outline-none focus:border-red-400 flex-1 max-w-[240px]">
+                          <option value="">Adicionar a um grupo...</option>
+                          {gruposDisponiveis.map((g: any) => <option key={g.id} value={g.id}>{g.nome}</option>)}
+                        </select>
+                        <button onClick={() => grupoParaAdd && alterarGrupoReq(Number(grupoParaAdd), 'add')} disabled={!grupoParaAdd}
+                          className="text-[12px] font-bold text-white bg-red-600 px-3 py-1.5 rounded-lg hover:bg-red-700 disabled:opacity-40 flex items-center gap-1"><Plus size={13} /> Adicionar</button>
+                      </div>
+                    ) : gruposDaReq.length === 0 && (
+                      <span className="text-[12px] text-zinc-400 italic">esta requisição não está em nenhum grupo</span>
+                    )}
                   </div>
                 )}
               </div>
@@ -959,6 +1031,12 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                   {renderAnexo('Boleto', 'boleto_fornecedor', <Receipt size={14}/>)}
                   {renderAnexo('Recibo / Outros', 'recibo_fornecedor', <Paperclip size={14}/>)}
                 </div>
+
+                {anexosNoDrive.length > 0 && (
+                  <div className="mt-2 text-[13px] text-zinc-500">
+                    {anexosNoDrive.map(a => a.label).join(', ')} está no Drive antigo e não entra na impressão — abra pelo olhinho.
+                  </div>
+                )}
               </div>
 
             </div>
@@ -966,6 +1044,22 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
         </div>
       )}
       <HistoricoModal reqId={req.id} titulo={req.titulo} open={histAberto} onClose={() => setHistAberto(false)} />
+      {dlgImprimir && (
+        <DialogoImprimirReq
+          req={{ ...localData, id: req.id }}
+          onFechar={() => setDlgImprimir(false)}
+          onImprimir={(folhas) => imprimir(folhas)}
+        />
+      )}
+
+      {recorte && (
+        <RecorteAnexo
+          arquivo={recorte.arquivo}
+          titulo={recorte.label}
+          onCancelar={() => setRecorte(null)}
+          onConfirmar={(cortado) => { const f = recorte.field; setRecorte(null); enviarAnexo(cortado, f); }}
+        />
+      )}
     </div>
   );
 }

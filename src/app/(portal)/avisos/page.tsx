@@ -7,8 +7,21 @@ import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui'
 import {
   Plus, X, Paperclip, Send, Trash2, Eye, EyeOff,
   AlertTriangle, ChevronDown, ChevronUp, FileText,
-  Download, CheckCircle2, Clock, Users, Megaphone
+  Download, CheckCircle2, Clock, Users, Megaphone,
+  Calendar, Building2, Globe, Wrench
 } from 'lucide-react'
+
+// Público-alvo. 'todos' + as categorias de portal_permissoes + 'tecnicos'
+// (mecanico_role). Os labels de setor batem com o Admin.
+const DESTINOS: { key: string; label: string; Icon: any }[] = [
+  { key: 'todos', label: 'Todos', Icon: Globe },
+  { key: 'Peças', label: 'Peças', Icon: Building2 },
+  { key: 'Pós Vendas', label: 'Pós-Vendas', Icon: Building2 },
+  { key: 'Comercial', label: 'Comercial', Icon: Building2 },
+  { key: 'Financeiro', label: 'Financeiro', Icon: Building2 },
+  { key: 'tecnicos', label: 'Técnicos', Icon: Wrench },
+]
+const destinoLabel = (k: string | null | undefined) => DESTINOS.find(d => d.key === k)?.label || 'Todos'
 
 interface ConfirmacaoInfo {
   nome: string
@@ -23,6 +36,9 @@ interface Aviso {
   criado_por: string
   criado_por_nome: string
   ativo: boolean
+  destino: string | null
+  agendar_para: string | null
+  publicado: boolean
   created_at: string
   updated_at: string | null
   anexos?: Anexo[]
@@ -49,7 +65,7 @@ const PRIORIDADE_CONFIG: Record<string, { label: string; color: string; bg: stri
 
 export default function AvisosPage() {
   const { userProfile } = useAuth()
-  const { isAdmin, pode, loading: loadingPerm } = usePermissoes(userProfile?.id)
+  const { isAdmin, pode, permissoes, loading: loadingPerm } = usePermissoes(userProfile?.id)
   const podeCriar = pode('avisos', 'criar')
   const podeStatus = pode('avisos', 'editar_status')
   const podeExcluir = pode('avisos', 'excluir')
@@ -63,6 +79,9 @@ export default function AvisosPage() {
   const [titulo, setTitulo] = useState('')
   const [conteudo, setConteudo] = useState('')
   const [prioridade, setPrioridade] = useState('normal')
+  const [destino, setDestino] = useState('todos')
+  const [agendar, setAgendar] = useState(false)          // publicar agora x agendar
+  const [agendarData, setAgendarData] = useState('')     // datetime-local
   const [arquivos, setArquivos] = useState<File[]>([])
   const [enviando, setEnviando] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -177,11 +196,22 @@ export default function AvisosPage() {
     if (!titulo.trim() || !conteudo.trim() || !userProfile) return
     setEnviando(true)
 
-    // 1) Criar aviso
+    // Agendado? valida a data (tem que ser no futuro).
+    const agendado = agendar && !!agendarData
+    const quando = agendado ? new Date(agendarData) : null
+    if (agendado && (!quando || quando.getTime() <= Date.now())) {
+      alert('Escolha uma data/hora futura para agendar.')
+      setEnviando(false); return
+    }
+
+    // 1) Cria o aviso. Agendado nasce publicado=false (escondido até o cron soltar).
     const { data: aviso, error } = await supabase.from('portal_avisos').insert({
       titulo: titulo.trim(),
       conteudo: conteudo.trim(),
       prioridade,
+      destino,
+      agendar_para: quando ? quando.toISOString() : null,
+      publicado: !agendado,
       criado_por: userProfile.id,
       criado_por_nome: userProfile.nome || 'Admin',
     }).select().single()
@@ -205,52 +235,20 @@ export default function AvisosPage() {
       }
     }
 
-    // 3) Notificar todos os usuarios do portal
-    const { data: usuarios } = await supabase.from('portal_permissoes').select('user_id')
-    if (usuarios && usuarios.length > 0) {
-      const uniqueUsers = [...new Set(usuarios.map((u: any) => u.user_id))]
-      await supabase.from('portal_notificacoes').insert(
-        uniqueUsers.filter(uid => uid !== userProfile.id).map(uid => ({
-          user_id: uid,
-          tipo: 'sistema',
-          titulo: `Novo aviso: ${titulo.trim()}`,
-          descricao: conteudo.trim().slice(0, 120),
-          link: '/avisos',
-        }))
-      )
-    }
-
-    // 4) Inserir na avisos_gerais (app dos mecanicos)
-    const { error: errAvisoGeral } = await supabase.from('avisos_gerais').insert({
-      titulo: titulo.trim(),
-      mensagem: conteudo.trim(),
-      prioridade: prioridade === 'urgente' ? 'urgente' : 'normal',
-      ativo: true,
-      expira_em: null,
-      criado_por: userProfile.nome || 'Admin',
-    })
-
-    // 5) Notificar mecanicos via mecanico_notificacoes (sininho + push)
-    const { data: tecs } = await supabase.from('portal_permissoes')
-      .select('mecanico_tecnico_nome')
-      .not('mecanico_tecnico_nome', 'is', null)
-    if (tecs && tecs.length > 0) {
-      const nomes = [...new Set(tecs.map((t: any) => t.mecanico_tecnico_nome).filter(Boolean))]
-      const { error: errNotifMec } = await supabase.from('mecanico_notificacoes').insert(
-        nomes.map(nome => ({
-          tecnico_nome: nome,
-          tipo: 'aviso',
-          titulo: `Aviso: ${titulo.trim()}`,
-          descricao: conteudo.trim().slice(0, 200),
-          link: '/',
-          lida: false,
-        }))
-      )
+    // 3) Publica AGORA (leque de notificações por setor no servidor). Se for
+    //    agendado, o cron /api/avisos/cron/publicar faz isso na hora marcada.
+    if (!agendado) {
+      await fetch('/api/avisos/publicar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ aviso_id: aviso.id }),
+      }).catch(() => {})
     }
 
     // Reset
-    setTitulo(''); setConteudo(''); setPrioridade('normal')
+    setTitulo(''); setConteudo(''); setPrioridade('normal'); setDestino('todos')
+    setAgendar(false); setAgendarData('')
     setArquivos([]); setShowModal(false); setEnviando(false)
+    if (agendado) alert(`Aviso agendado para ${quando!.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}. Você será avisado quando ele sair.`)
     carregar()
   }
 
@@ -274,6 +272,13 @@ export default function AvisosPage() {
     setArquivos(prev => prev.filter((_, i) => i !== idx))
   }
 
+  const cancelarAgendado = async (id: string) => {
+    if (!confirm('Cancelar este aviso agendado? Ele não será publicado.')) return
+    await supabase.from('portal_avisos').delete().eq('id', id)
+    carregar()
+  }
+  const fmtQuando = (iso: string) => new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+
   const formatBytes = (bytes: number | null) => {
     if (!bytes) return ''
     if (bytes < 1024) return `${bytes} B`
@@ -281,8 +286,25 @@ export default function AvisosPage() {
     return `${(bytes / 1048576).toFixed(1)} MB`
   }
 
-  const avisosFiltrados = showInativos ? avisos : avisos.filter(a => a.ativo)
-  const naoLidos = avisos.filter(a => a.ativo && !a.lido_por_mim).length
+  // Quem VÊ o aviso: 'todos' → todo mundo; setor → só a categoria; 'tecnicos' →
+  // quem é técnico. Admin e o próprio criador sempre veem.
+  const podeVerAviso = useCallback((a: Aviso) => {
+    const d = a.destino || 'todos'
+    if (d === 'todos') return true
+    if (isAdmin) return true
+    if (userProfile && a.criado_por === userProfile.id) return true
+    if (d === 'tecnicos') return permissoes?.mecanico_role === 'tecnico'
+    return permissoes?.categoria === d
+  }, [isAdmin, userProfile, permissoes])
+
+  // Feed: só publicados, respeitando o destino. Agendados ficam à parte.
+  const avisosFiltrados = avisos
+    .filter(a => a.publicado)
+    .filter(a => showInativos ? true : a.ativo)
+    .filter(podeVerAviso)
+  const agendados = avisos.filter(a => !a.publicado && a.agendar_para &&
+    (isAdmin || (userProfile && a.criado_por === userProfile.id)))
+  const naoLidos = avisos.filter(a => a.publicado && a.ativo && !a.lido_por_mim && podeVerAviso(a)).length
 
   const INP: React.CSSProperties = { width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid #E4E4E7', fontSize: 14, boxSizing: 'border-box', background: '#FAFAFA', outline: 'none', color: '#18181B', fontFamily: 'Inter, sans-serif' }
 
@@ -335,6 +357,32 @@ export default function AvisosPage() {
         </div>
       </div>
 
+      {/* Agendados (só criador/admin) — ainda não publicados */}
+      {agendados.length > 0 && (
+        <div style={{ marginBottom: 22 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, color: '#0284C7', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.6 }}>
+            <Calendar size={14} /> Agendados ({agendados.length})
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {agendados.map(a => (
+              <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px', borderRadius: 12, background: '#F0F9FF', border: '1px solid #BAE6FD' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: '#0C4A6E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.titulo}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 3, fontSize: 12, color: '#0369A1', flexWrap: 'wrap' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600 }}><Clock size={12} /> Sai em {fmtQuando(a.agendar_para!)}</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Users size={12} /> {destinoLabel(a.destino)}</span>
+                  </div>
+                </div>
+                <button onClick={() => cancelarAgendado(a.id)} style={{
+                  display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px', borderRadius: 8,
+                  border: '1px solid #FECACA', background: '#fff', color: '#DC2626', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                }}><X size={13} /> Cancelar</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Lista de Avisos */}
       {avisosFiltrados.length === 0 ? (
         <div style={{ padding: 60, textAlign: 'center', borderRadius: 16, background: '#fff', border: '1px solid #f0f0f0' }}>
@@ -350,39 +398,45 @@ export default function AvisosPage() {
 
             return (
               <div key={aviso.id} style={{
-                borderRadius: 14, overflow: 'hidden', background: '#fff',
-                border: `1px solid ${isNovo ? prio.border : '#f0f0f0'}`,
-                boxShadow: isNovo ? `0 0 0 1px ${prio.border}` : '0 1px 3px rgba(0,0,0,0.04)',
-                opacity: aviso.ativo ? 1 : 0.6,
+                borderRadius: 14, background: '#fff', display: 'flex', overflow: 'hidden',
+                border: `1px solid ${isNovo ? '#E5E7EB' : '#F0F0F0'}`,
+                boxShadow: isExpanded ? '0 4px 16px rgba(0,0,0,0.06)' : '0 1px 2px rgba(0,0,0,0.03)',
+                opacity: aviso.ativo ? 1 : 0.55, transition: 'box-shadow .15s',
               }}>
-                {/* Barra de prioridade */}
-                <div style={{ height: 3, background: isNovo ? prio.color : '#f0f0f0' }} />
+                {/* Filete de prioridade à esquerda */}
+                <div style={{ width: 4, background: prio.color, flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
 
                 {/* Header do aviso */}
                 <div
                   onClick={() => toggleExpandido(aviso.id)}
-                  style={{ padding: '18px 22px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14 }}
+                  style={{ padding: '16px 20px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14 }}
                 >
                   {/* Indicador novo */}
                   {isNovo && (
-                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: prio.color, flexShrink: 0 }} />
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: prio.color, flexShrink: 0, boxShadow: `0 0 0 3px ${prio.bg}` }} />
                   )}
 
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                      <span style={{ fontSize: 16, fontWeight: 700, color: '#111', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 15.5, fontWeight: 700, color: '#111', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
                         {aviso.titulo}
                       </span>
-                      <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: prio.bg, color: prio.color, flexShrink: 0 }}>
+                      <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: prio.bg, color: prio.color, flexShrink: 0, textTransform: 'uppercase', letterSpacing: 0.4 }}>
                         {prio.label}
                       </span>
+                      {(aviso.destino && aviso.destino !== 'todos') && (
+                        <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: '#EEF2FF', color: '#4338CA', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 3 }}>
+                          <Users size={10} /> {destinoLabel(aviso.destino)}
+                        </span>
+                      )}
                       {!aviso.ativo && (
-                        <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: '#F0F0F0', color: '#999' }}>Inativo</span>
+                        <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: '#F0F0F0', color: '#999' }}>Inativo</span>
                       )}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 12, color: '#999' }}>
-                      <span>{aviso.criado_por_nome}</span>
-                      <span>{new Date(aviso.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 12, color: '#9CA3AF' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Users size={11} /> {aviso.criado_por_nome}</span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Clock size={11} /> {new Date(aviso.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                       {(aviso.anexos?.length || 0) > 0 && (
                         <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                           <Paperclip size={11} /> {aviso.anexos!.length}
@@ -394,7 +448,7 @@ export default function AvisosPage() {
                     </div>
                   </div>
 
-                  {isExpanded ? <ChevronUp size={18} color="#999" /> : <ChevronDown size={18} color="#999" />}
+                  {isExpanded ? <ChevronUp size={18} color="#C0C0C0" /> : <ChevronDown size={18} color="#C0C0C0" />}
                 </div>
 
                 {/* Conteudo expandido */}
@@ -487,6 +541,7 @@ export default function AvisosPage() {
                     )}
                   </div>
                 )}
+                </div>{/* fecha o wrapper flex ao lado do filete */}
               </div>
             )
           })}
@@ -504,17 +559,37 @@ export default function AvisosPage() {
               </button>
             </div>
 
-            {/* Titulo */}
+            {/* Titulo (corretor de ortografia do navegador ligado: spellCheck + lang pt-BR) */}
             <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 13, fontWeight: 700, color: '#333', display: 'block', marginBottom: 6 }}>Titulo</label>
-              <input value={titulo} onChange={e => setTitulo(e.target.value)} placeholder="Titulo do aviso..." style={INP} />
+              <label style={{ fontSize: 13, fontWeight: 700, color: '#333', display: 'block', marginBottom: 6 }}>Título</label>
+              <input value={titulo} onChange={e => setTitulo(e.target.value)} placeholder="Título do aviso..."
+                spellCheck lang="pt-BR" style={INP} />
             </div>
 
             {/* Conteudo */}
             <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 13, fontWeight: 700, color: '#333', display: 'block', marginBottom: 6 }}>Conteudo</label>
+              <label style={{ fontSize: 13, fontWeight: 700, color: '#333', display: 'block', marginBottom: 6 }}>Conteúdo</label>
               <textarea value={conteudo} onChange={e => setConteudo(e.target.value)} placeholder="Escreva o aviso aqui..."
-                rows={6} style={{ ...INP, resize: 'vertical', lineHeight: 1.6 }} />
+                spellCheck lang="pt-BR" rows={6} style={{ ...INP, resize: 'vertical', lineHeight: 1.6 }} />
+            </div>
+
+            {/* Público-alvo (setor) */}
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 13, fontWeight: 700, color: '#333', display: 'block', marginBottom: 6 }}>Para quem</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {DESTINOS.map(({ key, label, Icon }) => {
+                  const on = destino === key
+                  return (
+                    <button key={key} onClick={() => setDestino(key)} style={{
+                      display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 9, fontSize: 13, fontWeight: 600,
+                      border: `1.5px solid ${on ? '#dc2626' : '#E4E4E7'}`, background: on ? '#FEF2F2' : '#fff',
+                      color: on ? '#dc2626' : '#666', cursor: 'pointer', transition: 'all .15s',
+                    }}>
+                      <Icon size={14} /> {label}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
 
             {/* Prioridade */}
@@ -566,11 +641,32 @@ export default function AvisosPage() {
               )}
             </div>
 
-            {/* Aviso */}
-            <div style={{ background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 14px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
-              <AlertTriangle size={16} color="#D97706" />
-              <span style={{ fontSize: 12, color: '#92400E', fontWeight: 500 }}>
-                Este aviso sera enviado para <strong>todos os usuarios</strong> do portal e tambem para os <strong>mecanicos</strong> no app.
+            {/* Quando publicar: agora ou agendar */}
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 13, fontWeight: 700, color: '#333', display: 'block', marginBottom: 6 }}>Quando</label>
+              <div style={{ display: 'flex', gap: 8, marginBottom: agendar ? 10 : 0 }}>
+                {[{ v: false, lb: 'Publicar agora', Ic: Send }, { v: true, lb: 'Agendar', Ic: Calendar }].map(({ v, lb, Ic }) => {
+                  const on = agendar === v
+                  return (
+                    <button key={String(v)} onClick={() => setAgendar(v)} style={{
+                      flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '10px 0', borderRadius: 9, fontSize: 13, fontWeight: 700,
+                      border: `1.5px solid ${on ? '#dc2626' : '#E4E4E7'}`, background: on ? '#FEF2F2' : '#fff', color: on ? '#dc2626' : '#666', cursor: 'pointer',
+                    }}><Ic size={15} /> {lb}</button>
+                  )
+                })}
+              </div>
+              {agendar && (
+                <input type="datetime-local" value={agendarData} onChange={e => setAgendarData(e.target.value)} style={INP} />
+              )}
+            </div>
+
+            {/* Resumo do que vai acontecer */}
+            <div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 8, padding: '10px 14px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
+              {agendar ? <Calendar size={16} color="#0284C7" /> : <Users size={16} color="#0284C7" />}
+              <span style={{ fontSize: 12, color: '#075985', fontWeight: 500 }}>
+                {agendar
+                  ? <>Será publicado {agendarData ? <strong>em {new Date(agendarData).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</strong> : 'na data escolhida'} para <strong>{destinoLabel(destino)}</strong>. Você é avisado quando sair.</>
+                  : <>Vai agora para <strong>{destinoLabel(destino)}</strong>{(destino === 'todos' || destino === 'tecnicos') ? <> (portal e app dos mecânicos)</> : <> (portal)</>}.</>}
               </span>
             </div>
 
@@ -582,13 +678,13 @@ export default function AvisosPage() {
               }}>
                 Cancelar
               </button>
-              <button onClick={enviarAviso} disabled={enviando || !titulo.trim() || !conteudo.trim()} style={{
+              <button onClick={enviarAviso} disabled={enviando || !titulo.trim() || !conteudo.trim() || (agendar && !agendarData)} style={{
                 flex: 1, padding: 12, borderRadius: 10, fontSize: 14, fontWeight: 700,
                 background: '#111', color: '#fff', border: 'none', cursor: 'pointer',
-                opacity: (enviando || !titulo.trim() || !conteudo.trim()) ? 0.5 : 1,
+                opacity: (enviando || !titulo.trim() || !conteudo.trim() || (agendar && !agendarData)) ? 0.5 : 1,
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
               }}>
-                <Send size={16} /> {enviando ? 'Enviando...' : 'Publicar Aviso'}
+                {agendar ? <Calendar size={16} /> : <Send size={16} />} {enviando ? 'Salvando...' : agendar ? 'Agendar Aviso' : 'Publicar Aviso'}
               </button>
             </div>
           </div>

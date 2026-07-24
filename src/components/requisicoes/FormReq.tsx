@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { formatarPlaca } from '@/lib/frota/placa';
+import { FolderOpen, ChevronDown, Check } from 'lucide-react';
 
 const EMPRESAS = {
   NOVA: { nome: "NOVA TRATORES MÁQUINAS AGRÍCOLAS LTDA", endereco: "AVENIDA SÃO SEBASTIÃO, 1065 | Piraju - SP" },
@@ -37,6 +38,7 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
   // Grupos (coletivos) abertos — pra já jogar a nova requisição num grupo
   const [gruposDisp, setGruposDisp] = useState<any[]>([]);
   const [gruposSel, setGruposSel] = useState<number[]>([]);
+  const [gruposFormAberto, setGruposFormAberto] = useState(false);
   useEffect(() => {
     fetch('/api/pos/requisicoes/grupos')
       .then(r => r.ok ? r.json() : [])
@@ -147,7 +149,7 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
 
   // Estilos atualizados: letras maiores e brancas
   const inputStyle = "w-full px-5 py-4 rounded-xl border border-zinc-200 bg-zinc-50 focus:border-red-500 focus:ring-4 focus:ring-red-500/20 outline-none transition-all text-lg font-medium text-zinc-900 placeholder:text-zinc-400";
-  const labelStyle = "text-xs font-bold text-zinc-900 uppercase tracking-[0.2em] mb-2 block ml-1";
+  const labelStyle = "text-sm font-bold text-zinc-900 uppercase tracking-[0.2em] mb-2 block ml-1";
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -719,21 +721,38 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
             <textarea rows={4} onChange={e => setFormData({...formData, obs: e.target.value})} className={`${inputStyle} resize-none italic`} placeholder="Descreva os itens ou serviços necessários..." />
           </div>
 
-          {/* Grupos (coletivos) — opcional */}
+          {/* Grupos (coletivos) — opcional, em dropdown pra não poluir o form */}
           {gruposDisp.length > 0 && (
             <div>
               <label className={labelStyle}>Adicionar a grupo(s) <span className="text-zinc-400 normal-case tracking-normal font-medium">(opcional)</span></label>
-              <div className="flex flex-wrap gap-2">
-                {gruposDisp.map((g: any) => {
-                  const sel = gruposSel.includes(g.id);
-                  return (
-                    <button type="button" key={g.id}
-                      onClick={() => setGruposSel(prev => sel ? prev.filter(x => x !== g.id) : [...prev, g.id])}
-                      className={`text-sm font-semibold px-4 py-2.5 rounded-xl border transition-all flex items-center gap-2 ${sel ? 'bg-red-600 text-white border-red-600' : 'bg-zinc-50 text-zinc-600 border-zinc-200 hover:border-red-400'}`}>
-                      {g.nome}
-                    </button>
-                  );
-                })}
+              <div className="relative">
+                <button type="button" onClick={() => setGruposFormAberto(o => !o)}
+                  className={`${inputStyle} flex items-center gap-2 text-left`}>
+                  <FolderOpen size={18} className="text-zinc-400 shrink-0" />
+                  <span className={`flex-1 truncate ${gruposSel.length ? 'text-zinc-900' : 'text-zinc-400'}`}>
+                    {gruposSel.length === 0 ? 'Nenhum grupo'
+                      : gruposSel.length === 1 ? gruposDisp.find((g: any) => g.id === gruposSel[0])?.nome
+                      : `${gruposSel.length} grupos selecionados`}
+                  </span>
+                  <ChevronDown size={20} className={`text-zinc-400 transition-transform ${gruposFormAberto ? 'rotate-180' : ''}`} />
+                </button>
+                {gruposFormAberto && (
+                  <div className="absolute z-20 mt-2 w-full bg-white border border-zinc-200 rounded-xl shadow-xl max-h-64 overflow-y-auto p-1.5">
+                    {gruposDisp.map((g: any) => {
+                      const sel = gruposSel.includes(g.id);
+                      return (
+                        <button type="button" key={g.id}
+                          onClick={() => setGruposSel(prev => sel ? prev.filter(x => x !== g.id) : [...prev, g.id])}
+                          className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-base transition-all ${sel ? 'bg-red-50 text-red-700' : 'text-zinc-700 hover:bg-zinc-50'}`}>
+                          <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 ${sel ? 'bg-red-600 border-red-600' : 'border-zinc-300'}`}>
+                            {sel && <Check size={14} className="text-white" />}
+                          </span>
+                          {g.nome}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           )}
