@@ -1,6 +1,6 @@
 // Tickets — listagem por visão + criação.
 // GET  /api/tickets?visao=fila|pedidos|acompanhando|gerencial[&encerrados=1]
-// POST /api/tickets  { titulo, descricao, responsavel_id, categoria?, prazo?, terceiro_envolvido?, visibilidade? }
+// POST /api/tickets  { titulo, descricao, responsavel_id, categoria?, prazo?, terceiro_envolvido?, visibilidade?, anexos? }
 import { NextRequest, NextResponse } from 'next/server'
 import { autenticar } from '@/lib/auth/server'
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
@@ -121,6 +121,11 @@ export async function POST(req: NextRequest) {
   const terceiro = String(body.terceiro_envolvido || '').trim()
   const prazo = body.prazo ? String(body.prazo) : null
   const visibilidade: TicketVisibilidade = body.visibilidade === 'publico' ? 'publico' : 'privado'
+  // Anexos da criação (ex.: print do clique direito) — viram eventos 'anexo'
+  const anexos = (Array.isArray(body.anexos) ? (body.anexos as { url?: unknown; nome?: unknown }[]) : [])
+    .map((a) => ({ url: String(a?.url || ''), nome: String(a?.nome || 'arquivo').slice(0, 120) }))
+    .filter((a) => /^https?:\/\//.test(a.url))
+    .slice(0, 5)
 
   if (!titulo) return NextResponse.json({ error: 'Informe o título do ticket' }, { status: 400 })
   if (!descricao) return NextResponse.json({ error: 'Descreva o pedido (quem pediu e por quê fica registrado)' }, { status: 400 })
@@ -148,6 +153,9 @@ export async function POST(req: NextRequest) {
   await garantirParticipante(ticket.id, auth.userId, null)
   await garantirParticipante(ticket.id, responsavelId, auth.userId)
   await registrarEvento(ticket.id, auth.userId, 'criacao', { titulo, responsavel_id: responsavelId })
+  for (const a of anexos) {
+    await registrarEvento(ticket.id, auth.userId, 'anexo', a)
+  }
   await notificarTicket(
     ticket, [responsavelId], auth.userId,
     `Novo ticket #${ticket.numero}: ${titulo}`,

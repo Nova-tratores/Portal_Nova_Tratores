@@ -41,11 +41,12 @@
     forwardOptions: [], // [{ value, label }]
     onForward: null, // function(value, reportData) -> Promise
     // ponto de extensao: acoes extras no menu do clique direito.
-    // [{ id, label, svg?, capture? }] — capture !== false roda a MESMA
-    // mecanica de print (captura + selecao da area) e entrega o resultado
-    // em onAction(id, { canvas, dataUrl, selectionRect, viewport });
-    // capture === false chama onAction(id, null) direto (so abre o modal
-    // do host, ex.: abertura de ticket).
+    // [{ id, label, svg?, capture? }]:
+    //   capture: true   -> vai direto pra mecanica de print (captura +
+    //                      selecao da area) e entrega em onAction(id, data)
+    //   capture: "ask"  -> PERGUNTA antes ("quer anexar um print?"); sim ->
+    //                      fluxo de print; nao -> onAction(id, null)
+    //   capture: false  -> onAction(id, null) direto (so abre o modal do host)
     extraActions: [],
     onAction: null, // function(id, captureData|null)
   };
@@ -408,8 +409,74 @@
       config.onAction(acao.id, null);
       return;
     }
+    if (acao.capture === "ask") {
+      abrirPerguntaPrint(acao);
+      return;
+    }
     pendingAction = acao;
     startReport();
+  }
+
+  // Pergunta antes de capturar: quer anexar um print da tela?
+  function abrirPerguntaPrint(acao) {
+    phase = "form"; // ESC/backdrop cancelam via reset()
+    nodes.modalOverlay = el("div", {
+      class: "bgr-modal-overlay",
+      "data-html2canvas-ignore": "true",
+      onmousedown: function (e) {
+        if (e.target === e.currentTarget) reset();
+      },
+    });
+    var card = el("div", {
+      class: "bgr-modal",
+      role: "dialog",
+      style: "max-width:380px;",
+    });
+    card.appendChild(
+      el("div", { class: "bgr-modal-header" }, [
+        el("h3", { class: "bgr-modal-title", text: acao.label }),
+        el("button", {
+          type: "button",
+          class: "bgr-close",
+          text: "×",
+          "aria-label": "Fechar",
+          onclick: reset,
+        }),
+      ])
+    );
+    card.appendChild(
+      el("p", {
+        style:
+          "margin:0 0 16px;font-size:14px;color:#4b5563;line-height:1.5;",
+        text:
+          "Quer anexar um print da tela? Voce seleciona a area e a imagem ja entra anexada.",
+      })
+    );
+    card.appendChild(
+      el("div", { class: "bgr-actions" }, [
+        el("button", {
+          type: "button",
+          class: "bgr-btn-secondary",
+          text: "Continuar sem print",
+          onclick: function () {
+            reset();
+            config.onAction(acao.id, null);
+          },
+        }),
+        el("button", {
+          type: "button",
+          class: "bgr-btn-primary",
+          text: "Tirar print",
+          onclick: function () {
+            removeNode("modalOverlay");
+            pendingAction = acao;
+            startReport();
+          },
+        }),
+      ])
+    );
+    nodes.modalOverlay.appendChild(card);
+    document.body.appendChild(nodes.modalOverlay);
   }
 
   function openMenu(x, y) {

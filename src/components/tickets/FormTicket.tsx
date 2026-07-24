@@ -1,15 +1,19 @@
 'use client'
 // Modal de criação de ticket (v1 — tipo genérico).
 // A descrição de origem ("quem pediu e por quê") é imutável depois de criada.
-import { useState } from 'react'
-import { X, Ticket as TicketIcon, Lock, Globe } from 'lucide-react'
+// Aceita um print da tela (clique direito) — vira evento 'anexo' na timeline.
+import { useEffect, useMemo, useState } from 'react'
+import { X, Ticket as TicketIcon, Lock, Globe, Paperclip } from 'lucide-react'
 import { authHeaders } from '@/lib/auth/client'
+import { supabase } from '@/lib/supabase'
 import { CATEGORIAS_SUGERIDAS, type TicketVisibilidade } from '@/lib/tickets/constantes'
 import UserSelect from './UserSelect'
 
 interface Props {
   onFechar: () => void
   onCriado: (ticketId: string) => void
+  /** Print pronto ao abrir (ex.: captura do clique direito). */
+  printInicial?: File | null
 }
 
 const campoStyle: React.CSSProperties = {
@@ -22,7 +26,7 @@ const rotuloStyle: React.CSSProperties = {
   color: 'var(--portal-text-secondary, #555)', textTransform: 'uppercase', letterSpacing: .4,
 }
 
-export default function FormTicket({ onFechar, onCriado }: Props) {
+export default function FormTicket({ onFechar, onCriado, printInicial }: Props) {
   const [titulo, setTitulo] = useState('')
   const [descricao, setDescricao] = useState('')
   const [responsavelId, setResponsavelId] = useState('')
@@ -30,8 +34,12 @@ export default function FormTicket({ onFechar, onCriado }: Props) {
   const [prazo, setPrazo] = useState('')
   const [terceiro, setTerceiro] = useState('')
   const [visibilidade, setVisibilidade] = useState<TicketVisibilidade>('privado')
+  const [print, setPrint] = useState<File | null>(printInicial ?? null)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
+
+  const printUrl = useMemo(() => (print ? URL.createObjectURL(print) : null), [print])
+  useEffect(() => () => { if (printUrl) URL.revokeObjectURL(printUrl) }, [printUrl])
 
   const criar = async () => {
     setErro('')
@@ -40,6 +48,18 @@ export default function FormTicket({ onFechar, onCriado }: Props) {
     if (!responsavelId) { setErro('Escolha o responsável (com quem começa a bola)'); return }
     setSalvando(true)
     try {
+      // Print → bucket público (best-effort: falha no upload não trava o ticket)
+      let anexos: { url: string; nome: string }[] = []
+      if (print) {
+        const path = `tickets/${Date.now()}-${Math.random().toString(36).slice(2, 8)}/print.png`
+        const { error: upErr } = await supabase.storage.from('anexos').upload(path, print)
+        if (!upErr) {
+          anexos = [{
+            url: supabase.storage.from('anexos').getPublicUrl(path).data.publicUrl,
+            nome: 'print-da-tela.png',
+          }]
+        }
+      }
       const res = await fetch('/api/tickets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
@@ -51,6 +71,7 @@ export default function FormTicket({ onFechar, onCriado }: Props) {
           prazo: prazo || null,
           terceiro_envolvido: terceiro.trim(),
           visibilidade,
+          anexos,
         }),
       })
       const json = await res.json()
@@ -145,6 +166,19 @@ export default function FormTicket({ onFechar, onCriado }: Props) {
               ))}
             </div>
           </div>
+
+          {print && printUrl && (
+            <div>
+              <label style={rotuloStyle}><Paperclip size={11} style={{ display: 'inline', marginRight: 4 }} />Print anexado</label>
+              <div style={{ position: 'relative', display: 'inline-block' }}>
+                <img src={printUrl} alt="Print da tela" style={{ maxWidth: 240, maxHeight: 150, borderRadius: 8, border: '1px solid var(--portal-border, #e5e7eb)', display: 'block' }} />
+                <button type="button" onClick={() => setPrint(null)} title="Remover print"
+                  style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: 6, border: 'none', background: 'rgba(0,0,0,.6)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <X size={13} />
+                </button>
+              </div>
+            </div>
+          )}
 
           {erro && (
             <div style={{ padding: '10px 12px', borderRadius: 8, background: 'rgba(220,38,38,.08)', color: '#dc2626', fontSize: 13, fontWeight: 600 }}>

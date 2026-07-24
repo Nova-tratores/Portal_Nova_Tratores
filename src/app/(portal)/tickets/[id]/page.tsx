@@ -282,6 +282,23 @@ export default function TicketDetalhePage({ params }: { params: Promise<{ id: st
                   texto = <>editou {campos.map((c) => c === 'terceiro_envolvido' ? 'terceiro' : c).join(', ')}</>
                 }
               }
+              else if (e.tipo === 'anexo') {
+                const urlAnexo = typeof e.payload.url === 'string' ? e.payload.url : ''
+                const ehImagem = /\.(png|jpe?g|gif|webp)(\?|$)/i.test(urlAnexo)
+                texto = (
+                  <>
+                    anexou{' '}
+                    {urlAnexo
+                      ? <a href={urlAnexo} target="_blank" rel="noopener noreferrer" style={{ fontWeight: 700, color: 'inherit' }}>{String(e.payload.nome || 'um arquivo')}</a>
+                      : <strong>{String(e.payload.nome || 'um arquivo')}</strong>}
+                    {urlAnexo && ehImagem && (
+                      <a href={urlAnexo} target="_blank" rel="noopener noreferrer" style={{ display: 'block', marginTop: 6 }}>
+                        <img src={urlAnexo} alt={String(e.payload.nome || 'anexo')} style={{ maxWidth: 240, maxHeight: 150, borderRadius: 8, border: '1px solid var(--portal-border,#eee)', display: 'block' }} />
+                      </a>
+                    )}
+                  </>
+                )
+              }
 
               return (
                 <div key={e.id} style={{ display: 'flex', gap: 10, padding: '7px 0' }}>

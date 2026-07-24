@@ -55,6 +55,7 @@ export default function ReporterAcoes() {
   const [ocorrenciaAberta, setOcorrenciaAberta] = useState(false)
   const [printInicial, setPrintInicial] = useState<File[]>([])
   const [ticketAberto, setTicketAberto] = useState(false)
+  const [printTicket, setPrintTicket] = useState<File | null>(null)
   const [tecnicos, setTecnicos] = useState<string[]>([])
   const [meuNome, setMeuNome] = useState<string | null>(null)
   const tecnicosCarregados = useRef(false)
@@ -116,13 +117,15 @@ export default function ReporterAcoes() {
       const podeTicket =
         admin || mods.includes('tickets') || mods.some((m) => m.startsWith('tickets:'))
 
-      const extraActions: { id: string; label: string; svg: string; capture?: boolean }[] = []
+      // capture:'ask' = o widget PERGUNTA "quer anexar um print?" antes de
+      // capturar (decisão do usuário 24/07) — sim: fluxo de print; não: modal direto
+      const extraActions: { id: string; label: string; svg: string; capture?: boolean | string }[] = []
       if (podeOcorrencia) {
         extraActions.push({
           id: 'ocorrencia',
           label: 'Relatar ocorrência',
           svg: SVG_OCORRENCIA,
-          capture: true,
+          capture: 'ask',
         })
       }
       if (podeTicket) {
@@ -130,7 +133,7 @@ export default function ReporterAcoes() {
           id: 'ticket',
           label: 'Abrir ticket',
           svg: SVG_TICKET,
-          capture: false,
+          capture: 'ask',
         })
       }
       if (extraActions.length === 0) return
@@ -139,6 +142,7 @@ export default function ReporterAcoes() {
         extraActions,
         onAction: async (id: string, captura: CapturaAcao | null) => {
           if (id === 'ticket') {
+            setPrintTicket(captura?.canvas ? await canvasParaFile(captura.canvas) : null)
             setTicketAberto(true)
             return
           }
@@ -186,8 +190,9 @@ export default function ReporterAcoes() {
       />
       {ticketAberto && (
         <FormTicket
-          onFechar={() => setTicketAberto(false)}
-          onCriado={(id) => { setTicketAberto(false); router.push(`/tickets/${id}`) }}
+          printInicial={printTicket}
+          onFechar={() => { setTicketAberto(false); setPrintTicket(null) }}
+          onCriado={(id) => { setTicketAberto(false); setPrintTicket(null); router.push(`/tickets/${id}`) }}
         />
       )}
     </>
