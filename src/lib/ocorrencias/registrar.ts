@@ -177,8 +177,8 @@ export async function notificarOcorrencia(
       tecnico_nome: n.tecnico_nome,
       tipo: 'execucao',
       titulo: `⚠ Ocorrência: ${n.label} — −${n.pontos} pontos`,
-      descricao: `${n.observacao.slice(0, 180)}${sufixoOS} Você pode justificar no seu painel.`,
-      link: '',
+      descricao: `${n.observacao.slice(0, 180)}${sufixoOS} Toque para justificar.`,
+      link: '/ocorrencias',
       lida: false,
     })
   } catch {

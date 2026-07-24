@@ -30,8 +30,12 @@ ALTER TABLE tecnico_ocorrencias
   -- auditoria: nome de quem lançou (ou 'sistema' nas automáticas)
   ADD COLUMN IF NOT EXISTS criado_por TEXT;
 
+-- Índice ÚNICO CHEIO (sem WHERE): o upsert do PostgREST gera
+-- ON CONFLICT (auto_chave) sem index_predicate, e o Postgres não infere
+-- índice parcial nesse caso (42P10). NULLs múltiplos não conflitam em
+-- índice único, então as ocorrências manuais (auto_chave NULL) passam.
 CREATE UNIQUE INDEX IF NOT EXISTS uq_tec_oc_auto_chave
-  ON tecnico_ocorrencias(auto_chave) WHERE auto_chave IS NOT NULL;
+  ON tecnico_ocorrencias(auto_chave);
 CREATE INDEX IF NOT EXISTS idx_tec_oc_tecnico_data
   ON tecnico_ocorrencias(tecnico_nome, data DESC);
 CREATE INDEX IF NOT EXISTS idx_tec_oc_categoria ON tecnico_ocorrencias(categoria);
