@@ -248,6 +248,342 @@ async function calcularKpisHome(conta) {
 }
 
 // =============================================================================
+// Semaforo de Saude Financeira (deterioracao de caixa + resultado).
+// Consolida numa leitura unica sinais que ja moram em telas separadas do modulo,
+// cada um com STATUS (bom/atencao/ruim -> verde/amarelo/vermelho) e, onde ha
+// serie mensal barata, uma TENDENCIA (melhora/estavel/piora). Caixa vem primeiro
+// (grupo:'caixa'). Reusa calcularCobertura, calcularCicloCaixa e
+// calcularDRECompetencia + queries diretas leves (juros de antecipacao, aging
+// 90+, snapshot de patrimonio). TUDO server-side (service key) - NUNCA no client.
+//
+// TENDENCIA: onde ha serie (DRE por_mes, juros de antecipacao, snapshot diario)
+// comparamos a MEDIA dos 3 meses recentes -EXCLUINDO o mes corrente, que e'
+// parcial- vs a media dos 3 meses anteriores. Onde nao ha serie barata (CCC,
+// aging), mostramos so a luz de status (tendencia = null).
+//
+// Os cortes de status abaixo sao defaults sensatos e reaproveitam as faixas ja
+// existentes (CCC <30/<60; cobertura confortavel/saudavel/apertado/descoberto).
+// Ficam como constantes locais -> facil calibrar depois.
+// =============================================================================
+const SAUDE_TTL_MS = 5 * 60 * 1000;
+
+function _fmtBRLk(n) {
+  const v = Number(n) || 0, s = v < 0 ? '-' : '', a = Math.abs(v);
+  if (a >= 1e6) return s + 'R$ ' + (a / 1e6).toFixed(1).replace('.', ',') + 'M';
+  if (a >= 1e3) return s + 'R$ ' + Math.round(a / 1e3) + 'k';
+  return s + 'R$ ' + Math.round(a);
+}
+// Media (ignorando nulos) das chaves[ini..fim] numa serie {mes: valor}.
+function _mediaJanela(serie, chaves, ini, fim) {
+  let soma = 0, n = 0;
+  for (let i = ini; i <= fim && i < chaves.length; i++) {
+    if (i < 0) continue;
+    const v = serie[chaves[i]];
+    if (v === undefined || v === null || !isFinite(v)) continue;
+    soma += Number(v); n++;
+  }
+  return n ? soma / n : null;
+}
+// Direcao comparando media recente vs anterior. maiorEhPior=true p/ custos
+// (juros, despesa financeira): subir = piora. Zona morta de +/-5% = 'estavel'.
+function _direcao(recente, anterior, maiorEhPior) {
+  if (recente === null || anterior === null) return null;
+  const base = Math.abs(anterior);
+  if (base <= 1) return recente - anterior === 0 ? 'estavel' : null;
+  const deltaPct = ((recente - anterior) / base) * 100;
+  const subiu = deltaPct > 5, caiu = deltaPct < -5;
+  const piora = maiorEhPior ? subiu : caiu;
+  const melhora = maiorEhPior ? caiu : subiu;
+  return piora ? 'piora' : melhora ? 'melhora' : 'estavel';
+}
+function porMesTipo(arv, tipo) { return (arv && arv[tipo] && arv[tipo].por_mes) || {}; }
+function porMesConta(arv, tipo, grupo, conta) {
+  try { return arv[tipo].grupos[grupo].contas[conta].por_mes || {}; } catch (e) { return {}; }
+}
+// Pior status entre uma lista (ignora 'sem_dado'). ruim > atencao > bom.
+function _piorStatus(status) {
+  const rank = { ruim: 3, atencao: 2, bom: 1 };
+  let pior = 0, houve = false;
+  status.forEach(s => { if (rank[s]) { houve = true; if (rank[s] > pior) pior = rank[s]; } });
+  if (!houve) return 'sem_dado';
+  return pior === 3 ? 'ruim' : pior === 2 ? 'atencao' : 'bom';
+}
+
+async function calcularSaudeFinanceira(conta) {
+  const contaSlug = conta === 'todas' ? 'todas' : String(conta).toLowerCase();
+  const now = new Date();
+  // 7 meses (corrente + 6 anteriores), asc. chaves[6]=corrente.
+  const chaves = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    chaves.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
+  }
+  const mesAtual = chaves[6];
+  const desde = chaves[0];
+  // Janelas de tendencia: recentes = -3,-2,-1 (indices 3..5); anteriores = -6,-5,-4 (0..2).
+  // O mes corrente (indice 6) fica de fora por ser parcial.
+  const REC_INI = 3, REC_FIM = 5, ANT_INI = 0, ANT_FIM = 2;
+
+  // Sequenciamos as 3 queries mais pesadas (DRE, cobertura, ciclo) em vez de um
+  // Promise.all unico: rodar todas de uma vez estoura o statement_timeout do
+  // Supabase na conta grande (NOVA) - a mesma armadilha que a Home ja evita
+  // rodando a aderencia DEPOIS. Depois as 3 fontes leves (tabelas distintas)
+  // correm juntas. Cada fonte tem .catch proprio -> uma falha vira 'sem_dado'.
+  const dre = await calcularDRECompetencia(desde, mesAtual).catch(e => { console.error('saude dre:', e.message); return null; });
+  const cobertura = await calcularCobertura(contaSlug).catch(e => { console.error('saude cobertura:', e.message); return null; });
+  const ciclo = await calcularCicloCaixa(12).catch(e => { console.error('saude ciclo:', e.message); return null; });
+  const [jurosPM, aging, snapCob] = await Promise.all([
+    // Juros de antecipacao por mes: movimentos P na conta "Desconto de Duplicatas"
+    // cuja categoria NAO e' transferencia (mesma definicao da rota /antecipacoes).
+    (async () => {
+      try {
+        const rows = await selectPaginado(() => {
+          let q = supabase.from('movimentos_cc')
+            .select('conta_omie,data_pagamento,valor_pago,descricao_categoria')
+            .ilike('nome_conta_corrente', '%Desconto de Duplicata%')
+            .eq('natureza', 'P')
+            .gte('data_pagamento', desde + '-01')
+            .order('id', { ascending: true });
+          if (contaSlug !== 'todas') q = q.eq('conta_omie', labelConta(contaSlug));
+          return q;
+        });
+        const serie = {};
+        (rows || []).forEach(r => {
+          if (/transfer/i.test(r.descricao_categoria || '')) return; // transferencia = liquido, nao juros
+          const mk = String(r.data_pagamento || '').slice(0, 7);
+          if (!mk) return;
+          serie[mk] = (serie[mk] || 0) + (Number(r.valor_pago) || 0);
+        });
+        return serie;
+      } catch (e) { console.error('saude antecipacao:', e.message); return null; }
+    })(),
+    // Aging: titulos ATRASADO, soma do que esta em 90+ vs total (pagar+receber).
+    (async () => {
+      try {
+        const cutoff = now.getFullYear() + '-01-01';
+        const ref = hoje();
+        const contaLabel = contaSlug === 'todas' ? null : labelConta(contaSlug);
+        const ehInter = (nome) => {
+          const n = String(nome || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+          return n.includes('castro pecas') || n.includes('nova tratores');
+        };
+        async function somaTabela(tabela, colNome) {
+          const rows = await selectPaginado(() => {
+            let q = supabase.from(tabela)
+              .select(`codigo_lancamento,data_vencimento,valor_documento,valor_pago,conta_omie,${colNome}`)
+              .eq('status_titulo', 'ATRASADO')
+              .gte('data_vencimento', cutoff)
+              .order('codigo_lancamento', { ascending: true });
+            if (contaLabel) q = q.eq('conta_omie', contaLabel);
+            return q;
+          });
+          let total = 0, total90 = 0;
+          (rows || []).forEach(r => {
+            if (!r.data_vencimento) return;
+            if (VENCIDOS_IGNORADOS.has(Number(r.codigo_lancamento))) return;
+            if (ehInter(r[colNome])) return;
+            let ab = (Number(r.valor_documento) || 0) - (Number(r.valor_pago) || 0);
+            if (ab <= 0.01) ab = Number(r.valor_documento) || 0;
+            if (ab <= 0) return;
+            const p = String(r.data_vencimento).slice(0, 10).split('-');
+            const venc = new Date(+p[0], +p[1] - 1, +p[2]);
+            const dias = Math.round((ref.getTime() - venc.getTime()) / 86400000);
+            total += ab;
+            if (dias > 90) total90 += ab;
+          });
+          return { total, total90 };
+        }
+        const [pg, rc] = await Promise.all([
+          somaTabela('contas_pagar', 'nome_fornecedor'),
+          somaTabela('contas_receber', 'nome_cliente')
+        ]);
+        return { total: pg.total + rc.total, total90: pg.total90 + rc.total90 };
+      } catch (e) { console.error('saude aging:', e.message); return null; }
+    })(),
+    // Snapshot de patrimonio: proxy de tendencia da cobertura (a_receber/a_pagar
+    // hoje vs ~90 dias atras). Casing de conta_omie incerto -> casa minusculo.
+    (async () => {
+      try {
+        const rows = await selectPaginado(() =>
+          supabase.from('cp_patrimonio_snapshot')
+            .select('data,conta_omie,a_receber_aberto,a_pagar_aberto')
+            .order('data', { ascending: true }));
+        const porData = {};
+        (rows || []).forEach(r => {
+          if (contaSlug !== 'todas' && String(r.conta_omie || '').toLowerCase() !== contaSlug) return;
+          const d = String(r.data).slice(0, 10);
+          if (!porData[d]) porData[d] = { ar: 0, ap: 0 };
+          porData[d].ar += Number(r.a_receber_aberto) || 0;
+          porData[d].ap += Number(r.a_pagar_aberto) || 0;
+        });
+        const datas = Object.keys(porData).sort();
+        if (datas.length < 2) return null;
+        const ultima = datas[datas.length - 1];
+        const alvo = fmtISO(addDias(new Date(ultima), -90));
+        let ref = datas[0];
+        for (const d of datas) { if (d <= alvo) ref = d; else break; }
+        const razao = (o) => o.ap > 0 ? o.ar / o.ap : null;
+        return { agora: razao(porData[ultima]), antes: razao(porData[ref]) };
+      } catch (e) { console.error('saude snapshot:', e.message); return null; }
+    })()
+  ]);
+
+  // ---- Series do DRE (conta selecionada; 'todas' -> consolidado) ----
+  const arvDre = dre ? (contaSlug === 'nova' ? dre.nova : contaSlug === 'castro' ? dre.castro : dre.consolidado) : null;
+  const receitaPM = arvDre ? porMesConta(arvDre, '1. Lucro Bruto', '01. Receita Líquida Operacional', '01. Receita Bruta de Vendas') : {};
+  const lucroBrutoPM = arvDre ? porMesTipo(arvDre, '1. Lucro Bruto') : {};
+  const despesasPM = arvDre ? porMesTipo(arvDre, '2. Despesas') : {};           // negativo
+  const despFinPM = arvDre ? porMesConta(arvDre, '2. Despesas', '11. Fixas', '03. Despesas Financeiras') : {}; // negativo
+  const resultadoPM = {}, margemPM = {}, despFinMagPM = {};
+  chaves.forEach(m => {
+    const res = (Number(lucroBrutoPM[m]) || 0) + (Number(despesasPM[m]) || 0);
+    resultadoPM[m] = res;
+    const rec = Number(receitaPM[m]) || 0;
+    margemPM[m] = rec > 0 ? (res / rec) * 100 : null;
+    despFinMagPM[m] = Math.abs(Number(despFinPM[m]) || 0);
+  });
+
+  const sinais = [];
+
+  // ===== CAIXA =====
+  // 1. Cobertura 30d
+  if (cobertura && Array.isArray(cobertura.janelas)) {
+    const j = cobertura.janelas.find(x => x.dias === 30) || null;
+    const cls = j ? j.classificacao : null;
+    let status = 'sem_dado';
+    if (cls === 'descoberto') status = 'ruim';
+    else if (cls === 'apertado') status = 'atencao';
+    else if (cls === 'confortavel' || cls === 'saudavel' || cls === 'sem_passivos') status = 'bom';
+    const tend = snapCob ? _direcao(snapCob.agora, snapCob.antes, false) : null;
+    sinais.push({
+      chave: 'cobertura', grupo: 'caixa', label: 'Cobertura 30 dias',
+      valor: j ? j.cobertura : null, unidade: 'ratio',
+      sub: j ? ('A receber ' + _fmtBRLk(j.a_receber_total) + ' / A pagar ' + _fmtBRLk(j.a_pagar_total)) : 'sem dados',
+      status, tendencia: tend, href: '/dre-financeiro/patrimonio'
+    });
+  } else {
+    sinais.push({ chave: 'cobertura', grupo: 'caixa', label: 'Cobertura 30 dias', valor: null, unidade: 'ratio', sub: 'sem dados', status: 'sem_dado', tendencia: null, href: '/dre-financeiro/patrimonio' });
+  }
+
+  // 2. Antecipacao de recebiveis (juros/mes)
+  {
+    const recente = jurosPM ? _mediaJanela(jurosPM, chaves, REC_INI, REC_FIM) : null;
+    const anterior = jurosPM ? _mediaJanela(jurosPM, chaves, ANT_INI, ANT_FIM) : null;
+    const tend = _direcao(recente, anterior, true);
+    let status;
+    if (jurosPM === null) status = 'sem_dado';
+    else if ((recente || 0) < 100) status = 'bom';        // praticamente nao antecipa
+    else if (tend === 'piora') status = 'ruim';           // juros subindo
+    else status = 'atencao';                              // paga juros (custo), mas estavel/caindo
+    sinais.push({
+      chave: 'antecipacao', grupo: 'caixa', label: 'Juros de antecipacao',
+      valor: recente, unidade: 'BRL',
+      sub: 'media/mes dos ult. 3m' + (anterior ? ' · antes ' + _fmtBRLk(anterior) : ''),
+      status, tendencia: tend, href: '/dre-financeiro/movimentos'
+    });
+  }
+
+  // 3. Ciclo de Caixa (CCC) - reusa faixa da Home
+  {
+    const ind = ciclo ? (contaSlug === 'nova' ? ciclo.nova : contaSlug === 'castro' ? ciclo.castro : ciclo.consolidado) : null;
+    const ccc = ind && isFinite(ind.ccc) ? ind.ccc : null;
+    let status = 'sem_dado';
+    if (ccc !== null) status = ccc < 30 ? 'bom' : ccc < 60 ? 'atencao' : 'ruim';
+    sinais.push({
+      chave: 'ciclo', grupo: 'caixa', label: 'Ciclo de Caixa (CCC)',
+      valor: ccc, unidade: 'dias',
+      sub: ind ? ('DSO ' + Math.round(ind.dso || 0) + ' + DIO ' + Math.round(ind.dio || 0) + ' − DPO ' + Math.round(ind.dpo || 0)) : 'sem dados',
+      status, tendencia: null, href: '/dre-financeiro/ciclo-caixa'
+    });
+  }
+
+  // 4. Aging 90+
+  {
+    let status = 'sem_dado', valor = null, sub = 'sem dados';
+    if (aging) {
+      valor = aging.total90;
+      const pct = aging.total > 0 ? (aging.total90 / aging.total) * 100 : 0;
+      if (aging.total < 1000) status = 'bom';
+      else if (pct >= 50) status = 'ruim';
+      else if (pct >= 25) status = 'atencao';
+      else status = 'bom';
+      sub = Math.round(pct) + '% da inadimplencia em 90+ · total ' + _fmtBRLk(aging.total);
+    }
+    sinais.push({ chave: 'aging', grupo: 'caixa', label: 'Inadimplencia 90+', valor, unidade: 'BRL', sub, status, tendencia: null, href: '/dre-financeiro/vencidos' });
+  }
+
+  // ===== RESULTADO =====
+  // 5. Resultado liquido (ultimo mes completo + tendencia 3x3)
+  {
+    const recente = _mediaJanela(resultadoPM, chaves, REC_INI, REC_FIM);
+    const anterior = _mediaJanela(resultadoPM, chaves, ANT_INI, ANT_FIM);
+    const ultimoCompleto = resultadoPM[chaves[REC_FIM]];
+    const tend = _direcao(recente, anterior, false);
+    let status;
+    if (!arvDre || recente === null) status = 'sem_dado';
+    else if (recente < 0) status = 'ruim';
+    else if (tend === 'piora') status = 'atencao';
+    else status = 'bom';
+    sinais.push({
+      chave: 'resultado', grupo: 'resultado', label: 'Resultado liquido',
+      valor: (ultimoCompleto === undefined ? recente : ultimoCompleto), unidade: 'BRL',
+      sub: 'media/mes 3m ' + _fmtBRLk(recente || 0) + (anterior ? ' · antes ' + _fmtBRLk(anterior) : ''),
+      status, tendencia: tend, href: '/dre-financeiro/dre'
+    });
+  }
+
+  // 6. Margem liquida (nivel + queda em pp)
+  {
+    const recente = _mediaJanela(margemPM, chaves, REC_INI, REC_FIM);
+    const anterior = _mediaJanela(margemPM, chaves, ANT_INI, ANT_FIM);
+    const deltaPP = (recente !== null && anterior !== null) ? recente - anterior : null;
+    let status, tend = null;
+    if (!arvDre || recente === null) status = 'sem_dado';
+    else {
+      if (recente < 0 || (deltaPP !== null && deltaPP <= -3)) status = 'ruim';
+      else if (deltaPP !== null && deltaPP <= -1) status = 'atencao';
+      else status = 'bom';
+      if (deltaPP !== null) tend = deltaPP > 0.5 ? 'melhora' : deltaPP < -0.5 ? 'piora' : 'estavel';
+    }
+    sinais.push({
+      chave: 'margem', grupo: 'resultado', label: 'Margem liquida',
+      valor: recente, unidade: 'pct',
+      sub: deltaPP === null ? 'media 3m' : ((deltaPP >= 0 ? '+' : '') + deltaPP.toFixed(1) + 'pp vs 3m anteriores'),
+      status, tendencia: tend, href: '/dre-financeiro/analise-dre'
+    });
+  }
+
+  // 7. Despesas financeiras (juros/tarifas subindo = deterioracao)
+  {
+    const recente = _mediaJanela(despFinMagPM, chaves, REC_INI, REC_FIM);
+    const anterior = _mediaJanela(despFinMagPM, chaves, ANT_INI, ANT_FIM);
+    const tend = _direcao(recente, anterior, true);
+    let status;
+    if (!arvDre || recente === null) status = 'sem_dado';
+    else if (recente < 100) status = 'bom';
+    else if (tend === 'piora') status = 'ruim';
+    else status = 'atencao';
+    sinais.push({
+      chave: 'desp_financeiras', grupo: 'resultado', label: 'Despesas financeiras',
+      valor: recente, unidade: 'BRL',
+      sub: 'media/mes 3m' + (anterior ? ' · antes ' + _fmtBRLk(anterior) : ''),
+      status, tendencia: tend, href: '/dre-financeiro/analise-dre'
+    });
+  }
+
+  // Indice-resumo = pior status (caixa pesa por vir primeiro; pior-caso global).
+  const indiceStatus = _piorStatus(sinais.map(s => s.status));
+  const LABEL = { bom: 'Saudavel', atencao: 'Atencao', ruim: 'Critico', sem_dado: 'Sem dados' };
+
+  return {
+    gerado_em: new Date().toISOString(),
+    conta: contaSlug,
+    indice: { status: indiceStatus, label: LABEL[indiceStatus] },
+    sinais
+  };
+}
+
+// =============================================================================
 // API: patrimonio (consolidado fluxo de caixa + estoque + frota)
 // Ativos: estoque (pecas, maquinas) + frota + a_receber_aberto
 // Passivos: a_pagar_aberto
@@ -2027,6 +2363,8 @@ module.exports = {
 
   // KPIs / Home
   calcularKpisHome,
+  SAUDE_TTL_MS,
+  calcularSaudeFinanceira,
 
   // Estoque / Patrimonio / Frota / Ciclo / Cobertura
   isFamiliaPeca,
