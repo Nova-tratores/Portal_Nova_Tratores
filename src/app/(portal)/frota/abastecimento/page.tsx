@@ -10,7 +10,7 @@ import {
   ResponsiveContainer, ComposedChart, BarChart, LineChart, ScatterChart,
   Bar, Line, Scatter, XAxis, YAxis, ZAxis, Tooltip, CartesianGrid, Legend,
 } from 'recharts';
-import { AlertTriangle, FileDown, FileSpreadsheet } from 'lucide-react';
+import { AlertTriangle, FileDown, FileSpreadsheet, Upload, X } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import { authHeaders } from '@/lib/auth/client';
@@ -229,8 +229,9 @@ export default function AbastecimentoPage() {
   const podeDash = true;
   const podeUpload = pode('frota', 'abastecimento:upload');
 
-  const [preset, setPreset] = useState<Preset>('12m');
-  const [de, setDe] = useState(isoMesesAtras(12));
+  // Padrão ao abrir: mês atual, do dia 1 até hoje (o dia em que o usuário abre).
+  const [preset, setPreset] = useState<Preset>('mes');
+  const [de, setDe] = useState(isoInicioMes());
   const [ate, setAte] = useState(isoHoje());
   const [filial] = useState(''); // filtro de filial oculto (só há uma filial em uso)
   const [placa, setPlaca] = useState('');
@@ -242,6 +243,7 @@ export default function AbastecimentoPage() {
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState('');
   const [detalhe, setDetalhe] = useState<DetalheParams | null>(null);
+  const [uploadAberto, setUploadAberto] = useState(false); // popup de import do CSV (aberto pela linha do rodapé)
   const [gerandoPdf, setGerandoPdf] = useState('');
 
   const aplicarPreset = (p: Preset) => {
@@ -387,9 +389,8 @@ export default function AbastecimentoPage() {
         Clique nas barras e linhas dos gráficos para ver os abastecimentos que compõem cada valor.
       </p>
 
-      {podeUpload && (
-        <UploadLotes usuario={userProfile.nome || ''} isAdmin={isAdmin} onMudou={carregar} />
-      )}
+      {/* A importação do CSV foi movida para uma linha no rodapé (abre em popup)
+          — ver o final desta página. */}
 
       {podeDash && (
         <>
@@ -779,6 +780,44 @@ export default function AbastecimentoPage() {
                     </Card>
                   </div>
 
+                  {/* Tabela de motoristas — linha clicável abre o popup com a
+                      composição do valor (mesmo drill do gráfico de barras, mas
+                      com alvo de clique claro e a lista completa, não só o top 15). */}
+                  <Card titulo="Gasto por motorista — clique num motorista para ver o que compõe o valor">
+                    <div style={{ overflowX: 'auto', maxHeight: 460, overflowY: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr>
+                            <th style={{ ...thStyle, textAlign: 'right', width: 44 }}>#</th>
+                            <th style={thStyle}>Motorista</th>
+                            <th style={{ ...thStyle, textAlign: 'right' }}>Abastecimentos</th>
+                            <th style={{ ...thStyle, textAlign: 'right' }}>Litros</th>
+                            <th style={{ ...thStyle, textAlign: 'right' }}>Gasto</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {dados.porMotorista.map((m, i) => (
+                            <tr
+                              key={m.chave}
+                              style={linhaClicavel}
+                              title="Clique para ver os abastecimentos que compõem este valor"
+                              onClick={() => abrirDetalhe(`Abastecimentos de ${m.chave}`, { motorista: m.chave === 'Sem motorista' ? '__sem__' : m.chave })}
+                            >
+                              <td style={{ ...tdStyle, textAlign: 'right', color: '#aaa' }}>{i + 1}</td>
+                              <td style={{ ...tdStyle, fontWeight: 600 }}>{m.chave}</td>
+                              <td style={{ ...tdStyle, textAlign: 'right' }}>{m.transacoes}</td>
+                              <td style={{ ...tdStyle, textAlign: 'right' }}>{fmtL(m.litros)}</td>
+                              <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600 }}>{fmtRS(m.valor)}</td>
+                            </tr>
+                          ))}
+                          {dados.porMotorista.length === 0 && (
+                            <tr><td style={tdStyle} colSpan={5}>Sem motoristas no período.</td></tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </Card>
+
                   {/* Card "Gasto por Ordem de Serviço" OCULTO a pedido do usuário
                       (07/2026): a operadora ainda manda a coluna OS vazia. Os dados
                       continuam sendo gravados (dados.porOS) — quando os motoristas
@@ -879,6 +918,40 @@ export default function AbastecimentoPage() {
             </>
           )}
         </>
+      )}
+
+      {/* Rodapé: linha de importação — clica e abre o popup para enviar o CSV. */}
+      {podeUpload && (
+        <div
+          onClick={() => setUploadAberto(true)}
+          title="Importar o CSV mensal da operadora"
+          style={{ marginTop: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, borderTop: '1px dashed #e5e5e5', background: '#fafafa', color: '#dc2626', fontSize: '.8rem', fontWeight: 600, padding: '13px 16px', borderRadius: 8, cursor: 'pointer' }}
+        >
+          <Upload size={15} /> Importar CSV da operadora
+          <span style={{ color: '#aaa', fontWeight: 400 }}>· clique para enviar o arquivo do mês</span>
+        </div>
+      )}
+
+      {/* Popup de importação: reusa o componente UploadLotes inteiro. */}
+      {podeUpload && uploadAberto && (
+        <div
+          onClick={() => setUploadAberto(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '5vh 16px', overflow: 'auto' }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: 12, width: 'min(1020px, 100%)', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 10px 40px rgba(0,0,0,.2)', position: 'relative', padding: 16 }}
+          >
+            <button
+              onClick={() => setUploadAberto(false)}
+              title="Fechar"
+              style={{ position: 'absolute', top: 12, right: 12, background: 'none', border: 'none', cursor: 'pointer', color: '#888', padding: 4, zIndex: 1 }}
+            >
+              <X size={20} />
+            </button>
+            <UploadLotes usuario={userProfile.nome || ''} isAdmin={isAdmin} onMudou={carregar} />
+          </div>
+        </div>
       )}
 
       {detalhe && <DetalheModal {...detalhe} onClose={() => setDetalhe(null)} />}
