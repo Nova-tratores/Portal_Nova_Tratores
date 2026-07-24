@@ -40,6 +40,14 @@
     forwardLabel: "Encaminhar para (opcional)",
     forwardOptions: [], // [{ value, label }]
     onForward: null, // function(value, reportData) -> Promise
+    // ponto de extensao: acoes extras no menu do clique direito.
+    // [{ id, label, svg?, capture? }] — capture !== false roda a MESMA
+    // mecanica de print (captura + selecao da area) e entrega o resultado
+    // em onAction(id, { canvas, dataUrl, selectionRect, viewport });
+    // capture === false chama onAction(id, null) direto (so abre o modal
+    // do host, ex.: abertura de ticket).
+    extraActions: [],
+    onAction: null, // function(id, captureData|null)
   };
 
   // estado de execucao
@@ -48,6 +56,7 @@
   var capture = null; // { canvas, dataUrl, viewport }
   var selectionRect = null;
   var croppedCanvas = null;
+  var pendingAction = null; // acao extra em curso (fluxo de captura)
   var nodes = {}; // elementos da tela atual
   var refs = {}; // campos do formulario
   var initialized = false;
@@ -379,16 +388,38 @@
     capture = null;
     selectionRect = null;
     croppedCanvas = null;
+    pendingAction = null;
     refs = {};
   }
 
   // ============================================================
   // Menu de contexto (clique direito)
   // ============================================================
+  function escolherAcaoExtra(acao) {
+    removeNode("ctxBackdrop");
+    removeNode("ctxMenu");
+    if (typeof config.onAction !== "function") {
+      reset();
+      return;
+    }
+    if (acao.capture === false) {
+      // sem print: entrega direto pro host (ex.: modal de ticket)
+      reset();
+      config.onAction(acao.id, null);
+      return;
+    }
+    pendingAction = acao;
+    startReport();
+  }
+
   function openMenu(x, y) {
     phase = "menu";
+    var extras = (config.extraActions || []).filter(function (a) {
+      return a && a.id && a.label;
+    });
+    var altura = 26 + 44 * (1 + extras.length);
     var mx = Math.max(8, Math.min(x, window.innerWidth - 210));
-    var my = Math.max(8, Math.min(y, window.innerHeight - 70));
+    var my = Math.max(8, Math.min(y, window.innerHeight - altura));
 
     nodes.ctxBackdrop = el("div", {
       class: "bgr-ctx-backdrop",
@@ -399,6 +430,26 @@
         reset();
       },
     });
+    var itens = [
+      el("button", {
+        type: "button",
+        class: "bgr-ctx-item",
+        html: BUG_SVG + "<span>Relatar problema</span>",
+        onclick: startReport,
+      }),
+    ];
+    extras.forEach(function (a) {
+      itens.push(
+        el("button", {
+          type: "button",
+          class: "bgr-ctx-item",
+          html: (a.svg || BUG_SVG) + "<span>" + a.label + "</span>",
+          onclick: function () {
+            escolherAcaoExtra(a);
+          },
+        })
+      );
+    });
     nodes.ctxMenu = el(
       "div",
       {
@@ -406,14 +457,7 @@
         "data-html2canvas-ignore": "true",
         style: "left:" + mx + "px;top:" + my + "px;",
       },
-      [
-        el("button", {
-          type: "button",
-          class: "bgr-ctx-item",
-          html: BUG_SVG + "<span>Relatar problema</span>",
-          onclick: startReport,
-        }),
-      ]
+      itens
     );
     document.body.appendChild(nodes.ctxBackdrop);
     document.body.appendChild(nodes.ctxMenu);
@@ -449,6 +493,13 @@
           capture = null;
           selectionRect = null;
           croppedCanvas = null;
+          if (pendingAction) {
+            // acao extra sem print possivel: abre o modal do host mesmo assim
+            var acao = pendingAction;
+            reset();
+            config.onAction(acao.id, null);
+            return;
+          }
           openModal(
             "Nao foi possivel capturar a tela. Voce ainda pode descrever o problema."
           );
@@ -544,6 +595,19 @@
       height: Math.round(rect.height),
     };
     removeNode("overlay");
+    if (pendingAction) {
+      // acao extra: entrega a captura pro host em vez do form padrao
+      var acao = pendingAction;
+      var payload = {
+        canvas: croppedCanvas,
+        dataUrl: croppedCanvas.toDataURL("image/png"),
+        selectionRect: selectionRect,
+        viewport: capture ? capture.viewport : null,
+      };
+      reset();
+      config.onAction(acao.id, payload);
+      return;
+    }
     openModal(null);
   }
 

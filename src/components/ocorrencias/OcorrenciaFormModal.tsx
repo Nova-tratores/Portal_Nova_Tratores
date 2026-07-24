@@ -19,6 +19,7 @@ const MLBL: React.CSSProperties = { fontSize: 12, fontWeight: 500, color: 'var(-
 export default function OcorrenciaFormModal({
   aberto, onFechar, onRegistrada, tecnicos,
   categoriaInicial = 'os', tecnicoInicial = '', idOrdemInicial = '', criadoPor,
+  arquivosIniciais,
 }: {
   aberto: boolean
   onFechar: () => void
@@ -30,6 +31,8 @@ export default function OcorrenciaFormModal({
   tecnicoInicial?: string
   idOrdemInicial?: string
   criadoPor?: string | null
+  /** Anexos já prontos ao abrir (ex.: print do clique direito). */
+  arquivosIniciais?: File[]
 }) {
   const [categoria, setCategoria] = useState<CategoriaOcorrencia>(categoriaInicial)
   const [subcategoria, setSubcategoria] = useState('')
@@ -40,6 +43,9 @@ export default function OcorrenciaFormModal({
   const [erro, setErro] = useState('')
   const [salvando, setSalvando] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  // via ref pra não resetar o form se o host recriar o array num re-render
+  const arquivosIniciaisRef = useRef<File[] | undefined>(arquivosIniciais)
+  arquivosIniciaisRef.current = arquivosIniciais
 
   // Reset ao abrir (respeitando os pré-preenchidos do host)
   useEffect(() => {
@@ -49,7 +55,7 @@ export default function OcorrenciaFormModal({
     setTecnico(tecnicoInicial)
     setIdOrdem(idOrdemInicial)
     setObservacao('')
-    setArquivos([])
+    setArquivos((arquivosIniciaisRef.current ?? []).slice(0, 5))
     setErro('')
   }, [aberto, categoriaInicial, tecnicoInicial, idOrdemInicial])
 

@@ -1,5 +1,6 @@
 import PortalLayout from '@/components/PortalLayout'
 import BugReporterChat from '@/components/BugReporterChat'
+import ReporterAcoes from '@/components/ReporterAcoes'
 import Script from 'next/script'
 
 export default function PortalGroupLayout({
@@ -21,6 +22,8 @@ export default function PortalGroupLayout({
       />
       {/* liga o report ao chat interno do Portal */}
       <BugReporterChat />
+      {/* ações extras do clique direito: ocorrência (com print) e ticket */}
+      <ReporterAcoes />
     </>
   )
 }
