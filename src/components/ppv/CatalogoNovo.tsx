@@ -96,6 +96,21 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const panRef = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
+  // Segura o arrasto dentro do razoável: dá pra alcançar as bordas quando está com
+  // zoom, mas a imagem nunca é arrastada pra fora da caixa a ponto de sumir.
+  const limitarPan = useCallback((p: { x: number; y: number }) => {
+    const box = imgBoxRef.current, img = imgElRef.current;
+    if (!box || !img) return p;
+    const folga = 80; // um tanto de jogo mesmo sem zoom, pra sentir que arrasta
+    const maxX = Math.max(0, (img.clientWidth * zoom - box.clientWidth) / 2) + folga;
+    const maxY = Math.max(0, (img.clientHeight * zoom - box.clientHeight) / 2) + folga;
+    return { x: Math.min(maxX, Math.max(-maxX, p.x)), y: Math.min(maxY, Math.max(-maxY, p.y)) };
+  }, [zoom]);
+  // Tela cheia: arrastar a imagem move a rolagem do container (não há transform de pan lá).
+  const fsBoxRef = useRef<HTMLDivElement | null>(null);
+  const fsPanRef = useRef<{ x: number; y: number; sl: number; st: number } | null>(null);
+  const [fsArrastando, setFsArrastando] = useState(false);
+  const [fsPan, setFsPan] = useState({ x: 0, y: 0 });
   // Menu de gerar PDF
   const [pdfMenu, setPdfMenu] = useState(false);
   const [gerandoPdf, setGerandoPdf] = useState(false);
@@ -116,6 +131,14 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
   // Dica piscando na aba das peças — some assim que o usuário abre a primeira vez.
   const [jaAbriuPainel, setJaAbriuPainel] = useState(false);
   const [fsZoom, setFsZoom] = useState(1);
+  const limitarFsPan = useCallback((p: { x: number; y: number }) => {
+    const box = fsBoxRef.current, img = fsImgRef.current;
+    if (!box || !img) return p;
+    const folga = 100;
+    const maxX = Math.max(0, (img.clientWidth * fsZoom - box.clientWidth) / 2) + folga;
+    const maxY = Math.max(0, img.clientHeight * fsZoom - box.clientHeight) + folga; // origem no topo
+    return { x: Math.min(maxX, Math.max(-maxX, p.x)), y: Math.min(folga, Math.max(-maxY, p.y)) };
+  }, [fsZoom]);
   const [penColor, setPenColor] = useState("#dc2626");
   const [copiado, setCopiado] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -1123,10 +1146,10 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                 </div>
               )}
               <div ref={imgBoxRef}
-                onMouseMove={(e) => { if (editando) { moverBolinha(e.clientX, e.clientY); return; } if (panRef.current) { const d = panRef.current; setPan({ x: d.px + (e.clientX - d.x), y: d.py + (e.clientY - d.y) }); } }}
+                onMouseMove={(e) => { if (editando) { moverBolinha(e.clientX, e.clientY); return; } if (panRef.current) { const d = panRef.current; setPan(limitarPan({ x: d.px + (e.clientX - d.x), y: d.py + (e.clientY - d.y) })); } }}
                 onMouseUp={() => { if (editando) setArrastando(null); else panRef.current = null; }}
                 onMouseLeave={() => { if (editando) setArrastando(null); else panRef.current = null; }}
-                style={{ position: "relative", width: "100%", flex: 1, minHeight: 360, background: "linear-gradient(180deg,#fbfcfe,#f1f4f8)", borderRadius: 12, overflow: "hidden", border: editando ? "2px solid #6366f1" : "1px solid #eef1f6", display: "flex", alignItems: "center", justifyContent: "center", cursor: arrastando != null ? "grabbing" : (!editando && zoom > 1 ? "grab" : "default"), userSelect: "none" }}>
+                style={{ position: "relative", width: "100%", flex: 1, minHeight: 360, background: "linear-gradient(180deg,#fbfcfe,#f1f4f8)", borderRadius: 12, overflow: "hidden", border: editando ? "2px solid #6366f1" : "1px solid #eef1f6", display: "flex", alignItems: "center", justifyContent: "center", cursor: arrastando != null ? "grabbing" : (editando ? "default" : (panRef.current ? "grabbing" : "grab")), userSelect: "none" }}>
                 {figura.image_url ? (
                   <>
                     {/* Wrapper com zoom/pan — a imagem e as bolinhas escalam juntas */}
@@ -1134,7 +1157,8 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                         bolinhas (posicionadas em %) sairiam do lugar ao centralizar. */}
                     <div style={{ width: "fit-content", maxWidth: "100%", margin: "0 auto", position: "relative", transformOrigin: "center center", transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transition: panRef.current ? "none" : "transform .1s ease", willChange: "transform" }}>
                       <img ref={imgElRef} src={figura.image_url} alt={figura.name} draggable={false}
-                        onMouseDown={(e) => { if (!editando && zoom > 1) { e.preventDefault(); panRef.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y }; } }}
+                        // arrastar a imagem em qualquer zoom (o limitarPan segura pra não sumir)
+                        onMouseDown={(e) => { if (!editando) { e.preventDefault(); panRef.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y }; } }}
                         onLoad={(e) => setImgDim({ w: (e.target as HTMLImageElement).naturalWidth || 1, h: (e.target as HTMLImageElement).naturalHeight || 1 })}
                         // cabe inteira na tela: limita pela ALTURA disponível, não só pela largura
                         style={{ maxWidth: "100%", maxHeight: "calc(100vh - 210px)", width: "auto", display: "block" }} />
@@ -1188,7 +1212,14 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                         <button title="Aproximar" onClick={() => setZoom((z) => Math.min(6, z * 1.25))} style={zoomBtn}>+</button>
                         <button title="Afastar" onClick={() => setZoom((z) => { const nz = Math.max(1, z / 1.25); if (nz === 1) setPan({ x: 0, y: 0 }); return nz; })} style={zoomBtn}>−</button>
                         <button title="Tamanho original" onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }} style={{ ...zoomBtn, fontSize: 13 }}>1:1</button>
-                        <button title="Tela cheia (desenhar)" onClick={() => { setFsZoom(1); setFullscreen(true); }} style={{ ...zoomBtn, fontSize: 13 }}><i className="fas fa-expand" /></button>
+                        <button title="Tela cheia (desenhar)" onClick={() => { setFsZoom(1); setFsPan({ x: 0, y: 0 }); setFullscreen(true); }} style={{ ...zoomBtn, fontSize: 13 }}><i className="fas fa-expand" /></button>
+                      </div>
+                    )}
+                    {/* Dica: nem é óbvio que a imagem se arrasta, então avisamos. */}
+                    {!editando && (
+                      <div style={{ position: "absolute", bottom: 8, left: 8, zIndex: 5, display: "flex", alignItems: "center", gap: 8, padding: "7px 13px", borderRadius: 999, background: "rgba(255,255,255,0.94)", border: "1px solid #e2e8f0", color: "#475569", fontSize: 14, fontWeight: 400, boxShadow: "0 2px 8px rgba(0,0,0,0.10)", pointerEvents: "none" }}>
+                        <i className="fas fa-hand-pointer" style={{ color: "#2563eb" }} />
+                        Segure o mouse e arraste para mover a imagem
                       </div>
                     )}
                   </>
@@ -1497,18 +1528,33 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
             )}
             {/* Zoom */}
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: 6 }}>
-              <button title="Afastar" onClick={() => setFsZoom((z) => Math.max(1, +(z / 1.25).toFixed(3)))} style={{ ...fsBtn, padding: "6px 12px", fontSize: 16 }}>−</button>
+              <button title="Afastar" onClick={() => setFsZoom((z) => { const nz = Math.max(1, +(z / 1.25).toFixed(3)); if (nz === 1) setFsPan({ x: 0, y: 0 }); return nz; })} style={{ ...fsBtn, padding: "6px 12px", fontSize: 16 }}>−</button>
               <span style={{ color: "#cbd5e1", fontSize: 12, width: 40, textAlign: "center" }}>{Math.round(fsZoom * 100)}%</span>
               <button title="Aproximar" onClick={() => setFsZoom((z) => Math.min(6, +(z * 1.25).toFixed(3)))} style={{ ...fsBtn, padding: "6px 12px", fontSize: 16 }}>+</button>
+              <button title="Centralizar a imagem" onClick={() => { setFsZoom(1); setFsPan({ x: 0, y: 0 }); }} style={{ ...fsBtn, padding: "6px 12px" }}><i className="fas fa-crosshairs" /></button>
             </div>
+            {/* No modo caneta o mouse é do desenho, então a dica só aparece em Peças. */}
+            {fsModo === "pecas" && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#cbd5e1", fontSize: 14, fontWeight: 400 }}>
+                <i className="fas fa-hand-pointer" style={{ color: "#93c5fd" }} />
+                Segure o mouse e arraste para mover a imagem
+              </div>
+            )}
             <div style={{ flex: 1 }} />
             <button onClick={() => gerarPdfDesenho("baixar")} disabled={gerandoPdf} style={fsBtn}><i className="fas fa-download" /> Baixar PDF</button>
             <button onClick={() => gerarPdfDesenho("imprimir")} disabled={gerandoPdf} style={{ ...fsBtn, background: "rgba(255,255,255,0.16)" }}><i className="fas fa-print" /> Imprimir</button>
             <button onClick={() => { limparDesenho(); setFullscreen(false); }} style={{ ...fsBtn, background: "#dc2626", border: "none" }}><i className="fas fa-times" /> Fechar</button>
           </div>
           {/* Imagem + canvas de desenho (com zoom) */}
-          <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "flex-start", justifyContent: "center", overflow: "auto", padding: 16 }}>
-            <div style={{ transform: `scale(${fsZoom})`, transformOrigin: "top center", transition: "transform .1s ease" }}>
+          <div ref={fsBoxRef}
+            // Arrastar pra passear pela folha (só no modo peças — no modo caneta o
+            // mouse é do desenho). Move a rolagem do próprio container.
+            onMouseDown={(e) => { if (fsModo === "caneta") return; fsPanRef.current = { x: e.clientX, y: e.clientY, sl: fsPan.x, st: fsPan.y }; setFsArrastando(true); }}
+            onMouseMove={(e) => { const d = fsPanRef.current; if (!d) return; setFsPan(limitarFsPan({ x: d.sl + (e.clientX - d.x), y: d.st + (e.clientY - d.y) })); }}
+            onMouseUp={() => { fsPanRef.current = null; setFsArrastando(false); }}
+            onMouseLeave={() => { fsPanRef.current = null; setFsArrastando(false); }}
+            style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "flex-start", justifyContent: "center", overflow: "hidden", padding: 16, cursor: fsModo === "caneta" ? "default" : (fsArrastando ? "grabbing" : "grab"), userSelect: "none" }}>
+            <div style={{ transform: `translate(${fsPan.x}px, ${fsPan.y}px) scale(${fsZoom})`, transformOrigin: "top center", transition: fsPanRef.current ? "none" : "transform .1s ease", willChange: "transform" }}>
               <div style={{ position: "relative", lineHeight: 0 }}>
                 <img ref={fsImgRef} src={figura.image_url} alt={figura.name} draggable={false} onLoad={ajustarCanvas}
                   style={{ maxWidth: "92vw", maxHeight: "80vh", display: "block", userSelect: "none" }} />
