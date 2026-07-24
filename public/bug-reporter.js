@@ -410,7 +410,18 @@
       return;
     }
     if (acao.capture === "ask") {
-      abrirPerguntaPrint(acao);
+      abrirPerguntaPrint(
+        acao.label,
+        function () {
+          removeNode("modalOverlay");
+          pendingAction = acao;
+          startReport();
+        },
+        function () {
+          reset();
+          config.onAction(acao.id, null);
+        }
+      );
       return;
     }
     pendingAction = acao;
@@ -418,7 +429,7 @@
   }
 
   // Pergunta antes de capturar: quer anexar um print da tela?
-  function abrirPerguntaPrint(acao) {
+  function abrirPerguntaPrint(titulo, aoTirarPrint, aoSemPrint) {
     phase = "form"; // ESC/backdrop cancelam via reset()
     nodes.modalOverlay = el("div", {
       class: "bgr-modal-overlay",
@@ -434,7 +445,7 @@
     });
     card.appendChild(
       el("div", { class: "bgr-modal-header" }, [
-        el("h3", { class: "bgr-modal-title", text: acao.label }),
+        el("h3", { class: "bgr-modal-title", text: titulo }),
         el("button", {
           type: "button",
           class: "bgr-close",
@@ -458,25 +469,37 @@
           type: "button",
           class: "bgr-btn-secondary",
           text: "Continuar sem print",
-          onclick: function () {
-            reset();
-            config.onAction(acao.id, null);
-          },
+          onclick: aoSemPrint,
         }),
         el("button", {
           type: "button",
           class: "bgr-btn-primary",
           text: "Tirar print",
-          onclick: function () {
-            removeNode("modalOverlay");
-            pendingAction = acao;
-            startReport();
-          },
+          onclick: aoTirarPrint,
         }),
       ])
     );
     nodes.modalOverlay.appendChild(card);
     document.body.appendChild(nodes.modalOverlay);
+  }
+
+  // "Relatar problema" tambem pergunta antes (pedido do usuario): sem print
+  // abre o formulario direto — da pra capturar depois pelo botao
+  // "Selecionar uma area da tela" que ja existe no form.
+  function iniciarProblema() {
+    removeNode("ctxBackdrop");
+    removeNode("ctxMenu");
+    abrirPerguntaPrint(
+      "Relatar problema",
+      function () {
+        removeNode("modalOverlay");
+        startReport();
+      },
+      function () {
+        removeNode("modalOverlay");
+        openModal(null);
+      }
+    );
   }
 
   function openMenu(x, y) {
@@ -502,7 +525,7 @@
         type: "button",
         class: "bgr-ctx-item",
         html: BUG_SVG + "<span>Relatar problema</span>",
-        onclick: startReport,
+        onclick: iniciarProblema,
       }),
     ];
     extras.forEach(function (a) {
