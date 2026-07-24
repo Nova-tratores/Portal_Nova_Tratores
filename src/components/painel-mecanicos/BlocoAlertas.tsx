@@ -2,7 +2,7 @@
 import { useState, useMemo, useRef } from 'react'
 import {
   Plus, X, Camera,
-  MessageSquare, Check, ThumbsUp, ThumbsDown, Filter, AlertOctagon,
+  MessageSquare, Check, Filter, AlertOctagon,
   ChevronDown, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -66,17 +66,16 @@ type SortDir = 'asc' | 'desc'
 // --- Component ---
 export default function BlocoAlertas({
   tecnicos, alertas, onRecarregar, userName, ordens, reqsMecanico, justificativas, ocorrencias,
-  onAprovarRequisicao, onRecusarRequisicao, onAvaliarJustificativa, onConverterOcorrencia, tipoOcorrencia,
-  podeAprovar = true, podeRecusar = true, podeConverter = true, podeAvaliar = true,
+  onAprovarRequisicao, onRecusarRequisicao, onConverterOcorrencia, tipoOcorrencia,
+  podeAprovar = true, podeRecusar = true, podeConverter = true,
 }: {
   tecnicos: Tecnico[]; alertas: Alerta[]; onRecarregar: () => void; userName: string
   ordens: OrdemServico[]; reqsMecanico: RequisicaoMecanico[]; justificativas: Justificativa[]
   ocorrencias: Ocorrencia[]
   onAprovarRequisicao: (id: number) => void; onRecusarRequisicao: (id: number) => void
-  onAvaliarJustificativa: (id: number, aprovada: boolean) => void
   onConverterOcorrencia: (alerta: Alerta, tipo: string, pontos: number) => Promise<void>
   tipoOcorrencia: Record<string, { label: string; color: string }>
-  podeAprovar?: boolean; podeRecusar?: boolean; podeConverter?: boolean; podeAvaliar?: boolean
+  podeAprovar?: boolean; podeRecusar?: boolean; podeConverter?: boolean
 }) {
   const [filtroTecnico, setFiltroTecnico] = useState('todos')
   const [filtroTipo, setFiltroTipo] = useState('todos')
@@ -233,13 +232,10 @@ export default function BlocoAlertas({
                     <div style={{ fontSize: 11, fontWeight: 600, color: '#92400E', marginBottom: 3 }}>Justificativa</div>
                     {j.justificativa}
                   </div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button onClick={() => onAvaliarJustificativa(j.id, true)} {...gateBtn(podeAvaliar)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, background: '#111', color: '#fff', border: 'none', borderRadius: 4, padding: '8px 0', fontSize: 13, fontWeight: 700, cursor: 'pointer', ...estiloSemPermissao(podeAvaliar) }}>
-                      <ThumbsUp size={13} /> Aceitar
-                    </button>
-                    <button onClick={() => onAvaliarJustificativa(j.id, false)} {...gateBtn(podeAvaliar)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, background: 'var(--portal-bg-card)', color: '#DC2626', border: '1px solid #FECACA', borderRadius: 4, padding: '8px 0', fontSize: 13, fontWeight: 700, cursor: 'pointer', ...estiloSemPermissao(podeAvaliar) }}>
-                      <ThumbsDown size={13} /> Recusar
-                    </button>
+                  {/* Decisão do usuário (24/07): aprovar/recusar é SÓ pelo RH
+                      (ficha do funcionário → aba Ocorrências) — aqui só exibe */}
+                  <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', background: 'var(--portal-bg-secondary)', border: '1px dashed var(--portal-border)', borderRadius: 4, padding: '7px 10px' }}>
+                    A avaliação desta defesa é feita pelo RH (ficha do funcionário → aba Ocorrências).
                   </div>
                 </div>
               )

@@ -50,7 +50,6 @@ function PainelMecanicosPage() {
   const podeAprovar = pode('painel-mecanicos', 'aprovar_requisicao')
   const podeRecusar = pode('painel-mecanicos', 'recusar_requisicao')
   const podeConverter = pode('painel-mecanicos', 'converter_alerta')
-  const podeAvaliar = pode('painel-mecanicos', 'avaliar_justificativa')
   const [tecnicos, setTecnicos] = useState<Tecnico[]>([])
   const [ordens, setOrdens] = useState<OrdemServico[]>([])
   const [alertas, setAlertas] = useState<Alerta[]>([])
@@ -155,7 +154,8 @@ function PainelMecanicosPage() {
     carregar()
   }
 
-  const avaliarJustificativa = async (id: number, aprovada: boolean) => { if (!podeAvaliar) return; const just = justificativas.find(j => j.id === id); await supabase.from('tecnico_justificativas').update({ status: aprovada ? 'aprovada' : 'recusada', descontar_comissao: !aprovada, data_avaliacao: new Date().toISOString(), avaliado_por: userProfile?.nome || null }).eq('id', id); if (just) { await notificarAdmins('pos', `Justificativa ${aprovada ? 'aceita' : 'recusada'} - ${just.tecnico_nome}`, `${just.justificativa.substring(0, 100)}${aprovada ? ' (sem desconto)' : ' (desconta comissão)'}`); await supabase.from('mecanico_notificacoes').insert({ tecnico_nome: just.tecnico_nome, tipo: 'execucao', titulo: `Justificativa ${aprovada ? 'aceita' : 'recusada'}`, descricao: aprovada ? 'Sua justificativa foi aceita, sem desconto na comissão.' : 'Sua justificativa foi recusada, haverá desconto na comissão.', link: '', lida: false }) }; carregar() }
+  // Avaliação de justificativa REMOVIDA do painel (decisão 24/07): aprovar/
+  // recusar defesa agora é SÓ pela ficha do funcionário no RH.
 
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 80, color: 'var(--portal-text-muted)', gap: 10 }}>
@@ -233,7 +233,7 @@ function PainelMecanicosPage() {
 
         {blocoAtivo === 'visao' && <BlocoVisaoGeral tecnicos={tecnicos} ordens={ordens} caminhos={caminhos} />}
         {blocoAtivo === 'ordens' && <BlocoAgenda tecnicos={tecnicos} ordens={ordens} semanaOffset={semanaOffset} />}
-        {blocoAtivo === 'alertas' && <BlocoAlertas tecnicos={tecnicos} alertas={alertas} onRecarregar={carregar} userName={userProfile?.nome || ''} ordens={ordens} reqsMecanico={reqsMecanico} justificativas={justificativas} ocorrencias={ocorrencias} onAprovarRequisicao={aprovarRequisicao} onRecusarRequisicao={recusarRequisicao} onAvaliarJustificativa={avaliarJustificativa} onConverterOcorrencia={converterAlertaEmOcorrencia} tipoOcorrencia={TIPO_OCORRENCIA} podeAprovar={podeAprovar} podeRecusar={podeRecusar} podeConverter={podeConverter} podeAvaliar={podeAvaliar} />}
+        {blocoAtivo === 'alertas' && <BlocoAlertas tecnicos={tecnicos} alertas={alertas} onRecarregar={carregar} userName={userProfile?.nome || ''} ordens={ordens} reqsMecanico={reqsMecanico} justificativas={justificativas} ocorrencias={ocorrencias} onAprovarRequisicao={aprovarRequisicao} onRecusarRequisicao={recusarRequisicao} onConverterOcorrencia={converterAlertaEmOcorrencia} tipoOcorrencia={TIPO_OCORRENCIA} podeAprovar={podeAprovar} podeRecusar={podeRecusar} podeConverter={podeConverter} />}
         {blocoAtivo === 'ocorrencias' && <BlocoOcorrencias tecnicos={tecnicos} ocorrencias={ocorrencias} justificativas={justificativas} opasResolvidas={opasResolvidas} tipoOcorrencia={TIPO_OCORRENCIA} onRecarregar={carregar} criadoPor={userProfile?.nome || undefined} />}
         {blocoAtivo === 'relatorio' && <BlocoRelatorioMensal tecnicos={tecnicos} />}
       </div>
