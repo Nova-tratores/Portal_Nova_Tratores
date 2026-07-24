@@ -45,6 +45,8 @@ export async function POST(req: NextRequest) {
       email_corpo: body.email_corpo || null,
       email_assinatura: body.email_assinatura || null,
       proximo_numero_sg: Math.max(1, parseInt(body.proximo_numero_sg, 10) || 1),
+      fluxo: body.fluxo === 'duas_etapas' ? 'duas_etapas' : 'padrao',
+      ressarcimento_por_email: !!body.ressarcimento_por_email,
     })
     .select()
     .single();

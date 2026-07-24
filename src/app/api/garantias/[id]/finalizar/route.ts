@@ -16,14 +16,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: g } = await supabase
     .from(TBL_GARANTIAS)
-    .select('id, numero, status, id_ordem, tecnico_nome, retorno_fabrica_url, tecnico_horas, tecnico_km')
+    .select('id, numero, status, id_ordem, tecnico_nome, retorno_fabrica_url, tecnico_horas, tecnico_km, valor_pago_pecas, montadora:garantia_montadoras(fluxo)')
     .eq('id', id)
     .maybeSingle();
   if (!g) return NextResponse.json({ error: 'Garantia não encontrada.' }, { status: 404 });
 
+  type MontFluxo = { fluxo?: string };
+  const mont = (g as unknown as { montadora?: MontFluxo | MontFluxo[] }).montadora;
+  const fluxoDuasEtapas = (Array.isArray(mont) ? mont[0] : mont)?.fluxo === 'duas_etapas';
+  // 2ª etapa do fluxo duas_etapas: só horas/km em jogo — peças já resolvidas
+  // no retorno-pecas (1ª etapa).
+  const etapa2 = g.status === 'ressarcimento_fabrica';
+
   // Recusa interna do garantista: aceita finalizar em 'em_analise' (e
   // 'bo_tecnico' quando o garantista decide encerrar mesmo com B.O. pendente).
-  // Aprovar continua exigindo que tenha passado pela fábrica (status='enviada').
+  // Aprovar continua exigindo que tenha passado pela fábrica (status='enviada'
+  // — ou 'ressarcimento_fabrica' no fluxo em duas etapas).
   const recusaInterna = resultado === 'rejeitada' && body.recusa_garantista === true;
   if (recusaInterna) {
     if (g.status !== 'em_analise' && g.status !== 'bo_tecnico') {
@@ -32,9 +40,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         { status: 400 }
       );
     }
-  } else if (g.status !== 'enviada') {
+  } else if (g.status !== 'enviada' && g.status !== 'ressarcimento_fabrica') {
     return NextResponse.json(
       { error: 'Só é possível finalizar uma garantia que está na fábrica.' },
+      { status: 400 }
+    );
+  } else if (g.status === 'enviada' && fluxoDuasEtapas) {
+    return NextResponse.json(
+      { error: 'Montadora com fluxo em duas etapas — registre o retorno das peças (1ª etapa).' },
       { status: 400 }
     );
   }
@@ -71,9 +84,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const pecasAprovadasIds: string[] = Array.isArray(body.pecas_aprovadas) ? body.pecas_aprovadas : [];
   const { data: pecasGarantia } = await supabase
     .from(TBL_GAR_PECAS)
-    .select('id, descricao, quantidade, preco_unitario')
+    .select('id, descricao, quantidade, preco_unitario, resultado')
     .eq('garantia_id', id);
-  const todasPecas = (pecasGarantia || []) as { id: string; descricao: string; quantidade: number; preco_unitario: number }[];
+  const todasPecas = (pecasGarantia || []) as { id: string; descricao: string; quantidade: number; preco_unitario: number; resultado: string | null }[];
   const idsAprovados = body.pecas_aprovadas === undefined
     ? new Set(todasPecas.map((p) => p.id))
     : new Set(pecasAprovadasIds);
@@ -98,15 +111,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   // Valores pagos só na aprovação. Total = (M.O. se paga) + (desloc se pago) +
   // peças aprovadas. O que a garantia NÃO paga pré-preenche a cobrança ao cliente.
+  // Na 2ª etapa (ressarcimento) as peças já foram resolvidas no retorno-pecas:
+  // o valor pago das peças vem congelado da 1ª etapa e nunca é zerado.
+  const vpEtapa1 = Number(g.valor_pago_pecas) || 0;
   if (resultado === 'aprovada') {
     const vh = (gHoras ?? 0) * VALOR_HORA;
     const vk = (gKm ?? 0) * VALOR_KM;
     const vhPago = moAprovada ? vh : 0;
     const vkPago = deslocAprovado ? vk : 0;
-    let vp = 0;
-    for (const p of todasPecas) {
-      if (idsAprovados.has(p.id)) {
-        vp += (Number(p.preco_unitario) || 0) * (Number(p.quantidade) || 0);
+    let vp = vpEtapa1;
+    if (!etapa2) {
+      vp = 0;
+      for (const p of todasPecas) {
+        if (idsAprovados.has(p.id)) {
+          vp += (Number(p.preco_unitario) || 0) * (Number(p.quantidade) || 0);
+        }
       }
     }
     update.valor_pago_horas = vhPago;
@@ -117,7 +136,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // Itens não pagos pela garantia → abre a cobrança ao cliente já pré-marcada.
     const unpaidHoras = !moAprovada && vh > 0;
     const unpaidKm = !deslocAprovado && vk > 0;
-    const unpaidPecas = todasPecas.filter((p) => !idsAprovados.has(p.id)).map((p) => p.id);
+    const unpaidPecas = etapa2
+      ? todasPecas.filter((p) => p.resultado === 'rejeitada').map((p) => p.id)
+      : todasPecas.filter((p) => !idsAprovados.has(p.id)).map((p) => p.id);
     if (unpaidHoras || unpaidKm || unpaidPecas.length > 0) {
       update.cobranca_status = 'pendente';
       update.cobranca_itens = { horas: unpaidHoras, km: unpaidKm, pecas: unpaidPecas };
@@ -127,14 +148,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   } else {
     update.valor_pago_horas = 0;
     update.valor_pago_km = 0;
-    update.valor_pago_pecas = 0;
-    update.valor_pago_total = 0;
+    // Ressarcimento negado: as peças da 1ª etapa continuam pagas pela fábrica.
+    update.valor_pago_pecas = etapa2 ? vpEtapa1 : 0;
+    update.valor_pago_total = etapa2 ? vpEtapa1 : 0;
     // Rejeitada → libera o fluxo de cobrança ao cliente
     update.cobranca_status = 'pendente';
   }
 
-  // Atualiza o resultado de cada peça
-  if (todasPecas.length > 0) {
+  // Atualiza o resultado de cada peça (na 2ª etapa ficam congeladas da 1ª)
+  if (todasPecas.length > 0 && !etapa2) {
     const aprovadasIdsList = todasPecas.filter((p) => idsAprovados.has(p.id)).map((p) => p.id);
     const rejeitadasIdsList = todasPecas.filter((p) => !idsAprovados.has(p.id)).map((p) => p.id);
     if (resultado === 'aprovada') {

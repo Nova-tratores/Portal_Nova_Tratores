@@ -12,6 +12,8 @@ const COR_EVENTO: Record<string, string> = {
   info_pendente: '#f97316',
   info_respondida: '#16a34a',
   retorno_fabrica: '#8b5cf6',
+  retorno_pecas: '#0d9488',
+  ressarcimento_solicitado: '#c026d3',
   aprovada: '#16a34a',
   rejeitada: '#dc2626',
 };

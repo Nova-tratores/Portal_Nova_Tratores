@@ -11,7 +11,7 @@ interface Props {
 
 export default function GarantiaMiniCard({ garantia: g, onClick }: Props) {
   const pendenciaAberta = g.pendencias?.some((p) => p.status === 'aberta');
-  const naFabrica = g.status === 'enviada' || g.status === 'info_pendente';
+  const naFabrica = g.status === 'enviada' || g.status === 'info_pendente' || g.status === 'ressarcimento_fabrica';
   const diasFabrica = naFabrica ? diasEntre(g.enviada_fabrica_em) : null;
 
   return (

@@ -107,6 +107,9 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
   // Garantia paga M.O. (horas) e/ou Deslocamento (km)? Default: paga os dois.
   const [moAprovada, setMoAprovada] = useState(true);
   const [deslocAprovado, setDeslocAprovado] = useState(true);
+  // Retorno das peças (1ª etapa do fluxo duas_etapas): valor pago das peças
+  // editável — vazio = usa a soma das peças marcadas.
+  const [valorPecasStr, setValorPecasStr] = useState('');
 
   // Recusa interna (em_analise)
   const [recusaTexto, setRecusaTexto] = useState('');
@@ -132,10 +135,14 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
       setGHoras(det.garantista_horas != null ? String(det.garantista_horas) : '');
       setGKm(det.garantista_km != null ? String(det.garantista_km) : '');
       setGObs(det.garantista_obs || '');
-      // Default: todas as peças marcadas como aprovadas. Após finalizar, respeita o resultado salvo.
+      // Default: todas as peças marcadas como aprovadas. Após finalizar — ou
+      // após o retorno das peças (1ª etapa do fluxo duas_etapas) — respeita o
+      // resultado salvo.
       const jaFinalizada = det.status === 'aprovada' || det.status === 'rejeitada';
+      const pecasResolvidas =
+        jaFinalizada || det.status === 'aguardando_servico' || det.status === 'ressarcimento_fabrica';
       const aprovadasIds = det.pecas
-        .filter((p) => jaFinalizada ? p.resultado === 'aprovada' : true)
+        .filter((p) => pecasResolvidas ? p.resultado === 'aprovada' : true)
         .map((p) => p.id);
       setPecasAprovadas(new Set(aprovadasIds));
       // M.O. e deslocamento: default pagos; após finalizar, reflete o que foi pago.
@@ -201,11 +208,15 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
     // análise): custos de terceiro / requisições podem entrar enquanto a
     // garantia está na fábrica ('enviada') ou com info pendente. Só não
     // sincroniza depois de aprovada/rejeitada (peças congeladas).
+    // 'aguardando_servico' também sincroniza: o serviço está sendo executado
+    // agora, e as horas/km precisam estar frescas pro pedido de ressarcimento.
+    // Depois do pedido ('ressarcimento_fabrica') a foto congela.
     const editavel =
       g.status === 'em_analise' ||
       g.status === 'bo_tecnico' ||
       g.status === 'enviada' ||
-      g.status === 'info_pendente';
+      g.status === 'info_pendente' ||
+      g.status === 'aguardando_servico';
     if (editavel) {
       sincronizarOS({ silent: true });
     }
@@ -223,8 +234,8 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
 
   // Centraliza o enforcement: cada ação do drawer mapeia pra uma permissão.
   function acaoPermitida(acao: string): boolean {
-    if (acao === 'enviar' || acao === 'enviar_sg') return podeEnviarFabrica;
-    if (acao === 'finalizar' || acao === 'recusar_interno' || acao === 'reabrir_recusa' || acao.startsWith('cobranca_')) return podeFinalizar;
+    if (acao === 'enviar' || acao === 'enviar_sg' || acao === 'solicitar_ressarcimento') return podeEnviarFabrica;
+    if (acao === 'finalizar' || acao === 'retorno_pecas' || acao === 'recusar_interno' || acao === 'reabrir_recusa' || acao.startsWith('cobranca_')) return podeFinalizar;
     return podeAnalisar; // assumir, montadora, analise, pendencia, tipo_garantia, gerar_sg, atualizar_precos...
   }
 
@@ -315,6 +326,43 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
       }),
     });
 
+  // 1ª etapa (fluxo duas_etapas): registra o retorno da fábrica sobre as peças
+  const registrarRetornoPecas = () => {
+    if (pecasAprovadas.size === 0) {
+      const ok = confirm(
+        'Nenhuma peça marcada como aprovada.\n\nA garantia será RECUSADA pela fábrica e a cobrança ao cliente fica liberada. Confirmar?'
+      );
+      if (!ok) return Promise.resolve(false);
+    }
+    const valorNum = valorPecasStr.trim() === '' ? undefined : Number(valorPecasStr.replace(',', '.'));
+    return chamar('retorno_pecas', `/api/garantias/${garantiaId}/retorno-pecas`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        pecas_aprovadas: [...pecasAprovadas],
+        valor_pago_pecas: valorNum,
+        motivo_recusa: motivoRecusa,
+        garantista_nome: userName,
+      }),
+    }).then((ok) => {
+      if (ok) { setMotivoRecusa(''); setValorPecasStr(''); }
+      return ok;
+    });
+  };
+
+  // 2ª etapa (fluxo duas_etapas): serviço executado → pede o ressarcimento
+  const solicitarRessarcimento = () =>
+    chamar('solicitar_ressarcimento', `/api/garantias/${garantiaId}/solicitar-ressarcimento`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        garantista_nome: userName,
+        garantista_horas: gHoras,
+        garantista_km: gKm,
+        garantista_obs: gObs,
+      }),
+    });
+
   // Recusa interna (em_analise → rejeitada, sem enviar pra fábrica)
   const recusarInterno = () =>
     chamar('recusar_interno', `/api/garantias/${garantiaId}/finalizar`, {
@@ -354,6 +402,11 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
   const aguardandoTec = g?.status === 'bo_tecnico' || g?.status === 'info_pendente';
   const pendenciaAberta = g?.pendencias?.find((p) => p.status === 'aberta') || null;
   const temRetornoFabrica = !!g?.retorno_fabrica_url;
+  // Fluxo em duas etapas (peças primeiro, ressarcimento de horas/km depois)
+  const fluxoDuasEtapas = g?.montadora?.fluxo === 'duas_etapas';
+  const aguardandoServico = g?.status === 'aguardando_servico';
+  const emRessarcimento = g?.status === 'ressarcimento_fabrica';
+  const naFabricaDuasEtapas = naFabrica && fluxoDuasEtapas;
 
   return (
     <div
@@ -429,6 +482,20 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                 <div style={{ fontSize: 12, color: '#dc2626', background: '#dc262615', padding: '8px 10px', borderRadius: 8 }}>
                   {erro}
                 </div>
+              )}
+
+              {/* Etapas do fluxo duas_etapas (peças → serviço → ressarcimento) */}
+              {fluxoDuasEtapas && g.status !== 'aberta' && (
+                <EtapasGarantia
+                  etapaAtual={
+                    finalizada ? 4
+                    : emRessarcimento ? 3
+                    : aguardandoServico ? 2
+                    : g.status === 'info_pendente' && g.ressarcimento_enviado_em ? 3
+                    : naFabrica || g.status === 'info_pendente' ? 1
+                    : 0
+                  }
+                />
               )}
 
               {verTimeline && (
@@ -716,7 +783,7 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
               )}
 
               {/* Montadora + Checklist */}
-              {(emAnalise || naFabrica || finalizada || aguardandoTec) && g.status !== 'aberta' && (
+              {(emAnalise || naFabrica || finalizada || aguardandoTec || aguardandoServico || emRessarcimento) && g.status !== 'aberta' && (
                 <Secao titulo="Montadora e checklist" icone={<Factory size={14} />}>
                   <MontadoraPicker
                     montadoraId={g.montadora_id}
@@ -748,9 +815,9 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                     tecnicoKm={g.tecnico_km}
                     garantistaHoras={gHoras}
                     garantistaKm={gKm}
-                    onChange={emAnalise || naFabrica ? (campo, v) => (campo === 'horas' ? setGHoras(v) : setGKm(v)) : undefined}
+                    onChange={emAnalise || naFabrica || aguardandoServico ? (campo, v) => (campo === 'horas' ? setGHoras(v) : setGKm(v)) : undefined}
                   />
-                  {(emAnalise || naFabrica) && (
+                  {(emAnalise || naFabrica || aguardandoServico) && (
                     <textarea
                       placeholder="Observações do garantista (ajustes de valor, justificativas...)"
                       value={gObs}
@@ -1001,11 +1068,75 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                 </Secao>
               )}
 
-              {/* Em análise da fábrica */}
-              {naFabrica && (
+              {/* Aguardando serviço (2ª etapa do fluxo duas_etapas) */}
+              {aguardandoServico && (
+                <Secao titulo="Solicitar ressarcimento (2ª etapa)" icone={<Send size={14} />}>
+                  <div style={{ fontSize: 12, color: '#0f766e', background: '#0d948815', border: '1px solid #0d948844', padding: '8px 10px', borderRadius: 8 }}>
+                    Peças aprovadas em {fmtDataHora(g.pecas_retorno_em)} · Valor das peças:{' '}
+                    <strong>{fmtMoeda(g.valor_pago_pecas)}</strong>
+                  </div>
+                  <span style={{ fontSize: 12, color: 'var(--portal-text-secondary)' }}>
+                    Aguardando o técnico executar o serviço. Quando concluído, confira as horas e km acima e
+                    solicite o ressarcimento à fábrica.
+                  </span>
+                  {(() => {
+                    const vh = (Number(gHoras) || Number(g.tecnico_horas) || 0) * 193;
+                    const vk = (Number(gKm) || Number(g.tecnico_km) || 0) * 2.8;
+                    return (
+                      <div
+                        style={{
+                          padding: '8px 10px', borderRadius: 8,
+                          background: 'var(--portal-bg-secondary)',
+                          border: '1px solid var(--portal-border)',
+                          fontSize: 12, color: 'var(--portal-text-secondary)',
+                          display: 'flex', flexDirection: 'column', gap: 2,
+                        }}
+                      >
+                        <span>Mão de obra: <strong>{fmtMoeda(vh)}</strong></span>
+                        <span>Deslocamento: <strong>{fmtMoeda(vk)}</strong></span>
+                        <span style={{ marginTop: 4, paddingTop: 4, borderTop: '1px dashed var(--portal-border)', color: 'var(--portal-text)' }}>
+                          Total do ressarcimento: <strong style={{ color: '#0d9488' }}>{fmtMoeda(vh + vk)}</strong>
+                        </span>
+                      </div>
+                    );
+                  })()}
+                  {g.montadora?.ressarcimento_por_email ? (
+                    (g.montadora?.email_destinatarios?.length || 0) > 0 ? (
+                      <span style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>
+                        Será enviado por e-mail para: {g.montadora.email_destinatarios.join(', ')}
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: 11, color: '#dc2626' }}>
+                        Cadastre os e-mails da fábrica em Montadoras → {g.montadora?.nome} para liberar o envio.
+                      </span>
+                    )
+                  ) : (
+                    <span style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>
+                      A garantia só muda de fase — combine o ressarcimento com a fábrica por fora do portal.
+                    </span>
+                  )}
+                  <button
+                    onClick={solicitarRessarcimento}
+                    disabled={
+                      !!busy || !podeEnviarFabrica ||
+                      (!!g.montadora?.ressarcimento_por_email && (g.montadora?.email_destinatarios?.length || 0) === 0)
+                    }
+                    title={!podeEnviarFabrica ? MSG_SEM_PERMISSAO : undefined}
+                    style={btn('linear-gradient(135deg,#0d9488,#0f766e)', !!busy || !podeEnviarFabrica || (!!g.montadora?.ressarcimento_por_email && (g.montadora?.email_destinatarios?.length || 0) === 0))}
+                  >
+                    {busy === 'solicitar_ressarcimento' ? <Loader2 size={15} className="spin" /> : <Send size={15} />}
+                    Solicitar ressarcimento
+                  </button>
+                </Secao>
+              )}
+
+              {/* Em análise da fábrica (peças ou ressarcimento) */}
+              {(naFabrica || emRessarcimento) && (
                 <>
                   <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', textAlign: 'center' }}>
-                    Enviada à fábrica em {fmtDataHora(g.enviada_fabrica_em)} · {diasEntre(g.enviada_fabrica_em)} dia(s) em análise
+                    {emRessarcimento
+                      ? `Ressarcimento solicitado em ${fmtDataHora(g.ressarcimento_enviado_em)} · ${diasEntre(g.ressarcimento_enviado_em)} dia(s) aguardando a fábrica`
+                      : `Enviada à fábrica em ${fmtDataHora(g.enviada_fabrica_em)} · ${diasEntre(g.enviada_fabrica_em)} dia(s) em análise`}
                   </div>
 
                   <Secao titulo="Informação pendente para a fábrica" icone={<FileWarning size={14} />}>
@@ -1029,7 +1160,10 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                     </button>
                   </Secao>
 
-                  <Secao titulo="Retorno da fábrica (obrigatório)" icone={<FileWarning size={14} />}>
+                  <Secao
+                    titulo={naFabricaDuasEtapas ? 'Retorno da fábrica (peças)' : 'Retorno da fábrica (obrigatório)'}
+                    icone={<FileWarning size={14} />}
+                  >
                     <GarantiaAnexos
                       garantiaId={g.id}
                       anexos={g.anexos.filter((a) => a.categoria === 'retorno_fabrica')}
@@ -1040,168 +1174,209 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                     />
                   </Secao>
 
-                  <Secao titulo="Finalizar garantia" icone={<CheckCircle2 size={14} />}>
-                    {!temRetornoFabrica && (
-                      <span style={{ fontSize: 11, color: '#dc2626' }}>
-                        Anexe o retorno da fábrica para liberar a finalização.
+                  {naFabricaDuasEtapas ? (
+                    /* 1ª etapa: fábrica respondeu sobre as PEÇAS */
+                    <Secao titulo="Retorno das peças (1ª etapa)" icone={<Package size={14} />}>
+                      <span style={{ fontSize: 12, color: 'var(--portal-text-secondary)' }}>
+                        Marque as peças que a fábrica aprovou. Com peças aprovadas, a garantia fica
+                        aguardando o serviço do técnico — o ressarcimento das horas/km é a 2ª etapa.
                       </span>
-                    )}
-
-                    {/* Peças pagas pela fábrica (marca o que foi aprovado) */}
-                    {g.pecas.length > 0 && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-                          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text-secondary)' }}>
-                            Peças pagas pela fábrica
+                      <PecasChecklistFabrica
+                        pecas={g.pecas}
+                        selecionadas={pecasAprovadas}
+                        onToggle={(pid) =>
+                          setPecasAprovadas((prev) => {
+                            const n = new Set(prev);
+                            if (n.has(pid)) n.delete(pid); else n.add(pid);
+                            return n;
+                          })
+                        }
+                        busy={busy}
+                        onAtualizarPrecos={() =>
+                          chamar('atualizar_precos', `/api/garantias/${garantiaId}/atualizar-precos`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ ator: userName }),
+                          })
+                        }
+                      />
+                      {(() => {
+                        const somaMarcadas = g.pecas
+                          .filter((p) => pecasAprovadas.has(p.id))
+                          .reduce((s, p) => s + (Number(p.preco_unitario) || 0) * (Number(p.quantidade) || 0), 0);
+                        return (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--portal-text-muted)', textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                              Valor pago das peças
+                            </label>
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={valorPecasStr}
+                              onChange={(e) => setValorPecasStr(e.target.value)}
+                              placeholder={somaMarcadas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              style={{ ...taStyle, resize: 'none' } as React.CSSProperties}
+                            />
+                            <span style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>
+                              Deixe vazio para usar a soma das peças marcadas ({fmtMoeda(somaMarcadas)}).
+                            </span>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              chamar('atualizar_precos', `/api/garantias/${garantiaId}/atualizar-precos`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ ator: userName }),
-                              })
-                            }
-                            disabled={!!busy}
+                        );
+                      })()}
+                      {pecasAprovadas.size === 0 && (
+                        <>
+                          <div style={{ fontSize: 12, color: '#b91c1c', background: '#fef2f2', border: '1px solid #fca5a5', padding: '8px 10px', borderRadius: 8 }}>
+                            Nenhuma peça marcada — a garantia será <strong>RECUSADA</strong> e a cobrança ao
+                            cliente fica liberada.
+                          </div>
+                          <textarea
+                            placeholder="Motivo da recusa das peças (obrigatório)"
+                            value={motivoRecusa}
+                            onChange={(e) => setMotivoRecusa(e.target.value)}
+                            rows={2}
+                            style={taStyle}
+                          />
+                        </>
+                      )}
+                      <button
+                        onClick={registrarRetornoPecas}
+                        disabled={!!busy || !podeFinalizar || (pecasAprovadas.size === 0 && !motivoRecusa.trim())}
+                        title={!podeFinalizar ? MSG_SEM_PERMISSAO : undefined}
+                        style={btn(
+                          pecasAprovadas.size === 0 ? '#dc2626' : 'linear-gradient(135deg,#0d9488,#0f766e)',
+                          !!busy || !podeFinalizar || (pecasAprovadas.size === 0 && !motivoRecusa.trim())
+                        )}
+                      >
+                        {busy === 'retorno_pecas' ? <Loader2 size={15} className="spin" /> : <CheckCircle2 size={15} />}
+                        Registrar retorno das peças
+                      </button>
+                    </Secao>
+                  ) : (
+                    <Secao titulo={emRessarcimento ? 'Finalizar ressarcimento' : 'Finalizar garantia'} icone={<CheckCircle2 size={14} />}>
+                      {!temRetornoFabrica && (
+                        <span style={{ fontSize: 11, color: '#dc2626' }}>
+                          Anexe o retorno da fábrica para liberar a finalização.
+                        </span>
+                      )}
+
+                      {/* Peças: no fluxo padrão marca aqui; na 2ª etapa já vieram resolvidas */}
+                      {!emRessarcimento && (
+                        <PecasChecklistFabrica
+                          pecas={g.pecas}
+                          selecionadas={pecasAprovadas}
+                          onToggle={(pid) =>
+                            setPecasAprovadas((prev) => {
+                              const n = new Set(prev);
+                              if (n.has(pid)) n.delete(pid); else n.add(pid);
+                              return n;
+                            })
+                          }
+                          busy={busy}
+                          onAtualizarPrecos={() =>
+                            chamar('atualizar_precos', `/api/garantias/${garantiaId}/atualizar-precos`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ ator: userName }),
+                            })
+                          }
+                        />
+                      )}
+
+                      {/* Serviço: a garantia paga M.O. e/ou deslocamento? (igual às peças) */}
+                      {(() => {
+                        const vh = (Number(gHoras) || 0) * 193;
+                        const vk = (Number(gKm) || 0) * 2.8;
+                        if (vh <= 0 && vk <= 0) return null;
+                        const linha = (label: string, valor: number, sel: boolean, onToggle: () => void) => (
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 8, background: sel ? '#ECFDF5' : 'var(--portal-bg-secondary)', border: `1px solid ${sel ? '#A7F3D0' : 'var(--portal-border)'}`, cursor: 'pointer', fontSize: 12 }}>
+                            <input type="checkbox" checked={sel} onChange={onToggle} />
+                            <span style={{ flex: 1, color: 'var(--portal-text)' }}>{label}</span>
+                            <span style={{ fontWeight: 700, color: sel ? '#16a34a' : 'var(--portal-text-muted)' }}>{fmtMoeda(valor)}</span>
+                          </label>
+                        );
+                        return (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text-secondary)' }}>Serviço pago pela garantia</div>
+                            {vh > 0 && linha('Mão de obra', vh, moAprovada, () => setMoAprovada((v) => !v))}
+                            {vk > 0 && linha('Deslocamento (KM)', vk, deslocAprovado, () => setDeslocAprovado((v) => !v))}
+                          </div>
+                        );
+                      })()}
+
+                      {/* Preview do valor total a ser pago */}
+                      {(() => {
+                        const vh = (Number(gHoras) || 0) * 193;
+                        const vk = (Number(gKm) || 0) * 2.8;
+                        const vhPago = moAprovada ? vh : 0;
+                        const vkPago = deslocAprovado ? vk : 0;
+                        // 2ª etapa: peças congeladas do retorno da 1ª etapa
+                        const vp = emRessarcimento
+                          ? Number(g.valor_pago_pecas) || 0
+                          : g.pecas
+                              .filter((p) => pecasAprovadas.has(p.id))
+                              .reduce((s, p) => s + (Number(p.preco_unitario) || 0) * (Number(p.quantidade) || 0), 0);
+                        const total = vhPago + vkPago + vp;
+                        const naoPago = (vh - vhPago) + (vk - vkPago) + (emRessarcimento ? 0 : g.pecas
+                          .filter((p) => !pecasAprovadas.has(p.id))
+                          .reduce((s, p) => s + (Number(p.preco_unitario) || 0) * (Number(p.quantidade) || 0), 0));
+                        const riscado: React.CSSProperties = { textDecoration: 'line-through', opacity: 0.6 };
+                        return (
+                          <div
                             style={{
-                              display: 'flex', alignItems: 'center', gap: 4,
-                              padding: '4px 10px', borderRadius: 6,
+                              padding: '8px 10px', borderRadius: 8,
+                              background: 'var(--portal-bg-secondary)',
                               border: '1px solid var(--portal-border)',
-                              background: 'var(--portal-bg-input)',
-                              color: 'var(--portal-text-secondary)',
-                              fontSize: 11, fontWeight: 600,
-                              cursor: busy ? 'default' : 'pointer',
+                              fontSize: 12, color: 'var(--portal-text-secondary)',
+                              display: 'flex', flexDirection: 'column', gap: 2,
                             }}
                           >
-                            {busy === 'atualizar_precos' ? <Loader2 size={11} className="spin" /> : <Save size={11} />}
-                            Atualizar preços do PPV
-                          </button>
-                        </div>
-                        {g.pecas.map((p) => {
-                          const sel = pecasAprovadas.has(p.id);
-                          const valor = (Number(p.preco_unitario) || 0) * (Number(p.quantidade) || 0);
-                          return (
-                            <label
-                              key={p.id}
-                              style={{
-                                display: 'flex', alignItems: 'center', gap: 8,
-                                padding: '6px 8px', borderRadius: 8,
-                                background: sel ? '#ECFDF5' : 'var(--portal-bg-secondary)',
-                                border: `1px solid ${sel ? '#A7F3D0' : 'var(--portal-border)'}`,
-                                cursor: 'pointer', fontSize: 12,
-                              }}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={sel}
-                                onChange={() => {
-                                  setPecasAprovadas((prev) => {
-                                    const n = new Set(prev);
-                                    if (n.has(p.id)) n.delete(p.id); else n.add(p.id);
-                                    return n;
-                                  });
-                                }}
-                              />
-                              <span style={{ flex: 1, color: 'var(--portal-text)' }}>
-                                {p.cod_produto ? `${p.cod_produto} · ` : ''}{p.descricao}
-                                <span style={{ color: 'var(--portal-text-muted)' }}> x{p.quantidade}</span>
-                              </span>
-                              <span style={{ fontWeight: 700, color: sel ? '#16a34a' : 'var(--portal-text-muted)' }}>
-                                {fmtMoeda(valor)}
-                              </span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {/* Serviço: a garantia paga M.O. e/ou deslocamento? (igual às peças) */}
-                    {(() => {
-                      const vh = (Number(gHoras) || 0) * 193;
-                      const vk = (Number(gKm) || 0) * 2.8;
-                      if (vh <= 0 && vk <= 0) return null;
-                      const linha = (label: string, valor: number, sel: boolean, onToggle: () => void) => (
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 8, background: sel ? '#ECFDF5' : 'var(--portal-bg-secondary)', border: `1px solid ${sel ? '#A7F3D0' : 'var(--portal-border)'}`, cursor: 'pointer', fontSize: 12 }}>
-                          <input type="checkbox" checked={sel} onChange={onToggle} />
-                          <span style={{ flex: 1, color: 'var(--portal-text)' }}>{label}</span>
-                          <span style={{ fontWeight: 700, color: sel ? '#16a34a' : 'var(--portal-text-muted)' }}>{fmtMoeda(valor)}</span>
-                        </label>
-                      );
-                      return (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text-secondary)' }}>Serviço pago pela garantia</div>
-                          {vh > 0 && linha('Mão de obra', vh, moAprovada, () => setMoAprovada((v) => !v))}
-                          {vk > 0 && linha('Deslocamento (KM)', vk, deslocAprovado, () => setDeslocAprovado((v) => !v))}
-                        </div>
-                      );
-                    })()}
-
-                    {/* Preview do valor total a ser pago */}
-                    {(() => {
-                      const vh = (Number(gHoras) || 0) * 193;
-                      const vk = (Number(gKm) || 0) * 2.8;
-                      const vhPago = moAprovada ? vh : 0;
-                      const vkPago = deslocAprovado ? vk : 0;
-                      const vp = g.pecas
-                        .filter((p) => pecasAprovadas.has(p.id))
-                        .reduce((s, p) => s + (Number(p.preco_unitario) || 0) * (Number(p.quantidade) || 0), 0);
-                      const total = vhPago + vkPago + vp;
-                      const naoPago = (vh - vhPago) + (vk - vkPago) + g.pecas
-                        .filter((p) => !pecasAprovadas.has(p.id))
-                        .reduce((s, p) => s + (Number(p.preco_unitario) || 0) * (Number(p.quantidade) || 0), 0);
-                      const riscado: React.CSSProperties = { textDecoration: 'line-through', opacity: 0.6 };
-                      return (
-                        <div
-                          style={{
-                            padding: '8px 10px', borderRadius: 8,
-                            background: 'var(--portal-bg-secondary)',
-                            border: '1px solid var(--portal-border)',
-                            fontSize: 12, color: 'var(--portal-text-secondary)',
-                            display: 'flex', flexDirection: 'column', gap: 2,
-                          }}
-                        >
-                          <span style={moAprovada ? undefined : riscado}>Mão de obra: <strong>{fmtMoeda(vh)}</strong></span>
-                          <span style={deslocAprovado ? undefined : riscado}>Deslocamento: <strong>{fmtMoeda(vk)}</strong></span>
-                          <span>Peças aprovadas: <strong>{fmtMoeda(vp)}</strong></span>
-                          <span style={{ marginTop: 4, paddingTop: 4, borderTop: '1px dashed var(--portal-border)', color: 'var(--portal-text)' }}>
-                            Total a pagar (garantia): <strong style={{ color: '#16a34a' }}>{fmtMoeda(total)}</strong>
-                          </span>
-                          {naoPago > 0 && (
-                            <span style={{ color: '#b45309' }}>
-                              Não pago (vai pra cobrança/interno): <strong>{fmtMoeda(naoPago)}</strong>
+                            <span style={moAprovada ? undefined : riscado}>Mão de obra: <strong>{fmtMoeda(vh)}</strong></span>
+                            <span style={deslocAprovado ? undefined : riscado}>Deslocamento: <strong>{fmtMoeda(vk)}</strong></span>
+                            <span>{emRessarcimento ? 'Peças (aprovadas na 1ª etapa)' : 'Peças aprovadas'}: <strong>{fmtMoeda(vp)}</strong></span>
+                            <span style={{ marginTop: 4, paddingTop: 4, borderTop: '1px dashed var(--portal-border)', color: 'var(--portal-text)' }}>
+                              Total a pagar (garantia): <strong style={{ color: '#16a34a' }}>{fmtMoeda(total)}</strong>
                             </span>
-                          )}
-                        </div>
-                      );
-                    })()}
+                            {naoPago > 0 && (
+                              <span style={{ color: '#b45309' }}>
+                                Não pago (vai pra cobrança/interno): <strong>{fmtMoeda(naoPago)}</strong>
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
 
-                    <textarea
-                      placeholder="Motivo da recusa (obrigatório se recusar)"
-                      value={motivoRecusa}
-                      onChange={(e) => setMotivoRecusa(e.target.value)}
-                      rows={2}
-                      style={taStyle}
-                    />
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button
-                        onClick={() => finalizar('aprovada')}
-                        disabled={!!busy || !temRetornoFabrica || !podeFinalizar}
-                        title={!podeFinalizar ? MSG_SEM_PERMISSAO : undefined}
-                        style={{ ...btn('#16a34a', !!busy || !temRetornoFabrica || !podeFinalizar), flex: 1 }}
-                      >
-                        <CheckCircle2 size={15} /> Aprovar
-                      </button>
-                      <button
-                        onClick={() => finalizar('rejeitada')}
-                        disabled={!!busy || !temRetornoFabrica || !podeFinalizar}
-                        title={!podeFinalizar ? MSG_SEM_PERMISSAO : undefined}
-                        style={{ ...btn('#dc2626', !!busy || !temRetornoFabrica || !podeFinalizar), flex: 1 }}
-                      >
-                        <XCircle size={15} /> Recusar
-                      </button>
-                    </div>
-                  </Secao>
+                      {emRessarcimento && (
+                        <span style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>
+                          Recusar aqui nega só o ressarcimento — as peças aprovadas na 1ª etapa continuam pagas.
+                        </span>
+                      )}
+                      <textarea
+                        placeholder="Motivo da recusa (obrigatório se recusar)"
+                        value={motivoRecusa}
+                        onChange={(e) => setMotivoRecusa(e.target.value)}
+                        rows={2}
+                        style={taStyle}
+                      />
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          onClick={() => finalizar('aprovada')}
+                          disabled={!!busy || !temRetornoFabrica || !podeFinalizar}
+                          title={!podeFinalizar ? MSG_SEM_PERMISSAO : undefined}
+                          style={{ ...btn('#16a34a', !!busy || !temRetornoFabrica || !podeFinalizar), flex: 1 }}
+                        >
+                          <CheckCircle2 size={15} /> Aprovar
+                        </button>
+                        <button
+                          onClick={() => finalizar('rejeitada')}
+                          disabled={!!busy || !temRetornoFabrica || !podeFinalizar}
+                          title={!podeFinalizar ? MSG_SEM_PERMISSAO : undefined}
+                          style={{ ...btn('#dc2626', !!busy || !temRetornoFabrica || !podeFinalizar), flex: 1 }}
+                        >
+                          <XCircle size={15} /> Recusar
+                        </button>
+                      </div>
+                    </Secao>
+                  )}
                 </>
               )}
 
@@ -1272,7 +1447,7 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
               )}
 
               {/* Anexos gerais + retorno da fábrica (visível também em finalizada) */}
-              {(finalizada || aguardandoTec) && (
+              {(finalizada || aguardandoTec || aguardandoServico) && (
                 <Secao titulo="Anexos" icone={<FileWarning size={14} />}>
                   <GarantiaAnexos garantiaId={g.id} anexos={g.anexos} onChange={carregar} />
                 </Secao>
@@ -1359,6 +1534,118 @@ function Campo({ label, valor }: { label: string; valor: string | null | undefin
     <div>
       <div style={{ fontSize: 10, color: 'var(--portal-text-faint)', textTransform: 'uppercase' }}>{label}</div>
       <div style={{ fontSize: 13, color: 'var(--portal-text)', fontWeight: 600 }}>{valor || '—'}</div>
+    </div>
+  );
+}
+
+// Checklist de peças pagas pela fábrica (usado na finalização do fluxo padrão
+// e no retorno das peças da 1ª etapa do fluxo duas_etapas).
+function PecasChecklistFabrica({ pecas, selecionadas, onToggle, busy, onAtualizarPrecos }: {
+  pecas: GarantiaDetalhe['pecas'];
+  selecionadas: Set<string>;
+  onToggle: (id: string) => void;
+  busy: string;
+  onAtualizarPrecos: () => void;
+}) {
+  if (pecas.length === 0) return null;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text-secondary)' }}>
+          Peças pagas pela fábrica
+        </div>
+        <button
+          type="button"
+          onClick={onAtualizarPrecos}
+          disabled={!!busy}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 4,
+            padding: '4px 10px', borderRadius: 6,
+            border: '1px solid var(--portal-border)',
+            background: 'var(--portal-bg-input)',
+            color: 'var(--portal-text-secondary)',
+            fontSize: 11, fontWeight: 600,
+            cursor: busy ? 'default' : 'pointer',
+          }}
+        >
+          {busy === 'atualizar_precos' ? <Loader2 size={11} className="spin" /> : <Save size={11} />}
+          Atualizar preços do PPV
+        </button>
+      </div>
+      {pecas.map((p) => {
+        const sel = selecionadas.has(p.id);
+        const valor = (Number(p.preco_unitario) || 0) * (Number(p.quantidade) || 0);
+        return (
+          <label
+            key={p.id}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '6px 8px', borderRadius: 8,
+              background: sel ? '#ECFDF5' : 'var(--portal-bg-secondary)',
+              border: `1px solid ${sel ? '#A7F3D0' : 'var(--portal-border)'}`,
+              cursor: 'pointer', fontSize: 12,
+            }}
+          >
+            <input type="checkbox" checked={sel} onChange={() => onToggle(p.id)} />
+            <span style={{ flex: 1, color: 'var(--portal-text)' }}>
+              {p.cod_produto ? `${p.cod_produto} · ` : ''}{p.descricao}
+              <span style={{ color: 'var(--portal-text-muted)' }}> x{p.quantidade}</span>
+            </span>
+            <span style={{ fontWeight: 700, color: sel ? '#16a34a' : 'var(--portal-text-muted)' }}>
+              {fmtMoeda(valor)}
+            </span>
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
+// Stepper do fluxo em duas etapas. etapaAtual: 0 = ainda em preparação,
+// 1 = peças na fábrica, 2 = aguardando serviço, 3 = ressarcimento, 4 = concluída.
+function EtapasGarantia({ etapaAtual }: { etapaAtual: number }) {
+  const etapas = ['Peças na fábrica', 'Serviço', 'Ressarcimento'];
+  return (
+    <div
+      style={{
+        display: 'flex', alignItems: 'center', gap: 4,
+        background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
+        borderRadius: 12, padding: '10px 14px',
+      }}
+    >
+      {etapas.map((label, i) => {
+        const n = i + 1;
+        const feita = etapaAtual > n;
+        const ativa = etapaAtual === n;
+        const cor = feita ? '#16a34a' : ativa ? '#0d9488' : 'var(--portal-text-muted)';
+        return (
+          <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1, minWidth: 0 }}>
+            <span
+              style={{
+                width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 10, fontWeight: 800,
+                background: feita ? '#16a34a' : ativa ? '#0d9488' : 'var(--portal-bg-secondary)',
+                color: feita || ativa ? '#fff' : 'var(--portal-text-muted)',
+                border: feita || ativa ? 'none' : '1px solid var(--portal-border)',
+              }}
+            >
+              {feita ? '✓' : n}
+            </span>
+            <span
+              style={{
+                fontSize: 11, fontWeight: ativa ? 800 : 600, color: cor,
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}
+            >
+              {label}
+            </span>
+            {i < etapas.length - 1 && (
+              <span style={{ flex: 1, height: 1, background: 'var(--portal-border)', minWidth: 8 }} />
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

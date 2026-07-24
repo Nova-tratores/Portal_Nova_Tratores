@@ -30,7 +30,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         { status: 400 }
       );
     }
-  } else if (!['em_analise', 'bo_tecnico', 'enviada', 'info_pendente'].includes(garantia.status)) {
+  } else if (!['em_analise', 'bo_tecnico', 'enviada', 'info_pendente', 'aguardando_servico', 'ressarcimento_fabrica'].includes(garantia.status)) {
     return NextResponse.json(
       { error: 'O checklist só pode ser editado durante a análise ou aguardando fábrica.' },
       { status: 400 }

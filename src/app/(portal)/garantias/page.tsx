@@ -63,7 +63,8 @@ function GarantiasPageInner() {
   const stats = {
     solicitadas: garantias.filter((g) => g.status === 'aberta').length,
     analise: garantias.filter((g) => g.status === 'em_analise').length,
-    fabrica: garantias.filter((g) => g.status === 'enviada').length,
+    fabrica: garantias.filter((g) => g.status === 'enviada' || g.status === 'ressarcimento_fabrica').length,
+    servico: garantias.filter((g) => g.status === 'aguardando_servico').length,
     tecnico: garantias.filter((g) => g.status === 'bo_tecnico' || g.status === 'info_pendente').length,
   };
 
@@ -130,6 +131,7 @@ function GarantiasPageInner() {
         <StatCard label="Solicitadas" valor={stats.solicitadas} cor="#0ea5e9" />
         <StatCard label="Em análise" valor={stats.analise} cor="#6366f1" />
         <StatCard label="Na fábrica" valor={stats.fabrica} cor="#8b5cf6" />
+        {stats.servico > 0 && <StatCard label="Aguardando serviço" valor={stats.servico} cor="#0d9488" />}
         <StatCard label="Devolvidas ao técnico" valor={stats.tecnico} cor="#f59e0b" />
       </div>
 

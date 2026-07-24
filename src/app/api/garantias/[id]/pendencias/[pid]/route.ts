@@ -60,8 +60,11 @@ export async function PATCH(
       .in('id', anexoIds);
   }
 
-  // Volta a garantia ao fluxo: B.O. -> em_analise | info_fabrica -> enviada
-  const novoStatus = pend.tipo === 'bo' ? 'em_analise' : 'enviada';
+  // Volta a garantia ao fluxo: preferencialmente pro status guardado na
+  // pendência (info_fabrica aberta no ressarcimento volta pra
+  // ressarcimento_fabrica). Fallback pro comportamento antigo em pendências
+  // criadas antes da coluna status_retorno.
+  const novoStatus = pend.status_retorno || (pend.tipo === 'bo' ? 'em_analise' : 'enviada');
   await supabase
     .from(TBL_GARANTIAS)
     .update({ status: novoStatus, updated_at: new Date().toISOString() })

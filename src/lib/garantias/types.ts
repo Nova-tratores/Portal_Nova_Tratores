@@ -6,6 +6,8 @@ export type GarantiaStatus =
   | 'bo_tecnico'
   | 'enviada'
   | 'info_pendente'
+  | 'aguardando_servico'      // duas etapas: peças aprovadas, esperando o serviço
+  | 'ressarcimento_fabrica'   // duas etapas: ressarcimento de horas/km na fábrica
   | 'aprovada'
   | 'rejeitada';
 
@@ -75,10 +77,16 @@ export interface ChecklistField {
 
 export type TipoTemplate = 'sem_template' | 'mahindra';
 
+// Fluxo da garantia por montadora: 'padrao' = peças + serviço numa etapa;
+// 'duas_etapas' = peças primeiro, ressarcimento de horas/km depois do serviço.
+export type MontadoraFluxo = 'padrao' | 'duas_etapas';
+
 export interface Montadora {
   id: string;
   nome: string;
   ativo: boolean;
+  fluxo: MontadoraFluxo;
+  ressarcimento_por_email: boolean;
   checklist_def: ChecklistField[];
   cor: string | null;
   logo_url: string | null;
@@ -114,6 +122,7 @@ export interface GarantiaPendencia {
   garantia_id: string;
   tipo: PendenciaTipo;
   status: PendenciaStatus;
+  status_retorno: string | null;
   descricao: string;
   exige_visita: boolean;
   criado_por: string;
@@ -177,6 +186,8 @@ export interface Garantia {
   valor_pago_pecas: number | null;
   valor_pago_total: number | null;
   enviada_fabrica_em: string | null;
+  pecas_retorno_em: string | null;
+  ressarcimento_enviado_em: string | null;
   finalizada_em: string | null;
   // Cobrança ao cliente (rejeitadas)
   cobranca_status: CobrancaStatus;

@@ -169,7 +169,7 @@ export default function MinhasGarantias({ tecnicoNome }: Props) {
                   {garantias.map((g) => {
                     const precisaAcao = g.status === 'bo_tecnico' || g.status === 'info_pendente';
                     const pendAberta = g.pendencias?.find((p) => p.status === 'aberta');
-                    const naFabrica = g.status === 'enviada' || g.status === 'info_pendente';
+                    const naFabrica = g.status === 'enviada' || g.status === 'info_pendente' || g.status === 'ressarcimento_fabrica';
                     return (
                       <div
                         key={g.id}
@@ -242,6 +242,20 @@ export default function MinhasGarantias({ tecnicoNome }: Props) {
                                   <Download size={12} />
                                 </a>
                               ))}
+                          </div>
+                        )}
+
+                        {/* Peças aprovadas — aguardando o serviço (fluxo duas etapas) */}
+                        {g.status === 'aguardando_servico' && (
+                          <div
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 6, marginTop: 8,
+                              padding: '8px 10px', borderRadius: 8, background: '#CCFBF1',
+                              color: '#0F766E', fontSize: 12, fontWeight: 600,
+                            }}
+                          >
+                            <CheckCircle2 size={14} />
+                            Peças aprovadas pela fábrica — combine a execução do serviço.
                           </div>
                         )}
 

@@ -14,61 +14,74 @@ export const BUCKET_GARANTIAS = 'garantias';
 export const VALOR_HORA = 193.0;
 export const VALOR_KM   = 2.8;
 
-// Lista ordenada de status (ordem do pipeline)
+// Lista ordenada de status (ordem do pipeline).
+// aguardando_servico / ressarcimento_fabrica só ocorrem em montadoras com
+// fluxo 'duas_etapas' (peças primeiro, ressarcimento de horas/km depois).
 export const STATUS_ORDEM: GarantiaStatus[] = [
   'aberta',
   'em_analise',
   'bo_tecnico',
   'enviada',
   'info_pendente',
+  'aguardando_servico',
+  'ressarcimento_fabrica',
   'aprovada',
   'rejeitada',
 ];
 
 export const STATUS_LABEL: Record<GarantiaStatus, string> = {
-  aberta:        'Solicitada',
-  em_analise:    'Em análise',
-  bo_tecnico:    'B.O. com o técnico',
-  enviada:       'Em análise da fábrica',
-  info_pendente: 'Informação pendente',
-  aprovada:      'Aprovada',
-  rejeitada:     'Rejeitada',
+  aberta:                'Solicitada',
+  em_analise:            'Em análise',
+  bo_tecnico:            'B.O. com o técnico',
+  enviada:               'Em análise da fábrica',
+  info_pendente:         'Informação pendente',
+  aguardando_servico:    'Aguardando serviço',
+  ressarcimento_fabrica: 'Ressarcimento na fábrica',
+  aprovada:              'Aprovada',
+  rejeitada:             'Rejeitada',
 };
 
 // Cores por status (badges / colunas do Kanban)
 export const STATUS_COR: Record<GarantiaStatus, string> = {
-  aberta:        '#0ea5e9',
-  em_analise:    '#6366f1',
-  bo_tecnico:    '#f59e0b',
-  enviada:       '#8b5cf6',
-  info_pendente: '#f97316',
-  aprovada:      '#16a34a',
-  rejeitada:     '#dc2626',
+  aberta:                '#0ea5e9',
+  em_analise:            '#6366f1',
+  bo_tecnico:            '#f59e0b',
+  enviada:               '#8b5cf6',
+  info_pendente:         '#f97316',
+  aguardando_servico:    '#0d9488',
+  ressarcimento_fabrica: '#c026d3',
+  aprovada:              '#16a34a',
+  rejeitada:             '#dc2626',
 };
 
 // Etiqueta exibida na OS (Pós-Vendas)
 export const OS_BADGE_LABEL: Record<GarantiaStatus, string> = {
-  aberta:        'Garantia em preparação',
-  em_analise:    'Garantia em preparação',
-  bo_tecnico:    'Garantia em preparação',
-  enviada:       'Em análise da fábrica',
-  info_pendente: 'Em análise da fábrica',
-  aprovada:      'Garantia paga',
-  rejeitada:     'Garantia não paga',
+  aberta:                'Garantia em preparação',
+  em_analise:            'Garantia em preparação',
+  bo_tecnico:            'Garantia em preparação',
+  enviada:               'Em análise da fábrica',
+  info_pendente:         'Em análise da fábrica',
+  aguardando_servico:    'Peças aprovadas — aguardando serviço',
+  ressarcimento_fabrica: 'Ressarcimento na fábrica',
+  aprovada:              'Garantia paga',
+  rejeitada:             'Garantia não paga',
 };
 
 // Status terminais
 export const STATUS_FINALIZADOS: GarantiaStatus[] = ['aprovada', 'rejeitada'];
 
-// Transições legais (validadas no servidor)
+// Transições legais (documentação do fluxo — as rotas validam status na mão).
+// aguardando_servico/ressarcimento_fabrica: só montadoras com fluxo duas_etapas.
 export const TRANSICOES: Record<GarantiaStatus, GarantiaStatus[]> = {
-  aberta:        ['em_analise'],
-  em_analise:    ['bo_tecnico', 'enviada'],
-  bo_tecnico:    ['em_analise'],
-  enviada:       ['info_pendente', 'aprovada', 'rejeitada'],
-  info_pendente: ['enviada'],
-  aprovada:      [],
-  rejeitada:     [],
+  aberta:                ['em_analise'],
+  em_analise:            ['bo_tecnico', 'enviada'],
+  bo_tecnico:            ['em_analise'],
+  enviada:               ['info_pendente', 'aguardando_servico', 'aprovada', 'rejeitada'],
+  info_pendente:         ['enviada', 'ressarcimento_fabrica'],
+  aguardando_servico:    ['ressarcimento_fabrica'],
+  ressarcimento_fabrica: ['info_pendente', 'aprovada', 'rejeitada'],
+  aprovada:              [],
+  rejeitada:             [],
 };
 
 // Tipos de campo do checklist configurável

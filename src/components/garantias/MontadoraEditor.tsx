@@ -44,6 +44,10 @@ export default function MontadoraEditor({ montadora, criadoPor, onClose, onSaved
   const [proximoNumeroSG, setProximoNumeroSG] = useState(
     String(montadora?.proximo_numero_sg ?? 1),
   );
+  const [fluxo, setFluxo] = useState<'padrao' | 'duas_etapas'>(montadora?.fluxo || 'padrao');
+  const [ressarcimentoPorEmail, setRessarcimentoPorEmail] = useState(
+    montadora?.ressarcimento_por_email ?? false,
+  );
   const [saving, setSaving] = useState(false);
   const [erro, setErro] = useState('');
 
@@ -103,6 +107,8 @@ export default function MontadoraEditor({ montadora, criadoPor, onClose, onSaved
         email_corpo: emailCorpo.trim() || null,
         email_assinatura: emailAssinatura.trim() || null,
         proximo_numero_sg: Math.max(1, parseInt(proximoNumeroSG, 10) || 1),
+        fluxo,
+        ressarcimento_por_email: ressarcimentoPorEmail,
       };
       const url = montadora
         ? `/api/garantias/montadoras/${montadora.id}`
@@ -214,6 +220,41 @@ export default function MontadoraEditor({ montadora, criadoPor, onClose, onSaved
             >
               <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--portal-text)' }}>
                 Envio à fábrica
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--portal-text-secondary)' }}>
+                  Fluxo da garantia
+                </label>
+                <select
+                  value={fluxo}
+                  onChange={(e) => setFluxo(e.target.value === 'duas_etapas' ? 'duas_etapas' : 'padrao')}
+                  style={inputStyle}
+                >
+                  <option value="padrao">Padrão — peças e serviço numa etapa só</option>
+                  <option value="duas_etapas">Duas etapas — peças primeiro, ressarcimento das horas/km depois</option>
+                </select>
+                {fluxo === 'duas_etapas' && (
+                  <>
+                    <span style={{ fontSize: 11, color: 'var(--portal-text-faint)' }}>
+                      A garantia passa por: peças na fábrica → peças aprovadas (aguardando serviço) →
+                      ressarcimento na fábrica → finalizada.
+                    </span>
+                    <label
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 6, marginTop: 2,
+                        fontSize: 13, color: 'var(--portal-text-secondary)', cursor: 'pointer',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={ressarcimentoPorEmail}
+                        onChange={(e) => setRessarcimentoPorEmail(e.target.checked)}
+                      />
+                      Enviar pedido de ressarcimento por e-mail à fábrica (usa os e-mails abaixo)
+                    </label>
+                  </>
+                )}
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>

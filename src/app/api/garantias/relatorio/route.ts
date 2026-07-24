@@ -93,6 +93,9 @@ export async function GET(req: NextRequest) {
       acc.qtd_rejeitadas++;
       if (g.recusado_por === 'garantista') acc.qtd_rejeitadas_garantista++;
       else acc.qtd_rejeitadas_fabrica++;
+      // Fluxo duas_etapas: ressarcimento negado mas peças pagas na 1ª etapa —
+      // o que foi pago entra como lucro (no fluxo padrão é sempre 0).
+      acc.lucro += Number(g.valor_pago_total) || 0;
       const h = g.garantista_horas != null ? Number(g.garantista_horas) : Number(g.tecnico_horas) || 0;
       const k = g.garantista_km != null ? Number(g.garantista_km) : Number(g.tecnico_km) || 0;
       acc.prejuizo += h * VALOR_HORA + k * VALOR_KM;
@@ -133,8 +136,9 @@ export async function GET(req: NextRequest) {
         acc._qtdResolucao++;
       }
     }
-    // Aging das que estão na fábrica
-    if ((g.status === 'enviada' || g.status === 'info_pendente') && g.enviada_fabrica_em) {
+    // Aging das que estão na fábrica (aguardando_servico fica fora — a espera
+    // ali é interna, do serviço do técnico, não da fábrica)
+    if ((g.status === 'enviada' || g.status === 'info_pendente' || g.status === 'ressarcimento_fabrica') && g.enviada_fabrica_em) {
       const dias = (agora - new Date(g.enviada_fabrica_em).getTime()) / 86400000;
       if (dias >= 0) {
         acc._somaAberto += dias;

@@ -40,7 +40,7 @@ export default function OSGarantiaInfo({ osId }: { osId: string }) {
   }
 
   const cor = STATUS_COR[garantia.status];
-  const naFabrica = garantia.status === 'enviada' || garantia.status === 'info_pendente';
+  const naFabrica = garantia.status === 'enviada' || garantia.status === 'info_pendente' || garantia.status === 'ressarcimento_fabrica';
 
   return (
     <div

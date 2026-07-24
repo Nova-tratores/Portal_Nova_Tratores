@@ -4,7 +4,13 @@ import type { GarantiaResumo, GarantiaStatus } from '@/lib/garantias/types';
 import { STATUS_LABEL, STATUS_COR } from '@/lib/garantias/constants';
 import GarantiaMiniCard from './GarantiaMiniCard';
 
-const COLUNAS: GarantiaStatus[] = ['aberta', 'em_analise', 'bo_tecnico', 'enviada', 'info_pendente'];
+const COLUNAS: GarantiaStatus[] = [
+  'aberta', 'em_analise', 'bo_tecnico', 'enviada', 'info_pendente',
+  'aguardando_servico', 'ressarcimento_fabrica',
+];
+// Fases do fluxo duas_etapas: só aparecem quando têm card (o board não alarga
+// pra quem só usa montadoras de fluxo padrão).
+const COLUNAS_CONDICIONAIS: GarantiaStatus[] = ['aguardando_servico', 'ressarcimento_fabrica'];
 
 interface Props {
   garantias: GarantiaResumo[];
@@ -21,9 +27,13 @@ export default function GarantiasBoard({ garantias, onCardClick }: Props) {
     return map;
   }, [garantias]);
 
+  const colunasVisiveis = COLUNAS.filter(
+    (col) => !COLUNAS_CONDICIONAIS.includes(col) || porColuna[col].length > 0
+  );
+
   return (
     <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8 }}>
-      {COLUNAS.map((col) => (
+      {colunasVisiveis.map((col) => (
         <div
           key={col}
           style={{

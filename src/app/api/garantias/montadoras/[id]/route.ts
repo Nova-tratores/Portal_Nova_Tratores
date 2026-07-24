@@ -29,6 +29,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.proximo_numero_sg !== undefined) {
     update.proximo_numero_sg = Math.max(1, parseInt(body.proximo_numero_sg, 10) || 1);
   }
+  if (body.fluxo !== undefined) {
+    update.fluxo = body.fluxo === 'duas_etapas' ? 'duas_etapas' : 'padrao';
+  }
+  if (body.ressarcimento_por_email !== undefined) {
+    update.ressarcimento_por_email = !!body.ressarcimento_por_email;
+  }
 
   const { data, error } = await supabase
     .from(TBL_MONTADORAS)

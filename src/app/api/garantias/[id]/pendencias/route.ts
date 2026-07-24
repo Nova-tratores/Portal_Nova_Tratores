@@ -33,11 +33,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .maybeSingle();
   if (!g) return NextResponse.json({ error: 'Garantia não encontrada.' }, { status: 404 });
 
-  // B.O. exige garantia em análise; pendência da fábrica exige garantia enviada
+  // B.O. exige garantia em análise; pendência da fábrica exige garantia na
+  // fábrica (peças ou ressarcimento, no fluxo em duas etapas)
   if (tipo === 'bo' && g.status !== 'em_analise') {
     return NextResponse.json({ error: 'B.O. só pode ser aberto durante a análise.' }, { status: 400 });
   }
-  if (tipo === 'info_fabrica' && g.status !== 'enviada') {
+  if (tipo === 'info_fabrica' && !['enviada', 'ressarcimento_fabrica'].includes(g.status)) {
     return NextResponse.json(
       { error: 'Pendência da fábrica só pode ser aberta quando a garantia está na fábrica.' },
       { status: 400 }
@@ -63,6 +64,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       descricao,
       exige_visita: !!body.exige_visita,
       criado_por: body.criado_por || 'Garantista',
+      // Para onde a garantia volta quando a pendência for respondida
+      // (info_fabrica aberta no ressarcimento volta pra ressarcimento_fabrica)
+      status_retorno: tipo === 'bo' ? 'em_analise' : g.status,
     })
     .select()
     .single();
