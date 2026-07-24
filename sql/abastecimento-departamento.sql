@@ -30,3 +30,19 @@ where placa = 'EPX5253'
 -- Confirme com:
 --   select placa, count(*) from abastecimentos
 --   where placa in ('GIH0I50','FCP0G08','EPX5253','FRS3H46') group by placa;
+
+-- ------------------------------------------------------------
+-- Correções de departamento POR MOTORISTA (o "Centro de custo veículo" do
+-- cartão não bate com o departamento real da pessoa). Espelha o mapa em
+-- src/lib/abastecimento/correcoes.ts (CORRECOES_DEPARTAMENTO_POR_MOTORISTA).
+-- ------------------------------------------------------------
+
+-- 3) Joaquim Fernando Leme é do COMERCIAL (cartão vinha como DIRETORIA).
+update abastecimentos
+set departamento = 'COMERCIAL'
+where regexp_replace(lower(coalesce(motorista_nome, '')), '\s+', ' ', 'g') = 'joaquim fernando leme'
+  and coalesce(departamento, '') is distinct from 'COMERCIAL';
+
+-- Confirme com:
+--   select motorista_nome, departamento, count(*) from abastecimentos
+--   where motorista_nome ilike '%joaquim%leme%' group by 1,2;

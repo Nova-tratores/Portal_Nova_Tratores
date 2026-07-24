@@ -5,7 +5,7 @@
 // BR ("1.542,17"), ~60 colunas. O mapeamento é feito pelo NOME da coluna
 // (normalizado), então o import sobrevive a reordenação/colunas novas.
 
-import { corrigirPlaca } from './correcoes';
+import { corrigirDepartamento, corrigirPlaca } from './correcoes';
 import type { ErroLinha, LinhaAbastecimento, ResultadoParse } from './tipos';
 
 // ---------------------------------------------------------------------------
@@ -214,7 +214,7 @@ export function parseCsvAbastecimento(csvTexto: string): ResultadoParse {
       modelo_veiculo: corr.modelo ?? texto(cel(row, 'modelo_veiculo')),
       nome_veiculo: texto(cel(row, 'nome_veiculo')),
       tipo_frota: texto(cel(row, 'tipo_frota')),
-      departamento: texto(cel(row, 'departamento')),
+      departamento: corrigirDepartamento(texto(cel(row, 'departamento')), motorista),
       motorista_cpf: texto(cel(row, 'motorista_cpf')),
       motorista_nome: motorista,
       data_transacao: dataTransacao,

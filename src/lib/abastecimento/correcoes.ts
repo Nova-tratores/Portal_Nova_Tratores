@@ -22,6 +22,38 @@ export const CORRECOES_PLACA: CorrecaoPlaca[] = [
   { de: 'EPX5253', para: 'FRS3H46', modelo: 'ETIOS', ate: '2026-06-30T23:59:59-03:00' },
 ];
 
+// Correções de departamento POR MOTORISTA: quando o "Centro de custo veículo"
+// do cartão não bate com o departamento real da pessoa. Reatribui pelo nome do
+// motorista (normalizado), independentemente do veículo/cartão usado.
+//   chave = nome normalizado (minúsculo, sem acento, um espaço) -> departamento
+// Casos reais (07/2026):
+//  - Joaquim Fernando Leme abastece com cartão de DIRETORIA, mas é COMERCIAL.
+export const CORRECOES_DEPARTAMENTO_POR_MOTORISTA: Record<string, string> = {
+  'joaquim fernando leme': 'COMERCIAL',
+};
+
+// Nome comparável: minúsculo, sem acento, espaços colapsados
+// ("  Joaquim  Fernando  LEME " -> "joaquim fernando leme").
+function normalizarNome(s: string): string {
+  let semAcento = '';
+  for (const ch of s.normalize('NFD')) {
+    const cp = ch.codePointAt(0) || 0;
+    if (cp >= 0x0300 && cp <= 0x036f) continue; // remove acentos (combining marks)
+    semAcento += ch;
+  }
+  return semAcento.toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+// Devolve o departamento corrigido para um motorista. Sobrescreve o valor do
+// CSV quando há regra para o motorista; senão mantém o que veio (ou null).
+export function corrigirDepartamento(
+  departamento: string | null,
+  motoristaNome: string | null,
+): string | null {
+  if (!motoristaNome) return departamento;
+  return CORRECOES_DEPARTAMENTO_POR_MOTORISTA[normalizarNome(motoristaNome)] ?? departamento;
+}
+
 // Devolve a placa/modelo corrigidos para uma transação (datas em ISO com offset,
 // comparáveis por época).
 export function corrigirPlaca(
