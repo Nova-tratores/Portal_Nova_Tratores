@@ -543,7 +543,7 @@ async function calcularMargens(conta, taxaMensalPct, meses, desde) {
   // 1. Pega vendas dos meses solicitados
   const vendas = await selectPaginado(() => {
     let q = supabase.from('vendas_itens')
-      .select('codigo_produto,descricao,valor_total,quantidade,valor_unitario,cmc_unitario,mes,ano,data_pedido,familia,nome_cliente,vendedor,conta_omie,numero_pedido');
+      .select('codigo_produto,descricao,valor_total,quantidade,valor_unitario,cmc_unitario,mes,ano,data_pedido,familia,nome_cliente,codigo_cliente,vendedor,conta_omie,numero_pedido');
     const orFilter = mesesList.map(m => `and(ano.eq.${m.ano},mes.eq.${m.mes})`).join(',');
     q = q.or(orFilter);
     if (contaSlug) q = q.ilike('conta_omie', contaSlug);
@@ -553,10 +553,14 @@ async function calcularMargens(conta, taxaMensalPct, meses, desde) {
   // 2. Mapa de data_inclusao por produto (pra estimar dias em estoque ate a venda)
   const codigos = Array.from(new Set(vendas.map(v => String(v.codigo_produto))));
   const dataInclMap = {};
+  const skuMap = {}; // codigo_produto (ID interno Omie) -> codigo (SKU legivel, ex "20.02.0004")
   for (let i = 0; i < codigos.length; i += 500) {
     const lote = codigos.slice(i, i + 500);
-    const { data } = await supabase.from('produtos').select('codigo_produto,data_inclusao').in('codigo_produto', lote);
-    (data || []).forEach(p => { if (p.data_inclusao) dataInclMap[String(p.codigo_produto)] = p.data_inclusao; });
+    const { data } = await supabase.from('produtos').select('codigo_produto,data_inclusao,codigo').in('codigo_produto', lote);
+    (data || []).forEach(p => {
+      if (p.data_inclusao) dataInclMap[String(p.codigo_produto)] = p.data_inclusao;
+      if (p.codigo) skuMap[String(p.codigo_produto)] = String(p.codigo);
+    });
   }
 
   // 3. Mapeia cada venda como item com margem
@@ -581,9 +585,11 @@ async function calcularMargens(conta, taxaMensalPct, meses, desde) {
     const semCmc = !cmc;
     return {
       codigo_produto: String(v.codigo_produto),
+      sku: skuMap[String(v.codigo_produto)] || null, // codigo legivel do produto (SKU)
       descricao: v.descricao || '(sem descricao)',
       familia: fam,
       cliente: v.nome_cliente || null,
+      codigo_cliente: v.codigo_cliente != null ? String(v.codigo_cliente) : null,
       vendedor: v.vendedor || null,
       pedido: v.numero_pedido || null,
       data_pedido: v.data_pedido || null,
@@ -601,6 +607,31 @@ async function calcularMargens(conta, taxaMensalPct, meses, desde) {
       sem_cmc: semCmc
     };
   }).filter(Boolean);
+
+  // Resolve nome do cliente pelo codigo_cliente quando nome_cliente veio vazio.
+  // vendas_itens.nome_cliente vem direto do Omie e HOJE chega quase sempre vazio;
+  // a tabela `clientes` tem razao_social/nome_fantasia (mesmo padrao das rotas
+  // vendas-modelo/detalhe e margens-familia/detalhe).
+  const codigosCliente = Array.from(new Set(
+    itens.filter(it => !it.cliente && it.codigo_cliente).map(it => it.codigo_cliente)
+  ));
+  if (codigosCliente.length) {
+    const clienteMap = {};
+    for (let i = 0; i < codigosCliente.length; i += 500) {
+      const lote = codigosCliente.slice(i, i + 500);
+      const { data: cs } = await supabase.from('clientes')
+        .select('codigo_cliente_omie,razao_social,nome_fantasia')
+        .in('codigo_cliente_omie', lote);
+      (cs || []).forEach(c => {
+        clienteMap[String(c.codigo_cliente_omie)] = c.razao_social || c.nome_fantasia || null;
+      });
+    }
+    itens.forEach(it => {
+      if (!it.cliente && it.codigo_cliente && clienteMap[it.codigo_cliente]) {
+        it.cliente = clienteMap[it.codigo_cliente];
+      }
+    });
+  }
 
   // Totais
   const tot = itens.reduce((s, it) => {
@@ -1217,6 +1248,44 @@ async function calcularDRECompetencia(anoMesIni, anoMesFim) {
     addNoTree(arv[slugNorm],   cls.tipo, cls.grupo, cls.conta, v, mesKey, cat);
     addNoTree(arv.consolidado, cls.tipo, cls.grupo, cls.conta, v, mesKey, cat);
   });
+
+  // 4c. Lancamentos de conta corrente SEM titulo (movimentos_cc, codigo_titulo=0):
+  // despesas pagas direto da conta que nunca viram contas_pagar - em especial os
+  // JUROS DA ANTECIPACAO de duplicatas ("Juros sobre Emprestimos", lancados pelo
+  // Omie na CC "Omie Desconto de Duplicatas" quando libera o valor liquido).
+  // Sem eles, "03. Despesas Financeiras" so mostra tarifas/multas.
+  // Transferencias entre contas tem grupo "Transferencia" -> classificaGrupoCP
+  // retorna null e ficam fora. Competencia = mes do PAGAMENTO (unica data que um
+  // lancamento de CC tem). Sem risco de duplicidade: codigo_titulo=0 garante que
+  // o lancamento nao existe em contas_pagar. Graceful: tabela vazia/indisponivel
+  // (sync de movimentos nao rodou) -> DRE fica exatamente como antes.
+  try {
+    const lancCC = await selectPaginado(() =>
+      supabase.from('movimentos_cc')
+        .select('conta_omie,data_pagamento,valor_pago,grupo_categoria,descricao_categoria,status')
+        .eq('natureza', 'P')
+        .eq('codigo_titulo', 0)
+        .gte('data_pagamento', dataDe).lte('data_pagamento', dataAte)
+        .not('grupo_categoria', 'is', null)
+        .order('id', { ascending: true })
+    );
+    (lancCC || []).forEach(r => {
+      if (String(r.status || '').toUpperCase().includes('CANCEL')) return;
+      const up = String(r.conta_omie || '').toUpperCase();
+      const slugNorm = up === 'NOVA' ? 'nova' : up === 'CASTRO' ? 'castro' : null;
+      if (!slugNorm) return;
+      const cls = classificaGrupoCP(r.grupo_categoria);
+      if (!cls) return;
+      if (!r.data_pagamento) return;
+      const mesKey = String(r.data_pagamento).slice(0, 7);
+      if (!mesesSet.has(mesKey)) return;
+      const v = cls.sinal * (Number(r.valor_pago) || 0);
+      if (!v) return;
+      const cat = r.descricao_categoria || '(sem categoria)';
+      addNoTree(arv[slugNorm],   cls.tipo, cls.grupo, cls.conta, v, mesKey, cat);
+      addNoTree(arv.consolidado, cls.tipo, cls.grupo, cls.conta, v, mesKey, cat);
+    });
+  } catch (e) { console.warn('[dre-comp] lancamentos CC sem titulo (movimentos_cc):', e.message); }
 
   return {
     periodo: { de: anoMesIni, ate: anoMesFim, cTipoData: 'competencia' },
