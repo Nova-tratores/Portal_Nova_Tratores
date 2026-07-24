@@ -13,6 +13,7 @@ import { usePermissoes } from "@/hooks/usePermissoes";
 import ModalDevolucao from "./ModalDevolucao";
 import ModalProdutoEstoque from "./ModalProdutoEstoque";
 import ModalImportarKit from "@/components/orcamentos/ModalImportarKit";
+import OcorrenciaFormModal from "@/components/ocorrencias/OcorrenciaFormModal";
 import { MSG_SEM_PERMISSAO } from "@/lib/permissoes/ui";
 
 interface Props {
@@ -46,6 +47,9 @@ export default function PPVDrawer({
   const podeEditar = pode('ppv', 'editar');
   const podeItem = pode('ppv', 'adicionar_item');
   const podeOmie = pode('ppv', 'enviar_omie');
+  // Ocorrência rápida por PV (categoria PV pré-selecionada)
+  const podeOcorrencia = pode('painel-mecanicos', 'criar_ocorrencia');
+  const [showOcorrencia, setShowOcorrencia] = useState(false);
 
   const [details, setDetails] = useState<PPVDetalhes | null>(null);
   const [status, setStatus] = useState("Orçamento");
@@ -368,11 +372,31 @@ export default function PPVDrawer({
                 <span className="ppv-drawer-header-title">#{ppvId}</span>
               </div>
               <div className="ppv-drawer-header-actions">
+                {podeOcorrencia && (
+                  <button
+                    onClick={() => setShowOcorrencia(true)}
+                    title="Registrar ocorrência ligada a este PV (falta de informação, extravio, peça danificada…)"
+                    style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "#DC2626", background: "#FEE2E2", border: "1px solid #FECACA", borderRadius: 6, padding: "6px 12px", cursor: "pointer", marginRight: 8 }}
+                  >
+                    ⚠ Ocorrência
+                  </button>
+                )}
                 <button className="ppv-btn-close" onClick={onClose}>
                   <i className="fas fa-times" />
                 </button>
               </div>
             </div>
+
+            {/* Modal de ocorrência rápida (categoria PV) */}
+            <OcorrenciaFormModal
+              aberto={showOcorrencia}
+              onFechar={() => setShowOcorrencia(false)}
+              tecnicos={Array.from(new Set([tecnico, ...tecnicos].filter(Boolean)))}
+              categoriaInicial="pv"
+              tecnicoInicial={tecnico || ""}
+              idOrdemInicial={ppvId || ""}
+              criadoPor={userProfile?.nome || undefined}
+            />
 
             {loadingData ? (
               <div className="ppv-loading">

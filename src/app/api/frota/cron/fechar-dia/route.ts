@@ -17,6 +17,7 @@ import { agregarIgnicao } from '@/lib/frota/ignicao';
 import { classificarParadas, type GeocercaCtx } from '@/lib/frota/paradas';
 import { carregarPropriedades, propriedadesComoGeocercas } from '@/lib/frota/propriedades';
 import { resolverPlaca } from '@/lib/frota/placa';
+import { detectarExcessoVelocidade } from '@/lib/ocorrencias/auto-frota';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -144,7 +145,7 @@ export async function GET(req: NextRequest) {
       return delta >= 0 && delta < 2000 ? Math.round(delta * 10) / 10 : null;
     };
 
-    const resumo = { dias: dias.length, veiculos: veiculos.length, dias_gravados: 0, paradas: 0, atipicas: 0, erros: [] as string[] };
+    const resumo = { dias: dias.length, veiculos: veiculos.length, dias_gravados: 0, paradas: 0, atipicas: 0, ocorrencias_velocidade: 0, velocidade_sem_responsavel: [] as string[], erros: [] as string[] };
 
     for (const dia of dias) {
       for (const v of veiculos) {
@@ -193,6 +194,22 @@ export async function GET(req: NextRequest) {
               { onConflict: 'veiculo_id,inicio' },
             );
             if (error) throw new Error(`frota_paradas: ${error.message}`);
+          }
+
+          // Ocorrência automática: excesso de velocidade (115+ km/h sustentado)
+          // — TEM que rodar aqui: os fixes com velocidade+coordenada só
+          // existem nesta janela (rotas_vendedor.pontos é podado depois).
+          try {
+            const vel = await detectarExcessoVelocidade(supabase, {
+              placa: v.placa,
+              dia,
+              pontos: (rota.pontos || []) as { lat: number; lng: number; dt: string; vel: number }[],
+              responsavel: motoristaUso || fixo?.motorista_nome || null,
+            });
+            if (vel.criada) resumo.ocorrencias_velocidade++;
+            if (vel.semResponsavel) resumo.velocidade_sem_responsavel.push(`${v.placa} ${dia} (${vel.episodios} episódio(s))`);
+          } catch (e) {
+            console.warn(`[frota] ocorrência de velocidade falhou (${v.placa} ${dia}):`, e);
           }
 
           const atip = classificadas.filter((p) => p.atipica).length;

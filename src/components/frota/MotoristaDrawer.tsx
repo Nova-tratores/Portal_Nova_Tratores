@@ -12,6 +12,9 @@ import { authHeaders } from '@/lib/auth/client';
 import { formatarPlaca } from '@/lib/frota/placa';
 import { validarCnh } from '@/lib/frota/motoristas';
 import type { MotoristaDetalhe } from '@/lib/frota/tipos';
+import OcorrenciaFormModal from '@/components/ocorrencias/OcorrenciaFormModal';
+import { useAuth } from '@/hooks/useAuth';
+import { usePermissoes } from '@/hooks/usePermissoes';
 
 interface Props {
   rhId: string | null;
@@ -80,6 +83,11 @@ function Linha({ rotulo, valor }: { rotulo: string; valor: React.ReactNode }) {
 }
 
 export default function MotoristaDrawer({ rhId, portalId, nome, podeEditar, onClose, onMudou }: Props) {
+  // Ocorrência rápida de FROTA pro motorista (carro sujo, checklist, pilotagem…)
+  const { userProfile } = useAuth();
+  const { pode } = usePermissoes(userProfile?.id);
+  const podeOcorrencia = pode('painel-mecanicos', 'criar_ocorrencia');
+  const [showOcorrencia, setShowOcorrencia] = useState(false);
   const [det, setDet] = useState<MotoristaDetalhe | null>(null);
   const [erro, setErro] = useState('');
   const [editando, setEditando] = useState(false);
@@ -163,8 +171,27 @@ export default function MotoristaDrawer({ rhId, portalId, nome, podeEditar, onCl
               {[m?.cargo, m?.departamento, m?.empresa].filter(Boolean).join(' · ') || 'Motorista'}
             </div>
           </div>
+          {podeOcorrencia && (
+            <button
+              onClick={() => setShowOcorrencia(true)}
+              title="Registrar ocorrência de Frota pra este motorista (carro sujo, checklist, pilotagem…)"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#DC2626', background: '#FEE2E2', border: '1px solid #FECACA', borderRadius: 6, padding: '6px 12px', cursor: 'pointer' }}
+            >
+              ⚠ Ocorrência
+            </button>
+          )}
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text-muted)' }}><X size={20} /></button>
         </div>
+
+        {/* Modal de ocorrência rápida (categoria Frota, motorista pré-selecionado) */}
+        <OcorrenciaFormModal
+          aberto={showOcorrencia}
+          onFechar={() => setShowOcorrencia(false)}
+          tecnicos={[m?.nome || nome].filter(Boolean)}
+          categoriaInicial="frota"
+          tecnicoInicial={m?.nome || nome}
+          criadoPor={userProfile?.nome || undefined}
+        />
 
         <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
           {erro && <div style={{ color: '#b91c1c', fontSize: 13 }}>{erro}</div>}

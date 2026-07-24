@@ -11,6 +11,8 @@ import BlocoAgenda from '@/components/painel-mecanicos/BlocoAgenda'
 import BlocoAlertas, { type Alerta } from '@/components/painel-mecanicos/BlocoAlertas'
 import BlocoRelatorioMensal from '@/components/painel-mecanicos/BlocoRelatorioMensal'
 import BlocoOcorrencias from '@/components/painel-mecanicos/BlocoOcorrencias'
+import OcorrenciaFormModal from '@/components/ocorrencias/OcorrenciaFormModal'
+import { LEGADO_TIPOS } from '@/lib/ocorrencias/catalogo'
 import {
   AlertTriangle, RefreshCw,
   AlertOctagon, X, Calendar, Radar, BarChart3,
@@ -29,11 +31,8 @@ interface OpaResolvida { id: string; titulo: string; resolvido_por_nome: string 
 function normalizarNome(nome: string): string[] { return nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(p => p.length > 2) }
 function nomesBatem(a: string, b: string): boolean { if (!a || !b) return false; const pA = normalizarNome(a), pB = normalizarNome(b); if (!pA.length || !pB.length || pA[0] !== pB[0]) return false; if (pA.length === 1 || pB.length === 1) return true; const s = new Set(pA.slice(1)); return pB.slice(1).some(p => s.has(p)) }
 
-const TIPO_OCORRENCIA: Record<string, { label: string; color: string }> = {
-  atraso: { label: 'Atraso', color: '#D97706' }, erro: { label: 'Erro', color: '#DC2626' },
-  retrabalho: { label: 'Retrabalho', color: '#B91C1C' }, falta_material: { label: 'Falta Material', color: '#7C3AED' },
-  outros: { label: 'Outros', color: '#71717A' },
-}
+// Tipos LEGADOS (linhas antigas) — o catálogo novo vive em lib/ocorrencias.
+const TIPO_OCORRENCIA = LEGADO_TIPOS
 
 type Bloco = 'visao' | 'ordens' | 'alertas' | 'ocorrencias' | 'relatorio'
 
@@ -65,7 +64,6 @@ function PainelMecanicosPage() {
   const [blocoAtivo, setBlocoAtivo] = useState<Bloco>('visao')
   const [showOcorrenciaModal, setShowOcorrenciaModal] = useState(false)
   const [semanaOffset, setSemanaOffset] = useState(0)
-  const [novaOcorrencia, setNovaOcorrencia] = useState({ tecnico_nome: '', id_ordem: '', tipo: 'atraso', descricao: '', pontos_descontados: 0 })
 
   const carregar = useCallback(async () => {
     setLoading(true)
@@ -129,7 +127,6 @@ function PainelMecanicosPage() {
   }
   const aprovarRequisicao = async (reqId: number) => { if (!podeAprovar) return; await supabase.from('mecanico_requisicoes').update({ status: 'aprovada', data_aprovacao: new Date().toISOString() }).eq('id', reqId); const req = reqsMecanico.find(r => r.id === reqId); if (req) { await supabase.from('mecanico_notificacoes').insert({ tecnico_nome: req.tecnico_nome, tipo: 'requisicao', titulo: 'Requisição aprovada', descricao: `Sua requisição "${req.material_solicitado}" foi aprovada.`, link: '', lida: false }); await notificarAdmins('pos', `Requisição aprovada - ${req.tecnico_nome}`, `Material: ${req.material_solicitado}`) }; carregar() }
   const recusarRequisicao = async (reqId: number) => { if (!podeRecusar) return; if (!confirm('Recusar esta requisição?')) return; const req = reqsMecanico.find(r => r.id === reqId); await supabase.from('mecanico_requisicoes').update({ status: 'recusada' }).eq('id', reqId); if (req) { await supabase.from('mecanico_notificacoes').insert({ tecnico_nome: req.tecnico_nome, tipo: 'requisicao', titulo: 'Requisição recusada', descricao: `Sua requisição "${req.material_solicitado}" foi recusada.`, link: '', lida: false }) }; carregar() }
-  const salvarOcorrencia = async () => { if (!podeCriarOc) return; if (!novaOcorrencia.tecnico_nome || !novaOcorrencia.descricao) return; await supabase.from('tecnico_ocorrencias').insert({ tecnico_nome: novaOcorrencia.tecnico_nome, id_ordem: novaOcorrencia.id_ordem || null, tipo: novaOcorrencia.tipo, descricao: novaOcorrencia.descricao, pontos_descontados: novaOcorrencia.pontos_descontados, data: new Date().toISOString().split('T')[0] }); const tipoLabel = (TIPO_OCORRENCIA[novaOcorrencia.tipo] || TIPO_OCORRENCIA.outros).label; await notificarAdmins('pos', `Nova ocorrência - ${novaOcorrencia.tecnico_nome}`, `${tipoLabel}: ${novaOcorrencia.descricao}${novaOcorrencia.id_ordem ? ` (OS: ${novaOcorrencia.id_ordem})` : ''} | -${novaOcorrencia.pontos_descontados} pts`); await supabase.from('mecanico_notificacoes').insert({ tecnico_nome: novaOcorrencia.tecnico_nome, tipo: 'execucao', titulo: `Ocorrência registrada: ${tipoLabel}`, descricao: `${novaOcorrencia.descricao} (-${novaOcorrencia.pontos_descontados} pts)`, link: '', lida: false }); setNovaOcorrencia({ tecnico_nome: '', id_ordem: '', tipo: 'atraso', descricao: '', pontos_descontados: 0 }); setShowOcorrenciaModal(false); carregar() }
   const converterAlertaEmOcorrencia = async (alerta: Alerta, tipo: string, pontos: number) => {
     if (!podeConverter) return
     // 1) Criar ocorrencia
@@ -158,7 +155,7 @@ function PainelMecanicosPage() {
     carregar()
   }
 
-  const avaliarJustificativa = async (id: number, aprovada: boolean) => { if (!podeAvaliar) return; const just = justificativas.find(j => j.id === id); await supabase.from('tecnico_justificativas').update({ status: aprovada ? 'aprovada' : 'recusada', descontar_comissao: !aprovada, data_avaliacao: new Date().toISOString() }).eq('id', id); if (just) { await notificarAdmins('pos', `Justificativa ${aprovada ? 'aceita' : 'recusada'} - ${just.tecnico_nome}`, `${just.justificativa.substring(0, 100)}${aprovada ? ' (sem desconto)' : ' (desconta comissão)'}`); await supabase.from('mecanico_notificacoes').insert({ tecnico_nome: just.tecnico_nome, tipo: 'execucao', titulo: `Justificativa ${aprovada ? 'aceita' : 'recusada'}`, descricao: aprovada ? 'Sua justificativa foi aceita, sem desconto na comissão.' : 'Sua justificativa foi recusada, haverá desconto na comissão.', link: '', lida: false }) }; carregar() }
+  const avaliarJustificativa = async (id: number, aprovada: boolean) => { if (!podeAvaliar) return; const just = justificativas.find(j => j.id === id); await supabase.from('tecnico_justificativas').update({ status: aprovada ? 'aprovada' : 'recusada', descontar_comissao: !aprovada, data_avaliacao: new Date().toISOString(), avaliado_por: userProfile?.nome || null }).eq('id', id); if (just) { await notificarAdmins('pos', `Justificativa ${aprovada ? 'aceita' : 'recusada'} - ${just.tecnico_nome}`, `${just.justificativa.substring(0, 100)}${aprovada ? ' (sem desconto)' : ' (desconta comissão)'}`); await supabase.from('mecanico_notificacoes').insert({ tecnico_nome: just.tecnico_nome, tipo: 'execucao', titulo: `Justificativa ${aprovada ? 'aceita' : 'recusada'}`, descricao: aprovada ? 'Sua justificativa foi aceita, sem desconto na comissão.' : 'Sua justificativa foi recusada, haverá desconto na comissão.', link: '', lida: false }) }; carregar() }
 
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 80, color: 'var(--portal-text-muted)', gap: 10 }}>
@@ -237,37 +234,19 @@ function PainelMecanicosPage() {
         {blocoAtivo === 'visao' && <BlocoVisaoGeral tecnicos={tecnicos} ordens={ordens} caminhos={caminhos} />}
         {blocoAtivo === 'ordens' && <BlocoAgenda tecnicos={tecnicos} ordens={ordens} semanaOffset={semanaOffset} />}
         {blocoAtivo === 'alertas' && <BlocoAlertas tecnicos={tecnicos} alertas={alertas} onRecarregar={carregar} userName={userProfile?.nome || ''} ordens={ordens} reqsMecanico={reqsMecanico} justificativas={justificativas} ocorrencias={ocorrencias} onAprovarRequisicao={aprovarRequisicao} onRecusarRequisicao={recusarRequisicao} onAvaliarJustificativa={avaliarJustificativa} onConverterOcorrencia={converterAlertaEmOcorrencia} tipoOcorrencia={TIPO_OCORRENCIA} podeAprovar={podeAprovar} podeRecusar={podeRecusar} podeConverter={podeConverter} podeAvaliar={podeAvaliar} />}
-        {blocoAtivo === 'ocorrencias' && <BlocoOcorrencias tecnicos={tecnicos} ocorrencias={ocorrencias} justificativas={justificativas} opasResolvidas={opasResolvidas} tipoOcorrencia={TIPO_OCORRENCIA} onSalvarOcorrencia={async (dados) => {
-          if (!dados.tecnico_nome || !dados.descricao) return
-          await supabase.from('tecnico_ocorrencias').insert({ tecnico_nome: dados.tecnico_nome, id_ordem: dados.id_ordem || null, tipo: dados.tipo, descricao: dados.descricao, pontos_descontados: dados.pontos_descontados, data: new Date().toISOString().split('T')[0] })
-          const tipoLabel = (TIPO_OCORRENCIA[dados.tipo] || TIPO_OCORRENCIA.outros).label
-          await notificarAdmins('pos', `Nova ocorrencia - ${dados.tecnico_nome}`, `${tipoLabel}: ${dados.descricao}${dados.id_ordem ? ` (OS: ${dados.id_ordem})` : ''} | -${dados.pontos_descontados} pts`)
-          await supabase.from('mecanico_notificacoes').insert({ tecnico_nome: dados.tecnico_nome, tipo: 'execucao', titulo: `Ocorrencia registrada: ${tipoLabel}`, descricao: `${dados.descricao} (-${dados.pontos_descontados} pts)`, link: '', lida: false })
-          carregar()
-        }} />}
+        {blocoAtivo === 'ocorrencias' && <BlocoOcorrencias tecnicos={tecnicos} ocorrencias={ocorrencias} justificativas={justificativas} opasResolvidas={opasResolvidas} tipoOcorrencia={TIPO_OCORRENCIA} onRecarregar={carregar} criadoPor={userProfile?.nome || undefined} />}
         {blocoAtivo === 'relatorio' && <BlocoRelatorioMensal tecnicos={tecnicos} />}
       </div>
 
 
-      {/* ══ MODAL OCORRENCIA ══ */}
-      {showOcorrenciaModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setShowOcorrenciaModal(false)}>
-          <div style={{ background: 'var(--portal-bg-card)', borderRadius: 12, padding: 28, width: '100%', maxWidth: 440, border: '1px solid var(--portal-border)' }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-              <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--portal-text)', margin: 0 }}>Nova Ocorrencia</h2>
-              <button onClick={() => setShowOcorrenciaModal(false)} style={{ background: 'var(--portal-bg-secondary)', border: 'none', cursor: 'pointer', color: 'var(--portal-text-muted)', width: 28, height: 28, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} /></button>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div><label style={MLBL}>Tecnico</label><select value={novaOcorrencia.tecnico_nome} onChange={e => setNovaOcorrencia({ ...novaOcorrencia, tecnico_nome: e.target.value })} style={{ ...INP, background: 'var(--portal-bg-card)' }}><option value="">Selecione...</option>{tecnicos.map(t => <option key={t.user_id} value={t.tecnico_nome}>{t.tecnico_nome}</option>)}</select></div>
-              <div><label style={MLBL}>OS (opcional)</label><input type="text" value={novaOcorrencia.id_ordem} onChange={e => setNovaOcorrencia({ ...novaOcorrencia, id_ordem: e.target.value })} placeholder="Ex: OS-001" style={INP} /></div>
-              <div><label style={MLBL}>Tipo</label><select value={novaOcorrencia.tipo} onChange={e => setNovaOcorrencia({ ...novaOcorrencia, tipo: e.target.value })} style={{ ...INP, background: 'var(--portal-bg-card)' }}>{Object.entries(TIPO_OCORRENCIA).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></div>
-              <div><label style={MLBL}>Descricao</label><textarea value={novaOcorrencia.descricao} onChange={e => setNovaOcorrencia({ ...novaOcorrencia, descricao: e.target.value })} placeholder="Descreva..." rows={3} style={{ ...INP, resize: 'vertical', fontFamily: 'inherit' }} /></div>
-              <div><label style={MLBL}>Pontos a descontar</label><input type="number" min={0} max={100} value={novaOcorrencia.pontos_descontados} onChange={e => setNovaOcorrencia({ ...novaOcorrencia, pontos_descontados: Number(e.target.value) })} style={INP} /></div>
-              <button onClick={salvarOcorrencia} style={{ width: '100%', padding: '10px 0', borderRadius: 8, border: 'none', background: '#18181B', color: '#fff', fontSize: 14, fontWeight: 500, cursor: 'pointer', marginTop: 4 }}>Registrar</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ══ MODAL OCORRENCIA (compartilhado — catálogo + anexos) ══ */}
+      <OcorrenciaFormModal
+        aberto={showOcorrenciaModal}
+        onFechar={() => setShowOcorrenciaModal(false)}
+        onRegistrada={carregar}
+        tecnicos={tecnicos.map(t => t.tecnico_nome)}
+        criadoPor={userProfile?.nome || undefined}
+      />
     </div>
   )
 }

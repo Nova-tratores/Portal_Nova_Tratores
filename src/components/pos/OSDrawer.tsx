@@ -8,6 +8,9 @@ import { MSG_SEM_PERMISSAO } from "@/lib/permissoes/ui";
 import SearchModal from "./SearchModal";
 import LogPanel from "./LogPanel";
 import OSGarantiaInfo from "@/components/garantias/OSGarantiaInfo";
+import OcorrenciaFormModal from "@/components/ocorrencias/OcorrenciaFormModal";
+import { useAuth } from "@/hooks/useAuth";
+import { usePermissoes } from "@/hooks/usePermissoes";
 
 interface OSDrawerProps {
   visible: boolean;
@@ -67,6 +70,11 @@ function horaAtualBR() {
 export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, userName, onClose, onSaved, valorHora: propValorHora, valorKm: propValorKm, podeEditar = true, podeOmie = true, podeConcluir = true, podeCancelar = true }: OSDrawerProps) {
   const VH = propValorHora ?? VALOR_HORA;
   const VK = propValorKm ?? VALOR_KM;
+  // Ocorrência rápida por OS (categoria OS pré-selecionada, técnico da OS)
+  const { userProfile } = useAuth();
+  const { pode } = usePermissoes(userProfile?.id);
+  const podeOcorrencia = pode("painel-mecanicos", "criar_ocorrencia");
+  const [showOcorrencia, setShowOcorrencia] = useState(false);
   const [clienteChave, setClienteChave] = useState("");
   const [clienteInfo, setClienteInfo] = useState<ClienteDados | null>(null);
   const [status, setStatus] = useState("Orçamento");
@@ -739,11 +747,31 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                 )}
               </div>
               <div className="os-header-actions">
+                {mode === "edit" && podeOcorrencia && (
+                  <button
+                    onClick={() => setShowOcorrencia(true)}
+                    title="Registrar ocorrência ligada a esta OS (falta de informação, retorno de serviço…)"
+                    style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "#DC2626", background: "#FEE2E2", border: "1px solid #FECACA", borderRadius: 6, padding: "6px 12px", cursor: "pointer", marginRight: 8 }}
+                  >
+                    ⚠ Ocorrência
+                  </button>
+                )}
                 <button className="os-btn-close" onClick={onClose}>
                   <i className="fas fa-times" />
                 </button>
               </div>
             </div>
+
+            {/* Modal de ocorrência rápida (categoria OS, técnico pré-selecionado) */}
+            <OcorrenciaFormModal
+              aberto={showOcorrencia}
+              onFechar={() => setShowOcorrencia(false)}
+              tecnicos={Array.from(new Set([tecnico1, tecnico2, ...tecnicos].filter(Boolean)))}
+              categoriaInicial="os"
+              tecnicoInicial={tecnico1 || ""}
+              idOrdemInicial={osId || ""}
+              criadoPor={userName || userProfile?.nome || undefined}
+            />
 
             {loadingData ? (
               <div className="os-loading">

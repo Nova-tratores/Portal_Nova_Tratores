@@ -1,9 +1,17 @@
 'use client'
 import { useState, useMemo } from 'react'
-import { ChevronDown, ChevronRight, Filter, AlertOctagon, Plus, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, Filter, MapPin, Paperclip, Plus } from 'lucide-react'
+import OcorrenciaFormModal from '@/components/ocorrencias/OcorrenciaFormModal'
+import { rotuloOcorrencia, CATALOGO_OCORRENCIAS, CATEGORIAS, type CategoriaOcorrencia } from '@/lib/ocorrencias/catalogo'
+import type { AnexoOcorrencia } from '@/lib/ocorrencias/registrar'
 
 interface Tecnico { user_id: string; tecnico_nome: string; tecnico_email: string; mecanico_role: 'tecnico' | 'observador' }
-interface Ocorrencia { id: number; tecnico_nome: string; id_ordem: string | null; tipo: string; descricao: string; pontos_descontados: number; data: string; created_at?: string }
+interface Ocorrencia {
+  id: number; tecnico_nome: string; id_ordem: string | null; tipo: string; descricao: string;
+  pontos_descontados: number; data: string; created_at?: string;
+  categoria?: string | null; subcategoria?: string | null; origem?: string | null;
+  anexos?: AnexoOcorrencia[] | null; detalhes?: { maps_url?: string } | null
+}
 interface Justificativa { id: number; tecnico_nome: string; id_ordem: string | null; id_ocorrencia: number | null; justificativa: string; status: string; descontar_comissao: boolean | null; avaliado_por: string | null; data_avaliacao: string | null; created_at: string }
 interface OpaResolvida { id: string; titulo: string; resolvido_por_nome: string | null; resolvido_at: string | null }
 
@@ -28,22 +36,23 @@ function formatData(iso: string): string {
 }
 
 export default function BlocoOcorrencias({
-  tecnicos, ocorrencias, justificativas, opasResolvidas = [], tipoOcorrencia, onSalvarOcorrencia,
+  tecnicos, ocorrencias, justificativas, opasResolvidas = [], tipoOcorrencia, onRecarregar, criadoPor,
 }: {
   tecnicos: Tecnico[]
   ocorrencias: Ocorrencia[]
   justificativas: Justificativa[]
   opasResolvidas?: OpaResolvida[]
+  /** Tipos LEGADOS (linhas antigas sem categoria) — só pra render. */
   tipoOcorrencia: Record<string, { label: string; color: string }>
-  onSalvarOcorrencia: (dados: { tecnico_nome: string; id_ordem: string; tipo: string; descricao: string; pontos_descontados: number }) => Promise<void>
+  onRecarregar: () => void
+  criadoPor?: string
 }) {
   const mesAtual = getMesAtual()
   const [mesSelecionado, setMesSelecionado] = useState(mesAtual)
   const [filtroTecnico, setFiltroTecnico] = useState('todos')
+  const [filtroCategoria, setFiltroCategoria] = useState('todas')
   const [tecExpandido, setTecExpandido] = useState<string | null>(null)
   const [showNovaModal, setShowNovaModal] = useState(false)
-  const [nova, setNova] = useState({ tecnico_nome: '', id_ordem: '', tipo: 'atraso', descricao: '', pontos_descontados: 5 })
-  const [salvando, setSalvando] = useState(false)
 
   const tecAtivos = tecnicos.filter(t => t.mecanico_role === 'tecnico')
 
@@ -69,8 +78,11 @@ export default function BlocoOcorrencias({
     if (filtroTecnico !== 'todos') {
       filtered = filtered.filter(o => o.tecnico_nome === filtroTecnico)
     }
+    if (filtroCategoria !== 'todas') {
+      filtered = filtered.filter(o => (o.categoria || 'legado') === filtroCategoria)
+    }
     return filtered
-  }, [ocorrencias, mesSelecionado, filtroTecnico])
+  }, [ocorrencias, mesSelecionado, filtroTecnico, filtroCategoria])
 
   // Opas resolvidos por técnico no mês selecionado (crédito positivo, verde)
   const opasMes = useMemo(() => {
@@ -130,6 +142,11 @@ export default function BlocoOcorrencias({
           <select value={filtroTecnico} onChange={e => setFiltroTecnico(e.target.value)} style={SEL}>
             <option value="todos">Todos tecnicos</option>
             {tecAtivos.map(t => <option key={t.user_id} value={t.tecnico_nome}>{t.tecnico_nome.split(' ').slice(0, 2).join(' ')}</option>)}
+          </select>
+          <select value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)} style={SEL}>
+            <option value="todas">Todas categorias</option>
+            {CATEGORIAS.map(c => <option key={c} value={c}>{CATALOGO_OCORRENCIAS[c].label}</option>)}
+            <option value="legado">Legado</option>
           </select>
         </div>
         <button onClick={() => setShowNovaModal(true)} style={{ display: 'flex', alignItems: 'center', gap: 5, borderRadius: 4, padding: '7px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', background: '#111', color: '#fff', border: 'none' }}>
@@ -199,25 +216,54 @@ export default function BlocoOcorrencias({
                     {dados.ocorrencias
                       .sort((a, b) => (b.data || '').localeCompare(a.data || ''))
                       .map(o => {
-                        const ti = tipoOcorrencia[o.tipo] || tipoOcorrencia.outros || { label: o.tipo, color: '#71717A' }
+                        const rot = o.categoria && o.categoria !== 'legado'
+                          ? rotuloOcorrencia(o)
+                          : (() => { const ti = tipoOcorrencia[o.tipo] || tipoOcorrencia.outros || { label: o.tipo, color: '#71717A' }; return { label: ti.label, cor: ti.color, categoriaLabel: 'Legado' } })()
                         const justAprovada = justificativas.find(j => j.id_ocorrencia === o.id && j.status === 'aprovada' && j.descontar_comissao === false)
                         const justPendente = justificativas.find(j => j.id_ocorrencia === o.id && j.status === 'pendente')
+                        const anexos = (o.anexos || []) as AnexoOcorrencia[]
 
                         return (
                           <div key={o.id} style={{
                             display: 'grid', gridTemplateColumns: '120px 1fr 80px 100px 80px',
                             padding: '10px 16px', borderBottom: '1px solid var(--portal-border)', alignItems: 'center',
                             background: 'var(--portal-bg-card)',
-                            borderLeft: `3px solid ${ti.color}`,
+                            borderLeft: `3px solid ${rot.cor}`,
                             opacity: justAprovada ? 0.5 : 1,
                           }}>
-                            <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 3, background: `${ti.color}18`, color: ti.color, display: 'inline-block', width: 'fit-content' }}>
-                              {ti.label}
+                            <span style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-start' }}>
+                              <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 3, background: `${rot.cor}18`, color: rot.cor, display: 'inline-block', width: 'fit-content' }}>
+                                {rot.label}
+                              </span>
+                              <span style={{ display: 'flex', gap: 4 }}>
+                                {o.categoria && o.categoria !== 'legado' && (
+                                  <span style={{ fontSize: 9, fontWeight: 800, padding: '1px 6px', borderRadius: 3, background: 'var(--portal-bg-secondary)', color: 'var(--portal-text-muted)', textTransform: 'uppercase' }}>
+                                    {rot.categoriaLabel}
+                                  </span>
+                                )}
+                                {o.origem === 'auto' && (
+                                  <span style={{ fontSize: 9, fontWeight: 800, padding: '1px 6px', borderRadius: 3, background: '#111', color: '#fff', textTransform: 'uppercase' }}>AUTO</span>
+                                )}
+                              </span>
                             </span>
                             <div style={{ overflow: 'hidden', paddingRight: 8 }}>
-                              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--portal-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--portal-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={o.descricao}>
                                 {o.descricao}
                               </div>
+                              {(anexos.length > 0 || o.detalhes?.maps_url) && (
+                                <div style={{ display: 'flex', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
+                                  {anexos.map((a, i) => (
+                                    <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10.5, fontWeight: 700, color: '#0c63e4', textDecoration: 'none', background: '#0c63e410', border: '1px solid #0c63e433', borderRadius: 999, padding: '1px 8px' }}>
+                                      <Paperclip size={9} /> {a.tipo === 'video' ? 'vídeo' : 'foto'} {i + 1}
+                                    </a>
+                                  ))}
+                                  {o.detalhes?.maps_url && (
+                                    <a href={o.detalhes.maps_url} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10.5, fontWeight: 700, color: '#0d9488', textDecoration: 'none', background: '#0d948810', border: '1px solid #0d948833', borderRadius: 999, padding: '1px 8px' }}>
+                                      <MapPin size={9} /> ver no mapa
+                                    </a>
+                                  )}
+                                </div>
+                              )}
                               {justAprovada && (
                                 <div style={{ fontSize: 11, color: '#065F46', marginTop: 2, fontWeight: 500 }}>
                                   Justificativa aceita - sem desconto
@@ -299,69 +345,14 @@ export default function BlocoOcorrencias({
         </div>
       )}
 
-      {/* ══ MODAL NOVA OCORRÊNCIA ══ */}
-      {showNovaModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setShowNovaModal(false)}>
-          <div style={{ background: 'var(--portal-bg-card)', borderRadius: 8, padding: 24, width: '100%', maxWidth: 440, border: '1px solid var(--portal-border)' }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--portal-text)', margin: 0 }}>Nova Ocorrencia</h3>
-              <button onClick={() => setShowNovaModal(false)} style={{ background: 'var(--portal-bg-secondary)', border: 'none', cursor: 'pointer', width: 28, height: 28, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} color="var(--portal-text)" /></button>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', display: 'block', marginBottom: 5 }}>Tecnico</label>
-                <select value={nova.tecnico_nome} onChange={e => setNova(p => ({ ...p, tecnico_nome: e.target.value }))}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: 4, border: '1px solid var(--portal-border)', fontSize: 13, background: 'var(--portal-bg-card)', color: 'var(--portal-text)' }}>
-                  <option value="">Selecione...</option>
-                  {tecAtivos.map(t => <option key={t.user_id} value={t.tecnico_nome}>{t.tecnico_nome}</option>)}
-                </select>
-              </div>
-
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', display: 'block', marginBottom: 5 }}>OS (opcional)</label>
-                <input type="text" value={nova.id_ordem} onChange={e => setNova(p => ({ ...p, id_ordem: e.target.value }))}
-                  placeholder="Ex: 1234" style={{ width: '100%', padding: '9px 12px', borderRadius: 4, border: '1px solid var(--portal-border)', fontSize: 13, background: 'var(--portal-bg-card)', color: 'var(--portal-text)', boxSizing: 'border-box' }} />
-              </div>
-
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', display: 'block', marginBottom: 5 }}>Tipo</label>
-                <select value={nova.tipo} onChange={e => setNova(p => ({ ...p, tipo: e.target.value }))}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: 4, border: '1px solid var(--portal-border)', fontSize: 13, background: 'var(--portal-bg-card)', color: 'var(--portal-text)' }}>
-                  {Object.entries(tipoOcorrencia).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                </select>
-              </div>
-
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', display: 'block', marginBottom: 5 }}>Descricao</label>
-                <textarea value={nova.descricao} onChange={e => setNova(p => ({ ...p, descricao: e.target.value }))}
-                  placeholder="Descreva a ocorrencia..." rows={3}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: 4, border: '1px solid var(--portal-border)', fontSize: 13, resize: 'vertical', color: 'var(--portal-text)', boxSizing: 'border-box' }} />
-              </div>
-
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', display: 'block', marginBottom: 5 }}>Pontos a descontar</label>
-                <input type="number" min={0} max={100} value={nova.pontos_descontados}
-                  onChange={e => setNova(p => ({ ...p, pontos_descontados: Number(e.target.value) }))}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: 4, border: '1px solid var(--portal-border)', fontSize: 13, background: 'var(--portal-bg-card)', color: 'var(--portal-text)', boxSizing: 'border-box' }} />
-              </div>
-
-              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                <button onClick={() => setShowNovaModal(false)} style={{ flex: 1, padding: 10, borderRadius: 4, fontSize: 13, fontWeight: 700, background: 'var(--portal-bg-secondary)', color: 'var(--portal-text)', border: 'none', cursor: 'pointer' }}>Cancelar</button>
-                <button disabled={salvando || !nova.tecnico_nome || !nova.descricao} onClick={async () => {
-                  setSalvando(true)
-                  await onSalvarOcorrencia(nova)
-                  setNova({ tecnico_nome: '', id_ordem: '', tipo: 'atraso', descricao: '', pontos_descontados: 5 })
-                  setShowNovaModal(false)
-                  setSalvando(false)
-                }} style={{ flex: 1, padding: 10, borderRadius: 4, fontSize: 13, fontWeight: 700, background: '#DC2626', color: '#fff', border: 'none', cursor: 'pointer', opacity: salvando || !nova.tecnico_nome || !nova.descricao ? 0.5 : 1 }}>
-                  {salvando ? 'Salvando...' : 'Registrar'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ══ MODAL NOVA OCORRÊNCIA (compartilhado — catálogo + anexos) ══ */}
+      <OcorrenciaFormModal
+        aberto={showNovaModal}
+        onFechar={() => setShowNovaModal(false)}
+        onRegistrada={onRecarregar}
+        tecnicos={tecAtivos.map(t => t.tecnico_nome)}
+        criadoPor={criadoPor}
+      />
     </div>
   )
 }

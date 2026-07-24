@@ -1,0 +1,24 @@
+name: Frota — ocorrências automáticas (multa/abastecimento/consumo)
+
+# Gera ocorrências automáticas da Frota: multas oficiais espelhadas,
+# requisições de abastecimento (toda conta — política do cartão) e consumo
+# anormal (2σ abaixo do histórico). O excesso de VELOCIDADE roda dentro do
+# fechar-dia (precisa dos fixes com coordenada). Idempotente por auto_chave.
+# 1x/dia, depois do fechar-dia (04:20 BRT). Secrets: PORTAL_URL e CRON_SECRET.
+
+on:
+  schedule:
+    - cron: '0 8 * * *'   # 08:00 UTC = 05:00 de Brasília
+  workflow_dispatch: {}    # permite rodar manualmente
+
+jobs:
+  gerar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Gerar ocorrências automáticas
+        run: |
+          curl -fsS --max-time 600 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/frota/cron/ocorrencias-auto" \
+            -w "\nocorrencias-auto: HTTP %{http_code}\n"

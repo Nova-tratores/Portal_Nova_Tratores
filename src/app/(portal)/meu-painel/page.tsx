@@ -7,8 +7,11 @@ import {
   Calendar, Package, Clock, Navigation, MapPin,
   Plus, X, Send, FileText, AlertTriangle, ChevronRight, ChevronLeft,
   AlertOctagon, Check, Truck, MessageSquare, Star, ChevronDown, ChevronUp,
-  Megaphone, Download
+  Megaphone, Download, Paperclip
 } from 'lucide-react'
+import { rotuloOcorrencia } from '@/lib/ocorrencias/catalogo'
+import { uploadAnexosOcorrencia, validarAnexo, ACCEPT_ANEXOS } from '@/lib/ocorrencias/anexos'
+import type { AnexoOcorrencia } from '@/lib/ocorrencias/registrar'
 import MinhasGarantias from '@/components/meu-painel/MinhasGarantias'
 
 interface AgendaItem {
@@ -77,6 +80,11 @@ interface Ocorrencia {
   data: string
   pontos_descontados: number
   id_ordem: string | null
+  categoria?: string | null
+  subcategoria?: string | null
+  origem?: string | null
+  anexos?: AnexoOcorrencia[] | null
+  detalhes?: { maps_url?: string } | null
 }
 
 interface Justificativa {
@@ -136,6 +144,9 @@ export default function MeuPainelPage() {
   const [loadingVeiculos, setLoadingVeiculos] = useState(false)
   const [showJustForm, setShowJustForm] = useState<number | null>(null)
   const [justTexto, setJustTexto] = useState('')
+  const [justArquivos, setJustArquivos] = useState<File[]>([])
+  const [justEnviando, setJustEnviando] = useState(false)
+  const [justErro, setJustErro] = useState('')
   const [semanaRef, setSemanaRef] = useState(new Date())
   const [ordensSemana, setOrdensSemana] = useState<OrdemServico[]>([])
   const [agendaAberta, setAgendaAberta] = useState(false)
@@ -318,22 +329,42 @@ export default function MeuPainelPage() {
 
   const enviarJustificativa = async (ocorrenciaId: number) => {
     if (!tecnicoNome || !justTexto.trim()) return
-    const oc = ocorrencias.find(o => o.id === ocorrenciaId)
-    await supabase.from('tecnico_justificativas').insert({
-      tecnico_nome: tecnicoNome,
-      id_ordem: oc?.id_ordem || null,
-      id_ocorrencia: ocorrenciaId,
-      justificativa: justTexto.trim(),
-      status: 'pendente',
-    })
-    await notificarAdmins(
-      'pos',
-      `Nova justificativa - ${tecnicoNome}`,
-      `${justTexto.trim().substring(0, 100)}${oc?.id_ordem ? ` (OS: ${oc.id_ordem})` : ''}`
-    )
-    setJustTexto('')
-    setShowJustForm(null)
-    carregar()
+    setJustEnviando(true)
+    setJustErro('')
+    try {
+      const oc = ocorrencias.find(o => o.id === ocorrenciaId)
+      // Anexos da defesa (fotos/vídeos) — mesmo bucket das ocorrências
+      let anexos: AnexoOcorrencia[] = []
+      if (justArquivos.length > 0) {
+        const up = await uploadAnexosOcorrencia(justArquivos, 'ocorrencias/justificativas')
+        anexos = up.anexos
+        if (up.erros.length > 0 && anexos.length === 0) {
+          setJustErro(up.erros.join(' '))
+          setJustEnviando(false)
+          return
+        }
+      }
+      const { error } = await supabase.from('tecnico_justificativas').insert({
+        tecnico_nome: tecnicoNome,
+        id_ordem: oc?.id_ordem || null,
+        id_ocorrencia: ocorrenciaId,
+        justificativa: justTexto.trim(),
+        status: 'pendente',
+        anexos,
+      })
+      if (error) { setJustErro(error.message); setJustEnviando(false); return }
+      await notificarAdmins(
+        'pos',
+        `Nova justificativa - ${tecnicoNome}`,
+        `${justTexto.trim().substring(0, 100)}${oc?.id_ordem ? ` (OS: ${oc.id_ordem})` : ''}${anexos.length ? ` · ${anexos.length} anexo(s)` : ''}`
+      )
+      setJustTexto('')
+      setJustArquivos([])
+      setShowJustForm(null)
+      carregar()
+    } finally {
+      setJustEnviando(false)
+    }
   }
 
   // ─── Computed ─────────────────────────────────────────────────
@@ -909,45 +940,74 @@ export default function MeuPainelPage() {
               </div>
             ))}
 
-            {/* Ocorrências sem justificativa */}
+            {/* Ocorrências sem justificativa — VERMELHAS de propósito: chamar
+                a atenção de quem tomou (só o próprio técnico vê as dele) */}
             {ocorrenciasSemJust.map(oc => {
-              const tipoInfo = TIPO_OCORRENCIA[oc.tipo] || TIPO_OCORRENCIA.outros
+              const ehNova = oc.categoria && oc.categoria !== 'legado'
+              const rot = ehNova
+                ? rotuloOcorrencia(oc)
+                : (() => { const ti = TIPO_OCORRENCIA[oc.tipo] || TIPO_OCORRENCIA.outros; return { label: `${ti.icon} ${ti.label}`, cor: ti.color, categoriaLabel: '' } })()
+              const anexosOc = (oc.anexos || []) as AnexoOcorrencia[]
               const isFormOpen = showJustForm === oc.id
               return (
                 <div key={oc.id} style={{
-                  background: '#fff', borderRadius: 14, padding: '14px 16px', marginBottom: 8,
-                  border: '1px solid #F1F5F9', position: 'relative', overflow: 'hidden',
+                  background: '#FEF2F2', borderRadius: 14, padding: '14px 16px', marginBottom: 8,
+                  border: '2px solid #FECACA', position: 'relative', overflow: 'hidden',
                 }}>
-                  <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: tipoInfo.color }} />
+                  <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 5, background: '#DC2626' }} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                    <AlertOctagon size={15} color="#DC2626" />
+                    <span style={{ fontSize: 11, fontWeight: 900, color: '#DC2626', letterSpacing: 0.5 }}>VOCÊ RECEBEU UMA OCORRÊNCIA</span>
+                  </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                       <span style={{
-                        fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 6,
-                        background: `${tipoInfo.color}15`, color: tipoInfo.color,
+                        fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6,
+                        background: `${rot.cor}18`, color: rot.cor,
                       }}>
-                        {tipoInfo.icon} {tipoInfo.label}
+                        {rot.label}
                       </span>
-                      {oc.id_ordem && <span style={{ fontSize: 11, color: '#94A3B8' }}>OS: {oc.id_ordem}</span>}
+                      {ehNova && rot.categoriaLabel && (
+                        <span style={{ fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: '#fff', color: '#94A3B8', textTransform: 'uppercase', border: '1px solid #FECACA' }}>{rot.categoriaLabel}</span>
+                      )}
+                      {oc.origem === 'auto' && (
+                        <span style={{ fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: '#111', color: '#fff' }}>AUTO</span>
+                      )}
+                      {oc.id_ordem && <span style={{ fontSize: 11, color: '#94A3B8' }}>{oc.id_ordem}</span>}
                     </div>
                     <span style={{
-                      fontSize: 12, fontWeight: 800, color: '#EF4444',
-                      background: '#FEF2F2', padding: '2px 8px', borderRadius: 6,
+                      fontSize: 15, fontWeight: 900, color: '#fff',
+                      background: '#DC2626', padding: '3px 12px', borderRadius: 8,
                     }}>
-                      -{oc.pontos_descontados}
+                      −{oc.pontos_descontados} pts
                     </span>
                   </div>
                   <div style={{ fontSize: 13, color: '#475569', marginBottom: 4, lineHeight: 1.4 }}>{oc.descricao}</div>
-                  <div style={{ fontSize: 11, color: '#CBD5E1', marginBottom: 10 }}>
-                    {new Date(oc.data).toLocaleDateString('pt-BR')}
+                  {(anexosOc.length > 0 || oc.detalhes?.maps_url) && (
+                    <div style={{ display: 'flex', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
+                      {anexosOc.map((a, i) => (
+                        <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: '#0c63e4', textDecoration: 'none', background: '#fff', border: '1px solid #BFDBFE', borderRadius: 999, padding: '2px 10px' }}>
+                          <Paperclip size={10} /> {a.tipo === 'video' ? 'vídeo' : 'foto'} {i + 1}
+                        </a>
+                      ))}
+                      {oc.detalhes?.maps_url && (
+                        <a href={oc.detalhes.maps_url} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: '#0d9488', textDecoration: 'none', background: '#fff', border: '1px solid #99F6E4', borderRadius: 999, padding: '2px 10px' }}>
+                          <MapPin size={10} /> ver no mapa
+                        </a>
+                      )}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 11, color: '#F87171', marginBottom: 10 }}>
+                    {new Date(oc.data).toLocaleDateString('pt-BR')} · você pode se justificar abaixo (texto e fotos/vídeos)
                   </div>
 
                   {!isFormOpen ? (
-                    <button onClick={() => setShowJustForm(oc.id)} style={{
+                    <button onClick={() => { setShowJustForm(oc.id); setJustArquivos([]); setJustErro('') }} style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                       width: '100%', padding: '10px 0', borderRadius: 10, border: 'none',
-                      background: '#1E3A5F', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                      background: '#DC2626', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
                     }}>
-                      <MessageSquare size={14} /> Enviar Justificativa
+                      <MessageSquare size={14} /> Justificar ocorrência
                     </button>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -959,18 +1019,46 @@ export default function MeuPainelPage() {
                         style={{
                           width: '100%', padding: '12px 14px', borderRadius: 10, border: '1px solid #E2E8F0',
                           fontSize: 13, resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box',
-                          background: '#F8FAFC', outline: 'none',
+                          background: '#fff', outline: 'none',
                         }}
                       />
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#64748B', cursor: 'pointer', background: '#fff', border: '1px dashed #CBD5E1', borderRadius: 10, padding: '9px 12px', width: 'fit-content' }}>
+                        <Paperclip size={13} /> Anexar fotos/vídeos
+                        <input type="file" accept={ACCEPT_ANEXOS} multiple style={{ display: 'none' }}
+                          onChange={e => {
+                            const novos: File[] = []
+                            let msg = ''
+                            for (const f of Array.from(e.target.files || [])) {
+                              const inv = validarAnexo(f)
+                              if (inv) { msg = inv; continue }
+                              novos.push(f)
+                            }
+                            setJustErro(msg)
+                            setJustArquivos(prev => [...prev, ...novos].slice(0, 5))
+                            e.target.value = ''
+                          }} />
+                      </label>
+                      {justArquivos.length > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {justArquivos.map((f, i) => (
+                            <div key={`${f.name}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#475569' }}>
+                              <Paperclip size={11} color="#94A3B8" />
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{f.name}</span>
+                              <button onClick={() => setJustArquivos(prev => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', color: '#DC2626', cursor: 'pointer', padding: 0 }}><X size={12} /></button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {justErro && <div style={{ fontSize: 12, color: '#DC2626', fontWeight: 600 }}>{justErro}</div>}
                       <div style={{ display: 'flex', gap: 8 }}>
-                        <button onClick={() => enviarJustificativa(oc.id)} style={{
+                        <button disabled={justEnviando || !justTexto.trim()} onClick={() => enviarJustificativa(oc.id)} style={{
                           flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                          background: '#1E3A5F', color: '#fff', border: 'none', borderRadius: 10,
-                          padding: '11px 0', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                          background: justEnviando || !justTexto.trim() ? '#94A3B8' : '#1E3A5F', color: '#fff', border: 'none', borderRadius: 10,
+                          padding: '11px 0', fontSize: 13, fontWeight: 700, cursor: justEnviando ? 'wait' : 'pointer',
                         }}>
-                          <Send size={14} /> Enviar
+                          <Send size={14} /> {justEnviando ? 'Enviando…' : 'Enviar'}
                         </button>
-                        <button onClick={() => { setShowJustForm(null); setJustTexto('') }} style={{
+                        <button onClick={() => { setShowJustForm(null); setJustTexto(''); setJustArquivos([]) }} style={{
                           padding: '11px 16px', background: '#F1F5F9', color: '#64748B', border: 'none',
                           borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer',
                         }}>
