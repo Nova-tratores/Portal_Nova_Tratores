@@ -99,6 +99,9 @@ export default function AnaliseDre() {
   const [mostrarGrupos, setMostrarGrupos] = useState(true)
   const [mostrarContas, setMostrarContas] = useState(false)
   const [destacarVar, setDestacarVar] = useState(true)
+  // Despesas Financeiras: desmarcado por padrao -> foca no resultado OPERACIONAL
+  // (esconde a linha/KPI de Lucro Liquido e as desp. financeiras no popup).
+  const [mostrarDespFin, setMostrarDespFin] = useState(false)
   // Periodo (inputs type=month)
   const def = defaultsPeriodo()
   const [desde, setDesde] = useState(def.desde)
@@ -116,6 +119,7 @@ export default function AnaliseDre() {
   const [popupItens, setPopupItens] = useState(null) // vendas do mes (fetch /margens)
   const [popupRateio, setPopupRateio] = useState(null) // { porMes } (fetch /rateio)
   const [popupCarregando, setPopupCarregando] = useState(false)
+  const [popupDespOpAberto, setPopupDespOpAberto] = useState(false) // drill "Despesas Operacionais"
 
   // Refs dos canvas + instancias Chart.js
   const refCanvasMargens = useRef(null)
@@ -611,7 +615,9 @@ export default function AnaliseDre() {
     // Escala do eixo Y das margens (modo %): linear no intervalo principal
     // -10%..+15% e comprimida (log) fora dele — pontos extremos continuam
     // visiveis sem achatar a zona util (ver escala-simlog.js).
-    var todosPct = emRS ? [] : mBruta.concat(mOper, mLiq)
+    // Lucro/Margem Liquida so entra quando "Mostrar Despesas Financeiras" esta
+    // marcado (a Liquida = Operacional − desp. financeiras).
+    var todosPct = emRS ? [] : (mostrarDespFin ? mBruta.concat(mOper, mLiq) : mBruta.concat(mOper))
     // Series plotadas: transformadas no modo %; as REAIS ficam em rawData
     // (tooltip mostra sempre o valor real).
     function plotSerie(s) { return emRS ? s : s.map(simlogY) }
@@ -629,9 +635,10 @@ export default function AnaliseDre() {
           labels: labels,
           datasets: [
             { type: 'line', label: lblBruta, data: plotSerie(mBruta), rawData: mBruta, borderColor: '#1e293b', backgroundColor: 'rgba(30,41,59,0.05)', borderWidth: 2, pointRadius: pointRadiusArr, pointHoverRadius: 6, pointBorderColor: pointBorderArr, pointBorderWidth: pointBWArr, tension: 0.2, fill: false },
-            { type: 'line', label: lblOper, data: plotSerie(mOper), rawData: mOper, borderColor: '#7c3aed', backgroundColor: 'rgba(124,58,237,0.05)', borderWidth: 2, pointRadius: pointRadiusArr, pointHoverRadius: 6, pointBorderColor: pointBorderArr, pointBorderWidth: pointBWArr, tension: 0.2, fill: false },
+            { type: 'line', label: lblOper, data: plotSerie(mOper), rawData: mOper, borderColor: '#7c3aed', backgroundColor: 'rgba(124,58,237,0.05)', borderWidth: 2, pointRadius: pointRadiusArr, pointHoverRadius: 6, pointBorderColor: pointBorderArr, pointBorderWidth: pointBWArr, tension: 0.2, fill: false }
+          ].concat(mostrarDespFin ? [
             { type: 'line', label: lblLiq, data: plotSerie(mLiq), rawData: mLiq, borderColor: '#dc2626', backgroundColor: 'rgba(220,38,38,0.05)', borderWidth: 2, pointRadius: pointRadiusArr, pointHoverRadius: 6, pointBorderColor: pointBorderArr, pointBorderWidth: pointBWArr, tension: 0.2, fill: false }
-          ]
+          ] : [])
         },
         options: {
           responsive: true, maintainAspectRatio: false,
@@ -710,7 +717,7 @@ export default function AnaliseDre() {
     setChartInfo(infoTxt)
     return function () { if (canvasM) canvasM.removeEventListener('dblclick', onDbl) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chartPronto, dados, granularidade, margemModo, regime, mesFoco])
+  }, [chartPronto, dados, granularidade, margemModo, regime, mesFoco, mostrarDespFin])
 
   // Destroi as instancias Chart.js ao desmontar a tela.
   useEffect(() => {
@@ -729,6 +736,7 @@ export default function AnaliseDre() {
   useEffect(() => {
     if (!popupMes) { setPopupItens(null); setPopupRateio(null); return }
     var ativo = true
+    setPopupDespOpAberto(false)
     setPopupCarregando(true)
     setPopupItens(null); setPopupRateio(null)
     var qsConta = 'conta=' + encodeURIComponent(conta)
@@ -856,11 +864,26 @@ export default function AnaliseDre() {
       { label: '= Receita Líquida Operacional', valor: rlo, tipo: 'subtotal' },
       { label: '(−) CMV (custo das mercadorias)', valor: lb - rlo, tipo: 'linha' },
       { label: '= Lucro Bruto', valor: lb, tipo: 'subtotal' },
-      { label: '(−) Despesas operacionais', valor: despOp, tipo: 'linha' },
+      { label: '(−) Despesas operacionais', valor: despOp, tipo: 'linha', key: 'despOp' },
       { label: '= Lucro Operacional (EBIT)', valor: lop, tipo: 'resultado' },
-      { label: '(−) Despesas financeiras', valor: despFin, tipo: 'linha' },
-      { label: '= Lucro Líquido', valor: ll, tipo: 'resultado' },
+      // As duas linhas abaixo so aparecem com "Mostrar Despesas Financeiras" (soDespFin).
+      { label: '(−) Despesas financeiras', valor: despFin, tipo: 'linha', soDespFin: true },
+      { label: '= Lucro Líquido', valor: ll, tipo: 'resultado', soDespFin: true },
     ]
+    // Composicao das Despesas Operacionais (drill ao clicar na linha): contas do
+    // tipo "2. Despesas" no mes, EXCETO a conta de Despesas Financeiras.
+    const despOpItens = []
+    const despNode = (dados.consolidado || {})['2. Despesas']
+    if (despNode && despNode.grupos) {
+      Object.entries(despNode.grupos).forEach(([g, gn]) => {
+        Object.keys(gn.contas || {}).forEach((c) => {
+          if (c === '03. Despesas Financeiras') return
+          const v = valContaCol('2. Despesas', g, c, k)
+          if (Math.abs(v) >= 1) despOpItens.push({ grupo: g, conta: c, valor: v })
+        })
+      })
+      despOpItens.sort((a, b) => a.valor - b.valor) // mais negativo (maior despesa) primeiro
+    }
     // Tabela por maquina (so quando o fetch das vendas do mes chegou)
     let maquinas = null, fd = null, agg = null
     if (popupItens) {
@@ -883,7 +906,7 @@ export default function AnaliseDre() {
       }, { receita: 0, custo_total: 0, lucro: 0, neg: 0, faltou: 0, posDreSum: 0 })
       agg = Object.assign({}, tot, { n: maquinas.length, fd, servicos, despesasMes, recMes })
     }
-    return { k, lb, lop, ll, waterfall, maquinas, agg }
+    return { k, lb, lop, ll, despOp, waterfall, despOpItens, maquinas, agg }
   })()
 
   return (
@@ -940,8 +963,16 @@ export default function AnaliseDre() {
         )}
       </div>
 
+      {/* Toggle de visao: Despesas Financeiras (desmarcado = foco operacional) */}
+      <div className="mb-3">
+        <label className="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none" title="Marcado: mostra o Lucro Líquido (após despesas financeiras) no gráfico, nos KPIs e no popup. Desmarcado: foca no resultado operacional.">
+          <input type="checkbox" checked={mostrarDespFin} onChange={(e) => setMostrarDespFin(e.target.checked)} />
+          Mostrar Despesas Financeiras
+        </label>
+      </div>
+
       {/* Bloco 1: KPIs do periodo */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4" id="adre-kpis">
+      <div className={'grid grid-cols-2 gap-3 mb-4 ' + (mostrarDespFin ? 'md:grid-cols-5' : 'md:grid-cols-3')} id="adre-kpis">
         <div className="bg-white rounded-lg border border-slate-200 p-3">
           <div className="text-[10px] text-slate-500 uppercase tracking-wide">Receita Bruta</div>
           <div className={kpis ? kpis.receita.cls : 'text-lg font-bold text-emerald-700 mt-1'}>{kpis ? kpis.receita.valor : '--'}</div>
@@ -957,24 +988,28 @@ export default function AnaliseDre() {
           <div className={kpis ? kpis.lop.cls : 'text-lg font-bold mt-1'}>{kpis ? kpis.lop.valor : '--'}</div>
           <div className="adre-card-mom-yoy text-slate-500 mt-1">{kpis ? <VarBadge mom={kpis.lop.mom} yoy={kpis.lop.yoy} /> : '--'}</div>
         </div>
-        <div className="bg-white rounded-lg border border-slate-200 p-3">
-          <div className="text-[10px] text-slate-500 uppercase tracking-wide">Lucro Líquido</div>
-          <div className={kpis ? kpis.ll.cls : 'text-lg font-bold mt-1'}>{kpis ? kpis.ll.valor : '--'}</div>
-          <div className="adre-card-mom-yoy text-slate-500 mt-1">{kpis ? <VarBadge mom={kpis.ll.mom} yoy={kpis.ll.yoy} /> : '--'}</div>
-        </div>
-        <div className="bg-white rounded-lg border border-slate-200 p-3">
-          <div className="text-[10px] text-slate-500 uppercase tracking-wide">Margem Líquida %</div>
-          <div className={kpis ? kpis.ml.cls : 'text-lg font-bold mt-1'}>{kpis ? kpis.ml.valor : '--'}</div>
-          <div className="adre-card-mom-yoy text-slate-500 mt-1">
-            {kpis ? (
-              <>
-                <span className={corVar(kpis.ml.momPP) + ' px-1 rounded'}>MoM {fmtPP(kpis.ml.momPP)}</span>
-                {' · '}
-                <span className={corVar(kpis.ml.yoyPP) + ' px-1 rounded'}>YoY {fmtPP(kpis.ml.yoyPP)}</span>
-              </>
-            ) : '--'}
+        {mostrarDespFin && (
+          <div className="bg-white rounded-lg border border-slate-200 p-3">
+            <div className="text-[10px] text-slate-500 uppercase tracking-wide">Lucro Líquido</div>
+            <div className={kpis ? kpis.ll.cls : 'text-lg font-bold mt-1'}>{kpis ? kpis.ll.valor : '--'}</div>
+            <div className="adre-card-mom-yoy text-slate-500 mt-1">{kpis ? <VarBadge mom={kpis.ll.mom} yoy={kpis.ll.yoy} /> : '--'}</div>
           </div>
-        </div>
+        )}
+        {mostrarDespFin && (
+          <div className="bg-white rounded-lg border border-slate-200 p-3">
+            <div className="text-[10px] text-slate-500 uppercase tracking-wide">Margem Líquida %</div>
+            <div className={kpis ? kpis.ml.cls : 'text-lg font-bold mt-1'}>{kpis ? kpis.ml.valor : '--'}</div>
+            <div className="adre-card-mom-yoy text-slate-500 mt-1">
+              {kpis ? (
+                <>
+                  <span className={corVar(kpis.ml.momPP) + ' px-1 rounded'}>MoM {fmtPP(kpis.ml.momPP)}</span>
+                  {' · '}
+                  <span className={corVar(kpis.ml.yoyPP) + ' px-1 rounded'}>YoY {fmtPP(kpis.ml.yoyPP)}</span>
+                </>
+              ) : '--'}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Bloco 2: Margens evoluindo + Receita bruta */}
@@ -1072,31 +1107,54 @@ export default function AnaliseDre() {
           <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[96vw] max-w-[1100px] max-h-[88vh] bg-white rounded-lg shadow-2xl z-50 flex flex-col">
             <div className="border-b border-slate-200 px-5 py-3 flex items-center justify-between gap-3">
               <div>
-                <h2 className="font-semibold text-slate-800">Composição de {rotuloMes(popup.k)}</h2>
-                <div className="text-xs text-slate-500 mt-0.5">
+                <h2 className="text-lg font-semibold text-slate-800">Composição de {rotuloMes(popup.k)}</h2>
+                <div className="text-sm text-slate-500 mt-0.5">
                   Lucro Bruto <b className={corValor(popup.lb)}>{fmtBRL(popup.lb)}</b>
                   {' · '}Lucro Operacional <b className={corValor(popup.lop)}>{fmtBRL(popup.lop)}</b>
-                  {' · '}Lucro Líquido <b className={corValor(popup.ll)}>{fmtBRL(popup.ll)}</b>
+                  {mostrarDespFin && <> · Lucro Líquido <b className={corValor(popup.ll)}>{fmtBRL(popup.ll)}</b></>}
                   {' · '}regime {regime === 'competencia' ? 'Competência' : 'Omie'}
                 </div>
               </div>
-              <button onClick={() => setPopupMes(null)} className="text-slate-500 hover:text-slate-900 text-2xl leading-none">&times;</button>
+              <button onClick={() => setPopupMes(null)} className="text-slate-500 hover:text-slate-900 text-3xl leading-none">&times;</button>
             </div>
 
             <div className="overflow-y-auto p-4 space-y-4">
               {/* Waterfall do DRE do mes */}
               <div>
-                <div className="text-xs uppercase tracking-wide text-slate-500 mb-2">O que compõe o resultado do mês</div>
+                <div className="text-sm uppercase tracking-wide text-slate-500 mb-2">O que compõe o resultado do mês</div>
                 <div className="border border-slate-200 rounded overflow-hidden">
-                  {popup.waterfall.map((w, i) => {
+                  {popup.waterfall.filter((w) => mostrarDespFin || !w.soDespFin).map((w, i) => {
                     const isRes = w.tipo === 'resultado'
                     const isSub = w.tipo === 'subtotal'
+                    const clicavel = w.key === 'despOp' && popup.despOpItens.length > 0
                     return (
-                      <div key={i} className={'flex justify-between px-3 py-1.5 text-sm '
-                        + (isRes ? 'bg-slate-100 font-bold border-t border-slate-300 ' : (isSub ? 'bg-slate-50 font-semibold ' : ''))
-                        + (i > 0 ? 'border-t border-slate-100' : '')}>
-                        <span className={isRes || isSub ? 'text-slate-800' : 'text-slate-600'}>{w.label}</span>
-                        <span className={corValor(w.valor)}>{fmtBRL(w.valor)}</span>
+                      <div key={w.label}>
+                        <div
+                          onClick={clicavel ? (() => setPopupDespOpAberto((v) => !v)) : undefined}
+                          className={'flex justify-between px-3 py-2 text-base '
+                            + (isRes ? 'bg-slate-100 font-bold border-t border-slate-300 ' : (isSub ? 'bg-slate-50 font-semibold ' : ''))
+                            + (i > 0 ? 'border-t border-slate-100 ' : '')
+                            + (clicavel ? 'cursor-pointer hover:bg-sky-50' : '')}
+                          title={clicavel ? 'Clique para ver a composição das despesas operacionais' : undefined}>
+                          <span className={isRes || isSub ? 'text-slate-800' : 'text-slate-600'}>
+                            {clicavel && <span className="text-sky-600 mr-1">{popupDespOpAberto ? '▾' : '▸'}</span>}
+                            {w.label}
+                            {clicavel && <span className="text-[11px] text-sky-600 ml-1">(detalhar)</span>}
+                          </span>
+                          <span className={corValor(w.valor)}>{fmtBRL(w.valor)}</span>
+                        </div>
+                        {clicavel && popupDespOpAberto && (
+                          <div className="bg-sky-50/40 border-t border-slate-100">
+                            {popup.despOpItens.map((d) => (
+                              <div key={d.grupo + '|' + d.conta} className="flex justify-between px-3 py-1.5 pl-8 text-sm border-t border-slate-100 first:border-t-0">
+                                <span className="text-slate-600 truncate max-w-[70%]" title={d.grupo + ' › ' + d.conta}>
+                                  {d.conta}<span className="text-slate-400 text-xs"> · {d.grupo}</span>
+                                </span>
+                                <span className={corValor(d.valor)}>{fmtBRL(d.valor)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )
                   })}
@@ -1105,27 +1163,27 @@ export default function AnaliseDre() {
 
               {/* Tabela por maquina: venda minima p/ ficar positiva */}
               <div>
-                <div className="text-xs uppercase tracking-wide text-slate-500 mb-2 flex items-center gap-2 flex-wrap">
+                <div className="text-sm uppercase tracking-wide text-slate-500 mb-2 flex items-center gap-2 flex-wrap">
                   <span>Máquinas vendidas no mês — por quanto precisariam ter sido vendidas p/ ficar positivas</span>
                 </div>
                 {popupCarregando ? (
-                  <div className="text-xs text-slate-400 py-4 text-center">Carregando vendas do mês…</div>
+                  <div className="text-sm text-slate-400 py-4 text-center">Carregando vendas do mês…</div>
                 ) : !popup.maquinas ? (
-                  <div className="text-xs text-slate-400 py-4 text-center">Sem dados de vendas.</div>
+                  <div className="text-sm text-slate-400 py-4 text-center">Sem dados de vendas.</div>
                 ) : popup.maquinas.length === 0 ? (
-                  <div className="text-xs text-slate-400 py-4 text-center">Nenhuma máquina vendida neste mês.</div>
+                  <div className="text-sm text-slate-400 py-4 text-center">Nenhuma máquina vendida neste mês.</div>
                 ) : (
                   <>
                     {popup.agg && (
-                      <div className="text-xs text-slate-500 mb-2">
+                      <div className="text-sm text-slate-500 mb-2">
                         {popup.agg.n} máquinas · venda {fmtBRL(popup.agg.receita)} · lucro real{' '}
                         <b className={corValor(popup.agg.lucro)}>{fmtBRL(popup.agg.lucro)}</b>
                         {popup.agg.neg > 0 && <> · <span className="text-red-700">{popup.agg.neg} com prejuízo (faltou {fmtBRL(popup.agg.faltou)})</span></>}
                         {popup.agg.fd !== null && <> · despesa rateada do mês = <b>{(popup.agg.fd * 100).toFixed(1)}%</b> da receita</>}
                       </div>
                     )}
-                    <div className="border border-slate-200 rounded overflow-x-auto max-h-[38vh] overflow-y-auto">
-                      <table className="w-full text-xs">
+                    <div className="border border-slate-200 rounded overflow-x-auto max-h-[42vh] overflow-y-auto">
+                      <table className="w-full text-sm">
                         <thead className="bg-slate-50 text-slate-600 sticky top-0">
                           <tr>
                             <th className="text-left px-3 py-2">Produto</th>
@@ -1134,35 +1192,46 @@ export default function AnaliseDre() {
                             <th className="text-right px-3 py-2" title="Custo das mercadorias vendidas">CMV</th>
                             <th className="text-right px-3 py-2" title="Custo do capital empatado até a venda">Capital</th>
                             <th className="text-right px-3 py-2" title="(receita − CMV − capital) / receita">Mg líq. %</th>
-                            <th className="text-right px-3 py-2" title="CMV + Capital: vendendo acima disso, a venda cobre o caixa. 'c/ despesas' inclui a despesa do mês rateada pela receita total">Venda p/ positivo</th>
+                            <th className="text-right px-3 py-2" title="CMV + Capital: vendendo acima disso, a venda cobre o caixa. 'c/ despesas' inclui a despesa do mês rateada pela receita total">Venda p/ positivo (R$)</th>
+                            <th className="text-right px-3 py-2" title="Quanto % a mais (sobre o preço vendido) precisaria para cobrir o custo. Negativo = já vendeu acima do break-even">Venda p/ positivo (%)</th>
                           </tr>
                         </thead>
                         <tbody>
                           {popup.maquinas.map((it, idx) => {
                             const corMg = corMargem(it.margem_pct)
                             const faltou = it.custo_total - it.receita
+                            const pctNec = it.receita > 0 ? ((it.custo_total - it.receita) / it.receita) * 100 : null
+                            const pctNecDre = (it.posDre != null && it.receita > 0) ? ((it.posDre - it.receita) / it.receita) * 100 : null
+                            const corPct = (p) => (p == null ? 'text-slate-400' : (p > 0.05 ? 'text-red-700' : 'text-emerald-700'))
+                            const fmtSig = (p) => (p == null ? '—' : (p >= 0 ? '+' : '') + p.toFixed(1) + '%')
                             return (
                               <tr key={idx} className={'border-b border-slate-100 ' + (it.margem_real < 0 ? 'bg-red-50' : (it.sem_cmc ? 'bg-amber-50' : ''))}>
-                                <td className="px-3 py-1.5 truncate max-w-[240px]" title={(it.descricao || '') + ' · ' + it.familia}>
+                                <td className="px-3 py-2 truncate max-w-[240px]" title={(it.descricao || '') + ' · ' + it.familia}>
                                   {it.descricao || '(sem)'}
-                                  <span className="text-slate-400 text-[10px]"> · {it.familia}</span>
+                                  <span className="text-slate-400 text-xs"> · {it.familia}</span>
                                 </td>
-                                <td className="px-3 py-1.5 truncate max-w-[150px] text-slate-700" title={it.cliente || ''}>{it.cliente || '-'}</td>
-                                <td className="px-3 py-1.5 text-right font-medium">{fmtBRL(it.receita)}</td>
-                                <td className="px-3 py-1.5 text-right text-slate-600">{it.sem_cmc ? <span className="text-amber-700">s/ CMC</span> : fmtBRL(it.cmv)}</td>
-                                <td className="px-3 py-1.5 text-right text-amber-700">{fmtBRL(it.custo_capital)}</td>
-                                <td className={'px-3 py-1.5 text-right font-bold ' + corMg}>{it.margem_pct.toFixed(1)}%</td>
-                                <td className="px-3 py-1.5 text-right whitespace-nowrap">
+                                <td className="px-3 py-2 truncate max-w-[160px] text-slate-700" title={it.cliente || ''}>{it.cliente || '-'}</td>
+                                <td className="px-3 py-2 text-right font-medium">{fmtBRL(it.receita)}</td>
+                                <td className="px-3 py-2 text-right text-slate-600">{it.sem_cmc ? <span className="text-amber-700">s/ CMC</span> : fmtBRL(it.cmv)}</td>
+                                <td className="px-3 py-2 text-right text-amber-700">{fmtBRL(it.custo_capital)}</td>
+                                <td className={'px-3 py-2 text-right font-bold ' + corMg}>{it.margem_pct.toFixed(1)}%</td>
+                                <td className="px-3 py-2 text-right whitespace-nowrap">
                                   {it.margem_real < 0 ? (
                                     <>
                                       <span className="font-bold text-red-700">≥ {fmtBRL(it.custo_total)}</span>
-                                      <div className="text-[10px] text-red-600">faltou {fmtBRL(faltou)}</div>
+                                      <div className="text-xs text-red-600">faltou {fmtBRL(faltou)}</div>
                                     </>
                                   ) : (
                                     <span className="text-slate-500">≥ {fmtBRL(it.custo_total)}</span>
                                   )}
                                   {it.posDre != null && (
-                                    <div className="text-[10px] text-violet-700" title="Preço mínimo cobrindo também a despesa do mês rateada pela receita">c/ despesas ≥ {fmtBRL(it.posDre)}</div>
+                                    <div className="text-xs text-violet-700" title="Preço mínimo cobrindo também a despesa do mês rateada pela receita">c/ despesas ≥ {fmtBRL(it.posDre)}</div>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2 text-right whitespace-nowrap">
+                                  <span className={'font-bold ' + corPct(pctNec)}>{fmtSig(pctNec)}</span>
+                                  {pctNecDre != null && (
+                                    <div className={'text-xs ' + corPct(pctNecDre)} title="Aumento % sobre o preço vendido cobrindo também a despesa rateada do mês">c/ despesas {fmtSig(pctNecDre)}</div>
                                   )}
                                 </td>
                               </tr>
@@ -1176,8 +1245,8 @@ export default function AnaliseDre() {
               </div>
             </div>
 
-            <div className="px-4 py-2 border-t border-slate-200 text-[11px] text-slate-500">
-              "Venda p/ positivo" = CMV + Capital empatado (break-even de caixa); "c/ despesas" inclui a despesa do mês rateada pela receita total (máquinas + peças + serviços) — mesma lógica da tela Margens.
+            <div className="px-4 py-2 border-t border-slate-200 text-xs text-slate-500">
+              "Venda p/ positivo (R$)" = CMV + Capital empatado (break-even de caixa); a coluna (%) é o quanto a mais (sobre o preço vendido) precisaria para cobrir esse custo (negativo = já vendeu acima). "c/ despesas" inclui a despesa do mês rateada pela receita total (máquinas + peças + serviços) — mesma lógica da tela Margens. Clique em "Despesas operacionais" no waterfall para ver a composição.
             </div>
           </div>
         </>

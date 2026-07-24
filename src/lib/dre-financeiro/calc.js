@@ -543,7 +543,7 @@ async function calcularMargens(conta, taxaMensalPct, meses, desde) {
   // 1. Pega vendas dos meses solicitados
   const vendas = await selectPaginado(() => {
     let q = supabase.from('vendas_itens')
-      .select('codigo_produto,descricao,valor_total,quantidade,valor_unitario,cmc_unitario,mes,ano,data_pedido,familia,nome_cliente,vendedor,conta_omie,numero_pedido');
+      .select('codigo_produto,descricao,valor_total,quantidade,valor_unitario,cmc_unitario,mes,ano,data_pedido,familia,nome_cliente,codigo_cliente,vendedor,conta_omie,numero_pedido');
     const orFilter = mesesList.map(m => `and(ano.eq.${m.ano},mes.eq.${m.mes})`).join(',');
     q = q.or(orFilter);
     if (contaSlug) q = q.ilike('conta_omie', contaSlug);
@@ -589,6 +589,7 @@ async function calcularMargens(conta, taxaMensalPct, meses, desde) {
       descricao: v.descricao || '(sem descricao)',
       familia: fam,
       cliente: v.nome_cliente || null,
+      codigo_cliente: v.codigo_cliente != null ? String(v.codigo_cliente) : null,
       vendedor: v.vendedor || null,
       pedido: v.numero_pedido || null,
       data_pedido: v.data_pedido || null,
@@ -606,6 +607,31 @@ async function calcularMargens(conta, taxaMensalPct, meses, desde) {
       sem_cmc: semCmc
     };
   }).filter(Boolean);
+
+  // Resolve nome do cliente pelo codigo_cliente quando nome_cliente veio vazio.
+  // vendas_itens.nome_cliente vem direto do Omie e HOJE chega quase sempre vazio;
+  // a tabela `clientes` tem razao_social/nome_fantasia (mesmo padrao das rotas
+  // vendas-modelo/detalhe e margens-familia/detalhe).
+  const codigosCliente = Array.from(new Set(
+    itens.filter(it => !it.cliente && it.codigo_cliente).map(it => it.codigo_cliente)
+  ));
+  if (codigosCliente.length) {
+    const clienteMap = {};
+    for (let i = 0; i < codigosCliente.length; i += 500) {
+      const lote = codigosCliente.slice(i, i + 500);
+      const { data: cs } = await supabase.from('clientes')
+        .select('codigo_cliente_omie,razao_social,nome_fantasia')
+        .in('codigo_cliente_omie', lote);
+      (cs || []).forEach(c => {
+        clienteMap[String(c.codigo_cliente_omie)] = c.razao_social || c.nome_fantasia || null;
+      });
+    }
+    itens.forEach(it => {
+      if (!it.cliente && it.codigo_cliente && clienteMap[it.codigo_cliente]) {
+        it.cliente = clienteMap[it.codigo_cliente];
+      }
+    });
+  }
 
   // Totais
   const tot = itens.reduce((s, it) => {
