@@ -1,13 +1,16 @@
 -- Card Serviços: sub-split do "Interno" (OS sem NFS-e) em DOIS baldes, espelhando
 -- a régua do dashboard OMIE (classificação por InformacoesAdicionais.cNumContrato):
 --
---   valor_interno_retorno = garantia de fábrica (-pgo) + entrega/montagem + revisão
---                           + serviço normal fechado sem nota  →  trabalho que RENDEU
---                           (fábrica ressarce / comissão / receita).
---   valor_interno_puro    = cortesia comercial + contrato interno/oficina
+--   valor_interno_retorno = garantia de fábrica (-pgo, cheio) + revisão (cheio) +
+--                           serviço normal sem nota (cheio) + entrega técnica/montagem
+--                           pela COMISSÃO FIXA (R$150/250/400/500, como no OMIE)
+--                           →  contribuição de RECEITA do bucket "com retorno".
+--   valor_interno_puro    = cortesia comercial + contrato interno/oficina (cheio)
 --                           →  interno "de verdade" (não retorna).
 --
--- Invariante: valor_interno = valor_interno_retorno + valor_interno_puro.
+-- OBS: como a entrega entra pelo valor fixo, NÃO vale mais
+-- valor_interno = retorno + puro (a diferença entrega-cheia − comissão fica de fora
+-- da receita, espelhando o "Total Entradas" do OMIE).
 -- Linhas antigas ficam com NULL nas colunas novas — é o sinal para o refresh em
 -- background recalcular o mês (obterTotaisOS dispara quando valor_interno_retorno
 -- vier NULL). Aplicar no SQL Editor do Supabase.

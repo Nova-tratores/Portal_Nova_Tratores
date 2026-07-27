@@ -298,7 +298,7 @@ export default function DashboardPage() {
                       {c.valorInternoRetorno != null && c.valorInternoPuro != null ? (
                         <>
                           <div style={{ fontSize: '.7rem', color: '#b45309', marginTop: 4 }}>
-                            <span title="Garantia de fábrica, entrega/montagem, revisão e serviço normal fechado sem nota — JÁ SOMADO na receita acima (trabalho que rendeu).">
+                            <span title="Garantia de fábrica, revisão e serviço normal sem nota (valor cheio) + entrega técnica/montagem pela comissão fixa (R$150/250/400/500, como no OMIE) — JÁ SOMADO na receita acima.">
                               + Interno c/ retorno: <span style={{ fontWeight: 700 }}>{fmtRS(c.valorInternoRetorno)}</span>
                             </span>
                           </div>

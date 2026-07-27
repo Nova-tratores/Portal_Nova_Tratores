@@ -19,10 +19,13 @@ export interface TotaisOS {
   interno: number | null;
   /**
    * Sub-split do `interno` (OS sem NFS-e), espelhando a régua do dashboard OMIE:
-   *   - internoRetorno = garantia de fábrica (-pgo) + entrega/montagem + revisão + serviço normal
-   *     fechado sem nota → trabalho que RENDEU (fábrica ressarce / comissão / receita).
-   *   - internoPuro    = cortesia comercial + contrato interno/oficina → interno "de verdade".
-   * null quando a linha do os_mensal ainda não tem o sub-split (converge via refresh BG).
+   *   - internoRetorno = garantia de fábrica (-pgo, cheio) + revisão (cheio) + normal (cheio)
+   *     + entrega/montagem pelo VALOR FIXO (comissão por código, não o cheio) → contribuição
+   *     de RECEITA do bucket "com retorno", igual ao "Total Entradas" do OMIE.
+   *   - internoPuro    = cortesia comercial + contrato interno/oficina (cheio) → interno "de verdade".
+   * ⚠️ Como a entrega entra pelo fixo, internoRetorno + internoPuro ≠ interno (a diferença =
+   * entrega cheia − comissão fica de fora da receita, como no OMIE). null quando a linha do
+   * os_mensal ainda não tem o sub-split (converge via refresh BG).
    */
   internoRetorno: number | null;
   internoPuro: number | null;
@@ -49,6 +52,22 @@ export function baldeInterno(contrato: string): 'retorno' | 'puro' {
   if (isInterno) return 'puro';
   if (isGarFabrica) return 'retorno';
   return 'retorno'; // revisão / serviço normal fechado sem nota
+}
+
+/**
+ * Valor FIXO (comissão por código) de uma OS de entrega técnica/montagem, igual ao
+ * dashboard OMIE (server.js ~6259-6262). No "Total Entradas" do OMIE a entrega técnica
+ * entra pela comissão fixa, não pelo valor cheio da OS — é o que faz a receita de
+ * serviços do Portal bater com a do OMIE. Retorna null quando a OS NÃO é entrega/montagem
+ * (aí vale o valor cheio). Validado contra valor_comissao_final do OMIE: 0 divergências.
+ */
+export function valorFixoEntrega(contrato: string): number | null {
+  const C = String(contrato || '').toUpperCase();
+  if (!/ENTREGA|MONTAGEM/.test(C)) return null; // demonstração é 'puro', não passa por aqui
+  if (C.includes('CARRETA')) return 250;
+  if (C.includes('MONTAGEM') && C.includes('DESLIGAMENT')) return 400;
+  if (C.includes('MONTAGEM') && !C.includes('QUAD')) return 500;
+  return 150;
 }
 
 // Cache em-memória de TODAS as OS por conta (10 min) + dedup de refresh BG.
@@ -194,8 +213,11 @@ export async function buscarOSPeriodo(de: string, ate: string, conta: Conta): Pr
   let internoPuro = 0;
   faturadas.forEach((f) => {
     if (comNota.has(f.nCodOS)) { nota += f.valor; return; }
-    if (baldeInterno(f.contrato) === 'puro') internoPuro += f.valor;
-    else internoRetorno += f.valor;
+    if (baldeInterno(f.contrato) === 'puro') { internoPuro += f.valor; return; }
+    // 'retorno': entrega técnica/montagem entra pelo valor FIXO do OMIE (comissão por
+    // código), não pelo valor cheio da OS — garantia/revisão/normal seguem pelo cheio.
+    const fixo = valorFixoEntrega(f.contrato);
+    internoRetorno += fixo != null ? fixo : f.valor;
   });
   return { total, nota, interno: total - nota, internoRetorno, internoPuro, completo };
 }
