@@ -152,32 +152,90 @@ export interface HistReq {
 }
 export interface HistoricoCliente { os: HistOS[]; pv: HistPV[]; requisicoes: HistReq[] }
 
+// O mesmo cliente pode ter MAIS DE UM cadastro no Omie (caso real: NELSON
+// WOLF com 2 id_omie e o mesmo CPF — o PV vivia num código e a oportunidade
+// guardou o outro, e o histórico vinha vazio). Resolve TODOS os códigos do
+// cliente pelo cadastro (mesmo CPF/CNPJ ou mesmo nome) antes de consultar.
+async function codigosDoCliente(codigoOmie: string | null, nome: string): Promise<string[]> {
+  const codigos = new Set<string>();
+  if (codigoOmie) codigos.add(String(codigoOmie));
+  try {
+    let doc: string | null = null;
+    if (codigoOmie) {
+      const { data } = await supabase
+        .from("portal_nt_clientes_PRINCIPAL")
+        .select("cnpj_cpf")
+        .eq("id_omie", codigoOmie)
+        .limit(1);
+      doc = (data?.[0]?.cnpj_cpf as string | undefined)?.trim() || null;
+    }
+    const buscas: PromiseLike<unknown>[] = [];
+    const coletar = ({ data }: { data: { id_omie: unknown }[] | null }) => {
+      for (const r of data || []) if (r.id_omie != null) codigos.add(String(r.id_omie));
+    };
+    if (doc) {
+      buscas.push(
+        supabase.from("portal_nt_clientes_PRINCIPAL").select("id_omie").eq("cnpj_cpf", doc).limit(20).then(coletar)
+      );
+    }
+    const nomeTrim = (nome || "").trim();
+    if (nomeTrim.length >= 3) {
+      // ilike sem % = igualdade sem diferenciar caixa (consultas separadas —
+      // nomes com parênteses/vírgula quebrariam um filtro or= composto)
+      buscas.push(
+        supabase.from("portal_nt_clientes_PRINCIPAL").select("id_omie").ilike("nome_fantasia", nomeTrim).limit(20).then(coletar),
+        supabase.from("portal_nt_clientes_PRINCIPAL").select("id_omie").ilike("razao_social", nomeTrim).limit(20).then(coletar)
+      );
+    }
+    await Promise.allSettled(buscas);
+  } catch { /* pior caso: fica só o código recebido */ }
+  return [...codigos];
+}
+
 export async function buscarHistoricoCliente(codigoOmie: string | null, nome: string): Promise<HistoricoCliente> {
   const out: HistoricoCliente = { os: [], pv: [], requisicoes: [] };
+  const nomeTrim = (nome || "").trim();
+  const codigos = await codigosDoCliente(codigoOmie, nome);
+
   const tarefas: PromiseLike<unknown>[] = [];
-  if (codigoOmie) {
+  if (codigos.length > 0) {
     tarefas.push(
       supabase.from("portal_nt_clientes_os")
         .select("num_os, empresa, data_inclusao, data_faturamento, etapa, status, valor_total, descricao, servicos, num_nf")
-        .eq("cod_cli", codigoOmie).order("data_inclusao", { ascending: false }).limit(100)
+        .in("cod_cli", codigos).order("data_inclusao", { ascending: false }).limit(100)
         .then(({ data }) => { out.os = (data || []) as HistOS[]; })
     );
     tarefas.push(
       supabase.from("portal_nt_clientes_pv")
         .select("num_pedido, empresa, data_inclusao, etapa, valor_total, faturado, numero_nf")
-        .eq("cod_cli", codigoOmie).order("data_inclusao", { ascending: false }).limit(100)
+        .in("cod_cli", codigos).order("data_inclusao", { ascending: false }).limit(100)
         .then(({ data }) => { out.pv = (data || []) as HistPV[]; })
     );
   }
-  if (nome && nome.trim().length >= 3) {
+  if (nomeTrim.length >= 3) {
     tarefas.push(
       supabase.from("Requisicao")
         .select("id, titulo, tipo, data, status, fornecedor, valor_despeza, ordem_servico")
-        .ilike("cliente", `%${nome.trim()}%`).order("id", { ascending: false }).limit(100)
+        .ilike("cliente", `%${nomeTrim}%`).order("id", { ascending: false }).limit(100)
         .then(({ data }) => { out.requisicoes = (data || []) as HistReq[]; })
     );
   }
   await Promise.allSettled(tarefas);
+
+  // Último recurso: nada pelos códigos → tenta pelo NOME nas próprias tabelas
+  // de histórico (igualdade case-insensitive, sem curinga — evita homônimo parcial)
+  if (nomeTrim.length >= 3 && out.os.length === 0 && out.pv.length === 0) {
+    await Promise.allSettled([
+      supabase.from("portal_nt_clientes_os")
+        .select("num_os, empresa, data_inclusao, data_faturamento, etapa, status, valor_total, descricao, servicos, num_nf")
+        .ilike("cliente_nome", nomeTrim).order("data_inclusao", { ascending: false }).limit(100)
+        .then(({ data }) => { if (data?.length) out.os = data as HistOS[]; }),
+      supabase.from("portal_nt_clientes_pv")
+        .select("num_pedido, empresa, data_inclusao, etapa, valor_total, faturado, numero_nf")
+        .ilike("cliente_nome", nomeTrim).order("data_inclusao", { ascending: false }).limit(100)
+        .then(({ data }) => { if (data?.length) out.pv = data as HistPV[]; }),
+    ]);
+  }
   return out;
 }
 
