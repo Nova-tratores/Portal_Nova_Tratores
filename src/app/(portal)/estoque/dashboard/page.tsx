@@ -276,32 +276,38 @@ export default function DashboardPage() {
               const varA = calcVar(atual, aAnt);
               const proj = metrica === 'venda' ? c.valorProjetado : null;
               const bordaVermelha = c.cardType === 'totalPecas' || c.cardType === 'totalGeral';
-              // Card Serviços (métrica venda): destaque é o valor COM NOTA,
-              // com a composição HR/KM/Outros e o interno logo abaixo.
+              // Card Serviços (métrica venda): o destaque é a RECEITA de serviços
+              // (com nota + interno c/ retorno), espelhando a régua do OMIE. Abaixo,
+              // a composição com-nota (HR/KM/Outros), o quanto veio do "com retorno"
+              // e o interno puro que ficou de fora.
               const servicoNota = c.cardType === 'servico' && metrica === 'venda' && c.valorNota != null && c.valorInterno != null;
               return (
                 <div key={key} style={{ background: '#fff', border: bordaVermelha ? '2px solid #dc2626' : '1px solid #eee', borderRadius: 12, padding: 16, boxShadow: '0 1px 4px rgba(0,0,0,.04)' }}>
                   <div style={{ fontSize: '.72rem', color: '#888', textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 700, marginBottom: 6 }}>{c.nome}</div>
-                  <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#dc2626' }}>{fmtRS(servicoNota ? c.valorNota! : atual)}</div>
+                  <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#dc2626' }}>{fmtRS(atual)}</div>
                   {servicoNota && (
                     <>
                       {c.valorHR != null && (
                         <div style={{ fontSize: '.7rem', color: '#666', marginTop: 4 }}>
+                          <span title="Composição da parte COM NOTA da receita." style={{ color: '#999' }}>Com nota — </span>
                           HR: <span style={{ fontWeight: 700 }}>{fmtRS(c.valorHR)}</span>
                           {' · '}KM: <span style={{ fontWeight: 700 }}>{fmtRS(c.valorKM)}</span>
                           {' · '}Outros: <span style={{ fontWeight: 700 }}>{fmtRS(c.valorOutros)}</span>
                         </div>
                       )}
                       {c.valorInternoRetorno != null && c.valorInternoPuro != null ? (
-                        <div style={{ fontSize: '.7rem', color: '#999', marginTop: 4 }}>
-                          <span title="Garantia de fábrica, entrega/montagem, revisão e serviço normal fechado sem nota — trabalho que rendeu (fábrica ressarce / comissão / receita).">
-                            Interno c/ retorno: <span style={{ fontWeight: 600, color: '#666' }}>{fmtRS(c.valorInternoRetorno)}</span>
-                          </span>
-                          {' · '}
-                          <span title="Cortesia comercial e contrato interno/oficina — interno de verdade, não retorna.">
-                            puro: <span style={{ fontWeight: 600, color: '#666' }}>{fmtRS(c.valorInternoPuro)}</span>
-                          </span>
-                        </div>
+                        <>
+                          <div style={{ fontSize: '.7rem', color: '#b45309', marginTop: 4 }}>
+                            <span title="Garantia de fábrica, entrega/montagem, revisão e serviço normal fechado sem nota — JÁ SOMADO na receita acima (trabalho que rendeu).">
+                              + Interno c/ retorno: <span style={{ fontWeight: 700 }}>{fmtRS(c.valorInternoRetorno)}</span>
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '.7rem', color: '#999', marginTop: 2 }}>
+                            <span title="Cortesia comercial e contrato interno/oficina — NÃO entra na receita (interno de verdade).">
+                              Interno puro (fora): <span style={{ fontWeight: 600, color: '#666' }}>{fmtRS(c.valorInternoPuro)}</span>
+                            </span>
+                          </div>
+                        </>
                       ) : (
                         <div style={{ fontSize: '.7rem', color: '#999', marginTop: 4 }}>
                           Interno: <span style={{ fontWeight: 600, color: '#666' }}>{fmtRS(c.valorInterno)}</span>
