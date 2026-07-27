@@ -29,6 +29,8 @@ interface Categoria {
   cardType: string;
   valorNota?: number;
   valorInterno?: number;
+  valorInternoRetorno?: number;
+  valorInternoPuro?: number;
   valorHR?: number;
   valorKM?: number;
   valorOutros?: number;
@@ -51,12 +53,14 @@ interface VendaRow {
   numero_pedido?: string; data_pedido?: string; descricao?: string; codigo_produto?: string;
   quantidade?: number; valor_unitario?: number; valor_total?: number; cmc_unitario?: number;
 }
-interface OSRow { numero_os?: string; data?: string; cliente?: string; codigo_cliente?: number | null; valor?: number; conta?: string; tem_nota?: boolean | null }
+type InternoBalde = 'retorno' | 'puro' | null;
+interface OSRow { numero_os?: string; data?: string; cliente?: string; codigo_cliente?: number | null; valor?: number; conta?: string; tem_nota?: boolean | null; internoBalde?: InternoBalde }
 type TipoServico = 'HR' | 'KM' | 'OUTRO';
 interface ServicoOSRow {
   numero_os?: string; data?: string; cliente?: string; codigo_cliente?: number | null;
   descricao?: string; tipo?: TipoServico; categoria?: string; categoria_desc?: string;
   qtde?: number; valor_unit?: number; valor_total?: number; conta?: string; tem_nota?: boolean | null;
+  internoBalde?: InternoBalde;
 }
 
 // Teto de linhas renderizadas nas tabelas de drill-down (o "Ano inteiro" traz
@@ -288,9 +292,21 @@ export default function DashboardPage() {
                           {' · '}Outros: <span style={{ fontWeight: 700 }}>{fmtRS(c.valorOutros)}</span>
                         </div>
                       )}
-                      <div style={{ fontSize: '.7rem', color: '#999', marginTop: 4 }}>
-                        Interno: <span style={{ fontWeight: 600, color: '#666' }}>{fmtRS(c.valorInterno)}</span>
-                      </div>
+                      {c.valorInternoRetorno != null && c.valorInternoPuro != null ? (
+                        <div style={{ fontSize: '.7rem', color: '#999', marginTop: 4 }}>
+                          <span title="Garantia de fábrica, entrega/montagem, revisão e serviço normal fechado sem nota — trabalho que rendeu (fábrica ressarce / comissão / receita).">
+                            Interno c/ retorno: <span style={{ fontWeight: 600, color: '#666' }}>{fmtRS(c.valorInternoRetorno)}</span>
+                          </span>
+                          {' · '}
+                          <span title="Cortesia comercial e contrato interno/oficina — interno de verdade, não retorna.">
+                            puro: <span style={{ fontWeight: 600, color: '#666' }}>{fmtRS(c.valorInternoPuro)}</span>
+                          </span>
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '.7rem', color: '#999', marginTop: 4 }}>
+                          Interno: <span style={{ fontWeight: 600, color: '#666' }}>{fmtRS(c.valorInterno)}</span>
+                        </div>
+                      )}
                     </>
                   )}
                   <div style={{ display: 'flex', gap: 10, marginTop: 8, fontSize: '.7rem' }}>
@@ -466,7 +482,7 @@ export default function DashboardPage() {
                             <td style={tdStyle}>{s.cliente || (s.codigo_cliente ? '#' + s.codigo_cliente : '—')}</td>
                             <td style={{ ...tdStyle, maxWidth: 320 }} title={s.descricao}>{(s.descricao || '—').length > 70 ? (s.descricao || '').slice(0, 70) + '…' : (s.descricao || '—')}</td>
                             <td style={tdStyle}><TipoBadge tipo={s.tipo} /></td>
-                            <td style={tdStyle}><NotaBadge temNota={s.tem_nota} /></td>
+                            <td style={tdStyle}><NotaBadge temNota={s.tem_nota} balde={s.internoBalde} /></td>
                             <td style={tdStyle} title={s.categoria}>{s.categoria_desc || s.categoria || '—'}</td>
                             {contaParam === '' && <td style={tdStyle}>{s.conta}</td>}
                             <td style={tdStyle}>{s.qtde}</td>
@@ -495,7 +511,7 @@ export default function DashboardPage() {
                         <td style={tdStyle}>{o.numero_os}</td>
                         <td style={tdStyle}>{o.data}</td>
                         <td style={tdStyle}>{o.cliente || (o.codigo_cliente ? '#' + o.codigo_cliente : '—')}</td>
-                        <td style={tdStyle}><NotaBadge temNota={o.tem_nota} /></td>
+                        <td style={tdStyle}><NotaBadge temNota={o.tem_nota} balde={o.internoBalde} /></td>
                         {contaParam === '' && <td style={tdStyle}>{o.conta}</td>}
                         <td style={tdStyle}>{fmtRS(o.valor)}</td>
                       </tr>
@@ -545,13 +561,19 @@ function tipoRotulo(t: TipoServico): string {
   return t === 'HR' ? 'HR — Hora trabalhada' : t === 'KM' ? 'KM — Deslocamento' : 'Outros';
 }
 
-function NotaBadge({ temNota }: { temNota?: boolean | null }) {
+function NotaBadge({ temNota, balde }: { temNota?: boolean | null; balde?: InternoBalde }) {
   if (temNota == null) return <span title="Ainda não verificado" style={{ color: '#bbb', fontSize: '.7rem' }}>—</span>;
-  return temNota ? (
-    <span style={{ background: '#ede9fe', color: '#6d28d9', borderRadius: 6, padding: '2px 7px', fontSize: '.66rem', fontWeight: 700 }}>Com nota</span>
-  ) : (
-    <span style={{ background: '#f3f4f6', color: '#666', borderRadius: 6, padding: '2px 7px', fontSize: '.66rem', fontWeight: 700 }}>Interno</span>
-  );
+  if (temNota) {
+    return <span style={{ background: '#ede9fe', color: '#6d28d9', borderRadius: 6, padding: '2px 7px', fontSize: '.66rem', fontWeight: 700 }}>Com nota</span>;
+  }
+  // Sem nota: distingue interno que rendeu (garantia/entrega/revisão) do interno puro (cortesia/interno).
+  if (balde === 'retorno') {
+    return <span title="Garantia de fábrica, entrega/montagem, revisão ou serviço normal fechado sem nota — rendeu." style={{ background: '#fef3c7', color: '#b45309', borderRadius: 6, padding: '2px 7px', fontSize: '.66rem', fontWeight: 700 }}>Interno c/ retorno</span>;
+  }
+  if (balde === 'puro') {
+    return <span title="Cortesia comercial ou contrato interno/oficina — interno de verdade." style={{ background: '#f3f4f6', color: '#666', borderRadius: 6, padding: '2px 7px', fontSize: '.66rem', fontWeight: 700 }}>Interno puro</span>;
+  }
+  return <span style={{ background: '#f3f4f6', color: '#666', borderRadius: 6, padding: '2px 7px', fontSize: '.66rem', fontWeight: 700 }}>Interno</span>;
 }
 
 function TipoBadge({ tipo }: { tipo?: TipoServico }) {

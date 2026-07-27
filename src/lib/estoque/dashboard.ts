@@ -24,6 +24,8 @@ interface DadosPeriodo {
   totalOS: number;
   osNota: number | null;
   osInterno: number | null;
+  osInternoRetorno: number | null;
+  osInternoPuro: number | null;
   totalPecas: number;
   totalCustoPecas: number;
   totalGeral: number;
@@ -55,6 +57,8 @@ async function montarDados(
     totalOS,
     osNota: os.nota,
     osInterno: os.interno,
+    osInternoRetorno: os.internoRetorno,
+    osInternoPuro: os.internoPuro,
     totalPecas,
     totalCustoPecas,
     totalGeral,
@@ -111,6 +115,14 @@ export interface DashboardCategoria {
   /** Só no card 'servico': split do valor atual (OS faturadas com NFS-e × fechadas internas, sem nota). */
   valorNota?: number;
   valorInterno?: number;
+  /**
+   * Só no card 'servico': sub-split do `valorInterno` (régua do dashboard OMIE).
+   *   - valorInternoRetorno = garantia/entrega/revisão/normal sem nota (rendeu).
+   *   - valorInternoPuro    = cortesia + contrato interno (interno de verdade).
+   * Ausentes em meses ainda não reprocessados → a UI cai no "Interno" único.
+   */
+  valorInternoRetorno?: number;
+  valorInternoPuro?: number;
   /** Só no card 'servico': composição do valor COM NOTA por tipo (os_servicos_itens × os_nfse). */
   valorHR?: number;
   valorKM?: number;
@@ -133,7 +145,7 @@ export interface DashboardResponse {
 
 const DADOS_ZERADOS: DadosPeriodo = {
   card1: 0, card2: 0, card3: 0, cards: [], custosCards: [], nomesCat: [],
-  totalOS: 0, osNota: null, osInterno: null, totalPecas: 0, totalCustoPecas: 0, totalGeral: 0,
+  totalOS: 0, osNota: null, osInterno: null, osInternoRetorno: null, osInternoPuro: null, totalPecas: 0, totalCustoPecas: 0, totalGeral: 0,
 };
 
 /**
@@ -221,6 +233,11 @@ export async function montarDashboard(
   if (atual.osNota != null && atual.osInterno != null) {
     servicos.valorNota = atual.osNota;
     servicos.valorInterno = atual.osInterno;
+    // Sub-split retorno × puro só quando o mês já foi reprocessado (colunas novas).
+    if (atual.osInternoRetorno != null && atual.osInternoPuro != null) {
+      servicos.valorInternoRetorno = atual.osInternoRetorno;
+      servicos.valorInternoPuro = atual.osInternoPuro;
+    }
   }
   const tipos = await obterTiposComNotaMes(ehAno ? null : selMes, selAno, conta);
   if (tipos) {

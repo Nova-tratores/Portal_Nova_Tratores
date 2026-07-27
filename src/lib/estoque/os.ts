@@ -17,6 +17,38 @@ export interface TotaisOS {
   total: number;
   nota: number | null;
   interno: number | null;
+  /**
+   * Sub-split do `interno` (OS sem NFS-e), espelhando a régua do dashboard OMIE:
+   *   - internoRetorno = garantia de fábrica (-pgo) + entrega/montagem + revisão + serviço normal
+   *     fechado sem nota → trabalho que RENDEU (fábrica ressarce / comissão / receita).
+   *   - internoPuro    = cortesia comercial + contrato interno/oficina → interno "de verdade".
+   * null quando a linha do os_mensal ainda não tem o sub-split (converge via refresh BG).
+   */
+  internoRetorno: number | null;
+  internoPuro: number | null;
+}
+
+/**
+ * Classifica uma OS SEM NFS-e em 'retorno' (rendeu: garantia/entrega/revisão/normal) ou
+ * 'puro' (cortesia/interno). Régua portada do dashboard OMIE (server.js ~6125-6250),
+ * baseada no texto do contrato (`InformacoesAdicionais.cNumContrato`). Validado contra o
+ * mês fechado: reproduz a classificação do OMIE com 0 divergências usando só o contrato
+ * (o OMIE ainda checa nome do cliente/observação como rede de segurança, desnecessária aqui).
+ */
+export function baldeInterno(contrato: string): 'retorno' | 'puro' {
+  const C = String(contrato || '').toUpperCase();
+  const isEntrega = /ENTREGA|MONTAGEM|PRÉ ENTREGA|PRE ENTREGA/.test(C);
+  const isGarLoja = C.includes('GARANTIA-NT');                                   // garantia da própria loja (loja absorve) → puro
+  const isCortComercial = C.includes('CORTESIA COMERCIAL') || C.includes('DEMONSTRA');
+  const isInterno = /INTERNO|CORTESIA|OFICINA/.test(C) && !isGarLoja && !isEntrega && !isCortComercial;
+  const isGarFabrica = C.includes('GARANTIA') || C.includes('PGO');             // ressarcida pela fábrica → retorno
+  // Precedência idêntica ao OMIE: garantia-loja → entrega → cortesia/interno → garantia-fábrica → (revisão/normal)
+  if (isGarLoja) return 'puro';
+  if (isEntrega) return 'retorno';
+  if (isCortComercial) return 'puro';
+  if (isInterno) return 'puro';
+  if (isGarFabrica) return 'retorno';
+  return 'retorno'; // revisão / serviço normal fechado sem nota
 }
 
 // Cache em-memória de TODAS as OS por conta (10 min) + dedup de refresh BG.
@@ -81,6 +113,7 @@ interface OSFaturada {
   valor: number;
   mes: number;
   ano: number;
+  contrato: string; // InformacoesAdicionais.cNumContrato — usado pra separar interno c/ retorno × puro
 }
 
 /**
@@ -134,7 +167,7 @@ async function classificarNfseOS(lista: OSFaturada[], conta: Conta): Promise<Set
  * separando com nota × interno. `completo=false` → a listagem da Omie veio
  * truncada e os totais estão SUBESTIMADOS (não gravar em os_mensal).
  */
-export async function buscarOSPeriodo(de: string, ate: string, conta: Conta): Promise<{ total: number; nota: number; interno: number; completo: boolean }> {
+export async function buscarOSPeriodo(de: string, ate: string, conta: Conta): Promise<{ total: number; nota: number; interno: number; internoRetorno: number; internoPuro: number; completo: boolean }> {
   const { lista: todas, completo } = await buscarTodasOSDetalhado(conta);
   const dtDe = parseDataBR(de);
   const dtAte = parseDataBR(ate);
@@ -143,6 +176,7 @@ export async function buscarOSPeriodo(de: string, ate: string, conta: Conta): Pr
   todas.forEach((os) => {
     const cab = (os.Cabecalho || {}) as Record<string, unknown>;
     const info = (os.InfoCadastro || os.infoCadastro || {}) as Record<string, unknown>;
+    const adic = (os.InformacoesAdicionais || {}) as Record<string, unknown>;
     const cancelada = info.cCancelada || cab.cCancelada;
     if (cancelada === 'S') return;
     const dataStr = String(info.dDtFat || info.dDtInc || cab.dDtPrevisao || '');
@@ -151,13 +185,19 @@ export async function buscarOSPeriodo(de: string, ate: string, conta: Conta): Pr
     if (cab.cEtapa == '60') {
       const valor = num(cab.nValorTotal);
       total += valor;
-      faturadas.push({ nCodOS: num(cab.nCodOS), cNumOS: String(cab.cNumOS || ''), valor, mes: dtOS.getMonth() + 1, ano: dtOS.getFullYear() });
+      faturadas.push({ nCodOS: num(cab.nCodOS), cNumOS: String(cab.cNumOS || ''), valor, mes: dtOS.getMonth() + 1, ano: dtOS.getFullYear(), contrato: String(adic.cNumContrato || '') });
     }
   });
   const comNota = await classificarNfseOS(faturadas, conta);
   let nota = 0;
-  faturadas.forEach((f) => { if (comNota.has(f.nCodOS)) nota += f.valor; });
-  return { total, nota, interno: total - nota, completo };
+  let internoRetorno = 0;
+  let internoPuro = 0;
+  faturadas.forEach((f) => {
+    if (comNota.has(f.nCodOS)) { nota += f.valor; return; }
+    if (baldeInterno(f.contrato) === 'puro') internoPuro += f.valor;
+    else internoRetorno += f.valor;
+  });
+  return { total, nota, interno: total - nota, internoRetorno, internoPuro, completo };
 }
 
 function agendarRefreshOSMesAtual(mes: number, ano: number, conta: Conta): void {
@@ -169,7 +209,7 @@ function agendarRefreshOSMesAtual(mes: number, ano: number, conta: Conta): void 
       const de = fmtD(new Date(ano, mes - 1, 1));
       const t = await buscarOSPeriodo(de, hoje, conta);
       if (!t.completo) throw new Error('ListarOS truncado — os_mensal preservado');
-      await supabase.from('os_mensal').upsert({ mes, ano, valor_total: t.total, valor_nota: t.nota, valor_interno: t.interno, conta_omie: conta }, { onConflict: 'mes,ano,conta_omie' });
+      await supabase.from('os_mensal').upsert({ mes, ano, valor_total: t.total, valor_nota: t.nota, valor_interno: t.interno, valor_interno_retorno: t.internoRetorno, valor_interno_puro: t.internoPuro, conta_omie: conta }, { onConflict: 'mes,ano,conta_omie' });
       await sincronizarServicosItens(mes, ano, conta);
       await salvarControleCache('os', mes, ano, hoje, conta);
     } catch (e) {
@@ -189,7 +229,7 @@ function agendarRefreshOSPassado(mes: number, ano: number, conta: Conta): void {
       const ate = fmtD(new Date(ano, mes, 0));
       const t = await buscarOSPeriodo(de, ate, conta);
       if (!t.completo) throw new Error('ListarOS truncado — os_mensal preservado');
-      await supabase.from('os_mensal').upsert({ mes, ano, valor_total: t.total, valor_nota: t.nota, valor_interno: t.interno, conta_omie: conta }, { onConflict: 'mes,ano,conta_omie' });
+      await supabase.from('os_mensal').upsert({ mes, ano, valor_total: t.total, valor_nota: t.nota, valor_interno: t.interno, valor_interno_retorno: t.internoRetorno, valor_interno_puro: t.internoPuro, conta_omie: conta }, { onConflict: 'mes,ano,conta_omie' });
       await sincronizarServicosItens(mes, ano, conta);
     } catch (e) {
       console.log('Refresh BG OS passado [' + conta + '] ' + mes + '/' + ano + ' falhou: ' + (e as Error).message);
@@ -204,13 +244,17 @@ async function obterTotaisOSConsolidado(mes: number, ano: number): Promise<Totai
   let total = 0;
   let nota: number | null = 0;
   let interno: number | null = 0;
+  let internoRetorno: number | null = 0;
+  let internoPuro: number | null = 0;
   for (const c of getContasOmie()) {
     const t = await obterTotaisOS(mes, ano, c.id);
     total += t.total;
     nota = nota != null && t.nota != null ? nota + t.nota : null;
     interno = interno != null && t.interno != null ? interno + t.interno : null;
+    internoRetorno = internoRetorno != null && t.internoRetorno != null ? internoRetorno + t.internoRetorno : null;
+    internoPuro = internoPuro != null && t.internoPuro != null ? internoPuro + t.internoPuro : null;
   }
-  return { total, nota, interno };
+  return { total, nota, interno, internoRetorno, internoPuro };
 }
 
 /**
@@ -224,59 +268,64 @@ async function obterTotaisOSConsolidado(mes: number, ano: number): Promise<Totai
 export async function obterTotaisOS(mes: number, ano: number, conta: ContaFiltro): Promise<TotaisOS> {
   if (conta === undefined) return obterTotaisOSConsolidado(mes, ano);
 
-  const doRow = (data: { valor_total: unknown; valor_nota: unknown; valor_interno: unknown }): TotaisOS => ({
+  const doRow = (data: { valor_total: unknown; valor_nota: unknown; valor_interno: unknown; valor_interno_retorno?: unknown; valor_interno_puro?: unknown }): TotaisOS => ({
     total: num(data.valor_total),
     nota: data.valor_nota == null ? null : num(data.valor_nota),
     interno: data.valor_interno == null ? null : num(data.valor_interno),
+    internoRetorno: data.valor_interno_retorno == null ? null : num(data.valor_interno_retorno),
+    internoPuro: data.valor_interno_puro == null ? null : num(data.valor_interno_puro),
   });
+  // split(t): campos do sub-split a partir do resultado de buscarOSPeriodo.
+  const split = (t: { internoRetorno: number; internoPuro: number }) => ({ internoRetorno: t.internoRetorno, internoPuro: t.internoPuro });
 
   if (ehMesAtual(mes, ano)) {
     const hoje = fmtD(new Date());
     const ultimaData = await obterControleCache('os', mes, ano, conta);
     const { data } = await supabase
       .from('os_mensal')
-      .select('valor_total,valor_nota,valor_interno')
+      .select('valor_total,valor_nota,valor_interno,valor_interno_retorno,valor_interno_puro')
       .eq('mes', mes)
       .eq('ano', ano)
       .eq('conta_omie', conta)
       .maybeSingle();
     if (data) {
-      if (ultimaData !== hoje || data.valor_nota == null) agendarRefreshOSMesAtual(mes, ano, conta);
+      // Reprocessa também quando o sub-split (retorno/puro) ainda não foi gravado.
+      if (ultimaData !== hoje || data.valor_nota == null || data.valor_interno_retorno == null) agendarRefreshOSMesAtual(mes, ano, conta);
       return doRow(data);
     }
     // Cold start: sem cache, busca síncrono (itens vão em BG pra não segurar a request)
     const de = fmtD(new Date(ano, mes - 1, 1));
     const t = await buscarOSPeriodo(de, hoje, conta);
     // Listagem truncada: serve o parcial nesta request, mas não persiste nada.
-    if (!t.completo) return { total: t.total, nota: t.nota, interno: t.interno };
-    await supabase.from('os_mensal').upsert({ mes, ano, valor_total: t.total, valor_nota: t.nota, valor_interno: t.interno, conta_omie: conta }, { onConflict: 'mes,ano,conta_omie' });
+    if (!t.completo) return { total: t.total, nota: t.nota, interno: t.interno, ...split(t) };
+    await supabase.from('os_mensal').upsert({ mes, ano, valor_total: t.total, valor_nota: t.nota, valor_interno: t.interno, valor_interno_retorno: t.internoRetorno, valor_interno_puro: t.internoPuro, conta_omie: conta }, { onConflict: 'mes,ano,conta_omie' });
     void sincronizarServicosItens(mes, ano, conta).catch(() => {});
     await salvarControleCache('os', mes, ano, hoje, conta);
-    return { total: t.total, nota: t.nota, interno: t.interno };
+    return { total: t.total, nota: t.nota, interno: t.interno, ...split(t) };
   }
 
   // Meses passados: sempre serve cache
   const { data } = await supabase
     .from('os_mensal')
-    .select('valor_total,valor_nota,valor_interno')
+    .select('valor_total,valor_nota,valor_interno,valor_interno_retorno,valor_interno_puro')
     .eq('mes', mes)
     .eq('ano', ano)
     .eq('conta_omie', conta)
     .maybeSingle();
   if (data) {
     const t = doRow(data);
-    if (t.total === 0 || t.nota == null) agendarRefreshOSPassado(mes, ano, conta);
+    if (t.total === 0 || t.nota == null || t.internoRetorno == null) agendarRefreshOSPassado(mes, ano, conta);
     return t;
   }
   agendarRefreshOSPassado(mes, ano, conta);
-  return { total: 0, nota: null, interno: null };
+  return { total: 0, nota: null, interno: null, internoRetorno: null, internoPuro: null };
 }
 
 /** Soma os meses já cacheados em os_mensal de um ano, para UMA conta. */
 async function totaisOSAnoConta(ano: number, conta: Conta): Promise<TotaisOS> {
   const { data } = await supabase
     .from('os_mensal')
-    .select('mes,valor_total,valor_nota,valor_interno')
+    .select('mes,valor_total,valor_nota,valor_interno,valor_interno_retorno,valor_interno_puro')
     .eq('ano', ano)
     .eq('conta_omie', conta);
   const porMes = new Map<number, TotaisOS>();
@@ -284,6 +333,8 @@ async function totaisOSAnoConta(ano: number, conta: Conta): Promise<TotaisOS> {
     total: num(r.valor_total),
     nota: r.valor_nota == null ? null : num(r.valor_nota),
     interno: r.valor_interno == null ? null : num(r.valor_interno),
+    internoRetorno: r.valor_interno_retorno == null ? null : num(r.valor_interno_retorno),
+    internoPuro: r.valor_interno_puro == null ? null : num(r.valor_interno_puro),
   }));
   // Só o mês corrente passa pelo caminho normal (cache + refresh BG). Meses
   // passados sem linha NÃO disparam sync: 12 refreshes concorrentes fariam 12
@@ -296,6 +347,8 @@ async function totaisOSAnoConta(ano: number, conta: Conta): Promise<TotaisOS> {
   let total = 0;
   let nota: number | null = 0;
   let interno: number | null = 0;
+  let internoRetorno: number | null = 0;
+  let internoPuro: number | null = 0;
   porMes.forEach((t) => {
     total += t.total;
     // Mês sem OS não tem split pra perder — se contasse, um mês zerado (ou um
@@ -303,8 +356,10 @@ async function totaisOSAnoConta(ano: number, conta: Conta): Promise<TotaisOS> {
     if (t.total === 0) return;
     nota = nota != null && t.nota != null ? nota + t.nota : null;
     interno = interno != null && t.interno != null ? interno + t.interno : null;
+    internoRetorno = internoRetorno != null && t.internoRetorno != null ? internoRetorno + t.internoRetorno : null;
+    internoPuro = internoPuro != null && t.internoPuro != null ? internoPuro + t.internoPuro : null;
   });
-  return { total, nota, interno };
+  return { total, nota, interno, internoRetorno, internoPuro };
 }
 
 /**
@@ -318,14 +373,18 @@ export async function obterTotaisOSAno(ano: number, conta: ContaFiltro): Promise
   let total = 0;
   let nota: number | null = 0;
   let interno: number | null = 0;
+  let internoRetorno: number | null = 0;
+  let internoPuro: number | null = 0;
   for (const c of contas) {
     const t = await totaisOSAnoConta(ano, c);
     total += t.total;
     if (t.total === 0) continue; // conta sem OS no ano (ex.: CASTRO em 2026) não anula o split
     nota = nota != null && t.nota != null ? nota + t.nota : null;
     interno = interno != null && t.interno != null ? interno + t.interno : null;
+    internoRetorno = internoRetorno != null && t.internoRetorno != null ? internoRetorno + t.internoRetorno : null;
+    internoPuro = internoPuro != null && t.internoPuro != null ? internoPuro + t.internoPuro : null;
   }
-  return { total, nota, interno };
+  return { total, nota, interno, internoRetorno, internoPuro };
 }
 
 /** Valor total de OS de um mês (compat: só o total). Portado de obterTotalOS (server.js:1281). */
@@ -345,6 +404,8 @@ export interface OSListaRow {
   ncod_os: number;
   /** NFS-e emitida (cache os_nfse). null = ainda não verificado pelo refresh BG. */
   tem_nota: boolean | null;
+  /** Só quando sem nota: 'retorno' (garantia/entrega/revisão/normal) × 'puro' (cortesia/interno). */
+  internoBalde?: 'retorno' | 'puro' | null;
 }
 
 /** tem_nota por nCodOS, SÓ do cache os_nfse (não chama Omie — quem verifica é o refresh BG). */
@@ -410,8 +471,11 @@ export interface ServicoOSRow {
   valor_total: number;
   conta: Conta;
   ncod_os: number;
+  contrato: string; // InformacoesAdicionais.cNumContrato — classifica o balde interno
   /** NFS-e emitida na OS deste item (cache os_nfse). null = ainda não verificado. */
   tem_nota: boolean | null;
+  /** Só quando sem nota: 'retorno' × 'puro' (derivado do contrato no popup). */
+  internoBalde?: 'retorno' | 'puro' | null;
 }
 
 /**
@@ -446,6 +510,7 @@ function montarServicosItensOmie(
       cliente: '',
       conta,
       ncod_os: num(cab.nCodOS),
+      contrato: String(adic.cNumContrato || ''),
       tem_nota: null as boolean | null,
     };
 
@@ -525,6 +590,7 @@ export async function sincronizarServicosItens(mes: number, ano: number, conta: 
       qtde: r.qtde,
       valor_unit: r.valor_unit,
       valor_total: r.valor_total,
+      contrato: r.contrato,
       atualizado_em: new Date().toISOString(),
     }));
     const { error } = await supabase.from('os_servicos_itens').insert(lote);
@@ -545,7 +611,7 @@ async function lerServicosItens(mes: number | null, ano: number, conta: Conta): 
   while (true) {
     let q = supabase
       .from('os_servicos_itens')
-      .select('ncod_os,numero_os,data,codigo_cliente,descricao,tipo,categoria,categoria_desc,qtde,valor_unit,valor_total')
+      .select('ncod_os,numero_os,data,codigo_cliente,descricao,tipo,categoria,categoria_desc,qtde,valor_unit,valor_total,contrato')
       .eq('conta_omie', conta)
       .eq('ano', ano);
     if (mes != null) q = q.eq('mes', mes);
@@ -568,6 +634,7 @@ async function lerServicosItens(mes: number | null, ano: number, conta: Conta): 
       valor_total: num(r.valor_total),
       conta,
       ncod_os: num(r.ncod_os),
+      contrato: String(r.contrato || ''),
       tem_nota: null,
     }));
     if (data.length < 1000) break;
@@ -667,7 +734,10 @@ export async function obterServicosPopup(mes: number | null, ano: number, conta:
       continue;
     }
     const notaMap = await buscarTemNotaMap([...new Set(itens.map((r) => r.ncod_os).filter(Boolean))], c);
-    itens.forEach((r) => { r.tem_nota = notaMap.has(r.ncod_os) ? notaMap.get(r.ncod_os)! : null; });
+    itens.forEach((r) => {
+      r.tem_nota = notaMap.has(r.ncod_os) ? notaMap.get(r.ncod_os)! : null;
+      r.internoBalde = r.tem_nota === true ? null : baldeInterno(r.contrato);
+    });
     servicos.push(...itens);
   }
   await resolverNomesClientes(servicos);
@@ -678,7 +748,7 @@ export async function obterServicosPopup(mes: number | null, ano: number, conta:
     const k = s.conta + ':' + s.ncod_os;
     let os = porOS.get(k);
     if (!os) {
-      os = { numero_os: s.numero_os, data: s.data, valor: 0, codigo_cliente: s.codigo_cliente, cliente: s.cliente, conta: s.conta, ncod_os: s.ncod_os, tem_nota: s.tem_nota };
+      os = { numero_os: s.numero_os, data: s.data, valor: 0, codigo_cliente: s.codigo_cliente, cliente: s.cliente, conta: s.conta, ncod_os: s.ncod_os, tem_nota: s.tem_nota, internoBalde: s.internoBalde ?? (s.tem_nota === true ? null : baldeInterno(s.contrato)) };
       porOS.set(k, os);
     }
     os.valor += s.valor_total;
