@@ -327,6 +327,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   // Alimentação -> Requisicao automática:
   //  - OS concluída: promove pra 'financeiro' (valor atualizado + nota)
+  //  - OS CANCELADA: as despesas automáticas em aberto vão pra lixeira
   //  - OS em andamento: sincroniza as despesas EM ABERTO (fase Pedido) —
   //    lançou/editou/removeu alimentação, a requisição acompanha
   if (dados.status === "Concluída") {
@@ -341,7 +342,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     } catch (e) {
       console.error(`[alimentacao-os] OS ${idOs} falhou (ignorado):`, e instanceof Error ? e.message : e);
     }
-  } else if (Array.isArray(dados.alimentacoes)) {
+  } else if (Array.isArray(dados.alimentacoes) || dados.status === "Cancelada") {
     try {
       const { sincronizarAlimentacaoOS } = await import("@/lib/pos/alimentacao-os");
       const sync = await sincronizarAlimentacaoOS(idOs);

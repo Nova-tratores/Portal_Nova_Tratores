@@ -164,6 +164,33 @@ export async function sincronizarAlimentacaoOS(
     .limit(1);
   if (!osRes?.length) return { ...vazio, motivoPulado: `OS ${idOrdem} não encontrada` };
   const os = osRes[0] as OSMin;
+
+  // OS CANCELADA -> as despesas automáticas EM ABERTO vão pra lixeira
+  // (reversível) e nada é criado/atualizado. Requisição já em 'financeiro'
+  // não é mexida (valor confirmado); manual segue com o humano.
+  if (/cancelada/i.test((os.Status || "").trim())) {
+    const { data: abertas } = await supabase
+      .from("Requisicao")
+      .select("id, obs")
+      .eq("ordem_servico", idOrdem)
+      .eq("origem", "auto_alimentacao_os")
+      .in("status", ["pedido", "aguardando"]);
+    const resumoCanc: SyncAlimentacaoResult = { criadas: 0, atualizadas: 0, promovidas: 0, removidas: 0, pulado: false };
+    for (const r of abertas || []) {
+      const { error } = await supabase
+        .from("Requisicao")
+        .update({
+          status: "lixeira",
+          obs: `${r.obs || ""}\n[auto] OS ${idOrdem} cancelada — despesa de alimentação arquivada na lixeira.`.trim(),
+        })
+        .eq("id", r.id);
+      if (!error) resumoCanc.removidas++;
+    }
+    resumoCanc.pulado = resumoCanc.removidas === 0;
+    if (resumoCanc.pulado) resumoCanc.motivoPulado = `OS ${idOrdem} cancelada — nada em aberto a arquivar`;
+    return resumoCanc;
+  }
+
   const promover = opts?.promover ?? (os.Status || "").trim() === "Concluída";
 
   // manual existente vence (o humano já cuidou)
