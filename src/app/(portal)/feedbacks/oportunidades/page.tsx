@@ -8,21 +8,25 @@ import { origemDaOportunidade } from "@/lib/feedbacks/origem";
 import type { FeedbackRegistro, Oportunidade, RegraOportunidade, StatusOportunidade, TipoFeedback } from "@/lib/feedbacks/types";
 
 // Cada regra de oportunidade pre-seleciona um tipo de feedback ao atender:
-// - R1 revisao garantia → CRM (registramos a confirmacao da revisao)
+// - R1 revisao garantia → RFM (ligar pra AGENDAR a revisao)
 // - R2 sem OS recente   → RFM (reativacao de cliente parado)
 // - R3 up-sell          → RFM (cliente esfriado, motivar venda)
 // - R4 follow-up        → CRM (confirmar satisfacao do servico anterior)
 // - R5 venda de pecas   → RFM (cliente sem comprar peca ha tempo)
 // - R6 fora de garantia → RFM (oferecer revisao paga / garantia estendida)
-// - R7 garantia em risco → CRM (agendar a revisao anual antes de perder a garantia)
+// - R7 garantia em risco → RFM (ligar pra AGENDAR a revisao anual antes de perder a garantia)
+// Separação decidida pelo usuário (27/07): CRM = feedback PÓS-serviço
+// (nota/NPS de algo que já aconteceu — só o follow-up R4); RFM = contato
+// PROATIVO pra agendar (revisão, garantia, upsell, peças…) — campos de
+// motivo/conversa/serviço confirmado, não de avaliação.
 const TIPO_PADRAO_POR_REGRA: Record<RegraOportunidade, TipoFeedback> = {
-  R1_revisao:  "crm",
+  R1_revisao:  "rfm",
   R2_sem_os:   "rfm",
   R3_upsell:   "rfm",
   R4_followup: "crm",
   R5_pecas:    "rfm",
   R6_fora_garantia: "rfm",
-  R7_garantia_risco: "crm",
+  R7_garantia_risco: "rfm",
 };
 
 function prefillDoOportunidade(op: Oportunidade): Partial<FeedbackRegistro> {
@@ -39,17 +43,19 @@ function prefillDoOportunidade(op: Oportunidade): Partial<FeedbackRegistro> {
   // Sugestao automatica como ponto de partida
   const sugestao = (d.sugestao as string | undefined) || "";
   if (tipo === "crm") {
-    if (op.regra === "R1_revisao") {
-      const alvo = (d.revisao_alvo as string | undefined) || "";
-      base.servico = `Confirmacao revisao ${alvo}`.trim();
-    } else if (op.regra === "R4_followup") {
+    if (op.regra === "R4_followup") {
       base.servico = "Follow-up apos feedback";
-    } else if (op.regra === "R7_garantia_risco") {
-      base.servico = "Agendamento revisao anual (garantia)";
     }
     base.feedback = sugestao;
   } else {
-    base.motivo = sugestao;
+    if (op.regra === "R1_revisao") {
+      const alvo = (d.revisao_alvo as string | undefined) || "";
+      base.motivo = `Agendar a revisao ${alvo}`.trim() + (sugestao ? ` — ${sugestao}` : "");
+    } else if (op.regra === "R7_garantia_risco") {
+      base.motivo = `Agendar a revisao anual (garantia em risco)${sugestao ? ` — ${sugestao}` : ""}`;
+    } else {
+      base.motivo = sugestao;
+    }
     base.prioridade = op.prioridade === "Urgente" ? "Urgente" : "Normal";
   }
   return base;

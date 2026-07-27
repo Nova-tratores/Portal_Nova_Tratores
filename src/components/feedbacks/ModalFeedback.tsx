@@ -245,7 +245,7 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
     }
   }
 
-  const titulo = `${editando ? "Editar" : "Novo"} ${tipo === "crm" ? "feedback CRM" : "registro RFM"}`;
+  const titulo = `${editando ? "Editar" : "Novo"} ${tipo === "crm" ? "feedback CRM (pós-serviço)" : "contato RFM (agendamento)"}`;
   const corCabec = corTipo(tipo);
   const headerBg = gradTipo(tipo);
 
