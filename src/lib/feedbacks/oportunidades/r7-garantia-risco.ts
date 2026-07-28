@@ -3,8 +3,8 @@
 // TRATORES seguem a régua do caderno de cheques da Mahindra (27/07/2026,
 // digitalizada pelo usuário): cada cheque tem prazo por horas OU tempo
 // CONTADO DA ENTREGA — 50h/6 meses (prazo definido pelo usuário; o caderno
-// só dá horas), 300h/1 ano, 600h/2 anos, 900h/3 anos, 1200h/4 anos
-// (1500h+ são só por horas). Sem horímetro
+// só dá horas), 300h/1 ano, 600h/2 anos, 900h/3 anos, 1200h/4 anos, e daí
+// de ano em ano (1500h/5a … 3000h/10a — decisão do usuário 27/07). Sem horímetro
 // corrente confiável, o motor cobra pela régua de TEMPO: o cheque mais antigo
 // ainda pendente é o alvo. Depois do 1200h/4 anos não há mais cheque com
 // prazo — o 5º ano de garantia não cobra revisão (a régua antiga de "12 meses
@@ -185,14 +185,23 @@ async function computarR7Inner(parametros: ParametrosR7): Promise<ResultadoR7> {
   }
 
   // ===== 1) TRATORES — régua dos CHEQUES Mahindra (tempo desde a ENTREGA) =====
-  // 50h em 6 meses = decisão do usuário (27/07); o caderno não dá prazo
-  // temporal pro das 50h, mas na prática é a primeira visita.
+  // 50h em 6 meses = decisão do usuário (27/07); depois da 1200h a escada
+  // segue DE ANO EM ANO até a das 3000h (rótulos do controle de revisões).
+  // O loop corta em garantiaMeses: pros 60m de garantia o último cobrável é
+  // o das 1500h/5 anos — os seguintes só valeriam pra lembrete de revisão
+  // paga (fora da garantia), que é assunto da coluna R6.
   const CHEQUES: { rotulo: string; meses: number }[] = [
     { rotulo: "50h", meses: 6 },
     { rotulo: "300h", meses: 12 },
     { rotulo: "600h", meses: 24 },
     { rotulo: "900h", meses: 36 },
     { rotulo: "1200h", meses: 48 },
+    { rotulo: "1500h", meses: 60 },
+    { rotulo: "1800h", meses: 72 },
+    { rotulo: "2100h", meses: 84 },
+    { rotulo: "2400h", meses: 96 },
+    { rotulo: "2700h", meses: 108 },
+    { rotulo: "3000h", meses: 120 },
   ];
   const janelaAvisoMs = Math.max(1, mesesPerda - mesesAviso) * MS_MES; // default 2 meses
 
