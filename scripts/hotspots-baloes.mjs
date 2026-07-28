@@ -167,6 +167,11 @@ async function processarFigura(fig, worker) {
   const { data: pecas } = await sb.from('catalogo_pecas').select('reference').eq('figura_id', fig.id)
   const refsReais = new Set((pecas || []).map((p) => String(p.reference || '').trim()).filter(Boolean))
   if (!refsReais.size) { console.log(`  ${fig.code} — sem refs, pulado`); return 0 }
+  // Ref numérica pode vir com zeros à frente ("004") no cadastro, mas o desenho
+  // mostra "4". Normalizamos pelo número e guardamos o ORIGINAL, pra bolinha
+  // linkar na peça certa. (KUHN usa "001".."010".)
+  const refPorNum = new Map()
+  for (const r of refsReais) { if (/^\d+$/.test(r)) refPorNum.set(String(parseInt(r, 10)), r) }
 
   const buf = Buffer.from(await (await fetch(fig.image_url)).arrayBuffer())
   const img = sharp(buf).grayscale()
@@ -195,8 +200,10 @@ async function processarFigura(fig, worker) {
     // com confiança 51). Melhor nenhuma bolinha do que uma errada.
     if (Number(data.confidence || 0) < CONF) continue
     if (!lido) continue
-    const ref = String(parseInt(lido, 10))
-    if (!refsReais.has(ref) || usados.has(ref)) continue   // só aceita ref que existe de verdade
+    const num = String(parseInt(lido, 10))
+    // Aceita tanto a forma crua quanto a normalizada (com/sem zeros à frente).
+    const ref = refsReais.has(lido) ? lido : (refPorNum.get(num) || null)
+    if (!ref || usados.has(ref)) continue   // só aceita ref que existe de verdade
     usados.add(ref)
     if (DEBUG) console.log('      dbg ref=' + ref + ' conf=' + Math.round(Number(data.confidence||0)) + ' h=' + b.h)
     hotspots.push({ reference: ref, x: Math.round((b.minX + b.maxX) / 2), y: Math.round((b.minY + b.maxY) / 2) })
