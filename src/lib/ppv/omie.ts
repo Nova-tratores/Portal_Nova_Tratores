@@ -36,6 +36,26 @@ const OMIE_ACCOUNTS: OmieAccount[] = [
 ];
 
 const OMIE_BASE_URL = "https://app.omie.com.br/api/v1";
+// Base do portal, pra montar os links de acesso na observação do pedido no Omie.
+const PORTAL_BASE = (process.env.NEXT_PUBLIC_SITE_URL || "https://portalnovatratores-production.up.railway.app").replace(/\/$/, "");
+
+// Links de acesso (POS da OS vinculada, este PPV e as requisições da OS).
+async function montarLinksPPV(idPPV: string, osId: string): Promise<string> {
+  const links: string[] = [`PPV ${idPPV}: ${PORTAL_BASE}/ppv?id=${encodeURIComponent(idPPV)}`];
+  if (osId) {
+    links.push(`OS ${osId}: ${PORTAL_BASE}/pos?id=${encodeURIComponent(osId)}`);
+    try {
+      const reqs = await supabaseFetch<{ id: string | number; status?: string }[]>(
+        `Requisicao?ordem_servico=eq.${encodeURIComponent(osId)}&select=id,status`
+      );
+      for (const r of reqs || []) {
+        if (/lixeira|cancel/i.test(String(r.status || ""))) continue;
+        links.push(`Requisição ${r.id}: ${PORTAL_BASE}/requisicoes?req=${encodeURIComponent(String(r.id))}`);
+      }
+    } catch { /* segue sem os links de requisição */ }
+  }
+  return "Acesso no portal:\n" + links.join("\n");
+}
 
 // --- Constantes Omie ---
 const OMIE_COD_CATEG_VENDA = "1.01.03";
@@ -396,6 +416,7 @@ export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: bool
     // A diferença é só o Cenário Fiscal: a remessa usa um cenário de remessa (não fatura).
     const prefixoIntegracao = isRemessa ? `RM-${idPPV}` : `PV-${idPPV}`;
     const tipoLabel = isRemessa ? "Remessa" : "Pedido de Venda";
+    const obsVenda = await montarLinksPPV(idPPV, String(detalhes.osId || ""));
 
     const payload = {
       cabecalho: {
@@ -412,6 +433,8 @@ export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: bool
         codVend: nCodVend || undefined,
         numero_contrato: idPPV,
       },
+      // Links de acesso no portal (POS da OS, PPV e requisições).
+      observacoes: { obs_venda: obsVenda },
       det,
     };
 

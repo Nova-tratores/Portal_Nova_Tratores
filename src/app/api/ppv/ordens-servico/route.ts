@@ -20,6 +20,33 @@ const STATUS_ABERTOS = [
 export async function GET(req: NextRequest) {
   const termo = req.nextUrl.searchParams.get("termo") || "";
   const abertas = req.nextUrl.searchParams.get("abertas") === "1";
+  const id = req.nextUrl.searchParams.get("id");
+
+  // Detalhe de UMA OS (pra auto-preencher o PPV ao vincular): cliente, documento,
+  // técnico, projeto e a "Solicitação do cliente" (texto dentro do Serv_Solicitado).
+  if (id) {
+    try {
+      const url = `${TBL_OS}?Id_Ordem=eq.${encodeURIComponent(id)}&select=Id_Ordem,Os_Cliente,Cnpj_Cliente,Os_Tecnico,Projeto,Serv_Solicitado&limit=1`;
+      const res = await supabaseFetch<Record<string, unknown>[]>(url);
+      const row = res[0];
+      if (!row) return NextResponse.json({ error: "OS não encontrada" }, { status: 404 });
+      const serv = String(row.Serv_Solicitado || "");
+      // Pega o que vem depois de "Solicitação do cliente:" até "Serviço Realizado:" (ou o fim).
+      const m = serv.match(/Solicita[çc][ãa]o do cliente:\s*([\s\S]*?)(?:\n\s*Servi[çc]o Realizado:|$)/i);
+      const solicitacao = (m ? m[1] : "").trim();
+      return NextResponse.json({
+        id: String(row.Id_Ordem),
+        cliente: String(row.Os_Cliente || ""),
+        documento: String(row.Cnpj_Cliente || ""),
+        tecnico: String(row.Os_Tecnico || ""),
+        projeto: String(row.Projeto || ""),
+        solicitacao,
+      });
+    } catch (e) {
+      console.error("Erro detalhe OS:", e);
+      return NextResponse.json({ error: "erro" }, { status: 500 });
+    }
+  }
 
   try {
     let url: string;

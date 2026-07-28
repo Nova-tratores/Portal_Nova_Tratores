@@ -158,9 +158,17 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
     const r = cv.getBoundingClientRect();
     return { x: (e.clientX - r.left) * (cv.width / r.width), y: (e.clientY - r.top) * (cv.height / r.height) };
   };
+  // Desfazer traço a traço: antes de cada rabisco guardamos um "retrato" do
+  // canvas; o "Voltar" restaura o retrato anterior. Pilha limitada pra não pesar.
+  const undoStack = useRef<ImageData[]>([]);
+  const [temDesenho, setTemDesenho] = useState(false);
   const iniciarTraco = useCallback((e: RMouseEvent<HTMLCanvasElement>) => {
     const cv = canvasRef.current; if (!cv) return;
     const ctx = cv.getContext("2d"); if (!ctx) return;
+    try {
+      undoStack.current.push(ctx.getImageData(0, 0, cv.width, cv.height));
+      if (undoStack.current.length > 40) undoStack.current.shift();
+    } catch { /* canvas vazio/tamanho 0 */ }
     desenhando.current = true;
     const p = pontoCanvas(e);
     ctx.beginPath();
@@ -175,10 +183,20 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
     ctx.lineTo(p.x, p.y);
     ctx.stroke();
   }, [penColor]);
-  const terminarTraco = useCallback(() => { desenhando.current = false; }, []);
+  const terminarTraco = useCallback(() => { if (desenhando.current) setTemDesenho(true); desenhando.current = false; }, []);
+  const desfazerTraco = useCallback(() => {
+    const cv = canvasRef.current; if (!cv) return;
+    const ctx = cv.getContext("2d"); if (!ctx) return;
+    const ant = undoStack.current.pop();
+    if (ant) ctx.putImageData(ant, 0, 0);
+    else ctx.clearRect(0, 0, cv.width, cv.height);
+    setTemDesenho(undoStack.current.length > 0);
+  }, []);
   const limparDesenho = useCallback(() => {
     const cv = canvasRef.current; if (!cv) return;
     cv.getContext("2d")?.clearRect(0, 0, cv.width, cv.height);
+    undoStack.current = [];
+    setTemDesenho(false);
   }, []);
   const copiarCodigo = useCallback((code: string) => {
     navigator.clipboard?.writeText(code).then(() => { setCopiado(code); setTimeout(() => setCopiado(null), 1400); }).catch(() => {});
@@ -1167,8 +1185,10 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                         const ativo = refHover === h.reference;
                         return (
                           <button key={`${h.reference}-${i}`} onClick={() => abrirPecaDaBolinha(h.reference)}
-                            onMouseEnter={() => { setRefHover(h.reference); scrollParaRef(h.reference); }} onMouseLeave={() => !pecaSel && setRefHover(null)}
-                            style={{ position: "absolute", left: `${(h.x / imgDim.w) * 100}%`, top: `${(h.y / imgDim.h) * 100}%`, transform: `translate(-50%,-50%) scale(${1 / zoom})`, width: ativo ? 38 : 30, height: ativo ? 38 : 30, borderRadius: "50%", border: "2.5px solid #fff", background: ativo ? "#dc2626" : "rgba(37,99,235,0.92)", color: "#fff", fontSize: ativo ? 16 : 13, fontWeight: 400, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 7px rgba(0,0,0,0.45)", transition: "all .12s", zIndex: ativo ? 3 : 2 }}>{h.reference}</button>
+                            onMouseEnter={() => setRefHover(h.reference)} onMouseLeave={() => !pecaSel && setRefHover(null)}
+                            // TAMANHO FIXO: mudar width/height no hover fazia o cursor entrar/sair
+                            // da bolinha durante a animação → tremedeira. Destaque só por cor + anel.
+                            style={{ position: "absolute", left: `${(h.x / imgDim.w) * 100}%`, top: `${(h.y / imgDim.h) * 100}%`, transform: `translate(-50%,-50%) scale(${1 / zoom})`, width: 32, height: 32, borderRadius: "50%", border: "2.5px solid #fff", background: ativo ? "#dc2626" : "rgba(37,99,235,0.92)", color: "#fff", fontSize: 13, fontWeight: 400, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: ativo ? "0 0 0 4px rgba(220,38,38,0.30), 0 2px 7px rgba(0,0,0,0.45)" : "0 2px 7px rgba(0,0,0,0.45)", transition: "background .12s, box-shadow .12s", zIndex: ativo ? 3 : 2 }}>{h.reference}</button>
                         );
                       })}
                       {/* Ficha da peça LOGO ABAIXO da bolinha em foco */}
@@ -1523,7 +1543,10 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                       style={{ width: 26, height: 26, borderRadius: "50%", background: c, cursor: "pointer", border: penColor === c ? "3px solid #fff" : "2px solid rgba(255,255,255,0.35)", boxShadow: penColor === c ? "0 0 0 2px #dc2626" : "none" }} />
                   ))}
                 </div>
-                <button onClick={limparDesenho} style={fsBtn}><i className="fas fa-eraser" /> Limpar</button>
+                <button onClick={desfazerTraco} disabled={!temDesenho} title="Voltar um rabisco"
+                  style={{ ...fsBtn, opacity: temDesenho ? 1 : 0.45, cursor: temDesenho ? "pointer" : "not-allowed" }}><i className="fas fa-rotate-left" /> Voltar</button>
+                <button onClick={limparDesenho} disabled={!temDesenho} title="Apagar tudo"
+                  style={{ ...fsBtn, opacity: temDesenho ? 1 : 0.45, cursor: temDesenho ? "pointer" : "not-allowed" }}><i className="fas fa-eraser" /> Limpar tudo</button>
               </>
             )}
             {/* Zoom */}
@@ -1569,7 +1592,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                       onMouseEnter={() => { setRefHover(h.reference); const p = (figura.pecas || []).find((x) => x.reference === h.reference); if (p) setFsPeca(p); }}
                       onMouseLeave={() => setRefHover(null)}
                       onClick={() => { const p = (figura.pecas || []).find((x) => x.reference === h.reference); if (p) { setPecaSel(p); setFsPeca(p); } }}
-                      style={{ position: "absolute", left: `${(h.x / imgDim.w) * 100}%`, top: `${(h.y / imgDim.h) * 100}%`, transform: `translate(-50%,-50%) scale(${1 / fsZoom})`, width: ativo ? 40 : 32, height: ativo ? 40 : 32, borderRadius: "50%", border: "2.5px solid #fff", background: ativo ? "#dc2626" : "rgba(37,99,235,0.92)", color: "#fff", fontSize: ativo ? 17 : 14, fontWeight: 400, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.5)", transition: "all .12s", zIndex: ativo ? 3 : 2 }}>
+                      style={{ position: "absolute", left: `${(h.x / imgDim.w) * 100}%`, top: `${(h.y / imgDim.h) * 100}%`, transform: `translate(-50%,-50%) scale(${1 / fsZoom})`, width: 34, height: 34, borderRadius: "50%", border: "2.5px solid #fff", background: ativo ? "#dc2626" : "rgba(37,99,235,0.92)", color: "#fff", fontSize: 14, fontWeight: 400, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: ativo ? "0 0 0 4px rgba(220,38,38,0.30), 0 2px 8px rgba(0,0,0,0.5)" : "0 2px 8px rgba(0,0,0,0.5)", transition: "background .12s, box-shadow .12s", zIndex: ativo ? 3 : 2 }}>
                       {h.reference}
                     </button>
                   );

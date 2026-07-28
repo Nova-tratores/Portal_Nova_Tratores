@@ -5,6 +5,7 @@ import type { ProdutoBusca } from "@/lib/ppv/types";
 import { api } from "@/lib/ppv/api";
 import { usePPV } from "@/lib/ppv/PPVContext";
 import CatalogoNovo from "@/components/ppv/CatalogoNovo";
+import ModalProdutoEstoque from "@/components/ppv/ModalProdutoEstoque";
 
 interface Props {
   open: boolean;
@@ -27,6 +28,7 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
   const [verCatalogo, setVerCatalogo] = useState(false);
   const [editandoPreco, setEditandoPreco] = useState<{ idx: number; valor: string } | null>(null);
   const [salvandoPreco, setSalvandoPreco] = useState(false);
+  const [detalheProd, setDetalheProd] = useState<{ codigo: string; descricao?: string } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const precoInputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -201,7 +203,7 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
             <table className="w-full border-collapse">
               <thead>
                 <tr className="sticky top-0 z-10 bg-orange-50/50">
-                  <th className="border-b border-orange-200/60 px-4 py-3 text-left text-[11px] font-bold uppercase text-slate-400">CODIGO</th>
+                  <th className="border-b border-orange-200/60 px-4 py-3 text-left text-[11px] font-bold uppercase text-slate-400">CODIGO <span className="ml-1 normal-case font-medium text-red-400">· clique p/ ver</span></th>
                   <th className="border-b border-orange-200/60 px-4 py-3 text-left text-[11px] font-bold uppercase text-slate-400">DESCRICAO</th>
                   <th className="border-b border-orange-200/60 px-4 py-3 text-right text-[11px] font-bold uppercase text-slate-400">PRECO</th>
                   <th className="border-b border-orange-200/60 px-4 py-3 text-center text-[11px] font-bold uppercase text-slate-400">EMPRESA</th>
@@ -218,7 +220,15 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
                   resultados.map((p, idx) => (
                     <tr key={idx} onClick={() => handleClick(p)} className="cursor-pointer border-b border-slate-100 transition-colors hover:bg-orange-50">
                       <td className="px-4 py-3 text-[13px] font-bold text-slate-800">
-                        {highlightMatch(p.codigo)}
+                        {/* Clicar no CÓDIGO abre as informações do produto (não seleciona).
+                            Estilo de LINK bem claro: sublinhado + ícone "olho". */}
+                        <button type="button"
+                          onClick={(e) => { e.stopPropagation(); setDetalheProd({ codigo: p.codigo, descricao: p.descricao }); }}
+                          title="Ver informações do produto"
+                          className="group inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 -mx-1 text-left text-red-600 underline decoration-red-300 decoration-dotted underline-offset-2 hover:bg-red-50 hover:decoration-red-600 hover:decoration-solid">
+                          {highlightMatch(p.codigo)}
+                          <i className="fas fa-eye text-[11px] text-red-400 group-hover:text-red-600" />
+                        </button>
                       </td>
                       <td className="max-w-[280px] px-4 py-3 text-[13px] text-slate-700">
                         <div className="truncate" title={p.descricao}>{highlightMatch(p.descricao)}</div>
@@ -310,6 +320,9 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
         </div>
         )}
       </div>
+
+      {/* Informações do produto — mesmo popup do PPV aberto */}
+      <ModalProdutoEstoque open={!!detalheProd} codigo={detalheProd?.codigo || null} descricao={detalheProd?.descricao} onClose={() => setDetalheProd(null)} />
     </div>
   );
 }

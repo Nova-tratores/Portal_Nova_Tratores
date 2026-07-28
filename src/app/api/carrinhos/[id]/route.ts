@@ -17,17 +17,27 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     if (!carrinho) return NextResponse.json({ error: "não encontrado" }, { status: 404 });
 
     // Marca quais itens já são cadastrados (Omie ou manual) — pra Fase 2.
-    const codes = [...new Set((itens || []).map((i) => String(i.codigo || "").trim()).filter(Boolean))];
+    // O código do catálogo vem SEM o prefixo "RP-" (ex.: 000016299P04), mas no
+    // Omie/Produtos ele está COM prefixo (RP-000016299P04). Testamos as duas
+    // formas, senão peça cadastrada aparece como "não cadastrada".
+    const variantes = (c: string) => {
+      const base = c.trim().toUpperCase();
+      const semRp = base.replace(/^RP-/, "");
+      return [...new Set([base, semRp, `RP-${semRp}`])];
+    };
+    const codigosItem = [...new Set((itens || []).map((i) => String(i.codigo || "").trim()).filter(Boolean))];
+    const codesBusca = [...new Set(codigosItem.flatMap((c) => variantes(c)))];
     const registrados = new Set<string>();
-    if (codes.length) {
+    if (codesBusca.length) {
       const [{ data: c1 }, { data: c2 }] = await Promise.all([
-        supabase.from(TBL_PRODUTOS).select("Codigo_Produto").in("Codigo_Produto", codes),
-        supabase.from(TBL_PRODUTOS_MANUAIS).select("Prod_Codigo").in("Prod_Codigo", codes),
+        supabase.from(TBL_PRODUTOS).select("Codigo_Produto").in("Codigo_Produto", codesBusca),
+        supabase.from(TBL_PRODUTOS_MANUAIS).select("Prod_Codigo").in("Prod_Codigo", codesBusca),
       ]);
       for (const r of c1 || []) registrados.add(String(r.Codigo_Produto).trim().toUpperCase());
       for (const r of c2 || []) registrados.add(String(r.Prod_Codigo).trim().toUpperCase());
     }
-    const itensMarcados = (itens || []).map((i) => ({ ...i, cadastrado: registrados.has(String(i.codigo || "").trim().toUpperCase()) }));
+    const estaCadastrado = (c: string) => variantes(c).some((v) => registrados.has(v));
+    const itensMarcados = (itens || []).map((i) => ({ ...i, cadastrado: estaCadastrado(String(i.codigo || "")) }));
 
     // Marca do modelo: define pra qual catálogo externo (Zeitten) dá pra exportar.
     let marca: string | null = null;

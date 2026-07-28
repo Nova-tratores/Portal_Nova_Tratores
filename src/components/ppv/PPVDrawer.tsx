@@ -267,6 +267,7 @@ export default function PPVDrawer({
       setDetails(d);
       showToast("success", "Item adicionado");
       onModalProdDisplayChange("");
+      setQtdExtra(1); // volta pra 1: senão fica a última qtd e a pessoa lança demais
       onDirty?.();
     } catch (e) { showToast("error", e instanceof Error ? e.message : "Erro"); }
     setAddingExtra(false);

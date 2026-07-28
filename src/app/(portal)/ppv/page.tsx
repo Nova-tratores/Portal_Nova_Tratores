@@ -17,6 +17,7 @@ import PPVDrawer from "@/components/ppv/PPVDrawer";
 import ModalBuscaCliente from "@/components/ppv/ModalBuscaCliente";
 import ModalBuscaOS from "@/components/ppv/ModalBuscaOS";
 import ModalBuscaProduto from "@/components/ppv/ModalBuscaProduto";
+import ModalUsoProduto from "@/components/ppv/ModalUsoProduto";
 import ModalProdutoManual from "@/components/ppv/ModalProdutoManual";
 import ModalRevisoes from "@/components/ppv/ModalRevisoes";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
@@ -136,6 +137,7 @@ function PPVApp() {
   const [clienteValue, setClienteValue] = useState("");
   const [osIdValue, setOsIdValue] = useState("");
   const [osDisplayValue, setOsDisplayValue] = useState("");
+  const [osAutofill, setOsAutofill] = useState<{ nonce: number; tecnico: string; projeto: string; solicitacao: string } | null>(null);
   const [produtoDisplay, setProdutoDisplay] = useState("");
 
   // Modal fields
@@ -149,7 +151,12 @@ function PPVApp() {
 
   // Contextos de busca
   const osContext = useRef<"main" | "modal">("main");
-  const prodContext = useRef<"main" | "modal" | "edit">("main");
+  const prodContext = useRef<"main" | "modal" | "edit" | "filtro">("main");
+  // Filtro por produto: mostra em quais PPVs o produto foi/está sendo usado.
+  const [usoProduto, setUsoProduto] = useState<{ codigo: string; descricao: string } | null>(null);
+  // Guarda o produto do filtro quando abrimos um PPV a partir dele, pra REABRIR
+  // o histórico no mesmo produto quando o usuário fechar o PPV.
+  const usoProdutoVoltar = useRef<{ codigo: string; descricao: string } | null>(null);
   const clienteContext = useRef<"main" | "modal">("main");
 
   const handleSetModalOS = useCallback((id: string, display: string) => {
@@ -170,18 +177,32 @@ function PPVApp() {
     setDetailsPPVId(null);
     if (typeof window !== "undefined") window.history.replaceState(null, "", activeTab === "catalogoTab" ? "/ppv/catalogo" : "/ppv");
     if (drawerDirty.current) carregarKanban();
+    // Veio do Histórico Produto? volta pra ele, no mesmo produto.
+    if (usoProdutoVoltar.current) { setUsoProduto(usoProdutoVoltar.current); usoProdutoVoltar.current = null; }
   }
   function handleBuscaOS(ctx: "main" | "modal") { osContext.current = ctx; setBuscaOSOpen(true); }
 
   function handleSelectOS(id: string, cliente: string) {
     const display = `OS #${id} - ${cliente}`;
-    if (osContext.current === "main") { setOsIdValue(id); setOsDisplayValue(display); }
-    else { setModalOSId(id); setModalOSDisplay(display); }
+    if (osContext.current === "main") {
+      setOsIdValue(id); setOsDisplayValue(display);
+      // Vincular OS no formulário novo: puxa cliente + os demais campos.
+      if (cliente) setClienteValue(cliente);
+      fetch(`/api/ppv/ordens-servico?id=${encodeURIComponent(id)}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (!d || d.error) return;
+          if (d.cliente) setClienteValue(d.cliente);
+          setOsAutofill({ nonce: Date.now(), tecnico: d.tecnico || "", projeto: d.projeto || "", solicitacao: d.solicitacao || "" });
+        })
+        .catch(() => {});
+    } else { setModalOSId(id); setModalOSDisplay(display); }
   }
 
-  function handleBuscaProduto(ctx: "main" | "modal" | "edit") {
+  function handleBuscaProduto(ctx: "main" | "modal" | "edit" | "filtro") {
     prodContext.current = ctx;
-    setBuscaProdutoMode(ctx);
+    // No filtro só escolhemos um produto; o modo "main" do buscador serve.
+    setBuscaProdutoMode(ctx === "filtro" ? "main" : ctx);
     setBuscaProdutoCatalogo(false);
     setBuscaProdutoOpen(true);
   }
@@ -205,6 +226,7 @@ function PPVApp() {
   function handleSelectProduto(codigo: string, descricao: string, preco: number, empresa?: string) {
     cacheProduct(codigo, descricao, preco, empresa);
     const display = `${codigo} - ${descricao}`;
+    if (prodContext.current === "filtro") { setUsoProduto({ codigo, descricao }); return; }
     if (prodContext.current === "main") setProdutoDisplay(display);
     else if (prodContext.current === "modal") {
       setModalProdDisplay(display);
@@ -238,7 +260,7 @@ function PPVApp() {
   const handleClienteConsumido = useCallback(() => setModalClienteNome(""), []);
 
   function handleFormSaved() {
-    setClienteValue(""); setOsIdValue(""); setOsDisplayValue(""); setProdutoDisplay("");
+    setClienteValue(""); setOsIdValue(""); setOsDisplayValue(""); setProdutoDisplay(""); setOsAutofill(null);
     setActiveTab("kanbanTab");
     carregarKanban();
   }
@@ -317,6 +339,7 @@ function PPVApp() {
             searchFilter={searchFilter} onSearchChange={setSearchFilter}
             tipoFilter={tipoFilter} onTipoFilterChange={setTipoFilter}
             actions={headerActions}
+            onFiltrarProduto={() => handleBuscaProduto("filtro")}
           />
         )}
 
@@ -345,6 +368,7 @@ function PPVApp() {
               osDisplayValue={osDisplayValue}
               produtoDisplay={produtoDisplay}
               onProdutoDisplayChange={setProdutoDisplay}
+              osAutofill={osAutofill}
             />
           </div>
         )}
@@ -368,6 +392,7 @@ function PPVApp() {
       <ModalBuscaCliente open={buscaClienteOpen} onClose={() => setBuscaClienteOpen(false)} onSelect={handleSelectCliente} />
       <ModalBuscaOS open={buscaOSOpen} onClose={() => setBuscaOSOpen(false)} onSelect={handleSelectOS} />
       <ModalBuscaProduto open={buscaProdutoOpen} mode={buscaProdutoMode} onClose={() => setBuscaProdutoOpen(false)} onSelect={handleSelectProduto} onEditManual={handleEditManual} abrirNoCatalogo={buscaProdutoCatalogo} onCriarProvisorio={handleCriarProvisorio} />
+      <ModalUsoProduto open={!!usoProduto} codigo={usoProduto?.codigo || null} descricao={usoProduto?.descricao} onClose={() => setUsoProduto(null)} onAbrirPpv={(id) => { usoProdutoVoltar.current = usoProduto; setUsoProduto(null); openCardDetails(id); }} />
       <ModalProdutoManual open={produtoManualOpen} onClose={() => setProdutoManualOpen(false)} onSaved={() => {}} editData={produtoManualEdit} provisorio={produtoManualProvisorio} />
       <ModalRevisoes open={showGerenciarKits} onClose={() => setShowGerenciarKits(false)} onSaved={recarregarRevisoes} />
     </div>

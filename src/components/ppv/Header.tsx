@@ -16,6 +16,8 @@ interface HeaderProps {
   clientes?: string[];
   /** Ações à direita (Novo Lançamento + menu de produtos/kits/sync). */
   actions?: ReactNode;
+  /** Abre o filtro "onde este produto foi usado" (lista os PPVs). */
+  onFiltrarProduto?: () => void;
 }
 
 const TIPO_TABS = [
@@ -27,7 +29,7 @@ const TIPO_TABS = [
 export default function Header({
   searchFilter, onSearchChange,
   tipoFilter, onTipoFilterChange,
-  actions,
+  actions, onFiltrarProduto,
 }: HeaderProps) {
   return (
     <header style={{
@@ -78,6 +80,16 @@ export default function Header({
             );
           })}
         </div>
+
+        {/* Filtrar por produto: mostra em quais PPVs um produto foi/está sendo usado */}
+        {onFiltrarProduto && (
+          <button onClick={onFiltrarProduto} title="Histórico de um produto: em quais PPVs ele foi usado"
+            style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 16px", borderRadius: 10, border: "1.5px solid var(--ppv-border-light)", background: "#fff", color: "var(--ppv-text)", fontWeight: 600, fontSize: 14, cursor: "pointer", fontFamily: "'Poppins', sans-serif", whiteSpace: "nowrap" }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--ppv-primary)"; e.currentTarget.style.color = "var(--ppv-primary)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--ppv-border-light)"; e.currentTarget.style.color = "var(--ppv-text)"; }}>
+            <i className="fas fa-magnifying-glass-chart" /> Histórico Produto
+          </button>
+        )}
 
         <div style={{ flex: 1 }} />
 

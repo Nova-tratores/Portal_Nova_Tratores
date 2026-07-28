@@ -8,6 +8,7 @@ import { api } from "@/lib/ppv/api";
 import { usePPV } from "@/lib/ppv/PPVContext";
 import { useAuth } from "@/hooks/useAuth";
 import ModalImportarKit from "@/components/orcamentos/ModalImportarKit";
+import ModalProdutoEstoque from "./ModalProdutoEstoque";
 
 interface Props {
   onVoltar: () => void;
@@ -20,11 +21,13 @@ interface Props {
   osDisplayValue: string;
   produtoDisplay: string;
   onProdutoDisplayChange: (v: string) => void;
+  // Dados da OS vinculada, pra auto-preencher (nonce muda a cada vínculo novo).
+  osAutofill?: { nonce: number; tecnico: string; projeto: string; solicitacao: string } | null;
 }
 
 export default function FormNovoLancamento({
   onVoltar, onBuscaCliente, onBuscaOS, onBuscaProduto, onSaved,
-  clienteValue, osIdValue, osDisplayValue, produtoDisplay, onProdutoDisplayChange,
+  clienteValue, osIdValue, osDisplayValue, produtoDisplay, onProdutoDisplayChange, osAutofill,
 }: Props) {
   const { tecnicos, productCache, showToast } = usePPV();
   const { userProfile } = useAuth();
@@ -32,6 +35,7 @@ export default function FormNovoLancamento({
   const [selectedProducts, setSelectedProducts] = useState<Record<string, ProdutoSelecionado>>({});
   const [kitModalOpen, setKitModalOpen] = useState(false);
   const [qtdProduto, setQtdProduto] = useState(1);
+  const [detalheProd, setDetalheProd] = useState<{ codigo: string; descricao?: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [importandoKit, setImportandoKit] = useState(false);
   const [tipoPedido, setTipoPedido] = useState(TIPOS_PEDIDO[0].value);
@@ -50,6 +54,20 @@ export default function FormNovoLancamento({
   const [tentouEnviar, setTentouEnviar] = useState(false);
 
   const cartRef = useRef<HTMLDivElement>(null);
+
+  // Vinculou uma OS → puxa o que dá dela: técnico (se estiver na lista), projeto,
+  // motivo "Saída Técnico (Com OS)" e a observação = "Solicitação do cliente".
+  useEffect(() => {
+    if (!osAutofill) return;
+    setMotivoSaida("Saida Tecnico (Com OS)");
+    if (osAutofill.solicitacao) setObservacao(osAutofill.solicitacao);
+    if (osAutofill.projeto) { setProjeto(osAutofill.projeto); setUsarProjetoOS(false); }
+    if (osAutofill.tecnico) {
+      const t = tecnicos.find((x) => x.trim().toUpperCase() === osAutofill.tecnico.trim().toUpperCase());
+      if (t) setTecnico(t);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [osAutofill?.nonce]);
 
   useEffect(() => {
     if (!clienteValue) { setClienteDoc(""); setClienteCidade(""); return; }
@@ -175,73 +193,58 @@ export default function FormNovoLancamento({
         {/* ════════ ESQUERDA: Formulário ════════ */}
         <div className="ppv-form-left">
 
-          {/* ── Linha 1: Tipo e Motivo ── */}
-          <div className="ppv-form-row">
-            <div className="ppv-form-field" style={{ flex: 1 }}>
-              <span className="ppv-form-label">Tipo do Pedido</span>
-              <select value={tipoPedido} onChange={(e) => setTipoPedido(e.target.value)}>
-                {TIPOS_PEDIDO.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-              </select>
-            </div>
-            <div className="ppv-form-field" style={{ flex: 1 }}>
-              <span className="ppv-form-label">Motivo da Saída</span>
-              <select value={motivoSaida} onChange={(e) => setMotivoSaida(e.target.value)}>
-                {MOTIVOS_SAIDA.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-              </select>
-            </div>
+          {/* ── Adicionar Produto + Importar Kit (no topo, lado a lado) ── */}
+          <div className="ppv-form-section-title">
+            <i className="fas fa-cube" /> Adicionar Produto
+            {erroProdutos && <span className="ppv-form-error-msg" style={{ marginLeft: 12 }}>Adicione ao menos 1 produto</span>}
           </div>
-
-          {/* ── Linha 2: Técnico ── */}
-          <div className="ppv-form-field">
-            <span className="ppv-form-label">
-              Técnico <span className="ppv-form-required">*</span>
-              {erroTecnico && <span className="ppv-form-error-msg">Selecione um técnico</span>}
-            </span>
-            <select
-              value={tecnico}
-              onChange={(e) => setTecnico(e.target.value)}
-              style={erroTecnico ? errStyle : undefined}
-            >
-              <option value="">-- Selecione o técnico --</option>
-              {tecnicos.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-
-          {/* ── Linha 3: Cliente ── */}
-          <div className="ppv-form-field">
-            <span className="ppv-form-label">
-              Cliente <span className="ppv-form-required">*</span>
-              {erroCliente && <span className="ppv-form-error-msg">Selecione um cliente</span>}
-            </span>
-            <div
-              onClick={onBuscaCliente}
-              className="ppv-form-picker"
-              style={erroCliente ? errStyle : clienteValue ? { border: "2px solid #10B981", background: "#F0FDF4" } : undefined}
-            >
-              {clienteValue ? (
-                <div className="ppv-form-picker-filled">
-                  <i className="fas fa-user" />
-                  <div>
-                    <div className="ppv-form-picker-name">{clienteValue}</div>
-                    {(clienteDoc || clienteCidade) && (
-                      <div className="ppv-form-picker-sub">
-                        {clienteDoc}{clienteDoc && clienteCidade ? " — " : ""}{clienteCidade}
-                      </div>
-                    )}
+          <div className="ppv-form-row" style={{ alignItems: "flex-end" }}>
+            <div className="ppv-form-field" style={{ flex: 1, marginBottom: 0 }}>
+              <div
+                onClick={onBuscaProduto}
+                className="ppv-form-picker"
+                style={produtoDisplay ? { border: "2px solid var(--ppv-primary)", background: "#FEF2F2" } : erroProdutos ? errStyle : undefined}
+              >
+                {produtoDisplay ? (
+                  <div className="ppv-form-picker-filled">
+                    <i className="fas fa-cube" />
+                    <div><div className="ppv-form-picker-name">{produtoDisplay}</div></div>
                   </div>
-                </div>
-              ) : (
-                <div className="ppv-form-picker-empty">
-                  <i className="fas fa-search" />
-                  <span>Clique aqui para buscar o cliente</span>
-                </div>
-              )}
+                ) : (
+                  <div className="ppv-form-picker-empty">
+                    <i className="fas fa-search" />
+                    <span>Clique para buscar produto</span>
+                  </div>
+                )}
+              </div>
             </div>
+            <div className="ppv-form-field" style={{ width: 96, marginBottom: 0 }}>
+              <span className="ppv-form-label">Qtd</span>
+              <input
+                type="number" value={qtdProduto}
+                onChange={(e) => setQtdProduto(parseInt(e.target.value) || 1)}
+                min={1} style={{ textAlign: "center", fontWeight: 700 }}
+              />
+            </div>
+            <button type="button" onClick={addProduct} className="ppv-form-btn-primary" style={{ flex: "0 0 auto", padding: "12px 20px" }}>
+              <i className="fas fa-plus" /> Adicionar
+            </button>
+            {/* Importar Kit — junto do adicionar produto */}
+            <button type="button" onClick={() => setKitModalOpen(true)} disabled={importandoKit}
+              title="Importar Kit de Revisão (revisão, manutenção ou quadriciclo)"
+              style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 9, padding: "12px 16px", borderRadius: 10, border: "1.5px solid #99F6E4", background: "linear-gradient(135deg,#F0FDFA,#ECFEFF)", cursor: importandoKit ? "not-allowed" : "pointer", opacity: importandoKit ? 0.6 : 1, whiteSpace: "nowrap", color: "#0f766e", fontWeight: 700, fontSize: 14 }}>
+              <span style={{ width: 30, height: 30, borderRadius: 8, background: "linear-gradient(135deg,#0d9488,#0f766e)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", flexShrink: 0 }}>
+                {importandoKit ? <i className="fas fa-spinner fa-spin" style={{ fontSize: 13 }} /> : <i className="fas fa-tools" style={{ fontSize: 13 }} />}
+              </span>
+              {importandoKit ? "Importando..." : "Importar Kit"}
+            </button>
           </div>
 
-          {/* ── Linha 4: O.S. ── */}
+          <div className="ppv-form-divider" />
+
+          {/* ── Ordem de Serviço (no topo: vincular preenche o resto) ── */}
           <div className="ppv-form-field">
-            <span className="ppv-form-label">Ordem de Serviço <span className="ppv-form-optional">(opcional)</span></span>
+            <span className="ppv-form-label">Ordem de Serviço <span className="ppv-form-optional">(opcional — ao vincular, preenche cliente, técnico, projeto, motivo e observação)</span></span>
             <div
               onClick={onBuscaOS}
               className="ppv-form-picker"
@@ -258,6 +261,73 @@ export default function FormNovoLancamento({
                   <span>Clique aqui para vincular uma O.S.</span>
                 </div>
               )}
+            </div>
+          </div>
+
+          <div className="ppv-form-divider" />
+
+          {/* ── Linha 1: Tipo e Motivo ── */}
+          <div className="ppv-form-row">
+            <div className="ppv-form-field" style={{ flex: 1 }}>
+              <span className="ppv-form-label">Tipo do Pedido</span>
+              <select value={tipoPedido} onChange={(e) => setTipoPedido(e.target.value)}>
+                {TIPOS_PEDIDO.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            </div>
+            <div className="ppv-form-field" style={{ flex: 1 }}>
+              <span className="ppv-form-label">Motivo da Saída</span>
+              <select value={motivoSaida} onChange={(e) => setMotivoSaida(e.target.value)}>
+                {MOTIVOS_SAIDA.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* ── Técnico + Cliente (2 colunas) ── */}
+          <div className="ppv-form-row">
+            <div className="ppv-form-field" style={{ flex: 1 }}>
+              <span className="ppv-form-label">
+                Técnico <span className="ppv-form-required">*</span>
+                {erroTecnico && <span className="ppv-form-error-msg">Selecione um técnico</span>}
+              </span>
+              <select
+                value={tecnico}
+                onChange={(e) => setTecnico(e.target.value)}
+                style={erroTecnico ? errStyle : undefined}
+              >
+                <option value="">-- Selecione o técnico --</option>
+                {tecnicos.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+
+            <div className="ppv-form-field" style={{ flex: 1 }}>
+              <span className="ppv-form-label">
+                Cliente <span className="ppv-form-required">*</span>
+                {erroCliente && <span className="ppv-form-error-msg">Selecione um cliente</span>}
+              </span>
+              <div
+                onClick={onBuscaCliente}
+                className="ppv-form-picker"
+                style={erroCliente ? errStyle : clienteValue ? { border: "2px solid #10B981", background: "#F0FDF4" } : undefined}
+              >
+                {clienteValue ? (
+                  <div className="ppv-form-picker-filled">
+                    <i className="fas fa-user" />
+                    <div>
+                      <div className="ppv-form-picker-name">{clienteValue}</div>
+                      {(clienteDoc || clienteCidade) && (
+                        <div className="ppv-form-picker-sub">
+                          {clienteDoc}{clienteDoc && clienteCidade ? " — " : ""}{clienteCidade}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="ppv-form-picker-empty">
+                    <i className="fas fa-search" />
+                    <span>Clique aqui para buscar o cliente</span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -327,76 +397,6 @@ export default function FormNovoLancamento({
           </div>
 
           {/* ── Separador ── */}
-          <div className="ppv-form-divider" />
-
-          {/* ── Kit de Revisão ── */}
-          <div className="ppv-form-section-title"><i className="fas fa-tools" /> Kit de Revisão</div>
-          <button type="button" onClick={() => setKitModalOpen(true)} disabled={importandoKit}
-            style={{
-              width: "100%", padding: "12px 16px", borderRadius: 12,
-              border: "1px solid #99F6E4", background: "linear-gradient(135deg, #F0FDFA, #ECFEFF)",
-              cursor: importandoKit ? "not-allowed" : "pointer", opacity: importandoKit ? 0.6 : 1,
-              display: "flex", alignItems: "center", gap: 12, textAlign: "left", transition: "all .15s",
-            }}
-            onMouseEnter={(e) => { if (!importandoKit) e.currentTarget.style.boxShadow = "0 4px 14px rgba(13,148,136,0.18)"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; }}>
-            <span style={{ width: 38, height: 38, borderRadius: 10, background: "linear-gradient(135deg, #0d9488, #0f766e)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", flexShrink: 0, boxShadow: "0 2px 6px rgba(13,148,136,0.35)" }}>
-              {importandoKit ? <i className="fas fa-spinner fa-spin" style={{ fontSize: 15 }} /> : <i className="fas fa-tools" style={{ fontSize: 15 }} />}
-            </span>
-            <span style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ display: "block", fontSize: 14, fontWeight: 700, color: "#0f766e" }}>
-                {importandoKit ? "Importando kit..." : "Importar Kit de Revisão"}
-              </span>
-              <span style={{ display: "block", fontSize: 11.5, color: "#5EAaa8" }}>
-                Revisão, manutenção ou quadriciclo — escolha o modelo
-              </span>
-            </span>
-            <i className="fas fa-chevron-right" style={{ fontSize: 13, color: "#0d9488", flexShrink: 0 }} />
-          </button>
-
-          {/* ── Separador ── */}
-          <div className="ppv-form-divider" />
-
-          {/* ── Adicionar Produto ── */}
-          <div className="ppv-form-section-title">
-            <i className="fas fa-cube" /> Adicionar Produto
-            {erroProdutos && <span className="ppv-form-error-msg" style={{ marginLeft: 12 }}>Adicione ao menos 1 produto</span>}
-          </div>
-          {/* Busca produto */}
-          <div className="ppv-form-field">
-            <div
-              onClick={onBuscaProduto}
-              className="ppv-form-picker"
-              style={produtoDisplay ? { border: "2px solid var(--ppv-primary)", background: "#FEF2F2" } : erroProdutos ? errStyle : undefined}
-            >
-              {produtoDisplay ? (
-                <div className="ppv-form-picker-filled">
-                  <i className="fas fa-cube" />
-                  <div><div className="ppv-form-picker-name">{produtoDisplay}</div></div>
-                </div>
-              ) : (
-                <div className="ppv-form-picker-empty">
-                  <i className="fas fa-search" />
-                  <span>Clique para buscar produto</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Qtd + Botão adicionar — sempre visíveis */}
-          <div className="ppv-form-row" style={{ alignItems: "flex-end" }}>
-            <div className="ppv-form-field" style={{ width: 100 }}>
-              <span className="ppv-form-label">Qtd</span>
-              <input
-                type="number" value={qtdProduto}
-                onChange={(e) => setQtdProduto(parseInt(e.target.value) || 1)}
-                min={1} style={{ textAlign: "center", fontWeight: 700 }}
-              />
-            </div>
-            <button type="button" onClick={addProduct} className="ppv-form-btn-primary" style={{ flex: 1 }}>
-              <i className="fas fa-plus" /> Adicionar ao Carrinho
-            </button>
-          </div>
         </div>
 
         {/* ════════ DIREITA: Carrinho ════════ */}
@@ -428,7 +428,13 @@ export default function FormNovoLancamento({
                 >
                   <div className="ppv-form-cart-item-info">
                     <div className="ppv-form-cart-item-code">
-                      {p.codigo}
+                      {/* Código como LINK claro: abre as informações do produto */}
+                      <button type="button" onClick={() => setDetalheProd({ codigo: p.codigo, descricao: p.descricao })}
+                        title="Ver informações do produto"
+                        style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: 0, border: "none", background: "transparent", cursor: "pointer", font: "inherit", color: "#dc2626", textDecoration: "underline", textDecorationStyle: "dotted", textDecorationColor: "#fca5a5", textUnderlineOffset: 3 }}>
+                        {p.codigo}
+                        <i className="fas fa-eye" style={{ fontSize: 11, color: "#f87171" }} />
+                      </button>
                       {p.empresa && (() => {
                         const isPrimario = p.empresa.toLowerCase().includes("primari");
                         const label = isPrimario ? "CASTRO" : "NOVA";
@@ -484,6 +490,7 @@ export default function FormNovoLancamento({
         </div>
       </div>
       <ModalImportarKit open={kitModalOpen} onClose={() => setKitModalOpen(false)} onImportar={(produtos) => importarKitItens(produtos)} />
+      <ModalProdutoEstoque open={!!detalheProd} codigo={detalheProd?.codigo || null} descricao={detalheProd?.descricao} onClose={() => setDetalheProd(null)} />
     </div>
   );
 }

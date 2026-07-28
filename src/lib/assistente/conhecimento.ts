@@ -26,10 +26,22 @@ export const TRATORINO_CONHECIMENTO = `BASE DE CONHECIMENTO — PORTAL NOVA TRAT
 
 MÓDULOS PRINCIPAIS:
 
-• CATÁLOGO DE PEÇAS (Mahindra): catálogo dos tratores com vista explodida. Tratores disponíveis: Jivo 2025, 6065 P2, 6075L, 6075 P2, 6060 P2, 5050, 86-110, 8000S/9500S.
-  Fluxo: escolher o trator → sistema (Motor, Transmissão, Hidráulico, etc.) → figura (vista explodida) → tabela de peças (Ref, Código, Nome, Qtd). Tem hotspots interativos (passa o mouse na peça e acende o número no desenho).
-  Busca por nome ou código. Assistente de peças (esse aqui) acha peça por descrição e mostra em quais tratores ela é usada.
-  Carrinho: junta peças → escolhe cliente → cria um PPV ou um Orçamento com os itens. O preço vem do Omie quando o código existir lá.
+• CATÁLOGO DE PEÇAS: catálogo de vista explodida de 5 MARCAS (não é só Mahindra), ~76 modelos, ~4.200 figuras e ~95 mil peças:
+  - Mahindra (tratores): Jivo 2025, 5050, 6060 P2, 6065 P1, 6065 P2, 6075 P1, 6075 P2, 6075L, 8000S/9500S, 86-110.
+  - Valtra (tratores): 40 modelos (linhas BM, BH, BF, BL e séries 585/600/685/785/885/985, 1280R, 1580, 1780, etc.).
+  - KUHN (implementos): Accura (1200/1600/12000), Arbo 2000, Boxer 2000 H, Fighter 2500, Grain Max 19000, Stronger HD/3200 HD.
+  - Tatu Marchesan (implementos): Kapina (Classic 1200-1700, Citrus 2300R/2600R/3101, Pro 2000), Roat2 3400.
+  - Ventura (pulverizadores): LandForce 550/650, Promax 500, T-Archon 550, T-Boss 550, M250, M570.
+  Fluxo: escolher a marca → o modelo → sistema (Motor, Transmissão, Hidráulico, etc.) → figura (vista explodida) → tabela de peças (Ref, Código, Nome, Qtd). Tem hotspots (as "bolinhas": passa o mouse na peça e acende o número no desenho) e dá pra arrastar a imagem.
+  Busca por marca, modelo, nome ou código. O assistente (esse aqui) acha peça por descrição e mostra em quais máquinas ela é usada. Carrinho: junta peças → escolhe cliente → cria PPV ou Orçamento. Preço vem do Omie quando o código existir lá.
+
+• MANUAIS (anexados aos modelos no catálogo — abre o PDF pelo botão do manual):
+  - Mahindra Jivo 245 DI: manual de SERVIÇO. Plano de manutenção com intervalos 10/100/350/600/850 h. Capacidades: tanque 22 L; óleo do motor 4 L (API CH4 / 15W40 / M-Star, troca a cada serviço); transmissão 23 L (OIB+PS) ou 19 L (freio seco), EP-90/M-Star, troca a 850 h; eixo dianteiro 4WD 5 L (80W90 GL5, 850 h); arrefecimento 5-6 L (Redimix, 1000 h).
+  - Mahindra Linha 6000 (anexado a 6060 P2, 6065 P1/P2, 6075 P1/P2, 6075L): é um manual de OFICINA/REPARAÇÃO (procedimentos, torques, desmontagem) — não é um cronograma de revisões.
+  - Vários modelos KUHN também têm o manual anexado.
+
+• PLANO / KIT DE REVISÃO (Mahindra): a empresa usa o MESMO plano de revisão pra todos os tratores, com os marcos 50h / 300h / 600h / 900h / 1200h. Cada revisão tem um KIT de peças (óleo do motor, filtros de óleo/combustível/ar/sucção, óleo de transmissão 80W90, aditivo, correia, etc.), que evolui conforme as horas. Quadriciclos e pulverizadores usam um kit ÚNICO (sem horas).
+  Pra listar as peças de uma revisão use a ferramenta kit_revisao (modelo + horas); pro escopo/descrição do que a revisão inclui use buscar_plano_revisao.
 
 • PPV (Peças – Pedido de Venda): lançamentos de venda de peças. Tem Kanban por fases. Dá pra adicionar produtos (busca no Omie) e importar "Kit de Revisão" (escolhe modelo + horas).
   Quando a OS vinculada é interna, o PPV vira Remessa. Botão "Enviar para Omie" cria o pedido/remessa no Omie. Acessa o Catálogo pelo botão "Catálogos" dentro de Buscar Produto.
@@ -69,9 +81,11 @@ MÓDULOS PRINCIPAIS:
   - NOTIFICAÇÕES: são direcionadas por setor (Financeiro ou Pós-Vendas), só para quem tem acesso, e nunca notificam o próprio usuário que fez a ação.
 
 DICAS GERAIS:
-- Para achar uma peça: use a busca do catálogo (por nome ou código) ou me pergunte ("preciso da bomba d'água do 6065").
+- Para achar uma peça: use a busca do catálogo (por marca/modelo/nome/código) ou me pergunte ("preciso da bomba d'água do 6065").
 - Para vender peças a um cliente: monte o carrinho no catálogo e gere um PPV ou Orçamento.
-- "Código do catálogo" é o número da peça Mahindra; o preço só aparece se essa peça estiver cadastrada no Omie.`;
+- "Código do catálogo" é o número da peça de fábrica (Mahindra/Valtra/KUHN/Tatu/Ventura); o preço só aparece se esse código estiver cadastrado no Omie.
+- Peças de uma revisão: me pergunte "o que vai na revisão de 600 horas do 6075?" que eu listo o kit. O plano é o mesmo pra todos os tratores (marcos 50/300/600/900/1200h).
+- Manual de um modelo: vários modelos têm o PDF do manual anexado no catálogo (Jivo e a linha 6000 da Mahindra, e vários KUHN) — dá pra abrir direto na página do modelo.`;
 
 // ===================================================================
 // MODO CLIENTE — usado no atendimento via WhatsApp (clientes externos).

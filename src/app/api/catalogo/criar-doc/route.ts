@@ -28,7 +28,15 @@ export async function POST(req: NextRequest) {
     if (!incluir && !cliente.nome) return NextResponse.json({ error: "Selecione o cliente." }, { status: 400 });
     if (tipo === "ppv" && !incluir && !tecnico) return NextResponse.json({ error: "Informe o técnico do PPV." }, { status: 400 });
 
-    // Resolve preço de cada item pelo código (Produtos_Completos)
+    // Resolve preço de cada item pelo código (Produtos_Completos).
+    // O código do catálogo vem SEM o prefixo "RP-" (000016299P04); no Omie ele
+    // está COM (RP-000016299P04). Buscamos as duas formas e gravamos o código
+    // REAL do Omie (o que casou) — é ele que o PPV precisa pra faturar.
+    const variantes = (c: string) => {
+      const base = c.trim();
+      const semRp = base.replace(/^RP-/i, "");
+      return [...new Set([base, semRp, `RP-${semRp}`])];
+    };
     const resolvidos: { codigo: string; descricao: string; quantidade: number; preco: number }[] = [];
     let semPreco = 0;
     for (const it of itensIn) {
@@ -37,17 +45,19 @@ export async function POST(req: NextRequest) {
       const quantidade = Number(it.quantidade) || 1;
       let preco = 0;
       let descricao = it.descricao || codigo;
+      let codigoFinal = codigo;
       const { data } = await supabase
         .from("Produtos_Completos")
-        .select("Descricao_Produto, Preco_Venda")
-        .eq("Codigo_Produto", codigo)
+        .select("Codigo_Produto, Descricao_Produto, Preco_Venda")
+        .in("Codigo_Produto", variantes(codigo))
         .limit(1);
       if (data && data[0]) {
         preco = parseFloat(String(data[0].Preco_Venda || 0)) || 0;
         if (data[0].Descricao_Produto) descricao = data[0].Descricao_Produto;
+        if (data[0].Codigo_Produto) codigoFinal = String(data[0].Codigo_Produto).trim();
       }
       if (!preco) semPreco++;
-      resolvidos.push({ codigo, descricao, quantidade, preco });
+      resolvidos.push({ codigo: codigoFinal, descricao, quantidade, preco });
     }
     const total = resolvidos.reduce((s, i) => s + i.quantidade * i.preco, 0);
 
@@ -58,8 +68,9 @@ export async function POST(req: NextRequest) {
 
     if (tipo === "orcamento") {
       if (incluir) {
-        const { data: orc } = await supabase.from("orcamentos").select("id, numero, itens, total").eq("id", alvoId).maybeSingle();
+        const { data: orc } = await supabase.from("orcamentos").select("id, numero, itens, total, status").eq("id", alvoId).maybeSingle();
         if (!orc) return NextResponse.json({ error: "Orçamento não encontrado." }, { status: 404 });
+        if (/conclu|cancel/i.test(String(orc.status || ""))) return NextResponse.json({ error: "Este orçamento está concluído ou cancelado — não dá pra incluir peças." }, { status: 409 });
         const atuais = Array.isArray(orc.itens) ? orc.itens : [];
         const novos = [...atuais, ...resolvidos];
         const novoTotal = novos.reduce((s: number, i: any) => s + (Number(i.quantidade) || 1) * (Number(i.preco) || 0), 0);
@@ -93,6 +104,11 @@ export async function POST(req: NextRequest) {
 
     if (tipo === "ppv") {
       if (incluir) {
+        // Não deixa incluir peça num PPV já concluído ou cancelado.
+        const { data: alvo } = await supabase.from("pedidos").select("status").eq("id", alvoId).maybeSingle();
+        if (alvo && /conclu|cancel/i.test(String(alvo.status || ""))) {
+          return NextResponse.json({ error: "Este PPV está concluído ou cancelado — não dá pra incluir peças." }, { status: 409 });
+        }
         const r = await fetch(`${req.nextUrl.origin}/api/ppv/movimentacoes`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id: alvoId, itens: resolvidos, kit: "Catálogo", tecnico: tecnico || userName, userName }),

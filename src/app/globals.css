@@ -1738,7 +1738,7 @@ body {
 /* Form Novo Lançamento                    */
 /* ======================================== */
 .ppv-form-page {
-  max-width: 1200px;
+  max-width: 1760px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -1783,10 +1783,10 @@ body {
   min-height: 0;
 }
 
-/* ── Lado esquerdo (campos) ── */
+/* ── Lado esquerdo (campos) ── Opção 3: cresce com a tela (antes era fixo 460px) */
 .ppv-form-left {
-  width: 460px;
-  flex-shrink: 0;
+  flex: 1.6 1 0;
+  min-width: 0;
   overflow-y: auto;
   padding-right: 8px;
   display: flex;
@@ -3634,6 +3634,7 @@ body {
 .modal-container:has(.log-panel) .os-action-rail {
   border-radius: 0;
 }
+.os-printmenu-item:hover { background: var(--portal-bg-secondary); }
 .os-rail-btn {
   display: flex;
   align-items: center;

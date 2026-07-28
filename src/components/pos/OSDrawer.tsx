@@ -40,6 +40,7 @@ const S_POINTER_BOLD = { cursor: "pointer" as const, fontWeight: 600 };
 const S_POINTER_BOLD_MB0 = { cursor: "pointer" as const, fontWeight: 600, marginBottom: 0 };
 const S_MONO_MB0 = { fontFamily: "monospace", marginBottom: 0 };
 const S_RELATIVE = { position: "relative" as const };
+const printMenuItem: React.CSSProperties = { display: "flex", alignItems: "center", gap: 9, width: "100%", textAlign: "left", padding: "9px 10px", border: "none", background: "transparent", cursor: "pointer", fontSize: 13.5, fontWeight: 500, color: "var(--portal-text)", borderRadius: 7 };
 const S_EMPTY_RESULT = { padding: 16, textAlign: "center" as const, color: "var(--portal-text-secondary)", fontSize: 13 };
 const S_CLIENT_ITEM_WRAP = { flex: 1, minWidth: 0 };
 const S_CLIENT_ITEM_NAME = { fontSize: 13, fontWeight: 600 };
@@ -128,6 +129,36 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   const [showProjModal, setShowProjModal] = useState(false);
   const [showRevModal, setShowRevModal] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
+  const [printMenu, setPrintMenu] = useState(false);
+  // O rail tem overflow-y:auto e cortava o menu; abrimos ele em position:fixed.
+  const printBtnRef = useRef<HTMLButtonElement | null>(null);
+  const [printPos, setPrintPos] = useState<{ top: number; left: number } | null>(null);
+  const abrirPrintMenu = useCallback(() => {
+    const r = printBtnRef.current?.getBoundingClientRect();
+    if (r) setPrintPos({ top: r.top, left: r.left - 246 });
+    setPrintMenu((o) => !o);
+  }, []);
+
+  // Imprime a OS (com ou sem a lista de peças) ou o PDF do PPV vinculado.
+  const imprimirOS = useCallback((comPecas: boolean) => {
+    setPrintMenu(false);
+    const w = window.open("", "_blank");
+    if (!w) return;
+    fetch(`/api/pos/ordens/${osId}/print?pecas=${comPecas ? 1 : 0}`)
+      .then((r) => r.text()).then((html) => { w.document.write(html); w.document.close(); })
+      .catch(() => w.close());
+  }, [osId]);
+
+  const imprimirPPV = useCallback((ppvId: string) => {
+    setPrintMenu(false);
+    const w = window.open("", "_blank");
+    if (!w) return;
+    fetch(`/api/ppv/pdf?id=${encodeURIComponent(ppvId)}`)
+      .then((r) => r.json()).then((d) => {
+        if (d?.html) { w.document.write(d.html); w.document.close(); }
+        else { w.close(); alert("Não consegui gerar o PDF do PPV " + ppvId); }
+      }).catch(() => { w.close(); });
+  }, []);
   const [logRefreshKey, setLogRefreshKey] = useState(0);
   const [requisicoes, setRequisicoes] = useState<Array<{ id: string; atualizada: boolean; valor: number; material: string; solicitante: string }>>([]);
   const [desvinculandoReq, setDesvinculandoReq] = useState<string | null>(null);
@@ -583,6 +614,9 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
           ? "Ordem marcada como INTERNA — movida para a aba \"Internas\"."
           : "Ordem voltou a ser EXTERNA — movida para a aba \"Externas\".");
       }
+      // PPV automático pedido mas não criado → avisa (antes falhava calado e a OS
+      // ficava com um PPV inexistente vinculado).
+      if (result.avisoPPV) alert(result.avisoPPV);
       // Ao EDITAR, mantém o modal aberto (só atualiza os dados no fundo); ao CRIAR,
       // fecha porque a OS já foi gerada e o formulário de criação não deve continuar.
       if (mode === "create") onClose();
@@ -1941,20 +1975,37 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
 
             {mode === "edit" && (
               <>
-                <button
-                  className="os-rail-btn"
-                  onClick={() => {
-                    const w = window.open("", "_blank");
-                    if (w) {
-                      fetch(`/api/pos/ordens/${osId}/print`).then(r => r.text()).then(html => {
-                        w.document.write(html);
-                        w.document.close();
-                      });
-                    }
-                  }}
-                >
-                  <i className="fas fa-print" /> {servicoInterno ? "Comprovante" : "Imprimir"}
-                </button>
+                <div style={{ position: "relative" }}>
+                  <button ref={printBtnRef} className="os-rail-btn" onClick={abrirPrintMenu}>
+                    <i className="fas fa-print" /> {servicoInterno ? "Comprovante" : "Imprimir"}
+                    <i className="fas fa-chevron-down" style={{ fontSize: 9, marginLeft: 4 }} />
+                  </button>
+                  {printMenu && printPos && (
+                    <>
+                      <div onClick={() => setPrintMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 5000 }} />
+                      <div style={{ position: "fixed", top: printPos.top, left: printPos.left, zIndex: 5001, background: "#fff", border: "1px solid var(--portal-border)", borderRadius: 10, boxShadow: "0 12px 30px rgba(0,0,0,0.16)", padding: 6, minWidth: 232, display: "flex", flexDirection: "column", gap: 2 }}>
+                        <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--portal-text-muted)", textTransform: "uppercase", letterSpacing: .5, padding: "6px 10px 2px" }}>{servicoInterno ? "Comprovante da OS" : "PDF da OS"}</div>
+                        <button className="os-printmenu-item" onClick={() => imprimirOS(true)} style={printMenuItem}>
+                          <i className="fas fa-list" style={{ width: 16, color: "#0d9488" }} /> Com as peças
+                        </button>
+                        <button className="os-printmenu-item" onClick={() => imprimirOS(false)} style={printMenuItem}>
+                          <i className="fas fa-file-lines" style={{ width: 16, color: "#64748b" }} /> Sem as peças
+                        </button>
+                        {ppvIds.length > 0 && (
+                          <>
+                            <div style={{ height: 1, background: "var(--portal-border)", margin: "4px 6px" }} />
+                            <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--portal-text-muted)", textTransform: "uppercase", letterSpacing: .5, padding: "2px 10px" }}>PDF do PPV vinculado</div>
+                            {ppvIds.map((pid) => (
+                              <button key={pid} className="os-printmenu-item" onClick={() => imprimirPPV(pid)} style={printMenuItem}>
+                                <i className="fas fa-boxes" style={{ width: 16, color: "#dc2626" }} /> Imprimir PPV {pid}
+                              </button>
+                            ))}
+                          </>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
 
                 <button className="os-rail-btn" onClick={() => setShowLogs(!showLogs)}>
                   <i className="fas fa-clock-rotate-left" /> Histórico / Log

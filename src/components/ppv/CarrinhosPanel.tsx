@@ -101,7 +101,7 @@ export default function CarrinhosPanel({ userName, onEditarPecas, onClose }: { u
         if (incluirTipo === "orcamento") {
           const r = await fetch(`/api/orcamentos?q=${encodeURIComponent(docQ)}`);
           const d = r.ok ? await r.json() : [];
-          setDocRes((Array.isArray(d) ? d : []).filter((o: { status?: string }) => o.status !== "concluido").slice(0, 40).map((o: { id: string; numero?: string; cliente_nome?: string; total?: number }) => ({ id: String(o.id), label: o.numero || `#${o.id}`, sub: `${o.cliente_nome || "—"}` })));
+          setDocRes((Array.isArray(d) ? d : []).filter((o: { status?: string }) => !/conclu|cancel/i.test(String(o.status || ""))).slice(0, 40).map((o: { id: string; numero?: string; cliente_nome?: string; total?: number }) => ({ id: String(o.id), label: o.numero || `#${o.id}`, sub: `${o.cliente_nome || "—"}` })));
         } else {
           const r = await fetch(`/api/ppv/pedidos`);
           const d = r.ok ? await r.json() : [];
@@ -154,7 +154,21 @@ export default function CarrinhosPanel({ userName, onEditarPecas, onClose }: { u
     if (r.ok) {
       const d = await r.json(); setSel(d);
       setEditForm({ nome: d.carrinho.nome || "", cliente: d.carrinho.cliente || "", modelo: d.carrinho.modelo || "", servico: d.carrinho.servico || "" });
-      setCliSel(d.carrinho.cliente ? { nome: d.carrinho.cliente } : null); setCliQ(""); setMsg(""); setShareLink(""); setCopiado(false);
+      setCliQ(""); setMsg(""); setShareLink(""); setCopiado(false);
+      // O carrinho guarda só o NOME do cliente. Pra saber se dá PPV, resolvemos
+      // esse nome no cadastro do Omie e trazemos o documento (CNPJ/CPF).
+      const nomeCli = d.carrinho.cliente ? String(d.carrinho.cliente).trim() : "";
+      setCliSel(nomeCli ? { nome: nomeCli } : null);
+      if (nomeCli) {
+        try {
+          const rc = await fetch(`/api/ppv/clientes?termo=${encodeURIComponent(nomeCli)}`);
+          const cs: { nome: string; documento?: string; endereco?: string; cidade?: string }[] = rc.ok ? await rc.json() : [];
+          const norm = (s: string) => String(s || "").toUpperCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^A-Z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+          const alvo = norm(nomeCli);
+          const match = cs.find((c) => { const n = norm(c.nome); return n === alvo || n.startsWith(alvo) || alvo.startsWith(n); }) || (cs.length === 1 ? cs[0] : null);
+          if (match?.documento) setCliSel(match);
+        } catch { /* fica só com o nome */ }
+      }
     }
   }, []);
 
@@ -416,11 +430,14 @@ export default function CarrinhosPanel({ userName, onEditarPecas, onClose }: { u
                   <div style={{ fontSize: 14, color: "#94a3b8", textTransform: "uppercase", letterSpacing: .8, marginBottom: 8 }}>Qual documento</div>
                   <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
                     {([["orcamento", "fa-file-invoice", "Orçamento", "#ea580c"], ["ppv", "fa-box", "PPV", "#dc2626"]] as const).map(([tp, ic, lab, cor]) => {
-                      const bloqueado = tp === "ppv" && (!cliSel?.documento || temNaoCadastrado);
+                      // Ao INCLUIR num PPV que já existe, o cliente é o do próprio
+                      // PPV — não precisa do cliente do carrinho. Só ao criar NOVO.
+                      const exigeCliente = docMode === "novo" && !cliSel?.documento;
+                      const bloqueado = tp === "ppv" && (exigeCliente || temNaoCadastrado);
                       const on = incluirTipo === tp;
                       return (
                         <button key={tp} disabled={bloqueado} onClick={() => { setIncluirTipo(tp as "ppv" | "orcamento"); setMsg(""); }}
-                          title={bloqueado ? (!cliSel?.documento ? "O PPV exige um cliente cadastrado no Omie" : "Cadastre as peças antes de gerar PPV") : undefined}
+                          title={bloqueado ? (exigeCliente ? "O PPV exige um cliente cadastrado no Omie" : "Cadastre as peças antes de gerar PPV") : undefined}
                           style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 9, padding: "14px", borderRadius: 11,
                             cursor: bloqueado ? "not-allowed" : "pointer", opacity: bloqueado ? 0.45 : 1, fontSize: 17, fontWeight: 400,
                             border: `2px solid ${on ? cor : "#e2e8f0"}`, background: on ? cor : "#fff", color: on ? "#fff" : "#64748b" }}>
@@ -429,7 +446,7 @@ export default function CarrinhosPanel({ userName, onEditarPecas, onClose }: { u
                       );
                     })}
                   </div>
-                  {!cliSel?.documento && (
+                  {docMode === "novo" && !cliSel?.documento && (
                     <div style={{ fontSize: 14.5, color: "#b45309", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "10px 12px", marginBottom: 14 }}>
                       <i className="fas fa-circle-info" style={{ marginRight: 7 }} />
                       Cliente não cadastrado no Omie: dá pra gerar <b>orçamento</b>, mas não PPV.

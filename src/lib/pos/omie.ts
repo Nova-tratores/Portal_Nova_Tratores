@@ -7,6 +7,8 @@ import { normName } from "@/lib/tecnico-utils";
 const OMIE_APP_KEY = process.env.OMIE_APP_KEY || "";
 const OMIE_APP_SECRET = process.env.OMIE_APP_SECRET || "";
 const OMIE_BASE_URL = "https://app.omie.com.br/api/v1";
+// Base do portal, pra montar os links de acesso que vão nas observações do Omie.
+const PORTAL_BASE = (process.env.NEXT_PUBLIC_SITE_URL || "https://portalnovatratores-production.up.railway.app").replace(/\/$/, "");
 
 // --- Constantes Omie ---
 const OMIE_ETAPA_EXECUTADA = "30";
@@ -383,14 +385,15 @@ async function montarServicosComReqs(os: Record<string, unknown>, idOrdem: strin
         const valorCliente = r.valor_cobrado_cliente ? parseFloat(r.valor_cobrado_cliente) : 0;
         const valorDespeza = r.valor_despeza ? parseFloat(r.valor_despeza) : 0;
         const valor = valorCliente > 0 ? valorCliente : valorDespeza;
-        if (valor > 0) {
-          servicos.push({
-            nCodServico: nCodDiv,
-            nQtde: 1,
-            nValUnit: valor,
-            cDescServ: r.titulo || `Requisição #${r.id}`,
-          });
-        }
+        // A requisição entra no Omie SEMPRE, mesmo sem preço. O Omie não aceita
+        // valor 0 numa linha de serviço, então usamos 0,01 simbólico (igual ao
+        // serviço de revisão) quando ainda não há valor.
+        servicos.push({
+          nCodServico: nCodDiv,
+          nQtde: 1,
+          nValUnit: valor > 0 ? valor : 0.01,
+          cDescServ: r.titulo || `Requisição #${r.id}`,
+        });
       }
     }
   }
@@ -408,11 +411,26 @@ function montarDadosAdic(os: Record<string, unknown>): string {
   return partes.join(" | ").substring(0, 500);
 }
 
-function montarObsOS(os: Record<string, unknown>): string {
+// Observações da OS no Omie. Antes guardava o "Plano de Revisão"; agora, no
+// lugar dele, coloca os LINKS de acesso no portal: a própria OS, o(s) PPV(s)
+// e todas as requisições vinculadas.
+async function montarObsOS(os: Record<string, unknown>, idOrdem: string): Promise<string> {
   const partes: string[] = [];
   if (os.Serv_Realizado) partes.push(String(os.Serv_Realizado).trim());
   if (os.Causa) partes.push(`Causa: ${String(os.Causa).trim()}`);
-  if (os.Revisao) partes.push(`Revisão: ${String(os.Revisao).trim()}`);
+
+  const links: string[] = [`OS ${idOrdem}: ${PORTAL_BASE}/pos?id=${encodeURIComponent(idOrdem)}`];
+  const ppvIds = String(os.ID_PPV || "").split(",").map((s) => s.trim()).filter(Boolean);
+  for (const p of ppvIds) links.push(`PPV ${p}: ${PORTAL_BASE}/ppv?id=${encodeURIComponent(p)}`);
+  try {
+    const { data: reqs } = await supabase
+      .from("Requisicao").select("id")
+      .eq("ordem_servico", idOrdem)
+      .not("status", "in", '("lixeira","cancelada")');
+    for (const r of reqs || []) links.push(`Requisição ${r.id}: ${PORTAL_BASE}/requisicoes?req=${encodeURIComponent(String(r.id))}`);
+  } catch { /* segue sem os links de requisição */ }
+  partes.push("Acesso no portal:\n" + links.join("\n"));
+
   return partes.join("\n\n").substring(0, 2000);
 }
 
@@ -553,6 +571,7 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
     const servicosFinal = payloadGarantia
       ? servicosBase.map((s) => ({ ...s, cCodCategItem: payloadGarantia!.codCategGarantia, cNaoGerarFinanceiro: 'S' as const }))
       : servicosBase;
+    const cObsOS = await montarObsOS(os, idOrdem);
 
     const payload = {
       Cabecalho: {
@@ -575,7 +594,7 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
       // após a criação, via AlterarOS — o Omie exige o nValor da distribuição,
       // que só é conhecido depois que a OS existe (ver mais abaixo).
       Observacoes: {
-        cObsOS: montarObsOS(os) || undefined,
+        cObsOS: cObsOS || undefined,
       },
       // ⚠️ Sem nó "Produtos" — o osCadastro do Omie não aceita a tag; as
       // peças do PPV vão como Pedido de Venda logo abaixo.

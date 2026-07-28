@@ -368,9 +368,9 @@ export async function POST(req: NextRequest) {
   // Auto-gerar PPV se solicitado (revisão)
   let ppvFinal = dados.ppv || "";
   let ppvGerado = "";
+  let avisoPPV = "";       // volta pro front se o PPV não pôde ser criado
   if (dados.gerarPPV) {
-    ppvGerado = await gerarPPVId();
-    ppvFinal = ppvFinal ? `${ppvFinal},${ppvGerado}` : ppvGerado;
+    const novoPPV = await gerarPPVId();
 
     // Criar registro na tabela pedidos para o PPV existir de fato
     const dataHoje = new Date();
@@ -381,8 +381,8 @@ export async function POST(req: NextRequest) {
     const minF = String(dataHoje.getMinutes()).padStart(2, "0");
     const dataFormatada = `${diaF}/${mesF}/${anoF} ${horaF}:${minF}`;
 
-    await supabase.from(TBL_PEDIDOS).insert({
-      id_pedido: ppvGerado,
+    const { error: ppvErr } = await supabase.from(TBL_PEDIDOS).insert({
+      id_pedido: novoPPV,
       Tipo_Pedido: "Pedido",
       cliente: dados.nomeCliente || "",
       tecnico: dados.tecnicoResponsavel || "",
@@ -394,6 +394,17 @@ export async function POST(req: NextRequest) {
       Id_Os: newId,
       data: dataFormatada,
     });
+
+    // ANTES o erro era engolido: se o PPV falhava, a OS ficava com ID_PPV
+    // apontando pra um PPV inexistente ("não cria nada"). Agora só vinculamos
+    // quando ele foi criado de verdade; senão, avisa e segue com a OS.
+    if (ppvErr) {
+      console.error("Erro ao gerar PPV:", ppvErr);
+      avisoPPV = `A OS foi criada, mas não consegui gerar o PPV automático: ${ppvErr.message}`;
+    } else {
+      ppvGerado = novoPPV;
+      ppvFinal = ppvFinal ? `${ppvFinal},${ppvGerado}` : ppvGerado;
+    }
   }
 
   const c = await calcularTotais({ qtdHoras: parseFloat(dados.qtdHoras || 0), qtdKm: parseFloat(dados.qtdKm || 0), ppv: ppvFinal, descontoValor: parseFloat(dados.descontoValor || 0), descontoHora: parseFloat(dados.descontoHora || 0), descontoKm: parseFloat(dados.descontoKm || 0) });
@@ -521,5 +532,5 @@ export async function POST(req: NextRequest) {
   }
 
   const ordens = await getOrdensParaKanban();
-  return NextResponse.json({ success: true, ordensAtualizadas: ordens, novaOsId: newId, ppvGerado });
+  return NextResponse.json({ success: true, ordensAtualizadas: ordens, novaOsId: newId, ppvGerado, avisoPPV });
 }

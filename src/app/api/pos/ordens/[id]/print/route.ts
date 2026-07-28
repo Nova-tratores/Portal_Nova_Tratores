@@ -7,6 +7,8 @@ import { formatarDataBR, safeGet } from "@/lib/pos/utils";
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: idOs } = await params;
   const autoPrint = req.nextUrl.searchParams.get("auto") === "1";
+  // pecas=0 → NÃO lista as peças no PDF da OS (o usuário escolhe na hora de imprimir).
+  const comPecas = req.nextUrl.searchParams.get("pecas") !== "0";
 
   const { data: res } = await supabase.from(TBL_OS).select("*").eq("Id_Ordem", idOs).limit(1);
   if (!res || !res.length) {
@@ -84,9 +86,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     });
 
     const prods = Object.entries(resumo).filter(([, p]) => p.qtde !== 0);
-    totalPecas = prods.reduce((s, [, p]) => s + p.total, 0);
+    // Sem peças: some da lista E do total (fica um PDF só do serviço).
+    totalPecas = comPecas ? prods.reduce((s, [, p]) => s + p.total, 0) : 0;
 
-    if (prods.length > 0) {
+    if (prods.length > 0 && comPecas) {
       produtosHtml = `
         <div class="section">
           <div class="section-title">Peças / Materiais</div>
