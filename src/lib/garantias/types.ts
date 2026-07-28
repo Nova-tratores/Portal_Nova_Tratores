@@ -54,7 +54,9 @@ export type AnexoCategoria =
   | 'pendencia_resposta'
   | 'retorno_fabrica'
   | 'envio_fabrica'
-  | 'foto_garantista';
+  | 'foto_garantista'
+  | 'nf_venda'        // NF de venda do equipamento (fluxo e-mail)
+  | 'relatorio_at';   // Relatório de Assistência Técnica (fluxo e-mail)
 
 // --- Checklist configurável por montadora -----------------------------------
 export type ChecklistFieldTipo =
@@ -75,7 +77,9 @@ export interface ChecklistField {
   ajuda?: string;
 }
 
-export type TipoTemplate = 'sem_template' | 'mahindra';
+// 'mahindra' = SG xlsx; 'email' = solicitação por e-mail (sem planilha,
+// corpo modelado pelo Tratorilson + RAT + NF de venda + fotos)
+export type TipoTemplate = 'sem_template' | 'mahindra' | 'email';
 
 // Fluxo da garantia por montadora: 'padrao' = peças + serviço numa etapa;
 // 'duas_etapas' = peças primeiro, ressarcimento de horas/km depois do serviço.
@@ -155,6 +159,35 @@ export interface GarantiaEvento {
   created_at: string;
 }
 
+// Conversa com a fábrica (e-mails enviados/recebidos por garantia)
+export interface GarantiaEmailAnexo {
+  nome: string;
+  url: string;
+  content_type: string | null;
+  size?: number;
+}
+
+export interface GarantiaEmail {
+  id: string;
+  garantia_id: string | null; // null = recebido não casado (triagem)
+  direcao: 'enviado' | 'recebido';
+  message_id: string | null;
+  in_reply_to: string | null;
+  references_ids: string[] | null;
+  de: string | null;
+  para: string[] | null;
+  assunto: string | null;
+  corpo_texto: string | null;
+  corpo_html: string | null;
+  data: string | null;
+  anexos: GarantiaEmailAnexo[];
+  uid: number | null;
+  pasta: string | null;
+  lida: boolean;
+  casado_por: string | null;
+  created_at: string;
+}
+
 export interface Garantia {
   id: string;
   numero: string;
@@ -209,6 +242,7 @@ export interface GarantiaDetalhe extends Garantia {
   pendencias: GarantiaPendencia[];
   anexos: GarantiaAnexo[];
   eventos: GarantiaEvento[];
+  emails_nao_lidos?: number; // respostas da fábrica não lidas (conversa)
 }
 
 // Item da lista/Kanban (com embeds reduzidos)

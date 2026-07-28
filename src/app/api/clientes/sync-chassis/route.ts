@@ -7,8 +7,10 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 );
 
-const GMAIL_USER = process.env.GMAIL_USER || "posvendas.novatratores@gmail.com";
-const GMAIL_PASS = process.env.GMAIL_APP_PASSWORD || "vuak yzex ycpm mydd";
+// Credenciais SÓ por env var — o fallback hardcoded que existia aqui vazou a
+// app password no repositório (rotacionar no Google e atualizar as envs!).
+const GMAIL_USER = process.env.GMAIL_USER || "";
+const GMAIL_PASS = process.env.GMAIL_APP_PASSWORD || "";
 const BUCKET = "clientes-docs";
 
 // POST /api/clientes/sync-chassis

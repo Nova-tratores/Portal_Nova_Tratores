@@ -1,8 +1,9 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, Trash2, Factory, Loader2, ListChecks } from 'lucide-react';
+import { Plus, Pencil, Trash2, Factory, Loader2, ListChecks, HelpCircle } from 'lucide-react';
 import type { Montadora } from '@/lib/garantias/types';
 import MontadoraEditor from './MontadoraEditor';
+import GuiaMontadoraModal from './GuiaMontadoraModal';
 
 interface Props {
   criadoPor: string;
@@ -13,6 +14,8 @@ export default function MontadorasConfig({ criadoPor }: Props) {
   const [loading, setLoading] = useState(true);
   // undefined = fechado | null = nova | Montadora = editar
   const [editor, setEditor] = useState<Montadora | null | undefined>(undefined);
+  // Guia "como solicitar garantia" (botão ?)
+  const [guiaDe, setGuiaDe] = useState<Montadora | null>(null);
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -98,13 +101,28 @@ export default function MontadorasConfig({ criadoPor }: Props) {
                 gap: 8,
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
                 <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--portal-text)' }}>{m.nome}</span>
-                {!m.ativo && (
-                  <span style={{ fontSize: 10, fontWeight: 700, color: '#dc2626', background: '#dc262618', padding: '2px 7px', borderRadius: 6 }}>
-                    INATIVA
-                  </span>
-                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {!m.ativo && (
+                    <span style={{ fontSize: 10, fontWeight: 700, color: '#dc2626', background: '#dc262618', padding: '2px 7px', borderRadius: 6 }}>
+                      INATIVA
+                    </span>
+                  )}
+                  <button
+                    onClick={() => setGuiaDe(m)}
+                    title="Como solicitar garantia nesta montadora"
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      width: 26, height: 26, borderRadius: '50%',
+                      border: '1px solid var(--portal-border)',
+                      background: 'var(--portal-bg-input)',
+                      color: '#dc2626', cursor: 'pointer', flexShrink: 0,
+                    }}
+                  >
+                    <HelpCircle size={15} />
+                  </button>
+                </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--portal-text-muted)' }}>
                 <ListChecks size={13} /> {m.checklist_def?.length || 0} campo(s) no checklist
@@ -135,6 +153,10 @@ export default function MontadorasConfig({ criadoPor }: Props) {
             carregar();
           }}
         />
+      )}
+
+      {guiaDe && (
+        <GuiaMontadoraModal montadoraNome={guiaDe.nome} onClose={() => setGuiaDe(null)} />
       )}
     </div>
   );

@@ -1,0 +1,20 @@
+# Garantias — recebimento das respostas da fábrica: lê a INBOX do Gmail via
+# IMAP e casa cada resposta com a garantia (In-Reply-To / [GAR-XXXX] no
+# assunto / numero externo / remetente+chassi). Roda 2x por dia.
+name: Garantias - Respostas da fabrica (e-mail)
+
+on:
+  schedule:
+    - cron: '30 10 * * *'   # 07:30 BRT (-03)
+    - cron: '0 15 * * *'    # 12:00 BRT (-03)
+  workflow_dispatch: {}
+
+jobs:
+  ler-emails:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Chamar rota do cron de e-mails
+        run: |
+          curl -fsS --max-time 300 -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/garantias/emails/cron"

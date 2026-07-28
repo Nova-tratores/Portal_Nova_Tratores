@@ -26,7 +26,9 @@ export async function POST(req: NextRequest) {
   }
 
   const checklist: ChecklistField[] = Array.isArray(body.checklist_def) ? body.checklist_def : [];
-  const tipoTemplate = body.tipo_template === 'mahindra' ? 'mahindra' : 'sem_template';
+  const tipoTemplate = ['mahindra', 'email'].includes(body.tipo_template)
+    ? body.tipo_template
+    : 'sem_template';
 
   const { data, error } = await supabase
     .from(TBL_MONTADORAS)

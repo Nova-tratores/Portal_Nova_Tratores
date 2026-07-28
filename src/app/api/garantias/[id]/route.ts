@@ -6,6 +6,7 @@ import {
   TBL_GAR_PEND,
   TBL_GAR_ANEXOS,
   TBL_GAR_EVENTOS,
+  TBL_GAR_EMAILS,
 } from '@/lib/garantias/constants';
 import { registrarEvento } from '@/lib/garantias/server';
 
@@ -25,11 +26,18 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   }
   if (!garantia) return NextResponse.json({ error: 'Garantia não encontrada.' }, { status: 404 });
 
-  const [pecas, pendencias, anexos, eventos] = await Promise.all([
+  const [pecas, pendencias, anexos, eventos, emailsNaoLidos] = await Promise.all([
     supabase.from(TBL_GAR_PECAS).select('*').eq('garantia_id', id).order('created_at'),
     supabase.from(TBL_GAR_PEND).select('*').eq('garantia_id', id).order('created_at'),
     supabase.from(TBL_GAR_ANEXOS).select('*').eq('garantia_id', id).order('created_at'),
     supabase.from(TBL_GAR_EVENTOS).select('*').eq('garantia_id', id).order('created_at', { ascending: false }),
+    // Respostas da fábrica não lidas (best-effort: tabela pode não existir ainda)
+    supabase
+      .from(TBL_GAR_EMAILS)
+      .select('id', { count: 'exact', head: true })
+      .eq('garantia_id', id)
+      .eq('direcao', 'recebido')
+      .eq('lida', false),
   ]);
 
   return NextResponse.json({
@@ -39,6 +47,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       pendencias: pendencias.data || [],
       anexos: anexos.data || [],
       eventos: eventos.data || [],
+      emails_nao_lidos: emailsNaoLidos.count || 0,
     },
   });
 }

@@ -1,30 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import nodemailer from 'nodemailer';
 import { supabase } from '@/lib/pos/supabase';
 import { TBL_GARANTIAS, TBL_GAR_PEND, VALOR_HORA, VALOR_KM } from '@/lib/garantias/constants';
 import { registrarEvento, notificarGarantistas } from '@/lib/garantias/server';
-
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD },
-  pool: true,
-  maxConnections: 3,
-});
-
-function sanitizeHtml(s: string): string {
-  return String(s ?? '').replace(/[<>&"']/g, (c) =>
-    ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c] || c),
-  );
-}
-
-function saudacao(): string {
-  const hora = new Date().toLocaleString('pt-BR', {
-    timeZone: 'America/Sao_Paulo',
-    hour: 'numeric',
-    hour12: false,
-  });
-  return Number(hora) < 12 ? 'Bom dia' : 'Boa tarde';
-}
+import {
+  transporter,
+  sanitizeHtml,
+  saudacao,
+  tagAssuntoGarantia,
+  registrarEmailEnviado,
+} from '@/lib/garantias/email';
 
 const fmtBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -142,12 +126,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       ${obs ? `<p style="color:#555;">Obs.: ${sanitizeHtml(obs)}</p>` : ''}
       ${m?.email_assinatura || '<p>Atenciosamente,<br/>Pós-Vendas Nova Tratores</p>'}
     `;
+    // [GAR-XXXX] no assunto: âncora pro cron de recebimento casar a resposta
+    const assunto = tagAssuntoGarantia(
+      `Ressarcimento Garantia ${numeroRef} - ${g.cliente || ''} - OS ${g.id_ordem}`,
+      g.numero,
+    );
     try {
-      await transporter.sendMail({
+      const info = await transporter.sendMail({
         from: `"Pós-Vendas Nova Tratores" <${process.env.GMAIL_USER}>`,
         to: destinatarios.join(', '),
-        subject: `Ressarcimento Garantia ${numeroRef} - ${g.cliente || ''} - OS ${g.id_ordem}`,
+        subject: assunto,
         html,
+      });
+      await registrarEmailEnviado(id, {
+        messageId: info.messageId,
+        para: destinatarios,
+        assunto,
+        corpoHtml: html,
       });
     } catch (err) {
       console.error('Erro ao enviar e-mail de ressarcimento:', err);

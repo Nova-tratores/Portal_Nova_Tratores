@@ -7,6 +7,7 @@ export const TBL_GAR_PECAS   = 'garantia_pecas';
 export const TBL_GAR_PEND    = 'garantia_pendencias';
 export const TBL_GAR_ANEXOS  = 'garantia_anexos';
 export const TBL_GAR_EVENTOS = 'garantia_eventos';
+export const TBL_GAR_EMAILS  = 'garantia_emails';
 export const TBL_MONTADORAS  = 'garantia_montadoras';
 export const BUCKET_GARANTIAS = 'garantias';
 

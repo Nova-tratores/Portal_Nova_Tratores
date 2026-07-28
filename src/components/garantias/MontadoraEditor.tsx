@@ -33,7 +33,7 @@ export default function MontadoraEditor({ montadora, criadoPor, onClose, onSaved
   const [contato, setContato] = useState(montadora?.contato_fabrica || '');
   const [ativo, setAtivo] = useState(montadora?.ativo ?? true);
   const [campos, setCampos] = useState<ChecklistField[]>(montadora?.checklist_def || []);
-  const [tipoTemplate, setTipoTemplate] = useState<'sem_template' | 'mahindra'>(
+  const [tipoTemplate, setTipoTemplate] = useState<'sem_template' | 'mahindra' | 'email'>(
     montadora?.tipo_template || 'sem_template',
   );
   const [emails, setEmails] = useState((montadora?.email_destinatarios || []).join('\n'));
@@ -263,11 +263,12 @@ export default function MontadoraEditor({ montadora, criadoPor, onClose, onSaved
                 </label>
                 <select
                   value={tipoTemplate}
-                  onChange={(e) => setTipoTemplate(e.target.value as 'sem_template' | 'mahindra')}
+                  onChange={(e) => setTipoTemplate(e.target.value as 'sem_template' | 'mahindra' | 'email')}
                   style={inputStyle}
                 >
                   <option value="sem_template">Sem template (envio manual)</option>
                   <option value="mahindra">Mahindra (SG xlsx)</option>
+                  <option value="email">E-mail (sem planilha) — relato modelado + RAT + NF + fotos</option>
                 </select>
               </div>
 

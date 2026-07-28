@@ -3,8 +3,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   X, Loader2, ExternalLink, Package, ShieldCheck, Factory, Send,
   AlertTriangle, CheckCircle2, XCircle, Save, History, FileWarning, MapPin, RefreshCw, ImagePlus,
-  Mail, ChevronDown, ChevronUp, FileText, Download, Pencil,
+  Mail, ChevronDown, ChevronUp, FileText, Download, Pencil, HelpCircle,
 } from 'lucide-react';
+import GuiaMontadoraModal from './GuiaMontadoraModal';
 import type { GarantiaDetalhe, Montadora, ChecklistField } from '@/lib/garantias/types';
 import { STATUS_LABEL, STATUS_COR } from '@/lib/garantias/constants';
 import { camposObrigatoriosFaltando } from '@/lib/garantias/checklist';
@@ -17,6 +18,8 @@ import GarantiaAnexos from './GarantiaAnexos';
 import ValoresComparativo from './ValoresComparativo';
 import GarantiaTimeline from './GarantiaTimeline';
 import CobrancaCliente from './CobrancaCliente';
+import SolicitacaoEmailSecao from './SolicitacaoEmailSecao';
+import ConversaFabrica from './ConversaFabrica';
 import { MSG_SEM_PERMISSAO } from '@/lib/permissoes/ui';
 
 interface Props {
@@ -117,6 +120,9 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
   // Recusa interna (em_analise)
   const [recusaTexto, setRecusaTexto] = useState('');
   const [mostrarRecusa, setMostrarRecusa] = useState(false);
+
+  // Guia "como solicitar garantia" da montadora
+  const [guiaAberto, setGuiaAberto] = useState(false);
 
   // Emails do chassi
   const [emailsAberto, setEmailsAberto] = useState(false);
@@ -621,6 +627,11 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                 )}
               </Secao>
 
+              {/* Conversa com a fábrica (e-mails da garantia — enviados + respostas) */}
+              {g.status !== 'aberta' && (
+                <ConversaFabrica key={g.id} garantiaId={g.id} naoLidos={g.emails_nao_lidos || 0} />
+              )}
+
               {/* Emails do chassi */}
               {g.chassis && (
                 <div style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 12, overflow: 'hidden' }}>
@@ -868,6 +879,19 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                     onSelect={selecionarMontadora}
                     disabled={!!busy}
                   />
+                  {g.montadora && (
+                    <button
+                      type="button"
+                      onClick={() => setGuiaAberto(true)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 4, alignSelf: 'flex-start',
+                        background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                        fontSize: 12, fontWeight: 600, color: '#0ea5e9',
+                      }}
+                    >
+                      <HelpCircle size={13} /> Como funciona a garantia da {g.montadora.nome}?
+                    </button>
+                  )}
                   {finalizada && (
                     <span style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>
                       Garantia já finalizada — você pode ajustar só a montadora; checklist e valores ficam intactos.
@@ -1006,8 +1030,25 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                 </>
               )}
 
+              {/* Solicitação por E-MAIL (montadoras tipo 'email', ex. Ipacol) */}
+              {g.status !== 'aberta' && g.montadora?.tipo_template === 'email' && (
+                <SolicitacaoEmailSecao
+                  key={g.id}
+                  g={g}
+                  userName={userName}
+                  naFabrica={naFabrica}
+                  finalizada={finalizada}
+                  podeAnalisar={podeAnalisar}
+                  podeEnviarFabrica={podeEnviarFabrica}
+                  onChange={() => {
+                    carregar();
+                    onSaved();
+                  }}
+                />
+              )}
+
               {/* Solicitação de Garantia (SG) — disponível em qualquer fase após assumir */}
-              {g.status !== 'aberta' && g.montadora && (
+              {g.status !== 'aberta' && g.montadora && g.montadora.tipo_template !== 'email' && (
                 <Secao titulo="Solicitação de Garantia (SG)" icone={<Send size={14} />}>
                   {(() => {
                     const eMahindra = g.montadora?.tipo_template === 'mahindra';
@@ -1017,17 +1058,17 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                     const maisRecente = sgAnexos[0];
                     const temEmails = (g.montadora?.email_destinatarios?.length || 0) > 0;
 
-                    // Caso: montadora ainda sem template configurado
+                    // Caso: montadora ainda sem formato de envio configurado
                     if (!eMahindra) {
                       return (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                           <span style={{ fontSize: 12, color: '#dc2626' }}>
-                            A montadora <strong>{g.montadora.nome}</strong> ainda não tem template SG configurado.
+                            A montadora <strong>{g.montadora.nome}</strong> ainda não tem formato de envio configurado.
                           </span>
                           <span style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>
-                            Vá em <strong>/garantias → aba Montadoras → editar {g.montadora.nome}</strong> e defina
-                            o campo <strong>&quot;Formato do arquivo&quot; = Mahindra (SG xlsx)</strong>. Depois cadastre os
-                            e-mails da fábrica.
+                            Vá em <strong>/garantias → aba Montadoras → editar {g.montadora.nome}</strong> e defina o
+                            campo <strong>&quot;Formato do arquivo&quot;</strong>: <strong>Mahindra (SG xlsx)</strong> ou{' '}
+                            <strong>E-mail (sem planilha)</strong>. Depois cadastre os e-mails da fábrica.
                           </span>
                         </div>
                       );
@@ -1598,6 +1639,9 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                       );
                     })}
                 </Secao>
+              )}
+              {guiaAberto && g.montadora && (
+                <GuiaMontadoraModal montadoraNome={g.montadora.nome} onClose={() => setGuiaAberto(false)} />
               )}
             </div>
           </>

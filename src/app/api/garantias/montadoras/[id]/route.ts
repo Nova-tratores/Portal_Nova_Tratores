@@ -20,7 +20,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     update.email_destinatarios = Array.isArray(body.email_destinatarios) ? body.email_destinatarios : [];
   }
   if (body.tipo_template !== undefined) {
-    update.tipo_template = body.tipo_template === 'mahindra' ? 'mahindra' : 'sem_template';
+    update.tipo_template = ['mahindra', 'email'].includes(body.tipo_template)
+      ? body.tipo_template
+      : 'sem_template';
   }
   if (body.auto_enviar_email !== undefined) update.auto_enviar_email = !!body.auto_enviar_email;
   if (body.email_assunto !== undefined) update.email_assunto = body.email_assunto || null;

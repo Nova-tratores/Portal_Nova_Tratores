@@ -16,6 +16,7 @@ import type {
   TipoGarantiaSG,
 } from '@/lib/garantias/sg-mahindra';
 import { registrarEvento } from '@/lib/garantias/server';
+import { tagAssuntoGarantia, registrarEmailEnviado } from '@/lib/garantias/email';
 import { formatarTextosSG } from '@/lib/garantias/sg-textos';
 import type { GarantiaDetalhe } from '@/lib/garantias/types';
 
@@ -495,12 +496,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     chassis: sanitizeHtml(chassisFinal),
     modelo: sanitizeHtml(modeloFinal),
   };
-  const assunto = (garantia.montadora.email_assunto
-    ? aplicarTemplate(garantia.montadora.email_assunto, varsSan)
-    : `SG ${numeroSG} - ${varsSan.cliente} - ${varsSan.modelo}`
-  )
-    .replace(/[<>"']/g, '')
-    .trim();
+  // O número interno [GAR-XXXX] vai SEMPRE no assunto — é a âncora que o cron
+  // de recebimento usa pra casar a resposta da fábrica com a garantia.
+  const assunto = tagAssuntoGarantia(
+    (garantia.montadora.email_assunto
+      ? aplicarTemplate(garantia.montadora.email_assunto, varsSan)
+      : `SG ${numeroSG} - ${varsSan.cliente} - ${varsSan.modelo}`
+    )
+      .replace(/[<>"']/g, '')
+      .trim(),
+    garantia.numero,
+  );
 
   const corpoBase = garantia.montadora.email_corpo
     ? aplicarTemplate(garantia.montadora.email_corpo, varsSan)
@@ -598,6 +604,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         ator,
         detalhe: `SG enviada para ${destinatarios.join(', ')}${anexosExtrasBaixados.length ? ` (+${anexosExtrasBaixados.length} anexo(s) extra(s))` : ''}${videosLinks.length ? ` (${videosLinks.length} vídeo(s) por link)` : ''}${up ? '' : ' — arquivo não foi armazenado'}`,
       });
+      await registrarEmailEnviado(id, {
+        messageId: info.messageId,
+        para: destinatarios,
+        assunto,
+        corpoHtml: html,
+        anexos: [
+          { nome: nomeArquivo, url: up, content_type: xlsxMime },
+          ...anexosExtrasBaixados.map((a) => ({ nome: a.filename, content_type: a.contentType || null })),
+        ],
+      });
 
       return NextResponse.json({
         ok: true,
@@ -615,6 +631,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       tipo: 'sg_enviado',
       ator,
       detalhe: `SG revisada enviada para ${destinatarios.join(', ')}${anexosExtrasBaixados.length ? ` (+${anexosExtrasBaixados.length} anexo(s) extra(s))` : ''}`,
+    });
+    await registrarEmailEnviado(id, {
+      messageId: info.messageId,
+      para: destinatarios,
+      assunto,
+      corpoHtml: html,
+      anexos: [
+        { nome: nomeArquivo, url: uploadResult, content_type: xlsxMime },
+        ...anexosExtrasBaixados.map((a) => ({ nome: a.filename, content_type: a.contentType || null })),
+      ],
     });
 
     return NextResponse.json({
