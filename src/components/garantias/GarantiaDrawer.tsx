@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   X, Loader2, ExternalLink, Package, ShieldCheck, Factory, Send,
   AlertTriangle, CheckCircle2, XCircle, Save, History, FileWarning, MapPin, RefreshCw, ImagePlus,
-  Mail, ChevronDown, ChevronUp, FileText, Download,
+  Mail, ChevronDown, ChevronUp, FileText, Download, Pencil,
 } from 'lucide-react';
 import type { GarantiaDetalhe, Montadora, ChecklistField } from '@/lib/garantias/types';
 import { STATUS_LABEL, STATUS_COR } from '@/lib/garantias/constants';
@@ -88,6 +88,9 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
   const [erro, setErro] = useState('');
   const [aviso, setAviso] = useState('');
   const [verTimeline, setVerTimeline] = useState(false);
+  // Correção manual de chassi/modelo (garantia criada antes do trator existir
+  // no controle de revisões)
+  const [editTrator, setEditTrator] = useState<{ chassis: string; modelo: string } | null>(null);
   // Garante que a auto-sincronização com a OS roda só uma vez por garantia
   const autoSyncRef = useRef<string | null>(null);
 
@@ -514,6 +517,81 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                   <Campo label="Técnico" valor={g.tecnico_nome} />
                   <Campo label="Garantista" valor={g.garantista_nome} />
                 </div>
+
+                {/* Correção do chassi/modelo — garantia criada antes do trator
+                    entrar no controle de revisões fica sem chassi (e a SG da
+                    fábrica recusaria). Puxa do cadastro ou edita na mão. */}
+                {!finalizada && !editTrator && (
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <button
+                      onClick={async () => {
+                        const ok = await chamar('atualizar_trator', `/api/garantias/${garantiaId}/atualizar-trator`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ ator: userName }),
+                        });
+                        if (ok) setAviso('Chassi/modelo atualizados do controle de revisões.');
+                      }}
+                      disabled={!!busy}
+                      title="Busca o trator no controle de revisões (pelo chassi do Projeto, pelo relatório do técnico ou pelo cliente) e corrige chassi + modelo."
+                      style={btn('#0d9488', !!busy)}
+                    >
+                      {busy === 'atualizar_trator' ? <Loader2 size={15} className="spin" /> : <RefreshCw size={15} />}
+                      Puxar chassi/modelo do controle de revisões
+                    </button>
+                    <button
+                      onClick={() => setEditTrator({ chassis: g.chassis || '', modelo: g.modelo || '' })}
+                      disabled={!!busy}
+                      style={btn('#64748b', !!busy)}
+                    >
+                      <Pencil size={14} /> Corrigir manualmente
+                    </button>
+                  </div>
+                )}
+                {!finalizada && editTrator && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--portal-bg-secondary, #f8fafc)', border: '1px solid var(--portal-border, #e2e8f0)', borderRadius: 8, padding: 10 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--portal-text-secondary, #64748b)' }}>
+                        Chassi
+                        <input
+                          value={editTrator.chassis}
+                          onChange={(e) => setEditTrator({ ...editTrator, chassis: e.target.value })}
+                          placeholder="Ex: MBN1KGCBFSGD02113"
+                          style={{ width: '100%', marginTop: 4, padding: '7px 9px', borderRadius: 6, border: '1px solid var(--portal-border, #cbd5e1)', fontSize: 13, boxSizing: 'border-box' }}
+                        />
+                      </label>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--portal-text-secondary, #64748b)' }}>
+                        Modelo
+                        <input
+                          value={editTrator.modelo}
+                          onChange={(e) => setEditTrator({ ...editTrator, modelo: e.target.value })}
+                          placeholder="Ex: JIVO 245 DI 4WD"
+                          style={{ width: '100%', marginTop: 4, padding: '7px 9px', borderRadius: 6, border: '1px solid var(--portal-border, #cbd5e1)', fontSize: 13, boxSizing: 'border-box' }}
+                        />
+                      </label>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        onClick={async () => {
+                          const ok = await chamar('atualizar_trator', `/api/garantias/${garantiaId}/atualizar-trator`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ ator: userName, chassis: editTrator.chassis.trim(), modelo: editTrator.modelo.trim() }),
+                          });
+                          if (ok) { setEditTrator(null); setAviso('Chassi/modelo corrigidos.'); }
+                        }}
+                        disabled={!!busy || (!editTrator.chassis.trim() && !editTrator.modelo.trim())}
+                        style={btn('#0f766e', !!busy)}
+                      >
+                        {busy === 'atualizar_trator' ? <Loader2 size={15} className="spin" /> : <Save size={15} />}
+                        Salvar chassi/modelo
+                      </button>
+                      <button onClick={() => setEditTrator(null)} disabled={!!busy} style={btn('#94a3b8', !!busy)}>
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <a
                   href={`/pos?id=${g.id_ordem}`}
                   target="_blank"
