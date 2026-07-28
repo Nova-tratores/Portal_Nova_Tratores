@@ -278,6 +278,10 @@ function renderizarDetalhes(op: Oportunidade): string {
         const limite = typeof d.data_limite === "string" ? new Date(d.data_limite).toLocaleDateString("pt-BR") : "";
         const fim = typeof d.fim_garantia === "string" ? new Date(d.fim_garantia).toLocaleDateString("pt-BR") : "";
         const meses = d.meses_sem_revisao as number | undefined;
+        // Régua nova dos cheques Mahindra: diz QUAL cheque faltou
+        if (typeof d.cheque_alvo === "string") {
+          return `${tipo} PERDEU a garantia: o cheque das ${d.cheque_alvo} não foi feito até ${limite} (última revisão/serviço em ${ultima}). A garantia iria até ${fim}. Oferecer revisão paga / reativação.`;
+        }
         return `${tipo} PERDEU a garantia por falta de revisão anual — última revisão em ${ultima}, prazo venceu em ${limite} (${meses} meses sem revisar). A garantia iria até ${fim}. Oferecer revisão paga / reativação.`;
       }
       const venda = typeof d.data_venda === "string" ? new Date(d.data_venda).toLocaleDateString("pt-BR") : "";
@@ -296,6 +300,10 @@ function renderizarDetalhes(op: Oportunidade): string {
       const fim = typeof d.fim_garantia === "string" ? new Date(d.fim_garantia).toLocaleDateString("pt-BR") : "";
       const diasRestantes = limiteDt ? Math.max(0, Math.ceil((limiteDt.getTime() - Date.now()) / 86400000)) : null;
       const faltam = diasRestantes != null ? ` (faltam ${diasRestantes} dias)` : "";
+      // Régua nova dos cheques Mahindra: diz QUAL cheque vence
+      if (typeof d.cheque_alvo === "string") {
+        return `${tipo} NA garantia — o cheque das ${d.cheque_alvo} vence em ${limite}${faltam}. Última revisão/serviço em ${ultima}. Sem o cheque perde a garantia, válida até ${fim}. Ligar e agendar.`;
+      }
       return `${tipo} NA garantia sem revisão há ${meses} meses (última em ${ultima}). Revisão anual vence ${limite}${faltam} — sem ela perde a garantia, válida até ${fim}. Ligar e agendar.`;
     }
     case "R4_followup": {

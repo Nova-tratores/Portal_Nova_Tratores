@@ -1,26 +1,30 @@
-// R7 — Garantia em risco: última revisão feita entre 10 e 12 meses atrás.
+// R7 — Garantia em risco: o CHEQUE DE REVISÃO obrigatório está pra vencer.
 //
-// A garantia (Mahindra e afins) é CONDICIONADA à revisão anual: quem fez a
-// última revisão há mais de `meses_aviso` (default 10) meses está a caminho de
-// estourar o prazo de `meses_perda` (default 12). É o alerta pra ligar e
-// agendar ANTES de vencer — por isso a coluna só mostra quem AINDA dá tempo.
-// Quem já estourou os 12 meses PERDEU a garantia: esses não ficam aqui — a
-// mesma computação os devolve em formato R6 (`perdidas`) e o orquestrador os
-// joga na coluna "Fora de garantia" (decisão do usuário, 17/07/2026).
+// TRATORES seguem a régua do caderno de cheques da Mahindra (27/07/2026,
+// digitalizada pelo usuário): cada cheque tem prazo por horas OU tempo
+// CONTADO DA ENTREGA — 300h/1 ano, 600h/2 anos, 900h/3 anos, 1200h/4 anos
+// (o das 50h não tem prazo temporal; 1500h+ são só por horas). Sem horímetro
+// corrente confiável, o motor cobra pela régua de TEMPO: o cheque mais antigo
+// ainda pendente é o alvo. Depois do 1200h/4 anos não há mais cheque com
+// prazo — o 5º ano de garantia não cobra revisão (a régua antiga de "12 meses
+// desde a última revisão" cobrava errado aqui).
 //
-// Se enquadram tratores e pulverizadores:
+//  - marco satisfeito = cheque com o RÓTULO registrado no cadastro (qualquer
+//    data) OU alguma evidência (outra revisão/OS do chassi/cliente) DENTRO
+//    da janela daquele ano — revisão feita e não anotada conta (benefício
+//    da dúvida; o atendimento confirma por telefone);
+//  - marco vencido sem evidência → PERDEU a garantia (sai em formato R6
+//    `perdidas`, coluna "Fora de garantia", com o cheque que faltou);
+//  - marco vencendo (janela de aviso = meses_perda - meses_aviso, default 2
+//    meses) → card R7 "cheque das X horas vence em DD/MM".
 //
-//   1) TRATORES (tabela `tratores`): só quem JÁ FEZ pelo menos uma revisão
-//      registrada (50h, 300h...). Referência = a mais recente entre a revisão
-//      registrada e a última OS do chassi/cliente (revisão feita mas não
-//      anotada no cadastro conta). Ainda na garantia por tempo (60m; CBU/L 12m
-//      — mesma régua da R6); quem já saiu por tempo é assunto da R6 clássica.
-//   2) PULVERIZADORES (pedidos de venda): só MÁQUINA — família "Pulverizador"
-//      ou item "pulveriz" com valor >= `valor_minimo_pulverizador` (default
-//      R$ 5.000). Peças de pulverizador (bico, trava, tubo… R$ 15–380) NÃO
-//      contam — validado no banco: máquinas custam R$ 19,5k+. Sem revisões
-//      anotadas, a referência é a última OS do cliente (ou a própria venda).
-//      Garantia por `garantia_meses_pulverizador` (default 36, ajustável).
+// Quem nunca registrou revisão nenhuma segue com a R1 (primeira revisão).
+// Ainda na garantia por tempo (60m; CBU/L 12m); fora por tempo é a R6 clássica.
+//
+//   2) PULVERIZADORES (pedidos de venda): regra anual antiga (o caderno de
+//      cheques é dos tratores Mahindra) — só MÁQUINA (família "Pulverizador"
+//      ou "pulveriz" com valor >= `valor_minimo_pulverizador`, default
+//      R$ 5.000). Garantia por `garantia_meses_pulverizador` (default 36).
 //
 // Prioridade: 'Urgente' quando faltam menos de 30 dias pro prazo estourar.
 
@@ -179,7 +183,15 @@ async function computarR7Inner(parametros: ParametrosR7): Promise<ResultadoR7> {
     });
   }
 
-  // ===== 1) TRATORES — só quem já fez pelo menos uma revisão =====
+  // ===== 1) TRATORES — régua dos CHEQUES Mahindra (tempo desde a ENTREGA) =====
+  const CHEQUES: { rotulo: string; anos: number }[] = [
+    { rotulo: "300h", anos: 1 },
+    { rotulo: "600h", anos: 2 },
+    { rotulo: "900h", anos: 3 },
+    { rotulo: "1200h", anos: 4 },
+  ];
+  const janelaAvisoMs = Math.max(1, mesesPerda - mesesAviso) * MS_MES; // default 2 meses
+
   for (const t of tratores) {
     if (!t.Entrega || !t.Cliente) continue;
     const entrega = parseDataFlex(t.Entrega);
@@ -192,40 +204,93 @@ async function computarR7Inner(parametros: ParametrosR7): Promise<ResultadoR7> {
     const ultimaRev = ultimaRevisaoRegistrada(t);
     if (!ultimaRev) continue; // nunca fez revisão — a R1 é quem cobra a primeira
 
-    // Revisão feita mas não anotada no cadastro: a OS mais recente conta
+    // Rótulos registrados (data + horímetro válidos) e evidências por data
+    const registradas = new Map<string, Date>();
+    for (const rev of REVISOES_LISTA) {
+      const d = parseDataFlex(t[`${rev} Data` as keyof Trator] as string | undefined);
+      const hRaw = t[`${rev} Horimetro` as keyof Trator] as string | undefined;
+      const h = hRaw ? parseFloat(hRaw) : NaN;
+      if (d && !isNaN(h)) registradas.set(rev, d);
+    }
     const chassi = norm(t.Chassis);
     const os = (chassi && indiceOS.porChassi.get(chassi)) || indiceOS.porCliente.get(norm(t.Cliente));
+    const evidencias: Date[] = [...registradas.values()];
+    if (os) evidencias.push(os.data);
+    const referencia = evidencias.reduce((a, b) => (b > a ? b : a), ultimaRev.data);
     const osMaisRecente = os && os.data > ultimaRev.data ? os : null;
-    const referencia = osMaisRecente ? osMaisRecente.data : ultimaRev.data;
 
-    montar(
-      {
-        codigo_omie: mapOmie.get(norm(t.Cliente)) ?? null,
-        cliente_nome: t.Cliente,
-        trator: `${t.Modelo || ""} — ${t.Chassis || ""}`.trim(),
-        chassis: t.Chassis || null,
-      },
-      referencia,
-      {
-        tipo: "Trator",
-        fonte: "tratores",
-        modelo: t.Modelo,
-        cidade: t.Cidade,
-        vendedor: t.Vendedor,
-        entrega_data: entrega.toISOString(),
-        data_venda: entrega.toISOString(), // o card R6 usa data_venda
-        garantia_meses: garantiaMeses,
-        fim_garantia: fimGarantia.toISOString(),
-        ultima_revisao: ultimaRev.data.toISOString(),
-        ultima_revisao_rotulo: ultimaRev.rotulo,
-        referencia_fonte: osMaisRecente ? "os" : "revisao",
-        ultima_os_id: os?.id_ordem ?? null,
-        ultima_os_data: os?.data.toISOString() ?? null,
-        ultima_os_tipo: os?.tipo_servico ?? null,
-        ultima_os_fonte: os?.fonte ?? null,
-        ultima_os_empresa: os?.empresa ?? null,
+    const baseCard = {
+      codigo_omie: mapOmie.get(norm(t.Cliente)) ?? null,
+      cliente_nome: t.Cliente,
+      trator: `${t.Modelo || ""} — ${t.Chassis || ""}`.trim(),
+      chassis: t.Chassis || null,
+    };
+    const detalhesBase: Record<string, unknown> = {
+      tipo: "Trator",
+      fonte: "tratores",
+      modelo: t.Modelo,
+      cidade: t.Cidade,
+      vendedor: t.Vendedor,
+      entrega_data: entrega.toISOString(),
+      data_venda: entrega.toISOString(), // o card R6 usa data_venda
+      garantia_meses: garantiaMeses,
+      fim_garantia: fimGarantia.toISOString(),
+      cheques_feitos: [...registradas.keys()],
+      ultima_revisao: ultimaRev.data.toISOString(),
+      ultima_revisao_rotulo: ultimaRev.rotulo,
+      referencia: referencia.toISOString(),
+      referencia_fonte: osMaisRecente ? "os" : "revisao",
+      meses_sem_revisao: Math.round(((hoje.getTime() - referencia.getTime()) / MS_MES) * 10) / 10,
+      ultima_os_id: os?.id_ordem ?? null,
+      ultima_os_data: os?.data.toISOString() ?? null,
+      ultima_os_tipo: os?.tipo_servico ?? null,
+      ultima_os_fonte: os?.fonte ?? null,
+      ultima_os_empresa: os?.empresa ?? null,
+    };
+
+    // Percorre os marcos do caderno: o mais antigo pendente é o alvo.
+    for (const { rotulo, anos } of CHEQUES) {
+      if (anos * 12 > garantiaMeses) break; // além da garantia (CBU/L: só o do ano 1)
+      const deadline = addMeses(entrega, anos * 12);
+      const janelaIni = addMeses(entrega, (anos - 1) * 12);
+      const feito =
+        registradas.has(rotulo) ||
+        evidencias.some((e) => e > janelaIni && e <= deadline);
+      if (feito) continue;
+
+      const alvo = `${rotulo.replace("h", "")} horas / ${anos} ano${anos > 1 ? "s" : ""}`;
+      if (deadline <= hoje) {
+        perdidas.push({
+          ...baseCard,
+          regra: "R6_fora_garantia",
+          prioridade: "Normal",
+          detalhes: {
+            ...detalhesBase,
+            motivo: "revisao_vencida",
+            cheque_alvo: alvo,
+            cheque_rotulo: rotulo,
+            data_limite: deadline.toISOString(),
+            sugestao: `Perdeu a garantia: o cheque das ${alvo} não foi feito até ${deadline.toLocaleDateString("pt-BR")}. Oferecer revisão paga, reativação ou plano de manutenção.`,
+          },
+        });
+      } else if (deadline.getTime() - hoje.getTime() <= janelaAvisoMs) {
+        const urgente = deadline.getTime() - hoje.getTime() < 30 * 86400000;
+        emRisco.push({
+          ...baseCard,
+          regra: "R7_garantia_risco",
+          prioridade: urgente ? "Urgente" : "Normal",
+          detalhes: {
+            ...detalhesBase,
+            cheque_alvo: alvo,
+            cheque_rotulo: rotulo,
+            data_limite: deadline.toISOString(),
+            sugestao: `Agendar o cheque das ${alvo} — vence em ${deadline.toLocaleDateString("pt-BR")}; sem ele perde a garantia (válida até ${fimGarantia.toLocaleDateString("pt-BR")}).`,
+          },
+        });
       }
-    );
+      // pendente (vencido, vencendo ou ainda longe): não olha marcos futuros
+      break;
+    }
   }
 
   // ===== 2) PULVERIZADORES — dos pedidos de venda (só máquina) =====

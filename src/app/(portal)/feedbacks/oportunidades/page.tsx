@@ -52,7 +52,8 @@ function prefillDoOportunidade(op: Oportunidade): Partial<FeedbackRegistro> {
       const alvo = (d.revisao_alvo as string | undefined) || "";
       base.motivo = `Agendar a revisao ${alvo}`.trim() + (sugestao ? ` — ${sugestao}` : "");
     } else if (op.regra === "R7_garantia_risco") {
-      base.motivo = `Agendar a revisao anual (garantia em risco)${sugestao ? ` — ${sugestao}` : ""}`;
+      // A sugestão nova já nomeia o cheque ("Agendar o cheque das 600 horas…")
+      base.motivo = sugestao || "Agendar a revisao anual (garantia em risco)";
     } else {
       base.motivo = sugestao;
     }
