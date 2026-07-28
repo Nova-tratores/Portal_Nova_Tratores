@@ -70,6 +70,27 @@ export function valorFixoEntrega(contrato: string): number | null {
   return 150;
 }
 
+// Códigos de cliente da PRÓPRIA loja (Nova Tratores / Castro Máquinas). Serviço nessas
+// máquinas = cortesia comercial (montar/entregar o próprio estoque não é receita), igual
+// à régua do dashboard OMIE (cliente inclui "NOVA TRATORES"/"CASTRO MAQUINAS"). É o caso
+// da montagem interna, que o contrato sozinho classificaria como "com retorno". Cacheado
+// em memória (30 min); a lista muda raríssimo.
+const LOJA_PROPRIA_SEED = [1943158003, 5234748319]; // NOVA TRATORES (próprias) — fallback
+let lojaPropriaCache: { set: Set<number>; ts: number } | null = null;
+async function lerCodigosLojaPropria(): Promise<Set<number>> {
+  if (lojaPropriaCache && Date.now() - lojaPropriaCache.ts < 30 * 60_000) return lojaPropriaCache.set;
+  const set = new Set<number>(LOJA_PROPRIA_SEED);
+  try {
+    const { data } = await supabase
+      .from('portal_nt_clientes_cadastro_omie')
+      .select('cod_cli')
+      .or('razao_social.ilike.%NOVA TRATORES%,nome_fantasia.ilike.%NOVA TRATORES%,razao_social.ilike.%CASTRO MAQUINAS%,nome_fantasia.ilike.%CASTRO MAQUINAS%');
+    (data || []).forEach((r) => set.add(Number(r.cod_cli)));
+  } catch { /* mantém o seed se a query falhar */ }
+  lojaPropriaCache = { set, ts: Date.now() };
+  return set;
+}
+
 // Cache em-memória de TODAS as OS por conta (10 min) + dedup de refresh BG.
 const todasOSCachePorConta: Record<string, Array<Record<string, unknown>>> = {};
 const refreshOSInFlight: Record<string, Promise<void>> = {};
@@ -133,6 +154,7 @@ interface OSFaturada {
   mes: number;
   ano: number;
   contrato: string; // InformacoesAdicionais.cNumContrato — usado pra separar interno c/ retorno × puro
+  codigoCliente: number; // nCodCli — pra detectar loja própria (cortesia comercial)
 }
 
 /**
@@ -204,15 +226,19 @@ export async function buscarOSPeriodo(de: string, ate: string, conta: Conta): Pr
     if (cab.cEtapa == '60') {
       const valor = num(cab.nValorTotal);
       total += valor;
-      faturadas.push({ nCodOS: num(cab.nCodOS), cNumOS: String(cab.cNumOS || ''), valor, mes: dtOS.getMonth() + 1, ano: dtOS.getFullYear(), contrato: String(adic.cNumContrato || '') });
+      faturadas.push({ nCodOS: num(cab.nCodOS), cNumOS: String(cab.cNumOS || ''), valor, mes: dtOS.getMonth() + 1, ano: dtOS.getFullYear(), contrato: String(adic.cNumContrato || ''), codigoCliente: num(cab.nCodCli) });
     }
   });
   const comNota = await classificarNfseOS(faturadas, conta);
+  const lojaPropria = await lerCodigosLojaPropria();
   let nota = 0;
   let internoRetorno = 0;
   let internoPuro = 0;
   faturadas.forEach((f) => {
     if (comNota.has(f.nCodOS)) { nota += f.valor; return; }
+    // Serviço na máquina da PRÓPRIA loja (cortesia comercial) não é receita — nem em
+    // montagem/entrega (que o contrato sozinho jogaria em "com retorno"). Igual ao OMIE.
+    if (lojaPropria.has(f.codigoCliente)) { internoPuro += f.valor; return; }
     if (baldeInterno(f.contrato) === 'puro') { internoPuro += f.valor; return; }
     // 'retorno': entrega técnica/montagem entra pelo valor FIXO do OMIE (comissão por
     // código), não pelo valor cheio da OS — garantia/revisão/normal seguem pelo cheio.
@@ -715,6 +741,10 @@ export async function obterServicosPopup(mes: number | null, ano: number, conta:
   const contas = conta === undefined ? getContasOmie().map((c) => c.id) : [conta];
   const servicos: ServicoOSRow[] = [];
   let pendente = false;
+  const lojaPropria = await lerCodigosLojaPropria();
+  // Balde de uma OS sem nota: loja própria (cortesia comercial) → 'puro'; senão pelo contrato.
+  const baldeDe = (temNota: boolean | null, codCli: number | null, contrato: string): 'retorno' | 'puro' | null =>
+    temNota === true ? null : (codCli != null && lojaPropria.has(codCli) ? 'puro' : baldeInterno(contrato));
   for (const c of contas) {
     const itens = await lerServicosItens(mes, ano, c);
     if (mes == null) {
@@ -758,7 +788,7 @@ export async function obterServicosPopup(mes: number | null, ano: number, conta:
     const notaMap = await buscarTemNotaMap([...new Set(itens.map((r) => r.ncod_os).filter(Boolean))], c);
     itens.forEach((r) => {
       r.tem_nota = notaMap.has(r.ncod_os) ? notaMap.get(r.ncod_os)! : null;
-      r.internoBalde = r.tem_nota === true ? null : baldeInterno(r.contrato);
+      r.internoBalde = baldeDe(r.tem_nota, r.codigo_cliente, r.contrato);
     });
     servicos.push(...itens);
   }
@@ -770,7 +800,7 @@ export async function obterServicosPopup(mes: number | null, ano: number, conta:
     const k = s.conta + ':' + s.ncod_os;
     let os = porOS.get(k);
     if (!os) {
-      os = { numero_os: s.numero_os, data: s.data, valor: 0, codigo_cliente: s.codigo_cliente, cliente: s.cliente, conta: s.conta, ncod_os: s.ncod_os, tem_nota: s.tem_nota, internoBalde: s.internoBalde ?? (s.tem_nota === true ? null : baldeInterno(s.contrato)) };
+      os = { numero_os: s.numero_os, data: s.data, valor: 0, codigo_cliente: s.codigo_cliente, cliente: s.cliente, conta: s.conta, ncod_os: s.ncod_os, tem_nota: s.tem_nota, internoBalde: s.internoBalde ?? baldeDe(s.tem_nota, s.codigo_cliente, s.contrato) };
       porOS.set(k, os);
     }
     os.valor += s.valor_total;
