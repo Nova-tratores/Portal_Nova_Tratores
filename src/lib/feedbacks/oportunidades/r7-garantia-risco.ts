@@ -2,8 +2,9 @@
 //
 // TRATORES seguem a régua do caderno de cheques da Mahindra (27/07/2026,
 // digitalizada pelo usuário): cada cheque tem prazo por horas OU tempo
-// CONTADO DA ENTREGA — 300h/1 ano, 600h/2 anos, 900h/3 anos, 1200h/4 anos
-// (o das 50h não tem prazo temporal; 1500h+ são só por horas). Sem horímetro
+// CONTADO DA ENTREGA — 50h/6 meses (prazo definido pelo usuário; o caderno
+// só dá horas), 300h/1 ano, 600h/2 anos, 900h/3 anos, 1200h/4 anos
+// (1500h+ são só por horas). Sem horímetro
 // corrente confiável, o motor cobra pela régua de TEMPO: o cheque mais antigo
 // ainda pendente é o alvo. Depois do 1200h/4 anos não há mais cheque com
 // prazo — o 5º ano de garantia não cobra revisão (a régua antiga de "12 meses
@@ -184,11 +185,14 @@ async function computarR7Inner(parametros: ParametrosR7): Promise<ResultadoR7> {
   }
 
   // ===== 1) TRATORES — régua dos CHEQUES Mahindra (tempo desde a ENTREGA) =====
-  const CHEQUES: { rotulo: string; anos: number }[] = [
-    { rotulo: "300h", anos: 1 },
-    { rotulo: "600h", anos: 2 },
-    { rotulo: "900h", anos: 3 },
-    { rotulo: "1200h", anos: 4 },
+  // 50h em 6 meses = decisão do usuário (27/07); o caderno não dá prazo
+  // temporal pro das 50h, mas na prática é a primeira visita.
+  const CHEQUES: { rotulo: string; meses: number }[] = [
+    { rotulo: "50h", meses: 6 },
+    { rotulo: "300h", meses: 12 },
+    { rotulo: "600h", meses: 24 },
+    { rotulo: "900h", meses: 36 },
+    { rotulo: "1200h", meses: 48 },
   ];
   const janelaAvisoMs = Math.max(1, mesesPerda - mesesAviso) * MS_MES; // default 2 meses
 
@@ -249,16 +253,19 @@ async function computarR7Inner(parametros: ParametrosR7): Promise<ResultadoR7> {
     };
 
     // Percorre os marcos do caderno: o mais antigo pendente é o alvo.
-    for (const { rotulo, anos } of CHEQUES) {
-      if (anos * 12 > garantiaMeses) break; // além da garantia (CBU/L: só o do ano 1)
-      const deadline = addMeses(entrega, anos * 12);
-      const janelaIni = addMeses(entrega, (anos - 1) * 12);
+    let mesesAnterior = 0;
+    for (const { rotulo, meses } of CHEQUES) {
+      if (meses > garantiaMeses) break; // além da garantia (CBU/L: 50h + 300h)
+      const deadline = addMeses(entrega, meses);
+      const janelaIni = addMeses(entrega, mesesAnterior);
+      mesesAnterior = meses;
       const feito =
         registradas.has(rotulo) ||
         evidencias.some((e) => e > janelaIni && e <= deadline);
       if (feito) continue;
 
-      const alvo = `${rotulo.replace("h", "")} horas / ${anos} ano${anos > 1 ? "s" : ""}`;
+      const prazoLabel = meses < 12 ? `${meses} meses` : `${meses / 12} ano${meses > 12 ? "s" : ""}`;
+      const alvo = `${rotulo.replace("h", "")} horas / ${prazoLabel}`;
       if (deadline <= hoje) {
         perdidas.push({
           ...baseCard,
