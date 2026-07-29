@@ -9,6 +9,7 @@ import {
 import HistoricoModal from './HistoricoModal';
 import DialogoImprimirReq from './DialogoImprimirReq';
 import { anexosDaReq } from '@/lib/requisicoes/anexos';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 // Carrega CardReq completo só quando o modal abre
 const CardReq = dynamic(() => import('./CardReq'), { ssr: false });
@@ -16,6 +17,7 @@ const CardReq = dynamic(() => import('./CardReq'), { ssr: false });
 export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhados, onCardFechado, podeEditar = true, podeMoverFase = true, podeImprimir = true, podeExcluir = true, grupos = [], usuarioAtual = '', onGruposChange, onExpandirGrupo, abrirAoMontar = false, modoComparar = false, escolhidoParaComparar = false, onEscolherComparar }: any) {
   // abrirAoMontar: deep-link (?req=<id> na URL) — outros módulos (ex.: Frota >
   // Manutenções) linkam direto pra requisição e o card já abre expandido.
+  const isMobile = useIsMobile();
   const [modalAberto, setModalAberto] = useState(!!abrirAoMontar);
   useEffect(() => { if (abrirAoMontar) setModalAberto(true); }, [abrirAoMontar]);
   const [histAberto, setHistAberto] = useState(false);
@@ -71,6 +73,9 @@ export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhado
   };
   const handlePrintClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    // No celular abre a página dedicada /imprimir (o window.print() da página sai como
+    // "print da tela" no mobile). No PC segue o fluxo normal (com diálogo de anexos).
+    if (isMobile) { window.open(`/requisicoes/imprimir/${req.id}`, '_blank'); return; }
     if (anexosDaReq(req).length === 0) { imprimir(); return; }
     setDlgImprimir(true);
   };
@@ -82,7 +87,7 @@ export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhado
         draggable={podeMoverFase && !modoComparar}
         onDragStart={(e) => { if (podeMoverFase && !modoComparar) e.dataTransfer.setData("idRequisicao", req.id.toString()); }}
         onClick={() => (modoComparar ? onEscolherComparar?.(req) : setModalAberto(true))}
-        className={`bg-white border rounded-2xl p-6 hover:shadow-lg transition-all group mb-5 border-l-[6px] relative overflow-hidden ${modoComparar ? 'cursor-pointer' : podeMoverFase ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} ${
+        className={`bg-white border rounded-2xl p-4 md:p-6 hover:shadow-lg transition-all group mb-4 md:mb-5 border-l-[6px] relative overflow-hidden ${modoComparar ? 'cursor-pointer' : podeMoverFase ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} ${
           escolhidoParaComparar ? 'border-amber-500 border-l-amber-500 ring-2 ring-amber-300'
             : modoComparar ? 'border-zinc-200 border-l-zinc-400 hover:border-amber-400'
             : veioDoApp ? 'border-red-500 border-l-blue-600 shadow-md shadow-blue-900/10 hover:border-red-500'
@@ -102,7 +107,7 @@ export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhado
 
         {/* Ações sempre à mostra (antes só apareciam no hover, e ninguém achava).
             Ficam discretas e só ganham cor ao passar o mouse. */}
-        <div className={`absolute top-6 right-6 flex gap-1.5 ${modoComparar ? 'hidden' : ''}`}>
+        <div className={`absolute top-4 right-4 md:top-6 md:right-6 flex gap-1.5 ${modoComparar ? 'hidden' : ''}`}>
           <button onClick={(e) => { e.stopPropagation(); setModalAberto(true); }} className="p-2.5 rounded-xl bg-zinc-100 text-red-600 hover:bg-red-600 hover:text-white transition-all" title="Abrir requisição / Mapa de Cotações"><ClipboardList size={15} /></button>
           <button onClick={(e) => { e.stopPropagation(); setHistAberto(true); }} className="p-2.5 rounded-xl bg-zinc-100 text-zinc-400 hover:bg-zinc-800 hover:text-white transition-all" title="Histórico da requisição"><Clock size={15} /></button>
           {podeImprimir && (
@@ -111,7 +116,7 @@ export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhado
         </div>
 
         {podeExcluir && !modoComparar && (
-          <button onClick={handleTrash} className="absolute bottom-6 right-6 p-2.5 rounded-xl bg-zinc-100 text-zinc-400 hover:bg-red-600 hover:text-white transition-all" title="Mover para a lixeira"><Trash2 size={15} /></button>
+          <button onClick={handleTrash} className="absolute bottom-4 right-4 md:bottom-6 md:right-6 p-2.5 rounded-xl bg-zinc-100 text-zinc-400 hover:bg-red-600 hover:text-white transition-all" title="Mover para a lixeira"><Trash2 size={15} /></button>
         )}
 
         <div className="flex items-start gap-4 mb-5 mt-2">

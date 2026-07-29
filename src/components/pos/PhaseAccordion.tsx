@@ -21,7 +21,7 @@ interface PhaseViewProps {
 
 const FASE_ENVIAR_OMIE = "Enviar Omie";
 
-const PHASE_COLORS: Record<string, string> = {
+export const PHASE_COLORS: Record<string, string> = {
   "Orçamento": "#3B82F6",
   "Orçamento enviado para o cliente e aguardando": "#60A5FA",
   "Aguardando ordem Técnico": "#0EA5E9",
@@ -46,7 +46,7 @@ const PHASE_COLORS: Record<string, string> = {
 const FASE_CONCLUIDO = "Relatório Concluído";
 const FASE_CONCLUIDO_GAR = "Relatório Concluído - Garantia";
 
-const PHASE_SHORT: Record<string, string> = {
+export const PHASE_SHORT: Record<string, string> = {
   "Orçamento": "Orçamento",
   "Orçamento enviado para o cliente e aguardando": "Orç. Enviado",
   "Aguardando ordem Técnico": "Aguard. Técnico",

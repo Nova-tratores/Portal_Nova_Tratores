@@ -11,6 +11,8 @@ import Header from "@/components/ppv/Header";
 import Toast from "@/components/ppv/Toast";
 import GlobalLoader from "@/components/ppv/GlobalLoader";
 import PhaseView from "@/components/ppv/PhaseView";
+import PPVMobile from "@/components/ppv/PPVMobile";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import CatalogoNovo from "@/components/ppv/CatalogoNovo";
 import FormNovoLancamento from "@/components/ppv/FormNovoLancamento";
 import PPVDrawer from "@/components/ppv/PPVDrawer";
@@ -27,6 +29,7 @@ function PPVApp() {
   const { kanbanItems, carregarKanban, atualizarKanbanLocal, toast, hideToast, globalLoading, cacheProduct, showToast, recarregarRevisoes } = usePPV();
   const { userProfile } = useAuth();
   const { pode } = usePermissoes(userProfile?.id);
+  const isMobile = useIsMobile();
   const podeCriar = pode('ppv', 'criar');
   const podeMoverFase = pode('ppv', 'mover_fase');
   const podeCatalogo = pode('ppv', 'catalogo');
@@ -334,7 +337,19 @@ function PPVApp() {
 
       {/* ===== CONTENT ===== */}
       <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
-        {activeTab === "kanbanTab" && (
+        {activeTab === "kanbanTab" && isMobile && (
+          // ===== CELULAR: lista própria (o kanban de colunas do PC não é usado) =====
+          <PPVMobile
+            orders={kanbanItems}
+            searchTerm={searchFilter} onSearchChange={setSearchFilter}
+            onCardClick={openCardDetails}
+            onNovo={() => setActiveTab("formTab")}
+            podeCriar={podeCriar}
+            loading={globalLoading}
+          />
+        )}
+
+        {activeTab === "kanbanTab" && !isMobile && (
           <Header
             searchFilter={searchFilter} onSearchChange={setSearchFilter}
             tipoFilter={tipoFilter} onTipoFilterChange={setTipoFilter}
@@ -343,7 +358,7 @@ function PPVApp() {
           />
         )}
 
-        {activeTab === "kanbanTab" && (
+        {activeTab === "kanbanTab" && !isMobile && (
           <div className="flex flex-1 flex-col overflow-auto" style={bgPattern}>
             <PhaseView orders={filteredKanban} searchTerm={searchFilter} onCardClick={openCardDetails} onStatusChange={handleStatusChange} loading={globalLoading} activePhase={activePhase} onPhaseChange={setActivePhase} />
           </div>

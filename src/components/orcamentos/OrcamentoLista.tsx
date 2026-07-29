@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Search, FileText, Trash2, Plus, FilterX, Package, Wrench, Send, Printer } from 'lucide-react'
 import { gateBtn, estiloSemPermissao, MSG_SEM_PERMISSAO } from '@/lib/permissoes/ui'
+import { useIsMobile } from '@/hooks/useIsMobile'
 
 interface Orcamento {
   id: number
@@ -28,6 +29,7 @@ interface Props {
 }
 
 export default function OrcamentoLista({ onNovo, onEditar, podeCriar = true, podeEditar = true, podeExcluir = true, podeStatus = true, podeGerar = true }: Props) {
+  const isMobile = useIsMobile()
   const [lista, setLista] = useState<Orcamento[]>([])
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState('')
@@ -254,11 +256,11 @@ export default function OrcamentoLista({ onNovo, onEditar, podeCriar = true, pod
   }
 
   return (
-    <div style={{ padding: '32px 40px', width: '100%', fontFamily: "'Poppins', sans-serif" }}>
+    <div style={{ padding: isMobile ? '16px 12px' : '32px 40px', width: '100%', fontFamily: "'Poppins', sans-serif" }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: isMobile ? 16 : 28 }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 800, color: '#1a1a1a', margin: 0 }}>Orçamentos</h1>
+          <h1 style={{ fontSize: isMobile ? 20 : 24, fontWeight: 800, color: '#1a1a1a', margin: 0 }}>Orçamentos</h1>
           <p style={{ fontSize: 13, color: '#737373', marginTop: 4 }}>{lista.length} orçamento{lista.length !== 1 ? 's' : ''} cadastrado{lista.length !== 1 ? 's' : ''}</p>
         </div>
         <button onClick={onNovo} {...gateBtn(podeCriar)} style={{
@@ -334,7 +336,48 @@ export default function OrcamentoLista({ onNovo, onEditar, podeCriar = true, pod
         )}
       </div>
 
-      {/* Tabela */}
+      {/* MOBILE: cartões (a tabela de 9 colunas não cabe no celular) */}
+      {isMobile ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {listaFiltrada.map(item => {
+            const sc = statusColors[item.status] || statusColors.ativo
+            return (
+              <div key={item.id} onClick={() => onEditar(item.id)} style={{ background: '#fff', borderRadius: 14, border: '1px solid #f0f0f0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', padding: 14, cursor: 'pointer' }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+                  <span style={{ fontWeight: 800, color: '#dc2626', fontSize: 15 }}>{item.numero}</span>
+                  <span style={{ fontWeight: 800, fontSize: 15, color: '#1a1a1a' }}>R$ {fmt(item.total)}</span>
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: '#1a1a1a', marginTop: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.cliente_nome}</div>
+                <div style={{ fontSize: 12.5, color: '#737373', marginTop: 2 }}>{item.cliente_cidade || '—'} · {new Date(item.created_at).toLocaleDateString('pt-BR')}{item.criado_por ? ` · ${item.criado_por}` : ''}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, background: '#f5f5f5', padding: '4px 10px', borderRadius: 6, fontWeight: 600, color: '#525252' }}>
+                    {tipoIcon(item.tipo)} {tipoLabel[item.tipo] || item.tipo}
+                  </span>
+                  <select value={item.status} onChange={e => alterarStatus(item.id, e.target.value)} disabled={!podeStatus}
+                    style={{ fontSize: 12, fontWeight: 700, padding: '5px 8px', borderRadius: 6, background: sc.bg, color: sc.color, border: `1px solid ${sc.border}`, cursor: podeStatus ? 'pointer' : 'default', outline: 'none', fontFamily: "'Poppins', sans-serif", appearance: 'auto' }}>
+                    <option value="ativo">Ativo</option>
+                    <option value="aprovado">Aprovado</option>
+                    <option value="rejeitado">Rejeitado</option>
+                    <option value="expirado">Expirado</option>
+                  </select>
+                  <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
+                    <button onClick={() => { setTecnicoGerar(''); setGerarModal({ id: item.id, tipoOrc: item.tipo }) }} disabled={!podeGerar} title="Gerar OS/PPV" style={{ ...actionBtn, padding: 8, ...estiloSemPermissao(podeGerar) }}><Send size={16} color="#1d4ed8" /></button>
+                    <button onClick={() => verPDF(item.id)} title="Imprimir" style={{ ...actionBtn, padding: 8 }}><Printer size={16} color="#737373" /></button>
+                    <button onClick={() => excluir(item.id)} {...gateBtn(podeExcluir)} title="Excluir" style={{ ...actionBtn, padding: 8, ...estiloSemPermissao(podeExcluir) }}><Trash2 size={16} color="#ef4444" /></button>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+          {listaFiltrada.length === 0 && (
+            <div style={{ padding: '50px 20px', textAlign: 'center', background: '#fff', borderRadius: 14, border: '1px solid #f0f0f0' }}>
+              <FileText size={40} color="#e5e5e5" style={{ marginBottom: 12 }} />
+              <p style={{ fontSize: 14, color: '#a3a3a3', fontWeight: 500 }}>{lista.length === 0 ? 'Nenhum orçamento criado ainda.' : 'Nenhum resultado para os filtros.'}</p>
+            </div>
+          )}
+        </div>
+      ) : (
+      /* DESKTOP: tabela */
       <div style={{
         background: '#fff', borderRadius: 16, border: '1px solid #f0f0f0',
         overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
@@ -429,6 +472,7 @@ export default function OrcamentoLista({ onNovo, onEditar, podeCriar = true, pod
           </div>
         )}
       </div>
+      )}
 
       {/* Modal gerar OS/PPV */}
       {gerarModal && (
@@ -441,7 +485,7 @@ export default function OrcamentoLista({ onNovo, onEditar, podeCriar = true, pod
           onClick={e => { if (e.target === e.currentTarget && !gerando) setGerarModal(null) }}
         >
           <div style={{
-            width: 420, borderRadius: 16, background: '#fff', padding: 32,
+            width: 420, maxWidth: '94vw', borderRadius: 16, background: '#fff', padding: isMobile ? 22 : 32,
             boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
           }}>
             <h3 style={{ fontSize: 18, fontWeight: 800, color: '#1a1a1a', margin: '0 0 6px' }}>

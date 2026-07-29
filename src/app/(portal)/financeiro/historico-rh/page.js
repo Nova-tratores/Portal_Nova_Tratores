@@ -52,7 +52,7 @@ export default function HistoricoRH() {
     <div style={{ minHeight: '100vh', background: '#f4f4f4', fontFamily: 'Inter, sans-serif' }}>
       <FinanceiroNav />
 
-      <main style={{ padding: '24px 32px' }}>
+      <main style={{ padding: 'clamp(12px, 4vw, 24px) clamp(12px, 4vw, 32px)' }}>
 
         {/* BARRA DE PESQUISA */}
         <div style={{ display: 'flex', gap: '15px', marginBottom: '30px', alignItems: 'flex-end' }}>

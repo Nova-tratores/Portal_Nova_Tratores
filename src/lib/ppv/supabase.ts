@@ -38,14 +38,46 @@ export async function supabaseFetch<T = unknown>(
   const options: RequestInit = { method, headers, cache: "no-store" };
   if (payload) options.body = JSON.stringify(payload);
 
-  const response = await fetch(url, options);
-  const text = await response.text();
+  // Resiliência: (1) timeout — sem ele um soluço de rede deixa o fetch pendurado
+  // PARA SEMPRE e a tela fica "carregando" eterno; (2) retry com backoff nos erros
+  // TRANSITÓRIOS do Supabase (503 / PGRST002 "schema cache" quando o banco está
+  // acordando/recarregando). Estes erros ocorrem ANTES de qualquer escrita, então
+  // repetir é seguro mesmo em POST/PATCH.
+  const TENTATIVAS = 3;
+  const esperas = [400, 1200]; // backoff entre tentativas (ms)
+  let ultimoErro = "";
 
-  if (!response.ok) {
-    throw new Error(`Erro Supabase (${response.status}): ${text}`);
+  for (let tentativa = 0; tentativa < TENTATIVAS; tentativa++) {
+    let response: Response;
+    try {
+      response = await fetch(url, { ...options, signal: AbortSignal.timeout(20000) });
+    } catch (e) {
+      // Timeout/abort de rede — vale a pena tentar de novo.
+      if (e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError")) {
+        ultimoErro = "Timeout ao contactar o Supabase (20s) — rede lenta ou instável.";
+        if (tentativa < TENTATIVAS - 1) { await new Promise((r) => setTimeout(r, esperas[tentativa])); continue; }
+        throw new Error(ultimoErro);
+      }
+      throw e;
+    }
+
+    const text = await response.text();
+
+    if (response.ok) {
+      return text ? JSON.parse(text) : ([] as unknown as T);
+    }
+
+    // Erro transitório do Supabase (banco acordando / recarregando schema)? Repete.
+    const transitorio = response.status === 503 || /PGRST00[012]/.test(text);
+    ultimoErro = `Erro Supabase (${response.status}): ${text}`;
+    if (transitorio && tentativa < TENTATIVAS - 1) {
+      await new Promise((r) => setTimeout(r, esperas[tentativa]));
+      continue;
+    }
+    throw new Error(ultimoErro);
   }
 
-  return text ? JSON.parse(text) : ([] as unknown as T);
+  throw new Error(ultimoErro || "Erro Supabase desconhecido");
 }
 
 export function getValorInsensivel(

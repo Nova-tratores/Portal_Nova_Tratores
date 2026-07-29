@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { authHeaders } from "@/lib/auth/client";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 const MASCOTE_IMG = (process.env.NEXT_PUBLIC_SUPABASE_URL || "") + "/storage/v1/object/public/catalogo/mascote2-removebg-preview.png";
 
@@ -41,6 +42,7 @@ const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(ma
 interface TratorilsonProps { userName?: string; userId?: string; isAdmin?: boolean; modulos?: string[] }
 
 export default function TratorinoChat({ userName = "", userId = "", isAdmin = false, modulos = [] }: TratorilsonProps) {
+  const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState<Msg[]>([SAUDACAO]);
   const [input, setInput] = useState("");
@@ -80,6 +82,7 @@ export default function TratorinoChat({ userName = "", userId = "", isAdmin = fa
   useEffect(() => {
     try { if (localStorage.getItem("tratorilson_fixado") === "1") setFixado(true); } catch {}
   }, []);
+
   const toggleFixar = useCallback(() => {
     setFixado((f) => { const nv = !f; try { localStorage.setItem("tratorilson_fixado", nv ? "1" : "0"); } catch {} return nv; });
   }, []);
@@ -202,8 +205,21 @@ export default function TratorinoChat({ userName = "", userId = "", isAdmin = fa
         @media print { .trt-noprint { display: none !important; } }
       `}</style>
 
-      {/* Mascote flutuante (arrastável; clique abre) */}
-      {!open && pos && (
+      {/* CELULAR: abinha discreta grudada na borda direita — toca e abre o chat. */}
+      {!open && isMobile && (
+        <button
+          className="trt-noprint"
+          onClick={openChat}
+          title="Falar com o Tratorilson"
+          style={{ position: "fixed", right: 0, bottom: 120, zIndex: 59000, width: 52, height: 60, paddingLeft: 4, borderRadius: "16px 0 0 16px", border: "none", background: "linear-gradient(135deg, #ef4444, #b91c1c)", boxShadow: "-4px 4px 16px rgba(220,38,38,0.4)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+        >
+          <Avatar size={46} />
+          <span style={{ position: "absolute", top: 6, right: 9, background: "#22c55e", border: "2px solid #fff", width: 11, height: 11, borderRadius: "50%" }} />
+        </button>
+      )}
+
+      {/* PC: mascote flutuante arrastável (clique abre). */}
+      {!open && !isMobile && pos && (
         <div
           className="trt-noprint"
           onPointerDown={lDown} onPointerMove={lMove} onPointerUp={lUp}
@@ -226,11 +242,14 @@ export default function TratorinoChat({ userName = "", userId = "", isAdmin = fa
         </div>
       )}
 
-      {/* Janela de chat */}
-      {open && winPos && (
-        <div className="trt-win trt-noprint" style={{ position: "fixed", ...(fixado ? { right: 16, bottom: 16 } : { left: winPos.x, top: winPos.y }), zIndex: 59000, width: WIN_W, maxWidth: "calc(100vw - 16px)", height: WIN_H, maxHeight: "calc(100vh - 16px)", background: "#fff", borderRadius: 20, boxShadow: "0 24px 70px rgba(15,23,42,0.32)", display: "flex", flexDirection: "column", overflow: "hidden", border: "1px solid #e9ecf2", fontFamily: FONTE }}>
+      {/* Janela de chat. No CELULAR abre encaixada (quase tela cheia), não solta
+          numa posição do PC que ficava fora da tela. */}
+      {open && (winPos || isMobile) && (
+        <div className="trt-win trt-noprint" style={isMobile
+          ? { position: "fixed", left: 8, right: 8, bottom: 8, top: 74, zIndex: 59000, background: "#fff", borderRadius: 18, boxShadow: "0 24px 70px rgba(15,23,42,0.32)", display: "flex", flexDirection: "column", overflow: "hidden", border: "1px solid #e9ecf2", fontFamily: FONTE }
+          : { position: "fixed", ...(fixado ? { right: 16, bottom: 16 } : { left: winPos!.x, top: winPos!.y }), zIndex: 59000, width: WIN_W, maxWidth: "calc(100vw - 16px)", height: WIN_H, maxHeight: "calc(100vh - 16px)", background: "#fff", borderRadius: 20, boxShadow: "0 24px 70px rgba(15,23,42,0.32)", display: "flex", flexDirection: "column", overflow: "hidden", border: "1px solid #e9ecf2", fontFamily: FONTE }}>
           {/* Header (arrastável) */}
-          <div onPointerDown={fixado ? undefined : wDown} onPointerMove={fixado ? undefined : wMove} onPointerUp={fixado ? undefined : wUp} style={{ background: "linear-gradient(135deg, #ef4444 0%, #b91c1c 60%, #7f1d1d 100%)", padding: "13px 14px", display: "flex", alignItems: "center", gap: 11, cursor: fixado ? "default" : "grab", touchAction: "none", position: "relative" }}>
+          <div onPointerDown={(fixado || isMobile) ? undefined : wDown} onPointerMove={(fixado || isMobile) ? undefined : wMove} onPointerUp={(fixado || isMobile) ? undefined : wUp} style={{ background: "linear-gradient(135deg, #ef4444 0%, #b91c1c 60%, #7f1d1d 100%)", padding: "13px 14px", display: "flex", alignItems: "center", gap: 11, cursor: (fixado || isMobile) ? "default" : "grab", touchAction: "none", position: "relative" }}>
             <div style={{ width: 44, height: 44, borderRadius: "50%", background: "rgba(255,255,255,0.16)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <Avatar size={40} anim />
             </div>

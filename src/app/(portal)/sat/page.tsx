@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import { useAuditLog } from '@/hooks/useAuditLog'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { supabase } from '@/lib/supabase'
 import {
   Plus, X, Search, Clock, User, Calendar, Check, Play, Ban, CheckCircle2,
@@ -51,6 +52,7 @@ function fmtData(d: string) {
 const hojeStr = () => new Date().toISOString().slice(0, 10)
 
 export default function SatPage() {
+  const isMobile = useIsMobile()
   const { userProfile } = useAuth()
   const { permissoes, isAdmin } = usePermissoes(userProfile?.id)
   const { log: auditLog } = useAuditLog()
@@ -211,7 +213,7 @@ export default function SatPage() {
   }
 
   return (
-    <div style={{ padding: '24px 28px' }}>
+    <div style={{ padding: isMobile ? '16px 12px' : '24px 28px' }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 22, flexWrap: 'wrap', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -240,8 +242,8 @@ export default function SatPage() {
         </div>
       </div>
 
-      {/* Kanban */}
-      <div style={{ display: 'grid', gridTemplateColumns: showCancelados ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)', gap: 16, alignItems: 'start' }}>
+      {/* Kanban — no celular as colunas empilham (1 por vez), senão ficam espremidas */}
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : (showCancelados ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)'), gap: isMobile ? 12 : 16, alignItems: 'start' }}>
         {COLUNAS.map(col => {
           const itens = sats.filter(s => s.status === col.key)
           return (
@@ -306,7 +308,7 @@ export default function SatPage() {
                 <div style={{ background: 'var(--portal-bg-secondary, #fafafa)', borderRadius: 10, padding: '12px 14px', fontSize: 14, color: 'var(--portal-text-secondary, #444)', lineHeight: 1.6, marginBottom: 16, whiteSpace: 'pre-wrap' }}>{detalhe.descricao}</div>
               )}
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, marginBottom: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <User size={15} color="#9ca3af" />
                   <div>
@@ -413,7 +415,7 @@ export default function SatPage() {
             {/* Tipo */}
             <div style={{ marginBottom: 16 }}>
               <label style={{ fontSize: 12, fontWeight: 700, color: '#9CA3AF', letterSpacing: 0.5, display: 'block', marginBottom: 6 }}>TIPO</label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 8 }}>
                 {(Object.keys(TIPO_SAT) as TipoSat[]).map(k => {
                   const cfg = TIPO_SAT[k]
                   const ativo = tipo === k

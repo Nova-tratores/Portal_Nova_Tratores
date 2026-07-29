@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ShieldCheck, Loader2, LayoutGrid, CheckSquare, BarChart3, Search, Factory, PlusCircle } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
 import SemPermissao from '@/components/SemPermissao';
@@ -18,6 +19,7 @@ import { gateBtn, estiloSemPermissao, MSG_SEM_PERMISSAO } from '@/lib/permissoes
 type Aba = 'pipeline' | 'finalizadas' | 'relatorio' | 'buscar' | 'montadoras';
 
 function GarantiasPageInner() {
+  const isMobile = useIsMobile();
   const { userProfile } = useAuth();
   const { pode } = usePermissoes(userProfile?.id);
   const podeCriar = pode('garantias', 'criar');
@@ -85,7 +87,7 @@ function GarantiasPageInner() {
   }
 
   return (
-    <div style={{ padding: '28px 32px', maxWidth: 1280, margin: '0 auto' }}>
+    <div style={{ padding: isMobile ? '16px 12px' : '28px 32px', maxWidth: 1280, margin: '0 auto' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
         <div

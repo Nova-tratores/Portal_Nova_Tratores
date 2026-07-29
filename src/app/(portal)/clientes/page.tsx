@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui'
 import { supabase } from '@/lib/supabase'
 import SemPermissao from '@/components/SemPermissao'
@@ -97,6 +98,7 @@ function FileDrop({ label, hint, file, onPick, accent = '#2563EB' }: { label: st
 }
 
 function ClientesPageInner() {
+  const isMobile = useIsMobile()
   const { userProfile } = useAuth()
   const { pode } = usePermissoes(userProfile?.id)
   const podeCriarCliente = pode('clientes', 'criar_cliente')
@@ -608,13 +610,13 @@ function ClientesPageInner() {
     }))
 
     return (
-      <div style={{ padding: '20px 32px 48px', width: '100%', boxSizing: 'border-box' }}>
+      <div style={{ padding: 'clamp(12px, 4vw, 20px) clamp(12px, 4vw, 32px) 48px', width: '100%', boxSizing: 'border-box' }}>
         <button onClick={() => setSelectedCliente(null)}
           style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', fontSize: 13, padding: '4px 0', marginBottom: 18 }}>
           <ArrowLeft size={16} /> Voltar para lista
         </button>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '320px minmax(0, 1fr)', gap: 24, alignItems: 'start' }}>
+        <div className="cli-detail-grid" style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '320px minmax(0, 1fr)', gap: isMobile ? 14 : 24, alignItems: 'start' }}>
           {/* ===================== SIDEBAR ===================== */}
           <aside style={{ position: 'sticky', top: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
             {/* Card do cliente */}
@@ -1314,7 +1316,7 @@ function ClientesPageInner() {
                     const vPecas = pvs.reduce((s: number, p: PedidoVenda) => s + (p.valor_total || 0), 0)
                     const vTotal = vServico + vPecas
                     return (
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 24 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 24 }}>
                         {[
                           {
                             l: 'Valor Total', v: formatCurrency(vTotal), bg: '#F3F4F6', c: '#111827', b: '#E5E7EB',
@@ -1335,7 +1337,7 @@ function ClientesPageInner() {
                   })()}
 
                   {/* Info adicional */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 24 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 24 }}>
                     {[
                       { l: 'Vendedor', v: os.vendedor || '-' },
                       { l: 'Cidade', v: os.cidade || cli.cidade || '-' },
@@ -1971,13 +1973,13 @@ function ClientesPageInner() {
                               Nenhuma peça avulsa. Peças vinculadas a OS aparecem na aba Serviços.
                             </div>
                           ) : (
-                            <div style={{ border: '1px solid #E5E7EB', borderRadius: 10, overflow: 'hidden', background: '#fff' }}>
-                              <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 140px 80px 120px', padding: '10px 16px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB', fontSize: 11, color: '#6B7280', textTransform: 'uppercase', fontWeight: 600 }}>
+                            <div style={{ border: '1px solid #E5E7EB', borderRadius: 10, overflow: isMobile ? 'auto' : 'hidden', background: '#fff' }}>
+                              <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 140px 80px 120px', minWidth: isMobile ? 560 : undefined, padding: '10px 16px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB', fontSize: 11, color: '#6B7280', textTransform: 'uppercase', fontWeight: 600 }}>
                                 <span>Pedido</span><span>Itens</span><span>Cliente</span><span style={{ textAlign: 'center' }}>Qtd</span><span style={{ textAlign: 'right' }}>Total</span>
                               </div>
                               {pecasAgrupadas.map((g: any, gi: number) => (
                                 <div key={gi} onClick={() => setPedidoModalNum(String(g.num_pv))} title="Ver detalhes do pedido"
-                                  style={{ display: 'grid', gridTemplateColumns: '110px 1fr 140px 80px 120px', padding: '12px 16px', borderBottom: `1px solid ${ln2}`, fontSize: 13, color: '#374151', alignItems: 'center', cursor: 'pointer' }}
+                                  style={{ display: 'grid', gridTemplateColumns: '110px 1fr 140px 80px 120px', minWidth: isMobile ? 560 : undefined, padding: '12px 16px', borderBottom: `1px solid ${ln2}`, fontSize: 13, color: '#374151', alignItems: 'center', cursor: 'pointer' }}
                                   onMouseEnter={e => { e.currentTarget.style.background = '#FFFBF5' }}
                                   onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
                                   <span style={{ fontWeight: 700, color: '#EA580C' }}>PV {g.num_pv}</span>
@@ -2222,7 +2224,7 @@ function ClientesPageInner() {
                               )}
 
                               <div style={{ fontSize: 11.5, color: '#374151', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 9 }}>Serviços ({linhas.length})</div>
-                              <div style={{ border: '1px solid #E5E7EB', borderRadius: 12, overflow: 'hidden' }}>
+                              <div style={{ border: '1px solid #E5E7EB', borderRadius: 12, overflow: isMobile ? 'auto' : 'hidden' }}>
                                 {linhas.length === 0 ? (
                                   <div style={{ padding: '14px', fontSize: 13, color: '#9CA3AF' }}>Sem detalhamento de serviços.</div>
                                 ) : (
@@ -2302,8 +2304,8 @@ function ClientesPageInner() {
                                   )}
 
                                   <div style={{ fontSize: 11.5, color: '#374151', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 9 }}>Produtos ({itens.length})</div>
-                                  <div style={{ border: '1px solid #E5E7EB', borderRadius: 12, overflow: 'hidden' }}>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 50px 100px 110px', padding: '11px 16px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB', fontSize: 11, color: '#6B7280', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.3 }}>
+                                  <div style={{ border: '1px solid #E5E7EB', borderRadius: 12, overflow: isMobile ? 'auto' : 'hidden' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 50px 100px 110px', minWidth: isMobile ? 460 : undefined, padding: '11px 16px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB', fontSize: 11, color: '#6B7280', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.3 }}>
                                       <span>Codigo</span><span>Descricao</span><span style={{ textAlign: 'center' }}>Qtd</span><span style={{ textAlign: 'right' }}>Unit.</span><span style={{ textAlign: 'right' }}>Total</span>
                                     </div>
                                     {itens.length === 0 ? (
@@ -2311,7 +2313,7 @@ function ClientesPageInner() {
                                     ) : (
                                       <>
                                         {itens.map((p: any, pi: number) => (
-                                          <div key={pi} style={{ display: 'grid', gridTemplateColumns: '90px 1fr 50px 100px 110px', padding: '12px 16px', borderBottom: '1px solid #F3F4F6', fontSize: 13, color: '#374151', alignItems: 'start', background: pi % 2 ? '#FAFBFC' : '#fff' }}>
+                                          <div key={pi} style={{ display: 'grid', gridTemplateColumns: '90px 1fr 50px 100px 110px', minWidth: isMobile ? 460 : undefined, padding: '12px 16px', borderBottom: '1px solid #F3F4F6', fontSize: 13, color: '#374151', alignItems: 'start', background: pi % 2 ? '#FAFBFC' : '#fff' }}>
                                             <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#6B7280' }}>{p.codigo || '-'}</span>
                                             <span style={{ fontSize: 12.5, lineHeight: 1.45 }}>{p.desc || '-'}</span>
                                             <span style={{ fontSize: 12.5, textAlign: 'center' }}>{p.quantidade}</span>
@@ -2319,7 +2321,7 @@ function ClientesPageInner() {
                                             <span style={{ textAlign: 'right', fontWeight: 700 }}>{formatCurrency(p.valor_total || 0)}</span>
                                           </div>
                                         ))}
-                                        <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 50px 100px 110px', padding: '12px 16px', fontSize: 13, background: '#FFFBF5', alignItems: 'center' }}>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 50px 100px 110px', minWidth: isMobile ? 460 : undefined, padding: '12px 16px', fontSize: 13, background: '#FFFBF5', alignItems: 'center' }}>
                                           <span style={{ gridColumn: '1 / 3', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: 0.3, fontSize: 11.5 }}>Total</span>
                                           <span style={{ textAlign: 'center', fontWeight: 700, color: '#6B7280' }}>{totalQtd}</span>
                                           <span></span>
@@ -2535,7 +2537,9 @@ function ClientesPageInner() {
           {clientes.length === 0 ? 'Nenhum cliente. Sincronizacao em andamento...' : 'Nenhum cliente encontrado'}
         </div>
       ) : (
-        <div style={{ border: '1px solid var(--portal-border)', borderRadius: 14, overflow: 'hidden', background: 'var(--portal-bg-card)', boxShadow: '0 1px 3px var(--portal-shadow)' }}>
+        <div style={{ border: isMobile ? 'none' : '1px solid var(--portal-border)', borderRadius: 14, overflow: 'hidden', background: isMobile ? 'transparent' : 'var(--portal-bg-card)', boxShadow: isMobile ? 'none' : '0 1px 3px var(--portal-shadow)', display: isMobile ? 'flex' : 'block', flexDirection: 'column', gap: isMobile ? 10 : 0 }}>
+          {/* Cabeçalho da tabela — só no desktop */}
+          {!isMobile && (
           <div style={{
             display: 'grid', gridTemplateColumns: '44px 1fr 160px 140px 70px 120px 110px 24px',
             padding: '12px 20px', background: 'var(--portal-bg-secondary)', borderBottom: '1px solid var(--portal-border)',
@@ -2544,8 +2548,27 @@ function ClientesPageInner() {
             <span>#</span><span>Cliente</span><span>CNPJ / CPF</span><span>Cidade</span>
             <span style={{ textAlign: 'center' }}>OS</span><span style={{ textAlign: 'right' }}>Valor Total</span><span>Empresa</span><span></span>
           </div>
+          )}
 
           {filtered.slice(0, 200).map((cli, idx) => (
+            isMobile ? (
+              // MOBILE: cartão (a grade de 8 colunas não cabe no celular)
+              <div key={`${cli.cod_cli}-${cli.empresa}`} onClick={() => abrirDetalhe(cli)}
+                style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 12, padding: 14, cursor: 'pointer', boxShadow: '0 1px 2px var(--portal-shadow)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 15, color: 'var(--portal-text)', fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{cli.nome_fantasia || cli.razao_social}</span>
+                  {(etiquetasMapa[cli.cnpj_cpf?.replace(/\D/g, '')] || []).map(e => (
+                    <span key={e.id} style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700, background: e.cor, color: '#fff', lineHeight: '16px' }}>{e.nome}</span>
+                  ))}
+                </div>
+                <div style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)', marginTop: 4, fontFamily: 'monospace' }}>{formatCNPJ(cli.cnpj_cpf)}</div>
+                <div style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)', marginTop: 2 }}>{cli.cidade ? `${cli.cidade}/${cli.estado}` : '-'} · {cli.empresa}</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 8 }}>
+                  <span style={{ fontSize: 13, color: 'var(--portal-text-secondary)' }}><b style={{ color: 'var(--portal-text)' }}>{cli.total_os}</b> OS</span>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--portal-text)' }}>{cli.total_valor > 0 ? formatCurrency(cli.total_valor) : '-'}</span>
+                </div>
+              </div>
+            ) : (
             <div key={`${cli.cod_cli}-${cli.empresa}`} onClick={() => abrirDetalhe(cli)}
               style={{
                 display: 'grid', gridTemplateColumns: '44px 1fr 160px 140px 70px 120px 110px 24px',
@@ -2576,6 +2599,7 @@ function ClientesPageInner() {
               <span style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>{cli.empresa}</span>
               <ChevronRight size={16} color="var(--portal-text-muted)" />
             </div>
+            )
           ))}
 
           {filtered.length > 200 && (

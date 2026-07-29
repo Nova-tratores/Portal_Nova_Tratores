@@ -728,7 +728,7 @@ function DashboardAgrupadoInner() {
     : [], [selecionado, emailsDoChassis]);
 
   return (
-    <div className="min-h-screen text-zinc-800 p-6 md:p-12">
+    <div className="min-h-screen text-zinc-800 p-4 md:p-12 overflow-x-hidden">
       <div className="max-w-6xl mx-auto">
         <header className="mb-12">
           <div className="flex items-end justify-between mb-8">
@@ -750,7 +750,7 @@ function DashboardAgrupadoInner() {
             </button>
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
             <input
               type="text"
               placeholder="Buscar chassis, cliente ou motor..."
@@ -888,16 +888,16 @@ function DashboardAgrupadoInner() {
 
         return (
         <div
-          className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-2 md:p-4 z-50"
           onClick={(e) => { if (e.target === e.currentTarget) setSelecionado(null); }}
         >
-          <div className="modal-enter bg-white rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden border border-zinc-200 shadow-xl flex flex-col">
-            <div className="px-8 pt-6 pb-4 border-b border-zinc-100">
+          <div className="modal-enter bg-white rounded-2xl w-full max-w-5xl max-h-[94vh] md:max-h-[90vh] overflow-hidden border border-zinc-200 shadow-xl flex flex-col">
+            <div className="px-4 md:px-8 pt-4 md:pt-6 pb-3 md:pb-4 border-b border-zinc-100">
               <div className="flex justify-between items-start mb-4">
                 <div className="flex items-center gap-4">
                   <div>
-                    <div className="flex items-center gap-3">
-                      <h2 className="text-3xl font-semibold text-zinc-900">{selecionado.Chassis}</h2>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <h2 className="text-2xl md:text-3xl font-semibold text-zinc-900">{selecionado.Chassis}</h2>
                       <span className={`text-sm font-medium px-2.5 py-1 rounded-full ${
                         prev.atrasada
                           ? "bg-red-50 text-red-600 border border-red-200"
@@ -922,7 +922,7 @@ function DashboardAgrupadoInner() {
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                <div className="bg-zinc-50 rounded-xl p-3 border border-zinc-200">
+                <div className="bg-zinc-50 rounded-xl p-3 border border-zinc-200 min-w-0 overflow-hidden">
                   <p className="text-xs text-zinc-400 uppercase tracking-wider font-medium">Motor</p>
                   {editandoMotor ? (
                     <div className="mt-1">
@@ -941,7 +941,7 @@ function DashboardAgrupadoInner() {
                     </div>
                   ) : (
                     <p
-                      className="text-2xl font-semibold text-zinc-900 mt-0.5 cursor-pointer hover:text-red-500 transition-colors group/motor"
+                      className="text-2xl font-semibold text-zinc-900 mt-0.5 cursor-pointer hover:text-red-500 transition-colors group/motor break-all"
                       onClick={() => { if (!podeTratores) return; setMotorTemp(selecionado.Numero_Motor || ""); setEditandoMotor(true); }}
                       title={podeTratores ? "Clique para editar" : undefined}
                     >
@@ -950,19 +950,19 @@ function DashboardAgrupadoInner() {
                     </p>
                   )}
                 </div>
-                <div className="bg-zinc-50 rounded-xl p-3 border border-zinc-200">
+                <div className="bg-zinc-50 rounded-xl p-3 border border-zinc-200 min-w-0 overflow-hidden">
                   <p className="text-xs text-zinc-400 uppercase tracking-wider font-medium">Progresso</p>
                   <p className="text-2xl font-semibold text-zinc-900 mt-0.5">{revisoesFeitas}<span className="text-zinc-600 text-base font-normal">/{totalRevisoes}</span></p>
                   <div className="mt-2 h-1.5 bg-zinc-200 rounded-full overflow-hidden">
                     <div className="progress-bar-fill h-full bg-red-500 rounded-full transition-all" style={{ width: `${progressoPct}%` }}></div>
                   </div>
                 </div>
-                <div className="bg-zinc-50 rounded-xl p-3 border border-zinc-200">
+                <div className="bg-zinc-50 rounded-xl p-3 border border-zinc-200 min-w-0 overflow-hidden">
                   <p className="text-xs text-zinc-400 uppercase tracking-wider font-medium">Próxima</p>
                   <p className="text-2xl font-semibold text-zinc-900 mt-0.5">{prev.proximaRevHoras}<span className="text-zinc-600 text-base font-normal">h</span></p>
                   <p className="text-sm text-zinc-400 mt-1">{prev.dataEstimada.toLocaleDateString("pt-BR")}</p>
                 </div>
-                <div className="bg-zinc-50 rounded-xl p-3 border border-zinc-200">
+                <div className="bg-zinc-50 rounded-xl p-3 border border-zinc-200 min-w-0 overflow-hidden">
                   <p className="text-xs text-zinc-400 uppercase tracking-wider font-medium">Emails</p>
                   <p className="text-2xl font-semibold text-zinc-900 mt-0.5">
                     {emailsCarregados ? emailsDoSelecionado.length : <span className="text-zinc-400">—</span>}
@@ -973,7 +973,7 @@ function DashboardAgrupadoInner() {
                 </div>
               </div>
 
-              <div className="flex gap-1 flex-wrap">
+              <div className="flex gap-1 flex-nowrap overflow-x-auto md:flex-wrap scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
                 {[
                   { key: "timeline" as const, label: "Timeline" },
                   { key: "inspecao" as const, label: "Inspeção" },
@@ -985,7 +985,7 @@ function DashboardAgrupadoInner() {
                   <button
                     key={tab.key}
                     onClick={() => setTabModal(tab.key)}
-                    className={`py-2 px-4 text-base font-medium rounded-lg transition-all ${
+                    className={`shrink-0 py-1.5 md:py-2 px-3 md:px-4 text-sm md:text-base font-medium rounded-lg transition-all whitespace-nowrap ${
                       tabModal === tab.key
                         ? "bg-red-600 text-white"
                         : "text-zinc-500 hover:text-red-600 hover:bg-red-50"
@@ -997,10 +997,10 @@ function DashboardAgrupadoInner() {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-8">
+            <div className="flex-1 overflow-y-auto p-4 md:p-8">
               {tabModal === "timeline" && (
-                <div key="timeline" className="tab-content-enter grid lg:grid-cols-3 gap-8">
-                  <div className="space-y-4">
+                <div key="timeline" className="tab-content-enter grid lg:grid-cols-3 gap-5 md:gap-8 min-w-0">
+                  <div className="space-y-4 min-w-0">
                     <h4 className="text-sm font-medium text-zinc-500 uppercase tracking-wider">Informações</h4>
                     <div className="space-y-2">
                       {[
@@ -1010,15 +1010,15 @@ function DashboardAgrupadoInner() {
                         ["Cidade", selecionado.Cidade || "—"],
                         ["Entrega", formatarData(selecionado.Entrega)],
                       ].map(([label, value]) => (
-                        <div key={label} className="bg-zinc-50 rounded-lg p-3 border border-zinc-100 flex items-center justify-between">
-                          <p className="text-sm text-zinc-400 uppercase tracking-wider font-medium">{label}</p>
-                          <p className="text-base text-zinc-800 font-medium">{value}</p>
+                        <div key={label} className="bg-zinc-50 rounded-lg p-3 border border-zinc-100 flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3 min-w-0">
+                          <p className="text-sm text-zinc-400 uppercase tracking-wider font-medium shrink-0">{label}</p>
+                          <p className="text-base text-zinc-800 font-medium min-w-0 break-all sm:text-right">{value}</p>
                         </div>
                       ))}
                     </div>
                   </div>
 
-                  <div className="lg:col-span-2">
+                  <div className="lg:col-span-2 min-w-0">
                     <div className="flex items-center justify-between mb-4">
                       <h4 className="text-sm font-medium text-zinc-500 uppercase tracking-wider">Revisões</h4>
                       <span className="text-sm text-zinc-400">{revisoesFeitas} de {totalRevisoes} realizadas</span>

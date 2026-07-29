@@ -135,7 +135,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   const [printPos, setPrintPos] = useState<{ top: number; left: number } | null>(null);
   const abrirPrintMenu = useCallback(() => {
     const r = printBtnRef.current?.getBoundingClientRect();
-    if (r) setPrintPos({ top: r.top, left: r.left - 246 });
+    if (r) setPrintPos({ top: r.top, left: Math.max(8, r.left - 246) });
     setPrintMenu((o) => !o);
   }, []);
 
@@ -1568,7 +1568,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                         <div style={{ fontSize: 10, color: 'var(--portal-text-secondary)', textTransform: 'uppercase' as const, fontWeight: 600, letterSpacing: '0.5px', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
                           <i className="fas fa-route" /> Deslocamento total ({diasExecucao.length} dia{diasExecucao.length > 1 ? 's' : ''})
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8 }}>
                           <div style={{ textAlign: 'center' }}>
                             <div style={{ fontSize: 10, color: 'var(--portal-text-secondary)' }}>Ida/dia</div>
                             <div style={{ fontSize: 14, fontWeight: 700, color: '#1E3A5F' }}>{estimativa.ida.tempo_min} min</div>
@@ -1826,7 +1826,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                         </div>
                         {erroEstimativa && <div style={{ fontSize: 11, color: '#EF4444', marginBottom: 8 }}>{erroEstimativa}</div>}
                         {estimativa && (
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8 }}>
                           <div style={{ textAlign: 'center' }}>
                             <div style={{ fontSize: 10, color: 'var(--portal-text-secondary)' }}>Ida</div>
                             <div style={{ fontSize: 15, fontWeight: 700, color: '#1E3A5F' }}>{estimativa.ida.tempo_min} min</div>

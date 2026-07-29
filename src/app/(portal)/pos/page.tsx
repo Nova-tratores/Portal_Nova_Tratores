@@ -6,7 +6,9 @@ import { usePermissoes } from "@/hooks/usePermissoes";
 import SemPermissao from "@/components/SemPermissao";
 import Header from "@/components/pos/Header";
 import PhaseAccordion from "@/components/pos/PhaseAccordion";
+import PosMobile from "@/components/pos/PosMobile";
 import OSDrawer from "@/components/pos/OSDrawer";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import LembretesDrawer from "@/components/pos/LembretesDrawer";
 import LoadingIndicator from "@/components/pos/LoadingIndicator";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
@@ -31,6 +33,7 @@ function PosPageInner() {
   const [valorKm, setValorKm] = useState(2.8);
 
   // Drawer states
+  const isMobile = useIsMobile();
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [drawerMode, setDrawerMode] = useState<"create" | "edit">("create");
   const [selectedOsId, setSelectedOsId] = useState<string | null>(null);
@@ -253,27 +256,42 @@ function PosPageInner() {
   return (
     <div className="pos-container" style={{ height: "calc(100vh - 64px)", overflow: "auto" }}>
       <LoadingIndicator visible={loading} />
-      <Header
-        searchTerm={searchTerm}
-        onSearch={setSearchTerm}
-        onNewOS={handleNewOS}
-        onGenerateReport={handleGenerateReport}
-        onLembretes={() => setLembretesVisible(true)}
-        tecnicos={tecnicos}
-        valorHora={valorHora}
-        valorKm={valorKm}
-        onConfigSaved={(h, k) => { setValorHora(h); setValorKm(k); }}
-        podeCriar={podeCriar}
-      />
-      <PhaseAccordion
-        orders={orders}
-        searchTerm={searchTerm}
-        onCardClick={handleCardClick}
-        onPhaseChange={podeMoverFase ? handlePhaseChange : undefined}
-        onEnviarOmie={podeOmie ? handleEnviarOmie : undefined}
-        onEnviarOmieTodas={podeOmie ? handleEnviarOmieTodas : undefined}
-        enviandoOmie={enviandoOmie}
-      />
+      {isMobile ? (
+        // ===== CELULAR: tela própria (o desktop abaixo não é usado no mobile) =====
+        <PosMobile
+          orders={orders}
+          searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
+          onCardClick={handleCardClick}
+          onNewOS={handleNewOS}
+          podeCriar={podeCriar}
+          loading={loading}
+        />
+      ) : (
+        <>
+          <Header
+            searchTerm={searchTerm}
+            onSearch={setSearchTerm}
+            onNewOS={handleNewOS}
+            onGenerateReport={handleGenerateReport}
+            onLembretes={() => setLembretesVisible(true)}
+            tecnicos={tecnicos}
+            valorHora={valorHora}
+            valorKm={valorKm}
+            onConfigSaved={(h, k) => { setValorHora(h); setValorKm(k); }}
+            podeCriar={podeCriar}
+          />
+          <PhaseAccordion
+            orders={orders}
+            searchTerm={searchTerm}
+            onCardClick={handleCardClick}
+            onPhaseChange={podeMoverFase ? handlePhaseChange : undefined}
+            onEnviarOmie={podeOmie ? handleEnviarOmie : undefined}
+            onEnviarOmieTodas={podeOmie ? handleEnviarOmieTodas : undefined}
+            enviandoOmie={enviandoOmie}
+          />
+        </>
+      )}
 
       {drawerVisible && (
         <OSDrawer

@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { isValorAlto, buscarAutorizacaoAtiva, criarPedidoPermissao, consumirAutorizacao, parseValorBR, LIMITE_BLOQUEIO, type Autorizacao } from '@/lib/requisicoes/autorizacao';
 import HistoricoModal from './HistoricoModal';
 import RecorteAnexo from './RecorteAnexo';
@@ -42,6 +43,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
   // ── Bloqueio de valor alto (precisa de permissão de Dev) ──
   const { userProfile } = useAuth();
   const { isDev } = usePermissoes(userProfile?.id);
+  const isMobile = useIsMobile();
   const [autoriz, setAutoriz] = useState<Autorizacao | null>(null);
   const [pedirOpen, setPedirOpen] = useState(false);
   const [motivoPedido, setMotivoPedido] = useState('');
@@ -342,6 +344,9 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
 
   const handlePrint = (e?: React.MouseEvent) => {
     e?.stopPropagation();
+    // No celular o window.print() da página falha (o navegador "fotografa" a tela em vez
+    // do documento). Então abrimos a página dedicada /imprimir, que é limpa e imprime certo.
+    if (isMobile) { window.open(`/requisicoes/imprimir/${req.id}`, '_blank'); return; }
     if (!anexosDisponiveis.length) { imprimir(); return; }   // sem anexo, não há o que perguntar
     setDlgImprimir(true);
   };
@@ -426,11 +431,13 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
             </a>
           )
         )}
+        {/* Sem botão de câmera: o seletor de arquivo do celular já oferece a câmera,
+            e toda imagem anexada passa pelo corte antes de subir (handleFileUpload). */}
         <label className={`w-7 h-7 flex items-center justify-center rounded cursor-pointer transition-all shrink-0 ${
           justUploaded ? 'bg-emerald-500 text-white' : isUploading ? 'bg-zinc-200 text-zinc-400' : 'bg-zinc-200 text-zinc-600 hover:bg-red-600 hover:text-white'
-        }`} title="Upload">
+        }`} title="Enviar arquivo">
           {justUploaded ? <Check size={12} /> : <Upload size={12} />}
-          <input type="file" className="hidden" onChange={e => handleFileUpload(e, field, label)} disabled={isUploading} />
+          <input type="file" accept="image/*,application/pdf" className="hidden" onChange={e => handleFileUpload(e, field, label)} disabled={isUploading} />
         </label>
       </div>
     );
@@ -494,8 +501,8 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
 
       {/* MODAL PRINCIPAL — Página única */}
       {modalAberto && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 print:hidden">
-          <div className="bg-white w-full max-w-5xl max-h-[95vh] rounded-2xl shadow-xl border border-zinc-200 flex flex-col overflow-hidden">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 md:p-4 print:hidden">
+          <div className="bg-white w-full max-w-5xl max-h-[96vh] md:max-h-[95vh] rounded-2xl shadow-xl border border-zinc-200 flex flex-col overflow-hidden">
 
             {!podeEditar && (
               <div className="px-8 py-2 bg-amber-50 border-b border-amber-200 text-amber-800 text-xs font-semibold shrink-0">
@@ -504,23 +511,23 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
             )}
 
             {/* HEADER */}
-            <div className="px-8 py-5 border-b border-zinc-200 flex items-center gap-5 shrink-0 bg-zinc-50/50">
-              <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-lg font-bold ${veioDoApp ? 'bg-red-500/15 text-red-600' : 'bg-zinc-100 text-zinc-600'}`}>
+            <div className="px-4 md:px-8 py-3 md:py-5 border-b border-zinc-200 flex items-center gap-3 md:gap-5 shrink-0 bg-zinc-50/50">
+              <div className={`w-11 h-11 md:w-14 md:h-14 shrink-0 rounded-xl flex items-center justify-center text-base md:text-lg font-bold ${veioDoApp ? 'bg-red-500/15 text-red-600' : 'bg-zinc-100 text-zinc-600'}`}>
                 {req.id}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-3">
-                  <h2 className="text-lg font-bold text-zinc-900 truncate">{localData.titulo || 'Sem título'}</h2>
+                  <h2 className="text-[15px] md:text-lg font-bold text-zinc-900 truncate">{localData.titulo || 'Sem título'}</h2>
                   {veioDoApp && <span className="bg-red-600 text-white text-[10px] px-2.5 py-0.5 rounded-md font-bold shrink-0">APP</span>}
                 </div>
-                <div className="flex items-center gap-3 mt-1">
-                  <div className={`w-2.5 h-2.5 rounded-full ${statusColors[req.status] || 'bg-slate-500'}`}></div>
-                  <span className="text-xs text-zinc-400 uppercase tracking-wider font-semibold">{req.status}</span>
-                  {nomeExibicao && <span className="text-xs text-zinc-400">· {nomeExibicao}</span>}
+                <div className="flex items-center gap-2 md:gap-3 mt-1">
+                  <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${statusColors[req.status] || 'bg-slate-500'}`}></div>
+                  <span className="text-[11px] md:text-xs text-zinc-400 uppercase tracking-wider font-semibold truncate">{req.status}</span>
+                  {nomeExibicao && <span className="text-[11px] md:text-xs text-zinc-400 truncate hidden sm:inline">· {nomeExibicao}</span>}
                 </div>
               </div>
               <button onClick={() => setHistAberto(true)} className="w-10 h-10 flex items-center justify-center rounded-lg bg-white border border-zinc-200 text-zinc-500 hover:bg-zinc-800 hover:text-white hover:border-zinc-800 transition-all shrink-0" title="Histórico"><Clock size={16}/></button>
-              <button onClick={handlePrint} className="h-10 px-4 flex items-center gap-2 rounded-lg bg-red-600 border border-red-600 text-white text-sm hover:bg-red-500 transition-all shrink-0" title="Imprimir a requisição com os anexos"><Printer size={16}/> Imprimir</button>
+              <button onClick={handlePrint} className="h-10 w-10 md:w-auto md:px-4 flex items-center justify-center gap-2 rounded-lg bg-red-600 border border-red-600 text-white text-sm hover:bg-red-500 transition-all shrink-0" title="Imprimir a requisição"><Printer size={16}/> <span className="hidden md:inline">Imprimir</span></button>
               <button onClick={fecharModal} className="w-10 h-10 flex items-center justify-center rounded-lg bg-white border border-zinc-200 text-zinc-500 hover:bg-red-500 hover:text-white hover:border-red-500 transition-all shrink-0"><X size={18}/></button>
             </div>
 
@@ -548,7 +555,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
             )}
 
             {/* CONTEÚDO — Scroll único */}
-            <div className="flex-1 overflow-y-auto px-8 py-6 space-y-6">
+            <div className="flex-1 overflow-y-auto px-4 md:px-8 py-5 md:py-6 space-y-5 md:space-y-6">
 
               {/* ── LINK DIRETO ── */}
               {/* Cada requisição tem o próprio endereço; copiar aqui pra colar no

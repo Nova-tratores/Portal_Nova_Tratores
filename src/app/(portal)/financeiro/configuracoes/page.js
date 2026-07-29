@@ -93,7 +93,7 @@ function ConfiguracoesContent() {
     <div style={{ minHeight: '100vh', background: '#f4f4f4', fontFamily: 'Inter, sans-serif' }}>
       <FinanceiroNav />
 
-      <div style={{ padding: '24px 32px' }}>
+      <div style={{ padding: 'clamp(12px, 4vw, 24px) clamp(12px, 4vw, 32px)' }}>
 
         <main style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', gap: '30px' }}>
           <div style={{ width: '300px', display: 'flex', flexDirection: 'column', gap: '10px' }}>

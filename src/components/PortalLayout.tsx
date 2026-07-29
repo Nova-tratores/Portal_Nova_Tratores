@@ -8,6 +8,7 @@ import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
 import AcessoBloqueado from '@/components/AcessoBloqueado'
 import { usePathname, useRouter } from 'next/navigation'
 import TratorinoChat from '@/components/TratorinoChat'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import {
   LogOut, Settings, ClipboardList, Wrench, FileText,
   DollarSign, Package, Menu, X, User as UserIcon,
@@ -203,6 +204,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   // Tooltip da notificação (mostra o conteúdo completo ao passar o mouse)
   const [notifHover, setNotifHover] = useState<{ titulo: string; descricao: string; tempo: any; tipo: string; top: number; left: number } | null>(null)
   const [topMenuOpen, setTopMenuOpen] = useState(false)
+  const isMobile = useIsMobile()
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)  // menuzinho da foto (celular)
   const [notifPrefsOpen, setNotifPrefsOpen] = useState(false)
   const [toasts, setToasts] = useState<{ id: string; chatId?: string; titulo: string; avatar: string | null; preview: string; tipo: string; link?: string; timestamp: number }[]>([])
   const lastChatNotifIdRef = useRef<string | null>(null)
@@ -572,7 +575,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   return (
     <div className={tema === 'dark' ? 'portal-dark' : ''} style={{ minHeight: '100vh', background: 'var(--portal-bg)', position: 'relative' }}>
       {/* ===== TOP BAR (maior) ===== */}
-      <header style={{
+      <header className="portal-header" style={{
         position: 'sticky', top: 0, zIndex: 50,
         padding: '0 32px', height: '84px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -598,6 +601,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
             <img
               src="/Logo_Nova.png"
               alt="Nova Tratores"
+              className="portal-logo"
               style={{ height: '50px' }}
             />
           </Link>
@@ -646,6 +650,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
           {/* Ícone Chat */}
           <button
+            className="portal-chat-btn"
             onClick={() => setChatOpen(true)}
             title="Chat"
             style={{
@@ -695,6 +700,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
             onMouseLeave={() => setTopMenuOpen(false)}
           >
             <button
+              className="portal-menu-btn"
               onClick={() => { if (!bellOpen) setTopMenuOpen(true) }}
               style={{
                 position: 'relative',
@@ -707,8 +713,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               onMouseLeave={(e) => { e.currentTarget.style.boxShadow = '0 4px 12px rgba(220,38,38,0.25)' }}
             >
               <Menu size={20} />
-              <span>Menu</span>
-              <ChevronDown size={14} style={{ transform: topMenuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+              <span className="portal-menu-label">Menu</span>
+              <ChevronDown size={14} className="portal-menu-chevron" style={{ transform: topMenuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
             </button>
 
             {/* Dropdown do menu cascata */}
@@ -748,9 +754,18 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               )
             })()}
 
-            {/* Dropdown do sino */}
+            {/* Dropdown do sino — no celular fica colado às margens (quase tela cheia);
+                antes o right:120px + largura fixa jogava a borda esquerda pra fora da tela. */}
             {bellOpen && (
-              <div style={{
+              <div style={isMobile ? {
+                position: 'fixed', top: '72px', left: 8, right: 8,
+                maxHeight: 'calc(100vh - 90px)', zIndex: 10000,
+                background: 'var(--portal-bg-card)', borderRadius: '16px',
+                boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
+                border: `1px solid var(--portal-border)`,
+                overflow: 'hidden', display: 'flex', flexDirection: 'column',
+                animation: 'bellDropIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
+              } : {
                 position: 'fixed', top: '92px', right: '120px',
                 width: '420px', maxWidth: 'calc(100vw - 32px)',
                 maxHeight: '520px', zIndex: 10000,
@@ -762,8 +777,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               }}>
                 {/* Header */}
                 <div style={{
-                  padding: '20px 24px', borderBottom: `1px solid var(--portal-border)`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: isMobile ? '14px 14px' : '20px 24px', borderBottom: `1px solid var(--portal-border)`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap',
                   background: 'var(--portal-bg-hover)'
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -921,11 +936,13 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
             )}
           </div>
 
-          {/* User — fundo vermelho (clique abre Perfil) */}
+          {/* User — no PC abre o Perfil; no celular abre o menuzinho (chat/menu/config) */}
           <div
-            onClick={() => { setConfigTab('perfil'); setConfigOpen(true) }}
-            title="Meu perfil"
+            className="portal-user-chip"
+            onClick={() => { if (isMobile) { setMobileMenuOpen(o => !o); setBellOpen(false) } else { setConfigTab('perfil'); setConfigOpen(true) } }}
+            title={isMobile ? 'Menu' : 'Meu perfil'}
             style={{
+            position: 'relative',
             display: 'flex', alignItems: 'center', gap: '12px',
             padding: '8px 18px 8px 8px', borderRadius: '14px',
             background: 'linear-gradient(135deg, #b91c1c, #991b1b)',
@@ -943,7 +960,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                 <UserIcon size={20} color="#fff" />
               )}
             </div>
-            <div>
+            <div className="portal-user-name">
               <p style={{ fontSize: '13px', fontWeight: '600', color: '#ffffff', lineHeight: '1.2', margin: 0 }}>
                 {userProfile.nome}
               </p>
@@ -951,6 +968,29 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                 {userProfile.funcao}
               </p>
             </div>
+
+            {/* Menuzinho do celular (abre ao tocar na foto): chat, menu e config */}
+            {isMobile && mobileMenuOpen && (
+              <>
+                <div onClick={(e) => { e.stopPropagation(); setMobileMenuOpen(false) }} style={{ position: 'fixed', inset: 0, zIndex: 10000 }} />
+                <div onClick={(e) => e.stopPropagation()} style={{ position: 'absolute', right: 0, top: 'calc(100% + 8px)', zIndex: 10001, minWidth: 220, background: 'var(--portal-bg-card)', borderRadius: 14, border: '1px solid var(--portal-border)', boxShadow: '0 16px 40px rgba(0,0,0,0.22)', padding: 6, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {([
+                    [<MessageCircle size={18} key="c" />, 'Chat', () => setChatOpen(true), chatData.totalNaoLidas],
+                    [<Calendar size={18} key="l" />, 'Lembretes', () => setLembretesOpen(true), 0],
+                    [<UserIcon size={18} key="p" />, 'Meu perfil', () => { setConfigTab('perfil'); setConfigOpen(true) }, 0],
+                    [<Settings size={18} key="s" />, 'Configurações', () => { setConfigTab('perfil'); setConfigOpen(true) }, 0],
+                    [<LogOut size={18} key="x" />, 'Sair', () => handleLogout(), 0],
+                  ] as [React.ReactNode, string, () => void, number][]).map(([ic, lab, fn, badge]) => (
+                    <button key={lab} onClick={() => { fn(); setMobileMenuOpen(false) }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 12px', width: '100%', border: 'none', borderRadius: 10, cursor: 'pointer', background: 'transparent', color: 'var(--portal-text)', fontSize: 15, fontWeight: 600, textAlign: 'left' }}>
+                      <span style={{ width: 20, display: 'flex', justifyContent: 'center', color: '#dc2626' }}>{ic}</span>
+                      <span style={{ flex: 1 }}>{lab}</span>
+                      {badge > 0 && <span style={{ minWidth: 20, height: 20, borderRadius: 10, background: '#dc2626', color: '#fff', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 6px' }}>{badge > 99 ? '99+' : badge}</span>}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -1211,7 +1251,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       </main>
 
       {/* Assistente Tratorilson (flutuante, global) — só no modo flutuante e pra quem tem acesso */}
-      {temAcesso('tratorilson') && tratorilsonLocal === 'flutuante' && (
+      {/* No celular o Tratorilson NÃO flutua na lateral — fica só dentro do painel
+          de Mensagens (Chat). O ícone flutuante é exclusivo do desktop. */}
+      {temAcesso('tratorilson') && !isMobile && tratorilsonLocal === 'flutuante' && (
         <TratorinoChat
           userName={userProfile?.nome || ''}
           userId={userProfile?.id || ''}
@@ -1249,7 +1291,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         isAdmin={isAdmin}
         modulos={permissoes?.modulos_permitidos || []}
         tratorilsonHabilitado={temAcesso('tratorilson')}
-        tratorilsonLocal={tratorilsonLocal}
+        tratorilsonLocal={isMobile ? 'chat' : tratorilsonLocal}
         onChangeTratorilsonLocal={mudarTratorilsonLocal}
       />
 
@@ -1612,7 +1654,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       )}
 
       {/* ===== TOASTS ===== */}
-      <div className="print-hidden" style={{
+      <div className="print-hidden notif-toast-wrap" style={{
         position: 'fixed', top: '92px', right: '24px',
         display: 'flex', flexDirection: 'column', gap: '12px',
         zIndex: 9999, pointerEvents: 'none'
@@ -1728,6 +1770,21 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         @media (max-width: 1500px) { .topbar-atalhos a:nth-child(4) { display: none; } }
         @media (max-width: 1320px) { .topbar-atalhos a:nth-child(3) { display: none; } }
         @media (max-width: 1150px) { .topbar-atalhos { display: none !important; } }
+        /* Barra de cima no CELULAR: encolhe pra tudo caber (o avatar sumia cortado).
+           Só afeta <= 640px; no PC nada muda. */
+        @media (max-width: 640px) {
+          .portal-header { padding: 0 12px !important; gap: 8px; }
+          .portal-logo { height: 34px !important; }
+          /* Só logo + sino + foto. Chat e Menu entram no menuzinho da foto. */
+          .portal-chat-btn, .portal-menu-btn { display: none !important; }
+          .portal-user-name { display: none !important; }
+          .portal-user-chip { padding: 6px !important; }
+          /* Notificações menores/discretas no celular: faixa fininha no topo */
+          .notif-toast-wrap { top: 72px !important; right: 8px !important; left: 8px !important; gap: 8px !important; }
+          .notif-toast { width: auto !important; max-width: 100% !important; font-size: 13px; }
+          .notif-toast .notif-toast-title { font-size: 13px !important; }
+          .notif-toast .notif-toast-body { font-size: 12px !important; }
+        }
         @keyframes toastSlideIn {
           from { opacity: 0; transform: translateX(120%); }
           to { opacity: 1; transform: translateX(0); }

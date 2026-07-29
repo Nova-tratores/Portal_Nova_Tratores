@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 interface Carrinho { id: string; nome: string; cliente: string; modelo: string; modelo_slug: string; servico: string; status: string; criado_por?: string; criado_em: string; atualizado_em: string; expira_em: string; total_itens?: number; marca?: string | null }
 
@@ -35,6 +36,7 @@ function diasRestantes(expira?: string) {
 }
 
 export default function CarrinhosPanel({ userName, onEditarPecas, onClose }: { userName?: string; onEditarPecas?: (c: Carrinho) => void; onClose: () => void }) {
+  const isMobile = useIsMobile();
   const [aba, setAba] = useState<"aberto" | "fechado" | "lixeira">("aberto");
   const [lista, setLista] = useState<Carrinho[]>([]);
   const [loading, setLoading] = useState(false);
@@ -255,7 +257,7 @@ export default function CarrinhosPanel({ userName, onEditarPecas, onClose }: { u
     <div style={{ position: "fixed", inset: 0, zIndex: 6000, background: "#fff", display: "flex" }}>
       <div style={{ width: "100vw", height: "100vh", background: "#fff", display: "flex", overflow: "hidden" }}>
         {/* Lista */}
-        <div style={{ width: 380, flexShrink: 0, borderRight: "1px solid #eef0f3", display: "flex", flexDirection: "column", minWidth: 0 }}>
+        <div style={{ width: isMobile ? "100%" : 380, flexShrink: isMobile ? 1 : 0, borderRight: isMobile ? "none" : "1px solid #eef0f3", display: (isMobile && sel) ? "none" : "flex", flexDirection: "column", minWidth: 0 }}>
           <div style={{ padding: "18px 20px", borderBottom: "1px solid #eef0f3" }}>
             <div style={{ fontSize: 24, fontWeight: 700, color: "#0f172a", display: "flex", alignItems: "center", gap: 10 }}><i className="fas fa-cart-shopping" style={{ color: "#dc2626" }} /> Carrinhos</div>
             <div style={{ display: "flex", gap: 6, marginTop: 14 }}>
@@ -286,25 +288,33 @@ export default function CarrinhosPanel({ userName, onEditarPecas, onClose }: { u
         </div>
 
         {/* Detalhe */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 22px", borderBottom: "1px solid #eef0f3" }}>
-            <button onClick={onClose} title="Voltar pro catálogo"
-              style={{ display: "flex", alignItems: "center", gap: 9, border: "2px solid #dc2626", background: "#fff5f5", color: "#dc2626", borderRadius: 11, padding: "10px 18px", fontSize: 16.5, fontWeight: 400, cursor: "pointer", flexShrink: 0 }}>
-              <i className="fas fa-bars" style={{ fontSize: 15 }} /> Catálogo menu
-            </button>
-            <div style={{ flex: 1, minWidth: 0, fontSize: 22, fontWeight: 400, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sel ? (sel.carrinho.nome || "Carrinho") : "Selecione um carrinho"}</div>
-            <button onClick={onClose} style={{ width: 38, height: 38, borderRadius: 9, border: "none", background: "#f1f5f9", color: "#64748b", cursor: "pointer", fontSize: 18, flexShrink: 0 }}><i className="fas fa-times" /></button>
+        <div style={{ flex: 1, display: (isMobile && !sel) ? "none" : "flex", flexDirection: "column", minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 10 : 14, padding: isMobile ? "12px 14px" : "16px 22px", borderBottom: "1px solid #eef0f3" }}>
+            {isMobile ? (
+              // No celular o botão volta pra LISTA de carrinhos (não pro catálogo).
+              <button onClick={() => setSel(null)} title="Voltar aos carrinhos"
+                style={{ display: "flex", alignItems: "center", gap: 8, border: "1.5px solid #dc2626", background: "#fff5f5", color: "#dc2626", borderRadius: 10, padding: "9px 14px", fontSize: 14, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
+                <i className="fas fa-arrow-left" style={{ fontSize: 13 }} /> Voltar
+              </button>
+            ) : (
+              <button onClick={onClose} title="Voltar pro catálogo"
+                style={{ display: "flex", alignItems: "center", gap: 9, border: "2px solid #dc2626", background: "#fff5f5", color: "#dc2626", borderRadius: 11, padding: "10px 18px", fontSize: 16.5, fontWeight: 400, cursor: "pointer", flexShrink: 0 }}>
+                <i className="fas fa-bars" style={{ fontSize: 15 }} /> Catálogo menu
+              </button>
+            )}
+            <div style={{ flex: 1, minWidth: 0, fontSize: isMobile ? 17 : 22, fontWeight: isMobile ? 700 : 400, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sel ? (sel.carrinho.nome || "Carrinho") : "Selecione um carrinho"}</div>
+            <button onClick={onClose} title="Fechar" style={{ width: 38, height: 38, borderRadius: 9, border: "none", background: "#f1f5f9", color: "#64748b", cursor: "pointer", fontSize: 18, flexShrink: 0 }}><i className="fas fa-times" /></button>
           </div>
 
           {/* Abas do detalhe */}
           {sel && (
-            <div style={{ display: "flex", gap: 4, padding: "0 22px", borderBottom: "2px solid #eef0f3" }}>
+            <div style={{ display: "flex", gap: 4, padding: isMobile ? "0 10px" : "0 22px", borderBottom: "2px solid #eef0f3", overflowX: isMobile ? "auto" : undefined, WebkitOverflowScrolling: "touch" }}>
               {([["pecas", "fa-boxes", `Peças${sel.itens.length ? ` (${sel.itens.length})` : ""}`],
                  ["documento", "fa-file-invoice", "Gerar documento"],
                  ["dados", "fa-sliders", "Dados e ações"],
                  ["historico", "fa-clock-rotate-left", "Histórico"]] as const).map(([k, ic, lb]) => (
                 <button key={k} onClick={() => setAbaDet(k as typeof abaDet)}
-                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "13px 18px", border: "none", background: "transparent", cursor: "pointer", fontSize: 16, fontWeight: 400,
+                  style={{ display: "flex", alignItems: "center", gap: 8, padding: isMobile ? "12px 12px" : "13px 18px", border: "none", background: "transparent", cursor: "pointer", fontSize: isMobile ? 14 : 16, fontWeight: abaDet === k ? 600 : 400, whiteSpace: "nowrap", flexShrink: 0,
                     color: abaDet === k ? "#dc2626" : "#64748b", borderBottom: `3px solid ${abaDet === k ? "#dc2626" : "transparent"}`, marginBottom: -2 }}>
                   <i className={`fas ${ic}`} /> {lb}
                 </button>
@@ -317,11 +327,11 @@ export default function CarrinhosPanel({ userName, onEditarPecas, onClose }: { u
           ) : !sel ? (
             <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "#cbd5e1", fontSize: 18 }}>Escolha um carrinho à esquerda.</div>
           ) : (
-            <div style={{ flex: 1, overflowY: "auto", padding: 22 }}>
+            <div style={{ flex: 1, overflowY: "auto", padding: isMobile ? 14 : 22 }}>
               {abaDet === "pecas" && (<>
               {/* Metadados editáveis */}
               {editForm && (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10, marginBottom: 14 }}>
                   {([["nome", "Nome do carrinho"], ["cliente", "Cliente"], ["modelo", "Trator / modelo"], ["servico", "Serviço"]] as const).map(([k, lab]) => (
                     <label key={k} style={{ fontSize: 15, color: "#64748b" }}>
                       {lab}

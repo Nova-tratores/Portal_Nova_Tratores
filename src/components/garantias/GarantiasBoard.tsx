@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import type { GarantiaResumo, GarantiaStatus } from '@/lib/garantias/types';
 import { STATUS_LABEL, STATUS_COR } from '@/lib/garantias/constants';
 import GarantiaMiniCard from './GarantiaMiniCard';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 const COLUNAS: GarantiaStatus[] = [
   'aberta', 'em_analise', 'bo_tecnico', 'enviada', 'info_pendente',
@@ -18,6 +19,7 @@ interface Props {
 }
 
 export default function GarantiasBoard({ garantias, onCardClick }: Props) {
+  const isMobile = useIsMobile();
   const porColuna = useMemo(() => {
     const map: Record<string, GarantiaResumo[]> = {};
     for (const col of COLUNAS) map[col] = [];
@@ -29,16 +31,20 @@ export default function GarantiasBoard({ garantias, onCardClick }: Props) {
 
   const colunasVisiveis = COLUNAS.filter(
     (col) => !COLUNAS_CONDICIONAIS.includes(col) || porColuna[col].length > 0
+  ).filter(
+    // No celular esconde colunas vazias (empilhado, cada coluna vira uma seção).
+    (col) => !isMobile || porColuna[col].length > 0
   );
 
   return (
-    <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8 }}>
+    <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 12, overflowX: isMobile ? 'visible' : 'auto', paddingBottom: 8 }}>
       {colunasVisiveis.map((col) => (
         <div
           key={col}
           style={{
-            flex: '1 0 240px',
-            minWidth: 240,
+            flex: isMobile ? '1 1 auto' : '1 0 240px',
+            minWidth: isMobile ? 0 : 240,
+            width: isMobile ? '100%' : undefined,
             display: 'flex',
             flexDirection: 'column',
             gap: 8,

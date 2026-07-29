@@ -137,7 +137,7 @@ export default function HistoricoPagar() {
     <div style={{ minHeight: '100vh', background: '#f7f8fa', fontFamily: 'Inter, sans-serif' }}>
       <FinanceiroNav />
 
-      <main style={{ padding: '24px 32px' }}>
+      <main style={{ padding: 'clamp(12px, 4vw, 24px) clamp(12px, 4vw, 32px)' }}>
 
         {/* BARRA DE FILTROS */}
         <div style={{ display: 'flex', gap: '15px', marginBottom: '30px', flexWrap: 'wrap', alignItems: 'flex-end' }}>

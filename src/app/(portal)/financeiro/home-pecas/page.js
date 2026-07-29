@@ -360,7 +360,7 @@ function HomePosVendasContent() {
         </div>
       </FinanceiroNav>
 
-      <div style={{ padding: '24px 32px' }}>
+      <div style={{ padding: 'clamp(12px, 4vw, 24px) clamp(12px, 4vw, 32px)' }}>
 
       {/* Alerta global: contas em 'aguardando_omie' há mais de 30 dias */}
       {(() => {

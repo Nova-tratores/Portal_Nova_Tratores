@@ -358,7 +358,7 @@ export default function Kanban() {
       <div style={{ padding: '0 50px', marginBottom: '4px', fontSize: '14px', color: 'var(--portal-text-muted)' }}>{chamadosFiltrados.length} resultado{chamadosFiltrados.length !== 1 ? 's' : ''}</div>
     )}
     {(
-    <div style={{ flex: 1, display: 'flex', gap: '25px', overflowX: 'auto', overflowY: 'hidden', padding: '0 50px 40px 50px', boxSizing: 'border-box' }}>
+    <div style={{ flex: 1, display: 'flex', gap: '25px', overflowX: 'auto', overflowY: 'hidden', padding: '0 clamp(10px, 4vw, 50px) 40px', boxSizing: 'border-box' }}>
      {colunas.map(col => (
       <div key={col.id} style={{ width: '400px', flex: '0 0 400px', display: 'flex', flexDirection: 'column' }}>
        <h3 style={{ background: 'var(--portal-bg-card)', color: 'var(--portal-text-secondary)', padding: '20px', borderRadius: '16px', marginBottom: '25px', textAlign: 'center', fontWeight:'500', fontSize:'16px', letterSpacing:'1px', border: '1px solid var(--portal-border)', flexShrink: 0 }}>{col.titulo}</h3>

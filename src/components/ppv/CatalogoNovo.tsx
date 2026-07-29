@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback, useRef, type CSSProperties, type MouseEvent as RMouseEvent } from "react";
 import CarrinhosPanel from "./CarrinhosPanel";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 interface Peca { id: number; code: string; name: string; reference: string; qtd: number | null; unit: string | null; compravel?: boolean; figura?: any; figura_id?: string; modelos?: string[] }
 
@@ -37,6 +38,7 @@ interface Familia { nome: string; marca: string; tipo: string | null; image_url:
 
 // Quando embutido no fluxo de adicionar peças, recebe onSelecionarPeca; senão, copia o código.
 export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicialSlug, travado }: { onSelecionarPeca?: (p: { code: string; name: string }) => void; userName?: string; modeloInicialSlug?: string; travado?: boolean }) {
+  const isMobile = useIsMobile();
   const [modelos, setModelos] = useState<Modelo[]>([]);
   const [marcas, setMarcas] = useState<Marca[]>([]);
   const [marcaSel, setMarcaSel] = useState<Marca | null>(null);
@@ -733,22 +735,37 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
   };
 
   // Card de modelo (usado na tela inicial e dentro da marca)
-  // Chips de tipo (Todos / Trator / Implemento / Autopropelido)
-  const chipsTipo = (tipos: string[], universo: Modelo[]) => (
-    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
-      {["", ...tipos].map((t) => {
-        const ativo = tipoSel === t;
-        const n = t ? universo.filter((m) => m.tipo === t).length : universo.length;
-        return (
-          <button key={t || "todos"} onClick={() => setTipoSel(t)}
-            style={{ display: "flex", alignItems: "center", gap: 8, padding: "11px 20px", borderRadius: 999, border: `2px solid ${ativo ? "#dc2626" : "#e3e8ef"}`, background: ativo ? "#dc2626" : "#fff", color: ativo ? "#fff" : "#475569", fontSize: 16, fontWeight: 400, cursor: "pointer", transition: "all .12s" }}>
-            {t || "Todos"}
-            <span style={{ fontSize: 13.5, fontWeight: 400, padding: "2px 10px", borderRadius: 999, background: ativo ? "rgba(255,255,255,.22)" : "#f1f5f9", color: ativo ? "#fff" : "#94a3b8" }}>{n}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
+  // Filtro de tipo (Todos / Trator / Implemento / Autopropelido / …).
+  // No celular vira um dropdown (a fila de chips ocupava muita altura); no PC continua em chips.
+  const chipsTipo = (tipos: string[], universo: Modelo[]) => {
+    const conta = (t: string) => (t ? universo.filter((m) => m.tipo === t).length : universo.length);
+    if (isMobile) {
+      return (
+        <div style={{ marginBottom: 14 }}>
+          <select value={tipoSel} onChange={(e) => setTipoSel(e.target.value)}
+            style={{ width: "100%", padding: "12px 14px", borderRadius: 12, border: "2px solid #e3e8ef", background: "#fff", color: "#0f172a", fontSize: 16, fontWeight: 500, outline: "none" }}>
+            <option value="">Todos os tipos ({conta("")})</option>
+            {tipos.map((t) => <option key={t} value={t}>{t} ({conta(t)})</option>)}
+          </select>
+        </div>
+      );
+    }
+    return (
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+        {["", ...tipos].map((t) => {
+          const ativo = tipoSel === t;
+          const n = conta(t);
+          return (
+            <button key={t || "todos"} onClick={() => setTipoSel(t)}
+              style={{ display: "flex", alignItems: "center", gap: 8, padding: "11px 20px", borderRadius: 999, border: `2px solid ${ativo ? "#dc2626" : "#e3e8ef"}`, background: ativo ? "#dc2626" : "#fff", color: ativo ? "#fff" : "#475569", fontSize: 16, fontWeight: 400, cursor: "pointer", transition: "all .12s" }}>
+              {t || "Todos"}
+              <span style={{ fontSize: 13.5, fontWeight: 400, padding: "2px 10px", borderRadius: 999, background: ativo ? "rgba(255,255,255,.22)" : "#f1f5f9", color: ativo ? "#fff" : "#94a3b8" }}>{n}</span>
+            </button>
+          );
+        })}
+      </div>
+    );
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#f7f8fa", borderRadius: 14, overflow: "hidden", color: "#0f172a", fontFamily: "'Inter','Segoe UI',system-ui,sans-serif" }}>
@@ -787,13 +804,13 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
         {vista !== "busca" && (
           <div style={{ fontSize: 13, color: "#64748b", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             {(secaoAtual || figura || modeloSel || familiaSel || (marcaSel && marcas.length > 1)) && <button className="cat-pula" onClick={voltar} style={{ display: "flex", alignItems: "center", gap: 9, border: "none", background: "#0f172a", color: "#fff", borderRadius: 11, padding: "11px 20px", cursor: "pointer", fontSize: 16.5, fontWeight: 400, boxShadow: "0 4px 14px rgba(15,23,42,.28)" }}><i className="fas fa-arrow-left" style={{ fontSize: 15 }} /> Voltar</button>}
-            <button className="cat-crumb" onClick={irParaMarcas} style={{ display: "flex", alignItems: "center", gap: 9, border: "2px solid #dc2626", background: "#fff5f5", color: "#dc2626", borderRadius: 11, padding: "10px 18px", fontSize: 16.5, fontWeight: 400, cursor: travado ? "default" : "pointer" }}>
-              <i className="fas fa-bars" style={{ fontSize: 15 }} /> Catálogo menu
+            <button className="cat-crumb" onClick={irParaMarcas} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 9, border: "1.5px solid #dc2626", background: "#fff5f5", color: "#dc2626", borderRadius: 10, padding: isMobile ? "11px 12px" : "10px 18px", fontSize: isMobile ? 14 : 16.5, fontWeight: isMobile ? 600 : 400, cursor: travado ? "default" : "pointer", ...(isMobile ? { flex: "1 1 0", minWidth: 0, whiteSpace: "nowrap" } : {}) }}>
+              <i className="fas fa-bars" style={{ fontSize: isMobile ? 13 : 15 }} /> Catálogo menu
             </button>
             {!onSelecionarPeca && (
-              <button onClick={() => setCarrinhosOpen(true)} title="Meus carrinhos" className="cat-pula"
-                style={{ display: "flex", alignItems: "center", gap: 9, border: "none", background: "linear-gradient(135deg,#ef4444,#dc2626)", color: "#fff", borderRadius: 11, padding: "11px 20px", cursor: "pointer", fontSize: 16.5, fontWeight: 400, boxShadow: "0 5px 16px rgba(220,38,38,.38)" }}>
-                <i className="fas fa-cart-shopping" style={{ fontSize: 16 }} /> Meus carrinhos
+              <button onClick={() => setCarrinhosOpen(true)} title="Meus carrinhos" className={isMobile ? "" : "cat-pula"}
+                style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 9, border: "none", background: "linear-gradient(135deg,#ef4444,#dc2626)", color: "#fff", borderRadius: 10, padding: isMobile ? "11px 12px" : "11px 20px", cursor: "pointer", fontSize: isMobile ? 14 : 16.5, fontWeight: isMobile ? 600 : 400, boxShadow: isMobile ? "0 3px 10px rgba(220,38,38,.28)" : "0 5px 16px rgba(220,38,38,.38)", ...(isMobile ? { flex: "1 1 0", minWidth: 0, whiteSpace: "nowrap" } : {}) }}>
+                <i className="fas fa-cart-shopping" style={{ fontSize: isMobile ? 14 : 16 }} /> Meus carrinhos
               </button>
             )}
             {!travado && marcaSel && <><span style={{ color: "#cbd5e1" }}>›</span><span className="cat-crumb" onClick={() => { setFamiliaSel(null); setModeloSel(null); setSecaoAtual(""); setFigura(null); }}>{marcaSel.nome}</span></>}
@@ -1036,9 +1053,9 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
               )}
             </div>
 
-            {/* Barra lateral de sistemas + figuras ao lado */}
-            <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
-              <div style={{ width: 310, flexShrink: 0, background: "#fff", border: "1px solid #e9ecf1", borderRadius: 16, padding: 12, position: "sticky", top: 12, maxHeight: "calc(100vh - 150px)", overflowY: "auto" }}>
+            {/* Barra lateral de sistemas + figuras ao lado (no celular a sidebar vai pra cima) */}
+            <div style={{ display: "flex", gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
+              <div style={{ width: 310, maxWidth: "100%", flexShrink: 0, background: "#fff", border: "1px solid #e9ecf1", borderRadius: 16, padding: 12, maxHeight: "calc(100vh - 150px)", overflowY: "auto" }}>
                 <div style={{ fontSize: 13, fontWeight: 400, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 1.2, padding: "8px 12px 12px" }}>Sistemas</div>
                 {secoes.map((s) => {
                   const { icone, cor } = estiloSistema(s.secao);
@@ -1063,7 +1080,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                 })}
               </div>
 
-              <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ flex: "1 1 300px", minWidth: 280 }}>
                 {!secaoAtual ? (
                   <div style={{ padding: 60, textAlign: "center", color: "#94a3b8", background: "#fff", borderRadius: 16, border: "1px solid #e9ecf1" }}>
                     <i className="fas fa-hand-point-left" style={{ fontSize: 30, display: "block", marginBottom: 12, color: "#cbd5e1" }} />

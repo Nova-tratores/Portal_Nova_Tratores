@@ -190,7 +190,7 @@ export default function RelatorioPagar() {
         </button>
       </FinanceiroNav>
 
-      <main style={{ padding: '24px 32px' }}>
+      <main style={{ padding: 'clamp(12px, 4vw, 24px) clamp(12px, 4vw, 32px)' }}>
 
         {/* KPI ROW */}
         <section className="no-print" style={{ marginBottom: '40px' }}>

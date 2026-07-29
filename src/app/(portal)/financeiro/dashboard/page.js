@@ -212,7 +212,7 @@ export default function Dashboard() {
         </button>
       </FinanceiroNav>
 
-      <main style={{ padding: '24px 32px' }}>
+      <main style={{ padding: 'clamp(12px, 4vw, 24px) clamp(12px, 4vw, 32px)' }}>
 
         {/* KPI ROW — Boletos / Chamado_NF */}
         <section className="no-print" style={{ marginBottom: '40px' }}>

@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { supabase } from '@/lib/supabase'
 import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui'
 import {
@@ -64,6 +65,7 @@ const PRIORIDADE_CONFIG: Record<string, { label: string; color: string; bg: stri
 }
 
 export default function AvisosPage() {
+  const isMobile = useIsMobile()
   const { userProfile } = useAuth()
   const { isAdmin, pode, permissoes, loading: loadingPerm } = usePermissoes(userProfile?.id)
   const podeCriar = pode('avisos', 'criar')
@@ -316,9 +318,9 @@ export default function AvisosPage() {
   )
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: 900, margin: '0 auto' }}>
+    <div style={{ padding: isMobile ? '16px 12px' : '32px 40px', maxWidth: 900, margin: '0 auto' }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: isMobile ? 20 : 32 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
             <div style={{ width: 44, height: 44, borderRadius: 12, background: 'linear-gradient(135deg, #dc2626, #b91c1c)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

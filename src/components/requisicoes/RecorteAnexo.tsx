@@ -99,16 +99,20 @@ export default function RecorteAnexo({ arquivo, titulo, onCancelar, onConfirmar 
     setPronto(true);
   };
 
-  const iniciar = (alca: Alca) => (e: React.MouseEvent) => {
+  const iniciar = (alca: Alca) => (e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault(); e.stopPropagation();
-    arraste.current = { alca, x: e.clientX, y: e.clientY, r: rect };
+    const p = 'touches' in e ? e.touches[0] : e;
+    arraste.current = { alca, x: p.clientX, y: p.clientY, r: rect };
   };
 
-  const mover = useCallback((e: MouseEvent) => {
+  const mover = useCallback((e: MouseEvent | TouchEvent) => {
     const a = arraste.current, box = boxRef.current;
     if (!a || !box) return;
+    const p = 'touches' in e ? e.touches[0] : e;
+    if (!p) return;
+    if ('touches' in e) e.preventDefault(); // não rola/zooma a tela enquanto arrasta no celular
     const cx = box.clientWidth, cy = box.clientHeight;
-    const dx = (e.clientX - a.x) / cx, dy = (e.clientY - a.y) / cy;
+    const dx = (p.clientX - a.x) / cx, dy = (p.clientY - a.y) / cy;
     const MIN = 0.06;
     let { x, y, w, h } = a.r;
 
@@ -128,7 +132,16 @@ export default function RecorteAnexo({ arquivo, titulo, onCancelar, onConfirmar 
     const soltar = () => { arraste.current = null; };
     window.addEventListener('mousemove', mover);
     window.addEventListener('mouseup', soltar);
-    return () => { window.removeEventListener('mousemove', mover); window.removeEventListener('mouseup', soltar); };
+    window.addEventListener('touchmove', mover, { passive: false });
+    window.addEventListener('touchend', soltar);
+    window.addEventListener('touchcancel', soltar);
+    return () => {
+      window.removeEventListener('mousemove', mover);
+      window.removeEventListener('mouseup', soltar);
+      window.removeEventListener('touchmove', mover);
+      window.removeEventListener('touchend', soltar);
+      window.removeEventListener('touchcancel', soltar);
+    };
   }, [mover]);
 
   const confirmar = async () => {
@@ -153,8 +166,8 @@ export default function RecorteAnexo({ arquivo, titulo, onCancelar, onConfirmar 
   };
 
   const alcaEstilo: React.CSSProperties = {
-    position: 'absolute', width: 16, height: 16, borderRadius: 4,
-    background: '#fff', border: '2px solid #dc2626', zIndex: 3,
+    position: 'absolute', width: 22, height: 22, borderRadius: 5,
+    background: '#fff', border: '2px solid #dc2626', zIndex: 3, touchAction: 'none',
   };
 
   return (
@@ -164,7 +177,7 @@ export default function RecorteAnexo({ arquivo, titulo, onCancelar, onConfirmar 
           <Crop size={18} className="text-red-600" />
           <div className="flex-1 min-w-0">
             <div className="text-[15px] text-zinc-900">Recortar {titulo}</div>
-            <div className="text-[13px] text-zinc-500">Arraste as bordas para deixar só o documento, sem a mesa nem o fundo em volta.</div>
+            <div className="text-[13px] text-zinc-500">Corte a imagem para que fique sem fundo aparente.</div>
           </div>
           <button onClick={onCancelar} className="w-9 h-9 rounded-lg flex items-center justify-center text-zinc-500 hover:bg-zinc-100">
             <X size={18} />
@@ -172,7 +185,7 @@ export default function RecorteAnexo({ arquivo, titulo, onCancelar, onConfirmar 
         </div>
 
         <div className="flex-1 min-h-0 overflow-auto bg-zinc-100 p-5 flex items-center justify-center">
-          <div ref={boxRef} className="relative select-none" style={{ lineHeight: 0 }}>
+          <div ref={boxRef} className="relative select-none" style={{ lineHeight: 0, touchAction: 'none' }}>
             {src && <img ref={imgRef} src={src} alt="" onLoad={aoCarregar} draggable={false}
               style={{ maxWidth: '100%', maxHeight: 'calc(94vh - 230px)', display: 'block' }} />}
 
@@ -190,6 +203,7 @@ export default function RecorteAnexo({ arquivo, titulo, onCancelar, onConfirmar 
 
                 <div
                   onMouseDown={iniciar('mover')}
+                  onTouchStart={iniciar('mover')}
                   style={{
                     position: 'absolute', zIndex: 2, cursor: 'move',
                     left: `${rect.x * 100}%`, top: `${rect.y * 100}%`,
@@ -203,7 +217,7 @@ export default function RecorteAnexo({ arquivo, titulo, onCancelar, onConfirmar 
                   ['n', rect.x + rect.w / 2, rect.y, 'ns-resize'], ['s', rect.x + rect.w / 2, rect.y + rect.h, 'ns-resize'],
                   ['w', rect.x, rect.y + rect.h / 2, 'ew-resize'], ['e', rect.x + rect.w, rect.y + rect.h / 2, 'ew-resize'],
                 ] as [Alca, number, number, string][]).map(([alca, px, py, cur]) => (
-                  <div key={alca} onMouseDown={iniciar(alca)}
+                  <div key={alca} onMouseDown={iniciar(alca)} onTouchStart={iniciar(alca)}
                     style={{ ...alcaEstilo, left: `${px * 100}%`, top: `${py * 100}%`, transform: 'translate(-50%,-50%)', cursor: cur }} />
                 ))}
               </>

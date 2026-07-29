@@ -120,7 +120,7 @@ export default function LogsFinanceiro() {
     <div style={{ minHeight: 'calc(100vh - 64px)', fontFamily: 'Inter, sans-serif' }}>
       <FinanceiroNav />
 
-      <div style={{ padding: '24px 32px' }}>
+      <div style={{ padding: 'clamp(12px, 4vw, 24px) clamp(12px, 4vw, 32px)' }}>
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
           <div>

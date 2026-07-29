@@ -363,7 +363,7 @@ function RequisicoesPageInner() {
   ].filter(Boolean) as { id: string; label: string; icon: React.ReactNode }[];
 
   return (
-    <div style={{ padding: '24px 32px' }}>
+    <div className="px-3 py-3 md:px-8 md:py-6">
       {reqParaImprimir && <TemplatePDF req={reqParaImprimir} anexos={anexosParaImprimir} onUpdate={() => {}} onPrint={() => {}} />}
       <ModalTags open={showTagsModal} onClose={() => setShowTagsModal(false)} />
 
@@ -572,8 +572,8 @@ function RequisicoesPageInner() {
           </div>
         </div>
 
-        {/* Tabs */}
-        <div style={{ display: 'flex', gap: '4px', background: 'var(--portal-bg-secondary)', padding: '4px', borderRadius: '12px', width: 'fit-content' }}>
+        {/* Tabs (rolam na horizontal no celular quando não cabem) */}
+        <div style={{ display: 'flex', gap: '4px', background: 'var(--portal-bg-secondary)', padding: '4px', borderRadius: '12px', width: 'fit-content', maxWidth: '100%', overflowX: 'auto' }}>
           {tabs.map(tab => (
             <button
               key={tab.id}
@@ -586,7 +586,8 @@ function RequisicoesPageInner() {
                 boxShadow: abaAtiva === tab.id ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
                 color: abaAtiva === tab.id ? '#dc2626' : 'var(--portal-text-secondary)',
                 fontSize: '13px', fontWeight: abaAtiva === tab.id ? '600' : '500',
-                cursor: 'pointer', fontFamily: 'Inter', transition: 'all 0.2s'
+                cursor: 'pointer', fontFamily: 'Inter', transition: 'all 0.2s',
+                whiteSpace: 'nowrap', flexShrink: 0
               }}
             >
               {tab.icon}

@@ -1,6 +1,8 @@
 'use client'
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useAuth } from '@/hooks/useAuth'
+import { useIsMobile } from '@/hooks/useIsMobile'
+import DashboardMobile from '@/components/dashboard/DashboardMobile'
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import { supabase } from '@/lib/supabase'
@@ -129,6 +131,7 @@ const defaultFolders: CardFolder[] = []
 
 export default function DashboardPage() {
   const { userProfile, router } = useAuth()
+  const isMobile = useIsMobile()
   const { temAcesso, loading: loadingPerm } = usePermissoes(userProfile?.id)
   const { log: auditLog } = useAuditLog()
   const [searchTerm, setSearchTerm] = useState('')
@@ -470,6 +473,20 @@ export default function DashboardPage() {
     } finally {
       setSyncRunning(false)
     }
+  }
+
+  if (isMobile) {
+    // ===== CELULAR: lançador de apps próprio (o desktop abaixo não é usado) =====
+    return (
+      <DashboardMobile
+        systems={allowedSystems}
+        favoritos={favoritos}
+        onToggleFav={toggleFavorito}
+        onOpen={(s) => openSystem(s as unknown as typeof allowedSystems[number])}
+        searchTerm={searchTerm}
+        onSearch={setSearchTerm}
+      />
+    )
   }
 
   return (

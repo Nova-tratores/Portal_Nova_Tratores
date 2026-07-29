@@ -363,7 +363,7 @@ function HomePosVendasContent() {
         </div>
       </FinanceiroNav>
 
-      <div style={{ padding: '24px 32px' }}>
+      <div style={{ padding: 'clamp(12px, 4vw, 24px) clamp(12px, 4vw, 32px)' }}>
 
       {/* Alerta global: contas em 'aguardando_omie' há mais de 30 dias */}
       {(() => {
@@ -397,7 +397,7 @@ function HomePosVendasContent() {
         )
       })()}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '30px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '30px' }}>
           {/* COLUNA FATURAMENTO (FILTRADA: SEM PIX, APENAS ENVIAR OU COBRAR) */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <div style={colHeaderStyle}>TAREFA FATURAMENTO</div>

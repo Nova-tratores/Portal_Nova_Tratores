@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import { useAuditLog } from '@/hooks/useAuditLog'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { supabase } from '@/lib/supabase'
 import {
   Plus, X, Paperclip, Send, Trash2, ChevronDown, ChevronUp,
@@ -39,6 +40,7 @@ interface Opa {
 type Aba = 'abertos' | 'concluidos'
 
 export default function OpaPage() {
+  const isMobile = useIsMobile()
   const { userProfile } = useAuth()
   const { isAdmin } = usePermissoes(userProfile?.id)
   const { log: auditLog } = useAuditLog()
@@ -231,9 +233,9 @@ export default function OpaPage() {
   )
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: 900, margin: '0 auto' }}>
+    <div style={{ padding: isMobile ? '16px 12px' : '32px 40px', maxWidth: 900, margin: '0 auto' }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 24 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
             <div style={{ width: 44, height: 44, borderRadius: 12, background: 'linear-gradient(135deg, #ef4444, #dc2626)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

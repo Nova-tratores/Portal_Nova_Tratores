@@ -3,6 +3,7 @@ import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import CardCapaReq from './CardCapaReq';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { normalizarNomePessoa } from '@/lib/texto';
 import { Search, Calendar, Building2, X, Layout, UserCircle, Layers, SlidersHorizontal, Receipt, FileDown, Info, Plus, FolderOpen, FolderPlus, RotateCcw, Car, Filter, ArrowLeft, Check, Tag, ArrowLeftRight } from 'lucide-react';
 import CompararReqs from './CompararReqs';
@@ -10,6 +11,11 @@ import CompararReqs from './CompararReqs';
 const LISTA_FORNECEDORES_CADASTRADOS = ["Rodrigo Torneiro (Panda)"];
 
 export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, idDestaque = null, podeEditar = true, podeMoverFase = true, podeImprimir = true, podeExcluir = true }: any) {
+  const isMobile = useIsMobile();
+  // No celular mostramos UMA fase por vez, escolhida por botão (o kanban de colunas não cabe).
+  const [faseMobile, setFaseMobile] = useState('pedido');
+  // No celular os filtros (data/filtro/grupos/comparar) ficam num painel que abre/fecha.
+  const [mobileFiltros, setMobileFiltros] = useState(false);
   // Dados compartilhados - buscados UMA vez, passados para todos os cards
   const [dadosCompartilhados, setDadosCompartilhados] = useState<{ fornecedores: any[], usuarios: any[], veiculos: any[] }>({ fornecedores: [], usuarios: [], veiculos: [] });
 
@@ -414,11 +420,11 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
     <div className="w-full bg-zinc-50 min-h-screen transition-all duration-700 pb-20">
 
       {/* BARRA DE FILTROS — inline compacta */}
-      <div className="w-full px-6 pt-4 pb-2">
+      <div className="w-full px-3 md:px-6 pt-3 md:pt-4 pb-2">
         <div className="flex items-center gap-2 flex-wrap">
 
-          {/* BUSCA UNIFICADA (pesquisa em vários campos) */}
-          <div className="relative flex-1 min-w-[260px] max-w-[460px] group">
+          {/* BUSCA UNIFICADA (pesquisa em vários campos) — largura total no celular */}
+          <div className="relative w-full md:flex-1 md:w-auto min-w-0 md:min-w-[260px] md:max-w-[460px] group">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-red-500 pointer-events-none"/>
             <input
               type="text"
@@ -440,11 +446,27 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
             </div>
           </div>
 
+          {/* Botão "Filtros" — só no celular: abre/fecha o painel abaixo */}
+          {isMobile && (() => {
+            const nAtivos = filtros.length + (filtroData ? 1 : 0) + (grupoFiltro != null ? 1 : 0);
+            return (
+              <button onClick={() => setMobileFiltros(v => !v)}
+                className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-full border text-sm font-semibold transition-all ${mobileFiltros || nAtivos ? 'border-red-300 bg-red-50 text-red-600' : 'border-zinc-200 bg-white text-zinc-600'}`}>
+                <SlidersHorizontal size={14} /> Filtros
+                {nAtivos > 0 && <span className="text-[10px] font-bold px-1.5 rounded-full bg-red-600 text-white">{nAtivos}</span>}
+              </button>
+            );
+          })()}
+
+          {/* No PC (md:contents) os controles fluem direto na barra; no celular viram
+              um painel (fundo/borda só no mobile) que só aparece com "Filtros" aberto. */}
+          <div className={`w-full md:w-auto ${mobileFiltros ? 'flex' : 'hidden'} md:contents flex-wrap items-center gap-2 mt-1 md:mt-0 p-3 md:p-0 bg-white md:bg-transparent rounded-2xl border border-zinc-200 md:border-0`}>
+
           {/* Separador */}
-          <div className="w-px h-5 bg-zinc-200" />
+          <div className="w-px h-5 bg-zinc-200 hidden md:block" />
 
           {/* Data exata */}
-          <div className="relative" title="Pesquisar por data exata">
+          <div className="relative shrink-0" title="Pesquisar por data exata">
             <Calendar size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none z-10"/>
             <input
               type="date"
@@ -456,10 +478,10 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
           </div>
 
           {/* Separador */}
-          <div className="w-px h-5 bg-zinc-200" />
+          <div className="w-px h-5 bg-zinc-200 hidden md:block" />
 
           {/* FILTRO ÚNICO (faceteado): Solicitante · Tipo · Veículo · Fornecedor · Fase */}
-          <div className="relative" ref={filtroMenuRef}>
+          <div className="relative shrink-0" ref={filtroMenuRef}>
             <button
               onClick={() => { setFiltroMenu(v => !v); setFiltroCampo(null); setFiltroValorBusca(''); }}
               className={`${pillBase} ${filtros.length > 0 || filtroMenu ? pillActive : pillInactive}`}
@@ -537,11 +559,11 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
           })}
 
           {/* Separador */}
-          <div className="w-px h-5 bg-zinc-200" />
+          <div className="w-px h-5 bg-zinc-200 hidden md:block" />
 
           {/* GRUPOS (coletivos de requisições) */}
           {/* Grupos num dropdown só — antes eram N pílulas soltas poluindo a barra */}
-          <div className="relative" ref={grupoMenuRef}>
+          <div className="relative shrink-0" ref={grupoMenuRef}>
             <button
               onClick={() => setGrupoMenu(v => !v)}
               title="Filtrar por grupo, criar ou gerenciar grupos"
@@ -589,7 +611,7 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
           <button
             onClick={() => (modoComparar ? sairDaComparacao() : setModoComparar(true))}
             title="Escolher duas requisições e ver lado a lado"
-            className={`${pillBase} ${modoComparar ? pillActive : 'bg-white text-zinc-600 border-zinc-200 hover:border-red-300 hover:text-red-600'}`}
+            className={`${pillBase} shrink-0 ${modoComparar ? pillActive : 'bg-white text-zinc-600 border-zinc-200 hover:border-red-300 hover:text-red-600'}`}
           >
             <ArrowLeftRight size={12} /> Comparar
           </button>
@@ -597,12 +619,13 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
           {/* Contador + Limpar */}
           {temFiltroAtivo && (
             <>
-              <span className="text-[11px] font-bold text-red-600 bg-red-50 border border-red-200 px-2.5 py-1 rounded-full">{resultCount}</span>
-              <button onClick={limparFiltros} className={`${pillBase} ${pillActive}`}>
+              <span className="text-[11px] font-bold text-red-600 bg-red-50 border border-red-200 px-2.5 py-1 rounded-full shrink-0">{resultCount}</span>
+              <button onClick={limparFiltros} className={`${pillBase} ${pillActive} shrink-0`}>
                 <X size={12} /> Limpar
               </button>
             </>
           )}
+          </div>{/* fim fileira de controles secundários (mobile) */}
         </div>
 
         {/* Barra do modo comparação */}
@@ -752,9 +775,29 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
       )}
 
       {/* GRADE KANBAN - COLUNAS COM DESIGNER SLIM */}
-      <div className="px-6 mt-2">
-        <div className="flex gap-4 overflow-x-auto pb-8 scrollbar-hide justify-center">
-          {colunas.map((col) => {
+      <div className="px-3 md:px-6 mt-2">
+        {/* CELULAR: seletor de fase por botão (mostra uma fase por vez) */}
+        {isMobile && (
+          <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-3 -mx-3 px-3">
+            {colunas.map((col) => {
+              const n = filtradas.filter((r: any) => r.status === col.id).length;
+              const ativo = faseMobile === col.id;
+              return (
+                <button key={col.id} onClick={() => setFaseMobile(col.id)}
+                  className={`shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold border transition-all ${
+                    ativo ? 'bg-red-600 border-red-600 text-white shadow-sm' : 'bg-white border-zinc-200 text-zinc-600'
+                  }`}>
+                  <span className={`w-2 h-2 rounded-full ${col.cor}`}></span>
+                  {col.titulo}
+                  <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${ativo ? 'bg-white/25 text-white' : 'bg-zinc-100 text-zinc-500'}`}>{n}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {/* No PC as colunas ficam lado a lado; no celular renderiza só a fase escolhida */}
+        <div className="flex flex-col md:flex-row gap-4 md:overflow-x-auto pb-8 scrollbar-hide justify-start md:justify-center">
+          {(isMobile ? colunas.filter((c) => c.id === faseMobile) : colunas).map((col) => {
             let items = filtradas.filter((r: any) => r.status === col.id);
             if (col.id === 'financeiro') {
               items = [...items].sort((a: any, b: any) => {
@@ -778,7 +821,7 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
                 onDragOver={(e) => handleDragOver(e, col.id)}
                 onDragLeave={() => setColunaArrastando(null)}
                 onDrop={(e) => handleDrop(e, col.id)}
-                className={`flex-1 min-w-[280px] max-w-[380px] flex flex-col rounded-2xl transition-all duration-300 border ${
+                className={`w-full md:flex-1 md:min-w-[280px] md:max-w-[380px] flex flex-col rounded-2xl transition-all duration-300 border ${
                   isOver ? 'bg-red-50/50 border-red-200' : 'bg-transparent border-transparent'
                 }`}
               >
@@ -812,8 +855,9 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
                   })()}
                 </div>
 
-                {/* ÁREA DOS CARDS */}
-                <div className="p-4 space-y-4 flex-1 max-h-[72vh] overflow-y-auto scrollbar-hide">
+                {/* ÁREA DOS CARDS — no celular SEM scroll próprio (rola a página inteira);
+                    no PC cada coluna tem seu scroll de até 72vh. */}
+                <div className="p-4 space-y-4 flex-1 md:max-h-[72vh] md:overflow-y-auto scrollbar-hide">
                   {items.length > 0 ? (
                     <>
                       {priorizarDestaque(items).slice(0, limitesPorColuna[col.id] || CARDS_POR_VEZ).map((req: any) => (

@@ -7,6 +7,7 @@ import ModalBuscaProdutoOrc from './ModalBuscaProduto'
 import ModalBuscaClienteOrc from './ModalBuscaCliente'
 import ModalImportarKit from './ModalImportarKit'
 import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui'
+import { useIsMobile } from '@/hooks/useIsMobile'
 
 type TipoOrcamento = 'pecas' | 'mao-de-obra' | 'completo'
 
@@ -32,6 +33,7 @@ interface Props {
 }
 
 export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEditar = true }: Props) {
+  const isMobile = useIsMobile()
   // Etapa: escolha ou editor
   const [tipo, setTipo] = useState<TipoOrcamento | null>(null)
 
@@ -356,7 +358,7 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
   // ============================
   if (!tipo) {
     return (
-      <div style={{ padding: '60px 40px', maxWidth: 900, margin: '0 auto', fontFamily: "'Poppins', sans-serif" }}>
+      <div style={{ padding: 'clamp(24px, 6vw, 60px) clamp(14px, 4vw, 40px)', maxWidth: 900, margin: '0 auto', fontFamily: "'Poppins', sans-serif" }}>
         {/* Botão voltar para lista */}
         {onVoltar && (
           <button onClick={onVoltar} style={{
@@ -376,7 +378,7 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
             Qual tipo de orçamento você quer montar?
           </p>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20 }}>
           {/* Peças */}
           <button
             onClick={() => escolherTipo('pecas')}
@@ -463,7 +465,7 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
   // TELA DO EDITOR
   // ============================
   return (
-    <div style={{ padding: '32px 40px', width: '100%', fontFamily: "'Poppins', sans-serif" }}>
+    <div style={{ padding: isMobile ? '16px 12px' : '32px 40px', width: '100%', fontFamily: "'Poppins', sans-serif" }}>
       {/* Toast */}
       {toast && (
         <div style={{
@@ -479,7 +481,7 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
       )}
 
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: isMobile ? 20 : 32 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <button onClick={voltar} style={{
             padding: '8px 12px', borderRadius: 10, border: '1px solid #e5e5e5',
@@ -506,7 +508,7 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
             </p>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           {/* Status selector */}
           {orcamentoId && (
             <select
@@ -554,7 +556,7 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
       {/* Cliente + Info */}
       <div style={{
         background: '#fff', borderRadius: 16, border: '1px solid #f0f0f0',
-        padding: 28, marginBottom: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+        padding: isMobile ? 16 : 28, marginBottom: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
       }}>
         {/* Linha cliente */}
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', marginBottom: 12 }}>
@@ -595,7 +597,7 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
               Opcional — preencha só se tiver em mãos
             </span>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 2fr 1fr', gap: 10 }}>
             <div>
               <label style={{ ...labelStyle, fontSize: 10 }}>CPF / CNPJ</label>
               <input
@@ -627,7 +629,7 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
         </div>
 
         {/* Obs e validade */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr auto', gap: 16 }}>
           <div>
             <label style={labelStyle}>Observação <span style={{ fontSize: 10, color: '#9CA3AF', fontWeight: 400 }}>( **texto** = negrito )</span></label>
             <textarea
@@ -657,8 +659,8 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
           overflow: 'hidden', marginBottom: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
         }}>
           <div style={{
-            padding: '16px 28px', borderBottom: '1px solid #f0f0f0',
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            padding: isMobile ? '14px 16px' : '16px 28px', borderBottom: '1px solid #f0f0f0',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap',
           }}>
             <span style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>Peças / Produtos</span>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -678,8 +680,41 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
               </button>
             </div>
           </div>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          {isMobile ? (
+            /* CELULAR: cada peça vira um cartão (sem rolagem horizontal) */
+            <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {itens.map((item, idx) => (
+                <div key={idx} style={{ border: '1px solid #eee', borderRadius: 12, padding: 12, background: '#fafafa' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#a3a3a3' }}>Item {idx + 1}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: '#1a1a1a' }}>R$ {fmt(item.quantidade * item.preco)}</span>
+                      {itens.length > 1 && (
+                        <button onClick={() => removerLinha(idx)} title="Remover" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#cbcbcb', padding: 2 }}><Trash2 size={16} /></button>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                    <input value={item.codigo} onChange={e => atualizarItem(idx, 'codigo', e.target.value)} placeholder="Código" style={{ ...inputStyle, flex: 1, fontSize: 13, padding: '9px 12px' }} />
+                    <button onClick={() => abrirBusca(idx)} title="Buscar produto" style={{ padding: '0 14px', borderRadius: 8, border: '1px solid #e5e5e5', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}><Search size={15} color="#737373" /></button>
+                  </div>
+                  <input value={item.descricao} onChange={e => atualizarItem(idx, 'descricao', e.target.value)} placeholder="Descrição do item..." style={{ ...inputStyle, fontSize: 13, padding: '9px 12px', marginBottom: 8 }} />
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <div>
+                      <label style={{ ...labelStyle, fontSize: 10 }}>Qtd</label>
+                      <input type="number" min={0.5} step={0.5} value={item.quantidade} onChange={e => atualizarItem(idx, 'quantidade', parseFloat(e.target.value) || 0)} style={{ ...inputStyle, fontSize: 13, padding: '9px 12px' }} />
+                    </div>
+                    <div>
+                      <label style={{ ...labelStyle, fontSize: 10 }}>Unit. (R$)</label>
+                      <input type="number" min={0} step={0.01} value={item.preco} onChange={e => atualizarItem(idx, 'preco', parseFloat(e.target.value) || 0)} style={{ ...inputStyle, fontSize: 13, padding: '9px 12px' }} />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+          <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+            <table style={{ width: '100%', minWidth: undefined, borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: '#fafafa' }}>
                   <th style={thStyle}>#</th>
@@ -771,6 +806,7 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
               </tbody>
             </table>
           </div>
+          )}
           {itens.some(i => i.descricao.trim()) && (
             <div style={{
               padding: '12px 28px', borderTop: '1px solid #f0f0f0',
@@ -784,12 +820,12 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
 
       {/* Mão de obra e Deslocamento */}
       {(mostrarMaoObra || mostrarDeslocamento) && (
-      <div style={{ display: 'grid', gridTemplateColumns: mostrarMaoObra && mostrarDeslocamento ? '1fr 1fr' : '1fr', gap: 20, marginBottom: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : (mostrarMaoObra && mostrarDeslocamento ? '1fr 1fr' : '1fr'), gap: 20, marginBottom: 20 }}>
         {/* Mão de Obra */}
         {mostrarMaoObra && (
           <div style={{
             background: '#fff', borderRadius: 16, border: '1px solid #f0f0f0',
-            padding: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+            padding: isMobile ? 16 : 24, boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <span style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>Mão de Obra</span>
@@ -878,7 +914,7 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
       {/* Total Geral */}
       <div style={{
         background: 'linear-gradient(135deg, #1a1a1a, #262626)', borderRadius: 16,
-        padding: '24px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        padding: isMobile ? '18px 18px' : '24px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap',
         boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
       }}>
         <div>
@@ -891,7 +927,7 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
             {mostrarDeslocamento && incluirDeslocamento && quantidadeKm > 0 && ` + ${quantidadeKm}km`}
           </div>
         </div>
-        <div style={{ fontSize: 32, fontWeight: 900, color: '#fff' }}>
+        <div style={{ fontSize: isMobile ? 26 : 32, fontWeight: 900, color: '#fff' }}>
           R$ {fmt(totalGeral)}
         </div>
       </div>
