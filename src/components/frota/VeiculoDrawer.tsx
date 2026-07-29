@@ -153,6 +153,9 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
 
   useEffect(() => { carregar(); }, [carregar]);
 
+  // Senha do cartão Veloe fica mascarada na ficha — clique pra revelar
+  const [verSenhaVeloe, setVerSenhaVeloe] = useState(false);
+
   const formBase = (): Record<string, string> => {
     const v = det!.veiculo;
     return {
@@ -162,6 +165,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
       categoria: v.categoria || 'outros', status: v.status || 'ativo',
       tipo_veiculo: v.tipo_veiculo || '',
       seguradora: v.seguradora || '', numero_apolice: v.numero_apolice || '',
+      senha_cartao_veloe: v.senha_cartao_veloe || '',
       proprietario: v.proprietario || '',
       exercicio_crlv: v.exercicio_crlv != null ? String(v.exercicio_crlv) : '',
       observacoes: v.observacoes || '',
@@ -596,6 +600,23 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                       <Linha rotulo="Tanque" valor={v.capacidade_tanque != null ? `${v.capacidade_tanque} L` : '—'} />
                       <Linha rotulo="Seguradora" valor={v.seguradora} />
                       <Linha rotulo="Apólice" valor={v.numero_apolice} />
+                      <Linha
+                        rotulo="Senha cartão Veloe"
+                        valor={v.senha_cartao_veloe
+                          ? (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                              {verSenhaVeloe ? v.senha_cartao_veloe : '••••••'}
+                              <button
+                                onClick={() => setVerSenhaVeloe((s) => !s)}
+                                title={verSenhaVeloe ? 'Ocultar a senha' : 'Mostrar a senha'}
+                                style={{ background: 'none', border: 'none', color: '#0d9488', cursor: 'pointer', fontSize: 10.5, fontWeight: 700, padding: 0 }}
+                              >
+                                {verSenhaVeloe ? 'ocultar' : 'mostrar'}
+                              </button>
+                            </span>
+                          )
+                          : '—'}
+                      />
                       {det.fipe && (
                         <Linha
                           rotulo="Valor de mercado (FIPE)"
@@ -672,6 +693,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                         ['marca', 'Marca'], ['modelo', 'Modelo'], ['ano', 'Ano'], ['cor', 'Cor'],
                         ['chassi', 'Chassi'], ['renavam', 'RENAVAM'], ['combustivel', 'Combustível'],
                         ['seguradora', 'Seguradora'], ['numero_apolice', 'Apólice'],
+                        ['senha_cartao_veloe', 'Senha cartão Veloe'],
                         ['proprietario', 'Proprietário'], ['exercicio_crlv', 'Documento (exercício)'],
                       ] as [string, string][]).map(([campo, rotulo]) => (
                         <label key={campo} style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase' }}>

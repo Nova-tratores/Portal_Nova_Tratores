@@ -72,6 +72,7 @@ export interface FrotaVeiculo {
   id_projeto_omie_castro: number | null;
   numero_apolice: string | null;
   seguradora: string | null;
+  senha_cartao_veloe: string | null;
   dt_aquisicao: string | null;
   tipo_negociacao: string | null;
   campos_manuais: string[];
