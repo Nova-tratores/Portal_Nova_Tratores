@@ -1,0 +1,19 @@
+# Relatório semanal de OS/PV faturados sem NF.
+# Roda toda SEXTA às 08:00 BRT (11:00 UTC): gera a foto da semana, grava na
+# tabela clientes_relatorios_semanais e notifica (admins + módulo Clientes).
+name: Clientes - Relatório semanal (sem NF)
+
+on:
+  schedule:
+    - cron: '0 11 * * 5'   # sexta 11:00 UTC = 08:00 BRT
+  workflow_dispatch: {}
+
+jobs:
+  gerar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Chamar gerador do relatório semanal
+        run: |
+          curl -fsS --max-time 180 -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/clientes/relatorio-semanal/gerar"

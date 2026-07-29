@@ -2512,6 +2512,10 @@ function ClientesPageInner() {
           style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 16px', height: 44, borderRadius: 12, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', ...estiloSemPermissao(podeCriarProjeto) }}>
           <FolderOpen size={15} /> Criar Projeto
         </button>
+        <button onClick={() => router.push('/clientes/relatorios')} title="Relatórios semanais (faturados sem NF)"
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 16px', height: 44, borderRadius: 12, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+          <FileText size={15} /> Relatórios
+        </button>
         <button onClick={syncBackground} disabled={syncing} title="Sincronizar"
           style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 44, height: 44, borderRadius: 12, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text-secondary)', cursor: syncing ? 'not-allowed' : 'pointer' }}>
           <RefreshCw size={16} style={syncing ? { animation: 'spin 1s linear infinite' } : {}} />
