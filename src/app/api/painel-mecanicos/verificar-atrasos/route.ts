@@ -26,7 +26,7 @@ export async function POST() {
   const { data: ordens } = await supabase
     .from('Ordem_Servico')
     .select('Id_Ordem, Status, Os_Cliente, Os_Tecnico, Os_Tecnico2, Previsao_Execucao, Cidade_Cliente')
-    .not('Status', 'in', '("Concluída","Cancelada")')
+    .not('Status', 'in', '("Concluída","Cancelada","Relatorio Concluido")')
     .not('Previsao_Execucao', 'is', null)
   if (!ordens) return NextResponse.json({ ok: true, alertas: 0 })
 
@@ -48,6 +48,15 @@ export async function POST() {
     .in('status', ['enviado', 'rascunho'])
   const execSet = new Set(
     (execucoes || []).map((e: any) => `${e.tecnico_nome}::${e.id_ordem}`)
+  )
+
+  // 4b) Buscar relatórios já preenchidos (Ordem_Servico_Tecnicos)
+  const { data: relatorios } = await supabase
+    .from('Ordem_Servico_Tecnicos')
+    .select('Ordem_Servico')
+    .eq('Status', 'enviado')
+  const relatorioSet = new Set(
+    (relatorios || []).map((r: any) => String(r.Ordem_Servico))
   )
 
   // 5) Detectar atrasos e criar alertas
@@ -72,8 +81,9 @@ export async function POST() {
       const chave = `${nome}::${os.Id_Ordem}`
       if (alertaSet.has(chave)) continue
 
-      // Já preencheu execução?
+      // Já preencheu execução ou relatório?
       if (execSet.has(chave)) continue
+      if (relatorioSet.has(String(os.Id_Ordem))) continue
 
       const descricao = `OS #${os.Id_Ordem} - ${os.Os_Cliente}${os.Cidade_Cliente ? ` (${os.Cidade_Cliente})` : ''} — ${diasAtraso} dia(s) de atraso`
 
