@@ -53,6 +53,29 @@ const label11: React.CSSProperties = {
   textTransform: 'uppercase', letterSpacing: 0.4,
 };
 
+// Campos variáveis do formulário oficial Ipacol (Relatório de Entrega e
+// Assistência Técnica IN LOCO). Os fixos (cliente/endereço/modelo/série)
+// saem automáticos da OS.
+const RAT_CAMPOS: { chave: string; label: string; placeholder?: string }[] = [
+  { chave: 'rat_numero_formulario', label: 'Nº do formulário (canto)', placeholder: '0000' },
+  { chave: 'rat_data_chamado', label: 'Data abertura chamado', placeholder: 'dd/mm/aaaa' },
+  { chave: 'rat_telefone', label: 'Telefone do cliente', placeholder: 'auto do cadastro' },
+  { chave: 'rat_horas_maquina', label: 'Horas da máquina', placeholder: 'auto da OS' },
+  { chave: 'rat_horas_plataforma', label: 'Horas da plataforma' },
+  { chave: 'rat_km_ida', label: 'KM rodado ida' },
+  { chave: 'rat_km_volta', label: 'KM rodado volta' },
+  { chave: 'rat_hora_chegada', label: 'Hora da chegada', placeholder: '15:30' },
+  { chave: 'rat_hora_saida', label: 'Hora de saída', placeholder: '16:30' },
+  { chave: 'rat_horas_trabalhadas', label: 'Horas trabalhadas', placeholder: 'auto da OS' },
+  { chave: 'rat_data_atendimento', label: 'Data do atendimento', placeholder: 'auto da OS' },
+];
+
+function lerRatCampos(r: Record<string, unknown>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const c of RAT_CAMPOS) out[c.chave] = String(r[c.chave] || '');
+  return out;
+}
+
 // Seção "Solicitação de garantia por e-mail" (montadoras tipo_template='email',
 // ex. Ipacol): textos do Tratorilson revisáveis + RAT (PDF preenchido ou
 // imprimível) + NF de venda pelo chassi + fotos selecionáveis + preview do
@@ -69,10 +92,8 @@ export default function SolicitacaoEmailSecao({ g, userName, naFabrica, finaliza
   const [acao, setAcao] = useState(String(resp['sg_acao_tomada'] || ''));
   const [obs, setObs] = useState(String(resp['sg_observacoes'] || ''));
 
-  // RAT — campos variáveis
-  const [ratHorimetro, setRatHorimetro] = useState(String(resp['rat_horimetro'] || ''));
-  const [ratDataFalha, setRatDataFalha] = useState(String(resp['rat_data_falha'] || ''));
-  const [ratDataAtendimento, setRatDataAtendimento] = useState(String(resp['rat_data_atendimento'] || ''));
+  // RAT — campos variáveis do formulário Ipacol
+  const [ratCampos, setRatCampos] = useState<Record<string, string>>(() => lerRatCampos(resp));
 
   // Quando a garantia recarrega (carregar() no drawer), re-sincroniza os campos
   // com o banco — a não ser que o garantista esteja com edição em curso
@@ -86,9 +107,7 @@ export default function SolicitacaoEmailSecao({ g, userName, naFabrica, finaliza
     setDiagnostico(String(r['sg_diagnostico'] || ''));
     setAcao(String(r['sg_acao_tomada'] || ''));
     setObs(String(r['sg_observacoes'] || ''));
-    setRatHorimetro(String(r['rat_horimetro'] || ''));
-    setRatDataFalha(String(r['rat_data_falha'] || ''));
-    setRatDataAtendimento(String(r['rat_data_atendimento'] || ''));
+    setRatCampos(lerRatCampos(r));
   }, [g.checklist_respostas]);
 
   // E-mail (preview) + fotos
@@ -188,9 +207,7 @@ export default function SolicitacaoEmailSecao({ g, userName, naFabrica, finaliza
             sg_diagnostico: diagnostico,
             sg_acao_tomada: acao,
             sg_observacoes: obs,
-            rat_horimetro: ratHorimetro,
-            rat_data_falha: ratDataFalha,
-            rat_data_atendimento: ratDataAtendimento,
+            ...ratCampos,
           },
           garantista_nome: userName,
         }),
@@ -220,9 +237,7 @@ export default function SolicitacaoEmailSecao({ g, userName, naFabrica, finaliza
           ator: userName,
           modo,
           campos: {
-            rat_horimetro: ratHorimetro,
-            rat_data_falha: ratDataFalha,
-            rat_data_atendimento: ratDataAtendimento,
+            ...ratCampos,
             rat_reclamacao: reclamacao,
             rat_diagnostico: diagnostico,
             rat_acao: acao,
@@ -377,19 +392,26 @@ export default function SolicitacaoEmailSecao({ g, userName, naFabrica, finaliza
       {/* RAT */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, borderTop: '1px dashed var(--portal-border)', paddingTop: 10 }}>
         <span style={label11}>Relatório de Assistência Técnica (RAT)</span>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <div style={{ flex: '1 1 110px', display: 'flex', flexDirection: 'column', gap: 3 }}>
-            <span style={{ fontSize: 10, color: 'var(--portal-text-faint)' }}>Horímetro</span>
-            <input value={ratHorimetro} onChange={(e) => { dirty.current = true; setRatHorimetro(e.target.value); }} readOnly={finalizada} placeholder="Ex.: 320h" style={inputStyle} />
-          </div>
-          <div style={{ flex: '1 1 110px', display: 'flex', flexDirection: 'column', gap: 3 }}>
-            <span style={{ fontSize: 10, color: 'var(--portal-text-faint)' }}>Data da falha</span>
-            <input value={ratDataFalha} onChange={(e) => { dirty.current = true; setRatDataFalha(e.target.value); }} readOnly={finalizada} placeholder="dd/mm/aaaa" style={inputStyle} />
-          </div>
-          <div style={{ flex: '1 1 110px', display: 'flex', flexDirection: 'column', gap: 3 }}>
-            <span style={{ fontSize: 10, color: 'var(--portal-text-faint)' }}>Data do atendimento</span>
-            <input value={ratDataAtendimento} onChange={(e) => { dirty.current = true; setRatDataAtendimento(e.target.value); }} readOnly={finalizada} placeholder="dd/mm/aaaa" style={inputStyle} />
-          </div>
+        <span style={{ fontSize: 10.5, color: 'var(--portal-text-faint)' }}>
+          Formulário oficial da Ipacol (IN LOCO). Cliente, endereço, modelo e nº de série saem
+          automáticos da OS — os campos abaixo são os variáveis (vazio = usa o automático quando houver).
+        </span>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8 }}>
+          {RAT_CAMPOS.map((c) => (
+            <div key={c.chave} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <span style={{ fontSize: 10, color: 'var(--portal-text-faint)' }}>{c.label}</span>
+              <input
+                value={ratCampos[c.chave] || ''}
+                onChange={(e) => {
+                  dirty.current = true;
+                  setRatCampos((prev) => ({ ...prev, [c.chave]: e.target.value }));
+                }}
+                readOnly={finalizada}
+                placeholder={c.placeholder}
+                style={inputStyle}
+              />
+            </div>
+          ))}
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {!finalizada && (

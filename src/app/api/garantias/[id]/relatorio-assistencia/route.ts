@@ -32,10 +32,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Garantia já finalizada — o RAT não pode mais ser alterado.' }, { status: 400 });
   }
 
-  type Mont = { nome?: string };
-  const mont = (g as unknown as { montadora?: Mont | Mont[] }).montadora;
-  const montadoraNome = (Array.isArray(mont) ? mont[0] : mont)?.nome || null;
-
   const respostas = ((g.checklist_respostas as Record<string, unknown>) || {});
 
   // Persiste os campos rat_* editados na tela (só no modo preenchido)
@@ -53,7 +49,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .eq('id', id);
   }
 
-  // Dados da OS + relatório do técnico + peças
+  // Dados da OS + relatório do técnico + peças (+ telefone do cadastro Omie)
   const [osRes, tecRes, pecasRes] = await Promise.all([
     supabase
       .from('Ordem_Servico')
@@ -72,29 +68,58 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .order('created_at'),
   ]);
 
+  const cnpjDigitos = String(osRes.data?.Cnpj_Cliente || '').replace(/\D/g, '');
+  let telefoneOmie = '';
+  if (cnpjDigitos) {
+    const { data: cli } = await supabase
+      .from('portal_nt_clientes_PRINCIPAL')
+      .select('telefone')
+      .or(`cnpj_cpf.eq.${cnpjDigitos},cnpj_cpf.eq.${osRes.data?.Cnpj_Cliente}`)
+      .limit(1)
+      .maybeSingle();
+    telefoneOmie = String(cli?.telefone || '');
+  }
+
+  // Endereço vem como "FAZENDA X, S/N, FARTURA (SP)" — separa a UF e tira a
+  // parte cidade/UF do campo endereço (o formulário tem Município/UF próprios)
+  const enderecoBruto = String(osRes.data?.Endereco_Cliente || '');
+  const ufMatch = enderecoBruto.match(/\(([A-Z]{2})\)\s*$/);
+  const endereco = enderecoBruto.replace(/,?\s*[^,]*\([A-Z]{2}\)\s*$/, '').trim() || enderecoBruto;
+
+  const fmtDataBR = (s?: string | null) => {
+    const d = s ? new Date(s) : null;
+    return d && !isNaN(d.getTime()) ? d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : String(s || '');
+  };
+
   const r = (k: string) => String(respostasAtuais[k] ?? '').trim();
+  const descricaoRelato = [r('rat_reclamacao') || r('sg_reclamacao'), r('rat_diagnostico') || r('sg_diagnostico')]
+    .filter(Boolean)
+    .join(' ');
+  const horasTrab = g.garantista_horas ?? g.tecnico_horas;
   const dados: DadosRAT = {
     numero: g.numero,
-    numeroExterno: g.numero_externo,
+    numeroFormulario: r('rat_numero_formulario') || '0000',
     os: g.id_ordem,
+    dataChamado: r('rat_data_chamado') || fmtDataBR(tecRes.data?.DataInicio) || '',
+    tipo: r('rat_tipo') === 'entrega' ? 'entrega' : 'assistencia',
     cliente: g.cliente || osRes.data?.Os_Cliente || '',
-    cnpj: osRes.data?.Cnpj_Cliente || '',
-    endereco: osRes.data?.Endereco_Cliente || '',
-    cidade: osRes.data?.Cidade_Cliente || '',
+    telefone: r('rat_telefone') || telefoneOmie,
+    endereco,
+    municipio: osRes.data?.Cidade_Cliente || '',
+    uf: r('rat_uf') || ufMatch?.[1] || '',
     modelo: g.modelo || '',
-    chassis: g.chassis || '',
-    montadora: montadoraNome,
-    horimetro: r('rat_horimetro') || String(tecRes.data?.Horimetro ?? ''),
-    dataAtendimento: r('rat_data_atendimento') || String(tecRes.data?.DataInicio ?? ''),
-    dataFalha: r('rat_data_falha'),
-    horas: g.garantista_horas ?? g.tecnico_horas,
-    km: g.garantista_km ?? g.tecnico_km,
-    reclamacao: r('rat_reclamacao') || r('sg_reclamacao'),
-    diagnostico: r('rat_diagnostico') || r('sg_diagnostico'),
+    numeroSerie: g.chassis || '',
+    horasMaquina: r('rat_horas_maquina') || r('rat_horimetro') || String(tecRes.data?.Horimetro ?? ''),
+    horasPlataforma: r('rat_horas_plataforma'),
+    descricao: descricaoRelato,
     acao: r('rat_acao') || r('sg_acao_tomada'),
-    obs: r('rat_obs') || r('sg_observacoes'),
+    kmIda: r('rat_km_ida'),
+    kmVolta: r('rat_km_volta'),
+    horaChegada: r('rat_hora_chegada'),
+    horaSaida: r('rat_hora_saida'),
+    horasTrabalhadas: r('rat_horas_trabalhadas') || (horasTrab != null ? String(horasTrab) : ''),
+    dataAtendimento: r('rat_data_atendimento') || fmtDataBR(tecRes.data?.DataInicio),
     tecnico: r('rat_tecnico') || g.tecnico_nome,
-    garantista: r('rat_garantista') || g.garantista_nome || ator,
     pecas: (pecasRes.data || []) as DadosRAT['pecas'],
   };
 
