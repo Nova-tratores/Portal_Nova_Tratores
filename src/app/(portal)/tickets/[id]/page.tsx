@@ -3,7 +3,7 @@
 // topo; abaixo, a timeline imutável (o coração do sistema) e as ações.
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect, useCallback, useMemo, use } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef, use } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ArrowLeft, Send, User as UserIcon, Users, CalendarDays, Tag, Building2, Lock, Globe,
@@ -112,6 +112,28 @@ export default function TicketDetalhePage({ params }: { params: Promise<{ id: st
     if (!userId) return 'Sistema'
     return usuarios[userId]?.nome || 'Usuário'
   }, [usuarios])
+
+  // Anexar imagens/prints na timeline (upload no bucket público `anexos`)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [anexando, setAnexando] = useState(false)
+  const anexarArquivos = async (lista: FileList | null) => {
+    if (!lista || lista.length === 0) return
+    setAnexando(true)
+    try {
+      for (const f of Array.from(lista).slice(0, 5)) {
+        if (f.size > 10 * 1024 * 1024) { setErroAcao(`"${f.name}" passa de 10MB.`); continue }
+        const pasta = `tickets/${id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+        const nomeArq = f.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+        const { error: upErr } = await supabase.storage.from('anexos').upload(`${pasta}/${nomeArq}`, f)
+        if (upErr) { setErroAcao(`Falha ao subir "${f.name}".`); continue }
+        const url = supabase.storage.from('anexos').getPublicUrl(`${pasta}/${nomeArq}`).data.publicUrl
+        await acao({ acao: 'anexar', url, nome: f.name })
+      }
+    } finally {
+      setAnexando(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
 
   const acao = async (payload: Record<string, unknown>, aposOk?: () => void) => {
     setErroAcao('')
@@ -339,6 +361,20 @@ export default function TicketDetalhePage({ params }: { params: Promise<{ id: st
           {/* Comentar */}
           {podeComentar && (
             <div style={{ display: 'flex', gap: 8, marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--portal-border,#f0f0f0)' }}>
+              <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: 'none' }}
+                onChange={(e) => anexarArquivos(e.target.files)} />
+              <button
+                disabled={agindo || anexando}
+                onClick={() => fileRef.current?.click()}
+                title="Anexar imagens/prints na timeline (máx 5, 10MB cada)"
+                style={{
+                  alignSelf: 'flex-end', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: 38, height: 38, borderRadius: 10, border: '1px solid var(--portal-border,#e5e7eb)',
+                  background: 'var(--portal-bg,#fff)', color: 'var(--portal-text-secondary,#555)',
+                  cursor: 'pointer', opacity: agindo || anexando ? .5 : 1, flexShrink: 0,
+                }}>
+                {anexando ? <Clock size={15} /> : <Paperclip size={15} />}
+              </button>
               <textarea
                 value={comentario}
                 onChange={(e) => setComentario(e.target.value)}

@@ -1,7 +1,7 @@
 // Tickets — TODAS as mutações do ticket passam por aqui (service role).
 // POST /api/tickets/:id/acoes  { acao, ...campos }
 //
-// Ações: comentar | transferir | status | pedir_atualizacao |
+// Ações: comentar | anexar | transferir | status | pedir_atualizacao |
 //        participante_add | participante_remover | visibilidade | editar
 //
 // Regras (conceito seções 3–4): responsável único; transferência direta sem
@@ -70,6 +70,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await notificarTicket(ticket, todos, auth.userId,
       `${autor} comentou no ticket #${ticket.numero}`,
       texto.length > 120 ? texto.slice(0, 117) + '...' : texto)
+    return NextResponse.json({ ok: true })
+  }
+
+  // -------------------------------------------------------------- anexar
+  // Imagem/print na timeline (o upload é do cliente pro bucket `anexos`;
+  // aqui só registramos o evento — mesmas regras do comentar).
+  if (acao === 'anexar') {
+    if (encerrado) return erro('Ticket encerrado — não aceita novos anexos.')
+    const url = String(body.url || '').trim()
+    const nome = String(body.nome || 'arquivo').trim().slice(0, 120) || 'arquivo'
+    if (!/^https?:\/\//.test(url)) return erro('Anexo inválido.')
+    if (!ehEnvolvido(ticket, participantes, auth)) {
+      await garantirParticipante(id, auth.userId, auth.userId)
+      await registrarEvento(id, auth.userId, 'participante_adicionado', { user_id: auth.userId, auto: true })
+    }
+    const err = await registrarEvento(id, auth.userId, 'anexo', { url, nome })
+    if (err) return erro(err, 500)
+    const autor = await nomeDe(auth.userId)
+    await notificarTicket(ticket, todos, auth.userId,
+      `${autor} anexou uma imagem no ticket #${ticket.numero}`, nome)
     return NextResponse.json({ ok: true })
   }
 
