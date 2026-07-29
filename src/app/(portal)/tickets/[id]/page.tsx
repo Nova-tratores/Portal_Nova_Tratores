@@ -113,21 +113,22 @@ export default function TicketDetalhePage({ params }: { params: Promise<{ id: st
     return usuarios[userId]?.nome || 'Usuário'
   }, [usuarios])
 
-  // Anexar imagens/prints na timeline (upload no bucket público `anexos`)
+  // Imagens/prints na timeline: Ctrl+V no comentário cola direto, e o
+  // clipe abre o seletor de arquivos (upload no bucket público `anexos`)
   const fileRef = useRef<HTMLInputElement>(null)
   const [anexando, setAnexando] = useState(false)
-  const anexarArquivos = async (lista: FileList | null) => {
+  const anexarArquivos = async (lista: File[] | null) => {
     if (!lista || lista.length === 0) return
     setAnexando(true)
     try {
-      for (const f of Array.from(lista).slice(0, 5)) {
+      for (const f of lista.slice(0, 5)) {
         if (f.size > 10 * 1024 * 1024) { setErroAcao(`"${f.name}" passa de 10MB.`); continue }
         const pasta = `tickets/${id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-        const nomeArq = f.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+        const nomeArq = (f.name || 'print.png').replace(/[^a-zA-Z0-9._-]/g, '_')
         const { error: upErr } = await supabase.storage.from('anexos').upload(`${pasta}/${nomeArq}`, f)
         if (upErr) { setErroAcao(`Falha ao subir "${f.name}".`); continue }
         const url = supabase.storage.from('anexos').getPublicUrl(`${pasta}/${nomeArq}`).data.publicUrl
-        await acao({ acao: 'anexar', url, nome: f.name })
+        await acao({ acao: 'anexar', url, nome: f.name || 'print.png' })
       }
     } finally {
       setAnexando(false)
@@ -362,11 +363,11 @@ export default function TicketDetalhePage({ params }: { params: Promise<{ id: st
           {podeComentar && (
             <div style={{ display: 'flex', gap: 8, marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--portal-border,#f0f0f0)' }}>
               <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: 'none' }}
-                onChange={(e) => anexarArquivos(e.target.files)} />
+                onChange={(e) => anexarArquivos(Array.from(e.target.files || []))} />
               <button
                 disabled={agindo || anexando}
                 onClick={() => fileRef.current?.click()}
-                title="Anexar imagens/prints na timeline (máx 5, 10MB cada)"
+                title="Anexar imagens/prints na timeline (ou cole com Ctrl+V no comentário) — máx 5, 10MB cada"
                 style={{
                   alignSelf: 'flex-end', display: 'flex', alignItems: 'center', justifyContent: 'center',
                   width: 38, height: 38, borderRadius: 10, border: '1px solid var(--portal-border,#e5e7eb)',
@@ -383,8 +384,12 @@ export default function TicketDetalhePage({ params }: { params: Promise<{ id: st
                     acao({ acao: 'comentar', texto: comentario.trim() }, () => setComentario(''))
                   }
                 }}
+                onPaste={(e) => {
+                  const imagens = Array.from(e.clipboardData?.files || []).filter((f) => f.type.startsWith('image/'))
+                  if (imagens.length > 0) { e.preventDefault(); anexarArquivos(imagens) }
+                }}
                 rows={2}
-                placeholder="Escreva um comentário... (Ctrl+Enter envia)"
+                placeholder="Escreva um comentário... (Ctrl+Enter envia · Ctrl+V cola print)"
                 style={{
                   flex: 1, padding: '9px 12px', borderRadius: 10, fontSize: 13.5, resize: 'vertical', outline: 'none',
                   border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-bg,#fff)', color: 'var(--portal-text,#111)',
