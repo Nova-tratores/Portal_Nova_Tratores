@@ -102,6 +102,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         ? `Garantia ${g.numero} devolvida (B.O.)`
         : `Fábrica solicitou informações — ${g.numero}`,
     descricao: descricao.slice(0, 140),
+    link: `/os/${g.id_ordem}`,
   });
 
   return NextResponse.json({ pendencia, status: novoStatus });

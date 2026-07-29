@@ -118,6 +118,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await notificarTecnico(g.tecnico_nome, {
       titulo: `Garantia ${g.numero} não foi paga`,
       descricao: `A fábrica recusou as peças da OS ${g.id_ordem}. Motivo: ${motivoCurto}`,
+      link: `/os/${g.id_ordem}`,
     });
     await notificarGarantistas({
       titulo: `Garantia ${g.numero} finalizada (recusada)`,
@@ -176,6 +177,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   await notificarTecnico(g.tecnico_nome, {
     titulo: `Garantia ${g.numero}: peças aprovadas pela fábrica`,
     descricao: `Pode agendar e executar o serviço da OS ${g.id_ordem}. Depois o garantista solicita o ressarcimento das horas e km.`,
+    link: `/os/${g.id_ordem}`,
   });
   await notificarGarantistas({
     titulo: `Peças da garantia ${g.numero} aprovadas — aguardando serviço`,

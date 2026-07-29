@@ -210,6 +210,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         : recusaInterna
           ? `O garantista entendeu que a OS ${g.id_ordem} não cabe garantia. Motivo: ${motivoCurto}`
           : `A garantia da OS ${g.id_ordem} foi recusada pela fábrica.`,
+    link: `/os/${g.id_ordem}`,
   });
   await notificarGarantistas({
     titulo: `Garantia ${g.numero} finalizada (${resultado === 'aprovada' ? 'aprovada' : 'recusada'})`,

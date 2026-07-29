@@ -174,6 +174,7 @@ export async function POST(req: NextRequest) {
   await notificarTecnico(tecnicoNome, {
     titulo: `Garantia ${garantia.numero} aberta na sua OS`,
     descricao: `${garantistaNome} abriu uma garantia para a OS ${idOrdem}${motivo ? ` (${motivo})` : ''}.`,
+    link: `/os/${idOrdem}`,
   });
   await notificarGarantistas({
     titulo: `Garantia ${garantia.numero} criada manualmente`,

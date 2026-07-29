@@ -63,6 +63,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   await notificarTecnico(g.tecnico_nome, {
     titulo: `Garantia ${g.numero} enviada à fábrica`,
     descricao: `A garantia da OS ${g.id_ordem} está em análise da fábrica.`,
+    link: `/os/${g.id_ordem}`,
   });
 
   // Se a montadora tem template Mahindra, GERA a SG automaticamente para o garantista

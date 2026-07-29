@@ -80,6 +80,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   await notificarTecnico(g.tecnico_nome, {
     titulo: `Garantia ${g.numero} reaberta`,
     descricao: `A recusa da OS ${g.id_ordem} foi reaberta — o garantista vai reanalisar.`,
+    link: `/os/${g.id_ordem}`,
   });
 
   return NextResponse.json({ ok: true });
