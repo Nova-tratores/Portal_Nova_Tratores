@@ -141,13 +141,13 @@ export async function aplicarMudancaFase(
             tipo: 'ordem',
             titulo,
             descricao,
-            link: '/agenda',
+            link: `/os/${idOs}`,
             lida: false,
           }))
         );
         const { pushParaTecnico } = await import('@/lib/push-mecanicos');
         for (const nome of tecnicos) {
-          await pushParaTecnico(nome, { titulo, descricao, link: '/agenda' });
+          await pushParaTecnico(nome, { titulo, descricao, link: `/os/${idOs}` });
         }
       }
     } catch { /* best-effort */ }

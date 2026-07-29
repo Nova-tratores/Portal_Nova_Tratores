@@ -105,7 +105,7 @@ export async function POST() {
         tipo: 'alerta',
         titulo: `⏰ OS ${a.referencia_id} atrasada`,
         descricao: a.descricao,
-        link: '/agenda',
+        link: `/os/${a.referencia_id}`,
         lida: false,
       }))
       await supabase.from('mecanico_notificacoes').insert(notifs)
@@ -114,7 +114,7 @@ export async function POST() {
         await pushParaTecnico(n.tecnico_nome, {
           titulo: n.titulo,
           descricao: n.descricao,
-          link: '/agenda',
+          link: n.link,
         })
       }
     } catch { /* best-effort */ }

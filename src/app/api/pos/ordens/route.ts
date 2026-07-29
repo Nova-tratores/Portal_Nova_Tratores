@@ -498,13 +498,13 @@ export async function POST(req: NextRequest) {
           tipo: 'ordem',
           titulo: tituloTec,
           descricao: descricaoTec,
-          link: '/agenda',
+          link: `/os/${newId}`,
           lida: false,
         }))
       );
       const { pushParaTecnico } = await import('@/lib/push-mecanicos');
       for (const nome of tecnicos) {
-        await pushParaTecnico(nome, { titulo: tituloTec, descricao: descricaoTec, link: '/agenda' });
+        await pushParaTecnico(nome, { titulo: tituloTec, descricao: descricaoTec, link: `/os/${newId}` });
       }
     }
   } catch { /* best-effort */ }
