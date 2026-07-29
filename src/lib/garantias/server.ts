@@ -42,6 +42,12 @@ export async function notificarTecnico(
       link: params.link || '/meu-painel',
       lida: false,
     });
+    const { pushParaTecnico } = await import('@/lib/push-mecanicos');
+    await pushParaTecnico(tecnicoNome, {
+      titulo: params.titulo,
+      descricao: params.descricao || '',
+      link: params.link || '/',
+    });
   } catch (e) {
     console.error('[garantias] notificarTecnico erro:', e);
   }

@@ -483,6 +483,29 @@ export async function POST(req: NextRequest) {
     notifLink: `/pos?id=${newId}`,
   });
 
+  // Notificação no sininho + push para técnico(s) atribuído(s)
+  try {
+    const tituloTec = `Nova OS: ${newId}`;
+    const descricaoTec = `${dados.nomeCliente}${dados.cidadeCliente ? ` — ${dados.cidadeCliente}` : ''}`;
+    const tecnicos = [dados.tecnicoResponsavel, dados.tecnico2].filter(Boolean) as string[];
+    if (tecnicos.length > 0) {
+      await supabase.from('mecanico_notificacoes').insert(
+        tecnicos.map(nome => ({
+          tecnico_nome: nome,
+          tipo: 'ordem',
+          titulo: tituloTec,
+          descricao: descricaoTec,
+          link: '/agenda',
+          lida: false,
+        }))
+      );
+      const { pushParaTecnico } = await import('@/lib/push-mecanicos');
+      for (const nome of tecnicos) {
+        await pushParaTecnico(nome, { titulo: tituloTec, descricao: descricaoTec, link: '/agenda' });
+      }
+    }
+  } catch { /* best-effort */ }
+
   // Checagem de pendência Mahindra (inspeção/revisões anteriores)
   try {
     const pendencia = await checarIrregularidade({

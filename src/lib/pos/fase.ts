@@ -125,6 +125,30 @@ export async function aplicarMudancaFase(
       notifDescricao: `${userName || "Sistema"} moveu OS ${idOs} para ${newStatus}`,
       notifLink: `/pos?id=${idOs}`,
     });
+
+    // Sininho + push para técnico(s) da OS
+    try {
+      const { data: osRow } = await supabase.from(TBL_OS).select("Os_Tecnico, Os_Tecnico2").eq("Id_Ordem", idOs).limit(1);
+      const tecnicos = [osRow?.[0]?.Os_Tecnico, osRow?.[0]?.Os_Tecnico2].filter(Boolean) as string[];
+      if (tecnicos.length > 0) {
+        const titulo = `OS ${idOs}: ${newStatus}`;
+        const descricao = `${statusAnterior} → ${newStatus}`;
+        await supabase.from('mecanico_notificacoes').insert(
+          tecnicos.map(nome => ({
+            tecnico_nome: nome,
+            tipo: 'ordem',
+            titulo,
+            descricao,
+            link: '/agenda',
+            lida: false,
+          }))
+        );
+        const { pushParaTecnico } = await import('@/lib/push-mecanicos');
+        for (const nome of tecnicos) {
+          await pushParaTecnico(nome, { titulo, descricao, link: '/agenda' });
+        }
+      }
+    } catch { /* best-effort */ }
   }
 
   return { success: true, changed: true };

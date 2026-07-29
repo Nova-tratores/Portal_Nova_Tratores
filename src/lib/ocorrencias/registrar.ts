@@ -171,7 +171,7 @@ export async function notificarOcorrencia(
     /* best-effort */
   }
 
-  // 2. Técnico no APP (aviso vermelho com os pontos no título)
+  // 2. Técnico no APP (aviso vermelho com os pontos no título) + push
   try {
     await supa.from('mecanico_notificacoes').insert({
       tecnico_nome: n.tecnico_nome,
@@ -180,6 +180,12 @@ export async function notificarOcorrencia(
       descricao: `${n.observacao.slice(0, 180)}${sufixoOS} Toque para justificar.`,
       link: '/ocorrencias',
       lida: false,
+    })
+    const { pushParaTecnico } = await import('@/lib/push-mecanicos')
+    await pushParaTecnico(n.tecnico_nome, {
+      titulo: `⚠ Ocorrência: ${n.label}`,
+      descricao: `−${n.pontos} pts · ${n.observacao.slice(0, 100)}`,
+      link: '/ocorrencias',
     })
   } catch {
     /* best-effort */

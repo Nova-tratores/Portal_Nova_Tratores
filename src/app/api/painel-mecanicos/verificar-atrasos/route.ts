@@ -97,6 +97,35 @@ export async function POST() {
   // 6) Inserir alertas (só aparecem na aba Alertas do Painel Mecânicos)
   if (novosAlertas.length > 0) {
     await supabase.from('painel_alertas').insert(novosAlertas)
+
+    // Sininho + push para cada técnico com OS atrasada
+    try {
+      const porTecnico = new Map<string, string[]>()
+      for (const a of novosAlertas) {
+        const lista = porTecnico.get(a.tecnico_nome) || []
+        lista.push(a.referencia_id)
+        porTecnico.set(a.tecnico_nome, lista)
+      }
+      const notifs = [...porTecnico.entries()].map(([nome, ids]) => ({
+        tecnico_nome: nome,
+        tipo: 'alerta',
+        titulo: `⏰ OS atrasada${ids.length > 1 ? 's' : ''}`,
+        descricao: `OS ${ids.join(', ')} — preencha a execução`,
+        link: '/agenda',
+        lida: false,
+      }))
+      if (notifs.length > 0) {
+        await supabase.from('mecanico_notificacoes').insert(notifs)
+      }
+      const { pushParaTecnico } = await import('@/lib/push-mecanicos')
+      for (const n of notifs) {
+        await pushParaTecnico(n.tecnico_nome, {
+          titulo: n.titulo,
+          descricao: n.descricao,
+          link: '/agenda',
+        })
+      }
+    } catch { /* best-effort */ }
   }
 
   return NextResponse.json({ ok: true, alertas: novosAlertas.length })
