@@ -125,6 +125,13 @@ export default function SolicitacaoEmailSecao({ g, userName, naFabrica, finaliza
   const anexosNf = g.anexos.filter((a) => a.categoria === 'nf_venda');
   const temTextos = !!(reclamacao.trim() || diagnostico.trim());
   const jaEnviado = g.eventos?.find((e) => e.tipo === 'solicitacao_email_enviada') || null;
+  // RAT: OPCIONAL nas duas etapas (às vezes a própria fábrica executa o
+  // serviço). Quando existir um RAT anexado após o retorno das peças, ele vai
+  // junto no e-mail do ressarcimento.
+  const aposServico = !!g.pecas_retorno_em;
+  const temRatAtendimento = anexosRat.some(
+    (a) => !g.pecas_retorno_em || a.created_at >= g.pecas_retorno_em
+  );
 
   const carregarPreview = useCallback(async () => {
     try {
@@ -282,11 +289,10 @@ export default function SolicitacaoEmailSecao({ g, userName, naFabrica, finaliza
   // ── Envio ──────────────────────────────────────────────────────────────────
   const enviar = async () => {
     if (!podeEnviarFabrica) { setErro(MSG_SEM_PERMISSAO); return; }
-    const faltando: string[] = [];
-    if (anexosRat.length === 0) faltando.push('RAT');
-    if (anexosNf.length === 0) faltando.push('NF de venda');
-    if (faltando.length > 0) {
-      const ok = confirm(`Ainda sem: ${faltando.join(' e ')}.\n\nEnviar o e-mail mesmo assim?`);
+    // RAT é opcional na 1ª solicitação (vira obrigatória só no ressarcimento,
+    // depois do serviço) — aqui só a NF de venda merece o alerta.
+    if (anexosNf.length === 0) {
+      const ok = confirm('Ainda sem a NF de venda do equipamento.\n\nEnviar o e-mail mesmo assim?');
       if (!ok) return;
     }
     // O relato que está NA TELA precisa estar no banco antes do envio — é de
@@ -314,16 +320,17 @@ export default function SolicitacaoEmailSecao({ g, userName, naFabrica, finaliza
     }
   };
 
-  const Badge = ({ ok, label }: { ok: boolean; label: string }) => (
+  // neutro=true: item opcional ainda não feito — cinza em vez de vermelho
+  const Badge = ({ ok, label, neutro }: { ok: boolean; label: string; neutro?: boolean }) => (
     <span
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 4,
         fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8,
-        background: ok ? '#ECFDF5' : '#FEF2F2',
-        color: ok ? '#047857' : '#B91C1C',
+        background: ok ? '#ECFDF5' : neutro ? 'var(--portal-bg-secondary)' : '#FEF2F2',
+        color: ok ? '#047857' : neutro ? 'var(--portal-text-muted)' : '#B91C1C',
       }}
     >
-      {ok ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
+      {ok ? <CheckCircle2 size={12} /> : neutro ? null : <XCircle size={12} />}
       {label}
     </span>
   );
@@ -350,7 +357,11 @@ export default function SolicitacaoEmailSecao({ g, userName, naFabrica, finaliza
       {/* Prontidão */}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         <Badge ok={temTextos} label="Relato" />
-        <Badge ok={anexosRat.length > 0} label="RAT" />
+        {aposServico ? (
+          <Badge ok={temRatAtendimento} neutro label="RAT do atendimento (opcional)" />
+        ) : (
+          <Badge ok={anexosRat.length > 0} neutro label="RAT (opcional)" />
+        )}
         <Badge ok={anexosNf.length > 0} label="NF de venda" />
         <Badge ok={destinatarios.length > 0} label="Destinatários" />
       </div>
@@ -395,6 +406,8 @@ export default function SolicitacaoEmailSecao({ g, userName, naFabrica, finaliza
         <span style={{ fontSize: 10.5, color: 'var(--portal-text-faint)' }}>
           Formulário oficial da Ipacol (IN LOCO). Cliente, endereço, modelo e nº de série saem
           automáticos da OS — os campos abaixo são os variáveis (vazio = usa o automático quando houver).
+          {' '}Opcional nas duas etapas — quando anexado após o serviço, o RAT do atendimento vai
+          junto no e-mail do ressarcimento.
         </span>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8 }}>
           {RAT_CAMPOS.map((c) => (

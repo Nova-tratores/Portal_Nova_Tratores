@@ -54,9 +54,9 @@ const GUIAS: Record<string, GuiaMontadora> = {
         dica: 'Se o texto vier estranho, clique em "Regerar" ou edite direto nas caixas.',
       },
       {
-        titulo: 'Preencha e gere o RAT',
+        titulo: 'RAT (opcional)',
         descricao:
-          'O formulário do Relatório de Assistência Técnica vem pré-preenchido com os dados da OS. Gere o PDF preenchido — ou imprima a versão em branco pra preencher à mão e anexe o escaneado.',
+          'O Relatório de Assistência Técnica é opcional — se o serviço for nosso, imprima a versão em branco pra levar a campo ou gere o PDF preenchido. Quando a própria fábrica executa o serviço, não precisa.',
       },
       {
         titulo: 'Anexe a NF de venda',
@@ -81,6 +81,7 @@ const GUIAS: Record<string, GuiaMontadora> = {
         titulo: 'Solicite o ressarcimento (2ª etapa)',
         descricao:
           'Com o serviço executado, as horas/km atualizam da OS. Confira e clique em "Solicitar ressarcimento". Com o retorno da fábrica, finalize a garantia.',
+        dica: 'Se o serviço foi nosso, anexe o RAT do atendimento antes — ele vai junto no e-mail do ressarcimento automaticamente.',
       },
     ],
     observacoes: [

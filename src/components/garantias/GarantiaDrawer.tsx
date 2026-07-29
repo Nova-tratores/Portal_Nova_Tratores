@@ -416,6 +416,13 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
   const aguardandoServico = g?.status === 'aguardando_servico';
   const emRessarcimento = g?.status === 'ressarcimento_fabrica';
   const naFabricaDuasEtapas = naFabrica && fluxoDuasEtapas;
+  // Ipacol (tipo e-mail): RAT do atendimento é OPCIONAL (às vezes a própria
+  // fábrica executa o serviço) — quando anexada após o retorno das peças, vai
+  // junto no e-mail do ressarcimento
+  const mostraRatAtendimento = g?.montadora?.tipo_template === 'email';
+  const temRatAtendimento = !!g?.anexos?.some(
+    (a) => a.categoria === 'relatorio_at' && (!g.pecas_retorno_em || a.created_at >= g.pecas_retorno_em)
+  );
 
   return (
     <div
@@ -1233,6 +1240,18 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                     <span style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>
                       A garantia só muda de fase — combine o ressarcimento com a fábrica por fora do portal.
                     </span>
+                  )}
+                  {mostraRatAtendimento && (
+                    temRatAtendimento ? (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#047857', fontWeight: 600 }}>
+                        <CheckCircle2 size={13} /> RAT do atendimento anexada — vai junto no e-mail do ressarcimento.
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>
+                        RAT do atendimento não anexada (opcional) — se o serviço foi nosso, gere/anexe na seção
+                        &quot;Solicitação de garantia por e-mail&quot; acima que ela vai junto no e-mail.
+                      </span>
+                    )
                   )}
                   <button
                     onClick={solicitarRessarcimento}

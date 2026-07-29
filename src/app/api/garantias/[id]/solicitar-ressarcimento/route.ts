@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/pos/supabase';
-import { TBL_GARANTIAS, TBL_GAR_PEND, VALOR_HORA, VALOR_KM } from '@/lib/garantias/constants';
+import { TBL_GARANTIAS, TBL_GAR_PEND, TBL_GAR_ANEXOS, VALOR_HORA, VALOR_KM } from '@/lib/garantias/constants';
 import { registrarEvento, notificarGarantistas } from '@/lib/garantias/server';
 import {
   transporter,
   sanitizeHtml,
   saudacao,
+  baixarUrl,
   tagAssuntoGarantia,
   registrarEmailEnviado,
 } from '@/lib/garantias/email';
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: g } = await supabase
     .from(TBL_GARANTIAS)
-    .select('id, numero, numero_externo, status, id_ordem, cliente, chassis, modelo, tecnico_nome, tecnico_horas, tecnico_km, montadora:garantia_montadoras(nome, fluxo, ressarcimento_por_email, email_destinatarios, email_assinatura)')
+    .select('id, numero, numero_externo, status, id_ordem, cliente, chassis, modelo, tecnico_nome, tecnico_horas, tecnico_km, pecas_retorno_em, montadora:garantia_montadoras(nome, fluxo, tipo_template, ressarcimento_por_email, email_destinatarios, email_assinatura)')
     .eq('id', id)
     .maybeSingle();
   if (!g) return NextResponse.json({ error: 'Garantia não encontrada.' }, { status: 404 });
@@ -32,6 +33,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   type MontRess = {
     nome?: string;
     fluxo?: string;
+    tipo_template?: string;
     ressarcimento_por_email?: boolean;
     email_destinatarios?: string[];
     email_assinatura?: string | null;
@@ -49,6 +51,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       { error: 'O ressarcimento só pode ser solicitado com a garantia aguardando serviço.' },
       { status: 400 }
     );
+  }
+
+  // RAT do atendimento é OPCIONAL (às vezes a própria fábrica executa o
+  // serviço e não há relatório nosso) — mas quando existir um RAT
+  // gerado/anexado após o retorno das peças, ele vai anexado no e-mail.
+  type AnexoRat = { id: string; url: string; nome_arquivo: string | null; content_type: string | null; created_at: string };
+  let ratDoAtendimento: AnexoRat | null = null;
+  if (m?.tipo_template === 'email') {
+    const { data: rats } = await supabase
+      .from(TBL_GAR_ANEXOS)
+      .select('id, url, nome_arquivo, content_type, created_at')
+      .eq('garantia_id', id)
+      .eq('categoria', 'relatorio_at')
+      .order('created_at', { ascending: false });
+    const lista = (rats || []) as AnexoRat[];
+    ratDoAtendimento =
+      lista.find((a) => !g.pecas_retorno_em || a.created_at >= g.pecas_retorno_em) || null;
   }
 
   const { data: pendAberta } = await supabase
@@ -126,6 +145,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       ${obs ? `<p style="color:#555;">Obs.: ${sanitizeHtml(obs)}</p>` : ''}
       ${m?.email_assinatura || '<p>Atenciosamente,<br/>Pós-Vendas Nova Tratores</p>'}
     `;
+    // RAT do atendimento vai ANEXADA no e-mail do ressarcimento (é o
+    // comprovante do serviço que a Ipacol exige na 2ª etapa)
+    const attachments: { filename: string; content: Buffer; contentType?: string }[] = [];
+    if (ratDoAtendimento) {
+      const buf = await baixarUrl(ratDoAtendimento.url);
+      if (buf) {
+        attachments.push({
+          filename: ratDoAtendimento.nome_arquivo || 'RAT.pdf',
+          content: buf,
+          contentType: ratDoAtendimento.content_type || undefined,
+        });
+      }
+    }
+
     // [GAR-XXXX] no assunto: âncora pro cron de recebimento casar a resposta
     const assunto = tagAssuntoGarantia(
       `Ressarcimento Garantia ${numeroRef} - ${g.cliente || ''} - OS ${g.id_ordem}`,
@@ -137,12 +170,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         to: destinatarios.join(', '),
         subject: assunto,
         html,
+        attachments,
       });
       await registrarEmailEnviado(id, {
         messageId: info.messageId,
         para: destinatarios,
         assunto,
         corpoHtml: html,
+        anexos: attachments.map((a) => ({ nome: a.filename, content_type: a.contentType || null })),
       });
     } catch (err) {
       console.error('Erro ao enviar e-mail de ressarcimento:', err);
