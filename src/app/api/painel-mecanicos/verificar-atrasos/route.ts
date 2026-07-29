@@ -98,25 +98,17 @@ export async function POST() {
   if (novosAlertas.length > 0) {
     await supabase.from('painel_alertas').insert(novosAlertas)
 
-    // Sininho + push para cada técnico com OS atrasada
+    // Sininho + push para cada técnico — uma notificação por OS atrasada
     try {
-      const porTecnico = new Map<string, string[]>()
-      for (const a of novosAlertas) {
-        const lista = porTecnico.get(a.tecnico_nome) || []
-        lista.push(a.referencia_id)
-        porTecnico.set(a.tecnico_nome, lista)
-      }
-      const notifs = [...porTecnico.entries()].map(([nome, ids]) => ({
-        tecnico_nome: nome,
+      const notifs = novosAlertas.map(a => ({
+        tecnico_nome: a.tecnico_nome,
         tipo: 'alerta',
-        titulo: `⏰ OS atrasada${ids.length > 1 ? 's' : ''}`,
-        descricao: `OS ${ids.join(', ')} — preencha a execução`,
+        titulo: `⏰ OS ${a.referencia_id} atrasada`,
+        descricao: a.descricao,
         link: '/agenda',
         lida: false,
       }))
-      if (notifs.length > 0) {
-        await supabase.from('mecanico_notificacoes').insert(notifs)
-      }
+      await supabase.from('mecanico_notificacoes').insert(notifs)
       const { pushParaTecnico } = await import('@/lib/push-mecanicos')
       for (const n of notifs) {
         await pushParaTecnico(n.tecnico_nome, {

@@ -128,11 +128,13 @@ export async function aplicarMudancaFase(
 
     // Sininho + push para técnico(s) da OS
     try {
-      const { data: osRow } = await supabase.from(TBL_OS).select("Os_Tecnico, Os_Tecnico2").eq("Id_Ordem", idOs).limit(1);
+      const { data: osRow } = await supabase.from(TBL_OS).select("Os_Tecnico, Os_Tecnico2, Os_Cliente, Cidade_Cliente").eq("Id_Ordem", idOs).limit(1);
       const tecnicos = [osRow?.[0]?.Os_Tecnico, osRow?.[0]?.Os_Tecnico2].filter(Boolean) as string[];
       if (tecnicos.length > 0) {
-        const titulo = `OS ${idOs}: ${newStatus}`;
-        const descricao = `${statusAnterior} → ${newStatus}`;
+        const cliente = osRow?.[0]?.Os_Cliente || '';
+        const cidade = osRow?.[0]?.Cidade_Cliente ? ` (${osRow[0].Cidade_Cliente})` : '';
+        const titulo = `📋 OS ${idOs} movida para ${newStatus}`;
+        const descricao = `Cliente: ${cliente}${cidade}. Status anterior: ${statusAnterior}`;
         await supabase.from('mecanico_notificacoes').insert(
           tecnicos.map(nome => ({
             tecnico_nome: nome,

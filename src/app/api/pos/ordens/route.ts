@@ -485,8 +485,11 @@ export async function POST(req: NextRequest) {
 
   // Notificação no sininho + push para técnico(s) atribuído(s)
   try {
-    const tituloTec = `Nova OS: ${newId}`;
-    const descricaoTec = `${dados.nomeCliente}${dados.cidadeCliente ? ` — ${dados.cidadeCliente}` : ''}`;
+    const servico = dados.servicoSolicitado || dados.tipoServico || '';
+    const cidade = dados.cidadeCliente ? ` em ${dados.cidadeCliente}` : '';
+    const previsao = dados.previsaoExecucao ? ` · Previsão: ${dados.previsaoExecucao.split('-').reverse().join('/')}` : '';
+    const tituloTec = `🔧 Novo serviço atribuído: OS ${newId}`;
+    const descricaoTec = `Cliente: ${dados.nomeCliente}${cidade}. ${servico}${previsao}`;
     const tecnicos = [dados.tecnicoResponsavel, dados.tecnico2].filter(Boolean) as string[];
     if (tecnicos.length > 0) {
       await supabase.from('mecanico_notificacoes').insert(

@@ -183,8 +183,8 @@ export async function notificarOcorrencia(
     })
     const { pushParaTecnico } = await import('@/lib/push-mecanicos')
     await pushParaTecnico(n.tecnico_nome, {
-      titulo: `⚠ Ocorrência: ${n.label}`,
-      descricao: `−${n.pontos} pts · ${n.observacao.slice(0, 100)}`,
+      titulo: `⚠ Ocorrência${auto}: ${n.label} — −${n.pontos} pts`,
+      descricao: `Motivo: ${n.observacao.slice(0, 120)}${sufixoOS}`,
       link: '/ocorrencias',
     })
   } catch {
