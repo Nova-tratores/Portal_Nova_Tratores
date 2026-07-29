@@ -357,6 +357,29 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // Sincroniza status do PPV vinculado
   await sincronizarStatusPPV(idOs, dados.status);
 
+  // Notificar técnicos quando OS é cancelada
+  if (dados.status === 'Cancelada') {
+    try {
+      const tecNomes = [dados.tecnicoResponsavel, dados.tecnico2].map((n: string) => (n || '').trim()).filter(Boolean)
+      if (tecNomes.length > 0) {
+        const motivo = dados.motivoCancelamento ? `: ${String(dados.motivoCancelamento).slice(0, 100)}` : ''
+        const notifs = tecNomes.map((nome: string) => ({
+          tecnico_nome: nome,
+          tipo: 'os',
+          titulo: `❌ OS ${idOs} cancelada`,
+          descricao: `Cliente: ${dados.nomeCliente || 'N/I'}${motivo}`,
+          link: `/os/${idOs}`,
+          lida: false,
+        }))
+        await supabase.from('mecanico_notificacoes').insert(notifs)
+        const { pushParaTecnico } = await import('@/lib/push-mecanicos')
+        for (const n of notifs) {
+          await pushParaTecnico(n.tecnico_nome, { titulo: n.titulo, descricao: n.descricao, link: n.link })
+        }
+      }
+    } catch { /* best-effort */ }
+  }
+
   // Re-checa pendência Mahindra se mudou Tipo_Servico, Revisao ou Projeto
   try {
     const pendencia = await checarIrregularidade({
