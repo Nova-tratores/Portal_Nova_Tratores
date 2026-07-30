@@ -147,6 +147,13 @@ function DashboardAgrupadoInner() {
   const [motorTemp, setMotorTemp] = useState("");
   const [showNovoTrator, setShowNovoTrator] = useState(false);
   const [novoTrator, setNovoTrator] = useState<Partial<Trator>>({});
+  // Trator EM ESTOQUE (ainda não vendido): cria sem cliente/vendedor/entrega —
+  // a inspeção de pré-entrega pode ser feita; os dados da venda são exigidos
+  // quando a revisão (50h) for registrada (pedido do usuário, 30/07/2026)
+  const [emEstoque, setEmEstoque] = useState(false);
+  const [vendaCliente, setVendaCliente] = useState("");
+  const [vendaVendedor, setVendaVendedor] = useState("");
+  const [vendaEntrega, setVendaEntrega] = useState("");
   const [salvandoTrator, setSalvandoTrator] = useState(false);
   const [msgNovoTrator, setMsgNovoTrator] = useState("");
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
@@ -413,8 +420,10 @@ function DashboardAgrupadoInner() {
 
   const salvarNovoTrator = async () => {
     if (!podeTratores) { setMsgNovoTrator("Você não tem permissão para criar trator."); return; }
-    if (!novoTrator.Modelo?.trim() || !novoTrator.Chassis?.trim() || !novoTrator.Cliente?.trim()) {
-      setMsgNovoTrator("Preencha pelo menos Modelo, Chassis e Cliente.");
+    if (!novoTrator.Modelo?.trim() || !novoTrator.Chassis?.trim() || (!emEstoque && !novoTrator.Cliente?.trim())) {
+      setMsgNovoTrator(emEstoque
+        ? "Preencha pelo menos Modelo e Chassis."
+        : "Preencha pelo menos Modelo, Chassis e Cliente — ou marque \"Trator em estoque\".");
       return;
     }
     setSalvandoTrator(true);
@@ -422,15 +431,17 @@ function DashboardAgrupadoInner() {
     const novoId = String(Date.now());
     const { data, error } = await supabase
       .from("tratores")
-      .insert([{ ID: novoId, ...novoTrator }])
+      // em estoque: garante cliente/vendedor/entrega vazios (preenchidos na 50h)
+      .insert([{ ID: novoId, ...novoTrator, ...(emEstoque ? { Cliente: "", Vendedor: "", Entrega: "" } : {}) }])
       .select();
     if (error) {
       setMsgNovoTrator("Erro ao salvar: " + error.message);
     } else if (data && data.length > 0) {
-      auditLog({ sistema: 'revisoes', acao: 'criar', entidade: 'trator', entidade_id: data[0].ID, entidade_label: `${data[0].Modelo} - ${data[0].Chassis}` });
+      auditLog({ sistema: 'revisoes', acao: 'criar', entidade: 'trator', entidade_id: data[0].ID, entidade_label: `${data[0].Modelo} - ${data[0].Chassis}`, detalhes: emEstoque ? { em_estoque: true } : undefined });
       setTratores(prev => [...prev, data[0]]);
       setShowNovoTrator(false);
       setNovoTrator({});
+      setEmEstoque(false);
       setMsgNovoTrator("");
     }
     setSalvandoTrator(false);
@@ -465,6 +476,13 @@ function DashboardAgrupadoInner() {
     if (!selecionado) return;
     if (!revisaoEnvio) { setMsgEnvio("Selecione a revisão."); return; }
     if (!horimetroEnvio.trim()) { setMsgEnvio("Preencha o horímetro."); return; }
+    // Trator criado "em estoque": a primeira revisão registra a VENDA —
+    // cliente e vendedor passam a ser obrigatórios aqui
+    const precisaVenda = !selecionado.Cliente?.trim();
+    if (precisaVenda && (!vendaCliente.trim() || !vendaVendedor.trim())) {
+      setMsgEnvio("Este trator está sem cliente (estava em estoque): informe o CLIENTE e o VENDEDOR da venda pra registrar a revisão.");
+      return;
+    }
     if (!nomeRemetente.trim()) { setMsgEnvio("Preencha seu nome."); return; }
     if (destinatariosSelecionados.size === 0) { setMsgEnvio("Selecione pelo menos um destinatário."); return; }
     const files = fileInputRef.current?.files;
@@ -485,7 +503,7 @@ function DashboardAgrupadoInner() {
         formData.append("chassis", selecionado.Chassis);
         formData.append("horas", revisaoEnvio.replace("h", ""));
         formData.append("modelo", selecionado.Modelo);
-        formData.append("cliente", selecionado.Cliente || "");
+        formData.append("cliente", selecionado.Cliente?.trim() || vendaCliente.trim());
         formData.append("nome", nomeRemetente.trim());
         formData.append("destinatarios", JSON.stringify(emailsDest));
         return fetch("/api/revisoes", { method: "POST", body: formData });
@@ -520,6 +538,12 @@ function DashboardAgrupadoInner() {
       if (pdfUrl) {
         updateData[`${revisaoEnvio} PDF`] = pdfUrl;
       }
+      // Registra a venda no cadastro (trator que estava em estoque)
+      if (precisaVenda) {
+        updateData["Cliente"] = vendaCliente.trim();
+        updateData["Vendedor"] = vendaVendedor.trim();
+        if (vendaEntrega) updateData["Entrega"] = vendaEntrega;
+      }
       const { error: dbError } = await supabase
         .from("tratores")
         .update(updateData)
@@ -538,9 +562,15 @@ function DashboardAgrupadoInner() {
           [`${revisaoEnvio} Horimetro`]: horimetroEnvio.trim(),
         };
         if (pdfUrl) updated[`${revisaoEnvio} PDF`] = pdfUrl;
+        if (precisaVenda) {
+          updated.Cliente = vendaCliente.trim();
+          updated.Vendedor = vendaVendedor.trim();
+          if (vendaEntrega) updated.Entrega = vendaEntrega;
+        }
         setSelecionado(updated as Trator);
         setTratores(prev => prev.map(t => t.ID === selecionado.ID ? updated as Trator : t));
-        setMsgEnvio("Email enviado e revisão atualizada!");
+        if (precisaVenda) { setVendaCliente(""); setVendaVendedor(""); setVendaEntrega(""); }
+        setMsgEnvio(precisaVenda ? "Email enviado, revisão registrada e venda gravada no trator!" : "Email enviado e revisão atualizada!");
         auditLog({ sistema: 'revisoes', acao: 'enviar_email', entidade: 'trator', entidade_id: selecionado.ID, entidade_label: `${selecionado.Modelo} - ${selecionado.Chassis}`, detalhes: { revisao: revisaoEnvio, horimetro: horimetroEnvio.trim(), destinatarios: Array.from(destinatariosSelecionados) } });
       }
     } catch {
@@ -1752,7 +1782,7 @@ function DashboardAgrupadoInner() {
                             <p>{new Date().getHours() < 12 ? 'Bom dia' : 'Boa tarde'}, segue em anexo o cheque de revisão de {horasPreview} Horas do Trator {selecionado.Modelo}.</p>
                             <p>
                               CHASSI: {selecionado.Chassis}<br />
-                              CLIENTE: {selecionado.Cliente || "—"}
+                              CLIENTE: {selecionado.Cliente?.trim() || vendaCliente.trim() || "—"}
                             </p>
                             <p>Qualquer dúvida estou à disposição.</p>
                             <p>
@@ -1850,6 +1880,46 @@ function DashboardAgrupadoInner() {
                                 className="w-full px-3 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-800 text-base placeholder-zinc-600 focus:ring-1 focus:ring-red-300 outline-none transition-colors"
                               />
                             </div>
+
+                            {/* Trator em estoque: a revisão registra a VENDA */}
+                            {!selecionado.Cliente?.trim() && (
+                              <div className="col-span-full rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-3">
+                                <p className="text-sm text-amber-800 font-medium">
+                                  🚜 Este trator estava <strong>em estoque</strong> — informe a venda pra registrar a revisão:
+                                </p>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                  <div>
+                                    <label className="text-xs text-amber-700 uppercase tracking-wider mb-1 block">Cliente <span className="text-red-500">*</span></label>
+                                    <input
+                                      type="text"
+                                      value={vendaCliente}
+                                      onChange={(e) => setVendaCliente(e.target.value)}
+                                      placeholder="Quem comprou"
+                                      className="w-full px-3 py-2.5 rounded-lg bg-white border border-amber-200 text-zinc-800 text-base placeholder-zinc-400 focus:ring-1 focus:ring-amber-400 outline-none"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-xs text-amber-700 uppercase tracking-wider mb-1 block">Vendedor <span className="text-red-500">*</span></label>
+                                    <input
+                                      type="text"
+                                      value={vendaVendedor}
+                                      onChange={(e) => setVendaVendedor(e.target.value)}
+                                      placeholder="Quem vendeu"
+                                      className="w-full px-3 py-2.5 rounded-lg bg-white border border-amber-200 text-zinc-800 text-base placeholder-zinc-400 focus:ring-1 focus:ring-amber-400 outline-none"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-xs text-amber-700 uppercase tracking-wider mb-1 block">Data de entrega</label>
+                                    <input
+                                      type="date"
+                                      value={vendaEntrega}
+                                      onChange={(e) => setVendaEntrega(e.target.value)}
+                                      className="w-full px-3 py-2.5 rounded-lg bg-white border border-amber-200 text-zinc-800 text-base focus:ring-1 focus:ring-amber-400 outline-none"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                             <div>
                               <label className="text-xs text-zinc-400 uppercase tracking-wider mb-1 block">Seu nome</label>
                               <input
@@ -1924,37 +1994,55 @@ function DashboardAgrupadoInner() {
             </div>
 
             <div className="px-8 py-6 space-y-5">
+              {/* Trator ainda não vendido: cria sem cliente pra fazer a
+                  inspeção de pré-entrega; a venda entra na revisão de 50h */}
+              <label className="flex items-start gap-3 p-3 rounded-xl border border-amber-200 bg-amber-50 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={emEstoque}
+                  onChange={(e) => setEmEstoque(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 rounded border-amber-300 accent-amber-500"
+                />
+                <span className="text-sm text-amber-800">
+                  <strong>Trator em estoque</strong> (ainda não vendido) — cria sem cliente/vendedor
+                  pra fazer a inspeção de pré-entrega. O cliente e o vendedor serão pedidos ao
+                  registrar a revisão de 50h.
+                </span>
+              </label>
+
               <div className="grid grid-cols-2 gap-4">
                 {[
                   { key: "Modelo", label: "Modelo", required: true },
                   { key: "Chassis", label: "Chassis", required: true },
-                  { key: "Cliente", label: "Cliente", required: true },
+                  { key: "Cliente", label: "Cliente", required: true, venda: true },
                   { key: "Numero_Motor", label: "Nº Motor" },
-                  { key: "Vendedor", label: "Vendedor" },
+                  { key: "Vendedor", label: "Vendedor", venda: true },
                   { key: "Cidade", label: "Cidade" },
-                ].map(({ key, label, required }) => (
-                  <div key={key}>
+                ].map(({ key, label, required, venda }) => (
+                  <div key={key} style={venda && emEstoque ? { opacity: 0.4 } : undefined}>
                     <label className="text-xs text-zinc-400 uppercase tracking-wider block mb-1.5">
-                      {label} {required && <span className="text-red-400">*</span>}
+                      {label} {required && !emEstoque && <span className="text-red-400">*</span>}
                     </label>
                     <input
                       type="text"
                       value={(novoTrator as any)[key] || ""}
                       onChange={(e) => setNovoTrator(prev => ({ ...prev, [key]: e.target.value }))}
-                      className="w-full px-3 py-2 rounded-lg bg-white border border-zinc-200 text-zinc-800 text-sm placeholder-zinc-400 focus:ring-1 focus:ring-red-300 focus:border-red-300 outline-none"
-                      placeholder={label}
+                      disabled={!!venda && emEstoque}
+                      className="w-full px-3 py-2 rounded-lg bg-white border border-zinc-200 text-zinc-800 text-sm placeholder-zinc-400 focus:ring-1 focus:ring-red-300 focus:border-red-300 outline-none disabled:bg-zinc-100 disabled:cursor-not-allowed"
+                      placeholder={venda && emEstoque ? "na revisão de 50h" : label}
                     />
                   </div>
                 ))}
               </div>
 
-              <div>
+              <div style={emEstoque ? { opacity: 0.4 } : undefined}>
                 <label className="text-xs text-zinc-400 uppercase tracking-wider block mb-1.5">Data de Entrega</label>
                 <input
                   type="date"
                   value={novoTrator.Entrega || ""}
                   onChange={(e) => setNovoTrator(prev => ({ ...prev, Entrega: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-lg bg-white border border-zinc-200 text-zinc-800 text-sm focus:ring-1 focus:ring-red-300 focus:border-red-300 outline-none"
+                  disabled={emEstoque}
+                  className="w-full px-3 py-2 rounded-lg bg-white border border-zinc-200 text-zinc-800 text-sm focus:ring-1 focus:ring-red-300 focus:border-red-300 outline-none disabled:bg-zinc-100 disabled:cursor-not-allowed"
                 />
               </div>
 
