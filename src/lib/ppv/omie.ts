@@ -367,14 +367,17 @@ export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: bool
   }
 
   if (empresasExclusivas.size > 1) {
-    // Há produtos exclusivos de empresas diferentes — bloqueia
+    // Há produtos exclusivos de empresas diferentes — bloqueia.
+    // Mostra os CÓDIGOS (e descrição) de cada empresa pra saber o que separar.
     const detalhesEmpresas = Array.from(empresasExclusivas).map((e) => {
-      const count = produtosFinais.filter(([, p]) => p.empresa === e).length;
-      return `${e}: ${count} produto(s)`;
-    }).join(", ");
+      const itens = produtosFinais
+        .filter(([, p]) => p.empresa === e)
+        .map(([cod, p]) => `${cod}${p.descricao ? ` (${p.descricao})` : ""}`);
+      return `${e}: ${itens.join(", ")}`;
+    }).join(" | ");
     return {
       sucesso: false,
-      erro: `PPV contém produtos de empresas diferentes (${detalhesEmpresas}). Separe os produtos em PPVs distintos por empresa antes de enviar para o Omie.`,
+      erro: `Produtos de empresas diferentes (o Omie não aceita num pedido só) → ${detalhesEmpresas}. Separe em PPVs distintos por empresa antes de enviar.`,
     };
   }
 

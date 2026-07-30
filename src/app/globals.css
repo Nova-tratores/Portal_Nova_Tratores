@@ -649,9 +649,16 @@ body {
   animation: progressFill 0.8s ease-out;
 }
 
+/* Selects nativos herdam a fonte do app — sem isso, as opções do dropdown caíam
+   na fonte SERIFADA feia do sistema (ex.: condição de pagamento no Financeiro).
+   Só afeta selects que NÃO definem font-family inline (os demais mantêm o seu). */
+select {
+  font-family: 'Inter', 'Poppins', system-ui, -apple-system, sans-serif;
+}
 select option {
   background: var(--portal-bg-card);
   color: var(--portal-text);
+  font-family: 'Inter', 'Poppins', system-ui, -apple-system, sans-serif;
 }
 
 
