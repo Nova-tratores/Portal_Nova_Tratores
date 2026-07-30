@@ -445,10 +445,22 @@ export async function enviarLoteOmie(userName: string, ids?: string[]): Promise<
   return { total: alvos.length, ok, erros: resultados.length - ok, resultados };
 }
 
-export type CampoOS = "servico_realizado" | "solicitacao_cliente" | "modelo" | "chassis" | "horimetro" | "horas" | "km" | "data_inicio" | "data_fim";
+export type CampoOS =
+  | "servico_realizado" | "solicitacao_cliente" | "modelo" | "chassis" | "horimetro"
+  | "horas" | "km" | "data_inicio" | "data_fim"
+  // Campos diretos da OS (edição de OS existente pelo Tratorilson)
+  | "tecnico" | "tecnico2" | "tipo_servico" | "projeto" | "cliente" | "data_execucao" | "revisao"
+  | "endereco" | "cidade" | "cnpj";
+
+// Campos que são só uma coluna direta da OS (troca simples de texto).
+const CAMPO_COLUNA: Partial<Record<CampoOS, string>> = {
+  tecnico: "Os_Tecnico", tecnico2: "Os_Tecnico2", tipo_servico: "Tipo_Servico",
+  projeto: "Projeto", cliente: "Os_Cliente", data_execucao: "Data", revisao: "Revisao",
+  endereco: "Endereco_Cliente", cidade: "Cidade_Cliente", cnpj: "Cnpj_Cliente",
+};
 
 export async function corrigirCampoOS(osNum: string, campo: CampoOS, valor: string, userName?: string): Promise<{ ok: boolean; erro?: string; osId?: string; campo?: string; antes?: string; depois?: string }> {
-  const cols = "Id_Ordem, Serv_Solicitado, Qtd_HR, Qtd_KM, Valor_Total, Previsao_Execucao, Data_Fim_Servico";
+  const cols = "Id_Ordem, Serv_Solicitado, Qtd_HR, Qtd_KM, Valor_Total, Previsao_Execucao, Data_Fim_Servico, Os_Tecnico, Os_Tecnico2, Tipo_Servico, Projeto, Os_Cliente, Data, Revisao, Endereco_Cliente, Cidade_Cliente, Cnpj_Cliente";
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const buscar = async (c: string, v: string | number): Promise<any> => (await supabase.from(TBL_OS).select(cols).eq(c, v).maybeSingle()).data;
   let os = await buscar("Id_Ordem", osNum);
@@ -481,6 +493,10 @@ export async function corrigirCampoOS(osNum: string, campo: CampoOS, valor: stri
     antes = String(os.Previsao_Execucao || ""); update.Previsao_Execucao = valor || null; depois = valor;
   } else if (campo === "data_fim") {
     antes = String(os.Data_Fim_Servico || ""); update.Data_Fim_Servico = valor || null; depois = valor;
+  } else if (CAMPO_COLUNA[campo]) {
+    // Campo direto da OS (técnico, tipo de serviço, projeto, cliente, data, revisão)
+    const col = CAMPO_COLUNA[campo]!;
+    antes = String(os[col] ?? ""); update[col] = valor; depois = valor;
   } else {
     return { ok: false, erro: `Campo "${campo}" não suportado.` };
   }

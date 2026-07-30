@@ -277,10 +277,10 @@ const TOOLS = [
     type: "function",
     function: {
       name: "corrigir_os",
-      description: "(Só administradores) CORRIGE um campo de uma OS que o Tratorilson preencheu. Use quando o usuário pedir pra trocar/ajustar algo numa OS (ex.: 'na OS 541 troca o serviço realizado por ...', 'ajusta as horas da OS 530 pra 3'). Informe o número da OS, qual campo e o novo valor.",
+      description: "(Quem tem acesso ao módulo POS) EDITA um campo de QUALQUER Ordem de Serviço EXISTENTE (não só as que o Tratorilson criou). Use quando o usuário pedir pra trocar/ajustar algo numa OS (ex.: 'na OS 541 troca o técnico pra Danilo', 'muda o tipo de serviço da OS 530 pra Garantia', 'ajusta as horas da OS 530 pra 3', 'corrige o chassi da OS 622'). Aplica na hora. Para MUDAR VÁRIOS campos, chame esta ferramenta uma vez PARA CADA campo. O valor recalcula (horas/km). Importante: mudar 'cliente' troca só o NOME (não re-busca CNPJ/endereço); para mover a FASE/status da OS há um fluxo próprio (avise o usuário se pedirem isso).",
       parameters: { type: "object", properties: {
         numero_os: { type: "string", description: "Número da OS (ex.: 541 ou OS-0541)." },
-        campo: { type: "string", enum: ["servico_realizado", "solicitacao_cliente", "modelo", "chassis", "horimetro", "horas", "km", "data_inicio", "data_fim"], description: "Qual campo corrigir." },
+        campo: { type: "string", enum: ["servico_realizado", "solicitacao_cliente", "modelo", "chassis", "horimetro", "horas", "km", "data_inicio", "data_fim", "tecnico", "tecnico2", "tipo_servico", "projeto", "cliente", "data_execucao", "revisao", "endereco", "cidade", "cnpj"], description: "Qual campo editar. tecnico/tecnico2 = responsáveis; tipo_servico = Revisão/Garantia/Manutenção…; projeto = equipamento; data_execucao = data da OS (AAAA-MM-DD); cliente/endereco/cidade/cnpj = dados do cliente na OS." },
         novo_valor: { type: "string", description: "O novo valor. Para datas use AAAA-MM-DD; para horas/km um número." },
       }, required: ["numero_os", "campo", "novo_valor"] },
     },
@@ -298,6 +298,7 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
       historico_cliente: ["clientes", "pos", "ppv"], consultar_projeto: ["clientes", "pos", "ppv", "orcamentos", "revisoes"],
       propor_orcamento: ["orcamentos"], propor_ppv: ["ppv"], propor_os: ["pos"], propor_requisicao: ["requisicoes"],
       consultar_financeiro: ["financeiro"],
+      corrigir_os: ["pos"],   // editar OS existente: mesma regra do criar OS
     };
     const need = REQ_MOD[name];
     if (need && !need.some((mod) => pode(mod))) {
@@ -305,9 +306,6 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
     }
     if (name === "usuarios_portal" && !isAdmin) {
       return { sem_acesso: true, mensagem: "Apenas administradores podem ver informações de usuários do portal. Diga isso ao usuário, com gentileza." };
-    }
-    if (name === "corrigir_os" && !isAdmin) {
-      return { sem_acesso: true, mensagem: "Apenas administradores podem corrigir uma OS por aqui. Diga isso ao usuário, com gentileza." };
     }
     if (name === "corrigir_os") {
       const r = await corrigirCampoOS(String(args.numero_os || ""), args.campo, String(args.novo_valor || ""), ctx?.userName);
@@ -1134,16 +1132,26 @@ export async function POST(req: NextRequest) {
 
   try {
     for (let step = 0; step < 3; step++) {
-      const j = await chamarIA({ temperature: 0.3, max_tokens: 600, messages: convo, tools: TOOLS, tool_choice: "auto" });
+      // max_tokens alto o bastante pra caber CHAMADAS DE TOOL com texto grande
+      // (ex.: atualizar o "serviço realizado" de uma OS com um relatório longo).
+      // Antes era 600 e o JSON da tool vinha cortado → a atualização rodava vazia.
+      // É só teto: respostas curtas continuam curtas (paga só o que gera).
+      const j = await chamarIA({ temperature: 0.3, max_tokens: 4096, messages: convo, tools: TOOLS, tool_choice: "auto" });
       tokensReq += j?.usage?.total_tokens || 0;
       const m = j?.choices?.[0]?.message;
       if (m?.tool_calls?.length) {
         convo.push(m);
         let proposta: any = null;
         for (const tc of m.tool_calls) {
-          let args: any = {};
-          try { args = JSON.parse(tc.function?.arguments || "{}"); } catch {}
+          let args: any = {}; let parseOk = true;
+          try { args = JSON.parse(tc.function?.arguments || "{}"); } catch { parseOk = false; }
           toolsUsadas.push(String(tc.function?.name || "ferramenta"));
+          // Se o JSON da tool veio cortado (texto grande demais), NÃO executa com
+          // argumentos vazios (isso "falhava" a atualização) — avisa pra encurtar.
+          if (!parseOk) {
+            convo.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify({ ok: false, erro: "O conteúdo ficou grande demais e veio incompleto. Peça ao usuário, com gentileza, para encurtar o texto ou enviar em partes." }) });
+            continue;
+          }
           const result = await execTool(baseInterna, tc.function?.name, args, ctx);
           if (result?.proposta) proposta = result.proposta;
           convo.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify(result) });
@@ -1156,7 +1164,7 @@ export async function POST(req: NextRequest) {
       return await responder((m?.content || "").trim() || "Não consegui formular a resposta. Pode reformular?");
     }
     // se ainda quis ferramenta no último passo, força uma resposta final
-    const fim = await chamarIA({ temperature: 0.3, max_tokens: 600, messages: convo });
+    const fim = await chamarIA({ temperature: 0.3, max_tokens: 4096, messages: convo });
     tokensReq += fim?.usage?.total_tokens || 0;
     return await responder((fim?.choices?.[0]?.message?.content || "").trim() || "Não consegui finalizar. Tenta reformular?");
   } catch (e: any) {
