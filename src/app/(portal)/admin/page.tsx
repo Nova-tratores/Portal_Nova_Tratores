@@ -15,7 +15,11 @@ const MODULOS = [
   // Ajustes: módulo único que expande nas páginas (ações vêm de
   // ACOES_POR_MODULO['ajustes'], derivado de PAGINAS_AJUSTES).
   { id: 'ajustes', label: 'Ajustes', color: '#991b1b' },
+  // Atividades e Back Nova existiam como telas/cards mas NUNCA estiveram nesta
+  // lista — a permissão era impossível de conceder pela tela (29/07/2026).
+  { id: 'atividades', label: 'Atividades (logs)', color: '#6b7280' },
   { id: 'avisos', label: 'Avisos', color: '#dc2626' },
+  { id: 'back-nova', label: 'Back Nova (externo)', color: '#6b7280' },
   { id: 'clientes', label: 'Clientes', color: '#dc2626' },
   { id: 'consulta-estoque', label: 'Visual Estoque', color: '#7f1d1d' },
   { id: 'revisoes', label: 'Controle de Revisões', color: '#b91c1c' },
