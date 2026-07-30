@@ -185,7 +185,7 @@ ${e.linhas.map(l => `    <div class="emp">${esc(l.empresa)}</div>
               <thead>
                 <tr style={{ background: 'var(--portal-bg-secondary)', textAlign: 'left' }}>
                   <th style={{ padding: '8px 10px', width: 30 }} />
-                  <th style={{ padding: '8px 10px', width: 110 }}>Empresa</th>
+                  <th style={{ padding: '8px 10px', width: 140 }}>Empresa</th>
                   <th style={{ padding: '8px 10px', width: 130 }}>Código</th>
                   <th style={{ padding: '8px 10px' }}>Descrição</th>
                   <th style={{ padding: '8px 10px', width: 220 }}>Locação</th>
@@ -199,7 +199,7 @@ ${e.linhas.map(l => `    <div class="emp">${esc(l.empresa)}</div>
                     <tr key={k} onClick={() => alternarSel(k)} style={{ borderTop: '1px solid var(--portal-border)', cursor: 'pointer', background: marcado ? 'rgba(239,68,68,.06)' : 'transparent' }}>
                       <td style={{ padding: '7px 10px' }}><input type="checkbox" readOnly checked={marcado} /></td>
                       <td style={{ padding: '7px 10px' }}>
-                        <span style={{ fontSize: 10.5, fontWeight: 800, padding: '2px 8px', borderRadius: 6, color: '#fff', background: EMPRESA_COR[i.conta_omie] || '#6b7280' }}>
+                        <span style={{ display: 'inline-block', whiteSpace: 'nowrap', fontSize: 10.5, fontWeight: 800, padding: '3px 10px', borderRadius: 999, color: '#fff', background: EMPRESA_COR[i.conta_omie] || '#6b7280' }}>
                           {EMPRESA_LABEL[i.conta_omie] || i.conta_omie}
                         </span>
                       </td>
