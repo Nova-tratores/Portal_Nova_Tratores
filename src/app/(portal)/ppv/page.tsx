@@ -33,6 +33,7 @@ function PPVApp() {
   const podeCriar = pode('ppv', 'criar');
   const podeMoverFase = pode('ppv', 'mover_fase');
   const podeCatalogo = pode('ppv', 'catalogo');
+  const podeEtiquetas = pode('ppv', 'etiquetas');
   const searchParams = useSearchParams();
   const pathname = usePathname();
 
@@ -330,6 +331,11 @@ function PPVApp() {
           {podeCatalogo && (
             <button className={`ppv-topbar-nav-btn ${activeTab === "catalogoTab" ? "active" : ""}`} onClick={() => setActiveTab("catalogoTab")}>
               <i className="fas fa-cogs" /> Catálogo
+            </button>
+          )}
+          {podeEtiquetas && (
+            <button className="ppv-topbar-nav-btn" onClick={() => { window.location.href = "/ppv/etiquetas"; }} title="Imprimir etiquetas de identificação de peças (código por empresa)">
+              <i className="fas fa-tags" /> Etiquetas
             </button>
           )}
         </div>
