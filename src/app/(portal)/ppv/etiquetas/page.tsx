@@ -21,6 +21,8 @@ interface ItemBusca {
   codigo: string
   descricao: string | null
   caracteristicas: Record<string, string> | null
+  /** Data da NF de entrada (só nas "últimas compradas"). */
+  chegou?: string | null
 }
 interface LinhaEtiqueta {
   empresa: string
@@ -69,11 +71,26 @@ export default function EtiquetasPecasPage() {
   const [q, setQ] = useState('')
   const [buscando, setBuscando] = useState(false)
   const [resultados, setResultados] = useState<ItemBusca[]>([])
+  const [recentes, setRecentes] = useState<ItemBusca[]>([])
+  const [carregandoRecentes, setCarregandoRecentes] = useState(true)
   const [erro, setErro] = useState('')
   const [sel, setSel] = useState<Set<string>>(new Set())
   const [etiquetas, setEtiquetas] = useState<Etiqueta[]>([])
   const proxId = useRef(1)
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Estado inicial: as últimas peças COMPRADAS (NFs de entrada) — as que
+  // acabaram de chegar são as que precisam de etiqueta
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const res = await fetch('/api/ppv/etiquetas?recentes=1')
+        const json = await res.json()
+        if (res.ok) setRecentes(json.itens || [])
+      } catch { /* silencioso — a busca continua funcionando */ }
+      finally { setCarregandoRecentes(false) }
+    })()
+  }, [])
 
   useEffect(() => {
     if (debounce.current) clearTimeout(debounce.current)
@@ -177,9 +194,25 @@ ${e.linhas.map(l => `    <div class="emp">${esc(l.empresa)}</div>
       </div>
       {erro && <div style={{ fontSize: 12.5, color: '#dc2626', fontWeight: 600, marginBottom: 10 }}>{erro}</div>}
 
-      {/* Resultados */}
-      {resultados.length > 0 && (
+      {/* Resultados (busca) ou as últimas peças COMPRADAS (estado inicial) */}
+      {(() => {
+        const mostrandoRecentes = q.trim().length < 2
+        const lista = mostrandoRecentes ? recentes : resultados
+        if (mostrandoRecentes && carregandoRecentes) {
+          return (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--portal-text-muted)', padding: '14px 4px' }}>
+              <Loader2 size={14} className="animate-spin" /> Carregando as últimas peças compradas…
+            </div>
+          )
+        }
+        if (lista.length === 0) return null
+        return (
         <div style={{ border: '1px solid var(--portal-border)', borderRadius: 10, overflow: 'hidden', marginBottom: 12 }}>
+          {mostrandoRecentes && (
+            <div style={{ padding: '8px 12px', fontSize: 12, fontWeight: 800, color: 'var(--portal-text)', background: 'var(--portal-bg-secondary)', borderBottom: '1px solid var(--portal-border)' }}>
+              📦 Últimas peças compradas (NFs de entrada do Omie)
+            </div>
+          )}
           <div style={{ maxHeight: 340, overflowY: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
               <thead>
@@ -188,11 +221,12 @@ ${e.linhas.map(l => `    <div class="emp">${esc(l.empresa)}</div>
                   <th style={{ padding: '8px 10px', width: 140 }}>Empresa</th>
                   <th style={{ padding: '8px 10px', width: 130 }}>Código</th>
                   <th style={{ padding: '8px 10px' }}>Descrição</th>
-                  <th style={{ padding: '8px 10px', width: 220 }}>Locação</th>
+                  <th style={{ padding: '8px 10px', width: 200 }}>Locação</th>
+                  {mostrandoRecentes && <th style={{ padding: '8px 10px', width: 90 }}>Chegou em</th>}
                 </tr>
               </thead>
               <tbody>
-                {resultados.map(i => {
+                {lista.map(i => {
                   const k = chaveItem(i)
                   const marcado = sel.has(k)
                   return (
@@ -204,8 +238,11 @@ ${e.linhas.map(l => `    <div class="emp">${esc(l.empresa)}</div>
                         </span>
                       </td>
                       <td style={{ padding: '7px 10px', fontFamily: 'monospace', fontWeight: 700, color: 'var(--portal-text)' }}>{i.codigo}</td>
-                      <td style={{ padding: '7px 10px', color: 'var(--portal-text)' }}>{i.descricao}</td>
+                      <td style={{ padding: '7px 10px', color: 'var(--portal-text)' }}>
+                        {i.descricao || <em style={{ color: 'var(--portal-text-muted)' }}>sem cadastro de características</em>}
+                      </td>
                       <td style={{ padding: '7px 10px', color: 'var(--portal-text-secondary)' }}>{locacaoDe(i.caracteristicas) || '—'}</td>
+                      {mostrandoRecentes && <td style={{ padding: '7px 10px', color: 'var(--portal-text-secondary)', whiteSpace: 'nowrap' }}>{i.chegou || '—'}</td>}
                     </tr>
                   )
                 })}
@@ -224,7 +261,8 @@ ${e.linhas.map(l => `    <div class="emp">${esc(l.empresa)}</div>
             </span>
           </div>
         </div>
-      )}
+        )
+      })()}
 
       {/* Fila de etiquetas */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '18px 0 8px' }}>
