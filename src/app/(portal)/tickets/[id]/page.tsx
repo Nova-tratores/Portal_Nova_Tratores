@@ -13,6 +13,7 @@ import {
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { authHeaders } from '@/lib/auth/client'
 import {
   STATUS_INFO, STATUS_FINAIS, statusDisponiveis, diasParado, prazoVencido,
@@ -47,6 +48,7 @@ export default function TicketDetalhePage({ params }: { params: Promise<{ id: st
   const router = useRouter()
   const { userProfile } = useAuth()
   const { isAdmin } = usePermissoes(userProfile?.id)
+  const isMobile = useIsMobile()
 
   const [ticket, setTicket] = useState<Ticket | null>(null)
   const [eventos, setEventos] = useState<TicketEvento[]>([])
@@ -193,7 +195,7 @@ export default function TicketDetalhePage({ params }: { params: Promise<{ id: st
   })
 
   return (
-    <div style={{ padding: 20, maxWidth: 1100, margin: '0 auto' }}>
+    <div style={{ padding: isMobile ? '14px 12px' : 20, maxWidth: 1100, margin: '0 auto' }}>
       {/* Topo: em que pé está + com quem está a bola */}
       <button onClick={() => router.push('/tickets')}
         style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--portal-text-muted,#888)' }}>
@@ -266,7 +268,7 @@ export default function TicketDetalhePage({ params }: { params: Promise<{ id: st
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', gap: 16, alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0, 1fr) 300px', gap: 16, alignItems: 'start' }}>
         {/* Timeline */}
         <div style={cartao}>
           <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--portal-text-secondary,#555)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: .4 }}>
@@ -414,8 +416,8 @@ export default function TicketDetalhePage({ params }: { params: Promise<{ id: st
           )}
         </div>
 
-        {/* Sidebar */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {/* Sidebar — no celular vai pro TOPO (prazo/participantes antes da timeline longa) */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, order: isMobile ? -1 : 0 }}>
           <div style={cartao}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
               <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--portal-text-secondary,#555)', textTransform: 'uppercase', letterSpacing: .4 }}>Detalhes</span>

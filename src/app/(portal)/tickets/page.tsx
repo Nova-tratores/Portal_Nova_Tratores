@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { authHeaders } from '@/lib/auth/client'
 import {
   STATUS_INFO, STATUS_ATIVOS, diasParado, prazoVencido,
@@ -29,6 +30,7 @@ function TicketsPageInner() {
   const searchParams = useSearchParams()
   const { userProfile } = useAuth()
   const { isAdmin } = usePermissoes(userProfile?.id)
+  const isMobile = useIsMobile()
 
   const abaParam = searchParams.get('aba') as Visao | null
   const visao: Visao = abaParam && VISOES_VALIDAS.has(abaParam) ? abaParam : 'fila'
@@ -191,7 +193,7 @@ function TicketsPageInner() {
   ]
 
   return (
-    <div style={{ padding: 20, maxWidth: 1100, margin: '0 auto' }}>
+    <div style={{ padding: isMobile ? '14px 12px' : 20, maxWidth: 1100, margin: '0 auto' }}>
       {/* Cabeçalho */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -303,6 +305,65 @@ function TicketsPageInner() {
             const resp = usuarios[t.responsavel_id]
             const sol = usuarios[t.solicitante_id]
             const ehAtual = visao === 'fila' && t.id === atualId
+            if (isMobile) {
+              return (
+                <div key={t.id} role="button" tabIndex={0}
+                  onClick={() => router.push(`/tickets/${t.id}`)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') router.push(`/tickets/${t.id}`) }}
+                  style={{
+                    display: 'flex', flexDirection: 'column', gap: 8, padding: '13px 14px', borderRadius: 12,
+                    border: ehAtual ? '1.5px solid #d97706' : '1px solid var(--portal-border,#e5e7eb)',
+                    background: ehAtual ? 'rgba(217,119,6,.06)' : 'var(--portal-surface,#fff)',
+                    cursor: 'pointer', width: '100%',
+                  }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--portal-text-muted,#999)', flexShrink: 0, marginTop: 2 }}>#{t.numero}</span>
+                    <span style={{ flex: 1, minWidth: 0, fontSize: 14.5, fontWeight: 700, color: 'var(--portal-text,#111)', lineHeight: 1.3, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{t.titulo}</span>
+                    <span style={{ flexShrink: 0 }}><StatusBadge status={t.status} /></span>
+                  </div>
+                  {ehAtual && (
+                    <span style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 3, padding: '1px 8px', borderRadius: 999, fontSize: 11, fontWeight: 800, color: '#d97706', background: 'rgba(217,119,6,.14)' }}>
+                      <Zap size={11} /> Mexendo agora
+                    </span>
+                  )}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px', fontSize: 12, color: 'var(--portal-text-muted,#888)' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><UserIcon size={12} /> {resp?.nome || '—'}</span>
+                    {visao !== 'pedidos' && sol && <span>pedido por {sol.nome}</span>}
+                    {t.categoria && <span>{t.categoria}</span>}
+                    {t.prazo && (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: vencido ? '#dc2626' : undefined, fontWeight: vencido ? 700 : undefined }}>
+                        <CalendarDays size={12} /> {new Date(t.prazo + 'T12:00:00').toLocaleDateString('pt-BR')}{vencido ? ' (vencido)' : ''}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 2 }}>
+                    <span title="Dias sem movimento" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700, color: dias >= 5 ? '#dc2626' : dias >= 2 ? '#d97706' : 'var(--portal-text-muted,#999)' }}>
+                      <Clock size={12} /> {dias === 0 ? 'hoje' : `${dias}d`}
+                    </span>
+                    <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }} onClick={(e) => e.stopPropagation()}>
+                      {visao === 'fila' && (
+                        <button onClick={() => marcarAtual(t.id)} title={ehAtual ? 'Deixar de destacar' : 'Estou mexendo neste agora'}
+                          style={{ display: 'flex', alignItems: 'center', padding: 7, borderRadius: 8, cursor: 'pointer', border: ehAtual ? '1px solid #d97706' : '1px solid var(--portal-border,#e5e7eb)', background: ehAtual ? 'rgba(217,119,6,.14)' : 'transparent', color: ehAtual ? '#d97706' : 'var(--portal-text-muted,#999)' }}>
+                          <Zap size={15} fill={ehAtual ? '#d97706' : 'none'} />
+                        </button>
+                      )}
+                      {dndAtivo && (
+                        <>
+                          <button onClick={() => moverTicket(t.id, -1)} disabled={i === 0} title="Subir na fila"
+                            style={{ display: 'flex', padding: 7, borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'transparent', cursor: i === 0 ? 'default' : 'pointer', color: 'var(--portal-text-muted,#999)', opacity: i === 0 ? .3 : 1 }}>
+                            <ChevronUp size={15} />
+                          </button>
+                          <button onClick={() => moverTicket(t.id, 1)} disabled={i === ordenados.length - 1} title="Descer na fila"
+                            style={{ display: 'flex', padding: 7, borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'transparent', cursor: i === ordenados.length - 1 ? 'default' : 'pointer', color: 'var(--portal-text-muted,#999)', opacity: i === ordenados.length - 1 ? .3 : 1 }}>
+                            <ChevronDown size={15} />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            }
             return (
               <div key={t.id} role="button" tabIndex={0}
                 onClick={() => router.push(`/tickets/${t.id}`)}

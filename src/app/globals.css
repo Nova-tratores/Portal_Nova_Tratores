@@ -3766,6 +3766,17 @@ body {
 }
 
 @media (max-width: 640px) {
+  /* ── Topo do drawer da OS: título + status + ações quebram e encolhem ── */
+  .os-header { padding: 12px 14px; flex-wrap: wrap; gap: 8px; }
+  .os-header-left { gap: 8px; flex: 1 1 100%; min-width: 0; }
+  .os-header-title { font-size: 16px; flex-shrink: 0; }
+  .os-header-left select { max-width: 100% !important; flex: 1; font-size: 12.5px; }
+  .os-header-actions { gap: 6px; margin-left: auto; }
+  /* "⚠ Ocorrência" fica compacto */
+  .os-header-actions .os-btn-ghost { padding: 8px 10px; font-size: 11.5px; }
+
+  /* ── Rodapé (ações) vira uma BARRA fixa embaixo, com Salvar em destaque ── */
+  .modal-container:has(.os-action-rail) { flex-direction: column; }
   .os-action-rail {
     width: 100%;
     align-self: auto;
@@ -3775,9 +3786,16 @@ body {
     max-height: none;
     flex-direction: row;
     flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 12px;
+    position: sticky;
+    bottom: 0;
+    background: #fff;
+    box-shadow: 0 -6px 18px rgba(0,0,0,0.08);
   }
-  .os-rail-btn { width: auto; flex: 1 1 45%; }
-  .modal-container:has(.os-action-rail) { flex-direction: column; }
+  .os-rail-btn { width: auto; flex: 1 1 45%; justify-content: center; }
+  /* Salvar sempre em primeiro e ocupando a linha toda */
+  .os-rail-btn.primary { order: -1; flex: 1 1 100%; }
 }
 
 /* Lembretes */

@@ -3,7 +3,7 @@
 // fase que rolam na horizontal, e a lista de OS em CARTÕES grandes (nada de
 // kanban de colunas). Reaproveita os mesmos dados e o mesmo drawer de detalhe.
 // A versão de PC não usa este componente, então ela não muda.
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import type { KanbanCard } from "@/lib/pos/types";
 import { PHASE_COLORS, PHASE_SHORT } from "./PhaseAccordion";
 import { PHASES } from "@/lib/pos/constants";
@@ -41,11 +41,15 @@ export default function PosMobile({ orders, searchTerm, onSearchChange, onCardCl
 
   const filtradas = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
-    return orders.filter((o) => {
-      if (fase !== "TODAS" && o.status !== fase) return false;
-      if (!q) return true;
-      return `${o.id} ${o.cliente} ${o.tecnico} ${o.servSolicitado}`.toLowerCase().includes(q);
-    });
+    return orders
+      .filter((o) => {
+        if (fase !== "TODAS" && o.status !== fase) return false;
+        if (!q) return true;
+        return `${o.id} ${o.cliente} ${o.tecnico} ${o.servSolicitado}`.toLowerCase().includes(q);
+      })
+      // Mesma ordem do PC: agrupadas por fase (Concluída/Cancelada por último),
+      // nunca misturando cancelada com aberta. Sort estável mantém a ordem dentro da fase.
+      .sort((a, b) => ordemFase(a.status) - ordemFase(b.status));
   }, [orders, fase, searchTerm]);
 
   return (
@@ -87,11 +91,20 @@ export default function PosMobile({ orders, searchTerm, onSearchChange, onCardCl
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {filtradas.map((o) => {
+            {filtradas.map((o, idx) => {
               const c = cor(o.status);
               const atraso = Number(o.diasAtraso) || 0;
+              // Cabeçalho da fase quando muda (só em "Todas") — leitura em grupos, como no PC.
+              const header = fase === "TODAS" && (idx === 0 || filtradas[idx - 1].status !== o.status);
               return (
-                <button key={o.id} onClick={() => onCardClick(o)} style={{
+                <Fragment key={o.id}>
+                {header && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 2px 0", marginTop: idx === 0 ? 0 : 6 }}>
+                    <span style={{ width: 9, height: 9, borderRadius: "50%", background: c }} />
+                    <span style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.4, color: "#475569" }}>{curto(o.status)}</span>
+                  </div>
+                )}
+                <button onClick={() => onCardClick(o)} style={{
                   textAlign: "left", display: "flex", padding: 0, borderRadius: 14, border: "1px solid #e7ebf0", background: "#fff", cursor: "pointer",
                   overflow: "hidden", boxShadow: "0 1px 2px rgba(16,24,40,0.04)",
                 }}>
@@ -118,6 +131,7 @@ export default function PosMobile({ orders, searchTerm, onSearchChange, onCardCl
                     </div>
                   </div>
                 </button>
+                </Fragment>
               );
             })}
           </div>
