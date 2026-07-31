@@ -19,8 +19,10 @@ import ValoresComparativo from './ValoresComparativo';
 import GarantiaTimeline from './GarantiaTimeline';
 import CobrancaCliente from './CobrancaCliente';
 import SolicitacaoEmailSecao from './SolicitacaoEmailSecao';
+import RelatoTratorilsonSecao from './RelatoTratorilsonSecao';
 import ConversaFabrica from './ConversaFabrica';
 import DevolucaoPecasSecao from './DevolucaoPecasSecao';
+import { guiaDaMontadora } from '@/lib/garantias/guias';
 import { MSG_SEM_PERMISSAO } from '@/lib/permissoes/ui';
 
 interface Props {
@@ -1091,6 +1093,20 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                     const maisRecente = sgAnexos[0];
                     const temEmails = (g.montadora?.email_destinatarios?.length || 0) > 0;
 
+                    // Caso: montadora sem template MAS com envio pelo site da
+                    // própria fábrica (guia com acesso — Ventura/Tatu/KUHN):
+                    // nada a configurar, o formulário é externo.
+                    if (!eMahindra && guiaDaMontadora(g.montadora.nome)?.acesso) {
+                      return (
+                        <div style={{ fontSize: 12, color: 'var(--portal-text-secondary)', lineHeight: 1.55 }}>
+                          O envio da <strong>{g.montadora.nome}</strong> é feito no{' '}
+                          <strong>site/portal da própria fábrica</strong> — clique em{' '}
+                          <strong>&quot;Como funciona?&quot;</strong> no topo pra abrir o guia com o link e o passo a
+                          passo. Use a seção <strong>&quot;Relato pro formulário da fábrica&quot;</strong> logo abaixo
+                          pra gerar e copiar os textos do Tratorilson.
+                        </div>
+                      );
+                    }
                     // Caso: montadora ainda sem formato de envio configurado
                     if (!eMahindra) {
                       return (
@@ -1219,6 +1235,28 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                   })()}
                 </Secao>
               )}
+
+              {/* Relato do Tratorilson pra colar no formulário/site da fábrica
+                  (montadoras sem template com guia de envio externo) */}
+              {g.status !== 'aberta' &&
+                g.montadora &&
+                g.montadora.tipo_template !== 'email' &&
+                g.montadora.tipo_template !== 'mahindra' &&
+                !!guiaDaMontadora(g.montadora.nome)?.acesso && (
+                  <Secao titulo="Relato pro formulário da fábrica (Tratorilson)" icone={<FileText size={14} />}>
+                    <RelatoTratorilsonSecao
+                      key={g.id}
+                      g={g}
+                      userName={userName}
+                      podeAnalisar={!!podeAnalisar}
+                      finalizada={finalizada}
+                      onChange={() => {
+                        carregar();
+                        onSaved();
+                      }}
+                    />
+                  </Secao>
+                )}
 
               {/* Aguardando serviço (2ª etapa do fluxo duas_etapas) */}
               {aguardandoServico && (

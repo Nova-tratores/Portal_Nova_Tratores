@@ -11,7 +11,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { data: garantia } = await supabase
     .from(TBL_GARANTIAS)
-    .select('id, status, montadora_id, checklist_snapshot')
+    .select('id, status, montadora_id, checklist_snapshot, checklist_respostas')
     .eq('id', id)
     .maybeSingle();
   if (!garantia) return NextResponse.json({ error: 'Garantia não encontrada.' }, { status: 404 });
@@ -59,6 +59,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   if (body.checklist_respostas !== undefined && update.checklist_respostas === undefined) {
     update.checklist_respostas = body.checklist_respostas || {};
+  }
+  // Merge server-side: aplica SÓ as chaves enviadas por cima do valor ATUAL do
+  // banco. Usado pelos salvamentos de texto (sg_*/rat_*) — com a base do
+  // cliente, um drawer defasado reverteria em silêncio respostas do checklist
+  // salvas por outro caminho.
+  if (body.checklist_respostas_merge !== undefined && update.checklist_respostas === undefined) {
+    update.checklist_respostas = {
+      ...((garantia.checklist_respostas as Record<string, unknown>) || {}),
+      ...((body.checklist_respostas_merge as Record<string, unknown>) || {}),
+    };
   }
   if (body.garantista_horas !== undefined) {
     update.garantista_horas = body.garantista_horas === '' ? null : Number(body.garantista_horas);

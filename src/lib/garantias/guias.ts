@@ -342,6 +342,94 @@ const GUIAS: Record<string, GuiaMontadora> = {
     ],
   },
 
+  ventura: {
+    slug: 'ventura',
+    titulo: 'Ventura',
+    resumo:
+      'A Ventura (quadriciclos/UTVs) recebe tudo pelo site próprio, numa solicitação só: peças + ' +
+      'mão de obra. A M.O. é ressarcida EM MINUTOS (item "0000 - MÃO DE OBRA" na lista de peças) e ' +
+      'eles NÃO pagam km — só o tempo trabalhado. O relatório técnico deles tem os mesmos 3 campos ' +
+      'que o Tratorilson já gera (reclamação, análise da falha e reparo), então é revisar e colar.',
+    acesso: {
+      url: 'https://ventura-pos-vendas.github.io/Ventura-Pos-Vendas/',
+      observacao:
+        'Site aberto, sem login — a "Chave de Acesso" da revenda (nova573) vai DENTRO do formulário e é a mesma que abre o "Meus Casos" (Área do Dealer), onde a resposta da fábrica aparece.',
+    },
+    documentos: [
+      'Nota fiscal — obrigatória, normalmente a NF de VENDA (PDF/JPG/PNG/DOC/DOCX)',
+      'Fotos/vídeos da falha — obrigatório, MÁXIMO 2 arquivos de 10MB (JPG/PNG/vídeo)',
+      'Dados do veículo: chassi, cor, modelo e horímetro atual',
+      'Dados da última revisão: número, data, quilometragem, horímetro e nº da O.S. da revisão',
+      'Relato técnico do Tratorilson (reclamação, diagnóstico e ação — viram os 3 campos do site)',
+    ],
+    passos: [
+      {
+        titulo: 'Assuma a análise no portal',
+        descricao:
+          'Abra a garantia aqui, assuma e confira as peças e horas sincronizadas da OS. Revise os textos do Tratorilson — reclamação, diagnóstico e ação são exatamente os 3 campos do Relatório Técnico da Ventura.',
+      },
+      {
+        titulo: 'Abra o site e clique em GARANTIAS',
+        descricao:
+          'O site abre com "Orçamentos" pré-selecionado — clique no botão GARANTIAS antes de preencher qualquer coisa.',
+      },
+      {
+        titulo: 'Escolha a categoria',
+        descricao:
+          'Selecione a que se encaixa: normalmente "Cliente Final" (máquina já entregue — é a tela mais completa, com os dados da revisão) ou "Estoque Concessionária" (ainda no nosso pátio). Há também Check List e Licitação pra casos específicos.',
+      },
+      {
+        titulo: 'Dados da Revisão (categoria Cliente Final)',
+        descricao:
+          'Preencha o nome do cliente final, o número da revisão (1ª, 2ª...), a data, a quilometragem, o horímetro no momento da revisão e o número da O.S. da revisão.',
+      },
+      {
+        titulo: 'Dados do Revendedor — Chave de Acesso nova573',
+        descricao:
+          'Na "Chave de Acesso" digite nova573 (o nome da revenda preenche sozinho). Complete CNPJ, endereço (rua, número, bairro, estado, cidade, CEP), telefone e o e-mail do pós-vendas.',
+      },
+      {
+        titulo: 'Entrega, frete e dados do veículo',
+        descricao:
+          'Endereço de Entrega: "Enviar para o endereço de faturamento" (padrão) ou "Retirada na Fábrica". Observações de frete são opcionais. Nos Dados do Veículo: número de série (CHASSI), cor, modelo e o horímetro ATUAL do painel.',
+      },
+      {
+        titulo: 'Relatório Técnico + anexos',
+        descricao:
+          'Cole os textos do Tratorilson nos 3 campos: Reclamação do Cliente, Análise da Falha e Reparo a ser Executado. Anexos Técnicos são OBRIGATÓRIOS — fotos/vídeos da falha, máximo 2 arquivos de 10MB (escolha as melhores evidências). Notas Fiscais também são obrigatórias — anexe a NF de venda.',
+        dica: 'Só 2 arquivos de anexo técnico: se precisar de mais evidência, prefira 1 vídeo curto + 1 foto da falha.',
+      },
+      {
+        titulo: 'Peças/Serviços — M.O. em MINUTOS',
+        descricao:
+          'Pesquise e selecione as peças pela referência/nome. A mão de obra entra como o item "0000 - MÃO DE OBRA (MINUTOS)" — lance o tempo trabalhado convertido em MINUTOS (ex.: 2h30 = 150). A Ventura NÃO paga deslocamento/km, só o tempo. Confira a lista de "Peças Utilizadas" e clique em Enviar.',
+        dica: 'Converta as horas da OS pra minutos antes de lançar — é o único jeito que eles ressarcem a M.O.',
+      },
+      {
+        titulo: 'Marque o card como enviado à fábrica',
+        descricao:
+          'De volta ao portal, clique em "Enviar à fábrica" no card (montadora definida e checklist completo) — ele vai pra "Em análise da fábrica". Na Ventura o envio de verdade foi o formulário do site; o clique registra isso no nosso fluxo e libera a tela de finalizar depois.',
+      },
+      {
+        titulo: 'Acompanhe em "Meus Casos" (a resposta sai no site)',
+        descricao:
+          'Ao terminar o envio chega um e-mail de CONFIRMAÇÃO da solicitação. A resposta da fábrica aparece direto no site: botão MEUS CASOS → digite a chave nova573 (Área do Dealer) → aba "Garantias". Cada caso mostra o número (G18XX), o protocolo (GAR...), o chassi e o status (Em Processamento, Em orçamento, Preparação, Garantia Negada...). Anote o nº do caso/protocolo no card aqui do portal.',
+        dica: 'Use a busca por caso, protocolo ou chassi — e o botão Atualizar pra ver o status mais recente.',
+      },
+      {
+        titulo: 'Finalize e devolva as peças',
+        descricao:
+          'Com a decisão da fábrica, anexe a resposta no card, marque o que foi pago (peças + M.O.) e finalize. A Ventura exige a devolução das peças usadas (prova de destruição) — o card entra sozinho na fase "Devolução de peças", com prazo e alerta no sininho.',
+      },
+    ],
+    observacoes: [
+      'Mão de obra é ressarcida em MINUTOS (item 0000 da lista de peças) — km/deslocamento NÃO é pago.',
+      'Anexos técnicos: máximo 2 arquivos de 10MB — escolha bem as evidências antes de enviar.',
+      'O e-mail é só a confirmação do envio — o acompanhamento de verdade é no "Meus Casos" do site (chave nova573).',
+      'A flag de devolução de peças da Ventura já está ligada: toda aprovada abre a pendência de devolução automaticamente.',
+    ],
+  },
+
   mahindra: {
     slug: 'mahindra',
     titulo: 'Mahindra',

@@ -208,8 +208,9 @@ export default function SolicitacaoEmailSecao({ g, userName, naFabrica, finaliza
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          checklist_respostas: {
-            ...((g.checklist_respostas as Record<string, unknown>) || {}),
+          // merge server-side: só as chaves de texto/RAT — não manda o
+          // checklist inteiro (a base local pode estar defasada).
+          checklist_respostas_merge: {
             sg_reclamacao: reclamacao,
             sg_diagnostico: diagnostico,
             sg_acao_tomada: acao,
