@@ -10,6 +10,24 @@ export interface PassoGuia {
   dica?: string;
 }
 
+// Seção extra do guia (ex.: KUHN tem processos separados pra ressarcimento de
+// M.O. e serviços de terceiros, cada um com o próprio passo a passo).
+export interface SecaoGuia {
+  titulo: string;
+  intro?: string;
+  passos: PassoGuia[];
+  observacoes?: string[];
+}
+
+// Acesso a portal externo da montadora (Extranet etc.) — mostrado num bloco
+// destacado no topo do guia.
+export interface AcessoPortal {
+  url: string;
+  usuario: string;
+  senha: string;
+  observacao?: string;
+}
+
 export interface GuiaMontadora {
   slug: string;
   titulo: string;
@@ -17,6 +35,10 @@ export interface GuiaMontadora {
   documentos: string[];
   passos: PassoGuia[];
   observacoes?: string[];
+  acesso?: AcessoPortal;
+  manualUrl?: string;      // PDF em /public — botão "Abrir manual" no guia
+  manualRotulo?: string;
+  secoes?: SecaoGuia[];
 }
 
 export function normalizarNomeMontadora(nome?: string | null): string {
@@ -86,6 +108,153 @@ const GUIAS: Record<string, GuiaMontadora> = {
     ],
     observacoes: [
       'As respostas da fábrica chegam sozinhas na seção "Conversa com a fábrica" do card (o portal lê a caixa de e-mail às 07:30 e às 12:00).',
+    ],
+  },
+
+  kuhn: {
+    slug: 'kuhn',
+    titulo: 'KUHN',
+    resumo:
+      'A KUHN trabalha em DUAS ETAPAS e TUDO passa pelo portal Extranet dela (nada por e-mail): ' +
+      'primeiro a Solicitação de Garantia das PEÇAS; com as peças aprovadas e o serviço executado, ' +
+      'o RESSARCIMENTO de mão de obra e km entra pela MESMA aba do Extranet, mas com regras próprias. ' +
+      'Serviço de terceiros (torno, solda, munck...) precisa de autorização PRÉVIA. Os detalhes, tabelas ' +
+      'de valores e formulários estão no manual oficial — botão no fim deste guia.',
+    acesso: {
+      url: 'https://dealerportal.extranet.kuhn.com/br/pt/',
+      usuario: '964N162JOA',
+      senha: '29M1UER*24',
+      observacao: 'Menu PÓS VENDAS → "Solicitação de garantia". O acompanhamento fica em "Acompanhamento do status de garantia".',
+    },
+    manualUrl: '/manuais/kuhn-manual-pos-vendas-2025.pdf',
+    manualRotulo: 'Manual Pós-Vendas KUHN 2025 (valores por modelo, regras e formulários)',
+    documentos: [
+      'Fotos da OS: falha/peça danificada, plaqueta com o nº de série, horímetro',
+      'Relatório de visita do técnico na máquina',
+      'Certificado de Entrega Técnica registrado no Extranet (sem ele a KUHN nem avalia — exceto máquina em estoque)',
+      'Pro ressarcimento: OS datada e ASSINADA pelo técnico e pelo cliente + fotos do atendimento',
+      'Pra serviço de terceiros: orçamento/NF + e-mail de autorização prévia da KUHN',
+    ],
+    passos: [
+      {
+        titulo: 'Assuma a análise no portal',
+        descricao: 'Abra a garantia aqui no portal, assuma e confira peças, horas e km sincronizados da OS. O relato do Tratorilson serve de base pro texto que você vai colar no Extranet.',
+      },
+      {
+        titulo: 'Entre no Extranet da KUHN',
+        descricao: 'Acesse o portal com as credenciais acima, menu PÓS VENDAS → "Solicitação de garantia".',
+      },
+      {
+        titulo: 'Selecione a máquina pelo chassi',
+        descricao: 'Digite o número de série KUHN da máquina e clique em Buscar; confira o modelo e selecione. Pra garantia de PEÇA de reposição (comprada no balcão), digite só "P" e busque.',
+        dica: 'Peça de reposição tem garantia de 3 meses a partir da NF de venda ao cliente — anexe a cópia da NF.',
+      },
+      {
+        titulo: 'Preencha "Seu pedido" com o Nº DA OS',
+        descricao: 'Na tela de Informações Gerais: "Enviado por" = seu nome; "Seu pedido" = o NÚMERO DA OS vinculada a esta garantia (é assim que amarramos a SG da KUHN com o nosso card); e-mail = posvendas.',
+        dica: 'O campo "Seu pedido" é o nosso elo de rastreio — não deixe em branco.',
+      },
+      {
+        titulo: 'Dados da máquina',
+        descricao: 'Data de entrega (vem do certificado), Data do problema, e Utilização = HORAS da máquina (confira com a foto do horímetro). Potência e Rotação do cardan NÃO precisam ser preenchidos — deixe 0 e marque "Inapropriado". Confirme os dados do proprietário na tela seguinte.',
+      },
+      {
+        titulo: 'Lance as peças',
+        descricao: 'Digite o código KUHN de cada item + quantidade e clique em Adicionar (ou "Adicionar vários" pra até 10 itens). Confira a descrição de cada código.',
+        dica: 'Guarde as peças danificadas na revenda até o fim do processo — a KUHN pode pedir a devolução física.',
+      },
+      {
+        titulo: 'Relato + fotos',
+        descricao: 'No campo de comentários descreva a falha, a provável causa e as ações tomadas (use o relato formatado pelo Tratorilson). Anexe as fotos da falha, da plaqueta e do horímetro + o relatório de visita. Fotos em JPG de até 1024x768 e 200 Kb; vídeo não anexa — envie por e-mail ao analista da região.',
+      },
+      {
+        titulo: 'Confirme e anote o número da SG',
+        descricao: 'Confirme os dados — o Extranet gera o número da solicitação (ex.: 3 3 7560398). Anote esse número no card da garantia aqui no portal (campo de observações/checklist) pra rastrearmos a resposta.',
+      },
+      {
+        titulo: 'Acompanhe o estado e registre o retorno (1ª etapa)',
+        descricao: 'Em "Consulta do estado de Garantia": Z = sem análise, A = em análise, C = APROVADA (total/parcial), R = rejeitada, I = incompleta. Com a decisão da fábrica, registre o retorno das peças no card — a garantia fica "Aguardando serviço".',
+        dica: 'Na lupa da SG, cada peça recebe uma decisão: A = aceita · B = rejeitada · C = comentários · D = DEVOLVER a peça física.',
+      },
+      {
+        titulo: 'Solicite o ressarcimento (2ª etapa)',
+        descricao: 'Com o serviço executado, confira horas/km da OS no card e siga a seção "Ressarcimento de mão de obra e km" abaixo — entra pela mesma aba do Extranet, com regras e prazos próprios. Com tudo pago, finalize a garantia no portal.',
+      },
+    ],
+    secoes: [
+      {
+        titulo: 'Ressarcimento de mão de obra e km (2ª etapa)',
+        intro:
+          'Entra pela MESMA aba "Solicitação de garantia" do Extranet, mas só vale pra equipamentos cobertos ' +
+          'pela política (tabela de valores por modelo no manual — em geral autopropelidos, plantadoras/semeadoras ' +
+          'grandes, enfardadoras e misturadores; modelos menores NÃO têm). Valores de referência: R$ 130/h de M.O. ' +
+          'e R$ 1,50/km. PRAZO MÁXIMO: 10 dias após a execução do serviço.',
+        passos: [
+          {
+            titulo: 'Confira se o modelo tem ressarcimento',
+            descricao: 'Abra a tabela "Valores praticados para pagamentos por modelos" no manual (seção 4.1). Se o modelo estiver com "-", não há ressarcimento de M.O./km — só as peças.',
+          },
+          {
+            titulo: 'Use o código de serviço certo',
+            descricao: 'Lance como item da solicitação o código do serviço: B0C405 = Mão de Obra · B0C406 = KM rodado · B0C402 = Entrega Técnica · B0C403 = Revisão Zero Hora · B0C407 = Serviços de Terceiros.',
+          },
+          {
+            titulo: 'Texto PADRÃO no campo "Provável causa e solução"',
+            descricao: 'Obrigatório, nesta ordem: data do atendimento; nº da Ordem de Serviço; nome do técnico; nº da SG das peças (OBRIGATÓRIO se houve troca de peça); horas de M.O. detalhadas (início/fim do trabalho, início/fim do intervalo de refeição e total — por dia, se levar mais de um); km inicial e final; descrição completa do atendimento.',
+            dica: 'Exemplo do manual: "Dia dd/mm/aaaa – 4:45 horas de M.O - Horas trabalhadas: 08:45 as 11:50 – Intervalo 12h00–13h00 – 13:10 as 14:50".',
+          },
+          {
+            titulo: 'Anexos obrigatórios',
+            descricao: 'Fotos do atendimento (evidências do serviço), foto do horímetro e a OS do revendedor datada e ASSINADA pelo técnico e pelo cliente. Documento rasurado/ilegível a KUHN não analisa.',
+          },
+        ],
+        observacoes: [
+          'O técnico precisa ter treinamento KUHN Módulo I válido (2 anos) — senão o serviço não é ressarcido.',
+          'Revisão Zero Hora e Entrega Técnica no MESMO dia não pagam (duração mínima de 8h cada). Zero Hora paga 1x por chassi e exige o formulário do Google Forms preenchido ANTES da solicitação.',
+          'Atendimento com 2 técnicos: o tempo deve cair proporcionalmente e só paga 1 deslocamento.',
+          'Troca de peças sem SG aprovada e máquina sem Certificado de Entrega Técnica não são ressarcidas.',
+        ],
+      },
+      {
+        titulo: 'Serviços de terceiros (torno, solda, munck, pintura...)',
+        intro: 'Só é ressarcido com autorização PRÉVIA da KUHN — serviço feito antes de autorizar não é pago.',
+        passos: [
+          {
+            titulo: 'Peça a autorização ANTES de executar',
+            descricao: 'Solicite o formulário Excel "Solicitação para Serviços Terceirizados" ao coordenador da região ou por servicos.posvendas@kuhn.com. Envie preenchido com o orçamento original + fotos do horímetro, da falha e do chassi.',
+          },
+          {
+            titulo: 'Com o OK por e-mail, execute e lance no Extranet',
+            descricao: 'Depois da aprovação, lance o ressarcimento na aba de Solicitação de garantia (código B0C407) anexando o E-MAIL DE AUTORIZAÇÃO + a cópia da NF do serviço. Prazo: 10 dias após a execução.',
+          },
+        ],
+      },
+      {
+        titulo: 'Retorno das peças à fábrica (quando a decisão vier com "D")',
+        intro:
+          'Peça marcada com decisão "D" na SG tem que voltar FÍSICA pra KUHN em até 45 dias — senão a KUHN ' +
+          'fatura as peças pra revenda (28 dias pra pagar). Use a fase "Devolução de peças" do card pra não perder o prazo.',
+        passos: [
+          {
+            titulo: 'Emita a NF de retorno',
+            descricao: 'CFOP 5949 (dentro do estado) / 6949 (fora). A NF deve amarrar com a nota de origem: natureza da operação, quantidades, valores, impostos e o nº da NF de origem nas observações. Retorno fiscal: posvendasregiao2@kuhn.com (São José dos Pinhais/PR, nossa região).',
+          },
+          {
+            titulo: 'Embale e agende a coleta',
+            descricao: 'A KUHN paga o frete e indica a transportadora; nós embalamos (sem risco de vazamento) e agendamos a coleta. Registre NF, transportadora e rastreio na fase "Devolução de peças" do card.',
+          },
+          {
+            titulo: 'Peça aprovada SEM retorno (decisão só "A")',
+            descricao: 'Deve ser INUTILIZADA mediante prova física: vídeo da destruição com data. Guarde o vídeo anexado ao card.',
+          },
+        ],
+      },
+    ],
+    observacoes: [
+      'Garantia de máquina: 1 ano a partir da Entrega Técnica (autopropelidos: 1 ano OU 1000 horas, o que vier primeiro). Peças de reposição: 3 meses da NF de venda.',
+      'O Certificado de Entrega Técnica deve ser registrado no Extranet em até 3 dias úteis após a entrega — sem ele a solicitação nem é avaliada.',
+      'Abertura de componentes invioláveis (blocos, bombas, motores, redutores, elétricos/eletrônicos) sem autorização prévia = perda da garantia. Foto de bancada só com autorização.',
+      'Kit de revisão programada e peças genuínas KUHN são obrigatórios nas revisões — senão a máquina perde a garantia.',
     ],
   },
 
