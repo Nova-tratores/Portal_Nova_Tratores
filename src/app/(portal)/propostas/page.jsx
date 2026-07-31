@@ -21,6 +21,8 @@ const EquipamentoModal = dynamic(() => import('@/components/propostas/Equipament
 const EquipamentoEditModal = dynamic(() => import('@/components/propostas/EquipamentoEditModal'), { ssr: false })
 const TratorModal = dynamic(() => import('@/components/propostas/TratorModal'), { ssr: false })
 const TratorEditModal = dynamic(() => import('@/components/propostas/TratorEditModal'), { ssr: false })
+const AutopropelidoModal = dynamic(() => import('@/components/propostas/AutopropelidoModal'), { ssr: false })
+const AutopropelidoEditModal = dynamic(() => import('@/components/propostas/AutopropelidoEditModal'), { ssr: false })
 const Lixeira = dynamic(() => import('@/components/propostas/Lixeira'), { ssr: false })
 
 // Parse seguro de valor monetário
@@ -52,8 +54,8 @@ function PropostaComercialPageInner() {
   const [view, setView] = useState('clientes')
   const [modals, setModals] = useState({
     newFab: false, editFab: false, newCli: false, editCli: false,
-    client: false, equip: false, trator: false,
-    searchEditClient: false, searchEditEquip: false, searchEditTrator: false,
+    client: false, equip: false, trator: false, autopropelido: false,
+    searchEditClient: false, searchEditEquip: false, searchEditTrator: false, searchEditAuto: false,
     trash: false
   })
   const [selected, setSelected] = useState(null)
@@ -259,6 +261,7 @@ function PropostaComercialPageInner() {
                       { key: 'cliente', label: 'Cadastrar / editar Cliente', novo: 'client', editar: 'searchEditClient' },
                       { key: 'trator', label: 'Cadastrar / editar Trator', novo: 'trator', editar: 'searchEditTrator' },
                       { key: 'implemento', label: 'Cadastrar / editar Implemento', novo: 'equip', editar: 'searchEditEquip' },
+                      { key: 'autopropelido', label: 'Cadastrar / editar Autopropelido', novo: 'autopropelido', editar: 'searchEditAuto' },
                     ].map((ent) => (
                       <div key={ent.key}>
                         <button onClick={() => setMenuEnt(menuEnt === ent.key ? null : ent.key)}
@@ -334,9 +337,11 @@ function PropostaComercialPageInner() {
       {modals.client && <ClientModal onClose={() => setModals({ ...modals, client: false })} />}
       {modals.trator && <TratorModal onClose={() => setModals({ ...modals, trator: false })} />}
       {modals.equip && <EquipamentoModal onClose={() => setModals({ ...modals, equip: false })} />}
+      {modals.autopropelido && <AutopropelidoModal onClose={() => setModals({ ...modals, autopropelido: false })} />}
       {modals.searchEditClient && <ClientEditModal onClose={() => setModals({ ...modals, searchEditClient: false })} />}
       {modals.searchEditEquip && <EquipamentoEditModal onClose={() => setModals({ ...modals, searchEditEquip: false })} />}
       {modals.searchEditTrator && <TratorEditModal onClose={() => setModals({ ...modals, searchEditTrator: false })} />}
+      {modals.searchEditAuto && <AutopropelidoEditModal onClose={() => setModals({ ...modals, searchEditAuto: false })} />}
     </div>
   )
 }

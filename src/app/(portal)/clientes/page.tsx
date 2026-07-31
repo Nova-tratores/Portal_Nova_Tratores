@@ -7,12 +7,13 @@ import { useIsMobile } from '@/hooks/useIsMobile'
 import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui'
 import { supabase } from '@/lib/supabase'
 import SemPermissao from '@/components/SemPermissao'
-import { Search, ChevronDown, ChevronUp, ArrowLeft, RefreshCw, ChevronRight, Download, Printer, FolderOpen, X, FileText, Wrench, Calendar, MapPin, User, Hash, ClipboardList, Package, Users, Shield, CheckCircle, Clock, Mail, Bell, Tag, Plus, Trash2, Save, Upload, AlertTriangle, Send } from 'lucide-react'
+import { Search, ChevronDown, ChevronUp, ArrowLeft, RefreshCw, ChevronRight, Download, Printer, FolderOpen, X, FileText, Wrench, Calendar, MapPin, User, Hash, ClipboardList, Package, Users, Shield, CheckCircle, Clock, Mail, Bell, Tag, Plus, Trash2, Save, Upload, AlertTriangle, Send, Phone, Copy, Check, Replace } from 'lucide-react'
 
 interface Cliente {
   cod_cli: number; empresa: string; razao_social: string; nome_fantasia: string
   cnpj_cpf: string; cidade: string; estado: string; telefone: string; email: string
-  total_os: number; total_valor: number; os_ativas: number; projetos: string[]
+  endereco?: string; bairro?: string
+  total_os: number; total_valor: number; os_ativas: number; projetos: string[]; refs?: string[]
 }
 interface OrdemServico {
   num_os: string; cod_os: number; empresa: string; cod_cli: number; cliente_nome: string
@@ -111,6 +112,7 @@ function ClientesPageInner() {
   const [syncStatus, setSyncStatus] = useState('')
   const [search, setSearch] = useState('')
   const [empresaFilter, setEmpresaFilter] = useState('')
+  const [copiadoContato, setCopiadoContato] = useState<string | null>(null)
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null)
   const [ordens, setOrdens] = useState<OrdemServico[]>([])
   const [pedidos, setPedidos] = useState<PedidoVenda[]>([])
@@ -555,7 +557,7 @@ function ClientesPageInner() {
     setSubSalvando(false)
   }
   const filtradosRaw = clientes.filter(c => {
-    const matchSearch = !search || [c.razao_social, c.nome_fantasia, c.cnpj_cpf, c.cidade, ...(c.projetos || [])].some(f => (f || '').toLowerCase().includes(search.toLowerCase()))
+    const matchSearch = !search || [c.razao_social, c.nome_fantasia, c.cnpj_cpf, c.cidade, ...(c.projetos || []), ...(c.refs || [])].some(f => (f || '').toLowerCase().includes(search.toLowerCase()))
     return matchSearch && (!empresaFilter || c.empresa === empresaFilter)
   })
   // Deduplica por CNPJ/CPF (não pode aparecer o mesmo cliente 2x). Mantém o registro mais completo.
@@ -572,6 +574,14 @@ function ClientesPageInner() {
     return [...porDoc.values(), ...semDoc]
   })()
   const empresas = [...new Set(clientes.map(c => c.empresa))]
+  const copiarContato = (e: React.MouseEvent, texto: string) => {
+    e.stopPropagation()
+    navigator.clipboard?.writeText(texto).then(() => {
+      setCopiadoContato(texto)
+      setTimeout(() => setCopiadoContato(c => (c === texto ? null : c)), 1200)
+    }).catch(() => {})
+  }
+  const btnCopiar: React.CSSProperties = { border: 'none', background: 'transparent', cursor: 'pointer', padding: 2, display: 'inline-flex', alignItems: 'center' }
   // Interpreta o "num_pedido_cli" da OS. Pode vir "4090" (PV), "REM 3477"
   // (remessa) ou "CASTRO 4090"/"3681 CASTRO" (peça comprada na Castro). Como a
   // Castro tem PV com o MESMO número de outra empresa, devolve também a empresa
@@ -897,7 +907,7 @@ function ClientesPageInner() {
                   if (!nfs.includes(q)) return false
                 }
                 return true
-              })
+              }).sort((a, b) => (b.data_previsao || '').localeCompare(a.data_previsao || '') || (parseInt(b.num_os) || 0) - (parseInt(a.num_os) || 0))
 
               return (<>
             <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -1000,7 +1010,7 @@ function ClientesPageInner() {
                 {ordensFiltradas.length === 0 ? (
                   <div style={{ padding: 40, textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>Nenhuma OS com esses filtros</div>
                 ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 12, marginBottom: 28 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12, marginBottom: 28 }}>
                   {ordensFiltradas.map((os, oi) => {
                     const servicos = typeof os.servicos === 'string' ? JSON.parse(os.servicos) : (os.servicos || [])
                     const solicitacao = (() => { const d = servicos.map((s: any) => s.desc || '').join('|'); const m = d.match(/Solicita[çc][ãa]o[^:]*:\s*([^|]+)/i); return m ? m[1].trim() : '' })()
@@ -1010,50 +1020,69 @@ function ClientesPageInner() {
                     const ehInterno = !!os.servico_interno
                     const acc = os.cancelada ? '#DC2626' : ehInterno ? '#7C3AED' : os.faturada ? '#10B981' : '#F59E0B'
                     const statusLabel = os.cancelada ? os.status : ehInterno ? 'Fechado interno' : os.status
+                    // Peças vêm do(s) pedido(s) de venda vinculado(s) à OS
+                    const pvsLig = (ref.tipo === 'pv' || ref.tipo === 'remessa') ? findAllPVs(os.num_pedido_cli, os.empresa) : []
+                    const pecas = pvsLig.flatMap((pv: any) => pv.itens || [])
+                    const pecasTotal = pecas.reduce((s: number, p: any) => s + (Number(p.valor_total) || 0), 0)
+                    const maoObra = Math.max(0, (os.valor_total || 0) - pecasTotal)
+                    const lbl: React.CSSProperties = { display: 'block', fontSize: 9.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, color: '#94A3B8' }
+                    const totNum: React.CSSProperties = { fontSize: 14, fontWeight: 600, color: '#0F172A', fontVariantNumeric: 'tabular-nums' }
 
                     return (
                       <div key={os.num_os} className="cli-card" onClick={() => setModalOS(os)}
-                        style={{
-                          position: 'relative', display: 'flex', flexDirection: 'column', gap: 8,
-                          padding: '13px 16px 13px 20px', border: '1px solid #E5E7EB', borderRadius: 12,
-                          background: '#fff', cursor: 'pointer', transition: 'all 0.15s',
-                          boxShadow: '0 1px 2px rgba(16,24,40,0.04)', overflow: 'hidden',
-                          animationDelay: `${Math.min(oi * 30, 300)}ms`,
-                        }}
-                        onMouseEnter={ev => { ev.currentTarget.style.borderColor = '#CBD5E1'; ev.currentTarget.style.boxShadow = '0 6px 16px rgba(16,24,40,0.09)'; ev.currentTarget.style.transform = 'translateY(-1px)' }}
-                        onMouseLeave={ev => { ev.currentTarget.style.borderColor = '#E5E7EB'; ev.currentTarget.style.boxShadow = '0 1px 2px rgba(16,24,40,0.04)'; ev.currentTarget.style.transform = 'none' }}>
-                        {/* barra de status na lateral */}
+                        style={{ position: 'relative', padding: '14px 18px 14px 22px', border: '1px solid #E5E7EB', borderRadius: 12, background: '#fff', cursor: 'pointer', transition: 'all 0.15s', boxShadow: '0 1px 2px rgba(16,24,40,0.04)', overflow: 'hidden', animationDelay: `${Math.min(oi * 30, 300)}ms` }}
+                        onMouseEnter={ev => { ev.currentTarget.style.borderColor = '#CBD5E1'; ev.currentTarget.style.boxShadow = '0 6px 16px rgba(16,24,40,0.09)' }}
+                        onMouseLeave={ev => { ev.currentTarget.style.borderColor = '#E5E7EB'; ev.currentTarget.style.boxShadow = '0 1px 2px rgba(16,24,40,0.04)' }}>
                         <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: acc }} />
 
-                        {/* topo: OS / PV + valor */}
-                        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                            <span style={{ fontSize: 15, fontWeight: 800, color: '#0F172A', whiteSpace: 'nowrap' }}>OS {os.num_os}</span>
-                            {numRef && <span style={{ fontSize: 12, color: '#94A3B8', fontWeight: 600, whiteSpace: 'nowrap' }}>PV {numRef}</span>}
-                            {remRef && <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 5, background: '#FFF7ED', color: '#EA580C', border: '1px solid #FED7AA', whiteSpace: 'nowrap' }}>{ref.label}</span>}
+                        {/* Cabeçalho: OS + PV + status · data */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', borderBottom: '1px solid #F1F5F9', paddingBottom: 10, marginBottom: 10 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: 15.5, fontWeight: 600, color: '#0F172A', whiteSpace: 'nowrap' }}>OS {os.num_os}</span>
+                            {numRef && <span style={{ fontSize: 12, fontWeight: 600, color: '#EA580C', background: '#FFF7ED', border: '1px solid #FED7AA', padding: '1px 8px', borderRadius: 6, whiteSpace: 'nowrap' }}>PV {numRef}</span>}
+                            {remRef && <span style={{ fontSize: 11, fontWeight: 600, padding: '1px 7px', borderRadius: 5, background: '#FFF7ED', color: '#EA580C', border: '1px solid #FED7AA', whiteSpace: 'nowrap' }}>{ref.label}</span>}
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: acc, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                              <span style={{ width: 7, height: 7, borderRadius: '50%', background: acc, flexShrink: 0 }} />{statusLabel}
+                            </span>
+                            {os.vendedor && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11.5, color: '#64748B', whiteSpace: 'nowrap' }}><User size={11} /> {os.vendedor}</span>}
                           </div>
-                          <span style={{ fontSize: 15, fontWeight: 800, color: '#0F172A', flexShrink: 0 }}>{formatCurrency(os.valor_total || 0)}</span>
-                        </div>
-
-                        {/* descrição */}
-                        <div style={{ fontSize: 12.5, color: '#64748B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.4 }}>
-                          {solicitacao || os.descricao || 'Sem descrição'}
-                        </div>
-
-                        {/* rodapé: status + data + pdf */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, color: acc, textTransform: 'uppercase', letterSpacing: 0.3 }}>
-                            <span style={{ width: 7, height: 7, borderRadius: '50%', background: acc, flexShrink: 0 }} />{statusLabel}
-                          </span>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
                             {os.pdf_anexo && (
                               <a href={os.pdf_anexo} target="_blank" rel="noopener noreferrer" onClick={ev => ev.stopPropagation()} title="PDF anexado"
-                                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: '#2563EB', textDecoration: 'none' }}>
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: '#2563EB', textDecoration: 'none' }}>
                                 <FileText size={12} /> PDF
                               </a>
                             )}
-                            <span style={{ fontSize: 12, color: '#94A3B8', fontWeight: 500 }}>{formatDate(os.data_previsao)}</span>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: '#0F172A' }}>{formatDate(os.data_previsao)}</span>
                           </div>
+                        </div>
+
+                        {/* Serviço */}
+                        <div style={lbl}>Serviço</div>
+                        <div style={{ fontSize: 13.5, color: '#475569', lineHeight: 1.5, marginTop: 3 }}>{solicitacao || os.descricao || 'Sem descrição'}</div>
+
+                        {/* Peças do PV vinculado */}
+                        {pecas.length > 0 && (
+                          <div style={{ border: '1px solid #FED7AA', background: '#FFFBF5', borderRadius: 10, padding: '9px 12px', marginTop: 12 }}>
+                            <div style={{ fontSize: 10.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, color: '#EA580C', marginBottom: 6 }}>Peças do PV {numRef} ({pecas.length})</div>
+                            {pecas.map((p: any, pi: number) => (
+                              <div key={pi} style={{ display: 'grid', gridTemplateColumns: '96px 1fr auto auto', gap: 10, alignItems: 'baseline', fontSize: 12.5, color: '#475569', padding: '2px 0' }}>
+                                <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#EA580C', fontWeight: 600 }}>{p.codigo || '-'}</span>
+                                <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.descricao || p.desc || '-'}</span>
+                                <span style={{ color: '#94A3B8', fontVariantNumeric: 'tabular-nums' }}>{p.quantidade}×</span>
+                                <span style={{ fontWeight: 600, color: '#0F172A', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(p.valor_total || 0)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Totais (Serviço × Peças × Total) */}
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 22, marginTop: 12, paddingTop: 10, borderTop: '1px solid #F1F5F9' }}>
+                          {pecas.length > 0 && (<>
+                            <div style={{ textAlign: 'right' }}><span style={lbl}>Serviço</span><b style={totNum}>{formatCurrency(maoObra)}</b></div>
+                            <div style={{ textAlign: 'right' }}><span style={lbl}>Peças</span><b style={totNum}>{formatCurrency(pecasTotal)}</b></div>
+                          </>)}
+                          <div style={{ textAlign: 'right' }}><span style={lbl}>Total</span><b style={{ fontSize: 16, fontWeight: 600, color: '#DC2626', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(os.valor_total || 0)}</b></div>
                         </div>
                       </div>
                     )
@@ -1274,37 +1303,28 @@ function ClientesPageInner() {
               <div className="cli-modal" style={{ background: '#fff', borderRadius: 16, width: '92%', maxWidth: 860, maxHeight: '90vh', overflow: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.25)' }}
                 onClick={e => e.stopPropagation()}>
 
-                {/* Header */}
-                <div style={{ padding: '24px 28px', background: 'linear-gradient(135deg, #991b1b 0%, #dc2626 100%)', borderRadius: '16px 16px 0 0', color: '#fff', position: 'relative' }}>
+                {/* Header — estilo documento (formal) */}
+                <div style={{ padding: '22px 28px 18px', borderBottom: '2px solid #0F172A', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, position: 'relative' }}>
                   <button onClick={() => setModalOS(null)}
-                    style={{ position: 'absolute', top: 16, right: 16, background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8, padding: '6px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                    <X size={18} color="#fff" />
+                    style={{ position: 'absolute', top: 14, right: 14, background: '#F3F4F6', border: '1px solid #E5E7EB', borderRadius: 8, padding: '6px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#64748B' }}>
+                    <X size={16} />
                   </button>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                    <div style={{ width: 48, height: 48, borderRadius: 12, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Wrench size={24} color="#fff" />
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 22, fontWeight: 800 }}>Ordem de Servico {os.num_os}</div>
-                      <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', marginTop: 2 }}>{cli.nome_fantasia || cli.razao_social}</div>
+                  <div style={{ minWidth: 0, paddingRight: 48 }}>
+                    <div style={{ fontSize: 17, fontWeight: 600, color: '#0F172A' }}>{cli.nome_fantasia || cli.razao_social}</div>
+                    <div style={{ fontSize: 11.5, color: '#64748B', marginTop: 2 }}>{formatCNPJ(cli.cnpj_cpf)}{(os.cidade || cli.cidade) ? ` · ${os.cidade || cli.cidade}` : ''}</div>
+                    <div style={{ display: 'flex', gap: 7, marginTop: 10, flexWrap: 'wrap' }}>
+                      {os.projeto && <span style={{ fontSize: 11.5, fontWeight: 600, padding: '3px 10px', borderRadius: 8, background: '#F8FAFC', border: '1px solid #E5E7EB', color: '#475569' }}>{os.projeto}</span>}
+                      {os.contrato && <span style={{ fontSize: 11.5, fontWeight: 600, padding: '3px 10px', borderRadius: 8, background: '#F8FAFC', border: '1px solid #E5E7EB', color: '#475569' }}>Contrato: {os.contrato}</span>}
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    <span style={{ padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 700,
-                      background: os.cancelada ? 'rgba(220,38,38,0.2)' : os.faturada ? 'rgba(5,150,105,0.2)' : 'rgba(255,255,255,0.15)',
-                      color: '#fff', border: '1px solid rgba(255,255,255,0.2)' }}>
-                      {os.servico_interno && !os.cancelada ? 'Fechado interno' : os.status}
-                    </span>
-                    {os.projeto && (
-                      <span style={{ padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, background: 'rgba(255,255,255,0.15)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)' }}>
-                        {os.projeto}
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.6, color: '#94A3B8' }}>Ordem de Serviço</div>
+                    <div style={{ fontSize: 26, fontWeight: 600, color: '#0F172A', lineHeight: 1, marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>{os.num_os}</div>
+                    <div style={{ marginTop: 8 }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600, padding: '3px 11px', borderRadius: 999, background: os.cancelada ? '#FEE2E2' : os.faturada ? '#DCFCE7' : '#FEF3C7', color: os.cancelada ? '#DC2626' : os.faturada ? '#16A34A' : '#D97706' }}>
+                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor' }} />{os.servico_interno && !os.cancelada ? 'Fechado interno' : os.status}
                       </span>
-                    )}
-                    {os.contrato && (
-                      <span style={{ padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, background: 'rgba(255,255,255,0.15)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)' }}>
-                        Contrato: {os.contrato}
-                      </span>
-                    )}
+                    </div>
                   </div>
                 </div>
 
@@ -1315,40 +1335,31 @@ function ClientesPageInner() {
                     const vServico = os.valor_total || 0
                     const vPecas = pvs.reduce((s: number, p: PedidoVenda) => s + (p.valor_total || 0), 0)
                     const vTotal = vServico + vPecas
+                    const numNfServ = os.num_nf || os.financeiro?.num_nf_servico || '—'
+                    const numNfPeca = os.financeiro?.num_nf_peca || pvs.map((p: PedidoVenda) => p.numero_nf).filter(Boolean).join(', ') || '—'
+                    const celulas = [
+                      { l: 'Valor total', v: formatCurrency(vTotal), c: '#DC2626', sub: vPecas > 0 ? `Serviço ${formatCurrency(vServico)} · Peças ${formatCurrency(vPecas)}` : null },
+                      { l: 'Faturamento', v: formatDate(os.data_faturamento), c: os.faturada ? '#16A34A' : '#94A3B8', sub: null },
+                      { l: 'Data prevista', v: formatDate(os.data_previsao), c: undefined, sub: null },
+                      { l: 'Técnico', v: os.vendedor || '—', c: undefined, sub: null },
+                      { l: 'Cidade', v: os.cidade || cli.cidade || '—', c: undefined, sub: null },
+                      { l: 'Data inclusão', v: formatDate(os.data_inclusao), c: undefined, sub: null },
+                      { l: 'NF de Serviço', v: numNfServ, c: numNfServ !== '—' ? '#0F172A' : '#94A3B8', sub: null },
+                      { l: 'NF de Peça', v: numNfPeca, c: numNfPeca !== '—' ? '#0F172A' : '#94A3B8', sub: null },
+                      { l: os.projeto ? 'Máquina / Chassi' : 'Contrato', v: os.projeto || os.contrato || '—', c: undefined, sub: null },
+                    ]
                     return (
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 24 }}>
-                        {[
-                          {
-                            l: 'Valor Total', v: formatCurrency(vTotal), bg: '#F3F4F6', c: '#111827', b: '#E5E7EB',
-                            sub: vPecas > 0 ? `Serviço ${formatCurrency(vServico)} + Peças ${formatCurrency(vPecas)}` : null,
-                          },
-                          { l: 'Data Previsao', v: formatDate(os.data_previsao), bg: '#F9FAFB', c: '#374151', b: '#E5E7EB', sub: null },
-                          { l: 'Data Inclusao', v: formatDate(os.data_inclusao), bg: '#F9FAFB', c: '#374151', b: '#E5E7EB', sub: null },
-                          { l: 'Faturamento', v: formatDate(os.data_faturamento), bg: os.faturada ? '#ECFDF5' : '#F9FAFB', c: os.faturada ? '#047857' : '#9CA3AF', b: os.faturada ? '#A7F3D0' : '#E5E7EB', sub: null },
-                        ].map((c, i) => (
-                          <div key={i} style={{ padding: '14px 16px', borderRadius: 10, background: c.bg, border: `1px solid ${c.b}` }}>
-                            <div style={{ fontSize: 11, color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>{c.l}</div>
-                            <div style={{ fontSize: 18, fontWeight: 700, color: c.c }}>{c.v}</div>
-                            {c.sub && <div style={{ fontSize: 11, color: '#6B7280', marginTop: 3, fontWeight: 500 }}>{c.sub}</div>}
+                      <div style={{ border: '1px solid #E5E7EB', borderRadius: 12, overflow: 'hidden', marginBottom: 22, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)' }}>
+                        {celulas.map((f, i) => (
+                          <div key={i} title={String(f.v)} style={{ padding: '11px 14px', borderRight: i % 3 !== 2 ? '1px solid #F1F5F9' : 'none', borderBottom: i < 6 ? '1px solid #F1F5F9' : 'none', minWidth: 0 }}>
+                            <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, color: '#94A3B8' }}>{f.l}</div>
+                            <div style={{ fontSize: 14, fontWeight: 600, color: f.c || '#0F172A', marginTop: 3, fontVariantNumeric: 'tabular-nums', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.v}</div>
+                            {f.sub && <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>{f.sub}</div>}
                           </div>
                         ))}
                       </div>
                     )
                   })()}
-
-                  {/* Info adicional */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 24 }}>
-                    {[
-                      { l: 'Vendedor', v: os.vendedor || '-' },
-                      { l: 'Cidade', v: os.cidade || cli.cidade || '-' },
-                      { l: 'NF', v: os.num_nf || os.financeiro?.num_nf_servico || '-' },
-                    ].map((f, i) => (
-                      <div key={i} style={{ padding: '12px 16px', borderRadius: 10, border: '1px solid #E5E7EB', background: '#F9FAFB' }}>
-                        <div style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>{f.l}</div>
-                        <div style={{ fontSize: 14, color: '#111827', fontWeight: 500 }}>{f.v}</div>
-                      </div>
-                    ))}
-                  </div>
 
                   {/* Selo: NF substituída */}
                   {Array.isArray(os.nf_substituicoes) && os.nf_substituicoes.length > 0 && (
@@ -1420,11 +1431,12 @@ function ClientesPageInner() {
 
                   {/* ── Ações, agrupadas por assunto ── */}
                   {(() => {
-                    const LBL = { fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase' as const, letterSpacing: 0.6, marginBottom: 8 }
+                    const LBL = { fontSize: 10, fontWeight: 600, color: '#94A3B8', textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 10 }
+                    const CARD: React.CSSProperties = { border: '1px solid #E5E7EB', borderRadius: 12, padding: '13px 16px', background: '#fff' }
                     const ROW = { display: 'flex', gap: 8, flexWrap: 'wrap' as const, alignItems: 'center' }
-                    const BASE = { display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 16px', borderRadius: 9, fontSize: 13.5, fontWeight: 600, textDecoration: 'none', cursor: 'pointer' }
-                    const GHOST = { ...BASE, border: '1px solid #E5E7EB', background: '#fff', color: '#374151' }
-                    const DARK = { ...BASE, border: 'none', background: '#111827', color: '#fff' }
+                    const BASE = { display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 15px', borderRadius: 9, fontSize: 13, fontWeight: 600, textDecoration: 'none', cursor: 'pointer' }
+                    const GHOST = { ...BASE, border: '1px solid #E5E7EB', background: '#fff', color: '#334155' }
+                    const DARK = { ...BASE, border: 'none', background: '#0F172A', color: '#fff' }
                     const WARN = { ...BASE, border: '1px solid #F59E0B', background: '#FFFBEB', color: '#B45309', fontWeight: 700 }
                     const GREEN = { ...BASE, border: 'none', background: '#059669', color: '#fff' }
                     const MUTED = { fontSize: 13, color: '#9CA3AF', fontStyle: 'italic' as const }
@@ -1432,10 +1444,11 @@ function ClientesPageInner() {
                     const numNfServ = os.num_nf || os.financeiro?.num_nf_servico
                     const boletos = (os.financeiro?.boleto || '').split(',').map(s => s.trim()).filter(Boolean)
                     return (
-                      <div style={{ paddingTop: 16, borderTop: '1px solid #F3F4F6', display: 'flex', flexDirection: 'column', gap: 18 }}>
+                      <div style={{ marginTop: 22, paddingTop: 20, borderTop: '2px solid #0F172A', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 }}>Documentos e financeiro</div>
 
                         {/* DOCUMENTOS */}
-                        <div>
+                        <div style={CARD}>
                           <div style={LBL}>Documentos</div>
                           <div style={ROW}>
                             <a href={os.pos_pdf || `/api/clientes/print?tipo=os&cod=${os.cod_os}&empresa=${encodeURIComponent(os.empresa)}`}
@@ -1451,18 +1464,45 @@ function ClientesPageInner() {
                           </div>
                         </div>
 
+                        {/* REGISTROS / CORREÇÕES */}
+                        {(() => {
+                          const pvDaOS = os.pv_manual || os.num_pedido_cli || ''
+                          return (
+                            <div style={CARD}>
+                              <div style={LBL}>Registros e correções</div>
+                              <div style={ROW}>
+                                <button onClick={() => setSubNF({ osNum: os.num_os, empresa: os.empresa, nf_tipo: 'servico', num_antigo: numNfServ || '', num_novo: '' })}
+                                  title="A nota foi cancelada e emitida outra? Registre aqui o nº antigo → nº novo (fica no histórico)."
+                                  style={GHOST}>
+                                  <RefreshCw size={15} /> Registrar troca de nº da nota
+                                </button>
+                                <button onClick={() => trocarPVdaOS(os, pvDaOS)} disabled={forcandoCard}
+                                  title="O Omie vinculou o pedido errado (ou nenhum)? Aponte aqui o nº do Pedido de Venda certo — o sistema vai buscar a NF de peça nele. Vazio = volta ao automático."
+                                  style={{ ...GHOST, cursor: forcandoCard ? 'wait' : 'pointer' }}>
+                                  <Hash size={15} /> {forcandoCard ? 'Buscando...' : 'Trocar o nº do pedido de venda'}
+                                  {pvDaOS && (
+                                    <span style={{ marginLeft: 4, fontSize: 12, fontWeight: 700, color: os.pv_manual ? '#B45309' : '#9CA3AF' }}>
+                                      ({pvDaOS}{os.pv_manual ? ' · manual' : ''})
+                                    </span>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          )
+                        })()}
+
                         {/* NOTA FISCAL DE SERVIÇO */}
-                        <div>
+                        <div style={CARD}>
                           <div style={LBL}>Nota Fiscal de Serviço{numNfServ ? ` — nº ${numNfServ}` : ''}</div>
                           <div style={ROW}>
                             {nfServ ? (
                               <>
                                 <a href={nfServ} target="_blank" rel="noopener noreferrer" title="Baixar o PDF da nota" style={DARK}>
-                                  <Download size={15} /> Baixar a nota
+                                  <Download size={15} /> Baixar a nota{numNfServ ? ` ${numNfServ}` : ''}
                                 </a>
                                 {os.link_nf && (
-                                  <label title="Trocar o PDF que está anexado (envia outro arquivo no lugar)" style={{ ...GHOST, cursor: anexNfOS ? 'wait' : 'pointer' }}>
-                                    <Upload size={15} /> {anexNfOS ? 'Enviando...' : 'Trocar o PDF'}
+                                  <label title="Trocar o PDF anexado (envia outro arquivo no lugar da nota)" style={{ ...GHOST, padding: '9px 11px', cursor: anexNfOS ? 'wait' : 'pointer' }}>
+                                    <Replace size={15} />{anexNfOS ? ' ...' : ''}
                                     <input type="file" accept="application/pdf" style={{ display: 'none' }} disabled={anexNfOS}
                                       onChange={e => { const f = e.target.files?.[0]; if (f) anexarNFservicoNaOS(os, f, { gerarCard: false, substituir: true }) }} />
                                   </label>
@@ -1490,17 +1530,12 @@ function ClientesPageInner() {
                             ) : (
                               <span style={MUTED}>Ainda sem nota (a OS não foi faturada).</span>
                             )}
-                            <button onClick={() => setSubNF({ osNum: os.num_os, empresa: os.empresa, nf_tipo: 'servico', num_antigo: numNfServ || '', num_novo: '' })}
-                              title="A nota foi cancelada e emitida outra? Registre aqui o nº antigo → nº novo (fica no histórico)."
-                              style={GHOST}>
-                              <RefreshCw size={15} /> Registrar troca de nº da nota
-                            </button>
                           </div>
                         </div>
 
                         {/* NOTA FISCAL DE PEÇA (por PV) */}
                         {pvs.length > 0 && (
-                          <div>
+                          <div style={CARD}>
                             <div style={LBL}>Nota Fiscal de Peça</div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                               {pvs.map(pv => {
@@ -1510,11 +1545,11 @@ function ClientesPageInner() {
                                     {nfPeca ? (
                                       <>
                                         <a href={nfPeca} target="_blank" rel="noopener noreferrer" title={`Baixar a NF de peça do PV ${pv.num_pedido}`} style={DARK}>
-                                          <Download size={15} /> Baixar a nota do PV {pv.num_pedido}{pv.numero_nf ? ` (nº ${pv.numero_nf})` : ''}
+                                          <Download size={15} /> Baixar a nota {pv.numero_nf || os.financeiro?.num_nf_peca || `do PV ${pv.num_pedido}`}
                                         </a>
                                         {pv.link_nf && (
-                                          <label title="Trocar o PDF anexado" style={{ ...GHOST, cursor: anexNfOS ? 'wait' : 'pointer' }}>
-                                            <Upload size={15} /> {anexNfOS ? 'Enviando...' : 'Trocar o PDF'}
+                                          <label title="Trocar o PDF anexado (envia outro arquivo no lugar da nota)" style={{ ...GHOST, padding: '9px 11px', cursor: anexNfOS ? 'wait' : 'pointer' }}>
+                                            <Replace size={15} />{anexNfOS ? ' ...' : ''}
                                             <input type="file" accept="application/pdf" style={{ display: 'none' }} disabled={anexNfOS}
                                               onChange={e => { const f = e.target.files?.[0]; if (f) anexarNFpecaNoPV(pv, f, { gerarCard: false, substituir: true }) }} />
                                           </label>
@@ -1545,7 +1580,7 @@ function ClientesPageInner() {
 
                         {/* FINANCEIRO */}
                         {boletos.length > 0 && (
-                          <div>
+                          <div style={CARD}>
                             <div style={LBL}>Financeiro</div>
                             <div style={ROW}>
                               {boletos.map((b: string, bi: number) => (
@@ -1560,7 +1595,6 @@ function ClientesPageInner() {
                         {/* STATUS PRO FINANCEIRO — o card só nasce com as DUAS notas */}
                         {(() => {
                           const temServ = !!nfServ
-                          const pvDaOS = os.pv_manual || os.num_pedido_cli || ''
                           const pvsComNF = pvs.filter(p => p.link_nf || os.financeiro?.nf_peca)
                           const temPeca = pvs.length === 0 ? true : pvsComNF.length === pvs.length
                           const completo = temServ && temPeca
@@ -1581,7 +1615,7 @@ function ClientesPageInner() {
                             </span>
                           )
                           return (
-                            <div style={{ paddingTop: 4 }}>
+                            <div style={CARD}>
                               <div style={LBL}>Status para o financeiro</div>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 7, padding: '12px 14px', borderRadius: 10, background: jaNoFinanceiro ? '#ECFDF5' : completo ? '#F0FDF4' : '#FFFBEB', border: `1px solid ${jaNoFinanceiro ? '#A7F3D0' : completo ? '#BBF7D0' : '#FDE68A'}` }}>
                                 <Item ok={temServ} txt={temServ ? 'NF de Serviço anexada' : 'NF de Serviço FALTANDO — anexe acima'} />
@@ -1663,18 +1697,6 @@ function ClientesPageInner() {
                                 </div>
                               )}
 
-                              <div style={{ ...ROW, marginTop: 10 }}>
-                                <button onClick={() => trocarPVdaOS(os, pvDaOS)} disabled={forcandoCard}
-                                  title="O Omie vinculou o pedido errado (ou nenhum)? Aponte aqui o nº do Pedido de Venda certo — o sistema vai buscar a NF de peça nele. Vazio = volta ao automático."
-                                  style={{ ...GHOST, cursor: forcandoCard ? 'wait' : 'pointer' }}>
-                                  <Hash size={15} /> {forcandoCard ? 'Buscando...' : 'Trocar o nº do pedido de venda'}
-                                  {pvDaOS && (
-                                    <span style={{ marginLeft: 4, fontSize: 12, fontWeight: 700, color: os.pv_manual ? '#B45309' : '#9CA3AF' }}>
-                                      ({pvDaOS}{os.pv_manual ? ' · manual' : ''})
-                                    </span>
-                                  )}
-                                </button>
-                              </div>
                             </div>
                           )
                         })()}
@@ -2315,7 +2337,7 @@ function ClientesPageInner() {
                                         {itens.map((p: any, pi: number) => (
                                           <div key={pi} style={{ display: 'grid', gridTemplateColumns: '90px 1fr 50px 100px 110px', minWidth: isMobile ? 460 : undefined, padding: '12px 16px', borderBottom: '1px solid #F3F4F6', fontSize: 13, color: '#374151', alignItems: 'start', background: pi % 2 ? '#FAFBFC' : '#fff' }}>
                                             <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#6B7280' }}>{p.codigo || '-'}</span>
-                                            <span style={{ fontSize: 12.5, lineHeight: 1.45 }}>{p.desc || '-'}</span>
+                                            <span style={{ fontSize: 12.5, lineHeight: 1.45 }}>{p.descricao || p.desc || '-'}</span>
                                             <span style={{ fontSize: 12.5, textAlign: 'center' }}>{p.quantidade}</span>
                                             <span style={{ textAlign: 'right', fontSize: 12.5, color: '#6B7280' }}>{formatCurrency(p.valor_unitario || 0)}</span>
                                             <span style={{ textAlign: 'right', fontWeight: 700 }}>{formatCurrency(p.valor_total || 0)}</span>
@@ -2487,7 +2509,7 @@ function ClientesPageInner() {
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 18, flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', flex: 1, minWidth: 260 }}>
           <Search size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--portal-text-secondary)' }} />
-          <input type="text" placeholder="Buscar por nome, CNPJ, cidade, projeto..."
+          <input type="text" placeholder="Buscar por nome, CNPJ, cidade, projeto, NF ou nº da OS..."
             value={search} onChange={ev => setSearch(ev.target.value)}
             style={{ width: '100%', padding: '12px 14px 12px 40px', borderRadius: 12, border: '1px solid var(--portal-border)', color: 'var(--portal-text)', fontSize: 14, outline: 'none', background: 'var(--portal-bg-card)', boxSizing: 'border-box' }} />
         </div>
@@ -2545,11 +2567,11 @@ function ClientesPageInner() {
           {/* Cabeçalho da tabela — só no desktop */}
           {!isMobile && (
           <div style={{
-            display: 'grid', gridTemplateColumns: '44px 1fr 160px 140px 70px 120px 110px 24px',
+            display: 'grid', gridTemplateColumns: '44px 1fr 160px 140px 70px 120px 110px 24px', columnGap: 16,
             padding: '12px 20px', background: 'var(--portal-bg-secondary)', borderBottom: '1px solid var(--portal-border)',
             fontSize: 11, color: 'var(--portal-text-secondary)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.5, alignItems: 'center'
           }}>
-            <span>#</span><span>Cliente</span><span>CNPJ / CPF</span><span>Cidade</span>
+            <span></span><span>Cliente</span><span>CNPJ / CPF</span><span>Cidade</span>
             <span style={{ textAlign: 'center' }}>OS</span><span style={{ textAlign: 'right' }}>Valor Total</span><span>Empresa</span><span></span>
           </div>
           )}
@@ -2575,13 +2597,16 @@ function ClientesPageInner() {
             ) : (
             <div key={`${cli.cod_cli}-${cli.empresa}`} onClick={() => abrirDetalhe(cli)}
               style={{
-                display: 'grid', gridTemplateColumns: '44px 1fr 160px 140px 70px 120px 110px 24px',
+                display: 'grid', gridTemplateColumns: '44px 1fr 160px 140px 70px 120px 110px 24px', columnGap: 16,
                 padding: '14px 20px', borderBottom: '1px solid var(--portal-border)', alignItems: 'center', cursor: 'pointer',
                 fontSize: 14, color: 'var(--portal-text)', transition: 'background 0.15s'
               }}
               onMouseEnter={ev => { ev.currentTarget.style.background = 'var(--portal-bg-hover)' }}
               onMouseLeave={ev => { ev.currentTarget.style.background = 'transparent' }}>
-              <span style={{ color: 'var(--portal-text-muted)', fontSize: 12, fontWeight: 500 }}>{idx + 1}</span>
+              {/* Espaço para a foto do cliente (placeholder com iniciais até anexar) */}
+              <div title="Foto do cliente" style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: 'var(--portal-text-muted)', overflow: 'hidden', flexShrink: 0 }}>
+                {(cli.nome_fantasia || cli.razao_social || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase()}
+              </div>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ fontSize: 14, color: 'var(--portal-text)', fontWeight: 600 }}>{cli.nome_fantasia || cli.razao_social}</span>
@@ -2594,6 +2619,19 @@ function ClientesPageInner() {
                 </div>
                 {cli.nome_fantasia && cli.razao_social && cli.nome_fantasia !== cli.razao_social && (
                   <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginTop: 1 }}>{cli.razao_social}</div>
+                )}
+                {cli.endereco && (
+                  <div style={{ fontSize: 11.5, color: 'var(--portal-text-muted)', marginTop: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <MapPin size={11} style={{ flexShrink: 0 }} /> {cli.endereco}{cli.bairro ? `, ${cli.bairro}` : ''}
+                  </div>
+                )}
+                {(cli.telefone || cli.email) && (
+                  <div style={{ fontSize: 11.5, color: 'var(--portal-text)', fontWeight: 500, marginTop: 2, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                    {cli.telefone && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Phone size={11} /> {cli.telefone}
+                      <button onClick={e => copiarContato(e, cli.telefone)} title="Copiar telefone" style={{ ...btnCopiar, color: copiadoContato === cli.telefone ? '#16a34a' : 'var(--portal-text-muted)' }}>{copiadoContato === cli.telefone ? <Check size={12} /> : <Copy size={12} />}</button></span>}
+                    {cli.email && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Mail size={11} /> {cli.email}
+                      <button onClick={e => copiarContato(e, cli.email)} title="Copiar email" style={{ ...btnCopiar, color: copiadoContato === cli.email ? '#16a34a' : 'var(--portal-text-muted)' }}>{copiadoContato === cli.email ? <Check size={12} /> : <Copy size={12} />}</button></span>}
+                  </div>
                 )}
               </div>
               <span style={{ fontSize: 12, color: 'var(--portal-text-secondary)', fontFamily: 'monospace' }}>{formatCNPJ(cli.cnpj_cpf)}</span>

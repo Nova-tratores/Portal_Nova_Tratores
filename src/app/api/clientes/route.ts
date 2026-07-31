@@ -220,14 +220,22 @@ export async function GET(req: NextRequest) {
     }
 
     // -------- Lista de clientes com ranking + projetos --------
-    const osCounts = await fetchAll<{ cod_cli: number; empresa: string; valor_total: number; cancelada: boolean; faturada: boolean; data_faturamento: string | null }>(
-      "portal_nt_clientes_os", "cod_cli, empresa, valor_total, cancelada, faturada, data_faturamento"
+    const osCounts = await fetchAll<{ cod_cli: number; empresa: string; valor_total: number; cancelada: boolean; faturada: boolean; data_faturamento: string | null; num_nf: string | null; num_os: string | null }>(
+      "portal_nt_clientes_os", "cod_cli, empresa, valor_total, cancelada, faturada, data_faturamento, num_nf, num_os"
     );
 
     // Agrupar por cod_cli + empresa
     const ranking = new Map<string, { cod_cli: number; empresa: string; total_os: number; total_valor: number; os_ativas: number; ultimo_faturamento: string | null }>();
+    // NFs e nº de OS por cliente — para permitir busca por NF / nº da OS na lista mestre
+    const buscaExtra = new Map<string, Set<string>>();
     for (const os of osCounts) {
       const key = `${os.cod_cli}|${os.empresa}`;
+      if (os.num_nf || os.num_os) {
+        const s = buscaExtra.get(key) || new Set<string>();
+        if (os.num_nf) s.add(String(os.num_nf).trim());
+        if (os.num_os) s.add(String(os.num_os).trim());
+        buscaExtra.set(key, s);
+      }
       const entry = ranking.get(key) || {
         cod_cli: os.cod_cli,
         empresa: os.empresa,
@@ -269,7 +277,8 @@ export async function GET(req: NextRequest) {
     const clientes = await fetchAll<{
       cod_cli: number; empresa: string; razao_social: string; nome_fantasia: string;
       cnpj_cpf: string; cidade: string; estado: string; telefone: string; email: string;
-    }>("portal_nt_clientes_cadastro_omie", "cod_cli, empresa, razao_social, nome_fantasia, cnpj_cpf, cidade, estado, telefone, email");
+      endereco: string; bairro: string;
+    }>("portal_nt_clientes_cadastro_omie", "cod_cli, empresa, razao_social, nome_fantasia, cnpj_cpf, cidade, estado, telefone, email, endereco, bairro");
 
     // Juntar ranking + projetos com dados do cliente
     const resultado = clientes.map(c => {
@@ -283,6 +292,7 @@ export async function GET(req: NextRequest) {
         os_ativas: rank?.os_ativas || 0,
         ultimo_faturamento: rank?.ultimo_faturamento || null,
         projetos,
+        refs: [...(buscaExtra.get(key) || [])],
       };
     });
 

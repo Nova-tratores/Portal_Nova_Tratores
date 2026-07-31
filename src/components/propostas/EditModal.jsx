@@ -14,7 +14,15 @@ export default function EditModal({ proposal, onClose }) {
   const [showHist, setShowHist] = useState(false)
   const { log } = useAuditLog()
 
-  const isTrator = !!(formData.motor_trator || formData.cambio_trator || formData.trasmissao_tras_trator)
+  // Tipo GUARDADO na proposta; propostas antigas (sem tipo) caem no palpite pelos campos preenchidos.
+  const tipoProposta = formData.tipo || (
+    (formData.motor_auto || formData.barra_pulv_auto || formData.tanque_pulv_auto) ? 'autopropelido'
+      : (formData.motor_trator || formData.cambio_trator || formData.trasmissao_tras_trator) ? 'trator'
+        : 'implemento'
+  )
+  const isTrator = tipoProposta === 'trator'
+  const isAuto = tipoProposta === 'autopropelido'
+  const temSpecs = isTrator || isAuto
 
   useEffect(() => {
     if (proposal) {
@@ -122,7 +130,7 @@ export default function EditModal({ proposal, onClose }) {
     doc.text(`ENDERECO: ${formData.End_Entrega || ''}`, col2X, y + 19)
 
     y += 32
-    const imgBoxHeight = isTrator ? 60 : 95
+    const imgBoxHeight = temSpecs ? 60 : 95
     doc.rect(margin, y, innerWidth, imgBoxHeight)
     if (formData.Imagem_Equipamento) {
       const dims = await getImageDimensions(formData.Imagem_Equipamento)
@@ -134,7 +142,7 @@ export default function EditModal({ proposal, onClose }) {
     }
 
     y += imgBoxHeight
-    const techBoxHeight = isTrator ? 80 : 45
+    const techBoxHeight = temSpecs ? 80 : 45
     doc.rect(margin, y, innerWidth, techBoxHeight)
     doc.setFontSize(8.5); doc.setFont("helvetica", "bold")
     doc.text(`MARCA: ${formData.Marca || ''}`, margin + 5, y + 7)
@@ -143,7 +151,7 @@ export default function EditModal({ proposal, onClose }) {
     doc.text(`FINAME/NCM: ${formData['Niname/NCM'] || ''}`, col2X, y + 7)
     doc.text(`QTD: ${formData.Qtd_Eqp || '1'}`, col2X, y + 13)
 
-    doc.text("CONFIGURACAO TECNICA:", margin + 5, y + 27)
+    doc.text(isAuto ? "ESPECIFICACOES DO PULVERIZADOR:" : "CONFIGURACAO TECNICA:", margin + 5, y + 27)
 
     if (isTrator) {
       doc.setFontSize(7.5)
@@ -173,6 +181,32 @@ export default function EditModal({ proposal, onClose }) {
       renderField("OLEO MOTOR", formData.oleo_motor_trator, colTech2, startY + (lineHeight * 4))
       renderField("OLEO TRANS.", formData.oleo_trasmissao_trator, colTech2, startY + (lineHeight * 5))
       renderField("TRAS. MIN/MAX", formData.tras_min_max_trator, colTech2, startY + (lineHeight * 6))
+    } else if (isAuto) {
+      doc.setFontSize(7.5)
+      const startY = y + 33
+      const colTech2 = pageWidth / 2 + 5
+      const lineHeight = 5
+
+      const renderField = (label, value, posX, posY) => {
+        doc.setFont("helvetica", "bold")
+        doc.text(`${label}:`, posX, posY)
+        const lw = doc.getTextWidth(`${label}: `)
+        doc.setFont("helvetica", "normal")
+        doc.text(`${value || '---'}`, posX + lw, posY)
+      }
+
+      renderField("MOTOR", formData.motor_auto, margin + 5, startY)
+      renderField("TRANSMISSAO", formData.transmissao_auto, margin + 5, startY + lineHeight)
+      renderField("TANQUE PULV. (L)", formData.tanque_pulv_auto, margin + 5, startY + (lineHeight * 2))
+      renderField("TECNOLOGIA", formData.tecnologia_auto, margin + 5, startY + (lineHeight * 3))
+      renderField("TELEMETRIA", formData.telemetria_auto, margin + 5, startY + (lineHeight * 4))
+      renderField("TANQUE COMB. (L)", formData.tanque_comb_auto, margin + 5, startY + (lineHeight * 5))
+
+      renderField("BARRA PULV. (M)", formData.barra_pulv_auto, colTech2, startY)
+      renderField("N. SECOES", formData.num_secoes_auto, colTech2, startY + lineHeight)
+      renderField("ESPAC. BICOS (CM)", formData.espac_bicos_auto, colTech2, startY + (lineHeight * 2))
+      renderField("VAO LIVRE (M)", formData.vao_livre_auto, colTech2, startY + (lineHeight * 3))
+      renderField("BITOLA (M)", formData.bitola_auto, colTech2, startY + (lineHeight * 4))
     } else {
       doc.setFont("helvetica", "normal")
       const infoTecnica = formData.Configuracao || formData.Descricao || ''
@@ -296,7 +330,7 @@ export default function EditModal({ proposal, onClose }) {
               </div>
             </div>
 
-            <div className="text-[14px] font-medium text-red-600 uppercase tracking-wide">II. DADOS DO {isTrator ? 'TRATOR' : 'IMPLEMENTO'}</div>
+            <div className="text-[14px] font-medium text-red-600 uppercase tracking-wide">II. DADOS DO {isTrator ? 'TRATOR' : isAuto ? 'AUTOPROPELIDO' : 'IMPLEMENTO'}</div>
             {imagePreview && <div className="text-center"><img src={imagePreview} className="w-[100px] h-[80px] object-contain border-2 border-zinc-300 rounded-lg" alt="Preview" /></div>}
 
             <div className="border border-zinc-200 rounded-xl overflow-hidden bg-white">
@@ -331,6 +365,28 @@ export default function EditModal({ proposal, onClose }) {
                   <div className="flex border-t border-zinc-100">
                     <div className="flex-1 p-3 border-r border-zinc-100 flex flex-col gap-0.5"><label className={labelStyle}>DIANTEIRA MIN/MAX</label><input value={formData.diant_min_max_trator || ''} onChange={e => setFormData({ ...formData, diant_min_max_trator: e.target.value })} className={inputStyle} /></div>
                     <div className="flex-1 p-3 flex flex-col gap-0.5"><label className={labelStyle}>TRASEIRA MIN/MAX</label><input value={formData.tras_min_max_trator || ''} onChange={e => setFormData({ ...formData, tras_min_max_trator: e.target.value })} className={inputStyle} /></div>
+                  </div>
+                </>
+              ) : isAuto ? (
+                <>
+                  <div className="grid grid-cols-3 border-b border-zinc-100">
+                    <div className="p-2.5 border-r border-zinc-100 flex flex-col gap-0.5"><label className={labelStyle}>MOTOR</label><input value={formData.motor_auto || ''} onChange={e => setFormData({ ...formData, motor_auto: e.target.value })} className={inputStyle} /></div>
+                    <div className="p-2.5 border-r border-zinc-100 flex flex-col gap-0.5"><label className={labelStyle}>TRANSMISSAO</label><input value={formData.transmissao_auto || ''} onChange={e => setFormData({ ...formData, transmissao_auto: e.target.value })} className={inputStyle} /></div>
+                    <div className="p-2.5 flex flex-col gap-0.5"><label className={labelStyle}>TANQUE COMB. (L)</label><input value={formData.tanque_comb_auto || ''} onChange={e => setFormData({ ...formData, tanque_comb_auto: e.target.value })} className={inputStyle} /></div>
+                  </div>
+                  <div className="grid grid-cols-3 border-b border-zinc-100">
+                    <div className="p-2.5 border-r border-zinc-100 flex flex-col gap-0.5"><label className={labelStyle}>TANQUE PULV. (L)</label><input value={formData.tanque_pulv_auto || ''} onChange={e => setFormData({ ...formData, tanque_pulv_auto: e.target.value })} className={inputStyle} /></div>
+                    <div className="p-2.5 border-r border-zinc-100 flex flex-col gap-0.5"><label className={labelStyle}>BARRA PULV. (M)</label><input value={formData.barra_pulv_auto || ''} onChange={e => setFormData({ ...formData, barra_pulv_auto: e.target.value })} className={inputStyle} /></div>
+                    <div className="p-2.5 flex flex-col gap-0.5"><label className={labelStyle}>N. SECOES</label><input value={formData.num_secoes_auto || ''} onChange={e => setFormData({ ...formData, num_secoes_auto: e.target.value })} className={inputStyle} /></div>
+                  </div>
+                  <div className="grid grid-cols-3 border-b border-zinc-100">
+                    <div className="p-2.5 border-r border-zinc-100 flex flex-col gap-0.5"><label className={labelStyle}>ESPAC. BICOS (CM)</label><input value={formData.espac_bicos_auto || ''} onChange={e => setFormData({ ...formData, espac_bicos_auto: e.target.value })} className={inputStyle} /></div>
+                    <div className="p-2.5 border-r border-zinc-100 flex flex-col gap-0.5"><label className={labelStyle}>VAO LIVRE (M)</label><input value={formData.vao_livre_auto || ''} onChange={e => setFormData({ ...formData, vao_livre_auto: e.target.value })} className={inputStyle} /></div>
+                    <div className="p-2.5 flex flex-col gap-0.5"><label className={labelStyle}>BITOLA (M)</label><input value={formData.bitola_auto || ''} onChange={e => setFormData({ ...formData, bitola_auto: e.target.value })} className={inputStyle} /></div>
+                  </div>
+                  <div className="flex border-t border-zinc-100">
+                    <div className="flex-1 p-3 border-r border-zinc-100 flex flex-col gap-0.5"><label className={labelStyle}>TECNOLOGIA</label><input value={formData.tecnologia_auto || ''} onChange={e => setFormData({ ...formData, tecnologia_auto: e.target.value })} className={inputStyle} /></div>
+                    <div className="flex-1 p-3 flex flex-col gap-0.5"><label className={labelStyle}>TELEMETRIA</label><input value={formData.telemetria_auto || ''} onChange={e => setFormData({ ...formData, telemetria_auto: e.target.value })} className={inputStyle} /></div>
                   </div>
                 </>
               ) : (

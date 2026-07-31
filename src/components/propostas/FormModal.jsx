@@ -1,7 +1,8 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuditLog } from '@/hooks/useAuditLog'
+import { Search, X } from 'lucide-react'
 
 export default function FormModal({ onClose, initialData }) {
   const { log } = useAuditLog()
@@ -11,12 +12,15 @@ export default function FormModal({ onClose, initialData }) {
   const [listaClientes, setListaClientes] = useState([])
   const [listaEquipamentos, setListaEquipamentos] = useState([])
   const [listaTratores, setListaTratores] = useState([])
+  const [listaAutopropelidos, setListaAutopropelidos] = useState([])
   const [buscaCli, setBuscaCli] = useState(initialData?.cliente || '')
   const [buscaEq, setBuscaEq] = useState(initialData?.modelo || '')
   const [showCli, setShowCli] = useState(false)
   const [showEq, setShowEq] = useState(false)
   // Valor por unidade (derivado) — a QUANTIDADE multiplica o VALOR TOTAL a partir dele.
   const [valorUnit, setValorUnit] = useState(0)
+  const cliRef = useRef(null)
+  const eqRef = useRef(null)
 
   const [formData, setFormData] = useState({
     Cliente: initialData?.cliente || '',
@@ -50,7 +54,19 @@ export default function FormModal({ onClose, initialData }) {
     oleo_motor_trator: '',
     oleo_trasmissao_trator: '',
     diant_min_max_trator: '',
-    tras_min_max_trator: ''
+    tras_min_max_trator: '',
+    // Autopropelido (pulverizador)
+    motor_auto: '',
+    transmissao_auto: '',
+    tanque_pulv_auto: '',
+    tecnologia_auto: '',
+    telemetria_auto: '',
+    barra_pulv_auto: '',
+    num_secoes_auto: '',
+    espac_bicos_auto: '',
+    vao_livre_auto: '',
+    bitola_auto: '',
+    tanque_comb_auto: ''
   })
 
   // QUANTIDADE muda -> VALOR TOTAL = valor por unidade x quantidade.
@@ -86,11 +102,12 @@ export default function FormModal({ onClose, initialData }) {
           return allData
         }
 
-        const [dataOmie, dataManual, dataEquip, dataTrator] = await Promise.all([
+        const [dataOmie, dataManual, dataEquip, dataTrator, dataAuto] = await Promise.all([
           fetchAll('Clientes_Omie'),
           fetchAll('Cliente_Manual'),
           supabase.from('Equipamentos').select('*'),
-          supabase.from('cad_trator').select('*')
+          supabase.from('cad_trator').select('*'),
+          supabase.from('cad_autopropelido').select('*')
         ])
 
         const unidos = [
@@ -101,9 +118,20 @@ export default function FormModal({ onClose, initialData }) {
         setListaClientes(unidos)
         if (dataEquip.data) setListaEquipamentos(dataEquip.data)
         if (dataTrator.data) setListaTratores(dataTrator.data)
+        if (dataAuto.data) setListaAutopropelidos(dataAuto.data)
       } catch (err) { console.error("Erro ao carregar dados:", err) }
     }
     carregarDados()
+  }, [])
+
+  // Fecha os dropdowns de busca ao clicar fora (sem precisar selecionar).
+  useEffect(() => {
+    const onDoc = (e) => {
+      if (cliRef.current && !cliRef.current.contains(e.target)) setShowCli(false)
+      if (eqRef.current && !eqRef.current.contains(e.target)) setShowEq(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
   }, [])
 
   const handleSelecionarCliente = (c) => {
@@ -131,6 +159,24 @@ export default function FormModal({ onClose, initialData }) {
         ...prev,
         Marca: item.marca, Modelo: item.modelo, Ano: item.ano,
         'Niname/NCM': item.finame, Imagem_Equipamento: item.imagem, Qtd_Eqp: '1'
+      }))
+    } else if (tipoMaq === 'autopropelido') {
+      setFormData(prev => ({
+        ...prev,
+        Marca: item.marca, Modelo: item.modelo, Ano: item.ano || '',
+        'Niname/NCM': item['finame/ncm'] || '', Imagem_Equipamento: item.imagem,
+        motor_auto: item.motor || '',
+        transmissao_auto: item.transmissao || '',
+        tanque_pulv_auto: item.tanque_pulv || '',
+        tecnologia_auto: item.tecnologia || '',
+        telemetria_auto: item.telemetria || '',
+        barra_pulv_auto: item.barra_pulv || '',
+        num_secoes_auto: item.num_secoes || '',
+        espac_bicos_auto: item.espac_bicos || '',
+        vao_livre_auto: item.vao_livre || '',
+        bitola_auto: item.bitola || '',
+        tanque_comb_auto: item.tanque_comb || '',
+        Qtd_Eqp: '1'
       }))
     } else {
       setFormData(prev => ({
@@ -161,6 +207,7 @@ export default function FormModal({ onClose, initialData }) {
     e.preventDefault()
     setLoading(true)
     const payload = { ...formData }
+    payload.tipo = tipoMaq
     delete payload.cep
     delete payload.Tipo_Entrega
     delete payload.Valor_A_Vista
@@ -174,164 +221,198 @@ export default function FormModal({ onClose, initialData }) {
     else { alert("Erro ao salvar: " + error.message); setLoading(false) }
   }
 
-  const inputStyle = "w-full bg-white border border-zinc-200 rounded-lg px-3 py-2.5 text-sm font-semibold text-zinc-800 outline-none focus:ring-2 focus:ring-red-500/40"
-  const labelStyle = "text-[9px] font-black text-zinc-500 uppercase mb-1 block"
+  const inputStyle = "w-full bg-zinc-50 border border-zinc-200 rounded-[10px] px-3 py-2.5 text-sm font-medium text-zinc-800 outline-none transition-all placeholder:text-zinc-400 focus:border-red-500 focus:bg-white focus:ring-2 focus:ring-red-500/20"
+  const labelStyle = "text-[10px] font-bold tracking-wider text-zinc-400 uppercase"
+  const fieldCls = "flex flex-col gap-1.5"
+  const tipos = [{ v: 'implemento', l: 'Implemento' }, { v: 'trator', l: 'Trator' }, { v: 'autopropelido', l: 'Autopropelido' }]
+  // Função (não componente) para não remontar o input e perder o foco ao digitar.
+  const campo = (label, chave, extra = '') => (
+    <div className={fieldCls} key={chave}>
+      <span className={labelStyle}>{label}</span>
+      <input value={formData[chave] || ''} onChange={e => setFormData({ ...formData, [chave]: e.target.value })} className={`${inputStyle} ${extra}`} />
+    </div>
+  )
+  const Sec = ({ n, children }) => (
+    <div className="flex items-center gap-2.5 mt-7 mb-3.5">
+      <span className="w-[22px] h-[22px] flex items-center justify-center rounded-[7px] bg-red-50 text-red-600 border border-red-200 text-[11px] font-extrabold shrink-0">{n}</span>
+      <span className="text-[12.5px] font-bold tracking-wide uppercase text-zinc-800">{children}</span>
+      <span className="flex-1 h-px bg-zinc-100" />
+    </div>
+  )
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-[3000]">
-      <div className="bg-white w-[95%] max-w-[1100px] h-[90vh] rounded-2xl flex flex-col border border-zinc-200 shadow-2xl overflow-hidden">
-        <div className="px-8 py-5 bg-white border-b border-zinc-200 flex justify-between items-center">
-          <h2 className="text-lg font-black text-zinc-900">NOVA PROPOSTA COMERCIAL</h2>
-          <button onClick={onClose} className="text-sm font-black text-zinc-500 hover:text-red-600 transition-colors">FECHAR [X]</button>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-[3000] p-4">
+      <div className="bg-white w-full max-w-[1000px] h-[92vh] rounded-2xl flex flex-col border border-zinc-200 shadow-2xl overflow-hidden">
+        {/* HEADER */}
+        <div className="px-7 py-4 bg-white border-b border-zinc-200 flex justify-between items-center gap-4">
+          <div>
+            <h2 className="text-[17px] font-extrabold text-zinc-900 tracking-tight">Nova proposta comercial</h2>
+            <p className="text-[12.5px] text-zinc-500 mt-0.5">Preencha os dados do cliente e do produto</p>
+          </div>
+          <button onClick={onClose} title="Fechar" className="w-9 h-9 flex items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-zinc-500 hover:text-red-600 hover:bg-zinc-100 transition-colors cursor-pointer shrink-0">
+            <X size={18} />
+          </button>
         </div>
 
-        <div className="px-8 py-6 overflow-y-auto flex-1">
-          <form onSubmit={handleSalvar} className="flex flex-col gap-5">
-            <div className="flex gap-5">
-              <div className="flex-1 relative">
-                <label className="text-[11px] font-black text-zinc-700 mb-2 block">1. BUSCAR CLIENTE (OMIE + MANUAL)</label>
-                <input className="w-full px-4 py-3 bg-zinc-900 text-white rounded-xl border-none text-sm font-bold" value={buscaCli} onFocus={() => setShowCli(true)} onChange={e => { setBuscaCli(e.target.value); setShowCli(true) }} placeholder="Pesquisar entre todos os clientes..." />
-                {showCli && (
-                  <div className="absolute top-[75px] left-0 right-0 bg-white border-2 border-zinc-300 z-[100] max-h-[300px] overflow-y-auto rounded-xl shadow-xl">
-                    {listaClientes.filter(c => {
-                      const termo = buscaCli.toLowerCase()
-                      return !buscaCli || (c.nome || "").toLowerCase().includes(termo) || (c['cpf/cnpj'] || "").toLowerCase().includes(termo) || (c.cppf_cnpj || "").toLowerCase().includes(termo)
-                    }).slice(0, 100).map((c, idx) => (
-                      <div key={`${c.id}-${idx}`} className="p-3 cursor-pointer border-b border-zinc-100 text-zinc-800 font-bold text-[13px] hover:bg-red-50" onClick={() => handleSelecionarCliente(c)}>
-                        <div className="font-bold">{c.nome}</div>
-                        <div className="text-[10px] text-zinc-500">{c['cpf/cnpj'] || c.cppf_cnpj} | <span className={`font-black ${c.origem === 'OMIE' ? 'text-red-600' : 'text-emerald-600'}`}>{c.origem}</span></div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex-1 relative">
-                <div className="flex justify-between items-center mb-2">
-                  <label className="text-[11px] font-black text-zinc-700">2. SELECIONAR PRODUTO</label>
-                  <select value={tipoMaq} onChange={(e) => { setTipoMaq(e.target.value); setBuscaEq('') }} className="text-[10px] font-black border border-zinc-300 rounded px-2 py-1 cursor-pointer">
-                    <option value="implemento">IMPLEMENTO</option>
-                    <option value="trator">TRATOR</option>
-                  </select>
-                </div>
-                <input className={`w-full px-4 py-3 text-white rounded-xl border-none text-sm font-bold ${tipoMaq === 'trator' ? 'bg-zinc-800' : 'bg-zinc-900'}`}
-                  value={buscaEq} onFocus={() => setShowEq(true)} onChange={e => { setBuscaEq(e.target.value); setShowEq(true) }}
-                  placeholder={tipoMaq === 'trator' ? "Pesquisar Trator..." : "Pesquisar Implemento..."} />
-                {showEq && (
-                  <div className="absolute top-[75px] left-0 right-0 bg-white border-2 border-zinc-300 z-[100] max-h-[300px] overflow-y-auto rounded-xl shadow-xl">
-                    {(tipoMaq === 'implemento' ? listaEquipamentos : listaTratores)
-                      .filter(e => {
-                        const termo = buscaEq.toLowerCase()
-                        return !buscaEq || (e.marca || "").toLowerCase().includes(termo) || (e.modelo || "").toLowerCase().includes(termo)
-                      }).slice(0, 30).map(e => (
-                        <div key={e.id} className="p-3 cursor-pointer border-b border-zinc-100 text-zinc-800 font-bold text-[13px] hover:bg-red-50" onClick={() => handleSelecionarEquipamento(e)}>{e.marca} {e.modelo}</div>
+        <div className="px-7 py-5 overflow-y-auto flex-1">
+          <form onSubmit={handleSalvar} className="flex flex-col">
+            {/* BUSCA */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[11px] font-bold text-zinc-600 mb-1.5">Buscar cliente <span className="text-zinc-400 font-medium">(Omie + manual)</span></label>
+                <div className="relative" ref={cliRef}>
+                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
+                  <input className={`${inputStyle} pl-9`} value={buscaCli} onFocus={() => setShowCli(true)} onChange={e => { setBuscaCli(e.target.value); setShowCli(true) }} placeholder="Pesquisar entre todos os clientes..." />
+                  {showCli && (
+                    <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-zinc-200 z-[100] max-h-[300px] overflow-y-auto rounded-xl shadow-xl">
+                      {listaClientes.filter(c => {
+                        const termo = buscaCli.toLowerCase()
+                        return !buscaCli || (c.nome || "").toLowerCase().includes(termo) || (c['cpf/cnpj'] || "").toLowerCase().includes(termo) || (c.cppf_cnpj || "").toLowerCase().includes(termo)
+                      }).slice(0, 100).map((c, idx) => (
+                        <div key={`${c.id}-${idx}`} className="px-3 py-2.5 cursor-pointer border-b border-zinc-100 text-zinc-800 font-semibold text-[13px] hover:bg-red-50" onClick={() => handleSelecionarCliente(c)}>
+                          <div className="font-semibold">{c.nome}</div>
+                          <div className="text-[10.5px] text-zinc-500 font-medium">{c['cpf/cnpj'] || c.cppf_cnpj} · <span className={`font-bold ${c.origem === 'OMIE' ? 'text-red-600' : 'text-emerald-600'}`}>{c.origem}</span></div>
+                        </div>
                       ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {formData.Imagem_Equipamento && (
-              <div className="text-center">
-                <div className="inline-block bg-zinc-50 p-3 border border-zinc-200 rounded-xl">
-                  <label className={labelStyle}>FOTO SELECIONADA</label>
-                  <img src={formData.Imagem_Equipamento} className="h-[140px] rounded-md border border-zinc-300" alt="Equipamento" />
-                </div>
-              </div>
-            )}
-
-            <div className="text-xs font-black text-red-600 uppercase">I. DADOS DO CLIENTE</div>
-            <div className="border border-zinc-200 bg-white rounded-xl overflow-hidden">
-              <div className="flex border-b border-zinc-200">
-                <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>CLIENTE</label><input value={formData.Cliente} onChange={e => setFormData({ ...formData, Cliente: e.target.value })} className={inputStyle} /></div>
-                <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>CPF / CNPJ</label><input value={formData['Cpf/Cpnj']} onChange={e => setFormData({ ...formData, 'Cpf/Cpnj': e.target.value })} className={inputStyle} /></div>
-                <div className="flex-1 p-3 flex flex-col"><label className={labelStyle}>I.E. / MUN.</label><input value={formData['inscricao_esta/mun']} onChange={e => setFormData({ ...formData, 'inscricao_esta/mun': e.target.value })} className={inputStyle} /></div>
-              </div>
-              <div className="flex border-b border-zinc-200">
-                <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>CIDADE</label><input value={formData.Cidade} onChange={e => setFormData({ ...formData, Cidade: e.target.value })} className={inputStyle} /></div>
-                <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>BAIRRO</label><input value={formData.Bairro} onChange={e => setFormData({ ...formData, Bairro: e.target.value })} className={inputStyle} /></div>
-                <div className="flex-1 p-3 flex flex-col"><label className={labelStyle}>CEP</label><input value={formData.cep} onChange={e => setFormData({ ...formData, cep: e.target.value })} className={`${inputStyle} text-zinc-400`} /></div>
-              </div>
-              <div className="flex">
-                <div className="flex-1 p-3 flex flex-col"><label className={labelStyle}>ENDERECO COMPLETO</label><input value={formData.End_Entrega} onChange={e => setFormData({ ...formData, End_Entrega: e.target.value })} className={inputStyle} /></div>
-              </div>
-            </div>
-
-            <div className="text-xs font-black text-red-600 uppercase">II. DADOS DO {tipoMaq.toUpperCase()}</div>
-            <div className="border border-zinc-200 bg-white rounded-xl overflow-hidden">
-              <div className="flex border-b border-zinc-200">
-                <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>MARCA</label><input value={formData.Marca} onChange={e => setFormData({ ...formData, Marca: e.target.value })} className={inputStyle} /></div>
-                <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>MODELO</label><input value={formData.Modelo} onChange={e => setFormData({ ...formData, Modelo: e.target.value })} className={inputStyle} /></div>
-                <div className="flex-1 p-3 flex flex-col"><label className={labelStyle}>ANO</label><input value={formData.Ano} onChange={e => setFormData({ ...formData, Ano: e.target.value })} className={inputStyle} /></div>
-              </div>
-
-              {tipoMaq === 'trator' ? (
-                <>
-                  <div className="flex border-b border-zinc-200">
-                    <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>MOTOR</label><input value={formData.motor_trator} onChange={e => setFormData({ ...formData, motor_trator: e.target.value })} className={inputStyle} /></div>
-                    <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>BOMBA INJETORA</label><input value={formData.bomb_inje_trator} onChange={e => setFormData({ ...formData, bomb_inje_trator: e.target.value })} className={inputStyle} /></div>
-                    <div className="flex-1 p-3 flex flex-col"><label className={labelStyle}>BOMBA HIDRAULICA</label><input value={formData.bomb_hidra_trator} onChange={e => setFormData({ ...formData, bomb_hidra_trator: e.target.value })} className={inputStyle} /></div>
-                  </div>
-                  <div className="flex border-b border-zinc-200">
-                    <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>CAMBIO</label><input value={formData.cambio_trator} onChange={e => setFormData({ ...formData, cambio_trator: e.target.value })} className={inputStyle} /></div>
-                    <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>REVERSOR</label><input value={formData.reversor_trator} onChange={e => setFormData({ ...formData, reversor_trator: e.target.value })} className={inputStyle} /></div>
-                    <div className="flex-1 p-3 flex flex-col"><label className={labelStyle}>EMBREAGEM</label><input value={formData.embreagem_trator} onChange={e => setFormData({ ...formData, embreagem_trator: e.target.value })} className={inputStyle} /></div>
-                  </div>
-                  <div className="flex border-b border-zinc-200">
-                    <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>TRANS. DIANT.</label><input value={formData.transmissao_diant_trator} onChange={e => setFormData({ ...formData, transmissao_diant_trator: e.target.value })} className={inputStyle} /></div>
-                    <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>TRANS. TRAS.</label><input value={formData.trasmissao_tras_trator} onChange={e => setFormData({ ...formData, trasmissao_tras_trator: e.target.value })} className={inputStyle} /></div>
-                    <div className="flex-1 p-3 flex flex-col"><label className={labelStyle}>CAP. COMB.</label><input value={formData.capacit_comb_trator} onChange={e => setFormData({ ...formData, capacit_comb_trator: e.target.value })} className={inputStyle} /></div>
-                  </div>
-                  <div className="flex border-b border-zinc-200">
-                    <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>OLEO MOTOR</label><input value={formData.oleo_motor_trator} onChange={e => setFormData({ ...formData, oleo_motor_trator: e.target.value })} className={inputStyle} /></div>
-                    <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>OLEO TRANS.</label><input value={formData.oleo_trasmissao_trator} onChange={e => setFormData({ ...formData, oleo_trasmissao_trator: e.target.value })} className={inputStyle} /></div>
-                    <div className="flex-1 p-3 flex flex-col"><label className={labelStyle}>FINAME / NCM</label><input value={formData['Niname/NCM']} onChange={e => setFormData({ ...formData, 'Niname/NCM': e.target.value })} className={inputStyle} /></div>
-                  </div>
-                  <div className="flex">
-                    <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>DIANTEIRA MIN/MAX</label><input value={formData.diant_min_max_trator} onChange={e => setFormData({ ...formData, diant_min_max_trator: e.target.value })} className={inputStyle} /></div>
-                    <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>TRASEIRA MIN/MAX</label><input value={formData.tras_min_max_trator} onChange={e => setFormData({ ...formData, tras_min_max_trator: e.target.value })} className={inputStyle} /></div>
-                    <div className="flex-1 p-3 flex flex-col"><label className={labelStyle}>QUANTIDADE</label><input type="number" min="1" value={formData.Qtd_Eqp} onChange={e => onChangeQtd(e.target.value)} className={inputStyle} /></div>
-                  </div>
-                </>
-              ) : (
-                <div className="flex">
-                  <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>FINAME / NCM</label><input value={formData['Niname/NCM']} onChange={e => setFormData({ ...formData, 'Niname/NCM': e.target.value })} className={inputStyle} /></div>
-                  <div className="flex-1 p-3 flex flex-col"><label className={labelStyle}>QUANTIDADE</label><input type="number" min="1" value={formData.Qtd_Eqp} onChange={e => onChangeQtd(e.target.value)} className={inputStyle} /></div>
-                </div>
-              )}
-            </div>
-
-            <div className="text-xs font-black text-red-600 uppercase">III. CONDICOES FINANCEIRAS</div>
-            <div className="border border-zinc-200 bg-white rounded-xl overflow-hidden">
-              <div className="flex border-b border-zinc-200">
-                <div className="flex-1 p-3 flex flex-col">
-                  <label className={labelStyle}>VALOR TOTAL (R$)</label>
-                  <input type="number" step="0.01" value={formData.Valor_Total} onChange={e => onChangeTotal(e.target.value)} className={`${inputStyle} text-red-600`} />
-                  {(parseInt(formData.Qtd_Eqp) || 1) > 1 && (
-                    <div className="mt-2 flex items-start gap-2 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
-                      <span>ℹ️</span>
-                      <span>A quantidade multiplica o valor total: <b>{parseInt(formData.Qtd_Eqp)}</b> × R$ {(valorUnit || ((parseFloat(formData.Valor_Total) || 0) / (parseInt(formData.Qtd_Eqp) || 1))).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} = <b>R$ {(parseFloat(formData.Valor_Total) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</b></span>
                     </div>
                   )}
                 </div>
               </div>
-              <div className="flex border-b border-zinc-200">
-                <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>PRAZO DE ENTREGA</label><input type="text" value={formData.Prazo_Entrega} onChange={e => setFormData({ ...formData, Prazo_Entrega: e.target.value })} placeholder="Ex: 30 dias, a combinar..." className={inputStyle} /></div>
-                <div className="flex-1 p-3 flex flex-col"><label className={labelStyle}>TIPO DE ENTREGA</label><select value={formData.Tipo_Entrega} onChange={e => setFormData({ ...formData, Tipo_Entrega: e.target.value })} className={`${inputStyle} cursor-pointer`}><option value="FOB">FOB (CLIENTE RETIRA)</option><option value="CIF">CIF (ENTREGA NA PROPRIEDADE)</option></select></div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-zinc-600 mb-1.5">Selecionar produto</label>
+                <div className="inline-flex bg-zinc-100 border border-zinc-200 rounded-[10px] p-0.5 gap-0.5 mb-2">
+                  {tipos.map(t => (
+                    <button key={t.v} type="button" onClick={() => { setTipoMaq(t.v); setBuscaEq('') }}
+                      className={`px-3 py-1.5 rounded-[7px] text-[11.5px] font-bold tracking-wide transition-colors cursor-pointer ${tipoMaq === t.v ? 'bg-red-600 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-800'}`}>{t.l}</button>
+                  ))}
+                </div>
+                <div className="relative" ref={eqRef}>
+                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
+                  <input className={`${inputStyle} pl-9`} value={buscaEq} onFocus={() => setShowEq(true)} onChange={e => { setBuscaEq(e.target.value); setShowEq(true) }}
+                    placeholder={tipoMaq === 'trator' ? "Pesquisar trator..." : tipoMaq === 'autopropelido' ? "Pesquisar autopropelido..." : "Pesquisar implemento..."} />
+                  {showEq && (
+                    <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-zinc-200 z-[100] max-h-[300px] overflow-y-auto rounded-xl shadow-xl">
+                      {(tipoMaq === 'implemento' ? listaEquipamentos : tipoMaq === 'autopropelido' ? listaAutopropelidos : listaTratores)
+                        .filter(e => {
+                          const termo = buscaEq.toLowerCase()
+                          return !buscaEq || (e.marca || "").toLowerCase().includes(termo) || (e.modelo || "").toLowerCase().includes(termo)
+                        }).slice(0, 30).map(e => (
+                          <div key={e.id} className="px-3 py-2.5 cursor-pointer border-b border-zinc-100 text-zinc-800 font-semibold text-[13px] hover:bg-red-50" onClick={() => handleSelecionarEquipamento(e)}>{e.marca} {e.modelo}</div>
+                        ))}
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="flex border-b border-zinc-200">
-                <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>TEM VALIDADE?</label><select value={temValidade} onChange={e => setTemValidade(e.target.value === 'true')} className={`${inputStyle} cursor-pointer font-black ${temValidade ? 'text-amber-700' : 'text-zinc-500'}`}><option value="true">SIM</option><option value="false">NAO</option></select></div>
-                <div className="flex-1 p-3 flex flex-col">{temValidade ? (<><label className={labelStyle}>DIAS DE VALIDADE</label><input type="number" value={formData.validade} onChange={e => setFormData({ ...formData, validade: e.target.value })} className={`${inputStyle} text-amber-700`} /></>) : (<div className="text-zinc-400 text-[11px] font-bold pt-2.5">SEM VALIDADE</div>)}</div>
+            </div>
+
+            {formData.Imagem_Equipamento && (
+              <div className="mt-5 flex justify-center">
+                <div className="inline-flex flex-col items-center gap-2 bg-zinc-50 p-3 border border-zinc-200 rounded-xl">
+                  <span className={labelStyle}>Foto selecionada</span>
+                  <img src={formData.Imagem_Equipamento} className="h-[130px] rounded-lg border border-zinc-200" alt="Equipamento" />
+                </div>
               </div>
-              <div className="flex">
-                <div className="flex-1 p-3 flex flex-col"><label className={labelStyle}>CONDICOES DE PAGAMENTO / OBSERVACOES</label><input value={formData.Condicoes} onChange={e => setFormData({ ...formData, Condicoes: e.target.value })} className={inputStyle} /></div>
+            )}
+
+            {/* I. CLIENTE */}
+            <Sec n="I">Dados do cliente</Sec>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+              {campo('Cliente', 'Cliente')}
+              {campo('CPF / CNPJ', 'Cpf/Cpnj')}
+              {campo('I.E. / Mun.', 'inscricao_esta/mun')}
+              {campo('Cidade', 'Cidade')}
+              {campo('Bairro', 'Bairro')}
+              {campo('CEP', 'cep', '!text-zinc-400')}
+              <div className={`${fieldCls} md:col-span-3`}>
+                <span className={labelStyle}>Endereço completo</span>
+                <input value={formData.End_Entrega} onChange={e => setFormData({ ...formData, End_Entrega: e.target.value })} className={inputStyle} />
+              </div>
+            </div>
+
+            {/* II. PRODUTO */}
+            <Sec n="II">Dados do {tipoMaq}</Sec>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+              {campo('Marca', 'Marca')}
+              {campo('Modelo', 'Modelo')}
+              {campo('Ano', 'Ano')}
+
+              {tipoMaq === 'trator' ? (
+                <>
+                  {campo('Motor', 'motor_trator')}
+                  {campo('Bomba injetora', 'bomb_inje_trator')}
+                  {campo('Bomba hidráulica', 'bomb_hidra_trator')}
+                  {campo('Câmbio', 'cambio_trator')}
+                  {campo('Reversor', 'reversor_trator')}
+                  {campo('Embreagem', 'embreagem_trator')}
+                  {campo('Trans. diant.', 'transmissao_diant_trator')}
+                  {campo('Trans. tras.', 'trasmissao_tras_trator')}
+                  {campo('Cap. comb.', 'capacit_comb_trator')}
+                  {campo('Óleo motor', 'oleo_motor_trator')}
+                  {campo('Óleo trans.', 'oleo_trasmissao_trator')}
+                  {campo('FINAME / NCM', 'Niname/NCM')}
+                  {campo('Dianteira min/max', 'diant_min_max_trator')}
+                  {campo('Traseira min/max', 'tras_min_max_trator')}
+                  <div className={fieldCls}><span className={labelStyle}>Quantidade</span><input type="number" min="1" value={formData.Qtd_Eqp} onChange={e => onChangeQtd(e.target.value)} className={inputStyle} /></div>
+                </>
+              ) : tipoMaq === 'autopropelido' ? (
+                <>
+                  {campo('Motor', 'motor_auto')}
+                  {campo('Transmissão', 'transmissao_auto')}
+                  {campo('Tanque comb. (L)', 'tanque_comb_auto')}
+                  {campo('Tanque pulv. (L)', 'tanque_pulv_auto')}
+                  {campo('Barra pulv. (m)', 'barra_pulv_auto')}
+                  {campo('Nº seções', 'num_secoes_auto')}
+                  {campo('Espaç. bicos (cm)', 'espac_bicos_auto')}
+                  {campo('Vão livre (m)', 'vao_livre_auto')}
+                  {campo('Bitola (m)', 'bitola_auto')}
+                  {campo('Tecnologia', 'tecnologia_auto')}
+                  {campo('Telemetria', 'telemetria_auto')}
+                  {campo('FINAME / NCM', 'Niname/NCM')}
+                  <div className={fieldCls}><span className={labelStyle}>Quantidade</span><input type="number" min="1" value={formData.Qtd_Eqp} onChange={e => onChangeQtd(e.target.value)} className={inputStyle} /></div>
+                </>
+              ) : (
+                <>
+                  {campo('FINAME / NCM', 'Niname/NCM')}
+                  <div className={fieldCls}><span className={labelStyle}>Quantidade</span><input type="number" min="1" value={formData.Qtd_Eqp} onChange={e => onChangeQtd(e.target.value)} className={inputStyle} /></div>
+                </>
+              )}
+            </div>
+
+            {/* III. FINANCEIRO */}
+            <Sec n="III">Condições financeiras</Sec>
+            <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                <div className={fieldCls}><span className={labelStyle}>Valor total (R$)</span><input type="number" step="0.01" value={formData.Valor_Total} onChange={e => onChangeTotal(e.target.value)} className={`${inputStyle} !text-red-600 font-bold`} /></div>
+                <div className={fieldCls}><span className={labelStyle}>Prazo de entrega</span><input type="text" value={formData.Prazo_Entrega} onChange={e => setFormData({ ...formData, Prazo_Entrega: e.target.value })} placeholder="Ex: 30 dias, a combinar..." className={inputStyle} /></div>
+                <div className={fieldCls}><span className={labelStyle}>Tipo de entrega</span><select value={formData.Tipo_Entrega} onChange={e => setFormData({ ...formData, Tipo_Entrega: e.target.value })} className={`${inputStyle} cursor-pointer`}><option value="FOB">FOB (cliente retira)</option><option value="CIF">CIF (entrega na propriedade)</option></select></div>
+
+                {(parseInt(formData.Qtd_Eqp) || 1) > 1 && (
+                  <div className="md:col-span-3 flex items-start gap-2 text-[11.5px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    <span>ℹ️</span>
+                    <span>A quantidade multiplica o valor total: <b>{parseInt(formData.Qtd_Eqp)}</b> × R$ {(valorUnit || ((parseFloat(formData.Valor_Total) || 0) / (parseInt(formData.Qtd_Eqp) || 1))).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} = <b>R$ {(parseFloat(formData.Valor_Total) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</b></span>
+                  </div>
+                )}
+
+                <div className={fieldCls}><span className={labelStyle}>Tem validade?</span><select value={temValidade} onChange={e => setTemValidade(e.target.value === 'true')} className={`${inputStyle} cursor-pointer font-semibold ${temValidade ? 'text-amber-700' : 'text-zinc-500'}`}><option value="true">Sim</option><option value="false">Não</option></select></div>
+                <div className={fieldCls}>
+                  <span className={labelStyle}>Validade</span>
+                  {temValidade
+                    ? <input type="number" value={formData.validade} onChange={e => setFormData({ ...formData, validade: e.target.value })} placeholder="Dias" className={`${inputStyle} !text-amber-700`} />
+                    : <div className="text-zinc-400 text-[13px] font-semibold py-2.5">Sem validade</div>}
+                </div>
+                <div className="hidden md:block" />
+                <div className={`${fieldCls} md:col-span-3`}>
+                  <span className={labelStyle}>Condições de pagamento / observações</span>
+                  <input value={formData.Condicoes} onChange={e => setFormData({ ...formData, Condicoes: e.target.value })} className={inputStyle} />
+                </div>
               </div>
             </div>
           </form>
         </div>
 
-        <div className="px-8 py-5 bg-white border-t border-zinc-200">
-          <button onClick={handleSalvar} disabled={loading} className="w-full py-4 bg-red-600 text-white border-none rounded-xl font-black cursor-pointer text-base hover:bg-red-700 transition-colors disabled:opacity-50">{loading ? 'GERANDO...' : 'CONFIRMAR E GERAR PROPOSTA'}</button>
+        <div className="px-7 py-4 bg-white border-t border-zinc-200">
+          <button onClick={handleSalvar} disabled={loading} className="w-full py-3.5 bg-red-600 text-white border-none rounded-xl font-bold text-[15px] cursor-pointer hover:bg-red-700 transition-colors disabled:opacity-50">{loading ? 'Gerando...' : 'Confirmar e gerar proposta'}</button>
         </div>
       </div>
     </div>

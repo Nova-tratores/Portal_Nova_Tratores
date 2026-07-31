@@ -504,7 +504,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const maisUsados = useMemo(() => filteredNavItems
     .filter(i => i.id !== 'dashboard' && (uso[i.id] || 0) > 0)
     .sort((a, b) => (uso[b.id] || 0) - (uso[a.id] || 0))
-    .slice(0, 4), [filteredNavItems, uso])
+    .slice(0, 7), [filteredNavItems, uso])
 
   const groupedNav = useMemo(() => {
     const groups: { key: string; config: typeof GROUP_CONFIG[string]; items: NavItem[] }[] = []
