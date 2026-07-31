@@ -41,3 +41,15 @@ export function diasEntre(aIso: string | null | undefined, bIso?: string | null)
   if (isNaN(a) || isNaN(b)) return null;
   return Math.max(0, Math.floor((b - a) / 86400000));
 }
+
+// Dias-calendário até uma data (YYYY-MM-DD), SEM clamp: 0 = vence hoje,
+// negativo = dias de atraso. Âncora fixa em -03:00 (Brasil sem horário de
+// verão); comparar meio-dia a meio-dia dá inteiros exatos, sem off-by-one.
+// (diasEntre clampa em 0 e conta decorrido — não serve pra prazo.)
+export function diasAte(ymd: string | null | undefined): number | null {
+  if (!ymd) return null;
+  const alvo = Date.parse(`${ymd}T12:00:00-03:00`);
+  if (isNaN(alvo)) return null;
+  const hojeBRT = new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10);
+  return Math.round((alvo - Date.parse(`${hojeBRT}T12:00:00-03:00`)) / 86400000);
+}

@@ -48,6 +48,9 @@ export default function MontadoraEditor({ montadora, criadoPor, onClose, onSaved
   const [ressarcimentoPorEmail, setRessarcimentoPorEmail] = useState(
     montadora?.ressarcimento_por_email ?? false,
   );
+  const [exigeDevolucao, setExigeDevolucao] = useState(
+    montadora?.exige_devolucao_pecas ?? false,
+  );
   const [saving, setSaving] = useState(false);
   const [erro, setErro] = useState('');
 
@@ -109,6 +112,7 @@ export default function MontadoraEditor({ montadora, criadoPor, onClose, onSaved
         proximo_numero_sg: Math.max(1, parseInt(proximoNumeroSG, 10) || 1),
         fluxo,
         ressarcimento_por_email: ressarcimentoPorEmail,
+        exige_devolucao_pecas: exigeDevolucao,
       };
       const url = montadora
         ? `/api/garantias/montadoras/${montadora.id}`
@@ -256,6 +260,26 @@ export default function MontadoraEditor({ montadora, criadoPor, onClose, onSaved
                   </>
                 )}
               </div>
+
+              <label
+                style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 6,
+                  fontSize: 13, color: 'var(--portal-text-secondary)', cursor: 'pointer',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={exigeDevolucao}
+                  onChange={(e) => setExigeDevolucao(e.target.checked)}
+                  style={{ marginTop: 3 }}
+                />
+                <span>
+                  Fábrica exige a <strong>devolução das peças usadas</strong> (prova de destruição)
+                  <span style={{ display: 'block', fontSize: 11, color: 'var(--portal-text-faint)' }}>
+                    Ao aprovar uma garantia, o card entra na fase &quot;Devolução de peças&quot; com prazo de 30 dias.
+                  </span>
+                </span>
+              </label>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--portal-text-secondary)' }}>

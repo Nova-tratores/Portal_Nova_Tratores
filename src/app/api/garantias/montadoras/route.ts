@@ -30,28 +30,32 @@ export async function POST(req: NextRequest) {
     ? body.tipo_template
     : 'sem_template';
 
-  const { data, error } = await supabase
-    .from(TBL_MONTADORAS)
-    .insert({
-      nome,
-      checklist_def: checklist,
-      cor: body.cor || null,
-      logo_url: body.logo_url || null,
-      contato_fabrica: body.contato_fabrica || null,
-      criado_por: body.criado_por || null,
-      ativo: body.ativo !== false,
-      email_destinatarios: Array.isArray(body.email_destinatarios) ? body.email_destinatarios : [],
-      tipo_template: tipoTemplate,
-      auto_enviar_email: !!body.auto_enviar_email,
-      email_assunto: body.email_assunto || null,
-      email_corpo: body.email_corpo || null,
-      email_assinatura: body.email_assinatura || null,
-      proximo_numero_sg: Math.max(1, parseInt(body.proximo_numero_sg, 10) || 1),
-      fluxo: body.fluxo === 'duas_etapas' ? 'duas_etapas' : 'padrao',
-      ressarcimento_por_email: !!body.ressarcimento_por_email,
-    })
-    .select()
-    .single();
+  const insert: Record<string, unknown> = {
+    nome,
+    checklist_def: checklist,
+    cor: body.cor || null,
+    logo_url: body.logo_url || null,
+    contato_fabrica: body.contato_fabrica || null,
+    criado_por: body.criado_por || null,
+    ativo: body.ativo !== false,
+    email_destinatarios: Array.isArray(body.email_destinatarios) ? body.email_destinatarios : [],
+    tipo_template: tipoTemplate,
+    auto_enviar_email: !!body.auto_enviar_email,
+    email_assunto: body.email_assunto || null,
+    email_corpo: body.email_corpo || null,
+    email_assinatura: body.email_assinatura || null,
+    proximo_numero_sg: Math.max(1, parseInt(body.proximo_numero_sg, 10) || 1),
+    fluxo: body.fluxo === 'duas_etapas' ? 'duas_etapas' : 'padrao',
+    ressarcimento_por_email: !!body.ressarcimento_por_email,
+    exige_devolucao_pecas: !!body.exige_devolucao_pecas,
+  };
+  let { data, error } = await supabase.from(TBL_MONTADORAS).insert(insert).select().single();
+  // Pré-migration (coluna exige_devolucao_pecas ainda não existe): refaz sem
+  // ela pra criação de montadora não quebrar.
+  if (error && error.message.includes('exige_devolucao_pecas')) {
+    delete insert.exige_devolucao_pecas;
+    ({ data, error } = await supabase.from(TBL_MONTADORAS).insert(insert).select().single());
+  }
 
   if (error) {
     if (error.code === '23505') {

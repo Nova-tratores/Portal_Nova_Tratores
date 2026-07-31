@@ -3,7 +3,7 @@ import { supabase } from '@/lib/pos/supabase';
 import { TBL_GARANTIAS, TBL_GAR_ANEXOS, BUCKET_GARANTIAS } from '@/lib/garantias/constants';
 import { registrarEvento } from '@/lib/garantias/server';
 
-const CATEGORIAS = ['tecnico', 'garantista', 'pendencia_pedido', 'pendencia_resposta', 'retorno_fabrica', 'envio_fabrica', 'foto_garantista', 'nf_venda', 'relatorio_at'];
+const CATEGORIAS = ['tecnico', 'garantista', 'pendencia_pedido', 'pendencia_resposta', 'retorno_fabrica', 'envio_fabrica', 'foto_garantista', 'nf_venda', 'relatorio_at', 'devolucao_pecas'];
 
 function sanitize(name: string) {
   return name

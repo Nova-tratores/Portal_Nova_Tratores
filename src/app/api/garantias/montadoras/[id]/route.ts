@@ -37,13 +37,22 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.ressarcimento_por_email !== undefined) {
     update.ressarcimento_por_email = !!body.ressarcimento_por_email;
   }
+  if (body.exige_devolucao_pecas !== undefined) {
+    update.exige_devolucao_pecas = !!body.exige_devolucao_pecas;
+  }
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from(TBL_MONTADORAS)
     .update(update)
     .eq('id', id)
     .select()
     .single();
+  // Pré-migration (coluna exige_devolucao_pecas ainda não existe): refaz sem
+  // ela pra edição de montadora não quebrar.
+  if (error && error.message.includes('exige_devolucao_pecas') && update.exige_devolucao_pecas !== undefined) {
+    delete update.exige_devolucao_pecas;
+    ({ data, error } = await supabase.from(TBL_MONTADORAS).update(update).eq('id', id).select().single());
+  }
 
   if (error) {
     if (error.code === '23505') {

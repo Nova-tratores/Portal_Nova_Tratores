@@ -14,16 +14,41 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Informe se a garantia foi aprovada ou recusada.' }, { status: 400 });
   }
 
-  const { data: g } = await supabase
+  // Fallback pré-migration (mesmo padrão do GET do kanban): se a coluna
+  // exige_devolucao_pecas ainda não existe, o PostgREST derruba a query
+  // inteira — refaz sem ela e desliga a fase de devolução nesta finalização,
+  // pra finalização padrão nunca quebrar.
+  let devolucaoDisponivel = true;
+  let { data: g, error: gErr } = await supabase
     .from(TBL_GARANTIAS)
-    .select('id, numero, status, id_ordem, tecnico_nome, retorno_fabrica_url, tecnico_horas, tecnico_km, valor_pago_pecas, montadora:garantia_montadoras(fluxo)')
+    .select('id, numero, status, id_ordem, tecnico_nome, retorno_fabrica_url, tecnico_horas, tecnico_km, valor_pago_pecas, montadora:garantia_montadoras(fluxo, exige_devolucao_pecas)')
     .eq('id', id)
     .maybeSingle();
+  if (gErr) {
+    devolucaoDisponivel = false;
+    const retry = await supabase
+      .from(TBL_GARANTIAS)
+      .select('id, numero, status, id_ordem, tecnico_nome, retorno_fabrica_url, tecnico_horas, tecnico_km, valor_pago_pecas, montadora:garantia_montadoras(fluxo)')
+      .eq('id', id)
+      .maybeSingle();
+    g = retry.data as unknown as typeof g;
+    gErr = retry.error;
+  }
+  if (gErr) {
+    console.error('Erro ao carregar garantia pra finalizar:', gErr.message);
+    return NextResponse.json({ error: 'Falha ao carregar a garantia.' }, { status: 500 });
+  }
   if (!g) return NextResponse.json({ error: 'Garantia não encontrada.' }, { status: 404 });
 
-  type MontFluxo = { fluxo?: string };
+  type MontFluxo = { fluxo?: string; exige_devolucao_pecas?: boolean };
   const mont = (g as unknown as { montadora?: MontFluxo | MontFluxo[] }).montadora;
-  const fluxoDuasEtapas = (Array.isArray(mont) ? mont[0] : mont)?.fluxo === 'duas_etapas';
+  const montObj = Array.isArray(mont) ? mont[0] : mont;
+  const fluxoDuasEtapas = montObj?.fluxo === 'duas_etapas';
+  // Devolução das peças à fábrica (prova de destruição): checkbox do drawer
+  // decide; sem o campo no body (cliente antigo), vale a flag da montadora.
+  const devolucaoPedida =
+    devolucaoDisponivel &&
+    (body.devolucao_pedida === undefined ? !!montObj?.exige_devolucao_pecas : body.devolucao_pedida === true);
   // 2ª etapa do fluxo duas_etapas: só horas/km em jogo — peças já resolvidas
   // no retorno-pecas (1ª etapa).
   const etapa2 = g.status === 'ressarcimento_fabrica';
@@ -114,6 +139,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // Na 2ª etapa (ressarcimento) as peças já foram resolvidas no retorno-pecas:
   // o valor pago das peças vem congelado da 1ª etapa e nunca é zerado.
   const vpEtapa1 = Number(g.valor_pago_pecas) || 0;
+  // Devolução: só aprovadas entram na fase; explícito nos dois ramos protege
+  // re-finalizações (ex.: reabrir-recusa) de herdar estado velho. Data em BRT
+  // (-3h antes do slice UTC), senão finalizar à noite grava D+31.
+  const prazoDevolucao = new Date(Date.now() - 3 * 3600000 + 30 * 86400000).toISOString().slice(0, 10);
+  if (devolucaoDisponivel) {
+    if (resultado === 'aprovada' && devolucaoPedida) {
+      update.devolucao_status = 'pendente';
+      update.devolucao_prazo = prazoDevolucao;
+    } else {
+      update.devolucao_status = 'nao_aplicavel';
+    }
+  }
   if (resultado === 'aprovada') {
     const vh = (gHoras ?? 0) * VALOR_HORA;
     const vk = (gKm ?? 0) * VALOR_KM;
@@ -194,7 +231,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     ator: body.garantista_nome || 'Garantista',
     detalhe:
       resultado === 'aprovada'
-        ? `Garantia aprovada — pago em garantia`
+        ? `Garantia aprovada — pago em garantia${devolucaoPedida ? ` · devolução das peças pendente (prazo ${prazoDevolucao.split('-').reverse().join('/')})` : ''}`
         : recusaInterna
           ? `Garantia recusada pelo garantista (sem enviar à fábrica) — ${motivoCurto}`
           : `Garantia recusada pela fábrica — ${motivoCurto}`,
@@ -214,7 +251,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   });
   await notificarGarantistas({
     titulo: `Garantia ${g.numero} finalizada (${resultado === 'aprovada' ? 'aprovada' : 'recusada'})`,
-    descricao: `OS ${g.id_ordem}`,
+    descricao: `OS ${g.id_ordem}${resultado === 'aprovada' && devolucaoPedida ? ` · devolver as peças à fábrica até ${prazoDevolucao.split('-').reverse().join('/')}` : ''}`,
     link: `/garantias?id=${id}`,
   });
 

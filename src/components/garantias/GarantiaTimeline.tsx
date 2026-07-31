@@ -14,6 +14,10 @@ const COR_EVENTO: Record<string, string> = {
   retorno_fabrica: '#8b5cf6',
   retorno_pecas: '#0d9488',
   ressarcimento_solicitado: '#c026d3',
+  devolucao_registrar: '#b45309',
+  devolucao_prazo: '#b45309',
+  devolucao_dispensar: '#64748b',
+  devolucao_reabrir: '#b45309',
   aprovada: '#16a34a',
   rejeitada: '#dc2626',
 };

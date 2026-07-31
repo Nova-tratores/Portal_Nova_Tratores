@@ -20,6 +20,7 @@ import GarantiaTimeline from './GarantiaTimeline';
 import CobrancaCliente from './CobrancaCliente';
 import SolicitacaoEmailSecao from './SolicitacaoEmailSecao';
 import ConversaFabrica from './ConversaFabrica';
+import DevolucaoPecasSecao from './DevolucaoPecasSecao';
 import { MSG_SEM_PERMISSAO } from '@/lib/permissoes/ui';
 
 interface Props {
@@ -116,6 +117,12 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
   // Retorno das peças (1ª etapa do fluxo duas_etapas): valor pago das peças
   // editável — vazio = usa a soma das peças marcadas.
   const [valorPecasStr, setValorPecasStr] = useState('');
+  // Devolução das peças à fábrica (prova de destruição): checkbox da
+  // finalização. Init-once por garantia+montadora via ref — carregar() roda
+  // após toda ação e um useState de prop resetaria o checkbox no meio da
+  // finalização.
+  const [devolucaoPedida, setDevolucaoPedida] = useState(false);
+  const devolucaoInitRef = useRef<string | null>(null);
 
   // Recusa interna (em_analise)
   const [recusaTexto, setRecusaTexto] = useState('');
@@ -231,6 +238,16 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
     }
   }, [g, sincronizarOS]);
 
+  // Pré-marca o checkbox de devolução das peças conforme a flag da montadora —
+  // 1x por garantia/montadora (não reseta a escolha do garantista a cada reload)
+  useEffect(() => {
+    if (!g) return;
+    const chave = `${g.id}:${g.montadora?.id ?? ''}`;
+    if (devolucaoInitRef.current === chave) return;
+    devolucaoInitRef.current = chave;
+    setDevolucaoPedida(!!g.montadora?.exige_devolucao_pecas);
+  }, [g]);
+
   async function uploadChecklistFile(file: File): Promise<string> {
     const fd = new FormData();
     fd.append('file', file);
@@ -244,7 +261,7 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
   // Centraliza o enforcement: cada ação do drawer mapeia pra uma permissão.
   function acaoPermitida(acao: string): boolean {
     if (acao === 'enviar' || acao === 'enviar_sg' || acao === 'solicitar_ressarcimento') return podeEnviarFabrica;
-    if (acao === 'finalizar' || acao === 'retorno_pecas' || acao === 'recusar_interno' || acao === 'reabrir_recusa' || acao.startsWith('cobranca_')) return podeFinalizar;
+    if (acao === 'finalizar' || acao === 'retorno_pecas' || acao === 'recusar_interno' || acao === 'reabrir_recusa' || acao.startsWith('cobranca_') || acao.startsWith('devolucao_')) return podeFinalizar;
     return podeAnalisar; // assumir, montadora, analise, pendencia, tipo_garantia, gerar_sg, atualizar_precos...
   }
 
@@ -332,7 +349,16 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
         pecas_aprovadas: resultado === 'aprovada' ? [...pecasAprovadas] : [],
         mo_aprovada: moAprovada,
         desloc_aprovado: deslocAprovado,
+        devolucao_pedida: devolucaoPedida,
       }),
+    });
+
+  // Devolução das peças à fábrica (registrar/prazo/dispensar/reabrir)
+  const acaoDevolucao = (acao: string, payload?: Record<string, unknown>) =>
+    chamar(`devolucao_${acao}`, `/api/garantias/${garantiaId}/devolucao`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ acao, ator: userName, ...payload }),
     });
 
   // 1ª etapa (fluxo duas_etapas): registra o retorno da fábrica sobre as peças
@@ -1488,6 +1514,20 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                           Recusar aqui nega só o ressarcimento — as peças aprovadas na 1ª etapa continuam pagas.
                         </span>
                       )}
+                      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 12, color: 'var(--portal-text-secondary)', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={devolucaoPedida}
+                          onChange={(e) => setDevolucaoPedida(e.target.checked)}
+                          style={{ marginTop: 2 }}
+                        />
+                        <span>
+                          Fábrica pediu a <strong>devolução das peças usadas</strong> (prova de destruição)
+                          <span style={{ display: 'block', fontSize: 10.5, color: 'var(--portal-text-faint)' }}>
+                            Aplica-se só se aprovar — o card vai pra fase &quot;Devolução de peças&quot; com prazo de 30 dias.
+                          </span>
+                        </span>
+                      </label>
                       <textarea
                         placeholder="Motivo da recusa (obrigatório se recusar)"
                         value={motivoRecusa}
@@ -1576,6 +1616,21 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                     Finalizada em {fmtDataHora(g.finalizada_em)}
                   </div>
                 </Secao>
+              )}
+
+              {/* Devolução das peças à fábrica (prova de destruição) — só em
+                  aprovadas em que a fábrica pediu (Ventura/Kuhn/Tatu) */}
+              {/* Lista explícita (e não !== 'nao_aplicavel'): pré-migration o
+                  campo vem undefined e a seção não pode aparecer vazia. */}
+              {g.status === 'aprovada' &&
+                (g.devolucao_status === 'pendente' || g.devolucao_status === 'enviada' || g.devolucao_status === 'dispensada') && (
+                <DevolucaoPecasSecao
+                  garantia={g}
+                  userName={userName}
+                  busy={busy}
+                  onAcao={acaoDevolucao}
+                  onAnexosChange={carregar}
+                />
               )}
 
               {/* Cobrança ao cliente: em recusadas, ou em aprovadas que não

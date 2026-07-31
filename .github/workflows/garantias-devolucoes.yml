@@ -1,0 +1,19 @@
+# Garantias — alerta de prazo da devolução de peças à fábrica (prova de
+# destruição, Ventura/Kuhn/Tatu). Roda 1x por dia; o rearme de 3 dias fica na
+# rota (devolucao_alertado_em).
+name: Garantias - Devolucao de pecas (alerta de prazo)
+
+on:
+  schedule:
+    - cron: '0 11 * * *'   # 08:00 BRT (-03)
+  workflow_dispatch: {}
+
+jobs:
+  alertar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Chamar rota do alerta de devolucoes
+        run: |
+          curl -fsS --max-time 300 -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/garantias/cron/devolucoes"

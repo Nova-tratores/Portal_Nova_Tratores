@@ -43,6 +43,10 @@ export interface CobrancaOutro {
   descricao: string;
   valor: number;
 }
+// Devolução das peças usadas à fábrica (prova de destruição) — pendência
+// anexa à garantia APROVADA (padrão da cobrança ao cliente; sem status novo).
+export type DevolucaoStatus = 'nao_aplicavel' | 'pendente' | 'enviada' | 'dispensada';
+
 export type PendenciaTipo = 'bo' | 'info_fabrica';
 export type PendenciaStatus = 'aberta' | 'respondida';
 export type PecaOrigem = 'ppv' | 'pecasinfo_manual';
@@ -56,7 +60,8 @@ export type AnexoCategoria =
   | 'envio_fabrica'
   | 'foto_garantista'
   | 'nf_venda'        // NF de venda do equipamento (fluxo e-mail)
-  | 'relatorio_at';   // Relatório de Assistência Técnica (fluxo e-mail)
+  | 'relatorio_at'    // Relatório de Assistência Técnica (fluxo e-mail)
+  | 'devolucao_pecas'; // comprovante do envio das peças de volta à fábrica
 
 // --- Checklist configurável por montadora -----------------------------------
 export type ChecklistFieldTipo =
@@ -91,6 +96,7 @@ export interface Montadora {
   ativo: boolean;
   fluxo: MontadoraFluxo;
   ressarcimento_por_email: boolean;
+  exige_devolucao_pecas: boolean;
   checklist_def: ChecklistField[];
   cor: string | null;
   logo_url: string | null;
@@ -232,6 +238,15 @@ export interface Garantia {
   cobranca_pago_em: string | null;
   cobranca_baixada_em: string | null;
   cobranca_obs: string | null;
+  // Devolução das peças à fábrica (prova de destruição) — só em aprovadas
+  devolucao_status: DevolucaoStatus;
+  devolucao_prazo: string | null;          // DATE (YYYY-MM-DD)
+  devolucao_enviada_em: string | null;
+  devolucao_nf: string | null;
+  devolucao_transportadora: string | null;
+  devolucao_rastreio: string | null;
+  devolucao_obs: string | null;
+  devolucao_alertado_em: string | null;    // DATE — controle anti-spam do alerta
   created_at: string;
   updated_at: string;
 }

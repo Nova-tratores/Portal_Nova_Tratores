@@ -6,29 +6,49 @@ import { registrarEvento, notificarGarantistas } from '@/lib/garantias/server';
 // GET /api/garantias?status=&os=&chassis=&montadora=&tecnico=&finalizadas=
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
-  let query = supabase
-    .from(TBL_GARANTIAS)
-    .select(
-      '*, montadora:garantia_montadoras(id,nome,cor), pecas:garantia_pecas(id), pendencias:garantia_pendencias(id,tipo,status,descricao,exige_visita), anexos:garantia_anexos(id,categoria,url,nome_arquivo,created_at)'
-    )
-    .order('created_at', { ascending: false });
 
-  const status = sp.get('status');
-  const os = sp.get('os');
-  const chassis = sp.get('chassis');
-  const montadora = sp.get('montadora');
-  const tecnico = sp.get('tecnico');
-  const finalizadas = sp.get('finalizadas');
+  const montarQuery = (comDevolucao: boolean) => {
+    let query = supabase
+      .from(TBL_GARANTIAS)
+      .select(
+        '*, montadora:garantia_montadoras(id,nome,cor), pecas:garantia_pecas(id), pendencias:garantia_pendencias(id,tipo,status,descricao,exige_visita), anexos:garantia_anexos(id,categoria,url,nome_arquivo,created_at)'
+      )
+      .order('created_at', { ascending: false });
 
-  if (status) query = query.eq('status', status);
-  if (os) query = query.eq('id_ordem', os);
-  if (chassis) query = query.ilike('chassis', `%${chassis}%`);
-  if (montadora) query = query.eq('montadora_id', montadora);
-  if (tecnico) query = query.eq('tecnico_nome', tecnico);
-  if (finalizadas === 'true') query = query.in('status', STATUS_FINALIZADOS);
-  if (finalizadas === 'false') query = query.not('status', 'in', `(${STATUS_FINALIZADOS.join(',')})`);
+    const status = sp.get('status');
+    const os = sp.get('os');
+    const chassis = sp.get('chassis');
+    const montadora = sp.get('montadora');
+    const tecnico = sp.get('tecnico');
+    const finalizadas = sp.get('finalizadas');
 
-  const { data, error } = await query;
+    if (status) query = query.eq('status', status);
+    if (os) query = query.eq('id_ordem', os);
+    if (chassis) query = query.ilike('chassis', `%${chassis}%`);
+    if (montadora) query = query.eq('montadora_id', montadora);
+    if (tecnico) query = query.eq('tecnico_nome', tecnico);
+    if (finalizadas === 'true') query = query.in('status', STATUS_FINALIZADOS);
+    if (finalizadas === 'false') {
+      // O kanban puxa também as APROVADAS com devolução de peças pendente
+      // (fase "Devolução de peças" — coluna virtual do board)
+      if (comDevolucao) {
+        query = query.or(
+          `status.not.in.(${STATUS_FINALIZADOS.join(',')}),and(status.eq.aprovada,devolucao_status.eq.pendente)`
+        );
+      } else {
+        query = query.not('status', 'in', `(${STATUS_FINALIZADOS.join(',')})`);
+      }
+    }
+    return query;
+  };
+
+  let { data, error } = await montarQuery(true);
+  if (error) {
+    // Fallback: migration add-garantia-devolucao-pecas ainda não aplicada
+    // (coluna devolucao_status inexistente) — kanban não pode cair por isso.
+    console.warn('Listagem com devolução falhou, usando filtro antigo:', error.message);
+    ({ data, error } = await montarQuery(false));
+  }
   if (error) {
     console.error('Erro ao listar garantias:', error.message);
     return NextResponse.json({ error: 'Falha ao listar garantias.' }, { status: 500 });

@@ -5,13 +5,19 @@ import { STATUS_LABEL, STATUS_COR } from '@/lib/garantias/constants';
 import GarantiaMiniCard from './GarantiaMiniCard';
 import { useIsMobile } from '@/hooks/useIsMobile';
 
-const COLUNAS: GarantiaStatus[] = [
+// 'devolucao_pecas' é coluna VIRTUAL (não é status): garantias APROVADAS com
+// devolução das peças à fábrica pendente (prova de destruição).
+type Coluna = GarantiaStatus | 'devolucao_pecas';
+
+const COLUNAS: Coluna[] = [
   'aberta', 'em_analise', 'bo_tecnico', 'enviada', 'info_pendente',
-  'aguardando_servico', 'ressarcimento_fabrica',
+  'aguardando_servico', 'ressarcimento_fabrica', 'devolucao_pecas',
 ];
-// Fases do fluxo duas_etapas: só aparecem quando têm card (o board não alarga
-// pra quem só usa montadoras de fluxo padrão).
-const COLUNAS_CONDICIONAIS: GarantiaStatus[] = ['aguardando_servico', 'ressarcimento_fabrica'];
+// Fases que só aparecem quando têm card (o board não alarga pra quem não usa).
+const COLUNAS_CONDICIONAIS: Coluna[] = ['aguardando_servico', 'ressarcimento_fabrica', 'devolucao_pecas'];
+
+const COL_LABEL: Record<Coluna, string> = { ...STATUS_LABEL, devolucao_pecas: 'Devolução de peças' };
+const COL_COR: Record<Coluna, string> = { ...STATUS_COR, devolucao_pecas: '#b45309' };
 
 interface Props {
   garantias: GarantiaResumo[];
@@ -24,7 +30,10 @@ export default function GarantiasBoard({ garantias, onCardClick }: Props) {
     const map: Record<string, GarantiaResumo[]> = {};
     for (const col of COLUNAS) map[col] = [];
     for (const g of garantias) {
-      if (map[g.status]) map[g.status].push(g);
+      // Aprovada com devolução pendente vai pra coluna virtual (sem isso ela
+      // sumiria do board em silêncio — 'aprovada' não tem coluna própria)
+      const col = g.status === 'aprovada' && g.devolucao_status === 'pendente' ? 'devolucao_pecas' : g.status;
+      if (map[col]) map[col].push(g);
     }
     return map;
   }, [garantias]);
@@ -57,14 +66,14 @@ export default function GarantiasBoard({ garantias, onCardClick }: Props) {
               justifyContent: 'space-between',
               padding: '8px 10px',
               borderRadius: 8,
-              background: STATUS_COR[col] + '14',
-              borderBottom: `2px solid ${STATUS_COR[col]}`,
+              background: COL_COR[col] + '14',
+              borderBottom: `2px solid ${COL_COR[col]}`,
             }}
           >
-            <span style={{ fontSize: 12, fontWeight: 700, color: STATUS_COR[col], textTransform: 'uppercase', letterSpacing: 0.3 }}>
-              {STATUS_LABEL[col]}
+            <span style={{ fontSize: 12, fontWeight: 700, color: COL_COR[col], textTransform: 'uppercase', letterSpacing: 0.3 }}>
+              {COL_LABEL[col]}
             </span>
-            <span style={{ fontSize: 11, fontWeight: 700, color: STATUS_COR[col], background: 'var(--portal-bg-card)', borderRadius: 10, padding: '1px 8px' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: COL_COR[col], background: 'var(--portal-bg-card)', borderRadius: 10, padding: '1px 8px' }}>
               {porColuna[col].length}
             </span>
           </div>

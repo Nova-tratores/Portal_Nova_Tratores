@@ -2,7 +2,7 @@
 import { Package, AlertTriangle, Clock, Factory } from 'lucide-react';
 import type { GarantiaResumo } from '@/lib/garantias/types';
 import { STATUS_LABEL, STATUS_COR } from '@/lib/garantias/constants';
-import { tempoDecorrido, diasEntre } from '@/lib/garantias/format';
+import { tempoDecorrido, diasEntre, diasAte } from '@/lib/garantias/format';
 
 interface Props {
   garantia: GarantiaResumo;
@@ -13,6 +13,9 @@ export default function GarantiaMiniCard({ garantia: g, onClick }: Props) {
   const pendenciaAberta = g.pendencias?.some((p) => p.status === 'aberta');
   const naFabrica = g.status === 'enviada' || g.status === 'info_pendente' || g.status === 'ressarcimento_fabrica';
   const diasFabrica = naFabrica ? diasEntre(g.enviada_fabrica_em) : null;
+  // Devolução das peças à fábrica pendente (coluna virtual do board)
+  const devolucaoPendente = g.status === 'aprovada' && g.devolucao_status === 'pendente';
+  const diasDevolucao = devolucaoPendente ? diasAte(g.devolucao_prazo) : null;
 
   return (
     <div
@@ -77,6 +80,24 @@ export default function GarantiaMiniCard({ garantia: g, onClick }: Props) {
         {pendenciaAberta && (
           <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 700, color: '#f59e0b' }}>
             <AlertTriangle size={11} /> Aguardando técnico
+          </span>
+        )}
+        {devolucaoPendente && (
+          <span
+            style={{
+              display: 'flex', alignItems: 'center', gap: 3,
+              fontSize: 10, fontWeight: 700,
+              color: diasDevolucao != null && diasDevolucao < 0 ? '#dc2626' : '#b45309',
+            }}
+          >
+            <AlertTriangle size={11} />
+            {diasDevolucao == null
+              ? 'Devolver peças'
+              : diasDevolucao < 0
+                ? `Devolução vencida há ${Math.abs(diasDevolucao)}d`
+                : diasDevolucao === 0
+                  ? 'Devolver peças · vence hoje'
+                  : `Devolver peças · ${diasDevolucao}d`}
           </span>
         )}
       </div>
