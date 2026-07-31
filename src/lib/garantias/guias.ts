@@ -20,11 +20,12 @@ export interface SecaoGuia {
 }
 
 // Acesso a portal externo da montadora (Extranet etc.) — mostrado num bloco
-// destacado no topo do guia.
+// destacado no topo do guia. usuario/senha são opcionais (a Tatu, por ex.,
+// tem formulário aberto, sem login).
 export interface AcessoPortal {
   url: string;
-  usuario: string;
-  senha: string;
+  usuario?: string;
+  senha?: string;
   observacao?: string;
 }
 
@@ -255,6 +256,89 @@ const GUIAS: Record<string, GuiaMontadora> = {
       'O Certificado de Entrega Técnica deve ser registrado no Extranet em até 3 dias úteis após a entrega — sem ele a solicitação nem é avaliada.',
       'Abertura de componentes invioláveis (blocos, bombas, motores, redutores, elétricos/eletrônicos) sem autorização prévia = perda da garantia. Foto de bancada só com autorização.',
       'Kit de revisão programada e peças genuínas KUHN são obrigatórios nas revisões — senão a máquina perde a garantia.',
+    ],
+  },
+
+  tatu: {
+    slug: 'tatu',
+    titulo: 'Tatu Marchesan',
+    resumo:
+      'A Tatu NÃO ressarce mão de obra nem deslocamento — SÓ PEÇAS. Por isso a estratégia é sempre ' +
+      'tentar que a ASSISTÊNCIA DA FÁBRICA execute a montagem/serviço no cliente, em vez do nosso técnico ' +
+      '(gasto de M.O. que ninguém paga). A solicitação é feita no site aberto deles (Canal de Suporte ao ' +
+      'Produto, sem login) e as respostas chegam por E-MAIL: um com o número da solicitação e, se aprovar, ' +
+      'outro confirmando. A maioria das peças volta pra fábrica — e TODA solicitação exige a NF de retorno.',
+    acesso: {
+      url: 'https://assistencia.marchesan.com.br/',
+      observacao: 'Formulário aberto — não precisa de login, só do captcha no fim. O acompanhamento fica em "Consulta Solicitação", no topo do site.',
+    },
+    documentos: [
+      'Dados do cliente: nome, CPF/CNPJ, e-mail, telefone, município/UF',
+      'Nº de série igual ao da PLAQUETA do implemento + nº da NF de venda',
+      'Horas trabalhadas e dados do trator que puxa o implemento (marca, modelo, cavalos, ano)',
+      'Fotos: plaqueta de identificação, item com a falha (e checklist, se for componente faltante) — máx. 5 arquivos de 3Mb (jpg/png/pdf/mp4), pelo menos 1 é obrigatório',
+    ],
+    passos: [
+      {
+        titulo: 'Antes de tudo: tente puxar a fábrica pro serviço',
+        descricao:
+          'A Tatu não paga a nossa mão de obra. Se o caso envolve montagem/reparo no cliente, negocie com o suporte deles pra que a PRÓPRIA FÁBRICA faça o serviço em campo — nós só entramos quando não der de outro jeito.',
+        dica: 'Registre essa tratativa no card (observações) — é o que justifica o gasto quando o nosso técnico precisar ir.',
+      },
+      {
+        titulo: 'Assuma a análise no portal',
+        descricao: 'Abra a garantia aqui, assuma e confira as peças e o relato sincronizados da OS. O relato do Tratorilson serve de base pra Descrição do formulário.',
+      },
+      {
+        titulo: 'Abra o Canal de Suporte da Marchesan',
+        descricao: 'Acesse o site (link acima) e preencha os Dados do Proprietário com os dados do CLIENTE (nome, CPF/CNPJ, e-mail, telefone, município/UF). Em "Onde está o produto?", marque "Cliente final" — ou "Estoque de revendedor" se a máquina ainda estiver no nosso pátio.',
+      },
+      {
+        titulo: 'Responsável pela reclamação = nós',
+        descricao: 'Nos Dados do responsável pela reclamação vão os NOSSOS dados (garantista da Nova Tratores): nome, e-mail do pós-vendas, município/UF e telefone — é pra esse e-mail que a Tatu responde.',
+      },
+      {
+        titulo: 'Dados da Solicitação',
+        descricao:
+          'Aba "Implemento" (ou "Peças de Reposição" pra peça comprada no balcão). Preencha o Nº de Série EXATAMENTE igual ao da plaqueta, o Nº da Nota (NF de venda), identifique o produto e as Horas Trabalhadas. Marque o(s) tipo(s) de problema (Mecânico, Hidráulico, Elétrico, Estrutural, Componente faltante, Outros).',
+        dica: 'Os links "Catálogo Peças Marchesan" e "Catálogo Peças Civemasa" no próprio formulário ajudam a achar o código certo das peças.',
+      },
+      {
+        titulo: 'Descrição + dados do trator',
+        descricao:
+          'Na Descrição (até 1200 caracteres) conte a falha, a provável causa e as ações tomadas — use o relato do Tratorilson e cite os códigos das peças. Depois preencha os Dados do Trator (marca, modelo, cavalos, ano) e responda "É uma Plaina?".',
+      },
+      {
+        titulo: 'Anexos + captcha + enviar',
+        descricao:
+          'Anexe a foto da plaqueta, a foto do item com a falha e, se for componente faltante, a foto do checklist. Máximo 5 arquivos de 3Mb cada (jpg, jpeg, png, pdf, mp4) — pelo menos 1 é obrigatório. Resolva o captcha e clique em Enviar.',
+        dica: 'Vídeo curto (mp4 até 3Mb) da falha em funcionamento ajuda muito na aprovação.',
+      },
+      {
+        titulo: 'Anote o número e acompanhe pelo e-mail',
+        descricao:
+          'Depois do envio chega um E-MAIL com o número da solicitação — anote no card da garantia aqui do portal. Se aprovar, chega outro e-mail confirmando. Dá pra consultar também em "Consulta Solicitação" no site.',
+      },
+      {
+        titulo: 'Marque o card como enviado à fábrica',
+        descricao:
+          'De volta ao portal, clique em "Enviar à fábrica" no card (precisa da montadora definida e do checklist completo) — ele vai pra "Em análise da fábrica". Na Tatu o envio de verdade foi o formulário do site; esse clique só registra isso no nosso fluxo — mas sem ele a tela de finalizar (anexar retorno, marcar peças aprovadas) não aparece.',
+      },
+      {
+        titulo: 'Registre o retorno e finalize',
+        descricao:
+          'Com a resposta da fábrica, anexe a confirmação no card, marque as peças aprovadas e finalize. Horas e km ficam de fora — a Tatu não paga M.O./deslocamento.',
+      },
+      {
+        titulo: 'Devolva as peças usadas (com NF sempre)',
+        descricao:
+          'A MAIORIA das peças precisa voltar fisicamente pra fábrica, e 100% das solicitações exigem a NOTA FISCAL DE RETORNO — mesmo quando a peça em si não volta. Use a fase "Devolução de peças" do card (ela abre sozinha ao aprovar) pra registrar NF, transportadora e comprovante sem perder o prazo.',
+      },
+    ],
+    observacoes: [
+      'Tatu NÃO ressarce mão de obra nem km — só peças. Todo serviço que a fábrica puder fazer no cliente é dinheiro que não sai do nosso bolso.',
+      'O card da garantia entra automaticamente na fase "Devolução de peças" ao ser aprovado (a flag da Tatu já está ligada) — o sininho avisa quando o prazo estiver chegando.',
+      'As respostas chegam por e-mail no endereço informado como responsável pela reclamação — use o e-mail do pós-vendas pra resposta cair na nossa caixa.',
     ],
   },
 

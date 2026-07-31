@@ -159,10 +159,12 @@ export default function GuiaMontadoraModal({ montadoraNome, onClose }: Props) {
               >
                 {guia.acesso.url} <ExternalLink size={13} style={{ flexShrink: 0 }} />
               </a>
-              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 13, color: 'var(--portal-text)' }}>
-                <span>Usuário: <strong style={{ fontFamily: 'monospace' }}>{guia.acesso.usuario}</strong></span>
-                <span>Senha: <strong style={{ fontFamily: 'monospace' }}>{guia.acesso.senha}</strong></span>
-              </div>
+              {(guia.acesso.usuario || guia.acesso.senha) && (
+                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 13, color: 'var(--portal-text)' }}>
+                  {guia.acesso.usuario && <span>Usuário: <strong style={{ fontFamily: 'monospace' }}>{guia.acesso.usuario}</strong></span>}
+                  {guia.acesso.senha && <span>Senha: <strong style={{ fontFamily: 'monospace' }}>{guia.acesso.senha}</strong></span>}
+                </div>
+              )}
               {guia.acesso.observacao && (
                 <div style={{ fontSize: 12, color: 'var(--portal-text-secondary)' }}>{guia.acesso.observacao}</div>
               )}
