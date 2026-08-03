@@ -69,6 +69,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const ppvId = safeGet(row, "ID_PPV") as string;
   const listaIds = String(ppvId || "").split(",").map((s: string) => s.trim()).filter(Boolean);
   let produtosHtml = "";
+  let pecasSignRows = ""; // linhas das peças na folha de assinatura (com checkbox "não usado")
   let totalPecas = 0;
 
   if (listaIds.length) {
@@ -101,6 +102,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           </table>
         </div>
         <hr class="sep">`;
+    }
+    if (comPecas && prods.length > 0) {
+      pecasSignRows = prods.map(([, p]) => `<tr><td>${p.qtde}× ${p.desc}</td><td style="text-align:center"><span class="chk"></span></td><td style="text-align:right">R$ ${p.total.toFixed(2)}</td></tr>`).join("");
     }
   }
 
@@ -180,6 +184,64 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     ? { cor: "#7C3AED", clara: "#C4B5FD", titulo: "Comprovante de Conclusão", sub: "Ordem Interna — Uso Interno" }
     : { cor: "#1E3A5F", clara: "#93C5FD", titulo: "Ordem de Serviço", sub: "Ordem de Serviço — Pós-Vendas" };
 
+  // Folha de assinatura (Modelo "Limpo") — sai SEMPRE junto com a OS, numa nova página.
+  const servTextoAssin = (servRealizado || servSolicitado || "").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const assinaturaHtml = `
+  <div class="sign-page">
+    <div class="header">
+      <div>
+        <div class="company-name">Nova Tratores</div>
+        <div class="company-sub">Termo de conclusão de serviço</div>
+      </div>
+      <div class="doc-box">
+        <div class="doc-label">Ordem de Serviço</div>
+        <div class="doc-number">${id}</div>
+        <div class="doc-meta">${data}</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Cliente</div>
+      <div class="field"><div class="val-name">${cliente.toUpperCase()}</div></div>
+      <div class="info-grid" style="margin-top:4px">
+        <div class="field"><div class="lbl">CPF / CNPJ</div><div class="val">${cpf}</div></div>
+        <div class="field span2"><div class="lbl">Endereço</div><div class="val">${endereco}</div></div>
+        <div class="field"><div class="lbl">Tipo de serviço</div><div class="val">${tipoServico}${revisao ? ` — ${revisao}` : ""}</div></div>
+        <div class="field"><div class="lbl">Técnico</div><div class="val">${tecnico}${tecnico2 ? ` / ${tecnico2}` : ""}</div></div>
+        <div class="field"><div class="lbl">Data</div><div class="val">${data}</div></div>
+      </div>
+    </div>
+
+    <hr class="sep">
+
+    ${servTextoAssin ? `<div class="section">
+      <div class="section-title">Serviços executados</div>
+      <div class="obs-box">${servTextoAssin}</div>
+    </div>` : ""}
+
+    ${pecasSignRows ? `<div class="section" style="margin-top:10px">
+      <div class="section-title">Peças utilizadas</div>
+      <table class="cost-table">
+        <thead><tr><th>Peça</th><th style="text-align:center">Não usado</th><th style="text-align:right">Valor</th></tr></thead>
+        <tbody>${pecasSignRows}</tbody>
+      </table>
+    </div>` : ""}
+
+    <div class="total-row" style="margin-top:12px">
+      <div><div class="total-lbl">Total da ordem</div></div>
+      <div class="total-val" style="font-size:18pt">R$ ${totalCalculado.toFixed(2)}</div>
+    </div>
+
+    <div class="aviso">Importante: as peças que não forem utilizadas serão retiradas do orçamento final — o mesmo vale para as horas. Da mesma forma, caso sejam necessárias mais horas ou peças, elas serão acrescentadas ao valor final.</div>
+
+    <div class="declar">Declaro que os serviços descritos acima foram <b>executados e conferidos</b>, e que recebi o equipamento em condições de uso. Autorizo a cobrança dos valores correspondentes.</div>
+
+    <div class="signs">
+      <div><div class="sign-line"></div><div class="sign-name">${cliente.toUpperCase()}</div><div class="sign-role">Cliente — assinatura e data</div></div>
+      <div><div class="sign-line"></div><div class="sign-name">${tecnico}${tecnico2 ? ` / ${tecnico2}` : ""}</div><div class="sign-role">Técnico responsável</div></div>
+    </div>
+  </div>`;
+
   const html = `<!DOCTYPE html>
 <html lang="pt-BR"><head><meta charset="UTF-8"><title>${servicoInterno ? "Comprovante Interno" : "OS"} ${id} - ${cliente}</title>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
@@ -227,6 +289,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   .cancel-reason { margin-top: 8px; padding: 8px 10px; background: #FEE2E2; border: 1px solid #FECACA; color: #991B1B; font-size: 9pt; }
 
   .footer { margin-top: 24px; text-align: center; font-size: 7pt; color: #ccc; letter-spacing: 0.5px; }
+
+  /* Folha de assinatura (2ª página) */
+  .sign-page { page-break-before: always; padding-top: 4px; }
+  .chk { display: inline-block; width: 12px; height: 12px; border: 1.4px solid #333; border-radius: 2px; vertical-align: -1px; }
+  .declar { font-size: 8.5pt; color: #444; line-height: 1.6; margin: 16px 0; background: #f7f7f7; border: 1px solid #eee; padding: 10px 12px; border-radius: 6px; }
+  .aviso { margin-top: 14px; padding: 12px 15px; border: 1.5px solid #C41E2A; background: #FFF5F5; border-radius: 6px; color: #C41E2A; font-size: 11pt; font-weight: 600; line-height: 1.55; }
+  .signs { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; margin-top: 10px; }
+  .sign-line { border-top: 1.4px solid #000; margin-top: 44px; padding-top: 5px; }
+  .sign-name { font-size: 10pt; font-weight: 700; color: #000; }
+  .sign-role { font-size: 7pt; color: #888; text-transform: uppercase; letter-spacing: 0.6px; margin-top: 1px; }
   @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; padding: 0; } }
 </style>
 <script>window.onload = function() { window.print(); }</script>
@@ -341,6 +413,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       <div class="total-val">R$ ${totalCalculado.toFixed(2)}</div>
     </div>
   </div>
+
+  ${assinaturaHtml}
 
   <div class="footer">Documento gerado pelo Sistema POS &mdash; Nova Tratores</div>
 

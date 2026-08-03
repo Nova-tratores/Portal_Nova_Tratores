@@ -113,6 +113,12 @@ function ClientesPageInner() {
   const [search, setSearch] = useState('')
   const [empresaFilter, setEmpresaFilter] = useState('')
   const [copiadoContato, setCopiadoContato] = useState<string | null>(null)
+  // Abas: lista de clientes × lista de máquinas (projetos)
+  const [aba, setAba] = useState<'clientes' | 'maquinas'>('clientes')
+  const [maquinas, setMaquinas] = useState<any[]>([])
+  const [maquinasLoad, setMaquinasLoad] = useState(false)
+  const [maquinasCarregou, setMaquinasCarregou] = useState(false)
+  const [buscaMaq, setBuscaMaq] = useState('')
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null)
   const [ordens, setOrdens] = useState<OrdemServico[]>([])
   const [pedidos, setPedidos] = useState<PedidoVenda[]>([])
@@ -297,6 +303,16 @@ function ClientesPageInner() {
     setLoading(true)
     try { const res = await fetch('/api/clientes'); const data = await res.json(); setClientes(data.clientes || []); return data.clientes?.length || 0 } catch {} setLoading(false); return 0
   }, [])
+  // Aba "Por Máquina": lista todos os projetos/máquinas de todos os clientes (carrega sob demanda).
+  const carregarMaquinas = useCallback(async () => {
+    setMaquinasLoad(true)
+    try { const res = await fetch('/api/clientes/projetos-resumo'); const data = await res.json(); setMaquinas(data.todos_projetos || []); setMaquinasCarregou(true) } catch {}
+    setMaquinasLoad(false)
+  }, [])
+  const trocarAba = (nova: 'clientes' | 'maquinas') => {
+    setAba(nova)
+    if (nova === 'maquinas' && !maquinasCarregou && !maquinasLoad) carregarMaquinas()
+  }
   const syncBackground = useCallback(async () => {
     if (syncing) return; setSyncing(true); setSyncStatus('Atualizando dados...')
     try { const res = await fetch('/api/clientes/sync', { method: 'POST' }); const data = await res.json(); if (data.sucesso) { await carregarLista(); setSyncStatus('Atualizado'); setTimeout(() => setSyncStatus(''), 3000) } } catch {} setSyncing(false)
@@ -574,6 +590,12 @@ function ClientesPageInner() {
     return [...porDoc.values(), ...semDoc]
   })()
   const empresas = [...new Set(clientes.map(c => c.empresa))]
+  const maquinasFiltradas = maquinas.filter(m => {
+    const t = buscaMaq.toLowerCase()
+    const okBusca = !buscaMaq || (m.nome || '').toLowerCase().includes(t) || (m.cliente?.nome || '').toLowerCase().includes(t) || (m.cliente?.cidade || '').toLowerCase().includes(t)
+    const okEmp = !empresaFilter || m.empresa === empresaFilter
+    return okBusca && okEmp
+  })
   const copiarContato = (e: React.MouseEvent, texto: string) => {
     e.stopPropagation()
     navigator.clipboard?.writeText(texto).then(() => {
@@ -2506,6 +2528,22 @@ function ClientesPageInner() {
   // ============ LISTA DE CLIENTES ============
   return (
     <div style={{ padding: '16px 32px 32px', width: '100%', boxSizing: 'border-box' }}>
+      {/* Abas: Clientes × Por Máquina (estilo aba de navegador) */}
+      <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end', marginBottom: 16 }}>
+        {([{ id: 'clientes', label: 'Clientes', icon: <Users size={16} /> }, { id: 'maquinas', label: 'Por Máquina', icon: <Wrench size={16} /> }] as const).map(t => {
+          const on = aba === t.id
+          return (
+            <button key={t.id} onClick={() => trocarAba(t.id)}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 22px 12px', border: '1px solid var(--portal-border)', borderBottom: on ? '1px solid var(--portal-bg-card)' : '1px solid var(--portal-border)', borderRadius: '12px 12px 0 0', cursor: 'pointer', fontSize: 14, fontWeight: 700, background: on ? 'var(--portal-bg-card)' : 'var(--portal-bg-secondary)', color: on ? '#dc2626' : 'var(--portal-text-secondary)', position: 'relative', top: 1 }}>
+              {t.icon} {t.label}
+            </button>
+          )
+        })}
+        <div style={{ flex: 1, borderBottom: '1px solid var(--portal-border)', alignSelf: 'stretch' }} />
+      </div>
+      <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
+
+      {aba === 'clientes' && (<>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 18, flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', flex: 1, minWidth: 260 }}>
           <Search size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--portal-text-secondary)' }} />
@@ -2651,6 +2689,87 @@ function ClientesPageInner() {
           )}
         </div>
       )}
+      </>)}
+
+      {/* ===== ABA POR MÁQUINA ===== */}
+      {aba === 'maquinas' && (<>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 18, flexWrap: 'wrap' }}>
+        <div style={{ position: 'relative', flex: 1, minWidth: 260 }}>
+          <Search size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--portal-text-secondary)' }} />
+          <input type="text" placeholder="Buscar máquina por modelo/chassi, cliente ou cidade..."
+            value={buscaMaq} onChange={ev => setBuscaMaq(ev.target.value)}
+            style={{ width: '100%', padding: '12px 14px 12px 40px', borderRadius: 12, border: '1px solid var(--portal-border)', color: 'var(--portal-text)', fontSize: 14, outline: 'none', background: 'var(--portal-bg-card)', boxSizing: 'border-box' }} />
+        </div>
+        {empresas.length > 1 && (
+          <select value={empresaFilter} onChange={ev => setEmpresaFilter(ev.target.value)}
+            style={{ padding: '12px 16px', borderRadius: 12, border: '1px solid var(--portal-border)', color: 'var(--portal-text)', fontSize: 13, cursor: 'pointer', outline: 'none', background: 'var(--portal-bg-card)' }}>
+            <option value="">Todas empresas</option>
+            {empresas.map(emp => <option key={emp} value={emp}>{emp}</option>)}
+          </select>
+        )}
+        <button onClick={carregarMaquinas} disabled={maquinasLoad} title="Atualizar máquinas"
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 44, height: 44, borderRadius: 12, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text-secondary)', cursor: maquinasLoad ? 'not-allowed' : 'pointer' }}>
+          <RefreshCw size={16} style={maquinasLoad ? { animation: 'spin 1s linear infinite' } : {}} />
+        </button>
+      </div>
+
+      {maquinasLoad ? (
+        <div style={{ padding: 80, textAlign: 'center', color: '#9CA3AF', fontSize: 15 }}>
+          <RefreshCw size={24} style={{ animation: 'spin 1s linear infinite', marginBottom: 12 }} />
+          <div>Carregando máquinas...</div>
+        </div>
+      ) : maquinasFiltradas.length === 0 ? (
+        <div style={{ padding: 80, textAlign: 'center', color: '#9CA3AF', fontSize: 15 }}>
+          {maquinas.length === 0 ? 'Nenhuma máquina encontrada.' : 'Nenhuma máquina para esse filtro.'}
+        </div>
+      ) : (
+        <div style={{ border: isMobile ? 'none' : '1px solid var(--portal-border)', borderRadius: 14, overflow: 'hidden', background: isMobile ? 'transparent' : 'var(--portal-bg-card)', boxShadow: isMobile ? 'none' : '0 1px 3px var(--portal-shadow)', display: isMobile ? 'flex' : 'block', flexDirection: 'column', gap: isMobile ? 10 : 0 }}>
+          {!isMobile && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 200px 140px 60px 120px 130px 24px', columnGap: 16, padding: '12px 20px', background: 'var(--portal-bg-secondary)', borderBottom: '1px solid var(--portal-border)', fontSize: 11, color: 'var(--portal-text-secondary)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.5, alignItems: 'center' }}>
+              <span>Máquina</span><span>Cliente</span><span>Cidade</span><span style={{ textAlign: 'center' }}>OS</span><span style={{ textAlign: 'right' }}>Valor</span><span style={{ textAlign: 'center' }}>NF pend.</span><span></span>
+            </div>
+          )}
+          {maquinasFiltradas.slice(0, 300).map((m, idx) => {
+            const pend = (m.nf_servico_pendente || 0) + (m.nf_peca_pendente || 0)
+            const abrir = () => router.push(`/clientes/projeto?nome=${encodeURIComponent(m.nome || '')}&empresa=${encodeURIComponent(m.empresa || '')}`)
+            return isMobile ? (
+              <div key={`${m.codigo}-${m.empresa}-${idx}`} onClick={abrir} style={{ border: '1px solid var(--portal-border)', borderRadius: 12, background: 'var(--portal-bg-card)', padding: 14, cursor: 'pointer' }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text)' }}>{m.nome || '—'}{m.inativo ? ' (inativo)' : ''}</div>
+                <div style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)', marginTop: 2 }}>{m.cliente?.nome || '—'}{m.cliente?.cidade ? ` · ${m.cliente.cidade}` : ''}</div>
+                <div style={{ display: 'flex', gap: 14, marginTop: 8, alignItems: 'center', fontSize: 13 }}>
+                  <span style={{ color: 'var(--portal-text-secondary)' }}>OS: <b style={{ color: 'var(--portal-text)' }}>{m.os_total || 0}</b></span>
+                  <span style={{ color: 'var(--portal-text-secondary)' }}>{m.valor_total > 0 ? formatCurrency(m.valor_total) : '-'}</span>
+                  {pend > 0 && <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 700, color: '#B45309', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 999, padding: '2px 10px' }}>{pend} NF pend.</span>}
+                </div>
+              </div>
+            ) : (
+              <div key={`${m.codigo}-${m.empresa}-${idx}`} onClick={abrir}
+                style={{ display: 'grid', gridTemplateColumns: '1fr 200px 140px 60px 120px 130px 24px', columnGap: 16, padding: '14px 20px', borderBottom: '1px solid var(--portal-border)', cursor: 'pointer', alignItems: 'center' }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.nome || '—'}{m.inativo ? ' (inativo)' : ''}</div>
+                  <div style={{ fontSize: 11.5, color: 'var(--portal-text-muted)' }}>{m.empresa}</div>
+                </div>
+                <div style={{ fontSize: 13, color: 'var(--portal-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.cliente?.nome || '—'}</div>
+                <div style={{ fontSize: 13, color: 'var(--portal-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.cliente?.cidade || '—'}</div>
+                <div style={{ textAlign: 'center', fontSize: 14, fontWeight: 600, color: 'var(--portal-text)' }}>{m.os_total || 0}</div>
+                <div style={{ textAlign: 'right', fontSize: 14, fontWeight: 600, color: 'var(--portal-text)' }}>{m.valor_total > 0 ? formatCurrency(m.valor_total) : '-'}</div>
+                <div style={{ textAlign: 'center' }}>
+                  {pend > 0
+                    ? <span style={{ fontSize: 12, fontWeight: 700, color: '#B45309', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 999, padding: '2px 10px' }}>{pend}</span>
+                    : <span style={{ fontSize: 13, color: '#059669', fontWeight: 600 }}>ok</span>}
+                </div>
+                <ChevronRight size={16} color="var(--portal-text-muted)" />
+              </div>
+            )
+          })}
+          {maquinasFiltradas.length > 300 && (
+            <div style={{ padding: 14, textAlign: 'center', fontSize: 13, color: 'var(--portal-text-secondary)', background: 'var(--portal-bg-secondary)' }}>
+              Mostrando 300 de {maquinasFiltradas.length} máquinas. Use a busca para filtrar.
+            </div>
+          )}
+        </div>
+      )}
+      </>)}
 
       {/* ===== Modal Criar Cliente ===== */}
       {showCriarCliente && (

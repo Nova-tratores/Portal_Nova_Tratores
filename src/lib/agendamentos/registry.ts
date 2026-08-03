@@ -185,7 +185,7 @@ export const AGENDAMENTOS: Agendamento[] = [
     frequencia: 'A cada 5 min',
     alvo: 'POST /api/financeiro/lembrete-nf-servico',
     arquivo: 'src/instrumentation.ts',
-    obs: 'Sempre ligado — só notifica',
+    obs: 'DESLIGADO — substituído pelo relatório semanal. Religa com LEMBRETE_NF_5MIN=on',
   },
   {
     nome: 'Pasta cliente (sync-recente)',
