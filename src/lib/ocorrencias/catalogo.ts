@@ -47,6 +47,7 @@ export const CATALOGO_OCORRENCIAS: Record<CategoriaOcorrencia, CategoriaInfo> = 
       { slug: 'entregue_os_fisica', label: 'Entregue OS física', pontos: 2, ajuda: 'Processo é digital' },
       { slug: 'atraso_ordem', label: 'Atraso de ordem', pontos: 4, ajuda: 'OS estourou a previsão de execução' },
       { slug: 'apontamento_horas_incorreto', label: 'Apontamento de horas incorreto', pontos: 3, ajuda: 'Horas não apontadas ou erradas na OS' },
+      { slug: 'sem_requisicao', label: 'Não pediu requisição', pontos: 10, ajuda: 'Usou peça/serviço sem abrir a requisição' },
     ],
   },
   pv: {
