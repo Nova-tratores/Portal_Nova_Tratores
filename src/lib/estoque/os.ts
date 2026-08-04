@@ -139,25 +139,34 @@ export async function buscarTodasOSDetalhado(conta: Conta): Promise<{ lista: Arr
   let totalPaginas = 1;
   let completo = true;
   while (pag <= totalPaginas) {
-    try {
-      const r = await omieRequest<{
-        faultstring?: string;
-        total_de_paginas?: number;
-        osCadastro?: Array<Record<string, unknown>>;
-      }>('/servicos/os/', 'ListarOS', { pagina: pag, registros_por_pagina: 500 }, { conta });
-      if (r.faultstring) { completo = false; break; }
-      if (pag === 1) totalPaginas = r.total_de_paginas || 1;
-      if (!r.osCadastro || r.osCadastro.length === 0) {
-        if (pag > 1) completo = false; // parou antes da última página prometida
+    // Até 3 tentativas por página: a Omie às vezes devolve faultstring/erro
+    // transitório (rate-limit) numa página no meio da lista (a NOVA tem MUITAS OS).
+    // Sem retry, um soluço marcava a lista INTEIRA como truncada e travava o re-sync
+    // do mês fechado. Só desiste (completo=false, protege) após as 3 tentativas.
+    let r: { faultstring?: string; total_de_paginas?: number; osCadastro?: Array<Record<string, unknown>> } | null = null;
+    for (let tent = 0; tent < 3; tent++) {
+      try {
+        const resp = await omieRequest<{
+          faultstring?: string;
+          total_de_paginas?: number;
+          osCadastro?: Array<Record<string, unknown>>;
+        }>('/servicos/os/', 'ListarOS', { pagina: pag, registros_por_pagina: 500 }, { conta });
+        if (resp.faultstring) { await sleep(800 * (tent + 1)); continue; }
+        r = resp;
         break;
+      } catch {
+        await sleep(800 * (tent + 1));
       }
-      todas.push(...r.osCadastro);
-      pag++;
-      await sleep(500);
-    } catch {
-      completo = false;
+    }
+    if (!r) { completo = false; break; } // 3 tentativas falharam
+    if (pag === 1) totalPaginas = r.total_de_paginas || 1;
+    if (!r.osCadastro || r.osCadastro.length === 0) {
+      if (pag > 1) completo = false; // parou antes da última página prometida
       break;
     }
+    todas.push(...r.osCadastro);
+    pag++;
+    await sleep(500);
   }
   if (completo) {
     todasOSCachePorConta[conta] = todas;
