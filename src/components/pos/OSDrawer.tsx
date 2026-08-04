@@ -390,6 +390,30 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
     setShowAddProdModal(true);
   }, [ppv, addProdTarget]);
 
+  // OS sem PPV (ex.: garantia com peças chegando DEPOIS do serviço): cria um
+  // PPV já vinculado — funciona em qualquer etapa da OS
+  const [criandoPPV, setCriandoPPV] = useState(false);
+  const criarPPVVinculado = useCallback(async () => {
+    if (!osId) return;
+    if (!confirm(`Criar um PPV de peças vinculado à ${osId}?\n\nEle nasce na fase acompanhando a OS e libera o "Adicionar peça".`)) return;
+    setCriandoPPV(true);
+    try {
+      const res = await fetch(`/api/pos/ordens/${osId}/criar-ppv`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userName }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { alert(j.error || "Falha ao criar o PPV."); }
+      else {
+        setPpv(j.idPpv);
+        await loadPPV(j.idPpv);
+      }
+    } catch {
+      alert("Falha ao criar o PPV.");
+    }
+    setCriandoPPV(false);
+  }, [osId, userName, loadPPV]);
+
   const adicionarProdutoPPV = useCallback(async (item: { codigo?: string; descricao?: string; preco?: number }) => {
     const ids = ppv.split(",").map((s) => s.trim()).filter(Boolean);
     const target = ids.length === 1 ? ids[0] : addProdTarget;
@@ -1611,6 +1635,20 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                       <div className="os-card-title"><i className="fas fa-boxes" /> Materiais &amp; Requisições</div>
                       <label>PPV (Separe por vírgula)</label>
                       <input type="text" value={ppv} onChange={(e) => setPpv(e.target.value)} onBlur={() => loadPPV(ppv)} />
+
+                      {/* OS sem PPV: cria um vinculado na hora (qualquer etapa) —
+                          garantia recebe as peças DEPOIS do serviço */}
+                      {ppvIds.length === 0 && (
+                        <div style={{ marginTop: 4, padding: "10px 12px", borderRadius: 8, border: "1px dashed var(--portal-border)", background: "var(--portal-bg-secondary)", display: "flex", flexDirection: "column", gap: 8 }}>
+                          <span style={{ fontSize: 12, color: "var(--portal-text-secondary)", lineHeight: 1.5 }}>
+                            Esta OS não tem PPV — crie um pra lançar as peças (funciona em qualquer etapa, inclusive Executada/Garantia/Concluída).
+                          </span>
+                          <button type="button" onClick={criarPPVVinculado} disabled={criandoPPV || !podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : undefined}
+                            style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 8, border: "none", background: criandoPPV || !podeEditar ? "var(--portal-text-faint)" : "#0d9488", color: "#fff", fontSize: 13, fontWeight: 600, cursor: criandoPPV || !podeEditar ? "not-allowed" : "pointer" }}>
+                            {criandoPPV ? <i className="fas fa-spinner fa-spin" /> : <><i className="fas fa-plus-circle" /> Criar PPV de peças pra esta OS</>}
+                          </button>
+                        </div>
+                      )}
                       {produtos.length > 0 && (
                         <div className="os-produtos-list">
                           {produtos.map((p, i) => (
