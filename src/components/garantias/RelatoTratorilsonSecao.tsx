@@ -43,6 +43,11 @@ export default function RelatoTratorilsonSecao({ g, userName, podeAnalisar, fina
     acao: String(resp['sg_acao_tomada'] || ''),
     obs: String(resp['sg_observacoes'] || ''),
   });
+  // KUHN: a Extranet tem UMA caixa de texto ("Provável causa e descrição do
+  // problema") — texto numerado 1–6 com horas de M.O., KM e peças, no formato
+  // que a fábrica aprova a mão de obra (pedido do usuário, 04/08/2026)
+  const ehKuhn = String(g.montadora?.nome || '').toLowerCase().includes('kuhn');
+  const [textoKuhn, setTextoKuhn] = useState(String(resp['sg_kuhn_site'] || ''));
 
   // Re-sincroniza quando o drawer recarrega — a não ser que haja edição em
   // curso (padrão da SolicitacaoEmailSecao).
@@ -56,7 +61,42 @@ export default function RelatoTratorilsonSecao({ g, userName, podeAnalisar, fina
       acao: String(r['sg_acao_tomada'] || ''),
       obs: String(r['sg_observacoes'] || ''),
     });
+    setTextoKuhn(String(r['sg_kuhn_site'] || ''));
   }, [g.checklist_respostas]);
+
+  const montarTextoKuhn = async () => {
+    if (!podeAnalisar) { setErro(MSG_SEM_PERMISSAO); return; }
+    setBusy('kuhn');
+    setErro('');
+    setAviso('');
+    try {
+      const res = await fetch(`/api/garantias/${g.id}/texto-kuhn`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ator: userName }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setErro(data.error || 'Falha ao montar o texto.'); return; }
+      dirty.current = false;
+      setTextoKuhn(String(data.texto || ''));
+      setAviso('Texto no formato da KUHN pronto — confira os ____ (dados que faltaram) antes de colar no site.');
+      onChange();
+    } catch {
+      setErro('Erro de conexão.');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const copiarTextoKuhn = async () => {
+    try {
+      await navigator.clipboard.writeText(textoKuhn);
+      setCopiado('kuhn');
+      setTimeout(() => setCopiado((atual) => (atual === 'kuhn' ? '' : atual)), 1600);
+    } catch {
+      setErro('Não consegui copiar — selecione o texto manualmente.');
+    }
+  };
 
   const temTextos = !!(textos.reclamacao.trim() || textos.diagnostico.trim() || textos.acao.trim());
 
@@ -110,6 +150,7 @@ export default function RelatoTratorilsonSecao({ g, userName, podeAnalisar, fina
             sg_diagnostico: textos.diagnostico,
             sg_acao_tomada: textos.acao,
             sg_observacoes: textos.obs,
+            ...(ehKuhn ? { sg_kuhn_site: textoKuhn } : {}),
           },
           garantista_nome: userName,
         }),
@@ -224,6 +265,80 @@ export default function RelatoTratorilsonSecao({ g, userName, podeAnalisar, fina
             </div>
           )}
         </>
+      )}
+
+      {/* ── KUHN: texto único pro campo "Provável causa e descrição do problema" ── */}
+      {ehKuhn && (textoKuhn || !finalizada) && (
+        <div style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid #FDE68A', background: '#FFFBEB', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, fontWeight: 800, color: '#92400E' }}>
+              Texto único pro site da KUHN (aprovação da mão de obra)
+            </span>
+            {textoKuhn && (
+              <button
+                type="button"
+                onClick={copiarTextoKuhn}
+                title="Copiar o texto completo pra colar na Extranet"
+                style={{
+                  marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4,
+                  background: 'none', border: '1px solid #FDE68A', borderRadius: 6,
+                  padding: '2px 8px', cursor: 'pointer', fontSize: 11, fontWeight: 600,
+                  color: copiado === 'kuhn' ? '#16a34a' : '#92400E',
+                }}
+              >
+                {copiado === 'kuhn' ? <Check size={12} /> : <Copy size={12} />}
+                {copiado === 'kuhn' ? 'Copiado!' : 'Copiar tudo'}
+              </button>
+            )}
+          </div>
+          <span style={{ fontSize: 11, color: '#92400E', lineHeight: 1.5 }}>
+            Formato numerado 1–6 (data do atendimento, nº da OS, técnico, horas de M.O., KM e peças) —
+            os <strong>____</strong> são dados que faltaram no relatório do técnico; complete antes de colar.
+          </span>
+
+          {!textoKuhn && !finalizada && (
+            <button onClick={montarTextoKuhn} disabled={!!busy} style={{
+              alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6,
+              padding: '8px 14px', borderRadius: 8, border: 'none',
+              background: 'linear-gradient(135deg,#d97706,#92400e)', color: '#fff',
+              fontSize: 12.5, fontWeight: 700, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.6 : 1,
+            }}>
+              {busy === 'kuhn' ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />}
+              Montar texto no formato da KUHN
+            </button>
+          )}
+
+          {textoKuhn && (
+            <>
+              <textarea
+                value={textoKuhn}
+                onChange={(e) => { dirty.current = true; setTextoKuhn(e.target.value); }}
+                readOnly={finalizada}
+                style={{ ...areaStyle, minHeight: 170, background: '#fff', fontFamily: 'ui-monospace, monospace', fontSize: 12.5 }}
+              />
+              {!finalizada && (
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button onClick={salvar} disabled={!!busy} style={{
+                    display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 8,
+                    border: 'none', background: '#475569', color: '#fff', fontSize: 12, fontWeight: 600,
+                    cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.6 : 1,
+                  }}>
+                    {busy === 'salvar' ? <Loader2 size={13} className="spin" /> : <Save size={13} />}
+                    Salvar
+                  </button>
+                  <button onClick={montarTextoKuhn} disabled={!!busy} style={{
+                    display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 8,
+                    border: '1px solid #FDE68A', background: 'none', color: '#92400E', fontSize: 12, fontWeight: 600,
+                    cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.6 : 1,
+                  }}>
+                    {busy === 'kuhn' ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} />}
+                    Remontar
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       )}
 
       {erro && <div style={{ fontSize: 12, color: '#dc2626' }}>{erro}</div>}
