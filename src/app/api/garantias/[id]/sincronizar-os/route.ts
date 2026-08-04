@@ -10,10 +10,11 @@ import { listarPecasDaOS } from '@/lib/garantias/os-pecas';
 import type { GarantiaStatus } from '@/lib/garantias/types';
 
 // POST /api/garantias/[id]/sincronizar-os
-// Re-sincroniza peças + horas + km da garantia a partir da OS de origem.
-// As peças vêm da fonte combinada (PPV + requisições + PecasInfo). Horas/km
-// vêm da Ordem_Servico (Qtd_HR/Qtd_KM). Só grava se algo mudou; bloqueado em
-// garantias finalizadas (a foto das peças aprovadas/rejeitadas não pode mudar).
+// Re-sincroniza peças + horas + km + snapshot (cliente/modelo/chassi/PPV) da
+// garantia a partir da OS de origem. As peças vêm da fonte combinada (PPV +
+// requisições + PecasInfo). Horas/km vêm da Ordem_Servico (Qtd_HR/Qtd_KM).
+// Só grava se algo mudou; bloqueado em garantias finalizadas (a foto das
+// peças aprovadas/rejeitadas não pode mudar).
 //
 // body opcional: { ator?: string }
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -74,7 +75,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const pecasMudaram = assinatura(atuais || []) !== assinatura(novasPecas);
   const horasMudaram = Number(garantia.tecnico_horas || 0) !== novasHoras || Number(garantia.tecnico_km || 0) !== novoKm;
 
-  if (!pecasMudaram && !horasMudaram) {
+  // Snapshot da OS (cliente renomeado, modelo/chassi/PPV preenchidos depois).
+  // OS vazia não apaga o que a garantia já tem (correção manual preservada).
+  const novoCliente = String(os.Os_Cliente || '').trim() || garantia.cliente || null;
+  const novoModelo = String(os.Projeto || '').trim() || garantia.modelo || null;
+  const novoChassis = String(tecRow?.Chassis || '').trim() || garantia.chassis || null;
+  const novoPpv = String(os.ID_PPV || '').trim() || garantia.ppv_ids || null;
+  const snapshotMudou =
+    novoCliente !== (garantia.cliente || null) ||
+    novoModelo !== (garantia.modelo || null) ||
+    novoChassis !== (garantia.chassis || null) ||
+    novoPpv !== (garantia.ppv_ids || null);
+
+  if (!pecasMudaram && !horasMudaram && !snapshotMudou) {
     return NextResponse.json({ changed: false, qtd_pecas: (atuais || []).length, horas: novasHoras, km: novoKm });
   }
 
@@ -105,10 +118,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .update({
       tecnico_horas: novasHoras,
       tecnico_km: novoKm,
-      cliente: os.Os_Cliente || garantia.cliente || null,
-      modelo: os.Projeto || garantia.modelo || null,
-      chassis: tecRow?.Chassis || garantia.chassis || null,
-      ppv_ids: os.ID_PPV || garantia.ppv_ids || null,
+      cliente: novoCliente,
+      modelo: novoModelo,
+      chassis: novoChassis,
+      ppv_ids: novoPpv,
       updated_at: new Date().toISOString(),
     })
     .eq('id', id);
@@ -116,10 +129,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const partes: string[] = [];
   if (pecasMudaram) partes.push(`${novasPecas.length} peça(s)`);
   if (horasMudaram) partes.push(`horas ${novasHoras}h / km ${novoKm}`);
+  if (snapshotMudou) {
+    if (novoCliente !== (garantia.cliente || null)) partes.push(`cliente "${novoCliente}"`);
+    if (novoModelo !== (garantia.modelo || null)) partes.push(`modelo "${novoModelo}"`);
+    if (novoChassis !== (garantia.chassis || null)) partes.push(`chassi "${novoChassis}"`);
+    if (novoPpv !== (garantia.ppv_ids || null)) partes.push(`PPV "${novoPpv}"`);
+  }
   await registrarEvento(id, {
     tipo: 'sincronizada_os',
     ator,
-    detalhe: `Peças/horas sincronizadas da OS ${garantia.id_ordem}: ${partes.join(' · ')}.`,
+    detalhe: `Dados sincronizados da OS ${garantia.id_ordem}: ${partes.join(' · ')}.`,
   });
 
   return NextResponse.json({
