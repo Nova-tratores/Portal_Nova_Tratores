@@ -1,36 +1,21 @@
 'use client'
 // =============================================================================
 // Tela Monitor de Qualidade (port FIEL de views/monitor.ejs do
-// financeiro-omie-dashboard).
+// financeiro-omie-dashboard), com extensoes do portal:
+//  - Colunas "Incluido Por", "Vencimento" e "Inclusao" (vem de
+//    contas_pagar/contas_receber via enriquecimento no route; faturamento/
+//    compras nao tem esses campos -> "—").
+//  - Cabecalho da tabela ORDENAVEL (A-Z/Z-A) + FILTRO por coluna.
+//  - Selecao de linhas -> "Criar tarefa de correcao" (/tarefas), com o
+//    responsavel PRE-SELECIONADO pelo "Incluido Por" da linha (quando casa com
+//    um usuario do portal). A linha encaminhada ganha o selo "enviado".
 //
-// Mantem EXATAMENTE o comportamento do original:
-//  - Cards por modulo (Contas a Pagar / Receber / Faturamento / Compras) com o
-//    total de anomalias ABERTAS, split por severidade (alta/media/baixa) e
-//    botao "Rodar agora" por modulo.
-//  - Botao "Rodar todos os robos agora".
-//  - Aviso de setup quando a API retorna { erro } (tabela qa_anomalias ausente).
-//  - Filtros (Modulo + Situacao) que recarregam a tabela de anomalias.
-//  - Tabela de anomalias com badge de severidade, label de regra + hint de
-//    detalhe, e acoes (ignorar/resolver/reabrir) que dao POST no status.
-//  - "Ultimas execucoes dos robos" lendo /monitor/status.
-//
-// A tela NAO usa libs de grafico (apenas markup + Tailwind). Toda a logica do
-// <script> inline da fonte foi convertida em estado/efeitos React + render JSX.
-//
-// Diferenca de CONTA: na fonte a conta vinha do header global (var CONTA);
-// aqui vem do seletor de conta do layout do modulo via useDreConta().
-//
-// O layout do modulo (.../dre-financeiro/layout.js) ja aplica o gate de
-// permissao 'financeiro' e a sub-nav; ainda assim importamos useAuth/
-// usePermissoes e SemPermissao por consistencia com o padrao do portal.
-//
-// Observacao sobre cores: a fonte montava classes Tailwind dinamicamente
-// (ex.: 'bg-' + cor + '-50'). Como o portal usa Tailwind em build (purge),
-// classes geradas em runtime seriam removidas. Por isso as classes de cada
-// modulo estao escritas por extenso em MODULO_CLS (mesmas cores do original).
+// Comportamento original preservado: cards por modulo, "rodar robos", filtros
+// globais (Modulo/Situacao), acoes ignorar/resolver/reabrir e "ultimas
+// execucoes". A tela NAO usa libs de grafico (apenas markup + Tailwind).
 // =============================================================================
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
@@ -92,6 +77,8 @@ const SEV_BADGE = {
   media: 'bg-amber-100 text-amber-800 border-amber-300',
   baixa: 'bg-slate-100 text-slate-600 border-slate-300',
 }
+// Ordem de severidade p/ ordenacao (alta > media > baixa).
+const SEV_RANK = { alta: 3, media: 2, baixa: 1 }
 
 // ---------------------------------------------------------------------------
 // Formatadores locais (identicos aos do <script> da fonte). Mantidos inline
@@ -113,6 +100,18 @@ function fmtData(iso) {
   const p = String(iso).slice(0, 10).split('-')
   return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : iso
 }
+// norm: p/ filtros de texto (trim + lower + sem acento).
+function norm(s) {
+  return String(s == null ? '' : s).trim().toLowerCase().normalize('NFD').replace(new RegExp('[\\u0300-\\u036f]', 'g'), '')
+}
+// decodeEnt: a Omie devolve texto HTML-escapado (ex.: "FABIO & ASSOC" vira
+// "FABIO &amp; ASSOC"). Desescapa as entidades comuns p/ exibir/gravar limpo.
+function decodeEnt(s) {
+  if (s == null) return s
+  return String(s)
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&apos;/g, "'")
+}
 
 // hintDetalhe(a): texto auxiliar abaixo do nome da regra (port fiel).
 function hintDetalhe(a) {
@@ -132,6 +131,37 @@ function hintDetalhe(a) {
   return ''
 }
 
+// ---------------------------------------------------------------------------
+// Colunas ordenaveis/filtraveis da tabela de anomalias.
+//  tipo 'menu'  -> filtro por <select> com valores distintos presentes
+//  tipo 'texto' -> filtro por <input> (contem, sem acento)
+// texto(a) = valor visivel usado tanto no filtro quanto como opcao do menu.
+// sort(a)  = valor comparavel para ordenar (numero p/ valor/severidade; ISO p/
+//            datas; string p/ o resto).
+// ---------------------------------------------------------------------------
+const COLUNAS = [
+  { key: 'severidade', label: 'Severidade', tipo: 'menu', align: 'left',
+    texto: (a) => a.severidade || '', sort: (a) => SEV_RANK[a.severidade] || 0, num: true },
+  { key: 'modulo', label: 'Módulo', tipo: 'menu', align: 'left',
+    texto: (a) => MODULO_LABEL[a.modulo] || a.modulo || '', sort: (a) => MODULO_LABEL[a.modulo] || a.modulo || '' },
+  { key: 'conta', label: 'Conta', tipo: 'menu', align: 'left',
+    texto: (a) => a.conta_omie || '', sort: (a) => a.conta_omie || '' },
+  { key: 'problema', label: 'Problema', tipo: 'texto', align: 'left',
+    texto: (a) => (REGRA_LABEL[a.regra] || a.regra || '') + ' ' + decodeEnt(hintDetalhe(a)), sort: (a) => REGRA_LABEL[a.regra] || a.regra || '' },
+  { key: 'documento', label: 'Documento', tipo: 'texto', align: 'left',
+    texto: (a) => decodeEnt(a.registro_ref) || '', sort: (a) => decodeEnt(a.registro_ref) || '' },
+  { key: 'incluido', label: 'Incluído Por', tipo: 'texto', align: 'left',
+    texto: (a) => decodeEnt(a.incluido_por_nome) || '', sort: (a) => decodeEnt(a.incluido_por_nome) || '' },
+  { key: 'dataRef', label: 'Data', tipo: 'texto', align: 'left',
+    texto: (a) => fmtData(a.data_ref), sort: (a) => String(a.data_ref || '').slice(0, 10) },
+  { key: 'vencimento', label: 'Vencimento', tipo: 'texto', align: 'left',
+    texto: (a) => fmtData(a.data_vencimento), sort: (a) => String(a.data_vencimento || '').slice(0, 10) },
+  { key: 'inclusao', label: 'Inclusão', tipo: 'texto', align: 'left',
+    texto: (a) => fmtData(a.data_inclusao), sort: (a) => String(a.data_inclusao || '').slice(0, 10) },
+  { key: 'valor', label: 'Valor', tipo: 'texto', align: 'right',
+    texto: (a) => fmtBRL(a.valor), sort: (a) => Number(a.valor) || 0, num: true },
+]
+
 export default function MonitorPage() {
   const { userProfile, loading } = useAuth()
   const { temAcesso, pode, loading: loadingPerm } = usePermissoes(userProfile?.id)
@@ -145,7 +175,7 @@ export default function MonitorPage() {
   const [fModulo, setFModulo] = useState('')          // filtro #f-modulo ('' = Todos)
   const [fStatus, setFStatus] = useState('aberta')    // filtro #f-status (default 'aberta')
   const [tabelaStatus, setTabelaStatus] = useState('') // texto #tabela-status (contagem / "Carregando…" / erro)
-  const [anomalias, setAnomalias] = useState([])       // linhas da tabela
+  const [anomalias, setAnomalias] = useState([])       // linhas da tabela (ja enriquecidas)
 
   const [execStatus, setExecStatus] = useState('')     // texto/erro de #execucoes (vazio = lista normal)
   const [execLista, setExecLista] = useState([])       // d.ultimos das execucoes
@@ -153,16 +183,27 @@ export default function MonitorPage() {
   const [rodandoTudo, setRodandoTudo] = useState(false) // botao "rodar todos"
   const [rodandoModulo, setRodandoModulo] = useState({}) // { [modulo]: true } enquanto roda
 
+  // Ordenacao + filtros por coluna (cabecalho).
+  const [sortCol, setSortCol] = useState('')           // key da coluna ordenada ('' = ordem do route)
+  const [sortDir, setSortDir] = useState('asc')        // 'asc' | 'desc'
+  const [filtros, setFiltros] = useState({})           // { [key]: string }
+
+  // Selecao de linhas + criacao de tarefa de correcao.
+  const [selecionadas, setSelecionadas] = useState(() => new Set())
+  const [usuarios, setUsuarios] = useState([])         // [{ id, nome }] p/ o <select> de responsavel
+  const [modalAberto, setModalAberto] = useState(false)
+  const [modalItens, setModalItens] = useState([])     // [{ anomalia, atribuido_a }]
+  const [modalPrazo, setModalPrazo] = useState('')
+  const [enviando, setEnviando] = useState(false)
+
   // =========================================================================
   // carregarCards(): GET /monitor/anomalias?conta=&status=aberta -> resumo
-  // Port fiel da funcao homonima da fonte.
   // =========================================================================
   const carregarCards = useCallback(() => {
     fetch('/api/dre-financeiro/monitor/anomalias?conta=' + encodeURIComponent(conta) + '&status=aberta')
       .then((r) => r.json())
       .then((d) => {
         if (d.erro) {
-          // Mostra o aviso de setup (espelha o texto exato da fonte).
           setAvisoSetup('Atenção: ' + d.erro + ' — rode sql/qa_anomalias_init.sql no Supabase e clique em "Rodar todos os robôs".')
           setResumo(null)
           return
@@ -176,7 +217,6 @@ export default function MonitorPage() {
 
   // =========================================================================
   // carregarTabela(): GET /monitor/anomalias?conta=&status=&modulo=
-  // Port fiel: usa os filtros atuais (fModulo/fStatus).
   // =========================================================================
   const carregarTabela = useCallback(() => {
     setTabelaStatus('Carregando…')
@@ -190,13 +230,21 @@ export default function MonitorPage() {
         const tot = (d.total != null ? d.total : rows.length)
         setTabelaStatus(tot + ' anomalia(s)' + (d.truncada ? (' — exibindo as primeiras ' + rows.length) : ''))
         setAnomalias(rows)
+        setSelecionadas(new Set()) // recarga limpa a selecao
       })
       .catch((e) => { setTabelaStatus('Erro: ' + e.message); setAnomalias([]) })
   }, [conta, fModulo, fStatus])
 
+  // Lista de usuarios do portal (mesmo endpoint do /tarefas).
+  const carregarUsuarios = useCallback(() => {
+    fetch('/api/tarefas/users')
+      .then((r) => r.json())
+      .then((d) => setUsuarios(Array.isArray(d) ? d : (d.users || d.usuarios || [])))
+      .catch(() => setUsuarios([]))
+  }, [])
+
   // =========================================================================
   // carregarExecucoes(): GET /monitor/status -> d.ultimos
-  // Port fiel da funcao homonima da fonte.
   // =========================================================================
   const carregarExecucoes = useCallback(() => {
     fetch('/api/dre-financeiro/monitor/status')
@@ -212,7 +260,6 @@ export default function MonitorPage() {
 
   // =========================================================================
   // marcar(id, status): POST /monitor/anomalia/:id/status -> recarrega
-  // Port fiel da funcao homonima da fonte.
   // =========================================================================
   const marcar = useCallback((id, status) => {
     fetch('/api/dre-financeiro/monitor/anomalia/' + encodeURIComponent(id) + '/status', {
@@ -222,7 +269,6 @@ export default function MonitorPage() {
 
   // =========================================================================
   // rodar(modulo): POST /monitor/run?conta=&modulo= -> apos 2.5s recarrega tudo
-  // Port fiel: modulo null -> 'todos'. Controla o estado do botao (rodando…).
   // =========================================================================
   const rodar = useCallback((modulo) => {
     if (modulo) setRodandoModulo((s) => ({ ...s, [modulo]: true }))
@@ -237,23 +283,152 @@ export default function MonitorPage() {
         }, 2500)
       })
       .catch(() => {
-        // Mesmo em falha, restaura o botao para nao travar a UI.
         if (modulo) setRodandoModulo((s) => ({ ...s, [modulo]: false }))
         else setRodandoTudo(false)
       })
   }, [conta, carregarCards, carregarTabela, carregarExecucoes])
 
-  // Carga inicial + recarga ao trocar a conta (espelha a IIFE + reload da fonte).
+  // Carga inicial + recarga ao trocar a conta.
   useEffect(() => {
     carregarCards()
     carregarExecucoes()
-  }, [carregarCards, carregarExecucoes])
+    carregarUsuarios()
+  }, [carregarCards, carregarExecucoes, carregarUsuarios])
 
-  // A tabela recarrega ao trocar conta/modulo/situacao (espelha os listeners
-  // 'change' de #f-modulo/#f-status + a carga inicial da fonte).
+  // A tabela recarrega ao trocar conta/modulo/situacao.
   useEffect(() => {
     carregarTabela()
   }, [carregarTabela])
+
+  // -------------------------------------------------------------------------
+  // Cabecalho: ordenacao + filtro. Aplicados no cliente sobre `anomalias`
+  // (a lista ja vem completa do route).
+  // -------------------------------------------------------------------------
+  const clicarCabecalho = useCallback((key) => {
+    // Nao aninhar setSortDir dentro do updater de setSortCol: sob StrictMode
+    // (dev) o updater roda 2x e o toggle cancelaria a si mesmo. Decidimos aqui
+    // com base no estado atual do closure.
+    if (sortCol === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    else { setSortCol(key); setSortDir('asc') }
+  }, [sortCol])
+  const setaCol = (key) => (sortCol !== key ? '⇅' : (sortDir === 'asc' ? '▲' : '▼'))
+  const setFiltro = (key, val) => setFiltros((f) => ({ ...f, [key]: val }))
+
+  // Opcoes distintas p/ os filtros tipo 'menu' (sobre TODAS as anomalias).
+  const opcoesMenu = useMemo(() => {
+    const m = {}
+    for (const col of COLUNAS) {
+      if (col.tipo !== 'menu') continue
+      const set = new Set()
+      for (const a of anomalias) { const v = col.texto(a); if (v) set.add(v) }
+      m[col.key] = Array.from(set).sort((x, y) => x.localeCompare(y, 'pt-BR'))
+    }
+    return m
+  }, [anomalias])
+
+  const linhasVisiveis = useMemo(() => {
+    let rows = anomalias
+    // filtros por coluna
+    const ativos = COLUNAS.filter((c) => (filtros[c.key] || '').trim() !== '')
+    if (ativos.length) {
+      rows = rows.filter((a) => ativos.every((c) => {
+        const alvo = filtros[c.key]
+        if (c.tipo === 'menu') return c.texto(a) === alvo
+        return norm(c.texto(a)).includes(norm(alvo))
+      }))
+    }
+    // ordenacao
+    if (sortCol) {
+      const col = COLUNAS.find((c) => c.key === sortCol)
+      if (col) {
+        const dir = sortDir === 'asc' ? 1 : -1
+        rows = [...rows].sort((a, b) => {
+          const va = col.sort(a), vb = col.sort(b)
+          if (col.num) return (Number(va) - Number(vb)) * dir
+          return String(va).localeCompare(String(vb), 'pt-BR', { numeric: true }) * dir
+        })
+      }
+    }
+    return rows
+  }, [anomalias, filtros, sortCol, sortDir])
+
+  // Ids visiveis ainda NAO encaminhados (elegiveis a selecao/enviar).
+  const idsSelecionaveis = useMemo(
+    () => linhasVisiveis.filter((a) => !a.tarefa_id).map((a) => a.id),
+    [linhasVisiveis],
+  )
+  const todosSelecionados = idsSelecionaveis.length > 0 && idsSelecionaveis.every((id) => selecionadas.has(id))
+
+  const toggleLinha = (id) => setSelecionadas((s) => {
+    const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n
+  })
+  const toggleTodos = () => setSelecionadas((s) => {
+    if (todosSelecionados) return new Set()
+    return new Set(idsSelecionaveis)
+  })
+
+  // -------------------------------------------------------------------------
+  // Criar tarefa de correcao: abre o modal com uma linha por anomalia
+  // selecionada, cada uma com o responsavel pre-selecionado (sugestao).
+  // -------------------------------------------------------------------------
+  const abrirModal = () => {
+    const itens = anomalias
+      .filter((a) => selecionadas.has(a.id) && !a.tarefa_id)
+      .map((a) => ({ anomalia: a, atribuido_a: a.sugestao_atribuido_a || '' }))
+    if (!itens.length) return
+    setModalItens(itens)
+    setModalPrazo('')
+    setModalAberto(true)
+  }
+  const setItemUsuario = (id, uid) => setModalItens((its) => its.map(
+    (it) => (it.anomalia.id === id ? { ...it, atribuido_a: uid } : it),
+  ))
+
+  const tituloTarefa = (a) => 'Corrigir: ' + (REGRA_LABEL[a.regra] || a.regra) + (a.registro_ref ? ' — ' + decodeEnt(a.registro_ref) : '')
+  const descricaoTarefa = (a) => {
+    const linhas = [
+      'Anomalia detectada pelo Monitor de Qualidade dos Dados.',
+      'Módulo: ' + (MODULO_LABEL[a.modulo] || a.modulo),
+      'Conta: ' + (a.conta_omie || '—'),
+      'Documento: ' + (decodeEnt(a.registro_ref) || '—'),
+      'Valor: ' + fmtBRL(a.valor),
+    ]
+    if (a.data_vencimento) linhas.push('Vencimento: ' + fmtData(a.data_vencimento))
+    if (a.incluido_por_nome) linhas.push('Incluído por: ' + decodeEnt(a.incluido_por_nome))
+    const hint = hintDetalhe(a)
+    if (hint) linhas.push('Detalhe: ' + decodeEnt(hint))
+    return linhas.join('\n')
+  }
+
+  const confirmarEnvio = async () => {
+    if (!userProfile?.id) return
+    setEnviando(true)
+    try {
+      for (const it of modalItens) {
+        const a = it.anomalia
+        const resp = await fetch('/api/dre-financeiro/monitor/anomalia/' + encodeURIComponent(a.id) + '/tarefa', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            titulo: tituloTarefa(a),
+            descricao: descricaoTarefa(a),
+            criado_por: userProfile.id,
+            atribuido_a: it.atribuido_a || null,
+            prazo: modalPrazo || undefined,
+            prioridade: 2,
+          }),
+        })
+        const d = await resp.json().catch(() => ({}))
+        if (!resp.ok || d.erro) throw new Error(d.erro || ('HTTP ' + resp.status))
+      }
+      setModalAberto(false)
+      setSelecionadas(new Set())
+      carregarTabela()
+    } catch (e) {
+      alert('Erro ao criar tarefa(s): ' + e.message)
+    } finally {
+      setEnviando(false)
+    }
+  }
 
   // --- Gate de permissao (por consistencia; o layout ja faz o gate) ---------
   if (loading || loadingPerm) {
@@ -262,6 +437,8 @@ export default function MonitorPage() {
   if (userProfile && (!temAcesso('financeiro') && !pode('dre', 'monitor'))) {
     return <SemPermissao />
   }
+
+  const nSel = selecionadas.size
 
   return (
     <>
@@ -320,6 +497,15 @@ export default function MonitorPage() {
       <div className="bg-white border border-slate-200 rounded-lg p-4">
         <div className="flex items-center gap-3 flex-wrap mb-3">
           <h2 className="text-lg font-extrabold text-slate-700">Anomalias</h2>
+          {nSel > 0 ? (
+            <button
+              type="button"
+              onClick={abrirModal}
+              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded shadow"
+            >
+              ✉ Criar tarefa de correção ({nSel})
+            </button>
+          ) : null}
           <label className="text-xs text-slate-500 ml-auto">Módulo</label>
           <select
             value={fModulo}
@@ -344,26 +530,75 @@ export default function MonitorPage() {
             <option value="todas">Todas</option>
           </select>
         </div>
-        <div className="text-xs text-slate-500 mb-2">{tabelaStatus}</div>
+        <div className="text-xs text-slate-500 mb-2">
+          {tabelaStatus}
+          {anomalias.length !== linhasVisiveis.length ? ' — ' + linhasVisiveis.length + ' após filtros' : ''}
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-slate-500 border-b border-slate-200">
-                <th className="py-2 pr-3">Severidade</th>
-                <th className="py-2 pr-3">Módulo</th>
-                <th className="py-2 pr-3">Conta</th>
-                <th className="py-2 pr-3">Problema</th>
-                <th className="py-2 pr-3">Documento</th>
-                <th className="py-2 pr-3">Data</th>
-                <th className="py-2 pr-3 text-right">Valor</th>
+              <tr className="text-left text-slate-500 border-b border-slate-200 align-bottom">
+                {/* checkbox selecionar todos */}
+                <th className="py-2 pr-2 w-8">
+                  <input
+                    type="checkbox"
+                    checked={todosSelecionados}
+                    onChange={toggleTodos}
+                    disabled={idsSelecionaveis.length === 0}
+                    title="Selecionar todas as linhas visíveis (não enviadas)"
+                  />
+                </th>
+                {COLUNAS.map((col) => (
+                  <th key={col.key} className={'py-2 pr-3 ' + (col.align === 'right' ? 'text-right' : '')}>
+                    <button
+                      type="button"
+                      onClick={() => clicarCabecalho(col.key)}
+                      className="inline-flex items-center gap-1 font-semibold hover:text-slate-800"
+                      title="Ordenar A-Z / Z-A"
+                    >
+                      {col.label}
+                      <span className="text-[10px] text-slate-400">{setaCol(col.key)}</span>
+                    </button>
+                    <div className="mt-1">
+                      {col.tipo === 'menu' ? (
+                        <select
+                          value={filtros[col.key] || ''}
+                          onChange={(e) => setFiltro(col.key, e.target.value)}
+                          className="w-full border border-slate-200 rounded px-1 py-0.5 text-xs font-normal"
+                        >
+                          <option value="">Todos</option>
+                          {(opcoesMenu[col.key] || []).map((o) => (
+                            <option key={o} value={o}>{o}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          value={filtros[col.key] || ''}
+                          onChange={(e) => setFiltro(col.key, e.target.value)}
+                          placeholder="filtrar…"
+                          className="w-full border border-slate-200 rounded px-1 py-0.5 text-xs font-normal"
+                        />
+                      )}
+                    </div>
+                  </th>
+                ))}
                 <th className="py-2 pr-3">Ações</th>
               </tr>
             </thead>
             <tbody>
-              {anomalias.map((a) => {
+              {linhasVisiveis.map((a) => {
                 const hint = hintDetalhe(a)
+                const enviado = !!a.tarefa_id
                 return (
-                  <tr key={a.id} className="border-b border-slate-100 hover:bg-slate-50">
+                  <tr key={a.id} className={'border-b border-slate-100 hover:bg-slate-50 ' + (enviado ? 'bg-emerald-50/40' : '')}>
+                    <td className="py-2 pr-2 align-top">
+                      {enviado ? (
+                        <span className="text-emerald-600" title={'Enviado para correção' + (a.tarefa_criada_em ? ' em ' + new Date(a.tarefa_criada_em).toLocaleString('pt-BR') : '')}>✔</span>
+                      ) : (
+                        <input type="checkbox" checked={selecionadas.has(a.id)} onChange={() => toggleLinha(a.id)} />
+                      )}
+                    </td>
                     <td className="py-2 pr-3 align-top">
                       <span className={'px-2 py-0.5 rounded-full text-xs font-bold border ' + (SEV_BADGE[a.severidade] || SEV_BADGE.baixa)}>{a.severidade}</span>
                     </td>
@@ -371,13 +606,18 @@ export default function MonitorPage() {
                     <td className="py-2 pr-3 text-slate-600 align-top">{a.conta_omie}</td>
                     <td className="py-2 pr-3 align-top">
                       <div className="font-semibold text-slate-800">{REGRA_LABEL[a.regra] || a.regra}</div>
-                      {hint ? <div className="text-xs text-slate-500 mt-0.5">{hint}</div> : null}
+                      {hint ? <div className="text-xs text-slate-500 mt-0.5">{decodeEnt(hint)}</div> : null}
                     </td>
-                    <td className="py-2 pr-3 text-slate-600 align-top">{a.registro_ref || '—'}</td>
-                    <td className="py-2 pr-3 text-slate-600">{fmtData(a.data_ref)}</td>
-                    <td className="py-2 pr-3 text-right text-slate-700">{fmtBRL(a.valor)}</td>
-                    <td className="py-2 pr-3 whitespace-nowrap">
-                      {a.status === 'aberta' ? (
+                    <td className="py-2 pr-3 text-slate-600 align-top">{decodeEnt(a.registro_ref) || '—'}</td>
+                    <td className="py-2 pr-3 text-slate-600 align-top">{decodeEnt(a.incluido_por_nome) || '—'}</td>
+                    <td className="py-2 pr-3 text-slate-600 align-top">{fmtData(a.data_ref)}</td>
+                    <td className="py-2 pr-3 text-slate-600 align-top">{fmtData(a.data_vencimento)}</td>
+                    <td className="py-2 pr-3 text-slate-600 align-top">{fmtData(a.data_inclusao)}</td>
+                    <td className="py-2 pr-3 text-right text-slate-700 align-top">{fmtBRL(a.valor)}</td>
+                    <td className="py-2 pr-3 whitespace-nowrap align-top">
+                      {enviado ? (
+                        <span className="text-xs text-emerald-700 font-semibold">✔ enviado</span>
+                      ) : a.status === 'aberta' ? (
                         <>
                           <button type="button" onClick={() => marcar(a.id, 'ignorada')}
                             className="text-xs text-slate-500 hover:text-slate-800 underline">ignorar</button>{' '}
@@ -396,6 +636,63 @@ export default function MonitorPage() {
           </table>
         </div>
       </div>
+
+      {/* Modal: criar tarefa(s) de correcao */}
+      {modalAberto ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !enviando && setModalAberto(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="p-4 border-b border-slate-200">
+              <h3 className="text-lg font-extrabold text-slate-800">Criar tarefa de correção</h3>
+              <p className="text-xs text-slate-500 mt-1">Uma tarefa por anomalia. O responsável já vem pré-selecionado pelo &quot;Incluído Por&quot; quando identificado — ajuste se precisar.</p>
+            </div>
+            <div className="p-4 overflow-y-auto flex-1">
+              <div className="flex items-center gap-2 mb-3">
+                <label className="text-xs font-semibold text-slate-600">Prazo (opcional, para todas)</label>
+                <input type="date" value={modalPrazo} onChange={(e) => setModalPrazo(e.target.value)}
+                  className="border border-slate-300 rounded px-2 py-1 text-sm" />
+              </div>
+              <div className="space-y-2">
+                {modalItens.map((it) => {
+                  const a = it.anomalia
+                  return (
+                    <div key={a.id} className="border border-slate-200 rounded-lg p-3">
+                      <div className="text-sm font-semibold text-slate-800">{REGRA_LABEL[a.regra] || a.regra}{a.registro_ref ? ' — ' + decodeEnt(a.registro_ref) : ''}</div>
+                      <div className="text-xs text-slate-500 mt-0.5">
+                        {(MODULO_LABEL[a.modulo] || a.modulo)} · {a.conta_omie} · {fmtBRL(a.valor)}
+                        {a.data_vencimento ? ' · venc. ' + fmtData(a.data_vencimento) : ''}
+                      </div>
+                      <div className="flex items-center gap-2 mt-2">
+                        <label className="text-xs text-slate-500">Responsável</label>
+                        <select
+                          value={it.atribuido_a || ''}
+                          onChange={(e) => setItemUsuario(a.id, e.target.value)}
+                          className="border border-slate-300 rounded px-2 py-1 text-sm flex-1"
+                        >
+                          <option value="">— escolher —</option>
+                          {usuarios.map((u) => (
+                            <option key={u.id} value={u.id}>{u.nome}</option>
+                          ))}
+                        </select>
+                        {it.atribuido_a && a.sugestao_atribuido_a === it.atribuido_a ? (
+                          <span className="text-[10px] text-emerald-600 font-semibold whitespace-nowrap">sugerido</span>
+                        ) : null}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+            <div className="p-4 border-t border-slate-200 flex items-center justify-end gap-2">
+              <button type="button" onClick={() => setModalAberto(false)} disabled={enviando}
+                className="px-3 py-1.5 text-sm text-slate-600 hover:text-slate-900">Cancelar</button>
+              <button type="button" onClick={confirmarEnvio} disabled={enviando}
+                className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-bold rounded shadow">
+                {enviando ? '⏳ criando…' : 'Criar ' + modalItens.length + ' tarefa(s)'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* Ultimas execucoes dos robos */}
       <div className="mt-6">
