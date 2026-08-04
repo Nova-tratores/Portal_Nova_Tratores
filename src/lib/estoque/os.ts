@@ -91,23 +91,33 @@ async function lerCodigosLojaPropria(): Promise<Set<number>> {
   return set;
 }
 
-// Override de COMPETÊNCIA do OMIE ("mês alterado", tabela compartilhada
-// comissoes_os_relatorio.data_ref): quando o usuário move uma OS de mês no
-// dashboard do OMIE, a receita conta no mês do data_ref, não no da data de
-// faturamento. O Portal espelha isso pra bater com o "Total Entradas" do OMIE.
+// Overrides de OS do OMIE (tabela compartilhada comissoes_os_relatorio):
+//   - dataRef ("mês alterado"): a receita conta no mês do data_ref, não no de
+//     faturamento — espelha o "Total Entradas" do OMIE.
+//   - porTecSum: soma dos ajustes manuais POR TÉCNICO. Na ENTREGA técnica, o OMIE
+//     usa esse valor na receita (não o fixo), então o Portal usa a soma pra bater.
 // Cacheado 5 min (edições são raras; a tabela é do OMIE, no mesmo Supabase).
-let overridesDataCache: { map: Map<string, string>; ts: number } | null = null;
-async function lerOverridesDataOS(): Promise<Map<string, string>> {
-  if (overridesDataCache && Date.now() - overridesDataCache.ts < 5 * 60_000) return overridesDataCache.map;
-  const map = new Map<string, string>();
+interface OverrideOS { dataRef?: string; porTecSum?: number }
+let overridesOSCache: { map: Map<string, OverrideOS>; ts: number } | null = null;
+async function lerOverridesOS(): Promise<Map<string, OverrideOS>> {
+  if (overridesOSCache && Date.now() - overridesOSCache.ts < 5 * 60_000) return overridesOSCache.map;
+  const map = new Map<string, OverrideOS>();
   try {
     const { data } = await supabase
       .from('comissoes_os_relatorio')
-      .select('numero_os,data_ref')
-      .not('data_ref', 'is', null);
-    (data || []).forEach((r) => { const d = String(r.data_ref || ''); if (/^\d{4}-\d{2}/.test(d)) map.set(String(r.numero_os), d); });
-  } catch { /* tabela do OMIE indisponível — sem override, usa a data de faturamento */ }
-  overridesDataCache = { map, ts: Date.now() };
+      .select('numero_os,data_ref,por_tecnico');
+    (data || []).forEach((r) => {
+      const ov: OverrideOS = {};
+      const d = String(r.data_ref || '');
+      if (/^\d{4}-\d{2}/.test(d)) ov.dataRef = d;
+      const pt = r.por_tecnico;
+      if (pt && typeof pt === 'object' && Object.keys(pt).length) {
+        ov.porTecSum = Object.values(pt as Record<string, unknown>).reduce((s: number, v) => s + (Number(v) || 0), 0);
+      }
+      if (ov.dataRef !== undefined || ov.porTecSum !== undefined) map.set(String(r.numero_os), ov);
+    });
+  } catch { /* tabela do OMIE indisponível — sem override, usa data de faturamento + fixo */ }
+  overridesOSCache = { map, ts: Date.now() };
   return map;
 }
 
@@ -230,7 +240,7 @@ async function classificarNfseOS(lista: OSFaturada[], conta: Conta): Promise<Set
  */
 export async function buscarOSPeriodo(de: string, ate: string, conta: Conta): Promise<{ total: number; nota: number; interno: number; internoRetorno: number; internoPuro: number; completo: boolean }> {
   const { lista: todas, completo } = await buscarTodasOSDetalhado(conta);
-  const overridesData = await lerOverridesDataOS();
+  const overrides = await lerOverridesOS();
   const dtDe = parseDataBR(de);
   const dtAte = parseDataBR(ate);
   let total = 0;
@@ -246,7 +256,7 @@ export async function buscarOSPeriodo(de: string, ate: string, conta: Conta): Pr
     // "Mês alterado" no OMIE: a OS conta na competência do data_ref (YYYY-MM-DD),
     // não na data de faturamento. Assim uma OS movida pra outro mês sai daqui (e
     // entra no mês certo), igual ao dashboard do OMIE.
-    const dref = overridesData.get(String(cab.cNumOS || ''));
+    const dref = overrides.get(String(cab.cNumOS || ''))?.dataRef;
     if (dref) {
       const p = dref.split('-');
       if (p.length >= 2) dtOS = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]) || 1);
@@ -269,10 +279,17 @@ export async function buscarOSPeriodo(de: string, ate: string, conta: Conta): Pr
     // montagem/entrega (que o contrato sozinho jogaria em "com retorno"). Igual ao OMIE.
     if (lojaPropria.has(f.codigoCliente)) { internoPuro += f.valor; return; }
     if (baldeInterno(f.contrato) === 'puro') { internoPuro += f.valor; return; }
-    // 'retorno': entrega técnica/montagem entra pelo valor FIXO do OMIE (comissão por
-    // código), não pelo valor cheio da OS — garantia/revisão/normal seguem pelo cheio.
+    // 'retorno': entrega técnica/montagem entra pela comissão (não pelo valor cheio da OS);
+    // garantia/revisão/normal seguem pelo cheio.
     const fixo = valorFixoEntrega(f.contrato);
-    internoRetorno += fixo != null ? fixo : f.valor;
+    if (fixo != null) {
+      // Entrega: se o OMIE tem ajuste manual POR TÉCNICO nessa OS, usa a soma (o OMIE
+      // conta o override na receita); senão o valor fixo por código.
+      const porTecSum = overrides.get(f.cNumOS)?.porTecSum;
+      internoRetorno += porTecSum != null ? porTecSum : fixo;
+    } else {
+      internoRetorno += f.valor;
+    }
   });
   return { total, nota, interno: total - nota, internoRetorno, internoPuro, completo };
 }
@@ -576,7 +593,7 @@ function montarServicosItensOmie(
   mes: number,
   ano: number,
   conta: Conta,
-  overridesData: Map<string, string>,
+  overridesData: Map<string, OverrideOS>,
 ): ServicoOSRow[] {
   const dtDe = new Date(ano, mes - 1, 1);
   const dtAte = new Date(ano, mes, 0, 23, 59, 59);
@@ -588,7 +605,7 @@ function montarServicosItensOmie(
     const dataStr = String(info.dDtFat || info.dDtInc || cab.dDtPrevisao || '');
     let dtOS = parseDataBR(dataStr);
     // Respeita "mês alterado" do OMIE (data_ref) — mesma competência do os_mensal.
-    const dref = overridesData.get(String(cab.cNumOS || ''));
+    const dref = overridesData.get(String(cab.cNumOS || ''))?.dataRef;
     if (dref) {
       const p = dref.split('-');
       if (p.length >= 2) dtOS = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]) || 1);
@@ -658,7 +675,7 @@ export async function sincronizarServicosItens(mes: number, ano: number, conta: 
     return;
   }
   const categorias = await buscarCategoriasOmie(conta);
-  const overridesData = await lerOverridesDataOS();
+  const overridesData = await lerOverridesOS();
   const rows = montarServicosItensOmie(todas, categorias, mes, ano, conta, overridesData);
   const { error: delErr } = await supabase
     .from('os_servicos_itens')
