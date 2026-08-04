@@ -279,6 +279,8 @@ function agendarRefreshOSPassado(mes: number, ano: number, conta: Conta): void {
       if (!t.completo) throw new Error('ListarOS truncado — os_mensal preservado');
       await supabase.from('os_mensal').upsert({ mes, ano, valor_total: t.total, valor_nota: t.nota, valor_interno: t.interno, valor_interno_retorno: t.internoRetorno, valor_interno_puro: t.internoPuro, conta_omie: conta }, { onConflict: 'mes,ano,conta_omie' });
       await sincronizarServicosItens(mes, ano, conta);
+      // Marca a data do re-sync — mês recém-fechado re-sincroniza só 1x/dia (ver obterTotaisOS).
+      await salvarControleCache('os', mes, ano, fmtD(new Date()), conta);
     } catch (e) {
       console.log('Refresh BG OS passado [' + conta + '] ' + mes + '/' + ano + ' falhou: ' + (e as Error).message);
     } finally {
@@ -362,7 +364,16 @@ export async function obterTotaisOS(mes: number, ano: number, conta: ContaFiltro
     .maybeSingle();
   if (data) {
     const t = doRow(data);
-    if (t.total === 0 || t.nota == null || t.internoRetorno == null) agendarRefreshOSPassado(mes, ano, conta);
+    // Mês RECÉM-fechado (≤ 20 dias após o fim) ainda recebe OS faturadas com atraso —
+    // re-sincroniza 1x/dia (como o mês corrente) até "assentar". Meses antigos ficam no
+    // cache (só re-sincronizam se algum campo do split estiver faltando).
+    const fimMes = new Date(ano, mes, 0);
+    const diasDesdeFim = Math.floor((Date.now() - fimMes.getTime()) / 86_400_000);
+    const recemFechado = diasDesdeFim >= 0 && diasDesdeFim <= 20;
+    const precisaResync =
+      t.total === 0 || t.nota == null || t.internoRetorno == null ||
+      (recemFechado && (await obterControleCache('os', mes, ano, conta)) !== fmtD(new Date()));
+    if (precisaResync) agendarRefreshOSPassado(mes, ano, conta);
     return t;
   }
   agendarRefreshOSPassado(mes, ano, conta);
