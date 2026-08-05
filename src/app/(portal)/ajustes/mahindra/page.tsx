@@ -1,8 +1,8 @@
 'use client';
 // Arquivo Mahindra (Estoque e Venda de Pecas). Portado de mahindra.ejs.
 // Padrao worker-ready: POST /gerar dispara o job, POLLING de GET /status ate concluir.
-// O template e' de upload OBRIGATORIO (o app original tinha um template padrao no
-// servidor; aqui nao copiamos esse asset, entao o usuario sempre faz upload).
+// O upload do template e' OPCIONAL: se o operador nao enviar um xlsx, o servidor usa
+// o template padrao em public/templates/estoque-venda-mahindra.xlsx.
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
@@ -194,14 +194,13 @@ export default function MahindraPage() {
   const gerar = useCallback(async () => {
     if (!conta) { setStatusMsg('Selecione uma conta especifica (NOVA ou CASTRO) no menu acima.'); return; }
     if (!mes) { setStatusMsg('Informe o mes de referencia.'); return; }
-    if (!file) { setStatusMsg('Selecione o template .xlsx da Mahindra (upload obrigatorio).'); return; }
 
     setIniciando(true);
     setStatus(null);
-    setStatusMsg('Enviando template e iniciando geracao...');
+    setStatusMsg(file ? 'Enviando template e iniciando geracao...' : 'Usando o template padrao e iniciando geracao...');
     try {
-      const ab = await file.arrayBuffer();
-      const templateBase64 = arrayBufferToBase64(ab);
+      // sem upload -> o servidor usa o template padrao (public/templates)
+      const templateBase64 = file ? arrayBufferToBase64(await file.arrayBuffer()) : '';
       const r = await fetch(`/api/ajustes/mahindra/gerar?${contaParam.replace(/^&/, '')}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -233,8 +232,8 @@ export default function MahindraPage() {
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Arquivo Mahindra – Estoque e Venda</h1>
           <p className="mt-1 text-sm text-slate-600">
-            Conta <b>{conta || '—'}</b>. Suba o template oficial da Mahindra (xlsx com a lista de pecas),
-            escolha o mes de referencia e gere.
+            Conta <b>{conta || '—'}</b>. Escolha o mes de referencia e gere. Pode subir o template oficial
+            da Mahindra (xlsx com a lista de pecas) ou deixar em branco para usar o <b>template padrao</b> do servidor.
           </p>
         </div>
         <div className="ml-auto"><ContaSelector /></div>
@@ -277,7 +276,7 @@ export default function MahindraPage() {
                 <span className="mt-1 block text-xs text-slate-500">Normalmente o mes anterior ao envio.</span>
               </label>
               <label className="block">
-                <span className="text-sm font-medium text-slate-700">Template da Mahindra (.xlsx) — obrigatorio</span>
+                <span className="text-sm font-medium text-slate-700">Template da Mahindra (.xlsx) — opcional</span>
                 <input
                   type="file"
                   accept=".xlsx"
@@ -285,7 +284,7 @@ export default function MahindraPage() {
                   className="mt-2 block w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
                 />
                 <span className="mt-1 block text-xs text-slate-500">
-                  O xlsx modelo com a lista de pecas. Nao ha template padrao no servidor — o upload e obrigatorio.
+                  O xlsx modelo com a lista de pecas. Se deixar em branco, o sistema usa o <b>template padrao</b> do servidor.
                 </span>
               </label>
             </div>
