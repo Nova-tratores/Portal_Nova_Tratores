@@ -1193,6 +1193,11 @@ async function calcularDRECompetencia(anoMesIni, anoMesFim) {
     castro_total: 0, castro_operacional: 0, castro_intercompany: 0
   };
 
+  // Receita e CMV das vendas OPERACIONAIS por conta/mes - base para estimar a
+  // margem e reverter o CMV das devolucoes (ver 4b, reversao margem-neutra).
+  const recVendasOp = { nova: {}, castro: {} };
+  const cmvVendasOp = { nova: {}, castro: {} };
+
   // 4a. Vendas: Receita Bruta + CMV
   vendas.forEach(v => {
     const slug = String(v.conta_omie || '').toLowerCase();
@@ -1220,10 +1225,29 @@ async function calcularDRECompetencia(anoMesIni, anoMesFim) {
         addNoTree(treeOp,         '1. Lucro Bruto', '21. Custos', '01. Custo Médio (CMC) das Vendas', cmv, mesKey);
         addNoTree(arv.consolidado, '1. Lucro Bruto', '21. Custos', '01. Custo Médio (CMC) das Vendas', cmv, mesKey);
       }
+      // Acumula p/ a margem da conta/mes (usada na reversao de CMV das devolucoes).
+      recVendasOp[slug][mesKey] = (recVendasOp[slug][mesKey] || 0) + receita;
+      cmvVendasOp[slug][mesKey] = (cmvVendasOp[slug][mesKey] || 0) + Math.abs(cmv);
       contagem[slug + '_operacional']++;
     }
     contagem[slug + '_total']++;
   });
+
+  // Margem CMV/receita das vendas por conta/mes; fallback = media do periodo da
+  // conta. Clamp [0,1]: a reversao nunca excede o valor da devolucao (margem >=0).
+  function ratioCmvDevolucao(slug, mesKey) {
+    const rec = (recVendasOp[slug] && recVendasOp[slug][mesKey]) || 0;
+    const cmv = (cmvVendasOp[slug] && cmvVendasOp[slug][mesKey]) || 0;
+    let r;
+    if (rec > 0) {
+      r = cmv / rec;
+    } else {
+      const totR = Object.values(recVendasOp[slug] || {}).reduce((s, x) => s + x, 0);
+      const totC = Object.values(cmvVendasOp[slug] || {}).reduce((s, x) => s + x, 0);
+      r = totR > 0 ? totC / totR : 0;
+    }
+    return Math.max(0, Math.min(1, r));
+  }
 
   // 4b. Contas a pagar: despesas + devolucoes (sem filtro intercompany - ver nota)
   (contasPagar || []).forEach(r => {
@@ -1247,6 +1271,22 @@ async function calcularDRECompetencia(anoMesIni, anoMesFim) {
     const cat = r.descricao_categoria || '(sem categoria)';
     addNoTree(arv[slugNorm],   cls.tipo, cls.grupo, cls.conta, v, mesKey, cat);
     addNoTree(arv.consolidado, cls.tipo, cls.grupo, cls.conta, v, mesKey, cat);
+
+    // Devolucao de venda: alem de deduzir a RECEITA (acima), reverte o CMV
+    // estimado das mercadorias devolvidas (voltam ao estoque), tornando a
+    // devolucao MARGEM-NEUTRA. Sem isso, o CMV da venda original (que continua
+    // em vendas_itens) fica sem contrapartida -> Lucro Bruto fantasma negativo
+    // nos meses com devolucao. Reversao ~ D x margem(CMV/receita) da conta/mes.
+    // Nuance aceita: devolucao pode ser de venda de mes anterior (margem do mes
+    // corrente e' estimativa), mas o resultado e' muito mais fiel que ignorar.
+    if (r.grupo_categoria === 'Devoluções de Vendas') {
+      const D = Number(r.valor_documento) || 0; // magnitude da devolucao
+      const reversao = D * ratioCmvDevolucao(slugNorm, mesKey);
+      if (reversao) {
+        addNoTree(arv[slugNorm],   '1. Lucro Bruto', '21. Custos', '02. Reversão de CMV (devoluções)', reversao, mesKey, 'Reversão margem-neutra de devoluções');
+        addNoTree(arv.consolidado, '1. Lucro Bruto', '21. Custos', '02. Reversão de CMV (devoluções)', reversao, mesKey, 'Reversão margem-neutra de devoluções');
+      }
+    }
   });
 
   // 4c. Lancamentos de conta corrente SEM titulo (movimentos_cc, codigo_titulo=0):
