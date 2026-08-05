@@ -260,7 +260,7 @@ export default function PedidosPage() {
           {modo === 'abertos' && (
             <>
               <div>
-                <label style={{ display: 'block', fontSize: '.65rem', color: '#64748b', marginBottom: 2 }}>Previsao de fat. de</label>
+                <label style={{ display: 'block', fontSize: '.65rem', color: '#64748b', marginBottom: 2 }}>Inclusao de</label>
                 <input type="date" value={de} onChange={(e) => setDe(e.target.value)} style={{ border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 8px', fontSize: '.82rem' }} />
               </div>
               <div>

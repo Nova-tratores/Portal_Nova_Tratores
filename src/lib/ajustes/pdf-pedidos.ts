@@ -49,31 +49,39 @@ export function gerarPDFPedidos({ titulo, subtitulo, pedidos, agrupado, diasMin 
         { k: 'nItens',       label: 'Itens',       w: 30, alignR: true },
         { k: 'valor',        label: 'Valor',       w: 70, alignR: true },
       ];
-      const xStart = doc.x;
+      const xStart = doc.page.margins.left;
+      const larguraTotal = cols.reduce((s, c) => s + c.w, 0);
+      const HDR_H = 15;   // altura da faixa do cabecalho
+      const ROW_H = 13;   // altura de cada linha
+      const yBottom = doc.page.height - doc.page.margins.bottom - ROW_H;
+
+      // IMPORTANTE: nao ler doc.y dentro do loop de colunas. doc.text(x, y) avanca
+      // o cursor interno, entao cada celula "escorregava" para baixo (layout escada).
+      // Aqui posicionamos tudo por um `y` fixo passado explicitamente.
       function desenharCabec() {
-        doc.fontSize(8).font('Helvetica-Bold');
+        const y = doc.y;
+        doc.rect(xStart, y, larguraTotal, HDR_H).fill('#1f2937');
+        doc.fillColor('#fff').font('Helvetica-Bold').fontSize(8);
         let x = xStart;
         cols.forEach((c) => {
-          doc.fillColor('#fff').rect(x, doc.y, c.w, 14).fill('#1f2937');
-          doc.fillColor('#fff').text(c.label, x + 3, doc.y - 11, { width: c.w - 6, align: c.alignR ? 'right' : 'left' });
+          doc.text(c.label, x + 3, y + 4, { width: c.w - 6, align: c.alignR ? 'right' : 'left', lineBreak: false });
           x += c.w;
         });
         doc.fillColor('#000').font('Helvetica');
-        doc.moveDown(0.6);
+        doc.y = y + HDR_H;
       }
 
       function desenharLinha(p: Record<string, any>, alt: boolean) {
-        const yIni = doc.y;
-        if (alt) doc.fillColor('#f3f4f6').rect(xStart, yIni, cols.reduce((s, c) => s + c.w, 0), 12).fill();
+        const y = doc.y;
+        if (alt) doc.fillColor('#f3f4f6').rect(xStart, y, larguraTotal, ROW_H).fill();
         doc.fillColor('#111').font('Helvetica').fontSize(8);
         let x = xStart;
         cols.forEach((c) => {
-          let v = p[c.k];
-          if (v == null) v = '';
-          doc.text(String(v), x + 3, yIni + 2, { width: c.w - 6, align: c.alignR ? 'right' : 'left', ellipsis: true });
+          const v = p[c.k];
+          doc.text(v == null ? '' : String(v), x + 3, y + 3, { width: c.w - 6, align: c.alignR ? 'right' : 'left', lineBreak: false, ellipsis: true });
           x += c.w;
         });
-        doc.y = yIni + 12;
+        doc.y = y + ROW_H;
       }
 
       const linhas = (pedidos || []).map((p: any) => ({
@@ -102,14 +110,14 @@ export function gerarPDFPedidos({ titulo, subtitulo, pedidos, agrupado, diasMin 
             return dt(a.dataInclusao) - dt(b.dataInclusao);
           });
           grupos[nome].forEach((l, i) => {
-            if (doc.y > 540) { doc.addPage({ size: 'A4', layout: 'landscape', margin: 30 }); desenharCabec(); }
+            if (doc.y > yBottom) { doc.addPage({ size: 'A4', layout: 'landscape', margin: 30 }); desenharCabec(); }
             desenharLinha(l, i % 2 === 1);
           });
         });
       } else {
         desenharCabec();
         linhas.forEach((l, i) => {
-          if (doc.y > 540) { doc.addPage({ size: 'A4', layout: 'landscape', margin: 30 }); desenharCabec(); }
+          if (doc.y > yBottom) { doc.addPage({ size: 'A4', layout: 'landscape', margin: 30 }); desenharCabec(); }
           desenharLinha(l, i % 2 === 1);
         });
       }
