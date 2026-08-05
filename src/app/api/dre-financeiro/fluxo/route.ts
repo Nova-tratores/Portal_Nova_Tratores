@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin as supabase } from '@/lib/dre-financeiro/supabase'
 import {
   CONTA_PADRAO, TIPO_PADRAO, TIPOS_VALIDOS,
-  tabelaPorTipo, colunaNomePorTipo, aplicarConta,
+  tabelaPorTipo, colunaNomePorTipo, aplicarConta, selectPaginado,
 } from '@/lib/dre-financeiro/calc'
 import { fmtISO, inicioMes, fimMes } from '@/lib/dre-financeiro/dates'
 
@@ -59,14 +59,19 @@ export async function GET(request: NextRequest) {
     for (const t of tipos) {
       const tabela = tabelaPorTipo(t)
       const colNome = colunaNomePorTipo(t)
-      let q = supabase.from(tabela)
-        .select(`grupo_categoria,descricao_categoria,codigo_categoria,${colNome},valor_documento`)
-        .gte('data_vencimento', ini)
-        .lte('data_vencimento', fim)
-        .limit(50000)
-      q = aplicarConta(q, conta)
-      const { data, error } = await q
-      if (error) throw new Error(error.message)
+      // PAGINAR: o PostgREST corta TODA resposta em 1000 linhas (db-max-rows), o
+      // .limit(50000) que estava aqui NAO adiantava -> qualquer periodo anual
+      // (4.000+ titulos) truncava e o Sankey vinha ~80% menor. selectPaginado
+      // usa .order('id') (chave estavel obrigatoria: sem ela range() repete/perde
+      // linhas na fronteira das paginas).
+      const data = await selectPaginado(() => {
+        const q = supabase!.from(tabela)
+          .select(`grupo_categoria,descricao_categoria,codigo_categoria,${colNome},valor_documento`)
+          .gte('data_vencimento', ini)
+          .lte('data_vencimento', fim)
+          .order('id')
+        return aplicarConta(q, conta)
+      })
 
       ;(data || []).forEach((r: any) => {
         const valor = Number(r.valor_documento) || 0

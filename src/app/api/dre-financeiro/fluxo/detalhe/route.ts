@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin as supabase } from '@/lib/dre-financeiro/supabase'
 import {
   CONTA_PADRAO,
-  tabelaPorTipo, colunaNomePorTipo, aplicarConta,
+  tabelaPorTipo, colunaNomePorTipo, aplicarConta, selectPaginado,
 } from '@/lib/dre-financeiro/calc'
 
 export const dynamic = 'force-dynamic'
@@ -42,16 +42,20 @@ export async function GET(request: NextRequest) {
 
     const tabela = tabelaPorTipo(tipo)
     const colNome = colunaNomePorTipo(tipo)
-    let q = supabase.from(tabela)
-      .select(`codigo_lancamento,data_vencimento,data_emissao,valor_documento,valor_pago,status_titulo,grupo_categoria,descricao_categoria,codigo_categoria,${colNome},numero_documento_fiscal,numero_parcela`)
-      .gte('data_vencimento', ini).lte('data_vencimento', fim)
-      .limit(50000)
-    q = aplicarConta(q, conta)
-    // Aplica grupo direto na query (campo simples). Categoria e terceiro filtra
-    // em memoria por causa do fallback descricao/codigo (mesma logica da agregacao).
-    if (grupoFiltro) q = q.eq('grupo_categoria', grupoFiltro)
-    const { data, error } = await q
-    if (error) throw new Error(error.message)
+    // PAGINAR (mesma armadilha do /fluxo): o .limit(50000) nao escapa do corte de
+    // 1000 linhas do PostgREST -> o `total` de qualquer periodo anual vinha
+    // subestimado. selectPaginado com .order('id') (chave estavel obrigatoria).
+    const data = await selectPaginado(() => {
+      let q = supabase!.from(tabela)
+        .select(`codigo_lancamento,data_vencimento,data_emissao,valor_documento,valor_pago,status_titulo,grupo_categoria,descricao_categoria,codigo_categoria,${colNome},numero_documento_fiscal,numero_parcela`)
+        .gte('data_vencimento', ini).lte('data_vencimento', fim)
+        .order('id')
+      q = aplicarConta(q, conta)
+      // Aplica grupo direto na query (campo simples). Categoria e terceiro filtra
+      // em memoria por causa do fallback descricao/codigo (mesma logica da agregacao).
+      if (grupoFiltro) q = q.eq('grupo_categoria', grupoFiltro)
+      return q
+    })
 
     const SEM_CAT = 'Sem categoria', SEM_TERC = 'Sem nome'
     const filtered = (data || []).filter((r: any) => {
