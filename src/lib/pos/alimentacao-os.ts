@@ -226,6 +226,34 @@ export async function sincronizarAlimentacaoOS(
       : { ...item, data: dataItem });
   }
 
+  // Nota anexada pelo TÉCNICO no app (Ordem_Servico_Tecnicos.AlmocosFotos,
+  // obrigatória no envio do relatório) vale como recibo quando o admin não
+  // anexou a dele no portal — antes ela era ignorada e a requisição ia pro
+  // financeiro sem nota. Pode haver mais de uma linha por OS (rascunhos):
+  // varre todas, a mais recente vence. base64 (upload que falhou) fica fora.
+  if (porData.size > 0 && [...porData.values()].some((i) => !i.foto)) {
+    const { data: tecRows } = await supabase
+      .from("Ordem_Servico_Tecnicos")
+      .select("AlmocosFotos")
+      .eq("Ordem_Servico", idOrdem)
+      .order("IdOs", { ascending: true });
+    const fotosTecnico = new Map<string, string>();
+    for (const t of tecRows || []) {
+      const raw = (t as Record<string, unknown>).AlmocosFotos;
+      let arr: unknown[] = Array.isArray(raw) ? raw : [];
+      if (typeof raw === "string") { try { const p = JSON.parse(raw); if (Array.isArray(p)) arr = p; } catch { /* ignora */ } }
+      for (const x of arr) {
+        const o = (x || {}) as Record<string, unknown>;
+        const d = String(o.data || "").slice(0, 10);
+        const f = String(o.foto || "");
+        if (d && f && !f.startsWith("data:")) fotosTecnico.set(d, f);
+      }
+    }
+    for (const [dataItem, item] of porData) {
+      if (!item.foto) item.foto = fotosTecnico.get(dataItem) || null;
+    }
+  }
+
   const { data: autos } = await supabase
     .from("Requisicao")
     .select("id, data, valor_despeza, foto_nf, status, solicitante, obs")

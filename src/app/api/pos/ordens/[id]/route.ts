@@ -67,9 +67,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     .from("Ordem_Servico_Tecnicos")
     .select("IdOs, Status, TipoServico, Motivo, ServicoRealizado, Chassis, Horimetro, Garantia, TotalHora, TotalKm, NomResp, FotoHorimetro, FotoChassis, FotoFrente, FotoDireita, FotoEsquerda, FotoTraseira, FotoVolante, FotoFalha1, FotoFalha2, FotoFalha3, FotoFalha4, FotoPecaNova1, FotoPecaNova2, FotoPecaInstalada1, FotoPecaInstalada2, AssCliente, AssTecnico, PecasInfo, JustificativaPecaExtra, CartaCorrecao, AlmocosFotos, FotoAlmoco")
     .eq("Ordem_Servico", idOs);
-  const tecLista = (tecRows || []) as Record<string, unknown>[];
+  const tecLista = ([...(tecRows || [])] as Record<string, unknown>[])
+    .sort((a, b) => Number(b.IdOs || 0) - Number(a.IdOs || 0)); // mais recente primeiro
   const tecData = tecLista.find((t) => String(t.Status || "").toLowerCase() === "enviado")
-    || [...tecLista].sort((a, b) => Number(b.IdOs || 0) - Number(a.IdOs || 0))[0]
+    || tecLista[0]
     || null;
 
   // Fotos das notas de almoço enviadas pelo técnico (AlmocosFotos = [{data, foto}]).
