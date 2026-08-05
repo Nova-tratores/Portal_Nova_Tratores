@@ -40,6 +40,32 @@ function diasDesdeBR(dataBR: string | null | undefined): number | null {
   return Math.floor((Date.now() - d.getTime()) / 86400000);
 }
 
+// Chave ordenavel YYYYMMDD a partir de uma data BR (DD/MM/YYYY). null se nao parseia.
+function chaveDataBR(dataBR: string | null | undefined): number | null {
+  if (!dataBR) return null;
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(dataBR);
+  return m ? (+m[3] * 10000 + +m[2] * 100 + +m[1]) : null;
+}
+
+// Filtra pedidos pela data de INCLUSAO dentro de [dataDeBR, dataAteBR] (inclusive).
+// A Omie (ListarPedidos) filtra por data de REGISTRO (inclusao OU alteracao), entao
+// pedidos antigos que foram mexidos dentro da janela vazam para a lista e a coluna
+// "Inclusao" acaba mostrando meses fora do periodo. Este guard garante que a janela
+// seja respeitada de fato (na tela e em todos os exports). Pedidos sem data legivel
+// NAO sao descartados (conservador).
+function filtrarJanelaInclusao(pedidos: any[], dataDeBR: string, dataAteBR: string): any[] {
+  const kDe = chaveDataBR(dataDeBR);
+  const kAte = chaveDataBR(dataAteBR);
+  if (kDe == null && kAte == null) return pedidos;
+  return pedidos.filter((p: any) => {
+    const k = chaveDataBR(p.dataInclusao || p.dataPrevisao);
+    if (k == null) return true;
+    if (kDe != null && k < kDe) return false;
+    if (kAte != null && k > kAte) return false;
+    return true;
+  });
+}
+
 // ---- Mapas (clientes / etapas / usuarios) com cache ----
 
 // Mapa identificador_omie -> nome do usuario, por conta (cache 12h). Usado pra
@@ -144,7 +170,10 @@ export async function obterPedidos(conta: Conta, dataDeBR: string, dataAteBR: st
     obterMapaEtapasPedido(conta),
     obterMapaUsuarios(conta),
   ]);
-  const pedidos = (lista || []).map(normalizarPedido).filter((p: any) => p && !p.cancelada && !p.faturada);
+  const pedidos = filtrarJanelaInclusao(
+    (lista || []).map(normalizarPedido).filter((p: any) => p && !p.cancelada && !p.faturada),
+    dataDeBR, dataAteBR,
+  );
   for (const p of pedidos) {
     const cli = p.codigoCliente != null ? mapaClientes[String(p.codigoCliente)] : null;
     p.nomeCliente = cli ? cli.nome : null;
@@ -170,7 +199,10 @@ export async function listarPedidosEnriquecidos(conta: Conta, dataDeBR: string, 
     obterMapaEtapasPedido(conta),
     obterMapaUsuarios(conta),
   ]);
-  const pedidos = (lista || []).map(normalizarPedido).filter((p: any) => p && !p.cancelada && !p.faturada);
+  const pedidos = filtrarJanelaInclusao(
+    (lista || []).map(normalizarPedido).filter((p: any) => p && !p.cancelada && !p.faturada),
+    dataDeBR, dataAteBR,
+  );
   const contaLabel = labelConta(conta);
   for (const p of pedidos) {
     const cli = p.codigoCliente != null ? mapaClientes[String(p.codigoCliente)] : null;
