@@ -26,6 +26,8 @@
 // ============================================================================
 
 import * as XLSX from 'xlsx';
+import path from 'path';
+import { promises as fs } from 'fs';
 import type { Conta } from './conta';
 import { labelConta } from './conta';
 import { inicioMes, fimMes, fmtBR } from './dates';
@@ -291,10 +293,32 @@ export function parseTemplate(buffer: Buffer): ParseTemplateResult {
 
 const TABELA_ARQ = 'mahindra_arquivos';
 
+// Template padrao do servidor: usado quando o operador NAO envia um xlsx.
+// A lista de pecas e' fixa (mesma para NOVA/CASTRO); a geracao so' preenche as
+// colunas de estoque/venda. Em producao (Vercel) a pasta public/ nao vai no
+// bundle serverless -> carregamos via fetch da URL publica e caimos pro fs.
+const TEMPLATE_PADRAO_PUBLIC_PATH = '/templates/estoque-venda-mahindra.xlsx';
+
+async function carregarTemplatePadrao(baseUrl?: string): Promise<Buffer> {
+  if (baseUrl) {
+    try {
+      const res = await fetch(`${baseUrl}${TEMPLATE_PADRAO_PUBLIC_PATH}`);
+      if (res.ok) return Buffer.from(await res.arrayBuffer());
+    } catch {
+      /* fallback pro fs */
+    }
+  }
+  const diskPath = path.join(process.cwd(), 'public', 'templates', 'estoque-venda-mahindra.xlsx');
+  return fs.readFile(diskPath);
+}
+
 export interface IniciarGeracaoArgs {
+  /** xlsx enviado pelo operador (base64). Se vazio, usa o template padrao do servidor. */
   templateBase64: string;
   mes: string;
   criadoPor?: string | null;
+  /** origem da requisicao (ex.: https://portal...), p/ ler o template padrao via fetch em producao. */
+  baseUrl?: string;
 }
 
 /**
@@ -304,19 +328,26 @@ export interface IniciarGeracaoArgs {
  * mahindra_arquivos e conclui o job com {arquivoId, resumo, filename}).
  */
 export async function iniciarGeracao(conta: Conta, args: IniciarGeracaoArgs): Promise<any> {
-  const { templateBase64, mes, criadoPor } = args;
+  const { templateBase64, mes, criadoPor, baseUrl } = args;
   if (!/^\d{4}-\d{2}$/.test(String(mes || ''))) {
     throw new Error('Informe o mes no formato AAAA-MM');
-  }
-  if (!templateBase64) {
-    throw new Error('Envie o template xlsx da Mahindra (upload obrigatorio).');
   }
   if (await jobRodando('mahindra-gerar', conta)) {
     const ativo = await lerJobAtivo('mahindra-gerar', conta);
     return { ok: true, rodando: true, jaRodando: true, jobId: ativo?.id, etapa: ativo?.etapa };
   }
 
-  const templateBuffer = Buffer.from(templateBase64, 'base64');
+  // Sem upload -> usa o template padrao guardado no servidor (public/templates).
+  let templateBuffer: Buffer;
+  if (templateBase64) {
+    templateBuffer = Buffer.from(templateBase64, 'base64');
+  } else {
+    try {
+      templateBuffer = await carregarTemplatePadrao(baseUrl);
+    } catch (e: any) {
+      throw new Error('Nenhum template enviado e o template padrao do servidor nao pode ser lido: ' + (e?.message || String(e)));
+    }
+  }
   if (!templateBuffer || templateBuffer.length === 0) {
     throw new Error('Template vazio ou invalido.');
   }

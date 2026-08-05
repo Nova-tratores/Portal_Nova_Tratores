@@ -19,6 +19,7 @@ export async function POST(req: NextRequest) {
       templateBase64: body.templateBase64 || '',
       mes: body.mes || '',
       criadoPor: body.criadoPor,
+      baseUrl: req.nextUrl.origin,
     });
     return NextResponse.json(r, { status: 202 });
   } catch (e) {
