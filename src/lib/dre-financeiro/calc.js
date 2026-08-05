@@ -517,10 +517,15 @@ async function calcularSaudeFinanceira(conta) {
   {
     const recente = _mediaJanela(resultadoPM, chaves, REC_INI, REC_FIM);
     const anterior = _mediaJanela(resultadoPM, chaves, ANT_INI, ANT_FIM);
+    const receitaRecente = _mediaJanela(receitaPM, chaves, REC_INI, REC_FIM);
     const ultimoCompleto = resultadoPM[chaves[REC_FIM]];
     const tend = _direcao(recente, anterior, false);
     let status;
-    if (!arvDre || recente === null) status = 'sem_dado';
+    // Guard: sem receita na janela (vendas_itens nao sincronizado p/ os meses
+    // recentes) o "resultado" fica so' despesas -> negativo -> FALSO Critico
+    // (arrastava o indice-resumo inteiro). Sem receita nao da' pra julgar o
+    // resultado: reporta sem_dado, igual a Margem ja faz.
+    if (!arvDre || recente === null || !(receitaRecente > 0)) status = 'sem_dado';
     else if (recente < 0) status = 'ruim';
     else if (tend === 'piora') status = 'atencao';
     else status = 'bom';
