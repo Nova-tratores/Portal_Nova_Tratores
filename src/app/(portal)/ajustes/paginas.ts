@@ -30,6 +30,7 @@ export const PAGINAS_AJUSTES: PaginaAjustes[] = [
   { key: 'ajustes:pedidos', label: 'Pedidos abertos', href: '/ajustes/pedidos', grupo: 'Visualização' },
   { key: 'ajustes:remessas', label: 'Remessas em aberto', href: '/ajustes/remessas', grupo: 'Visualização' },
   { key: 'ajustes:movimentacao-produto', label: 'Movimentação de produto', href: '/ajustes/movimentacao-produto', grupo: 'Visualização' },
+  { key: 'ajustes:antecipacoes', label: 'Antecipações', href: '/ajustes/antecipacoes', grupo: 'Visualização' },
   { key: 'ajustes:notas', label: 'Notas fiscais', href: '/ajustes/notas', grupo: 'Visualização' },
   { key: 'ajustes:mahindra', label: 'Arquivo Mahindra', href: '/ajustes/mahindra', grupo: 'Visualização' },
   // Informação
