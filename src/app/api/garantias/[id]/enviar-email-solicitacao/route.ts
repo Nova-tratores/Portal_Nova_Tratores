@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/pos/supabase';
-import { TBL_GARANTIAS, TBL_GAR_ANEXOS, TBL_GAR_PEND, FOTOS_OS } from '@/lib/garantias/constants';
+import { TBL_GARANTIAS, TBL_GAR_ANEXOS, TBL_GAR_PEND } from '@/lib/garantias/constants';
+import { listarFotosOS } from '@/lib/garantias/fotos-os';
 import { registrarEvento, notificarGarantistas } from '@/lib/garantias/server';
 import {
   transporter,
@@ -34,16 +35,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Montadora não usa solicitação por e-mail.' }, { status: 400 });
   }
 
-  const { data: tec } = await supabase
-    .from('Ordem_Servico_Tecnicos')
-    .select(FOTOS_OS.map((f) => f.chave).join(', '))
-    .eq('Ordem_Servico', g.id_ordem)
-    .maybeSingle();
-  const fotos = FOTOS_OS.map((f) => ({
-    chave: f.chave,
-    label: f.label,
-    url: String((tec as unknown as Record<string, unknown> | null)?.[f.chave] || ''),
-  })).filter((f) => f.url);
+  // nomeadas + FotosExtras (a grade livre do app grava tudo em extras)
+  const fotos = await listarFotosOS(g.id_ordem);
 
   const respostas = ((g.checklist_respostas as Record<string, unknown>) || {});
   const varsSan = {
@@ -177,26 +170,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const attachments: { filename: string; content: Buffer; contentType?: string }[] = [];
   const nomesAnexos: { nome: string; url?: string | null; content_type?: string | null }[] = [];
 
-  // 1) Fotos da OS (selecionáveis; ausente = todas as existentes)
-  const { data: tec } = await supabase
-    .from('Ordem_Servico_Tecnicos')
-    .select(FOTOS_OS.map((f) => f.chave).join(', '))
-    .eq('Ordem_Servico', g.id_ordem)
-    .maybeSingle();
+  // 1) Fotos da OS (selecionáveis; ausente = todas as existentes) —
+  // nomeadas + FotosExtras, mesmas chaves que o GET manda pro drawer
+  const todasFotos = await listarFotosOS(g.id_ordem);
   const selecionadas: string[] | null = Array.isArray(body.fotosSelecionadas) ? body.fotosSelecionadas : null;
-  const fotosEscolhidas = FOTOS_OS.filter((f) => {
-    const url = (tec as unknown as Record<string, unknown> | null)?.[f.chave];
-    if (!url) return false;
-    return selecionadas === null || selecionadas.includes(f.chave);
-  });
+  const fotosEscolhidas = todasFotos.filter(
+    (f) => selecionadas === null || selecionadas.includes(f.chave),
+  );
   await Promise.all(
     fotosEscolhidas.map(async (f) => {
-      const url = String((tec as unknown as Record<string, unknown>)?.[f.chave] || '');
-      const buf = await baixarUrl(url);
+      const buf = await baixarUrl(f.url);
       if (!buf) return;
-      const ext = (url.split('?')[0].match(/\.([a-zA-Z0-9]{3,4})$/)?.[1] || 'jpg').toLowerCase();
+      const ext = (f.url.split('?')[0].match(/\.([a-zA-Z0-9]{3,4})$/)?.[1] || 'jpg').toLowerCase();
       attachments.push({ filename: `${f.label.replace(/\s+/g, '_')}.${ext}`, content: buf });
-      nomesAnexos.push({ nome: `${f.label}.${ext}`, url });
+      nomesAnexos.push({ nome: `${f.label}.${ext}`, url: f.url });
     })
   );
 

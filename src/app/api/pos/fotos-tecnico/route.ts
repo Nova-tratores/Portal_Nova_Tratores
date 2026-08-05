@@ -1,44 +1,63 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
 
+const CAMPOS_NOMEADOS: [string, string, string][] = [
+  ["FotoHorimetro", "Horímetro", "Identificação"],
+  ["FotoChassis", "Chassis", "Identificação"],
+  ["FotoFrente", "Frente", "Máquina"],
+  ["FotoDireita", "Direita", "Máquina"],
+  ["FotoEsquerda", "Esquerda", "Máquina"],
+  ["FotoTraseira", "Traseira", "Máquina"],
+  ["FotoVolante", "Volante", "Máquina"],
+  ["FotoFalha1", "Falha 1", "Falhas"],
+  ["FotoFalha2", "Falha 2", "Falhas"],
+  ["FotoFalha3", "Falha 3", "Falhas"],
+  ["FotoFalha4", "Falha 4", "Falhas"],
+  ["FotoPecaNova1", "Peça Nova 1", "Peças"],
+  ["FotoPecaNova2", "Peça Nova 2", "Peças"],
+  ["FotoPecaInstalada1", "Peça Instalada 1", "Peças"],
+  ["FotoPecaInstalada2", "Peça Instalada 2", "Peças"],
+];
+
+// FotosExtras é a grade livre do app (Câmera/Galeria gravam TUDO ali) — sem
+// ela, o que o técnico anexa fica invisível (caso real: OS-0640/GAR-0038)
+function extrasDe(row: Record<string, unknown>): string[] {
+  const raw = row.FotosExtras;
+  let arr: unknown[] = Array.isArray(raw) ? raw : [];
+  if (typeof raw === "string") { try { const p = JSON.parse(raw); if (Array.isArray(p)) arr = p; } catch { /* ignora */ } }
+  return arr.map((x) => String(x || "")).filter((u) => u && !u.startsWith("data:"));
+}
+
+const SELECT_FOTOS = CAMPOS_NOMEADOS.map(([c]) => c).join(", ") + ", FotosExtras";
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const osId = searchParams.get("os");
 
   if (osId) {
-    // Buscar fotos de uma OS específica
-    const { data, error } = await supabase
+    // Pode haver mais de uma linha por OS (rascunhos) — pega a 'enviado'
+    // mais recente; maybeSingle estouraria com 2+ linhas.
+    const { data: rows, error } = await supabase
       .from("Ordem_Servico_Tecnicos")
-      .select("Ordem_Servico, NomResp, FotoHorimetro, FotoChassis, FotoFrente, FotoDireita, FotoEsquerda, FotoTraseira, FotoVolante, FotoFalha1, FotoFalha2, FotoFalha3, FotoFalha4, FotoPecaNova1, FotoPecaNova2, FotoPecaInstalada1, FotoPecaInstalada2, AssCliente, AssTecnico, TipoServico, Motivo, ServicoRealizado, Chassis, Horimetro")
+      .select(`IdOs, Status, Ordem_Servico, NomResp, AssCliente, AssTecnico, TipoServico, Motivo, ServicoRealizado, Chassis, Horimetro, ${SELECT_FOTOS}`)
       .eq("Ordem_Servico", osId)
-      .maybeSingle();
+      .order("IdOs", { ascending: false });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    const lista = (rows || []) as unknown as Record<string, any>[];
+    const data = lista.find((t) => String(t.Status || "").toLowerCase() === "enviado") || lista[0];
     if (!data) return NextResponse.json({ error: "Nenhum relatório encontrado para esta OS" }, { status: 404 });
 
     // Montar lista de fotos
     const fotos: { label: string; url: string; categoria: string }[] = [];
-    const map: [string, string, string][] = [
-      ["FotoHorimetro", "Horímetro", "Identificação"],
-      ["FotoChassis", "Chassis", "Identificação"],
-      ["FotoFrente", "Frente", "Máquina"],
-      ["FotoDireita", "Direita", "Máquina"],
-      ["FotoEsquerda", "Esquerda", "Máquina"],
-      ["FotoTraseira", "Traseira", "Máquina"],
-      ["FotoVolante", "Volante", "Máquina"],
-      ["FotoFalha1", "Falha 1", "Falhas"],
-      ["FotoFalha2", "Falha 2", "Falhas"],
-      ["FotoFalha3", "Falha 3", "Falhas"],
-      ["FotoFalha4", "Falha 4", "Falhas"],
-      ["FotoPecaNova1", "Peça Nova 1", "Peças"],
-      ["FotoPecaNova2", "Peça Nova 2", "Peças"],
-      ["FotoPecaInstalada1", "Peça Instalada 1", "Peças"],
-      ["FotoPecaInstalada2", "Peça Instalada 2", "Peças"],
-    ];
-    for (const [campo, label, cat] of map) {
-      const val = (data as Record<string, any>)[campo];
+    for (const [campo, label, cat] of CAMPOS_NOMEADOS) {
+      const val = data[campo];
       if (val) fotos.push({ label, url: val, categoria: cat });
     }
+    const vistas = new Set(fotos.map((f) => f.url));
+    extrasDe(data).forEach((url, i) => {
+      if (!vistas.has(url)) fotos.push({ label: `Extra ${i + 1}`, url, categoria: "Extras" });
+    });
 
     const assinaturas: { label: string; url: string }[] = [];
     if (data.AssCliente) assinaturas.push({ label: "Cliente", url: data.AssCliente });
@@ -61,25 +80,21 @@ export async function GET(req: NextRequest) {
   // Listar todas as OS que têm relatório do técnico
   const { data: lista, error } = await supabase
     .from("Ordem_Servico_Tecnicos")
-    .select("Ordem_Servico, NomResp, TipoServico, FotoHorimetro, FotoChassis, FotoFrente, FotoDireita, FotoEsquerda, FotoTraseira, FotoVolante, FotoFalha1, FotoFalha2, FotoFalha3, FotoFalha4, FotoPecaNova1, FotoPecaNova2, FotoPecaInstalada1, FotoPecaInstalada2")
+    .select(`Ordem_Servico, NomResp, TipoServico, ${SELECT_FOTOS}`)
     .order("Ordem_Servico", { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const items = (lista || []).map((row) => {
-    let count = 0;
-    const campos = ["FotoHorimetro", "FotoChassis", "FotoFrente", "FotoDireita", "FotoEsquerda", "FotoTraseira", "FotoVolante", "FotoFalha1", "FotoFalha2", "FotoFalha3", "FotoFalha4", "FotoPecaNova1", "FotoPecaNova2", "FotoPecaInstalada1", "FotoPecaInstalada2"];
-    const r = row as Record<string, any>;
-    for (const c of campos) { if (r[c]) count++; }
-    // Thumbnail: primeira foto disponível
-    let thumb = "";
-    for (const c of campos) { if (r[c]) { thumb = r[c]; break; } }
+  const items = ((lista || []) as unknown as Record<string, any>[]).map((r) => {
+    const urls: string[] = [];
+    for (const [c] of CAMPOS_NOMEADOS) { if (r[c]) urls.push(r[c]); }
+    for (const u of extrasDe(r)) { if (!urls.includes(u)) urls.push(u); }
     return {
-      os: row.Ordem_Servico,
-      tecnico: row.NomResp || "",
-      tipoServico: row.TipoServico || "",
-      totalFotos: count,
-      thumb,
+      os: r.Ordem_Servico,
+      tecnico: r.NomResp || "",
+      tipoServico: r.TipoServico || "",
+      totalFotos: urls.length,
+      thumb: urls[0] || "",
     };
   });
 
