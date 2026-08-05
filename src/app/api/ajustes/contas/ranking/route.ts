@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta } from '@/lib/ajustes/conta';
-import { rankingContas } from '@/lib/ajustes/contas';
+import { rankingContas, statusInPorSituacao } from '@/lib/ajustes/contas';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -11,8 +11,9 @@ export async function GET(req: NextRequest) {
   const tipo = sp.get('tipo') === 'receber' ? 'receber' : 'pagar';
   const dim = sp.get('dim') === 'departamento' ? 'departamento' : 'categoria';
   const conta = parseConta(sp.get('conta'));
+  const statusIn = statusInPorSituacao(sp.get('situacao'));
   try {
-    const out = await rankingContas(tipo, dim, conta, sp.get('de'), sp.get('ate'));
+    const out = await rankingContas(tipo, dim, conta, sp.get('de'), sp.get('ate'), statusIn);
     return NextResponse.json({ ...out, conta: conta ?? 'todas' });
   } catch (e) {
     return NextResponse.json({ erro: (e as Error).message }, { status: 500 });

@@ -23,9 +23,11 @@ interface RankingPayload {
 interface Lancamento {
   conta: string; codigoLancamento: number | string; valor: number;
   dataEmissao?: string; vencimento?: string; numeroDoc?: string; contraparte?: string;
+  status?: string | null;
   codigoCategoria?: string | number | null; descricaoCategoria?: string | null;
   codigoDepartamento?: string | number | null; descricaoDepartamento?: string | null;
 }
+type Situacao = 'todas' | 'aberto' | 'atrasado';
 interface LancamentosPayload { total?: number; mostrando?: number; lancamentos?: Lancamento[]; erro?: string }
 interface CatDep { codigo: string | number; descricao: string }
 interface RateioRow { id: number; codDep: string; perc: string }
@@ -64,6 +66,7 @@ const COLS: ColDef[] = [
   { key: 'valor', label: 'Valor', type: 'num', align: 'right', val: (l) => Number(l.valor) || 0, txt: (l) => fmtBRL(l.valor) },
   { key: 'dataEmissao', label: 'Emissao', type: 'date', val: (l) => l.dataEmissao || '', txt: (l) => fmtData(l.dataEmissao) },
   { key: 'vencimento', label: 'Vencimento', type: 'date', val: (l) => l.vencimento || '', txt: (l) => fmtData(l.vencimento) },
+  { key: 'status', label: 'Situacao', type: 'text', val: (l) => l.status || '', txt: (l) => l.status || '' },
   { key: 'contraparte', label: 'Fornecedor/Cliente', type: 'text', val: (l) => decode(l.contraparte), txt: (l) => decode(l.contraparte) },
   { key: 'descricaoCategoria', label: 'Categoria', type: 'text', val: (l) => l.descricaoCategoria || '', txt: (l) => l.descricaoCategoria || '' },
   { key: 'descricaoDepartamento', label: 'Departamento', type: 'text', val: (l) => l.descricaoDepartamento || '', txt: (l) => l.descricaoDepartamento || '' },
@@ -78,8 +81,11 @@ export default function CorrecaoContasPage() {
   const def = useMemo(() => isoDefault(3), []);
   const [tipo, setTipo] = useState<Tipo>('pagar');
   const [dim, setDim] = useState<Dim>('categoria');
+  const [situacao, setSituacao] = useState<Situacao>('todas');
   const [de, setDe] = useState(def.de);
   const [ate, setAte] = useState(def.ate);
+  // em aberto/atrasado ignora a janela de emissao (titulos atrasados costumam ser antigos)
+  const usaData = situacao === 'todas';
 
   const [ranking, setRanking] = useState<GrupoRanking[]>([]);
   const [resumo, setResumo] = useState('');
@@ -110,26 +116,28 @@ export default function CorrecaoContasPage() {
     try {
       let qs = `tipo=${tipo}&dim=${dim}`;
       qs += contaParam; // '' (todas) ou '&conta=...'
-      if (de) qs += '&de=' + encodeURIComponent(de);
-      if (ate) qs += '&ate=' + encodeURIComponent(ate);
+      if (situacao !== 'todas') qs += '&situacao=' + situacao;
+      if (usaData && de) qs += '&de=' + encodeURIComponent(de);
+      if (usaData && ate) qs += '&ate=' + encodeURIComponent(ate);
       const r = await fetch(`/api/ajustes/contas/ranking?${qs.replace(/^&/, '')}`);
       const d = (await r.json()) as RankingPayload;
       if (d.erro) { setStatus('Erro: ' + d.erro); setRanking([]); return; }
       setRanking(d.ranking || []);
-      setResumo(`${d.totalLancamentos || 0} lancamentos · total ${fmtBRL(d.totalGeral)} · ${(d.ranking || []).length} ${dim}(s)`);
+      const sit = situacao === 'aberto' ? ' em aberto' : situacao === 'atrasado' ? ' atrasado(s)' : '';
+      setResumo(`${d.totalLancamentos || 0} lancamentos${sit} · total ${fmtBRL(d.totalGeral)} · ${(d.ranking || []).length} ${dim}(s)`);
       setStatus('');
     } catch (ex) {
       setStatus('Erro de rede: ' + (ex as Error).message);
     } finally {
       setCarregando(false);
     }
-  }, [tipo, dim, contaParam, de, ate]);
+  }, [tipo, dim, situacao, usaData, contaParam, de, ate]);
 
-  // recarrega ao trocar conta/tipo/dim
+  // recarrega ao trocar conta/tipo/dim/situacao
   useEffect(() => {
     buscar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conta, tipo, dim]);
+  }, [conta, tipo, dim, situacao]);
 
   const abrirLancamentos = useCallback(async (grupo: GrupoRanking) => {
     setGrupoSel(grupo);
@@ -140,8 +148,9 @@ export default function CorrecaoContasPage() {
     try {
       let qs = `tipo=${tipo}&dim=${dim}&codigo=${encodeURIComponent(grupo.codigo == null ? '(sem)' : grupo.codigo)}`;
       qs += contaParam;
-      if (de) qs += '&de=' + encodeURIComponent(de);
-      if (ate) qs += '&ate=' + encodeURIComponent(ate);
+      if (situacao !== 'todas') qs += '&situacao=' + situacao;
+      if (usaData && de) qs += '&de=' + encodeURIComponent(de);
+      if (usaData && ate) qs += '&ate=' + encodeURIComponent(ate);
       const r = await fetch(`/api/ajustes/contas/lancamentos?${qs.replace(/^&/, '')}`);
       const d = (await r.json()) as LancamentosPayload;
       if (d.erro) { setLancSub('Erro: ' + d.erro); return; }
@@ -150,7 +159,7 @@ export default function CorrecaoContasPage() {
     } catch (ex) {
       setLancSub('Rede: ' + (ex as Error).message);
     }
-  }, [tipo, dim, contaParam, de, ate]);
+  }, [tipo, dim, situacao, usaData, contaParam, de, ate]);
 
   const carregarCats = useCallback(async (slug: string): Promise<CatDep[]> => {
     if (catCache.current[slug]) return catCache.current[slug];
@@ -207,7 +216,7 @@ export default function CorrecaoContasPage() {
         <div>
           <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>Correcao de contas</h1>
           <p style={{ color: '#64748b', fontSize: '.82rem', maxWidth: 820 }}>
-            Ranking de gastos por <b>categoria</b> ou <b>departamento</b> (a pagar e a receber) pra achar valores que distorcem o DRE. Clique numa barra pra ver os lancamentos e <b>corrigir</b> a categoria/departamento direto no Omie. Conta <b>{conta ? conta.toUpperCase() : 'Todas'}</b>.
+            Ranking de gastos por <b>categoria</b> ou <b>departamento</b> (a pagar e a receber) pra achar valores que distorcem o DRE. Use <b>Situacao</b> pra ver so as contas <b>em aberto</b> ou <b>atrasadas</b>. Clique numa barra pra ver os lancamentos e <b>corrigir</b> a categoria/departamento direto no Omie. Conta <b>{conta ? conta.toUpperCase() : 'Todas'}</b>.
           </p>
         </div>
         <div style={{ marginLeft: 'auto' }}><ContaSelector /></div>
@@ -222,13 +231,14 @@ export default function CorrecaoContasPage() {
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
           <Toggle label="Tipo" value={tipo} onChange={(v) => setTipo(v as Tipo)} opts={[['pagar', 'A pagar'], ['receber', 'A receber']]} />
           <Toggle label="Agrupar por" value={dim} onChange={(v) => setDim(v as Dim)} opts={[['categoria', 'Categoria'], ['departamento', 'Departamento']]} />
+          <Toggle label="Situacao" value={situacao} onChange={(v) => setSituacao(v as Situacao)} opts={[['todas', 'Todas'], ['aberto', 'Em aberto'], ['atrasado', 'Atrasado']]} />
           <div>
-            <label style={{ display: 'block', fontSize: '.65rem', color: '#64748b', marginBottom: 2 }}>Emissao de</label>
-            <input type="date" value={de} onChange={(e) => setDe(e.target.value)} style={inpStyle} />
+            <label style={{ display: 'block', fontSize: '.65rem', color: usaData ? '#64748b' : '#cbd5e1', marginBottom: 2 }}>Emissao de</label>
+            <input type="date" value={de} disabled={!usaData} onChange={(e) => setDe(e.target.value)} style={{ ...inpStyle, opacity: usaData ? 1 : 0.5 }} />
           </div>
           <div>
-            <label style={{ display: 'block', fontSize: '.65rem', color: '#64748b', marginBottom: 2 }}>Ate</label>
-            <input type="date" value={ate} onChange={(e) => setAte(e.target.value)} style={inpStyle} />
+            <label style={{ display: 'block', fontSize: '.65rem', color: usaData ? '#64748b' : '#cbd5e1', marginBottom: 2 }}>Ate</label>
+            <input type="date" value={ate} disabled={!usaData} onChange={(e) => setAte(e.target.value)} style={{ ...inpStyle, opacity: usaData ? 1 : 0.5 }} />
           </div>
           <button onClick={buscar} disabled={carregando} style={{ padding: '7px 16px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: carregando ? 'wait' : 'pointer', opacity: carregando ? 0.5 : 1 }}>Atualizar</button>
         </div>
@@ -302,6 +312,7 @@ export default function CorrecaoContasPage() {
                     <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{fmtBRL(l.valor)}</td>
                     <td style={{ ...tdStyle, whiteSpace: 'nowrap', color: '#64748b' }}>{fmtData(l.dataEmissao) || '-'}</td>
                     <td style={{ ...tdStyle, whiteSpace: 'nowrap', color: '#64748b' }}>{fmtData(l.vencimento) || '-'}</td>
+                    <td style={tdStyle}><StatusBadge s={l.status} /></td>
                     <td style={tdStyle}>{decode(l.contraparte) || '-'}</td>
                     <td style={{ ...tdStyle, fontSize: '.72rem', color: '#64748b' }}>{l.descricaoCategoria || '-'}</td>
                     <td style={{ ...tdStyle, fontSize: '.72rem', color: '#64748b' }}>{l.descricaoDepartamento || '-'}</td>
@@ -346,6 +357,15 @@ function Toggle({ label, value, onChange, opts }: { label: string; value: string
 function Badge({ conta }: { conta: string }) {
   const castro = conta === 'CASTRO';
   return <span style={{ padding: '1px 6px', borderRadius: 4, fontSize: '.68rem', background: castro ? '#f3e8ff' : '#e0f2fe', color: castro ? '#7e22ce' : '#0369a1' }}>{conta}</span>;
+}
+
+function StatusBadge({ s }: { s?: string | null }) {
+  const map: Record<string, [string, string]> = {
+    'ATRASADO': ['#fee2e2', '#b91c1c'], 'VENCE HOJE': ['#fef3c7', '#b45309'], 'A VENCER': ['#e0f2fe', '#0369a1'],
+    'PAGO': ['#dcfce7', '#15803d'], 'RECEBIDO': ['#dcfce7', '#15803d'],
+  };
+  const [bg, fg] = map[s || ''] || ['#f1f5f9', '#475569'];
+  return <span style={{ padding: '1px 6px', borderRadius: 4, fontSize: '.68rem', whiteSpace: 'nowrap', background: bg, color: fg }}>{s || '-'}</span>;
 }
 
 // ---------- modal de correcao individual ----------

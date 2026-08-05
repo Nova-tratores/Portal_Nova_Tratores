@@ -26,7 +26,14 @@ export function colNomeContraparte(tipo: string): string {
   return String(tipo) === 'receber' ? 'nome_cliente' : 'nome_fornecedor';
 }
 
-const STATUS_ABERTO = ['A VENCER', 'ATRASADO', 'VENCE HOJE'];
+export const STATUS_ABERTO = ['A VENCER', 'ATRASADO', 'VENCE HOJE'];
+
+/** Traduz a "situação" da tela (todas|aberto|atrasado) para a lista de status_titulo. */
+export function statusInPorSituacao(situacao?: string | null): string[] | null {
+  if (situacao === 'aberto') return STATUS_ABERTO;
+  if (situacao === 'atrasado') return ['ATRASADO'];
+  return null; // 'todas' (ou vazio) => sem filtro de status
+}
 
 export interface FiltrosContas {
   conta?: ContaFiltro;
@@ -61,10 +68,10 @@ export async function lerContas(tipo: string, filtros: FiltrosContas, colunas: s
 }
 
 /** Ranking por categoria ou departamento (total no período, desc). */
-export async function rankingContas(tipo: string, dim: string, conta: ContaFiltro, de?: string | null, ate?: string | null): Promise<any> {
+export async function rankingContas(tipo: string, dim: string, conta: ContaFiltro, de?: string | null, ate?: string | null, statusIn?: string[] | null): Promise<any> {
   const rows = await lerContas(
     tipo,
-    { conta, de: de || null, ate: ate || null },
+    { conta, de: de || null, ate: ate || null, statusIn: statusIn || undefined },
     'valor_documento, codigo_categoria, descricao_categoria, codigo_departamento, descricao_departamento',
   );
   const codCol = dim === 'departamento' ? 'codigo_departamento' : 'codigo_categoria';
@@ -92,11 +99,12 @@ export async function lancamentosContas(
   de: string | null,
   ate: string | null,
   codigo: string | null,
+  statusIn?: string[] | null,
 ): Promise<any> {
   const nomeCol = colNomeContraparte(tipo);
-  const filtros: FiltrosContas = { conta, de: de || null, ate: ate || null };
+  const filtros: FiltrosContas = { conta, de: de || null, ate: ate || null, statusIn: statusIn || undefined };
   (filtros as any)[dim === 'departamento' ? 'codigoDepartamento' : 'codigoCategoria'] = codigo;
-  const cols = `conta_omie, codigo_lancamento, valor_documento, data_emissao, data_vencimento, numero_documento, numero_documento_fiscal, ${nomeCol}, codigo_categoria, descricao_categoria, codigo_departamento, descricao_departamento`;
+  const cols = `conta_omie, codigo_lancamento, valor_documento, data_emissao, data_vencimento, numero_documento, numero_documento_fiscal, status_titulo, ${nomeCol}, codigo_categoria, descricao_categoria, codigo_departamento, descricao_departamento`;
   const rows = await lerContas(tipo, filtros, cols);
   rows.sort((a, b) => (Number(b.valor_documento) || 0) - (Number(a.valor_documento) || 0));
   const lancamentos = rows.slice(0, 1000).map((r) => ({
@@ -106,6 +114,7 @@ export async function lancamentosContas(
     dataEmissao: r.data_emissao,
     vencimento: r.data_vencimento,
     numeroDoc: r.numero_documento || r.numero_documento_fiscal || null,
+    status: r.status_titulo || null,
     contraparte: r[nomeCol] || null,
     codigoCategoria: r.codigo_categoria,
     descricaoCategoria: r.descricao_categoria,
