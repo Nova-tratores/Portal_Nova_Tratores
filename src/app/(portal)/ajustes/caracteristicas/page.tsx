@@ -268,7 +268,7 @@ export default function CaracteristicasPage() {
       <div style={{ marginBottom: 14 }}>
         <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>Caracteristicas por produto</h1>
         <p style={{ color: '#64748b', fontSize: '.82rem', maxWidth: 900 }}>
-          Matriz das <b>duas empresas</b> (NOVA + CASTRO): cada caracteristica da Omie vira uma coluna. So produtos ativos com pelo menos uma caracteristica. <b>Clique numa celula</b> para editar (grava na Omie). Os dados vem da ultima <b>sincronizacao</b>.
+          Matriz das <b>duas empresas</b> (NOVA + CASTRO): cada caracteristica da Omie vira uma coluna. Todas as <b>peças ativas</b> (inclusive as sem nenhuma caracteristica, para o &quot;Sugerir Tipo:&quot; alcancar todas). <b>Clique numa celula</b> para editar (grava na Omie). Os dados vem da ultima <b>sincronizacao</b>.
         </p>
       </div>
 

@@ -57,21 +57,25 @@ export async function iniciarSyncCaracteristicas(criadoPor?: string): Promise<an
           onProgress: (m: string) => atualizarJob(jobId, { etapa: `${label}: ${m}` }),
         });
         const agora = new Date().toISOString();
+        // Inclui TODAS as peças ativas — inclusive as com 0 características — para o
+        // "Sugerir Tipo:" alcançá-las pela descrição. Antes só entravam produtos que
+        // já tinham ≥1 característica, deixando ~metade do faturamento de peças
+        // (óleos, embreagens, filtros sem característica) permanentemente fora da matriz.
         const rows = produtos
-          .filter((p: any) => !p.inativo && familiaCaractPermitida(p.familia) && Array.isArray(p.caracteristicas) && p.caracteristicas.length > 0)
+          .filter((p: any) => !p.inativo && familiaCaractPermitida(p.familia))
           .map((p: any) => ({
             conta_omie: label,
             codigo_produto: Number(p.codigoProduto) || p.codigoProduto,
             codigo: p.codigo != null ? String(p.codigo) : null,
             descricao: p.descricao || null,
             caracteristicas: Object.fromEntries(
-              p.caracteristicas
+              (Array.isArray(p.caracteristicas) ? p.caracteristicas : [])
                 .filter((x: any) => x.nome != null && String(x.nome).trim() !== '')
                 .map((x: any) => [String(x.nome), x.conteudo != null ? String(x.conteudo) : '']),
             ),
             atualizado_em: agora,
           }));
-        atualizarJob(jobId, { etapa: `${label}: gravando ${rows.length} produtos com caracteristica...` });
+        atualizarJob(jobId, { etapa: `${label}: gravando ${rows.length} peças...` });
         const { error: delErr } = await supabase.from('produtos_caracteristicas').delete().eq('conta_omie', label);
         if (delErr) throw new Error(`delete ${label}: ${delErr.message}`);
         for (let i = 0; i < rows.length; i += 500) {
@@ -79,7 +83,7 @@ export async function iniciarSyncCaracteristicas(criadoPor?: string): Promise<an
           if (insErr) throw new Error(`insert ${label}: ${insErr.message}`);
         }
         porConta[label] = rows.length;
-        console.log(`[caract ${label}] ${rows.length} produtos com caracteristica gravados`);
+        console.log(`[caract ${label}] ${rows.length} peças gravadas (com e sem característica)`);
       }
       const resumo = { porConta, total: Object.values(porConta).reduce((a, b) => a + b, 0), geradoEm: new Date().toISOString() };
       await concluirJob(jobId, resumo);
