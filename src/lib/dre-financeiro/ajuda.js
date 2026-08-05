@@ -210,7 +210,8 @@ export const AJUDA = {
     comoUsar: [
       'Alterne o regime entre Competência (padrão — o valor cai no mês do fato) e Omie (o valor cai no mês do pagamento).',
       'Clique nas linhas da tabela para abrir/fechar os níveis; clique numa célula para o detalhamento com a lista de movimentos.',
-      'No gráfico de despesas, ligue/desligue linhas na legenda — "Pagamento de Empréstimos" vem desligado de propósito, para não achatar as demais.',
+      'No gráfico de despesas, ligue/desligue linhas na legenda.',
+      'O principal das duplicatas descontadas (antecipação/factoring) NÃO entra em "Despesas Financeiras" nem no Resultado — é financiamento, não custo. Aparece numa linha própria abaixo do Resultado ("Movimentações de financiamento"); só o juro fica como despesa financeira. O detalhe por nota está em Ajustes → Antecipações.',
       'Marque "esconder devoluções" para ler o mês sem as devoluções de venda: a linha sai da tabela e todos os números (KPIs, cascata, gráficos, CSV) são recalculados. Um aviso mostra quanto ficou de fora.',
       'Exportar CSV baixa a tabela como está na tela.',
     ],

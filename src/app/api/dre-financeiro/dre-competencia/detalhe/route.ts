@@ -7,7 +7,7 @@
 // =============================================================================
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin as supabase } from '@/lib/dre-financeiro/supabase'
-import { selectPaginado, carregarPedidosInvalidos, pedidoEhInvalido } from '@/lib/dre-financeiro/calc'
+import { selectPaginado, carregarPedidosInvalidos, pedidoEhInvalido, classificaGrupoCP, classificaCP, NODE_ANTECIP } from '@/lib/dre-financeiro/calc'
 import { EMPRESAS_GRUPO_CNPJ, cnpjOutraEmpresa, mapaUsuariosOmie } from '@/lib/dre-financeiro/omie-api'
 
 export const dynamic = 'force-dynamic'
@@ -87,19 +87,25 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // 2. Contas a pagar (despesas + devolucoes)
-    const grupoCpClassif: Record<string, { tipo: string; grupo: string; conta: string; sinal: number }> = {
-      'Devoluções de Vendas': { tipo: '1. Lucro Bruto', grupo: '01. Receita Líquida Operacional', conta: '03. Deduções de Receita', sinal: -1 },
-      'Despesas com Pessoal': { tipo: '2. Despesas', grupo: '11. Fixas', conta: '01. Despesas com Pessoal', sinal: -1 },
-      'Despesas Administrativas': { tipo: '2. Despesas', grupo: '11. Fixas', conta: '02. Despesas Administrativas', sinal: -1 },
-      'Despesas Financeiras / Bancos': { tipo: '2. Despesas', grupo: '11. Fixas', conta: '03. Despesas Financeiras', sinal: -1 },
-      'Despesas de Vendas e Marketing': { tipo: '2. Despesas', grupo: '11. Fixas', conta: '04. Despesas de Vendas e Marketing', sinal: -1 },
-      'Outras Despesas': { tipo: '2. Despesas', grupo: '11. Fixas', conta: '05. Outras Despesas', sinal: -1 },
-      'Impostos e Taxas': { tipo: '2. Despesas', grupo: '11. Fixas', conta: '06. Impostos e Taxas', sinal: -1 },
+    // 2. Contas a pagar (despesas + devolucoes). Classificacao POR LINHA via
+    // classificaCP (mesmo helper do calc.js): o principal do desconto de
+    // duplicata (APIP) vai pro no '4.' fora do resultado; o resto por grupo.
+    // gruposParaCarregar sao os grupo_categoria (nivel DB) a buscar.
+    const GRUPOS_CP = [
+      'Devoluções de Vendas', 'Despesas com Pessoal', 'Despesas Administrativas',
+      'Despesas Financeiras / Bancos', 'Despesas de Vendas e Marketing',
+      'Outras Despesas', 'Impostos e Taxas',
+    ]
+    const gruposParaCarregar = GRUPOS_CP.filter((g) => {
+      const cls = classificaGrupoCP(g)
+      return cls && matchesClassif(cls.tipo, cls.grupo, cls.conta)
+    })
+    // O no '4.' (APIP) carrega o grupo DB 'Despesas Financeiras / Bancos' — se o
+    // filtro mira o no novo mas o grupo ainda nao entrou, inclui-lo.
+    const querAntecip = filtroTipo === NODE_ANTECIP.TIPO || filtroGrupo === NODE_ANTECIP.GRUPO || filtroConta === NODE_ANTECIP.CONTA
+    if (querAntecip && !gruposParaCarregar.includes('Despesas Financeiras / Bancos')) {
+      gruposParaCarregar.push('Despesas Financeiras / Bancos')
     }
-    const gruposParaCarregar = Object.entries(grupoCpClassif)
-      .filter(([, cls]) => matchesClassif(cls.tipo, cls.grupo, cls.conta))
-      .map(([g]) => g)
 
     if (gruposParaCarregar.length > 0) {
       const dataDe = `${ano}-${String(mes).padStart(2, '0')}-01`
@@ -107,7 +113,7 @@ export async function GET(request: NextRequest) {
       const dataAte = `${ano}-${String(mes).padStart(2, '0')}-${String(ultDia).padStart(2, '0')}`
       const cps = await selectPaginado(() =>
         db.from('contas_pagar')
-          .select('valor_documento,data_emissao,conta_omie,grupo_categoria,descricao_categoria,nome_fornecedor,numero_documento,status_titulo,incluido_por')
+          .select('valor_documento,data_emissao,conta_omie,grupo_categoria,descricao_categoria,nome_fornecedor,numero_documento,status_titulo,incluido_por,codigo_categoria,id_origem:raw->>id_origem')
           .gte('data_emissao', dataDe).lte('data_emissao', dataAte)
           .in('grupo_categoria', gruposParaCarregar)
           .order('codigo_lancamento', { ascending: true })
@@ -118,7 +124,10 @@ export async function GET(request: NextRequest) {
       cps.forEach((r: any) => {
         // Titulos cancelados no Omie nao entram na DRE (ver calcularDRECompetencia)
         if (String(r.status_titulo || '').toUpperCase().includes('CANCEL')) return
-        const cls = grupoCpClassif[r.grupo_categoria]; if (!cls) return
+        const cls = classificaCP(r); if (!cls) return
+        // gate obrigatorio: APIP e nao-APIP compartilham o mesmo grupo SQL
+        // ('Despesas Financeiras / Bancos') mas caem em tipos diferentes.
+        if (!matchesClassif(cls.tipo, cls.grupo, cls.conta)) return
         const v = cls.sinal * (Number(r.valor_documento) || 0); if (!v) return
         const cat = r.descricao_categoria || '(sem categoria)'
         if (filtroCategoria && cat !== filtroCategoria) return

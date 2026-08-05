@@ -10,6 +10,7 @@ import { supabaseAdmin as supabase } from '@/lib/dre-financeiro/supabase'
 import {
   CONTA_PADRAO, TIPO_PADRAO, TIPOS_VALIDOS,
   tabelaPorTipo, colunaNomePorTipo, aplicarConta,
+  ehDescontoDuplicataAPIP, GRUPO_COMPOSICAO_ANTECIP,
 } from '@/lib/dre-financeiro/calc'
 import { fmtISO, inicioMes, fimMes } from '@/lib/dre-financeiro/dates'
 
@@ -66,7 +67,7 @@ async function buscarTitulos(sb: any, tabela: string, colNome: string, conta: st
   for (let p = 0; p < paginas; p++) {
     const from = p * PAG
     let q = sb.from(tabela)
-      .select(`grupo_categoria,descricao_categoria,codigo_categoria,${colNome},valor_documento`)
+      .select(`grupo_categoria,descricao_categoria,codigo_categoria,${colNome},valor_documento,id_origem:raw->>id_origem`)
       .gte('data_vencimento', ini)
       .lte('data_vencimento', fim)
       .order('id')
@@ -113,7 +114,11 @@ export async function GET(request: NextRequest) {
       data.forEach((r: any) => {
         const valor = Number(r.valor_documento) || 0
         if (valor <= 0) return
-        const grupo = r.grupo_categoria || SEM_GRUPO
+        // Principal do desconto de duplicata (APIP) vai pra barra própria de
+        // financiamento, espelhando o nó fora do resultado da DRE.
+        const grupo = (t === 'pagar' && ehDescontoDuplicataAPIP(r))
+          ? GRUPO_COMPOSICAO_ANTECIP
+          : (r.grupo_categoria || SEM_GRUPO)
         const categoria = r.descricao_categoria || (r.codigo_categoria || SEM_CAT)
         const terceiro = r[colNome] || SEM_TERC
         const k = chave(t, grupo)
