@@ -12,6 +12,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import { useDreConta } from '@/lib/dre-financeiro/format'
+import TileSemaforo from '@/components/dre-financeiro/TileSemaforo'
 
 // ----- Helpers de formatacao (port fiel do <script> inline do home.ejs) -----
 // Estes formatadores sao especificos da home (abreviam M/k sem casas no <1k)
@@ -44,6 +45,23 @@ function rotMes(ym) {
   return nomes[parseInt(p[1]) - 1] + '/' + p[0].slice(2)
 }
 
+// Pilula do indice-resumo de saude (pior-caso dos sinais).
+const INDICE_COR = {
+  bom: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+  atencao: 'bg-amber-100 text-amber-800 border-amber-300',
+  ruim: 'bg-red-100 text-red-800 border-red-300',
+  sem_dado: 'bg-slate-100 text-slate-600 border-slate-300',
+}
+const INDICE_LUZ = { bom: '🟢', atencao: '🟡', ruim: '🔴', sem_dado: '⚪' }
+function StatusResumo({ indice }) {
+  const cls = INDICE_COR[indice.status] || INDICE_COR.sem_dado
+  return (
+    <span className={'inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-sm font-bold ' + cls}>
+      {INDICE_LUZ[indice.status]} {indice.label}
+    </span>
+  )
+}
+
 export default function HomeDreFinanceiro() {
   const { userProfile, loading } = useAuth()
   const { temAcesso, pode, loading: loadingPerm } = usePermissoes(userProfile?.id)
@@ -60,6 +78,7 @@ export default function HomeDreFinanceiro() {
 
   const [dados, setDados] = useState(null)   // payload dos KPIs
   const [meta, setMeta] = useState('Carregando KPIs...') // texto do subtitulo (home-meta)
+  const [saude, setSaude] = useState(null)   // payload do semaforo de saude financeira
 
   // carregar(force): replica a funcao carregar() do <script> da home.ejs.
   const carregar = useCallback(async (force) => {
@@ -81,8 +100,20 @@ export default function HomeDreFinanceiro() {
     }
   }, [conta])
 
+  // Semaforo de saude: fetch proprio (rota /saude, cache 5min) - nao atrasa os
+  // KPIs principais; renderiza assim que chega.
+  const carregarSaude = useCallback(async (force) => {
+    const url = '/api/dre-financeiro/saude?conta=' + encodeURIComponent(conta) + (force ? '&refresh=1' : '')
+    try {
+      const r = await fetch(url)
+      const d = await r.json()
+      if (d.erro) { setSaude(null); return }
+      setSaude(d)
+    } catch (e) { setSaude(null) }
+  }, [conta])
+
   // carregar(false) no mount e sempre que a conta selecionada muda.
-  useEffect(() => { carregar(false) }, [carregar])
+  useEffect(() => { carregar(false); carregarSaude(false) }, [carregar, carregarSaude])
 
   // Gate de permissao (espelha o layout; mantido por seguranca/padrao do portal).
   // Home liberada pra quem tem 'financeiro' OU qualquer tela do 'dre'.
@@ -121,11 +152,30 @@ export default function HomeDreFinanceiro() {
         </div>
         <button
           id="home-refresh"
-          onClick={() => carregar(true)}
+          onClick={() => { carregar(true); carregarSaude(true) }}
           className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded"
           title="Recalcular ignorando cache de 5min"
         >Atualizar</button>
       </div>
+
+      {/* Semaforo de Saude Financeira (deterioracao de caixa + resultado).
+          Cada tile: luz de status + valor + seta de tendencia; caixa primeiro.
+          Fonte: /api/dre-financeiro/saude. Esconde tiles cuja tela o usuario
+          nao pode ver (mesmo podeVerTela dos KPIs). */}
+      {saude && Array.isArray(saude.sinais) && saude.sinais.length > 0 && (
+        <div className="mb-8">
+          <div className="flex items-center gap-3 mb-3 flex-wrap">
+            <h2 className="text-xl font-extrabold text-slate-700 uppercase tracking-wide">Saude Financeira</h2>
+            {saude.indice && <StatusResumo indice={saude.indice} />}
+            <span className="text-sm text-slate-400">semaforo de deterioracao · caixa primeiro · tendencia dos ult. 3 meses</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {saude.sinais.filter(s => podeVerTela(s.href)).map(s => (
+              <TileSemaforo key={s.chave} sinal={s} />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* KPI grid (6 cards grandes coloridos, 3x2) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8" id="home-kpis">

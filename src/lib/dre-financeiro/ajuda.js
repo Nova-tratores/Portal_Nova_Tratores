@@ -30,17 +30,24 @@ export const AJUDA = {
     icon: '🏠',
     resumo: 'Resumo executivo: os principais números do mês num painel só.',
     oQueMostra:
-      'Painel de abertura do módulo. Reúne num lugar só os indicadores mais importantes do momento — ' +
-      'ciclo de caixa, resultado do mês (com comparação ao mês anterior), pontualidade dos últimos 30 dias, ' +
-      'capital parado em estoque e os vencimentos dos próximos 7 dias — e, abaixo, atalhos para todas as ' +
-      'telas do módulo agrupados por categoria.',
+      'Painel de abertura do módulo. No topo, o SEMÁFORO DE SAÚDE FINANCEIRA lê a deterioração num relance — ' +
+      'cada indicador com uma luz (🟢 saudável / 🟡 atenção / 🔴 crítico) e uma seta de tendência dos últimos ' +
+      '3 meses; caixa vem primeiro (cobertura, juros de antecipação, ciclo de caixa, inadimplência 90+) e depois ' +
+      'resultado (resultado líquido, margem líquida, despesas financeiras). Abaixo, os 6 cards grandes do momento — ' +
+      'ciclo de caixa, resultado do mês (vs mês anterior), pontualidade dos últimos 30 dias, capital parado e ' +
+      'vencimentos dos próximos 7 dias — e, por fim, atalhos para todas as telas agrupados por categoria.',
     comoUsar: [
-      'Cada card grande é um atalho: clique nele para abrir a tela que detalha aquele número.',
-      'A seta ▲/▼ ao lado do resultado compara com o mês anterior.',
-      'Na seção "Todas as páginas" estão os atalhos por categoria — os mesmos da barra de abas, mas com uma descrição de cada tela.',
-      'Você só vê os cards das telas a que tem permissão.',
+      'A luz de cada tile é o retrato de agora; a seta ▲/▼ é a trajetória da saúde (não do número cru — "piorando" é sempre vermelho, mesmo quando os juros subiram).',
+      'A pílula ao lado do título "Saúde Financeira" é o resumo pior-caso: fica 🔴 se qualquer sinal estiver crítico.',
+      'Cada card ou tile é um atalho: clique para abrir a tela que detalha aquele número.',
+      'A tendência compara a média dos 3 meses recentes com a dos 3 anteriores (o mês corrente, por ser parcial, fica de fora).',
+      'Você só vê os cards e tiles das telas a que tem permissão.',
     ],
     termos: [
+      { t: 'Cobertura 30 dias', d: 'Quanto você tem a receber contra o que tem a pagar nos próximos 30 dias. 🔴 abaixo de 1× (descoberto), 🟡 até 1,2× (apertado), 🟢 acima (saudável/confortável).' },
+      { t: 'Juros de antecipação', d: 'Custo de descontar duplicatas (antecipar recebíveis). Subir de forma sustentada é sinal precoce de aperto de caixa.' },
+      { t: 'Inadimplência 90+', d: 'Parte da carteira vencida há mais de 90 dias. 🔴 quando passa de metade da inadimplência.' },
+      { t: 'Margem líquida', d: 'Resultado sobre a receita. 🔴 se cai 3 pontos ou mais contra os 3 meses anteriores.' },
       { t: 'Lucro bruto', d: 'Receita menos os custos diretos da venda (sem as despesas fixas).' },
       { t: 'Líquido (7 dias)', d: 'O que entra menos o que sai na próxima semana. Negativo = a semana pede caixa.' },
     ],
