@@ -145,6 +145,9 @@ export interface DashboardCategoria {
   valorOutros?: number;
   /** Só nos cards 'maquina'/'totalMaquinas': unidades (quantidade) vendidas no período. */
   unidades?: number;
+  /** Unidades do mês anterior / mesmo período do ano anterior (p/ supressão de base baixa). */
+  unidadesMesAnt?: number;
+  unidadesAnoAnt?: number;
 }
 
 export interface DashboardResponse {
@@ -295,19 +298,40 @@ export async function montarDashboard(
       acharMaq(anoAnt.maquinas, m.familia)?.cmv || 0,
     );
     card.unidades = m.unidades;
+    card.unidadesMesAnt = acharMaq(anterior.maquinas, m.familia)?.unidades || 0;
+    card.unidadesAnoAnt = acharMaq(anoAnt.maquinas, m.familia)?.unidades || 0;
     return card;
   });
   if (resto.length > 0) {
     const somaResto = (arr: MaquinaFamilia[]) =>
       arr.filter((m) => !top.some((t) => t.familia === m.familia)).reduce((s, m) => s + m.receita, 0);
+    const somaRestoUn = (arr: MaquinaFamilia[]) =>
+      arr.filter((m) => !top.some((t) => t.familia === m.familia)).reduce((s, m) => s + m.unidades, 0);
     const outras = montarCategoria('Outras máquinas', somaResto(atual.maquinas), somaResto(anterior.maquinas), somaResto(anoAnt.maquinas), 'maquina');
     outras.unidades = resto.reduce((s, m) => s + m.unidades, 0);
+    outras.unidadesMesAnt = somaRestoUn(anterior.maquinas);
+    outras.unidadesAnoAnt = somaRestoUn(anoAnt.maquinas);
     maquinaCards.push(outras);
+  }
+  // Item 1c: famílias que venderam no mês/ano anterior mas estão ZERADAS agora —
+  // exibidas apagadas (ausência de venda é informação), não ocultadas.
+  const nomesAtual = new Set(atual.maquinas.map((m) => m.familia));
+  const zeradas = new Set<string>();
+  [...anterior.maquinas, ...anoAnt.maquinas].forEach((m) => { if (!nomesAtual.has(m.familia)) zeradas.add(m.familia); });
+  for (const fam of zeradas) {
+    const card = montarCategoria(fam, 0, acharMaq(anterior.maquinas, fam)?.receita || 0, acharMaq(anoAnt.maquinas, fam)?.receita || 0, 'maquina');
+    card.unidades = 0;
+    card.unidadesMesAnt = acharMaq(anterior.maquinas, fam)?.unidades || 0;
+    card.unidadesAnoAnt = acharMaq(anoAnt.maquinas, fam)?.unidades || 0;
+    maquinaCards.push(card);
   }
   // Card-resumo "Máquinas — total" (Σ receita + Σ unidades de todas as famílias).
   const somaReceita = (arr: MaquinaFamilia[]) => arr.reduce((s, m) => s + m.receita, 0);
+  const somaUnidades = (arr: MaquinaFamilia[]) => arr.reduce((s, m) => s + m.unidades, 0);
   const totalMaquinas = montarCategoria('Máquinas — total', somaReceita(atual.maquinas), somaReceita(anterior.maquinas), somaReceita(anoAnt.maquinas), 'totalMaquinas');
-  totalMaquinas.unidades = atual.maquinas.reduce((s, m) => s + m.unidades, 0);
+  totalMaquinas.unidades = somaUnidades(atual.maquinas);
+  totalMaquinas.unidadesMesAnt = somaUnidades(anterior.maquinas);
+  totalMaquinas.unidadesAnoAnt = somaUnidades(anoAnt.maquinas);
 
   // Ordem dos cards (grade de 4 colunas): Serviços fecha a 1ª linha e os totais
   // ficam na coluna da direita, um por linha. "Comprei" fica logo abaixo de Total

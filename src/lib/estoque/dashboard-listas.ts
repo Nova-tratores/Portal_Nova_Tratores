@@ -5,6 +5,7 @@
 import { supabase, filtroConta } from './supabase';
 import {
   agregarCards,
+  agregarMaquinas,
   getCategoriasConfig,
   tipoMatchCategoria,
   expandirCategoriaFiltro,
@@ -501,4 +502,81 @@ export async function somarComprasPecas(mes: number, ano: number, conta: ContaFi
     total += Number(c.valor_total) || 0;
   }
   return total;
+}
+
+// ====================== /api/dashboard/tendencia ======================
+
+export interface TendenciaPonto {
+  label: string;
+  mes: number;
+  ano: number;
+  /** Faturamento do mês por bloco. */
+  pecas: number;
+  servicos: number;
+  maquinas: number;
+}
+
+interface TendItem extends ItemVenda {
+  mes: number;
+  ano: number;
+  numero_pedido?: string | null;
+}
+
+/**
+ * Tendência dos últimos 12 meses (até o mês atual): faturamento de PEÇAS,
+ * SERVIÇOS e MÁQUINAS por mês. Lê só o banco (vendas_itens + os_mensal) e reusa
+ * `agregarCards`/`agregarMaquinas` (mesma régua dos cards). Respeita a conta;
+ * "Todas" soma NOVA+CASTRO (os_mensal agregado por mês).
+ */
+export async function montarTendencia(conta: ContaFiltro): Promise<TendenciaPonto[]> {
+  const cats = await getCategoriasConfig();
+
+  const now = new Date();
+  const meses: Array<{ mes: number; ano: number; label: string }> = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    meses.push({ mes: d.getMonth() + 1, ano: d.getFullYear(), label: MESES_CURTO[d.getMonth()] + '/' + String(d.getFullYear()).slice(2) });
+  }
+  const anos = [...new Set(meses.map((m) => m.ano))];
+
+  // Vendas (peças + máquinas) dos anos envolvidos.
+  let itens: TendItem[] = [];
+  for (const ano of anos) {
+    let offset = 0;
+    while (true) {
+      const { data } = await filtroConta(
+        supabase
+          .from('vendas_itens')
+          .select('mes,ano,tipo,familia,valor_total,cmc_unitario,quantidade,codigo_categoria,numero_pedido')
+          .eq('ano', ano),
+        conta,
+      )
+        .order('mes', { ascending: true })
+        .order('numero_pedido', { ascending: true })
+        .range(offset, offset + 999);
+      if (!data || data.length === 0) break;
+      itens = itens.concat(data as TendItem[]);
+      if (data.length < 1000) break;
+      offset += 1000;
+    }
+  }
+
+  // Serviços = os_mensal.valor_total por mês (agrega as contas quando "Todas").
+  const osPorMes: Record<string, number> = {};
+  for (const ano of anos) {
+    const { data } = await filtroConta(supabase.from('os_mensal').select('mes,ano,valor_total').eq('ano', ano), conta);
+    (data as Array<{ mes: number; ano: number; valor_total: unknown }> | null)?.forEach((o) => {
+      const k = o.mes + '/' + o.ano;
+      osPorMes[k] = (osPorMes[k] || 0) + num(o.valor_total);
+    });
+  }
+
+  return meses.map((m) => {
+    const itensMes = itens.filter((it) => it.mes === m.mes && it.ano === m.ano);
+    const agg = agregarCards(itensMes, null, cats);
+    const pecas = agg.cards.reduce((s, v) => s + v, 0);
+    const maquinas = agregarMaquinas(itensMes).reduce((s, x) => s + x.receita, 0);
+    const servicos = osPorMes[m.mes + '/' + m.ano] || 0;
+    return { label: m.label, mes: m.mes, ano: m.ano, pecas, servicos, maquinas };
+  });
 }
