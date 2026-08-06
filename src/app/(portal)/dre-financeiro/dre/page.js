@@ -147,8 +147,8 @@ function agregarDRE(consolidado, chaves) {
 // Defaults: jan/2023 ate mes anterior ao atual (igual setupDefaults da fonte)
 function defaultsPeriodo() {
   const hoje = new Date()
-  const fim = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1)
-  const ini = new Date(2023, 0, 1)
+  const fim = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1) // último mês fechado
+  const ini = new Date(fim.getFullYear(), 0, 1)                    // janeiro do ano do fim
   const ym = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
   return { de: ym(ini), ate: ym(fim) }
 }
@@ -189,6 +189,11 @@ function carregarChartLib() {
 export default function DrePage() {
   const { userProfile, loading } = useAuth()
   const { temAcesso, pode, loading: loadingPerm } = usePermissoes(userProfile?.id)
+
+  // "Exportar CSV" restrito a um único usuário (gate de UI). O email vem de
+  // financeiro_usu (select '*' do useAuth), gravado no login. Ficheiro .js -> sem cast.
+  const EMAIL_EXPORTA_CSV = 'financeiro@novatratores.com.br'
+  const podeExportarCSV = (userProfile?.email ?? '').toLowerCase() === EMAIL_EXPORTA_CSV
   // A tela DRE e sempre consolidada (NOVA + CASTRO); a conta selecionada e
   // importada por consistencia com o BRIEF, mas o original nao filtra por conta.
   useDreConta()
@@ -1827,9 +1832,11 @@ export default function DrePage() {
             <label className="text-[10px]">
               <input type="checkbox" checked={mostrarMeses} onChange={(e) => setMostrarMeses(e.target.checked)} /> mostrar meses
             </label>
-            <button onClick={exportarDreCSV}
-              className="px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs rounded"
-              title="Exporta a tabela DRE em CSV (UTF-8 com BOM, valores em R$)">Exportar CSV</button>
+            {podeExportarCSV && (
+              <button onClick={exportarDreCSV}
+                className="px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs rounded"
+                title="Exporta a tabela DRE em CSV (UTF-8 com BOM, valores em R$)">Exportar CSV</button>
+            )}
           </div>
         </div>
 
