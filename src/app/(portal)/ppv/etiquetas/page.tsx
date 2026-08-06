@@ -76,6 +76,12 @@ export default function EtiquetasPecasPage() {
   const [erro, setErro] = useState('')
   const [sel, setSel] = useState<Set<string>>(new Set())
   const [etiquetas, setEtiquetas] = useState<Etiqueta[]>([])
+  // Formato de impressão: 'folha' = folha adesiva pré-cortada 3×10 (Pimaco/
+  // Avery 6180, 66,7×25,4mm — a que a oficina usa); 'recorte' = tracejado.
+  const [formato, setFormato] = useState<'folha' | 'recorte'>('folha')
+  // Posições (0-29) da PRIMEIRA folha que já foram usadas/descoladas — a
+  // impressão pula essas células (folha começada não vai pro lixo).
+  const [usadas, setUsadas] = useState<Set<number>>(new Set())
   const proxId = useRef(1)
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -151,29 +157,9 @@ export default function EtiquetasPecasPage() {
   const imprimir = () => {
     if (etiquetas.length === 0) return
     const blocos = etiquetas.flatMap(e => Array.from({ length: Math.max(1, e.copias) }, () => e))
-    const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Etiquetas de peças</title>
-<style>
-  * { box-sizing: border-box; margin: 0; }
-  body { font-family: Arial, Helvetica, sans-serif; padding: 8mm; }
-  .grade { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
-  .etq { border: 1.5px dashed #555; border-radius: 4px; padding: 8px 10px; break-inside: avoid; page-break-inside: avoid; }
-  .emp { font-size: 11px; font-weight: 800; letter-spacing: .5px; margin-top: 6px; }
-  .emp:first-child { margin-top: 0; }
-  .linha { font-size: 12px; line-height: 1.35; margin-top: 1px; }
-  .cod { font-weight: 800; font-family: 'Courier New', monospace; }
-  @media print { body { padding: 4mm; } }
-</style></head><body>
-<div class="grade">
-${blocos.map(e => `  <div class="etq">
-${e.linhas.map(l => `    <div class="emp">${esc(l.empresa)}</div>
-    <div class="linha"><span class="cod">${esc(l.codigo)}</span> - ${esc(l.descricao)}${l.locacao ? ` - ${esc(l.locacao)}` : ''}</div>`).join('\n')}
-  </div>`).join('\n')}
-</div>
-<script>window.onload = () => { window.print(); }</script>
-</body></html>`
     const w = window.open('', '_blank')
     if (!w) return
-    w.document.write(html)
+    w.document.write(formato === 'folha' ? htmlFolha(blocos, usadas) : htmlRecorte(blocos))
     w.document.close()
   }
 
@@ -192,7 +178,8 @@ ${e.linhas.map(l => `    <div class="emp">${esc(l.empresa)}</div>
 
       <p style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)', margin: '0 0 14px', lineHeight: 1.6 }}>
         Busque a peça, marque as linhas dela em cada empresa (o código muda de uma pra outra) e
-        adicione à fila — a etiqueta sai com <strong>EMPRESA → CÓDIGO - DESCRIÇÃO - LOCAÇÃO</strong>, pronta pra recortar e colar na peça.
+        adicione à fila — a etiqueta sai com <strong>EMPRESA → CÓDIGO - DESCRIÇÃO - LOCAÇÃO</strong>,
+        no tamanho da folha adesiva 3×10: imprime direto nela e é só descolar, sem recortar.
       </p>
 
       {/* Busca */}
@@ -273,6 +260,44 @@ ${e.linhas.map(l => `    <div class="emp">${esc(l.empresa)}</div>
         )
       })()}
 
+      {/* Formato de impressão */}
+      <div style={{ marginTop: 18, padding: '12px 14px', border: '1px solid var(--portal-border)', borderRadius: 10, background: 'var(--portal-bg-secondary)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--portal-text)' }}>Imprimir em:</span>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--portal-text)', cursor: 'pointer' }}>
+            <input type="radio" checked={formato === 'folha'} onChange={() => setFormato('folha')} />
+            Folha adesiva 3×10 (Pimaco/Avery 6180 — 66,7 × 25,4 mm)
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--portal-text)', cursor: 'pointer' }}>
+            <input type="radio" checked={formato === 'recorte'} onChange={() => setFormato('recorte')} />
+            Papel comum (tracejado pra recortar)
+          </label>
+        </div>
+        {formato === 'folha' && (
+          <div style={{ marginTop: 10 }}>
+            <div style={{ fontSize: 11.5, color: 'var(--portal-text-secondary)', marginBottom: 8, lineHeight: 1.5 }}>
+              Cada peça sai numa etiqueta da folha — é só descolar, sem recortar. Na impressão use <strong>escala 100%</strong> (sem &quot;ajustar à página&quot;).
+              {' '}Folha já começada? Clique abaixo nas posições <strong>já usadas</strong> pra impressão pular elas{usadas.size > 0 && <> · <button onClick={() => setUsadas(new Set())} style={{ border: 'none', background: 'none', color: '#2563eb', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', padding: 0 }}>limpar ({usadas.size})</button></>}:
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 46px)', gap: 3 }}>
+              {Array.from({ length: 30 }, (_, p) => (
+                <button key={p} onClick={() => setUsadas(prev => { const s = new Set(prev); if (s.has(p)) s.delete(p); else s.add(p); return s })}
+                  title={usadas.has(p) ? 'Posição já usada — a impressão pula' : 'Posição livre'}
+                  style={{
+                    height: 17, borderRadius: 4, fontSize: 9.5, fontWeight: 700, cursor: 'pointer',
+                    border: '1px solid var(--portal-border)',
+                    background: usadas.has(p) ? '#d1d5db' : 'var(--portal-bg-card)',
+                    color: usadas.has(p) ? '#6b7280' : 'var(--portal-text-muted)',
+                    textDecoration: usadas.has(p) ? 'line-through' : 'none',
+                  }}>
+                  {p + 1}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Fila de etiquetas */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '18px 0 8px' }}>
         <h2 style={{ fontSize: 14, fontWeight: 800, color: 'var(--portal-text)', margin: 0 }}>
@@ -331,4 +356,87 @@ ${e.linhas.map(l => `    <div class="emp">${esc(l.empresa)}</div>
 
 function esc(s: string): string {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+// ── Impressão em FOLHA ADESIVA pré-cortada 3×10 (Pimaco/Avery 6180) ─────────
+// Folha Carta 215,9×279,4mm · etiqueta 66,675×25,4mm · margem 12,7mm em cima/
+// baixo e 4,76mm nas laterais · 3,175mm entre colunas · SEM espaço entre
+// linhas. Uma peça por etiqueta — imprime direto na folha, é só descolar.
+// `usadas` = posições (0-29) da 1ª folha já descoladas — saem em branco.
+function htmlFolha(blocos: Etiqueta[], usadas: Set<number>): string {
+  const paginas: (Etiqueta | null)[][] = []
+  const fila = [...blocos]
+  let primeira = true
+  while (fila.length > 0) {
+    const celulas: (Etiqueta | null)[] = []
+    for (let p = 0; p < 30; p++) {
+      if (primeira && usadas.has(p)) { celulas.push(null); continue }
+      celulas.push(fila.shift() ?? null)
+    }
+    paginas.push(celulas)
+    primeira = false
+  }
+  const cel = (e: Etiqueta | null) =>
+    e === null
+      ? '    <div class="cel"></div>'
+      : `    <div class="cel${e.linhas.length > 1 ? ' compacta' : ''}">
+${e.linhas.map(l => `      <div class="emp">${esc(l.empresa)}</div>
+      <div class="dado"><span class="cod">${esc(l.codigo)}</span>${l.descricao ? ` - ${esc(l.descricao)}` : ''}${l.locacao ? ` - ${esc(l.locacao)}` : ''}</div>`).join('\n')}
+    </div>`
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Etiquetas de peças (folha 3×10)</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  @page { size: 215.9mm 279.4mm; margin: 0; }
+  body { font-family: Arial, Helvetica, sans-serif; }
+  .pagina {
+    width: 215.9mm; height: 279.4mm; padding: 12.7mm 4.7625mm;
+    display: grid; grid-template-columns: repeat(3, 66.675mm);
+    grid-auto-rows: 25.4mm; column-gap: 3.175mm;
+    page-break-after: always;
+  }
+  .pagina:last-child { page-break-after: auto; }
+  .cel {
+    overflow: hidden; padding: 1mm 2.5mm; text-align: center;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .emp { font-size: 6.5pt; font-weight: 800; letter-spacing: .3px; }
+  .dado { font-size: 9.5pt; line-height: 1.3; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cod { font-weight: 800; }
+  .compacta .emp { font-size: 5.5pt; }
+  .compacta .dado { font-size: 7.5pt; line-height: 1.25; }
+  @media screen {
+    body { background: #e5e7eb; }
+    .pagina { background: #fff; margin: 10px auto; box-shadow: 0 1px 6px rgba(0,0,0,.25); }
+    .cel { outline: 1px dashed #d1d5db; }
+  }
+</style></head><body>
+${paginas.map(cels => `  <div class="pagina">
+${cels.map(cel).join('\n')}
+  </div>`).join('\n')}
+<script>window.onload = () => { window.print(); }</script>
+</body></html>`
+}
+
+// Impressão em papel comum, 2 colunas com borda tracejada pra recortar
+function htmlRecorte(blocos: Etiqueta[]): string {
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Etiquetas de peças</title>
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body { font-family: Arial, Helvetica, sans-serif; padding: 8mm; }
+  .grade { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
+  .etq { border: 1.5px dashed #555; border-radius: 4px; padding: 8px 10px; break-inside: avoid; page-break-inside: avoid; }
+  .emp { font-size: 11px; font-weight: 800; letter-spacing: .5px; margin-top: 6px; }
+  .emp:first-child { margin-top: 0; }
+  .linha { font-size: 12px; line-height: 1.35; margin-top: 1px; }
+  .cod { font-weight: 800; font-family: 'Courier New', monospace; }
+  @media print { body { padding: 4mm; } }
+</style></head><body>
+<div class="grade">
+${blocos.map(e => `  <div class="etq">
+${e.linhas.map(l => `    <div class="emp">${esc(l.empresa)}</div>
+    <div class="linha"><span class="cod">${esc(l.codigo)}</span> - ${esc(l.descricao)}${l.locacao ? ` - ${esc(l.locacao)}` : ''}</div>`).join('\n')}
+  </div>`).join('\n')}
+</div>
+<script>window.onload = () => { window.print(); }</script>
+</body></html>`
 }
