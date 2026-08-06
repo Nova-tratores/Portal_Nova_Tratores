@@ -66,8 +66,11 @@ function sanitizeFileName(name: string) {
   return name.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[\\\/:*?"<>|]/g, '').replace(/\s+/g, '-');
 }
 
-// Vídeo NUNCA vai anexado no e-mail (estoura o limite do Gmail) — vai como
-// LINK no corpo (o bucket garantias é público).
+// A Mahindra NÃO aceita link de vídeo — o arquivo vai ANEXADO no e-mail.
+// O Gmail corta em ~25MB no total, então anexamos até o orçamento abaixo;
+// só o que não couber vira link (com aviso no corpo e no evento).
+const LIMITE_ANEXOS_BYTES = 22 * 1024 * 1024;
+
 function ehVideo(a: { content_type?: string | null; nome_arquivo?: string | null; url?: string }): boolean {
   if ((a.content_type || '').startsWith('video/')) return true;
   return /\.(mp4|mov|avi|mkv|webm|3gpp?|m4v)(\?|$)/i.test(a.nome_arquivo || a.url || '');
@@ -212,7 +215,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const xlsxRegex = /\.xlsx?$/i;
   const anexoExistente = anexosEnvio.find((a) => xlsxRegex.test(a.nome_arquivo || '')) || undefined;
   const anexosExtras = anexosEnvio.filter((a) => a !== anexoExistente);
-  // vídeos anexados na seção de envio ficam FORA dos attachments (viram link)
+  // vídeos entram na fila de anexos DE VERDADE (Mahindra não aceita link);
+  // separados dos demais só pra priorizar documentos no orçamento de bytes
   const anexosExtrasArquivos = anexosExtras.filter((a) => !ehVideo(a));
   const videosEnvio = anexosExtras.filter((a) => ehVideo(a));
 
@@ -514,27 +518,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const corpoHtml = `<p>${corpoBase.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</p>`;
 
   // Vídeos da garantia (do TÉCNICO — resposta de pendência/anexos — e do
-  // garantista): entram como LINKS no corpo do e-mail, nunca anexados
-  // (o Gmail corta em ~25MB; o bucket é público, o link resolve).
+  // garantista): a Mahindra não aceita link, então vão ANEXADOS no e-mail.
   const { data: anexosOutros } = await supabase
     .from(TBL_GAR_ANEXOS)
     .select('id, url, nome_arquivo, content_type, categoria')
     .eq('garantia_id', id)
     .in('categoria', ['tecnico', 'garantista', 'pendencia_resposta', 'pendencia_pedido']);
-  const videosLinks = [
+  const urlsVistas = new Set<string>();
+  const videosTodos = [
     ...videosEnvio,
     ...((anexosOutros || []) as { id: string; url: string; nome_arquivo: string | null; content_type: string | null }[]).filter(ehVideo),
-  ];
-  const videosHtml = videosLinks.length
-    ? `<p><strong>Vídeos da ocorrência (links):</strong></p><ul>${videosLinks
-        .map((v) => `<li><a href="${String(v.url).replace(/"/g, '%22')}">${sanitizeHtml(v.nome_arquivo || 'vídeo')}</a></li>`)
-        .join('')}</ul>`
-    : '';
+  ].filter((v) => {
+    if (urlsVistas.has(v.url)) return false;
+    urlsVistas.add(v.url);
+    return true;
+  });
 
   // Assinatura HTML configurada por montadora (logos, nome, telefone).
   // Vai como HTML puro — o admin já valida visualmente no preview do editor.
   const assinaturaHtml = garantia.montadora.email_assinatura || '';
-  const html = [corpoHtml, videosHtml, assinaturaHtml].filter(Boolean).join('\n');
 
   // 7. Envia o e-mail. Se usamos um anexo existente, NÃO faz upload novo
   // (o arquivo já está no Storage e o anexo já está registrado).
@@ -555,6 +557,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
   }
 
+  // Vídeos anexados de verdade, dentro do orçamento do Gmail (~25MB no
+  // total). SG + documentos têm prioridade; vídeo que não couber (ou falhar
+  // o download) vira link com aviso — melhor chegar como link do que bounce.
+  let totalBytes = buffer.length + anexosExtrasBaixados.reduce((s, a) => s + a.content.length, 0);
+  const videosAnexados: { filename: string; content: Buffer; contentType?: string }[] = [];
+  const videosComoLink: typeof videosTodos = [];
+  for (const v of videosTodos) {
+    const buf = await baixarUrl(v.url);
+    if (!buf || totalBytes + buf.length > LIMITE_ANEXOS_BYTES) {
+      videosComoLink.push(v);
+      continue;
+    }
+    totalBytes += buf.length;
+    videosAnexados.push({
+      filename: v.nome_arquivo || `video-${v.id}.mp4`,
+      content: buf,
+      contentType: v.content_type || 'video/mp4',
+    });
+  }
+  const videosHtml = videosComoLink.length
+    ? `<p><strong>Vídeos acima do limite de anexos do e-mail (links):</strong></p><ul>${videosComoLink
+        .map((v) => `<li><a href="${String(v.url).replace(/"/g, '%22')}">${sanitizeHtml(v.nome_arquivo || 'vídeo')}</a></li>`)
+        .join('')}</ul>`
+    : '';
+  const html = [corpoHtml, videosHtml, assinaturaHtml].filter(Boolean).join('\n');
+
   try {
     const sendMailPromise = transporter.sendMail({
       from: `"Pós-Vendas Nova Tratores" <${process.env.GMAIL_USER}>`,
@@ -564,6 +592,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       attachments: [
         { filename: nomeArquivo, content: buffer, contentType: xlsxMime },
         ...anexosExtrasBaixados,
+        ...videosAnexados,
       ],
     });
 
@@ -602,7 +631,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       await registrarEvento(id, {
         tipo: 'sg_enviado',
         ator,
-        detalhe: `SG enviada para ${destinatarios.join(', ')}${anexosExtrasBaixados.length ? ` (+${anexosExtrasBaixados.length} anexo(s) extra(s))` : ''}${videosLinks.length ? ` (${videosLinks.length} vídeo(s) por link)` : ''}${up ? '' : ' — arquivo não foi armazenado'}`,
+        detalhe: `SG enviada para ${destinatarios.join(', ')}${anexosExtrasBaixados.length ? ` (+${anexosExtrasBaixados.length} anexo(s) extra(s))` : ''}${videosAnexados.length ? ` (${videosAnexados.length} vídeo(s) anexado(s))` : ''}${videosComoLink.length ? ` (${videosComoLink.length} vídeo(s) por link — acima do limite do e-mail)` : ''}${up ? '' : ' — arquivo não foi armazenado'}`,
       });
       await registrarEmailEnviado(id, {
         messageId: info.messageId,
@@ -612,6 +641,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         anexos: [
           { nome: nomeArquivo, url: up, content_type: xlsxMime },
           ...anexosExtrasBaixados.map((a) => ({ nome: a.filename, content_type: a.contentType || null })),
+          ...videosAnexados.map((a) => ({ nome: a.filename, content_type: a.contentType || null })),
         ],
       });
 
@@ -630,7 +660,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await registrarEvento(id, {
       tipo: 'sg_enviado',
       ator,
-      detalhe: `SG revisada enviada para ${destinatarios.join(', ')}${anexosExtrasBaixados.length ? ` (+${anexosExtrasBaixados.length} anexo(s) extra(s))` : ''}`,
+      detalhe: `SG revisada enviada para ${destinatarios.join(', ')}${anexosExtrasBaixados.length ? ` (+${anexosExtrasBaixados.length} anexo(s) extra(s))` : ''}${videosAnexados.length ? ` (${videosAnexados.length} vídeo(s) anexado(s))` : ''}${videosComoLink.length ? ` (${videosComoLink.length} vídeo(s) por link — acima do limite do e-mail)` : ''}`,
     });
     await registrarEmailEnviado(id, {
       messageId: info.messageId,
@@ -640,6 +670,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       anexos: [
         { nome: nomeArquivo, url: uploadResult, content_type: xlsxMime },
         ...anexosExtrasBaixados.map((a) => ({ nome: a.filename, content_type: a.contentType || null })),
+        ...videosAnexados.map((a) => ({ nome: a.filename, content_type: a.contentType || null })),
       ],
     });
 
