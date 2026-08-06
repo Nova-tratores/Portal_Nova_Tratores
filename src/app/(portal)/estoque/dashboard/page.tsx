@@ -70,6 +70,10 @@ interface VendaRow {
   numero_pedido?: string; data_pedido?: string; descricao?: string; codigo_produto?: string;
   quantidade?: number; valor_unitario?: number; valor_total?: number; cmc_unitario?: number;
 }
+interface CompraRow {
+  numero_nf?: string | null; data_nota?: string | null; codigo_produto?: string | null; descricao?: string | null;
+  quantidade?: number | string | null; valor_unitario?: number | string | null; valor_total?: number | string | null;
+}
 type InternoBalde = 'retorno' | 'puro' | null;
 interface OSRow { numero_os?: string; data?: string; cliente?: string; codigo_cliente?: number | null; valor?: number; conta?: string; tem_nota?: boolean | null; internoBalde?: InternoBalde }
 type TipoServico = 'HR' | 'KM' | 'OUTRO';
@@ -138,6 +142,10 @@ export default function DashboardPage() {
   const [vendasCard, setVendasCard] = useState<{ idx: number; nome: string } | null>(null);
   const [pedidoItens, setPedidoItens] = useState<{ numero: string; itens: VendaRow[] } | null>(null);
 
+  // Itens que compõem o card "Comprei" (peças por NF de entrada).
+  const [comprasAberto, setComprasAberto] = useState(false);
+  const [comprasItens, setComprasItens] = useState<CompraRow[] | null>(null);
+
   // OS do card Serviços (popup): visão "Serviços" (itens HR/KM) × "Por OS"
   const [osAberto, setOsAberto] = useState(false);
   const [osServicos, setOsServicos] = useState<OSRow[] | null>(null);
@@ -157,6 +165,8 @@ export default function DashboardPage() {
     setOsAberto(false);
     setOsServicos(null);
     setServItens(null);
+    setComprasAberto(false);
+    setComprasItens(null);
     try {
       const catParam = categoria ? `&categoria=${encodeURIComponent(categoria)}` : '';
       const r = await fetch(`/api/estoque/dashboard?${periodoParam}&ano=${ano}${catParam}${contaParam}`);
@@ -215,6 +225,15 @@ export default function DashboardPage() {
     const d = await r.json();
     if (!d.erro) setVendas(d.vendas || []);
   }, [periodoParam, ano, categoria, contaParam]);
+
+  // Itens do card "Comprei": as peças (por NF de entrada) que somam o valor.
+  const abrirCompras = useCallback(async () => {
+    setComprasItens(null);
+    setComprasAberto(true);
+    const r = await fetch(`/api/estoque/dashboard/compras?${periodoParam}&ano=${ano}${contaParam}`);
+    const d = await r.json();
+    if (!d.erro) setComprasItens(d.compras || []);
+  }, [periodoParam, ano, contaParam]);
 
   // Drill do card de máquina: reaproveita o popup de vendas, filtrando pela
   // família (ou '__TODAS__' no card-resumo). Não usa filtro de categoria de peça.
@@ -369,7 +388,7 @@ export default function DashboardPage() {
               {cComprei && (
                 <KpiCard titulo="Comprei" accent={ACCENT.comprei} valorNode={fmtRS(cComprei.valorAtual)} subNode="entradas de peças (NF)"
                   varM={cComprei.varMesAnterior} supM={cComprei.mesAnteriorValor < BASE_MIN_PECAS} varA={cComprei.varAnoAnterior} supA={cComprei.anoAnteriorValor < BASE_MIN_PECAS}
-                  modo={modo}
+                  modo={modo} onDrill={abrirCompras} drillLabel="ver itens"
                   extraNode={razaoCV != null && (
                     <div style={{ fontSize: '.66rem', color: '#6b7280', marginTop: 6 }}>
                       Razão compra/venda: <b>{razaoCV.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}x</b>
@@ -627,6 +646,47 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* Popup dos itens do "Comprei": peças por NF de entrada que somam o valor */}
+      {comprasAberto && (
+        <div onClick={() => setComprasAberto(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 20, maxWidth: 900, width: '92%', maxHeight: '85vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 12, flexWrap: 'wrap' }}>
+              <h2 style={{ color: '#111827', fontSize: '.95rem', fontWeight: 700, margin: 0 }}>
+                Comprei — itens ({comprasItens?.length ?? 0})
+                {comprasItens && comprasItens.length > 0 && (
+                  <span style={{ color: '#888', fontWeight: 600, marginLeft: 8 }}>· Total {fmtRS(comprasItens.reduce((s, c) => s + (Number(c.valor_total) || 0), 0))}</span>
+                )}
+              </h2>
+              <button onClick={() => setComprasAberto(false)} style={linkBtn}>fechar</button>
+            </div>
+            {!comprasItens ? <div style={{ color: '#888', fontSize: '.85rem' }}>Carregando…</div> : comprasItens.length === 0 ? <div style={{ color: '#888', fontSize: '.85rem' }}>Sem compras de peças no período.</div> : (
+              <div style={{ overflowX: 'auto' }}>
+                {comprasItens.length > LIMITE_LINHAS && (
+                  <div style={{ color: '#999', fontSize: '.72rem', marginBottom: 6 }}>
+                    Mostrando as {LIMITE_LINHAS} primeiras de {comprasItens.length.toLocaleString('pt-BR')} linhas (o total acima considera todas).
+                  </div>
+                )}
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead><tr>{['Produto', 'NF', 'Data', 'Qtd', 'V. Unit', 'V. Total'].map((h) => <th key={h} style={thStyle}>{h}</th>)}</tr></thead>
+                  <tbody>
+                    {comprasItens.slice(0, LIMITE_LINHAS).map((c, i) => (
+                      <tr key={i}>
+                        <td style={{ ...tdStyle, maxWidth: 340 }} title={c.descricao || ''}>{c.descricao || c.codigo_produto || '—'}</td>
+                        <td style={tdStyle}>{c.numero_nf}</td>
+                        <td style={tdStyle}>{c.data_nota}</td>
+                        <td style={tdStyle}>{c.quantidade}</td>
+                        <td style={tdStyle}>{fmtRS(Number(c.valor_unitario) || 0)}</td>
+                        <td style={tdStyle}>{fmtRS(Number(c.valor_total) || 0)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -640,9 +700,10 @@ function Delta({ label, v, sup }: { label: string; v: number; sup: boolean }) {
   return <span title={sup ? 'base baixa no período anterior' : undefined} style={{ color: cor }}>{label}: {fmtPct(v)}</span>;
 }
 
-function KpiCard({ titulo, accent, valorNode, subNode, varM, supM, varA, supA, modo, strongDrop, extraNode }: {
+function KpiCard({ titulo, accent, valorNode, subNode, varM, supM, varA, supA, modo, strongDrop, extraNode, onDrill, drillLabel }: {
   titulo: string; accent: string; valorNode: React.ReactNode; subNode?: React.ReactNode;
   varM: number; supM: boolean; varA: number; supA: boolean; modo?: 'mes' | 'ano'; strongDrop?: boolean; extraNode?: React.ReactNode;
+  onDrill?: () => void; drillLabel?: string;
 }) {
   return (
     <div style={{ flex: '1 1 170px', background: '#fff', border: strongDrop ? '2px solid ' + COR_DOWN : '1px solid #e5e7eb', borderTop: '3px solid ' + accent, borderRadius: 12, padding: 14, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
@@ -657,6 +718,7 @@ function KpiCard({ titulo, accent, valorNode, subNode, varM, supM, varA, supA, m
         <Delta label="Ano ant" v={varA} sup={supA} />
       </div>
       {extraNode}
+      {onDrill && <div style={{ marginTop: 8 }}><button onClick={onDrill} style={linkBtn}>{drillLabel || 'ver itens'}</button></div>}
     </div>
   );
 }
