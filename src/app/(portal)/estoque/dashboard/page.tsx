@@ -1,11 +1,10 @@
 'use client';
-// Dashboard de Vendas. Consome /api/estoque/dashboard{,/historico,/categorias-vendas,
-// /vendas,/pedido-itens,/compras,/tendencia}.
-// Layout: faixa de KPIs → tendência 12 meses → detalhe em duas colunas (Peças+Serviços
-// | Máquinas). Cor do VALOR é sempre neutra; verde/vermelho só para variação %.
+// Dashboard de Vendas — duas visões independentes: "Peças + Serviços" e "Máquinas".
+// Consome /api/estoque/dashboard{,/historico,/categorias-vendas,/vendas,/pedido-itens,
+// /compras,/tendencia}. Cor do VALOR é sempre neutra; verde/vermelho só p/ variação.
 import { useState, useCallback, useEffect } from 'react';
 import Link from 'next/link';
-import { ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
+import { ResponsiveContainer, LineChart, Line, BarChart, Bar, Cell, LabelList, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
@@ -15,17 +14,15 @@ import { fmtRS } from '@/components/estoque/ui';
 
 const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 type Metrica = 'venda' | 'custo' | 'margem';
+type Visao = 'pecas' | 'maquinas';
 
-// Cor do VALOR é sempre neutra; verde/vermelho SÓ para variação %.
 const COR_INK = '#1f2937';
 const COR_UP = '#16a34a';
 const COR_DOWN = '#dc2626';
-const COR_MUTED = '#9ca3af'; // variação suprimida (base baixa no período anterior)
-// Cores de IDENTIDADE de seção (borda/acento) — nunca aplicadas ao valor.
+const COR_MUTED = '#9ca3af';
 const ACCENT = { geral: '#111827', maquinas: '#d97706', pecas: '#dc2626', servicos: '#0891b2', comprei: '#4f46e5' };
-// Limiares de base baixa (item 9): abaixo disso, variação vira cinza sem verde/vermelho.
-const BASE_MIN_PECAS = 1000; // R$ no período anterior
-const BASE_MIN_MAQ_UN = 2; // unidades no período anterior
+const BASE_MIN_PECAS = 1000;
+const BASE_MIN_MAQ_UN = 2;
 
 interface Categoria {
   nome: string;
@@ -58,12 +55,10 @@ interface DashboardResp {
   ano: number;
   categorias: Categoria[];
   ehMesCorrente: boolean;
-  proporcao: number | null;
-  diasUteisTranscorridos: number | null;
-  diasUteisTotal: number | null;
+  maquinasYTD: { unidades: number; receita: number };
   erro?: string;
 }
-interface TendPonto { label: string; mes: number; ano: number; pecas: number; servicos: number; maquinas: number; total: number; deltaPct: number | null }
+interface TendPonto { label: string; mes: number; ano: number; pecas: number; servicos: number; maquinas: number; maquinasUn: number; total: number; deltaPct: number | null; parcial?: boolean }
 interface HistMes { label: string; mes: number; ano: number; valor: number; custo: number; qtdePedidos: number; valorNota?: number | null; valorInterno?: number | null }
 interface HistResp { card: number; nome: string; meses: HistMes[]; erro?: string }
 interface VendaRow {
@@ -84,8 +79,6 @@ interface ServicoOSRow {
   internoBalde?: InternoBalde;
 }
 
-// Teto de linhas renderizadas nas tabelas de drill-down (o "Ano inteiro" traz
-// milhares). Os totais/somas exibidos sempre consideram TODAS as linhas.
 const LIMITE_LINHAS = 800;
 
 const thStyle: React.CSSProperties = { background: '#fafafa', color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', padding: '9px 10px', textAlign: 'left', borderBottom: '1px solid #eee', fontWeight: 600 };
@@ -95,12 +88,16 @@ function fmtPct(v: number): string {
   const s = v >= 0 ? '+' : '';
   return s + v.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%';
 }
-// "Pecas"/"Servicos" → "Peças"/"Serviços" na exibição (dado vem sem acento da config).
-function fixLabel(s: string): string {
-  return s.replace(/Pecas/g, 'Peças').replace(/Peças Diversas/g, 'Peças diversas').replace(/Servicos/g, 'Serviços');
+// Formato pt-BR compacto p/ eixos e ticket ("R$ 450 mil" / "R$ 1,2 mi").
+function fmtMil(v: number): string {
+  const abs = Math.abs(v);
+  if (abs >= 1e6) return 'R$ ' + (v / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' mi';
+  if (abs >= 1000) return 'R$ ' + (v / 1000).toLocaleString('pt-BR', { maximumFractionDigits: abs >= 1e5 ? 0 : 1 }) + ' mil';
+  return 'R$ ' + v.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
 }
-
-// Valor da métrica escolhida para um card (atual/mês ant./ano ant.)
+function fixLabel(s: string): string {
+  return s.replace(/Pecas Diversas/g, 'Peças diversas').replace(/Pecas/g, 'Peças').replace(/Servicos/g, 'Serviços');
+}
 function valorMetrica(c: Categoria, m: Metrica, quando: 'atual' | 'mesAnt' | 'anoAnt'): number {
   if (quando === 'atual') return m === 'venda' ? c.valorAtual : m === 'custo' ? c.custoAtual : c.margemAtual;
   if (quando === 'mesAnt') return m === 'venda' ? c.mesAnteriorValor : m === 'custo' ? c.mesAnteriorCusto : c.mesAnteriorValor - c.mesAnteriorCusto;
@@ -115,17 +112,16 @@ export default function DashboardPage() {
   const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
   const { contaParam, setConta } = useConta();
 
-  // Esta tela sempre abre com Conta = "Todas" (pedido do usuário).
   useEffect(() => { setConta(''); }, [setConta]);
 
   const now = new Date();
-  // mes = 0 → "Ano inteiro" (jan–dez do ano selecionado).
   const [mes, setMes] = useState(now.getMonth() + 1);
   const [ano, setAno] = useState(now.getFullYear());
   const ehAno = mes === 0;
   const periodoParam = ehAno ? 'mes=0&modo=ano' : 'mes=' + mes;
   const [categoria, setCategoria] = useState('');
   const [metrica, setMetrica] = useState<Metrica>('venda');
+  const [visao, setVisao] = useState<Visao>('pecas');
 
   const [dados, setDados] = useState<DashboardResp | null>(null);
   const [tendencia, setTendencia] = useState<TendPonto[] | null>(null);
@@ -133,20 +129,18 @@ export default function DashboardPage() {
   const [erro, setErro] = useState('');
   const [categoriasOpts, setCategoriasOpts] = useState<Array<{ codigo: string; descricao: string }>>([]);
 
-  // Histórico (drill-down de card)
   const [histCard, setHistCard] = useState<number | null>(null);
   const [hist, setHist] = useState<HistResp | null>(null);
 
-  // Vendas (tabela)
   const [vendas, setVendas] = useState<VendaRow[] | null>(null);
   const [vendasCard, setVendasCard] = useState<{ idx: number; nome: string } | null>(null);
   const [pedidoItens, setPedidoItens] = useState<{ numero: string; itens: VendaRow[] } | null>(null);
 
-  // Itens que compõem o card "Comprei" (peças por NF de entrada).
+  // Itens do card "Comprei" (peças por NF) + ordenação da tabela do popup.
   const [comprasAberto, setComprasAberto] = useState(false);
   const [comprasItens, setComprasItens] = useState<CompraRow[] | null>(null);
+  const [comprasSort, setComprasSort] = useState<{ col: string; dir: 'asc' | 'desc' }>({ col: 'valor_total', dir: 'desc' });
 
-  // OS do card Serviços (popup): visão "Serviços" (itens HR/KM) × "Por OS"
   const [osAberto, setOsAberto] = useState(false);
   const [osServicos, setOsServicos] = useState<OSRow[] | null>(null);
   const [servItens, setServItens] = useState<ServicoOSRow[] | null>(null);
@@ -154,6 +148,18 @@ export default function DashboardPage() {
   const [tipoFiltro, setTipoFiltro] = useState<TipoServico | null>(null);
   const [osPendente, setOsPendente] = useState(false);
   const [osErro, setOsErro] = useState('');
+
+  // Visão inicial vinda da URL (?v=maquinas) + persistência ao trocar.
+  useEffect(() => {
+    const v = new URLSearchParams(window.location.search).get('v');
+    if (v === 'maquinas' || v === 'pecas') setVisao(v);
+  }, []);
+  const trocarVisao = useCallback((v: Visao) => {
+    setVisao(v);
+    const params = new URLSearchParams(window.location.search);
+    params.set('v', v);
+    window.history.replaceState(null, '', '?' + params.toString());
+  }, []);
 
   const carregar = useCallback(async () => {
     setCarregando(true);
@@ -180,7 +186,6 @@ export default function DashboardPage() {
     }
   }, [periodoParam, ano, categoria, contaParam]);
 
-  // Carrega opções de categoria ao montar / trocar conta
   useEffect(() => {
     fetch(`/api/estoque/dashboard/categorias-vendas?_=1${contaParam}`)
       .then((r) => r.json())
@@ -188,24 +193,22 @@ export default function DashboardPage() {
       .catch(() => setCategoriasOpts([]));
   }, [contaParam]);
 
-  // Tendência 12 meses (não depende do período/categoria — só da conta).
   useEffect(() => {
     fetch(`/api/estoque/dashboard/tendencia?_=1${contaParam}`)
       .then((r) => r.json())
       .then((d) => {
-        const raw = (d.pontos || []) as Array<{ label: string; mes: number; ano: number; pecas: number; servicos: number; maquinas: number }>;
+        const raw = (d.pontos || []) as Array<{ label: string; mes: number; ano: number; pecas: number; servicos: number; maquinas: number; maquinasUn: number }>;
         let prev = 0;
         setTendencia(raw.map((p, i) => {
           const total = p.pecas + p.servicos + p.maquinas;
           const deltaPct = i === 0 || prev <= 0 ? null : ((total - prev) / prev) * 100;
           prev = total;
-          return { ...p, total, deltaPct };
+          return { ...p, total, deltaPct, parcial: i === raw.length - 1 };
         }));
       })
       .catch(() => setTendencia(null));
   }, [contaParam]);
 
-  // Carrega dashboard ao montar / quando filtros mudam
   useEffect(() => { carregar(); }, [carregar]);
 
   const abrirHistorico = useCallback(async (cardIdx: number) => {
@@ -226,7 +229,6 @@ export default function DashboardPage() {
     if (!d.erro) setVendas(d.vendas || []);
   }, [periodoParam, ano, categoria, contaParam]);
 
-  // Itens do card "Comprei": as peças (por NF de entrada) que somam o valor.
   const abrirCompras = useCallback(async () => {
     setComprasItens(null);
     setComprasAberto(true);
@@ -235,8 +237,6 @@ export default function DashboardPage() {
     if (!d.erro) setComprasItens(d.compras || []);
   }, [periodoParam, ano, contaParam]);
 
-  // Drill do card de máquina: reaproveita o popup de vendas, filtrando pela
-  // família (ou '__TODAS__' no card-resumo). Não usa filtro de categoria de peça.
   const abrirVendasMaquina = useCallback(async (familia: string, nome: string) => {
     setVendas(null);
     setVendasCard({ idx: -1, nome });
@@ -299,21 +299,55 @@ export default function DashboardPage() {
     ['/estoque/cruzamento-familia', 'Cruzamento de Família'],
   ];
 
+  // Ordenação da tabela do popup "Comprei".
+  const comprasOrdenadas = (() => {
+    if (!comprasItens) return null;
+    const { col, dir } = comprasSort;
+    const nfNum = (c: CompraRow) => Number(String(c.numero_nf ?? '').replace(/\D/g, '')) || 0;
+    const dataKey = (c: CompraRow) => { const p = String(c.data_nota ?? '').split('/'); return p.length === 3 ? `${p[2]}${p[1]}${p[0]}` : String(c.data_nota ?? ''); };
+    const cmp = (a: CompraRow, b: CompraRow): number => {
+      if (col === 'descricao') return String(a.descricao || a.codigo_produto || '').localeCompare(String(b.descricao || b.codigo_produto || ''), 'pt-BR');
+      if (col === 'numero_nf') return nfNum(a) - nfNum(b);
+      if (col === 'data_nota') return dataKey(a).localeCompare(dataKey(b));
+      if (col === 'quantidade') return (Number(a.quantidade) || 0) - (Number(b.quantidade) || 0);
+      if (col === 'valor_unitario') return (Number(a.valor_unitario) || 0) - (Number(b.valor_unitario) || 0);
+      return (Number(a.valor_total) || 0) - (Number(b.valor_total) || 0);
+    };
+    const arr = [...comprasItens].sort(cmp);
+    if (dir === 'desc') arr.reverse();
+    return arr;
+  })();
+  const sortHeader = (label: string, col: string) => (
+    <th style={{ ...thStyle, cursor: 'pointer', userSelect: 'none' }} onClick={() => setComprasSort((s) => ({ col, dir: s.col === col && s.dir === 'asc' ? 'desc' : 'asc' }))}>
+      {label} {comprasSort.col === col ? (comprasSort.dir === 'asc' ? '▲' : '▼') : <span style={{ color: '#ccc' }}>⇅</span>}
+    </th>
+  );
+
   return (
-    <div style={{ maxWidth: 1240, margin: '0 auto', padding: '20px 24px' }}>
+    <div style={{ margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 style={{ color: '#333', marginBottom: 4, fontSize: '1.4rem', fontWeight: 700 }}>Dashboard de Vendas</h1>
-          <p style={{ color: '#888', fontSize: '.82rem', marginBottom: 0 }}>Peças, Serviços e Máquinas — resumo, tendência e detalhe</p>
+          <p style={{ color: '#888', fontSize: '.82rem', marginBottom: 0 }}>Duas visões — Peças + Serviços e Máquinas</p>
         </div>
         <ContaSelector />
       </div>
 
-      {/* Navegação (menu horizontal para as telas irmãs) */}
-      <div style={{ display: 'flex', gap: 2, margin: '14px 0 18px', flexWrap: 'wrap', borderBottom: '1px solid #eee' }}>
+      {/* Navegação (telas irmãs) */}
+      <div style={{ display: 'flex', gap: 2, margin: '14px 0 16px', flexWrap: 'wrap', borderBottom: '1px solid #eee' }}>
         <span style={{ fontSize: '.8rem', fontWeight: 700, color: '#111827', padding: '8px 14px', borderBottom: '2px solid #111827' }}>Dashboard</span>
         {navItens.map(([href, label]) => (
           <Link key={href} href={href} style={{ fontSize: '.8rem', fontWeight: 600, color: '#6b7280', textDecoration: 'none', padding: '8px 14px' }}>{label}</Link>
+        ))}
+      </div>
+
+      {/* Seletor de visão */}
+      <div style={{ display: 'inline-flex', gap: 0, marginBottom: 14, border: '1px solid #e0e0e0', borderRadius: 10, overflow: 'hidden' }}>
+        {([['pecas', 'Peças + Serviços'], ['maquinas', 'Máquinas']] as Array<[Visao, string]>).map(([v, rotulo]) => (
+          <button key={v} onClick={() => trocarVisao(v)}
+            style={{ padding: '9px 18px', border: 'none', borderRight: v === 'pecas' ? '1px solid #e0e0e0' : 'none', background: visao === v ? '#111827' : '#fff', color: visao === v ? '#fff' : '#666', fontSize: '.82rem', fontWeight: 700, cursor: 'pointer' }}>
+            {rotulo}
+          </button>
         ))}
       </div>
 
@@ -322,73 +356,124 @@ export default function DashboardPage() {
         <Sel label="Período" value={mes} onChange={(v) => setMes(parseInt(v))}
           options={[{ value: 0, label: 'Ano inteiro' }, ...MESES.map((m, i) => ({ value: i + 1, label: m }))]} />
         <Sel label="Ano" value={ano} onChange={(v) => setAno(parseInt(v))} options={anos.map((y) => ({ value: y, label: String(y) }))} />
-        <Sel label="Categoria de peças" value={categoria} onChange={setCategoria} options={[{ value: '', label: 'Todas' }, ...categoriasOpts.map((c) => ({ value: c.codigo, label: c.descricao }))]} />
-        <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
-          {(['venda', 'custo', 'margem'] as Metrica[]).map((m) => (
-            <button key={m} onClick={() => setMetrica(m)}
-              style={{ padding: '8px 14px', border: '1px solid', borderColor: metrica === m ? '#111827' : '#e0e0e0', background: metrica === m ? '#111827' : '#fff', color: metrica === m ? '#fff' : '#666', borderRadius: 8, fontSize: '.78rem', fontWeight: 600, cursor: 'pointer', textTransform: 'capitalize' }}>
-              {m}
-            </button>
-          ))}
-        </div>
+        {visao === 'pecas' && (
+          <>
+            <Sel label="Categoria de peças" value={categoria} onChange={setCategoria} options={[{ value: '', label: 'Todas' }, ...categoriasOpts.map((c) => ({ value: c.codigo, label: c.descricao }))]} />
+            <span title="Categoria e Venda/Custo/Margem aplicam-se aos cards de Peças. Os KPIs mostram faturamento." style={{ fontSize: '.8rem', color: '#9ca3af', cursor: 'help', paddingBottom: 9 }}>ⓘ</span>
+            <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
+              {(['venda', 'custo', 'margem'] as Metrica[]).map((m) => (
+                <button key={m} onClick={() => setMetrica(m)}
+                  style={{ padding: '8px 14px', border: '1px solid', borderColor: metrica === m ? '#111827' : '#e0e0e0', background: metrica === m ? '#111827' : '#fff', color: metrica === m ? '#fff' : '#666', borderRadius: 8, fontSize: '.78rem', fontWeight: 600, cursor: 'pointer', textTransform: 'capitalize' }}>
+                  {m}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </div>
-      <div style={{ fontSize: '.68rem', color: '#9ca3af', marginBottom: 16 }}>Categoria e Venda/Custo/Margem aplicam-se aos cards de <b>Peças</b>. Os KPIs mostram faturamento.</div>
+      <div style={{ marginBottom: 16 }} />
 
       {erro && <div style={{ color: '#dc2626', marginBottom: 12, fontSize: '.85rem' }}>{erro}</div>}
       {carregando && <div style={{ color: '#888', fontSize: '.85rem' }}>Carregando…</div>}
 
       {dados && (() => {
+        const parcial = dados.ehMesCorrente;
         const cats = dados.categorias;
         const get = (t: string) => cats.find((c) => c.cardType === t);
         const cPecas = get('totalPecas');
         const cServ = get('servico');
         const cMaqTotal = get('totalMaquinas');
         const cComprei = get('compras');
-        const pecasCats = cats.filter((c) => c.cardType === 'produto').slice().sort((a, b) => b.valorAtual - a.valorAtual);
-        const maqFamilias = cats.filter((c) => c.cardType === 'maquina').slice().sort((a, b) => b.valorAtual - a.valorAtual);
-        const totalPecasVenda = cPecas?.valorAtual ?? pecasCats.reduce((s, c) => s + c.valorAtual, 0);
         const modo = dados.modo;
 
-        // Total Geral (front) = Peças + Serviços + Máquinas.
-        const tgAtual = (cPecas?.valorAtual || 0) + (cServ?.valorAtual || 0) + (cMaqTotal?.valorAtual || 0);
-        const tgMesAnt = (cPecas?.mesAnteriorValor || 0) + (cServ?.mesAnteriorValor || 0) + (cMaqTotal?.mesAnteriorValor || 0);
-        const tgAnoAnt = (cPecas?.anoAnteriorValor || 0) + (cServ?.anoAnteriorValor || 0) + (cMaqTotal?.anoAnteriorValor || 0);
+        const badgeParcial = parcial && (
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '.72rem', color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '4px 10px', marginBottom: 14 }}>
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#f59e0b' }} /> {modo === 'ano' ? 'ano em andamento' : 'mês em andamento'} — comparação parcial
+          </div>
+        );
+
+        if (visao === 'maquinas') {
+          const maqFamilias = cats.filter((c) => c.cardType === 'maquina');
+          const ativas = maqFamilias.filter((c) => (c.unidades ?? 0) > 0 || c.valorAtual > 0).sort((a, b) => b.valorAtual - a.valorAtual);
+          const zeradas = maqFamilias.filter((c) => (c.unidades ?? 0) === 0 && c.valorAtual === 0);
+          const ytd = dados.maquinasYTD;
+          const unTotal = cMaqTotal?.unidades ?? 0;
+          const ticketMes = unTotal > 0 ? (cMaqTotal?.valorAtual || 0) / unTotal : 0;
+          const ticketYtd = ytd.unidades > 0 ? ytd.receita / ytd.unidades : 0;
+          return (
+            <>
+              {badgeParcial}
+              {!cMaqTotal ? <div style={{ color: '#9ca3af', fontSize: '.85rem' }}>Sem vendas de máquina no período.</div> : (
+                <>
+                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
+                    <KpiCard titulo={`Máquinas · ${dados.periodo}`} accent={ACCENT.maquinas}
+                      valorNode={`${unTotal.toLocaleString('pt-BR')} ${unTotal === 1 ? 'máquina' : 'máquinas'}`}
+                      subNode={<span style={{ whiteSpace: 'nowrap' }}>{fmtRS(cMaqTotal.valorAtual)} · ticket {fmtMil(ticketMes)}</span>}
+                      varM={cMaqTotal.varMesAnterior} supM={(cMaqTotal.unidadesMesAnt ?? 0) < BASE_MIN_MAQ_UN}
+                      varA={cMaqTotal.varAnoAnterior} supA={(cMaqTotal.unidadesAnoAnt ?? 0) < BASE_MIN_MAQ_UN}
+                      modo={modo} parcial={parcial}
+                      strongDrop={!parcial && (cMaqTotal.unidadesAnoAnt ?? 0) >= BASE_MIN_MAQ_UN && cMaqTotal.varAnoAnterior < -50} />
+                    <KpiCard titulo={`Acumulado no ano (YTD ${dados.ano})`} accent={ACCENT.geral}
+                      valorNode={`${ytd.unidades.toLocaleString('pt-BR')} ${ytd.unidades === 1 ? 'máquina' : 'máquinas'}`}
+                      subNode={<span style={{ whiteSpace: 'nowrap' }}>{fmtRS(ytd.receita)} · ticket {fmtMil(ticketYtd)}</span>}
+                      varM={0} supM varA={0} supA modo="ano" semVar />
+                  </div>
+
+                  {tendencia && tendencia.length > 0 && (
+                    <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: '14px 16px 8px', marginBottom: 18 }}>
+                      <div style={{ fontSize: '.72rem', color: '#6b7280', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 6 }}>Máquinas · faturamento e unidades — últimos 12 meses</div>
+                      <MaquinasChart pontos={tendencia} />
+                    </div>
+                  )}
+
+                  <Secao titulo="Máquinas por família" accent={ACCENT.maquinas}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 10 }}>
+                      {ativas.map((c, i) => (
+                        <MaquinaCard key={i} c={c} modo={modo} parcial={parcial}
+                          onVendas={() => abrirVendasMaquina(c.nome === 'Outras máquinas' ? '__TODAS__' : c.nome, fixLabel(c.nome))} />
+                      ))}
+                    </div>
+                    {zeradas.length > 0 && (
+                      <div style={{ fontSize: '.74rem', color: '#9ca3af', marginTop: 12 }}>
+                        Sem vendas no período: {zeradas.map((z) => fixLabel(z.nome)).join(' · ')}
+                      </div>
+                    )}
+                  </Secao>
+                </>
+              )}
+            </>
+          );
+        }
+
+        // ---- Visão PEÇAS + SERVIÇOS ----
+        const pecasCats = cats.filter((c) => c.cardType === 'produto').slice().sort((a, b) => b.valorAtual - a.valorAtual);
+        const totalPecasVenda = cPecas?.valorAtual ?? pecasCats.reduce((s, c) => s + c.valorAtual, 0);
+        const psAtual = (cPecas?.valorAtual || 0) + (cServ?.valorAtual || 0);
+        const psMesAnt = (cPecas?.mesAnteriorValor || 0) + (cServ?.mesAnteriorValor || 0);
+        const psAnoAnt = (cPecas?.anoAnteriorValor || 0) + (cServ?.anoAnteriorValor || 0);
         const razaoCV = totalPecasVenda > 0 && cComprei ? cComprei.valorAtual / totalPecasVenda : null;
 
         return (
           <>
-            {dados.ehMesCorrente && dados.proporcao != null && (
-              <div style={{ fontSize: '.75rem', color: '#999', marginBottom: 10 }}>
-                {modo === 'ano' ? 'Ano corrente' : 'Mês corrente'} — {dados.diasUteisTranscorridos}/{dados.diasUteisTotal} dias úteis ({Math.round((dados.proporcao || 0) * 100)}%). Comparativos ajustados proporcionalmente.
-              </div>
-            )}
-
-            {/* FAIXA DE KPIs */}
+            {badgeParcial}
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
-              <KpiCard titulo="Total Geral" accent={ACCENT.geral} valorNode={fmtRS(tgAtual)} subNode="Peças + Serviços + Máquinas"
-                varM={calcVar(tgAtual, tgMesAnt)} supM={tgMesAnt < BASE_MIN_PECAS} varA={calcVar(tgAtual, tgAnoAnt)} supA={tgAnoAnt < BASE_MIN_PECAS}
-                modo={modo} strongDrop={tgAnoAnt >= BASE_MIN_PECAS && calcVar(tgAtual, tgAnoAnt) < -50} />
-              {cMaqTotal && (
-                <KpiCard titulo="Máquinas" accent={ACCENT.maquinas}
-                  valorNode={`${(cMaqTotal.unidades ?? 0).toLocaleString('pt-BR')} máq.`} subNode={fmtRS(cMaqTotal.valorAtual)}
-                  varM={calcVar(cMaqTotal.valorAtual, cMaqTotal.mesAnteriorValor)} supM={(cMaqTotal.unidadesMesAnt ?? 0) < BASE_MIN_MAQ_UN}
-                  varA={calcVar(cMaqTotal.valorAtual, cMaqTotal.anoAnteriorValor)} supA={(cMaqTotal.unidadesAnoAnt ?? 0) < BASE_MIN_MAQ_UN}
-                  modo={modo} strongDrop={(cMaqTotal.unidadesAnoAnt ?? 0) >= BASE_MIN_MAQ_UN && calcVar(cMaqTotal.valorAtual, cMaqTotal.anoAnteriorValor) < -50} />
-              )}
+              <KpiCard titulo="Peças + Serviços" accent={ACCENT.geral} valorNode={fmtRS(psAtual)} subNode="faturamento no período"
+                varM={calcVar(psAtual, psMesAnt)} supM={psMesAnt < BASE_MIN_PECAS} varA={calcVar(psAtual, psAnoAnt)} supA={psAnoAnt < BASE_MIN_PECAS}
+                modo={modo} parcial={parcial} strongDrop={!parcial && psAnoAnt >= BASE_MIN_PECAS && calcVar(psAtual, psAnoAnt) < -50} />
               {cPecas && (
                 <KpiCard titulo="Total Peças" accent={ACCENT.pecas} valorNode={fmtRS(cPecas.valorAtual)}
                   varM={cPecas.varMesAnterior} supM={cPecas.mesAnteriorValor < BASE_MIN_PECAS} varA={cPecas.varAnoAnterior} supA={cPecas.anoAnteriorValor < BASE_MIN_PECAS}
-                  modo={modo} strongDrop={cPecas.anoAnteriorValor >= BASE_MIN_PECAS && cPecas.varAnoAnterior < -50} />
+                  modo={modo} parcial={parcial} strongDrop={!parcial && cPecas.anoAnteriorValor >= BASE_MIN_PECAS && cPecas.varAnoAnterior < -50} />
               )}
               {cServ && (
                 <KpiCard titulo="Serviços" accent={ACCENT.servicos} valorNode={fmtRS(cServ.valorAtual)}
                   varM={cServ.varMesAnterior} supM={cServ.mesAnteriorValor < BASE_MIN_PECAS} varA={cServ.varAnoAnterior} supA={cServ.anoAnteriorValor < BASE_MIN_PECAS}
-                  modo={modo} strongDrop={cServ.anoAnteriorValor >= BASE_MIN_PECAS && cServ.varAnoAnterior < -50} />
+                  modo={modo} parcial={parcial} strongDrop={!parcial && cServ.anoAnteriorValor >= BASE_MIN_PECAS && cServ.varAnoAnterior < -50} />
               )}
               {cComprei && (
                 <KpiCard titulo="Comprei" accent={ACCENT.comprei} valorNode={fmtRS(cComprei.valorAtual)} subNode="entradas de peças (NF)"
                   varM={cComprei.varMesAnterior} supM={cComprei.mesAnteriorValor < BASE_MIN_PECAS} varA={cComprei.varAnoAnterior} supA={cComprei.anoAnteriorValor < BASE_MIN_PECAS}
-                  modo={modo} onDrill={abrirCompras} drillLabel="ver itens"
+                  modo={modo} parcial={parcial} onDrill={abrirCompras} drillLabel="ver itens"
                   extraNode={razaoCV != null && (
                     <div style={{ fontSize: '.66rem', color: '#6b7280', marginTop: 6 }}>
                       Razão compra/venda: <b>{razaoCV.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}x</b>
@@ -398,47 +483,25 @@ export default function DashboardPage() {
               )}
             </div>
 
-            {/* TENDÊNCIA 12 MESES */}
             {tendencia && tendencia.length > 0 && (
               <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: '14px 16px 8px', marginBottom: 18 }}>
-                <div style={{ fontSize: '.72rem', color: '#6b7280', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 6 }}>Tendência · últimos 12 meses</div>
-                <TendenciaChart pontos={tendencia} />
+                <div style={{ fontSize: '.72rem', color: '#6b7280', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 6 }}>Peças + Serviços · faturamento — últimos 12 meses</div>
+                <PecasChart pontos={tendencia} />
               </div>
             )}
 
-            {/* DETALHE EM DUAS COLUNAS */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16, alignItems: 'start' }}>
-              {/* Esquerda: Peças por categoria + Serviços */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <Secao titulo="Peças por categoria" accent={ACCENT.pecas}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 }}>
-                    {pecasCats.map((c, i) => (
-                      <PecaCard key={i} c={c} modo={modo} metrica={metrica}
-                        pctMix={totalPecasVenda > 0 ? (c.valorAtual / totalPecasVenda) * 100 : 0}
-                        onHist={() => abrirHistorico(cardIndexParaApi(c, dados))}
-                        onVendas={() => abrirVendas(cardIndexParaApi(c, dados), fixLabel(c.nome))} />
-                    ))}
-                  </div>
-                </Secao>
-                {cServ && <ServicosDecomp c={cServ} onDetalhe={abrirOSServicos} />}
-              </div>
-
-              {/* Direita: Máquinas por família */}
-              <div>
-                <Secao titulo="Máquinas por família" accent={ACCENT.maquinas}
-                  hint={metrica !== 'venda' ? 'o filtro Venda/Custo/Margem não se aplica a máquinas' : undefined}>
-                  {maqFamilias.length === 0 ? (
-                    <div style={{ color: '#9ca3af', fontSize: '.82rem' }}>Sem vendas de máquina no período.</div>
-                  ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 }}>
-                      {maqFamilias.map((c, i) => (
-                        <MaquinaCard key={i} c={c} modo={modo}
-                          onVendas={() => abrirVendasMaquina(c.nome === 'Outras máquinas' ? '__TODAS__' : c.nome, fixLabel(c.nome))} />
-                      ))}
-                    </div>
-                  )}
-                </Secao>
-              </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 16, alignItems: 'start' }}>
+              <Secao titulo="Peças por categoria" accent={ACCENT.pecas}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 10 }}>
+                  {pecasCats.map((c, i) => (
+                    <PecaCard key={i} c={c} modo={modo} metrica={metrica} parcial={parcial}
+                      pctMix={totalPecasVenda > 0 ? (c.valorAtual / totalPecasVenda) * 100 : 0}
+                      onHist={() => abrirHistorico(cardIndexParaApi(c, dados))}
+                      onVendas={() => abrirVendas(cardIndexParaApi(c, dados), fixLabel(c.nome))} />
+                  ))}
+                </div>
+              </Secao>
+              {cServ && <ServicosDecomp c={cServ} onDetalhe={abrirOSServicos} />}
             </div>
           </>
         );
@@ -457,7 +520,7 @@ export default function DashboardPage() {
                   <LineChart data={hist.meses}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                     <XAxis dataKey="label" tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => 'R$ ' + (v / 1000).toFixed(0) + 'k'} />
+                    <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => fmtMil(v)} width={72} />
                     <Tooltip formatter={(v: number) => fmtRS(v)} />
                     <Legend />
                     <Line type="monotone" dataKey="valor" name="Venda" stroke="#111827" strokeWidth={2} dot={false} />
@@ -507,7 +570,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Popup do card Serviços: itens de serviço (HR/KM) × lista de OS */}
+      {/* Popup Serviços */}
       {osAberto && (
         <div onClick={() => setOsAberto(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 20, maxWidth: 1100, width: '94%', maxHeight: '85vh', overflowY: 'auto' }}>
@@ -530,7 +593,6 @@ export default function DashboardPage() {
                 <button onClick={() => setOsAberto(false)} style={linkBtn}>fechar</button>
               </div>
             </div>
-
             {osErro && <div style={{ color: '#dc2626', fontSize: '.82rem', marginBottom: 10 }}>{osErro}</div>}
             {osPendente && (
               <div style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', borderRadius: 8, padding: '8px 12px', fontSize: '.78rem', marginBottom: 10 }}>
@@ -541,7 +603,6 @@ export default function DashboardPage() {
             {osView === 'servicos' ? (
               !servItens ? (osErro ? null : <div style={{ color: '#888', fontSize: '.85rem' }}>Carregando…</div>) : servItens.length === 0 ? (osPendente ? null : <div style={{ color: '#888', fontSize: '.85rem' }}>Sem serviços faturados no período.</div>) : (
                 <>
-                  {/* Resumo por tipo (clique filtra) */}
                   <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
                     {(['HR', 'KM', 'OUTRO'] as TipoServico[]).map((t) => {
                       const doTipo = servItens.filter((s) => s.tipo === t);
@@ -561,9 +622,7 @@ export default function DashboardPage() {
                   {(() => {
                     const n = servItens.filter((s) => !tipoFiltro || s.tipo === tipoFiltro).length;
                     return n > LIMITE_LINHAS ? (
-                      <div style={{ color: '#999', fontSize: '.72rem', marginBottom: 6 }}>
-                        Mostrando as {LIMITE_LINHAS} primeiras de {n.toLocaleString('pt-BR')} linhas (os totais acima consideram todas).
-                      </div>
+                      <div style={{ color: '#999', fontSize: '.72rem', marginBottom: 6 }}>Mostrando as {LIMITE_LINHAS} primeiras de {n.toLocaleString('pt-BR')} linhas (os totais acima consideram todas).</div>
                     ) : null;
                   })()}
                   <div style={{ overflowX: 'auto' }}>
@@ -594,9 +653,7 @@ export default function DashboardPage() {
               !osServicos ? (osErro ? null : <div style={{ color: '#888', fontSize: '.85rem' }}>Carregando…</div>) : osServicos.length === 0 ? (osPendente ? null : <div style={{ color: '#888', fontSize: '.85rem' }}>Sem OS faturadas no período.</div>) : (
                 <>
                 {osServicos.length > LIMITE_LINHAS && (
-                  <div style={{ color: '#999', fontSize: '.72rem', marginBottom: 6 }}>
-                    Mostrando as {LIMITE_LINHAS} primeiras de {osServicos.length.toLocaleString('pt-BR')} OS (o total acima considera todas).
-                  </div>
+                  <div style={{ color: '#999', fontSize: '.72rem', marginBottom: 6 }}>Mostrando as {LIMITE_LINHAS} primeiras de {osServicos.length.toLocaleString('pt-BR')} OS (o total acima considera todas).</div>
                 )}
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead><tr>{['OS', 'Data', 'Cliente', 'Nota', ...(contaParam === '' ? ['Conta'] : []), 'Valor'].map((h) => <th key={h} style={thStyle}>{h}</th>)}</tr></thead>
@@ -647,7 +704,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Popup dos itens do "Comprei": peças por NF de entrada que somam o valor */}
+      {/* Popup itens do "Comprei" (peças por NF) — cabeçalho ordenável */}
       {comprasAberto && (
         <div onClick={() => setComprasAberto(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 20, maxWidth: 900, width: '92%', maxHeight: '85vh', overflowY: 'auto' }}>
@@ -660,17 +717,22 @@ export default function DashboardPage() {
               </h2>
               <button onClick={() => setComprasAberto(false)} style={linkBtn}>fechar</button>
             </div>
-            {!comprasItens ? <div style={{ color: '#888', fontSize: '.85rem' }}>Carregando…</div> : comprasItens.length === 0 ? <div style={{ color: '#888', fontSize: '.85rem' }}>Sem compras de peças no período.</div> : (
+            {!comprasOrdenadas ? <div style={{ color: '#888', fontSize: '.85rem' }}>Carregando…</div> : comprasOrdenadas.length === 0 ? <div style={{ color: '#888', fontSize: '.85rem' }}>Sem compras de peças no período.</div> : (
               <div style={{ overflowX: 'auto' }}>
-                {comprasItens.length > LIMITE_LINHAS && (
-                  <div style={{ color: '#999', fontSize: '.72rem', marginBottom: 6 }}>
-                    Mostrando as {LIMITE_LINHAS} primeiras de {comprasItens.length.toLocaleString('pt-BR')} linhas (o total acima considera todas).
-                  </div>
+                {comprasOrdenadas.length > LIMITE_LINHAS && (
+                  <div style={{ color: '#999', fontSize: '.72rem', marginBottom: 6 }}>Mostrando as {LIMITE_LINHAS} primeiras de {comprasOrdenadas.length.toLocaleString('pt-BR')} linhas (o total acima considera todas).</div>
                 )}
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead><tr>{['Produto', 'NF', 'Data', 'Qtd', 'V. Unit', 'V. Total'].map((h) => <th key={h} style={thStyle}>{h}</th>)}</tr></thead>
+                  <thead><tr>
+                    {sortHeader('Produto', 'descricao')}
+                    {sortHeader('NF', 'numero_nf')}
+                    {sortHeader('Data', 'data_nota')}
+                    {sortHeader('Qtd', 'quantidade')}
+                    {sortHeader('V. Unit', 'valor_unitario')}
+                    {sortHeader('V. Total', 'valor_total')}
+                  </tr></thead>
                   <tbody>
-                    {comprasItens.slice(0, LIMITE_LINHAS).map((c, i) => (
+                    {comprasOrdenadas.slice(0, LIMITE_LINHAS).map((c, i) => (
                       <tr key={i}>
                         <td style={{ ...tdStyle, maxWidth: 340 }} title={c.descricao || ''}>{c.descricao || c.codigo_produto || '—'}</td>
                         <td style={tdStyle}>{c.numero_nf}</td>
@@ -693,30 +755,34 @@ export default function DashboardPage() {
 
 const linkBtn: React.CSSProperties = { background: 'none', border: 'none', color: '#2563eb', fontSize: '.74rem', fontWeight: 600, cursor: 'pointer', padding: 0, textDecoration: 'underline' };
 
-// Variação (Mês/Ano ant.): verde/vermelho, ou cinza quando a base do período
-// anterior é baixa (item 9) — nesse caso não induz leitura de bom/ruim.
-function Delta({ label, v, sup }: { label: string; v: number; sup: boolean }) {
-  const cor = sup ? COR_MUTED : v >= 0 ? COR_UP : COR_DOWN;
-  return <span title={sup ? 'base baixa no período anterior' : undefined} style={{ color: cor }}>{label}: {fmtPct(v)}</span>;
+// Variação: verde/vermelho, ou CINZA quando (a) o período anterior tem base baixa
+// ou (b) o período atual é o corrente (comparação parcial).
+function Delta({ label, v, sup, parcial }: { label: string; v: number; sup: boolean; parcial?: boolean }) {
+  const muted = sup || parcial;
+  const cor = muted ? COR_MUTED : v >= 0 ? COR_UP : COR_DOWN;
+  const motivo = parcial ? 'mês incompleto — comparação parcial' : sup ? 'base baixa no período anterior' : undefined;
+  return <span title={motivo} style={{ color: cor }}>{label}: {fmtPct(v)}</span>;
 }
 
-function KpiCard({ titulo, accent, valorNode, subNode, varM, supM, varA, supA, modo, strongDrop, extraNode, onDrill, drillLabel }: {
+function KpiCard({ titulo, accent, valorNode, subNode, varM, supM, varA, supA, modo, strongDrop, extraNode, onDrill, drillLabel, parcial, semVar }: {
   titulo: string; accent: string; valorNode: React.ReactNode; subNode?: React.ReactNode;
   varM: number; supM: boolean; varA: number; supA: boolean; modo?: 'mes' | 'ano'; strongDrop?: boolean; extraNode?: React.ReactNode;
-  onDrill?: () => void; drillLabel?: string;
+  onDrill?: () => void; drillLabel?: string; parcial?: boolean; semVar?: boolean;
 }) {
   return (
-    <div style={{ flex: '1 1 170px', background: '#fff', border: strongDrop ? '2px solid ' + COR_DOWN : '1px solid #e5e7eb', borderTop: '3px solid ' + accent, borderRadius: 12, padding: 14, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
+    <div style={{ flex: '1 1 190px', background: '#fff', border: strongDrop ? '2px solid ' + COR_DOWN : '1px solid #e5e7eb', borderTop: '3px solid ' + accent, borderRadius: 12, padding: 14, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, marginBottom: 6 }}>
         <span style={{ fontSize: '.66rem', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 700 }}>{titulo}</span>
         {strongDrop && <span style={{ fontSize: '.56rem', fontWeight: 700, color: COR_DOWN, background: '#fee2e2', border: '1px solid #fecaca', borderRadius: 6, padding: '1px 6px', whiteSpace: 'nowrap' }}>queda acentuada</span>}
       </div>
       <div style={{ fontSize: '1.3rem', fontWeight: 700, color: COR_INK, fontVariantNumeric: 'tabular-nums' }}>{valorNode}</div>
       {subNode && <div style={{ fontSize: '.78rem', color: '#6b7280', marginTop: 1 }}>{subNode}</div>}
-      <div style={{ display: 'flex', gap: 10, marginTop: 8, fontSize: '.68rem', flexWrap: 'wrap' }}>
-        {modo !== 'ano' && <Delta label="Mês ant" v={varM} sup={supM} />}
-        <Delta label="Ano ant" v={varA} sup={supA} />
-      </div>
+      {!semVar && (
+        <div style={{ display: 'flex', gap: 10, marginTop: 8, fontSize: '.68rem', flexWrap: 'wrap' }}>
+          {modo !== 'ano' && <Delta label="Mês ant" v={varM} sup={supM} parcial={parcial} />}
+          <Delta label="Ano ant" v={varA} sup={supA} parcial={parcial} />
+        </div>
+      )}
       {extraNode}
       {onDrill && <div style={{ marginTop: 8 }}><button onClick={onDrill} style={linkBtn}>{drillLabel || 'ver itens'}</button></div>}
     </div>
@@ -735,8 +801,8 @@ function Secao({ titulo, accent, hint, children }: { titulo: string; accent: str
   );
 }
 
-function PecaCard({ c, modo, metrica, pctMix, onHist, onVendas }: {
-  c: Categoria; modo?: 'mes' | 'ano'; metrica: Metrica; pctMix: number; onHist: () => void; onVendas: () => void;
+function PecaCard({ c, modo, metrica, pctMix, parcial, onHist, onVendas }: {
+  c: Categoria; modo?: 'mes' | 'ano'; metrica: Metrica; pctMix: number; parcial?: boolean; onHist: () => void; onVendas: () => void;
 }) {
   const zero = c.valorAtual === 0 && c.custoAtual === 0;
   const atual = valorMetrica(c, metrica, 'atual');
@@ -756,8 +822,8 @@ function PecaCard({ c, modo, metrica, pctMix, onHist, onVendas }: {
           <div style={{ fontSize: '1.05rem', fontWeight: 700, color: COR_INK, marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>{fmtRS(atual)}</div>
           {metrica === 'venda' && <div style={{ fontSize: '.64rem', color: '#6b7280' }}>margem {margemPct.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}%</div>}
           <div style={{ display: 'flex', gap: 8, marginTop: 6, fontSize: '.62rem', flexWrap: 'wrap' }}>
-            {modo !== 'ano' && <Delta label="Mês" v={varM} sup={c.mesAnteriorValor < BASE_MIN_PECAS} />}
-            <Delta label="Ano" v={varA} sup={c.anoAnteriorValor < BASE_MIN_PECAS} />
+            {modo !== 'ano' && <Delta label="Mês" v={varM} sup={c.mesAnteriorValor < BASE_MIN_PECAS} parcial={parcial} />}
+            <Delta label="Ano" v={varA} sup={c.anoAnteriorValor < BASE_MIN_PECAS} parcial={parcial} />
           </div>
           <div style={{ marginTop: 8 }}>
             <button onClick={onHist} style={linkBtn}>histórico</button>
@@ -769,28 +835,21 @@ function PecaCard({ c, modo, metrica, pctMix, onHist, onVendas }: {
   );
 }
 
-function MaquinaCard({ c, modo, onVendas }: { c: Categoria; modo?: 'mes' | 'ano'; onVendas: () => void }) {
+function MaquinaCard({ c, modo, parcial, onVendas }: { c: Categoria; modo?: 'mes' | 'ano'; parcial?: boolean; onVendas: () => void }) {
   const un = c.unidades ?? 0;
-  const zero = un === 0 && c.valorAtual === 0;
   const ticket = un > 0 ? c.valorAtual / un : 0;
   const varM = calcVar(c.valorAtual, c.mesAnteriorValor);
   const varA = calcVar(c.valorAtual, c.anoAnteriorValor);
   return (
-    <div style={{ background: zero ? '#fafafa' : '#fff', border: '1px solid #f0e6d5', borderRadius: 10, padding: 12, opacity: zero ? 0.6 : 1 }}>
+    <div style={{ background: '#fff', border: '1px solid #f0e6d5', borderRadius: 10, padding: 12 }}>
       <div style={{ fontSize: '.66rem', color: '#92610e', textTransform: 'uppercase', letterSpacing: '.4px', fontWeight: 700 }}>{fixLabel(c.nome)}</div>
-      {zero ? (
-        <div style={{ fontSize: '.78rem', color: '#9ca3af', marginTop: 4 }}>sem vendas no período</div>
-      ) : (
-        <>
-          <div style={{ fontSize: '1.05rem', fontWeight: 700, color: COR_INK, marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>{un.toLocaleString('pt-BR')} {un === 1 ? 'máquina' : 'máquinas'}</div>
-          <div style={{ fontSize: '.76rem', color: '#6b7280' }}>{fmtRS(c.valorAtual)} · ticket {fmtRS(ticket)}</div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 6, fontSize: '.62rem', flexWrap: 'wrap' }}>
-            {modo !== 'ano' && <Delta label="Mês" v={varM} sup={(c.unidadesMesAnt ?? 0) < BASE_MIN_MAQ_UN} />}
-            <Delta label="Ano" v={varA} sup={(c.unidadesAnoAnt ?? 0) < BASE_MIN_MAQ_UN} />
-          </div>
-          <div style={{ marginTop: 8 }}><button onClick={onVendas} style={linkBtn}>ver vendas</button></div>
-        </>
-      )}
+      <div style={{ fontSize: '1.05rem', fontWeight: 700, color: COR_INK, marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>{un.toLocaleString('pt-BR')} {un === 1 ? 'máquina' : 'máquinas'}</div>
+      <div style={{ fontSize: '.76rem', color: '#6b7280', whiteSpace: 'nowrap' }}>{fmtRS(c.valorAtual)} · ticket {fmtMil(ticket)}</div>
+      <div style={{ display: 'flex', gap: 8, marginTop: 6, fontSize: '.62rem', flexWrap: 'wrap' }}>
+        {modo !== 'ano' && <Delta label="Mês" v={varM} sup={(c.unidadesMesAnt ?? 0) < BASE_MIN_MAQ_UN} parcial={parcial} />}
+        <Delta label="Ano" v={varA} sup={(c.unidadesAnoAnt ?? 0) < BASE_MIN_MAQ_UN} parcial={parcial} />
+      </div>
+      <div style={{ marginTop: 8 }}><button onClick={onVendas} style={linkBtn}>ver vendas</button></div>
     </div>
   );
 }
@@ -834,38 +893,70 @@ function ServicosDecomp({ c, onDetalhe }: { c: Categoria; onDetalhe: () => void 
   );
 }
 
-interface TendTooltipProps { active?: boolean; label?: string; payload?: Array<{ payload: TendPonto }> }
-function TendTooltip({ active, payload, label }: TendTooltipProps) {
+interface PSTooltipProps { active?: boolean; label?: string; payload?: Array<{ payload: TendPonto }> }
+function PSTooltip({ active, payload, label }: PSTooltipProps) {
   if (!active || !payload || !payload.length) return null;
   const p = payload[0].payload;
+  const ps = p.pecas + p.servicos;
   const row = (nome: string, v: number, cor: string) => (
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}><span style={{ color: cor }}>{nome}</span><span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmtRS(v)}</span></div>
   );
   return (
     <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 10px', fontSize: '.72rem', boxShadow: '0 2px 8px rgba(0,0,0,.1)' }}>
-      <div style={{ fontWeight: 700, marginBottom: 4 }}>{label}</div>
+      <div style={{ fontWeight: 700, marginBottom: 4 }}>{label}{p.parcial && <span style={{ color: '#b45309', fontWeight: 600 }}> · parcial</span>}</div>
       {row('Peças', p.pecas, ACCENT.pecas)}
       {row('Serviços', p.servicos, ACCENT.servicos)}
-      {row('Máquinas', p.maquinas, ACCENT.maquinas)}
-      <div style={{ borderTop: '1px solid #eee', marginTop: 4, paddingTop: 4, display: 'flex', justifyContent: 'space-between', gap: 16 }}><span>Total</span><span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmtRS(p.total)}</span></div>
-      {p.deltaPct != null && <div style={{ marginTop: 2, color: p.deltaPct >= 0 ? COR_UP : COR_DOWN }}>vs mês anterior: {fmtPct(p.deltaPct)}</div>}
+      <div style={{ borderTop: '1px solid #eee', marginTop: 4, paddingTop: 4, display: 'flex', justifyContent: 'space-between', gap: 16 }}><span>Peças + Serviços</span><span style={{ fontWeight: 700 }}>{fmtRS(ps)}</span></div>
+    </div>
+  );
+}
+function PecasChart({ pontos }: { pontos: TendPonto[] }) {
+  return (
+    <div style={{ width: '100%', height: 300 }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={pontos} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
+          <CartesianGrid vertical={false} stroke="#f0f0f0" />
+          <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+          <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => fmtMil(v)} width={78} />
+          <Tooltip content={<PSTooltip />} cursor={{ fill: 'rgba(0,0,0,.03)' }} />
+          <Legend wrapperStyle={{ fontSize: 12 }} />
+          <Bar dataKey="pecas" stackId="a" name="Peças" fill={ACCENT.pecas}>
+            {pontos.map((p, i) => <Cell key={i} fillOpacity={p.parcial ? 0.5 : 1} />)}
+          </Bar>
+          <Bar dataKey="servicos" stackId="a" name="Serviços" fill={ACCENT.servicos} radius={[3, 3, 0, 0]}>
+            {pontos.map((p, i) => <Cell key={i} fillOpacity={p.parcial ? 0.5 : 1} />)}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 }
 
-function TendenciaChart({ pontos }: { pontos: TendPonto[] }) {
+interface MaqTooltipProps { active?: boolean; label?: string; payload?: Array<{ payload: TendPonto }> }
+function MaqTooltip({ active, payload, label }: MaqTooltipProps) {
+  if (!active || !payload || !payload.length) return null;
+  const p = payload[0].payload;
+  return (
+    <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 10px', fontSize: '.72rem', boxShadow: '0 2px 8px rgba(0,0,0,.1)' }}>
+      <div style={{ fontWeight: 700, marginBottom: 4 }}>{label}{p.parcial && <span style={{ color: '#b45309', fontWeight: 600 }}> · parcial</span>}</div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}><span style={{ color: ACCENT.maquinas }}>Faturamento</span><span style={{ fontWeight: 700 }}>{fmtRS(p.maquinas)}</span></div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}><span>Unidades</span><span style={{ fontWeight: 700 }}>{p.maquinasUn.toLocaleString('pt-BR')}</span></div>
+    </div>
+  );
+}
+function MaquinasChart({ pontos }: { pontos: TendPonto[] }) {
   return (
     <div style={{ width: '100%', height: 300 }}>
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={pontos} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+        <BarChart data={pontos} margin={{ top: 18, right: 8, left: 8, bottom: 0 }}>
           <CartesianGrid vertical={false} stroke="#f0f0f0" />
           <XAxis dataKey="label" tick={{ fontSize: 10 }} />
-          <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => 'R$ ' + (v / 1000).toFixed(0) + 'k'} />
-          <Tooltip content={<TendTooltip />} cursor={{ fill: 'rgba(0,0,0,.03)' }} />
-          <Legend wrapperStyle={{ fontSize: 12 }} />
-          <Bar dataKey="pecas" stackId="a" name="Peças" fill={ACCENT.pecas} />
-          <Bar dataKey="servicos" stackId="a" name="Serviços" fill={ACCENT.servicos} />
-          <Bar dataKey="maquinas" stackId="a" name="Máquinas" fill={ACCENT.maquinas} radius={[3, 3, 0, 0]} />
+          <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => fmtMil(v)} width={78} />
+          <Tooltip content={<MaqTooltip />} cursor={{ fill: 'rgba(0,0,0,.03)' }} />
+          <Bar dataKey="maquinas" name="Faturamento" fill={ACCENT.maquinas} radius={[3, 3, 0, 0]}>
+            {pontos.map((p, i) => <Cell key={i} fillOpacity={p.parcial ? 0.5 : 1} />)}
+            <LabelList dataKey="maquinasUn" position="top" style={{ fontSize: 10, fill: '#92610e', fontWeight: 700 }} formatter={(v: number) => (v ? v.toLocaleString('pt-BR') : '')} />
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -881,7 +972,6 @@ function NotaBadge({ temNota, balde }: { temNota?: boolean | null; balde?: Inter
   if (temNota) {
     return <span style={{ background: '#ede9fe', color: '#6d28d9', borderRadius: 6, padding: '2px 7px', fontSize: '.66rem', fontWeight: 700 }}>Com nota</span>;
   }
-  // Sem nota: distingue interno que rendeu (garantia/entrega/revisão) do interno puro (cortesia/interno).
   if (balde === 'retorno') {
     return <span title="Garantia de fábrica, entrega/montagem, revisão ou serviço normal fechado sem nota — rendeu." style={{ background: '#fef3c7', color: '#b45309', borderRadius: 6, padding: '2px 7px', fontSize: '.66rem', fontWeight: 700 }}>Interno c/ retorno</span>;
   }
@@ -916,9 +1006,6 @@ function Sel({ label, value, onChange, options }: { label: string; value: string
   );
 }
 
-// O índice do card na API:
-//   produtos → 1..numCats (Pecas Diversas, o último produto, → numCats+1);
-//   Servicos → numCats+2; Total Pecas → 0; Total Geral → numCats+3.
 function cardIndexParaApi(c: Categoria, dados: DashboardResp): number {
   const produtos = dados.categorias.filter((x) => x.cardType === 'produto');
   const numCats = produtos.length - 1;
@@ -926,6 +1013,6 @@ function cardIndexParaApi(c: Categoria, dados: DashboardResp): number {
   if (c.cardType === 'servico') return numCats + 2;
   if (c.cardType === 'totalGeral') return numCats + 3;
   const pIdx = produtos.indexOf(c);
-  if (pIdx === numCats) return numCats + 1; // Pecas Diversas (catch-all)
+  if (pIdx === numCats) return numCats + 1;
   return pIdx + 1;
 }

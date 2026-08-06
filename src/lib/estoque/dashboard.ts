@@ -6,10 +6,7 @@ import { obterItensProdutos, buscarItensDoBanco } from './vendas-sync';
 import { obterTotaisOS, obterTotaisOSAno, obterTiposComNotaMes, type TotaisOS } from './os';
 import { agregarCards, agregarMaquinas, getCategoriasConfig, type ItemVenda, type MaquinaFamilia } from './categorias';
 import { somarComprasPecas } from './dashboard-listas';
-import {
-  ehMesAtual, ehAnoAtual, diasUteisDoMes, diasUteisAteHoje, diasUteisDoAno,
-  diasUteisAteHojeNoAno, sleep, MESES_CURTO,
-} from './utils';
+import { ehMesAtual, ehAnoAtual, sleep, MESES_CURTO } from './utils';
 import type { ContaFiltro } from './conta';
 
 /** Período do dashboard: um mês ou o ano inteiro (jan–dez). */
@@ -157,11 +154,10 @@ export interface DashboardResponse {
   mes: number;
   ano: number;
   categorias: DashboardCategoria[];
-  /** No modo 'ano': o ano selecionado é o corrente (dados parciais). */
+  /** O período selecionado é o corrente (mês/ano em andamento — dados parciais). */
   ehMesCorrente: boolean;
-  proporcao: number | null;
-  diasUteisTranscorridos: number | null;
-  diasUteisTotal: number | null;
+  /** Máquinas acumuladas no ano (jan até o mês selecionado). */
+  maquinasYTD: { unidades: number; receita: number };
 }
 
 const DADOS_ZERADOS: DadosPeriodo = {
@@ -201,12 +197,10 @@ export async function montarDashboard(
 
   const calcVar = (a: number, b: number) => (b > 0 ? ((a - b) / b) * 100 : a > 0 ? 100 : 0);
 
+  // Comparativos MENSAIS crus (sem ajuste por dias úteis nem projeção). Quando o
+  // período é o corrente, o front sinaliza "mês em andamento" e esmaece as
+  // variações (comparação parcial) — sem escalar nada.
   const ehCorrente = ehAno ? ehAnoAtual(selAno) : ehMesAtual(selMes, selAno);
-  const totalDU = !ehCorrente ? 0 : ehAno ? diasUteisDoAno(selAno) : diasUteisDoMes(selAno, selMes);
-  const transcorridoDU = !ehCorrente ? 0 : ehAno ? diasUteisAteHojeNoAno(selAno) : diasUteisAteHoje(selAno, selMes);
-  const proporcao = ehCorrente && totalDU > 0 ? transcorridoDU / totalDU : 1;
-  const ajustar = (v: number) => (ehCorrente ? v * proporcao : v);
-  const projetar = (v: number) => (ehCorrente && proporcao > 0 ? v / proporcao : null);
 
   const montarCategoria = (
     nome: string,
@@ -218,20 +212,18 @@ export async function montarDashboard(
     custoAnterior = 0,
     custoAnoAnt = 0,
   ): DashboardCategoria => {
-    const mesAntProporcional = ajustar(anteriorVal);
-    const anoAntProporcional = ajustar(anoAntVal);
     return {
       nome,
       valorAtual: atualVal,
       custoAtual,
       margemAtual: atualVal - custoAtual,
-      mesAnteriorValor: mesAntProporcional,
-      mesAnteriorCusto: ajustar(custoAnterior),
-      anoAnteriorValor: anoAntProporcional,
-      anoAnteriorCusto: ajustar(custoAnoAnt),
-      varMesAnterior: calcVar(atualVal, mesAntProporcional),
-      varAnoAnterior: calcVar(atualVal, anoAntProporcional),
-      valorProjetado: projetar(atualVal),
+      mesAnteriorValor: anteriorVal,
+      mesAnteriorCusto: custoAnterior,
+      anoAnteriorValor: anoAntVal,
+      anoAnteriorCusto: custoAnoAnt,
+      varMesAnterior: calcVar(atualVal, anteriorVal),
+      varAnoAnterior: calcVar(atualVal, anoAntVal),
+      valorProjetado: null,
       cardType,
     };
   };
@@ -348,6 +340,15 @@ export async function montarDashboard(
     ...(maquinaCards.length > 0 ? [totalMaquinas, ...maquinaCards] : []),
   ];
 
+  // YTD de máquinas: jan até o mês selecionado (ano mode → ano todo). Lê só o
+  // banco (o mês corrente já foi sincronizado pela leitura do período atual).
+  const ateMes = ehAno ? 12 : selMes;
+  const listasYTD = await Promise.all(
+    Array.from({ length: ateMes }, (_, i) => i + 1).map((m) => buscarItensDoBanco(m, selAno, conta)),
+  );
+  const maqYTD = agregarMaquinas(listasYTD.flatMap((l) => l || []));
+  const maquinasYTD = { unidades: maqYTD.reduce((s, m) => s + m.unidades, 0), receita: maqYTD.reduce((s, m) => s + m.receita, 0) };
+
   return {
     periodo: ehAno ? 'Ano ' + selAno : MESES_CURTO[selMes - 1] + ' ' + selAno,
     modo,
@@ -355,8 +356,6 @@ export async function montarDashboard(
     ano: selAno,
     categorias,
     ehMesCorrente: ehCorrente,
-    proporcao: ehCorrente ? proporcao : null,
-    diasUteisTranscorridos: ehCorrente ? transcorridoDU : null,
-    diasUteisTotal: ehCorrente ? totalDU : null,
+    maquinasYTD,
   };
 }
