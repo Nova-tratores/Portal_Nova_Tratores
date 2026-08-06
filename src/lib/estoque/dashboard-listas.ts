@@ -11,6 +11,7 @@ import {
   CATEGORIAS_AGRUPADAS,
   type ItemVenda,
 } from './categorias';
+import { classificarGrupo } from './cruzamento-familia';
 import { preCarregarCMCPorMes } from './vendas-sync';
 import { getIgnorarFiltro } from './ignorar-clientes';
 import { ehMesAtual, diasUteisDoMes, diasUteisAteHoje, MESES_CURTO } from './utils';
@@ -273,6 +274,7 @@ export async function listarVendas(
   card: number | null,
   categoria: string | null,
   conta: ContaFiltro,
+  familiaMaquina: string | null = null,
 ): Promise<VendaRow[]> {
   const cats = await getCategoriasConfig();
   const { codigos: codigosIgnorar } = await getIgnorarFiltro(conta);
@@ -330,7 +332,13 @@ export async function listarVendas(
     return ehPecaFamilia(v.familia);
   };
 
-  if (card !== null && card !== undefined) {
+  if (familiaMaquina) {
+    // Drill do card de máquina: só as vendas de máquina daquela família (mesma
+    // régua classificarGrupo dos cards). '__TODAS__' = todas as máquinas.
+    vendas = vendas.filter(
+      (v) => classificarGrupo(v.familia || '') === 'maquina' && (familiaMaquina === '__TODAS__' || v.familia === familiaMaquina),
+    );
+  } else if (card !== null && card !== undefined) {
     if (card === cardServicos) {
       vendas = [];
     } else if (card >= 1 && card <= numCats) {

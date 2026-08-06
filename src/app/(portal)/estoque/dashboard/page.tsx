@@ -34,6 +34,7 @@ interface Categoria {
   valorHR?: number;
   valorKM?: number;
   valorOutros?: number;
+  unidades?: number;
 }
 interface DashboardResp {
   periodo: string;
@@ -176,6 +177,16 @@ export default function DashboardPage() {
     const d = await r.json();
     if (!d.erro) setVendas(d.vendas || []);
   }, [periodoParam, ano, categoria, contaParam]);
+
+  // Drill do card de máquina: reaproveita o popup de vendas, filtrando pela
+  // família (ou '__TODAS__' no card-resumo). Não usa filtro de categoria de peça.
+  const abrirVendasMaquina = useCallback(async (familia: string, nome: string) => {
+    setVendas(null);
+    setVendasCard({ idx: -1, nome });
+    const r = await fetch(`/api/estoque/dashboard/vendas?${periodoParam}&ano=${ano}&familiaMaquina=${encodeURIComponent(familia)}${contaParam}`);
+    const d = await r.json();
+    if (!d.erro) setVendas(d.vendas || []);
+  }, [periodoParam, ano, contaParam]);
 
   const abrirOSServicos = useCallback(async () => {
     setOsServicos(null);
@@ -345,25 +356,61 @@ export default function DashboardPage() {
                 </div>
               );
             };
+            // Card de MÁQUINA (faixa própria): venda é "caroço" → destaque = UNIDADES
+            // + faturamento, comparativo relevante = ano-a-ano (mês/projeção escondidos).
+            const renderMaquina = (c: Categoria, key: number) => {
+              const ehTotal = c.cardType === 'totalMaquinas';
+              const varA = calcVar(c.valorAtual, c.anoAnteriorValor);
+              const un = c.unidades ?? 0;
+              const familiaDrill = ehTotal || c.nome === 'Outras máquinas' ? '__TODAS__' : c.nome;
+              return (
+                <div key={key} style={{ background: ehTotal ? '#fffaf0' : '#fff', border: ehTotal ? '2px solid #d97706' : '1px solid #f0d9b5', borderRadius: 12, padding: 16, boxShadow: '0 1px 4px rgba(0,0,0,.04)' }}>
+                  <div style={{ fontSize: '.72rem', color: '#92610e', textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 700, marginBottom: 6 }}>{c.nome}</div>
+                  <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#d97706' }}>{un.toLocaleString('pt-BR')} {un === 1 ? 'máquina' : 'máquinas'}</div>
+                  <div style={{ fontSize: '.9rem', color: '#666', marginTop: 2 }}>{fmtRS(c.valorAtual)} faturado</div>
+                  <div style={{ display: 'flex', gap: 10, marginTop: 8, fontSize: '.7rem' }}>
+                    <span style={{ color: varA >= 0 ? '#16a34a' : '#dc2626' }}>Ano ant: {fmtPct(varA)}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+                    <button onClick={() => abrirVendasMaquina(familiaDrill, ehTotal ? 'Máquinas (todas)' : c.nome)} style={{ ...linkBtn, color: '#b45309' }}>ver vendas</button>
+                  </div>
+                </div>
+              );
+            };
             // Esboço do usuário: produtos à esquerda; Serviços + totais na coluna da
             // direita, atrás de uma linha vertical; linha horizontal acima do Total Geral.
+            // Máquinas ficam numa faixa separada abaixo (não misturam com peças).
             const produtos = dados.categorias.filter((c) => c.cardType === 'produto');
-            const direita = dados.categorias.filter((c) => c.cardType !== 'produto');
+            const maquinas = dados.categorias.filter((c) => c.cardType === 'maquina' || c.cardType === 'totalMaquinas');
+            const direita = dados.categorias.filter((c) => c.cardType !== 'produto' && c.cardType !== 'maquina' && c.cardType !== 'totalMaquinas');
             return (
-              <div style={{ display: 'flex', gap: 12, marginBottom: 18, flexWrap: 'wrap', alignItems: 'stretch' }}>
-                <div style={{ flex: '3 1 500px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12, alignContent: 'start' }}>
-                  {produtos.map((c, i) => renderCard(c, i))}
+              <>
+                <div style={{ display: 'flex', gap: 12, marginBottom: 18, flexWrap: 'wrap', alignItems: 'stretch' }}>
+                  <div style={{ flex: '3 1 500px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12, alignContent: 'start' }}>
+                    {produtos.map((c, i) => renderCard(c, i))}
+                  </div>
+                  <div style={{ width: 2, background: '#111', alignSelf: 'stretch' }} />
+                  <div style={{ flex: '1 1 240px', display: 'flex', flexDirection: 'column', gap: 12, alignContent: 'start' }}>
+                    {direita.map((c, i) => (
+                      <Fragment key={i}>
+                        {c.cardType === 'totalGeral' && <div style={{ borderTop: '2px solid #111' }} />}
+                        {renderCard(c, i)}
+                      </Fragment>
+                    ))}
+                  </div>
                 </div>
-                <div style={{ width: 2, background: '#111', alignSelf: 'stretch' }} />
-                <div style={{ flex: '1 1 240px', display: 'flex', flexDirection: 'column', gap: 12, alignContent: 'start' }}>
-                  {direita.map((c, i) => (
-                    <Fragment key={i}>
-                      {c.cardType === 'totalGeral' && <div style={{ borderTop: '2px solid #111' }} />}
-                      {renderCard(c, i)}
-                    </Fragment>
-                  ))}
-                </div>
-              </div>
+                {maquinas.length > 0 && (
+                  <div style={{ marginBottom: 18 }}>
+                    <div style={{ fontSize: '.8rem', color: '#92610e', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ width: 10, height: 10, borderRadius: 2, background: '#d97706', display: 'inline-block' }} />
+                      Máquinas <span style={{ color: '#bbb', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>· por família · unidades vendidas no período</span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
+                      {maquinas.map((c, i) => renderMaquina(c, i))}
+                    </div>
+                  </div>
+                )}
+              </>
             );
           })()}
         </>

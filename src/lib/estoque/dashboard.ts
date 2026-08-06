@@ -4,7 +4,7 @@
 
 import { obterItensProdutos, buscarItensDoBanco } from './vendas-sync';
 import { obterTotaisOS, obterTotaisOSAno, obterTiposComNotaMes, type TotaisOS } from './os';
-import { agregarCards, getCategoriasConfig, type ItemVenda } from './categorias';
+import { agregarCards, agregarMaquinas, getCategoriasConfig, type ItemVenda, type MaquinaFamilia } from './categorias';
 import { somarComprasPecas } from './dashboard-listas';
 import {
   ehMesAtual, ehAnoAtual, diasUteisDoMes, diasUteisAteHoje, diasUteisDoAno,
@@ -32,6 +32,8 @@ interface DadosPeriodo {
   totalGeral: number;
   /** Valor comprado (entradas de NF) no período, só peças. */
   totalCompras: number;
+  /** Vendas de máquinas agregadas por família (receita/unidades/CMV). */
+  maquinas: MaquinaFamilia[];
 }
 
 /** Agrega itens de produto + totais de OS nos cards do dashboard. */
@@ -45,6 +47,7 @@ async function montarDados(
 
   const cats = await getCategoriasConfig();
   const agg = agregarCards(itens, filtroCategoria, cats);
+  const maquinas = agregarMaquinas(itens);
   const totalPecas = agg.cards.reduce((s, v) => s + v, 0);
   const totalCustoPecas = agg.custosCards.reduce((s, v) => s + v, 0);
   // Receita de serviços = com nota + interno "com retorno" (garantia/entrega/
@@ -71,6 +74,7 @@ async function montarDados(
     totalCustoPecas,
     totalGeral,
     totalCompras,
+    maquinas,
   };
 }
 
@@ -139,6 +143,8 @@ export interface DashboardCategoria {
   valorHR?: number;
   valorKM?: number;
   valorOutros?: number;
+  /** Só nos cards 'maquina'/'totalMaquinas': unidades (quantidade) vendidas no período. */
+  unidades?: number;
 }
 
 export interface DashboardResponse {
@@ -158,7 +164,7 @@ export interface DashboardResponse {
 const DADOS_ZERADOS: DadosPeriodo = {
   card1: 0, card2: 0, card3: 0, cards: [], custosCards: [], nomesCat: [],
   totalOS: 0, osNota: null, osInterno: null, osInternoRetorno: null, osInternoPuro: null, totalPecas: 0, totalCustoPecas: 0, totalGeral: 0,
-  totalCompras: 0,
+  totalCompras: 0, maquinas: [],
 };
 
 /**
@@ -269,9 +275,44 @@ export async function montarDashboard(
   const totalGeral = montarCategoria('Total Geral Servicos + Pecas', atual.totalGeral, anterior.totalGeral, anoAnt.totalGeral, 'totalGeral',
     atual.totalCustoPecas, anterior.totalCustoPecas, anoAnt.totalCustoPecas);
 
+  // Cards de MÁQUINAS por família (faixa separada). Venda de máquina é "caroço":
+  // o destaque é UNIDADES + faturamento, comparativo relevante é ano-a-ano.
+  // Top 8 famílias por receita; o excedente vira "Outras máquinas".
+  const MAX_MAQUINAS = 8;
+  const acharMaq = (arr: MaquinaFamilia[], fam: string) => arr.find((m) => m.familia === fam);
+  const ordenadas = atual.maquinas; // já vem ordenado por receita desc
+  const top = ordenadas.slice(0, MAX_MAQUINAS);
+  const resto = ordenadas.slice(MAX_MAQUINAS);
+  const maquinaCards: DashboardCategoria[] = top.map((m) => {
+    const card = montarCategoria(
+      m.familia,
+      m.receita,
+      acharMaq(anterior.maquinas, m.familia)?.receita || 0,
+      acharMaq(anoAnt.maquinas, m.familia)?.receita || 0,
+      'maquina',
+      m.cmv,
+      acharMaq(anterior.maquinas, m.familia)?.cmv || 0,
+      acharMaq(anoAnt.maquinas, m.familia)?.cmv || 0,
+    );
+    card.unidades = m.unidades;
+    return card;
+  });
+  if (resto.length > 0) {
+    const somaResto = (arr: MaquinaFamilia[]) =>
+      arr.filter((m) => !top.some((t) => t.familia === m.familia)).reduce((s, m) => s + m.receita, 0);
+    const outras = montarCategoria('Outras máquinas', somaResto(atual.maquinas), somaResto(anterior.maquinas), somaResto(anoAnt.maquinas), 'maquina');
+    outras.unidades = resto.reduce((s, m) => s + m.unidades, 0);
+    maquinaCards.push(outras);
+  }
+  // Card-resumo "Máquinas — total" (Σ receita + Σ unidades de todas as famílias).
+  const somaReceita = (arr: MaquinaFamilia[]) => arr.reduce((s, m) => s + m.receita, 0);
+  const totalMaquinas = montarCategoria('Máquinas — total', somaReceita(atual.maquinas), somaReceita(anterior.maquinas), somaReceita(anoAnt.maquinas), 'totalMaquinas');
+  totalMaquinas.unidades = atual.maquinas.reduce((s, m) => s + m.unidades, 0);
+
   // Ordem dos cards (grade de 4 colunas): Serviços fecha a 1ª linha e os totais
   // ficam na coluna da direita, um por linha. "Comprei" fica logo abaixo de Total
-  // Peças (ambos são peças) e acima da régua que separa o Total Geral.
+  // Peças (ambos são peças) e acima da régua que separa o Total Geral. Os cards de
+  // máquina vão numa faixa separada (o page.tsx os agrupa pela cardType).
   const corte = Math.min(3, produtos.length);
   const categorias: DashboardCategoria[] = [
     ...produtos.slice(0, corte),
@@ -280,6 +321,7 @@ export async function montarDashboard(
     totalPecas,
     comprei,
     totalGeral,
+    ...(maquinaCards.length > 0 ? [totalMaquinas, ...maquinaCards] : []),
   ];
 
   return {

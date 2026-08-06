@@ -4,6 +4,7 @@
 // CATEGORIAS_AGRUPADAS, agregarCards).
 
 import { supabase } from './supabase';
+import { classificarGrupo } from './cruzamento-familia';
 
 export interface CategoriaConfig {
   nome: string;
@@ -155,4 +156,36 @@ export function agregarCards(
     custosCards: custos.concat([custoPecasEOutros]),
     nomesCat: cats.map((c) => c.nome).concat(['Pecas Diversas']),
   };
+}
+
+export interface MaquinaFamilia {
+  familia: string;
+  receita: number;
+  unidades: number;
+  cmv: number;
+}
+
+/**
+ * Agrega as vendas de MÁQUINAS por família, a partir do mesmo array `itens` que
+ * a agregação de peças recebe (sem query nova). "Máquina" é decidido pelo
+ * classificador oficial `classificarGrupo` (a MESMA régua da tela Cruzamento de
+ * Família → os números batem entre as telas). Peças e famílias "ignorar"
+ * (vazio/#N/D/kit revisão/ativo imobilizado) ficam de fora.
+ * Retorna ordenado por receita desc.
+ */
+export function agregarMaquinas(itens: ItemVenda[]): MaquinaFamilia[] {
+  const porFamilia: Record<string, MaquinaFamilia> = {};
+  itens.forEach((item) => {
+    const familia = (item.familia || '').trim();
+    if (classificarGrupo(familia) !== 'maquina') return;
+    const vt = numv(item.valor_total);
+    const qtd = numv(item.quantidade);
+    const cmcU = numv(item.cmc_unitario);
+    const cmv = cmcU > 0 && qtd > 0 ? cmcU * qtd : 0;
+    if (!porFamilia[familia]) porFamilia[familia] = { familia, receita: 0, unidades: 0, cmv: 0 };
+    porFamilia[familia].receita += vt;
+    porFamilia[familia].unidades += qtd;
+    porFamilia[familia].cmv += cmv;
+  });
+  return Object.values(porFamilia).sort((a, b) => b.receita - a.receita);
 }
