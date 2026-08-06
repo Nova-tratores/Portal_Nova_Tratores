@@ -24,3 +24,9 @@ export function ehDoSetor(card, setor) {
   if (setor === 'oficina') return card?.setor_destino !== 'pecas'
   return true // 'todos'/indefinido
 }
+
+// Card "contém nota de serviço" quando tem num_nf_servico (ou o anexo da NFS-e).
+// O setor de Peças NÃO deve ver esses cards, mesmo que também tenham NF de peça.
+export function temNotaServico(card) {
+  return !!String(card?.num_nf_servico || '').trim() || !!String(card?.anexo_nf_servico || '').trim()
+}

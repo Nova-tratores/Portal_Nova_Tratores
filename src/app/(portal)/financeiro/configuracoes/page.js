@@ -1,9 +1,10 @@
 'use client'
 import { useEffect, useState, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
+import { authHeaders } from '@/lib/auth/client'
 import { useRouter, useSearchParams } from 'next/navigation'
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
-import { User, Volume2, Palette, Camera, Save, Play, CheckCircle2, Moon, Sun } from 'lucide-react'
+import { User, Volume2, Palette, Camera, Save, Play, CheckCircle2, Moon, Sun, Mail } from 'lucide-react'
 
 function ConfiguracoesContent() {
   const searchParams = useSearchParams()
@@ -22,6 +23,17 @@ function ConfiguracoesContent() {
   const [avatarUrl, setAvatarUrl] = useState('')
   const [somSelecionado, setSomSelecionado] = useState('som-notificacao-1.mp3.mp3')
   const [temaSelecionado, setTemaSelecionado] = useState('claro')
+
+  // E-mail de envio (remetente por usuário)
+  const [envioProvedor, setEnvioProvedor] = useState('gmail')
+  const [envioEmail, setEnvioEmail] = useState('')
+  const [envioSenha, setEnvioSenha] = useState('')
+  const [envioHost, setEnvioHost] = useState('')
+  const [envioPort, setEnvioPort] = useState('')
+  const [envioSecure, setEnvioSecure] = useState(true)
+  const [envioConfigurado, setEnvioConfigurado] = useState(false)
+  const [envioSalvando, setEnvioSalvando] = useState(false)
+  const [envioMsg, setEnvioMsg] = useState(null)
 
   const sonsDisponiveis = [
     { id: 'som-notificacao-1.mp3.mp3', nome: 'Alerta Clássico 1', desc: 'Som curto e elegante' },
@@ -44,6 +56,24 @@ function ConfiguracoesContent() {
       setTemaSelecionado(prof?.tema || 'claro')
       
       document.documentElement.setAttribute('data-theme', prof?.tema || 'claro');
+
+      // Config do e-mail de envio (remetente) — só status, sem a senha.
+      try {
+        const r = await fetch('/api/financeiro/config-envio', { headers: { ...(await authHeaders()) } })
+        const c = await r.json()
+        if (c && !c.error) {
+          setEnvioConfigurado(!!c.configurado)
+          setEnvioEmail(c.email_envio || '')
+          setEnvioHost(c.smtp_host || '')
+          setEnvioPort(c.smtp_port ? String(c.smtp_port) : '')
+          setEnvioSecure(c.smtp_secure !== false)
+          const h = (c.smtp_host || '').toLowerCase()
+          if (h.includes('gmail')) setEnvioProvedor('gmail')
+          else if (h.includes('office365') || h.includes('outlook')) setEnvioProvedor('outlook')
+          else if (h) setEnvioProvedor('outro')
+        }
+      } catch {}
+
       setLoading(false)
     }
     carregarDados()
@@ -87,6 +117,29 @@ function ConfiguracoesContent() {
     } catch (err) { alert("Erro: " + err.message) } finally { setUpdating(false) }
   }
 
+  const salvarEnvio = async () => {
+    setEnvioSalvando(true); setEnvioMsg(null)
+    try {
+      const res = await fetch('/api/financeiro/config-envio', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({
+          provedor: envioProvedor,
+          email_envio: envioEmail.trim(),
+          senha: envioSenha, // só troca se preenchida
+          smtp_host: envioHost.trim(),
+          smtp_port: envioPort,
+          smtp_secure: envioSecure,
+        }),
+      })
+      const out = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(out.error || 'Falha ao salvar')
+      setEnvioMsg({ tipo: 'ok', msg: 'E-mail de envio salvo!' })
+      setEnvioConfigurado(!!envioEmail.trim())
+      setEnvioSenha('')
+    } catch (e) { setEnvioMsg({ tipo: 'erro', msg: e.message }) } finally { setEnvioSalvando(false) }
+  }
+
   if (loading) return <div style={{background:'#f7f8fa', height:'100vh', display:'flex', alignItems:'center', justifyContent:'center', color:'#94a3b8', fontFamily:'Inter'}}>CARREGANDO...</div>
 
   return (
@@ -105,6 +158,9 @@ function ConfiguracoesContent() {
             </button>
             <button onClick={() => setTab('tema')} style={{ ...tabBtnStyle, background: tab === 'tema' ? '#000' : 'rgba(255,255,255,0.6)', color: tab === 'tema' ? '#fff' : '#64748b' }}>
               <Palette size={20} /> Personalização e Tema
+            </button>
+            <button onClick={() => setTab('envio')} style={{ ...tabBtnStyle, background: tab === 'envio' ? '#000' : 'rgba(255,255,255,0.6)', color: tab === 'envio' ? '#fff' : '#64748b' }}>
+              <Mail size={20} /> E-mail de Envio
             </button>
           </div>
 
@@ -171,6 +227,43 @@ function ConfiguracoesContent() {
                   </div>
                 </div>
                 <button onClick={handleUpdatePerfil} disabled={updating} style={{ marginTop: '40px', background: '#000', color: '#fff', border: 'none', padding: '20px 40px', borderRadius: '18px', fontWeight: '900', cursor: 'pointer' }}>SALVAR PREFERÊNCIA DE TEMA</button>
+              </div>
+            )}
+
+            {tab === 'envio' && (
+              <div>
+                <h2 style={{ fontSize: '24px', fontWeight: '900', color: 'var(--texto-principal)', marginBottom: '10px' }}>E-mail de envio (remetente)</h2>
+                <p style={{ color: 'var(--texto-secundario)', fontSize: '14px', lineHeight: 1.6, marginBottom: '30px' }}>
+                  Os boletos e cobranças que você enviar sairão deste e-mail (aparece como <b>De:</b> no card). Use uma <b>Senha de app</b> — não a senha normal da conta. A senha é guardada criptografada.
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '25px' }}>
+                  <div style={inputGroup}><label style={labelStyle}>PROVEDOR</label>
+                    <select style={inputStyle} value={envioProvedor} onChange={e => setEnvioProvedor(e.target.value)}>
+                      <option value="gmail">Gmail / Google Workspace</option>
+                      <option value="outlook">Outlook / Microsoft 365</option>
+                      <option value="outro">Outro (SMTP manual)</option>
+                    </select>
+                  </div>
+                  <div style={inputGroup}><label style={labelStyle}>E-MAIL DE ENVIO</label><input style={inputStyle} value={envioEmail} onChange={e => setEnvioEmail(e.target.value)} placeholder="voce@empresa.com" /></div>
+                  <div style={inputGroup}><label style={labelStyle}>SENHA DE APP {envioConfigurado ? '(deixe em branco para manter)' : ''}</label><input type="password" style={inputStyle} value={envioSenha} onChange={e => setEnvioSenha(e.target.value)} placeholder={envioConfigurado ? '•••••••• (já salva)' : 'senha de app'} /></div>
+                  {envioProvedor === 'outro' && (<>
+                    <div style={inputGroup}><label style={labelStyle}>SERVIDOR SMTP</label><input style={inputStyle} value={envioHost} onChange={e => setEnvioHost(e.target.value)} placeholder="smtp.seu-provedor.com" /></div>
+                    <div style={inputGroup}><label style={labelStyle}>PORTA</label><input style={inputStyle} value={envioPort} onChange={e => setEnvioPort(e.target.value)} placeholder="465" /></div>
+                    <div style={inputGroup}><label style={labelStyle}>SEGURANÇA</label>
+                      <select style={inputStyle} value={envioSecure ? 'ssl' : 'starttls'} onChange={e => setEnvioSecure(e.target.value === 'ssl')}>
+                        <option value="ssl">SSL (porta 465)</option>
+                        <option value="starttls">STARTTLS (porta 587)</option>
+                      </select>
+                    </div>
+                  </>)}
+                </div>
+                {envioMsg && <p style={{ marginTop: '18px', color: envioMsg.tipo === 'ok' ? '#059669' : '#dc2626', fontWeight: '800' }}>{envioMsg.msg}</p>}
+                <button onClick={salvarEnvio} disabled={envioSalvando} style={{ marginTop: '30px', background: '#000', color: '#fff', border: 'none', padding: '20px 40px', borderRadius: '18px', fontWeight: '900', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  {envioSalvando ? 'SALVANDO...' : <><Save size={20} /> SALVAR E-MAIL DE ENVIO</>}
+                </button>
+                <p style={{ marginTop: '18px', fontSize: '12px', color: '#94a3b8', lineHeight: 1.6 }}>
+                  Gmail: crie a Senha de app em <b>myaccount.google.com → Segurança → Verificação em duas etapas → Senhas de app</b> (precisa da 2FA ligada). Se não configurar nada aqui, o envio usa o e-mail padrão da empresa.
+                </p>
               </div>
             )}
           </div>

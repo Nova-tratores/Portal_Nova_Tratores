@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { authHeaders } from '@/lib/auth/client'
+import { montarParcelas } from '@/lib/financeiro/parcelas'
 
 // URLs dos boletos anexados no card
 export function boletoUrls(card) {
@@ -69,6 +70,7 @@ export async function tentarEnvioAutomaticoBoleto(card, remetente) {
         nf: [card.num_nf_servico && `S ${card.num_nf_servico}`, card.num_nf_peca && `P ${card.num_nf_peca}`].filter(Boolean).join(' / '),
         valor: card.valor_servico != null && card.valor_servico !== '' ? Number(card.valor_servico).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '',
         vencimento: card.vencimento_boleto || '',
+        parcelas: montarParcelas(card),
         remetente: remetente || '',
       }),
     })

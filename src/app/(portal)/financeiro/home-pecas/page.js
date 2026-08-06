@@ -17,7 +17,7 @@ import {
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
 import { EnviarParaOmieBox } from '@/components/financeiro/OmieContaPagar'
 import PreferenciaEnvioBoleto from '@/components/financeiro/PreferenciaEnvioBoleto'
-import { labelSetor, ehDoSetor } from '@/lib/financeiro/setor'
+import { labelSetor, ehDoSetor, temNotaServico } from '@/lib/financeiro/setor'
 
 const FORMAS_BOLETO = ['Pix', 'Dinheiro', 'Boleto 30 dias', 'Boleto Parcelado', 'Cartão a vista', 'Cartão Parcelado', 'Cheque'];
 
@@ -97,6 +97,7 @@ function HomePosVendasContent() {
       // FILTRO: Remove PIX e foca em "Enviar para cliente" ou "Cobranca"
       const tarefasFaturamento = (bolds || [])
         .filter(t => ehDoSetor(t, SETOR_PAINEL))
+        .filter(t => !temNotaServico(t))
         .filter(t => !t.forma_pagamento?.toLowerCase().includes('pix'))
         .filter(t => t.status === 'enviar_cliente' || (t.status === 'vencido' && t.tarefa?.includes('Cobrar')))
         .map(t => {
@@ -114,6 +115,7 @@ function HomePosVendasContent() {
       // Clientes sem boleto (status = 'sem_boleto')
       const semBoleto = (bolds || [])
         .filter(t => ehDoSetor(t, SETOR_PAINEL))
+        .filter(t => !temNotaServico(t))
         .filter(t => t.status === 'sem_boleto')
         .map(t => ({
           ...t,

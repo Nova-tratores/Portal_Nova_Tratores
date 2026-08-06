@@ -55,5 +55,13 @@ export async function POST(req: NextRequest) {
     .upsert({ user_id: userId, ...patch }, { onConflict: 'user_id' })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Fonte da verdade do setor = Categoria do Admin. Ao mudar a Categoria, sincroniza
+  // a função do financeiro (financeiro_usu.funcao), que é o que aparece em Configurações
+  // e o que decide o roteamento por setor (Peças/Financeiro/Pós-Vendas).
+  if ('categoria' in patch && patch.categoria) {
+    await supabase.from('financeiro_usu').update({ funcao: patch.categoria }).eq('id', userId)
+  }
+
   return NextResponse.json({ ok: true })
 }

@@ -131,6 +131,7 @@ function ClientesPageInner() {
   const [subNF, setSubNF] = useState<{ osNum: string; empresa: string; nf_tipo: 'servico' | 'peca'; num_antigo: string; num_novo: string } | null>(null)
   const [subSalvando, setSubSalvando] = useState(false)
   const [modalProjeto, setModalProjeto] = useState<string | null>(null)
+  const [modalProjetoEmpresa, setModalProjetoEmpresa] = useState('')
   const [modalProjetoData, setModalProjetoData] = useState<any>(null)
   const [modalProjetoLoading, setModalProjetoLoading] = useState(false)
   const [projetoTab, setProjetoTab] = useState('resumo')
@@ -339,6 +340,7 @@ function ClientesPageInner() {
   }, [])
   const abrirModalProjeto = async (nome: string, empresa: string) => {
     setModalProjeto(nome)
+    setModalProjetoEmpresa(empresa)
     setModalProjetoLoading(true)
     setModalProjetoData(null)
     setProjetoTab('resumo')
@@ -351,6 +353,19 @@ function ClientesPageInner() {
       setModalProjetoData(data)
     } catch {}
     setModalProjetoLoading(false)
+  }
+  // Revisões (tabela tratores): horímetro atual = maior horímetro já registrado;
+  // próxima revisão = primeiro marco (REVISOES_HORAS) ainda sem data.
+  const revHorimetroAtual = (t: any) => {
+    if (!t) return ''
+    let h = ''
+    for (const k of REVISOES_HORAS) if (t[`${k} Horimetro`]) h = t[`${k} Horimetro`]
+    return h || t['Inspecao Horimetro'] || ''
+  }
+  const revProxima = (t: any) => {
+    if (!t) return ''
+    for (const k of REVISOES_HORAS) if (!t[`${k} Data`]) return k
+    return ''
   }
   const carregarEmails = async (chassis: string) => {
     if (emailsData[chassis]) return
@@ -629,8 +644,10 @@ function ClientesPageInner() {
   }
 
   // ============ DETALHE DO CLIENTE ============
-  if (selectedCliente) {
-    const cli = selectedCliente
+  // Renderiza esta visão quando há um cliente selecionado OU quando só o modal de
+  // máquina está aberto (aberto direto pela aba "Por Máquina", sem entrar na pasta).
+  if (selectedCliente || modalProjeto) {
+    const cli = selectedCliente as Cliente
     const totalFaturadas = ordens.filter(o => o.faturada).length
     const totalCanceladas = ordens.filter(o => o.cancelada).length
     const totalAtivas = ordens.filter(o => !o.faturada && !o.cancelada).length
@@ -643,6 +660,7 @@ function ClientesPageInner() {
 
     return (
       <div style={{ padding: 'clamp(12px, 4vw, 20px) clamp(12px, 4vw, 32px) 48px', width: '100%', boxSizing: 'border-box' }}>
+        {selectedCliente && (<>
         <button onClick={() => setSelectedCliente(null)}
           style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', fontSize: 13, padding: '4px 0', marginBottom: 18 }}>
           <ArrowLeft size={16} /> Voltar para lista
@@ -1730,6 +1748,7 @@ function ClientesPageInner() {
             </div>
           )
         })()}
+        </>)}
 
         {/* MODAL PROJETO */}
         {modalProjeto && (
@@ -1738,21 +1757,46 @@ function ClientesPageInner() {
             <div className="cli-modal" style={{ background: '#F9FAFB', borderRadius: 16, width: '95%', maxWidth: 1100, maxHeight: '92vh', overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column' }}
               onClick={ev => ev.stopPropagation()}>
 
-              {/* Header gradient */}
-              <div style={{ padding: '20px 28px', background: 'linear-gradient(135deg, #991b1b 0%, #dc2626 100%)', color: '#fff', position: 'relative', flexShrink: 0 }}>
+              {/* Header profissional (grafite) */}
+              <div style={{ padding: '20px 26px', background: 'linear-gradient(135deg, #1b2230 0%, #2c3648 100%)', color: '#fff', position: 'relative', flexShrink: 0 }}>
                 <button onClick={() => setModalProjeto(null)}
-                  style={{ position: 'absolute', top: 14, right: 14, background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8, padding: '6px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                  style={{ position: 'absolute', top: 14, right: 14, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.18)', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                   <X size={18} color="#fff" />
                 </button>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ width: 44, height: 44, borderRadius: 10, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <FolderOpen size={22} color="#fff" />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 20, fontWeight: 800 }}>{modalProjeto}</div>
-                    <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 2 }}>{cli.empresa}</div>
-                  </div>
-                </div>
+                {(() => {
+                  const md = modalProjetoData || {}
+                  const modeloHd = md.chassis?.[0]?.modelo || md.revisoes?.[0]?.Modelo || ''
+                  const chassiHd = md.chassis?.[0]?.chassis || ''
+                  const donoHd = md.donos?.[0]?.nome || ''
+                  const entregaHd = md.revisoes?.[0]?.Entrega || ''
+                  const horimetroHd = revHorimetroAtual(md.revisoes?.[0])
+                  const chip = (k: string, v: string) => v ? (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, fontWeight: 600, padding: '5px 11px', borderRadius: 999, background: 'rgba(255,255,255,0.09)', border: '1px solid rgba(255,255,255,0.14)', color: '#eef1f6' }}>
+                      <span style={{ color: 'rgba(255,255,255,0.55)', fontWeight: 500 }}>{k}</span> {v}
+                    </span>
+                  ) : null
+                  return (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                        <div style={{ width: 50, height: 50, borderRadius: 12, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.14)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <Wrench size={24} color="#fff" />
+                        </div>
+                        <div style={{ minWidth: 0, paddingRight: 40 }}>
+                          <div style={{ fontSize: 19, fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.15 }}>{modalProjeto}</div>
+                          <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.66)', marginTop: 2 }}>{modalProjetoEmpresa || cli?.empresa || ''}{modeloHd ? ` · ${modeloHd}` : ''}</div>
+                        </div>
+                      </div>
+                      {(chassiHd || entregaHd || donoHd || horimetroHd) && (
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 16 }}>
+                          {chip('Chassi', chassiHd)}
+                          {chip('Entrega', entregaHd)}
+                          {chip('Dono atual', donoHd)}
+                          {chip('Horímetro', horimetroHd ? `${horimetroHd} h` : '')}
+                        </div>
+                      )}
+                    </>
+                  )
+                })()}
               </div>
 
               {modalProjetoLoading ? (
@@ -1826,75 +1870,183 @@ function ClientesPageInner() {
 
                 return (
                   <>
-                    {/* Tabs */}
-                    <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid #E5E7EB', background: '#fff', flexShrink: 0, overflowX: 'auto' }}>
-                      {tabs.map(t => (
-                        <button key={t.id} onClick={() => setProjetoTab(t.id)}
-                          style={{
-                            display: 'flex', alignItems: 'center', gap: 6, padding: '12px 18px', border: 'none', borderBottom: projetoTab === t.id ? '2px solid #2563EB' : '2px solid transparent',
-                            background: 'none', cursor: 'pointer', fontSize: 13, fontWeight: projetoTab === t.id ? 700 : 500,
-                            color: projetoTab === t.id ? '#2563EB' : '#6B7280', transition: 'all 0.15s', whiteSpace: 'nowrap',
-                          }}>
-                          <t.icon size={15} />
-                          {t.label}
-                          {t.count !== null && t.count > 0 && (
-                            <span style={{ fontSize: 11, padding: '1px 6px', borderRadius: 10, background: projetoTab === t.id ? '#EFF6FF' : '#F3F4F6', color: projetoTab === t.id ? '#2563EB' : '#9CA3AF', fontWeight: 700 }}>
-                              {t.count}
-                            </span>
-                          )}
-                        </button>
-                      ))}
+                    {/* Tabs — estilo navegador (Chrome) */}
+                    <div style={{ display: 'flex', gap: 4, padding: '10px 14px 0', borderBottom: '1px solid #E5E7EB', background: '#F1F5F9', flexShrink: 0, overflowX: 'auto' }}>
+                      {tabs.map(t => {
+                        const on = projetoTab === t.id
+                        return (
+                          <button key={t.id} onClick={() => setProjetoTab(t.id)}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px',
+                              border: '1px solid', borderColor: on ? '#E5E7EB' : 'transparent',
+                              borderBottom: on ? '1px solid #fff' : '1px solid transparent',
+                              borderRadius: '10px 10px 0 0', background: on ? '#fff' : 'transparent',
+                              cursor: 'pointer', fontSize: 13, fontWeight: on ? 700 : 500,
+                              color: on ? '#2563EB' : '#6B7280', transition: 'all 0.15s', whiteSpace: 'nowrap',
+                              position: 'relative', top: 1, marginBottom: -1,
+                            }}>
+                            <t.icon size={15} />
+                            {t.label}
+                            {t.count !== null && t.count > 0 && (
+                              <span style={{ fontSize: 11, padding: '1px 6px', borderRadius: 10, background: on ? '#EFF6FF' : '#E5E7EB', color: on ? '#2563EB' : '#9CA3AF', fontWeight: 700 }}>
+                                {t.count}
+                              </span>
+                            )}
+                          </button>
+                        )
+                      })}
                     </div>
 
                     {/* Content */}
-                    <div style={{ flex: 1, overflow: 'auto', padding: '24px 28px' }}>
+                    <div style={{ flex: 1, overflow: 'auto', padding: '24px 28px', background: '#fff' }}>
 
                       {/* ─── RESUMO ─── */}
-                      {projetoTab === 'resumo' && (
-                        <div>
-                          {/* Frase-resumo */}
-                          <div style={{ marginBottom: 18, padding: '14px 18px', background: '#F8FAFC', border: '1px solid #E5E7EB', borderRadius: 12, fontSize: 14, color: '#374151', lineHeight: 1.65 }}>
-                            Este projeto teve <strong style={{ color: '#2563EB' }}>{resumo.total_os || 0}</strong> {(resumo.total_os || 0) === 1 ? 'ordem de serviço' : 'ordens de serviço'}, <strong style={{ color: '#EA580C' }}>{resumo.total_pv || 0}</strong> {(resumo.total_pv || 0) === 1 ? 'pedido de venda' : 'pedidos de venda'}, aparece em <strong style={{ color: '#7C3AED' }}>{reqList.length}</strong> {reqList.length === 1 ? 'requisição' : 'requisições'} e em <strong style={{ color: '#0891B2' }}>{totalEmails}</strong> {totalEmails === 1 ? 'e-mail' : 'e-mails'}.
-                          </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 24 }}>
-                            {[
-                              { l: 'Ordens de Servico', v: String(resumo.total_os || 0), bg: '#EFF6FF', c: '#2563EB', b: '#BFDBFE', icon: Wrench },
-                              { l: 'Valor Servicos', v: formatCurrency(resumo.valor_total_os || 0), bg: '#ECFDF5', c: '#059669', b: '#A7F3D0', icon: FileText },
-                              { l: 'Pedidos de Venda', v: String(resumo.total_pv || 0), bg: '#FFF7ED', c: '#EA580C', b: '#FED7AA', icon: Package },
-                              { l: 'Requisicoes', v: String(reqList.length), bg: '#FAF5FF', c: '#7C3AED', b: '#E9D5FF', icon: ClipboardList },
-                              { l: 'E-mails', v: String(totalEmails), bg: '#ECFEFF', c: '#0891B2', b: '#A5F3FC', icon: Mail },
-                            ].map((f, i) => (
-                              <div key={i} style={{ padding: '16px 20px', border: `1px solid ${f.b}`, borderRadius: 12, background: f.bg }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#6B7280', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, fontWeight: 600 }}>
-                                  <f.icon size={13} color={f.c} /> {f.l}
+                      {projetoTab === 'resumo' && (() => {
+                        const donoAtual = donosList[0]
+                        const chassiP = chassis[0]
+                        const trator = revList[0]
+                        const modelo = chassiP?.modelo || trator?.Modelo || '—'
+                        const investido = (resumo.valor_total_os || 0) + (resumo.valor_total_pv || 0)
+                        const ultimosSvc = [...servicosAgrupados].sort((a, b) => String(b.data || '').localeCompare(String(a.data || ''))).slice(0, 4)
+                        const ultimaVisita = ultimosSvc[0]?.data || osProj[0]?.data_previsao || ''
+                        const horimetro = revHorimetroAtual(trator)
+                        const proxRev = revProxima(trator)
+                        const iniciais = (donoAtual?.nome || '?').trim().split(/\s+/).slice(0, 2).map((w: string) => w[0]).join('').toUpperCase()
+                        const card: React.CSSProperties = { border: '1px solid #E6E9EF', borderRadius: 13, background: '#fff', overflow: 'hidden' }
+                        const cardTtl: React.CSSProperties = { fontSize: 10.5, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', color: '#3f4855', padding: '11px 16px', borderBottom: '1px solid #EEF1F5', background: '#F7F8FA' }
+                        const lab: React.CSSProperties = { fontSize: 9.5, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase', color: '#8b93a1' }
+                        const val: React.CSSProperties = { fontSize: 14, fontWeight: 600, color: '#14171d', marginTop: 3 }
+                        const secTtl: React.CSSProperties = { fontSize: 10.5, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase', color: '#8b93a1', margin: '22px 0 12px' }
+                        return (
+                          <div>
+                            {/* Identificação + Dono atual */}
+                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.4fr 1fr', gap: 14 }}>
+                              <div style={card}>
+                                <div style={cardTtl}>Identificação</div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+                                  {[
+                                    { l: 'Modelo', v: modelo },
+                                    { l: 'Chassi', v: chassiP?.chassis || '—', mono: true },
+                                    { l: 'Ano', v: trator?.Ano || '—' },
+                                    { l: 'Número do motor', v: trator?.Numero_Motor || '—', mono: true },
+                                    { l: 'Data de entrega', v: trator?.Entrega || '—' },
+                                    { l: 'Vendedor', v: trator?.Vendedor || osProj[0]?.vendedor || '—' },
+                                  ].map((f, i) => (
+                                    <div key={i} style={{ padding: '11px 16px', borderRight: i % 2 === 0 ? '1px solid #EEF1F5' : 'none', borderBottom: i < 4 ? '1px solid #EEF1F5' : 'none', minWidth: 0 }}>
+                                      <div style={lab}>{f.l}</div>
+                                      <div style={{ ...val, fontFamily: f.mono ? 'monospace' : undefined, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.v}</div>
+                                    </div>
+                                  ))}
                                 </div>
-                                <div style={{ fontSize: 22, color: f.c, fontWeight: 800 }}>{f.v}</div>
                               </div>
-                            ))}
-                          </div>
-
-                          {/* Chassis */}
-                          {chassis.length > 0 && (
-                            <div style={{ marginBottom: 20 }}>
-                              <div style={{ fontSize: 13, color: '#374151', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>Chassis ({chassis.length})</div>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                {chassis.map((ch: any, ci: number) => (
-                                  <div key={ci} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', border: '1px solid #E5E7EB', borderRadius: 10, background: '#fff' }}>
-                                    <div style={{ width: 36, height: 36, borderRadius: 8, background: '#F0F4FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                      <Hash size={16} color="#2563EB" />
+                              <div style={{ ...card, padding: 16 }}>
+                                <div style={{ ...lab, marginBottom: 12 }}>Dono atual</div>
+                                {donoAtual ? (
+                                  <>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                      <div style={{ width: 44, height: 44, borderRadius: 11, background: '#EEF4FF', color: '#2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, flexShrink: 0 }}>{iniciais}</div>
+                                      <div style={{ minWidth: 0 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontSize: 15, fontWeight: 600, color: '#14171d' }}>{donoAtual.nome || 'Cliente'}</span><span style={{ fontSize: 9.5, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: '#E9FAF3', color: '#059669' }}>ATUAL</span></div>
+                                        <div style={{ fontSize: 12, color: '#8b93a1', marginTop: 1 }}>Cliente desde {formatDate(donoAtual.primeira_os)}</div>
+                                      </div>
                                     </div>
-                                    <div style={{ flex: 1 }}>
-                                      <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', fontFamily: 'monospace' }}>{ch.chassis}</div>
-                                      <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>{ch.modelo || 'Modelo nao informado'} {ch.cliente_nome ? `— ${ch.cliente_nome}` : ''}</div>
+                                    <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #EEF1F5' }}>
+                                      {[
+                                        { l: 'CPF / CNPJ', v: donoAtual.cnpj_cpf ? formatCNPJ(donoAtual.cnpj_cpf) : '—', mono: true, copy: '' },
+                                        { l: 'Cidade', v: donoAtual.cidade ? `${donoAtual.cidade}/${donoAtual.estado}` : '—', copy: '' },
+                                        { l: 'Endereço', v: donoAtual.endereco ? `${donoAtual.endereco}${donoAtual.bairro ? ', ' + donoAtual.bairro : ''}` : '—', copy: '' },
+                                        { l: 'Telefone', v: donoAtual.telefone || '—', copy: donoAtual.telefone || '' },
+                                        { l: 'E-mail', v: donoAtual.email || '—', copy: donoAtual.email || '' },
+                                        { l: 'Período como dono', v: `${formatDate(donoAtual.primeira_os)} — ${formatDate(donoAtual.ultima_os)}`, copy: '' },
+                                      ].map((f, i) => (
+                                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', padding: '6px 0' }}>
+                                          <span style={{ fontSize: 11, color: '#8b93a1', flexShrink: 0 }}>{f.l}</span>
+                                          <span style={{ fontSize: 12.5, fontWeight: 600, color: '#14171d', textAlign: 'right', display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0, fontFamily: f.mono ? 'monospace' : undefined }}>
+                                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.v}</span>
+                                            {f.copy ? <button onClick={e => copiarContato(e, f.copy)} title="Copiar" style={{ ...btnCopiar, color: copiadoContato === f.copy ? '#16a34a' : '#8b93a1' }}>{copiadoContato === f.copy ? <Check size={12} /> : <Copy size={12} />}</button> : null}
+                                          </span>
+                                        </div>
+                                      ))}
                                     </div>
-                                  </div>
-                                ))}
+                                    <div style={{ display: 'flex', gap: 18, marginTop: 14, paddingTop: 12, borderTop: '1px solid #EEF1F5' }}>
+                                      <div><div style={{ fontSize: 16, fontWeight: 600, color: '#14171d' }}>{donoAtual.total_os}</div><div style={{ fontSize: 10, color: '#8b93a1', textTransform: 'uppercase' }}>OS deste dono</div></div>
+                                      <div><div style={{ fontSize: 16, fontWeight: 600, color: '#059669' }}>{formatCurrency(donoAtual.total_valor)}</div><div style={{ fontSize: 10, color: '#8b93a1', textTransform: 'uppercase' }}>Faturado</div></div>
+                                      <div><div style={{ fontSize: 16, fontWeight: 600, color: '#14171d' }}>{donosList.length}</div><div style={{ fontSize: 10, color: '#8b93a1', textTransform: 'uppercase' }}>Donos</div></div>
+                                    </div>
+                                  </>
+                                ) : <div style={{ fontSize: 13, color: '#9CA3AF' }}>Sem dono registrado</div>}
                               </div>
                             </div>
-                          )}
 
-                        </div>
-                      )}
+                            {/* KPIs */}
+                            <div style={secTtl}>Visão geral</div>
+                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 12 }}>
+                              {[
+                                { l: 'Ordens de serviço', v: String(resumo.total_os || 0), s: `${resumo.os_faturadas || 0} faturadas`, c: '#2563EB', small: false },
+                                { l: 'Investido na máquina', v: formatCurrency(investido), s: 'Serviços + peças', c: '#059669', small: false },
+                                { l: 'Última visita', v: formatDate(ultimaVisita) || '—', s: ultimosSvc[0] ? `OS ${ultimosSvc[0].num_os}` : '', c: '#14171d', small: true },
+                                { l: 'Próxima revisão', v: proxRev || (trator ? 'em dia' : '—'), s: proxRev && horimetro ? `atual ${horimetro} h` : '', c: '#d97706', small: true },
+                              ].map((k, i) => (
+                                <div key={i} style={{ border: '1px solid #E6E9EF', borderRadius: 13, padding: '14px 16px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: '#8b93a1', textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 700 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: k.c }} />{k.l}</div>
+                                  <div style={{ fontSize: k.small ? 17 : 22, fontWeight: 600, marginTop: 7, color: k.c }}>{k.v}</div>
+                                  {k.s && <div style={{ fontSize: 11, color: '#8b93a1', marginTop: 2 }}>{k.s}</div>}
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Plano de revisões */}
+                            {trator && (
+                              <>
+                                <div style={secTtl}>Plano de revisões</div>
+                                <div style={{ border: '1px solid #E6E9EF', borderRadius: 13, padding: 16 }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                                    <div style={{ fontSize: 13, color: '#3f4855' }}>Horímetro atual: <b style={{ fontSize: 15, color: '#14171d' }}>{horimetro ? `${horimetro} h` : '—'}</b></div>
+                                    {trator.Entrega && <div style={{ fontSize: 11.5, color: '#8b93a1' }}>Entrega em {trator.Entrega}</div>}
+                                  </div>
+                                  <div style={{ display: 'flex', overflowX: 'auto', paddingBottom: 4 }}>
+                                    {REVISOES_HORAS.map((h: string, i: number) => {
+                                      const data = trator[`${h} Data`]
+                                      const done = !!data
+                                      const isNext = h === proxRev
+                                      return (
+                                        <div key={h} style={{ flex: 1, minWidth: 64, textAlign: 'center', position: 'relative' }}>
+                                          {i > 0 && <div style={{ position: 'absolute', top: 15, left: '-50%', width: '100%', height: 2, background: done ? '#059669' : '#E6E9EF' }} />}
+                                          <div style={{ width: 32, height: 32, borderRadius: '50%', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, position: 'relative', zIndex: 1, border: `2px solid ${done ? '#059669' : isNext ? '#d97706' : '#E6E9EF'}`, background: done ? '#059669' : isNext ? '#FEF6E7' : '#fff', color: done ? '#fff' : isNext ? '#d97706' : '#8b93a1' }}>
+                                            {done ? <CheckCircle size={15} /> : h.replace('h', '')}
+                                          </div>
+                                          <div style={{ fontSize: 10.5, fontWeight: 600, marginTop: 6, color: isNext ? '#d97706' : '#3f4855' }}>{h}</div>
+                                          <div style={{ fontSize: 9.5, color: '#8b93a1', marginTop: 1 }}>{done ? formatDate(data) : (isNext ? 'prevista' : '—')}</div>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                </div>
+                              </>
+                            )}
+
+                            {/* Últimos serviços */}
+                            {ultimosSvc.length > 0 && (
+                              <>
+                                <div style={secTtl}>Últimos serviços</div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                  {ultimosSvc.map((s, i) => (
+                                    <div key={i} onClick={() => irParaServico(s.num_os)}
+                                      style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '11px 14px', border: '1px solid #E6E9EF', borderRadius: 11, cursor: 'pointer', background: '#fff' }}
+                                      onMouseEnter={e => { e.currentTarget.style.borderColor = '#2563EB'; e.currentTarget.style.background = '#EEF4FF' }}
+                                      onMouseLeave={e => { e.currentTarget.style.borderColor = '#E6E9EF'; e.currentTarget.style.background = '#fff' }}>
+                                      <span style={{ fontSize: 13, fontWeight: 600, color: '#2563EB', minWidth: 64 }}>OS {s.num_os}</span>
+                                      <span style={{ flex: 1, fontSize: 12.5, color: '#3f4855', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{s.linhas?.[0]?.desc || s.status || '-'}</span>
+                                      <span style={{ fontSize: 11.5, color: '#8b93a1' }}>{formatDate(s.data)}</span>
+                                      <span style={{ fontSize: 13, fontWeight: 600, color: '#14171d', minWidth: 96, textAlign: 'right' }}>{formatCurrency(s.valor || 0)}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )
+                      })()}
 
                       {/* ─── DONOS ─── */}
                       {projetoTab === 'donos' && (
@@ -2731,7 +2883,8 @@ function ClientesPageInner() {
           )}
           {maquinasFiltradas.slice(0, 300).map((m, idx) => {
             const pend = (m.nf_servico_pendente || 0) + (m.nf_peca_pendente || 0)
-            const abrir = () => router.push(`/clientes/projeto?nome=${encodeURIComponent(m.nome || '')}&empresa=${encodeURIComponent(m.empresa || '')}`)
+            // Abre a ficha da máquina (modal com abas) direto — sem entrar na pasta do cliente.
+            const abrir = () => abrirModalProjeto(m.nome, m.empresa)
             return isMobile ? (
               <div key={`${m.codigo}-${m.empresa}-${idx}`} onClick={abrir} style={{ border: '1px solid var(--portal-border)', borderRadius: 12, background: 'var(--portal-bg-card)', padding: 14, cursor: 'pointer' }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text)' }}>{m.nome || '—'}{m.inativo ? ' (inativo)' : ''}</div>

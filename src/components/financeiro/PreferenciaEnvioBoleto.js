@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { authHeaders } from '@/lib/auth/client'
 import { useAuth } from '@/hooks/useAuth'
+import { montarParcelas } from '@/lib/financeiro/parcelas'
 import { MessageCircle, Mail, Check, Pencil, Send, Plus, X } from 'lucide-react'
 
 // Junta os boletos anexados do card numa lista de URLs
@@ -32,6 +33,18 @@ export default function PreferenciaEnvioBoleto({ card, cnpj: cnpjProp, nome: nom
   const [enviando, setEnviando] = useState(false)
   const [carregando, setCarregando] = useState(true)
   const [aviso, setAviso] = useState(null)      // {tipo:'ok'|'erro', msg}
+  const [meuEmailEnvio, setMeuEmailEnvio] = useState('') // "De:" (remetente do usuário)
+
+  // Busca o e-mail de envio configurado pelo usuário (para mostrar "De:").
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch('/api/financeiro/config-envio', { headers: { ...(await authHeaders()) } })
+        const c = await r.json()
+        if (c && !c.error) setMeuEmailEnvio(c.email_envio || '')
+      } catch {}
+    })()
+  }, [])
 
   const splitEmails = (s) => String(s || '').split(/[,;\s]+/).map(e => e.trim()).filter(Boolean)
   const urls = boletoUrls(card)
@@ -176,6 +189,7 @@ export default function PreferenciaEnvioBoleto({ card, cnpj: cnpjProp, nome: nom
           nf: [card?.num_nf_servico && `S ${card.num_nf_servico}`, card?.num_nf_peca && `P ${card.num_nf_peca}`].filter(Boolean).join(' / '),
           valor: card?.valor_servico != null ? Number(card.valor_servico).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '',
           vencimento: card?.vencimento_boleto || '',
+          parcelas: montarParcelas(card),
           remetente: userProfile?.nome || '',
         }),
       })
@@ -256,6 +270,12 @@ export default function PreferenciaEnvioBoleto({ card, cnpj: cnpjProp, nome: nom
               : <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>{listaEmails.length ? listaEmails.map((e, i) => <div key={i} style={{ fontSize: 15, fontWeight: 600, color: 'var(--portal-text)', wordBreak: 'break-all' }}>{e}</div>) : <span style={{ color: 'var(--portal-text-secondary)' }}>—</span>}</div>}
           </div>
         </div>
+        {!isWa && (
+          <div style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)', display: 'flex', flexDirection: 'column', gap: 3, padding: '10px 12px', background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 10 }}>
+            <div><b style={{ color: 'var(--portal-text)' }}>De:</b> {meuEmailEnvio || 'e-mail padrão da empresa'}</div>
+            <div style={{ wordBreak: 'break-all' }}><b style={{ color: 'var(--portal-text)' }}>Para:</b> {listaEmails.join(', ') || '—'}</div>
+          </div>
+        )}
         {avisoBox}
         {isWa ? btnEnviarWhats(pref.whatsapp) : btnEnviarEmail(listaEmails)}
       </div>

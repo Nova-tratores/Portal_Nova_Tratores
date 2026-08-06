@@ -16,7 +16,7 @@ import {
 } from 'lucide-react'
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
 import PreferenciaEnvioBoleto from '@/components/financeiro/PreferenciaEnvioBoleto'
-import { labelSetor, ehDoSetor } from '@/lib/financeiro/setor'
+import { labelSetor, ehDoSetor, temNotaServico } from '@/lib/financeiro/setor'
 
 const STATUS_CONFIG = {
  gerar_boleto:          { label: 'GERAR BOLETO',          bg: '#eff6ff', color: '#3b82f6', border: '#bfdbfe' },
@@ -277,7 +277,7 @@ export default function Kanban() {
     carregarDados();
  };
 
- const chamadosFiltrados = chamados.filter(c => ehDoSetor(c, SETOR_KANBAN)).filter(c => {
+ const chamadosFiltrados = chamados.filter(c => ehDoSetor(c, SETOR_KANBAN)).filter(c => !temNotaServico(c)).filter(c => {
     const q = filtroBusca.trim().toLowerCase();
     if (!q) return true;
     const campos = [

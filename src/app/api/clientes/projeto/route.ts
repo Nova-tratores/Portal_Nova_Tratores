@@ -94,7 +94,7 @@ export async function GET(req: NextRequest) {
     for (let i = 0; i < codClis.length; i += 200) {
       const batch = codClis.slice(i, i + 200);
       const { data } = await supabase.from("portal_nt_clientes_cadastro_omie")
-        .select("cod_cli, razao_social, nome_fantasia, cnpj_cpf, cidade, estado")
+        .select("cod_cli, razao_social, nome_fantasia, cnpj_cpf, cidade, estado, telefone, email, endereco, bairro")
         .eq("empresa", empresa).in("cod_cli", batch);
       for (const c of data || []) clienteMap.set(c.cod_cli, c);
     }
@@ -146,7 +146,7 @@ export async function GET(req: NextRequest) {
     }
 
     // ─── DONOS: clientes que tiveram OS/PV neste projeto, ordenados por data ───
-    const donosMap = new Map<number, { cod_cli: number; nome: string; cnpj_cpf: string; cidade: string; estado: string; primeira_os: string; ultima_os: string; total_os: number; total_valor: number }>();
+    const donosMap = new Map<number, { cod_cli: number; nome: string; cnpj_cpf: string; cidade: string; estado: string; telefone: string; email: string; endereco: string; bairro: string; primeira_os: string; ultima_os: string; total_os: number; total_valor: number }>();
     for (const os of osDoProj) {
       const cli = clienteMap.get(os.cod_cli);
       const existing = donosMap.get(os.cod_cli);
@@ -163,6 +163,10 @@ export async function GET(req: NextRequest) {
           cnpj_cpf: cli?.cnpj_cpf || "",
           cidade: cli?.cidade || "",
           estado: cli?.estado || "",
+          telefone: cli?.telefone || "",
+          email: cli?.email || "",
+          endereco: cli?.endereco || "",
+          bairro: cli?.bairro || "",
           primeira_os: dt, ultima_os: dt,
           total_os: 1, total_valor: os.valor_total || 0,
         });

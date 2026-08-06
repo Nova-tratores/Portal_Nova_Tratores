@@ -1,9 +1,12 @@
 import nodemailer from 'nodemailer';
 import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
 import { urlSegura } from '@/lib/url-segura';
+import { formatarDataBR } from '@/lib/financeiro/parcelas';
+import { decrypt } from '@/lib/cripto';
 
-// Mesmo esquema de envio do Controle Revisão (Gmail via nodemailer)
+// Fallback: Gmail da empresa (usado quando o usuário não configurou um remetente).
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -13,6 +16,13 @@ const transporter = nodemailer.createTransport({
   pool: true,
   maxConnections: 3,
 });
+
+// Service role p/ ler a config de envio do usuário (tabela com RLS fechada ao cliente).
+const adminSupa = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+  { auth: { persistSession: false, autoRefreshToken: false } }
+);
 
 export async function POST(request: Request) {
   // Exige login: esta rota baixa URLs e manda e-mail pelo Gmail da empresa.
@@ -28,6 +38,7 @@ export async function POST(request: Request) {
     valor?: string;
     vencimento?: string;
     remetente?: string;
+    parcelas?: { n: number; data: string; valor: string }[];
   };
   try {
     body = await request.json();
@@ -89,12 +100,34 @@ export async function POST(request: Request) {
   if (nfUrls.length) partesAnexo.push(nfUrls.length > 1 ? 'as notas fiscais' : 'a nota fiscal');
   const itensTxt = partesAnexo.join(' e ') || 'os documentos';
 
+  // Bloco de valores/vencimento. Parcelado → lista cada parcela (dia + valor);
+  // à vista → valor + vencimento; sem parcelas informadas → cai no formato antigo
+  // (com a data formatada em pt-BR, que antes ia crua/em inglês).
+  const parcelas = Array.isArray(body.parcelas) ? body.parcelas : [];
+  let blocoValores = '';
+  if (parcelas.length > 1) {
+    const linhas = parcelas
+      .map((p) => `<li>${sanitize(String(p.n))}ª parcela — vencimento <strong>${sanitize(p.data || '')}</strong> — <strong>${sanitize(p.valor || '')}</strong></li>`)
+      .join('');
+    blocoValores = `<p>Pagamento parcelado em ${parcelas.length}x:</p><ul style="margin:6px 0 0;padding-left:20px">${linhas}</ul>`;
+  } else if (parcelas.length === 1) {
+    const p = parcelas[0];
+    blocoValores = p.valor
+      ? `<p>Valor: <strong>${sanitize(p.valor)}</strong>${p.data ? `<br>Vencimento: ${sanitize(p.data)}` : ''}</p>`
+      : (p.data ? `<p>Vencimento: ${sanitize(p.data)}</p>` : '');
+  } else {
+    const vencFmt = sanitize(formatarDataBR(vencSan));
+    blocoValores = valorSan
+      ? `<p>Valor: <strong>${valorSan}</strong>${vencFmt ? `<br>Vencimento: ${vencFmt}` : ''}</p>`
+      : (vencFmt ? `<p>Vencimento: ${vencFmt}</p>` : '');
+  }
+
   const html = `
 <p>${saudacao}${clienteSan ? `, <strong>${clienteSan}</strong>` : ''}.</p>
 
 <p>Segue em anexo ${itensTxt} referente ${nfSan ? `à NF ${nfSan}` : 'ao seu faturamento'}.</p>
 
-${valorSan ? `<p>Valor: <strong>${valorSan}</strong>${vencSan ? `<br>Vencimento: ${vencSan}` : ''}</p>` : (vencSan ? `<p>Vencimento: ${vencSan}</p>` : '')}
+${blocoValores}
 
 <br>
 <p>Qualquer dúvida estamos à disposição.</p>
@@ -103,15 +136,43 @@ ${valorSan ? `<p>Valor: <strong>${valorSan}</strong>${vencSan ? `<br>Vencimento:
 &nbsp;&nbsp;&nbsp;Financeiro / Pós-Vendas</p>
 `;
 
+  // Remetente por usuário: se ele configurou um e-mail de envio (SMTP + senha de app
+  // criptografada), usa o transporte dele e põe o "De:" no e-mail dele. Senão, cai no
+  // Gmail da empresa. Qualquer falha na config do usuário não bloqueia o envio.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let envioTransporter: any = transporter; // pool (Gmail) ou SMTP do usuário
+  let fromEmail = process.env.GMAIL_USER || '';
   try {
-    const info = await transporter.sendMail({
-      from: `"Nova Tratores" <${process.env.GMAIL_USER}>`,
+    const { data: cfg } = await adminSupa
+      .from('financeiro_envio_config')
+      .select('email_envio, smtp_host, smtp_port, smtp_secure, senha_enc')
+      .eq('user_id', auth.userId)
+      .maybeSingle();
+    if (cfg?.email_envio && cfg?.senha_enc && cfg?.smtp_host && cfg?.smtp_port) {
+      const senha = decrypt(cfg.senha_enc);
+      envioTransporter = nodemailer.createTransport({
+        host: cfg.smtp_host,
+        port: cfg.smtp_port,
+        secure: cfg.smtp_secure !== false,
+        auth: { user: cfg.email_envio, pass: senha },
+      });
+      fromEmail = cfg.email_envio;
+    }
+  } catch (e) {
+    console.error('Config de envio do usuário falhou, usando Gmail da empresa:', e);
+  }
+
+  const fromName = remetenteSan || 'Nova Tratores';
+
+  try {
+    const info = await envioTransporter.sendMail({
+      from: `"${fromName}" <${fromEmail}>`,
       to: destinatarios.join(', '),
       subject,
       html,
       attachments,
     });
-    return NextResponse.json({ ok: true, id: info.messageId, enviados: destinatarios });
+    return NextResponse.json({ ok: true, id: info.messageId, enviados: destinatarios, de: fromEmail });
   } catch (error: any) {
     console.error('Erro ao enviar boleto por email:', error);
     return NextResponse.json({ error: `Falha ao enviar email: ${error.message}` }, { status: 500 });
