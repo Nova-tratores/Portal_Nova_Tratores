@@ -405,6 +405,35 @@ interface CompraRow {
   descricao?: string | null;
 }
 
+/**
+ * Mapa codigo_produto → familia_nome (tabela `produtos`, fonte confiável de
+ * família — máquinas têm "Trator Novo" etc.). Sem filtro de conta (a família de
+ * um código não muda por conta) para fugir do gotcha de casing do conta_omie.
+ */
+async function familiaNomePorCodigo(codigos: string[]): Promise<Record<string, string>> {
+  const map: Record<string, string> = {};
+  for (let i = 0; i < codigos.length; i += 200) {
+    const lote = codigos.slice(i, i + 200);
+    const { data } = await supabase.from('produtos').select('codigo_produto,familia_nome').in('codigo_produto', lote);
+    if (data) (data as Array<{ codigo_produto: unknown; familia_nome: unknown }>).forEach((p) => {
+      const f = String(p.familia_nome ?? '').trim();
+      if (f) map[String(p.codigo_produto)] = f;
+    });
+  }
+  return map;
+}
+
+/**
+ * "Comprei" é peças: exclui o que o classificador oficial (mesma régua do
+ * Cruzamento de Família e dos cards de máquina) marca como MÁQUINA. Resolve a
+ * família por `produtos.familia_nome` (confiável), com fallback ao produto_tipo.
+ * Mantém peça + não-classificado (evita subcontar itens sem família mapeada).
+ */
+function ehCompraPeca(codigo: string | null | undefined, famNome: Record<string, string>, famTipo: Record<string, string>): boolean {
+  const fam = (codigo && (famNome[codigo] || famTipo[codigo])) || '';
+  return classificarGrupo(fam) !== 'maquina';
+}
+
 export async function listarCompras(mes: number, ano: number, conta: ContaFiltro): Promise<CompraRow[]> {
   let compras: CompraRow[] = [];
   let offset = 0;
@@ -456,8 +485,9 @@ export async function listarCompras(mes: number, ano: number, conta: ContaFiltro
     compras.forEach((c) => { c.descricao = (c.codigo_produto && descMap[c.codigo_produto]) || c.codigo_produto; });
   }
 
-  // Só peças (exclui máquinas)
-  compras = compras.filter((c) => ehPecaFamilia(c.codigo_produto ? familiaMap[c.codigo_produto] : ''));
+  // Só peças: exclui máquinas pela família confiável (produtos.familia_nome).
+  const famNome = await familiaNomePorCodigo(codigos);
+  compras = compras.filter((c) => ehCompraPeca(c.codigo_produto, famNome, familiaMap));
   return compras;
 }
 
@@ -495,10 +525,11 @@ export async function somarComprasPecas(mes: number, ano: number, conta: ContaFi
     const { data: tipos } = await filtroConta(supabase.from('produto_tipo').select('codigo_produto,familia').in('codigo_produto', lote), conta);
     if (tipos) (tipos as Array<{ codigo_produto: string; familia?: string }>).forEach((t) => { if (t.familia) familiaMap[t.codigo_produto] = t.familia; });
   }
+  const famNome = await familiaNomePorCodigo(codigos);
 
   let total = 0;
   for (const c of rows) {
-    if (!ehPecaFamilia(c.codigo_produto ? familiaMap[c.codigo_produto] : '')) continue;
+    if (!ehCompraPeca(c.codigo_produto, famNome, familiaMap)) continue;
     total += Number(c.valor_total) || 0;
   }
   return total;
@@ -514,6 +545,8 @@ export interface TendenciaPonto {
   pecas: number;
   servicos: number;
   maquinas: number;
+  /** Unidades de máquina vendidas no mês (rótulo do gráfico de máquinas). */
+  maquinasUn: number;
 }
 
 interface TendItem extends ItemVenda {
@@ -575,8 +608,10 @@ export async function montarTendencia(conta: ContaFiltro): Promise<TendenciaPont
     const itensMes = itens.filter((it) => it.mes === m.mes && it.ano === m.ano);
     const agg = agregarCards(itensMes, null, cats);
     const pecas = agg.cards.reduce((s, v) => s + v, 0);
-    const maquinas = agregarMaquinas(itensMes).reduce((s, x) => s + x.receita, 0);
+    const maq = agregarMaquinas(itensMes);
+    const maquinas = maq.reduce((s, x) => s + x.receita, 0);
+    const maquinasUn = maq.reduce((s, x) => s + x.unidades, 0);
     const servicos = osPorMes[m.mes + '/' + m.ano] || 0;
-    return { label: m.label, mes: m.mes, ano: m.ano, pecas, servicos, maquinas };
+    return { label: m.label, mes: m.mes, ano: m.ano, pecas, servicos, maquinas, maquinasUn };
   });
 }
