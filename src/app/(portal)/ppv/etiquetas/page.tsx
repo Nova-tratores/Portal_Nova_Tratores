@@ -150,6 +150,12 @@ export default function EtiquetasPecasPage() {
       // NOVA primeiro, depois CASTRO (ordem fixa nas etiquetas)
       .sort((a, b) => a.empresa.localeCompare(b.empresa) * -1)
     if (linhas.length === 0) return
+    // Etiqueta física tem 25,4mm de altura — mais de 2 peças não cabe legível
+    if (linhas.length > 2) {
+      setErro('Máximo de 2 peças por etiqueta (uma por empresa) — desmarque o excedente e adicione em etiquetas separadas.')
+      return
+    }
+    setErro('')
     setEtiquetas(prev => [...prev, { id: proxId.current++, linhas, copias: 1 }])
     setSel(new Set())
   }
@@ -252,8 +258,10 @@ export default function EtiquetasPecasPage() {
             }}>
               <Plus size={14} /> Adicionar etiqueta ({sel.size} linha{sel.size === 1 ? '' : 's'})
             </button>
-            <span style={{ fontSize: 11.5, color: 'var(--portal-text-muted)' }}>
-              Marque a MESMA peça nas duas empresas pra etiqueta sair com os dois códigos.
+            <span style={{ fontSize: 11.5, color: sel.size > 2 ? '#dc2626' : 'var(--portal-text-muted)', fontWeight: sel.size > 2 ? 700 : 400 }}>
+              {sel.size > 2
+                ? 'Máximo de 2 peças por etiqueta — desmarque o excedente.'
+                : 'Marque a MESMA peça nas duas empresas pra etiqueta sair com os dois códigos (máx. 2 por etiqueta).'}
             </span>
           </div>
         </div>
@@ -379,9 +387,12 @@ function htmlFolha(blocos: Etiqueta[], usadas: Set<number>): string {
   const cel = (e: Etiqueta | null) =>
     e === null
       ? '    <div class="cel"></div>'
-      : `    <div class="cel${e.linhas.length > 1 ? ' compacta' : ''}">
-${e.linhas.map(l => `      <div class="emp">${esc(l.empresa)}</div>
-      <div class="dado"><span class="cod">${esc(l.codigo)}</span>${l.descricao ? ` - ${esc(l.descricao)}` : ''}${l.locacao ? ` - ${esc(l.locacao)}` : ''}</div>`).join('\n')}
+      : `    <div class="cel${e.linhas.length > 1 ? ' dupla' : ''}">
+${e.linhas.map(l => `      <div class="bloco">
+        <div class="emp">${esc(l.empresa)}</div>
+        <div class="dado"><span class="cod">${esc(l.codigo)}</span>${l.locacao ? ` · ${esc(l.locacao)}` : ''}</div>${l.descricao ? `
+        <div class="desc">${esc(l.descricao)}</div>` : ''}
+      </div>`).join('\n')}
     </div>`
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Etiquetas de peças (folha 3×10)</title>
 <style>
@@ -396,14 +407,18 @@ ${e.linhas.map(l => `      <div class="emp">${esc(l.empresa)}</div>
   }
   .pagina:last-child { page-break-after: auto; }
   .cel {
-    overflow: hidden; padding: 1mm 2.5mm; text-align: center;
+    overflow: hidden; padding: 0.8mm 2mm; text-align: center;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
   }
-  .emp { font-size: 6.5pt; font-weight: 800; letter-spacing: .3px; }
-  .dado { font-size: 9.5pt; line-height: 1.3; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bloco { max-width: 100%; }
+  .bloco + .bloco { margin-top: 1.4mm; }
+  .emp { font-size: 8pt; font-weight: 800; letter-spacing: .4px; }
+  .dado { font-size: 13pt; line-height: 1.15; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .cod { font-weight: 800; }
-  .compacta .emp { font-size: 5.5pt; }
-  .compacta .dado { font-size: 7.5pt; line-height: 1.25; }
+  .desc { font-size: 8.5pt; line-height: 1.2; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dupla .emp { font-size: 6.5pt; }
+  .dupla .dado { font-size: 10.5pt; line-height: 1.1; }
+  .dupla .desc { font-size: 7pt; line-height: 1.15; }
   @media screen {
     body { background: #e5e7eb; }
     .pagina { background: #fff; margin: 10px auto; box-shadow: 0 1px 6px rgba(0,0,0,.25); }
