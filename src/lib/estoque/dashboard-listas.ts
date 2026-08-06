@@ -451,3 +451,46 @@ export async function listarCompras(mes: number, ano: number, conta: ContaFiltro
   compras = compras.filter((c) => ehPecaFamilia(c.codigo_produto ? familiaMap[c.codigo_produto] : ''));
   return compras;
 }
+
+/**
+ * Soma o valor comprado (entradas de NF) no período, SÓ PEÇAS — mesma régua de
+ * família do `listarCompras`, para o card "Comprei" ser comparável ao CMV das
+ * peças. Versão enxuta: não enriquece descrição (só precisa de valor + família).
+ * Lê apenas o banco (`compras_itens`, populado pelo cron de compras).
+ */
+export async function somarComprasPecas(mes: number, ano: number, conta: ContaFiltro): Promise<number> {
+  let rows: Array<{ codigo_produto?: string | null; valor_total?: number | string | null }> = [];
+  let offset = 0;
+  while (true) {
+    const { data } = await filtroConta(
+      supabase
+        .from('compras_itens')
+        .select('codigo_produto,valor_total')
+        .eq('mes', mes)
+        .eq('ano', ano),
+      conta,
+    )
+      .order('data_nota', { ascending: false })
+      .range(offset, offset + 999);
+    if (!data || data.length === 0) break;
+    rows = rows.concat(data as typeof rows);
+    if (data.length < 1000) break;
+    offset += 1000;
+  }
+  if (rows.length === 0) return 0;
+
+  const codigos = [...new Set(rows.map((c) => c.codigo_produto).filter(Boolean))] as string[];
+  const familiaMap: Record<string, string> = {};
+  for (let i = 0; i < codigos.length; i += 50) {
+    const lote = codigos.slice(i, i + 50);
+    const { data: tipos } = await filtroConta(supabase.from('produto_tipo').select('codigo_produto,familia').in('codigo_produto', lote), conta);
+    if (tipos) (tipos as Array<{ codigo_produto: string; familia?: string }>).forEach((t) => { if (t.familia) familiaMap[t.codigo_produto] = t.familia; });
+  }
+
+  let total = 0;
+  for (const c of rows) {
+    if (!ehPecaFamilia(c.codigo_produto ? familiaMap[c.codigo_produto] : '')) continue;
+    total += Number(c.valor_total) || 0;
+  }
+  return total;
+}

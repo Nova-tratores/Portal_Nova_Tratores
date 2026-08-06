@@ -5,6 +5,7 @@
 import { obterItensProdutos, buscarItensDoBanco } from './vendas-sync';
 import { obterTotaisOS, obterTotaisOSAno, obterTiposComNotaMes, type TotaisOS } from './os';
 import { agregarCards, getCategoriasConfig, type ItemVenda } from './categorias';
+import { somarComprasPecas } from './dashboard-listas';
 import {
   ehMesAtual, ehAnoAtual, diasUteisDoMes, diasUteisAteHoje, diasUteisDoAno,
   diasUteisAteHojeNoAno, sleep, MESES_CURTO,
@@ -29,6 +30,8 @@ interface DadosPeriodo {
   totalPecas: number;
   totalCustoPecas: number;
   totalGeral: number;
+  /** Valor comprado (entradas de NF) no período, só peças. */
+  totalCompras: number;
 }
 
 /** Agrega itens de produto + totais de OS nos cards do dashboard. */
@@ -36,6 +39,7 @@ async function montarDados(
   itens: ItemVenda[],
   os: TotaisOS,
   filtroCategoria: string | null,
+  totalCompras = 0,
 ): Promise<DadosPeriodo> {
   const totalOS = os.total;
 
@@ -66,6 +70,7 @@ async function montarDados(
     totalPecas,
     totalCustoPecas,
     totalGeral,
+    totalCompras,
   };
 }
 
@@ -79,7 +84,8 @@ export async function obterDadosPeriodo(
   const itens = await obterItensProdutos(mes, ano, conta);
   await sleep(500);
   const os = await obterTotaisOS(mes, ano, conta);
-  return montarDados(itens, os, filtroCategoria);
+  const totalCompras = await somarComprasPecas(mes, ano, conta);
+  return montarDados(itens, os, filtroCategoria, totalCompras);
 }
 
 /**
@@ -100,7 +106,9 @@ export async function obterDadosAno(
   );
   const itens = listas.flatMap((l) => l || []);
   const os = await obterTotaisOSAno(ano, conta);
-  return montarDados(itens, os, filtroCategoria);
+  const comprasMeses = await Promise.all(meses.map((m) => somarComprasPecas(m, ano, conta)));
+  const totalCompras = comprasMeses.reduce((s, v) => s + v, 0);
+  return montarDados(itens, os, filtroCategoria, totalCompras);
 }
 
 export interface DashboardCategoria {
@@ -150,6 +158,7 @@ export interface DashboardResponse {
 const DADOS_ZERADOS: DadosPeriodo = {
   card1: 0, card2: 0, card3: 0, cards: [], custosCards: [], nomesCat: [],
   totalOS: 0, osNota: null, osInterno: null, osInternoRetorno: null, osInternoPuro: null, totalPecas: 0, totalCustoPecas: 0, totalGeral: 0,
+  totalCompras: 0,
 };
 
 /**
@@ -254,17 +263,22 @@ export async function montarDashboard(
   }
   const totalPecas = montarCategoria('Total Pecas', atual.totalPecas, anterior.totalPecas, anoAnt.totalPecas, 'totalPecas',
     atual.totalCustoPecas, anterior.totalCustoPecas, anoAnt.totalCustoPecas);
+  // "Comprei": entradas de peças (NF) no período — dinheiro que SAI, comparável
+  // ao custo das peças. Não segue o filtro de categoria de produto (é peças-wide).
+  const comprei = montarCategoria('Comprei (peças)', atual.totalCompras, anterior.totalCompras, anoAnt.totalCompras, 'compras');
   const totalGeral = montarCategoria('Total Geral Servicos + Pecas', atual.totalGeral, anterior.totalGeral, anoAnt.totalGeral, 'totalGeral',
     atual.totalCustoPecas, anterior.totalCustoPecas, anoAnt.totalCustoPecas);
 
   // Ordem dos cards (grade de 4 colunas): Serviços fecha a 1ª linha e os totais
-  // ficam na coluna da direita, um por linha.
+  // ficam na coluna da direita, um por linha. "Comprei" fica logo abaixo de Total
+  // Peças (ambos são peças) e acima da régua que separa o Total Geral.
   const corte = Math.min(3, produtos.length);
   const categorias: DashboardCategoria[] = [
     ...produtos.slice(0, corte),
     servicos,
     ...produtos.slice(corte),
     totalPecas,
+    comprei,
     totalGeral,
   ];
 

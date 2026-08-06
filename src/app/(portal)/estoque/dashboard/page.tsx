@@ -269,22 +269,31 @@ export default function DashboardPage() {
           )}
           {(() => {
             const renderCard = (c: Categoria, key: number) => {
-              const atual = valorMetrica(c, metrica, 'atual');
-              const mAnt = valorMetrica(c, metrica, 'mesAnt');
-              const aAnt = valorMetrica(c, metrica, 'anoAnt');
+              // "Comprei" só tem um valor (não venda/custo/margem): ignora o toggle.
+              const ehCompras = c.cardType === 'compras';
+              const mLocal: Metrica = ehCompras ? 'venda' : metrica;
+              const atual = valorMetrica(c, mLocal, 'atual');
+              const mAnt = valorMetrica(c, mLocal, 'mesAnt');
+              const aAnt = valorMetrica(c, mLocal, 'anoAnt');
               const varM = calcVar(atual, mAnt);
               const varA = calcVar(atual, aAnt);
-              const proj = metrica === 'venda' ? c.valorProjetado : null;
+              const proj = mLocal === 'venda' ? c.valorProjetado : null;
               const bordaVermelha = c.cardType === 'totalPecas' || c.cardType === 'totalGeral';
+              // "Comprei" é dinheiro que SAI, não venda: acento indigo p/ não confundir.
+              const cor = ehCompras ? '#4f46e5' : '#dc2626';
+              const borda = ehCompras ? '1px solid #c7d2fe' : bordaVermelha ? '2px solid #dc2626' : '1px solid #eee';
               // Card Serviços (métrica venda): o destaque é a RECEITA de serviços
               // (com nota + interno c/ retorno), espelhando a régua do OMIE. Abaixo,
               // a composição com-nota (HR/KM/Outros), o quanto veio do "com retorno"
               // e o interno puro que ficou de fora.
               const servicoNota = c.cardType === 'servico' && metrica === 'venda' && c.valorNota != null && c.valorInterno != null;
               return (
-                <div key={key} style={{ background: '#fff', border: bordaVermelha ? '2px solid #dc2626' : '1px solid #eee', borderRadius: 12, padding: 16, boxShadow: '0 1px 4px rgba(0,0,0,.04)' }}>
+                <div key={key} style={{ background: ehCompras ? '#f5f6ff' : '#fff', border: borda, borderRadius: 12, padding: 16, boxShadow: '0 1px 4px rgba(0,0,0,.04)' }}>
                   <div style={{ fontSize: '.72rem', color: '#888', textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 700, marginBottom: 6 }}>{c.nome}</div>
-                  <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#dc2626' }}>{fmtRS(atual)}</div>
+                  <div style={{ fontSize: '1.3rem', fontWeight: 700, color: cor }}>{fmtRS(atual)}</div>
+                  {ehCompras && (
+                    <div style={{ fontSize: '.68rem', color: '#6366f1', marginTop: 3 }}>entradas de peças (NF) no período</div>
+                  )}
                   {servicoNota && (
                     <>
                       {c.valorHR != null && (
@@ -322,10 +331,16 @@ export default function DashboardPage() {
                   </div>
                   {proj != null && <div style={{ fontSize: '.7rem', color: '#999', marginTop: 4 }}>Projeção: {fmtRS(proj)}</div>}
                   <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
-                    <button onClick={() => abrirHistorico(cardIndexParaApi(c, dados))} style={linkBtn}>histórico</button>
-                    {c.cardType === 'servico'
-                      ? <button onClick={abrirOSServicos} style={linkBtn}>vendas</button>
-                      : <button onClick={() => abrirVendas(cardIndexParaApi(c, dados), c.nome)} style={linkBtn}>vendas</button>}
+                    {ehCompras ? (
+                      <Link href="/estoque/notas-entrada" style={{ ...linkBtn, color: '#4f46e5' }}>ver notas de entrada</Link>
+                    ) : (
+                      <>
+                        <button onClick={() => abrirHistorico(cardIndexParaApi(c, dados))} style={linkBtn}>histórico</button>
+                        {c.cardType === 'servico'
+                          ? <button onClick={abrirOSServicos} style={linkBtn}>vendas</button>
+                          : <button onClick={() => abrirVendas(cardIndexParaApi(c, dados), c.nome)} style={linkBtn}>vendas</button>}
+                      </>
+                    )}
                   </div>
                 </div>
               );
