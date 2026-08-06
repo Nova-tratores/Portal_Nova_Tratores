@@ -124,8 +124,17 @@ export default function EtiquetasPecasPage() {
   }
 
   const adicionarEtiqueta = () => {
-    const linhas = resultados
-      .filter(i => sel.has(chaveItem(i)))
+    // A seleção pode vir da BUSCA ou da lista de últimas compradas (estado
+    // inicial) — procurar só em `resultados` fazia o botão não fazer nada
+    // quando as linhas marcadas eram das recentes.
+    const vistos = new Set<string>()
+    const linhas = [...resultados, ...recentes]
+      .filter(i => {
+        const k = chaveItem(i)
+        if (!sel.has(k) || vistos.has(k)) return false
+        vistos.add(k)
+        return true
+      })
       .map(i => ({
         empresa: EMPRESA_LABEL[i.conta_omie] || i.conta_omie,
         codigo: i.codigo,
