@@ -1092,3 +1092,73 @@ export async function composicao(conta: ContaFiltro, f: ComposicaoFiltro): Promi
   if (f.fonte === 'entrada') return composicaoEntrada(conta, f);
   return composicaoSaida(conta, f);
 }
+
+// ===========================================================================
+// Compras de PEÇAS do mês (card "Comprei") — MESMA régua da tela de Cruzamento:
+// lê as entradas de NF (notas_entrada.itens), resolve a família por código
+// interno + SKU (resolverFamiliaEntrada) e mantém só o que classificarGrupo
+// marca como PEÇA (exclui máquina e famílias ignoradas). Assim o "Comprei" bate
+// com a "Entrada Peça" do Cruzamento.
+// ===========================================================================
+
+export interface CompraPecaItem {
+  codigo: string;
+  descricao: string;
+  familia: string;
+  numero_nf: string;
+  quantidade: number;
+  valor_unitario: number;
+  valor_total: number;
+}
+export interface ComprasPecasResult { total: number; itens: CompraPecaItem[] }
+
+// Mapa código→família (produtos) cacheado por conta (~5min): evita reescanear a
+// tabela `produtos` a cada mês quando o dashboard soma vários períodos.
+const _famMapsCache: Record<string, { famPorCodigo: Record<string, string>; famPorSKU: Record<string, string>; t: number }> = {};
+async function famMapsCached(conta: ContaFiltro): Promise<{ famPorCodigo: Record<string, string>; famPorSKU: Record<string, string> }> {
+  const key = String(conta ?? 'todas');
+  const c = _famMapsCache[key];
+  if (c && Date.now() - c.t < 5 * 60 * 1000) return c;
+  const { famPorCodigo, famPorSKU } = await carregarProdutos(conta);
+  _famMapsCache[key] = { famPorCodigo, famPorSKU, t: Date.now() };
+  return _famMapsCache[key];
+}
+
+export async function comprasPecasMes(mes: number, ano: number, conta: ContaFiltro): Promise<ComprasPecasResult> {
+  const { famPorCodigo, famPorSKU } = await famMapsCached(conta);
+  const { nomes } = await getIgnorarFiltro(conta);
+  const escaped = nomes.length > 0 ? '(' + nomes.map((n) => '"' + String(n).replace(/"/g, '') + '"').join(',') + ')' : null;
+
+  const itens: CompraPecaItem[] = [];
+  let offset = 0;
+  const LOTE = 1000;
+  while (true) {
+    let query = supabase.from('notas_entrada').select('numero_nf,itens').eq('mes', mes).eq('ano', ano);
+    query = filtroConta(query, conta);
+    if (escaped) query = query.not('nome_emitente', 'in', escaped);
+    const { data, error } = await query.range(offset, offset + LOTE - 1);
+    if (error) throw new Error(error.message);
+    const lote = (data || []) as Array<{ numero_nf: unknown; itens: unknown }>;
+    for (const nota of lote) {
+      const its = Array.isArray(nota.itens) ? (nota.itens as Array<Record<string, unknown>>) : [];
+      for (const it of its) {
+        const { codigo, sku, descricao, qtd, valor } = parseItemEntrada(it);
+        const fam = resolverFamiliaEntrada(codigo, sku, famPorCodigo, famPorSKU) || SEM_FAMILIA;
+        if (classificarGrupo(fam) !== 'peca') continue;
+        itens.push({
+          codigo: codigo || sku,
+          descricao,
+          familia: fam,
+          numero_nf: String(nota.numero_nf ?? ''),
+          quantidade: qtd,
+          valor_unitario: qtd ? valor / qtd : valor,
+          valor_total: valor,
+        });
+      }
+    }
+    if (lote.length < LOTE) break;
+    offset += LOTE;
+  }
+  const total = itens.reduce((s, i) => s + i.valor_total, 0);
+  return { total, itens };
+}

@@ -12,7 +12,7 @@ import {
   CATEGORIAS_AGRUPADAS,
   type ItemVenda,
 } from './categorias';
-import { classificarGrupo } from './cruzamento-familia';
+import { classificarGrupo, comprasPecasMes, type CompraPecaItem } from './cruzamento-familia';
 import { preCarregarCMCPorMes } from './vendas-sync';
 import { getIgnorarFiltro } from './ignorar-clientes';
 import { ehMesAtual, diasUteisDoMes, diasUteisAteHoje, MESES_CURTO } from './utils';
@@ -394,145 +394,20 @@ export async function listarPedidoItens(
 }
 
 // ====================== /api/dashboard/compras ======================
+// "Comprei" usa a MESMA solução da tela Cruzamento de Família (`comprasPecasMes`):
+// lê as entradas de NF e mantém só o que é PEÇA (família por código+SKU +
+// classificarGrupo). Assim o valor e a lista batem com a "Entrada Peça" de lá.
 
-interface CompraRow {
-  numero_nf?: string | null;
-  data_nota?: string | null;
-  codigo_produto?: string | null;
-  quantidade?: number | string | null;
-  valor_unitario?: number | string | null;
-  valor_total?: number | string | null;
-  descricao?: string | null;
-}
+export type CompraRow = CompraPecaItem;
 
-/**
- * Mapa codigo_produto → familia_nome (tabela `produtos`, fonte confiável de
- * família — máquinas têm "Trator Novo" etc.). Sem filtro de conta (a família de
- * um código não muda por conta) para fugir do gotcha de casing do conta_omie.
- */
-async function familiaNomePorCodigo(codigos: string[]): Promise<Record<string, string>> {
-  const map: Record<string, string> = {};
-  for (let i = 0; i < codigos.length; i += 200) {
-    const lote = codigos.slice(i, i + 200);
-    const { data } = await supabase.from('produtos').select('codigo_produto,familia_nome').in('codigo_produto', lote);
-    if (data) (data as Array<{ codigo_produto: unknown; familia_nome: unknown }>).forEach((p) => {
-      const f = String(p.familia_nome ?? '').trim();
-      if (f) map[String(p.codigo_produto)] = f;
-    });
-  }
-  return map;
-}
-
-/**
- * "Comprei" é peças: exclui o que o classificador oficial (mesma régua do
- * Cruzamento de Família e dos cards de máquina) marca como MÁQUINA. Resolve a
- * família por `produtos.familia_nome` (confiável), com fallback ao produto_tipo.
- * Mantém peça + não-classificado (evita subcontar itens sem família mapeada).
- */
-function ehCompraPeca(codigo: string | null | undefined, famNome: Record<string, string>, famTipo: Record<string, string>): boolean {
-  const fam = (codigo && (famNome[codigo] || famTipo[codigo])) || '';
-  return classificarGrupo(fam) !== 'maquina';
-}
-
+/** Itens de compra de PEÇAS do período (para a listagem "ver itens"). */
 export async function listarCompras(mes: number, ano: number, conta: ContaFiltro): Promise<CompraRow[]> {
-  let compras: CompraRow[] = [];
-  let offset = 0;
-  while (true) {
-    const { data } = await filtroConta(
-      supabase
-        .from('compras_itens')
-        .select('numero_nf,data_nota,codigo_produto,quantidade,valor_unitario,valor_total')
-        .eq('mes', mes)
-        .eq('ano', ano),
-      conta,
-    )
-      .order('data_nota', { ascending: false })
-      .range(offset, offset + 999);
-    if (!data || data.length === 0) break;
-    compras = compras.concat(data as CompraRow[]);
-    if (data.length < 1000) break;
-    offset += 1000;
-  }
-
-  const codigos = [...new Set(compras.map((c) => c.codigo_produto).filter(Boolean))] as string[];
-  const descMap: Record<string, string> = {};
-  const familiaMap: Record<string, string> = {};
-  if (codigos.length > 0) {
-    for (let i = 0; i < codigos.length; i += 50) {
-      const lote = codigos.slice(i, i + 50);
-      const { data: prods } = await filtroConta(
-        supabase.from('Produtos_Completos').select('id_omie,Descricao_Produto').in('id_omie', lote.map((c) => parseInt(c)).filter((n) => !isNaN(n))),
-        conta,
-      );
-      if (prods) (prods as Array<{ id_omie: unknown; Descricao_Produto?: string }>).forEach((p) => { if (p.Descricao_Produto) descMap[String(p.id_omie)] = p.Descricao_Produto; });
-    }
-    const naoMapeados = codigos.filter((c) => !descMap[c]);
-    if (naoMapeados.length > 0) {
-      for (let i = 0; i < naoMapeados.length; i += 50) {
-        const lote = naoMapeados.slice(i, i + 50);
-        const { data: prods } = await filtroConta(
-          supabase.from('Produtos_Completos').select('id_omie,Codigo_Produto,Descricao_Produto').in('Codigo_Produto', lote),
-          conta,
-        );
-        if (prods) (prods as Array<{ Codigo_Produto: string; Descricao_Produto?: string }>).forEach((p) => { if (p.Descricao_Produto) descMap[p.Codigo_Produto] = p.Descricao_Produto; });
-      }
-    }
-    for (let i = 0; i < codigos.length; i += 50) {
-      const lote = codigos.slice(i, i + 50);
-      const { data: tipos } = await filtroConta(supabase.from('produto_tipo').select('codigo_produto,familia').in('codigo_produto', lote), conta);
-      if (tipos) (tipos as Array<{ codigo_produto: string; familia?: string }>).forEach((t) => { if (t.familia) familiaMap[t.codigo_produto] = t.familia; });
-    }
-    compras.forEach((c) => { c.descricao = (c.codigo_produto && descMap[c.codigo_produto]) || c.codigo_produto; });
-  }
-
-  // Só peças: exclui máquinas pela família confiável (produtos.familia_nome).
-  const famNome = await familiaNomePorCodigo(codigos);
-  compras = compras.filter((c) => ehCompraPeca(c.codigo_produto, famNome, familiaMap));
-  return compras;
+  return (await comprasPecasMes(mes, ano, conta)).itens;
 }
 
-/**
- * Soma o valor comprado (entradas de NF) no período, SÓ PEÇAS — mesma régua de
- * família do `listarCompras`, para o card "Comprei" ser comparável ao CMV das
- * peças. Versão enxuta: não enriquece descrição (só precisa de valor + família).
- * Lê apenas o banco (`compras_itens`, populado pelo cron de compras).
- */
+/** Valor comprado de PEÇAS no período (card "Comprei"). */
 export async function somarComprasPecas(mes: number, ano: number, conta: ContaFiltro): Promise<number> {
-  let rows: Array<{ codigo_produto?: string | null; valor_total?: number | string | null }> = [];
-  let offset = 0;
-  while (true) {
-    const { data } = await filtroConta(
-      supabase
-        .from('compras_itens')
-        .select('codigo_produto,valor_total')
-        .eq('mes', mes)
-        .eq('ano', ano),
-      conta,
-    )
-      .order('data_nota', { ascending: false })
-      .range(offset, offset + 999);
-    if (!data || data.length === 0) break;
-    rows = rows.concat(data as typeof rows);
-    if (data.length < 1000) break;
-    offset += 1000;
-  }
-  if (rows.length === 0) return 0;
-
-  const codigos = [...new Set(rows.map((c) => c.codigo_produto).filter(Boolean))] as string[];
-  const familiaMap: Record<string, string> = {};
-  for (let i = 0; i < codigos.length; i += 50) {
-    const lote = codigos.slice(i, i + 50);
-    const { data: tipos } = await filtroConta(supabase.from('produto_tipo').select('codigo_produto,familia').in('codigo_produto', lote), conta);
-    if (tipos) (tipos as Array<{ codigo_produto: string; familia?: string }>).forEach((t) => { if (t.familia) familiaMap[t.codigo_produto] = t.familia; });
-  }
-  const famNome = await familiaNomePorCodigo(codigos);
-
-  let total = 0;
-  for (const c of rows) {
-    if (!ehCompraPeca(c.codigo_produto, famNome, familiaMap)) continue;
-    total += Number(c.valor_total) || 0;
-  }
-  return total;
+  return (await comprasPecasMes(mes, ano, conta)).total;
 }
 
 // ====================== /api/dashboard/tendencia ======================
