@@ -17,9 +17,11 @@ export interface ColunaDef<T> {
   render: (t: T) => ReactNode;
 }
 
-const thStyle: React.CSSProperties = { background: '#fafafa', color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', padding: '8px 9px', textAlign: 'left', borderBottom: '1px solid #eee', fontWeight: 600, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' };
-const tdStyle: React.CSSProperties = { padding: '7px 9px', borderBottom: '1px solid #f5f5f5', color: '#444', fontSize: '.8rem' };
-const filtroStyle: React.CSSProperties = { width: '100%', boxSizing: 'border-box', padding: '4px 6px', border: '1px solid #e5e5e5', borderRadius: 6, fontSize: '.72rem', color: '#444', background: '#fff' };
+const thStyle: React.CSSProperties = { background: '#fafafa', color: '#888', fontSize: '.6rem', textTransform: 'uppercase', letterSpacing: '.4px', padding: '7px 6px', textAlign: 'left', borderBottom: '1px solid #eee', fontWeight: 600, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' };
+const tdStyle: React.CSSProperties = { padding: '6px 6px', borderBottom: '1px solid #f5f5f5', color: '#444', fontSize: '.78rem' };
+// size={3} derruba a largura intrínseca do input (~150px cada) — com 11+
+// colunas era ele que estourava a tabela e cortava a coluna da direita
+const filtroStyle: React.CSSProperties = { width: '100%', minWidth: 0, boxSizing: 'border-box', padding: '3px 5px', border: '1px solid #e5e5e5', borderRadius: 6, fontSize: '.68rem', color: '#444', background: '#fff' };
 
 const PASSO_EXIBICAO = 300;
 
@@ -97,6 +99,7 @@ export default function TabelaOrdenavel<T>({ colunas, linhas, chaveLinha, carreg
                     value={filtros[c.chave] || ''}
                     onChange={(e) => { setFiltros({ ...filtros, [c.chave]: e.target.value }); setMostrar(PASSO_EXIBICAO); }}
                     placeholder="filtrar…"
+                    size={3}
                     style={filtroStyle}
                   />
                 </th>

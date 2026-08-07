@@ -159,7 +159,7 @@ export default function DetalheModal({ titulo, params, onClose }: DetalheParams 
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{ background: '#fff', borderRadius: 12, width: 'min(1020px, 100%)', maxHeight: '86vh', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 40px rgba(0,0,0,.2)' }}
+        style={{ background: '#fff', borderRadius: 12, width: 'min(1150px, 100%)', maxHeight: '86vh', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 40px rgba(0,0,0,.2)' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px', borderBottom: '1px solid #eee' }}>
           <div style={{ flex: 1 }}>
