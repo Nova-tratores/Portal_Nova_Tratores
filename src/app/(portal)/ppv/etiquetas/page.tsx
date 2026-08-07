@@ -397,6 +397,43 @@ function esc(s: string): string {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
+// ── Código de barras Code 128 (subset B) em SVG puro, sem lib externa ───────
+// Tabela padrão: larguras de barra/espaço de cada símbolo (0-106).
+const C128 = [
+  '212222', '222122', '222221', '121223', '121322', '131222', '122213', '122312', '132212', '221213',
+  '221312', '231212', '112232', '122132', '122231', '113222', '123122', '123221', '223211', '221132',
+  '221231', '213212', '223112', '312131', '311222', '321122', '321221', '312212', '322112', '322211',
+  '212123', '212321', '232121', '111323', '131123', '131321', '112313', '132113', '132311', '211313',
+  '231113', '231311', '112133', '112331', '132131', '113123', '113321', '133121', '313121', '211331',
+  '231131', '213113', '213311', '213131', '311123', '311321', '331121', '312113', '312311', '332111',
+  '314111', '221411', '431111', '111224', '111422', '121124', '121421', '141122', '141221', '112214',
+  '112412', '122114', '122411', '142112', '142211', '241211', '221114', '413111', '241112', '134111',
+  '111242', '121142', '121241', '114212', '124112', '124211', '411212', '421112', '421211', '212141',
+  '214121', '412121', '111143', '111341', '131141', '114113', '114311', '411113', '411311', '113141',
+  '114131', '311141', '411131', '211412', '211214', '211232', '2331112',
+]
+
+// Gera o SVG do Code 128 B do texto (só ASCII imprimível; vazio = sem barra).
+function code128Svg(texto: string, alturaMm: number): string {
+  const t = String(texto).replace(/[^\x20-\x7E]/g, '').slice(0, 30)
+  if (!t) return ''
+  const vals = [...t].map(c => c.charCodeAt(0) - 32)
+  let soma = 104 // start B
+  vals.forEach((v, i) => { soma += v * (i + 1) })
+  const codes = [104, ...vals, soma % 103, 106]
+  let x = 0
+  const rects: string[] = []
+  for (const code of codes) {
+    const padrao = C128[code]
+    for (let i = 0; i < padrao.length; i++) {
+      const w = Number(padrao[i])
+      if (i % 2 === 0) rects.push(`<rect x="${x}" y="0" width="${w}" height="10"/>`)
+      x += w
+    }
+  }
+  return `<svg class="barra" viewBox="0 0 ${x} 10" preserveAspectRatio="none" style="height:${alturaMm}mm" xmlns="http://www.w3.org/2000/svg">${rects.join('')}</svg>`
+}
+
 // ── Impressão em FOLHA ADESIVA pré-cortada 3×10 (Pimaco/Avery 6180) ─────────
 // Folha Carta 215,9×279,4mm · etiqueta 66,675×25,4mm · margem 12,7mm em cima/
 // baixo e 4,76mm nas laterais · 3,175mm entre colunas · SEM espaço entre
@@ -418,20 +455,29 @@ function htmlFolha(blocos: Etiqueta[], usadas: Set<number>): string {
   // Mês/ano da impressão no canto — mostra o quão atualizada a etiqueta está
   const agora = new Date()
   const dataRef = `${String(agora.getMonth() + 1).padStart(2, '0')}/${agora.getFullYear()}`
-  // Foco no CÓDIGO e na DESCRIÇÃO (locação vira apoio, sempre por último) —
-  // MESMA ordem na etiqueta simples e na dupla; a dupla só compacta as fontes.
-  const cel = (e: Etiqueta | null) =>
-    e === null
-      ? '    <div class="cel"></div>'
-      : `    <div class="cel${e.linhas.length > 1 ? ' dupla' : ''}">
-${e.linhas.map(l => `      <div class="bloco">
+  // Foco no CÓDIGO (com código de barras Code 128 logo abaixo) e na DESCRIÇÃO;
+  // locação por último. Na dupla, descrição·locação dividem a linha pra caber
+  // os dois blocos com barra nos 25,4mm.
+  const cel = (e: Etiqueta | null) => {
+    if (e === null) return '    <div class="cel"></div>'
+    const dupla = e.linhas.length > 1
+    return `    <div class="cel${dupla ? ' dupla' : ''}">
+${e.linhas.map(l => {
+      const descLoc = [l.descricao, l.locacao].filter(Boolean).map(esc).join(' · ')
+      return `      <div class="bloco">
         <div class="emp">${esc(l.empresa)}</div>
-        <div class="cod">${esc(l.codigo)}</div>${l.descricao ? `
+        <div class="cod">${esc(l.codigo)}</div>
+        ${code128Svg(l.codigo, dupla ? 3 : 5)}${dupla
+          ? (descLoc ? `
+        <div class="desc">${descLoc}</div>` : '')
+          : `${l.descricao ? `
         <div class="desc">${esc(l.descricao)}</div>` : ''}${l.locacao ? `
-        <div class="loc-linha">${esc(l.locacao)}</div>` : ''}
-      </div>`).join('\n')}
+        <div class="loc-linha">${esc(l.locacao)}</div>` : ''}`}
+      </div>`
+    }).join('\n')}
       <div class="dt">${dataRef}</div>
     </div>`
+  }
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Etiquetas de peças (folha 3×10)</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -449,15 +495,16 @@ ${e.linhas.map(l => `      <div class="bloco">
     display: flex; flex-direction: column; align-items: center; justify-content: center;
   }
   .bloco { max-width: 100%; }
-  .bloco + .bloco { margin-top: 0.9mm; }
+  .bloco + .bloco { margin-top: 0.8mm; }
   .emp { font-size: 6.5pt; font-weight: 800; letter-spacing: .4px; }
-  .cod { font-size: 13pt; font-weight: 800; line-height: 1.1; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .desc { font-size: 9pt; font-weight: 600; line-height: 1.15; max-width: 100%; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .cod { font-size: 12pt; font-weight: 800; line-height: 1.1; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .barra { display: block; margin: 0.4mm auto 0.3mm; width: 94%; }
+  .desc { font-size: 8.5pt; font-weight: 600; line-height: 1.15; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .loc-linha { font-size: 7.5pt; color: #333; line-height: 1.1; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .dupla .emp { font-size: 5pt; }
-  .dupla .cod { font-size: 9.5pt; line-height: 1.05; }
-  .dupla .desc { font-size: 7pt; line-height: 1.1; -webkit-line-clamp: 1; }
-  .dupla .loc-linha { font-size: 5.5pt; }
+  .dupla .cod { font-size: 9pt; line-height: 1.05; }
+  .dupla .barra { margin: 0.2mm auto; }
+  .dupla .desc { font-size: 6.5pt; line-height: 1.1; }
   .dt { position: absolute; bottom: 0.5mm; right: 1.4mm; font-size: 5.5pt; color: #666; }
   @media screen {
     body { background: #e5e7eb; }
@@ -486,13 +533,15 @@ function htmlRecorte(blocos: Etiqueta[]): string {
   .emp:first-child { margin-top: 0; }
   .linha { font-size: 12px; line-height: 1.35; margin-top: 1px; }
   .cod { font-weight: 800; font-family: 'Courier New', monospace; }
+  .barra { display: block; margin: 2px auto 3px; width: 72%; }
   .dt { position: absolute; bottom: 3px; right: 6px; font-size: 8px; color: #666; }
   @media print { body { padding: 4mm; } }
 </style></head><body>
 <div class="grade">
 ${blocos.map(e => `  <div class="etq">
 ${e.linhas.map(l => `    <div class="emp">${esc(l.empresa)}</div>
-    <div class="linha"><span class="cod">${esc(l.codigo)}</span> - ${esc(l.descricao)}${l.locacao ? ` - ${esc(l.locacao)}` : ''}</div>`).join('\n')}
+    <div class="linha"><span class="cod">${esc(l.codigo)}</span> - ${esc(l.descricao)}${l.locacao ? ` - ${esc(l.locacao)}` : ''}</div>
+    ${code128Svg(l.codigo, 7)}`).join('\n')}
     <div class="dt">${dataRef}</div>
   </div>`).join('\n')}
 </div>
