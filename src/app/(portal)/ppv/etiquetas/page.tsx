@@ -464,15 +464,17 @@ function htmlFolha(blocos: Etiqueta[], usadas: Set<number>): string {
     return `    <div class="cel${dupla ? ' dupla' : ''}">
 ${e.linhas.map(l => {
       const descLoc = [l.descricao, l.locacao].filter(Boolean).map(esc).join(' · ')
+      // barra por ÚLTIMO — o código de barras é o item menos importante
+      // visualmente; texto fica agrupado em cima (pedido do usuário)
       return `      <div class="bloco">
         <div class="emp">${esc(l.empresa)}</div>
-        <div class="cod">${esc(l.codigo)}</div>
-        ${code128Svg(l.codigo, dupla ? 3 : 5)}${dupla
+        <div class="cod">${esc(l.codigo)}</div>${dupla
           ? (descLoc ? `
         <div class="desc">${descLoc}</div>` : '')
           : `${l.descricao ? `
         <div class="desc">${esc(l.descricao)}</div>` : ''}${l.locacao ? `
         <div class="loc-linha">${esc(l.locacao)}</div>` : ''}`}
+        ${code128Svg(l.codigo, dupla ? 3 : 5)}
       </div>`
     }).join('\n')}
       <div class="dt">${dataRef}</div>
@@ -498,7 +500,7 @@ ${e.linhas.map(l => {
   .bloco + .bloco { margin-top: 0.8mm; }
   .emp { font-size: 6.5pt; font-weight: 800; letter-spacing: .4px; }
   .cod { font-size: 12pt; font-weight: 800; line-height: 1.1; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .barra { display: block; margin: 0.4mm auto 0.3mm; width: 94%; }
+  .barra { display: block; margin: 0.5mm auto 0; width: 94%; }
   .desc { font-size: 8.5pt; font-weight: 600; line-height: 1.15; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .loc-linha { font-size: 7.5pt; color: #333; line-height: 1.1; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .dupla .emp { font-size: 5pt; }
