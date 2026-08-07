@@ -356,7 +356,7 @@ export default function DashboardPage() {
         {visao === 'pecas' && (
           <>
             <Sel label="Categoria de peças" value={categoria} onChange={setCategoria} options={[{ value: '', label: 'Todas' }, ...categoriasOpts.map((c) => ({ value: c.codigo, label: c.descricao }))]} />
-            <span title="Categoria e Venda/Custo/Margem aplicam-se aos cards de Peças. Os KPIs mostram faturamento." style={{ fontSize: '1rem', color: '#9ca3af', cursor: 'help', paddingBottom: 9 }}>ⓘ</span>
+            <span title="Venda/Custo/Margem vale para Peças e Serviços (KPIs e cards). Serviços não tem custo apurado (fica “—” em Custo). Comprei é sempre entradas de NF." style={{ fontSize: '1rem', color: '#9ca3af', cursor: 'help', paddingBottom: 9 }}>ⓘ</span>
             <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
               {(['venda', 'custo', 'margem'] as Metrica[]).map((m) => (
                 <button key={m} onClick={() => setMetrica(m)}
@@ -445,27 +445,38 @@ export default function DashboardPage() {
         // ---- Visão PEÇAS + SERVIÇOS ----
         const pecasCats = cats.filter((c) => c.cardType === 'produto').slice().sort((a, b) => b.valorAtual - a.valorAtual);
         const totalPecasVenda = cPecas?.valorAtual ?? pecasCats.reduce((s, c) => s + c.valorAtual, 0);
-        const psAtual = (cPecas?.valorAtual || 0) + (cServ?.valorAtual || 0);
-        const psMesAnt = (cPecas?.mesAnteriorValor || 0) + (cServ?.mesAnteriorValor || 0);
-        const psAnoAnt = (cPecas?.anoAnteriorValor || 0) + (cServ?.anoAnteriorValor || 0);
+        // Peças e Serviços respondem ao toggle Venda/Custo/Margem. Serviços não tem
+        // custo apurado neste painel → em "Custo" fica "—".
+        const kv = (c: Categoria | undefined, quando: 'atual' | 'mesAnt' | 'anoAnt') => (c ? valorMetrica(c, metrica, quando) : 0);
+        const rotuloMetrica = metrica === 'venda' ? 'faturamento no período' : metrica === 'custo' ? 'custo (CMV) no período' : 'margem no período';
+        const psA = kv(cPecas, 'atual') + kv(cServ, 'atual');
+        const psM = kv(cPecas, 'mesAnt') + kv(cServ, 'mesAnt');
+        const psY = kv(cPecas, 'anoAnt') + kv(cServ, 'anoAnt');
+        const psMesAntV = (cPecas?.mesAnteriorValor || 0) + (cServ?.mesAnteriorValor || 0);
+        const psAnoAntV = (cPecas?.anoAnteriorValor || 0) + (cServ?.anoAnteriorValor || 0);
         const razaoCV = totalPecasVenda > 0 && cComprei ? cComprei.valorAtual / totalPecasVenda : null;
 
         return (
           <>
             {badgeParcial}
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
-              <KpiCard titulo="Peças + Serviços" accent={ACCENT.geral} valorNode={fmtRS(psAtual)} subNode="faturamento no período"
-                varM={calcVar(psAtual, psMesAnt)} supM={psMesAnt < BASE_MIN_PECAS} varA={calcVar(psAtual, psAnoAnt)} supA={psAnoAnt < BASE_MIN_PECAS}
-                modo={modo} parcial={parcial} strongDrop={!parcial && psAnoAnt >= BASE_MIN_PECAS && calcVar(psAtual, psAnoAnt) < -50} />
+              <KpiCard titulo="Peças + Serviços" accent={ACCENT.geral} valorNode={fmtRS(psA)} subNode={rotuloMetrica}
+                varM={calcVar(psA, psM)} supM={psMesAntV < BASE_MIN_PECAS} varA={calcVar(psA, psY)} supA={psAnoAntV < BASE_MIN_PECAS}
+                modo={modo} parcial={parcial} strongDrop={metrica === 'venda' && !parcial && psAnoAntV >= BASE_MIN_PECAS && calcVar(psA, psY) < -50} />
               {cPecas && (
-                <KpiCard titulo="Total Peças" accent={ACCENT.pecas} valorNode={fmtRS(cPecas.valorAtual)}
-                  varM={cPecas.varMesAnterior} supM={cPecas.mesAnteriorValor < BASE_MIN_PECAS} varA={cPecas.varAnoAnterior} supA={cPecas.anoAnteriorValor < BASE_MIN_PECAS}
-                  modo={modo} parcial={parcial} strongDrop={!parcial && cPecas.anoAnteriorValor >= BASE_MIN_PECAS && cPecas.varAnoAnterior < -50} />
+                <KpiCard titulo="Total Peças" accent={ACCENT.pecas} valorNode={fmtRS(kv(cPecas, 'atual'))} subNode={metrica !== 'venda' ? rotuloMetrica : undefined}
+                  varM={calcVar(kv(cPecas, 'atual'), kv(cPecas, 'mesAnt'))} supM={cPecas.mesAnteriorValor < BASE_MIN_PECAS}
+                  varA={calcVar(kv(cPecas, 'atual'), kv(cPecas, 'anoAnt'))} supA={cPecas.anoAnteriorValor < BASE_MIN_PECAS}
+                  modo={modo} parcial={parcial} strongDrop={metrica === 'venda' && !parcial && cPecas.anoAnteriorValor >= BASE_MIN_PECAS && cPecas.varAnoAnterior < -50} />
               )}
               {cServ && (
-                <KpiCard titulo="Serviços" accent={ACCENT.servicos} valorNode={fmtRS(cServ.valorAtual)}
-                  varM={cServ.varMesAnterior} supM={cServ.mesAnteriorValor < BASE_MIN_PECAS} varA={cServ.varAnoAnterior} supA={cServ.anoAnteriorValor < BASE_MIN_PECAS}
-                  modo={modo} parcial={parcial} strongDrop={!parcial && cServ.anoAnteriorValor >= BASE_MIN_PECAS && cServ.varAnoAnterior < -50} />
+                <KpiCard titulo="Serviços" accent={ACCENT.servicos}
+                  valorNode={metrica === 'custo' ? '—' : fmtRS(kv(cServ, 'atual'))}
+                  subNode={metrica === 'venda' ? undefined : metrica === 'custo' ? 'serviço sem custo apurado' : 'margem = receita (sem custo)'}
+                  varM={calcVar(kv(cServ, 'atual'), kv(cServ, 'mesAnt'))} supM={cServ.mesAnteriorValor < BASE_MIN_PECAS}
+                  varA={calcVar(kv(cServ, 'atual'), kv(cServ, 'anoAnt'))} supA={cServ.anoAnteriorValor < BASE_MIN_PECAS}
+                  modo={modo} parcial={parcial} semVar={metrica === 'custo'}
+                  strongDrop={metrica === 'venda' && !parcial && cServ.anoAnteriorValor >= BASE_MIN_PECAS && cServ.varAnoAnterior < -50} />
               )}
               {cComprei && (
                 <KpiCard titulo="Comprei" accent={ACCENT.comprei} valorNode={fmtRS(cComprei.valorAtual)} subNode="entradas de peças (NF)"
