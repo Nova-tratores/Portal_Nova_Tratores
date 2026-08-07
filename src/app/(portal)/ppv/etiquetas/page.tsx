@@ -463,22 +463,27 @@ function htmlFolha(blocos: Etiqueta[], usadas: Set<number>): string {
     const dupla = e.linhas.length > 1
     return `    <div class="cel${dupla ? ' dupla' : ''}">
 ${e.linhas.map(l => {
-      // Na dupla, descrição·locação dividem a linha, mas a LOCAÇÃO nunca some:
-      // ela não encolhe (flex) — quem corta no "…" é a descrição.
+      // Na dupla, descrição·locação dividem a linha. Prioridade do usuário:
+      // CÓDIGO e DESCRIÇÃO inteiros — quem corta no "…" é a locação.
       const descLocDupla = (l.descricao || l.locacao)
         ? `
         <div class="descloc">${l.descricao ? `<span class="d">${esc(l.descricao)}</span>` : ''}${l.locacao ? `<span class="l">${l.descricao ? '· ' : ''}${esc(l.locacao)}</span>` : ''}</div>`
         : ''
-      // barra por ÚLTIMO — o código de barras é o item menos importante
-      // visualmente; texto fica agrupado em cima (pedido do usuário)
+      // Empresa no canto ESQUERDO da linha do código (poupa uma linha por
+      // bloco — pedido do usuário); o span fantasma espelha a largura à
+      // direita pra manter o código centralizado de verdade.
+      // Barra por último — é o item menos importante visualmente.
       return `      <div class="bloco">
-        <div class="emp">${esc(l.empresa)}</div>
-        <div class="cod">${esc(l.codigo)}</div>${dupla
+        <div class="cab">
+          <span class="emp">${esc(l.empresa)}</span>
+          <span class="cod">${esc(l.codigo)}</span>
+          <span class="emp fantasma">${esc(l.empresa)}</span>
+        </div>${dupla
           ? descLocDupla
           : `${l.descricao ? `
         <div class="desc">${esc(l.descricao)}</div>` : ''}${l.locacao ? `
         <div class="loc-linha">${esc(l.locacao)}</div>` : ''}`}
-        ${code128Svg(l.codigo, dupla ? 3 : 5)}
+        ${code128Svg(l.codigo, dupla ? 4 : 5.5)}
       </div>`
     }).join('\n')}
       <div class="dt">${dataRef}</div>
@@ -500,19 +505,21 @@ ${e.linhas.map(l => {
     position: relative; overflow: hidden; padding: 0.8mm 2mm; text-align: center;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
   }
-  .bloco { max-width: 100%; }
+  .bloco { max-width: 100%; width: 100%; }
   .bloco + .bloco { margin-top: 0.8mm; }
-  .emp { font-size: 6.5pt; font-weight: 800; letter-spacing: .4px; }
-  .cod { font-size: 12pt; font-weight: 800; line-height: 1.1; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cab { display: flex; align-items: center; gap: 1mm; width: 100%; }
+  .emp { flex: 0 1 auto; min-width: 0; font-size: 6pt; font-weight: 800; letter-spacing: .3px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fantasma { visibility: hidden; }
+  .cod { flex: 1 1 auto; min-width: 0; font-size: 12pt; font-weight: 800; line-height: 1.1; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .barra { display: block; margin: 0.5mm auto 0; width: 94%; }
-  .desc { font-size: 8.5pt; font-weight: 600; line-height: 1.15; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .loc-linha { font-size: 7.5pt; color: #333; line-height: 1.1; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .desc { font-size: 9pt; font-weight: 600; line-height: 1.15; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .loc-linha { font-size: 8pt; color: #333; line-height: 1.1; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .dupla .emp { font-size: 5pt; }
-  .dupla .cod { font-size: 9pt; line-height: 1.05; }
+  .dupla .cod { font-size: 9.5pt; line-height: 1.05; }
   .dupla .barra { margin: 0.2mm auto; }
-  .descloc { display: flex; justify-content: center; align-items: baseline; gap: 2px; max-width: 100%; font-size: 6.5pt; font-weight: 600; line-height: 1.1; }
-  .descloc .d { flex: 0 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .descloc .l { flex: 0 0 auto; white-space: nowrap; color: #333; }
+  .descloc { display: flex; justify-content: center; align-items: baseline; gap: 2px; max-width: 100%; font-size: 7pt; font-weight: 600; line-height: 1.1; }
+  .descloc .d { flex: 0 0 auto; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  .descloc .l { flex: 0 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #333; }
   .dt { position: absolute; bottom: 0.5mm; right: 1.4mm; font-size: 5.5pt; color: #666; }
   @media screen {
     body { background: #e5e7eb; }
