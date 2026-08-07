@@ -84,24 +84,49 @@ export async function GET(req: NextRequest) {
     if (error) throw error;
     const itens = data || [];
 
-    // Busca por LOCAÇÃO: "3 G 1" (ou "3G1") = #PRATELEIRA 3 · #ANDAR G ·
-    // #CAIXA 1, na mesma ordem da etiqueta. JSON não entra no or= do
-    // PostgREST (vírgula/chaves quebram o parser) → consulta separada com
-    // contains e merge deduplicado.
-    const tokens = (/\s/.test(seguro) ? seguro.split(/[\s\-./]+/) : seguro.match(/\d+|[a-zA-Z]+/g) || [])
-      .map((t) => t.trim().toUpperCase())
-      .filter(Boolean);
-    const pareceLocacao = tokens.length >= 1 && tokens.length <= 3 && tokens.every((t) => t.length <= 4);
-    if (pareceLocacao) {
-      const chaves = ["#PRATELEIRA", "#ANDAR", "#CAIXA"];
-      const alvo: Record<string, string> = {};
-      tokens.forEach((t, i) => { alvo[chaves[i]] = t; });
-      const { data: porLocacao } = await supabase
+    // Busca por LOCAÇÃO em dois formatos:
+    //   rotulado:   "PRATELEIRA 6", "ANDAR H", "CAIXA 03" (com sobras de
+    //               texto filtrando a descrição: "rolamento prateleira 6")
+    //   posicional: "3 G 1" ou "3G1" = #PRATELEIRA/#ANDAR/#CAIXA na ordem
+    // Filtro direto na chave do JSONB (caracteristicas->>#CHAVE): ilike pra
+    // letra (case-insensitive) e in() com variantes pra número ("3" acha
+    // "03" e vice-versa). JSON não entra no or= do PostgREST → consulta
+    // separada com merge deduplicado.
+    const CHAVES = ["#PRATELEIRA", "#ANDAR", "#CAIXA"];
+    const brutos = seguro.toUpperCase();
+    const pares: [string, string][] = [];
+    const reRotulo = /\b(PRATELEIRAS?|ANDAR(?:ES)?|CAIXAS?)\s*[:=]?\s*([A-Z0-9]{1,4})\b/g;
+    let mRot: RegExpExecArray | null;
+    while ((mRot = reRotulo.exec(brutos))) {
+      const chave = mRot[1].startsWith("PRATELEIRA") ? "#PRATELEIRA" : mRot[1].startsWith("ANDAR") ? "#ANDAR" : "#CAIXA";
+      pares.push([chave, mRot[2]]);
+    }
+    const restoDescricao = pares.length > 0
+      ? brutos.replace(/\b(PRATELEIRAS?|ANDAR(?:ES)?|CAIXAS?)\s*[:=]?\s*([A-Z0-9]{1,4})\b/g, " ").replace(/\s+/g, " ").trim()
+      : "";
+    if (pares.length === 0) {
+      const tokens = (/\s/.test(seguro) ? seguro.split(/[\s\-./]+/) : seguro.match(/\d+|[a-zA-Z]+/g) || [])
+        .map((t) => t.trim().toUpperCase())
+        .filter(Boolean);
+      if (tokens.length >= 1 && tokens.length <= 3 && tokens.every((t) => t.length <= 4)) {
+        tokens.forEach((t, i) => { pares.push([CHAVES[i], t]); });
+      }
+    }
+    if (pares.length > 0) {
+      let qy = supabase
         .from("produtos_caracteristicas")
-        .select("conta_omie, codigo, descricao, caracteristicas")
-        .contains("caracteristicas", alvo)
-        .order("descricao")
-        .limit(120);
+        .select("conta_omie, codigo, descricao, caracteristicas");
+      for (const [chave, valor] of pares) {
+        const path = `caracteristicas->>${chave}`;
+        if (/^\d+$/.test(valor)) {
+          const semZeros = String(Number(valor));
+          qy = qy.in(path, [...new Set([valor, semZeros, semZeros.padStart(2, "0")])]);
+        } else {
+          qy = qy.ilike(path, valor);
+        }
+      }
+      if (restoDescricao.length >= 2) qy = qy.ilike("descricao", `%${restoDescricao}%`);
+      const { data: porLocacao } = await qy.order("descricao").limit(120);
       const vistos = new Set(itens.map((p) => `${p.conta_omie}|${p.codigo}`));
       for (const p of porLocacao || []) {
         const k = `${p.conta_omie}|${p.codigo}`;

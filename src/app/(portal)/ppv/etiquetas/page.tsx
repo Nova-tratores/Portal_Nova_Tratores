@@ -210,7 +210,7 @@ export default function EtiquetasPecasPage() {
       {/* Busca */}
       <div style={{ position: 'relative', marginBottom: 10 }}>
         <Search size={15} style={{ position: 'absolute', left: 12, top: 12, color: 'var(--portal-text-muted)' }} />
-        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Código, descrição ou locação da peça (ex.: 3 G 1)…" style={INP} autoFocus />
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Código, descrição ou locação (ex.: PRATELEIRA 6, ANDAR H ou 3 G 1)…" style={INP} autoFocus />
         {buscando && <Loader2 size={15} className="animate-spin" style={{ position: 'absolute', right: 12, top: 12, color: 'var(--portal-text-muted)' }} />}
       </div>
       {erro && <div style={{ fontSize: 12.5, color: '#dc2626', fontWeight: 600, marginBottom: 10 }}>{erro}</div>}
@@ -418,20 +418,13 @@ function htmlFolha(blocos: Etiqueta[], usadas: Set<number>): string {
   // Mês/ano da impressão no canto — mostra o quão atualizada a etiqueta está
   const agora = new Date()
   const dataRef = `${String(agora.getMonth() + 1).padStart(2, '0')}/${agora.getFullYear()}`
-  // Foco no CÓDIGO e na DESCRIÇÃO (locação vira apoio): etiqueta de 1 peça
-  // tem código grande + descrição em até 2 linhas; a dupla compacta a locação
-  // junto do código pra descrição continuar aparecendo.
+  // Foco no CÓDIGO e na DESCRIÇÃO (locação vira apoio, sempre por último) —
+  // MESMA ordem na etiqueta simples e na dupla; a dupla só compacta as fontes.
   const cel = (e: Etiqueta | null) =>
     e === null
       ? '    <div class="cel"></div>'
       : `    <div class="cel${e.linhas.length > 1 ? ' dupla' : ''}">
-${e.linhas.map(l => e.linhas.length > 1
-        ? `      <div class="bloco">
-        <div class="emp">${esc(l.empresa)}</div>
-        <div class="cod">${esc(l.codigo)}${l.locacao ? `<span class="loc"> · ${esc(l.locacao)}</span>` : ''}</div>${l.descricao ? `
-        <div class="desc">${esc(l.descricao)}</div>` : ''}
-      </div>`
-        : `      <div class="bloco">
+${e.linhas.map(l => `      <div class="bloco">
         <div class="emp">${esc(l.empresa)}</div>
         <div class="cod">${esc(l.codigo)}</div>${l.descricao ? `
         <div class="desc">${esc(l.descricao)}</div>` : ''}${l.locacao ? `
@@ -456,15 +449,15 @@ ${e.linhas.map(l => e.linhas.length > 1
     display: flex; flex-direction: column; align-items: center; justify-content: center;
   }
   .bloco { max-width: 100%; }
-  .bloco + .bloco { margin-top: 1.2mm; }
+  .bloco + .bloco { margin-top: 0.9mm; }
   .emp { font-size: 6.5pt; font-weight: 800; letter-spacing: .4px; }
   .cod { font-size: 13pt; font-weight: 800; line-height: 1.1; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .desc { font-size: 9pt; font-weight: 600; line-height: 1.15; max-width: 100%; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-  .loc-linha { font-size: 7.5pt; color: #333; line-height: 1.15; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .loc { font-size: 7.5pt; font-weight: 600; color: #333; }
-  .dupla .emp { font-size: 5.5pt; }
-  .dupla .cod { font-size: 10pt; }
-  .dupla .desc { font-size: 7.5pt; -webkit-line-clamp: 1; }
+  .loc-linha { font-size: 7.5pt; color: #333; line-height: 1.1; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dupla .emp { font-size: 5pt; }
+  .dupla .cod { font-size: 9.5pt; line-height: 1.05; }
+  .dupla .desc { font-size: 7pt; line-height: 1.1; -webkit-line-clamp: 1; }
+  .dupla .loc-linha { font-size: 5.5pt; }
   .dt { position: absolute; bottom: 0.5mm; right: 1.4mm; font-size: 5.5pt; color: #666; }
   @media screen {
     body { background: #e5e7eb; }
