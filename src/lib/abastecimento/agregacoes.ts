@@ -33,7 +33,8 @@ export interface LinhaDash {
   posto_cidade: string | null;
   combustivel: string | null;
   litros: number;
-  valor_total: number | null;
+  valor_total: number | null; // valor PAGO (com desconto da operadora)
+  valor_economizado?: number | null; // desconto da operadora (req = null)
   hodometro: number | null;
   data_transacao: string;
   capacidade_tanque: number | null;
@@ -103,6 +104,7 @@ export function calcularTotais(linhas: LinhaDash[]): Omit<TotaisDash, 'varMesAnt
   return {
     litros,
     valor,
+    economizado: linhas.reduce((s, l) => s + num(l.valor_economizado), 0),
     transacoes: linhas.length,
     veiculos: new Set(linhas.map((l) => l.placa)).size,
     precoMedioLitro: litros > 0 ? valor / litros : 0,

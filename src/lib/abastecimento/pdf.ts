@@ -92,6 +92,7 @@ export async function gerarPdfTransacoes(opts: {
   linhas: TransacaoRow[];
   somaValor: number;
   somaLitros: number;
+  somaEconomia?: number; // desconto da operadora no recorte
 }) {
   const { doc, autoTable, startY } = await novoDoc('landscape', {
     titulo: 'Relatório de Abastecimentos (analítico)',
@@ -102,7 +103,7 @@ export async function gerarPdfTransacoes(opts: {
   autoTable(doc, {
     ...ESTILO_TABELA,
     startY,
-    head: [['Data/Hora', 'Origem', 'Placa', 'Modelo', 'Motorista', 'Posto', 'Combustível', 'Litros', 'R$/L', 'Total', 'Hodômetro', 'OS']],
+    head: [['Data/Hora', 'Origem', 'Placa', 'Modelo', 'Motorista', 'Posto', 'Combustível', 'Litros', 'R$/L', 'Total pago', 'Economia', 'Hodômetro', 'OS']],
     body: opts.linhas.map((l) => [
       fmtDataLinha(l),
       l.origem === 'requisicao' ? `Req #${l.req_id}` : 'Cartão',
@@ -114,15 +115,17 @@ export async function gerarPdfTransacoes(opts: {
       fmtL(l.litros),
       l.valor_unitario != null ? l.valor_unitario.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '—',
       fmtRS(l.valor_total),
+      l.valor_economizado ? fmtRS(l.valor_economizado) : '—',
       l.hodometro != null ? l.hodometro.toLocaleString('pt-BR', { maximumFractionDigits: 0 }) : '—',
       l.ordem_servico || '—',
     ]),
     foot: [[
       { content: `${opts.linhas.length} abastecimento(s)`, colSpan: 7 },
-      fmtL(opts.somaLitros), '', fmtRS(opts.somaValor), '', '',
+      fmtL(opts.somaLitros), '', fmtRS(opts.somaValor),
+      opts.somaEconomia ? fmtRS(opts.somaEconomia) : '—', '', '',
     ]],
     footStyles: { fillColor: [245, 245, 245] as [number, number, number], textColor: 40, fontStyle: 'bold' as const },
-    columnStyles: { 7: { halign: 'right' }, 8: { halign: 'right' }, 9: { halign: 'right' }, 10: { halign: 'right' } },
+    columnStyles: { 7: { halign: 'right' }, 8: { halign: 'right' }, 9: { halign: 'right' }, 10: { halign: 'right' }, 11: { halign: 'right' } },
   });
 
   rodapePaginas(doc);

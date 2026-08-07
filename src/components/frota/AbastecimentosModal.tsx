@@ -14,7 +14,8 @@ interface Props {
 interface Abast {
   data_transacao: string;
   litros: number;
-  valor_total: number;
+  valor_total: number; // valor PAGO (com desconto da operadora)
+  valor_economizado: number | null; // desconto da operadora
   combustivel: string | null;
   posto_nome: string | null;
   motorista_nome: string | null;
@@ -64,7 +65,7 @@ export default function AbastecimentosModal({ placa, onClose }: Props) {
       for (let off = 0; off < 20_000; off += 1000) {
         const { data } = await supabase
           .from('abastecimentos')
-          .select('data_transacao, litros, valor_total, combustivel, posto_nome, motorista_nome, hodometro')
+          .select('data_transacao, litros, valor_total, valor_economizado, combustivel, posto_nome, motorista_nome, hodometro')
           .eq('placa', placa)
           .order('data_transacao', { ascending: false })
           .range(off, off + 999);
@@ -102,6 +103,7 @@ export default function AbastecimentosModal({ placa, onClose }: Props) {
 
   const totLitros = linhas.reduce((s, l) => s + (Number(l.litros) || 0), 0);
   const totValor = linhas.reduce((s, l) => s + (Number(l.valor_total) || 0), 0);
+  const totEconomia = linhas.reduce((s, l) => s + (Number(l.valor_economizado) || 0), 0);
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 950, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
@@ -112,6 +114,7 @@ export default function AbastecimentosModal({ placa, onClose }: Props) {
           <strong style={{ fontSize: 15, fontWeight: 800, color: 'var(--portal-text)' }}>Abastecimentos · {formatarPlaca(placa)}</strong>
           <span style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>
             {linhas.length} no total · {fmtL(totLitros)} L · <strong style={{ color: 'var(--portal-text)' }}>{fmtRS(totValor)}</strong>
+            {totEconomia > 0 && <> · economia <strong style={{ color: '#16a34a' }}>{fmtRS(totEconomia)}</strong></>}
           </span>
           <div style={{ flex: 1 }} />
           <div style={{ display: 'flex', border: '1px solid var(--portal-border)', borderRadius: 8, overflow: 'hidden' }}>
@@ -148,6 +151,9 @@ export default function AbastecimentosModal({ placa, onClose }: Props) {
                   {l.combustivel && <span style={{ fontSize: 10.5, fontWeight: 700, color: /etanol|alcool|álcool/i.test(l.combustivel) ? '#15803d' : /gasolina/i.test(l.combustivel) ? '#b45309' : 'var(--portal-text-muted)', background: 'var(--portal-bg-secondary)', borderRadius: 999, padding: '1px 8px' }}>{l.combustivel}</span>}
                   <span style={{ flex: 1, minWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.posto_nome || '—'}</span>
                   {l.hodometro != null && <span style={{ color: 'var(--portal-text-muted)', fontSize: 11 }}>{Number(l.hodometro).toLocaleString('pt-BR')} km</span>}
+                  {Number(l.valor_economizado) > 0 && (
+                    <span title="Desconto da operadora" style={{ color: '#16a34a', fontSize: 11, fontWeight: 700 }}>−{fmtRS(Number(l.valor_economizado))}</span>
+                  )}
                   <strong style={{ color: 'var(--portal-text)' }}>{fmtRS(Number(l.valor_total))}</strong>
                 </div>
               ))}

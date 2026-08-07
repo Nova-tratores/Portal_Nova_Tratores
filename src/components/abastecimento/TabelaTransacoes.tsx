@@ -53,7 +53,8 @@ const COLUNAS: ColunaDef<TransacaoRow>[] = [
   { chave: 'combustivel', titulo: 'Combustível', valor: (l) => l.combustivel, render: (l) => l.combustivel || '—' },
   { chave: 'litros', titulo: 'Litros', direita: true, valor: (l) => l.litros, render: (l) => l.litros.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) },
   { chave: 'unitario', titulo: 'R$/L', direita: true, valor: (l) => l.valor_unitario, render: (l) => (l.valor_unitario != null ? l.valor_unitario.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '—') },
-  { chave: 'total', titulo: 'Total', direita: true, valor: (l) => l.valor_total, render: (l) => <strong>{fmtRS(l.valor_total)}</strong> },
+  { chave: 'total', titulo: 'Total pago', direita: true, valor: (l) => l.valor_total, render: (l) => <strong>{fmtRS(l.valor_total)}</strong> },
+  { chave: 'economia', titulo: 'Economia', direita: true, valor: (l) => l.valor_economizado ?? null, render: (l) => (l.valor_economizado ? <span style={{ color: '#16a34a', fontWeight: 700 }}>{fmtRS(l.valor_economizado)}</span> : '—') },
   { chave: 'hodometro', titulo: 'Hodômetro', direita: true, valor: (l) => l.hodometro, render: (l) => (l.hodometro != null ? l.hodometro.toLocaleString('pt-BR', { maximumFractionDigits: 0 }) : '—') },
   { chave: 'os', titulo: 'OS', valor: (l) => l.ordem_servico, render: (l) => l.ordem_servico || '—' },
 ];
@@ -71,7 +72,7 @@ export default function TabelaTransacoes({ de, ate, filial, placa, motoristas, v
   const [motorista, setMotorista] = useState('');
   const [placaLocal, setPlacaLocal] = useState('');
   const [linhas, setLinhas] = useState<TransacaoRow[]>([]);
-  const [somas, setSomas] = useState({ valor: 0, litros: 0 });
+  const [somas, setSomas] = useState({ valor: 0, litros: 0, economia: 0 });
   const [carregando, setCarregando] = useState(true);
   const [gerando, setGerando] = useState('');
 
@@ -92,7 +93,7 @@ export default function TabelaTransacoes({ de, ate, filial, placa, motoristas, v
       const d = (await r.json()) as TransacoesResp;
       if (!r.ok) return;
       setLinhas(d.linhas);
-      setSomas({ valor: d.somaValor, litros: d.somaLitros });
+      setSomas({ valor: d.somaValor, litros: d.somaLitros, economia: d.somaEconomia || 0 });
     } finally {
       setCarregando(false);
     }
@@ -111,7 +112,7 @@ export default function TabelaTransacoes({ de, ate, filial, placa, motoristas, v
       if (filial) filtros.push(`Filial: ${filial}`);
       if (params.placa) filtros.push(`Veículo: ${params.placa}`);
       if (motorista) filtros.push(`Motorista: ${motorista === '__sem__' ? 'Sem motorista' : motorista}`);
-      await gerarPdfTransacoes({ periodo: { de, ate }, filtros, linhas, somaValor: somas.valor, somaLitros: somas.litros });
+      await gerarPdfTransacoes({ periodo: { de, ate }, filtros, linhas, somaValor: somas.valor, somaLitros: somas.litros, somaEconomia: somas.economia });
     } finally {
       setGerando('');
     }
@@ -133,6 +134,7 @@ export default function TabelaTransacoes({ de, ate, filial, placa, motoristas, v
         </select>
         <span style={{ color: '#888', fontSize: '.8rem' }}>
           {linhas.length} registro(s) · {somas.litros.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} L · <strong style={{ color: '#dc2626' }}>{fmtRS(somas.valor)}</strong>
+          {somas.economia > 0 && <> · economia <strong style={{ color: '#16a34a' }}>{fmtRS(somas.economia)}</strong></>}
         </span>
         <button
           onClick={() => exportar('pdf')}

@@ -84,7 +84,11 @@ export interface TransacaoRow {
   combustivel: string | null;
   litros: number;
   valor_unitario: number | null;
-  valor_total: number | null;
+  valor_total: number | null; // valor PAGO (já com o desconto da operadora)
+  // desconto da operadora (Veloe): valor cheio e quanto foi economizado.
+  // Requisição não tem desconto — ficam null.
+  valor_original?: number | null;
+  valor_economizado?: number | null;
   hodometro: number | null;
   ordem_servico: string | null;
   // Fonte da linha: CSV do cartão-frota ou requisição de abastecimento
@@ -99,13 +103,15 @@ export interface TransacoesResp {
   total: number; // total de registros no filtro (para paginação)
   somaValor: number;
   somaLitros: number;
+  somaEconomia: number; // total economizado com o desconto da operadora
 }
 
 // ----- Dashboard -----
 
 export interface TotaisDash {
   litros: number;
-  valor: number;
+  valor: number; // valor PAGO (com desconto)
+  economizado: number; // desconto da operadora no período
   transacoes: number;
   veiculos: number;
   precoMedioLitro: number;

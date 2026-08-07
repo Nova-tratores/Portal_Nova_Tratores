@@ -30,7 +30,7 @@ const supabase = createClient(
 );
 
 const COLS =
-  'id, data_transacao, placa, modelo_veiculo, departamento, filial_nome, motorista_nome, posto_nome, combustivel, litros, valor_unitario, valor_total, hodometro, ordem_servico';
+  'id, data_transacao, placa, modelo_veiculo, departamento, filial_nome, motorista_nome, posto_nome, combustivel, litros, valor_unitario, valor_total, valor_original, valor_economizado, hodometro, ordem_servico';
 
 const PAGINA = 1000;
 
@@ -59,6 +59,8 @@ function reqParaTransacao(r: ReqAbastecimento): TransacaoRow {
     litros: r.litros,
     valor_unitario: r.valor_unitario,
     valor_total: r.valor_total,
+    valor_original: null, // requisição não tem desconto de operadora
+    valor_economizado: null,
     hodometro: r.hodometro,
     ordem_servico: r.ordem_servico,
     origem: 'requisicao',
@@ -134,6 +136,8 @@ export async function GET(req: NextRequest) {
               litros: Number(l.litros) || 0,
               valor_unitario: l.valor_unitario == null ? null : Number(l.valor_unitario),
               valor_total: l.valor_total == null ? null : Number(l.valor_total),
+              valor_original: l.valor_original == null ? null : Number(l.valor_original),
+              valor_economizado: l.valor_economizado == null ? null : Number(l.valor_economizado),
               hodometro: l.hodometro == null ? null : Number(l.hodometro),
               origem: 'cartao',
             });
@@ -146,6 +150,7 @@ export async function GET(req: NextRequest) {
         total: todas.length,
         somaValor: todas.reduce((s, l) => s + (l.valor_total || 0), 0),
         somaLitros: todas.reduce((s, l) => s + l.litros, 0),
+        somaEconomia: todas.reduce((s, l) => s + (l.valor_economizado || 0), 0),
       };
       return NextResponse.json(resp);
     }
@@ -179,10 +184,11 @@ export async function GET(req: NextRequest) {
     let totalCartao = 0;
     let somaValor = 0;
     let somaLitros = 0;
+    let somaEconomia = 0;
 
     for (let off = 0; ; off += PAGINA) {
       const { data, error, count } = await filtros(
-        supabase.from('abastecimentos').select('litros, valor_total', { count: off === 0 ? 'exact' : undefined }),
+        supabase.from('abastecimentos').select('litros, valor_total, valor_economizado', { count: off === 0 ? 'exact' : undefined }),
       )
         .order('data_transacao', { ascending: false })
         .range(off, off + PAGINA - 1);
@@ -191,6 +197,7 @@ export async function GET(req: NextRequest) {
       for (const l of data || []) {
         somaValor += Number((l as { valor_total: unknown }).valor_total) || 0;
         somaLitros += Number((l as { litros: unknown }).litros) || 0;
+        somaEconomia += Number((l as { valor_economizado: unknown }).valor_economizado) || 0;
       }
       if (!data || data.length < PAGINA) break;
     }
@@ -217,6 +224,8 @@ export async function GET(req: NextRequest) {
           litros: Number(l.litros) || 0,
           valor_unitario: l.valor_unitario == null ? null : Number(l.valor_unitario),
           valor_total: l.valor_total == null ? null : Number(l.valor_total),
+          valor_original: l.valor_original == null ? null : Number(l.valor_original),
+          valor_economizado: l.valor_economizado == null ? null : Number(l.valor_economizado),
           hodometro: l.hodometro == null ? null : Number(l.hodometro),
           origem: 'cartao',
         });
@@ -227,7 +236,7 @@ export async function GET(req: NextRequest) {
       .sort((a, b) => tempoDe(b.data_transacao) - tempoDe(a.data_transacao))
       .slice(offset, fim);
 
-    const resp: TransacoesResp = { linhas, total, somaValor, somaLitros };
+    const resp: TransacoesResp = { linhas, total, somaValor, somaLitros, somaEconomia };
     return NextResponse.json(resp);
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });

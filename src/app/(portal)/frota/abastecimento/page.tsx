@@ -442,7 +442,14 @@ export default function AbastecimentoPage() {
             <>
               {/* KPIs */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12, marginBottom: 16 }}>
-                <KPI label="Gasto total" valor={fmtRS(dados.totais.valor)} onClick={() => abrirDetalhe('Todos os abastecimentos do período', {})} />
+                <KPI label="Gasto total" valor={fmtRS(dados.totais.valor)} sub="pago (com desconto)" onClick={() => abrirDetalhe('Todos os abastecimentos do período', {})} />
+                <KPI
+                  label="Economizado (desconto)"
+                  valor={fmtRS(dados.totais.economizado || 0)}
+                  cor="#16a34a"
+                  sub="desconto da operadora"
+                  onClick={() => abrirDetalhe('Todos os abastecimentos do período', {})}
+                />
                 <KPI label="Litros" valor={fmtL(dados.totais.litros)} onClick={() => abrirDetalhe('Todos os abastecimentos do período', {})} />
                 <KPI label="Preço médio/L" valor={fmtRS(dados.totais.precoMedioLitro)} onClick={() => abrirDetalhe('Todos os abastecimentos do período', {})} />
                 <KPI label="Abastecimentos" valor={String(dados.totais.transacoes)} sub={`${dados.totais.veiculos} veículo(s)`} onClick={() => abrirDetalhe('Todos os abastecimentos do período', {})} />

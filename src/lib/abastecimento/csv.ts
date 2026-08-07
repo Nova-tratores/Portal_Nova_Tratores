@@ -39,7 +39,7 @@ export function gerarCsvTransacoes(opts: {
   linhas: TransacaoRow[];
 }) {
   baixarCsv(`abastecimentos_${opts.periodo.de}_a_${opts.periodo.ate}.csv`, [
-    ['Data/Hora', 'Origem', 'Placa', 'Modelo', 'Departamento', 'Motorista', 'Posto', 'Combustível', 'Litros', 'R$/L', 'Total (R$)', 'Hodômetro', 'OS', 'Filial'],
+    ['Data/Hora', 'Origem', 'Placa', 'Modelo', 'Departamento', 'Motorista', 'Posto', 'Combustível', 'Litros', 'R$/L', 'Sem desconto (R$)', 'Total pago (R$)', 'Economia (R$)', 'Hodômetro', 'OS', 'Filial'],
     ...opts.linhas.map((l) => [
       fmtDataLinha(l),
       l.origem === 'requisicao' ? `Requisição #${l.req_id}` : 'Cartão',
@@ -51,7 +51,9 @@ export function gerarCsvTransacoes(opts: {
       l.combustivel,
       l.litros,
       l.valor_unitario,
+      l.valor_original,
       l.valor_total,
+      l.valor_economizado,
       l.hodometro,
       l.ordem_servico,
       l.filial_nome,

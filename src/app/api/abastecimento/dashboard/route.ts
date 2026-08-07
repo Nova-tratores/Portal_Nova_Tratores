@@ -25,7 +25,7 @@ const supabase = createClient(
 );
 
 const COLS =
-  'placa, id_placa, modelo_veiculo, filial_nome, motorista_nome, posto_nome, posto_cidade, combustivel, litros, valor_total, hodometro, data_transacao, capacidade_tanque, ordem_servico, departamento';
+  'placa, id_placa, modelo_veiculo, filial_nome, motorista_nome, posto_nome, posto_cidade, combustivel, litros, valor_total, valor_economizado, hodometro, data_transacao, capacidade_tanque, ordem_servico, departamento';
 
 const PAGINA = 1000;
 

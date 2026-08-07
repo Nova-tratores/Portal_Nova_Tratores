@@ -38,7 +38,8 @@ export const COLUNAS_POPUP: ColunaDef<TransacaoRow>[] = [
   // veículos sem rastreador (pedido do usuário: aparecer no dia do abastecimento)
   { chave: 'hodometro', titulo: 'Hodômetro', direita: true, valor: (l) => l.hodometro, render: (l) => (l.hodometro != null && l.hodometro > 0 ? `${l.hodometro.toLocaleString('pt-BR')} km` : '—') },
   { chave: 'unitario', titulo: 'R$/L', direita: true, valor: (l) => l.valor_unitario, render: (l) => (l.valor_unitario != null ? l.valor_unitario.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '—') },
-  { chave: 'total', titulo: 'Total', direita: true, valor: (l) => l.valor_total, render: (l) => <strong>{fmtRS(l.valor_total)}</strong> },
+  { chave: 'total', titulo: 'Total pago', direita: true, valor: (l) => l.valor_total, render: (l) => <strong>{fmtRS(l.valor_total)}</strong> },
+  { chave: 'economia', titulo: 'Economia', direita: true, valor: (l) => l.valor_economizado ?? null, render: (l) => (l.valor_economizado ? <span style={{ color: '#16a34a', fontWeight: 700 }}>{fmtRS(l.valor_economizado)}</span> : '—') },
 ];
 
 export interface DetalheParams {
@@ -85,7 +86,7 @@ function CelulaTreemap(props: any) {
 
 export default function DetalheModal({ titulo, params, onClose }: DetalheParams & { onClose: () => void }) {
   const [linhas, setLinhas] = useState<TransacaoRow[]>([]);
-  const [somas, setSomas] = useState({ valor: 0, litros: 0 });
+  const [somas, setSomas] = useState({ valor: 0, litros: 0, economia: 0 });
   const [carregando, setCarregando] = useState(true);
   const [gerando, setGerando] = useState('');
   const [erro, setErro] = useState('');
@@ -116,7 +117,7 @@ export default function DetalheModal({ titulo, params, onClose }: DetalheParams 
         if (cancelado) return;
         if (!r.ok) { setErro(d.error || 'Erro ao carregar.'); return; }
         setLinhas(d.linhas);
-        setSomas({ valor: d.somaValor, litros: d.somaLitros });
+        setSomas({ valor: d.somaValor, litros: d.somaLitros, economia: d.somaEconomia || 0 });
       } catch (e) {
         if (!cancelado) setErro('Erro: ' + (e as Error).message);
       } finally {
@@ -135,7 +136,7 @@ export default function DetalheModal({ titulo, params, onClose }: DetalheParams 
     setGerando(formato);
     try {
       if (formato === 'csv') gerarCsvTransacoes({ periodo: periodoExport, linhas });
-      else await gerarPdfTransacoes({ periodo: periodoExport, filtros: [titulo], linhas, somaValor: somas.valor, somaLitros: somas.litros });
+      else await gerarPdfTransacoes({ periodo: periodoExport, filtros: [titulo], linhas, somaValor: somas.valor, somaLitros: somas.litros, somaEconomia: somas.economia });
     } finally {
       setGerando('');
     }
@@ -165,6 +166,7 @@ export default function DetalheModal({ titulo, params, onClose }: DetalheParams 
             <div style={{ fontWeight: 700, color: '#333', fontSize: '.95rem' }}>{titulo}</div>
             <div style={{ color: '#888', fontSize: '.76rem', marginTop: 2 }}>
               {linhas.length} abastecimento(s) · {somas.litros.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} L · <strong style={{ color: '#dc2626' }}>{fmtRS(somas.valor)}</strong>
+              {somas.economia > 0 && <> · economia <strong style={{ color: '#16a34a' }}>{fmtRS(somas.economia)}</strong></>}
             </div>
           </div>
           {botao('PDF', 'pdf')}
