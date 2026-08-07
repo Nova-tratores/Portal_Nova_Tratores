@@ -79,6 +79,9 @@ export default function EtiquetasPecasPage() {
   // Formato de impressão: 'folha' = folha adesiva pré-cortada 3×10 (Pimaco/
   // Avery 6180, 66,7×25,4mm — a que a oficina usa); 'recorte' = tracejado.
   const [formato, setFormato] = useState<'folha' | 'recorte'>('folha')
+  // Modo "1 peça = 1 etiqueta": cada clique numa linha já vira uma etiqueta
+  // na fila (sem juntar as duas empresas na mesma etiqueta)
+  const [modoIndividual, setModoIndividual] = useState(false)
   // Posições (0-29) da PRIMEIRA folha que já foram usadas/descoladas — a
   // impressão pula essas células (folha começada não vai pro lixo).
   const [usadas, setUsadas] = useState<Set<number>>(new Set())
@@ -127,6 +130,22 @@ export default function EtiquetasPecasPage() {
       if (s.has(k)) s.delete(k); else s.add(k)
       return s
     })
+  }
+
+  const linhaDe = (i: ItemBusca): LinhaEtiqueta => ({
+    empresa: EMPRESA_LABEL[i.conta_omie] || i.conta_omie,
+    codigo: i.codigo,
+    descricao: (i.descricao || '').trim(),
+    locacao: locacaoDe(i.caracteristicas),
+  })
+
+  const clicarLinha = (i: ItemBusca) => {
+    if (modoIndividual) {
+      // cada clique = uma etiqueta própria, direto na fila
+      setEtiquetas(prev => [...prev, { id: proxId.current++, linhas: [linhaDe(i)], copias: 1 }])
+      return
+    }
+    alternarSel(chaveItem(i))
   }
 
   const adicionarEtiqueta = () => {
@@ -191,7 +210,7 @@ export default function EtiquetasPecasPage() {
       {/* Busca */}
       <div style={{ position: 'relative', marginBottom: 10 }}>
         <Search size={15} style={{ position: 'absolute', left: 12, top: 12, color: 'var(--portal-text-muted)' }} />
-        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Código ou descrição da peça (mín. 2 letras)…" style={INP} autoFocus />
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Código, descrição ou locação da peça (ex.: 3 G 1)…" style={INP} autoFocus />
         {buscando && <Loader2 size={15} className="animate-spin" style={{ position: 'absolute', right: 12, top: 12, color: 'var(--portal-text-muted)' }} />}
       </div>
       {erro && <div style={{ fontSize: 12.5, color: '#dc2626', fontWeight: 600, marginBottom: 10 }}>{erro}</div>}
@@ -230,10 +249,14 @@ export default function EtiquetasPecasPage() {
               <tbody>
                 {lista.map(i => {
                   const k = chaveItem(i)
-                  const marcado = sel.has(k)
+                  const marcado = !modoIndividual && sel.has(k)
                   return (
-                    <tr key={k} onClick={() => alternarSel(k)} style={{ borderTop: '1px solid var(--portal-border)', cursor: 'pointer', background: marcado ? 'rgba(239,68,68,.06)' : 'transparent' }}>
-                      <td style={{ padding: '7px 10px' }}><input type="checkbox" readOnly checked={marcado} /></td>
+                    <tr key={k} onClick={() => clicarLinha(i)} style={{ borderTop: '1px solid var(--portal-border)', cursor: 'pointer', background: marcado ? 'rgba(239,68,68,.06)' : 'transparent' }}>
+                      <td style={{ padding: '7px 10px' }}>
+                        {modoIndividual
+                          ? <Plus size={14} color="#ef4444" style={{ display: 'block' }} />
+                          : <input type="checkbox" readOnly checked={marcado} />}
+                      </td>
                       <td style={{ padding: '7px 10px' }}>
                         <span style={{ display: 'inline-block', whiteSpace: 'nowrap', fontSize: 10.5, fontWeight: 800, padding: '3px 10px', borderRadius: 999, color: '#fff', background: EMPRESA_COR[i.conta_omie] || '#6b7280' }}>
                           {EMPRESA_LABEL[i.conta_omie] || i.conta_omie}
@@ -251,17 +274,25 @@ export default function EtiquetasPecasPage() {
               </tbody>
             </table>
           </div>
-          <div style={{ padding: 10, borderTop: '1px solid var(--portal-border)', display: 'flex', alignItems: 'center', gap: 10, background: 'var(--portal-bg-secondary)' }}>
-            <button onClick={adicionarEtiqueta} disabled={sel.size === 0} style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: 'none',
-              background: sel.size === 0 ? '#9ca3af' : '#ef4444', color: '#fff', fontSize: 13, fontWeight: 700, cursor: sel.size === 0 ? 'default' : 'pointer',
-            }}>
-              <Plus size={14} /> Adicionar etiqueta ({sel.size} linha{sel.size === 1 ? '' : 's'})
-            </button>
-            <span style={{ fontSize: 11.5, color: sel.size > 2 ? '#dc2626' : 'var(--portal-text-muted)', fontWeight: sel.size > 2 ? 700 : 400 }}>
-              {sel.size > 2
-                ? 'Máximo de 2 peças por etiqueta — desmarque o excedente.'
-                : 'Marque a MESMA peça nas duas empresas pra etiqueta sair com os dois códigos (máx. 2 por etiqueta).'}
+          <div style={{ padding: 10, borderTop: '1px solid var(--portal-border)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', background: 'var(--portal-bg-secondary)' }}>
+            {!modoIndividual && (
+              <button onClick={adicionarEtiqueta} disabled={sel.size === 0} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: 'none',
+                background: sel.size === 0 ? '#9ca3af' : '#ef4444', color: '#fff', fontSize: 13, fontWeight: 700, cursor: sel.size === 0 ? 'default' : 'pointer',
+              }}>
+                <Plus size={14} /> Adicionar etiqueta ({sel.size} linha{sel.size === 1 ? '' : 's'})
+              </button>
+            )}
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={modoIndividual} onChange={e => { setModoIndividual(e.target.checked); setSel(new Set()) }} />
+              1 peça = 1 etiqueta
+            </label>
+            <span style={{ fontSize: 11.5, color: !modoIndividual && sel.size > 2 ? '#dc2626' : 'var(--portal-text-muted)', fontWeight: !modoIndividual && sel.size > 2 ? 700 : 400 }}>
+              {modoIndividual
+                ? 'Cada clique numa peça já adiciona uma etiqueta na fila.'
+                : sel.size > 2
+                  ? 'Máximo de 2 peças por etiqueta — desmarque o excedente.'
+                  : 'Marque a MESMA peça nas duas empresas pra etiqueta sair com os dois códigos (máx. 2 por etiqueta).'}
             </span>
           </div>
         </div>
@@ -384,15 +415,29 @@ function htmlFolha(blocos: Etiqueta[], usadas: Set<number>): string {
     paginas.push(celulas)
     primeira = false
   }
+  // Mês/ano da impressão no canto — mostra o quão atualizada a etiqueta está
+  const agora = new Date()
+  const dataRef = `${String(agora.getMonth() + 1).padStart(2, '0')}/${agora.getFullYear()}`
+  // Foco no CÓDIGO e na DESCRIÇÃO (locação vira apoio): etiqueta de 1 peça
+  // tem código grande + descrição em até 2 linhas; a dupla compacta a locação
+  // junto do código pra descrição continuar aparecendo.
   const cel = (e: Etiqueta | null) =>
     e === null
       ? '    <div class="cel"></div>'
       : `    <div class="cel${e.linhas.length > 1 ? ' dupla' : ''}">
-${e.linhas.map(l => `      <div class="bloco">
+${e.linhas.map(l => e.linhas.length > 1
+        ? `      <div class="bloco">
         <div class="emp">${esc(l.empresa)}</div>
-        <div class="dado"><span class="cod">${esc(l.codigo)}</span>${l.locacao ? ` · ${esc(l.locacao)}` : ''}</div>${l.descricao ? `
+        <div class="cod">${esc(l.codigo)}${l.locacao ? `<span class="loc"> · ${esc(l.locacao)}</span>` : ''}</div>${l.descricao ? `
         <div class="desc">${esc(l.descricao)}</div>` : ''}
+      </div>`
+        : `      <div class="bloco">
+        <div class="emp">${esc(l.empresa)}</div>
+        <div class="cod">${esc(l.codigo)}</div>${l.descricao ? `
+        <div class="desc">${esc(l.descricao)}</div>` : ''}${l.locacao ? `
+        <div class="loc-linha">${esc(l.locacao)}</div>` : ''}
       </div>`).join('\n')}
+      <div class="dt">${dataRef}</div>
     </div>`
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Etiquetas de peças (folha 3×10)</title>
 <style>
@@ -407,18 +452,20 @@ ${e.linhas.map(l => `      <div class="bloco">
   }
   .pagina:last-child { page-break-after: auto; }
   .cel {
-    overflow: hidden; padding: 0.8mm 2mm; text-align: center;
+    position: relative; overflow: hidden; padding: 0.8mm 2mm; text-align: center;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
   }
   .bloco { max-width: 100%; }
-  .bloco + .bloco { margin-top: 1.4mm; }
-  .emp { font-size: 8pt; font-weight: 800; letter-spacing: .4px; }
-  .dado { font-size: 13pt; line-height: 1.15; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .cod { font-weight: 800; }
-  .desc { font-size: 8.5pt; line-height: 1.2; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .dupla .emp { font-size: 6.5pt; }
-  .dupla .dado { font-size: 10.5pt; line-height: 1.1; }
-  .dupla .desc { font-size: 7pt; line-height: 1.15; }
+  .bloco + .bloco { margin-top: 1.2mm; }
+  .emp { font-size: 6.5pt; font-weight: 800; letter-spacing: .4px; }
+  .cod { font-size: 13pt; font-weight: 800; line-height: 1.1; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .desc { font-size: 9pt; font-weight: 600; line-height: 1.15; max-width: 100%; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .loc-linha { font-size: 7.5pt; color: #333; line-height: 1.15; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .loc { font-size: 7.5pt; font-weight: 600; color: #333; }
+  .dupla .emp { font-size: 5.5pt; }
+  .dupla .cod { font-size: 10pt; }
+  .dupla .desc { font-size: 7.5pt; -webkit-line-clamp: 1; }
+  .dt { position: absolute; bottom: 0.5mm; right: 1.4mm; font-size: 5.5pt; color: #666; }
   @media screen {
     body { background: #e5e7eb; }
     .pagina { background: #fff; margin: 10px auto; box-shadow: 0 1px 6px rgba(0,0,0,.25); }
@@ -434,22 +481,26 @@ ${cels.map(cel).join('\n')}
 
 // Impressão em papel comum, 2 colunas com borda tracejada pra recortar
 function htmlRecorte(blocos: Etiqueta[]): string {
+  const agora = new Date()
+  const dataRef = `${String(agora.getMonth() + 1).padStart(2, '0')}/${agora.getFullYear()}`
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Etiquetas de peças</title>
 <style>
   * { box-sizing: border-box; margin: 0; }
   body { font-family: Arial, Helvetica, sans-serif; padding: 8mm; }
   .grade { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
-  .etq { border: 1.5px dashed #555; border-radius: 4px; padding: 8px 10px; break-inside: avoid; page-break-inside: avoid; }
+  .etq { position: relative; border: 1.5px dashed #555; border-radius: 4px; padding: 8px 10px 14px; break-inside: avoid; page-break-inside: avoid; }
   .emp { font-size: 11px; font-weight: 800; letter-spacing: .5px; margin-top: 6px; }
   .emp:first-child { margin-top: 0; }
   .linha { font-size: 12px; line-height: 1.35; margin-top: 1px; }
   .cod { font-weight: 800; font-family: 'Courier New', monospace; }
+  .dt { position: absolute; bottom: 3px; right: 6px; font-size: 8px; color: #666; }
   @media print { body { padding: 4mm; } }
 </style></head><body>
 <div class="grade">
 ${blocos.map(e => `  <div class="etq">
 ${e.linhas.map(l => `    <div class="emp">${esc(l.empresa)}</div>
     <div class="linha"><span class="cod">${esc(l.codigo)}</span> - ${esc(l.descricao)}${l.locacao ? ` - ${esc(l.locacao)}` : ''}</div>`).join('\n')}
+    <div class="dt">${dataRef}</div>
   </div>`).join('\n')}
 </div>
 <script>window.onload = () => { window.print(); }</script>

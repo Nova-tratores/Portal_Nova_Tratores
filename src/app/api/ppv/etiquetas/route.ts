@@ -82,7 +82,33 @@ export async function GET(req: NextRequest) {
       .order("descricao")
       .limit(120);
     if (error) throw error;
-    return NextResponse.json({ itens: data || [] });
+    const itens = data || [];
+
+    // Busca por LOCAÇÃO: "3 G 1" (ou "3G1") = #PRATELEIRA 3 · #ANDAR G ·
+    // #CAIXA 1, na mesma ordem da etiqueta. JSON não entra no or= do
+    // PostgREST (vírgula/chaves quebram o parser) → consulta separada com
+    // contains e merge deduplicado.
+    const tokens = (/\s/.test(seguro) ? seguro.split(/[\s\-./]+/) : seguro.match(/\d+|[a-zA-Z]+/g) || [])
+      .map((t) => t.trim().toUpperCase())
+      .filter(Boolean);
+    const pareceLocacao = tokens.length >= 1 && tokens.length <= 3 && tokens.every((t) => t.length <= 4);
+    if (pareceLocacao) {
+      const chaves = ["#PRATELEIRA", "#ANDAR", "#CAIXA"];
+      const alvo: Record<string, string> = {};
+      tokens.forEach((t, i) => { alvo[chaves[i]] = t; });
+      const { data: porLocacao } = await supabase
+        .from("produtos_caracteristicas")
+        .select("conta_omie, codigo, descricao, caracteristicas")
+        .contains("caracteristicas", alvo)
+        .order("descricao")
+        .limit(120);
+      const vistos = new Set(itens.map((p) => `${p.conta_omie}|${p.codigo}`));
+      for (const p of porLocacao || []) {
+        const k = `${p.conta_omie}|${p.codigo}`;
+        if (!vistos.has(k)) { vistos.add(k); itens.push(p); }
+      }
+    }
+    return NextResponse.json({ itens: itens.slice(0, 150) });
   } catch (e) {
     return NextResponse.json(
       { itens: [], error: e instanceof Error ? e.message : "erro" },
