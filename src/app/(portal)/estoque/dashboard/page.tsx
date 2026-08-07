@@ -66,7 +66,7 @@ interface VendaRow {
   quantidade?: number; valor_unitario?: number; valor_total?: number; cmc_unitario?: number;
 }
 interface CompraRow {
-  numero_nf?: string | null; data_nota?: string | null; codigo_produto?: string | null; descricao?: string | null;
+  codigo?: string | null; descricao?: string | null; familia?: string | null; numero_nf?: string | null;
   quantidade?: number | string | null; valor_unitario?: number | string | null; valor_total?: number | string | null;
 }
 type InternoBalde = 'retorno' | 'puro' | null;
@@ -81,8 +81,8 @@ interface ServicoOSRow {
 
 const LIMITE_LINHAS = 800;
 
-const thStyle: React.CSSProperties = { background: '#fafafa', color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', padding: '9px 10px', textAlign: 'left', borderBottom: '1px solid #eee', fontWeight: 600 };
-const tdStyle: React.CSSProperties = { padding: '8px 10px', borderBottom: '1px solid #f5f5f5', color: '#444', fontSize: '.82rem' };
+const thStyle: React.CSSProperties = { background: '#fafafa', color: '#888', fontSize: '.74rem', textTransform: 'uppercase', letterSpacing: '.5px', padding: '10px 11px', textAlign: 'left', borderBottom: '1px solid #eee', fontWeight: 600 };
+const tdStyle: React.CSSProperties = { padding: '9px 11px', borderBottom: '1px solid #f5f5f5', color: '#444', fontSize: '.92rem' };
 
 function fmtPct(v: number): string {
   const s = v >= 0 ? '+' : '';
@@ -136,7 +136,6 @@ export default function DashboardPage() {
   const [vendasCard, setVendasCard] = useState<{ idx: number; nome: string } | null>(null);
   const [pedidoItens, setPedidoItens] = useState<{ numero: string; itens: VendaRow[] } | null>(null);
 
-  // Itens do card "Comprei" (peças por NF) + ordenação da tabela do popup.
   const [comprasAberto, setComprasAberto] = useState(false);
   const [comprasItens, setComprasItens] = useState<CompraRow[] | null>(null);
   const [comprasSort, setComprasSort] = useState<{ col: string; dir: 'asc' | 'desc' }>({ col: 'valor_total', dir: 'desc' });
@@ -149,7 +148,6 @@ export default function DashboardPage() {
   const [osPendente, setOsPendente] = useState(false);
   const [osErro, setOsErro] = useState('');
 
-  // Visão inicial vinda da URL (?v=maquinas) + persistência ao trocar.
   useEffect(() => {
     const v = new URLSearchParams(window.location.search).get('v');
     if (v === 'maquinas' || v === 'pecas') setVisao(v);
@@ -304,11 +302,10 @@ export default function DashboardPage() {
     if (!comprasItens) return null;
     const { col, dir } = comprasSort;
     const nfNum = (c: CompraRow) => Number(String(c.numero_nf ?? '').replace(/\D/g, '')) || 0;
-    const dataKey = (c: CompraRow) => { const p = String(c.data_nota ?? '').split('/'); return p.length === 3 ? `${p[2]}${p[1]}${p[0]}` : String(c.data_nota ?? ''); };
     const cmp = (a: CompraRow, b: CompraRow): number => {
-      if (col === 'descricao') return String(a.descricao || a.codigo_produto || '').localeCompare(String(b.descricao || b.codigo_produto || ''), 'pt-BR');
+      if (col === 'descricao') return String(a.descricao || a.codigo || '').localeCompare(String(b.descricao || b.codigo || ''), 'pt-BR');
+      if (col === 'familia') return String(a.familia || '').localeCompare(String(b.familia || ''), 'pt-BR');
       if (col === 'numero_nf') return nfNum(a) - nfNum(b);
-      if (col === 'data_nota') return dataKey(a).localeCompare(dataKey(b));
       if (col === 'quantidade') return (Number(a.quantidade) || 0) - (Number(b.quantidade) || 0);
       if (col === 'valor_unitario') return (Number(a.valor_unitario) || 0) - (Number(b.valor_unitario) || 0);
       return (Number(a.valor_total) || 0) - (Number(b.valor_total) || 0);
@@ -327,17 +324,17 @@ export default function DashboardPage() {
     <div style={{ margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h1 style={{ color: '#333', marginBottom: 4, fontSize: '1.4rem', fontWeight: 700 }}>Dashboard de Vendas</h1>
-          <p style={{ color: '#888', fontSize: '.82rem', marginBottom: 0 }}>Duas visões — Peças + Serviços e Máquinas</p>
+          <h1 style={{ color: '#333', marginBottom: 4, fontSize: '1.7rem', fontWeight: 700 }}>Dashboard de Vendas</h1>
+          <p style={{ color: '#888', fontSize: '.95rem', marginBottom: 0 }}>Duas visões — Peças + Serviços e Máquinas</p>
         </div>
         <ContaSelector />
       </div>
 
       {/* Navegação (telas irmãs) */}
       <div style={{ display: 'flex', gap: 2, margin: '14px 0 16px', flexWrap: 'wrap', borderBottom: '1px solid #eee' }}>
-        <span style={{ fontSize: '.8rem', fontWeight: 700, color: '#111827', padding: '8px 14px', borderBottom: '2px solid #111827' }}>Dashboard</span>
+        <span style={{ fontSize: '.9rem', fontWeight: 700, color: '#111827', padding: '8px 14px', borderBottom: '2px solid #111827' }}>Dashboard</span>
         {navItens.map(([href, label]) => (
-          <Link key={href} href={href} style={{ fontSize: '.8rem', fontWeight: 600, color: '#6b7280', textDecoration: 'none', padding: '8px 14px' }}>{label}</Link>
+          <Link key={href} href={href} style={{ fontSize: '.9rem', fontWeight: 600, color: '#6b7280', textDecoration: 'none', padding: '8px 14px' }}>{label}</Link>
         ))}
       </div>
 
@@ -345,7 +342,7 @@ export default function DashboardPage() {
       <div style={{ display: 'inline-flex', gap: 0, marginBottom: 14, border: '1px solid #e0e0e0', borderRadius: 10, overflow: 'hidden' }}>
         {([['pecas', 'Peças + Serviços'], ['maquinas', 'Máquinas']] as Array<[Visao, string]>).map(([v, rotulo]) => (
           <button key={v} onClick={() => trocarVisao(v)}
-            style={{ padding: '9px 18px', border: 'none', borderRight: v === 'pecas' ? '1px solid #e0e0e0' : 'none', background: visao === v ? '#111827' : '#fff', color: visao === v ? '#fff' : '#666', fontSize: '.82rem', fontWeight: 700, cursor: 'pointer' }}>
+            style={{ padding: '10px 20px', border: 'none', borderRight: v === 'pecas' ? '1px solid #e0e0e0' : 'none', background: visao === v ? '#111827' : '#fff', color: visao === v ? '#fff' : '#666', fontSize: '.95rem', fontWeight: 700, cursor: 'pointer' }}>
             {rotulo}
           </button>
         ))}
@@ -359,11 +356,11 @@ export default function DashboardPage() {
         {visao === 'pecas' && (
           <>
             <Sel label="Categoria de peças" value={categoria} onChange={setCategoria} options={[{ value: '', label: 'Todas' }, ...categoriasOpts.map((c) => ({ value: c.codigo, label: c.descricao }))]} />
-            <span title="Categoria e Venda/Custo/Margem aplicam-se aos cards de Peças. Os KPIs mostram faturamento." style={{ fontSize: '.8rem', color: '#9ca3af', cursor: 'help', paddingBottom: 9 }}>ⓘ</span>
+            <span title="Categoria e Venda/Custo/Margem aplicam-se aos cards de Peças. Os KPIs mostram faturamento." style={{ fontSize: '1rem', color: '#9ca3af', cursor: 'help', paddingBottom: 9 }}>ⓘ</span>
             <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
               {(['venda', 'custo', 'margem'] as Metrica[]).map((m) => (
                 <button key={m} onClick={() => setMetrica(m)}
-                  style={{ padding: '8px 14px', border: '1px solid', borderColor: metrica === m ? '#111827' : '#e0e0e0', background: metrica === m ? '#111827' : '#fff', color: metrica === m ? '#fff' : '#666', borderRadius: 8, fontSize: '.78rem', fontWeight: 600, cursor: 'pointer', textTransform: 'capitalize' }}>
+                  style={{ padding: '9px 16px', border: '1px solid', borderColor: metrica === m ? '#111827' : '#e0e0e0', background: metrica === m ? '#111827' : '#fff', color: metrica === m ? '#fff' : '#666', borderRadius: 8, fontSize: '.9rem', fontWeight: 600, cursor: 'pointer', textTransform: 'capitalize' }}>
                   {m}
                 </button>
               ))}
@@ -373,8 +370,8 @@ export default function DashboardPage() {
       </div>
       <div style={{ marginBottom: 16 }} />
 
-      {erro && <div style={{ color: '#dc2626', marginBottom: 12, fontSize: '.85rem' }}>{erro}</div>}
-      {carregando && <div style={{ color: '#888', fontSize: '.85rem' }}>Carregando…</div>}
+      {erro && <div style={{ color: '#dc2626', marginBottom: 12, fontSize: '.9rem' }}>{erro}</div>}
+      {carregando && <div style={{ color: '#888', fontSize: '.9rem' }}>Carregando…</div>}
 
       {dados && (() => {
         const parcial = dados.ehMesCorrente;
@@ -387,8 +384,8 @@ export default function DashboardPage() {
         const modo = dados.modo;
 
         const badgeParcial = parcial && (
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '.72rem', color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '4px 10px', marginBottom: 14 }}>
-            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#f59e0b' }} /> {modo === 'ano' ? 'ano em andamento' : 'mês em andamento'} — comparação parcial
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '.86rem', color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '5px 12px', marginBottom: 14 }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b' }} /> {modo === 'ano' ? 'ano em andamento' : 'mês em andamento'} — comparação parcial
           </div>
         );
 
@@ -403,7 +400,7 @@ export default function DashboardPage() {
           return (
             <>
               {badgeParcial}
-              {!cMaqTotal ? <div style={{ color: '#9ca3af', fontSize: '.85rem' }}>Sem vendas de máquina no período.</div> : (
+              {!cMaqTotal ? <div style={{ color: '#9ca3af', fontSize: '.95rem' }}>Sem vendas de máquina no período.</div> : (
                 <>
                   <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
                     <KpiCard titulo={`Máquinas · ${dados.periodo}`} accent={ACCENT.maquinas}
@@ -420,21 +417,21 @@ export default function DashboardPage() {
                   </div>
 
                   {tendencia && tendencia.length > 0 && (
-                    <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: '14px 16px 8px', marginBottom: 18 }}>
-                      <div style={{ fontSize: '.72rem', color: '#6b7280', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 6 }}>Máquinas · faturamento e unidades — últimos 12 meses</div>
+                    <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: '16px 18px 10px', marginBottom: 18 }}>
+                      <div style={{ fontSize: '.85rem', color: '#6b7280', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>Máquinas · faturamento e unidades — últimos 12 meses</div>
                       <MaquinasChart pontos={tendencia} />
                     </div>
                   )}
 
                   <Secao titulo="Máquinas por família" accent={ACCENT.maquinas}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 10 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 12 }}>
                       {ativas.map((c, i) => (
                         <MaquinaCard key={i} c={c} modo={modo} parcial={parcial}
                           onVendas={() => abrirVendasMaquina(c.nome === 'Outras máquinas' ? '__TODAS__' : c.nome, fixLabel(c.nome))} />
                       ))}
                     </div>
                     {zeradas.length > 0 && (
-                      <div style={{ fontSize: '.74rem', color: '#9ca3af', marginTop: 12 }}>
+                      <div style={{ fontSize: '.86rem', color: '#9ca3af', marginTop: 12 }}>
                         Sem vendas no período: {zeradas.map((z) => fixLabel(z.nome)).join(' · ')}
                       </div>
                     )}
@@ -475,24 +472,24 @@ export default function DashboardPage() {
                   varM={cComprei.varMesAnterior} supM={cComprei.mesAnteriorValor < BASE_MIN_PECAS} varA={cComprei.varAnoAnterior} supA={cComprei.anoAnteriorValor < BASE_MIN_PECAS}
                   modo={modo} parcial={parcial} onDrill={abrirCompras} drillLabel="ver itens"
                   extraNode={razaoCV != null && (
-                    <div style={{ fontSize: '.66rem', color: '#6b7280', marginTop: 6 }}>
+                    <div style={{ fontSize: '.82rem', color: '#6b7280', marginTop: 6 }}>
                       Razão compra/venda: <b>{razaoCV.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}x</b>
-                      {razaoCV > 2 && <span style={{ marginLeft: 6, color: '#b45309', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 6, padding: '1px 6px', fontSize: '.58rem', fontWeight: 700 }}>estocando acima da venda</span>}
+                      {razaoCV > 2 && <span style={{ marginLeft: 6, color: '#b45309', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 6, padding: '1px 6px', fontSize: '.72rem', fontWeight: 700 }}>estocando acima da venda</span>}
                     </div>
                   )} />
               )}
             </div>
 
             {tendencia && tendencia.length > 0 && (
-              <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: '14px 16px 8px', marginBottom: 18 }}>
-                <div style={{ fontSize: '.72rem', color: '#6b7280', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 6 }}>Peças + Serviços · faturamento — últimos 12 meses</div>
+              <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: '16px 18px 10px', marginBottom: 18 }}>
+                <div style={{ fontSize: '.85rem', color: '#6b7280', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>Peças + Serviços · faturamento — últimos 12 meses</div>
                 <PecasChart pontos={tendencia} />
               </div>
             )}
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 16, alignItems: 'start' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16, alignItems: 'start' }}>
               <Secao titulo="Peças por categoria" accent={ACCENT.pecas}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 10 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
                   {pecasCats.map((c, i) => (
                     <PecaCard key={i} c={c} modo={modo} metrica={metrica} parcial={parcial}
                       pctMix={totalPecasVenda > 0 ? (c.valorAtual / totalPecasVenda) * 100 : 0}
@@ -510,19 +507,19 @@ export default function DashboardPage() {
       {/* Histórico */}
       {histCard != null && (
         <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 18, margin: '18px 0' }}>
-          <h2 style={{ color: '#111827', fontSize: '.95rem', fontWeight: 700, marginBottom: 12 }}>Histórico — {hist?.nome ? fixLabel(hist.nome) : '…'}</h2>
-          {!hist ? <div style={{ color: '#888', fontSize: '.85rem' }}>Carregando…</div> : (() => {
+          <h2 style={{ color: '#111827', fontSize: '1.05rem', fontWeight: 700, marginBottom: 12 }}>Histórico — {hist?.nome ? fixLabel(hist.nome) : '…'}</h2>
+          {!hist ? <div style={{ color: '#888', fontSize: '.9rem' }}>Carregando…</div> : (() => {
             const temSplit = hist.meses.some((m) => m.valorNota != null);
             const custoTodoZero = hist.meses.every((m) => !m.custo);
             return (
-              <div style={{ width: '100%', height: 320 }}>
+              <div style={{ width: '100%', height: 340 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={hist.meses}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis dataKey="label" tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => fmtMil(v)} width={72} />
+                    <XAxis dataKey="label" tick={{ fontSize: 13 }} />
+                    <YAxis tick={{ fontSize: 13 }} tickFormatter={(v) => fmtMil(v)} width={88} />
                     <Tooltip formatter={(v: number) => fmtRS(v)} />
-                    <Legend />
+                    <Legend wrapperStyle={{ fontSize: 14 }} />
                     <Line type="monotone" dataKey="valor" name="Venda" stroke="#111827" strokeWidth={2} dot={false} />
                     {!custoTodoZero && <Line type="monotone" dataKey="custo" name="Custo" stroke="#888" strokeWidth={1.5} dot={false} />}
                     {temSplit && <Line type="monotone" dataKey="valorNota" name="Com nota" stroke="#2563eb" strokeWidth={1.5} dot={false} />}
@@ -539,13 +536,13 @@ export default function DashboardPage() {
       {vendasCard && (
         <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 18, margin: '18px 0' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <h2 style={{ color: '#111827', fontSize: '.95rem', fontWeight: 700, margin: 0 }}>Vendas — {vendasCard.nome} ({vendas?.length ?? 0})</h2>
+            <h2 style={{ color: '#111827', fontSize: '1.05rem', fontWeight: 700, margin: 0 }}>Vendas — {vendasCard.nome} ({vendas?.length ?? 0})</h2>
             {vendas && vendas.length > 0 && <button onClick={exportarCSV} style={linkBtn}>exportar CSV</button>}
           </div>
-          {!vendas ? <div style={{ color: '#888', fontSize: '.85rem' }}>Carregando…</div> : vendas.length === 0 ? <div style={{ color: '#888', fontSize: '.85rem' }}>Sem vendas no período.</div> : (
+          {!vendas ? <div style={{ color: '#888', fontSize: '.9rem' }}>Carregando…</div> : vendas.length === 0 ? <div style={{ color: '#888', fontSize: '.9rem' }}>Sem vendas no período.</div> : (
             <div style={{ overflowX: 'auto' }}>
               {vendas.length > LIMITE_LINHAS && (
-                <div style={{ color: '#999', fontSize: '.72rem', marginBottom: 6 }}>
+                <div style={{ color: '#999', fontSize: '.78rem', marginBottom: 6 }}>
                   Mostrando as {LIMITE_LINHAS} primeiras de {vendas.length.toLocaleString('pt-BR')} linhas — o CSV exporta tudo.
                 </div>
               )}
@@ -575,7 +572,7 @@ export default function DashboardPage() {
         <div onClick={() => setOsAberto(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 20, maxWidth: 1100, width: '94%', maxHeight: '85vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 12, flexWrap: 'wrap' }}>
-              <h2 style={{ color: '#111827', fontSize: '.95rem', fontWeight: 700, margin: 0 }}>
+              <h2 style={{ color: '#111827', fontSize: '1.05rem', fontWeight: 700, margin: 0 }}>
                 Serviços — {osView === 'servicos' ? `itens (${servItens?.length ?? 0})` : `Ordens de Serviço (${osServicos?.length ?? 0})`}
                 {osServicos && osServicos.length > 0 && (
                   <span style={{ color: '#888', fontWeight: 600, marginLeft: 8 }}>· Total {fmtRS(osServicos.reduce((s, o) => s + (o.valor || 0), 0))}</span>
@@ -585,7 +582,7 @@ export default function DashboardPage() {
                 <div style={{ display: 'flex', gap: 4 }}>
                   {([['servicos', 'Serviços'], ['os', 'Por OS']] as Array<['servicos' | 'os', string]>).map(([v, rotulo]) => (
                     <button key={v} onClick={() => setOsView(v)}
-                      style={{ padding: '5px 12px', border: '1px solid', borderColor: osView === v ? '#111827' : '#e0e0e0', background: osView === v ? '#111827' : '#fff', color: osView === v ? '#fff' : '#666', borderRadius: 8, fontSize: '.72rem', fontWeight: 600, cursor: 'pointer' }}>
+                      style={{ padding: '6px 13px', border: '1px solid', borderColor: osView === v ? '#111827' : '#e0e0e0', background: osView === v ? '#111827' : '#fff', color: osView === v ? '#fff' : '#666', borderRadius: 8, fontSize: '.82rem', fontWeight: 600, cursor: 'pointer' }}>
                       {rotulo}
                     </button>
                   ))}
@@ -593,15 +590,15 @@ export default function DashboardPage() {
                 <button onClick={() => setOsAberto(false)} style={linkBtn}>fechar</button>
               </div>
             </div>
-            {osErro && <div style={{ color: '#dc2626', fontSize: '.82rem', marginBottom: 10 }}>{osErro}</div>}
+            {osErro && <div style={{ color: '#dc2626', fontSize: '.88rem', marginBottom: 10 }}>{osErro}</div>}
             {osPendente && (
-              <div style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', borderRadius: 8, padding: '8px 12px', fontSize: '.78rem', marginBottom: 10 }}>
+              <div style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', borderRadius: 8, padding: '8px 12px', fontSize: '.85rem', marginBottom: 10 }}>
                 Sincronizando {ehAno ? 'os meses que faltam' : 'este mês'} com a Omie em segundo plano — feche e abra o popup novamente em ~1–2 minutos.
                 {ehAno && ' (um mês por vez, para não sobrecarregar a Omie)'}
               </div>
             )}
             {osView === 'servicos' ? (
-              !servItens ? (osErro ? null : <div style={{ color: '#888', fontSize: '.85rem' }}>Carregando…</div>) : servItens.length === 0 ? (osPendente ? null : <div style={{ color: '#888', fontSize: '.85rem' }}>Sem serviços faturados no período.</div>) : (
+              !servItens ? (osErro ? null : <div style={{ color: '#888', fontSize: '.9rem' }}>Carregando…</div>) : servItens.length === 0 ? (osPendente ? null : <div style={{ color: '#888', fontSize: '.9rem' }}>Sem serviços faturados no período.</div>) : (
                 <>
                   <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
                     {(['HR', 'KM', 'OUTRO'] as TipoServico[]).map((t) => {
@@ -612,9 +609,9 @@ export default function DashboardPage() {
                       const unidade = t === 'HR' ? `${qtd.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} h` : t === 'KM' ? `${qtd.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} km` : `${doTipo.length} itens`;
                       return (
                         <button key={t} onClick={() => setTipoFiltro(ativo ? null : t)}
-                          style={{ padding: '7px 12px', border: '1px solid', borderColor: ativo ? '#111827' : '#e0e0e0', background: ativo ? '#f3f4f6' : '#fafafa', borderRadius: 8, cursor: 'pointer', textAlign: 'left' }}>
-                          <div style={{ fontSize: '.62rem', color: '#888', textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 700 }}>{tipoRotulo(t)}</div>
-                          <div style={{ fontSize: '.88rem', fontWeight: 700, color: COR_INK }}>{fmtRS(soma)} <span style={{ color: '#999', fontWeight: 600, fontSize: '.7rem' }}>· {unidade}</span></div>
+                          style={{ padding: '8px 13px', border: '1px solid', borderColor: ativo ? '#111827' : '#e0e0e0', background: ativo ? '#f3f4f6' : '#fafafa', borderRadius: 8, cursor: 'pointer', textAlign: 'left' }}>
+                          <div style={{ fontSize: '.7rem', color: '#888', textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 700 }}>{tipoRotulo(t)}</div>
+                          <div style={{ fontSize: '1rem', fontWeight: 700, color: COR_INK }}>{fmtRS(soma)} <span style={{ color: '#999', fontWeight: 600, fontSize: '.78rem' }}>· {unidade}</span></div>
                         </button>
                       );
                     })}
@@ -622,7 +619,7 @@ export default function DashboardPage() {
                   {(() => {
                     const n = servItens.filter((s) => !tipoFiltro || s.tipo === tipoFiltro).length;
                     return n > LIMITE_LINHAS ? (
-                      <div style={{ color: '#999', fontSize: '.72rem', marginBottom: 6 }}>Mostrando as {LIMITE_LINHAS} primeiras de {n.toLocaleString('pt-BR')} linhas (os totais acima consideram todas).</div>
+                      <div style={{ color: '#999', fontSize: '.78rem', marginBottom: 6 }}>Mostrando as {LIMITE_LINHAS} primeiras de {n.toLocaleString('pt-BR')} linhas (os totais acima consideram todas).</div>
                     ) : null;
                   })()}
                   <div style={{ overflowX: 'auto' }}>
@@ -650,10 +647,10 @@ export default function DashboardPage() {
                 </>
               )
             ) : (
-              !osServicos ? (osErro ? null : <div style={{ color: '#888', fontSize: '.85rem' }}>Carregando…</div>) : osServicos.length === 0 ? (osPendente ? null : <div style={{ color: '#888', fontSize: '.85rem' }}>Sem OS faturadas no período.</div>) : (
+              !osServicos ? (osErro ? null : <div style={{ color: '#888', fontSize: '.9rem' }}>Carregando…</div>) : osServicos.length === 0 ? (osPendente ? null : <div style={{ color: '#888', fontSize: '.9rem' }}>Sem OS faturadas no período.</div>) : (
                 <>
                 {osServicos.length > LIMITE_LINHAS && (
-                  <div style={{ color: '#999', fontSize: '.72rem', marginBottom: 6 }}>Mostrando as {LIMITE_LINHAS} primeiras de {osServicos.length.toLocaleString('pt-BR')} OS (o total acima considera todas).</div>
+                  <div style={{ color: '#999', fontSize: '.78rem', marginBottom: 6 }}>Mostrando as {LIMITE_LINHAS} primeiras de {osServicos.length.toLocaleString('pt-BR')} OS (o total acima considera todas).</div>
                 )}
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead><tr>{['OS', 'Data', 'Cliente', 'Nota', ...(contaParam === '' ? ['Conta'] : []), 'Valor'].map((h) => <th key={h} style={thStyle}>{h}</th>)}</tr></thead>
@@ -682,7 +679,7 @@ export default function DashboardPage() {
         <div onClick={() => setPedidoItens(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 20, maxWidth: 760, width: '90%', maxHeight: '80vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-              <h2 style={{ color: '#111827', fontSize: '.95rem', fontWeight: 700, margin: 0 }}>Pedido {pedidoItens.numero}</h2>
+              <h2 style={{ color: '#111827', fontSize: '1.05rem', fontWeight: 700, margin: 0 }}>Pedido {pedidoItens.numero}</h2>
               <button onClick={() => setPedidoItens(null)} style={linkBtn}>fechar</button>
             </div>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -707,9 +704,9 @@ export default function DashboardPage() {
       {/* Popup itens do "Comprei" (peças por NF) — cabeçalho ordenável */}
       {comprasAberto && (
         <div onClick={() => setComprasAberto(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 20, maxWidth: 900, width: '92%', maxHeight: '85vh', overflowY: 'auto' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 20, maxWidth: 960, width: '92%', maxHeight: '85vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 12, flexWrap: 'wrap' }}>
-              <h2 style={{ color: '#111827', fontSize: '.95rem', fontWeight: 700, margin: 0 }}>
+              <h2 style={{ color: '#111827', fontSize: '1.05rem', fontWeight: 700, margin: 0 }}>
                 Comprei — itens ({comprasItens?.length ?? 0})
                 {comprasItens && comprasItens.length > 0 && (
                   <span style={{ color: '#888', fontWeight: 600, marginLeft: 8 }}>· Total {fmtRS(comprasItens.reduce((s, c) => s + (Number(c.valor_total) || 0), 0))}</span>
@@ -717,16 +714,16 @@ export default function DashboardPage() {
               </h2>
               <button onClick={() => setComprasAberto(false)} style={linkBtn}>fechar</button>
             </div>
-            {!comprasOrdenadas ? <div style={{ color: '#888', fontSize: '.85rem' }}>Carregando…</div> : comprasOrdenadas.length === 0 ? <div style={{ color: '#888', fontSize: '.85rem' }}>Sem compras de peças no período.</div> : (
+            {!comprasOrdenadas ? <div style={{ color: '#888', fontSize: '.9rem' }}>Carregando…</div> : comprasOrdenadas.length === 0 ? <div style={{ color: '#888', fontSize: '.9rem' }}>Sem compras de peças no período.</div> : (
               <div style={{ overflowX: 'auto' }}>
                 {comprasOrdenadas.length > LIMITE_LINHAS && (
-                  <div style={{ color: '#999', fontSize: '.72rem', marginBottom: 6 }}>Mostrando as {LIMITE_LINHAS} primeiras de {comprasOrdenadas.length.toLocaleString('pt-BR')} linhas (o total acima considera todas).</div>
+                  <div style={{ color: '#999', fontSize: '.78rem', marginBottom: 6 }}>Mostrando as {LIMITE_LINHAS} primeiras de {comprasOrdenadas.length.toLocaleString('pt-BR')} linhas (o total acima considera todas).</div>
                 )}
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead><tr>
                     {sortHeader('Produto', 'descricao')}
+                    {sortHeader('Família', 'familia')}
                     {sortHeader('NF', 'numero_nf')}
-                    {sortHeader('Data', 'data_nota')}
                     {sortHeader('Qtd', 'quantidade')}
                     {sortHeader('V. Unit', 'valor_unitario')}
                     {sortHeader('V. Total', 'valor_total')}
@@ -734,9 +731,9 @@ export default function DashboardPage() {
                   <tbody>
                     {comprasOrdenadas.slice(0, LIMITE_LINHAS).map((c, i) => (
                       <tr key={i}>
-                        <td style={{ ...tdStyle, maxWidth: 340 }} title={c.descricao || ''}>{c.descricao || c.codigo_produto || '—'}</td>
+                        <td style={{ ...tdStyle, maxWidth: 340 }} title={c.descricao || ''}>{c.descricao || c.codigo || '—'}</td>
+                        <td style={tdStyle}>{c.familia}</td>
                         <td style={tdStyle}>{c.numero_nf}</td>
-                        <td style={tdStyle}>{c.data_nota}</td>
                         <td style={tdStyle}>{c.quantidade}</td>
                         <td style={tdStyle}>{fmtRS(Number(c.valor_unitario) || 0)}</td>
                         <td style={tdStyle}>{fmtRS(Number(c.valor_total) || 0)}</td>
@@ -753,10 +750,10 @@ export default function DashboardPage() {
   );
 }
 
-const linkBtn: React.CSSProperties = { background: 'none', border: 'none', color: '#2563eb', fontSize: '.74rem', fontWeight: 600, cursor: 'pointer', padding: 0, textDecoration: 'underline' };
+const linkBtn: React.CSSProperties = { background: 'none', border: 'none', color: '#2563eb', fontSize: '.86rem', fontWeight: 600, cursor: 'pointer', padding: 0, textDecoration: 'underline' };
 
-// Variação: verde/vermelho, ou CINZA quando (a) o período anterior tem base baixa
-// ou (b) o período atual é o corrente (comparação parcial).
+// Variação: verde/vermelho, ou CINZA quando (a) base baixa no período anterior
+// ou (b) período corrente (comparação parcial).
 function Delta({ label, v, sup, parcial }: { label: string; v: number; sup: boolean; parcial?: boolean }) {
   const muted = sup || parcial;
   const cor = muted ? COR_MUTED : v >= 0 ? COR_UP : COR_DOWN;
@@ -770,15 +767,15 @@ function KpiCard({ titulo, accent, valorNode, subNode, varM, supM, varA, supA, m
   onDrill?: () => void; drillLabel?: string; parcial?: boolean; semVar?: boolean;
 }) {
   return (
-    <div style={{ flex: '1 1 190px', background: '#fff', border: strongDrop ? '2px solid ' + COR_DOWN : '1px solid #e5e7eb', borderTop: '3px solid ' + accent, borderRadius: 12, padding: 14, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-        <span style={{ fontSize: '.66rem', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 700 }}>{titulo}</span>
-        {strongDrop && <span style={{ fontSize: '.56rem', fontWeight: 700, color: COR_DOWN, background: '#fee2e2', border: '1px solid #fecaca', borderRadius: 6, padding: '1px 6px', whiteSpace: 'nowrap' }}>queda acentuada</span>}
+    <div style={{ flex: '1 1 220px', background: '#fff', border: strongDrop ? '2px solid ' + COR_DOWN : '1px solid #e5e7eb', borderTop: '3px solid ' + accent, borderRadius: 12, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+        <span style={{ fontSize: '.82rem', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 700 }}>{titulo}</span>
+        {strongDrop && <span style={{ fontSize: '.7rem', fontWeight: 700, color: COR_DOWN, background: '#fee2e2', border: '1px solid #fecaca', borderRadius: 6, padding: '2px 7px', whiteSpace: 'nowrap' }}>queda acentuada</span>}
       </div>
-      <div style={{ fontSize: '1.3rem', fontWeight: 700, color: COR_INK, fontVariantNumeric: 'tabular-nums' }}>{valorNode}</div>
-      {subNode && <div style={{ fontSize: '.78rem', color: '#6b7280', marginTop: 1 }}>{subNode}</div>}
+      <div style={{ fontSize: '2.1rem', fontWeight: 800, color: COR_INK, fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>{valorNode}</div>
+      {subNode && <div style={{ fontSize: '1rem', color: '#6b7280', marginTop: 3 }}>{subNode}</div>}
       {!semVar && (
-        <div style={{ display: 'flex', gap: 10, marginTop: 8, fontSize: '.68rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 12, marginTop: 10, fontSize: '.86rem', flexWrap: 'wrap', fontWeight: 600 }}>
           {modo !== 'ano' && <Delta label="Mês ant" v={varM} sup={supM} parcial={parcial} />}
           <Delta label="Ano ant" v={varA} sup={supA} parcial={parcial} />
         </div>
@@ -792,9 +789,9 @@ function KpiCard({ titulo, accent, valorNode, subNode, varM, supM, varA, supA, m
 function Secao({ titulo, accent, hint, children }: { titulo: string; accent: string; hint?: string; children: React.ReactNode }) {
   return (
     <div>
-      <div style={{ marginBottom: 10, borderLeft: '3px solid ' + accent, paddingLeft: 8 }}>
-        <div style={{ fontSize: '.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px', color: '#374151' }}>{titulo}</div>
-        {hint && <div style={{ fontSize: '.64rem', color: '#9ca3af', marginTop: 1 }}>{hint}</div>}
+      <div style={{ marginBottom: 12, borderLeft: '3px solid ' + accent, paddingLeft: 8 }}>
+        <div style={{ fontSize: '.95rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px', color: '#374151' }}>{titulo}</div>
+        {hint && <div style={{ fontSize: '.78rem', color: '#9ca3af', marginTop: 1 }}>{hint}</div>}
       </div>
       {children}
     </div>
@@ -810,24 +807,24 @@ function PecaCard({ c, modo, metrica, pctMix, parcial, onHist, onVendas }: {
   const varA = calcVar(atual, valorMetrica(c, metrica, 'anoAnt'));
   const margemPct = c.valorAtual > 0 ? (c.margemAtual / c.valorAtual) * 100 : 0;
   return (
-    <div style={{ background: zero ? '#fafafa' : '#fff', border: '1px solid #eee', borderRadius: 10, padding: 12, opacity: zero ? 0.6 : 1 }}>
+    <div style={{ background: zero ? '#fafafa' : '#fff', border: '1px solid #eee', borderRadius: 10, padding: 13, opacity: zero ? 0.6 : 1 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6 }}>
-        <span style={{ fontSize: '.66rem', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '.4px', fontWeight: 700 }}>{fixLabel(c.nome)}</span>
-        {!zero && <span style={{ fontSize: '.62rem', color: '#9ca3af', whiteSpace: 'nowrap' }}>{pctMix.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}% do total</span>}
+        <span style={{ fontSize: '.8rem', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '.4px', fontWeight: 700 }}>{fixLabel(c.nome)}</span>
+        {!zero && <span style={{ fontSize: '.74rem', color: '#9ca3af', whiteSpace: 'nowrap' }}>{pctMix.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}% do total</span>}
       </div>
       {zero ? (
-        <div style={{ fontSize: '.78rem', color: '#9ca3af', marginTop: 4 }}>sem vendas no período</div>
+        <div style={{ fontSize: '.86rem', color: '#9ca3af', marginTop: 5 }}>sem vendas no período</div>
       ) : (
         <>
-          <div style={{ fontSize: '1.05rem', fontWeight: 700, color: COR_INK, marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>{fmtRS(atual)}</div>
-          {metrica === 'venda' && <div style={{ fontSize: '.64rem', color: '#6b7280' }}>margem {margemPct.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}%</div>}
-          <div style={{ display: 'flex', gap: 8, marginTop: 6, fontSize: '.62rem', flexWrap: 'wrap' }}>
+          <div style={{ fontSize: '1.6rem', fontWeight: 800, color: COR_INK, marginTop: 3, fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>{fmtRS(atual)}</div>
+          {metrica === 'venda' && <div style={{ fontSize: '.78rem', color: '#6b7280' }}>margem {margemPct.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}%</div>}
+          <div style={{ display: 'flex', gap: 10, marginTop: 8, fontSize: '.76rem', flexWrap: 'wrap', fontWeight: 600 }}>
             {modo !== 'ano' && <Delta label="Mês" v={varM} sup={c.mesAnteriorValor < BASE_MIN_PECAS} parcial={parcial} />}
             <Delta label="Ano" v={varA} sup={c.anoAnteriorValor < BASE_MIN_PECAS} parcial={parcial} />
           </div>
-          <div style={{ marginTop: 8 }}>
+          <div style={{ marginTop: 9 }}>
             <button onClick={onHist} style={linkBtn}>histórico</button>
-            <button onClick={onVendas} style={{ ...linkBtn, marginLeft: 10 }}>vendas</button>
+            <button onClick={onVendas} style={{ ...linkBtn, marginLeft: 12 }}>vendas</button>
           </div>
         </>
       )}
@@ -841,15 +838,15 @@ function MaquinaCard({ c, modo, parcial, onVendas }: { c: Categoria; modo?: 'mes
   const varM = calcVar(c.valorAtual, c.mesAnteriorValor);
   const varA = calcVar(c.valorAtual, c.anoAnteriorValor);
   return (
-    <div style={{ background: '#fff', border: '1px solid #f0e6d5', borderRadius: 10, padding: 12 }}>
-      <div style={{ fontSize: '.66rem', color: '#92610e', textTransform: 'uppercase', letterSpacing: '.4px', fontWeight: 700 }}>{fixLabel(c.nome)}</div>
-      <div style={{ fontSize: '1.05rem', fontWeight: 700, color: COR_INK, marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>{un.toLocaleString('pt-BR')} {un === 1 ? 'máquina' : 'máquinas'}</div>
-      <div style={{ fontSize: '.76rem', color: '#6b7280', whiteSpace: 'nowrap' }}>{fmtRS(c.valorAtual)} · ticket {fmtMil(ticket)}</div>
-      <div style={{ display: 'flex', gap: 8, marginTop: 6, fontSize: '.62rem', flexWrap: 'wrap' }}>
+    <div style={{ background: '#fff', border: '1px solid #f0e6d5', borderRadius: 10, padding: 13 }}>
+      <div style={{ fontSize: '.8rem', color: '#92610e', textTransform: 'uppercase', letterSpacing: '.4px', fontWeight: 700 }}>{fixLabel(c.nome)}</div>
+      <div style={{ fontSize: '1.6rem', fontWeight: 800, color: COR_INK, marginTop: 3, fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>{un.toLocaleString('pt-BR')} {un === 1 ? 'máquina' : 'máquinas'}</div>
+      <div style={{ fontSize: '.9rem', color: '#6b7280', whiteSpace: 'nowrap' }}>{fmtRS(c.valorAtual)} · ticket {fmtMil(ticket)}</div>
+      <div style={{ display: 'flex', gap: 10, marginTop: 8, fontSize: '.76rem', flexWrap: 'wrap', fontWeight: 600 }}>
         {modo !== 'ano' && <Delta label="Mês" v={varM} sup={(c.unidadesMesAnt ?? 0) < BASE_MIN_MAQ_UN} parcial={parcial} />}
         <Delta label="Ano" v={varA} sup={(c.unidadesAnoAnt ?? 0) < BASE_MIN_MAQ_UN} parcial={parcial} />
       </div>
-      <div style={{ marginTop: 8 }}><button onClick={onVendas} style={linkBtn}>ver vendas</button></div>
+      <div style={{ marginTop: 9 }}><button onClick={onVendas} style={linkBtn}>ver vendas</button></div>
     </div>
   );
 }
@@ -868,21 +865,21 @@ function ServicosDecomp({ c, onDetalhe }: { c: Categoria; onDetalhe: () => void 
   else if (c.valorInterno != null) linhas.push({ label: 'Interno', valor: c.valorInterno, somado: false });
   const maxv = Math.max(1, ...linhas.map((l) => Math.abs(l.valor)));
   return (
-    <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 14, borderLeft: '3px solid ' + ACCENT.servicos }}>
+    <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 15, borderLeft: '3px solid ' + ACCENT.servicos }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
-        <span style={{ fontSize: '.72rem', color: '#374151', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px' }}>Serviços — decomposição</span>
+        <span style={{ fontSize: '.9rem', color: '#374151', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px' }}>Serviços — decomposição</span>
         <button onClick={onDetalhe} style={linkBtn}>ver detalhe</button>
       </div>
-      <div style={{ fontSize: '1.1rem', fontWeight: 700, color: COR_INK, marginBottom: 10, fontVariantNumeric: 'tabular-nums' }}>{fmtRS(c.valorAtual)} <span style={{ fontSize: '.7rem', color: '#9ca3af', fontWeight: 400 }}>receita</span></div>
-      {linhas.length === 0 ? <div style={{ fontSize: '.78rem', color: '#9ca3af' }}>Sem detalhe no período.</div> : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+      <div style={{ fontSize: '1.6rem', fontWeight: 800, color: COR_INK, marginBottom: 12, fontVariantNumeric: 'tabular-nums' }}>{fmtRS(c.valorAtual)} <span style={{ fontSize: '.82rem', color: '#9ca3af', fontWeight: 400 }}>receita</span></div>
+      {linhas.length === 0 ? <div style={{ fontSize: '.86rem', color: '#9ca3af' }}>Sem detalhe no período.</div> : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
           {linhas.map((l, i) => (
             <div key={i}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.72rem', color: l.somado ? '#374151' : '#9ca3af' }}>
-                <span>{l.label}{!l.somado && <span style={{ fontSize: '.62rem' }}> (não somado)</span>}</span>
-                <span style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{fmtRS(l.valor)}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.86rem', color: l.somado ? '#374151' : '#9ca3af' }}>
+                <span>{l.label}{!l.somado && <span style={{ fontSize: '.72rem' }}> (não somado)</span>}</span>
+                <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmtRS(l.valor)}</span>
               </div>
-              <div style={{ height: 5, background: '#f3f4f6', borderRadius: 3, marginTop: 2, overflow: 'hidden' }}>
+              <div style={{ height: 6, background: '#f3f4f6', borderRadius: 3, marginTop: 3, overflow: 'hidden' }}>
                 <div style={{ height: '100%', width: Math.max(2, (Math.abs(l.valor) / maxv) * 100) + '%', background: l.somado ? ACCENT.servicos : '#d1d5db', borderRadius: 3 }} />
               </div>
             </div>
@@ -902,24 +899,24 @@ function PSTooltip({ active, payload, label }: PSTooltipProps) {
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}><span style={{ color: cor }}>{nome}</span><span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmtRS(v)}</span></div>
   );
   return (
-    <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 10px', fontSize: '.72rem', boxShadow: '0 2px 8px rgba(0,0,0,.1)' }}>
-      <div style={{ fontWeight: 700, marginBottom: 4 }}>{label}{p.parcial && <span style={{ color: '#b45309', fontWeight: 600 }}> · parcial</span>}</div>
+    <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: '9px 12px', fontSize: '.86rem', boxShadow: '0 2px 8px rgba(0,0,0,.1)' }}>
+      <div style={{ fontWeight: 700, marginBottom: 5 }}>{label}{p.parcial && <span style={{ color: '#b45309', fontWeight: 600 }}> · parcial</span>}</div>
       {row('Peças', p.pecas, ACCENT.pecas)}
       {row('Serviços', p.servicos, ACCENT.servicos)}
-      <div style={{ borderTop: '1px solid #eee', marginTop: 4, paddingTop: 4, display: 'flex', justifyContent: 'space-between', gap: 16 }}><span>Peças + Serviços</span><span style={{ fontWeight: 700 }}>{fmtRS(ps)}</span></div>
+      <div style={{ borderTop: '1px solid #eee', marginTop: 5, paddingTop: 5, display: 'flex', justifyContent: 'space-between', gap: 16 }}><span>Peças + Serviços</span><span style={{ fontWeight: 700 }}>{fmtRS(ps)}</span></div>
     </div>
   );
 }
 function PecasChart({ pontos }: { pontos: TendPonto[] }) {
   return (
-    <div style={{ width: '100%', height: 300 }}>
+    <div style={{ width: '100%', height: 340 }}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={pontos} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
           <CartesianGrid vertical={false} stroke="#f0f0f0" />
-          <XAxis dataKey="label" tick={{ fontSize: 10 }} />
-          <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => fmtMil(v)} width={78} />
+          <XAxis dataKey="label" tick={{ fontSize: 13 }} />
+          <YAxis tick={{ fontSize: 13 }} tickFormatter={(v) => fmtMil(v)} width={90} />
           <Tooltip content={<PSTooltip />} cursor={{ fill: 'rgba(0,0,0,.03)' }} />
-          <Legend wrapperStyle={{ fontSize: 12 }} />
+          <Legend wrapperStyle={{ fontSize: 14 }} />
           <Bar dataKey="pecas" stackId="a" name="Peças" fill={ACCENT.pecas}>
             {pontos.map((p, i) => <Cell key={i} fillOpacity={p.parcial ? 0.5 : 1} />)}
           </Bar>
@@ -937,8 +934,8 @@ function MaqTooltip({ active, payload, label }: MaqTooltipProps) {
   if (!active || !payload || !payload.length) return null;
   const p = payload[0].payload;
   return (
-    <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 10px', fontSize: '.72rem', boxShadow: '0 2px 8px rgba(0,0,0,.1)' }}>
-      <div style={{ fontWeight: 700, marginBottom: 4 }}>{label}{p.parcial && <span style={{ color: '#b45309', fontWeight: 600 }}> · parcial</span>}</div>
+    <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: '9px 12px', fontSize: '.86rem', boxShadow: '0 2px 8px rgba(0,0,0,.1)' }}>
+      <div style={{ fontWeight: 700, marginBottom: 5 }}>{label}{p.parcial && <span style={{ color: '#b45309', fontWeight: 600 }}> · parcial</span>}</div>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}><span style={{ color: ACCENT.maquinas }}>Faturamento</span><span style={{ fontWeight: 700 }}>{fmtRS(p.maquinas)}</span></div>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}><span>Unidades</span><span style={{ fontWeight: 700 }}>{p.maquinasUn.toLocaleString('pt-BR')}</span></div>
     </div>
@@ -946,16 +943,16 @@ function MaqTooltip({ active, payload, label }: MaqTooltipProps) {
 }
 function MaquinasChart({ pontos }: { pontos: TendPonto[] }) {
   return (
-    <div style={{ width: '100%', height: 300 }}>
+    <div style={{ width: '100%', height: 340 }}>
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={pontos} margin={{ top: 18, right: 8, left: 8, bottom: 0 }}>
+        <BarChart data={pontos} margin={{ top: 22, right: 8, left: 8, bottom: 0 }}>
           <CartesianGrid vertical={false} stroke="#f0f0f0" />
-          <XAxis dataKey="label" tick={{ fontSize: 10 }} />
-          <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => fmtMil(v)} width={78} />
+          <XAxis dataKey="label" tick={{ fontSize: 13 }} />
+          <YAxis tick={{ fontSize: 13 }} tickFormatter={(v) => fmtMil(v)} width={90} />
           <Tooltip content={<MaqTooltip />} cursor={{ fill: 'rgba(0,0,0,.03)' }} />
           <Bar dataKey="maquinas" name="Faturamento" fill={ACCENT.maquinas} radius={[3, 3, 0, 0]}>
             {pontos.map((p, i) => <Cell key={i} fillOpacity={p.parcial ? 0.5 : 1} />)}
-            <LabelList dataKey="maquinasUn" position="top" style={{ fontSize: 10, fill: '#92610e', fontWeight: 700 }} formatter={(v: number) => (v ? v.toLocaleString('pt-BR') : '')} />
+            <LabelList dataKey="maquinasUn" position="top" style={{ fontSize: 13, fill: '#92610e', fontWeight: 700 }} formatter={(v: number) => (v ? v.toLocaleString('pt-BR') : '')} />
           </Bar>
         </BarChart>
       </ResponsiveContainer>
@@ -968,17 +965,17 @@ function tipoRotulo(t: TipoServico): string {
 }
 
 function NotaBadge({ temNota, balde }: { temNota?: boolean | null; balde?: InternoBalde }) {
-  if (temNota == null) return <span title="Ainda não verificado" style={{ color: '#bbb', fontSize: '.7rem' }}>—</span>;
+  if (temNota == null) return <span title="Ainda não verificado" style={{ color: '#bbb', fontSize: '.78rem' }}>—</span>;
   if (temNota) {
-    return <span style={{ background: '#ede9fe', color: '#6d28d9', borderRadius: 6, padding: '2px 7px', fontSize: '.66rem', fontWeight: 700 }}>Com nota</span>;
+    return <span style={{ background: '#ede9fe', color: '#6d28d9', borderRadius: 6, padding: '2px 7px', fontSize: '.74rem', fontWeight: 700 }}>Com nota</span>;
   }
   if (balde === 'retorno') {
-    return <span title="Garantia de fábrica, entrega/montagem, revisão ou serviço normal fechado sem nota — rendeu." style={{ background: '#fef3c7', color: '#b45309', borderRadius: 6, padding: '2px 7px', fontSize: '.66rem', fontWeight: 700 }}>Interno c/ retorno</span>;
+    return <span title="Garantia de fábrica, entrega/montagem, revisão ou serviço normal fechado sem nota — rendeu." style={{ background: '#fef3c7', color: '#b45309', borderRadius: 6, padding: '2px 7px', fontSize: '.74rem', fontWeight: 700 }}>Interno c/ retorno</span>;
   }
   if (balde === 'puro') {
-    return <span title="Cortesia comercial ou contrato interno/oficina — interno de verdade." style={{ background: '#f3f4f6', color: '#666', borderRadius: 6, padding: '2px 7px', fontSize: '.66rem', fontWeight: 700 }}>Interno puro</span>;
+    return <span title="Cortesia comercial ou contrato interno/oficina — interno de verdade." style={{ background: '#f3f4f6', color: '#666', borderRadius: 6, padding: '2px 7px', fontSize: '.74rem', fontWeight: 700 }}>Interno puro</span>;
   }
-  return <span style={{ background: '#f3f4f6', color: '#666', borderRadius: 6, padding: '2px 7px', fontSize: '.66rem', fontWeight: 700 }}>Interno</span>;
+  return <span style={{ background: '#f3f4f6', color: '#666', borderRadius: 6, padding: '2px 7px', fontSize: '.74rem', fontWeight: 700 }}>Interno</span>;
 }
 
 function TipoBadge({ tipo }: { tipo?: TipoServico }) {
@@ -989,7 +986,7 @@ function TipoBadge({ tipo }: { tipo?: TipoServico }) {
   };
   const c = cores[tipo || 'OUTRO'];
   return (
-    <span style={{ background: c.bg, color: c.fg, borderRadius: 6, padding: '2px 7px', fontSize: '.66rem', fontWeight: 700 }}>
+    <span style={{ background: c.bg, color: c.fg, borderRadius: 6, padding: '2px 7px', fontSize: '.74rem', fontWeight: 700 }}>
       {tipo === 'OUTRO' || !tipo ? 'Outro' : tipo}
     </span>
   );
@@ -998,8 +995,8 @@ function TipoBadge({ tipo }: { tipo?: TipoServico }) {
 function Sel({ label, value, onChange, options }: { label: string; value: string | number; onChange: (v: string) => void; options: Array<{ value: string | number; label: string }> }) {
   return (
     <div>
-      <label style={{ display: 'block', color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 3, fontWeight: 600 }}>{label}</label>
-      <select value={value} onChange={(e) => onChange(e.target.value)} style={{ padding: '9px 12px', border: '1px solid #e0e0e0', background: '#fff', color: '#333', borderRadius: 8, fontSize: '.82rem', outline: 'none' }}>
+      <label style={{ display: 'block', color: '#888', fontSize: '.74rem', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 3, fontWeight: 600 }}>{label}</label>
+      <select value={value} onChange={(e) => onChange(e.target.value)} style={{ padding: '9px 12px', border: '1px solid #e0e0e0', background: '#fff', color: '#333', borderRadius: 8, fontSize: '.92rem', outline: 'none' }}>
         {options.map((o) => <option key={String(o.value)} value={o.value}>{o.label}</option>)}
       </select>
     </div>
