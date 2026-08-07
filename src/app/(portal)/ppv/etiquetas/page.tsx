@@ -463,14 +463,18 @@ function htmlFolha(blocos: Etiqueta[], usadas: Set<number>): string {
     const dupla = e.linhas.length > 1
     return `    <div class="cel${dupla ? ' dupla' : ''}">
 ${e.linhas.map(l => {
-      const descLoc = [l.descricao, l.locacao].filter(Boolean).map(esc).join(' · ')
+      // Na dupla, descrição·locação dividem a linha, mas a LOCAÇÃO nunca some:
+      // ela não encolhe (flex) — quem corta no "…" é a descrição.
+      const descLocDupla = (l.descricao || l.locacao)
+        ? `
+        <div class="descloc">${l.descricao ? `<span class="d">${esc(l.descricao)}</span>` : ''}${l.locacao ? `<span class="l">${l.descricao ? '· ' : ''}${esc(l.locacao)}</span>` : ''}</div>`
+        : ''
       // barra por ÚLTIMO — o código de barras é o item menos importante
       // visualmente; texto fica agrupado em cima (pedido do usuário)
       return `      <div class="bloco">
         <div class="emp">${esc(l.empresa)}</div>
         <div class="cod">${esc(l.codigo)}</div>${dupla
-          ? (descLoc ? `
-        <div class="desc">${descLoc}</div>` : '')
+          ? descLocDupla
           : `${l.descricao ? `
         <div class="desc">${esc(l.descricao)}</div>` : ''}${l.locacao ? `
         <div class="loc-linha">${esc(l.locacao)}</div>` : ''}`}
@@ -506,7 +510,9 @@ ${e.linhas.map(l => {
   .dupla .emp { font-size: 5pt; }
   .dupla .cod { font-size: 9pt; line-height: 1.05; }
   .dupla .barra { margin: 0.2mm auto; }
-  .dupla .desc { font-size: 6.5pt; line-height: 1.1; }
+  .descloc { display: flex; justify-content: center; align-items: baseline; gap: 2px; max-width: 100%; font-size: 6.5pt; font-weight: 600; line-height: 1.1; }
+  .descloc .d { flex: 0 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .descloc .l { flex: 0 0 auto; white-space: nowrap; color: #333; }
   .dt { position: absolute; bottom: 0.5mm; right: 1.4mm; font-size: 5.5pt; color: #666; }
   @media screen {
     body { background: #e5e7eb; }
