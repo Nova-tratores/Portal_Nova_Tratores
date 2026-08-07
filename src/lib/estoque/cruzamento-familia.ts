@@ -165,6 +165,21 @@ async function carregarProdutos(conta: ContaFiltro): Promise<{
   return { estoquePorFamilia, famPorCodigo, famPorSKU };
 }
 
+// O `cProd` de uma NF-e é o código do FORNECEDOR, não o SKU da Nova. Quando o
+// item não foi vinculado a um produto (nCodProd = 0), só nos resta casar por
+// SKU — mas códigos genéricos de linha ("01", "1", "007") colidem por acaso com
+// SKUs internos curtos e classificam o item errado. Caso real: uma NF de rolo-
+// faca (implemento) entrou avulsa com cProd "01" e bateu no SKU interno "01"
+// (RADIADOR MOTOR, família "Peças"), fazendo a máquina aparecer no card
+// "Comprei (peças)". Só confiamos no casamento por SKU quando o código tem
+// estrutura (letra, ponto/traço ou 4+ dígitos) — não um mero nº de item da nota.
+function skuConfiavel(sku: string): boolean {
+  const s = sku.trim();
+  if (!s) return false;
+  if (/^\d{1,3}$/.test(s)) return false; // nº de item da NF do fornecedor, não SKU
+  return true;
+}
+
 /** Resolve a família de um item de entrada: id interno (nCodProd) → SKU (cProd). */
 function resolverFamiliaEntrada(
   codigo: string,
@@ -172,7 +187,10 @@ function resolverFamiliaEntrada(
   famPorCodigo: Record<string, string>,
   famPorSKU: Record<string, string>,
 ): string {
-  return famPorCodigo[codigo] || (sku ? famPorSKU[sku.trim().toLowerCase()] : '') || '';
+  const porCodigo = famPorCodigo[codigo];
+  if (porCodigo) return porCodigo;
+  if (skuConfiavel(sku)) return famPorSKU[sku.trim().toLowerCase()] || '';
+  return '';
 }
 
 /**
