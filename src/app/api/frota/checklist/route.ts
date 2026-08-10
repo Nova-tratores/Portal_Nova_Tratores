@@ -12,6 +12,7 @@ import { randomUUID } from 'crypto';
 import { autenticar } from '@/lib/auth/server';
 import { temModuloFrota } from '@/lib/frota/server';
 import { resolverPlaca, extrairPlacaDeNumPlaca } from '@/lib/frota/placa';
+import { responsavelVazio } from '@/lib/frota/responsavel';
 import { CHECKLIST_ITEMS, calcularScore } from '@/lib/frota/checklist';
 
 export const runtime = 'nodejs';
@@ -33,8 +34,8 @@ async function nomeDoUsuario(userId: string, email: string | null): Promise<stri
 async function estaVinculado(placaCanon: string): Promise<boolean> {
   const { data: veic } = await supabase.from('frota_veiculos').select('id').eq('placa', placaCanon).maybeSingle();
   if (veic) {
-    const { data: resp } = await supabase.from('frota_responsaveis').select('id').eq('veiculo_id', veic.id).is('fim', null).maybeSingle();
-    if (resp) return true;
+    const { data: resp } = await supabase.from('frota_responsaveis').select('id, motorista_nome').eq('veiculo_id', veic.id).is('fim', null).maybeSingle();
+    if (resp && !responsavelVazio(resp.motorista_nome)) return true;
   }
   const { data: tvs } = await supabase.from('tecnico_veiculos').select('placa');
   return (tvs || []).some((t) => resolverPlaca(extrairPlacaDeNumPlaca(t.placa)) === placaCanon);

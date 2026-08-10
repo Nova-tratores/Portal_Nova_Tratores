@@ -288,6 +288,10 @@ export interface ChecklistVeiculo {
   inicio_em: string | null;
   fim_em: string | null;
   alertas: string | null;        // JSON string
+  // quando o checklist foi vinculado pelo TÉCNICO responsável (não pela placa),
+  // guarda a placa com que ele foi registrado no NT Mecânico (senão null)
+  placa_registrada?: string | null;
+  vinculo?: 'placa' | 'responsavel';
 }
 
 export interface ChecklistItem {

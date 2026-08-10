@@ -7,6 +7,7 @@ import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
 import { temModuloFrota } from '@/lib/frota/server';
 import { resolverPlaca, extrairPlacaDeNumPlaca, formatarPlaca } from '@/lib/frota/placa';
+import { responsavelVazio } from '@/lib/frota/responsavel';
 
 export const runtime = 'nodejs';
 
@@ -38,7 +39,7 @@ export async function GET(req: NextRequest) {
     supabase.from('tecnico_veiculos').select('tecnico_nome, placa, descricao'),
     supabase.from('veiculo_checklist').select('id, tecnico_nome, placa, status, score_confianca, km, fim_em').eq('mes_referencia', mes),
     supabase.from('frota_veiculos').select('id, placa, placa_exibicao, modelo, ativo, tipo_registro'),
-    supabase.from('frota_responsaveis').select('veiculo_id').is('fim', null),
+    supabase.from('frota_responsaveis').select('veiculo_id, motorista_nome').is('fim', null),
   ]);
 
   // checklist por técnico (normalizado) e por placa canônica — dois caminhos de match
@@ -52,7 +53,8 @@ export async function GET(req: NextRequest) {
 
   const veicPorPlaca = new Map<string, any>();
   for (const v of veics.data || []) veicPorPlaca.set(v.placa, v);
-  const idsComResp = new Set((resp.data || []).map((r) => r.veiculo_id));
+  // só conta como "tem responsável" se o nome não for placeholder (Vazio, etc.)
+  const idsComResp = new Set((resp.data || []).filter((r) => !responsavelVazio(r.motorista_nome)).map((r) => r.veiculo_id));
   const placasTecnico = new Set((atrib.data || []).map((tv) => resolverPlaca(extrairPlacaDeNumPlaca(tv.placa))).filter(Boolean));
 
   // 1) Veículos atribuídos a técnicos (NT Mecânico)

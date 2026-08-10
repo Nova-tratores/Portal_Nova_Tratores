@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import {
   Store, Search, Edit3, Trash2, CheckCircle2, RefreshCw, Plus,
   ArrowLeft, ChevronDown, ChevronUp, FileText, ChevronRight, User, Clock,
+  X, ExternalLink,
 } from 'lucide-react';
 import { anexosDaReq } from '@/lib/requisicoes/anexos';
 
@@ -201,10 +202,10 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
     }
   };
 
-  // ── Ficha ──
+  // ── Ficha (modal) ──
+  const fecharFicha = () => setFichaForn(null);
   const abrirFicha = async (forn: any) => {
-    setFichaForn(forn); setView('ficha'); setFichaLoading(true); setFichaMeses([]);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setFichaForn(forn); setFichaLoading(true); setFichaMeses([]);
     const { data } = await supabase
       .from('Requisicao')
       .select('id, titulo, valor_despeza, solicitante, created_at, numero_nota, foto_nf, recibo_fornecedor, boleto_fornecedor, status')
@@ -230,92 +231,115 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
 
   // ── estilos ──
   const card: React.CSSProperties = { background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 14, boxShadow: '0 1px 3px rgba(15,20,30,0.05)' };
-  const inp: React.CSSProperties = { width: '100%', padding: '11px 13px', borderRadius: 10, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-secondary)', color: 'var(--portal-text)', fontSize: 14, outline: 'none', boxSizing: 'border-box' };
-  const lbl: React.CSSProperties = { fontSize: 10, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--portal-text-muted)' };
+  const inp: React.CSSProperties = { width: '100%', padding: '13px 15px', borderRadius: 10, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-secondary)', color: 'var(--portal-text)', fontSize: 15.5, outline: 'none', boxSizing: 'border-box' };
+  const lbl: React.CSSProperties = { fontSize: 12, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--portal-text-muted)' };
   const btnRed: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 7, padding: '10px 16px', borderRadius: 11, border: 'none', background: '#dc2626', color: '#fff', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' };
   const btnGhost: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderRadius: 10, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text-secondary)', fontSize: 13, fontWeight: 600, cursor: 'pointer' };
   const Avatar = ({ nome, size = 42 }: { nome: string; size?: number }) => (
     <span style={{ width: size, height: size, borderRadius: size * 0.3, background: `linear-gradient(135deg, ${corDe(nome)}, ${corDe(nome)}cc)`, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: size * 0.34, flexShrink: 0 }}>{iniciais(nome)}</span>
   );
 
-  // ════════════ FICHA ════════════
-  if (view === 'ficha' && fichaForn) {
+  // ════════════ FICHA (MODAL) ════════════
+  const renderFichaModal = () => {
+    if (!fichaForn) return null;
     const st = stats[String(fichaForn.nome || '').toLowerCase()];
     const anexoCor: Record<string, { bg: string; cor: string; label: string }> = {
       foto_nf: { bg: '#eef4ff', cor: '#2563eb', label: 'Nota' },
       recibo_fornecedor: { bg: '#e9faf3', cor: '#059669', label: 'Recibo' },
       boleto_fornecedor: { bg: '#fef6e7', cor: '#d97706', label: 'Boleto' },
     };
+    const kpi: React.CSSProperties = { border: '1px solid var(--portal-border)', borderRadius: 12, padding: '14px 16px', background: 'var(--portal-bg-secondary)' };
+    const kpiLbl: React.CSSProperties = { fontSize: 12, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--portal-text-muted)' };
     return (
-      <div style={{ animation: 'fadeIn .3s' }}>
-        <button onClick={() => setView('lista')} style={{ ...btnGhost, marginBottom: 14 }}><ArrowLeft size={16} /> Voltar</button>
-        <div style={{ ...card, padding: '16px 18px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <Avatar nome={fichaForn.nome} size={52} />
+      <div
+        onClick={fecharFicha}
+        style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(15,20,30,.55)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '5vh 16px', animation: 'fadeIn .18s' }}
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{ ...card, width: '100%', maxWidth: 760, maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 60px rgba(0,0,0,.32)' }}
+        >
+          {/* Cabeçalho fixo */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '20px 22px', borderBottom: '1px solid var(--portal-border)' }}>
+            <Avatar nome={fichaForn.nome} size={58} />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--portal-text)' }}>{fichaForn.nome}</div>
-              <div style={{ fontSize: 12.5, color: 'var(--portal-text-muted)', marginTop: 2 }}>
-                {[fichaForn['cpf/cnpj'], fichaForn.numero, fichaForn.email].filter(Boolean).join(' · ') || 'Sem contato cadastrado'}
+              <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--portal-text)', lineHeight: 1.15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fichaForn.nome}</div>
+              <div style={{ fontSize: 14, color: 'var(--portal-text-secondary)', marginTop: 4 }}>
+                {[fichaForn['cpf/cnpj'], fichaForn.numero, fichaForn.email].filter(Boolean).join('  ·  ') || 'Sem contato cadastrado'}
               </div>
             </div>
-            <button onClick={() => iniciarEdicao(fichaForn)} style={btnGhost}><Edit3 size={14} /> Editar</button>
+            <button onClick={() => { fecharFicha(); iniciarEdicao(fichaForn); }} style={btnGhost}><Edit3 size={15} /> Editar</button>
+            <button onClick={fecharFicha} title="Fechar" style={{ background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 10, width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--portal-text-secondary)' }}><X size={20} /></button>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginTop: 14 }}>
-            <div style={{ border: '1px solid var(--portal-border)', borderRadius: 12, padding: '12px 14px' }}><div style={lbl}>Requisições</div><div style={{ fontSize: 20, fontWeight: 800, color: '#2563eb', marginTop: 4 }}>{st?.count || 0}</div></div>
-            <div style={{ border: '1px solid var(--portal-border)', borderRadius: 12, padding: '12px 14px' }}><div style={lbl}>Valor total</div><div style={{ fontSize: 18, fontWeight: 800, color: '#059669', marginTop: 4 }}>{fmtBRL(st?.total || 0)}</div></div>
-            <div style={{ border: '1px solid var(--portal-border)', borderRadius: 12, padding: '12px 14px' }}><div style={lbl}>Última compra</div><div style={{ fontSize: 15, fontWeight: 700, color: 'var(--portal-text)', marginTop: 6 }}>{st?.last ? new Date(st.last).toLocaleDateString('pt-BR') : '—'}</div></div>
-          </div>
-        </div>
 
-        <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--portal-text-muted)', margin: '20px 2px 11px' }}>Por mês</div>
+          {/* Corpo rolável */}
+          <div style={{ padding: '18px 22px', overflowY: 'auto' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+              <div style={kpi}><div style={kpiLbl}>Requisições</div><div style={{ fontSize: 26, fontWeight: 700, color: '#2563eb', marginTop: 5 }}>{st?.count || 0}</div></div>
+              <div style={kpi}><div style={kpiLbl}>Valor total</div><div style={{ fontSize: 22, fontWeight: 700, color: '#059669', marginTop: 5, fontVariantNumeric: 'tabular-nums' }}>{fmtBRL(st?.total || 0)}</div></div>
+              <div style={kpi}><div style={kpiLbl}>Última compra</div><div style={{ fontSize: 18, fontWeight: 600, color: 'var(--portal-text)', marginTop: 8 }}>{st?.last ? new Date(st.last).toLocaleDateString('pt-BR') : '—'}</div></div>
+            </div>
 
-        {fichaLoading ? (
-          <div style={{ padding: 50, textAlign: 'center', color: 'var(--portal-text-muted)' }}><RefreshCw size={22} className="animate-spin" /><div style={{ marginTop: 8 }}>Carregando…</div></div>
-        ) : fichaMeses.length === 0 ? (
-          <div style={{ ...card, padding: 30, textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 14 }}>Nenhuma requisição encontrada para este fornecedor.</div>
-        ) : fichaMeses.map((m) => {
-          const aberto = mesAberto === m.mes;
-          return (
-            <div key={m.mes} style={{ ...card, overflow: 'hidden', marginBottom: 12 }}>
-              <div onClick={() => setMesAberto(aberto ? null : m.mes)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 16px', cursor: 'pointer' }}>
-                <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--portal-text)', textTransform: 'capitalize' }}>{mesNome(m.mes)}</span>
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#dc2626', background: '#fef2f2', padding: '2px 9px', borderRadius: 999 }}>{m.reqs.length} {m.reqs.length === 1 ? 'req' : 'reqs'}</span>
-                <span style={{ marginLeft: 'auto', fontSize: 15, fontWeight: 800, color: '#059669', fontVariantNumeric: 'tabular-nums' }}>{fmtBRL(m.total)}</span>
-                {aberto ? <ChevronUp size={16} color="var(--portal-text-muted)" /> : <ChevronDown size={16} color="var(--portal-text-muted)" />}
-              </div>
-              {aberto && (
-                <div style={{ borderTop: '1px solid var(--portal-border)', padding: '12px 16px' }}>
-                  {m.topSol && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--portal-text-secondary)', background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 9, padding: '8px 11px', marginBottom: 12 }}>
-                      <User size={14} /> Quem mais solicitou: <b style={{ color: 'var(--portal-text)' }}>{m.topSol.nome}</b> — {m.topSol.count} {m.topSol.count === 1 ? 'req' : 'reqs'} · {fmtBRL(m.topSol.total)}
+            <div style={{ fontSize: 12.5, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--portal-text-muted)', margin: '22px 2px 12px' }}>Histórico por mês</div>
+
+            {fichaLoading ? (
+              <div style={{ padding: 50, textAlign: 'center', color: 'var(--portal-text-muted)' }}><RefreshCw size={22} className="animate-spin" /><div style={{ marginTop: 8 }}>Carregando…</div></div>
+            ) : fichaMeses.length === 0 ? (
+              <div style={{ ...card, padding: 30, textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 15 }}>Nenhuma requisição encontrada para este fornecedor.</div>
+            ) : fichaMeses.map((m) => {
+              const aberto = mesAberto === m.mes;
+              return (
+                <div key={m.mes} style={{ ...card, overflow: 'hidden', marginBottom: 12 }}>
+                  <div onClick={() => setMesAberto(aberto ? null : m.mes)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '15px 17px', cursor: 'pointer' }}>
+                    <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'capitalize' }}>{mesNome(m.mes)}</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#dc2626', background: '#fef2f2', padding: '3px 10px', borderRadius: 999 }}>{m.reqs.length} {m.reqs.length === 1 ? 'req' : 'reqs'}</span>
+                    <span style={{ marginLeft: 'auto', fontSize: 17, fontWeight: 700, color: '#059669', fontVariantNumeric: 'tabular-nums' }}>{fmtBRL(m.total)}</span>
+                    {aberto ? <ChevronUp size={18} color="var(--portal-text-muted)" /> : <ChevronDown size={18} color="var(--portal-text-muted)" />}
+                  </div>
+                  {aberto && (
+                    <div style={{ borderTop: '1px solid var(--portal-border)', padding: '14px 17px' }}>
+                      {m.topSol && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: 'var(--portal-text-secondary)', background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 9, padding: '10px 13px', marginBottom: 14 }}>
+                          <User size={16} /> Quem mais solicitou: <b style={{ color: 'var(--portal-text)' }}>{m.topSol.nome}</b> — {m.topSol.count} {m.topSol.count === 1 ? 'req' : 'reqs'} · {fmtBRL(m.topSol.total)}
+                        </div>
+                      )}
+                      {m.reqs.map((r) => {
+                        const anexos = anexosDaReq(r);
+                        return (
+                          <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--portal-border)' }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <a
+                                href={`/requisicoes?req=${r.id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title="Abrir a requisição em nova aba"
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 15, fontWeight: 600, color: '#2563eb', textDecoration: 'none', maxWidth: '100%' }}
+                              >
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>#{r.id} · {r.titulo || 'Requisição'}</span>
+                                <ExternalLink size={14} style={{ flexShrink: 0 }} />
+                              </a>
+                              <div style={{ fontSize: 13, color: 'var(--portal-text-muted)', marginTop: 2 }}>{resolveNome(r.solicitante)} · {r.created_at ? new Date(r.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}{r.numero_nota ? ` · NF ${r.numero_nota}` : ''}</div>
+                            </div>
+                            <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--portal-text)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{fmtBRL(parseBR(r.valor_despeza))}</span>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              {anexos.length === 0 ? <span style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>sem anexo</span> : anexos.map((a) => {
+                                const c = anexoCor[a.field] || { bg: 'var(--portal-bg-secondary)', cor: 'var(--portal-text-secondary)', label: a.label };
+                                return <a key={a.field} href={a.url} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700, padding: '4px 9px', borderRadius: 7, textDecoration: 'none', background: c.bg, color: c.cor }}><FileText size={12} /> {c.label}</a>;
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
-                  {m.reqs.map((r) => {
-                    const anexos = anexosDaReq(r);
-                    return (
-                      <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 0', borderBottom: '1px dashed var(--portal-border)' }}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--portal-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.titulo || 'Requisição'}</div>
-                          <div style={{ fontSize: 11.5, color: 'var(--portal-text-muted)' }}>{resolveNome(r.solicitante)} · {r.created_at ? new Date(r.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '—'}{r.numero_nota ? ` · NF ${r.numero_nota}` : ''}</div>
-                        </div>
-                        <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--portal-text)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{fmtBRL(parseBR(r.valor_despeza))}</span>
-                        <div style={{ display: 'flex', gap: 5 }}>
-                          {anexos.length === 0 ? <span style={{ fontSize: 10.5, color: 'var(--portal-text-muted)' }}>sem anexo</span> : anexos.map((a) => {
-                            const c = anexoCor[a.field] || { bg: 'var(--portal-bg-secondary)', cor: 'var(--portal-text-secondary)', label: a.label };
-                            return <a key={a.field} href={a.url} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 6, textDecoration: 'none', background: c.bg, color: c.cor }}><FileText size={11} /> {c.label}</a>;
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
                 </div>
-              )}
-            </div>
-          );
-        })}
+              );
+            })}
+          </div>
+        </div>
       </div>
     );
-  }
+  };
 
   // ════════════ FORMULÁRIO ════════════
   if (view === 'form') {
@@ -325,17 +349,17 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
     const grid: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 };
     const fg = (span2 = false): React.CSSProperties => ({ display: 'flex', flexDirection: 'column', gap: 6, gridColumn: span2 ? 'span 2' : undefined });
     return (
-      <div style={{ animation: 'fadeIn .3s', maxWidth: 720 }}>
-        <button onClick={cancelarEdicao} style={{ ...btnGhost, marginBottom: 14 }}><ArrowLeft size={16} /> Voltar</button>
+      <div style={{ animation: 'fadeIn .3s', maxWidth: 680, margin: '0 auto' }}>
+        <button onClick={cancelarEdicao} style={{ ...btnGhost, marginBottom: 16 }}><ArrowLeft size={16} /> Voltar</button>
         <form onSubmit={handleSubmit}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 11, background: editando ? '#fef2f2' : 'var(--portal-bg-secondary)', color: editando ? '#dc2626' : 'var(--portal-text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{editando ? <Edit3 size={20} /> : <Store size={20} />}</div>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--portal-text)', margin: 0 }}>{editando ? 'Editar fornecedor' : 'Novo fornecedor'}</h2>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 20, textAlign: 'center' }}>
+            <div style={{ width: 46, height: 46, borderRadius: 12, background: editando ? '#fef2f2' : 'var(--portal-bg-secondary)', color: editando ? '#dc2626' : 'var(--portal-text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{editando ? <Edit3 size={23} /> : <Store size={23} />}</div>
+            <h2 style={{ fontSize: 23, fontWeight: 700, color: 'var(--portal-text)', margin: 0 }}>{editando ? 'Editar fornecedor' : 'Novo fornecedor'}</h2>
           </div>
 
           {/* Identificação */}
-          <div style={{ ...card, padding: '16px 18px', marginBottom: 14 }}>
-            <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '.05em', textTransform: 'uppercase', color: '#dc2626', marginBottom: 14 }}>Identificação</div>
+          <div style={{ ...card, padding: '20px 22px', marginBottom: 16 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: '#dc2626', marginBottom: 16 }}>Identificação</div>
             <div style={grid}>
               <div style={fg()}>
                 <span style={lbl}>CNPJ / CPF{statusTxt(cnpjStatus, cnpjAviso)}</span>
@@ -348,8 +372,8 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
           </div>
 
           {/* Endereço */}
-          <div style={{ ...card, padding: '16px 18px', marginBottom: 14 }}>
-            <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '.05em', textTransform: 'uppercase', color: '#dc2626', marginBottom: 14 }}>Endereço <span style={{ textTransform: 'none', letterSpacing: 0, color: 'var(--portal-text-muted)', fontWeight: 500 }}>— p/ Omie</span></div>
+          <div style={{ ...card, padding: '20px 22px', marginBottom: 16 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: '#dc2626', marginBottom: 16 }}>Endereço <span style={{ textTransform: 'none', letterSpacing: 0, color: 'var(--portal-text-muted)', fontWeight: 500 }}>— p/ Omie</span></div>
             <div style={grid}>
               <div style={fg()}><span style={lbl}>CEP{statusTxt(cepStatus)}</span><input name="cep" maxLength={9} value={formData.cep} onChange={(e) => { const v = e.target.value; setFormData((p) => ({ ...p, cep: v })); buscarCep(v); }} style={inp} placeholder="00000-000" /></div>
               <div style={fg()}><span style={lbl}>Cidade</span><input name="cidade" value={formData.cidade} onChange={handleChange} style={inp} placeholder="Ex: Piraju" /></div>
@@ -362,7 +386,7 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
 
           {/* Serviço */}
           <div style={{ ...card, padding: '16px 18px', marginBottom: 16 }}>
-            <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '.05em', textTransform: 'uppercase', color: '#dc2626', marginBottom: 14 }}>Serviço</div>
+            <div style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: '#dc2626', marginBottom: 16 }}>Serviço</div>
             <div style={fg(true)}><span style={lbl}>Descrição do que fornece</span><input name="descricao" value={formData.descricao} onChange={handleChange} style={inp} placeholder="Ex: Peças agrícolas" /></div>
           </div>
 
@@ -446,6 +470,7 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
           </div>
         </>
       )}
+      {renderFichaModal()}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { autenticar } from '@/lib/auth/server';
 import { logFrota, podeFrota, temModuloFrota } from '@/lib/frota/server';
 import { espelharProjetosOmie } from '@/lib/frota/supaplacas';
 import { resolverPlaca, extrairPlacaDeNumPlaca } from '@/lib/frota/placa';
+import { responsavelVazio, mesmaPessoa } from '@/lib/frota/responsavel';
 
 export const runtime = 'nodejs';
 
@@ -95,8 +96,27 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ plac
       .order('mes_referencia', { ascending: false }),
   ]);
 
-  const checklists = (chk.data || [])
-    .filter((c) => resolverPlaca(extrairPlacaDeNumPlaca(c.placa)) === v.placa);
+  // Casa checklist com o carro por DOIS caminhos (dedup por id):
+  //   1) placa igual (caminho normal);
+  //   2) feito pelo TÉCNICO que é o responsável atual do carro — cobre o caso do
+  //      NT Mecânico gravar o checklist sob a placa cadastrada do técnico (que
+  //      pode divergir da placa real do carro). Quando entra por esse caminho e
+  //      a placa registrada é outra, guardo em `placa_registrada` p/ a ficha
+  //      mostrar de onde veio.
+  const respAtual = (resp.data || []).find((r) => r.fim === null && !responsavelVazio(r.motorista_nome)) || null;
+  const porId = new Map<string, any>();
+  for (const c of chk.data || []) {
+    const placaChk = resolverPlaca(extrairPlacaDeNumPlaca(c.placa));
+    const casaPlaca = placaChk === v.placa;
+    const casaResp = !casaPlaca && respAtual != null && mesmaPessoa(c.tecnico_nome, respAtual.motorista_nome);
+    if (!casaPlaca && !casaResp) continue;
+    porId.set(c.id, {
+      ...c,
+      placa_registrada: casaPlaca ? null : (c.placa || null),
+      vinculo: casaPlaca ? 'placa' : 'responsavel',
+    });
+  }
+  const checklists = [...porId.values()];
 
   // custos 12m agregados por tipo (a view garante que cada real conta UMA vez)
   const porTipo = new Map<string, number>();

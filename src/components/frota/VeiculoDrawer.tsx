@@ -13,6 +13,8 @@ import DocumentoInline from '@/components/frota/DocumentoInline';
 import AbastecimentosModal from '@/components/frota/AbastecimentosModal';
 import TrajetosModal from '@/components/frota/TrajetosModal';
 import { formatarPlaca } from '@/lib/frota/placa';
+import { responsavelVazio } from '@/lib/frota/responsavel';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { checklistPreVenda, pendenciasDoVeiculo } from '@/lib/frota/pendencias';
 import { SUBTIPOS_VEICULO, labelSubtipo } from '@/lib/frota/tipos';
 import type { Motorista, VeiculoDetalhe } from '@/lib/frota/tipos';
@@ -73,6 +75,7 @@ const STATUS_MULTA: Record<string, { label: string; cor: string; bg: string }> =
 };
 
 export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, podeDocumentos, onClose, onMudou }: Props) {
+  const isMobile = useIsMobile();
   const [det, setDet] = useState<VeiculoDetalhe | null>(null);
   const [erro, setErro] = useState('');
   const [busy, setBusy] = useState('');
@@ -371,8 +374,31 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
     } finally { setBusy(''); }
   };
 
+  // Desvincular = fecha o período aberto sem abrir outro (nome vazio). Assim o
+  // carro fica de fato SEM responsável e passa a permitir o checklist mensal.
+  const desvincularResponsavel = async () => {
+    if (!confirm('Desvincular o responsável deste veículo? Ele ficará sem responsável e passará a permitir o checklist mensal pelo portal.')) return;
+    setBusy('responsavel');
+    try {
+      const r = await fetch(`/api/frota/veiculos/${encodeURIComponent(placa)}/responsavel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ nome: '' }),
+      });
+      const d = await r.json();
+      if (!r.ok) { alert(d.error || 'Falha ao desvincular.'); return; }
+      setTrocando(false);
+      await carregar();
+      onMudou?.();
+    } finally { setBusy(''); }
+  };
+
   const v = det?.veiculo;
-  const respAtual = det?.responsaveis.find((r) => r.fim === null) || null;
+  // período aberto "cru" (mesmo se o nome for placeholder tipo "Vazio")
+  const respAberto = det?.responsaveis.find((r) => r.fim === null) || null;
+  // responsável REAL: ignora nomes-placeholder — aí o carro conta como sem responsável
+  const respAtual = respAberto && !responsavelVazio(respAberto.motorista_nome) ? respAberto : null;
+  const semResponsavel = !respAtual;
 
   const multasAbertas = useMemo(
     () => (det?.multas || []).filter((m) => !['paga', 'descontada', 'arquivada'].includes(m.status_interno)).length,
@@ -588,7 +614,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
               <Secao titulo="Identificação" icone={<Car size={14} />}>
                 {!editando ? (
                   <>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 20px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '4px 20px' }}>
                       <Linha rotulo="Marca / Modelo" valor={[v.marca, v.modelo].filter(Boolean).join(' ') || v.descricao} />
                       <Linha rotulo="Ano" valor={v.ano} />
                       <Linha rotulo="Cor" valor={v.cor} />
@@ -700,7 +726,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                         ))}
                       </div>
                     )}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 8 }}>
                       {([
                         ['marca', 'Marca'], ['modelo', 'Modelo'], ['ano', 'Ano'], ['cor', 'Cor'],
                         ['chassi', 'Chassi'], ['renavam', 'RENAVAM'], ['combustivel', 'Combustível'],
@@ -789,11 +815,23 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                     )}
                   </div>
                   {podeResponsavel && !trocando && (
-                    <button onClick={abrirTroca} style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text-secondary)', fontSize: 11.5, fontWeight: 600, cursor: 'pointer' }}>
-                      Trocar responsável
-                    </button>
+                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                      <button onClick={abrirTroca} style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text-secondary)', fontSize: 11.5, fontWeight: 600, cursor: 'pointer' }}>
+                        Trocar responsável
+                      </button>
+                      {respAberto && (
+                        <button onClick={desvincularResponsavel} disabled={busy === 'responsavel'} title="Fechar o período de responsável — o carro fica sem responsável e libera o checklist mensal pelo portal" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px', borderRadius: 6, border: '1px solid #fecaca', background: '#fef2f2', color: '#b91c1c', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
+                          {busy === 'responsavel' ? <Loader2 size={12} className="spin" /> : <Undo2 size={12} />} Desvincular
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
+                {semResponsavel && respAberto && (
+                  <div style={{ fontSize: 11.5, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '7px 10px' }}>
+                    Consta um responsável &quot;{respAberto.motorista_nome}&quot; em aberto (placeholder). O carro está contando como <strong>sem responsável</strong>. Clique em <strong>Desvincular</strong> para fechar esse registro de vez.
+                  </div>
+                )}
 
                 {trocando && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 10, borderRadius: 8, background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)' }}>
@@ -897,7 +935,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                 )}
                 {docForm.aberto && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 10, borderRadius: 8, background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 8 }}>
                       <select value={docForm.tipo} onChange={(e) => setDocForm((f) => ({ ...f, tipo: e.target.value }))} style={inputStyle}>
                         {[['crlv', 'CRLV'], ['seguro', 'Seguro'], ['ipva', 'IPVA'], ['licenciamento', 'Licenciamento'], ['contrato_locacao', 'Contrato de locação'], ['laudo', 'Laudo'], ['outros', 'Outros']].map(([k, l]) => (
                           <option key={k} value={k}>{l}</option>
@@ -922,7 +960,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
 
               {/* Checklists mensais (NT Mecânico) */}
               <Secao titulo={`Checklists mensais (${det.checklists?.length || 0})`} icone={<ClipboardCheck size={14} />}>
-                {!(det.responsaveis || []).some((r) => !r.fim) && (
+                {semResponsavel && (
                   <a href={`/frota/checklist/${encodeURIComponent(v.placa)}`} target="_blank" rel="noopener noreferrer"
                     title="Veículo sem responsável — fazer/ver o checklist do mês (preenchimento pelo celular)"
                     style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 8, background: '#0d9488', color: '#fff', fontSize: 12.5, fontWeight: 700, textDecoration: 'none' }}>
@@ -943,7 +981,14 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                           title={printUrl ? 'Abrir checklist (imprimir / salvar em PDF)' : 'Este checklist não tem link para abrir'}
                           style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', border: '1px solid var(--portal-border)', borderRadius: 8, textDecoration: 'none', color: 'inherit', cursor: printUrl ? 'pointer' : 'default' }}>
                           <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--portal-text)', minWidth: 66 }}>{fmtMes(c.mes_referencia)}</span>
-                          <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: 'var(--portal-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.tecnico_nome || '—'}</span>
+                          <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontSize: 12, color: 'var(--portal-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.tecnico_nome || '—'}</span>
+                            {c.placa_registrada && (
+                              <span title={`Vinculado pelo responsável — no NT Mecânico este checklist foi registrado com a placa ${c.placa_registrada}`} style={{ fontSize: 10.5, color: '#b45309' }}>
+                                registrado como {formatarPlaca(c.placa_registrada)}
+                              </span>
+                            )}
+                          </span>
                           {c.km != null && <span style={{ fontSize: 11.5, color: 'var(--portal-text-muted)' }}>{c.km.toLocaleString('pt-BR')} km</span>}
                           {c.score_confianca != null && <span style={{ fontSize: 11, fontWeight: 700, color: c.score_confianca < 50 ? '#b91c1c' : 'var(--portal-text-muted)' }}>{c.score_confianca}%</span>}
                           <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: st.bg, color: st.cor }}>{st.label}</span>
@@ -978,7 +1023,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                     </span>
                   ) : (
                     <>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 20px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '4px 20px' }}>
                         <Linha rotulo="Dias com uso" valor={det.uso_30d.dias_com_uso} />
                         <Linha rotulo="Partidas" valor={det.uso_30d.partidas} />
                         <Linha rotulo="Tempo ligado" valor={`${Math.floor(det.uso_30d.tempo_ligado_min / 60)}h${String(det.uso_30d.tempo_ligado_min % 60).padStart(2, '0')}`} />
@@ -1111,7 +1156,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                           ))}
                         </div>
                       )}
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 8 }}>
                         <label style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase' }}>
                           Vendido para *
                           <input value={venda.comprador} onChange={(e) => setVenda((f) => ({ ...f, comprador: e.target.value }))} placeholder="nome do comprador" style={inputStyle} />
