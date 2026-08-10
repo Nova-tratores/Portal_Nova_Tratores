@@ -107,12 +107,14 @@ export default function FamiliasPage() {
     }
   }, [q, conta, setMsg]);
 
-  // Carrega TODOS os produtos sem família da conta (para reclassificar em massa).
-  const verSemFamilia = useCallback(async () => {
-    setCarregando(true); setModo('sem-familia'); setMsg('carregando produtos sem família…', 'info');
+  // Carrega TODOS os produtos sem família da conta, direto da Omie. A 1ª carga
+  // varre a Omie (~1–2 min); depois fica em cache. force=refaz a varredura.
+  const verSemFamilia = useCallback(async (force = false) => {
+    setCarregando(true); setModo('sem-familia');
+    setMsg(force ? 'atualizando (varrendo a Omie)…' : 'carregando produtos sem família (1ª vez varre a Omie, ~1–2 min)…', 'info');
     setSelecionados(new Set()); setFiltroCli(''); setQ('');
     try {
-      const r = await fetch(`/api/ajustes/familias?conta=${conta}&sem_familia=1`);
+      const r = await fetch(`/api/ajustes/familias?conta=${conta}&sem_familia=1${force ? '&atualizar=1' : ''}`);
       const d = await r.json();
       if (d.erro) { setMsg('Erro: ' + d.erro, 'erro'); return; }
       if (d.familias) setFamilias(d.familias);
@@ -207,10 +209,12 @@ export default function FamiliasPage() {
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ marginBottom: 14 }}>
         <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>Família por produto</h1>
-        <p style={{ color: '#64748b', fontSize: '.82rem', maxWidth: 900 }}>
+        <p style={{ color: '#64748b', fontSize: '.82rem', maxWidth: 920 }}>
           Reclassifique a <b>família</b> de um produto. Busque por <b>SKU ou descrição</b>, escolha a nova família na
           coluna à direita (ou selecione vários e aplique <b>em lote</b>). A alteração é <b>gravada na Omie</b> e refletida
           no portal. A família é a base da analítica (máquina/peça, dashboards, DRE), por isso cada mudança fica registada.
+          <br />Use <b>Ver sem família</b> para listar (direto da Omie) os produtos ainda <b>sem família</b> — são os que
+          aparecem como <b>&quot;#N/D&quot;</b> nas vendas. A 1ª carga varre a Omie (~1–2 min) e depois fica em cache.
         </p>
       </div>
 
@@ -232,10 +236,16 @@ export default function FamiliasPage() {
             placeholder="ex: RP-0060, POLIA, ROLO FACA…" style={{ width: '100%', border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 8px', fontSize: '.82rem' }} />
         </div>
         <button onClick={buscar} disabled={carregando} style={{ padding: '7px 14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: carregando ? 'wait' : 'pointer', opacity: carregando ? 0.5 : 1 }}>{carregando ? 'Buscando…' : 'Buscar'}</button>
-        <button onClick={verSemFamilia} disabled={carregando} title="Lista todos os produtos sem família da empresa selecionada"
+        <button onClick={() => verSemFamilia(false)} disabled={carregando} title="Varre a Omie e lista todos os produtos sem família (codigo_familia vazio) da empresa selecionada — a 1ª vez leva ~1–2 min, depois fica em cache"
           style={{ padding: '7px 14px', background: '#fff', color: '#b45309', border: '1px solid #f59e0b', borderRadius: 6, fontSize: '.82rem', cursor: carregando ? 'wait' : 'pointer', opacity: carregando ? 0.5 : 1, fontWeight: 600 }}>
           Ver sem família
         </button>
+        {modo === 'sem-familia' && produtos.length > 0 && (
+          <button onClick={() => verSemFamilia(true)} disabled={carregando} title="Refazer a varredura na Omie (ignora o cache)"
+            style={{ padding: '7px 10px', background: '#fff', color: '#64748b', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: '.82rem', cursor: carregando ? 'wait' : 'pointer', opacity: carregando ? 0.5 : 1 }}>
+            ↻ atualizar
+          </button>
+        )}
       </div>
 
       {/* Filtro dos resultados carregados */}
