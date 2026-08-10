@@ -6,7 +6,11 @@ import { formatarDataBR, safeGet } from "@/lib/pos/utils";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: idOs } = await params;
-  const autoPrint = req.nextUrl.searchParams.get("auto") === "1";
+  // view=1 → modo VISUALIZAÇÃO (usado pelo QR Code): NÃO abre impressão, NÃO
+  // mostra a folha de assinatura. É a página pública/ao-vivo da OS (relê o banco
+  // a cada abertura, então o mesmo QR sempre reflete o estado atual).
+  const viewMode = req.nextUrl.searchParams.get("view") === "1";
+  const autoPrint = req.nextUrl.searchParams.get("auto") === "1" && !viewMode;
   // pecas=0 → NÃO lista as peças no PDF da OS (o usuário escolhe na hora de imprimir).
   const comPecas = req.nextUrl.searchParams.get("pecas") !== "0";
 
@@ -301,7 +305,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   .sign-role { font-size: 7pt; color: #888; text-transform: uppercase; letter-spacing: 0.6px; margin-top: 1px; }
   @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; padding: 0; } }
 </style>
-<script>window.onload = function() { window.print(); }</script>
+${viewMode ? "" : "<script>window.onload = function() { window.print(); }</script>"}
 </head><body>
 
   <div class="header">
@@ -414,7 +418,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     </div>
   </div>
 
-  ${assinaturaHtml}
+  ${viewMode ? "" : assinaturaHtml}
 
   <div class="footer">Documento gerado pelo Sistema POS &mdash; Nova Tratores</div>
 

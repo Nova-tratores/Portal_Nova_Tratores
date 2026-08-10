@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import QRCode from "qrcode";
 import { VALOR_HORA, VALOR_KM, TEXT_TEMPLATE, PHASES } from "@/lib/pos/constants";
 import { authHeaders } from "@/lib/auth/client";
 import type { ClienteOption, ClienteDados, Produto, AlimentacaoItem } from "@/lib/pos/types";
@@ -159,6 +160,43 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
         else { w.close(); alert("Não consegui gerar o PDF do PPV " + ppvId); }
       }).catch(() => { w.close(); });
   }, []);
+
+  // QR Code da OS: link público de VISUALIZAÇÃO (view=1) que relê o banco a cada
+  // abertura — o mesmo QR sempre mostra a OS atualizada.
+  const [qrOpen, setQrOpen] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState("");
+  const [qrLink, setQrLink] = useState("");
+  const [qrCopiado, setQrCopiado] = useState(false);
+  const [qrObs, setQrObs] = useState("");
+  const abrirQR = useCallback(async () => {
+    if (!osId) return;
+    const link = `${window.location.origin}/api/pos/ordens/${osId}/print?view=1`;
+    setQrLink(link); setQrCopiado(false); setQrDataUrl(""); setQrObs("");
+    setQrOpen(true);
+    try { setQrDataUrl(await QRCode.toDataURL(link, { width: 720, margin: 1 })); } catch { /* mostra erro simples */ }
+  }, [osId]);
+  const imprimirQR = useCallback(() => {
+    if (!qrDataUrl) return;
+    const esc = (s: string) => String(s || "").replace(/[<>&"]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[c] as string));
+    const obs = qrObs.trim();
+    const obsHtml = obs
+      ? `<div style="font-size:14px;color:#111827;white-space:pre-wrap;line-height:1.6">${esc(obs)}</div>`
+      : `<div style="border-bottom:1px solid #cbd5e1;height:24px"></div><div style="border-bottom:1px solid #cbd5e1;height:24px;margin-top:16px"></div><div style="border-bottom:1px solid #cbd5e1;height:24px;margin-top:16px"></div>`;
+    const w = window.open("", "_blank"); if (!w) return;
+    w.document.write(`<html><head><title>QR OS ${osId}</title></head><body style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;text-align:center;padding:44px 24px;margin:0">
+      <div style="font-size:13px;letter-spacing:3px;text-transform:uppercase;color:#94a3b8">Ordem de Serviço</div>
+      <div style="font-size:36px;font-weight:800;color:#111827;margin:4px 0 22px">${osId}</div>
+      <img src="${qrDataUrl}" style="width:320px;max-width:80vw"/>
+      <div style="font-size:15px;color:#475569;max-width:380px;margin:20px auto 0;line-height:1.6">Aponte a câmera do celular para o QR Code para acompanhar esta ordem de serviço — sempre atualizada.</div>
+      <div style="text-align:left;max-width:400px;margin:26px auto 0;border-top:1px solid #e5e7eb;padding-top:14px">
+        <div style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#94a3b8;margin-bottom:10px">Observações</div>
+        ${obsHtml}
+      </div>
+      <script>window.onload=function(){setTimeout(function(){window.print()},350)}</script>
+    </body></html>`);
+    w.document.close();
+  }, [qrDataUrl, osId, qrObs]);
+
   const [logRefreshKey, setLogRefreshKey] = useState(0);
   const [requisicoes, setRequisicoes] = useState<Array<{ id: string; atualizada: boolean; valor: number; material: string; solicitante: string }>>([]);
   const [desvinculandoReq, setDesvinculandoReq] = useState<string | null>(null);
@@ -2044,6 +2082,38 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                     </>
                   )}
                 </div>
+
+                <button className="os-rail-btn" onClick={abrirQR}>
+                  <i className="fas fa-qrcode" /> Gerar QR Code
+                </button>
+                {qrOpen && (
+                  <>
+                    <div onClick={() => setQrOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 6000 }} />
+                    <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 6001, background: "#fff", borderRadius: 18, padding: "26px 26px 22px", width: "min(92vw, 380px)", boxShadow: "0 24px 60px rgba(0,0,0,0.3)", textAlign: "center" }}>
+                      <button onClick={() => setQrOpen(false)} style={{ position: "absolute", top: 12, right: 12, width: 30, height: 30, borderRadius: 8, border: "1px solid #e5e7eb", background: "#f8fafc", color: "#64748b", cursor: "pointer", fontSize: 17, lineHeight: 1 }}>×</button>
+                      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", color: "#94a3b8" }}>Ordem de Serviço</div>
+                      <div style={{ fontSize: 26, fontWeight: 800, color: "#111827", marginTop: 2 }}>{osId}</div>
+                      <div style={{ margin: "16px auto", width: "100%", maxWidth: 300, aspectRatio: "1", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        {qrDataUrl
+                          ? <img src={qrDataUrl} alt={`QR Code da OS ${osId}`} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                          : <span style={{ color: "#94a3b8", fontSize: 13 }}>Gerando QR Code…</span>}
+                      </div>
+                      <div style={{ fontSize: 13, color: "#475569", lineHeight: 1.6 }}>Aponte a câmera do celular para o QR Code para ver esta ordem de serviço — ela fica sempre atualizada.</div>
+                      <textarea value={qrObs} onChange={(e) => setQrObs(e.target.value)} placeholder="Observações (aparecem na impressão) — opcional"
+                        style={{ width: "100%", minHeight: 60, marginTop: 16, padding: "10px 12px", borderRadius: 10, border: "1px solid #e5e7eb", background: "#f8fafc", color: "#111827", fontSize: 13, resize: "vertical", boxSizing: "border-box", fontFamily: "inherit" }} />
+                      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                        <button onClick={() => { navigator.clipboard?.writeText(qrLink); setQrCopiado(true); setTimeout(() => setQrCopiado(false), 1500); }}
+                          style={{ flex: 1, padding: "10px", borderRadius: 10, border: "1px solid #e5e7eb", background: "#fff", color: qrCopiado ? "#16a34a" : "#334155", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                          <i className={`fas ${qrCopiado ? "fa-check" : "fa-link"}`} style={{ marginRight: 6 }} />{qrCopiado ? "Copiado!" : "Copiar link"}
+                        </button>
+                        <button onClick={imprimirQR} disabled={!qrDataUrl}
+                          style={{ flex: 1, padding: "10px", borderRadius: 10, border: "none", background: "#111827", color: "#fff", fontSize: 13, fontWeight: 700, cursor: qrDataUrl ? "pointer" : "default", opacity: qrDataUrl ? 1 : 0.5 }}>
+                          <i className="fas fa-print" style={{ marginRight: 6 }} />Imprimir
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 <button className="os-rail-btn" onClick={() => setShowLogs(!showLogs)}>
                   <i className="fas fa-clock-rotate-left" /> Histórico / Log
