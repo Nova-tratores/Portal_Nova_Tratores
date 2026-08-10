@@ -135,6 +135,7 @@ export default function DashboardPage() {
 
   const [vendas, setVendas] = useState<VendaRow[] | null>(null);
   const [vendasCard, setVendasCard] = useState<{ nome: string } | null>(null);
+  const [vendasSort, setVendasSort] = useState<{ col: string; dir: 'asc' | 'desc' }>({ col: '', dir: 'asc' });
   const [pedidoItens, setPedidoItens] = useState<{ numero: string; itens: VendaRow[] } | null>(null);
 
   const [comprasAberto, setComprasAberto] = useState(false);
@@ -222,6 +223,7 @@ export default function DashboardPage() {
   const abrirVendas = useCallback(async (catKey: string, nome: string) => {
     setVendas(null);
     setVendasCard({ nome });
+    setVendasSort({ col: '', dir: 'asc' });
     const catParam = categoria ? `&categoria=${encodeURIComponent(categoria)}` : '';
     const r = await fetch(`/api/estoque/dashboard/vendas?${periodoParam}&ano=${ano}&catKey=${encodeURIComponent(catKey)}${catParam}${contaParam}`);
     const d = await r.json();
@@ -239,6 +241,7 @@ export default function DashboardPage() {
   const abrirVendasMaquina = useCallback(async (familia: string, nome: string) => {
     setVendas(null);
     setVendasCard({ nome });
+    setVendasSort({ col: '', dir: 'asc' });
     const r = await fetch(`/api/estoque/dashboard/vendas?${periodoParam}&ano=${ano}&familiaMaquina=${encodeURIComponent(familia)}${contaParam}`);
     const d = await r.json();
     if (!d.erro) setVendas(d.vendas || []);
@@ -318,6 +321,35 @@ export default function DashboardPage() {
   const sortHeader = (label: string, col: string) => (
     <th style={{ ...thStyle, cursor: 'pointer', userSelect: 'none' }} onClick={() => setComprasSort((s) => ({ col, dir: s.col === col && s.dir === 'asc' ? 'desc' : 'asc' }))}>
       {label} {comprasSort.col === col ? (comprasSort.dir === 'asc' ? '▲' : '▼') : <span style={{ color: '#ccc' }}>⇅</span>}
+    </th>
+  );
+
+  // Ordenação da tabela do popup "Vendas" (col vazia = ordem original do backend).
+  const vendasOrdenadas = (() => {
+    if (!vendas) return null;
+    const { col, dir } = vendasSort;
+    if (!col) return vendas;
+    const n = (v: unknown) => Number(v) || 0;
+    const dataBR = (s?: string | null) => {
+      const p = String(s ?? '').split('/');
+      return p.length === 3 ? new Date(+p[2], +p[1] - 1, +p[0]).getTime() || 0 : 0;
+    };
+    const cmp = (a: VendaRow, b: VendaRow): number => {
+      if (col === 'numero_pedido') return (parseInt(String(a.numero_pedido ?? '')) || 0) - (parseInt(String(b.numero_pedido ?? '')) || 0);
+      if (col === 'data_pedido') return dataBR(a.data_pedido) - dataBR(b.data_pedido);
+      if (col === 'descricao') return String(a.descricao || '').localeCompare(String(b.descricao || ''), 'pt-BR');
+      if (col === 'quantidade') return n(a.quantidade) - n(b.quantidade);
+      if (col === 'valor_unitario') return n(a.valor_unitario) - n(b.valor_unitario);
+      if (col === 'cmc_unitario') return n(a.cmc_unitario) - n(b.cmc_unitario);
+      return n(a.valor_total) - n(b.valor_total);
+    };
+    const arr = [...vendas].sort(cmp);
+    if (dir === 'desc') arr.reverse();
+    return arr;
+  })();
+  const sortHeaderVendas = (label: string, col: string) => (
+    <th style={{ ...thStyle, cursor: 'pointer', userSelect: 'none' }} onClick={() => setVendasSort((s) => ({ col, dir: s.col === col && s.dir === 'asc' ? 'desc' : 'asc' }))}>
+      {label} {vendasSort.col === col ? (vendasSort.dir === 'asc' ? '▲' : '▼') : <span style={{ color: '#ccc' }}>⇅</span>}
     </th>
   );
 
@@ -561,9 +593,17 @@ export default function DashboardPage() {
                 </div>
               )}
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead><tr>{['Pedido', 'Data', 'Descrição', 'Qtd', 'V. Unit', 'V. Total', 'CMC'].map((h) => <th key={h} style={thStyle}>{h}</th>)}</tr></thead>
+                <thead><tr>
+                  {sortHeaderVendas('Pedido', 'numero_pedido')}
+                  {sortHeaderVendas('Data', 'data_pedido')}
+                  {sortHeaderVendas('Descrição', 'descricao')}
+                  {sortHeaderVendas('Qtd', 'quantidade')}
+                  {sortHeaderVendas('V. Unit', 'valor_unitario')}
+                  {sortHeaderVendas('V. Total', 'valor_total')}
+                  {sortHeaderVendas('CMC', 'cmc_unitario')}
+                </tr></thead>
                 <tbody>
-                  {vendas.slice(0, LIMITE_LINHAS).map((v, i) => (
+                  {(vendasOrdenadas ?? vendas).slice(0, LIMITE_LINHAS).map((v, i) => (
                     <tr key={i}>
                       <td style={tdStyle}><button onClick={() => v.numero_pedido && abrirPedido(v.numero_pedido)} style={linkBtn}>{v.numero_pedido}</button></td>
                       <td style={tdStyle}>{v.data_pedido}</td>
