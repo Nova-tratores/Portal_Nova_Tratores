@@ -14,7 +14,7 @@
 // não-forjável, do token) — as rotas /api/ajustes/* não autenticam por request.
 
 import { supabase } from './supabase';
-import { omieRequest } from './omie';
+import { omieRequest, sleep } from './omie';
 import type { Conta } from './conta';
 
 // produtos/familias usam conta_omie em MINÚSCULAS ('nova'/'castro').
@@ -86,28 +86,67 @@ export async function buscarProdutos(conta: Conta, q: string, limite = 200): Pro
   return (data || []).map(mapProduto);
 }
 
-/** Lista TODOS os produtos SEM família da conta (para reclassificar em massa).
- *  "Sem família" = codigo_familia nulo OU familia_nome vazio/'Sem família' (o
- *  fallback do sync). Pagina em blocos de 1000 (o PostgREST corta em 1000 mesmo
- *  com .limit maior — ver postgrest-1000-rows), ordenando por codigo_produto
- *  (chave estável, senão .range repete linhas — ver selectpaginado-sem-order). */
-export async function listarSemFamilia(conta: Conta, maxLinhas = 6000): Promise<ProdutoFamilia[]> {
+interface OmieProdCad {
+  codigo_produto?: number;
+  codigo?: string;
+  descricao?: string;
+  codigo_familia?: number;
+  inativo?: string;
+  bloqueado?: string;
+}
+
+// Cache em memória do resultado do scan (por conta). A varredura da Omie leva
+// ~1–2 min (CASTRO ~55 págs), então guardamos p/ as próximas cargas serem
+// instantâneas. Reinicia no redeploy; TTL curto p/ não ficar muito stale.
+const cacheSemFam = new Map<Conta, { at: number; itens: ProdutoFamilia[] }>();
+const CACHE_TTL_MS = 15 * 60 * 1000;
+
+/** Lista TODOS os produtos SEM família da conta, direto da **Omie** (fonte da
+ *  verdade). "Sem família" = codigo_familia ausente/0 no cadastro Omie.
+ *
+ *  Por que a Omie e não o master local `produtos`: o sync do master EXCLUI os
+ *  sem-família (FAMILIAS_OCULTAS inclui 'Sem família') e ainda é incompleto —
+ *  então esses produtos (que aparecem como "#N/D" nas vendas) não estão lá. A
+ *  Omie tem o codigo_familia real. Ignora inativos. Resultado em cache (15 min);
+ *  `force` refaz a varredura. `maxPaginas` é teto de segurança. */
+export async function listarSemFamilia(
+  conta: Conta,
+  opts: { force?: boolean; maxPaginas?: number } = {},
+): Promise<ProdutoFamilia[]> {
+  const maxPaginas = opts.maxPaginas ?? 150;
+  const cache = cacheSemFam.get(conta);
+  if (!opts.force && cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.itens;
+
   const out: ProdutoFamilia[] = [];
-  const PAGE = 1000;
-  for (let from = 0; from < maxLinhas; from += PAGE) {
-    const { data, error } = await supabase
-      .from('produtos')
-      .select(COLS_PRODUTO)
-      .eq('conta_omie', contaLow(conta))
-      .eq('arquivado', false)
-      .or('codigo_familia.is.null,familia_nome.is.null,familia_nome.eq.,familia_nome.eq.Sem família')
-      .order('codigo_produto')
-      .range(from, from + PAGE - 1);
-    if (error) throw new Error('produtos: ' + error.message);
-    const lote = data || [];
-    out.push(...lote.map(mapProduto));
-    if (lote.length < PAGE) break;
+  let pagina = 1;
+  let totalPaginas = 1;
+  do {
+    const data = await omieRequest(
+      '/geral/produtos/',
+      'ListarProdutos',
+      { pagina, registros_por_pagina: 500, apenas_importado_api: 'N', filtrar_apenas_omiepdv: 'N' },
+      conta,
+    );
+    totalPaginas = Number(data?.total_de_paginas) || 1;
+    const lista: OmieProdCad[] = data?.produto_servico_cadastro || [];
+    for (const p of lista) {
+      if (p.inativo === 'S') continue;
+      if (p.codigo_familia) continue; // já tem família
+      out.push({
+        codigo_produto: Number(p.codigo_produto),
+        codigo: String(p.codigo || ''),
+        descricao: String(p.descricao || ''),
+        codigo_familia: null,
+        familia_nome: '',
+      });
+    }
+    pagina++;
+    if (pagina <= totalPaginas && pagina <= maxPaginas) await sleep(150);
+  } while (pagina <= totalPaginas && pagina <= maxPaginas);
+  if (totalPaginas > maxPaginas) {
+    console.warn(`[familias] listarSemFamilia ${conta}: parei em ${maxPaginas}/${totalPaginas} páginas (teto).`);
   }
+  cacheSemFam.set(conta, { at: Date.now(), itens: out });
   return out;
 }
 
@@ -151,6 +190,10 @@ export async function alterarFamiliaProduto(
     .update({ familia: familiaNome })
     .eq('codigo_produto', String(cp))
     .ilike('conta_omie', conta); // case-insensitive: produto_tipo ora usa 'NOVA', ora 'nova'
+
+  // Tira do cache de "sem família" (já foi classificado).
+  const cache = cacheSemFam.get(conta);
+  if (cache) cache.itens = cache.itens.filter((p) => p.codigo_produto !== cp);
 
   return { ok: true, codigo_familia: cf, familia_nome: familiaNome };
 }
