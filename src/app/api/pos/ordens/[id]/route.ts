@@ -312,6 +312,31 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     })(),
   };
 
+  // Guarda contra salvamento STALE: um drawer aberto ANTES do envio do
+  // relatório do técnico carrega relatorioTecnico vazio e status antigo —
+  // salvar apagava o ID_Relatorio_Final e regredia o Status/Tipo que o app
+  // tinha acabado de gravar (caso real: OS-0418, 10/08). Salvar nunca apaga
+  // relatório existente por omissão.
+  if (!String(dados.relatorioTecnico || "").trim()) {
+    const { data: atualRow } = await supabase
+      .from(TBL_OS)
+      .select("ID_Relatorio_Final, Status, Tipo_Servico")
+      .eq("Id_Ordem", idOs)
+      .maybeSingle();
+    const relExistente = String(atualRow?.ID_Relatorio_Final || "");
+    if (relExistente) {
+      baseUpdate.ID_Relatorio_Final = relExistente;
+      // form stale também tenta voltar o status pra antes do relatório
+      if (dados.status === "Aguardando ordem Técnico" && atualRow?.Status === "Relatório Concluído") {
+        baseUpdate.Status = atualRow.Status;
+        // e desfazer a marcação de garantia que o técnico gravou na OS mãe
+        if (/garantia/i.test(String(atualRow?.Tipo_Servico || "")) && !/garantia/i.test(String(dados.tipoServico || ""))) {
+          baseUpdate.Tipo_Servico = atualRow.Tipo_Servico;
+        }
+      }
+    }
+  }
+
   const { error } = await supabase.from(TBL_OS).update(baseUpdate).eq("Id_Ordem", idOs);
 
   if (error) {
