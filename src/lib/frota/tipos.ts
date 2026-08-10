@@ -272,4 +272,31 @@ export interface VeiculoDetalhe {
       paradas_atipicas: number;
     }[];
   };
+  // Checklists mensais do veículo (feitos no NT Mecânico)
+  checklists?: ChecklistVeiculo[];
+}
+
+export interface ChecklistVeiculo {
+  id: string;
+  tecnico_nome: string | null;
+  placa: string | null;
+  mes_referencia: string;        // 'YYYY-MM'
+  status: string | null;         // pendente | em_andamento | completo | suspeito
+  score_confianca: number | null;
+  km: number | null;
+  share_token: string | null;
+  inicio_em: string | null;
+  fim_em: string | null;
+  alertas: string | null;        // JSON string
+}
+
+export interface ChecklistItem {
+  id: string;
+  item_key: string | null;
+  categoria: string | null;
+  titulo: string | null;
+  resposta: string | null;       // ok | problema | ...
+  observacao: string | null;
+  foto_url: string | null;
+  respondido_em: string | null;
 }

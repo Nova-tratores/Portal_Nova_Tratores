@@ -44,6 +44,8 @@ export const PAGINAS_FROTA: PaginaFrota[] = [
   // A cobrança tem fim no RH (fila em Descontos → Avarias da frota).
   { key: 'frota:avarias',            label: 'Avarias',           href: '/frota/avarias',            grupo: 'Operação' },
   { key: 'frota:manutencoes',        label: 'Manutenções',       href: '/frota/manutencoes',        grupo: 'Operação' },
+  // Checklists mensais dos veículos (feitos no NT Mecânico) — status por técnico/veículo.
+  { key: 'frota:checklists',         label: 'Checklists',        href: '/frota/checklists',         grupo: 'Operação' },
   { key: 'frota:abastecimento',      label: 'Abastecimento',     href: '/frota/abastecimento',      grupo: 'Custos' },
   { key: 'frota:abastecimento:flex', label: 'Álcool × Gasolina', href: '/frota/abastecimento/flex', grupo: 'Custos' },
   { key: 'frota:custos',             label: 'Custos (TCO)',      href: '/frota/custos',             grupo: 'Custos' },

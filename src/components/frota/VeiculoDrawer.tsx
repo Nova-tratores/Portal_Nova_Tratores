@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Car, X, ShieldAlert, User as UserIcon, Wrench, Fuel, DollarSign,
   Loader2, Pencil, Check, History, Gauge, Satellite, AlertTriangle, FileText, Sparkles, Camera,
-  HandCoins, Undo2,
+  HandCoins, Undo2, ClipboardCheck,
 } from 'lucide-react';
 import { authHeaders } from '@/lib/auth/client';
 import DocumentoInline from '@/components/frota/DocumentoInline';
@@ -30,6 +30,18 @@ const fmtRS = (v: number | null | undefined) =>
   v == null ? '—' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtData = (s: string | null | undefined) =>
   s ? new Date(`${String(s).slice(0, 10)}T00:00:00`).toLocaleDateString('pt-BR') : '—';
+const MESES_ABREV = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const fmtMes = (m: string | null | undefined) => {
+  const [a, mes] = String(m || '').split('-');
+  return mes ? `${MESES_ABREV[Number(mes) - 1] || mes}/${a}` : (m || '—');
+};
+const statusChecklist = (status: string | null, score: number | null) => {
+  const s = (status || '').toLowerCase();
+  if (s === 'suspeito' || (score != null && score < 50)) return { label: 'Suspeito', cor: '#b91c1c', bg: '#fee2e2' };
+  if (s === 'completo') return { label: 'Completo', cor: '#15803d', bg: '#dcfce7' };
+  if (s === 'em_andamento') return { label: 'Em andamento', cor: '#b45309', bg: '#fef3c7' };
+  return { label: 'Pendente', cor: '#6b7280', bg: '#f3f4f6' };
+};
 
 function Secao({ titulo, icone, children }: { titulo: string; icone: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -904,6 +916,41 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                       </button>
                       <button onClick={() => setDocForm((f) => ({ ...f, aberto: false }))} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--portal-border)', background: 'transparent', color: 'var(--portal-text-secondary)', fontSize: 12, cursor: 'pointer' }}>Cancelar</button>
                     </div>
+                  </div>
+                )}
+              </Secao>
+
+              {/* Checklists mensais (NT Mecânico) */}
+              <Secao titulo={`Checklists mensais (${det.checklists?.length || 0})`} icone={<ClipboardCheck size={14} />}>
+                {!(det.responsaveis || []).some((r) => !r.fim) && (
+                  <a href={`/frota/checklist/${encodeURIComponent(v.placa)}`} target="_blank" rel="noopener noreferrer"
+                    title="Veículo sem responsável — fazer/ver o checklist do mês (preenchimento pelo celular)"
+                    style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 8, background: '#0d9488', color: '#fff', fontSize: 12.5, fontWeight: 700, textDecoration: 'none' }}>
+                    <ClipboardCheck size={14} /> Checklist do mês
+                  </a>
+                )}
+                {(det.checklists || []).length === 0 ? (
+                  <span style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>
+                    Nenhum checklist mensal registrado. O técnico responsável faz o checklist do carro no NT Mecânico no início do mês.
+                  </span>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {(det.checklists || []).map((c) => {
+                      const st = statusChecklist(c.status, c.score_confianca);
+                      const printUrl = c.share_token ? `/api/frota/checklist/print?token=${encodeURIComponent(c.share_token)}` : undefined;
+                      return (
+                        <a key={c.id} href={printUrl} target="_blank" rel="noopener noreferrer"
+                          title={printUrl ? 'Abrir checklist (imprimir / salvar em PDF)' : 'Este checklist não tem link para abrir'}
+                          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', border: '1px solid var(--portal-border)', borderRadius: 8, textDecoration: 'none', color: 'inherit', cursor: printUrl ? 'pointer' : 'default' }}>
+                          <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--portal-text)', minWidth: 66 }}>{fmtMes(c.mes_referencia)}</span>
+                          <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: 'var(--portal-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.tecnico_nome || '—'}</span>
+                          {c.km != null && <span style={{ fontSize: 11.5, color: 'var(--portal-text-muted)' }}>{c.km.toLocaleString('pt-BR')} km</span>}
+                          {c.score_confianca != null && <span style={{ fontSize: 11, fontWeight: 700, color: c.score_confianca < 50 ? '#b91c1c' : 'var(--portal-text-muted)' }}>{c.score_confianca}%</span>}
+                          <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: st.bg, color: st.cor }}>{st.label}</span>
+                          <FileText size={15} color="var(--portal-text-muted)" />
+                        </a>
+                      );
+                    })}
                   </div>
                 )}
               </Secao>

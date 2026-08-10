@@ -7,7 +7,7 @@ import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
 import { logFrota, podeFrota, temModuloFrota } from '@/lib/frota/server';
 import { espelharProjetosOmie } from '@/lib/frota/supaplacas';
-import { resolverPlaca } from '@/lib/frota/placa';
+import { resolverPlaca, extrairPlacaDeNumPlaca } from '@/lib/frota/placa';
 
 export const runtime = 'nodejs';
 
@@ -51,7 +51,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ plac
   const de12mIso = de12m.toISOString().slice(0, 10);
 
   const de30 = new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);
-  const [resp, multas, manut, abast, custos, odo, foto, dias, documentos] = await Promise.all([
+  const [resp, multas, manut, abast, custos, odo, foto, dias, documentos, chk] = await Promise.all([
     supabase
       .from('frota_responsaveis')
       .select('id, motorista_id, motorista_nome, inicio, fim, origem, obs')
@@ -86,7 +86,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ plac
       .select('*')
       .eq('veiculo_id', v.id)
       .order('vigencia_fim', { ascending: true, nullsFirst: false }),
+    // Checklists mensais do veículo (feitos no NT Mecânico — mesmo Supabase).
+    // A placa lá pode vir "MODELO - PLACA"; filtra por placa canônica no JS.
+    supabase
+      .from('veiculo_checklist')
+      .select('id, tecnico_nome, placa, mes_referencia, status, score_confianca, km, share_token, inicio_em, fim_em, alertas')
+      .gte('mes_referencia', de12m.toISOString().slice(0, 7))
+      .order('mes_referencia', { ascending: false }),
   ]);
+
+  const checklists = (chk.data || [])
+    .filter((c) => resolverPlaca(extrairPlacaDeNumPlaca(c.placa)) === v.placa);
 
   // custos 12m agregados por tipo (a view garante que cada real conta UMA vez)
   const porTipo = new Map<string, number>();
@@ -136,6 +146,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ plac
     km_odometro_fonte: kmRastreador != null ? 'rastreador' : kmDigitado != null ? 'digitado' : null,
     uso_30d,
     documentos: documentos.data || [],
+    checklists,
   });
 }
 

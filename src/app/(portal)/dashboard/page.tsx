@@ -485,6 +485,7 @@ export default function DashboardPage() {
         onOpen={(s) => openSystem(s as unknown as typeof allowedSystems[number])}
         searchTerm={searchTerm}
         onSearch={setSearchTerm}
+        userNome={userProfile?.nome}
       />
     )
   }

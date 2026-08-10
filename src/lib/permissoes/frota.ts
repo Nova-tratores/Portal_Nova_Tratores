@@ -31,6 +31,8 @@ export function slugDaRota(pathname: string): string {
   // bookmark antigo tem que passar pelo gate da tela unificada, não por um
   // slug que já não existe.
   if (partes[0] === 'veiculos') return 'dashboard';
+  // Preencher/ver checklist de um veículo herda a permissão da tela "Checklists".
+  if (partes[0] === 'checklist') return 'checklists';
 
   const doisNiveis = partes.slice(0, 2).join(':');
   if (SLUGS_FROTA.has(doisNiveis)) return doisNiveis;
