@@ -3,9 +3,10 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   X, Loader2, ExternalLink, Package, ShieldCheck, Factory, Send,
   AlertTriangle, CheckCircle2, XCircle, Save, History, FileWarning, MapPin, RefreshCw, ImagePlus,
-  Mail, ChevronDown, ChevronUp, FileText, Download, Pencil, HelpCircle,
+  Mail, ChevronDown, ChevronUp, FileText, Download, Pencil, HelpCircle, QrCode,
 } from 'lucide-react';
 import GuiaMontadoraModal from './GuiaMontadoraModal';
+import QRGarantiaModal from './QRGarantiaModal';
 import type { GarantiaDetalhe, Montadora, ChecklistField } from '@/lib/garantias/types';
 import { STATUS_LABEL, STATUS_COR } from '@/lib/garantias/constants';
 import { camposObrigatoriosFaltando } from '@/lib/garantias/checklist';
@@ -94,6 +95,7 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
   const [erro, setErro] = useState('');
   const [aviso, setAviso] = useState('');
   const [verTimeline, setVerTimeline] = useState(false);
+  const [qrAberto, setQrAberto] = useState(false);
   // Correção manual de chassi/modelo (garantia criada antes do trator existir
   // no controle de revisões)
   const [editTrator, setEditTrator] = useState<{ chassis: string; modelo: string } | null>(null);
@@ -641,6 +643,14 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                 >
                   <ExternalLink size={13} /> Abrir OS no Pós-Vendas
                 </a>
+                <button
+                  onClick={() => setQrAberto(true)}
+                  title="QR code de acompanhamento: fase atual + fotos, sem login"
+                  style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#334155', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                >
+                  <QrCode size={13} /> QR code da garantia
+                </button>
+                {qrAberto && g && <QRGarantiaModal garantiaId={g.id} numero={g.numero} onClose={() => setQrAberto(false)} />}
                 {g.status !== 'rejeitada' && (
                   <button
                     onClick={async () => {

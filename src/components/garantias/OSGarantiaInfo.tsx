@@ -1,14 +1,16 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { ShieldCheck, ExternalLink } from 'lucide-react';
+import { ShieldCheck, ExternalLink, QrCode } from 'lucide-react';
 import type { GarantiaResumo } from '@/lib/garantias/types';
 import { OS_BADGE_LABEL, STATUS_COR } from '@/lib/garantias/constants';
 import { diasEntre } from '@/lib/garantias/format';
+import QRGarantiaModal from './QRGarantiaModal';
 
 // Card read-only de garantia para exibir dentro da OS (Pós-Vendas).
 export default function OSGarantiaInfo({ osId }: { osId: string }) {
   const [garantia, setGarantia] = useState<GarantiaResumo | null>(null);
   const [carregou, setCarregou] = useState(false);
+  const [qrAberto, setQrAberto] = useState(false);
 
   useEffect(() => {
     let cancel = false;
@@ -77,14 +79,24 @@ export default function OSGarantiaInfo({ osId }: { osId: string }) {
             : ''}
         </div>
       )}
-      <a
-        href={`/garantias?id=${garantia.id}`}
-        target="_blank"
-        rel="noreferrer"
-        style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#0ea5e9', fontWeight: 600 }}
-      >
-        <ExternalLink size={12} /> Abrir garantia
-      </a>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <a
+          href={`/garantias?id=${garantia.id}`}
+          target="_blank"
+          rel="noreferrer"
+          style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#0ea5e9', fontWeight: 600 }}
+        >
+          <ExternalLink size={12} /> Abrir garantia
+        </a>
+        <button
+          onClick={() => setQrAberto(true)}
+          title="QR code de acompanhamento: fase atual + fotos, sem login"
+          style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#334155', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+        >
+          <QrCode size={13} /> QR code
+        </button>
+      </div>
+      {qrAberto && <QRGarantiaModal garantiaId={garantia.id} numero={garantia.numero} onClose={() => setQrAberto(false)} />}
     </div>
   );
 }
