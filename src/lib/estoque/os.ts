@@ -518,20 +518,22 @@ export interface OSListaRow {
   ncod_os: number;
   /** NFS-e emitida (cache os_nfse). null = ainda não verificado pelo refresh BG. */
   tem_nota: boolean | null;
+  /** Número da NFS-e (os_nfse.nfse_num); null quando sem nota / não verificado. */
+  nfse_num?: string | null;
   /** Só quando sem nota: 'retorno' (garantia/entrega/revisão/normal) × 'puro' (cortesia/interno). */
   internoBalde?: 'retorno' | 'puro' | null;
 }
 
-/** tem_nota por nCodOS, SÓ do cache os_nfse (não chama Omie — quem verifica é o refresh BG). */
-async function buscarTemNotaMap(ids: number[], conta: Conta): Promise<Map<number, boolean>> {
-  const map = new Map<number, boolean>();
+/** tem_nota + número da NFS-e por nCodOS, SÓ do cache os_nfse (não chama Omie — quem verifica é o refresh BG). */
+async function buscarTemNotaMap(ids: number[], conta: Conta): Promise<Map<number, { tem_nota: boolean; nfse_num: string | null }>> {
+  const map = new Map<number, { tem_nota: boolean; nfse_num: string | null }>();
   for (let i = 0; i < ids.length; i += 200) {
     const { data } = await supabase
       .from('os_nfse')
-      .select('ncod_os,tem_nota')
+      .select('ncod_os,tem_nota,nfse_num')
       .eq('conta_omie', conta)
       .in('ncod_os', ids.slice(i, i + 200));
-    (data || []).forEach((r) => map.set(Number(r.ncod_os), !!r.tem_nota));
+    (data || []).forEach((r) => map.set(Number(r.ncod_os), { tem_nota: !!r.tem_nota, nfse_num: (r.nfse_num as string) || null }));
   }
   return map;
 }
@@ -588,6 +590,8 @@ export interface ServicoOSRow {
   contrato: string; // InformacoesAdicionais.cNumContrato — classifica o balde interno
   /** NFS-e emitida na OS deste item (cache os_nfse). null = ainda não verificado. */
   tem_nota: boolean | null;
+  /** Número da NFS-e da OS deste item (os_nfse.nfse_num); null quando sem nota. */
+  nfse_num?: string | null;
   /** Só quando sem nota: 'retorno' × 'puro' (derivado do contrato no popup). */
   internoBalde?: 'retorno' | 'puro' | null;
 }
@@ -861,7 +865,9 @@ export async function obterServicosPopup(mes: number | null, ano: number, conta:
     }
     const notaMap = await buscarTemNotaMap([...new Set(itens.map((r) => r.ncod_os).filter(Boolean))], c);
     itens.forEach((r) => {
-      r.tem_nota = notaMap.has(r.ncod_os) ? notaMap.get(r.ncod_os)! : null;
+      const nf = notaMap.get(r.ncod_os);
+      r.tem_nota = nf ? nf.tem_nota : null;
+      r.nfse_num = nf ? nf.nfse_num : null;
       r.internoBalde = baldeDe(r.tem_nota, r.codigo_cliente, r.contrato);
     });
     servicos.push(...itens);
@@ -874,7 +880,7 @@ export async function obterServicosPopup(mes: number | null, ano: number, conta:
     const k = s.conta + ':' + s.ncod_os;
     let os = porOS.get(k);
     if (!os) {
-      os = { numero_os: s.numero_os, data: s.data, valor: 0, codigo_cliente: s.codigo_cliente, cliente: s.cliente, conta: s.conta, ncod_os: s.ncod_os, tem_nota: s.tem_nota, internoBalde: s.internoBalde ?? baldeDe(s.tem_nota, s.codigo_cliente, s.contrato) };
+      os = { numero_os: s.numero_os, data: s.data, valor: 0, codigo_cliente: s.codigo_cliente, cliente: s.cliente, conta: s.conta, ncod_os: s.ncod_os, tem_nota: s.tem_nota, nfse_num: s.nfse_num ?? null, internoBalde: s.internoBalde ?? baldeDe(s.tem_nota, s.codigo_cliente, s.contrato) };
       porOS.set(k, os);
     }
     os.valor += s.valor_total;

@@ -71,12 +71,12 @@ interface CompraRow {
   quantidade?: number | string | null; valor_unitario?: number | string | null; valor_total?: number | string | null;
 }
 type InternoBalde = 'retorno' | 'puro' | null;
-interface OSRow { numero_os?: string; data?: string; cliente?: string; codigo_cliente?: number | null; valor?: number; conta?: string; tem_nota?: boolean | null; internoBalde?: InternoBalde }
+interface OSRow { numero_os?: string; data?: string; cliente?: string; codigo_cliente?: number | null; valor?: number; conta?: string; tem_nota?: boolean | null; nfse_num?: string | null; internoBalde?: InternoBalde }
 type TipoServico = 'HR' | 'KM' | 'OUTRO';
 interface ServicoOSRow {
   numero_os?: string; data?: string; cliente?: string; codigo_cliente?: number | null;
   descricao?: string; tipo?: TipoServico; categoria?: string; categoria_desc?: string;
-  qtde?: number; valor_unit?: number; valor_total?: number; conta?: string; tem_nota?: boolean | null;
+  qtde?: number; valor_unit?: number; valor_total?: number; conta?: string; tem_nota?: boolean | null; nfse_num?: string | null;
   internoBalde?: InternoBalde;
 }
 
@@ -624,7 +624,7 @@ export default function DashboardPage() {
       {/* Popup Serviços */}
       {osAberto && (
         <div onClick={() => setOsAberto(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 20, maxWidth: 1100, width: '94%', maxHeight: '85vh', overflowY: 'auto' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 20, maxWidth: 1240, width: '94%', maxHeight: '85vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 12, flexWrap: 'wrap' }}>
               <h2 style={{ color: '#111827', fontSize: '1.05rem', fontWeight: 700, margin: 0 }}>
                 Serviços — {osView === 'servicos' ? `itens (${servItens?.length ?? 0})` : `Ordens de Serviço (${osServicos?.length ?? 0})`}
@@ -678,7 +678,7 @@ export default function DashboardPage() {
                   })()}
                   <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                      <thead><tr>{['OS', 'Data', 'Cliente', 'Serviço', 'Tipo', 'Nota', 'Categoria', ...(contaParam === '' ? ['Conta'] : []), 'Qtd', 'V. Unit', 'V. Total'].map((h) => <th key={h} style={thStyle}>{h}</th>)}</tr></thead>
+                      <thead><tr>{['OS', 'Data', 'Cliente', 'Serviço', 'Tipo', 'Nota', 'NFS', 'Categoria', ...(contaParam === '' ? ['Conta'] : []), 'Qtd', 'V. Unit', 'V. Total'].map((h) => <th key={h} style={thStyle}>{h}</th>)}</tr></thead>
                       <tbody>
                         {servItens.filter((s) => !tipoFiltro || s.tipo === tipoFiltro).slice(0, LIMITE_LINHAS).map((s, i) => (
                           <tr key={i}>
@@ -688,6 +688,7 @@ export default function DashboardPage() {
                             <td style={{ ...tdStyle, maxWidth: 320 }} title={s.descricao}>{(s.descricao || '—').length > 70 ? (s.descricao || '').slice(0, 70) + '…' : (s.descricao || '—')}</td>
                             <td style={tdStyle}><TipoBadge tipo={s.tipo} /></td>
                             <td style={tdStyle}><NotaBadge temNota={s.tem_nota} balde={s.internoBalde} /></td>
+                            <td style={tdStyle}>{s.nfse_num || '—'}</td>
                             <td style={tdStyle} title={s.categoria}>{s.categoria_desc || s.categoria || '—'}</td>
                             {contaParam === '' && <td style={tdStyle}>{s.conta}</td>}
                             <td style={tdStyle}>{s.qtde}</td>
@@ -707,7 +708,7 @@ export default function DashboardPage() {
                   <div style={{ color: '#999', fontSize: '.9rem', marginBottom: 6 }}>Mostrando as {LIMITE_LINHAS} primeiras de {osServicos.length.toLocaleString('pt-BR')} OS (o total acima considera todas).</div>
                 )}
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead><tr>{['OS', 'Data', 'Cliente', 'Nota', ...(contaParam === '' ? ['Conta'] : []), 'Valor'].map((h) => <th key={h} style={thStyle}>{h}</th>)}</tr></thead>
+                  <thead><tr>{['OS', 'Data', 'Cliente', 'Nota', 'NFS', ...(contaParam === '' ? ['Conta'] : []), 'Valor'].map((h) => <th key={h} style={thStyle}>{h}</th>)}</tr></thead>
                   <tbody>
                     {osServicos.slice(0, LIMITE_LINHAS).map((o, i) => (
                       <tr key={i}>
@@ -715,6 +716,7 @@ export default function DashboardPage() {
                         <td style={tdStyle}>{o.data}</td>
                         <td style={tdStyle}>{o.cliente || (o.codigo_cliente ? '#' + o.codigo_cliente : '—')}</td>
                         <td style={tdStyle}><NotaBadge temNota={o.tem_nota} balde={o.internoBalde} /></td>
+                        <td style={tdStyle}>{o.nfse_num || '—'}</td>
                         {contaParam === '' && <td style={tdStyle}>{o.conta}</td>}
                         <td style={tdStyle}>{fmtRS(o.valor)}</td>
                       </tr>
@@ -914,7 +916,7 @@ function ServicosDecomp({ c, onDetalhe }: { c: Categoria; onDetalhe: () => void 
   } else if (c.valorNota != null) {
     linhas.push({ label: 'Com nota', valor: c.valorNota, somado: true });
   }
-  if (c.valorInternoRetorno != null) linhas.push({ label: 'Interno c/ retorno', valor: c.valorInternoRetorno, somado: true });
+  if (c.valorInternoRetorno != null) linhas.push({ label: 'Interno c/ retorno', valor: c.valorInternoRetorno, somado: false });
   if (c.valorInternoPuro != null) linhas.push({ label: 'Interno puro', valor: c.valorInternoPuro, somado: false });
   else if (c.valorInterno != null) linhas.push({ label: 'Interno', valor: c.valorInterno, somado: false });
   const maxv = Math.max(1, ...linhas.map((l) => Math.abs(l.valor)));

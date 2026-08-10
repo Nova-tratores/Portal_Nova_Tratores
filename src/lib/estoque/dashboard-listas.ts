@@ -120,7 +120,9 @@ export async function montarHistorico(
     const totalOS = osMes ? num(osMes.valor_total) : 0;
     let valor: number, custo: number;
     if (catKey === 'totalPecas') { valor = agg.totalPecas; custo = agg.totalCusto; }
-    else if (catKey === 'servico') { valor = totalOS; custo = 0; }
+    // Serviços: só COM NFS-e (fallback total de OS enquanto o split não veio) —
+    // mesma régua do card no dashboard.
+    else if (catKey === 'servico') { valor = osMes && osMes.valor_nota != null ? num(osMes.valor_nota) : totalOS; custo = 0; }
     // Total Geral = peças + serviços COM NOTA (fallback: total de OS quando o split falta)
     else if (catKey === 'totalGeral') { valor = agg.totalPecas + (osMes && osMes.valor_nota != null ? num(osMes.valor_nota) : totalOS); custo = agg.totalCusto; }
     else { const b = agg.porKey[catKey]; valor = b?.valor || 0; custo = b?.custo || 0; }
@@ -440,13 +442,14 @@ export async function montarTendencia(conta: ContaFiltro): Promise<TendenciaPont
     }
   }
 
-  // Serviços = os_mensal.valor_total por mês (agrega as contas quando "Todas").
+  // Serviços = SÓ COM NFS-e (os_mensal.valor_nota, fallback valor_total enquanto
+  // o split não veio) — mesma régua do card. Agrega as contas quando "Todas".
   const osPorMes: Record<string, number> = {};
   for (const ano of anos) {
-    const { data } = await filtroConta(supabase.from('os_mensal').select('mes,ano,valor_total').eq('ano', ano), conta);
-    (data as Array<{ mes: number; ano: number; valor_total: unknown }> | null)?.forEach((o) => {
+    const { data } = await filtroConta(supabase.from('os_mensal').select('mes,ano,valor_total,valor_nota').eq('ano', ano), conta);
+    (data as Array<{ mes: number; ano: number; valor_total: unknown; valor_nota: unknown }> | null)?.forEach((o) => {
       const k = o.mes + '/' + o.ano;
-      osPorMes[k] = (osPorMes[k] || 0) + num(o.valor_total);
+      osPorMes[k] = (osPorMes[k] || 0) + (o.valor_nota != null ? num(o.valor_nota) : num(o.valor_total));
     });
   }
 

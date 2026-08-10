@@ -45,12 +45,11 @@ async function montarDados(
   const maquinas = agregarMaquinas(itens);
   const totalPecas = agg.totalPecas;
   const totalCustoPecas = agg.totalCusto;
-  // Receita de serviços = com nota + interno "com retorno" (garantia/entrega/
-  // revisão/normal sem nota), espelhando a régua do OMIE; só o interno PURO
-  // (cortesia/contrato interno) fica de fora. Enquanto o mês não tem o sub-split
-  // no os_mensal, usa só o com-nota (retorno=null → 0) e converge via refresh BG;
-  // sem nem o com-nota, cai no total de OS.
-  const receitaServicos = os.nota != null ? os.nota + (os.internoRetorno ?? 0) : totalOS;
+  // Receita de serviços = SÓ serviços COM NFS-e (nota fiscal de serviço). Os
+  // internos (com ou sem "retorno") ficam de fora do card. Fallback para o total
+  // de OS enquanto o split `valor_nota` do mês não foi processado (converge via
+  // refresh BG).
+  const receitaServicos = os.nota != null ? os.nota : totalOS;
   const totalGeral = totalPecas + receitaServicos;
 
   return {
@@ -243,9 +242,10 @@ export async function montarDashboard(
       o.key,
     ),
   );
-  // Valor do card = receita de serviços (com nota + interno c/ retorno). Assim o
-  // número grande, a projeção e os comparativos mês/ano ficam todos na mesma base.
-  const receitaOS = (d: DadosPeriodo): number => (d.osNota != null ? d.osNota + (d.osInternoRetorno ?? 0) : d.totalOS);
+  // Valor do card = receita de serviços SÓ com NFS-e (fallback: total de OS
+  // enquanto o split `valor_nota` não foi processado). Comparativos mês/ano usam
+  // a mesma régua. Cards "Peças + Serviços" e "Total Geral" herdam daqui.
+  const receitaOS = (d: DadosPeriodo): number => (d.osNota != null ? d.osNota : d.totalOS);
   const servicos = montarCategoria('Servicos', receitaOS(atual), receitaOS(anterior), receitaOS(anoAnt), 'servico');
   if (atual.osNota != null && atual.osInterno != null) {
     servicos.valorNota = atual.osNota;
