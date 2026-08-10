@@ -10,7 +10,7 @@ import SemPermissao from '@/components/SemPermissao';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 
-interface Categoria { nome: string; palavras_chave: string; posicao: number }
+interface Categoria { slug: string; nome: string; palavras_chave: string; posicao: number }
 interface MesSuspeito { mes: number; ano: number; count: number; soma: number }
 interface MesesResp {
   erro?: string; conta?: string; total?: number; zerados?: number; parciais?: number; suspeitos?: number;
@@ -59,7 +59,7 @@ export default function AdminEstoquePage() {
     try {
       const r = await fetch('/api/estoque/admin/categorias', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ categorias: cats.map((c) => ({ nome: c.nome, palavras_chave: c.palavras_chave })) }),
+        body: JSON.stringify({ categorias: cats.map((c) => ({ slug: c.slug, nome: c.nome, palavras_chave: c.palavras_chave })) }),
       });
       const d = await r.json();
       if (d.erro) setCatMsg('Erro: ' + d.erro);
@@ -140,17 +140,19 @@ export default function AdminEstoquePage() {
       </div>
 
       <div style={card}>
-        <div style={cardTitle}>Categorias dos cards do dashboard (2 a 5)</div>
+        <div style={cardTitle}>Categorias fixas dos cards do dashboard</div>
+        <p style={{ fontSize: '.8rem', color: '#888', marginTop: -6, marginBottom: 12 }}>
+          Estes 3 cards são fixos. Os demais aparecem automaticamente, um por <b>tipo</b> de peça com faturamento no período, em ordem alfabética.
+          &ldquo;Peças diversas&rdquo; recolhe as peças sem tipo (palavras-chave opcionais).
+        </p>
         {cats.map((c, i) => (
-          <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12, padding: 12, background: '#fafafa', borderRadius: 10, border: '1px solid #f0f0f0' }}>
+          <div key={c.slug || i} style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12, padding: 12, background: '#fafafa', borderRadius: 10, border: '1px solid #f0f0f0' }}>
             <span style={{ width: 28, height: 28, background: '#dc2626', color: '#fff', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>{i + 1}</span>
             <input value={c.nome} placeholder="Nome" onChange={(e) => setCats((p) => p.map((x, j) => (j === i ? { ...x, nome: e.target.value } : x)))} style={{ ...inp, flex: 1 }} />
-            <input value={c.palavras_chave} placeholder="palavras,chave" onChange={(e) => setCats((p) => p.map((x, j) => (j === i ? { ...x, palavras_chave: e.target.value } : x)))} style={{ ...inp, flex: 2 }} />
-            {cats.length > 2 && <button onClick={() => setCats((p) => p.filter((_, j) => j !== i))} style={{ ...btn(), padding: '8px 12px', background: '#fff', color: '#dc2626', border: '1px solid #dc2626' }}>×</button>}
+            <input value={c.palavras_chave} placeholder={c.slug === 'pecas_diversas' ? 'palavras,chave (opcional)' : 'palavras,chave'} onChange={(e) => setCats((p) => p.map((x, j) => (j === i ? { ...x, palavras_chave: e.target.value } : x)))} style={{ ...inp, flex: 2 }} />
           </div>
         ))}
         <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
-          {cats.length < 5 && <button onClick={() => setCats((p) => [...p, { nome: '', palavras_chave: '', posicao: p.length + 1 }])} style={{ ...btn(), background: '#fff', color: '#dc2626', border: '1px solid #dc2626' }}>+ Categoria</button>}
           <button onClick={salvarCats} disabled={salvandoCat} style={btn(salvandoCat)}>{salvandoCat ? 'Salvando…' : 'Salvar categorias'}</button>
         </div>
         {catMsg && <div style={{ marginTop: 12, fontSize: 13, color: catMsg.startsWith('Erro') ? '#dc2626' : '#16a34a' }}>{catMsg}</div>}

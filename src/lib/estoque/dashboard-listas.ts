@@ -4,10 +4,10 @@
 
 import { supabase, filtroConta } from './supabase';
 import {
-  agregarCards,
+  agregarCardsPecas,
   agregarMaquinas,
-  getCategoriasConfig,
-  tipoMatchCategoria,
+  getFixedCats,
+  classificarCardPeca,
   expandirCategoriaFiltro,
   CATEGORIAS_AGRUPADAS,
   type ItemVenda,
@@ -41,7 +41,7 @@ interface HistoricoMesPonto {
 }
 
 export interface HistoricoResult {
-  card: number;
+  catKey: string;
   nome: string;
   meses: HistoricoMesPonto[];
   proporcao: number;
@@ -54,17 +54,13 @@ interface HistItem extends ItemVenda {
   numero_pedido?: string | null;
 }
 
-/** Histórico mês a mês (desde Jan/2023) de um card específico. */
+/** Histórico mês a mês (desde Jan/2023) de um card específico (por chave). */
 export async function montarHistorico(
-  card: number,
+  catKey: string,
   filtroCategoria: string | null,
   conta: ContaFiltro,
 ): Promise<HistoricoResult> {
-  const cats = await getCategoriasConfig();
-  const numCats = cats.length;
-  const cardPecas = numCats + 1;
-  const cardServicos = numCats + 2;
-  const cardTotalGeral = numCats + 3;
+  const fixed = await getFixedCats();
 
   const now = new Date();
   const meses: Array<{ mes: number; ano: number; label: string }> = [];
@@ -98,7 +94,7 @@ export async function montarHistorico(
 
   type OSMensalRow = { mes: number; ano: number; valor_total: number; valor_nota: number | null; valor_interno: number | null };
   let todosOS: OSMensalRow[] = [];
-  if (card === cardServicos || card === cardTotalGeral) {
+  if (catKey === 'servico' || catKey === 'totalGeral') {
     for (const ano of anos) {
       const { data } = await filtroConta(supabase.from('os_mensal').select('mes,ano,valor_total,valor_nota,valor_interno').eq('ano', ano), conta);
       if (data) todosOS = todosOS.concat(data as OSMensalRow[]);
@@ -120,24 +116,23 @@ export async function montarHistorico(
     }
   }
 
+  // Rótulo do card (para tipo dinâmico, sobre todo o período carregado).
+  const aggAll = agregarCardsPecas(todosItens, filtroCategoria, fixed);
+
   const resultados: HistoricoMesPonto[] = meses.map((m) => {
     const itensMes = todosItens.filter((it) => it.mes === m.mes && it.ano === m.ano);
-    const agg = agregarCards(itensMes, filtroCategoria, cats);
+    const agg = agregarCardsPecas(itensMes, filtroCategoria, fixed);
     const osMes = todosOS.find((o) => o.mes === m.mes && o.ano === m.ano);
     const totalOS = osMes ? num(osMes.valor_total) : 0;
-    const totalPecas = agg.cards.reduce((s, v) => s + v, 0);
-    const totalCustoPecas = agg.custosCards.reduce((s, v) => s + v, 0);
     let valor: number, custo: number;
-    if (card === 0) { valor = totalPecas; custo = totalCustoPecas; }
-    else if (card >= 1 && card <= numCats) { valor = agg.cards[card - 1] || 0; custo = agg.custosCards[card - 1] || 0; }
-    else if (card === cardPecas) { valor = agg.cards[numCats] || 0; custo = agg.custosCards[numCats] || 0; }
-    else if (card === cardServicos) { valor = totalOS; custo = 0; }
+    if (catKey === 'totalPecas') { valor = agg.totalPecas; custo = agg.totalCusto; }
+    else if (catKey === 'servico') { valor = totalOS; custo = 0; }
     // Total Geral = peças + serviços COM NOTA (fallback: total de OS quando o split falta)
-    else if (card === cardTotalGeral) { valor = totalPecas + (osMes && osMes.valor_nota != null ? num(osMes.valor_nota) : totalOS); custo = totalCustoPecas; }
-    else { valor = 0; custo = 0; }
+    else if (catKey === 'totalGeral') { valor = agg.totalPecas + (osMes && osMes.valor_nota != null ? num(osMes.valor_nota) : totalOS); custo = agg.totalCusto; }
+    else { const b = agg.porKey[catKey]; valor = b?.valor || 0; custo = b?.custo || 0; }
     const pedidosUnicos = new Set(itensMes.map((it) => it.numero_pedido).filter(Boolean)).size;
     const ponto: HistoricoMesPonto = { label: m.label, mes: m.mes, ano: m.ano, valor, custo, qtdePedidos: pedidosUnicos };
-    if (card === cardServicos) {
+    if (catKey === 'servico') {
       ponto.valorNota = osMes ? (osMes.valor_nota == null ? null : num(osMes.valor_nota)) : null;
       ponto.valorInterno = osMes ? (osMes.valor_interno == null ? null : num(osMes.valor_interno)) : null;
     }
@@ -145,24 +140,16 @@ export async function montarHistorico(
   });
 
   let nomeCard: string;
-  if (card === 0) nomeCard = 'Total Pecas';
-  else if (card >= 1 && card <= numCats) nomeCard = cats[card - 1].nome || 'Card ' + card;
-  else if (card === cardPecas) nomeCard = 'Pecas Diversas';
-  else if (card === cardServicos) nomeCard = 'Servicos';
-  else if (card === cardTotalGeral) nomeCard = 'Total Geral Servicos + Pecas';
-  else nomeCard = 'Card ' + card;
+  if (catKey === 'totalPecas') nomeCard = 'Total Pecas';
+  else if (catKey === 'servico') nomeCard = 'Servicos';
+  else if (catKey === 'totalGeral') nomeCard = 'Total Geral Servicos + Pecas';
+  else nomeCard = aggAll.porKey[catKey]?.nome || catKey;
 
   const ehMesCorrente = ehMesAtual(now.getMonth() + 1, now.getFullYear());
   const totalDU = ehMesCorrente ? diasUteisDoMes(now.getFullYear(), now.getMonth() + 1) : 0;
   const transcorridoDU = ehMesCorrente ? diasUteisAteHoje(now.getFullYear(), now.getMonth() + 1) : 0;
   const proporcao = ehMesCorrente && totalDU > 0 ? transcorridoDU / totalDU : 1;
-  return { card, nome: nomeCard, meses: resultados, proporcao, diasUteisTranscorridos: transcorridoDU };
-}
-
-/** Número máximo de card válido (para validação na rota). */
-export async function maxCardHistorico(): Promise<number> {
-  const cats = await getCategoriasConfig();
-  return cats.length + 3;
+  return { catKey, nome: nomeCard, meses: resultados, proporcao, diasUteisTranscorridos: transcorridoDU };
 }
 
 // ====================== /api/dashboard/categorias-vendas ======================
@@ -272,12 +259,12 @@ async function enriquecerDescricao(rows: VendaRow[], conta: ContaFiltro): Promis
 export async function listarVendas(
   mes: number | null,
   ano: number,
-  card: number | null,
+  catKey: string | null,
   categoria: string | null,
   conta: ContaFiltro,
   familiaMaquina: string | null = null,
 ): Promise<VendaRow[]> {
-  const cats = await getCategoriasConfig();
+  const fixed = await getFixedCats();
   const { codigos: codigosIgnorar } = await getIgnorarFiltro(conta);
 
   let vendas: VendaRow[] = [];
@@ -324,14 +311,9 @@ export async function listarVendas(
     });
   }
 
-  const numCats = cats.length;
-  const cardPecasDiversas = numCats + 1;
-  const cardServicos = numCats + 2;
-  const cardTotalGeral = numCats + 3;
-  const ehTotalPecas = (v: VendaRow): boolean => {
-    for (let i = 0; i < numCats; i++) if (tipoMatchCategoria(v.tipo, cats[i])) return true;
-    return ehPecaFamilia(v.familia);
-  };
+  // "Total Peças" = todo item que classifica em algum card de peça (mesma régua
+  // do classificador dos cards → soma dos cards === Total Peças).
+  const ehTotalPecas = (v: VendaRow): boolean => classificarCardPeca(v, fixed) !== null;
 
   if (familiaMaquina) {
     // Drill do card de máquina: só as vendas de máquina daquela família (mesma
@@ -339,19 +321,14 @@ export async function listarVendas(
     vendas = vendas.filter(
       (v) => classificarGrupo(v.familia || '') === 'maquina' && (familiaMaquina === '__TODAS__' || v.familia === familiaMaquina),
     );
-  } else if (card !== null && card !== undefined) {
-    if (card === cardServicos) {
+  } else if (catKey) {
+    if (catKey === 'servico') {
       vendas = [];
-    } else if (card >= 1 && card <= numCats) {
-      vendas = vendas.filter((v) => tipoMatchCategoria(v.tipo, cats[card - 1]));
-    } else if (card === cardPecasDiversas) {
-      vendas = vendas.filter((v) => {
-        if (!ehPecaFamilia(v.familia)) return false;
-        for (let i = 0; i < numCats; i++) if (tipoMatchCategoria(v.tipo, cats[i])) return false;
-        return true;
-      });
-    } else if (card === 0 || card === cardTotalGeral) {
+    } else if (catKey === 'totalPecas' || catKey === 'totalGeral') {
       vendas = vendas.filter(ehTotalPecas);
+    } else {
+      // card de peça (fix:* ou tipo:*): mesmo classificador da agregação
+      vendas = vendas.filter((v) => classificarCardPeca(v, fixed)?.key === catKey);
     }
   } else {
     vendas = vendas.filter((v) => ehPecaFamilia(v.familia));
@@ -433,11 +410,11 @@ interface TendItem extends ItemVenda {
 /**
  * Tendência dos últimos 12 meses (até o mês atual): faturamento de PEÇAS,
  * SERVIÇOS e MÁQUINAS por mês. Lê só o banco (vendas_itens + os_mensal) e reusa
- * `agregarCards`/`agregarMaquinas` (mesma régua dos cards). Respeita a conta;
+ * `agregarCardsPecas`/`agregarMaquinas` (mesma régua dos cards). Respeita a conta;
  * "Todas" soma NOVA+CASTRO (os_mensal agregado por mês).
  */
 export async function montarTendencia(conta: ContaFiltro): Promise<TendenciaPonto[]> {
-  const cats = await getCategoriasConfig();
+  const fixed = await getFixedCats();
 
   const now = new Date();
   const meses: Array<{ mes: number; ano: number; label: string }> = [];
@@ -481,8 +458,7 @@ export async function montarTendencia(conta: ContaFiltro): Promise<TendenciaPont
 
   return meses.map((m) => {
     const itensMes = itens.filter((it) => it.mes === m.mes && it.ano === m.ano);
-    const agg = agregarCards(itensMes, null, cats);
-    const pecas = agg.cards.reduce((s, v) => s + v, 0);
+    const pecas = agregarCardsPecas(itensMes, null, fixed).totalPecas;
     const maq = agregarMaquinas(itensMes);
     const maquinas = maq.reduce((s, x) => s + x.receita, 0);
     const maquinasUn = maq.reduce((s, x) => s + x.unidades, 0);

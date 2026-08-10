@@ -25,6 +25,7 @@ const BASE_MIN_PECAS = 1000;
 const BASE_MIN_MAQ_UN = 2;
 
 interface Categoria {
+  key: string;
   nome: string;
   valorAtual: number;
   custoAtual: number;
@@ -60,7 +61,7 @@ interface DashboardResp {
 }
 interface TendPonto { label: string; mes: number; ano: number; pecas: number; servicos: number; maquinas: number; maquinasUn: number; total: number; deltaPct: number | null; parcial?: boolean }
 interface HistMes { label: string; mes: number; ano: number; valor: number; custo: number; qtdePedidos: number; valorNota?: number | null; valorInterno?: number | null }
-interface HistResp { card: number; nome: string; meses: HistMes[]; erro?: string }
+interface HistResp { catKey: string; nome: string; meses: HistMes[]; erro?: string }
 interface VendaRow {
   numero_pedido?: string; data_pedido?: string; descricao?: string; codigo_produto?: string;
   quantidade?: number; valor_unitario?: number; valor_total?: number; cmc_unitario?: number;
@@ -129,11 +130,11 @@ export default function DashboardPage() {
   const [erro, setErro] = useState('');
   const [categoriasOpts, setCategoriasOpts] = useState<Array<{ codigo: string; descricao: string }>>([]);
 
-  const [histCard, setHistCard] = useState<number | null>(null);
+  const [histCard, setHistCard] = useState<string | null>(null);
   const [hist, setHist] = useState<HistResp | null>(null);
 
   const [vendas, setVendas] = useState<VendaRow[] | null>(null);
-  const [vendasCard, setVendasCard] = useState<{ idx: number; nome: string } | null>(null);
+  const [vendasCard, setVendasCard] = useState<{ nome: string } | null>(null);
   const [pedidoItens, setPedidoItens] = useState<{ numero: string; itens: VendaRow[] } | null>(null);
 
   const [comprasAberto, setComprasAberto] = useState(false);
@@ -209,20 +210,20 @@ export default function DashboardPage() {
 
   useEffect(() => { carregar(); }, [carregar]);
 
-  const abrirHistorico = useCallback(async (cardIdx: number) => {
-    setHistCard(cardIdx);
+  const abrirHistorico = useCallback(async (catKey: string) => {
+    setHistCard(catKey);
     setHist(null);
     const catParam = categoria ? `&categoria=${encodeURIComponent(categoria)}` : '';
-    const r = await fetch(`/api/estoque/dashboard/historico?card=${cardIdx}${catParam}${contaParam}`);
+    const r = await fetch(`/api/estoque/dashboard/historico?catKey=${encodeURIComponent(catKey)}${catParam}${contaParam}`);
     const d = (await r.json()) as HistResp;
     if (!d.erro) setHist(d);
   }, [categoria, contaParam]);
 
-  const abrirVendas = useCallback(async (cardIdx: number, nome: string) => {
+  const abrirVendas = useCallback(async (catKey: string, nome: string) => {
     setVendas(null);
-    setVendasCard({ idx: cardIdx, nome });
+    setVendasCard({ nome });
     const catParam = categoria ? `&categoria=${encodeURIComponent(categoria)}` : '';
-    const r = await fetch(`/api/estoque/dashboard/vendas?${periodoParam}&ano=${ano}&card=${cardIdx}${catParam}${contaParam}`);
+    const r = await fetch(`/api/estoque/dashboard/vendas?${periodoParam}&ano=${ano}&catKey=${encodeURIComponent(catKey)}${catParam}${contaParam}`);
     const d = await r.json();
     if (!d.erro) setVendas(d.vendas || []);
   }, [periodoParam, ano, categoria, contaParam]);
@@ -237,7 +238,7 @@ export default function DashboardPage() {
 
   const abrirVendasMaquina = useCallback(async (familia: string, nome: string) => {
     setVendas(null);
-    setVendasCard({ idx: -1, nome });
+    setVendasCard({ nome });
     const r = await fetch(`/api/estoque/dashboard/vendas?${periodoParam}&ano=${ano}&familiaMaquina=${encodeURIComponent(familia)}${contaParam}`);
     const d = await r.json();
     if (!d.erro) setVendas(d.vendas || []);
@@ -443,7 +444,9 @@ export default function DashboardPage() {
         }
 
         // ---- Visão PEÇAS + SERVIÇOS ----
-        const pecasCats = cats.filter((c) => c.cardType === 'produto').slice().sort((a, b) => b.valorAtual - a.valorAtual);
+        // Ordem definida pelo backend: 3 fixos (Peças diversas, Filtros,
+        // Lubrificantes) + demais tipos com faturamento, em ordem alfabética.
+        const pecasCats = cats.filter((c) => c.cardType === 'produto');
         const totalPecasVenda = cPecas?.valorAtual ?? pecasCats.reduce((s, c) => s + c.valorAtual, 0);
         // Peças e Serviços respondem ao toggle Venda/Custo/Margem. Serviços não tem
         // custo apurado neste painel → em "Custo" fica "—".
@@ -504,8 +507,8 @@ export default function DashboardPage() {
                   {pecasCats.map((c, i) => (
                     <PecaCard key={i} c={c} modo={modo} metrica={metrica} parcial={parcial}
                       pctMix={totalPecasVenda > 0 ? (c.valorAtual / totalPecasVenda) * 100 : 0}
-                      onHist={() => abrirHistorico(cardIndexParaApi(c, dados))}
-                      onVendas={() => abrirVendas(cardIndexParaApi(c, dados), fixLabel(c.nome))} />
+                      onHist={() => abrirHistorico(c.key)}
+                      onVendas={() => abrirVendas(c.key, fixLabel(c.nome))} />
                   ))}
                 </div>
               </Secao>
@@ -1014,13 +1017,3 @@ function Sel({ label, value, onChange, options }: { label: string; value: string
   );
 }
 
-function cardIndexParaApi(c: Categoria, dados: DashboardResp): number {
-  const produtos = dados.categorias.filter((x) => x.cardType === 'produto');
-  const numCats = produtos.length - 1;
-  if (c.cardType === 'totalPecas') return 0;
-  if (c.cardType === 'servico') return numCats + 2;
-  if (c.cardType === 'totalGeral') return numCats + 3;
-  const pIdx = produtos.indexOf(c);
-  if (pIdx === numCats) return numCats + 1;
-  return pIdx + 1;
-}

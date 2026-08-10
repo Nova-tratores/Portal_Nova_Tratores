@@ -4,7 +4,7 @@
 
 import { obterItensProdutos, buscarItensDoBanco } from './vendas-sync';
 import { obterTotaisOS, obterTotaisOSAno, obterTiposComNotaMes, type TotaisOS } from './os';
-import { agregarCards, agregarMaquinas, getCategoriasConfig, type ItemVenda, type MaquinaFamilia } from './categorias';
+import { agregarCardsPecas, agregarMaquinas, getFixedCats, type ItemVenda, type MaquinaFamilia, type BucketPeca, type AgregarPecasResult } from './categorias';
 import { somarComprasPecas } from './dashboard-listas';
 import { ehMesAtual, ehAnoAtual, sleep, MESES_CURTO } from './utils';
 import type { ContaFiltro } from './conta';
@@ -13,12 +13,10 @@ import type { ContaFiltro } from './conta';
 export type ModoPeriodo = 'mes' | 'ano';
 
 interface DadosPeriodo {
-  card1: number;
-  card2: number;
-  card3: number;
-  cards: number[];
-  custosCards: number[];
-  nomesCat: string[];
+  /** Buckets de peça por chave (fixos + `tipo:*`), para merge por chave. */
+  porKey: Record<string, BucketPeca>;
+  /** Cards de peça na ordem de exibição (só relevante no período atual). */
+  ordered: AgregarPecasResult['ordered'];
   totalOS: number;
   osNota: number | null;
   osInterno: number | null;
@@ -42,11 +40,11 @@ async function montarDados(
 ): Promise<DadosPeriodo> {
   const totalOS = os.total;
 
-  const cats = await getCategoriasConfig();
-  const agg = agregarCards(itens, filtroCategoria, cats);
+  const fixed = await getFixedCats();
+  const agg = agregarCardsPecas(itens, filtroCategoria, fixed);
   const maquinas = agregarMaquinas(itens);
-  const totalPecas = agg.cards.reduce((s, v) => s + v, 0);
-  const totalCustoPecas = agg.custosCards.reduce((s, v) => s + v, 0);
+  const totalPecas = agg.totalPecas;
+  const totalCustoPecas = agg.totalCusto;
   // Receita de serviços = com nota + interno "com retorno" (garantia/entrega/
   // revisão/normal sem nota), espelhando a régua do OMIE; só o interno PURO
   // (cortesia/contrato interno) fica de fora. Enquanto o mês não tem o sub-split
@@ -56,12 +54,8 @@ async function montarDados(
   const totalGeral = totalPecas + receitaServicos;
 
   return {
-    card1: agg.card1,
-    card2: agg.card2,
-    card3: agg.card3,
-    cards: agg.cards,
-    custosCards: agg.custosCards,
-    nomesCat: agg.nomesCat,
+    porKey: agg.porKey,
+    ordered: agg.ordered,
     totalOS,
     osNota: os.nota,
     osInterno: os.interno,
@@ -113,6 +107,9 @@ export async function obterDadosAno(
 }
 
 export interface DashboardCategoria {
+  // Chave estável do card (usada nos drill-downs). Peças: "fix:<slug>" ou
+  // "tipo:<norm>"; cards especiais: o próprio cardType.
+  key: string;
   nome: string;
   valorAtual: number;
   custoAtual: number;
@@ -161,7 +158,7 @@ export interface DashboardResponse {
 }
 
 const DADOS_ZERADOS: DadosPeriodo = {
-  card1: 0, card2: 0, card3: 0, cards: [], custosCards: [], nomesCat: [],
+  porKey: {}, ordered: [],
   totalOS: 0, osNota: null, osInterno: null, osInternoRetorno: null, osInternoPuro: null, totalPecas: 0, totalCustoPecas: 0, totalGeral: 0,
   totalCompras: 0, maquinas: [],
 };
@@ -211,8 +208,10 @@ export async function montarDashboard(
     custoAtual = 0,
     custoAnterior = 0,
     custoAnoAnt = 0,
+    key?: string,
   ): DashboardCategoria => {
     return {
+      key: key ?? cardType,
       nome,
       valorAtual: atualVal,
       custoAtual,
@@ -228,21 +227,22 @@ export async function montarDashboard(
     };
   };
 
-  const produtos: DashboardCategoria[] = [];
-  for (let i = 0; i < atual.cards.length; i++) {
-    produtos.push(
-      montarCategoria(
-        atual.nomesCat[i] || 'Card ' + (i + 1),
-        atual.cards[i],
-        anterior.cards[i] || 0,
-        anoAnt.cards[i] || 0,
-        'produto',
-        atual.custosCards[i] || 0,
-        anterior.custosCards[i] || 0,
-        anoAnt.custosCards[i] || 0,
-      ),
-    );
-  }
+  // Cards de peça: um por bucket do período atual (3 fixos + tipos com valor).
+  // Comparativos vêm do MESMO bucket (merge por chave) — não por posição, que
+  // deslocaria entre meses quando a lista muda.
+  const produtos: DashboardCategoria[] = atual.ordered.map((o) =>
+    montarCategoria(
+      o.nome,
+      o.valor,
+      anterior.porKey[o.key]?.valor || 0,
+      anoAnt.porKey[o.key]?.valor || 0,
+      'produto',
+      o.custo,
+      anterior.porKey[o.key]?.custo || 0,
+      anoAnt.porKey[o.key]?.custo || 0,
+      o.key,
+    ),
+  );
   // Valor do card = receita de serviços (com nota + interno c/ retorno). Assim o
   // número grande, a projeção e os comparativos mês/ano ficam todos na mesma base.
   const receitaOS = (d: DadosPeriodo): number => (d.osNota != null ? d.osNota + (d.osInternoRetorno ?? 0) : d.totalOS);

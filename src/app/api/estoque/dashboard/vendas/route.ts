@@ -14,12 +14,12 @@ export async function GET(req: NextRequest) {
   const ano = parseInt(sp.get('ano') || '');
   const ehAno = sp.get('modo') === 'ano' || mesParam === 0;
   const mes = ehAno ? null : mesParam;
-  const card = sp.get('card') ? parseInt(sp.get('card')!) : null;
+  const catKey = sp.get('catKey') || null;
   const categoria = sp.get('categoria') || null;
   const familiaMaquina = sp.get('familiaMaquina') || null;
   if (!ano || (!ehAno && !mes)) return NextResponse.json({ erro: 'Informe mes e ano' });
   try {
-    const vendas = await listarVendas(mes, ano, card, categoria, conta, familiaMaquina);
+    const vendas = await listarVendas(mes, ano, catKey, categoria, conta, familiaMaquina);
     return NextResponse.json({ vendas, total: vendas.length });
   } catch (e) {
     return NextResponse.json({ erro: (e as Error).message }, { status: 500 });

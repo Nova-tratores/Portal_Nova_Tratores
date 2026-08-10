@@ -1,21 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta } from '@/lib/estoque/conta';
-import { montarHistorico, maxCardHistorico } from '@/lib/estoque/dashboard-listas';
+import { montarHistorico } from '@/lib/estoque/dashboard-listas';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-// Histórico mês a mês de um card. Portado de /api/dashboard/historico (server.js:2938).
+// Histórico mês a mês de um card (identificado por chave estável). Portado de
+// /api/dashboard/historico (server.js:2938).
 export async function GET(req: NextRequest) {
   const conta = parseConta(req.nextUrl.searchParams.get('conta'));
-  const card = parseInt(req.nextUrl.searchParams.get('card') || '');
+  const catKey = req.nextUrl.searchParams.get('catKey');
   const filtroCategoria = req.nextUrl.searchParams.get('categoria') || null;
-  const max = await maxCardHistorico();
-  if (isNaN(card) || card < 0 || card > max) {
-    return NextResponse.json({ erro: 'Informe card=0..' + max });
+  if (!catKey) {
+    return NextResponse.json({ erro: 'Informe catKey' });
   }
   try {
-    const r = await montarHistorico(card, filtroCategoria, conta);
+    const r = await montarHistorico(catKey, filtroCategoria, conta);
     return NextResponse.json(r);
   } catch (e) {
     return NextResponse.json({ erro: (e as Error).message }, { status: 500 });

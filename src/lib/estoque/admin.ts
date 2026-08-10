@@ -421,22 +421,27 @@ export async function listarCategoriasAdmin(): Promise<CategoriaConfig[]> {
   return getCategoriasConfig();
 }
 
-export async function salvarCategoriasAdmin(categorias: Array<{ nome?: string; palavras_chave?: string }>): Promise<{ ok: true; categorias: CategoriaConfig[] } | { erro: string }> {
-  if (!Array.isArray(categorias) || categorias.length < 2 || categorias.length > 5) {
-    return { erro: 'Envie entre 2 e 5 categorias' };
+// Os 3 cards de peça são FIXOS (os demais são dinâmicos por `tipo`). O admin só
+// edita nome/palavras-chave destes; nunca cria/apaga linha (upsert por slug).
+const SLUGS_FIXOS = ['pecas_diversas', 'filtros', 'lubrificantes'] as const;
+
+export async function salvarCategoriasAdmin(
+  categorias: Array<{ slug?: string; nome?: string; palavras_chave?: string }>,
+): Promise<{ ok: true; categorias: CategoriaConfig[] } | { erro: string }> {
+  if (!Array.isArray(categorias) || categorias.length !== SLUGS_FIXOS.length) {
+    return { erro: 'Envie exatamente as 3 categorias fixas' };
   }
-  for (let i = 0; i < categorias.length; i++) {
-    if (!categorias[i].nome || !categorias[i].palavras_chave) {
-      return { erro: 'Categoria ' + (i + 1) + ' precisa de nome e palavras_chave' };
-    }
+  const porSlug = new Map(categorias.map((c) => [c.slug, c]));
+  for (const slug of SLUGS_FIXOS) {
+    const c = porSlug.get(slug);
+    if (!c) return { erro: 'Falta a categoria fixa: ' + slug };
+    if (!c.nome || !c.nome.trim()) return { erro: 'A categoria "' + slug + '" precisa de nome' };
   }
-  const rows = categorias.map((c, i) => ({
-    posicao: i + 1,
-    nome: (c.nome || '').trim(),
-    palavras_chave: (c.palavras_chave || '').trim(),
-  }));
-  await supabase.from('categorias_dashboard').delete().gte('posicao', 1);
-  const { error } = await supabase.from('categorias_dashboard').insert(rows);
+  const rows = SLUGS_FIXOS.map((slug, i) => {
+    const c = porSlug.get(slug)!;
+    return { slug, posicao: i + 1, nome: (c.nome || '').trim(), palavras_chave: (c.palavras_chave || '').trim() };
+  });
+  const { error } = await supabase.from('categorias_dashboard').upsert(rows, { onConflict: 'slug' });
   if (error) return { erro: error.message };
   await carregarCategorias();
   return { ok: true, categorias: await getCategoriasConfig() };

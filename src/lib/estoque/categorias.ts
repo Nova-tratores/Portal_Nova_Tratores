@@ -10,15 +10,36 @@ export interface CategoriaConfig {
   nome: string;
   palavras_chave: string;
   posicao: number;
+  /** Identidade estável do card fixo (pecas_diversas | filtros | lubrificantes). */
+  slug: string;
 }
 
+// Os 3 cards FIXOS de peças (os demais são dinâmicos, um por `tipo` com
+// faturamento no período). Fallback quando a tabela `categorias_dashboard`
+// está vazia. `pecas_diversas` é o catch-all (peças sem tipo); suas
+// palavras-chave são opcionais.
 export const CATEGORIAS_PADRAO: CategoriaConfig[] = [
-  { nome: 'Pneus', palavras_chave: 'pneu,pneus', posicao: 1 },
-  { nome: 'Pecas Diversas', palavras_chave: 'peca,pecas,outros', posicao: 2 },
-  { nome: 'Servicos', palavras_chave: 'servico,servicos', posicao: 3 },
-  { nome: 'Lubrificantes', palavras_chave: 'lubrificante,lubrificantes', posicao: 4 },
-  { nome: 'Rodas', palavras_chave: 'roda,rodas', posicao: 5 },
+  { slug: 'pecas_diversas', nome: 'Peças diversas', palavras_chave: '', posicao: 1 },
+  { slug: 'filtros', nome: 'Filtros', palavras_chave: 'filtro,filtros', posicao: 2 },
+  { slug: 'lubrificantes', nome: 'Lubrificantes', palavras_chave: 'lubrificante,lubrificantes,oleo,graxa', posicao: 3 },
 ];
+
+/** Os 3 cards fixos, resolvidos por slug (robusto à ordem/posição da tabela). */
+export interface FixedCats {
+  pecas_diversas: CategoriaConfig;
+  filtros: CategoriaConfig;
+  lubrificantes: CategoriaConfig;
+}
+export async function getFixedCats(): Promise<FixedCats> {
+  const cfg = await getCategoriasConfig();
+  const bySlug = (slug: string, fallback: CategoriaConfig): CategoriaConfig =>
+    cfg.find((c) => c.slug === slug) || fallback;
+  return {
+    pecas_diversas: bySlug('pecas_diversas', CATEGORIAS_PADRAO[0]),
+    filtros: bySlug('filtros', CATEGORIAS_PADRAO[1]),
+    lubrificantes: bySlug('lubrificantes', CATEGORIAS_PADRAO[2]),
+  };
+}
 
 // Renomeação/agrupamento de categorias contábeis no dashboard.
 // Chave = nome amigável exibido; valor = códigos contábeis Omie do grupo.
@@ -93,69 +114,107 @@ export interface ItemVenda {
   cmc_unitario?: number | string | null;
 }
 
-export interface AgregarCardsResult {
-  card1: number;
-  card2: number;
-  card3: number;
-  cards: number[];
-  custosCards: number[];
-  nomesCat: string[];
-}
-
 const numv = (v: unknown): number => parseFloat(String(v ?? 0)) || 0;
 
+/** Família de peça: vazia ou contém "peça"/"peças". */
+export function ehPecaFamilia(familia: unknown): boolean {
+  const f = norm(String(familia ?? ''));
+  return f === '' || f.includes('peca');
+}
+
+/** Card ao qual um item de peça pertence, com chave estável. */
+export interface CardPecaClass {
+  key: string;
+  nome: string;
+}
+
 /**
- * Agrega itens em N cards por categoria + "Pecas Diversas" (catch-all).
- * Se `filtroCategoria` for informado, filtra os itens pelo código antes.
- * Portado de agregarCards (server.js:1139).
+ * Classificador ÚNICO de um item nos cards de peça (fonte da verdade — usado
+ * tanto na agregação quanto nos drill-downs, garantindo consistência).
+ *   - casa Filtros/Lubrificantes (palavras-chave) → card fixo (consome o tipo);
+ *   - `pecas_diversas` por palavras-chave OU por `tipo` vazio → catch-all;
+ *   - qualquer outro `tipo` de peça → card dinâmico `tipo:<norm(tipo)>`;
+ *   - item que não é peça e não casou nenhum fixo → null (não vira card).
  */
-export function agregarCards(
+export function classificarCardPeca(item: ItemVenda, fixed: FixedCats): CardPecaClass | null {
+  const tipo = item.tipo;
+  if (tipoMatchCategoria(tipo, fixed.filtros)) return { key: 'fix:filtros', nome: fixed.filtros.nome };
+  if (tipoMatchCategoria(tipo, fixed.lubrificantes)) return { key: 'fix:lubrificantes', nome: fixed.lubrificantes.nome };
+  if (tipoMatchCategoria(tipo, fixed.pecas_diversas)) return { key: 'fix:pecas_diversas', nome: fixed.pecas_diversas.nome };
+  if (!ehPecaFamilia(item.familia)) return null;
+  const tnorm = norm(String(tipo ?? ''));
+  if (tnorm === '') return { key: 'fix:pecas_diversas', nome: fixed.pecas_diversas.nome };
+  return { key: 'tipo:' + tnorm, nome: String(tipo).trim() };
+}
+
+export interface BucketPeca {
+  nome: string;
+  valor: number;
+  custo: number;
+}
+export interface AgregarPecasResult {
+  /** Todos os buckets por chave (fixos + `tipo:*`, incluindo os de valor <= 0). */
+  porKey: Record<string, BucketPeca>;
+  /** Cards para exibição: 3 fixos (sempre) + `tipo:*` com valor > 0, alfabéticos. */
+  ordered: Array<{ key: string; nome: string; valor: number; custo: number }>;
+  totalPecas: number;
+  totalCusto: number;
+}
+
+/**
+ * Agrega itens de peça em cards dinâmicos por `tipo`. Os 3 fixos (Peças
+ * diversas, Filtros, Lubrificantes) aparecem sempre; cada `tipo` restante com
+ * faturamento > 0 vira um card, em ordem alfabética. Se `filtroCategoria` for
+ * informado, filtra os itens pelo código contábil antes.
+ */
+export function agregarCardsPecas(
   itens: ItemVenda[],
   filtroCategoria: string | null,
-  cats: CategoriaConfig[],
-): AgregarCardsResult {
-  const valores = new Array(cats.length).fill(0);
-  const custos = new Array(cats.length).fill(0);
-  let pecasEOutros = 0;
-  let custoPecasEOutros = 0;
-
+  fixed: FixedCats,
+): AgregarPecasResult {
   const codigosFiltro = filtroCategoria ? expandirCategoriaFiltro(filtroCategoria) : null;
+  const porKey: Record<string, BucketPeca> = {};
 
   itens.forEach((item) => {
     if (codigosFiltro && !codigosFiltro.includes(item.codigo_categoria || '')) return;
-
-    const familia = item.familia || '';
-    const famNorm = norm(familia);
-    const ehPecas = famNorm === '' || famNorm.includes('peca') || famNorm.includes('pecas');
-
+    const r = classificarCardPeca(item, fixed);
+    if (!r) return;
     const vt = numv(item.valor_total);
     const cmcU = numv(item.cmc_unitario);
     const qtd = numv(item.quantidade);
     const ct = cmcU > 0 && qtd > 0 ? cmcU * qtd : 0;
-
-    let matched = false;
-    for (let i = 0; i < cats.length; i++) {
-      if (tipoMatchCategoria(item.tipo, cats[i])) {
-        valores[i] += vt;
-        custos[i] += ct;
-        matched = true;
-        break;
-      }
+    let b = porKey[r.key];
+    if (!b) {
+      b = porKey[r.key] = { nome: r.nome, valor: 0, custo: 0 };
+    } else if (r.key.startsWith('tipo:') && r.nome.localeCompare(b.nome, 'pt-BR') < 0) {
+      // rótulo determinístico: menor grafia entre as variantes do mesmo tipo
+      b.nome = r.nome;
     }
-    if (!matched && ehPecas) {
-      pecasEOutros += vt;
-      custoPecasEOutros += ct;
-    }
+    b.valor += vt;
+    b.custo += ct;
   });
 
-  return {
-    card1: valores[0] || 0,
-    card2: valores[1] || 0,
-    card3: pecasEOutros,
-    cards: valores.concat([pecasEOutros]),
-    custosCards: custos.concat([custoPecasEOutros]),
-    nomesCat: cats.map((c) => c.nome).concat(['Pecas Diversas']),
-  };
+  // Os 3 fixos existem sempre (mesmo zerados) e mantêm o nome atual da config.
+  const fixos: Array<[string, CategoriaConfig]> = [
+    ['fix:pecas_diversas', fixed.pecas_diversas],
+    ['fix:filtros', fixed.filtros],
+    ['fix:lubrificantes', fixed.lubrificantes],
+  ];
+  for (const [k, cfg] of fixos) {
+    if (!porKey[k]) porKey[k] = { nome: cfg.nome, valor: 0, custo: 0 };
+    else porKey[k].nome = cfg.nome;
+  }
+
+  const fixedOrdered = fixos.map(([k]) => ({ key: k, ...porKey[k] }));
+  const dinamicos = Object.entries(porKey)
+    .filter(([k, b]) => k.startsWith('tipo:') && b.valor > 0)
+    .map(([k, b]) => ({ key: k, nome: b.nome, valor: b.valor, custo: b.custo }))
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
+
+  const ordered = [...fixedOrdered, ...dinamicos];
+  const totalPecas = Object.values(porKey).reduce((s, b) => s + b.valor, 0);
+  const totalCusto = Object.values(porKey).reduce((s, b) => s + b.custo, 0);
+  return { porKey, ordered, totalPecas, totalCusto };
 }
 
 export interface MaquinaFamilia {

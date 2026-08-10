@@ -11,7 +11,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const body = (await req.json().catch(() => ({}))) as { categorias?: Array<{ nome?: string; palavras_chave?: string }> };
+  const body = (await req.json().catch(() => ({}))) as { categorias?: Array<{ slug?: string; nome?: string; palavras_chave?: string }> };
   const r = await salvarCategoriasAdmin(body.categorias || []);
   if ('erro' in r) return NextResponse.json(r, { status: 400 });
   return NextResponse.json(r);
