@@ -189,12 +189,24 @@ export async function getProdutoCached(codProduto: string | number, conta: Conta
     .eq('codigo_produto', String(codProduto))
     .eq('conta_omie', conta)
     .maybeSingle();
-  if (data) {
-    produtoCache[cacheKey] = { tipo: (data.tipo as string) || null, familia: (data.familia as string) || null };
+  const familiaCache = data ? (data.familia as string) || null : null;
+  // Só confia no cache quando a família ESTÁ preenchida. Com família nula, o
+  // produto pode ter sido cadastrado no Omie antes da família ser definida
+  // (ex.: veículos criados e vendidos no mesmo dia) — re-consultamos o Omie para
+  // não congelar um `null` stale e evitar que máquina sem família vire "peça".
+  if (data && familiaCache) {
+    produtoCache[cacheKey] = { tipo: (data.tipo as string) || null, familia: familiaCache };
     return produtoCache[cacheKey];
   }
-  const caracts = await listarCaractProduto(parseInt(String(codProduto)), conta);
-  const tipo = getTipoProduto(caracts);
+  // Linha nova OU família nula → (re)consulta o Omie. Preserva o `tipo` já
+  // gravado quando a linha existe (não refaz características nem sobrescreve).
+  let tipo: string | null;
+  if (data) {
+    tipo = (data.tipo as string) || null;
+  } else {
+    const caracts = await listarCaractProduto(parseInt(String(codProduto)), conta);
+    tipo = getTipoProduto(caracts);
+  }
   let familia: string | null = null;
   try {
     const prod = await omieRequest<{ descricao_familia?: string }>(

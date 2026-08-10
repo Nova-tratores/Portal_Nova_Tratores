@@ -122,6 +122,24 @@ export function ehPecaFamilia(familia: unknown): boolean {
   return f === '' || f.includes('peca');
 }
 
+// Categorias contábeis de PEÇA (Revenda de Peças Oficina/Balcão).
+const CATEGORIAS_PECA = new Set(Object.values(CATEGORIAS_AGRUPADAS).flat());
+
+/**
+ * Um item é venda de PEÇA quando:
+ *   - a família contém "peça" (sinal explícito) → sempre peça;
+ *   - a família é própria e NÃO-peça (Trator/Implemento…) → não é peça;
+ *   - a família está VAZIA (#N/D) → só é peça se a categoria contábil for de
+ *     peça. Isto blinda o número: uma máquina sem família (ex.: veículo novo em
+ *     1.01.97) NÃO conta como peça, mas uma peça sem família (1.01.02/03…) conta.
+ */
+export function ehPecaVenda(item: ItemVenda): boolean {
+  const f = norm(String(item.familia ?? ''));
+  if (f.includes('peca')) return true;
+  if (f !== '') return false;
+  return CATEGORIAS_PECA.has(String(item.codigo_categoria ?? ''));
+}
+
 /** Card ao qual um item de peça pertence, com chave estável. */
 export interface CardPecaClass {
   key: string;
@@ -131,17 +149,17 @@ export interface CardPecaClass {
 /**
  * Classificador ÚNICO de um item nos cards de peça (fonte da verdade — usado
  * tanto na agregação quanto nos drill-downs, garantindo consistência).
+ *   - só entra se for venda de peça (`ehPecaVenda`) — senão null (máquina/impl);
  *   - casa Filtros/Lubrificantes (palavras-chave) → card fixo (consome o tipo);
  *   - `pecas_diversas` por palavras-chave OU por `tipo` vazio → catch-all;
- *   - qualquer outro `tipo` de peça → card dinâmico `tipo:<norm(tipo)>`;
- *   - item que não é peça e não casou nenhum fixo → null (não vira card).
+ *   - qualquer outro `tipo` de peça → card dinâmico `tipo:<norm(tipo)>`.
  */
 export function classificarCardPeca(item: ItemVenda, fixed: FixedCats): CardPecaClass | null {
+  if (!ehPecaVenda(item)) return null;
   const tipo = item.tipo;
   if (tipoMatchCategoria(tipo, fixed.filtros)) return { key: 'fix:filtros', nome: fixed.filtros.nome };
   if (tipoMatchCategoria(tipo, fixed.lubrificantes)) return { key: 'fix:lubrificantes', nome: fixed.lubrificantes.nome };
   if (tipoMatchCategoria(tipo, fixed.pecas_diversas)) return { key: 'fix:pecas_diversas', nome: fixed.pecas_diversas.nome };
-  if (!ehPecaFamilia(item.familia)) return null;
   const tnorm = norm(String(tipo ?? ''));
   if (tnorm === '') return { key: 'fix:pecas_diversas', nome: fixed.pecas_diversas.nome };
   return { key: 'tipo:' + tnorm, nome: String(tipo).trim() };

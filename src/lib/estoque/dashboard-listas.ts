@@ -19,12 +19,6 @@ import { ehMesAtual, diasUteisDoMes, diasUteisAteHoje, MESES_CURTO } from './uti
 import { CONTA_DEFAULT, type ContaFiltro } from './conta';
 
 const num = (v: unknown): number => parseFloat(String(v ?? 0)) || 0;
-const norm = (s: string): string =>
-  (s || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-const ehPecaFamilia = (familia: unknown): boolean => {
-  const f = norm(String(familia ?? ''));
-  return f === '' || f.includes('peca') || f.includes('pecas');
-};
 
 // ====================== /api/dashboard/historico ======================
 
@@ -331,7 +325,7 @@ export async function listarVendas(
       vendas = vendas.filter((v) => classificarCardPeca(v, fixed)?.key === catKey);
     }
   } else {
-    vendas = vendas.filter((v) => ehPecaFamilia(v.familia));
+    vendas = vendas.filter((v) => classificarCardPeca(v, fixed) !== null);
   }
 
   if (categoria) {
