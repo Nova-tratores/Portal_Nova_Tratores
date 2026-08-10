@@ -41,6 +41,8 @@ export default function FamiliasPage() {
   const [familias, setFamilias] = useState<FamiliaOpcao[]>([]);
   const [q, setQ] = useState('');
   const [produtos, setProdutos] = useState<ProdutoFamilia[]>([]);
+  const [filtroCli, setFiltroCli] = useState(''); // filtra os resultados já carregados
+  const [modo, setModo] = useState<'busca' | 'sem-familia'>('busca');
   const [carregando, setCarregando] = useState(false);
   const [status, setStatus] = useState('');
   const [statusTipo, setStatusTipo] = useState<'ok' | 'erro' | 'info'>('info');
@@ -59,6 +61,16 @@ export default function FamiliasPage() {
     return m;
   }, [familias]);
 
+  // Filtro client-side sobre os resultados já carregados (SKU/descrição/família).
+  const visiveis = useMemo(() => {
+    const t = filtroCli.trim().toLowerCase();
+    if (!t) return produtos;
+    return produtos.filter((p) =>
+      p.codigo.toLowerCase().includes(t) ||
+      decode(p.descricao).toLowerCase().includes(t) ||
+      decode(p.familia_nome).toLowerCase().includes(t));
+  }, [produtos, filtroCli]);
+
   // Carrega as famílias da conta (para os <select>).
   const carregarFamilias = useCallback(async (c: Conta) => {
     try {
@@ -73,13 +85,13 @@ export default function FamiliasPage() {
 
   useEffect(() => {
     carregarFamilias(conta);
-    setProdutos([]); setSelecionados(new Set()); setFamiliaLote('');
+    setProdutos([]); setSelecionados(new Set()); setFamiliaLote(''); setFiltroCli('');
   }, [conta, carregarFamilias]);
 
   const buscar = useCallback(async () => {
     const termo = q.trim();
     if (!termo) { setMsg('Digite um SKU ou parte da descrição.', 'info'); return; }
-    setCarregando(true); setMsg('buscando…', 'info'); setSelecionados(new Set());
+    setCarregando(true); setModo('busca'); setMsg('buscando…', 'info'); setSelecionados(new Set()); setFiltroCli('');
     try {
       const r = await fetch(`/api/ajustes/familias?conta=${conta}&q=${encodeURIComponent(termo)}`);
       const d = await r.json();
@@ -94,6 +106,25 @@ export default function FamiliasPage() {
       setCarregando(false);
     }
   }, [q, conta, setMsg]);
+
+  // Carrega TODOS os produtos sem família da conta (para reclassificar em massa).
+  const verSemFamilia = useCallback(async () => {
+    setCarregando(true); setModo('sem-familia'); setMsg('carregando produtos sem família…', 'info');
+    setSelecionados(new Set()); setFiltroCli(''); setQ('');
+    try {
+      const r = await fetch(`/api/ajustes/familias?conta=${conta}&sem_familia=1`);
+      const d = await r.json();
+      if (d.erro) { setMsg('Erro: ' + d.erro, 'erro'); return; }
+      if (d.familias) setFamilias(d.familias);
+      const lista = (d.produtos || []) as ProdutoFamilia[];
+      setProdutos(lista);
+      setMsg(lista.length ? `${lista.length} produto(s) sem família em ${conta}.` : `Nenhum produto sem família em ${conta}. 🎉`, lista.length ? 'ok' : 'info');
+    } catch (ex) {
+      setMsg('Erro de rede: ' + (ex as Error).message, 'erro');
+    } finally {
+      setCarregando(false);
+    }
+  }, [conta, setMsg]);
 
   // Grava uma alteração de família (Omie + Supabase) e audita. Devolve true/false.
   const aplicarUm = useCallback(async (p: ProdutoFamilia, codigoFamilia: number): Promise<boolean> => {
@@ -164,13 +195,13 @@ export default function FamiliasPage() {
     setSelecionados((s) => { const n = new Set(s); n.has(cp) ? n.delete(cp) : n.add(cp); return n; });
   }, []);
   const marcarTodos = useCallback((on: boolean) => {
-    setSelecionados(on ? new Set(produtos.map((p) => p.codigo_produto)) : new Set());
-  }, [produtos]);
+    setSelecionados(on ? new Set(visiveis.map((p) => p.codigo_produto)) : new Set());
+  }, [visiveis]);
 
   if (!permLoading && userProfile && !pode('ajustes', 'familias')) return <SemPermissao />;
 
   const statusColor = statusTipo === 'erro' ? '#dc2626' : statusTipo === 'ok' ? '#047857' : '#64748b';
-  const todosMarcados = produtos.length > 0 && selecionados.size === produtos.length;
+  const todosMarcados = visiveis.length > 0 && visiveis.every((p) => selecionados.has(p.codigo_produto));
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 24px' }}>
@@ -201,7 +232,20 @@ export default function FamiliasPage() {
             placeholder="ex: RP-0060, POLIA, ROLO FACA…" style={{ width: '100%', border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 8px', fontSize: '.82rem' }} />
         </div>
         <button onClick={buscar} disabled={carregando} style={{ padding: '7px 14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: carregando ? 'wait' : 'pointer', opacity: carregando ? 0.5 : 1 }}>{carregando ? 'Buscando…' : 'Buscar'}</button>
+        <button onClick={verSemFamilia} disabled={carregando} title="Lista todos os produtos sem família da empresa selecionada"
+          style={{ padding: '7px 14px', background: '#fff', color: '#b45309', border: '1px solid #f59e0b', borderRadius: 6, fontSize: '.82rem', cursor: carregando ? 'wait' : 'pointer', opacity: carregando ? 0.5 : 1, fontWeight: 600 }}>
+          Ver sem família
+        </button>
       </div>
+
+      {/* Filtro dos resultados carregados */}
+      {produtos.length > 0 && (
+        <div style={{ marginBottom: 8 }}>
+          <input value={filtroCli} onChange={(e) => setFiltroCli(e.target.value)}
+            placeholder="filtrar resultados (SKU, descrição ou família)…"
+            style={{ width: '100%', maxWidth: 420, border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 8px', fontSize: '.8rem' }} />
+        </div>
+      )}
 
       {/* Ações em lote */}
       {produtos.length > 0 && (
@@ -223,12 +267,18 @@ export default function FamiliasPage() {
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, fontSize: '.75rem' }}>
         <span style={{ color: statusColor }}>{status}</span>
+        {produtos.length > 0 && (
+          <span style={{ marginLeft: 'auto', color: '#64748b' }}>
+            {modo === 'sem-familia' ? 'Sem família' : 'Busca'}
+            {filtroCli.trim() ? ` · ${visiveis.length} de ${produtos.length}` : ` · ${produtos.length}`} produto(s)
+          </span>
+        )}
       </div>
 
       <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'auto', maxHeight: '68vh' }}>
         {produtos.length === 0 ? (
           <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>
-            Busque um produto por <b>SKU</b> ou <b>descrição</b> para começar.
+            Busque por <b>SKU</b>/<b>descrição</b> ou clique em <b>Ver sem família</b> para listar os produtos por classificar.
           </div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -244,7 +294,9 @@ export default function FamiliasPage() {
               </tr>
             </thead>
             <tbody>
-              {produtos.map((p) => {
+              {visiveis.length === 0 ? (
+                <tr><td colSpan={5} style={{ ...tdStyle, textAlign: 'center', color: '#94a3b8', padding: 24 }}>Nenhum produto bate com o filtro.</td></tr>
+              ) : visiveis.map((p) => {
                 const salvandoEsta = salvando.has(p.codigo_produto);
                 return (
                   <tr key={p.codigo_produto} style={{ borderTop: '1px solid #f1f5f9', background: selecionados.has(p.codigo_produto) ? '#f0f9ff' : undefined }}>

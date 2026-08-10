@@ -47,6 +47,26 @@ export async function listarFamilias(conta: Conta): Promise<FamiliaOpcao[]> {
     .map((f) => ({ codigo_familia: Number(f.codigo_familia), nome: String(f.nome || '') }));
 }
 
+// Colunas lidas de `produtos` (mantidas em sincronia entre as buscas).
+const COLS_PRODUTO = 'codigo_produto, codigo, descricao, codigo_familia, familia_nome';
+
+interface RowProduto {
+  codigo_produto: number | string;
+  codigo: string | null;
+  descricao: string | null;
+  codigo_familia: number | null;
+  familia_nome: string | null;
+}
+function mapProduto(p: RowProduto): ProdutoFamilia {
+  return {
+    codigo_produto: Number(p.codigo_produto),
+    codigo: String(p.codigo || ''),
+    descricao: String(p.descricao || ''),
+    codigo_familia: p.codigo_familia != null ? Number(p.codigo_familia) : null,
+    familia_nome: String(p.familia_nome || ''),
+  };
+}
+
 /** Busca produtos por SKU (codigo) ou descrição. Filtra a conta e produtos não
  *  arquivados. Sem termo, devolve vazio (evita puxar o catálogo inteiro). */
 export async function buscarProdutos(conta: Conta, q: string, limite = 200): Promise<ProdutoFamilia[]> {
@@ -56,20 +76,39 @@ export async function buscarProdutos(conta: Conta, q: string, limite = 200): Pro
   const esc = termo.replace(/[%,]/g, ' ');
   const { data, error } = await supabase
     .from('produtos')
-    .select('codigo_produto, codigo, descricao, codigo_familia, familia_nome')
+    .select(COLS_PRODUTO)
     .eq('conta_omie', contaLow(conta))
     .eq('arquivado', false)
     .or(`codigo.ilike.%${esc}%,descricao.ilike.%${esc}%`)
     .order('descricao')
     .limit(limite);
   if (error) throw new Error('produtos: ' + error.message);
-  return (data || []).map((p) => ({
-    codigo_produto: Number(p.codigo_produto),
-    codigo: String(p.codigo || ''),
-    descricao: String(p.descricao || ''),
-    codigo_familia: p.codigo_familia != null ? Number(p.codigo_familia) : null,
-    familia_nome: String(p.familia_nome || ''),
-  }));
+  return (data || []).map(mapProduto);
+}
+
+/** Lista TODOS os produtos SEM família da conta (para reclassificar em massa).
+ *  "Sem família" = codigo_familia nulo OU familia_nome vazio/'Sem família' (o
+ *  fallback do sync). Pagina em blocos de 1000 (o PostgREST corta em 1000 mesmo
+ *  com .limit maior — ver postgrest-1000-rows), ordenando por codigo_produto
+ *  (chave estável, senão .range repete linhas — ver selectpaginado-sem-order). */
+export async function listarSemFamilia(conta: Conta, maxLinhas = 6000): Promise<ProdutoFamilia[]> {
+  const out: ProdutoFamilia[] = [];
+  const PAGE = 1000;
+  for (let from = 0; from < maxLinhas; from += PAGE) {
+    const { data, error } = await supabase
+      .from('produtos')
+      .select(COLS_PRODUTO)
+      .eq('conta_omie', contaLow(conta))
+      .eq('arquivado', false)
+      .or('codigo_familia.is.null,familia_nome.is.null,familia_nome.eq.,familia_nome.eq.Sem família')
+      .order('codigo_produto')
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error('produtos: ' + error.message);
+    const lote = data || [];
+    out.push(...lote.map(mapProduto));
+    if (lote.length < PAGE) break;
+  }
+  return out;
 }
 
 /** Altera a família de UM produto: grava na Omie e reflete no Supabase.
