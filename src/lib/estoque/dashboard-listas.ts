@@ -397,6 +397,8 @@ export interface TendenciaPonto {
   maquinasUn: number;
   /** Peças + Serviços do MESMO mês do ano anterior (linha fantasma YoY). 0 se não houver. */
   psAnoAnt: number;
+  /** Compras (entradas) de peças do mês — sparkline do card "Entradas" + razão. */
+  compras: number;
 }
 
 interface TendItem extends ItemVenda {
@@ -471,8 +473,12 @@ export async function montarTendencia(conta: ContaFiltro): Promise<TendenciaPont
     });
   }
 
+  // Compras (entradas) de peças por mês — só dos 12 exibidos (sparkline + razão).
+  const ultimos = meses.slice(-12);
+  const comprasPorMes = await Promise.all(ultimos.map((m) => somarComprasPecas(m.mes, m.ano, conta)));
+
   // Retorna só os últimos 12, cada um com o Peças+Serviços do mesmo mês do ano anterior.
-  return meses.slice(-12).map((m) => {
+  return ultimos.map((m, i) => {
     const d = porMes.get(m.mes + '/' + m.ano)!;
     const ant = porMes.get(m.mes + '/' + (m.ano - 1));
     return {
@@ -484,6 +490,7 @@ export async function montarTendencia(conta: ContaFiltro): Promise<TendenciaPont
       maquinas: d.maquinas,
       maquinasUn: d.maquinasUn,
       psAnoAnt: ant ? ant.pecas + ant.servicos : 0,
+      compras: comprasPorMes[i],
     };
   });
 }
