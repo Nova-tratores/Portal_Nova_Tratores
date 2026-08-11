@@ -11,6 +11,7 @@ import SemPermissao from '@/components/SemPermissao';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 import { fmtRS } from '@/components/estoque/ui';
+import { chartColors } from '@/lib/estoque/chartColors';
 
 const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 type Metrica = 'venda' | 'custo' | 'margem';
@@ -20,7 +21,8 @@ const COR_INK = '#1f2937';
 const COR_UP = '#16a34a';
 const COR_DOWN = '#dc2626';
 const COR_MUTED = '#9ca3af';
-const ACCENT = { geral: '#111827', maquinas: '#d97706', pecas: '#dc2626', servicos: '#0891b2', comprei: '#4f46e5' };
+// Peças/Serviços/Entradas vêm dos tokens compartilhados (casam com o gráfico).
+const ACCENT = { geral: chartColors.consolidado, maquinas: '#d97706', pecas: chartColors.pecas, servicos: chartColors.servicos, comprei: chartColors.entradas };
 const BASE_MIN_PECAS = 1000;
 const BASE_MIN_MAQ_UN = 2;
 
@@ -951,13 +953,12 @@ function ServicosDecomp({ c, onDetalhe }: { c: Categoria; onDetalhe: () => void 
   );
 }
 
-// Cores do gráfico Peças+Serviços: azul-escuro (peças) + verde-água (serviços).
-// O vermelho fica reservado para variação negativa (não para faturamento).
-const CHART_PECAS = '#1e40af';
-const CHART_SERVICOS = '#2dd4bf';
-const CHART_SERVICOS_INK = '#0d9488';
-const COR_POS = '#16a34a';
-const COR_NEG = '#dc2626';
+// Cores do gráfico Peças+Serviços — dos tokens compartilhados (casam com os cards).
+const CHART_PECAS = chartColors.pecas;
+const CHART_SERVICOS = chartColors.servicosBar;
+const CHART_SERVICOS_INK = chartColors.servicos;
+const COR_POS = chartColors.pos;
+const COR_NEG = chartColors.neg;
 
 type PSView = 'empilhado' | 'agrupado' | 'pct';
 const fmtVar = (v: number | null): { txt: string; cor: string } => {
