@@ -19,6 +19,7 @@ interface Resumo {
   produtosNova: number; comMatch: number; semMatch: number;
   sistemaUnico: number; subUnico: number; ambosAmbiguos: number; aEscrever: number; jaPreenchidos: number;
 }
+interface SistemaInfo { nome: string; produtos: number }
 
 const thStyle: React.CSSProperties = { background: '#f1f5f9', color: '#475569', fontSize: '.65rem', textTransform: 'uppercase', letterSpacing: '.4px', padding: '8px 10px', textAlign: 'left', borderBottom: '1px solid #e2e8f0', fontWeight: 600, whiteSpace: 'nowrap', position: 'sticky', top: 0, zIndex: 1 };
 const tdStyle: React.CSSProperties = { padding: '6px 10px', borderBottom: '1px solid #f1f5f9', color: '#334155', fontSize: '.8rem', verticalAlign: 'top' };
@@ -31,6 +32,8 @@ export default function CatalogoCaracteristicasPage() {
 
   const [itens, setItens] = useState<Item[]>([]);
   const [resumo, setResumo] = useState<Resumo | null>(null);
+  const [sistemas, setSistemas] = useState<SistemaInfo[]>([]);
+  const [mostrarSistemas, setMostrarSistemas] = useState(false);
   const [carregando, setCarregando] = useState(false);
   const [status, setStatus] = useState('');
   const [statusTipo, setStatusTipo] = useState<'ok' | 'erro' | 'info'>('info');
@@ -38,6 +41,9 @@ export default function CatalogoCaracteristicasPage() {
   const [filtroCli, setFiltroCli] = useState('');
   const [aplicando, setAplicando] = useState(false);
   const [progresso, setProgresso] = useState('');
+  // quais características aplicar
+  const [aplicarSis, setAplicarSis] = useState(true);
+  const [aplicarSub, setAplicarSub] = useState(true);
 
   const setMsg = useCallback((t: string, tipo: 'ok' | 'erro' | 'info' = 'info') => { setStatus(t); setStatusTipo(tipo); }, []);
 
@@ -51,6 +57,7 @@ export default function CatalogoCaracteristicasPage() {
       const lista = (d.itens || []) as Item[];
       setItens(lista);
       setResumo(d.resumo || null);
+      setSistemas((d.sistemas || []) as SistemaInfo[]);
       setSelecionados(new Set(lista.map((i) => i.codigo_produto))); // default: todos
       setMsg(lista.length ? `${lista.length} produto(s) com algo a preencher.` : 'Nada a preencher. 🎉', lista.length ? 'ok' : 'info');
     } catch (ex) {
@@ -112,19 +119,27 @@ export default function CatalogoCaracteristicasPage() {
   }, []);
 
   const aplicar = useCallback(async () => {
+    if (!aplicarSis && !aplicarSub) { setMsg('Escolha ao menos uma característica (Sistema/Sub-sistema).', 'info'); return; }
     const sel = itens.filter((i) => selecionados.has(i.codigo_produto));
-    const alvoSis: ItemLote[] = sel.filter((i) => i.precisaSistema).map((i) => ({ empresa: 'NOVA', codigo_produto: i.codigo_produto, valor: i.sistema }));
-    const alvoSub: ItemLote[] = sel.filter((i) => i.precisaSub).map((i) => ({ empresa: 'NOVA', codigo_produto: i.codigo_produto, valor: i.subsistema }));
-    if (!alvoSis.length && !alvoSub.length) { setMsg('Nada selecionado para gravar.', 'info'); return; }
+    const alvoSis: ItemLote[] = aplicarSis ? sel.filter((i) => i.precisaSistema).map((i) => ({ empresa: 'NOVA', codigo_produto: i.codigo_produto, valor: i.sistema })) : [];
+    const alvoSub: ItemLote[] = aplicarSub ? sel.filter((i) => i.precisaSub).map((i) => ({ empresa: 'NOVA', codigo_produto: i.codigo_produto, valor: i.subsistema })) : [];
+    if (!alvoSis.length && !alvoSub.length) { setMsg('Nada selecionado para gravar (verifique as características escolhidas).', 'info'); return; }
     if (!confirm(`Gravar na Omie (NOVA):\n• Sistema em ${alvoSis.length} produto(s)\n• Sub-sistema em ${alvoSub.length} produto(s)\n\nSe a Omie bloquear, o sistema espera e retoma — deixe a aba aberta até o fim.`)) return;
     setAplicando(true); setMsg('aplicando…', 'info');
     try {
       const r1 = alvoSis.length ? await aplicarPasse('Sistema', alvoSis) : { aplicados: 0, falhas: 0, primeiraFalha: '', abortado: false };
       const r2 = alvoSub.length ? await aplicarPasse('Sub-sistema', alvoSub) : { aplicados: 0, falhas: 0, primeiraFalha: '', abortado: false };
       setProgresso('');
-      // otimista: tira da lista os produtos processados (falhas voltam ao "Atualizar")
-      const processados = new Set(sel.map((i) => i.codigo_produto));
-      setItens((prev) => prev.filter((i) => !processados.has(i.codigo_produto)));
+      // otimista: marca aplicadas as características gravadas; remove a linha só
+      // quando não sobra nada pendente. Falhas reaparecem no "Atualizar".
+      const proc = new Set(sel.map((i) => i.codigo_produto));
+      setItens((prev) => prev.flatMap((i) => {
+        if (!proc.has(i.codigo_produto)) return [i];
+        const n = { ...i };
+        if (aplicarSis && n.precisaSistema) { n.sistemaAtual = n.sistema; n.precisaSistema = false; }
+        if (aplicarSub && n.precisaSub) { n.subAtual = n.subsistema; n.precisaSub = false; }
+        return (n.precisaSistema || n.precisaSub) ? [n] : [];
+      }));
       setSelecionados(new Set());
       const falhas = r1.falhas + r2.falhas;
       const pf = r1.primeiraFalha || r2.primeiraFalha;
@@ -134,7 +149,7 @@ export default function CatalogoCaracteristicasPage() {
     } finally {
       setAplicando(false);
     }
-  }, [itens, selecionados, aplicarPasse, setMsg]);
+  }, [itens, selecionados, aplicarPasse, aplicarSis, aplicarSub, setMsg]);
 
   if (!permLoading && userProfile && !pode('ajustes', 'catalogo-caract')) return <SemPermissao />;
 
@@ -157,24 +172,59 @@ export default function CatalogoCaracteristicasPage() {
       </div>
 
       {resumo && (
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12, fontSize: '.74rem', color: '#475569' }}>
-          {[
-            ['Produtos NOVA', resumo.produtosNova],
-            ['No catálogo', resumo.comMatch],
-            ['Sistema único', resumo.sistemaUnico],
-            ['Sub único', resumo.subUnico],
-            ['A preencher', resumo.aEscrever],
-            ['Já preenchidos', resumo.jaPreenchidos],
-            ['Ambíguos (fora)', resumo.ambosAmbiguos],
-          ].map(([lbl, v]) => (
-            <span key={String(lbl)} style={{ background: '#f1f5f9', borderRadius: 6, padding: '4px 10px' }}><b>{v as number}</b> {lbl}</span>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 10, fontSize: '.74rem', color: '#475569' }}>
+          {([
+            ['Produtos NOVA', resumo.produtosNova, false],
+            ['No catálogo', resumo.comMatch, true],
+            ['Sistema único', resumo.sistemaUnico, false],
+            ['Sub único', resumo.subUnico, false],
+            ['A preencher', resumo.aEscrever, true],
+            ['Já preenchidos', resumo.jaPreenchidos, false],
+            ['Ambíguos (fora)', resumo.ambosAmbiguos, false],
+          ] as [string, number, boolean][]).map(([lbl, v, clic]) => (
+            <span key={lbl} onClick={clic ? () => marcarTodos(true) : undefined}
+              title={clic ? 'Clique para selecionar todas as peças da lista' : undefined}
+              style={{ background: clic ? '#ecfdf5' : '#f1f5f9', border: clic ? '1px solid #a7f3d0' : '1px solid transparent', color: clic ? '#047857' : '#475569', borderRadius: 6, padding: '4px 10px', cursor: clic ? 'pointer' : 'default' }}>
+              <b>{v}</b> {lbl}{clic ? ' ✓' : ''}
+            </span>
           ))}
+          <button onClick={() => setMostrarSistemas((s) => !s)}
+            style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: '.74rem' }}>
+            {mostrarSistemas ? 'ocultar' : 'ver'} sistemas ({sistemas.length})
+          </button>
+        </div>
+      )}
+
+      {mostrarSistemas && (
+        <div style={{ marginBottom: 12, border: '1px solid #e2e8f0', borderRadius: 8, background: '#fff', padding: '10px 12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+            <b style={{ fontSize: '.8rem', color: '#1e293b' }}>Sistemas existentes ({sistemas.length})</b>
+            <span style={{ fontSize: '.7rem', color: '#94a3b8' }}>nº = produtos NOVA (com match) que tocam o sistema</span>
+            <button onClick={() => { navigator.clipboard?.writeText(sistemas.map((s) => s.nome).join('\n')); setMsg('Lista de sistemas copiada.', 'ok'); }}
+              style={{ marginLeft: 'auto', fontSize: '.72rem', padding: '3px 8px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 4, cursor: 'pointer' }}>Copiar nomes</button>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 200, overflow: 'auto' }}>
+            {sistemas.map((s) => (
+              <span key={s.nome} style={{ fontSize: '.74rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 5, padding: '2px 8px' }}>
+                {s.nome} <b style={{ color: '#64748b' }}>{s.produtos}</b>
+              </span>
+            ))}
+          </div>
         </div>
       )}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
         <input value={filtroCli} onChange={(e) => setFiltroCli(e.target.value)} placeholder="filtrar (SKU, descrição, sistema, sub-sistema)…"
-          style={{ flex: 1, minWidth: 240, maxWidth: 460, border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 8px', fontSize: '.8rem' }} />
+          style={{ flex: 1, minWidth: 200, maxWidth: 380, border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 8px', fontSize: '.8rem' }} />
+        <span style={{ fontSize: '.72rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: 8 }}>
+          Aplicar:
+          <label style={{ display: 'flex', alignItems: 'center', gap: 3, cursor: 'pointer' }}>
+            <input type="checkbox" checked={aplicarSis} onChange={(e) => setAplicarSis(e.target.checked)} /> Sistema
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 3, cursor: 'pointer' }}>
+            <input type="checkbox" checked={aplicarSub} onChange={(e) => setAplicarSub(e.target.checked)} /> Sub-sistema
+          </label>
+        </span>
         <span style={{ fontSize: '.75rem', color: '#475569' }}><b>{selecionados.size}</b> selecionado(s)</span>
         <button onClick={aplicar} disabled={aplicando || carregando || !selecionados.size}
           style={{ padding: '7px 14px', background: '#059669', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer', opacity: (aplicando || carregando || !selecionados.size) ? 0.5 : 1, fontWeight: 600 }}>
