@@ -1446,6 +1446,45 @@ function classificaGrupoCP(grupo) {
   return null;
 }
 
+// Nó da DRE FORA do resultado, para o PRINCIPAL do desconto de duplicata
+// (factoring). O prefixo '4.' garante que todo consumidor que soma o resultado
+// (que chaveia '1.'/'2.') o IGNORA; os loops de tabela/CSV, que iteram todos os
+// tipos, o RENDERIZAM. Ver ehDescontoDuplicataAPIP/classificaCP abaixo.
+const NODE_ANTECIP = {
+  TIPO:  '4. Movimentações de financiamento (não-resultado)',
+  GRUPO: '01. Antecipação de duplicatas',
+  CONTA: '01. Desconto de duplicata (principal)',
+};
+
+// Rótulo do "grupo" sintético na tela Composição (que agrega por grupo_categoria
+// cru, sem a árvore da DRE). Isola o principal do desconto de duplicata numa
+// barra própria, espelhando o nó da DRE. Compartilhado pelas duas rotas de
+// composição para não divergir.
+const GRUPO_COMPOSICAO_ANTECIP = 'Antecipação de duplicatas (financiamento)';
+
+// Título a pagar que é o PRINCIPAL de uma duplicata descontada via integração
+// "Omie Desconto de Duplicatas" (parceiros Votorantim/ERG/OMIE FIDC). Comprovado:
+// o valor_documento é o valor CHEIO da nota antecipada (= o recebível de origem),
+// 100% principal, zero juro de factoring (o juro vai na CC / categoria 2.05.01).
+// Logo é movimentação de financiamento, NÃO despesa. Precisa de codigo_categoria
+// + id_origem (raw->>id_origem) no SELECT da linha.
+function ehDescontoDuplicataAPIP(row) {
+  return String(row && row.codigo_categoria || '') === '2.05.03'
+    && String(row && row.id_origem || '') === 'APIP';
+}
+
+// Classificador de UMA linha de contas_pagar para a árvore DRE. Roteia o
+// principal do desconto de duplicata (APIP) para o nó fora do resultado; o resto
+// (inclusive empréstimos reais não-APIP em 2.05.03) segue por grupo_categoria.
+// Substitui as chamadas diretas a classificaGrupoCP(r.grupo_categoria) na
+// agregação de títulos a pagar (calc + rota de detalhe usam o MESMO helper).
+function classificaCP(row) {
+  if (ehDescontoDuplicataAPIP(row)) {
+    return { tipo: NODE_ANTECIP.TIPO, grupo: NODE_ANTECIP.GRUPO, conta: NODE_ANTECIP.CONTA, sinal: -1 };
+  }
+  return classificaGrupoCP(row && row.grupo_categoria);
+}
+
 function arvoreEmptyTree() { return {}; }
 // categoria (opcional, 7o arg): quando presente, agrega tambem em contas[conta].categorias[categoria]
 // formando um 4o nivel na arvore. Usado pelas despesas pra expor descricao_categoria do Omie
@@ -1520,7 +1559,7 @@ async function calcularDRECompetencia(anoMesIni, anoMesFim) {
   // duplicadas (ex.: "Despesas com Pessoal"). Chave: codigo_lancamento+conta_omie.
   const contasPagar = await selectPaginado(() =>
     supabase.from('contas_pagar')
-      .select('valor_documento,data_emissao,conta_omie,grupo_categoria,descricao_categoria,status_titulo')
+      .select('valor_documento,data_emissao,conta_omie,grupo_categoria,descricao_categoria,status_titulo,codigo_categoria,id_origem:raw->>id_origem')
       .gte('data_emissao', dataDe).lte('data_emissao', dataAte)
       .not('grupo_categoria', 'is', null)
       .order('codigo_lancamento', { ascending: true })
@@ -1602,7 +1641,9 @@ async function calcularDRECompetencia(anoMesIni, anoMesFim) {
       : (String(r.conta_omie).toUpperCase() === 'NOVA' ? 'nova'
          : String(r.conta_omie).toUpperCase() === 'CASTRO' ? 'castro' : null);
     if (!slugNorm) return;
-    const cls = classificaGrupoCP(r.grupo_categoria);
+    // classificaCP (não classificaGrupoCP): roteia o principal do desconto de
+    // duplicata (APIP) para o nó '4.' fora do resultado; o resto segue por grupo.
+    const cls = classificaCP(r);
     if (!cls) return;
     if (!r.data_emissao) return;
     const mesKey = String(r.data_emissao).slice(0, 7);
@@ -2434,6 +2475,10 @@ module.exports = {
   montarFromRaw,
   calcularCicloCaixa,
   classificaGrupoCP,
+  classificaCP,
+  ehDescontoDuplicataAPIP,
+  NODE_ANTECIP,
+  GRUPO_COMPOSICAO_ANTECIP,
   arvoreEmptyTree,
   addNoTree,
   calcularDRECompetencia,

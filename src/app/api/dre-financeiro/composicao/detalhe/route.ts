@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin as supabase } from '@/lib/dre-financeiro/supabase'
 import {
   CONTA_PADRAO, tabelaPorTipo, colunaNomePorTipo, aplicarConta,
+  ehDescontoDuplicataAPIP, GRUPO_COMPOSICAO_ANTECIP,
 } from '@/lib/dre-financeiro/calc'
 
 export const dynamic = 'force-dynamic'
@@ -58,7 +59,11 @@ export async function GET(request: NextRequest) {
         : db.from(tabela).select(sel)
       q = q.gte('data_vencimento', de).lte('data_vencimento', ate)
       q = aplicarConta(q, conta)
-      if (grupo === SEM_GRUPO) q = q.is('grupo_categoria', null)
+      // Bucket sintético de antecipação: não existe como grupo_categoria no DB —
+      // são os 2.05.03 sob "Despesas Financeiras / Bancos"; o recorte APIP fica
+      // no pós-filtro em JS (ehDescontoDuplicataAPIP) abaixo.
+      if (grupo === GRUPO_COMPOSICAO_ANTECIP) q = q.eq('grupo_categoria', 'Despesas Financeiras / Bancos').eq('codigo_categoria', '2.05.03')
+      else if (grupo === SEM_GRUPO) q = q.is('grupo_categoria', null)
       else if (grupo) q = q.eq('grupo_categoria', grupo)
       if (terceiro === SEM_TERC) q = q.is(colNome, null)
       else if (terceiro) q = q.eq(colNome, terceiro)
@@ -68,7 +73,7 @@ export async function GET(request: NextRequest) {
     const { count, error: eCount } = await base('codigo_lancamento', true)
     if (eCount) throw new Error(eCount.message)
     const paginas = Math.ceil((count || 0) / PAG)
-    const sel = `codigo_lancamento,numero_documento,numero_documento_fiscal,data_emissao,data_vencimento,data_pagamento,valor_documento,valor_pago,status_titulo,descricao_categoria,codigo_categoria`
+    const sel = `codigo_lancamento,numero_documento,numero_documento_fiscal,data_emissao,data_vencimento,data_pagamento,valor_documento,valor_pago,status_titulo,descricao_categoria,codigo_categoria,id_origem:raw->>id_origem`
     const reqs: Promise<any>[] = []
     for (let p = 0; p < paginas; p++) {
       const from = p * PAG
@@ -85,11 +90,17 @@ export async function GET(request: NextRequest) {
 
     // Filtra pela categoria clicada (mesma resolucao do treemap) e descarta
     // valor <= 0 (a rota /composicao ignora esses ao montar as folhas).
+    const ehBucketAntecip = grupo === GRUPO_COMPOSICAO_ANTECIP
     const titulos = linhas
       .filter((r) => {
         if ((Number(r.valor_documento) || 0) <= 0) return false
         const cat = r.descricao_categoria || (r.codigo_categoria || SEM_CAT)
-        return cat === categoria
+        if (cat !== categoria) return false
+        // Espelha o split da rota /composicao: no bucket só entra APIP; no grupo
+        // "Despesas Financeiras / Bancos" o APIP é excluído (foi pro bucket).
+        if (ehBucketAntecip) return ehDescontoDuplicataAPIP(r)
+        if (grupo === 'Despesas Financeiras / Bancos' && ehDescontoDuplicataAPIP(r)) return false
+        return true
       })
       .map((r) => ({
         codigo_lancamento: r.codigo_lancamento,

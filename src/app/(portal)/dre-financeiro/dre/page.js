@@ -886,6 +886,11 @@ export default function DrePage() {
       }
       infoTxt = top.length + ' categorias' + (resto.length ? ' (+' + resto.length + ' em Outros)' : '') + ' · ' + colunas.length + ' colunas'
     } else {
+      // O principal do desconto de duplicata já NÃO está em "03. Despesas
+      // Financeiras" (foi para o nó '4.' fora do resultado em calcularDRECompetencia),
+      // então a linha de Despesas Financeiras já reflete só o custo real — sem o
+      // antigo remendo que separava "Pagamento de Empréstimos" (que puxava também
+      // empréstimos legítimos não-APIP).
       Object.keys(dados.consolidado || {}).forEach((t) => {
         if (t.indexOf('2.') !== 0) return
         const grupos = (dados.consolidado[t] || {}).grupos || {}
@@ -1269,7 +1274,10 @@ export default function DrePage() {
     lines.push(['Conta', 'NOVA', 'CASTRO', 'Consolidado'].concat(colunas.map(rotuloColuna)).join(';'))
 
     const tipos = Array.from(new Set(Object.keys(nova).concat(Object.keys(castro)).concat(Object.keys(cons)))).sort()
-    tipos.forEach((t) => {
+    // '4.' (financiamento) fica FORA do resultado -> renderizado depois da linha
+    // de RESULTADO LIQUIDO (ver abaixo).
+    const ehForaDoResultado = (t) => !/^[12]\./.test(t)
+    const emitTipoCsv = (t) => {
       lines.push(rowCsv(t, 0, t))
       const grupos = Array.from(new Set([
         ...Object.keys((nova[t] || {}).grupos || {}),
@@ -1294,7 +1302,8 @@ export default function DrePage() {
           })
         }
       })
-    })
+    }
+    tipos.filter((t) => !ehForaDoResultado(t)).forEach(emitTipoCsv)
 
     function valTipoTot(arv, t) { return (arv[t] && arv[t].total) || 0 }
     const resPorMes = {}
@@ -1310,6 +1319,9 @@ export default function DrePage() {
     ]
     colunas.forEach((k) => { resCells.push(fmtNum(valorPorColuna(resPorMes, k))) })
     lines.push(resCells.join(';'))
+
+    // Blocos fora do resultado (financiamento), abaixo do RESULTADO.
+    tipos.filter(ehForaDoResultado).forEach(emitTipoCsv)
 
     const csv = '﻿' + lines.join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -1402,7 +1414,11 @@ export default function DrePage() {
       Object.keys(arvNova).concat(Object.keys(arvCas)).concat(Object.keys(arvCons))
     )).sort()
 
-    tipos.forEach((t) => {
+    // Tipos que compoem o RESULTADO sao so '1.'/'2.'. O no '4.' (financiamento -
+    // principal do desconto de duplicata) fica FORA do resultado e vai ABAIXO da
+    // linha de RESULTADO LIQUIDO.
+    const ehForaDoResultado = (t) => !/^[12]\./.test(t)
+    const emitTipo = (t) => {
       linha({
         nivel: 0, label: t, ctxClassif: { dreTipo: t },
         vN: valTipo(arvNova, t), vC: valTipo(arvCas, t), vCons: valTipo(arvCons, t),
@@ -1446,7 +1462,9 @@ export default function DrePage() {
           })
         }
       })
-    })
+    }
+
+    tipos.filter((t) => !ehForaDoResultado(t)).forEach(emitTipo)
 
     // Linha de RESULTADO LIQUIDO
     const resN = valTipo(arvNova, '1. Lucro Bruto') + valTipo(arvNova, '2. Despesas')
@@ -1462,6 +1480,10 @@ export default function DrePage() {
       porMes: (k) => mesesRes[k],
       clicavel: false,
     })
+
+    // Blocos FORA do resultado (ex.: '4. Movimentacoes de financiamento' - o
+    // principal do desconto de duplicata), renderizados abaixo do RESULTADO.
+    tipos.filter(ehForaDoResultado).forEach(emitTipo)
 
     return linhas
   }
