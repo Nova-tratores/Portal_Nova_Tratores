@@ -2,7 +2,7 @@
 // Dashboard de Vendas — duas visões independentes: "Peças + Serviços" e "Máquinas".
 // Consome /api/estoque/dashboard{,/historico,/categorias-vendas,/vendas,/pedido-itens,
 // /compras,/tendencia}. Cor do VALOR é sempre neutra; verde/vermelho só p/ variação.
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { ResponsiveContainer, LineChart, Line, BarChart, ComposedChart, Bar, Area, AreaChart, Cell, LabelList, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ReferenceLine } from 'recharts';
 import { useAuth } from '@/hooks/useAuth';
@@ -64,8 +64,8 @@ interface DashboardResp {
   erro?: string;
 }
 interface TendPonto { label: string; mes: number; ano: number; pecas: number; servicos: number; maquinas: number; maquinasUn: number; total: number; deltaPct: number | null; parcial?: boolean;
-  /** Peças+Serviços do mês, MoM de PS, e PS do mesmo mês do ano anterior (YoY). */
-  ps: number; psDeltaPct: number | null; psAnoAnt: number;
+  /** Peças+Serviços do mês, MoM de PS, e PS do mesmo mês de -1 ano (YoY) e -2 anos. */
+  ps: number; psDeltaPct: number | null; psAnoAnt: number; psAno2Ant: number;
   /** Compras (entradas) de peças do mês — sparkline do card Entradas + razão. */
   compras: number }
 interface HistMes { label: string; mes: number; ano: number; valor: number; custo: number; qtdePedidos: number; valorNota?: number | null; valorInterno?: number | null }
@@ -156,6 +156,9 @@ export default function DashboardPage() {
   const [comprasAberto, setComprasAberto] = useState(false);
   const [comprasItens, setComprasItens] = useState<CompraRow[] | null>(null);
   const [comprasSort, setComprasSort] = useState<{ col: string; dir: 'asc' | 'desc' }>({ col: 'valor_total', dir: 'desc' });
+  // Atalhos/popups: "Por categoria" (peças) e "Decomposição" (serviços).
+  const [catPopup, setCatPopup] = useState(false);
+  const [servDecompPopup, setServDecompPopup] = useState(false);
 
   const [osAberto, setOsAberto] = useState(false);
   const [osServicos, setOsServicos] = useState<OSRow[] | null>(null);
@@ -212,7 +215,7 @@ export default function DashboardPage() {
     fetch(`/api/estoque/dashboard/tendencia?_=1${contaParam}`)
       .then((r) => r.json())
       .then((d) => {
-        const raw = (d.pontos || []) as Array<{ label: string; mes: number; ano: number; pecas: number; servicos: number; maquinas: number; maquinasUn: number; psAnoAnt?: number; compras?: number }>;
+        const raw = (d.pontos || []) as Array<{ label: string; mes: number; ano: number; pecas: number; servicos: number; maquinas: number; maquinasUn: number; psAnoAnt?: number; psAno2Ant?: number; compras?: number }>;
         let prev = 0;
         let prevPs = 0;
         setTendencia(raw.map((p, i) => {
@@ -222,7 +225,7 @@ export default function DashboardPage() {
           const psDeltaPct = i === 0 || prevPs <= 0 ? null : ((ps - prevPs) / prevPs) * 100;
           prev = total;
           prevPs = ps;
-          return { ...p, total, ps, deltaPct, psDeltaPct, psAnoAnt: p.psAnoAnt ?? 0, compras: p.compras ?? 0, parcial: i === raw.length - 1 };
+          return { ...p, total, ps, deltaPct, psDeltaPct, psAnoAnt: p.psAnoAnt ?? 0, psAno2Ant: p.psAno2Ant ?? 0, compras: p.compras ?? 0, parcial: i === raw.length - 1 };
         }));
       })
       .catch(() => setTendencia(null));
@@ -534,7 +537,12 @@ export default function DashboardPage() {
                   varM={calcVar(kv(cPecas, 'atual'), kv(cPecas, 'mesAnt'))} supM={cPecas.mesAnteriorValor < BASE_MIN_PECAS}
                   varA={calcVar(kv(cPecas, 'atual'), kv(cPecas, 'anoAnt'))} supA={cPecas.anoAnteriorValor < BASE_MIN_PECAS}
                   modo={modo} parcial={parcial} diaCorte={dados.diaCorte} strongDrop={metrica === 'venda' && !parcial && cPecas.anoAnteriorValor >= BASE_MIN_PECAS && cPecas.varAnoAnterior < -50}
-                  sparkNode={spk && <Sparkline data={spk.map((t) => t.pecas)} cor={ACCENT.pecas} parcialUltimo />} />
+                  sparkNode={spk && <Sparkline data={spk.map((t) => t.pecas)} cor={ACCENT.pecas} parcialUltimo />}
+                  acoes={[
+                    { label: 'histórico', onClick: () => abrirHistorico('totalPecas') },
+                    { label: 'vendas', onClick: () => abrirVendas('totalPecas', 'Total Peças') },
+                    { label: 'por categoria', onClick: () => setCatPopup(true) },
+                  ]} />
               )}
               {cServ && (
                 <KpiCard titulo="Serviços" accent={ACCENT.servicos}
@@ -544,7 +552,12 @@ export default function DashboardPage() {
                   varA={calcVar(kv(cServ, 'atual'), kv(cServ, 'anoAnt'))} supA={cServ.anoAnteriorValor < BASE_MIN_PECAS}
                   modo={modo} parcial={parcial} comparavel={!parcial} semVar={metrica === 'custo'}
                   strongDrop={metrica === 'venda' && !parcial && cServ.anoAnteriorValor >= BASE_MIN_PECAS && cServ.varAnoAnterior < -50}
-                  sparkNode={spk && <Sparkline data={spk.map((t) => t.servicos)} cor={ACCENT.servicos} parcialUltimo />} />
+                  sparkNode={spk && <Sparkline data={spk.map((t) => t.servicos)} cor={ACCENT.servicos} parcialUltimo />}
+                  acoes={[
+                    { label: 'histórico', onClick: () => abrirHistorico('servico') },
+                    { label: 'vendas', onClick: abrirOSServicos },
+                    { label: 'decomposição', onClick: () => setServDecompPopup(true) },
+                  ]} />
               )}
               {cComprei && (
                 <KpiCard titulo="Entradas de Peças" accent={ACCENT.comprei} valorNode={fmtRS(cComprei.valorAtual)} subNode="por nota fiscal de entrada"
@@ -563,23 +576,38 @@ export default function DashboardPage() {
 
             {tendencia && tendencia.length > 0 && (
               <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: '16px 18px 10px', marginBottom: 18 }}>
-                <PecasChart pontos={tendencia} />
+                <PecasChart pontos={tendencia} onSelectMes={(m, a) => { setMes(m); setAno(a); }} />
               </div>
             )}
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16, alignItems: 'start' }}>
-              <Secao titulo="Peças por categoria" accent={ACCENT.pecas}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(205px, 1fr))', gap: 12 }}>
-                  {pecasCats.map((c, i) => (
-                    <PecaCard key={i} c={c} modo={modo} metrica={metrica} parcial={parcial}
-                      pctMix={totalPecasVenda > 0 ? (c.valorAtual / totalPecasVenda) * 100 : 0}
-                      onHist={() => abrirHistorico(c.key)}
-                      onVendas={() => abrirVendas(c.key, fixLabel(c.nome))} />
-                  ))}
+            {/* "Peças por categoria" e "Serviços — Decomposição" saíram do inline:
+                agora só aparecem via atalho/popup nos cards Total Peças e Serviços. */}
+            {catPopup && (
+              <div onClick={() => setCatPopup(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
+                <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 20, maxWidth: 1100, width: '96%', maxHeight: '88vh', overflowY: 'auto' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <h2 style={{ color: '#111827', fontSize: '1.05rem', fontWeight: 700, margin: 0 }}>Peças por categoria</h2>
+                    <button onClick={() => setCatPopup(false)} style={linkBtn}>fechar</button>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(205px, 1fr))', gap: 12 }}>
+                    {pecasCats.map((c, i) => (
+                      <PecaCard key={i} c={c} modo={modo} metrica={metrica} parcial={parcial}
+                        pctMix={totalPecasVenda > 0 ? (c.valorAtual / totalPecasVenda) * 100 : 0}
+                        onHist={() => abrirHistorico(c.key)}
+                        onVendas={() => abrirVendas(c.key, fixLabel(c.nome))} />
+                    ))}
+                  </div>
                 </div>
-              </Secao>
-              {cServ && <ServicosDecomp c={cServ} onDetalhe={abrirOSServicos} />}
-            </div>
+              </div>
+            )}
+            {servDecompPopup && cServ && (
+              <div onClick={() => setServDecompPopup(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
+                <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 20, maxWidth: 560, width: '96%', maxHeight: '88vh', overflowY: 'auto' }}>
+                  <div style={{ textAlign: 'right', marginBottom: 4 }}><button onClick={() => setServDecompPopup(false)} style={linkBtn}>fechar</button></div>
+                  <ServicosDecomp c={cServ} onDetalhe={abrirOSServicos} />
+                </div>
+              </div>
+            )}
           </>
         );
       })()}
@@ -853,10 +881,11 @@ function Delta({ label, v, sup, parcial, comparavel = true }: { label: string; v
   return <span title={motivo} style={{ color: cor }}>{label}: {fmtPct(v)}</span>;
 }
 
-function KpiCard({ titulo, accent, valorNode, subNode, varM, supM, varA, supA, modo, strongDrop, extraNode, onDrill, drillLabel, parcial, semVar, diaCorte, comparavel = true, sparkNode }: {
+function KpiCard({ titulo, accent, valorNode, subNode, varM, supM, varA, supA, modo, strongDrop, extraNode, onDrill, drillLabel, parcial, semVar, diaCorte, comparavel = true, sparkNode, acoes }: {
   titulo: string; accent: string; valorNode: React.ReactNode; subNode?: React.ReactNode;
   varM: number; supM: boolean; varA: number; supA: boolean; modo?: 'mes' | 'ano'; strongDrop?: boolean; extraNode?: React.ReactNode;
   onDrill?: () => void; drillLabel?: string; parcial?: boolean; semVar?: boolean; diaCorte?: number | null; comparavel?: boolean; sparkNode?: React.ReactNode;
+  acoes?: Array<{ label: string; onClick: () => void }>;
 }) {
   const suf = comparavel && parcial && diaCorte ? `. (1–${diaCorte})` : '';
   const mostrarInfo = comparavel && parcial && !!diaCorte;
@@ -875,9 +904,14 @@ function KpiCard({ titulo, accent, valorNode, subNode, varM, supM, varA, supA, m
           {mostrarInfo && <span title={`Comparação period-to-date: mesmo intervalo de dias (1–${diaCorte}) em cada período. Serviços não entram no recorte.`} style={{ cursor: 'help', color: '#9ca3af', fontWeight: 700 }}>ⓘ</span>}
         </div>
       )}
-      {sparkNode && <div style={{ marginTop: 'auto', paddingTop: 10 }}>{sparkNode}</div>}
       {extraNode}
-      {onDrill && <div style={{ marginTop: 8 }}><button onClick={onDrill} style={linkBtn}>{drillLabel || 'ver itens'}</button></div>}
+      {sparkNode && <div style={{ marginTop: 'auto', paddingTop: 10 }}>{sparkNode}</div>}
+      {(acoes?.length || onDrill) && (
+        <div style={{ display: 'flex', gap: 14, marginTop: sparkNode ? 6 : 10, flexWrap: 'wrap' }}>
+          {acoes?.map((a, i) => <button key={i} onClick={a.onClick} style={linkBtn}>{a.label}</button>)}
+          {onDrill && <button onClick={onDrill} style={linkBtn}>{drillLabel || 'ver itens'}</button>}
+        </div>
+      )}
     </div>
   );
 }
@@ -1055,24 +1089,41 @@ function Sparkline({ data, cor, parcialUltimo }: { data: number[]; cor: string; 
     </div>
   );
 }
-function PecasChart({ pontos }: { pontos: TendPonto[] }) {
+function PecasChart({ pontos, onSelectMes }: { pontos: TendPonto[]; onSelectMes?: (mes: number, ano: number) => void }) {
   const [view, setView] = useState<PSView>('empilhado');
+  const [compararAberto, setCompararAberto] = useState(false);
+  const [cmp, setCmp] = useState<{ a1: boolean; a2: boolean }>({ a1: false, a2: false });
+  const lastClick = useRef<{ label: string; ts: number } | null>(null);
   // Média sobre MESES FECHADOS apenas (exclui o mês corrente parcial, que puxaria
   // a linha para baixo e comprimiria a leitura das barras).
   const fechados = pontos.filter((p) => !p.parcial);
   const media = fechados.length ? fechados.reduce((s, p) => s + p.ps, 0) / fechados.length : 0;
   const diaHoje = new Date().getDate();
   const ultimo = pontos[pontos.length - 1];
+  const primeiro = pontos[0];
+  // Rótulo de janela de 12 meses deslocada `y` anos (para o "Comparar").
+  const winLabel = (y: number) => primeiro && ultimo ? `${MESES[primeiro.mes - 1]}/${String(primeiro.ano - y).slice(2)}–${MESES[ultimo.mes - 1]}/${String(ultimo.ano - y).slice(2)}` : '';
   const data = pontos.map((p) => ({
     ...p,
-    // Linha de ano anterior (YoY): NÃO liga o ponto do mês parcial — Ago/25 cheio
-    // vs Ago/26 parcial geraria um salto vertical no canto. A linha termina no
-    // último mês fechado. (Serviços não são recortados, então não dá pra plotar
-    // um Ago/25 "period-to-date" coerente — optamos por interromper.)
+    // Linhas comparativas (Comparar): NÃO ligam o ponto do mês parcial — período
+    // cheio do passado vs mês corrente parcial geraria um salto no canto.
     psAnoAnt: p.parcial ? null : p.psAnoAnt,
+    psAno2Ant: p.parcial ? null : p.psAno2Ant,
     pecasPct: p.ps > 0 ? (p.pecas / p.ps) * 100 : 0,
     servicosPct: p.ps > 0 ? (p.servicos / p.ps) * 100 : 0,
   }));
+  // Duplo-clique numa barra → recarrega o dashboard naquele mês.
+  const handleClick = (st: { activeLabel?: string; activePayload?: Array<{ payload: TendPonto }> }) => {
+    if (!onSelectMes || !st?.activePayload?.length) return;
+    const p = st.activePayload[0].payload;
+    const agora = Date.now();
+    if (lastClick.current && lastClick.current.label === st.activeLabel && agora - lastClick.current.ts < 400) {
+      lastClick.current = null;
+      onSelectMes(p.mes, p.ano);
+    } else {
+      lastClick.current = { label: st.activeLabel || '', ts: agora };
+    }
+  };
   const isPct = view === 'pct';
   const isStack = view === 'empilhado';
   const stackId = isStack || isPct ? 'ps' : undefined;
@@ -1093,7 +1144,7 @@ function PecasChart({ pontos }: { pontos: TendPonto[] }) {
       </div>
       <div style={{ width: '100%', height: 340 }}>
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={data} margin={{ top: 24, right: 12, left: 8, bottom: 0 }}>
+          <ComposedChart data={data} margin={{ top: 24, right: 12, left: 8, bottom: 0 }} onClick={handleClick}>
             <XAxis dataKey="label" tick={{ fontSize: 13 }} />
             <YAxis tick={{ fontSize: 13 }} width={isPct ? 42 : 56} domain={isPct ? [0, 100] : undefined} tickFormatter={isPct ? (v) => v + '%' : (v) => fmtK(v)} />
             <Tooltip content={<PSTooltip />} cursor={{ fill: 'rgba(0,0,0,.03)' }} />
@@ -1111,16 +1162,43 @@ function PecasChart({ pontos }: { pontos: TendPonto[] }) {
               {view === 'agrupado' && <LabelList dataKey="servicos" position="top" style={{ fontSize: 11, fill: CHART_SERVICOS_INK, fontWeight: 700 }} formatter={(v: number) => fmtK(v)} />}
               {isPct && <LabelList dataKey="servicosPct" position="center" style={{ fontSize: 11, fill: '#083344', fontWeight: 700 }} formatter={(v: number) => (v >= 8 ? Math.round(v) + '%' : '')} />}
             </Bar>
-            {isStack && <Line type="monotone" dataKey="psAnoAnt" name="Ano anterior" stroke="#9ca3af" strokeWidth={1.5} strokeDasharray="4 3" dot={false} connectNulls={false} />}
+            {!isPct && cmp.a1 && <Line type="monotone" dataKey="psAnoAnt" name={`−1 ano · ${winLabel(1)}`} stroke="#9ca3af" strokeWidth={1.5} strokeDasharray="4 3" dot={false} connectNulls={false} />}
+            {!isPct && cmp.a2 && <Line type="monotone" dataKey="psAno2Ant" name={`−2 anos · ${winLabel(2)}`} stroke="#a78bfa" strokeWidth={1.5} strokeDasharray="2 3" dot={false} connectNulls={false} />}
           </ComposedChart>
         </ResponsiveContainer>
       </div>
-      {ultimo?.parcial && (
-        <div style={{ fontSize: '.8rem', color: '#b45309', marginTop: 2 }}>
-          <span style={{ display: 'inline-block', width: 10, height: 10, background: CHART_SERVICOS, opacity: 0.55, borderRadius: 2, marginRight: 5, verticalAlign: 'middle' }} />
-          {ultimo.label} é o mês corrente — parcial (até dia {diaHoje}).
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 8, marginTop: 2, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: '.78rem', color: '#9ca3af' }}>
+          {ultimo?.parcial && (
+            <span style={{ color: '#b45309' }}>
+              <span style={{ display: 'inline-block', width: 10, height: 10, background: CHART_SERVICOS, opacity: 0.55, borderRadius: 2, marginRight: 5, verticalAlign: 'middle' }} />
+              {ultimo.label} é o mês corrente — parcial (até dia {diaHoje}).
+            </span>
+          )}
+          {onSelectMes && <span style={{ marginLeft: ultimo?.parcial ? 10 : 0 }}>Dica: duplo-clique numa barra abre aquele mês.</span>}
         </div>
-      )}
+        {!isPct && (
+          <div style={{ position: 'relative' }}>
+            <button onClick={() => setCompararAberto((v) => !v)}
+              style={{ padding: '5px 11px', border: '1px solid', borderColor: cmp.a1 || cmp.a2 ? '#111827' : '#e0e0e0', background: cmp.a1 || cmp.a2 ? '#111827' : '#fff', color: cmp.a1 || cmp.a2 ? '#fff' : '#666', borderRadius: 7, fontSize: '.78rem', fontWeight: 600, cursor: 'pointer' }}>
+              Comparar ▾
+            </button>
+            {compararAberto && (
+              <div style={{ position: 'absolute', right: 0, bottom: '100%', marginBottom: 6, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, boxShadow: '0 2px 10px rgba(0,0,0,.14)', padding: '10px 12px', zIndex: 5, whiteSpace: 'nowrap' }}>
+                <div style={{ fontSize: '.72rem', color: '#9ca3af', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 700 }}>Sobrepor janelas anteriores</div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: '.86rem', color: '#374151', cursor: 'pointer', marginBottom: 5 }}>
+                  <input type="checkbox" checked={cmp.a1} onChange={(e) => setCmp((c) => ({ ...c, a1: e.target.checked }))} />
+                  <span style={{ width: 14, height: 0, borderTop: '2px dashed #9ca3af', display: 'inline-block' }} /> −1 ano · {winLabel(1)}
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: '.86rem', color: '#374151', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={cmp.a2} onChange={(e) => setCmp((c) => ({ ...c, a2: e.target.checked }))} />
+                  <span style={{ width: 14, height: 0, borderTop: '2px dashed #a78bfa', display: 'inline-block' }} /> −2 anos · {winLabel(2)}
+                </label>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
