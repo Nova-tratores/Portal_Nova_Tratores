@@ -1142,22 +1142,28 @@ async function famMapsCached(conta: ContaFiltro): Promise<{ famPorCodigo: Record
   return _famMapsCache[key];
 }
 
-export async function comprasPecasMes(mes: number, ano: number, conta: ContaFiltro): Promise<ComprasPecasResult> {
+export async function comprasPecasMes(mes: number, ano: number, conta: ContaFiltro, diaCorte: number | null = null): Promise<ComprasPecasResult> {
   const { famPorCodigo, famPorSKU } = await famMapsCached(conta);
   const { nomes } = await getIgnorarFiltro(conta);
   const escaped = nomes.length > 0 ? '(' + nomes.map((n) => '"' + String(n).replace(/"/g, '') + '"').join(',') + ')' : null;
+  // period-to-date: mantém só notas com dia de emissão ≤ diaCorte (clampado).
+  const limiteDia = diaCorte != null ? Math.min(diaCorte, new Date(ano, mes, 0).getDate()) : null;
 
   const itens: CompraPecaItem[] = [];
   let offset = 0;
   const LOTE = 1000;
   while (true) {
-    let query = supabase.from('notas_entrada').select('numero_nf,itens').eq('mes', mes).eq('ano', ano);
+    let query = supabase.from('notas_entrada').select('numero_nf,itens,data_emissao').eq('mes', mes).eq('ano', ano);
     query = filtroConta(query, conta);
     if (escaped) query = query.not('nome_emitente', 'in', escaped);
     const { data, error } = await query.range(offset, offset + LOTE - 1);
     if (error) throw new Error(error.message);
-    const lote = (data || []) as Array<{ numero_nf: unknown; itens: unknown }>;
+    const lote = (data || []) as Array<{ numero_nf: unknown; itens: unknown; data_emissao: unknown }>;
     for (const nota of lote) {
+      if (limiteDia != null) {
+        const d = parseInt(String(nota.data_emissao ?? '').split('/')[0]) || 0;
+        if (!(d > 0 && d <= limiteDia)) continue;
+      }
       const its = Array.isArray(nota.itens) ? (nota.itens as Array<Record<string, unknown>>) : [];
       for (const it of its) {
         const { codigo, sku, descricao, qtd, valor } = parseItemEntrada(it);

@@ -68,17 +68,24 @@ async function montarDados(
   };
 }
 
-/** Monta dados de um mês (produtos + OS). filtroCategoria afeta só os cards de produto. */
+/**
+ * Monta dados de um mês (produtos + OS). filtroCategoria afeta só os cards de
+ * produto. `diaCorte` (period-to-date): recorta PEÇAS e COMPRAS até o dia N (para
+ * comparar mês corrente parcial contra o mesmo recorte de dias). SERVIÇOS não são
+ * recortados (os_mensal é rollup mensal — decisão de negócio: comparar serviços
+ * só entre meses fechados).
+ */
 export async function obterDadosPeriodo(
   mes: number,
   ano: number,
   filtroCategoria: string | null,
   conta: ContaFiltro,
+  diaCorte: number | null = null,
 ): Promise<DadosPeriodo> {
-  const itens = await obterItensProdutos(mes, ano, conta);
+  const itens = await obterItensProdutos(mes, ano, conta, diaCorte);
   await sleep(500);
   const os = await obterTotaisOS(mes, ano, conta);
-  const totalCompras = await somarComprasPecas(mes, ano, conta);
+  const totalCompras = await somarComprasPecas(mes, ano, conta, diaCorte);
   return montarDados(itens, os, filtroCategoria, totalCompras);
 }
 
@@ -152,6 +159,9 @@ export interface DashboardResponse {
   categorias: DashboardCategoria[];
   /** O período selecionado é o corrente (mês/ano em andamento — dados parciais). */
   ehMesCorrente: boolean;
+  /** Dia de corte (period-to-date) quando o mês é o corrente; null se fechado. As
+   *  comparações de PEÇAS/COMPRAS usam o recorte 1..diaCorte; SERVIÇOS não. */
+  diaCorte: number | null;
   /** Máquinas acumuladas no ano (jan até o mês selecionado). */
   maquinasYTD: { unidades: number; receita: number };
 }
@@ -183,13 +193,17 @@ export async function montarDashboard(
   const anoMesAnt = mesAntDate.getFullYear();
   const anoAnoAnt = selAno - 1;
 
+  // Period-to-date: no MÊS CORRENTE, recorta PEÇAS/COMPRAS de todos os períodos
+  // ao mesmo dia (hoje), para a comparação não medir "parcial vs mês cheio".
+  const diaCorte = !ehAno && ehMesAtual(selMes, selAno) ? new Date().getDate() : null;
+
   const atual = ehAno
     ? await obterDadosAno(selAno, filtroCategoria, conta)
-    : await obterDadosPeriodo(selMes, selAno, filtroCategoria, conta);
-  const anterior = ehAno ? DADOS_ZERADOS : await obterDadosPeriodo(mesAnt, anoMesAnt, filtroCategoria, conta);
+    : await obterDadosPeriodo(selMes, selAno, filtroCategoria, conta, diaCorte);
+  const anterior = ehAno ? DADOS_ZERADOS : await obterDadosPeriodo(mesAnt, anoMesAnt, filtroCategoria, conta, diaCorte);
   const anoAnt = ehAno
     ? await obterDadosAno(anoAnoAnt, filtroCategoria, conta)
-    : await obterDadosPeriodo(selMes, anoAnoAnt, filtroCategoria, conta);
+    : await obterDadosPeriodo(selMes, anoAnoAnt, filtroCategoria, conta, diaCorte);
 
   const calcVar = (a: number, b: number) => (b > 0 ? ((a - b) / b) * 100 : a > 0 ? 100 : 0);
 
@@ -356,6 +370,7 @@ export async function montarDashboard(
     ano: selAno,
     categorias,
     ehMesCorrente: ehCorrente,
+    diaCorte,
     maquinasYTD,
   };
 }

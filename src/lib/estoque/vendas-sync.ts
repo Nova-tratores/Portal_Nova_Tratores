@@ -83,15 +83,24 @@ export async function temItensCacheados(mes: number, ano: number, conta: Conta):
 }
 
 // === Leitura do banco (respeita conta: undefined = Todas) ===
-export async function buscarItensDoBanco(mes: number, ano: number, conta: ContaFiltro): Promise<ItemVenda[] | null> {
+/**
+ * Itens de vendas do mês. `diaCorte` (period-to-date): quando informado, mantém
+ * só os itens cujo dia de `data_pedido` é ≤ diaCorte (clampado ao último dia do
+ * mês). Usado para comparar o mês corrente parcial contra o mesmo recorte de
+ * dias dos períodos anteriores.
+ */
+export async function buscarItensDoBanco(mes: number, ano: number, conta: ContaFiltro, diaCorte: number | null = null): Promise<ItemVenda[] | null> {
   let todos: ItemVenda[] = [];
   let offset = 0;
   const { codigos } = await getIgnorarFiltro(conta);
+  const selecao = diaCorte != null
+    ? 'tipo,familia,valor_total,quantidade,codigo_categoria,cmc_unitario,data_pedido'
+    : 'tipo,familia,valor_total,quantidade,codigo_categoria,cmc_unitario';
   while (true) {
     let q = filtroConta(
       supabase
         .from('vendas_itens')
-        .select('tipo,familia,valor_total,quantidade,codigo_categoria,cmc_unitario')
+        .select(selecao)
         .eq('mes', mes)
         .eq('ano', ano),
       conta,
@@ -102,6 +111,13 @@ export async function buscarItensDoBanco(mes: number, ano: number, conta: ContaF
     todos = todos.concat(data as ItemVenda[]);
     if (data.length < 1000) break;
     offset += 1000;
+  }
+  if (diaCorte != null) {
+    const limite = Math.min(diaCorte, new Date(ano, mes, 0).getDate());
+    todos = todos.filter((r) => {
+      const d = parseInt(String((r as { data_pedido?: string }).data_pedido ?? '').split('/')[0]) || 0;
+      return d > 0 && d <= limite;
+    });
   }
   if (todos.length === 0) return null;
   return todos;
@@ -491,14 +507,14 @@ function agendarSyncVendasPassado(mes: number, ano: number, conta: Conta): void 
  * `conta` filtra a leitura; o sync BG usa a conta concreta (default NOVA).
  * Portado de obterItensProdutos (server.js:1087).
  */
-export async function obterItensProdutos(mes: number, ano: number, conta: ContaFiltro): Promise<ItemVenda[]> {
+export async function obterItensProdutos(mes: number, ano: number, conta: ContaFiltro, diaCorte: number | null = null): Promise<ItemVenda[]> {
   const contaConcreta: Conta = conta ?? CONTA_DEFAULT;
   if (ehMesAtual(mes, ano)) {
-    const cached = await buscarItensDoBanco(mes, ano, conta);
+    const cached = await buscarItensDoBanco(mes, ano, conta, diaCorte);
     agendarRefreshMesAtual(mes, ano, contaConcreta);
     return cached || [];
   }
-  const cached = await buscarItensDoBanco(mes, ano, conta);
+  const cached = await buscarItensDoBanco(mes, ano, conta, diaCorte);
   if (cached) return cached;
   const controle = await obterControleCache('vendas', mes, ano, contaConcreta);
   if (controle) return [];

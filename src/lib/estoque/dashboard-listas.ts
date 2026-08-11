@@ -378,9 +378,9 @@ export async function listarCompras(mes: number, ano: number, conta: ContaFiltro
   return (await comprasPecasMes(mes, ano, conta)).itens;
 }
 
-/** Valor comprado de PEÇAS no período (card "Comprei"). */
-export async function somarComprasPecas(mes: number, ano: number, conta: ContaFiltro): Promise<number> {
-  return (await comprasPecasMes(mes, ano, conta)).total;
+/** Valor comprado de PEÇAS no período (card "Comprei"). `diaCorte` = period-to-date. */
+export async function somarComprasPecas(mes: number, ano: number, conta: ContaFiltro, diaCorte: number | null = null): Promise<number> {
+  return (await comprasPecasMes(mes, ano, conta, diaCorte)).total;
 }
 
 // ====================== /api/dashboard/tendencia ======================
