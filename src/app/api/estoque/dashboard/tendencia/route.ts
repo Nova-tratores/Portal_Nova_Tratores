@@ -10,8 +10,8 @@ export const maxDuration = 60;
 export async function GET(req: NextRequest) {
   const conta = parseConta(req.nextUrl.searchParams.get('conta'));
   try {
-    const pontos = await montarTendencia(conta);
-    return NextResponse.json({ pontos });
+    const { pontos, comparativos } = await montarTendencia(conta);
+    return NextResponse.json({ pontos, comparativos });
   } catch (e) {
     return NextResponse.json({ erro: (e as Error).message }, { status: 500 });
   }

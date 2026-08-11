@@ -64,10 +64,15 @@ interface DashboardResp {
   erro?: string;
 }
 interface TendPonto { label: string; mes: number; ano: number; pecas: number; servicos: number; maquinas: number; maquinasUn: number; total: number; deltaPct: number | null; parcial?: boolean;
+  /** Fatia de Peças por origem (Balcão = cat 1.01.03; Oficina = resto). pecasBalcao + pecasOficina = pecas. */
+  pecasBalcao: number; pecasOficina: number;
   /** Peças+Serviços do mês, MoM de PS, e PS do mesmo mês de -1 ano (YoY) e -2 anos. */
   ps: number; psDeltaPct: number | null; psAnoAnt: number; psAno2Ant: number;
   /** Compras (entradas) de peças do mês — sparkline do card Entradas + razão. */
   compras: number }
+/** Ponto de uma janela comparativa (-1/-2 anos) — gráficos "Comparar" abaixo. */
+interface CompPonto { label: string; mes: number; ano: number; pecas: number; pecasBalcao: number; pecasOficina: number; servicos: number }
+interface Comparativos { a1: CompPonto[]; a2: CompPonto[] }
 interface HistMes { label: string; mes: number; ano: number; valor: number; custo: number; qtdePedidos: number; valorNota?: number | null; valorInterno?: number | null }
 interface HistResp { catKey: string; nome: string; meses: HistMes[]; erro?: string }
 interface VendaRow {
@@ -144,6 +149,7 @@ export default function DashboardPage() {
 
   const [dados, setDados] = useState<DashboardResp | null>(null);
   const [tendencia, setTendencia] = useState<TendPonto[] | null>(null);
+  const [tendComparativos, setTendComparativos] = useState<Comparativos | null>(null);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState('');
   const [categoriasOpts, setCategoriasOpts] = useState<Array<{ codigo: string; descricao: string }>>([]);
@@ -218,7 +224,7 @@ export default function DashboardPage() {
     fetch(`/api/estoque/dashboard/tendencia?_=1${contaParam}`)
       .then((r) => r.json())
       .then((d) => {
-        const raw = (d.pontos || []) as Array<{ label: string; mes: number; ano: number; pecas: number; servicos: number; maquinas: number; maquinasUn: number; psAnoAnt?: number; psAno2Ant?: number; compras?: number }>;
+        const raw = (d.pontos || []) as Array<{ label: string; mes: number; ano: number; pecas: number; pecasBalcao?: number; pecasOficina?: number; servicos: number; maquinas: number; maquinasUn: number; psAnoAnt?: number; psAno2Ant?: number; compras?: number }>;
         let prev = 0;
         let prevPs = 0;
         setTendencia(raw.map((p, i) => {
@@ -228,10 +234,11 @@ export default function DashboardPage() {
           const psDeltaPct = i === 0 || prevPs <= 0 ? null : ((ps - prevPs) / prevPs) * 100;
           prev = total;
           prevPs = ps;
-          return { ...p, total, ps, deltaPct, psDeltaPct, psAnoAnt: p.psAnoAnt ?? 0, psAno2Ant: p.psAno2Ant ?? 0, compras: p.compras ?? 0, parcial: i === raw.length - 1 };
+          return { ...p, total, ps, deltaPct, psDeltaPct, pecasBalcao: p.pecasBalcao ?? 0, pecasOficina: p.pecasOficina ?? (p.pecas - (p.pecasBalcao ?? 0)), psAnoAnt: p.psAnoAnt ?? 0, psAno2Ant: p.psAno2Ant ?? 0, compras: p.compras ?? 0, parcial: i === raw.length - 1 };
         }));
+        setTendComparativos((d.comparativos as Comparativos) || null);
       })
-      .catch(() => setTendencia(null));
+      .catch(() => { setTendencia(null); setTendComparativos(null); });
   }, [contaParam]);
 
   useEffect(() => { carregar(); }, [carregar]);
@@ -613,7 +620,7 @@ export default function DashboardPage() {
 
             {tendencia && tendencia.length > 0 && (
               <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: '16px 18px 10px', marginBottom: 18 }}>
-                <PecasChart pontos={tendencia} onSelectMes={(m, a) => { setMes(m); setAno(a); }} />
+                <PecasChart pontos={tendencia} comparativos={tendComparativos} onSelectMes={(m, a) => { setMes(m); setAno(a); }} />
               </div>
             )}
 
@@ -1077,7 +1084,8 @@ function ServicosDecomp({ c, onDetalhe }: { c: Categoria; onDetalhe: () => void 
 }
 
 // Cores do gráfico Peças+Serviços — dos tokens compartilhados (casam com os cards).
-const CHART_PECAS = chartColors.pecas;
+const CHART_PECAS = chartColors.pecas;              // Peças Oficina (tom escuro — o "resto" das peças)
+const CHART_PECAS_BALCAO = '#7cc0f8';              // Peças Balcão (azul mais claro)
 const CHART_SERVICOS = chartColors.servicosBar;
 const CHART_SERVICOS_INK = chartColors.servicos;
 const COR_POS = chartColors.pos;
@@ -1095,22 +1103,24 @@ function PSTooltip({ active, payload, label }: PSTooltipProps) {
   if (!active || !payload || !payload.length) return null;
   const p = payload[0].payload;
   const ps = p.ps || p.pecas + p.servicos;
-  const pctP = ps > 0 ? Math.round((p.pecas / ps) * 100) : 0;
-  const pctS = ps > 0 ? 100 - pctP : 0;
+  const pct = (v: number) => (ps > 0 ? Math.round((v / ps) * 100) : 0);
+  const oficina = p.pecasOficina ?? (p.pecas - (p.pecasBalcao ?? 0));
+  const balcao = p.pecasBalcao ?? 0;
   const yoy = p.psAnoAnt > 0 ? ((ps - p.psAnoAnt) / p.psAnoAnt) * 100 : null;
   const mom = fmtVar(p.psDeltaPct);
   const vy = fmtVar(yoy);
-  const row = (nome: string, v: number, pct: number, cor: string) => (
+  const row = (nome: string, v: number, pctv: number, cor: string) => (
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
-      <span style={{ color: cor }}>{nome} <span style={{ color: '#9ca3af' }}>({pct}%)</span></span>
+      <span style={{ color: cor }}>{nome} <span style={{ color: '#9ca3af' }}>({pctv}%)</span></span>
       <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmtRS(v)}</span>
     </div>
   );
   return (
     <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: '9px 12px', fontSize: '.95rem', boxShadow: '0 2px 8px rgba(0,0,0,.1)', minWidth: 234 }}>
       <div style={{ fontWeight: 700, marginBottom: 5 }}>{label}{p.parcial && <span style={{ color: '#b45309', fontWeight: 600 }}> · parcial</span>}</div>
-      {row('Peças', p.pecas, pctP, CHART_PECAS)}
-      {row('Serviços', p.servicos, pctS, CHART_SERVICOS_INK)}
+      {row('Peças Oficina', oficina, pct(oficina), CHART_PECAS)}
+      {row('Peças Balcão', balcao, pct(balcao), CHART_PECAS_BALCAO)}
+      {row('Serviços', p.servicos, pct(p.servicos), CHART_SERVICOS_INK)}
       <div style={{ borderTop: '1px solid #eee', marginTop: 5, paddingTop: 5, display: 'flex', justifyContent: 'space-between', gap: 16 }}>
         <span style={{ fontWeight: 600 }}>Total</span><span style={{ fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{fmtRS(ps)}</span>
       </div>
@@ -1145,7 +1155,7 @@ function Sparkline({ data, cor, parcialUltimo }: { data: number[]; cor: string; 
     </div>
   );
 }
-function PecasChart({ pontos, onSelectMes }: { pontos: TendPonto[]; onSelectMes?: (mes: number, ano: number) => void }) {
+function PecasChart({ pontos, comparativos, onSelectMes }: { pontos: TendPonto[]; comparativos?: Comparativos | null; onSelectMes?: (mes: number, ano: number) => void }) {
   const [view, setView] = useState<PSView>('empilhado');
   const [compararAberto, setCompararAberto] = useState(false);
   const [cmp, setCmp] = useState<{ a1: boolean; a2: boolean }>({ a1: false, a2: false });
@@ -1165,7 +1175,8 @@ function PecasChart({ pontos, onSelectMes }: { pontos: TendPonto[]; onSelectMes?
     // cheio do passado vs mês corrente parcial geraria um salto no canto.
     psAnoAnt: p.parcial ? null : p.psAnoAnt,
     psAno2Ant: p.parcial ? null : p.psAno2Ant,
-    pecasPct: p.ps > 0 ? (p.pecas / p.ps) * 100 : 0,
+    oficinaPct: p.ps > 0 ? (p.pecasOficina / p.ps) * 100 : 0,
+    balcaoPct: p.ps > 0 ? (p.pecasBalcao / p.ps) * 100 : 0,
     servicosPct: p.ps > 0 ? (p.servicos / p.ps) * 100 : 0,
   }));
   // Duplo-clique numa barra → recarrega o dashboard naquele mês.
@@ -1183,7 +1194,8 @@ function PecasChart({ pontos, onSelectMes }: { pontos: TendPonto[]; onSelectMes?
   const isPct = view === 'pct';
   const isStack = view === 'empilhado';
   const stackId = isStack || isPct ? 'ps' : undefined;
-  const kP = isPct ? 'pecasPct' : 'pecas';
+  const kOfi = isPct ? 'oficinaPct' : 'pecasOficina';
+  const kBal = isPct ? 'balcaoPct' : 'pecasBalcao';
   const kS = isPct ? 'servicosPct' : 'servicos';
   const tgl = (v: PSView, l: string) => (
     <button key={v} onClick={() => setView(v)}
@@ -1207,10 +1219,15 @@ function PecasChart({ pontos, onSelectMes }: { pontos: TendPonto[]; onSelectMes?
             <Legend wrapperStyle={{ fontSize: 14 }} />
             {isStack && <ReferenceLine y={media} stroke="#9ca3af" strokeDasharray="5 4" ifOverflow="extendDomain"
               label={{ value: `média ${fechados.length}m fechados: ${fmtK(media)}`, position: 'insideTopRight', fill: '#6b7280', fontSize: 12 }} />}
-            <Bar dataKey={kP} stackId={stackId} name="Peças" fill={CHART_PECAS} radius={isStack || isPct ? [0, 0, 0, 0] : [3, 3, 0, 0]} maxBarSize={54}>
+            <Bar dataKey={kOfi} stackId={stackId} name="Peças Oficina" fill={CHART_PECAS} radius={isStack || isPct ? [0, 0, 0, 0] : [3, 3, 0, 0]} maxBarSize={54}>
               {data.map((p, i) => <Cell key={i} fillOpacity={p.parcial ? 0.55 : 1} />)}
-              {view === 'agrupado' && <LabelList dataKey="pecas" position="top" style={{ fontSize: 11, fill: CHART_PECAS, fontWeight: 700 }} formatter={(v: number) => fmtK(v)} />}
-              {isPct && <LabelList dataKey="pecasPct" position="center" style={{ fontSize: 11, fill: '#fff', fontWeight: 700 }} formatter={(v: number) => (v >= 8 ? Math.round(v) + '%' : '')} />}
+              {view === 'agrupado' && <LabelList dataKey="pecasOficina" position="top" style={{ fontSize: 11, fill: CHART_PECAS, fontWeight: 700 }} formatter={(v: number) => fmtK(v)} />}
+              {isPct && <LabelList dataKey="oficinaPct" position="center" style={{ fontSize: 11, fill: '#fff', fontWeight: 700 }} formatter={(v: number) => (v >= 8 ? Math.round(v) + '%' : '')} />}
+            </Bar>
+            <Bar dataKey={kBal} stackId={stackId} name="Peças Balcão" fill={CHART_PECAS_BALCAO} radius={isStack || isPct ? [0, 0, 0, 0] : [3, 3, 0, 0]} maxBarSize={54}>
+              {data.map((p, i) => <Cell key={i} fillOpacity={p.parcial ? 0.55 : 1} />)}
+              {view === 'agrupado' && <LabelList dataKey="pecasBalcao" position="top" style={{ fontSize: 11, fill: '#1e6fb8', fontWeight: 700 }} formatter={(v: number) => fmtK(v)} />}
+              {isPct && <LabelList dataKey="balcaoPct" position="center" style={{ fontSize: 11, fill: '#083344', fontWeight: 700 }} formatter={(v: number) => (v >= 8 ? Math.round(v) + '%' : '')} />}
             </Bar>
             <Bar dataKey={kS} stackId={stackId} name="Serviços" fill={CHART_SERVICOS} radius={[3, 3, 0, 0]} maxBarSize={54}>
               {data.map((p, i) => <Cell key={i} fillOpacity={p.parcial ? 0.55 : 1} />)}
@@ -1254,6 +1271,61 @@ function PecasChart({ pontos, onSelectMes }: { pontos: TendPonto[]; onSelectMes?
             )}
           </div>
         )}
+      </div>
+      {/* "Comparar": gráficos de barras (Peças Oficina/Balcão + Serviços) das janelas anteriores, abaixo. */}
+      {cmp.a1 && comparativos?.a1?.length ? <ComparativoChart pontos={comparativos.a1} view={view} titulo={`−1 ano · ${winLabel(1)}`} accent="#22c55e" /> : null}
+      {cmp.a2 && comparativos?.a2?.length ? <ComparativoChart pontos={comparativos.a2} view={view} titulo={`−2 anos · ${winLabel(2)}`} accent="#a78bfa" /> : null}
+    </div>
+  );
+}
+
+// Gráfico de uma janela comparativa (-1/-2 anos), abaixo do principal. Mesmas 3
+// séries (Peças Oficina/Balcão + Serviços) e o mesmo `view`; sem média/linhas/clique.
+function ComparativoChart({ pontos, view, titulo, accent }: { pontos: CompPonto[]; view: PSView; titulo: string; accent: string }) {
+  const isPct = view === 'pct';
+  const isStack = view === 'empilhado';
+  const stackId = isStack || isPct ? 'ps' : undefined;
+  const data = pontos.map((p) => {
+    const ps = p.pecas + p.servicos;
+    return {
+      ...p, ps, total: ps, maquinas: 0, maquinasUn: 0, deltaPct: null, parcial: false,
+      psDeltaPct: null, psAnoAnt: 0, psAno2Ant: 0, compras: 0,
+      oficinaPct: ps > 0 ? (p.pecasOficina / ps) * 100 : 0,
+      balcaoPct: ps > 0 ? (p.pecasBalcao / ps) * 100 : 0,
+      servicosPct: ps > 0 ? (p.servicos / ps) * 100 : 0,
+    };
+  });
+  const kOfi = isPct ? 'oficinaPct' : 'pecasOficina';
+  const kBal = isPct ? 'balcaoPct' : 'pecasBalcao';
+  const kS = isPct ? 'servicosPct' : 'servicos';
+  return (
+    <div style={{ marginTop: 14, borderTop: '1px dashed #e5e7eb', paddingTop: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+        <span style={{ width: 10, height: 10, borderRadius: 2, background: accent, display: 'inline-block' }} />
+        <span style={{ fontSize: '.8rem', color: '#6b7280', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px' }}>{titulo}</span>
+      </div>
+      <div style={{ width: '100%', height: 240 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={data} margin={{ top: 20, right: 12, left: 8, bottom: 0 }}>
+            <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+            <YAxis tick={{ fontSize: 12 }} width={isPct ? 42 : 56} domain={isPct ? [0, 100] : undefined} tickFormatter={isPct ? (v) => v + '%' : (v) => fmtK(v)} />
+            <Tooltip content={<PSTooltip />} cursor={{ fill: 'rgba(0,0,0,.03)' }} />
+            <Legend wrapperStyle={{ fontSize: 13 }} />
+            <Bar dataKey={kOfi} stackId={stackId} name="Peças Oficina" fill={CHART_PECAS} radius={isStack || isPct ? [0, 0, 0, 0] : [3, 3, 0, 0]} maxBarSize={48}>
+              {view === 'agrupado' && <LabelList dataKey="pecasOficina" position="top" style={{ fontSize: 10, fill: CHART_PECAS, fontWeight: 700 }} formatter={(v: number) => fmtK(v)} />}
+              {isPct && <LabelList dataKey="oficinaPct" position="center" style={{ fontSize: 10, fill: '#fff', fontWeight: 700 }} formatter={(v: number) => (v >= 8 ? Math.round(v) + '%' : '')} />}
+            </Bar>
+            <Bar dataKey={kBal} stackId={stackId} name="Peças Balcão" fill={CHART_PECAS_BALCAO} radius={isStack || isPct ? [0, 0, 0, 0] : [3, 3, 0, 0]} maxBarSize={48}>
+              {view === 'agrupado' && <LabelList dataKey="pecasBalcao" position="top" style={{ fontSize: 10, fill: '#1e6fb8', fontWeight: 700 }} formatter={(v: number) => fmtK(v)} />}
+              {isPct && <LabelList dataKey="balcaoPct" position="center" style={{ fontSize: 10, fill: '#083344', fontWeight: 700 }} formatter={(v: number) => (v >= 8 ? Math.round(v) + '%' : '')} />}
+            </Bar>
+            <Bar dataKey={kS} stackId={stackId} name="Serviços" fill={CHART_SERVICOS} radius={[3, 3, 0, 0]} maxBarSize={48}>
+              {isStack && <LabelList dataKey="ps" position="top" style={{ fontSize: 11, fill: '#374151', fontWeight: 700 }} formatter={(v: number) => fmtK(v)} />}
+              {view === 'agrupado' && <LabelList dataKey="servicos" position="top" style={{ fontSize: 10, fill: CHART_SERVICOS_INK, fontWeight: 700 }} formatter={(v: number) => fmtK(v)} />}
+              {isPct && <LabelList dataKey="servicosPct" position="center" style={{ fontSize: 10, fill: '#083344', fontWeight: 700 }} formatter={(v: number) => (v >= 8 ? Math.round(v) + '%' : '')} />}
+            </Bar>
+          </ComposedChart>
+        </ResponsiveContainer>
       </div>
     </div>
   );

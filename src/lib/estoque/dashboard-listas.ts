@@ -9,6 +9,7 @@ import {
   getFixedCats,
   classificarCardPeca,
   expandirCategoriaFiltro,
+  ehPecaVenda,
   CATEGORIAS_AGRUPADAS,
   type ItemVenda,
 } from './categorias';
@@ -255,6 +256,32 @@ async function enriquecerDescricao(rows: VendaRow[], conta: ContaFiltro): Promis
   rows.forEach((v) => { if (v.codigo_produto && descMap[v.codigo_produto]) v.descricao = descMap[v.codigo_produto]; });
 }
 
+/** Preenche `nome_cliente` vazio a partir do cadastro (portal_nt_clientes_cadastro_omie), sem Omie.
+ *  `vendas_itens.nome_cliente` vem sempre vazio (o ListarPedidos da Omie só traz o código),
+ *  então resolvemos código → nome como o popup de OS faz (os.ts resolverNomesClientes). */
+async function enriquecerNomeCliente(rows: VendaRow[]): Promise<void> {
+  const codigos = [...new Set(
+    rows.filter((v) => !v.nome_cliente && v.codigo_cliente != null && v.codigo_cliente !== '')
+      .map((v) => Number(v.codigo_cliente)).filter((n) => Number.isFinite(n) && n > 0),
+  )];
+  if (codigos.length === 0) return;
+  const nomeMap: Record<number, string> = {};
+  for (let i = 0; i < codigos.length; i += LOTE_LOOKUP) {
+    const { data } = await supabase
+      .from('portal_nt_clientes_cadastro_omie')
+      .select('cod_cli,nome_fantasia,razao_social')
+      .in('cod_cli', codigos.slice(i, i + LOTE_LOOKUP));
+    (data as Array<{ cod_cli: unknown; nome_fantasia?: string; razao_social?: string }> | null)?.forEach((cli) => {
+      const nome = String(cli.nome_fantasia || cli.razao_social || '').trim();
+      if (nome) nomeMap[num(cli.cod_cli)] = nome;
+    });
+  }
+  rows.forEach((v) => {
+    const c = Number(v.codigo_cliente);
+    if (!v.nome_cliente && nomeMap[c]) v.nome_cliente = nomeMap[c];
+  });
+}
+
 /** Vendas detalhadas do período (`mes = null` → ano inteiro), com filtro de card/categoria e enriquecimento. */
 export async function listarVendas(
   mes: number | null,
@@ -340,6 +367,7 @@ export async function listarVendas(
   }
 
   await enriquecerCmc(vendas, mes, ano, conta);
+  await enriquecerNomeCliente(vendas);
   return vendas;
 }
 
@@ -395,6 +423,9 @@ export interface TendenciaPonto {
   ano: number;
   /** Faturamento do mês por bloco. */
   pecas: number;
+  /** Fatia de Peças por origem (Balcão = cat 1.01.03; Oficina = resto). pecasBalcao + pecasOficina = pecas. */
+  pecasBalcao: number;
+  pecasOficina: number;
   servicos: number;
   maquinas: number;
   /** Unidades de máquina vendidas no mês (rótulo do gráfico de máquinas). */
@@ -405,6 +436,21 @@ export interface TendenciaPonto {
   psAno2Ant: number;
   /** Compras (entradas) de peças do mês — sparkline do card "Entradas" + razão. */
   compras: number;
+}
+
+/** Ponto de uma janela comparativa (-1/-2 anos) para o "Comparar" (gráficos abaixo). */
+export interface ComparativoPonto {
+  label: string;
+  mes: number;
+  ano: number;
+  pecas: number;
+  pecasBalcao: number;
+  pecasOficina: number;
+  servicos: number;
+}
+export interface TendenciaResult {
+  pontos: TendenciaPonto[];
+  comparativos: { a1: ComparativoPonto[]; a2: ComparativoPonto[] };
 }
 
 interface TendItem extends ItemVenda {
@@ -419,8 +465,10 @@ interface TendItem extends ItemVenda {
  * `agregarCardsPecas`/`agregarMaquinas` (mesma régua dos cards). Respeita a conta;
  * "Todas" soma NOVA+CASTRO (os_mensal agregado por mês).
  */
-export async function montarTendencia(conta: ContaFiltro): Promise<TendenciaPonto[]> {
+export async function montarTendencia(conta: ContaFiltro): Promise<TendenciaResult> {
   const fixed = await getFixedCats();
+  // Códigos contábeis de peça "Balcão" (o resto das peças é "Oficina").
+  const CAT_BALCAO = new Set(CATEGORIAS_AGRUPADAS['Revenda de Pecas Balcao'] || []);
 
   const now = new Date();
   // Monta 36 meses: os 12 exibidos precisam do mesmo mês de -1 ano (psAnoAnt) e
@@ -466,14 +514,22 @@ export async function montarTendencia(conta: ContaFiltro): Promise<TendenciaPont
     });
   }
 
-  // Calcula peças/serviços/máquinas de TODOS os 24 meses (para o YoY).
-  const porMes = new Map<string, { pecas: number; servicos: number; maquinas: number; maquinasUn: number }>();
+  // Calcula peças/serviços/máquinas de TODOS os 36 meses (para o YoY / Comparar).
+  const porMes = new Map<string, { pecas: number; pecasBalcao: number; pecasOficina: number; servicos: number; maquinas: number; maquinasUn: number }>();
   for (const m of meses) {
     const itensMes = itens.filter((it) => it.mes === m.mes && it.ano === m.ano);
     const pecas = agregarCardsPecas(itensMes, null, fixed).totalPecas;
+    // Balcão = itens de peça na categoria 1.01.03; Oficina = total − Balcão (mesma
+    // régua de peça do totalPecas, então as duas fatias somam o total exato).
+    const pecasBalcao = itensMes.reduce(
+      (s, it) => (ehPecaVenda(it) && CAT_BALCAO.has(String(it.codigo_categoria ?? '')) ? s + num(it.valor_total) : s),
+      0,
+    );
     const maq = agregarMaquinas(itensMes);
     porMes.set(m.mes + '/' + m.ano, {
       pecas,
+      pecasBalcao,
+      pecasOficina: pecas - pecasBalcao,
       servicos: osPorMes[m.mes + '/' + m.ano] || 0,
       maquinas: maq.reduce((s, x) => s + x.receita, 0),
       maquinasUn: maq.reduce((s, x) => s + x.unidades, 0),
@@ -484,8 +540,8 @@ export async function montarTendencia(conta: ContaFiltro): Promise<TendenciaPont
   const ultimos = meses.slice(-12);
   const comprasPorMes = await Promise.all(ultimos.map((m) => somarComprasPecas(m.mes, m.ano, conta)));
 
-  // Retorna só os últimos 12, cada um com Peças+Serviços do mesmo mês de -1 e -2 anos.
-  return ultimos.map((m, i) => {
+  // Últimos 12, cada um com Peças+Serviços do mesmo mês de -1 e -2 anos.
+  const pontos: TendenciaPonto[] = ultimos.map((m, i) => {
     const d = porMes.get(m.mes + '/' + m.ano)!;
     const ant = porMes.get(m.mes + '/' + (m.ano - 1));
     const ant2 = porMes.get(m.mes + '/' + (m.ano - 2));
@@ -494,6 +550,8 @@ export async function montarTendencia(conta: ContaFiltro): Promise<TendenciaPont
       mes: m.mes,
       ano: m.ano,
       pecas: d.pecas,
+      pecasBalcao: d.pecasBalcao,
+      pecasOficina: d.pecasOficina,
       servicos: d.servicos,
       maquinas: d.maquinas,
       maquinasUn: d.maquinasUn,
@@ -502,4 +560,20 @@ export async function montarTendencia(conta: ContaFiltro): Promise<TendenciaPont
       compras: comprasPorMes[i],
     };
   });
+
+  // "Comparar": janelas de 12 meses anteriores (para desenhar os gráficos abaixo).
+  const janela = (arr: Array<{ mes: number; ano: number; label: string }>): ComparativoPonto[] =>
+    arr.map((m) => {
+      const d = porMes.get(m.mes + '/' + m.ano);
+      return {
+        label: m.label, mes: m.mes, ano: m.ano,
+        pecas: d?.pecas ?? 0,
+        pecasBalcao: d?.pecasBalcao ?? 0,
+        pecasOficina: d?.pecasOficina ?? 0,
+        servicos: d?.servicos ?? 0,
+      };
+    });
+  const comparativos = { a1: janela(meses.slice(-24, -12)), a2: janela(meses.slice(-36, -24)) };
+
+  return { pontos, comparativos };
 }
