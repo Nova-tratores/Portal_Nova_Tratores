@@ -395,6 +395,8 @@ export interface TendenciaPonto {
   maquinas: number;
   /** Unidades de máquina vendidas no mês (rótulo do gráfico de máquinas). */
   maquinasUn: number;
+  /** Peças + Serviços do MESMO mês do ano anterior (linha fantasma YoY). 0 se não houver. */
+  psAnoAnt: number;
 }
 
 interface TendItem extends ItemVenda {
@@ -413,8 +415,10 @@ export async function montarTendencia(conta: ContaFiltro): Promise<TendenciaPont
   const fixed = await getFixedCats();
 
   const now = new Date();
+  // Monta 24 meses (para o YoY: cada um dos 12 exibidos precisa do mesmo mês do
+  // ano anterior). Só os últimos 12 são retornados.
   const meses: Array<{ mes: number; ano: number; label: string }> = [];
-  for (let i = 11; i >= 0; i--) {
+  for (let i = 23; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     meses.push({ mes: d.getMonth() + 1, ano: d.getFullYear(), label: MESES_CURTO[d.getMonth()] + '/' + String(d.getFullYear()).slice(2) });
   }
@@ -453,13 +457,33 @@ export async function montarTendencia(conta: ContaFiltro): Promise<TendenciaPont
     });
   }
 
-  return meses.map((m) => {
+  // Calcula peças/serviços/máquinas de TODOS os 24 meses (para o YoY).
+  const porMes = new Map<string, { pecas: number; servicos: number; maquinas: number; maquinasUn: number }>();
+  for (const m of meses) {
     const itensMes = itens.filter((it) => it.mes === m.mes && it.ano === m.ano);
     const pecas = agregarCardsPecas(itensMes, null, fixed).totalPecas;
     const maq = agregarMaquinas(itensMes);
-    const maquinas = maq.reduce((s, x) => s + x.receita, 0);
-    const maquinasUn = maq.reduce((s, x) => s + x.unidades, 0);
-    const servicos = osPorMes[m.mes + '/' + m.ano] || 0;
-    return { label: m.label, mes: m.mes, ano: m.ano, pecas, servicos, maquinas, maquinasUn };
+    porMes.set(m.mes + '/' + m.ano, {
+      pecas,
+      servicos: osPorMes[m.mes + '/' + m.ano] || 0,
+      maquinas: maq.reduce((s, x) => s + x.receita, 0),
+      maquinasUn: maq.reduce((s, x) => s + x.unidades, 0),
+    });
+  }
+
+  // Retorna só os últimos 12, cada um com o Peças+Serviços do mesmo mês do ano anterior.
+  return meses.slice(-12).map((m) => {
+    const d = porMes.get(m.mes + '/' + m.ano)!;
+    const ant = porMes.get(m.mes + '/' + (m.ano - 1));
+    return {
+      label: m.label,
+      mes: m.mes,
+      ano: m.ano,
+      pecas: d.pecas,
+      servicos: d.servicos,
+      maquinas: d.maquinas,
+      maquinasUn: d.maquinasUn,
+      psAnoAnt: ant ? ant.pecas + ant.servicos : 0,
+    };
   });
 }

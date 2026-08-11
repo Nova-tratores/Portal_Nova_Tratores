@@ -4,7 +4,7 @@
 // /compras,/tendencia}. Cor do VALOR é sempre neutra; verde/vermelho só p/ variação.
 import { useState, useCallback, useEffect } from 'react';
 import Link from 'next/link';
-import { ResponsiveContainer, LineChart, Line, BarChart, Bar, Cell, LabelList, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
+import { ResponsiveContainer, LineChart, Line, BarChart, ComposedChart, Bar, Cell, LabelList, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ReferenceLine } from 'recharts';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
@@ -59,7 +59,9 @@ interface DashboardResp {
   maquinasYTD: { unidades: number; receita: number };
   erro?: string;
 }
-interface TendPonto { label: string; mes: number; ano: number; pecas: number; servicos: number; maquinas: number; maquinasUn: number; total: number; deltaPct: number | null; parcial?: boolean }
+interface TendPonto { label: string; mes: number; ano: number; pecas: number; servicos: number; maquinas: number; maquinasUn: number; total: number; deltaPct: number | null; parcial?: boolean;
+  /** Peças+Serviços do mês, MoM de PS, e PS do mesmo mês do ano anterior (YoY). */
+  ps: number; psDeltaPct: number | null; psAnoAnt: number }
 interface HistMes { label: string; mes: number; ano: number; valor: number; custo: number; qtdePedidos: number; valorNota?: number | null; valorInterno?: number | null }
 interface HistResp { catKey: string; nome: string; meses: HistMes[]; erro?: string }
 interface VendaRow {
@@ -197,13 +199,17 @@ export default function DashboardPage() {
     fetch(`/api/estoque/dashboard/tendencia?_=1${contaParam}`)
       .then((r) => r.json())
       .then((d) => {
-        const raw = (d.pontos || []) as Array<{ label: string; mes: number; ano: number; pecas: number; servicos: number; maquinas: number; maquinasUn: number }>;
+        const raw = (d.pontos || []) as Array<{ label: string; mes: number; ano: number; pecas: number; servicos: number; maquinas: number; maquinasUn: number; psAnoAnt?: number }>;
         let prev = 0;
+        let prevPs = 0;
         setTendencia(raw.map((p, i) => {
           const total = p.pecas + p.servicos + p.maquinas;
+          const ps = p.pecas + p.servicos;
           const deltaPct = i === 0 || prev <= 0 ? null : ((total - prev) / prev) * 100;
+          const psDeltaPct = i === 0 || prevPs <= 0 ? null : ((ps - prevPs) / prevPs) * 100;
           prev = total;
-          return { ...p, total, deltaPct, parcial: i === raw.length - 1 };
+          prevPs = ps;
+          return { ...p, total, ps, deltaPct, psDeltaPct, psAnoAnt: p.psAnoAnt ?? 0, parcial: i === raw.length - 1 };
         }));
       })
       .catch(() => setTendencia(null));
@@ -528,7 +534,6 @@ export default function DashboardPage() {
 
             {tendencia && tendencia.length > 0 && (
               <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: '16px 18px 10px', marginBottom: 18 }}>
-                <div style={{ fontSize: '.85rem', color: '#6b7280', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>Peças + Serviços · faturamento — últimos 12 meses</div>
                 <PecasChart pontos={tendencia} />
               </div>
             )}
@@ -946,41 +951,111 @@ function ServicosDecomp({ c, onDetalhe }: { c: Categoria; onDetalhe: () => void 
   );
 }
 
+// Cores do gráfico Peças+Serviços: azul-escuro (peças) + verde-água (serviços).
+// O vermelho fica reservado para variação negativa (não para faturamento).
+const CHART_PECAS = '#1e40af';
+const CHART_SERVICOS = '#2dd4bf';
+const CHART_SERVICOS_INK = '#0d9488';
+const COR_POS = '#16a34a';
+const COR_NEG = '#dc2626';
+
+type PSView = 'empilhado' | 'agrupado' | 'pct';
+const fmtVar = (v: number | null): { txt: string; cor: string } => {
+  if (v == null) return { txt: '—', cor: '#9ca3af' };
+  const s = v >= 0 ? '+' : '';
+  return { txt: s + v.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%', cor: v >= 0 ? COR_POS : COR_NEG };
+};
+
 interface PSTooltipProps { active?: boolean; label?: string; payload?: Array<{ payload: TendPonto }> }
 function PSTooltip({ active, payload, label }: PSTooltipProps) {
   if (!active || !payload || !payload.length) return null;
   const p = payload[0].payload;
-  const ps = p.pecas + p.servicos;
-  const row = (nome: string, v: number, cor: string) => (
-    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}><span style={{ color: cor }}>{nome}</span><span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmtRS(v)}</span></div>
+  const ps = p.ps || p.pecas + p.servicos;
+  const pctP = ps > 0 ? Math.round((p.pecas / ps) * 100) : 0;
+  const pctS = ps > 0 ? 100 - pctP : 0;
+  const yoy = p.psAnoAnt > 0 ? ((ps - p.psAnoAnt) / p.psAnoAnt) * 100 : null;
+  const mom = fmtVar(p.psDeltaPct);
+  const vy = fmtVar(yoy);
+  const row = (nome: string, v: number, pct: number, cor: string) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+      <span style={{ color: cor }}>{nome} <span style={{ color: '#9ca3af' }}>({pct}%)</span></span>
+      <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmtRS(v)}</span>
+    </div>
   );
   return (
-    <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: '9px 12px', fontSize: '.98rem', boxShadow: '0 2px 8px rgba(0,0,0,.1)' }}>
+    <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: '9px 12px', fontSize: '.95rem', boxShadow: '0 2px 8px rgba(0,0,0,.1)', minWidth: 234 }}>
       <div style={{ fontWeight: 700, marginBottom: 5 }}>{label}{p.parcial && <span style={{ color: '#b45309', fontWeight: 600 }}> · parcial</span>}</div>
-      {row('Peças', p.pecas, ACCENT.pecas)}
-      {row('Serviços', p.servicos, ACCENT.servicos)}
-      <div style={{ borderTop: '1px solid #eee', marginTop: 5, paddingTop: 5, display: 'flex', justifyContent: 'space-between', gap: 16 }}><span>Peças + Serviços</span><span style={{ fontWeight: 700 }}>{fmtRS(ps)}</span></div>
+      {row('Peças', p.pecas, pctP, CHART_PECAS)}
+      {row('Serviços', p.servicos, pctS, CHART_SERVICOS_INK)}
+      <div style={{ borderTop: '1px solid #eee', marginTop: 5, paddingTop: 5, display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+        <span style={{ fontWeight: 600 }}>Total</span><span style={{ fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{fmtRS(ps)}</span>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, marginTop: 3, color: '#6b7280' }}>
+        <span>vs. mês anterior</span><span style={{ fontWeight: 700, color: mom.cor }}>{mom.txt}</span>
+      </div>
+      {yoy != null && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, color: '#6b7280' }}>
+          <span>vs. ano anterior</span><span style={{ fontWeight: 700, color: vy.cor }}>{vy.txt}</span>
+        </div>
+      )}
     </div>
   );
 }
 function PecasChart({ pontos }: { pontos: TendPonto[] }) {
+  const [view, setView] = useState<PSView>('empilhado');
+  const media = pontos.length ? pontos.reduce((s, p) => s + p.ps, 0) / pontos.length : 0;
+  const diaHoje = new Date().getDate();
+  const ultimo = pontos[pontos.length - 1];
+  const data = pontos.map((p) => ({
+    ...p,
+    pecasPct: p.ps > 0 ? (p.pecas / p.ps) * 100 : 0,
+    servicosPct: p.ps > 0 ? (p.servicos / p.ps) * 100 : 0,
+  }));
+  const isPct = view === 'pct';
+  const isStack = view === 'empilhado';
+  const stackId = isStack || isPct ? 'ps' : undefined;
+  const kP = isPct ? 'pecasPct' : 'pecas';
+  const kS = isPct ? 'servicosPct' : 'servicos';
+  const tgl = (v: PSView, l: string) => (
+    <button key={v} onClick={() => setView(v)}
+      style={{ padding: '5px 11px', border: '1px solid', borderColor: view === v ? '#111827' : '#e0e0e0', background: view === v ? '#111827' : '#fff', color: view === v ? '#fff' : '#666', borderRadius: 7, fontSize: '.78rem', fontWeight: 600, cursor: 'pointer' }}>{l}</button>
+  );
   return (
-    <div style={{ width: '100%', height: 340 }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={pontos} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
-          <CartesianGrid vertical={false} stroke="#f0f0f0" />
-          <XAxis dataKey="label" tick={{ fontSize: 13 }} />
-          <YAxis tick={{ fontSize: 13 }} tickFormatter={(v) => fmtMil(v)} width={90} />
-          <Tooltip content={<PSTooltip />} cursor={{ fill: 'rgba(0,0,0,.03)' }} />
-          <Legend wrapperStyle={{ fontSize: 14 }} />
-          <Bar dataKey="pecas" stackId="a" name="Peças" fill={ACCENT.pecas}>
-            {pontos.map((p, i) => <Cell key={i} fillOpacity={p.parcial ? 0.5 : 1} />)}
-          </Bar>
-          <Bar dataKey="servicos" stackId="a" name="Serviços" fill={ACCENT.servicos} radius={[3, 3, 0, 0]}>
-            {pontos.map((p, i) => <Cell key={i} fillOpacity={p.parcial ? 0.5 : 1} />)}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+        <div style={{ fontSize: '.85rem', color: '#6b7280', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px' }}>Peças + Serviços · faturamento — últimos 12 meses</div>
+        <div style={{ display: 'flex', gap: 4 }}>{tgl('empilhado', 'Empilhado')}{tgl('agrupado', 'Agrupado')}{tgl('pct', '% Mix')}</div>
+      </div>
+      <div style={{ width: '100%', height: 340 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={data} margin={{ top: 24, right: 12, left: 8, bottom: 0 }}>
+            <XAxis dataKey="label" tick={{ fontSize: 13 }} />
+            <YAxis tick={{ fontSize: 13 }} width={isPct ? 42 : 90} domain={isPct ? [0, 100] : undefined} tickFormatter={isPct ? (v) => v + '%' : (v) => fmtMil(v)} />
+            <Tooltip content={<PSTooltip />} cursor={{ fill: 'rgba(0,0,0,.03)' }} />
+            <Legend wrapperStyle={{ fontSize: 14 }} />
+            {isStack && <ReferenceLine y={media} stroke="#9ca3af" strokeDasharray="5 4" ifOverflow="extendDomain"
+              label={{ value: 'média ' + fmtMil(media), position: 'insideTopRight', fill: '#6b7280', fontSize: 12 }} />}
+            <Bar dataKey={kP} stackId={stackId} name="Peças" fill={CHART_PECAS} radius={isStack || isPct ? [0, 0, 0, 0] : [3, 3, 0, 0]} maxBarSize={54}>
+              {data.map((p, i) => <Cell key={i} fillOpacity={p.parcial ? 0.55 : 1} />)}
+              {view === 'agrupado' && <LabelList dataKey="pecas" position="top" style={{ fontSize: 11, fill: CHART_PECAS, fontWeight: 700 }} formatter={(v: number) => fmtMil(v)} />}
+              {isPct && <LabelList dataKey="pecasPct" position="center" style={{ fontSize: 11, fill: '#fff', fontWeight: 700 }} formatter={(v: number) => (v >= 8 ? Math.round(v) + '%' : '')} />}
+            </Bar>
+            <Bar dataKey={kS} stackId={stackId} name="Serviços" fill={CHART_SERVICOS} radius={[3, 3, 0, 0]} maxBarSize={54}>
+              {data.map((p, i) => <Cell key={i} fillOpacity={p.parcial ? 0.55 : 1} />)}
+              {isStack && <LabelList dataKey="ps" position="top" style={{ fontSize: 12, fill: '#374151', fontWeight: 700 }} formatter={(v: number) => fmtMil(v)} />}
+              {view === 'agrupado' && <LabelList dataKey="servicos" position="top" style={{ fontSize: 11, fill: CHART_SERVICOS_INK, fontWeight: 700 }} formatter={(v: number) => fmtMil(v)} />}
+              {isPct && <LabelList dataKey="servicosPct" position="center" style={{ fontSize: 11, fill: '#083344', fontWeight: 700 }} formatter={(v: number) => (v >= 8 ? Math.round(v) + '%' : '')} />}
+            </Bar>
+            {isStack && <Line type="monotone" dataKey="psAnoAnt" name="Ano anterior" stroke="#9ca3af" strokeWidth={1.5} strokeDasharray="4 3" dot={false} />}
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+      {ultimo?.parcial && (
+        <div style={{ fontSize: '.8rem', color: '#b45309', marginTop: 2 }}>
+          <span style={{ display: 'inline-block', width: 10, height: 10, background: CHART_SERVICOS, opacity: 0.55, borderRadius: 2, marginRight: 5, verticalAlign: 'middle' }} />
+          {ultimo.label} é o mês corrente — parcial (até dia {diaHoje}).
+        </div>
+      )}
     </div>
   );
 }
