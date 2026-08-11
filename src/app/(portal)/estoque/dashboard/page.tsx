@@ -58,6 +58,8 @@ interface DashboardResp {
   ano: number;
   categorias: Categoria[];
   ehMesCorrente: boolean;
+  /** Dia de corte (period-to-date) no mês corrente; null se fechado. */
+  diaCorte?: number | null;
   maquinasYTD: { unidades: number; receita: number };
   erro?: string;
 }
@@ -505,12 +507,12 @@ export default function DashboardPage() {
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
               <KpiCard titulo="Peças + Serviços" accent={ACCENT.geral} valorNode={fmtRS(psA)} subNode={rotuloMetrica}
                 varM={calcVar(psA, psM)} supM={psMesAntV < BASE_MIN_PECAS} varA={calcVar(psA, psY)} supA={psAnoAntV < BASE_MIN_PECAS}
-                modo={modo} parcial={parcial} strongDrop={metrica === 'venda' && !parcial && psAnoAntV >= BASE_MIN_PECAS && calcVar(psA, psY) < -50} />
+                modo={modo} parcial={parcial} comparavel={!parcial} diaCorte={dados.diaCorte} strongDrop={metrica === 'venda' && !parcial && psAnoAntV >= BASE_MIN_PECAS && calcVar(psA, psY) < -50} />
               {cPecas && (
                 <KpiCard titulo="Total Peças" accent={ACCENT.pecas} valorNode={fmtRS(kv(cPecas, 'atual'))} subNode={metrica !== 'venda' ? rotuloMetrica : undefined}
                   varM={calcVar(kv(cPecas, 'atual'), kv(cPecas, 'mesAnt'))} supM={cPecas.mesAnteriorValor < BASE_MIN_PECAS}
                   varA={calcVar(kv(cPecas, 'atual'), kv(cPecas, 'anoAnt'))} supA={cPecas.anoAnteriorValor < BASE_MIN_PECAS}
-                  modo={modo} parcial={parcial} strongDrop={metrica === 'venda' && !parcial && cPecas.anoAnteriorValor >= BASE_MIN_PECAS && cPecas.varAnoAnterior < -50} />
+                  modo={modo} parcial={parcial} diaCorte={dados.diaCorte} strongDrop={metrica === 'venda' && !parcial && cPecas.anoAnteriorValor >= BASE_MIN_PECAS && cPecas.varAnoAnterior < -50} />
               )}
               {cServ && (
                 <KpiCard titulo="Serviços" accent={ACCENT.servicos}
@@ -518,13 +520,13 @@ export default function DashboardPage() {
                   subNode={metrica === 'venda' ? undefined : metrica === 'custo' ? 'serviço sem custo apurado' : 'margem = receita (sem custo)'}
                   varM={calcVar(kv(cServ, 'atual'), kv(cServ, 'mesAnt'))} supM={cServ.mesAnteriorValor < BASE_MIN_PECAS}
                   varA={calcVar(kv(cServ, 'atual'), kv(cServ, 'anoAnt'))} supA={cServ.anoAnteriorValor < BASE_MIN_PECAS}
-                  modo={modo} parcial={parcial} semVar={metrica === 'custo'}
+                  modo={modo} parcial={parcial} comparavel={!parcial} semVar={metrica === 'custo'}
                   strongDrop={metrica === 'venda' && !parcial && cServ.anoAnteriorValor >= BASE_MIN_PECAS && cServ.varAnoAnterior < -50} />
               )}
               {cComprei && (
                 <KpiCard titulo="Comprei" accent={ACCENT.comprei} valorNode={fmtRS(cComprei.valorAtual)} subNode="entradas de peças (NF)"
                   varM={cComprei.varMesAnterior} supM={cComprei.mesAnteriorValor < BASE_MIN_PECAS} varA={cComprei.varAnoAnterior} supA={cComprei.anoAnteriorValor < BASE_MIN_PECAS}
-                  modo={modo} parcial={parcial} onDrill={abrirCompras} drillLabel="ver itens"
+                  modo={modo} parcial={parcial} diaCorte={dados.diaCorte} onDrill={abrirCompras} drillLabel="ver itens"
                   extraNode={razaoCV != null && (
                     <div style={{ fontSize: '.82rem', color: '#6b7280', marginTop: 6 }}>
                       Razão compra/venda: <b>{razaoCV.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}x</b>
@@ -815,22 +817,26 @@ export default function DashboardPage() {
 
 const linkBtn: React.CSSProperties = { background: 'none', border: 'none', color: '#2563eb', fontSize: '.98rem', fontWeight: 600, cursor: 'pointer', padding: 0, textDecoration: 'underline' };
 
-// Variação: verde/vermelho, ou CINZA quando (a) base baixa no período anterior
-// ou (b) período corrente (comparação parcial).
-function Delta({ label, v, sup, parcial }: { label: string; v: number; sup: boolean; parcial?: boolean }) {
-  const muted = sup || parcial;
-  const cor = muted ? COR_MUTED : v >= 0 ? COR_UP : COR_DOWN;
-  const motivo = parcial ? 'mês incompleto — comparação parcial' : sup ? 'base baixa no período anterior' : undefined;
+// Variação: verde/vermelho; CINZA quando base baixa; "—" quando não comparável
+// (mês parcial de card cujo período anterior NÃO é recortado — ex.: Serviços).
+// No mês corrente, PEÇAS/COMPRAS já são recortadas (period-to-date) → a
+// comparação é válida e sai colorida.
+function Delta({ label, v, sup, parcial, comparavel = true }: { label: string; v: number; sup: boolean; parcial?: boolean; comparavel?: boolean }) {
+  if (!comparavel) return <span title="mês parcial — serviços não têm base diária para recorte, comparação omitida" style={{ color: COR_MUTED }}>{label}: —</span>;
+  const cor = sup ? COR_MUTED : v >= 0 ? COR_UP : COR_DOWN;
+  const motivo = parcial ? 'comparação sobre o mesmo intervalo de dias em cada período' : sup ? 'base baixa no período anterior' : undefined;
   return <span title={motivo} style={{ color: cor }}>{label}: {fmtPct(v)}</span>;
 }
 
-function KpiCard({ titulo, accent, valorNode, subNode, varM, supM, varA, supA, modo, strongDrop, extraNode, onDrill, drillLabel, parcial, semVar }: {
+function KpiCard({ titulo, accent, valorNode, subNode, varM, supM, varA, supA, modo, strongDrop, extraNode, onDrill, drillLabel, parcial, semVar, diaCorte, comparavel = true, sparkNode }: {
   titulo: string; accent: string; valorNode: React.ReactNode; subNode?: React.ReactNode;
   varM: number; supM: boolean; varA: number; supA: boolean; modo?: 'mes' | 'ano'; strongDrop?: boolean; extraNode?: React.ReactNode;
-  onDrill?: () => void; drillLabel?: string; parcial?: boolean; semVar?: boolean;
+  onDrill?: () => void; drillLabel?: string; parcial?: boolean; semVar?: boolean; diaCorte?: number | null; comparavel?: boolean; sparkNode?: React.ReactNode;
 }) {
+  const suf = comparavel && parcial && diaCorte ? `. (1–${diaCorte})` : '';
+  const mostrarInfo = comparavel && parcial && !!diaCorte;
   return (
-    <div style={{ flex: '1 1 220px', background: '#fff', border: strongDrop ? '2px solid ' + COR_DOWN : '1px solid #e5e7eb', borderTop: '3px solid ' + accent, borderRadius: 12, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
+    <div style={{ flex: '1 1 220px', background: '#fff', border: strongDrop ? '2px solid ' + COR_DOWN : '1px solid #e5e7eb', borderTop: '3px solid ' + accent, borderRadius: 12, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,.04)', display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, marginBottom: 8 }}>
         <span style={{ fontSize: '.82rem', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 700 }}>{titulo}</span>
         {strongDrop && <span style={{ fontSize: '.7rem', fontWeight: 700, color: COR_DOWN, background: '#fee2e2', border: '1px solid #fecaca', borderRadius: 6, padding: '2px 7px', whiteSpace: 'nowrap' }}>queda acentuada</span>}
@@ -838,11 +844,13 @@ function KpiCard({ titulo, accent, valorNode, subNode, varM, supM, varA, supA, m
       <div style={{ fontSize: '2.1rem', fontWeight: 800, color: COR_INK, fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>{valorNode}</div>
       {subNode && <div style={{ fontSize: '1rem', color: '#6b7280', marginTop: 3 }}>{subNode}</div>}
       {!semVar && (
-        <div style={{ display: 'flex', gap: 12, marginTop: 10, fontSize: '.98rem', flexWrap: 'wrap', fontWeight: 600 }}>
-          {modo !== 'ano' && <Delta label="Mês ant" v={varM} sup={supM} parcial={parcial} />}
-          <Delta label="Ano ant" v={varA} sup={supA} parcial={parcial} />
+        <div style={{ display: 'flex', gap: 12, marginTop: 10, fontSize: '.98rem', flexWrap: 'wrap', fontWeight: 600, alignItems: 'center' }}>
+          {modo !== 'ano' && <Delta label={'Mês ant' + suf} v={varM} sup={supM} parcial={parcial} comparavel={comparavel} />}
+          <Delta label={'Ano ant' + suf} v={varA} sup={supA} parcial={parcial} comparavel={comparavel} />
+          {mostrarInfo && <span title={`Comparação period-to-date: mesmo intervalo de dias (1–${diaCorte}) em cada período. Serviços não entram no recorte.`} style={{ cursor: 'help', color: '#9ca3af', fontWeight: 700 }}>ⓘ</span>}
         </div>
       )}
+      {sparkNode && <div style={{ marginTop: 'auto', paddingTop: 10 }}>{sparkNode}</div>}
       {extraNode}
       {onDrill && <div style={{ marginTop: 8 }}><button onClick={onDrill} style={linkBtn}>{drillLabel || 'ver itens'}</button></div>}
     </div>
