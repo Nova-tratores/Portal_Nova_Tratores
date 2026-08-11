@@ -1012,7 +1012,10 @@ function PSTooltip({ active, payload, label }: PSTooltipProps) {
 }
 function PecasChart({ pontos }: { pontos: TendPonto[] }) {
   const [view, setView] = useState<PSView>('empilhado');
-  const media = pontos.length ? pontos.reduce((s, p) => s + p.ps, 0) / pontos.length : 0;
+  // Média sobre MESES FECHADOS apenas (exclui o mês corrente parcial, que puxaria
+  // a linha para baixo e comprimiria a leitura das barras).
+  const fechados = pontos.filter((p) => !p.parcial);
+  const media = fechados.length ? fechados.reduce((s, p) => s + p.ps, 0) / fechados.length : 0;
   const diaHoje = new Date().getDate();
   const ultimo = pontos[pontos.length - 1];
   const data = pontos.map((p) => ({
@@ -1043,7 +1046,7 @@ function PecasChart({ pontos }: { pontos: TendPonto[] }) {
             <Tooltip content={<PSTooltip />} cursor={{ fill: 'rgba(0,0,0,.03)' }} />
             <Legend wrapperStyle={{ fontSize: 14 }} />
             {isStack && <ReferenceLine y={media} stroke="#9ca3af" strokeDasharray="5 4" ifOverflow="extendDomain"
-              label={{ value: 'média ' + fmtMil(media), position: 'insideTopRight', fill: '#6b7280', fontSize: 12 }} />}
+              label={{ value: `média ${fechados.length}m fechados: ${fmtMil(media)}`, position: 'insideTopRight', fill: '#6b7280', fontSize: 12 }} />}
             <Bar dataKey={kP} stackId={stackId} name="Peças" fill={CHART_PECAS} radius={isStack || isPct ? [0, 0, 0, 0] : [3, 3, 0, 0]} maxBarSize={54}>
               {data.map((p, i) => <Cell key={i} fillOpacity={p.parcial ? 0.55 : 1} />)}
               {view === 'agrupado' && <LabelList dataKey="pecas" position="top" style={{ fontSize: 11, fill: CHART_PECAS, fontWeight: 700 }} formatter={(v: number) => fmtMil(v)} />}
