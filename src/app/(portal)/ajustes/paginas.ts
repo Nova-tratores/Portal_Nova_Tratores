@@ -25,6 +25,7 @@ export const PAGINAS_AJUSTES: PaginaAjustes[] = [
   { key: 'ajustes:inventario-contagem', label: 'Contagem', href: '/ajustes/inventario/contagem', grupo: 'Edição' },
   { key: 'ajustes:caracteristicas', label: 'Características', href: '/ajustes/caracteristicas', grupo: 'Edição' },
   { key: 'ajustes:familias', label: 'Famílias', href: '/ajustes/familias', grupo: 'Edição' },
+  { key: 'ajustes:descricoes', label: 'Descrições', href: '/ajustes/descricoes', grupo: 'Edição' },
   // Visualização
   { key: 'ajustes:negativos', label: 'Estoque negativo', href: '/ajustes/negativos', grupo: 'Visualização' },
   { key: 'ajustes:recebimentos', label: 'Recebimentos pendentes', href: '/ajustes/recebimentos', grupo: 'Visualização' },
