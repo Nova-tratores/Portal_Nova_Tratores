@@ -73,12 +73,15 @@ interface HistResp { catKey: string; nome: string; meses: HistMes[]; erro?: stri
 interface VendaRow {
   numero_pedido?: string; data_pedido?: string; descricao?: string; codigo_produto?: string;
   quantidade?: number; valor_unitario?: number; valor_total?: number; cmc_unitario?: number;
+  codigo_cliente?: number | string | null; nome_cliente?: string | null; conta_omie?: string | null;
 }
 interface CompraRow {
   codigo?: string | null; descricao?: string | null; familia?: string | null; numero_nf?: string | null;
   quantidade?: number | string | null; valor_unitario?: number | string | null; valor_total?: number | string | null;
 }
 type InternoBalde = 'retorno' | 'puro' | null;
+// Candidata de NF-e devolvida por /api/estoque/dashboard/nf (resolver do DANFE).
+interface NotaCand { numero?: string; nCodNF: number; tipo?: string; dataEmissao?: string | null; valorNF?: number; cancelada?: boolean }
 interface OSRow { numero_os?: string; data?: string; cliente?: string; codigo_cliente?: number | null; valor?: number; conta?: string; tem_nota?: boolean | null; nfse_num?: string | null; internoBalde?: InternoBalde }
 type TipoServico = 'HR' | 'KM' | 'OUTRO';
 interface ServicoOSRow {
@@ -294,11 +297,44 @@ export default function DashboardPage() {
     setPedidoItens({ numero, itens: d.itens || [] });
   }, [periodoParam, ano, contaParam]);
 
+  // Coluna "NF" do popup de vendas: resolve a NF-e da venda e abre o DANFE.
+  const [nfBusy, setNfBusy] = useState<number | null>(null);
+  const [nfPicker, setNfPicker] = useState<{ idx: number; candidatos: NotaCand[] } | null>(null);
+
+  const abrirDanfe = useCallback((c: NotaCand, conta?: string | null) => {
+    const cc = conta === 'NOVA' || conta === 'CASTRO' ? conta : 'NOVA';
+    window.open(`/api/ajustes/notas/danfe?conta=${cc}&tipo=${c.tipo || 'produto'}&nCodNF=${c.nCodNF}&redirect=1`, '_blank');
+  }, []);
+
+  const abrirNF = useCallback(async (v: VendaRow, idx: number) => {
+    if (!v.conta_omie) { alert('Sem conta na linha — não dá para localizar a NF.'); return; }
+    setNfPicker(null);
+    setNfBusy(idx);
+    try {
+      const qs = new URLSearchParams({
+        conta: String(v.conta_omie),
+        numero_pedido: v.numero_pedido || '',
+        codigo_cliente: v.codigo_cliente != null ? String(v.codigo_cliente) : '',
+        data: v.data_pedido || '',
+      });
+      const r = await fetch(`/api/estoque/dashboard/nf?${qs.toString()}`);
+      const d = await r.json();
+      const candidatos: NotaCand[] = d.candidatos || [];
+      if (candidatos.length === 0) alert('NF não encontrada para este pedido (nota fora do backfill, pedido sem NF ou faturado depois).');
+      else if (candidatos.length === 1) abrirDanfe(candidatos[0], v.conta_omie);
+      else setNfPicker({ idx, candidatos });
+    } catch (ex) {
+      alert('Erro ao buscar a NF: ' + (ex as Error).message);
+    } finally {
+      setNfBusy(null);
+    }
+  }, [abrirDanfe]);
+
   const exportarCSV = useCallback(() => {
     if (!vendas) return;
-    const head = ['Pedido', 'Data', 'Codigo', 'Descricao', 'Qtd', 'Valor Unit', 'Valor Total', 'CMC'];
+    const head = ['Pedido', 'Data', 'Cliente', 'Codigo', 'Descricao', 'Qtd', 'Valor Unit', 'Valor Total', 'CMC'];
     const linhas = vendas.map((v) => [
-      v.numero_pedido || '', v.data_pedido || '', v.codigo_produto || '', (v.descricao || '').replace(/;/g, ','),
+      v.numero_pedido || '', v.data_pedido || '', (v.nome_cliente || '').replace(/;/g, ','), v.codigo_produto || '', (v.descricao || '').replace(/;/g, ','),
       v.quantidade ?? '', v.valor_unitario ?? '', v.valor_total ?? '', v.cmc_unitario ?? '',
     ].join(';'));
     const csv = [head.join(';'), ...linhas].join('\n');
@@ -360,6 +396,7 @@ export default function DashboardPage() {
       if (col === 'numero_pedido') return (parseInt(String(a.numero_pedido ?? '')) || 0) - (parseInt(String(b.numero_pedido ?? '')) || 0);
       if (col === 'data_pedido') return dataBR(a.data_pedido) - dataBR(b.data_pedido);
       if (col === 'descricao') return String(a.descricao || '').localeCompare(String(b.descricao || ''), 'pt-BR');
+      if (col === 'nome_cliente') return String(a.nome_cliente || '').localeCompare(String(b.nome_cliente || ''), 'pt-BR');
       if (col === 'quantidade') return n(a.quantidade) - n(b.quantidade);
       if (col === 'valor_unitario') return n(a.valor_unitario) - n(b.valor_unitario);
       if (col === 'cmc_unitario') return n(a.cmc_unitario) - n(b.cmc_unitario);
@@ -657,7 +694,9 @@ export default function DashboardPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead><tr>
                   {sortHeaderVendas('Pedido', 'numero_pedido')}
+                  <th style={thStyle}>NF</th>
                   {sortHeaderVendas('Data', 'data_pedido')}
+                  {sortHeaderVendas('Cliente', 'nome_cliente')}
                   {sortHeaderVendas('Descrição', 'descricao')}
                   {sortHeaderVendas('Qtd', 'quantidade')}
                   {sortHeaderVendas('V. Unit', 'valor_unitario')}
@@ -668,7 +707,24 @@ export default function DashboardPage() {
                   {(vendasOrdenadas ?? vendas).slice(0, LIMITE_LINHAS).map((v, i) => (
                     <tr key={i}>
                       <td style={tdStyle}><button onClick={() => v.numero_pedido && abrirPedido(v.numero_pedido)} style={linkBtn}>{v.numero_pedido}</button></td>
+                      <td style={tdStyle}>
+                        {nfBusy === i ? (
+                          <span style={{ color: '#999', fontSize: '.74rem' }}>buscando…</span>
+                        ) : nfPicker && nfPicker.idx === i ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-start' }}>
+                            {nfPicker.candidatos.map((c) => (
+                              <button key={c.nCodNF} onClick={() => abrirDanfe(c, v.conta_omie)} style={linkBtn}>
+                                NF {c.numero}{c.cancelada ? ' (canc.)' : ''}
+                              </button>
+                            ))}
+                            <button onClick={() => setNfPicker(null)} style={{ ...linkBtn, color: '#999', textDecoration: 'none' }}>fechar</button>
+                          </div>
+                        ) : (
+                          <button onClick={() => abrirNF(v, i)} style={linkBtn}>Ver NF</button>
+                        )}
+                      </td>
                       <td style={tdStyle}>{v.data_pedido}</td>
+                      <td style={tdStyle}>{v.nome_cliente || '—'}</td>
                       <td style={tdStyle}>{v.descricao}</td>
                       <td style={tdStyle}>{v.quantidade}</td>
                       <td style={tdStyle}>{fmtRS(v.valor_unitario)}</td>

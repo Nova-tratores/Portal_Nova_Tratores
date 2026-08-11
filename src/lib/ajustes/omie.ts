@@ -447,6 +447,11 @@ export function normalizarNFSaida(nf: any): any {
   const numero = cab.nNF ?? cab.nNumero ?? ide.cNF ?? ide.nNF ?? null;
   // codigo INTERNO da NF no Omie - chave do GetUrlDanfe / dfedocs (fica em ide.nCodNF)
   const nCodNF = ide.nCodNF ?? compl.nIdNF ?? cab.nCodNF ?? cab.nIdNF ?? null;
+  // id INTERNO do pedido de origem (codigo_pedido do Omie) - fica em compl.nIdPedido.
+  // A NF NAO traz o numero HUMANO do pedido (o no `pedido` costuma vir vazio).
+  const pedidoObj = nf.pedido || {};
+  const nIdPedidoRaw = compl.nIdPedido ?? pedidoObj.nCodPedido ?? pedidoObj.codigo_pedido ?? compl.nCodPedido ?? null;
+  const nIdPedido = nIdPedidoRaw != null && Number(nIdPedidoRaw) > 0 ? Number(nIdPedidoRaw) : null;
   const serie = ide.serie ?? ide.cSerie ?? cab.serie ?? null;
   const chaveNFe = compl.cChaveNFe ?? compl.cChaveNfe ?? nf.cChaveNFe ?? null;
   const dataEmissao = ide.dEmi ?? ide.dDtEmissao ?? cab.dEmi ?? null;
@@ -483,6 +488,7 @@ export function normalizarNFSaida(nf: any): any {
   return {
     numero: numero != null ? String(numero) : null,
     nCodNF: nCodNF != null ? Number(nCodNF) || nCodNF : null,
+    nIdPedido,
     serie: serie != null ? String(serie) : null,
     chaveNFe: chaveNFe != null ? String(chaveNFe) : null,
     dataEmissao,

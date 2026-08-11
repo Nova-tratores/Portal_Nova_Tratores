@@ -115,6 +115,42 @@ export async function buscarNotas(conta: Conta, q: BuscarNotasArgs): Promise<any
   return { conta, contaLabel: conta, total: notas.length, notas, aviso };
 }
 
+/** Notas de PRODUTO (NF-e) de um pedido, pelo id INTERNO do pedido (nIdPedido /
+ *  codigo_pedido do Omie). Ordena não-canceladas primeiro, mais recente antes.
+ *  Usado pelo dashboard (/estoque/dashboard) para abrir o DANFE de uma venda. */
+export async function buscarNotasPorIdPedido(conta: Conta, nIdPedido: number | string): Promise<any[]> {
+  const id = Number(nIdPedido);
+  if (!Number.isFinite(id) || id <= 0) return [];
+  const { data, error } = await supabase
+    .from(TABELA).select(COLS)
+    .eq('conta_omie', conta).eq('tipo', 'produto').eq('n_id_pedido', id)
+    .order('cancelada', { ascending: true })
+    .order('data_emissao', { ascending: false })
+    .limit(50);
+  if (error) throw new Error(error.message);
+  return (data || []).map(mapRow);
+}
+
+/** Fallback: notas de PRODUTO de um cliente numa janela de datas em torno de
+ *  `dataISO` (YYYY-MM-DD). Usado quando o pedido não resolve para uma NF. */
+export async function buscarNotasPorClienteData(conta: Conta, clienteCodigo: number | string, dataISO: string, janelaDias = 3): Promise<any[]> {
+  const cod = Number(String(clienteCodigo).replace(/\D/g, ''));
+  const alvo = paraISO(dataISO);
+  if (!Number.isFinite(cod) || cod <= 0 || !alvo) return [];
+  const d = new Date(alvo + 'T00:00:00Z');
+  const de = new Date(d.getTime() - janelaDias * 86400000).toISOString().slice(0, 10);
+  const ate = new Date(d.getTime() + janelaDias * 86400000).toISOString().slice(0, 10);
+  const { data, error } = await supabase
+    .from(TABELA).select(COLS)
+    .eq('conta_omie', conta).eq('tipo', 'produto').eq('cliente_codigo', cod)
+    .gte('data_emissao', de).lte('data_emissao', ate)
+    .order('cancelada', { ascending: true })
+    .order('data_emissao', { ascending: false })
+    .limit(50);
+  if (error) throw new Error(error.message);
+  return (data || []).map(mapRow);
+}
+
 /** URL do PDF a partir do código interno (nCodNF). tipo=servico -> NFS-e
  *  (ObterNFSe); senão DANFE de NF-e (GetUrlDanfe). */
 export async function urlDanfe(conta: Conta, nCodNF: number | string, tipo = 'produto'): Promise<{ url: string; validadeAte: any }> {
