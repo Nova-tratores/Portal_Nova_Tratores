@@ -27,6 +27,7 @@ export const PAGINAS_AJUSTES: PaginaAjustes[] = [
   { key: 'ajustes:familias', label: 'Famílias', href: '/ajustes/familias', grupo: 'Edição' },
   { key: 'ajustes:omie-massa', label: 'Omie em massa', href: '/ajustes/omie-massa', grupo: 'Edição' },
   { key: 'ajustes:descricoes', label: 'Descrições', href: '/ajustes/descricoes', grupo: 'Edição' },
+  { key: 'ajustes:catalogo-caract', label: 'Sistema/Sub-sistema', href: '/ajustes/catalogo-caracteristicas', grupo: 'Edição' },
   // Visualização
   { key: 'ajustes:negativos', label: 'Estoque negativo', href: '/ajustes/negativos', grupo: 'Visualização' },
   { key: 'ajustes:recebimentos', label: 'Recebimentos pendentes', href: '/ajustes/recebimentos', grupo: 'Visualização' },
