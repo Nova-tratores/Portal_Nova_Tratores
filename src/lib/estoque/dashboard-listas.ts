@@ -397,6 +397,8 @@ export interface TendenciaPonto {
   maquinasUn: number;
   /** Peças + Serviços do MESMO mês do ano anterior (linha fantasma YoY). 0 se não houver. */
   psAnoAnt: number;
+  /** Peças + Serviços do MESMO mês de -2 anos (comparativo "Comparar"). 0 se não houver. */
+  psAno2Ant: number;
   /** Compras (entradas) de peças do mês — sparkline do card "Entradas" + razão. */
   compras: number;
 }
@@ -417,10 +419,11 @@ export async function montarTendencia(conta: ContaFiltro): Promise<TendenciaPont
   const fixed = await getFixedCats();
 
   const now = new Date();
-  // Monta 24 meses (para o YoY: cada um dos 12 exibidos precisa do mesmo mês do
-  // ano anterior). Só os últimos 12 são retornados.
+  // Monta 36 meses: os 12 exibidos precisam do mesmo mês de -1 ano (psAnoAnt) e
+  // de -2 anos (psAno2Ant) para o comparativo "Comparar" do gráfico. Só os
+  // últimos 12 são retornados.
   const meses: Array<{ mes: number; ano: number; label: string }> = [];
-  for (let i = 23; i >= 0; i--) {
+  for (let i = 35; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     meses.push({ mes: d.getMonth() + 1, ano: d.getFullYear(), label: MESES_CURTO[d.getMonth()] + '/' + String(d.getFullYear()).slice(2) });
   }
@@ -477,10 +480,11 @@ export async function montarTendencia(conta: ContaFiltro): Promise<TendenciaPont
   const ultimos = meses.slice(-12);
   const comprasPorMes = await Promise.all(ultimos.map((m) => somarComprasPecas(m.mes, m.ano, conta)));
 
-  // Retorna só os últimos 12, cada um com o Peças+Serviços do mesmo mês do ano anterior.
+  // Retorna só os últimos 12, cada um com Peças+Serviços do mesmo mês de -1 e -2 anos.
   return ultimos.map((m, i) => {
     const d = porMes.get(m.mes + '/' + m.ano)!;
     const ant = porMes.get(m.mes + '/' + (m.ano - 1));
+    const ant2 = porMes.get(m.mes + '/' + (m.ano - 2));
     return {
       label: m.label,
       mes: m.mes,
@@ -490,6 +494,7 @@ export async function montarTendencia(conta: ContaFiltro): Promise<TendenciaPont
       maquinas: d.maquinas,
       maquinasUn: d.maquinasUn,
       psAnoAnt: ant ? ant.pecas + ant.servicos : 0,
+      psAno2Ant: ant2 ? ant2.pecas + ant2.servicos : 0,
       compras: comprasPorMes[i],
     };
   });
