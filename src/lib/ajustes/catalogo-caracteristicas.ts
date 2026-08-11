@@ -37,8 +37,14 @@ export interface ItemProposta {
   precisaSub: boolean;
 }
 
+export interface SistemaInfo {
+  nome: string;    // grafia canónica
+  produtos: number; // nº de produtos NOVA (com match) que tocam esse sistema
+}
+
 export interface Proposta {
   itens: ItemProposta[];
+  sistemas: SistemaInfo[]; // todos os sistemas distintos entre os produtos com match
   resumo: {
     produtosNova: number;
     comMatch: number;
@@ -134,11 +140,20 @@ export async function montarProposta(opts: { force?: boolean } = {}): Promise<Pr
 
   // 5) montar itens
   const itens: ItemProposta[] = [];
+  const sistemasMap = new Map<string, Set<number>>(); // sistema canónico -> produtos
   let comMatch = 0, semMatch = 0, sistemaUnico = 0, subUnico = 0, ambosAmbiguos = 0, jaPreenchidos = 0;
   for (const p of produtos) {
     const e = porCode.get(normCodeProd(p.codigo));
     if (!e) { semMatch++; continue; }
     comMatch++;
+    // todos os sistemas que tocam este produto (mesmo que seja ambíguo/já preenchido)
+    for (const fold of e.sec) {
+      const nome = canonOf(canonSec, fold);
+      if (!nome) continue;
+      let s = sistemasMap.get(nome);
+      if (!s) { s = new Set(); sistemasMap.set(nome, s); }
+      s.add(p.codigo_produto);
+    }
     const sistema = e.sec.size === 1 ? canonOf(canonSec, [...e.sec][0]) : '';
     const subsistema = e.fig.size === 1 ? canonOf(canonFig, [...e.fig][0]) : '';
     if (sistema) sistemaUnico++;
@@ -155,8 +170,13 @@ export async function montarProposta(opts: { force?: boolean } = {}): Promise<Pr
   }
   itens.sort((a, b) => a.codigo.localeCompare(b.codigo, 'pt-BR', { numeric: true }));
 
+  const sistemas: SistemaInfo[] = [...sistemasMap.entries()]
+    .map(([nome, s]) => ({ nome, produtos: s.size }))
+    .sort((a, b) => b.produtos - a.produtos || a.nome.localeCompare(b.nome, 'pt-BR'));
+
   const data: Proposta = {
     itens,
+    sistemas,
     resumo: {
       produtosNova: produtos.length, comMatch, semMatch,
       sistemaUnico, subUnico, ambosAmbiguos, aEscrever: itens.length, jaPreenchidos,
