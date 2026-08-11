@@ -4,7 +4,7 @@
 // /compras,/tendencia}. Cor do VALOR é sempre neutra; verde/vermelho só p/ variação.
 import { useState, useCallback, useEffect } from 'react';
 import Link from 'next/link';
-import { ResponsiveContainer, LineChart, Line, BarChart, ComposedChart, Bar, Cell, LabelList, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ReferenceLine } from 'recharts';
+import { ResponsiveContainer, LineChart, Line, BarChart, ComposedChart, Bar, Area, AreaChart, Cell, LabelList, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ReferenceLine } from 'recharts';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
@@ -65,7 +65,9 @@ interface DashboardResp {
 }
 interface TendPonto { label: string; mes: number; ano: number; pecas: number; servicos: number; maquinas: number; maquinasUn: number; total: number; deltaPct: number | null; parcial?: boolean;
   /** Peças+Serviços do mês, MoM de PS, e PS do mesmo mês do ano anterior (YoY). */
-  ps: number; psDeltaPct: number | null; psAnoAnt: number }
+  ps: number; psDeltaPct: number | null; psAnoAnt: number;
+  /** Compras (entradas) de peças do mês — sparkline do card Entradas + razão. */
+  compras: number }
 interface HistMes { label: string; mes: number; ano: number; valor: number; custo: number; qtdePedidos: number; valorNota?: number | null; valorInterno?: number | null }
 interface HistResp { catKey: string; nome: string; meses: HistMes[]; erro?: string }
 interface VendaRow {
@@ -101,6 +103,13 @@ function fmtMil(v: number): string {
   if (abs >= 1e6) return 'R$ ' + (v / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' mi';
   if (abs >= 1000) return 'R$ ' + (v / 1000).toLocaleString('pt-BR', { maximumFractionDigits: abs >= 1e5 ? 0 : 1 }) + ' mil';
   return 'R$ ' + v.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+}
+// Compacto em linha única para rótulos de barra/eixo: 272k · 60,7k · 1,2M.
+function fmtK(v: number): string {
+  const abs = Math.abs(v);
+  if (abs >= 1e6) return (v / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + 'M';
+  if (abs >= 1000) return (v / 1000).toLocaleString('pt-BR', { maximumFractionDigits: abs >= 1e5 ? 0 : 1 }) + 'k';
+  return v.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
 }
 function fixLabel(s: string): string {
   return s.replace(/Pecas Diversas/g, 'Peças diversas').replace(/Pecas/g, 'Peças').replace(/Servicos/g, 'Serviços');
@@ -203,7 +212,7 @@ export default function DashboardPage() {
     fetch(`/api/estoque/dashboard/tendencia?_=1${contaParam}`)
       .then((r) => r.json())
       .then((d) => {
-        const raw = (d.pontos || []) as Array<{ label: string; mes: number; ano: number; pecas: number; servicos: number; maquinas: number; maquinasUn: number; psAnoAnt?: number }>;
+        const raw = (d.pontos || []) as Array<{ label: string; mes: number; ano: number; pecas: number; servicos: number; maquinas: number; maquinasUn: number; psAnoAnt?: number; compras?: number }>;
         let prev = 0;
         let prevPs = 0;
         setTendencia(raw.map((p, i) => {
@@ -213,7 +222,7 @@ export default function DashboardPage() {
           const psDeltaPct = i === 0 || prevPs <= 0 ? null : ((ps - prevPs) / prevPs) * 100;
           prev = total;
           prevPs = ps;
-          return { ...p, total, ps, deltaPct, psDeltaPct, psAnoAnt: p.psAnoAnt ?? 0, parcial: i === raw.length - 1 };
+          return { ...p, total, ps, deltaPct, psDeltaPct, psAnoAnt: p.psAnoAnt ?? 0, compras: p.compras ?? 0, parcial: i === raw.length - 1 };
         }));
       })
       .catch(() => setTendencia(null));
@@ -500,6 +509,17 @@ export default function DashboardPage() {
         const psMesAntV = (cPecas?.mesAnteriorValor || 0) + (cServ?.mesAnteriorValor || 0);
         const psAnoAntV = (cPecas?.anoAnteriorValor || 0) + (cServ?.anoAnteriorValor || 0);
         const razaoCV = totalPecasVenda > 0 && cComprei ? cComprei.valorAtual / totalPecasVenda : null;
+        // Sparklines (12 meses) e mediana histórica da razão compra/venda (só meses
+        // fechados) — referência real da própria concessionária, não meta inventada.
+        const spk = tendencia && tendencia.length > 1 ? tendencia : null;
+        const razaoMediana = (() => {
+          if (!tendencia) return null;
+          const rs = tendencia.filter((t) => !t.parcial && t.pecas > 0).map((t) => t.compras / t.pecas);
+          if (!rs.length) return null;
+          const srt = [...rs].sort((a, b) => a - b);
+          const m = Math.floor(srt.length / 2);
+          return srt.length % 2 ? srt[m] : (srt[m - 1] + srt[m]) / 2;
+        })();
 
         return (
           <>
@@ -507,12 +527,14 @@ export default function DashboardPage() {
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
               <KpiCard titulo="Peças + Serviços" accent={ACCENT.geral} valorNode={fmtRS(psA)} subNode={rotuloMetrica}
                 varM={calcVar(psA, psM)} supM={psMesAntV < BASE_MIN_PECAS} varA={calcVar(psA, psY)} supA={psAnoAntV < BASE_MIN_PECAS}
-                modo={modo} parcial={parcial} comparavel={!parcial} diaCorte={dados.diaCorte} strongDrop={metrica === 'venda' && !parcial && psAnoAntV >= BASE_MIN_PECAS && calcVar(psA, psY) < -50} />
+                modo={modo} parcial={parcial} comparavel={!parcial} diaCorte={dados.diaCorte} strongDrop={metrica === 'venda' && !parcial && psAnoAntV >= BASE_MIN_PECAS && calcVar(psA, psY) < -50}
+                sparkNode={spk && <Sparkline data={spk.map((t) => t.ps)} cor={ACCENT.geral} parcialUltimo />} />
               {cPecas && (
                 <KpiCard titulo="Total Peças" accent={ACCENT.pecas} valorNode={fmtRS(kv(cPecas, 'atual'))} subNode={metrica !== 'venda' ? rotuloMetrica : undefined}
                   varM={calcVar(kv(cPecas, 'atual'), kv(cPecas, 'mesAnt'))} supM={cPecas.mesAnteriorValor < BASE_MIN_PECAS}
                   varA={calcVar(kv(cPecas, 'atual'), kv(cPecas, 'anoAnt'))} supA={cPecas.anoAnteriorValor < BASE_MIN_PECAS}
-                  modo={modo} parcial={parcial} diaCorte={dados.diaCorte} strongDrop={metrica === 'venda' && !parcial && cPecas.anoAnteriorValor >= BASE_MIN_PECAS && cPecas.varAnoAnterior < -50} />
+                  modo={modo} parcial={parcial} diaCorte={dados.diaCorte} strongDrop={metrica === 'venda' && !parcial && cPecas.anoAnteriorValor >= BASE_MIN_PECAS && cPecas.varAnoAnterior < -50}
+                  sparkNode={spk && <Sparkline data={spk.map((t) => t.pecas)} cor={ACCENT.pecas} parcialUltimo />} />
               )}
               {cServ && (
                 <KpiCard titulo="Serviços" accent={ACCENT.servicos}
@@ -521,16 +543,19 @@ export default function DashboardPage() {
                   varM={calcVar(kv(cServ, 'atual'), kv(cServ, 'mesAnt'))} supM={cServ.mesAnteriorValor < BASE_MIN_PECAS}
                   varA={calcVar(kv(cServ, 'atual'), kv(cServ, 'anoAnt'))} supA={cServ.anoAnteriorValor < BASE_MIN_PECAS}
                   modo={modo} parcial={parcial} comparavel={!parcial} semVar={metrica === 'custo'}
-                  strongDrop={metrica === 'venda' && !parcial && cServ.anoAnteriorValor >= BASE_MIN_PECAS && cServ.varAnoAnterior < -50} />
+                  strongDrop={metrica === 'venda' && !parcial && cServ.anoAnteriorValor >= BASE_MIN_PECAS && cServ.varAnoAnterior < -50}
+                  sparkNode={spk && <Sparkline data={spk.map((t) => t.servicos)} cor={ACCENT.servicos} parcialUltimo />} />
               )}
               {cComprei && (
-                <KpiCard titulo="Comprei" accent={ACCENT.comprei} valorNode={fmtRS(cComprei.valorAtual)} subNode="entradas de peças (NF)"
+                <KpiCard titulo="Entradas de Peças" accent={ACCENT.comprei} valorNode={fmtRS(cComprei.valorAtual)} subNode="por nota fiscal de entrada"
                   varM={cComprei.varMesAnterior} supM={cComprei.mesAnteriorValor < BASE_MIN_PECAS} varA={cComprei.varAnoAnterior} supA={cComprei.anoAnteriorValor < BASE_MIN_PECAS}
                   modo={modo} parcial={parcial} diaCorte={dados.diaCorte} onDrill={abrirCompras} drillLabel="ver itens"
+                  sparkNode={spk && <Sparkline data={spk.map((t) => t.compras)} cor={ACCENT.comprei} parcialUltimo />}
                   extraNode={razaoCV != null && (
                     <div style={{ fontSize: '.82rem', color: '#6b7280', marginTop: 6 }}>
                       Razão compra/venda: <b>{razaoCV.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}x</b>
-                      {razaoCV > 2 && <span style={{ marginLeft: 6, color: '#b45309', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 6, padding: '1px 6px', fontSize: '.84rem', fontWeight: 700 }}>estocando acima da venda</span>}
+                      {razaoMediana != null && <span style={{ marginLeft: 6, color: '#9ca3af' }}>· mediana 12m: {razaoMediana.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}x</span>}
+                      {razaoMediana != null && razaoCV > razaoMediana * 1.5 && <span style={{ marginLeft: 6, color: '#b45309', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 6, padding: '1px 6px', fontSize: '.84rem', fontWeight: 700 }}>acima do histórico</span>}
                     </div>
                   )} />
               )}
@@ -1010,6 +1035,26 @@ function PSTooltip({ active, payload, label }: PSTooltipProps) {
     </div>
   );
 }
+// Mini-tendência de 12 meses no rodapé do card. Sem eixos/grade/tooltip. O último
+// ponto (mês corrente parcial) fica com opacidade reduzida (coerente com a barra).
+function Sparkline({ data, cor, parcialUltimo }: { data: number[]; cor: string; parcialUltimo?: boolean }) {
+  if (!data || data.length < 2) return null;
+  const d = data.map((v, i) => ({ i, v }));
+  const last = d.length - 1;
+  return (
+    <div style={{ width: '100%', height: 34 }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={d} margin={{ top: 3, right: 1, left: 1, bottom: 0 }}>
+          <Area type="monotone" dataKey="v" stroke={cor} strokeWidth={1.5} fill={cor} fillOpacity={0.12} isAnimationActive={false}
+            dot={(p: { cx?: number; cy?: number; index?: number }) =>
+              parcialUltimo && p.index === last && p.cx != null && p.cy != null
+                ? <circle key={p.index} cx={p.cx} cy={p.cy} r={2.6} fill={cor} fillOpacity={0.45} stroke="none" />
+                : <g key={p.index} />} />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
 function PecasChart({ pontos }: { pontos: TendPonto[] }) {
   const [view, setView] = useState<PSView>('empilhado');
   // Média sobre MESES FECHADOS apenas (exclui o mês corrente parcial, que puxaria
@@ -1020,6 +1065,11 @@ function PecasChart({ pontos }: { pontos: TendPonto[] }) {
   const ultimo = pontos[pontos.length - 1];
   const data = pontos.map((p) => ({
     ...p,
+    // Linha de ano anterior (YoY): NÃO liga o ponto do mês parcial — Ago/25 cheio
+    // vs Ago/26 parcial geraria um salto vertical no canto. A linha termina no
+    // último mês fechado. (Serviços não são recortados, então não dá pra plotar
+    // um Ago/25 "period-to-date" coerente — optamos por interromper.)
+    psAnoAnt: p.parcial ? null : p.psAnoAnt,
     pecasPct: p.ps > 0 ? (p.pecas / p.ps) * 100 : 0,
     servicosPct: p.ps > 0 ? (p.servicos / p.ps) * 100 : 0,
   }));
@@ -1035,30 +1085,33 @@ function PecasChart({ pontos }: { pontos: TendPonto[] }) {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
-        <div style={{ fontSize: '.85rem', color: '#6b7280', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px' }}>Peças + Serviços · faturamento — últimos 12 meses</div>
+        <div>
+          <div style={{ fontSize: '.85rem', color: '#6b7280', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px' }}>Peças + Serviços · faturamento — últimos 12 meses</div>
+          {!isPct && <div style={{ fontSize: '.72rem', color: '#9ca3af' }}>valores em R$ mil</div>}
+        </div>
         <div style={{ display: 'flex', gap: 4 }}>{tgl('empilhado', 'Empilhado')}{tgl('agrupado', 'Agrupado')}{tgl('pct', '% Mix')}</div>
       </div>
       <div style={{ width: '100%', height: 340 }}>
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 24, right: 12, left: 8, bottom: 0 }}>
             <XAxis dataKey="label" tick={{ fontSize: 13 }} />
-            <YAxis tick={{ fontSize: 13 }} width={isPct ? 42 : 90} domain={isPct ? [0, 100] : undefined} tickFormatter={isPct ? (v) => v + '%' : (v) => fmtMil(v)} />
+            <YAxis tick={{ fontSize: 13 }} width={isPct ? 42 : 56} domain={isPct ? [0, 100] : undefined} tickFormatter={isPct ? (v) => v + '%' : (v) => fmtK(v)} />
             <Tooltip content={<PSTooltip />} cursor={{ fill: 'rgba(0,0,0,.03)' }} />
             <Legend wrapperStyle={{ fontSize: 14 }} />
             {isStack && <ReferenceLine y={media} stroke="#9ca3af" strokeDasharray="5 4" ifOverflow="extendDomain"
-              label={{ value: `média ${fechados.length}m fechados: ${fmtMil(media)}`, position: 'insideTopRight', fill: '#6b7280', fontSize: 12 }} />}
+              label={{ value: `média ${fechados.length}m fechados: ${fmtK(media)}`, position: 'insideTopRight', fill: '#6b7280', fontSize: 12 }} />}
             <Bar dataKey={kP} stackId={stackId} name="Peças" fill={CHART_PECAS} radius={isStack || isPct ? [0, 0, 0, 0] : [3, 3, 0, 0]} maxBarSize={54}>
               {data.map((p, i) => <Cell key={i} fillOpacity={p.parcial ? 0.55 : 1} />)}
-              {view === 'agrupado' && <LabelList dataKey="pecas" position="top" style={{ fontSize: 11, fill: CHART_PECAS, fontWeight: 700 }} formatter={(v: number) => fmtMil(v)} />}
+              {view === 'agrupado' && <LabelList dataKey="pecas" position="top" style={{ fontSize: 11, fill: CHART_PECAS, fontWeight: 700 }} formatter={(v: number) => fmtK(v)} />}
               {isPct && <LabelList dataKey="pecasPct" position="center" style={{ fontSize: 11, fill: '#fff', fontWeight: 700 }} formatter={(v: number) => (v >= 8 ? Math.round(v) + '%' : '')} />}
             </Bar>
             <Bar dataKey={kS} stackId={stackId} name="Serviços" fill={CHART_SERVICOS} radius={[3, 3, 0, 0]} maxBarSize={54}>
               {data.map((p, i) => <Cell key={i} fillOpacity={p.parcial ? 0.55 : 1} />)}
-              {isStack && <LabelList dataKey="ps" position="top" style={{ fontSize: 12, fill: '#374151', fontWeight: 700 }} formatter={(v: number) => fmtMil(v)} />}
-              {view === 'agrupado' && <LabelList dataKey="servicos" position="top" style={{ fontSize: 11, fill: CHART_SERVICOS_INK, fontWeight: 700 }} formatter={(v: number) => fmtMil(v)} />}
+              {isStack && <LabelList dataKey="ps" position="top" style={{ fontSize: 12, fill: '#374151', fontWeight: 700 }} formatter={(v: number) => fmtK(v)} />}
+              {view === 'agrupado' && <LabelList dataKey="servicos" position="top" style={{ fontSize: 11, fill: CHART_SERVICOS_INK, fontWeight: 700 }} formatter={(v: number) => fmtK(v)} />}
               {isPct && <LabelList dataKey="servicosPct" position="center" style={{ fontSize: 11, fill: '#083344', fontWeight: 700 }} formatter={(v: number) => (v >= 8 ? Math.round(v) + '%' : '')} />}
             </Bar>
-            {isStack && <Line type="monotone" dataKey="psAnoAnt" name="Ano anterior" stroke="#9ca3af" strokeWidth={1.5} strokeDasharray="4 3" dot={false} />}
+            {isStack && <Line type="monotone" dataKey="psAnoAnt" name="Ano anterior" stroke="#9ca3af" strokeWidth={1.5} strokeDasharray="4 3" dot={false} connectNulls={false} />}
           </ComposedChart>
         </ResponsiveContainer>
       </div>
