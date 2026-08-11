@@ -9,12 +9,33 @@ import type {
   ProdutoBusca, DadosIniciais, ItemRevisao, LogEntry,
   DadosProdutoManual,
 } from "./types";
+import { authHeaders } from "@/lib/auth/client";
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, options);
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
   return data as T;
+}
+
+// Chamadas autenticadas (rotas que exigem login no servidor — ex.: faturamento).
+async function postAuth<T>(url: string, body: unknown): Promise<T> {
+  return request<T>(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+    body: JSON.stringify(body),
+  });
+}
+async function getAuth<T>(url: string): Promise<T> {
+  return request<T>(url, { headers: { ...(await authHeaders()) } });
+}
+
+// Tipos do faturamento (NF-e)
+export interface CategoriaFat { codigo: string; empresa: string; descricao: string | null; ativo: boolean; ordem: number }
+export interface PrevisaoFat {
+  ok: boolean; jaFaturado?: boolean; etapaAtual?: string; categoriaAtual?: string | null;
+  total?: number; empresa?: string;
+  itens?: Array<{ descricao: string; quantidade: number; valorUnitario: number; valorTotal: number }>;
 }
 
 function post<T>(url: string, body: unknown): Promise<T> {
@@ -128,4 +149,25 @@ export const api = {
   // --- Omie ---
   enviarParaOmie: (id: string, userName?: string) =>
     post<{ success: boolean; numeroPedido: string }>("/api/ppv/pedidos/omie", { id, userName }),
+
+  // --- Faturamento (NF-e) — rotas autenticadas ---
+  simularFaturamento: (id: string) =>
+    postAuth<PrevisaoFat>("/api/ppv/pedidos/faturar/simular", { id }),
+
+  faturar: (id: string, categoria: string, userName?: string) =>
+    postAuth<{ success: boolean; numeroPedido: string; nfNumero: string | null; etapa: string; empresa: string }>(
+      "/api/ppv/pedidos/faturar", { id, categoria, userName }),
+
+  // --- Categorias de faturamento (gerenciamento) ---
+  listarCategoriasFat: (empresa: string, all = false) =>
+    getAuth<{ categorias: CategoriaFat[] }>(`/api/ppv/faturamento-categorias?empresa=${encodeURIComponent(empresa)}${all ? "&all=1" : ""}`),
+
+  salvarCategoriaFat: (c: { codigo: string; empresa: string; descricao?: string; ativo?: boolean; ordem?: number }) =>
+    postAuth<{ ok: boolean }>("/api/ppv/faturamento-categorias", { action: "salvar", ...c }),
+
+  excluirCategoriaFat: (codigo: string, empresa: string) =>
+    postAuth<{ ok: boolean }>("/api/ppv/faturamento-categorias", { action: "excluir", codigo, empresa }),
+
+  sincronizarCategoriasFat: (empresa: string) =>
+    postAuth<{ ok: boolean; total: number }>("/api/ppv/faturamento-categorias", { action: "sincronizar", empresa }),
 };

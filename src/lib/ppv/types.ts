@@ -80,6 +80,9 @@ export interface PPVDetalhes {
   substitutoId: string | null;
   motivoSaida: string;
   pedidoOmie: string;
+  faturadoOmieEm?: string;   // carimbo do faturamento (NF-e) — vazio = não faturado
+  nfNumero?: string;
+  omieEmpresa?: string;      // conta Omie usada (Nova Tratores | Castro Peças)
   usuEmail: string;
   osId: string;
   tipoPedido: string;

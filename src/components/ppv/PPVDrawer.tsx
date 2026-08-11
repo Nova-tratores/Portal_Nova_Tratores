@@ -13,6 +13,7 @@ import { usePermissoes } from "@/hooks/usePermissoes";
 import ModalDevolucao from "./ModalDevolucao";
 import ModalProdutoEstoque from "./ModalProdutoEstoque";
 import ModalImportarKit from "@/components/orcamentos/ModalImportarKit";
+import FaturarModal from "./FaturarModal";
 import OcorrenciaFormModal from "@/components/ocorrencias/OcorrenciaFormModal";
 import { MSG_SEM_PERMISSAO } from "@/lib/permissoes/ui";
 
@@ -47,6 +48,7 @@ export default function PPVDrawer({
   const podeEditar = pode('ppv', 'editar');
   const podeItem = pode('ppv', 'adicionar_item');
   const podeOmie = pode('ppv', 'enviar_omie');
+  const podeFaturar = pode('ppv', 'faturar');
   // Ocorrência rápida por PV (categoria PV pré-selecionada)
   const podeOcorrencia = pode('painel-mecanicos', 'criar_ocorrencia');
   const [showOcorrencia, setShowOcorrencia] = useState(false);
@@ -74,6 +76,8 @@ export default function PPVDrawer({
   const [listaOSAbertas, setListaOSAbertas] = useState<Array<{ id: string; cliente: string; status: string }>>([]);
   const [listaPPVAbertos, setListaPPVAbertos] = useState<Array<{ id: string; cliente: string; status: string }>>([]);
   const [pedidoOmie, setPedidoOmie] = useState("");
+  const [faturadoEm, setFaturadoEm] = useState("");
+  const [showFaturar, setShowFaturar] = useState(false);
   const [qtdExtra, setQtdExtra] = useState(1);
   const [kitModalOpen, setKitModalOpen] = useState(false);
   const [importandoKit, setImportandoKit] = useState(false);
@@ -145,6 +149,7 @@ export default function PPVDrawer({
       setSubstitutoTipo((d.substitutoTipo === "POS" || d.substitutoTipo === "PPV") ? d.substitutoTipo : "POS");
       setSubstitutoId(d.substitutoId || "");
       setPedidoOmie(d.pedidoOmie || "");
+      setFaturadoEm(d.faturadoOmieEm || "");
       setDesconto(d.desconto || 0);
       onSetModalOS(d.osId || "", d.osId ? `OS #${d.osId} (Vinculada)` : "");
       // Cliente: se o pedido já guarda o DOCUMENTO, usa ele (sem ambiguidade de homônimo).
@@ -794,6 +799,17 @@ export default function PPVDrawer({
                   <i className="fas fa-check-circle" style={{ color: "#047857" }} /> Enviado Omie
                 </div>
               )}
+              {pedidoOmie && tipoPedido !== "Remessa" && (
+                faturadoEm ? (
+                  <div className="ppv-rail-btn" style={{ color: "#047857", cursor: "default" }} title="Pedido já faturado (NF-e)">
+                    <i className="fas fa-file-invoice-dollar" style={{ color: "#047857" }} /> Faturado
+                  </div>
+                ) : podeFaturar ? (
+                  <button className="ppv-rail-btn" onClick={() => setShowFaturar(true)} title="Faturar o pedido no Omie (emite NF-e)">
+                    <i className="fas fa-file-invoice-dollar" /> Faturar (NF-e)
+                  </button>
+                ) : null
+              )}
               <div className="ppv-rail-sep" />
               <button className="ppv-rail-btn ghost" onClick={onClose}>
                 <i className="fas fa-times" /> Fechar
@@ -835,6 +851,14 @@ export default function PPVDrawer({
       <ModalDevolucao open={devolucaoOpen} produto={devolucaoProd} onClose={() => setDevolucaoOpen(false)} onConfirm={confirmarDevolucao} confirmando={confirmandoDev} />
       <ModalProdutoEstoque open={!!detalheProd} codigo={detalheProd?.codigo || null} descricao={detalheProd?.descricao} onClose={() => setDetalheProd(null)} />
       <ModalImportarKit open={kitModalOpen} onClose={() => setKitModalOpen(false)} onImportar={(produtos) => importarKitItens(produtos)} />
+      <FaturarModal
+        open={showFaturar}
+        ppvId={ppvId}
+        userName={userProfile?.nome || ""}
+        onClose={() => setShowFaturar(false)}
+        onDone={() => { setFaturadoEm(new Date().toISOString()); onDirty?.(); }}
+        showToast={showToast}
+      />
       {/* Busca de cliente do PRÓPRIO drawer — escreve direto no estado daqui */}
       <ModalBuscaCliente open={buscaClienteOpen} onClose={() => setBuscaClienteOpen(false)} onSelect={aplicarCliente} />
     </>

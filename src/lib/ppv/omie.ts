@@ -59,6 +59,9 @@ async function montarLinksPPV(idPPV: string, osId: string): Promise<string> {
 
 // --- Constantes Omie ---
 const OMIE_COD_CATEG_VENDA = "1.01.03";
+// Etapa "50" = Faturar (TrocarEtapaPedido → emite a NF-e). Fica num só lugar
+// caso alguma conta use um código diferente no pipeline.
+const OMIE_ETAPA_FATURAR = "50";
 
 // --- Client genérico Omie (aceita credenciais) ---
 async function omieCall<T>(
@@ -452,11 +455,12 @@ export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: bool
     const numPedido = (resposta.numero_pedido || String(resposta.codigo_pedido || "")).trim();
     console.log(`[Omie PPV] ${idPPV} → ${tipoLabel} nº ${numPedido} (${acc.name})`);
 
-    // Atualiza PPV: salva pedido_omie + muda status para Fechado
+    // Atualiza PPV: salva pedido_omie + empresa da conta Omie + muda status
+    // (omie_empresa evita re-descobrir a conta na hora de faturar)
     await supabaseFetch(
       `${TBL_PEDIDOS}?id_pedido=eq.${idPPV}`,
       "PATCH",
-      { pedido_omie: numPedido, status: "Concluída" }
+      { pedido_omie: numPedido, omie_empresa: empresaNome, status: "Concluída" }
     );
 
     await registrarLog(idPPV, `${tipoLabel} Omie nº ${numPedido} criado (${acc.name}). PPV fechado.`);
@@ -466,5 +470,187 @@ export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: bool
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[Omie PPV] ${idPPV}: ${msg}`);
     return { sucesso: false, erro: msg };
+  }
+}
+
+// =============================================
+// FATURAMENTO DO PEDIDO DE VENDA (NF-e)
+// Faturar = TrocarEtapaPedido → etapa "50", que emite a NF-e no Omie.
+// O pedido é achado por codigo_pedido_integracao = "PV-{idPPV}" (gravado no
+// envio). A categoria (regra fiscal) é escolhida pelo usuário e aplicada via
+// AlterarPedidoVenda antes de faturar.
+// =============================================
+
+interface OmiePedidoConsulta {
+  cabecalho?: { codigo_pedido?: number; numero_pedido?: string; etapa?: string; codigo_pedido_integracao?: string };
+  total_pedido?: { valor_total_pedido?: number; valor_mercadorias?: number };
+  informacoes_adicionais?: { codigo_categoria?: string };
+  det?: Array<{ produto?: { descricao?: string; quantidade?: number; valor_unitario?: number; valor_total?: number } }>;
+}
+
+const codIntPV = (idPPV: string) => `PV-${idPPV}`;
+
+// Consulta o Pedido de Venda no Omie por código de integração. Devolve null se
+// não existir naquela conta (a Omie responde faultstring nesse caso).
+async function consultarPedidoOmie(codInt: string, acc: OmieAccount): Promise<OmiePedidoConsulta | null> {
+  try {
+    const r = await omieCall<{ pedido_venda_produto?: OmiePedidoConsulta }>(
+      "/produtos/pedido/",
+      "ConsultarPedido",
+      { codigo_pedido_integracao: codInt },
+      acc.key,
+      acc.secret,
+    );
+    return r?.pedido_venda_produto || null;
+  } catch {
+    return null;
+  }
+}
+
+// Descobre em qual conta Omie o pedido do PPV vive. Usa omie_empresa (gravado no
+// envio) e, como fallback pra pedidos antigos, sonda as duas contas.
+async function resolverContaDoPedido(
+  idPPV: string,
+  empresaSalva?: string | null,
+): Promise<{ acc: OmieAccount; pedido: OmiePedidoConsulta } | null> {
+  const codInt = codIntPV(idPPV);
+  if (empresaSalva) {
+    const acc = getAccount(empresaSalva);
+    const pedido = await consultarPedidoOmie(codInt, acc);
+    if (pedido) return { acc, pedido };
+  }
+  for (const acc of OMIE_ACCOUNTS) {
+    if (empresaSalva && acc.name.toLowerCase() === String(empresaSalva).toLowerCase()) continue;
+    const pedido = await consultarPedidoOmie(codInt, acc);
+    if (pedido) return { acc, pedido };
+  }
+  return null;
+}
+
+// Lê o pedido do PPV no Supabase (id_pedido, pedido_omie, omie_empresa, faturado).
+async function lerCabecalhoPPV(idPPV: string): Promise<Record<string, unknown> | null> {
+  const res = await supabaseFetch<Record<string, unknown>[]>(
+    `${TBL_PEDIDOS}?id_pedido=eq.${encodeURIComponent(idPPV)}&select=id_pedido,pedido_omie,omie_empresa,faturado_omie_em,Tipo_Pedido&limit=1`,
+  );
+  return res && res.length ? res[0] : null;
+}
+
+export interface PrevisaoFaturamento {
+  ok: boolean;
+  erro?: string;
+  jaFaturado?: boolean;
+  etapaAtual?: string;
+  categoriaAtual?: string | null;
+  total?: number;
+  empresa?: string;
+  itens?: Array<{ descricao: string; quantidade: number; valorUnitario: number; valorTotal: number }>;
+}
+
+// Preview seguro (NÃO emite nada): consulta o pedido no Omie e devolve itens,
+// total, etapa atual e categoria atual, pra confirmação antes de faturar.
+export async function simularFaturamentoPPV(idPPV: string): Promise<PrevisaoFaturamento> {
+  const cab = await lerCabecalhoPPV(idPPV);
+  if (!cab) return { ok: false, erro: "PPV não encontrado." };
+  if (!cab.pedido_omie) return { ok: false, erro: "Este PPV ainda não foi enviado ao Omie." };
+  if (String(cab.Tipo_Pedido || "Pedido") === "Remessa") return { ok: false, erro: "Remessa não é faturada." };
+
+  const achado = await resolverContaDoPedido(idPPV, cab.omie_empresa as string | null);
+  if (!achado) return { ok: false, erro: "Pedido não encontrado no Omie (ConsultarPedido)." };
+
+  const { acc, pedido } = achado;
+  const etapa = String(pedido.cabecalho?.etapa || "");
+  const jaFaturado = !!cab.faturado_omie_em || (Number(etapa) >= Number(OMIE_ETAPA_FATURAR));
+  const itens = (pedido.det || []).map((d) => ({
+    descricao: String(d.produto?.descricao || ""),
+    quantidade: Number(d.produto?.quantidade || 0),
+    valorUnitario: Number(d.produto?.valor_unitario || 0),
+    valorTotal: Number(d.produto?.valor_total || (Number(d.produto?.quantidade || 0) * Number(d.produto?.valor_unitario || 0))),
+  }));
+  return {
+    ok: true,
+    jaFaturado,
+    etapaAtual: etapa,
+    categoriaAtual: pedido.informacoes_adicionais?.codigo_categoria || null,
+    total: Number(pedido.total_pedido?.valor_total_pedido || 0),
+    empresa: acc.name,
+    itens,
+  };
+}
+
+export interface ResultadoFaturamentoPPV {
+  sucesso: boolean;
+  erro?: string;
+  jaFaturado?: boolean;
+  numeroPedido?: string;
+  nfNumero?: string | null;
+  etapa?: string;
+  empresa?: string;
+}
+
+// Fatura o Pedido de Venda no Omie: (opcional) troca a categoria e avança a
+// etapa pra "50" (emite a NF-e). Idempotente/anti-duplicidade via etapa atual.
+export async function faturarPPVNoOmie(
+  idPPV: string,
+  opts: { categoria?: string } = {},
+): Promise<ResultadoFaturamentoPPV> {
+  const cab = await lerCabecalhoPPV(idPPV);
+  if (!cab) return { sucesso: false, erro: "PPV não encontrado." };
+  if (!cab.pedido_omie) return { sucesso: false, erro: "Este PPV ainda não foi enviado ao Omie." };
+  if (String(cab.Tipo_Pedido || "Pedido") === "Remessa") return { sucesso: false, erro: "Remessa não é faturada." };
+  if (cab.faturado_omie_em) return { sucesso: false, jaFaturado: true, erro: "Este pedido já foi faturado." };
+
+  const achado = await resolverContaDoPedido(idPPV, cab.omie_empresa as string | null);
+  if (!achado) return { sucesso: false, erro: "Pedido não encontrado no Omie (ConsultarPedido)." };
+  const { acc, pedido } = achado;
+  const codInt = codIntPV(idPPV);
+
+  // Anti-duplicidade: se o pedido já está numa etapa de faturamento, não refatura.
+  const etapaAtual = String(pedido.cabecalho?.etapa || "");
+  if (Number(etapaAtual) >= Number(OMIE_ETAPA_FATURAR)) {
+    await supabaseFetch(`${TBL_PEDIDOS}?id_pedido=eq.${encodeURIComponent(idPPV)}`, "PATCH", {
+      faturado_omie_em: new Date().toISOString(),
+    });
+    return { sucesso: false, jaFaturado: true, erro: `Pedido já está na etapa ${etapaAtual} (faturado).`, empresa: acc.name };
+  }
+
+  try {
+    // 1) Troca a categoria (regra fiscal) se veio uma diferente da atual.
+    const categoria = String(opts.categoria || "").trim();
+    if (categoria && categoria !== (pedido.informacoes_adicionais?.codigo_categoria || "")) {
+      await omieCall(
+        "/produtos/pedido/",
+        "AlterarPedidoVenda",
+        { cabecalho: { codigo_pedido_integracao: codInt }, informacoes_adicionais: { codigo_categoria: categoria } },
+        acc.key,
+        acc.secret,
+      );
+    }
+
+    // 2) Fatura: avança pra etapa "50" (emite a NF-e).
+    await omieCall(
+      "/produtos/pedido/",
+      "TrocarEtapaPedido",
+      { codigo_pedido_integracao: codInt, etapa: OMIE_ETAPA_FATURAR },
+      acc.key,
+      acc.secret,
+    );
+
+    // 3) Reconsulta pra registrar a nova etapa e (best-effort) o nº da NF.
+    const depois = await consultarPedidoOmie(codInt, acc);
+    const etapaDepois = String(depois?.cabecalho?.etapa || OMIE_ETAPA_FATURAR);
+    const numeroPedido = String(depois?.cabecalho?.numero_pedido || cab.pedido_omie || "");
+
+    await supabaseFetch(`${TBL_PEDIDOS}?id_pedido=eq.${encodeURIComponent(idPPV)}`, "PATCH", {
+      faturado_omie_em: new Date().toISOString(),
+      categoria_faturamento: categoria || (pedido.informacoes_adicionais?.codigo_categoria || null),
+      omie_empresa: acc.name,
+    });
+    await registrarLog(idPPV, `Faturado no Omie (etapa ${etapaDepois}${categoria ? `, categoria ${categoria}` : ""}) — pedido nº ${numeroPedido} (${acc.name}).`);
+
+    return { sucesso: true, numeroPedido, etapa: etapaDepois, empresa: acc.name, nfNumero: null };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[Omie PPV faturar] ${idPPV}: ${msg}`);
+    return { sucesso: false, erro: msg, empresa: acc.name };
   }
 }

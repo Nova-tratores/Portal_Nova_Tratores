@@ -69,6 +69,7 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'mover_fase', label: 'Mover de fase' },
     { id: 'adicionar_item', label: 'Adicionar/editar itens' },
     { id: 'enviar_omie', label: 'Enviar ao Omie' },
+    { id: 'faturar', label: 'Faturar (NF-e)' },
     { id: 'cancelar', label: 'Cancelar pedido' },
     { id: 'catalogo', label: 'Gerir catálogo de produtos' },
     { id: 'etiquetas', label: 'Etiquetas de identificação' },
