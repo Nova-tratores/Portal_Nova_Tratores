@@ -330,9 +330,33 @@ async function processarOSnum(consulta: Record<string, unknown>, label: string, 
       obs: `Gerado do Omie — OS ${numOS} (${acc.name}). Pedido cliente: ${pedCli || "(sem)"} → PV ${pvNum || "(sem)"} (${pvEmp}).${anexoServico ? "" : " ATENCAO: a NFS-e desta OS nao veio em PDF do Omie (NFS-e municipal) - anexe a nota de servico manualmente."}`,
     };
 
+    // Blindagem: se o PV já tem card (ex.: card de peças-puro criado pelo Omie),
+    // NÃO insere outro — a trava única (pedido+empresa) protege de cobrar em
+    // dobro. Em vez de um erro cru de banco, devolve uma mensagem clara do que
+    // aconteceu e do que fazer (não altera nada por conta própria).
+    if (pvNum) {
+      const { data: jaPV } = await supabase.from("Chamado_NF")
+        .select("id, omie_num_os, nom_cliente, status")
+        .eq("omie_num_pedido", pvNum).eq("omie_empresa", acc.name).limit(1);
+      if (jaPV && jaPV.length && String(jaPV[0].omie_num_os || "") !== numOS) {
+        const c = jaPV[0];
+        debug.pv_ja_tem_card = c.id; debug.conflito_pv = true;
+        debug.resultado = c.omie_num_os
+          ? `O pedido ${pvNum} já está no card #${c.id} da OS ${c.omie_num_os} (${c.nom_cliente || "?"}). Confira qual OS é a dona desse PV ou aponte o pedido certo — não criei outro pra não duplicar.`
+          : `O pedido ${pvNum} já tem o card #${c.id} (peças de ${c.nom_cliente || "?"}, fase "${c.status}"). Não criei outro pra não cobrar as peças em dobro. Se o serviço da OS ${numOS} deve entrar nesse pedido, apague o card #${c.id} e reenvie a OS (nasce um card único com serviço + peça).`;
+        if (!dryRun) return debug;
+      }
+    }
+
     if (dryRun) { debug.resultado = "OK — criaria o card"; debug.row = row; return debug; }
     const { data: ins, error } = await supabase.from("Chamado_NF").insert([row]).select("id").maybeSingle();
-    if (error) { debug.resultado = "Erro ao inserir: " + error.message; return debug; }
+    if (error) {
+      const dup = error.code === "23505" || /duplicate key|omie_pedido_uidx/i.test(error.message || "");
+      debug.resultado = dup
+        ? `Já existe um card para o pedido ${pvNum} (${acc.name}) — não criei outro pra evitar cobrança dupla. Confira o card desse PV no financeiro.`
+        : "Erro ao inserir: " + error.message;
+      return debug;
+    }
     await supabase.from("audit_log").insert([{ user_id: SISTEMA_UID, user_nome: "Sistema (Omie)", sistema: "financeiro", acao: "criar", entidade: "Chamado_NF", entidade_id: String(ins!.id), entidade_label: `NF #${ins!.id} - ${cli.nome || ""}`, detalhes: { origem: "omie_os", os: numOS, pedido: pvNum, empresa: acc.name, valor } }]);
     await notificarCard(origin, "Pós-Vendas", cli.nome || "", { numOS, semNfsePdf: !anexoServico });
     debug.resultado = `Card criado (#${ins!.id})`; debug.card_id = ins!.id;
@@ -520,7 +544,12 @@ async function handler(req: NextRequest) {
                 detalhes: { origem: "omie_os", os: numOS, pedido: pvNum, empresa: acc.name, valor },
               }]);
               await notificarCard(req.nextUrl.origin, "Pós-Vendas", cli.nome || "", { numOS, semNfsePdf: !anexoServico });
-            } else if (error) relatorio[relatorio.length - 1].erro = error.message;
+            } else if (error) {
+              const dup = error.code === "23505" || /duplicate key|omie_pedido_uidx/i.test(error.message || "");
+              relatorio[relatorio.length - 1].erro = dup
+                ? `pedido ${pvNum} já tem card (não duplicado)`
+                : error.message;
+            }
           }
           await new Promise(r => setTimeout(r, 220));
         }
