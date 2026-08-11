@@ -1084,8 +1084,8 @@ function ServicosDecomp({ c, onDetalhe }: { c: Categoria; onDetalhe: () => void 
 }
 
 // Cores do gráfico Peças+Serviços — dos tokens compartilhados (casam com os cards).
-const CHART_PECAS = chartColors.pecas;              // Peças Oficina (tom escuro — o "resto" das peças)
-const CHART_PECAS_BALCAO = '#7cc0f8';              // Peças Balcão (azul mais claro)
+const CHART_PECAS = '#152a6b';                      // Peças Oficina (azul-marinho profundo — o "resto" das peças)
+const CHART_PECAS_BALCAO = '#8fd0ff';              // Peças Balcão (azul claro) — contraste forte com a Oficina
 const CHART_SERVICOS = chartColors.servicosBar;
 const CHART_SERVICOS_INK = chartColors.servicos;
 const COR_POS = chartColors.pos;
