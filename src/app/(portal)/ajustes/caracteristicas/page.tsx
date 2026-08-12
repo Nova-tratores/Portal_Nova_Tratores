@@ -262,15 +262,14 @@ export default function CaracteristicasPage() {
     try {
       const { default: JsPDF } = await import('jspdf');
       const { default: autoTable } = await import('jspdf-autotable');
-      // coluna "Tipo" (se existir entre as caracteristicas)
-      const colTipo = (dados.colunas || []).find((c) => /tipo/i.test(c)) || null;
+      // Todas as colunas da tela: fixas + cada caracteristica dinamica.
       const cols: { key: string; label: string }[] = [
         { key: 'empresa', label: 'Empresa' },
         { key: 'codigo', label: 'Codigo' },
         { key: 'descricao', label: 'Descricao' },
         { key: 'modelo', label: 'Modelo' },
         { key: 'marca', label: 'Marca' },
-        ...(colTipo ? [{ key: colTipo, label: colTipo }] : []),
+        ...(dados.colunas || []).map((c) => ({ key: c, label: c })),
       ];
       const doc = new JsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
       doc.setFontSize(14); doc.setTextColor(220, 38, 38); doc.setFont('helvetica', 'bold');
@@ -285,21 +284,28 @@ export default function CaracteristicasPage() {
         `Gerado em ${new Date().toLocaleString('pt-BR')}`,
       ];
       info.forEach((t, i) => doc.text(t, 14, 23 + i * 4));
-      // Larguras fixas p/ as colunas estreitas; Descricao = 'auto' absorve o resto e
-      // quebra linha. Somatorio das fixas << largura util (A4 paisagem ~281mm com 8mm
-      // de margem), entao a tabela sempre cabe numa folha.
-      const larguraFixa: Record<string, number> = { empresa: 18, codigo: 26, modelo: 50, marca: 45 };
+      // Descricao = 'auto' absorve o restante e quebra linha; as demais recebem
+      // larguras calculadas p/ o somatorio caber na largura util (A4 paisagem ~281mm
+      // com 8mm de margem), independentemente de quantas caracteristicas existam.
+      const usavel = doc.internal.pageSize.getWidth() - 16; // margens 8 + 8
+      const fixaChave: Record<string, number> = { empresa: 16, codigo: 24, modelo: 26, marca: 30 };
+      const reservaChave = Object.values(fixaChave).reduce((a, b) => a + b, 0);
+      const dinamicas = cols.filter((c) => c.key !== 'descricao' && fixaChave[c.key] == null);
+      const descMin = 40; // largura minima reservada p/ a Descricao
+      const espacoDin = Math.max(0, usavel - reservaChave - descMin);
+      const larguraDin = dinamicas.length ? Math.max(8, Math.min(22, espacoDin / dinamicas.length)) : 0;
       const columnStyles: Record<number, { cellWidth: number | 'auto' }> = {};
       cols.forEach((c, i) => {
         if (c.key === 'descricao') columnStyles[i] = { cellWidth: 'auto' };
-        else if (larguraFixa[c.key] != null) columnStyles[i] = { cellWidth: larguraFixa[c.key] };
-        else columnStyles[i] = { cellWidth: 40 }; // Tipo (ou qualquer outra chave)
+        else if (fixaChave[c.key] != null) columnStyles[i] = { cellWidth: fixaChave[c.key] };
+        else columnStyles[i] = { cellWidth: larguraDin };
       });
+      const fonte = cols.length > 10 ? 6 : 7; // encolhe quando ha muitas colunas
       autoTable(doc, {
         startY: 23 + info.length * 4 + 2,
         head: [cols.map((c) => c.label)],
         body: linhas.map((p) => cols.map((c) => valCol(p, c.key) || '-')),
-        styles: { fontSize: 7, cellPadding: 1.5, overflow: 'linebreak' },
+        styles: { fontSize: fonte, cellPadding: 1.5, overflow: 'linebreak' },
         headStyles: { fillColor: [241, 245, 249], textColor: [71, 85, 105], fontStyle: 'bold' },
         columnStyles,
         theme: 'grid',
@@ -362,7 +368,7 @@ export default function CaracteristicasPage() {
         </div>
         <button onClick={abrirSugestoes} disabled={rodando} style={{ padding: '7px 14px', background: '#059669', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer', opacity: rodando ? 0.5 : 1 }} title="Sugere o Tipo: para produtos com o campo vazio">Sugerir Tipo:</button>
         <button onClick={exportarCSV} style={{ padding: '7px 14px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer' }}>Exportar CSV</button>
-        <button onClick={gerarPDF} title="Gera um PDF com as colunas-chave (Empresa, Codigo, Descricao, Modelo, Marca, Tipo), respeitando os filtros" style={{ padding: '7px 14px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer' }}>Gerar PDF</button>
+        <button onClick={gerarPDF} title="Gera um PDF (A4 paisagem) com todas as colunas da tela, respeitando os filtros e a ordenacao" style={{ padding: '7px 14px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer' }}>Gerar PDF</button>
         <button onClick={sincronizar} disabled={rodando} style={{ padding: '7px 14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: rodando ? 'wait' : 'pointer', opacity: rodando ? 0.5 : 1 }}>{rodando ? 'Sincronizando…' : 'Sincronizar agora'}</button>
       </div>
 
