@@ -285,14 +285,25 @@ export default function CaracteristicasPage() {
         `Gerado em ${new Date().toLocaleString('pt-BR')}`,
       ];
       info.forEach((t, i) => doc.text(t, 14, 23 + i * 4));
+      // Larguras fixas p/ as colunas estreitas; Descricao = 'auto' absorve o resto e
+      // quebra linha. Somatorio das fixas << largura util (A4 paisagem ~281mm com 8mm
+      // de margem), entao a tabela sempre cabe numa folha.
+      const larguraFixa: Record<string, number> = { empresa: 18, codigo: 26, modelo: 50, marca: 45 };
+      const columnStyles: Record<number, { cellWidth: number | 'auto' }> = {};
+      cols.forEach((c, i) => {
+        if (c.key === 'descricao') columnStyles[i] = { cellWidth: 'auto' };
+        else if (larguraFixa[c.key] != null) columnStyles[i] = { cellWidth: larguraFixa[c.key] };
+        else columnStyles[i] = { cellWidth: 40 }; // Tipo (ou qualquer outra chave)
+      });
       autoTable(doc, {
         startY: 23 + info.length * 4 + 2,
         head: [cols.map((c) => c.label)],
         body: linhas.map((p) => cols.map((c) => valCol(p, c.key) || '-')),
         styles: { fontSize: 7, cellPadding: 1.5, overflow: 'linebreak' },
         headStyles: { fillColor: [241, 245, 249], textColor: [71, 85, 105], fontStyle: 'bold' },
+        columnStyles,
         theme: 'grid',
-        margin: { left: 10, right: 10 },
+        margin: { left: 8, right: 8 },
       });
       doc.save('caracteristicas-produtos.pdf');
     } catch (ex) {
