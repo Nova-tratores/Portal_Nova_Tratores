@@ -311,6 +311,13 @@ export default function CaracteristicasPage() {
         theme: 'grid',
         margin: { left: 8, right: 8 },
       });
+      // rodape "Pagina X de Y" (mesmo padrao de src/lib/abastecimento/pdf.ts)
+      const totalPag = doc.getNumberOfPages();
+      for (let i = 1; i <= totalPag; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8); doc.setTextColor(150);
+        doc.text(`Pagina ${i} de ${totalPag}`, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 6, { align: 'right' });
+      }
       doc.save('caracteristicas-produtos.pdf');
     } catch (ex) {
       setMsg('Erro ao gerar PDF: ' + (ex as Error).message, 'erro');
