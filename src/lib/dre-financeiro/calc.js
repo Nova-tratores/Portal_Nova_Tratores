@@ -81,10 +81,13 @@ function escondeVencidoAntigo(rows, ref) {
     !(r.data_vencimento && r.data_vencimento < cutoff && statusDerivado(r, ref) === 'VENCIDO'));
 }
 
-// Busca uma tabela (pagar OU receber) com filtros aplicados
-async function buscaTitulosBase(tipo, conta, ini, fim, q) {
+// Busca uma tabela (pagar OU receber) com filtros aplicados.
+// campoData define a coluna de data usada para filtrar a janela [ini, fim]:
+// 'data_vencimento' (padrao) ou 'data_emissao' (eixo de emissao do calendario).
+async function buscaTitulosBase(tipo, conta, ini, fim, q, campoData = 'data_vencimento') {
   const tabela = tabelaPorTipo(tipo);
   const colNome = colunaNomePorTipo(tipo);
+  const colData = campoData === 'data_emissao' ? 'data_emissao' : 'data_vencimento';
   // O PostgREST limita a resposta a 1000 linhas (max-rows do servidor), entao
   // o .limit(10000) sozinho NAO basta: consultas anuais (3000+ titulos) eram
   // truncadas, fazendo a visao Ano divergir da visao Mes. Paginamos com range()
@@ -94,9 +97,9 @@ async function buscaTitulosBase(tipo, conta, ini, fim, q) {
   const todos = [];
   for (;;) {
     let query = supabase.from(tabela)
-      .select(`codigo_lancamento,data_vencimento,data_pagamento,valor_documento,valor_pago,status_titulo,${colNome}`)
-      .gte('data_vencimento', ini)
-      .lte('data_vencimento', fim)
+      .select(`codigo_lancamento,data_vencimento,data_emissao,data_pagamento,valor_documento,valor_pago,status_titulo,${colNome}`)
+      .gte(colData, ini)
+      .lte(colData, fim)
       .order('codigo_lancamento', { ascending: true })
       .range(de, de + PAGINA - 1);
     query = aplicarConta(query, conta);

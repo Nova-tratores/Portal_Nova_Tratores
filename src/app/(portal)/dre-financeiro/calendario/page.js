@@ -131,6 +131,7 @@ export default function CalendarioPage() {
   // --- Estado de controles (espelha as vars do IIFE da fonte) ---------------
   const agora = new Date()
   const [tipo, setTipo] = useState('pagar') // 'pagar' | 'receber' | 'ambos' (pegaTipo)
+  const [eixo, setEixo] = useState('vencimento') // 'vencimento' | 'emissao' (data de referencia)
   const [view, setView] = useState('mes') // 'mes' | 'ano' | 'lista'
   const [mes, setMes] = useState(agora.getMonth() + 1)
   const [ano, setAno] = useState(agora.getFullYear())
@@ -178,13 +179,14 @@ export default function CalendarioPage() {
     const qs = new URLSearchParams()
     qs.set('conta', conta)
     qs.set('tipo', tipo)
+    qs.set('eixo', eixo)
     qs.set('mes', String(mes))
     qs.set('ano', String(ano))
     qs.set('view', view)
     Object.keys(filtros).forEach((k) => { if (filtros[k]) qs.set(k, filtros[k]) })
     if (extra) Object.keys(extra).forEach((k) => { qs.set(k, extra[k]) })
     return qs.toString()
-  }, [conta, tipo, mes, ano, view, filtros])
+  }, [conta, tipo, eixo, mes, ano, view, filtros])
 
   // =========================================================================
   // Carregamento do calendario mensal (port fiel de carregarCalendario)
@@ -206,7 +208,7 @@ export default function CalendarioPage() {
   // =========================================================================
   const carregarAno = useCallback(() => {
     setErroAno('')
-    let qs = 'conta=' + conta + '&tipo=' + tipo + '&ano=' + ano
+    let qs = 'conta=' + conta + '&tipo=' + tipo + '&eixo=' + eixo + '&ano=' + ano
     Object.keys(filtros).forEach((k) => { if (filtros[k]) qs += '&' + k + '=' + encodeURIComponent(filtros[k]) })
     fetch('/api/dre-financeiro/calendario-ano?' + qs)
       .then((r) => r.json())
@@ -216,7 +218,7 @@ export default function CalendarioPage() {
         setKpisAno(d.kpis || {})
       })
       .catch((e) => setErroAno(e.message))
-  }, [conta, tipo, ano, filtros])
+  }, [conta, tipo, eixo, ano, filtros])
 
   // =========================================================================
   // Carregamento das opcoes de filtro (port fiel de carregarFiltros)
@@ -648,8 +650,22 @@ export default function CalendarioPage() {
           >Ambos</button>
         </div>
 
+        {/* Toggle de EIXO: posiciona os titulos por data de vencimento ou de emissao */}
+        <div className="inline-flex rounded-md border border-slate-300 overflow-hidden text-sm" role="group" title="Data usada para posicionar os titulos no calendario">
+          <button
+            type="button" onClick={() => setEixo('vencimento')}
+            className={'px-3 py-1 transition ' + (eixo === 'vencimento' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}
+          >Vencimento</button>
+          <button
+            type="button" onClick={() => setEixo('emissao')}
+            className={'px-3 py-1 transition border-l border-slate-300 ' + (eixo === 'emissao' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}
+          >Emissao</button>
+        </div>
+
         <span className="text-xs text-slate-500 ml-2">Modo:</span>
         <span className="text-xs font-semibold text-slate-700">{labelTipo}</span>
+        <span className="text-xs text-slate-400">·</span>
+        <span className="text-xs font-semibold text-slate-700">por {eixo === 'emissao' ? 'emissao' : 'vencimento'}</span>
 
         <button
           type="button" onClick={sincronizar} disabled={syncRodando}
@@ -907,7 +923,7 @@ export default function CalendarioPage() {
           (drawerAberto ? 'translate-x-0' : 'translate-x-full')}
       >
         <div className="sticky top-0 bg-white border-b border-slate-200 px-5 py-3 flex items-center justify-between">
-          <h2 className="font-semibold text-slate-800">Titulos vencendo em {fmtBRdata(drawerData)}</h2>
+          <h2 className="font-semibold text-slate-800">Titulos {eixo === 'emissao' ? 'emitidos' : 'vencendo'} em {fmtBRdata(drawerData)}</h2>
           <button onClick={fecharDrawer} className="text-slate-500 hover:text-slate-900 text-2xl leading-none">{'×'}</button>
         </div>
         <div className="p-5">
