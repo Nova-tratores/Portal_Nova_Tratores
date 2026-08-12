@@ -36,12 +36,12 @@ function pegaTipo(request: NextRequest): string {
 // Antecipacao de duplicatas (desconto APIP): o titulo a pagar carrega o valor de
 // FACE cheio do recebivel (100% principal, zero juro de factoring) e cai em
 // "Despesas Financeiras / Bancos", inflando o grupo como se fosse despesa quando
-// e' movimentacao de FINANCIAMENTO. Aqui isolamos o principal numa barra propria e
-// trazemos o JURO real (de movimentos_cc) como a despesa de verdade.
-// Discriminador/rotulo espelham calc.js (ehDescontoDuplicataAPIP / GRUPO_COMPOSICAO_ANTECIP,
-// linhas 1471-1474 e 1463); mantidos INLINE aqui pra correcao autocontida — os helpers
-// de calc.js ainda nao estao na main (fix a73f682 na docs/cronograma). Unificar quando deployar.
-const GRUPO_ANTECIP = 'Antecipação de duplicatas (financiamento)'
+// e' movimentacao de FINANCIAMENTO. No /fluxo (visao de CAIXA) o usuario decidiu
+// REMOVER o principal por completo do diagrama — nem barra propria, nem somado nos
+// KPIs de Saidas/Saldo — deixando so' o JURO real (de movimentos_cc) como despesa.
+// (Diferente da DRE, que MANTEM o principal num no' fora do resultado; aqui some.)
+// Discriminador espelha calc.js (ehDescontoDuplicataAPIP, linhas 1471-1474); mantido
+// INLINE aqui pra correcao autocontida — os helpers de calc.js ainda nao estao na main.
 const CAT_JURO_ANTECIP = 'Juros de antecipação de duplicatas'
 function ehDescontoDuplicataAPIP(r: any): boolean {
   return String(r?.codigo_categoria || '') === '2.05.03' && String(r?.id_origem || '') === 'APIP'
@@ -90,12 +90,11 @@ export async function GET(request: NextRequest) {
       ;(data || []).forEach((r: any) => {
         const valor = Number(r.valor_documento) || 0
         if (valor <= 0) return
-        // Principal do desconto de duplicata (APIP) vai pra barra propria de
-        // financiamento (espelha composicao/route.ts:117-121), saindo de
-        // "Despesas Financeiras / Bancos". O juro real entra logo abaixo.
-        const grupo = (t === 'pagar' && ehDescontoDuplicataAPIP(r))
-          ? GRUPO_ANTECIP
-          : (r.grupo_categoria || SEM_GRUPO)
+        // Principal do desconto de duplicata (APIP): REMOVIDO do fluxo (e' so'
+        // financiamento, nao caixa-despesa). Fica so' o juro real, trazido de
+        // movimentos_cc logo abaixo. Sem isso o principal inflava Saidas/Saldo.
+        if (t === 'pagar' && ehDescontoDuplicataAPIP(r)) return
+        const grupo = r.grupo_categoria || SEM_GRUPO
         const categoria = r.descricao_categoria || (r.codigo_categoria || SEM_CAT)
         const terceiro = r[colNome] || SEM_TERC
         const k = t + '|' + grupo
