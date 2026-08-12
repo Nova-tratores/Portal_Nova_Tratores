@@ -9,6 +9,7 @@ import { MSG_SEM_PERMISSAO } from "@/lib/permissoes/ui";
 import SearchModal from "./SearchModal";
 import LogPanel from "./LogPanel";
 import OSGarantiaInfo from "@/components/garantias/OSGarantiaInfo";
+import OSUnidadesInfo from "@/components/ppv/OSUnidadesInfo";
 import OcorrenciaFormModal from "@/components/ocorrencias/OcorrenciaFormModal";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissoes } from "@/hooks/usePermissoes";
@@ -1176,6 +1177,9 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                       <OSGarantiaInfo osId={osId} />
                     </div>
                   )}
+
+                  {/* ── Unidades rastreadas (QR) retiradas pra esta OS ── */}
+                  {mode === "edit" && osId && <OSUnidadesInfo osId={osId} />}
 
 
                   {/* ── Relatório Técnico ── */}

@@ -73,6 +73,7 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'cancelar', label: 'Cancelar pedido' },
     { id: 'catalogo', label: 'Gerir catálogo de produtos' },
     { id: 'etiquetas', label: 'Etiquetas de identificação' },
+    { id: 'rastreio_liberar', label: 'Rastreio de unidades: liberar/recusar/receber devolução' },
   ],
   pos: [
     { id: 'criar', label: 'Criar OS' },

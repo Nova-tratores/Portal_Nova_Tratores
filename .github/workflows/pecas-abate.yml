@@ -1,0 +1,19 @@
+# Rastreio de peças — ABATE automático: cruza as unidades retiradas pra OS
+# (status 'liberada') com o relatório do técnico (PecasInfo) e transiciona:
+# usada -> aplicada · não usada/devolvida -> devolução pendente.
+name: Pecas - Abate de unidades rastreadas
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  abater:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Chamar rota do cron de abate
+        run: |
+          curl -fsS --max-time 120 -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/pecas/unidades/cron/abate"

@@ -22,6 +22,7 @@ import ModalBuscaProduto from "@/components/ppv/ModalBuscaProduto";
 import ModalUsoProduto from "@/components/ppv/ModalUsoProduto";
 import ModalProdutoManual from "@/components/ppv/ModalProdutoManual";
 import ModalRevisoes from "@/components/ppv/ModalRevisoes";
+import BotaoRetiradas from "@/components/ppv/BotaoRetiradas";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import { MSG_SEM_PERMISSAO } from "@/lib/permissoes/ui";
 
@@ -34,6 +35,7 @@ function PPVApp() {
   const podeMoverFase = pode('ppv', 'mover_fase');
   const podeCatalogo = pode('ppv', 'catalogo');
   const podeEtiquetas = pode('ppv', 'etiquetas');
+  const podeRetiradas = pode('ppv', 'rastreio_liberar');
   const searchParams = useSearchParams();
   const pathname = usePathname();
 
@@ -338,6 +340,7 @@ function PPVApp() {
               <i className="fas fa-tags" /> Etiquetas
             </button>
           )}
+          {podeRetiradas && <BotaoRetiradas />}
         </div>
       </div>
 

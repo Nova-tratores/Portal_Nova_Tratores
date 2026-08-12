@@ -11,10 +11,13 @@
 // adiciona à fila → imprime (janela própria, 2 colunas, borda de recorte).
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Loader2, Plus, Printer, Search, Tag, Trash2, X } from 'lucide-react'
+import QRCode from 'qrcode'
+import { ArrowLeft, Loader2, Plus, Printer, QrCode, Search, Tag, Trash2, X } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
+import { authHeaders } from '@/lib/auth/client'
 import SemPermissao from '@/components/SemPermissao'
+import { htmlFolha, htmlRecorte, type BlocoEtiqueta } from '@/lib/ppv/etiquetas-html'
 
 interface ItemBusca {
   conta_omie: string
@@ -25,6 +28,7 @@ interface ItemBusca {
   chegou?: string | null
 }
 interface LinhaEtiqueta {
+  conta: string // 'NOVA' | 'CASTRO' (cru — vai pro rastreio)
   empresa: string
   codigo: string
   descricao: string
@@ -85,8 +89,20 @@ export default function EtiquetasPecasPage() {
   // Posições (0-29) da PRIMEIRA folha que já foram usadas/descoladas — a
   // impressão pula essas células (folha começada não vai pro lixo).
   const [usadas, setUsadas] = useState<Set<number>>(new Set())
+  // Rastreio por unidade: ligado, cada etiqueta impressa vira uma unidade no
+  // banco com QR próprio (o QR substitui o Code 128). Persistido por usuário.
+  const [rastrear, setRastrear] = useState(false)
+  const [imprimindo, setImprimindo] = useState(false)
   const proxId = useRef(1)
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    try { setRastrear(localStorage.getItem('etiquetas_rastrear') === '1') } catch { /* segue */ }
+  }, [])
+  const mudarRastrear = (v: boolean) => {
+    setRastrear(v)
+    try { localStorage.setItem('etiquetas_rastrear', v ? '1' : '0') } catch { /* segue */ }
+  }
 
   // Estado inicial: as últimas peças COMPRADAS (NFs de entrada) — as que
   // acabaram de chegar são as que precisam de etiqueta
@@ -133,6 +149,7 @@ export default function EtiquetasPecasPage() {
   }
 
   const linhaDe = (i: ItemBusca): LinhaEtiqueta => ({
+    conta: i.conta_omie,
     empresa: EMPRESA_LABEL[i.conta_omie] || i.conta_omie,
     codigo: i.codigo,
     descricao: (i.descricao || '').trim(),
@@ -160,12 +177,7 @@ export default function EtiquetasPecasPage() {
         vistos.add(k)
         return true
       })
-      .map(i => ({
-        empresa: EMPRESA_LABEL[i.conta_omie] || i.conta_omie,
-        codigo: i.codigo,
-        descricao: (i.descricao || '').trim(),
-        locacao: locacaoDe(i.caracteristicas),
-      }))
+      .map(linhaDe)
       // NOVA primeiro, depois CASTRO (ordem fixa nas etiquetas)
       .sort((a, b) => a.empresa.localeCompare(b.empresa) * -1)
     if (linhas.length === 0) return
@@ -179,16 +191,89 @@ export default function EtiquetasPecasPage() {
     setSel(new Set())
   }
 
-  const imprimir = () => {
-    if (etiquetas.length === 0) return
-    const blocos = etiquetas.flatMap(e => Array.from({ length: Math.max(1, e.copias) }, () => e))
+  const imprimir = async () => {
+    if (etiquetas.length === 0 || imprimindo) return
+    // cada CÓPIA é uma etiqueta física própria (com rastreio: uma unidade cada)
+    const fisicas = etiquetas.flatMap(e => Array.from({ length: Math.max(1, e.copias) }, () => e))
+    // window.open SÍNCRONO dentro do gesto do clique — depois do await o
+    // popup-blocker mataria a janela. about:blank é same-origin: dá pra
+    // escrever nela depois do await numa boa.
     const w = window.open('', '_blank')
-    if (!w) return
-    w.document.write(formato === 'folha' ? htmlFolha(blocos, usadas) : htmlRecorte(blocos))
-    w.document.close()
+    if (!w) { setErro('O navegador bloqueou a janela de impressão — libere pop-ups.'); return }
+    setImprimindo(true)
+    setErro('')
+    let loteId = '' // pro rollback se algo falhar depois do POST
+    try {
+      let blocos: BlocoEtiqueta[] = fisicas.map(e => ({ linhas: e.linhas }))
+      if (rastrear) {
+        w.document.write('<p style="font-family:sans-serif;padding:20px;color:#555">Registrando unidades e gerando QR codes…</p>')
+        const res = await fetch('/api/pecas/unidades', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+          body: JSON.stringify({
+            etiquetas: fisicas.map(e => ({
+              conta_omie: e.linhas[0]?.conta || '',
+              codigo: e.linhas[0]?.codigo || '',
+              descricao: e.linhas[0]?.descricao || '',
+              locacao: e.linhas[0]?.locacao || '',
+              ...(e.linhas[1] ? {
+                alt_conta_omie: e.linhas[1].conta,
+                alt_codigo: e.linhas[1].codigo,
+                alt_descricao: e.linhas[1].descricao,
+                alt_locacao: e.linhas[1].locacao,
+              } : {}),
+            })),
+          }),
+        })
+        const json = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error(json.error || 'Falha ao registrar as unidades de rastreio.')
+        loteId = json.lote_id || ''
+        const unidades: { id: string; numero: string; codigo: string }[] = json.unidades || []
+        if (unidades.length !== fisicas.length) throw new Error('Registro de unidades incompleto — tente de novo.')
+        // confere o pareamento por índice: se a ordem do retorno divergir da
+        // enviada, é melhor abortar do que imprimir o QR da peça errada
+        for (let i = 0; i < fisicas.length; i++) {
+          if (String(unidades[i].codigo).trim() !== String(fisicas[i].linhas[0]?.codigo || '').trim()) {
+            throw new Error('Pareamento etiqueta↔QR divergiu — nada foi impresso, tente de novo.')
+          }
+        }
+        const qrs = await Promise.all(unidades.map(u =>
+          QRCode.toString(`${window.location.origin}/p/${u.id}`, { type: 'svg', margin: 0, errorCorrectionLevel: 'M' })))
+        blocos = fisicas.map((e, i) => ({ linhas: e.linhas, qrSvg: qrs[i], numero: unidades[i].numero }))
+      }
+      w.document.open()
+      w.document.write(formato === 'folha' ? htmlFolha(blocos, usadas) : htmlRecorte(blocos))
+      w.document.close()
+      if (rastrear) {
+        // unidades registradas: limpa a fila pra um clique repetido não criar
+        // um lote fantasma com QRs novos pras mesmas peças — reimpressão de
+        // etiqueta é pela fila de Retiradas (mesmo QR)
+        setEtiquetas([])
+        setUsadas(new Set())
+      }
+    } catch (e) {
+      w.close()
+      setErro(String(e instanceof Error ? e.message : e))
+      // rollback best-effort: apaga as unidades recém-criadas (ainda 'estoque')
+      // pra falha de QR/impressão não deixar órfãs duplicando a cada tentativa
+      if (loteId) {
+        try {
+          await fetch(`/api/pecas/unidades?lote_id=${encodeURIComponent(loteId)}`, {
+            method: 'DELETE',
+            headers: await authHeaders(),
+          })
+        } catch { /* fica pro depto cancelar na fila */ }
+      }
+    } finally {
+      setImprimindo(false)
+    }
   }
 
   const INP: React.CSSProperties = { width: '100%', padding: '10px 12px 10px 36px', borderRadius: 8, border: '1px solid var(--portal-border)', fontSize: 14, boxSizing: 'border-box', background: 'var(--portal-bg-card)', outline: 'none', color: 'var(--portal-text)' }
+
+  // total de etiquetas FÍSICAS na fila (cópias contam) — com rastreio ligado,
+  // é também o nº de unidades que a impressão vai registrar
+  const totalFisicas = etiquetas.reduce((s, e) => s + Math.max(1, e.copias), 0)
 
   return (
     <div style={{ padding: '18px 22px', maxWidth: 1100, margin: '0 auto', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
@@ -311,7 +396,17 @@ export default function EtiquetasPecasPage() {
             <input type="radio" checked={formato === 'recorte'} onChange={() => setFormato('recorte')} />
             Papel comum (tracejado pra recortar)
           </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 700, color: rastrear ? '#0d9488' : 'var(--portal-text)', cursor: 'pointer' }}>
+            <input type="checkbox" checked={rastrear} onChange={e => mudarRastrear(e.target.checked)} />
+            <QrCode size={14} /> Rastrear unidades (QR)
+          </label>
         </div>
+        {rastrear && (
+          <div style={{ marginTop: 8, fontSize: 11.5, color: 'var(--portal-text-secondary)', lineHeight: 1.5 }}>
+            Cada etiqueta impressa vira uma <strong>unidade rastreada</strong> com QR próprio (o QR entra no lugar do código de barras).
+            Quem pegar a peça escaneia, marca &quot;peguei&quot; e o departamento libera na fila de retiradas.
+          </div>
+        )}
         {formato === 'folha' && (
           <div style={{ marginTop: 10 }}>
             <div style={{ fontSize: 11.5, color: 'var(--portal-text-secondary)', marginBottom: 8, lineHeight: 1.5 }}>
@@ -340,7 +435,7 @@ export default function EtiquetasPecasPage() {
       {/* Fila de etiquetas */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '18px 0 8px' }}>
         <h2 style={{ fontSize: 14, fontWeight: 800, color: 'var(--portal-text)', margin: 0 }}>
-          Fila de impressão ({etiquetas.reduce((s, e) => s + Math.max(1, e.copias), 0)} etiqueta{etiquetas.length === 1 && etiquetas[0]?.copias <= 1 ? '' : 's'})
+          Fila de impressão ({totalFisicas} etiqueta{totalFisicas === 1 ? '' : 's'})
         </h2>
         <div style={{ display: 'flex', gap: 8 }}>
           {etiquetas.length > 0 && (
@@ -348,12 +443,16 @@ export default function EtiquetasPecasPage() {
               <Trash2 size={13} /> Limpar
             </button>
           )}
-          <button onClick={imprimir} disabled={etiquetas.length === 0} style={{
+          <button onClick={imprimir} disabled={etiquetas.length === 0 || imprimindo} style={{
             display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 18px', borderRadius: 8, border: 'none',
-            background: etiquetas.length === 0 ? '#9ca3af' : '#111827', color: '#fff', fontSize: 13, fontWeight: 700,
-            cursor: etiquetas.length === 0 ? 'default' : 'pointer',
+            background: etiquetas.length === 0 || imprimindo ? '#9ca3af' : '#111827', color: '#fff', fontSize: 13, fontWeight: 700,
+            cursor: etiquetas.length === 0 || imprimindo ? 'default' : 'pointer',
           }}>
-            <Printer size={14} /> Imprimir
+            <Printer size={14} /> {imprimindo
+              ? 'Gerando…'
+              : rastrear && totalFisicas > 0
+                ? `Imprimir (${totalFisicas} unidade${totalFisicas === 1 ? '' : 's'} rastreada${totalFisicas === 1 ? '' : 's'})`
+                : 'Imprimir'}
           </button>
         </div>
       </div>
@@ -393,173 +492,5 @@ export default function EtiquetasPecasPage() {
   )
 }
 
-function esc(s: string): string {
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
-
-// ── Código de barras Code 128 (subset B) em SVG puro, sem lib externa ───────
-// Tabela padrão: larguras de barra/espaço de cada símbolo (0-106).
-const C128 = [
-  '212222', '222122', '222221', '121223', '121322', '131222', '122213', '122312', '132212', '221213',
-  '221312', '231212', '112232', '122132', '122231', '113222', '123122', '123221', '223211', '221132',
-  '221231', '213212', '223112', '312131', '311222', '321122', '321221', '312212', '322112', '322211',
-  '212123', '212321', '232121', '111323', '131123', '131321', '112313', '132113', '132311', '211313',
-  '231113', '231311', '112133', '112331', '132131', '113123', '113321', '133121', '313121', '211331',
-  '231131', '213113', '213311', '213131', '311123', '311321', '331121', '312113', '312311', '332111',
-  '314111', '221411', '431111', '111224', '111422', '121124', '121421', '141122', '141221', '112214',
-  '112412', '122114', '122411', '142112', '142211', '241211', '221114', '413111', '241112', '134111',
-  '111242', '121142', '121241', '114212', '124112', '124211', '411212', '421112', '421211', '212141',
-  '214121', '412121', '111143', '111341', '131141', '114113', '114311', '411113', '411311', '113141',
-  '114131', '311141', '411131', '211412', '211214', '211232', '2331112',
-]
-
-// Gera o SVG do Code 128 B do texto (só ASCII imprimível; vazio = sem barra).
-function code128Svg(texto: string, alturaMm: number): string {
-  const t = String(texto).replace(/[^\x20-\x7E]/g, '').slice(0, 30)
-  if (!t) return ''
-  const vals = [...t].map(c => c.charCodeAt(0) - 32)
-  let soma = 104 // start B
-  vals.forEach((v, i) => { soma += v * (i + 1) })
-  const codes = [104, ...vals, soma % 103, 106]
-  let x = 0
-  const rects: string[] = []
-  for (const code of codes) {
-    const padrao = C128[code]
-    for (let i = 0; i < padrao.length; i++) {
-      const w = Number(padrao[i])
-      if (i % 2 === 0) rects.push(`<rect x="${x}" y="0" width="${w}" height="10"/>`)
-      x += w
-    }
-  }
-  return `<svg class="barra" viewBox="0 0 ${x} 10" preserveAspectRatio="none" style="height:${alturaMm}mm" xmlns="http://www.w3.org/2000/svg">${rects.join('')}</svg>`
-}
-
-// ── Impressão em FOLHA ADESIVA pré-cortada 3×10 (Pimaco/Avery 6180) ─────────
-// Folha Carta 215,9×279,4mm · etiqueta 66,675×25,4mm · margem 12,7mm em cima/
-// baixo e 4,76mm nas laterais · 3,175mm entre colunas · SEM espaço entre
-// linhas. Uma peça por etiqueta — imprime direto na folha, é só descolar.
-// `usadas` = posições (0-29) da 1ª folha já descoladas — saem em branco.
-function htmlFolha(blocos: Etiqueta[], usadas: Set<number>): string {
-  const paginas: (Etiqueta | null)[][] = []
-  const fila = [...blocos]
-  let primeira = true
-  while (fila.length > 0) {
-    const celulas: (Etiqueta | null)[] = []
-    for (let p = 0; p < 30; p++) {
-      if (primeira && usadas.has(p)) { celulas.push(null); continue }
-      celulas.push(fila.shift() ?? null)
-    }
-    paginas.push(celulas)
-    primeira = false
-  }
-  // Mês/ano da impressão no canto — mostra o quão atualizada a etiqueta está
-  const agora = new Date()
-  const dataRef = `${String(agora.getMonth() + 1).padStart(2, '0')}/${agora.getFullYear()}`
-  // Foco no CÓDIGO (com código de barras Code 128 logo abaixo) e na DESCRIÇÃO;
-  // locação por último. Na dupla, descrição·locação dividem a linha pra caber
-  // os dois blocos com barra nos 25,4mm.
-  const cel = (e: Etiqueta | null) => {
-    if (e === null) return '    <div class="cel"></div>'
-    const dupla = e.linhas.length > 1
-    return `    <div class="cel${dupla ? ' dupla' : ''}">
-${e.linhas.map(l => {
-      // Na dupla, descrição·locação dividem a linha. Prioridade do usuário:
-      // CÓDIGO e DESCRIÇÃO inteiros — quem corta no "…" é a locação.
-      const descLocDupla = (l.descricao || l.locacao)
-        ? `
-        <div class="descloc">${l.descricao ? `<span class="d">${esc(l.descricao)}</span>` : ''}${l.locacao ? `<span class="l">${l.descricao ? '· ' : ''}${esc(l.locacao)}</span>` : ''}</div>`
-        : ''
-      // Empresa no canto ESQUERDO da linha do código (poupa uma linha por
-      // bloco — pedido do usuário); o span fantasma espelha a largura à
-      // direita pra manter o código centralizado de verdade.
-      // Barra por último — é o item menos importante visualmente.
-      return `      <div class="bloco">
-        <div class="cab">
-          <span class="emp">${esc(l.empresa)}</span>
-          <span class="cod">${esc(l.codigo)}</span>
-          <span class="emp fantasma">${esc(l.empresa)}</span>
-        </div>${dupla
-          ? descLocDupla
-          : `${l.descricao ? `
-        <div class="desc">${esc(l.descricao)}</div>` : ''}${l.locacao ? `
-        <div class="loc-linha">${esc(l.locacao)}</div>` : ''}`}
-        ${code128Svg(l.codigo, dupla ? 4 : 5.5)}
-      </div>`
-    }).join('\n')}
-      <div class="dt">${dataRef}</div>
-    </div>`
-  }
-  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Etiquetas de peças (folha 3×10)</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  @page { size: 215.9mm 279.4mm; margin: 0; }
-  body { font-family: Arial, Helvetica, sans-serif; }
-  .pagina {
-    width: 215.9mm; height: 279.4mm; padding: 12.7mm 4.7625mm;
-    display: grid; grid-template-columns: repeat(3, 66.675mm);
-    grid-auto-rows: 25.4mm; column-gap: 3.175mm;
-    page-break-after: always;
-  }
-  .pagina:last-child { page-break-after: auto; }
-  .cel {
-    position: relative; overflow: hidden; padding: 0.8mm 2mm; text-align: center;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-  }
-  .bloco { max-width: 100%; width: 100%; }
-  .bloco + .bloco { margin-top: 0.8mm; }
-  .cab { display: flex; align-items: center; gap: 1mm; width: 100%; }
-  .emp { flex: 0 1 auto; min-width: 0; font-size: 6pt; font-weight: 800; letter-spacing: .3px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .fantasma { visibility: hidden; }
-  .cod { flex: 1 1 auto; min-width: 0; font-size: 12pt; font-weight: 800; line-height: 1.1; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .barra { display: block; margin: 0.5mm auto 0; width: 94%; }
-  .desc { font-size: 9pt; font-weight: 600; line-height: 1.15; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .loc-linha { font-size: 8pt; color: #333; line-height: 1.1; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .dupla .emp { font-size: 5pt; }
-  .dupla .cod { font-size: 9.5pt; line-height: 1.05; }
-  .dupla .barra { margin: 0.2mm auto; }
-  .descloc { display: flex; justify-content: center; align-items: baseline; gap: 2px; max-width: 100%; font-size: 7pt; font-weight: 600; line-height: 1.1; }
-  .descloc .d { flex: 0 0 auto; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
-  .descloc .l { flex: 0 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #333; }
-  .dt { position: absolute; bottom: 0.5mm; right: 1.4mm; font-size: 5.5pt; color: #666; }
-  @media screen {
-    body { background: #e5e7eb; }
-    .pagina { background: #fff; margin: 10px auto; box-shadow: 0 1px 6px rgba(0,0,0,.25); }
-    .cel { outline: 1px dashed #d1d5db; }
-  }
-</style></head><body>
-${paginas.map(cels => `  <div class="pagina">
-${cels.map(cel).join('\n')}
-  </div>`).join('\n')}
-<script>window.onload = () => { window.print(); }</script>
-</body></html>`
-}
-
-// Impressão em papel comum, 2 colunas com borda tracejada pra recortar
-function htmlRecorte(blocos: Etiqueta[]): string {
-  const agora = new Date()
-  const dataRef = `${String(agora.getMonth() + 1).padStart(2, '0')}/${agora.getFullYear()}`
-  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Etiquetas de peças</title>
-<style>
-  * { box-sizing: border-box; margin: 0; }
-  body { font-family: Arial, Helvetica, sans-serif; padding: 8mm; }
-  .grade { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
-  .etq { position: relative; border: 1.5px dashed #555; border-radius: 4px; padding: 8px 10px 14px; break-inside: avoid; page-break-inside: avoid; }
-  .emp { font-size: 11px; font-weight: 800; letter-spacing: .5px; margin-top: 6px; }
-  .emp:first-child { margin-top: 0; }
-  .linha { font-size: 12px; line-height: 1.35; margin-top: 1px; }
-  .cod { font-weight: 800; font-family: 'Courier New', monospace; }
-  .barra { display: block; margin: 2px auto 3px; width: 72%; }
-  .dt { position: absolute; bottom: 3px; right: 6px; font-size: 8px; color: #666; }
-  @media print { body { padding: 4mm; } }
-</style></head><body>
-<div class="grade">
-${blocos.map(e => `  <div class="etq">
-${e.linhas.map(l => `    <div class="emp">${esc(l.empresa)}</div>
-    <div class="linha"><span class="cod">${esc(l.codigo)}</span> - ${esc(l.descricao)}${l.locacao ? ` - ${esc(l.locacao)}` : ''}</div>
-    ${code128Svg(l.codigo, 7)}`).join('\n')}
-    <div class="dt">${dataRef}</div>
-  </div>`).join('\n')}
-</div>
-<script>window.onload = () => { window.print(); }</script>
-</body></html>`
-}
+// esc/code128Svg/htmlFolha/htmlRecorte vivem em src/lib/ppv/etiquetas-html.ts
+// (compartilhados com a reimpressão da fila /ppv/unidades).
