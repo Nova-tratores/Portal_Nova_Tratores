@@ -67,8 +67,19 @@ export async function buscarVendasEnriquecidas(
 
   // clientes com chave conta-aware (o mesmo código Omie pode existir nas duas contas)
   const clientes = new Map<string, string>()
+  // fallback: cadastro sincronizado ativamente (a tabela `clientes` anda desatualizada
+  // e não traz clientes recém-criados → apareciam como #código na tela)
+  const clientesCadastro = new Map<string, string>()
   const familias = new Map<string, string | null>()
   const categorias = new Map<string, string>()
+
+  // empresa da tabela portal_nt_clientes_cadastro_omie → conta (NOVA/CASTRO)
+  const empresaParaConta = (e: string | null | undefined): string => {
+    const s = (e ?? '').toUpperCase()
+    if (s.includes('NOVA')) return 'NOVA'
+    if (s.includes('CASTRO')) return 'CASTRO'
+    return s
+  }
 
   const buscas: PromiseLike<void>[] = []
 
@@ -92,6 +103,23 @@ export async function buscarVendasEnriquecidas(
           if (nome) clientes.set(`${(c.conta_omie ?? '').toUpperCase()}|${c.codigo_cliente_omie}`, nome)
         }
       }),
+    )
+  }
+
+  for (let i = 0; i < codCli.length; i += CHUNK) {
+    const slice = codCli.slice(i, i + CHUNK)
+    buscas.push(
+      supabaseAdmin
+        .from('portal_nt_clientes_cadastro_omie')
+        .select('cod_cli, empresa, razao_social, nome_fantasia')
+        .in('cod_cli', slice)
+        .then(({ data, error }) => {
+          if (error) throw new Error(`portal_nt_clientes_cadastro_omie: ${error.message}`)
+          for (const c of data ?? []) {
+            const nome = c.razao_social || c.nome_fantasia
+            if (nome) clientesCadastro.set(`${empresaParaConta(c.empresa)}|${c.cod_cli}`, nome)
+          }
+        }),
     )
   }
 
@@ -153,9 +181,19 @@ export async function buscarVendasEnriquecidas(
       (v.numero_pedido
         ? vendedorPorPedido.get(`${(v.conta_omie ?? '').toUpperCase()}|${v.numero_pedido}`) ?? null
         : null),
-    cliente_nome: v.codigo_cliente
-      ? clientes.get(`${(v.conta_omie ?? '').toUpperCase()}|${Number(v.codigo_cliente)}`) ?? null
-      : null,
+    // resolução em cascata p/ não cair no #código interno da Omie:
+    // 1º master `clientes` · 2º cadastro sincronizado (traz clientes recentes)
+    // · 3º nome denormalizado na própria venda
+    cliente_nome: (() => {
+      const chave = v.codigo_cliente
+        ? `${(v.conta_omie ?? '').toUpperCase()}|${Number(v.codigo_cliente)}`
+        : null
+      return (
+        (chave ? clientes.get(chave) : null) ??
+        (chave ? clientesCadastro.get(chave) : null) ??
+        (v.nome_cliente?.trim() || null)
+      )
+    })(),
     produto_familia_real: v.codigo_produto ? familias.get(v.codigo_produto) ?? null : null,
     categoria_descricao: v.codigo_categoria ? categorias.get(v.codigo_categoria) ?? null : null,
   }))
