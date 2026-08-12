@@ -660,12 +660,17 @@ export default function CalendarioPage() {
             type="button" onClick={() => setEixo('emissao')}
             className={'px-3 py-1 transition border-l border-slate-300 ' + (eixo === 'emissao' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}
           >Emissao</button>
+          <button
+            type="button" onClick={() => setEixo('inclusao')}
+            title="Data de inclusao (criacao) do lancamento no Omie — util em Contas a Pagar, onde a nota do fornecedor e lancada dias apos a emissao"
+            className={'px-3 py-1 transition border-l border-slate-300 ' + (eixo === 'inclusao' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}
+          >Criacao</button>
         </div>
 
         <span className="text-xs text-slate-500 ml-2">Modo:</span>
         <span className="text-xs font-semibold text-slate-700">{labelTipo}</span>
         <span className="text-xs text-slate-400">·</span>
-        <span className="text-xs font-semibold text-slate-700">por {eixo === 'emissao' ? 'emissao' : 'vencimento'}</span>
+        <span className="text-xs font-semibold text-slate-700">por {eixo === 'emissao' ? 'emissao' : eixo === 'inclusao' ? 'criacao' : 'vencimento'}</span>
 
         <button
           type="button" onClick={sincronizar} disabled={syncRodando}
@@ -923,7 +928,7 @@ export default function CalendarioPage() {
           (drawerAberto ? 'translate-x-0' : 'translate-x-full')}
       >
         <div className="sticky top-0 bg-white border-b border-slate-200 px-5 py-3 flex items-center justify-between">
-          <h2 className="font-semibold text-slate-800">Titulos {eixo === 'emissao' ? 'emitidos' : 'vencendo'} em {fmtBRdata(drawerData)}</h2>
+          <h2 className="font-semibold text-slate-800">Titulos {eixo === 'emissao' ? 'emitidos' : eixo === 'inclusao' ? 'criados' : 'vencendo'} em {fmtBRdata(drawerData)}</h2>
           <button onClick={fecharDrawer} className="text-slate-500 hover:text-slate-900 text-2xl leading-none">{'×'}</button>
         </div>
         <div className="p-5">

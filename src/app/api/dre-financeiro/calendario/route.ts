@@ -50,8 +50,9 @@ export async function GET(request: NextRequest) {
     const conta = pegaConta(request)
     const tipo = pegaTipo(request)
     const q = montaQuery(request)
-    const eixo = request.nextUrl.searchParams.get('eixo') === 'emissao' ? 'emissao' : 'vencimento'
-    const campoData = eixo === 'emissao' ? 'data_emissao' : 'data_vencimento'
+    const eixoRaw = request.nextUrl.searchParams.get('eixo')
+    const eixo = eixoRaw === 'emissao' || eixoRaw === 'inclusao' ? eixoRaw : 'vencimento'
+    const campoData = eixo === 'emissao' ? 'data_emissao' : eixo === 'inclusao' ? 'data_inclusao' : 'data_vencimento'
     const mes = parseInt(request.nextUrl.searchParams.get('mes') || '', 10) || (new Date().getMonth() + 1)
     const ano = parseInt(request.nextUrl.searchParams.get('ano') || '', 10) || new Date().getFullYear()
 
@@ -69,8 +70,9 @@ export async function GET(request: NextRequest) {
 
     const ref = hoje()
     // escondeVencidoAntigo so faz sentido no eixo vencimento (limpa lixo de anos
-    // passados por data_vencimento). No eixo emissao a janela ja e por emissao.
-    if (eixo !== 'emissao') {
+    // passados por data_vencimento). Nos eixos emissao/inclusao a janela ja e por
+    // aquela coluna, entao nao se aplica.
+    if (eixo === 'vencimento') {
       for (const t of tipos) dadosPorTipo[t] = escondeVencidoAntigo(dadosPorTipo[t], ref)
     }
     const hojeISO = fmtISO(ref)
@@ -94,7 +96,8 @@ export async function GET(request: NextRequest) {
 
     Object.entries(dadosPorTipo).forEach(([t, rows]) => {
       rows.forEach((r: any) => {
-        const k = r[campoData]
+        // data_inclusao vem como timestamp; normaliza para o dia (YYYY-MM-DD).
+        const k = r[campoData] ? String(r[campoData]).slice(0, 10) : null
         if (!k) return
         const slot = slotDe(k)
         const valor = Number(r.valor_documento) || 0

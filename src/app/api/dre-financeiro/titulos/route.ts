@@ -46,8 +46,9 @@ export async function GET(request: NextRequest) {
     const conta = pegaConta(request)
     const tipo = pegaTipo(request)
     const sp = request.nextUrl.searchParams
-    const eixo = sp.get('eixo') === 'emissao' ? 'emissao' : 'vencimento'
-    const campoData = eixo === 'emissao' ? 'data_emissao' : 'data_vencimento'
+    const eixoRaw = sp.get('eixo')
+    const eixo = eixoRaw === 'emissao' || eixoRaw === 'inclusao' ? eixoRaw : 'vencimento'
+    const campoData = eixo === 'emissao' ? 'data_emissao' : eixo === 'inclusao' ? 'data_inclusao' : 'data_vencimento'
     const data = sp.get('data')
     const de = sp.get('de')
     const ate = sp.get('ate')
@@ -67,8 +68,15 @@ export async function GET(request: NextRequest) {
         .select('*')
         .order('valor_documento', { ascending: false })
         .limit(1000)
-      if (data) query = query.eq(campoData, data)
-      else query = query.gte(campoData, de).lte(campoData, ate)
+      // data_inclusao e timestamp: um dia exato vira range [00:00:00, 23:59:59].
+      if (data) {
+        query = eixo === 'inclusao'
+          ? query.gte(campoData, `${data} 00:00:00`).lte(campoData, `${data} 23:59:59`)
+          : query.eq(campoData, data)
+      } else {
+        const ateQ = eixo === 'inclusao' ? `${ate} 23:59:59` : ate
+        query = query.gte(campoData, de as string).lte(campoData, ateQ as string)
+      }
       query = aplicarConta(query, conta)
       query = aplicarFiltrosExtras(query, q)
       const { data: rows, error } = await query
@@ -77,9 +85,9 @@ export async function GET(request: NextRequest) {
     }
 
     const ref = hoje()
-    // No eixo emissao a janela ja e por emissao; escondeVencidoAntigo (por
-    // data_vencimento) so se aplica ao eixo vencimento.
-    const semLixo = eixo === 'emissao' ? todasRows : escondeVencidoAntigo(todasRows, ref)
+    // escondeVencidoAntigo (por data_vencimento) so se aplica ao eixo vencimento;
+    // nos eixos emissao/inclusao a janela ja e por aquela coluna.
+    const semLixo = eixo === 'vencimento' ? escondeVencidoAntigo(todasRows, ref) : todasRows
     const out = filtraPorStatus(semLixo, q.status).map((r: any) => ({
       tipo: r._tipo,
       codigo_lancamento: r.codigo_lancamento,
@@ -90,6 +98,7 @@ export async function GET(request: NextRequest) {
       numero_parcela: r.numero_parcela,
       observacao: r.observacao,
       data_emissao: r.data_emissao,
+      data_inclusao: r.data_inclusao,
       data_vencimento: r.data_vencimento,
       data_pagamento: r.data_pagamento,
       valor_documento: Number(r.valor_documento) || 0,

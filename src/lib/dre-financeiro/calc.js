@@ -83,11 +83,16 @@ function escondeVencidoAntigo(rows, ref) {
 
 // Busca uma tabela (pagar OU receber) com filtros aplicados.
 // campoData define a coluna de data usada para filtrar a janela [ini, fim]:
-// 'data_vencimento' (padrao) ou 'data_emissao' (eixo de emissao do calendario).
+// 'data_vencimento' (padrao), 'data_emissao' ou 'data_inclusao' (criacao no Omie).
 async function buscaTitulosBase(tipo, conta, ini, fim, q, campoData = 'data_vencimento') {
   const tabela = tabelaPorTipo(tipo);
   const colNome = colunaNomePorTipo(tipo);
-  const colData = campoData === 'data_emissao' ? 'data_emissao' : 'data_vencimento';
+  const colData = campoData === 'data_emissao' ? 'data_emissao'
+    : campoData === 'data_inclusao' ? 'data_inclusao'
+    : 'data_vencimento';
+  // data_inclusao e TIMESTAMP ('YYYY-MM-DD HH:MM:SS'): o limite superior no formato
+  // 'YYYY-MM-DD' cortaria as horas do ultimo dia, entao estende ate o fim do dia.
+  const fimQ = colData === 'data_inclusao' ? `${fim} 23:59:59` : fim;
   // O PostgREST limita a resposta a 1000 linhas (max-rows do servidor), entao
   // o .limit(10000) sozinho NAO basta: consultas anuais (3000+ titulos) eram
   // truncadas, fazendo a visao Ano divergir da visao Mes. Paginamos com range()
@@ -97,9 +102,9 @@ async function buscaTitulosBase(tipo, conta, ini, fim, q, campoData = 'data_venc
   const todos = [];
   for (;;) {
     let query = supabase.from(tabela)
-      .select(`codigo_lancamento,data_vencimento,data_emissao,data_pagamento,valor_documento,valor_pago,status_titulo,${colNome}`)
+      .select(`codigo_lancamento,data_vencimento,data_emissao,data_inclusao,data_pagamento,valor_documento,valor_pago,status_titulo,${colNome}`)
       .gte(colData, ini)
-      .lte(colData, fim)
+      .lte(colData, fimQ)
       .order('codigo_lancamento', { ascending: true })
       .range(de, de + PAGINA - 1);
     query = aplicarConta(query, conta);
