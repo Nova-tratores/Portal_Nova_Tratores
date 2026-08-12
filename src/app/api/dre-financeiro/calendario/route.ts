@@ -50,6 +50,8 @@ export async function GET(request: NextRequest) {
     const conta = pegaConta(request)
     const tipo = pegaTipo(request)
     const q = montaQuery(request)
+    const eixo = request.nextUrl.searchParams.get('eixo') === 'emissao' ? 'emissao' : 'vencimento'
+    const campoData = eixo === 'emissao' ? 'data_emissao' : 'data_vencimento'
     const mes = parseInt(request.nextUrl.searchParams.get('mes') || '', 10) || (new Date().getMonth() + 1)
     const ano = parseInt(request.nextUrl.searchParams.get('ano') || '', 10) || new Date().getFullYear()
 
@@ -60,13 +62,17 @@ export async function GET(request: NextRequest) {
     const dadosPorTipo: Record<string, any[]> = {}
     for (const t of tipos) {
       dadosPorTipo[t] = filtraPorStatus(
-        await buscaTitulosBase(t, conta, ini, fim, q),
+        await buscaTitulosBase(t, conta, ini, fim, q, campoData),
         q.status
       )
     }
 
     const ref = hoje()
-    for (const t of tipos) dadosPorTipo[t] = escondeVencidoAntigo(dadosPorTipo[t], ref)
+    // escondeVencidoAntigo so faz sentido no eixo vencimento (limpa lixo de anos
+    // passados por data_vencimento). No eixo emissao a janela ja e por emissao.
+    if (eixo !== 'emissao') {
+      for (const t of tipos) dadosPorTipo[t] = escondeVencidoAntigo(dadosPorTipo[t], ref)
+    }
     const hojeISO = fmtISO(ref)
     const proximos7ISO = fmtISO(addDias(ref, 7))
 
@@ -88,7 +94,7 @@ export async function GET(request: NextRequest) {
 
     Object.entries(dadosPorTipo).forEach(([t, rows]) => {
       rows.forEach((r: any) => {
-        const k = r.data_vencimento
+        const k = r[campoData]
         if (!k) return
         const slot = slotDe(k)
         const valor = Number(r.valor_documento) || 0

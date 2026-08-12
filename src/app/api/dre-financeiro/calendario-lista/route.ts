@@ -56,6 +56,8 @@ export async function GET(request: NextRequest) {
     const conta = pegaConta(request)
     const tipo = pegaTipo(request)
     const q = montaQuery(request)
+    const eixo = request.nextUrl.searchParams.get('eixo') === 'emissao' ? 'emissao' : 'vencimento'
+    const campoData = eixo === 'emissao' ? 'data_emissao' : 'data_vencimento'
     const de = request.nextUrl.searchParams.get('de')
     const ate = request.nextUrl.searchParams.get('ate')
     if (!de || !ate) return NextResponse.json({ erro: 'informe de+ate' }, { status: 400 })
@@ -75,8 +77,8 @@ export async function GET(request: NextRequest) {
       for (;;) {
         let query = supabase.from(tabela)
           .select(`${COLS},${colNome}`)
-          .gte('data_vencimento', de)
-          .lte('data_vencimento', ate)
+          .gte(campoData, de)
+          .lte(campoData, ate)
           .order('codigo_lancamento', { ascending: true })
           .range(off, off + PAGINA - 1)
         query = aplicarConta(query, conta)
@@ -90,7 +92,10 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const filtradas = filtraPorStatus(escondeVencidoAntigo(todas, ref), q.status)
+    // No eixo emissao a janela ja e por emissao; escondeVencidoAntigo (por
+    // data_vencimento) so se aplica ao eixo vencimento.
+    const semLixo = eixo === 'emissao' ? todas : escondeVencidoAntigo(todas, ref)
+    const filtradas = filtraPorStatus(semLixo, q.status)
     const titulos = filtradas.map((r: any) => ({
       tipo: r._tipo,
       codigo_lancamento: r.codigo_lancamento,

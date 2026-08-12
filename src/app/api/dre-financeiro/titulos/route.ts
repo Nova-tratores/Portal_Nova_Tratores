@@ -46,6 +46,8 @@ export async function GET(request: NextRequest) {
     const conta = pegaConta(request)
     const tipo = pegaTipo(request)
     const sp = request.nextUrl.searchParams
+    const eixo = sp.get('eixo') === 'emissao' ? 'emissao' : 'vencimento'
+    const campoData = eixo === 'emissao' ? 'data_emissao' : 'data_vencimento'
     const data = sp.get('data')
     const de = sp.get('de')
     const ate = sp.get('ate')
@@ -65,8 +67,8 @@ export async function GET(request: NextRequest) {
         .select('*')
         .order('valor_documento', { ascending: false })
         .limit(1000)
-      if (data) query = query.eq('data_vencimento', data)
-      else query = query.gte('data_vencimento', de).lte('data_vencimento', ate)
+      if (data) query = query.eq(campoData, data)
+      else query = query.gte(campoData, de).lte(campoData, ate)
       query = aplicarConta(query, conta)
       query = aplicarFiltrosExtras(query, q)
       const { data: rows, error } = await query
@@ -75,7 +77,10 @@ export async function GET(request: NextRequest) {
     }
 
     const ref = hoje()
-    const out = filtraPorStatus(escondeVencidoAntigo(todasRows, ref), q.status).map((r: any) => ({
+    // No eixo emissao a janela ja e por emissao; escondeVencidoAntigo (por
+    // data_vencimento) so se aplica ao eixo vencimento.
+    const semLixo = eixo === 'emissao' ? todasRows : escondeVencidoAntigo(todasRows, ref)
+    const out = filtraPorStatus(semLixo, q.status).map((r: any) => ({
       tipo: r._tipo,
       codigo_lancamento: r.codigo_lancamento,
       conta_omie: r.conta_omie,

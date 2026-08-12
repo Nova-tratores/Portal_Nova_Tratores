@@ -50,6 +50,8 @@ export async function GET(request: NextRequest) {
     const conta = pegaConta(request)
     const tipo = pegaTipo(request)
     const q = montaQuery(request)
+    const eixo = request.nextUrl.searchParams.get('eixo') === 'emissao' ? 'emissao' : 'vencimento'
+    const campoData = eixo === 'emissao' ? 'data_emissao' : 'data_vencimento'
     const ano = parseInt(request.nextUrl.searchParams.get('ano') || '', 10) || new Date().getFullYear()
 
     const ini = fmtISO(inicioMes(ano, 1))
@@ -59,13 +61,16 @@ export async function GET(request: NextRequest) {
     const dadosPorTipo: Record<string, any[]> = {}
     for (const t of tipos) {
       dadosPorTipo[t] = filtraPorStatus(
-        await buscaTitulosBase(t, conta, ini, fim, q),
+        await buscaTitulosBase(t, conta, ini, fim, q, campoData),
         q.status
       )
     }
 
     const ref = hoje()
-    for (const t of tipos) dadosPorTipo[t] = escondeVencidoAntigo(dadosPorTipo[t], ref)
+    // escondeVencidoAntigo so faz sentido no eixo vencimento (ver rota mes).
+    if (eixo !== 'emissao') {
+      for (const t of tipos) dadosPorTipo[t] = escondeVencidoAntigo(dadosPorTipo[t], ref)
+    }
 
     // Inicializa 12 slots (1..12)
     const meses: Record<number, any> = {}
@@ -80,8 +85,8 @@ export async function GET(request: NextRequest) {
 
     Object.entries(dadosPorTipo).forEach(([t, rows]) => {
       rows.forEach((r: any) => {
-        if (!r.data_vencimento) return
-        const m = parseInt(String(r.data_vencimento).slice(5, 7), 10)
+        if (!r[campoData]) return
+        const m = parseInt(String(r[campoData]).slice(5, 7), 10)
         if (!meses[m]) return
         const slot = meses[m]
         const valor = Number(r.valor_documento) || 0
