@@ -56,15 +56,18 @@ export async function GET(request: NextRequest) {
     const conta = pegaConta(request)
     const tipo = pegaTipo(request)
     const q = montaQuery(request)
-    const eixo = request.nextUrl.searchParams.get('eixo') === 'emissao' ? 'emissao' : 'vencimento'
-    const campoData = eixo === 'emissao' ? 'data_emissao' : 'data_vencimento'
+    const eixoRaw = request.nextUrl.searchParams.get('eixo')
+    const eixo = eixoRaw === 'emissao' || eixoRaw === 'inclusao' ? eixoRaw : 'vencimento'
+    const campoData = eixo === 'emissao' ? 'data_emissao' : eixo === 'inclusao' ? 'data_inclusao' : 'data_vencimento'
     const de = request.nextUrl.searchParams.get('de')
     const ate = request.nextUrl.searchParams.get('ate')
     if (!de || !ate) return NextResponse.json({ erro: 'informe de+ate' }, { status: 400 })
+    // data_inclusao e timestamp: estende o limite superior ate o fim do dia.
+    const ateQ = eixo === 'inclusao' ? `${ate} 23:59:59` : ate
 
     const tipos = tipo === 'ambos' ? ['pagar', 'receber'] : [tipo]
     const COLS = 'codigo_lancamento,conta_omie,numero_documento,numero_documento_fiscal,' +
-                 'numero_parcela,data_emissao,data_vencimento,data_pagamento,valor_documento,' +
+                 'numero_parcela,data_emissao,data_inclusao,data_vencimento,data_pagamento,valor_documento,' +
                  'valor_pago,status_titulo,grupo_categoria,descricao_categoria,descricao_departamento'
     const ref = hoje()
 
@@ -78,7 +81,7 @@ export async function GET(request: NextRequest) {
         let query = supabase.from(tabela)
           .select(`${COLS},${colNome}`)
           .gte(campoData, de)
-          .lte(campoData, ate)
+          .lte(campoData, ateQ)
           .order('codigo_lancamento', { ascending: true })
           .range(off, off + PAGINA - 1)
         query = aplicarConta(query, conta)
@@ -92,9 +95,9 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // No eixo emissao a janela ja e por emissao; escondeVencidoAntigo (por
-    // data_vencimento) so se aplica ao eixo vencimento.
-    const semLixo = eixo === 'emissao' ? todas : escondeVencidoAntigo(todas, ref)
+    // escondeVencidoAntigo (por data_vencimento) so se aplica ao eixo vencimento;
+    // nos eixos emissao/inclusao a janela ja e por aquela coluna.
+    const semLixo = eixo === 'vencimento' ? escondeVencidoAntigo(todas, ref) : todas
     const filtradas = filtraPorStatus(semLixo, q.status)
     const titulos = filtradas.map((r: any) => ({
       tipo: r._tipo,
@@ -105,6 +108,7 @@ export async function GET(request: NextRequest) {
       numero_documento_fiscal: r.numero_documento_fiscal,
       numero_parcela: r.numero_parcela,
       data_emissao: r.data_emissao,
+      data_inclusao: r.data_inclusao,
       data_vencimento: r.data_vencimento,
       data_pagamento: r.data_pagamento,
       valor_documento: Number(r.valor_documento) || 0,

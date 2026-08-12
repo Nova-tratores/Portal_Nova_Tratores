@@ -50,8 +50,9 @@ export async function GET(request: NextRequest) {
     const conta = pegaConta(request)
     const tipo = pegaTipo(request)
     const q = montaQuery(request)
-    const eixo = request.nextUrl.searchParams.get('eixo') === 'emissao' ? 'emissao' : 'vencimento'
-    const campoData = eixo === 'emissao' ? 'data_emissao' : 'data_vencimento'
+    const eixoRaw = request.nextUrl.searchParams.get('eixo')
+    const eixo = eixoRaw === 'emissao' || eixoRaw === 'inclusao' ? eixoRaw : 'vencimento'
+    const campoData = eixo === 'emissao' ? 'data_emissao' : eixo === 'inclusao' ? 'data_inclusao' : 'data_vencimento'
     const ano = parseInt(request.nextUrl.searchParams.get('ano') || '', 10) || new Date().getFullYear()
 
     const ini = fmtISO(inicioMes(ano, 1))
@@ -68,7 +69,7 @@ export async function GET(request: NextRequest) {
 
     const ref = hoje()
     // escondeVencidoAntigo so faz sentido no eixo vencimento (ver rota mes).
-    if (eixo !== 'emissao') {
+    if (eixo === 'vencimento') {
       for (const t of tipos) dadosPorTipo[t] = escondeVencidoAntigo(dadosPorTipo[t], ref)
     }
 
