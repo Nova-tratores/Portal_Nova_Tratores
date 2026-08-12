@@ -12,6 +12,7 @@ import SemPermissao from '@/components/SemPermissao';
 // ---------- tipos ----------
 interface Produto {
   empresa: string; codigo_produto: number | string; codigo?: string; descricao?: string;
+  modelo?: string; marca?: string;
   caracteristicas?: Record<string, string>;
 }
 interface CaractPayload {
@@ -35,6 +36,9 @@ function fmtDataHora(iso?: string | null): string {
 
 const thStyle: React.CSSProperties = { background: '#f1f5f9', color: '#475569', fontSize: '.65rem', textTransform: 'uppercase', letterSpacing: '.4px', padding: '8px 10px', textAlign: 'left', borderBottom: '1px solid #e2e8f0', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none', position: 'sticky', top: 0, zIndex: 1 };
 const tdStyle: React.CSSProperties = { padding: '6px 10px', borderBottom: '1px solid #f1f5f9', color: '#334155', fontSize: '.8rem', verticalAlign: 'top' };
+// filtros por coluna (segunda linha do cabecalho) — mesmo padrao de /ajustes/remessas
+const thFiltroStyle: React.CSSProperties = { background: '#f8fafc', padding: '0 6px 6px', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 32, zIndex: 1 };
+const filtroInput: React.CSSProperties = { width: '100%', minWidth: 60, border: '1px solid #cbd5e1', borderRadius: 4, padding: '3px 6px', fontSize: '.72rem', fontWeight: 400 };
 
 function EmpBadge({ empresa }: { empresa: string }) {
   const castro = empresa === 'CASTRO';
@@ -49,6 +53,7 @@ export default function CaracteristicasPage() {
   const [dados, setDados] = useState<CaractPayload>({ produtos: [], colunas: [], ultimaSync: null });
   const [filtro, setFiltro] = useState('');
   const [empFiltro, setEmpFiltro] = useState('');
+  const [filtros, setFiltros] = useState<Record<string, string>>({}); // filtro por coluna (cabecalho)
   const [status, setStatus] = useState('');
   const [statusTipo, setStatusTipo] = useState<'ok' | 'erro' | 'info'>('info');
   const [rodando, setRodando] = useState(false);
@@ -153,6 +158,8 @@ export default function CaracteristicasPage() {
     if (col === 'empresa') return p.empresa || '';
     if (col === 'codigo') return p.codigo || '';
     if (col === 'descricao') return p.descricao || '';
+    if (col === 'modelo') return p.modelo || '';
+    if (col === 'marca') return p.marca || '';
     return (p.caracteristicas && p.caracteristicas[col]) || '';
   }, []);
 
@@ -166,12 +173,18 @@ export default function CaracteristicasPage() {
         String(p.descricao || '').toLowerCase().includes(termo) ||
         String(p.empresa || '').toLowerCase().includes(termo));
     }
+    // filtros por coluna (cabecalho): AND entre colunas com valor
+    const ativos = Object.entries(filtros).filter(([, v]) => v && v.trim() !== '');
+    if (ativos.length) {
+      arr = arr.filter((p) =>
+        ativos.every(([col, v]) => valCol(p, col).toLowerCase().includes(v.trim().toLowerCase())));
+    }
     if (sort.key) {
       const key = sort.key;
       arr = arr.slice().sort((a, b) => valCol(a, key).localeCompare(valCol(b, key), 'pt-BR', { numeric: true, sensitivity: 'base' }) * sort.dir);
     }
     return arr;
-  }, [dados.produtos, filtro, empFiltro, sort, valCol]);
+  }, [dados.produtos, filtro, empFiltro, filtros, sort, valCol]);
 
   const ordenarPor = useCallback((key: string) => {
     setSort((s) => s.key === key ? { key, dir: -s.dir } : { key, dir: 1 });
@@ -228,8 +241,8 @@ export default function CaracteristicasPage() {
 
   // ---- CSV ----
   const exportarCSV = useCallback(() => {
-    const cols = ['empresa', 'codigo', 'descricao', ...(dados.colunas || [])];
-    const labels = ['Empresa', 'Codigo', 'Descricao', ...(dados.colunas || [])];
+    const cols = ['empresa', 'codigo', 'descricao', 'modelo', 'marca', ...(dados.colunas || [])];
+    const labels = ['Empresa', 'Codigo', 'Descricao', 'Modelo', 'Marca', ...(dados.colunas || [])];
     const cell = (v: string) => /[",;\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
     const rows = [labels.map(cell).join(';')];
     linhas.forEach((p) => rows.push(cols.map((c) => cell(valCol(p, c))).join(';')));
@@ -240,6 +253,54 @@ export default function CaracteristicasPage() {
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }, [dados.colunas, linhas, valCol]);
+
+  // ---- PDF (colunas-chave, respeita filtros e ordenacao atuais) ----
+  const gerandoPdfRef = useRef(false);
+  const gerarPDF = useCallback(async () => {
+    if (gerandoPdfRef.current) return;
+    gerandoPdfRef.current = true;
+    try {
+      const { default: JsPDF } = await import('jspdf');
+      const { default: autoTable } = await import('jspdf-autotable');
+      // coluna "Tipo" (se existir entre as caracteristicas)
+      const colTipo = (dados.colunas || []).find((c) => /tipo/i.test(c)) || null;
+      const cols: { key: string; label: string }[] = [
+        { key: 'empresa', label: 'Empresa' },
+        { key: 'codigo', label: 'Codigo' },
+        { key: 'descricao', label: 'Descricao' },
+        { key: 'modelo', label: 'Modelo' },
+        { key: 'marca', label: 'Marca' },
+        ...(colTipo ? [{ key: colTipo, label: colTipo }] : []),
+      ];
+      const doc = new JsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      doc.setFontSize(14); doc.setTextColor(220, 38, 38); doc.setFont('helvetica', 'bold');
+      doc.text('Nova Tratores — Caracteristicas por produto', 14, 16);
+      doc.setFontSize(8.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(110);
+      const resumoFiltros: string[] = [];
+      if (empFiltro) resumoFiltros.push(`Empresa: ${empFiltro}`);
+      if (filtro.trim()) resumoFiltros.push(`Busca: "${filtro.trim()}"`);
+      Object.entries(filtros).forEach(([k, v]) => { if (v && v.trim()) resumoFiltros.push(`${k}: "${v.trim()}"`); });
+      const info = [
+        `${linhas.length} produto(s)` + (resumoFiltros.length ? ` · filtros: ${resumoFiltros.join(' · ')}` : ' · sem filtros'),
+        `Gerado em ${new Date().toLocaleString('pt-BR')}`,
+      ];
+      info.forEach((t, i) => doc.text(t, 14, 23 + i * 4));
+      autoTable(doc, {
+        startY: 23 + info.length * 4 + 2,
+        head: [cols.map((c) => c.label)],
+        body: linhas.map((p) => cols.map((c) => valCol(p, c.key) || '-')),
+        styles: { fontSize: 7, cellPadding: 1.5, overflow: 'linebreak' },
+        headStyles: { fillColor: [241, 245, 249], textColor: [71, 85, 105], fontStyle: 'bold' },
+        theme: 'grid',
+        margin: { left: 10, right: 10 },
+      });
+      doc.save('caracteristicas-produtos.pdf');
+    } catch (ex) {
+      setMsg('Erro ao gerar PDF: ' + (ex as Error).message, 'erro');
+    } finally {
+      gerandoPdfRef.current = false;
+    }
+  }, [dados.colunas, linhas, valCol, empFiltro, filtro, filtros, setMsg]);
 
   // ---- sugestoes de tipo ----
   const abrirSugestoes = useCallback(async () => {
@@ -290,6 +351,7 @@ export default function CaracteristicasPage() {
         </div>
         <button onClick={abrirSugestoes} disabled={rodando} style={{ padding: '7px 14px', background: '#059669', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer', opacity: rodando ? 0.5 : 1 }} title="Sugere o Tipo: para produtos com o campo vazio">Sugerir Tipo:</button>
         <button onClick={exportarCSV} style={{ padding: '7px 14px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer' }}>Exportar CSV</button>
+        <button onClick={gerarPDF} title="Gera um PDF com as colunas-chave (Empresa, Codigo, Descricao, Modelo, Marca, Tipo), respeitando os filtros" style={{ padding: '7px 14px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer' }}>Gerar PDF</button>
         <button onClick={sincronizar} disabled={rodando} style={{ padding: '7px 14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: rodando ? 'wait' : 'pointer', opacity: rodando ? 0.5 : 1 }}>{rodando ? 'Sincronizando…' : 'Sincronizar agora'}</button>
       </div>
 
@@ -310,22 +372,32 @@ export default function CaracteristicasPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
-                {([['empresa', 'Empresa'], ['codigo', 'Codigo'], ['descricao', 'Descricao']] as [string, string][]).map(([k, lbl]) => (
+                {([['empresa', 'Empresa'], ['codigo', 'Codigo'], ['descricao', 'Descricao'], ['modelo', 'Modelo'], ['marca', 'Marca']] as [string, string][]).map(([k, lbl]) => (
                   <th key={k} onClick={() => ordenarPor(k)} style={thStyle}>{lbl}{sort.key === k ? (sort.dir > 0 ? ' ▲' : ' ▼') : ''}</th>
                 ))}
                 {colunas.map((c) => (
                   <th key={c} onClick={() => ordenarPor(c)} style={thStyle}>{c}{sort.key === c ? (sort.dir > 0 ? ' ▲' : ' ▼') : ''}</th>
                 ))}
               </tr>
+              <tr>
+                {['empresa', 'codigo', 'descricao', 'modelo', 'marca', ...colunas].map((k) => (
+                  <th key={k} style={thFiltroStyle}>
+                    <input value={filtros[k] || ''} onChange={(e) => setFiltros((f) => ({ ...f, [k]: e.target.value }))}
+                      placeholder="filtrar…" style={filtroInput} />
+                  </th>
+                ))}
+              </tr>
             </thead>
             <tbody>
               {linhas.length === 0 ? (
-                <tr><td colSpan={3 + colunas.length} style={{ ...tdStyle, textAlign: 'center', color: '#94a3b8', padding: 30 }}>Nenhum produto bate com o filtro.</td></tr>
+                <tr><td colSpan={5 + colunas.length} style={{ ...tdStyle, textAlign: 'center', color: '#94a3b8', padding: 30 }}>Nenhum produto bate com o filtro.</td></tr>
               ) : linhas.map((p) => (
                 <tr key={`${p.empresa}:${p.codigo_produto}`} style={{ borderTop: '1px solid #f1f5f9' }}>
                   <td style={tdStyle}><EmpBadge empresa={p.empresa} /></td>
                   <td style={{ ...tdStyle, fontFamily: 'monospace', fontSize: '.72rem' }}>{p.codigo || '-'}</td>
                   <td style={tdStyle}>{p.descricao || '-'}</td>
+                  <td style={{ ...tdStyle, color: p.modelo ? '#334155' : '#cbd5e1' }}>{p.modelo || '-'}</td>
+                  <td style={{ ...tdStyle, color: p.marca ? '#334155' : '#cbd5e1' }}>{p.marca || '-'}</td>
                   {colunas.map((col) => {
                     const cellKey = `${p.empresa}:${p.codigo_produto}:${col}`;
                     const v = (p.caracteristicas || {})[col] || '';
