@@ -96,6 +96,11 @@ export async function GET(request: NextRequest) {
     const ini = sp.get('de') ? String(sp.get('de')) : fmtISO(inicioMes(ano, mes))
     const fim = sp.get('ate') ? String(sp.get('ate')) : fmtISO(fimMes(ano, mes))
     const tipos = tipo === 'ambos' ? ['pagar', 'receber'] : [tipo]
+    // Opt-in `semAntecip=1` (usado pelo /fluxo, visao de CAIXA): REMOVE por completo
+    // o principal da antecipacao de duplicatas (APIP) em vez de realoca-lo pra barra
+    // de financiamento. Default (ausente) mantem o comportamento atual — a DRE ›
+    // Composicao continua exibindo a barra propria (fix a73f682), intocada.
+    const semAntecip = ['1', 'true', 'sim'].includes(String(sp.get('semAntecip') || '').toLowerCase())
 
     const SEM_GRUPO = 'Sem grupo'
     const SEM_CAT = 'Sem categoria'
@@ -114,8 +119,10 @@ export async function GET(request: NextRequest) {
       data.forEach((r: any) => {
         const valor = Number(r.valor_documento) || 0
         if (valor <= 0) return
-        // Principal do desconto de duplicata (APIP) vai pra barra própria de
-        // financiamento, espelhando o nó fora do resultado da DRE.
+        // Principal do desconto de duplicata (APIP): por padrão vai pra barra própria
+        // de financiamento (espelha o nó fora do resultado da DRE). Com semAntecip
+        // (visão de caixa do /fluxo) é removido por completo.
+        if (semAntecip && t === 'pagar' && ehDescontoDuplicataAPIP(r)) return
         const grupo = (t === 'pagar' && ehDescontoDuplicataAPIP(r))
           ? GRUPO_COMPOSICAO_ANTECIP
           : (r.grupo_categoria || SEM_GRUPO)

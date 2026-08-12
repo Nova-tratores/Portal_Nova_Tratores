@@ -25,9 +25,9 @@ function pegaConta(request: NextRequest): string {
   return c
 }
 
-// Espelha o split da antecipacao feito na rota /fluxo (ver comentario la). Inline
-// pra correcao autocontida — helpers canonicos em calc.js ainda nao estao na main.
-const GRUPO_ANTECIP = 'Antecipação de duplicatas (financiamento)'
+// Espelha o tratamento da antecipacao feito na rota /fluxo (ver comentario la): o
+// PRINCIPAL APIP e' removido do fluxo; so' o JURO (de movimentos_cc) sobra em
+// "Despesas Financeiras / Bancos". Inline pra correcao autocontida.
 const CAT_JURO_ANTECIP = 'Juros de antecipação de duplicatas'
 const GRUPO_DESP_FIN = 'Despesas Financeiras / Bancos'
 function ehDescontoDuplicataAPIP(r: any): boolean {
@@ -89,9 +89,6 @@ export async function GET(request: NextRequest) {
 
     const tabela = tabelaPorTipo(tipo)
     const colNome = colunaNomePorTipo(tipo)
-    // Barra de financiamento (principal APIP): titulos de "Despesas Financeiras /
-    // Bancos" com codigo_categoria 2.05.03 e id_origem APIP.
-    const ehBucketAntecip = grupoFiltro === GRUPO_ANTECIP
     // PAGINAR (mesma armadilha do /fluxo): o .limit(50000) nao escapa do corte de
     // 1000 linhas do PostgREST -> o `total` de qualquer periodo anual vinha
     // subestimado. selectPaginado com .order('id') (chave estavel obrigatoria).
@@ -103,23 +100,17 @@ export async function GET(request: NextRequest) {
       q = aplicarConta(q, conta)
       // Aplica grupo direto na query (campo simples). Categoria e terceiro filtra
       // em memoria por causa do fallback descricao/codigo (mesma logica da agregacao).
-      if (ehBucketAntecip) {
-        // grupo sintetico: no banco os titulos moram em "Despesas Financeiras /
-        // Bancos" com codigo_categoria 2.05.03 (o APIP e' filtrado em memoria abaixo).
-        q = q.eq('grupo_categoria', GRUPO_DESP_FIN).eq('codigo_categoria', '2.05.03')
-      } else if (grupoFiltro) {
-        q = q.eq('grupo_categoria', grupoFiltro)
-      }
+      if (grupoFiltro) q = q.eq('grupo_categoria', grupoFiltro)
       return q
     })
 
     const SEM_CAT = 'Sem categoria', SEM_TERC = 'Sem nome'
     const filtered = (data || []).filter((r: any) => {
       if ((Number(r.valor_documento) || 0) <= 0) return false
-      // Split da antecipacao (espelha /fluxo): na barra de financiamento so entra
-      // APIP; em "Despesas Financeiras / Bancos" o APIP e' excluido (foi pra barra).
-      if (ehBucketAntecip) { if (!ehDescontoDuplicataAPIP(r)) return false }
-      else if (grupoFiltro === GRUPO_DESP_FIN && ehDescontoDuplicataAPIP(r)) return false
+      // Principal APIP foi REMOVIDO do fluxo: ao abrir "Despesas Financeiras /
+      // Bancos" os titulos-principal nao devem reaparecer (so' o juro, servido do
+      // ramo de movimentos_cc acima).
+      if (grupoFiltro === GRUPO_DESP_FIN && ehDescontoDuplicataAPIP(r)) return false
       if (categoriaFiltro) {
         const c = r.descricao_categoria || r.codigo_categoria || SEM_CAT
         if (String(c) !== categoriaFiltro) return false

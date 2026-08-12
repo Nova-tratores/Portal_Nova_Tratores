@@ -410,7 +410,9 @@ export default function FluxoPage() {
     const pr = resolverPeriodo()
     if (!pr.de || !pr.ate) return
     setCarregandoTreemap(true)
-    const qs = 'conta=' + conta + '&tipo=' + tipo + '&de=' + pr.de + '&ate=' + pr.ate
+    // semAntecip=1: o /fluxo e' visao de CAIXA -> remove o principal da antecipacao
+    // de duplicatas (APIP). A DRE › Composicao NAO passa o param e mantem a barra.
+    const qs = 'conta=' + conta + '&tipo=' + tipo + '&de=' + pr.de + '&ate=' + pr.ate + '&semAntecip=1'
     fetch('/api/dre-financeiro/composicao?' + qs).then((r) => r.json()).then((d) => {
       setCarregandoTreemap(false)
       if (d.erro) { alert('Erro: ' + d.erro); return }
@@ -530,7 +532,8 @@ export default function FluxoPage() {
     setComparativoInfo('Carregando ' + anosComparar.length + ' anos...')
     // 1 chamada /api/composicao por ano em paralelo
     const promises = anosComparar.map((y) => {
-      const qs = 'conta=' + conta + '&tipo=' + tipo + '&de=' + y + '-01-01&ate=' + y + '-12-31'
+      // semAntecip=1: idem Treemap — visao de caixa do /fluxo, sem o principal APIP.
+      const qs = 'conta=' + conta + '&tipo=' + tipo + '&de=' + y + '-01-01&ate=' + y + '-12-31&semAntecip=1'
       return fetch('/api/dre-financeiro/composicao?' + qs).then((r) => r.json()).then((d) => ({ ano: y, dados: d }))
     })
     Promise.all(promises).then((resultados) => {
