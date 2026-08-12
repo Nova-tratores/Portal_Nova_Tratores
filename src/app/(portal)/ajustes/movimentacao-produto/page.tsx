@@ -173,16 +173,21 @@ export default function MovimentacaoProdutoPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conta]);
 
-  // troca de conta: zera produto e dados (o codigo_produto é por conta)
+  // troca de conta: zera produto e dados (o codigo_produto é por conta).
+  // Em modo snapshot (?s= na URL) o retrato é a fonte da verdade e vale para
+  // qualquer conta — não zerar (senão o snapshot some se o recipiente já tiver
+  // uma conta local selecionada). Uma busca ao vivo limpa o ?s= e reativa isto.
   useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('s')) return;
     setProdutoSel(null); setDados(null); setTermo(''); setSugestoes([]); setStatusMsg('');
   }, [conta]);
 
   // modo snapshot: ?s=<hash> carrega o retrato congelado (1 leitura, sem Omie).
-  // Declarado DEPOIS do reset por conta para prevalecer no mesmo ciclo.
+  // Independente da conta local: o payload traz a própria conta, então abre
+  // mesmo para quem nunca selecionou NOVA/CASTRO neste navegador.
   const snapCarregado = useRef(false);
   useEffect(() => {
-    if (snapCarregado.current || !conta) return;
+    if (snapCarregado.current) return;
     const hash = new URLSearchParams(window.location.search).get('s');
     if (!hash) { snapCarregado.current = true; return; }
     snapCarregado.current = true;
@@ -210,7 +215,7 @@ export default function MovimentacaoProdutoPage() {
       } finally { setCarregando(false); }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conta]);
+  }, []);
 
   // botão Compartilhar: gera o snapshot e copia o link (vale 30 dias)
   const compartilhar = useCallback(async () => {
@@ -331,6 +336,9 @@ export default function MovimentacaoProdutoPage() {
   if (!permLoading && userProfile && !pode('ajustes', 'movimentacao-produto')) return <SemPermissao />;
 
   const resumo = dados?.resumo;
+  // Conta efetiva: em modo snapshot vale a conta do próprio retrato, mesmo que o
+  // recipiente não tenha NOVA/CASTRO selecionada neste navegador.
+  const contaEfetiva = conta || dados?.conta || '';
 
   return (
     <div style={{ maxWidth: 1300, margin: '0 auto', padding: '20px 24px' }}>
@@ -338,7 +346,7 @@ export default function MovimentacaoProdutoPage() {
         <div>
           <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>Movimentação de produto</h1>
           <p style={{ color: '#64748b', fontSize: '.82rem', maxWidth: 760 }}>
-            Conta <b>{conta ? conta.toUpperCase() : '—'}</b>. Entradas e saídas de estoque de um produto no período
+            Conta <b>{contaEfetiva ? contaEfetiva.toUpperCase() : '—'}</b>. Entradas e saídas de estoque de um produto no período
             (direto do Omie), com cliente/fornecedor cruzado das vendas, compras e remessas do portal.
           </p>
         </div>
@@ -448,7 +456,7 @@ export default function MovimentacaoProdutoPage() {
         </div>
       )}
 
-      {!conta ? (
+      {!conta && !dados ? (
         <div style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', borderRadius: 8, padding: 16, fontSize: '.85rem' }}>
           Esta tela precisa de uma conta especifica. Selecione <b>NOVA</b> ou <b>CASTRO</b> no menu acima.
         </div>
