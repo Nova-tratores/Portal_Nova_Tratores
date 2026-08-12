@@ -136,6 +136,26 @@ async function lerTodasCaractRows(): Promise<any[]> {
   return todos;
 }
 
+/** Mapa `${conta_lower}:${codigo_produto}` -> { modelo, marca } da tabela `produtos`. */
+async function lerModeloMarca(): Promise<Map<string, { modelo: string; marca: string }>> {
+  const mapa = new Map<string, { modelo: string; marca: string }>();
+  const PAGE = 1000;
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from('produtos')
+      .select('conta_omie, codigo_produto, modelo, marca')
+      .order('codigo_produto', { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    (data || []).forEach((p: any) => {
+      const key = `${String(p.conta_omie).toLowerCase()}:${String(p.codigo_produto)}`;
+      mapa.set(key, { modelo: p.modelo != null ? String(p.modelo) : '', marca: p.marca != null ? String(p.marca) : '' });
+    });
+    if (!data || data.length < PAGE) break;
+  }
+  return mapa;
+}
+
 /** Matriz para a tela: { produtos, colunas, total, ultimaSync, sync }. */
 export async function lerMatrizCaracteristicas(): Promise<any> {
   const todos: any[] = [];
@@ -151,6 +171,9 @@ export async function lerMatrizCaracteristicas(): Promise<any> {
     todos.push(...(data || []).map(decodeCaractRow));
     if (!data || data.length < PAGE) break;
   }
+  // Modelo/marca vêm da tabela `produtos` (por conta_omie MINÚSCULO + codigo_produto).
+  // Join em tempo de leitura: aparecem sem migration nem re-sync.
+  const modeloMarca = await lerModeloMarca();
   const colunasSet = new Set<string>();
   let ultimaSync: string | null = null;
   const produtos = todos.map((r) => {
@@ -161,7 +184,12 @@ export async function lerMatrizCaracteristicas(): Promise<any> {
       colunasSet.add(k);
     });
     if (r.atualizado_em && (!ultimaSync || r.atualizado_em > ultimaSync)) ultimaSync = r.atualizado_em;
-    return { empresa: r.conta_omie, codigo_produto: r.codigo_produto, codigo: r.codigo, descricao: r.descricao, caracteristicas: car };
+    const mm = modeloMarca.get(`${String(r.conta_omie).toLowerCase()}:${String(r.codigo_produto)}`) || null;
+    return {
+      empresa: r.conta_omie, codigo_produto: r.codigo_produto, codigo: r.codigo, descricao: r.descricao,
+      modelo: (mm && mm.modelo) || '', marca: (mm && mm.marca) || '',
+      caracteristicas: car,
+    };
   });
   const colunas = Array.from(colunasSet).sort((a, b) => a.localeCompare(b, 'pt-BR'));
   const st = await lerStatusSync();
