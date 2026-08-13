@@ -459,10 +459,17 @@ export async function reverterCorrecao(correcaoId: number): Promise<any> {
 
 // ---- Histórico ----
 
-export async function listarHistorico(conta?: Conta, produto?: number | null): Promise<any[]> {
+export async function listarHistorico(conta?: Conta, produto?: number | null, origem?: string | null): Promise<any[]> {
   let q = supabase.from('cmc_correcoes').select('*').order('criado_em', { ascending: false }).limit(1000);
   if (conta) q = q.eq('conta_omie', conta);
   if (produto != null && Number.isFinite(produto)) q = q.eq('codigo_produto', produto);
+  if (origem) {
+    // Correções de garantia hoje gravam origem='garantia'; o dashboard antigo gravava
+    // 'dashboard' e as mais antigas ficaram com NULL. Ao filtrar por garantia incluímos
+    // todos esses legados para não esconder correções da mesma natureza.
+    if (origem === 'garantia') q = q.or('origem.eq.garantia,origem.eq.dashboard,origem.is.null');
+    else q = q.eq('origem', origem);
+  }
   const { data, error } = await q;
   if (error) throw new Error(error.message);
   const rows = (data || []) as any[];
