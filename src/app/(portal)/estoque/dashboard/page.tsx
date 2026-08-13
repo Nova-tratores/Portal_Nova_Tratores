@@ -87,10 +87,10 @@ interface CompraRow {
 type InternoBalde = 'retorno' | 'puro' | null;
 // Candidata de NF-e devolvida por /api/estoque/dashboard/nf (resolver do DANFE).
 interface NotaCand { numero?: string; nCodNF: number; tipo?: string; dataEmissao?: string | null; valorNF?: number; cancelada?: boolean }
-interface OSRow { numero_os?: string; data?: string; cliente?: string; codigo_cliente?: number | null; valor?: number; conta?: string; tem_nota?: boolean | null; nfse_num?: string | null; internoBalde?: InternoBalde }
+interface OSRow { numero_os?: string; ncod_os?: number; data?: string; cliente?: string; codigo_cliente?: number | null; valor?: number; conta?: string; tem_nota?: boolean | null; nfse_num?: string | null; internoBalde?: InternoBalde }
 type TipoServico = 'HR' | 'KM' | 'OUTRO';
 interface ServicoOSRow {
-  numero_os?: string; data?: string; cliente?: string; codigo_cliente?: number | null;
+  numero_os?: string; ncod_os?: number; data?: string; cliente?: string; codigo_cliente?: number | null;
   descricao?: string; tipo?: TipoServico; categoria?: string; categoria_desc?: string;
   qtde?: number; valor_unit?: number; valor_total?: number; conta?: string; tem_nota?: boolean | null; nfse_num?: string | null;
   internoBalde?: InternoBalde;
@@ -340,17 +340,24 @@ export default function DashboardPage() {
     }
   }, [abrirDanfe]);
 
-  // Clique no número da OS → abre a visualização de impressão do Pós-vendas
-  // (/api/pos/ordens/<Id_Ordem>/print, que auto-imprime). Só existe para OS que
-  // passaram pelo módulo Pós-vendas; senão, avisa.
-  const abrirOS = useCallback(async (numeroOs?: string | null) => {
+  // Clique no número da OS → abre a impressão. 1º tenta o Pós-vendas
+  // (/api/pos/ordens/<Id_Ordem>/print, mais completa); se a OS não passou por lá,
+  // cai na impressão estilo Omie (/api/clientes/print via ConsultarOS por nCodOS),
+  // que funciona para QUALQUER OS faturada na Omie.
+  const abrirOS = useCallback(async (numeroOs?: string | null, ncodOs?: number | null, conta?: string | null) => {
     const num = String(numeroOs || '').trim();
-    if (!num) return;
     try {
-      const r = await fetch(`/api/pos/ordens/por-omie?num=${encodeURIComponent(num)}`);
-      const d = await r.json();
-      if (d.idOrdem) window.open(`/api/pos/ordens/${encodeURIComponent(d.idOrdem)}/print`, '_blank');
-      else alert(`OS ${num} não está no módulo Pós-vendas — impressão indisponível.`);
+      if (num) {
+        const r = await fetch(`/api/pos/ordens/por-omie?num=${encodeURIComponent(num)}`);
+        const d = await r.json();
+        if (d.idOrdem) { window.open(`/api/pos/ordens/${encodeURIComponent(d.idOrdem)}/print`, '_blank'); return; }
+      }
+      if (ncodOs) {
+        const empresa = conta === 'CASTRO' ? 'Castro Pecas' : 'Nova Tratores';
+        window.open(`/api/clientes/print?tipo=os&cod=${ncodOs}&empresa=${encodeURIComponent(empresa)}`, '_blank');
+        return;
+      }
+      alert(`OS ${num || ''} — não foi possível localizar os dados para impressão.`);
     } catch (ex) {
       alert('Erro ao abrir a OS: ' + (ex as Error).message);
     }
@@ -883,7 +890,7 @@ export default function DashboardPage() {
                       <tbody>
                         {(servOrdenados || []).filter((s) => !tipoFiltro || s.tipo === tipoFiltro).slice(0, LIMITE_LINHAS).map((s, i) => (
                           <tr key={i}>
-                            <td style={tdStyle}>{s.numero_os ? <button onClick={() => abrirOS(s.numero_os)} style={linkBtn} title="Abrir impressão da OS">{s.numero_os}</button> : '—'}</td>
+                            <td style={tdStyle}>{s.numero_os ? <button onClick={() => abrirOS(s.numero_os, s.ncod_os, s.conta)} style={linkBtn} title="Abrir impressão da OS">{s.numero_os}</button> : '—'}</td>
                             <td style={tdStyle}>{s.data}</td>
                             <td style={tdStyle}>{s.cliente || (s.codigo_cliente ? '#' + s.codigo_cliente : '—')}</td>
                             <td style={{ ...tdStyle, maxWidth: 320 }} title={s.descricao}>{(s.descricao || '—').length > 70 ? (s.descricao || '').slice(0, 70) + '…' : (s.descricao || '—')}</td>
@@ -921,7 +928,7 @@ export default function DashboardPage() {
                   <tbody>
                     {(osOrdenados || []).slice(0, LIMITE_LINHAS).map((o, i) => (
                       <tr key={i}>
-                        <td style={tdStyle}>{o.numero_os ? <button onClick={() => abrirOS(o.numero_os)} style={linkBtn} title="Abrir impressão da OS">{o.numero_os}</button> : '—'}</td>
+                        <td style={tdStyle}>{o.numero_os ? <button onClick={() => abrirOS(o.numero_os, o.ncod_os, o.conta)} style={linkBtn} title="Abrir impressão da OS">{o.numero_os}</button> : '—'}</td>
                         <td style={tdStyle}>{o.data}</td>
                         <td style={tdStyle}>{o.cliente || (o.codigo_cliente ? '#' + o.codigo_cliente : '—')}</td>
                         <td style={tdStyle}><NotaBadge temNota={o.tem_nota} balde={o.internoBalde} /></td>
