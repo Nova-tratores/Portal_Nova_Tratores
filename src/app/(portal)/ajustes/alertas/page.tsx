@@ -3,7 +3,7 @@
 // Lista alertas (cmc_alertas), permite marcar lido (individual/todos), rodar a
 // verificacao manualmente (worker-ready: POST /rodar-agora + polling /status).
 // Filtros: conta (ContaSelector - permite Todas), lido/nao-lido, tipo.
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
@@ -81,9 +81,78 @@ function DetalheAlerta({ a }: { a: Alerta }) {
   return <span style={{ fontSize: '.72rem', color: '#64748b' }}>{txt}</span>;
 }
 
-const thStyle: React.CSSProperties = { background: '#f8fafc', color: '#475569', fontSize: '.65rem', textTransform: 'uppercase', letterSpacing: '.4px', padding: '8px 10px', textAlign: 'left', borderBottom: '1px solid #e2e8f0', fontWeight: 600, whiteSpace: 'nowrap' };
+// versao TEXTO do detalhe (para filtro por coluna, ordenacao e PDF) — espelha DetalheAlerta
+function detalheTexto(a: Alerta): string {
+  const d = a.detalhe || {};
+  if (a.tipo === 'negativo') {
+    let s = 'Saldo ';
+    if (d.saldoAnt != null) s += fmtNum(d.saldoAnt) + ' -> ';
+    s += fmtNum(d.saldoHoje != null ? d.saldoHoje : d.saldo);
+    if (d.cmc != null) s += ' · CMC ' + fmtBRL(d.cmc);
+    return s;
+  }
+  if (a.tipo === 'cmc_queda') {
+    let s = `CMC ${fmtBRL(d.cmcAnt)} -> ${fmtBRL(d.cmcHoje)} (-${fmtPct(d.pct)})`;
+    if (d.saldoHoje != null) s += ` · saldo ${fmtNum(d.saldoHoje)}`;
+    return s;
+  }
+  if (a.tipo === 'suspeita_empresa_errada') {
+    const oe = d.outraEmpresa || {};
+    let s = `Negativo aqui (saldo ${fmtNum(d.saldoAqui)}); na ${oe.contaLabel || 'outra empresa'} tem saldo ${fmtNum(oe.saldo)}`;
+    if (oe.cmc != null) s += `, CMC ${fmtBRL(oe.cmc)}`;
+    s += '. -> fazer contagem fisica, nao corrigir.';
+    return s;
+  }
+  if (a.tipo === 'recebimento_garantia') {
+    const itens = Array.isArray(d.itensRisco) ? d.itensRisco : [];
+    let s = `NF ${d.numeroNFe || '?'}`;
+    if (d.fornecedor) s += ` - ${d.fornecedor}`;
+    if (d.natureza) s += ` (${d.natureza})`;
+    if (d.maiorImpactoPct != null) s += ` · maior impacto ~-${fmtPct(d.maiorImpactoPct)}`;
+    if (itens.length > 0) s += ` · ${itens.length} item(ns) de risco`;
+    return s;
+  }
+  if (a.tipo === 'pedido_parado') {
+    let s = `Pedido #${d.numero || '?'} parado ha ${d.diasParado} dias na etapa ${d.etapaNome || d.etapa || '?'}`;
+    if (d.criadoPor) s += ` · criado por ${d.criadoPor}`;
+    if (d.valor != null) s += ` · ${fmtBRL(d.valor)}`;
+    if (d.cliente) s += ` · Cliente: ${d.cliente}`;
+    return s;
+  }
+  try { return JSON.stringify(d); } catch { return ''; }
+}
+
+// colunas ordenaveis/filtraveis (a coluna "Acao" fica de fora)
+const COLS: { key: string; label: string }[] = [
+  { key: 'quando', label: 'Quando' },
+  { key: 'conta', label: 'Conta' },
+  { key: 'tipo', label: 'Tipo' },
+  { key: 'produto', label: 'Produto' },
+  { key: 'detalhe', label: 'Detalhe' },
+];
+function valTexto(a: Alerta, key: string): string {
+  if (key === 'quando') return fmtDataHora(a.criado_em);
+  if (key === 'conta') return a.conta_omie || '';
+  if (key === 'tipo') return tipoInfo(a.tipo).label;
+  if (key === 'produto') {
+    const prod = a.codigo_produto != null ? String(a.codigo_produto) : (a.codigo_integracao || '');
+    return `${prod} ${a.descricao_produto || ''}`.trim();
+  }
+  if (key === 'detalhe') return detalheTexto(a);
+  return '';
+}
+// chave de ordenacao: "quando" ordena pela data crua (ISO) p/ ficar cronologico
+function valSort(a: Alerta, key: string): string {
+  if (key === 'quando') return a.criado_em || '';
+  return valTexto(a, key);
+}
+
+const thStyle: React.CSSProperties = { background: '#f8fafc', color: '#475569', fontSize: '.65rem', textTransform: 'uppercase', letterSpacing: '.4px', padding: '8px 10px', textAlign: 'left', borderBottom: '1px solid #e2e8f0', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' };
 const tdStyle: React.CSSProperties = { padding: '8px 10px', borderBottom: '1px solid #f1f5f9', color: '#334155', fontSize: '.82rem' };
 const selStyle: React.CSSProperties = { padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, background: '#fff', cursor: 'pointer' };
+// filtro por coluna (segunda linha do cabecalho) — mesmo padrao de /ajustes/caracteristicas
+const thFiltroStyle: React.CSSProperties = { background: '#f8fafc', padding: '0 6px 6px', borderBottom: '1px solid #e2e8f0' };
+const filtroInput: React.CSSProperties = { width: '100%', minWidth: 60, border: '1px solid #cbd5e1', borderRadius: 4, padding: '3px 6px', fontSize: '.72rem', fontWeight: 400 };
 
 export default function AlertasPage() {
   const { userProfile } = useAuth();
@@ -99,6 +168,8 @@ export default function AlertasPage() {
   const [listaStatus, setListaStatus] = useState('');
   const [verifStatus, setVerifStatus] = useState('');
   const [erro, setErro] = useState('');
+  const [filtros, setFiltros] = useState<Record<string, string>>({}); // filtro por coluna (cabecalho)
+  const [sort, setSort] = useState<{ key: string | null; dir: number }>({ key: null, dir: 1 });
 
   const verifTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const contaRef = useRef(conta);
@@ -210,6 +281,75 @@ export default function AlertasPage() {
     if (!verif.rodando) stopVerifTimer();
   }, [verif.rodando, pollVerif, stopVerifTimer]);
 
+  const ordenarPor = useCallback((key: string) => {
+    setSort((s) => (s.key === key ? { key, dir: -s.dir } : { key, dir: 1 }));
+  }, []);
+
+  // aplica filtros por coluna (AND) + ordenacao sobre a lista vinda do servidor
+  const linhas = useMemo(() => {
+    let arr = alertas;
+    const ativos = Object.entries(filtros).filter(([, v]) => v && v.trim() !== '');
+    if (ativos.length) {
+      arr = arr.filter((a) =>
+        ativos.every(([col, v]) => valTexto(a, col).toLowerCase().includes(v.trim().toLowerCase())));
+    }
+    if (sort.key) {
+      const key = sort.key;
+      arr = arr.slice().sort((a, b) => valSort(a, key).localeCompare(valSort(b, key), 'pt-BR', { numeric: true, sensitivity: 'base' }) * sort.dir);
+    }
+    return arr;
+  }, [alertas, filtros, sort]);
+
+  // data/hora da ultima atualizacao (ultima verificacao concluida)
+  const ultimaAtualizacao = verif.ultimoResumo?.rodadoEm || verif.fim || null;
+
+  // ---- PDF (respeita filtros por coluna e ordenacao atuais) ----
+  const gerandoPdfRef = useRef(false);
+  const gerarPDF = useCallback(async () => {
+    if (gerandoPdfRef.current) return;
+    gerandoPdfRef.current = true;
+    try {
+      const { default: JsPDF } = await import('jspdf');
+      const { default: autoTable } = await import('jspdf-autotable');
+      const doc = new JsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      doc.setFontSize(14); doc.setTextColor(220, 38, 38); doc.setFont('helvetica', 'bold');
+      doc.text('Nova Tratores — Alertas (verificacao diaria)', 14, 16);
+      doc.setFontSize(8.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(110);
+      const resumoFiltros: string[] = [];
+      if (conta) resumoFiltros.push(`Conta: ${conta}`);
+      if (filtroLido !== '') resumoFiltros.push(`Situacao: ${filtroLido === '0' ? 'Nao lidos' : 'Lidos'}`);
+      if (filtroTipo) resumoFiltros.push(`Tipo: ${tipoInfo(filtroTipo).label}`);
+      Object.entries(filtros).forEach(([k, v]) => { if (v && v.trim()) resumoFiltros.push(`${k}: "${v.trim()}"`); });
+      const info = [
+        `${linhas.length} alerta(s)` + (resumoFiltros.length ? ` · filtros: ${resumoFiltros.join(' · ')}` : ' · sem filtros'),
+        `Ultima atualizacao: ${fmtDataHora(ultimaAtualizacao)}`,
+        `Gerado em ${new Date().toLocaleString('pt-BR')}`,
+      ];
+      info.forEach((t, i) => doc.text(t, 14, 23 + i * 4));
+      autoTable(doc, {
+        startY: 23 + info.length * 4 + 2,
+        head: [COLS.map((c) => c.label)],
+        body: linhas.map((a) => COLS.map((c) => valTexto(a, c.key) || '-')),
+        styles: { fontSize: 7, cellPadding: 1.5, overflow: 'linebreak' },
+        headStyles: { fillColor: [241, 245, 249], textColor: [71, 85, 105], fontStyle: 'bold' },
+        columnStyles: { 0: { cellWidth: 32 }, 1: { cellWidth: 20 }, 2: { cellWidth: 34 }, 3: { cellWidth: 60 }, 4: { cellWidth: 'auto' } },
+        theme: 'grid',
+        margin: { left: 8, right: 8 },
+      });
+      const totalPag = doc.getNumberOfPages();
+      for (let i = 1; i <= totalPag; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8); doc.setTextColor(150);
+        doc.text(`Pagina ${i} de ${totalPag}`, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 6, { align: 'right' });
+      }
+      doc.save('alertas.pdf');
+    } catch (ex) {
+      setErro('Erro ao gerar PDF: ' + (ex as Error).message);
+    } finally {
+      gerandoPdfRef.current = false;
+    }
+  }, [linhas, conta, filtroLido, filtroTipo, filtros, ultimaAtualizacao]);
+
   if (!permLoading && userProfile && !pode('ajustes', 'alertas')) return <SemPermissao />;
 
   const porTipo: Record<string, number> = { negativo: 0, cmc_queda: 0, recebimento_garantia: 0, suspeita_empresa_errada: 0, pedido_parado: 0 };
@@ -234,13 +374,17 @@ export default function AlertasPage() {
             {TIPO_OPCOES.map((o) => <option key={o.v} value={o.v}>{o.nome}</option>)}
           </select>
           <button onClick={carregar} style={{ padding: '7px 14px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer' }}>Atualizar lista</button>
+          <button onClick={gerarPDF} title="Gera um PDF (A4 paisagem) com os alertas da tela, respeitando os filtros e a ordenacao" style={{ padding: '7px 14px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer' }}>Gerar PDF</button>
           <button onClick={rodarVerificacao} disabled={!!verif.rodando} title="Roda a varredura das contas agora (demora ~1-1,5h)" style={{ padding: '7px 14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: verif.rodando ? 'wait' : 'pointer', opacity: verif.rodando ? 0.5 : 1 }}>Rodar verificacao agora</button>
           <ContaSelector />
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 14, fontSize: '.8rem' }}>
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center', marginBottom: 14, fontSize: '.8rem' }}>
         <Link href="/ajustes" style={{ color: '#dc2626', textDecoration: 'none', fontWeight: 600 }}>← Ajustes</Link>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 6, color: '#334155' }}>
+          🕒 Última atualização: <b>{fmtDataHora(ultimaAtualizacao)}</b>
+        </span>
         <span style={{ marginLeft: 'auto', color: '#64748b' }}>{verif.rodando ? `⏳ ${verifStatus}` : verifStatus}</span>
       </div>
 
@@ -265,19 +409,28 @@ export default function AlertasPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
-                <th style={thStyle}>Quando</th>
-                <th style={thStyle}>Conta</th>
-                <th style={thStyle}>Tipo</th>
-                <th style={thStyle}>Produto</th>
-                <th style={thStyle}>Detalhe</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>Acao</th>
+                {COLS.map((c) => (
+                  <th key={c.key} onClick={() => ordenarPor(c.key)} style={thStyle} title="Clique para ordenar (A→Z / Z→A)">
+                    {c.label}{sort.key === c.key ? (sort.dir > 0 ? ' ▲' : ' ▼') : ''}
+                  </th>
+                ))}
+                <th style={{ ...thStyle, textAlign: 'right', cursor: 'default' }}>Acao</th>
+              </tr>
+              <tr>
+                {COLS.map((c) => (
+                  <th key={c.key} style={thFiltroStyle}>
+                    <input value={filtros[c.key] || ''} onChange={(e) => setFiltros((f) => ({ ...f, [c.key]: e.target.value }))}
+                      placeholder="filtrar…" style={filtroInput} />
+                  </th>
+                ))}
+                <th style={thFiltroStyle} />
               </tr>
             </thead>
             <tbody>
-              {alertas.length === 0 ? (
-                <tr><td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>Nenhum alerta{filtroLido === '0' ? ' nao lido' : ''}. 🎉</td></tr>
+              {linhas.length === 0 ? (
+                <tr><td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>{alertas.length === 0 ? <>Nenhum alerta{filtroLido === '0' ? ' nao lido' : ''}. 🎉</> : 'Nenhum alerta bate com o filtro.'}</td></tr>
               ) : (
-                alertas.map((a) => {
+                linhas.map((a) => {
                   const prod = a.codigo_produto != null ? a.codigo_produto : (a.codigo_integracao || '');
                   const ti = tipoInfo(a.tipo);
                   return (
