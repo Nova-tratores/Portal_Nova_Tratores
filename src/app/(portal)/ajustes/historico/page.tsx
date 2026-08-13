@@ -1,7 +1,7 @@
 'use client';
 // Histórico de correções de CMC. Portado de historico.ejs + historico.js (aba CMC).
 // Consome /api/ajustes/historico e /api/ajustes/reverter-correcao.
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
@@ -44,12 +44,32 @@ function fmtDataHora(iso?: string): string {
 }
 const ORIGEM_LABEL: Record<string, string> = {
   estoque_negativo: 'estoque negativo',
-  dashboard: 'dashboard (garantia)',
-  recebimento: 'recebimento',
+  garantia: 'garantia',
+  ajuste_custo: 'ajuste de custo',
+  manual: 'manual',
+  dashboard: 'garantia (legado)',
 };
 
 const thStyle: React.CSSProperties = { background: '#f8fafc', color: '#475569', fontSize: '.65rem', textTransform: 'uppercase', letterSpacing: '.4px', padding: '8px 10px', textAlign: 'left', borderBottom: '1px solid #e2e8f0', fontWeight: 600, whiteSpace: 'nowrap' };
 const tdStyle: React.CSSProperties = { padding: '8px 10px', borderBottom: '1px solid #f1f5f9', color: '#334155', fontSize: '.8rem' };
+
+// Colunas ordenáveis do histórico (get = valor usado na ordenação).
+type SortCol = 'quando' | 'conta' | 'origem' | 'produto' | 'local' | 'cmc_anterior' | 'cmc_aplicado' | 'cmc_sugerido' | 'nf' | 'estrategia' | 'ajuste' | 'status' | 'por';
+const COLS: { key: SortCol; label: string; align?: 'right'; num?: boolean; get: (l: CorrecaoLinha) => string | number }[] = [
+  { key: 'quando', label: 'Quando', num: true, get: (l) => (l.criado_em ? new Date(l.criado_em).getTime() || 0 : 0) },
+  { key: 'conta', label: 'Conta', get: (l) => l.conta_omie || '' },
+  { key: 'origem', label: 'Origem', get: (l) => ORIGEM_LABEL[l.origem || 'dashboard'] || l.origem || '' },
+  { key: 'produto', label: 'Produto', get: (l) => l.codigo_integracao || (l.codigo_produto != null ? '#' + l.codigo_produto : '') },
+  { key: 'local', label: 'Local', get: (l) => l.local_nome || (l.codigo_local_estoque != null ? '#' + l.codigo_local_estoque : '') },
+  { key: 'cmc_anterior', label: 'CMC anterior', align: 'right', num: true, get: (l) => Number(l.cmc_anterior || 0) },
+  { key: 'cmc_aplicado', label: 'CMC aplicado', align: 'right', num: true, get: (l) => Number(l.cmc_aplicado || 0) },
+  { key: 'cmc_sugerido', label: 'CMC sugerido', align: 'right', num: true, get: (l) => Number(l.cmc_sugerido || 0) },
+  { key: 'nf', label: 'NF origem', get: (l) => l.nf_origem_numero || '' },
+  { key: 'estrategia', label: 'Estrategia', get: (l) => l.estrategia_sugestao || '' },
+  { key: 'ajuste', label: 'Ajuste Omie', align: 'right', num: true, get: (l) => Number(l.codigo_ajuste_omie || 0) },
+  { key: 'status', label: 'Status', get: (l) => l.status || '' },
+  { key: 'por', label: 'Por', get: (l) => l.criado_por || '' },
+];
 
 export default function AjustesHistoricoPage() {
   const { userProfile } = useAuth();
@@ -57,11 +77,30 @@ export default function AjustesHistoricoPage() {
   const { conta, contaParam } = useConta();
 
   const [produto, setProduto] = useState('');
+  const [origem, setOrigem] = useState('');
   const [linhas, setLinhas] = useState<CorrecaoLinha[] | null>(null);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState('');
   const [revertendo, setRevertendo] = useState<number | null>(null);
   const [revStatus, setRevStatus] = useState<Record<number, { ok: boolean; texto: string }>>({});
+  const [sortCol, setSortCol] = useState<SortCol | null>(null);
+  const [sortDir, setSortDir] = useState(1);
+
+  const linhasOrdenadas = useMemo(() => {
+    if (!linhas || !sortCol) return linhas;
+    const col = COLS.find((c) => c.key === sortCol);
+    if (!col) return linhas;
+    return linhas.slice().sort((a, b) => {
+      if (col.num) return (Number(col.get(a)) - Number(col.get(b))) * sortDir;
+      return String(col.get(a)).localeCompare(String(col.get(b)), 'pt-BR', { numeric: true, sensitivity: 'base' }) * sortDir;
+    });
+  }, [linhas, sortCol, sortDir]);
+
+  const ordenar = useCallback((col: SortCol) => {
+    setSortDir((dir) => (sortCol === col ? -dir : 1));
+    setSortCol(col);
+  }, [sortCol]);
+  const seta = (col: SortCol) => (sortCol !== col ? '⇅' : sortDir === 1 ? '▲' : '▼');
 
   const buscar = useCallback(async () => {
     setCarregando(true);
@@ -69,6 +108,7 @@ export default function AjustesHistoricoPage() {
     try {
       let qs = contaParam;
       if (produto.trim()) qs += '&produto=' + encodeURIComponent(produto.trim());
+      if (origem) qs += '&origem=' + encodeURIComponent(origem);
       const r = await fetch(`/api/ajustes/historico?${qs.replace(/^&/, '')}`);
       const d = await r.json();
       if (d.erro) { setErro(d.erro); setLinhas([]); return; }
@@ -79,13 +119,13 @@ export default function AjustesHistoricoPage() {
     } finally {
       setCarregando(false);
     }
-  }, [contaParam, produto]);
+  }, [contaParam, produto, origem]);
 
-  // busca ao montar / trocar conta
+  // busca ao montar / trocar conta / trocar origem
   useEffect(() => {
     buscar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conta]);
+  }, [conta, origem]);
 
   const reverter = useCallback(async (l: CorrecaoLinha) => {
     if (!confirm(`Reverter a correção #${l.id}? Isso EXCLUI o ajuste de estoque no Omie e o CMC volta ao valor anterior.`)) return;
@@ -114,6 +154,16 @@ export default function AjustesHistoricoPage() {
         <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b' }}>Histórico de correções</h1>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
           <div>
+            <label style={{ display: 'block', fontSize: '.65rem', color: '#64748b', marginBottom: 2 }}>Origem</label>
+            <select value={origem} onChange={(e) => setOrigem(e.target.value)} style={{ border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 8px', fontSize: '.82rem', width: 170, background: '#fff' }}>
+              <option value="">Todas</option>
+              <option value="estoque_negativo">{ORIGEM_LABEL.estoque_negativo}</option>
+              <option value="garantia">{ORIGEM_LABEL.garantia}</option>
+              <option value="ajuste_custo">{ORIGEM_LABEL.ajuste_custo}</option>
+              <option value="manual">{ORIGEM_LABEL.manual}</option>
+            </select>
+          </div>
+          <div>
             <label style={{ display: 'block', fontSize: '.65rem', color: '#64748b', marginBottom: 2 }}>Codigo do produto</label>
             <input value={produto} onChange={(e) => setProduto(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && buscar()} placeholder="ex: 1234567" style={{ border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 8px', fontSize: '.82rem', width: 150 }} />
           </div>
@@ -134,29 +184,21 @@ export default function AjustesHistoricoPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
-                <th style={thStyle}>Quando</th>
-                <th style={thStyle}>Conta</th>
-                <th style={thStyle}>Origem</th>
-                <th style={thStyle}>Produto</th>
-                <th style={thStyle}>Local</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>CMC anterior</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>CMC aplicado</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>CMC sugerido</th>
-                <th style={thStyle}>NF origem</th>
-                <th style={thStyle}>Estrategia</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>Ajuste Omie</th>
-                <th style={thStyle}>Status</th>
-                <th style={thStyle}>Por</th>
+                {COLS.map((c) => (
+                  <th key={c.key} onClick={() => ordenar(c.key)} title="Ordenar" style={{ ...thStyle, ...(c.align === 'right' ? { textAlign: 'right' } : {}), cursor: 'pointer', userSelect: 'none' }}>
+                    {c.label} <span style={{ color: sortCol === c.key ? '#2563eb' : '#cbd5e1' }}>{seta(c.key)}</span>
+                  </th>
+                ))}
                 <th style={{ ...thStyle, textAlign: 'right' }}>Acao</th>
               </tr>
             </thead>
             <tbody>
-              {!linhas ? (
+              {!linhasOrdenadas ? (
                 <tr><td colSpan={14} style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>Carregando…</td></tr>
-              ) : linhas.length === 0 ? (
+              ) : linhasOrdenadas.length === 0 ? (
                 <tr><td colSpan={14} style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>Nenhuma correcao registrada.</td></tr>
               ) : (
-                linhas.map((l) => {
+                linhasOrdenadas.map((l) => {
                   const bg = l.status === 'erro' ? '#fef2f2' : (l.status === 'revertido' ? '#fffbeb' : undefined);
                   const origemLabel = ORIGEM_LABEL[l.origem || 'dashboard'] || l.origem || 'dashboard';
                   const rs = revStatus[l.id];

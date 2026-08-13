@@ -10,8 +10,10 @@ export async function GET(req: NextRequest) {
   const conta = parseConta(sp.get('conta'));
   const produtoRaw = sp.get('produto');
   const produto = produtoRaw && Number.isFinite(parseInt(produtoRaw, 10)) ? parseInt(produtoRaw, 10) : null;
+  const origemRaw = sp.get('origem');
+  const origem = origemRaw && ['estoque_negativo', 'garantia', 'ajuste_custo', 'manual'].includes(origemRaw) ? origemRaw : null;
   try {
-    const linhas = await listarHistorico(conta, produto);
+    const linhas = await listarHistorico(conta, produto, origem);
     return NextResponse.json({ linhas });
   } catch (e) {
     return NextResponse.json({ erro: (e as Error).message }, { status: 500 });
