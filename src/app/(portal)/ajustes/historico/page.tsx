@@ -8,6 +8,7 @@ import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
+import HistoricoCaracteristicas from '@/components/ajustes/HistoricoCaracteristicas';
 
 interface CorrecaoLinha {
   id: number;
@@ -85,6 +86,7 @@ export default function AjustesHistoricoPage() {
   const [revStatus, setRevStatus] = useState<Record<number, { ok: boolean; texto: string }>>({});
   const [sortCol, setSortCol] = useState<SortCol | null>(null);
   const [sortDir, setSortDir] = useState(1);
+  const [aba, setAba] = useState<'cmc' | 'caract'>('cmc');
 
   const linhasOrdenadas = useMemo(() => {
     if (!linhas || !sortCol) return linhas;
@@ -151,25 +153,35 @@ export default function AjustesHistoricoPage() {
   return (
     <div style={{ maxWidth: 1400, margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, flexWrap: 'wrap', marginBottom: 14 }}>
-        <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b' }}>Histórico de correções</h1>
+        <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b' }}>Histórico de ajustes</h1>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
-          <div>
-            <label style={{ display: 'block', fontSize: '.65rem', color: '#64748b', marginBottom: 2 }}>Origem</label>
-            <select value={origem} onChange={(e) => setOrigem(e.target.value)} style={{ border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 8px', fontSize: '.82rem', width: 170, background: '#fff' }}>
-              <option value="">Todas</option>
-              <option value="estoque_negativo">{ORIGEM_LABEL.estoque_negativo}</option>
-              <option value="garantia">{ORIGEM_LABEL.garantia}</option>
-              <option value="ajuste_custo">{ORIGEM_LABEL.ajuste_custo}</option>
-              <option value="manual">{ORIGEM_LABEL.manual}</option>
-            </select>
-          </div>
-          <div>
-            <label style={{ display: 'block', fontSize: '.65rem', color: '#64748b', marginBottom: 2 }}>Codigo do produto</label>
-            <input value={produto} onChange={(e) => setProduto(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && buscar()} placeholder="ex: 1234567" style={{ border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 8px', fontSize: '.82rem', width: 150 }} />
-          </div>
-          <button onClick={buscar} disabled={carregando} style={{ padding: '7px 14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: carregando ? 'wait' : 'pointer', opacity: carregando ? 0.6 : 1 }}>{carregando ? 'Buscando…' : 'Buscar'}</button>
+          {aba === 'cmc' && (
+            <>
+              <div>
+                <label style={{ display: 'block', fontSize: '.65rem', color: '#64748b', marginBottom: 2 }}>Origem</label>
+                <select value={origem} onChange={(e) => setOrigem(e.target.value)} style={{ border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 8px', fontSize: '.82rem', width: 170, background: '#fff' }}>
+                  <option value="">Todas</option>
+                  <option value="estoque_negativo">{ORIGEM_LABEL.estoque_negativo}</option>
+                  <option value="garantia">{ORIGEM_LABEL.garantia}</option>
+                  <option value="ajuste_custo">{ORIGEM_LABEL.ajuste_custo}</option>
+                  <option value="manual">{ORIGEM_LABEL.manual}</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '.65rem', color: '#64748b', marginBottom: 2 }}>Codigo do produto</label>
+                <input value={produto} onChange={(e) => setProduto(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && buscar()} placeholder="ex: 1234567" style={{ border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 8px', fontSize: '.82rem', width: 150 }} />
+              </div>
+              <button onClick={buscar} disabled={carregando} style={{ padding: '7px 14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: carregando ? 'wait' : 'pointer', opacity: carregando ? 0.6 : 1 }}>{carregando ? 'Buscando…' : 'Buscar'}</button>
+            </>
+          )}
           <ContaSelector />
         </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 6, marginBottom: 14, borderBottom: '1px solid #e2e8f0' }}>
+        {([['cmc', 'Correções de custo (CMC)'], ['caract', 'Características']] as const).map(([k, label]) => (
+          <button key={k} onClick={() => setAba(k)} style={{ padding: '8px 16px', fontSize: '.82rem', fontWeight: 600, border: 'none', background: 'none', cursor: 'pointer', color: aba === k ? '#2563eb' : '#64748b', borderBottom: aba === k ? '2px solid #2563eb' : '2px solid transparent', marginBottom: -1 }}>{label}</button>
+        ))}
       </div>
 
       <div style={{ margin: '0 0 14px', display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: '.8rem' }}>
@@ -177,6 +189,8 @@ export default function AjustesHistoricoPage() {
         <Link href="/ajustes/ajuste-custos" style={{ color: '#dc2626', textDecoration: 'none', fontWeight: 600 }}>→ Ajuste de custos</Link>
       </div>
 
+      {aba === 'caract' ? <HistoricoCaracteristicas /> : (
+      <>
       {erro && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: '.82rem' }}>{erro}</div>}
 
       <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
@@ -242,6 +256,8 @@ export default function AjustesHistoricoPage() {
           </table>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }

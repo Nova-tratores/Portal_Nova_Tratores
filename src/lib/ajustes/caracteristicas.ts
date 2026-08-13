@@ -14,6 +14,10 @@ import { supabase } from './supabase';
 import { listarProdutos, gravarCaractProduto, listarCaracteristicas, sleep } from './omie';
 import { decodeOmieTexto } from '@/lib/omie/texto';
 import { criarJob, atualizarJob, concluirJob, falharJob, lerJobAtivo, jobRodando } from './jobs';
+import { registrarAuditLog } from '@/lib/server/audit-notify';
+
+// Identidade (do token, resolvida na rota) para auditar quem editou a característica.
+export interface AutorEdicao { userId?: string; userName: string }
 
 // Características ocultas na leitura (dados continuam no banco).
 const CARACTERISTICAS_OCULTAS = ['CBU', 'NFE', 'NFE TS', 'Número de série'];
@@ -136,20 +140,21 @@ async function lerTodasCaractRows(): Promise<any[]> {
   return todos;
 }
 
-/** Mapa `${conta_lower}:${codigo_produto}` -> { modelo, marca } da tabela `produtos`. */
-async function lerModeloMarca(): Promise<Map<string, { modelo: string; marca: string }>> {
-  const mapa = new Map<string, { modelo: string; marca: string }>();
+/** Mapa `${conta_lower}:${codigo_produto}` -> { modelo, marca, estoque } da tabela `produtos`.
+ *  `estoque` já é o saldo consolidado (soma dos locais feita no sync) — não agregar aqui. */
+async function lerModeloMarca(): Promise<Map<string, { modelo: string; marca: string; estoque: number }>> {
+  const mapa = new Map<string, { modelo: string; marca: string; estoque: number }>();
   const PAGE = 1000;
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await supabase
       .from('produtos')
-      .select('conta_omie, codigo_produto, modelo, marca')
+      .select('conta_omie, codigo_produto, modelo, marca, estoque')
       .order('codigo_produto', { ascending: true })
       .range(from, from + PAGE - 1);
     if (error) throw error;
     (data || []).forEach((p: any) => {
       const key = `${String(p.conta_omie).toLowerCase()}:${String(p.codigo_produto)}`;
-      mapa.set(key, { modelo: p.modelo != null ? String(p.modelo) : '', marca: p.marca != null ? String(p.marca) : '' });
+      mapa.set(key, { modelo: p.modelo != null ? String(p.modelo) : '', marca: p.marca != null ? String(p.marca) : '', estoque: Number(p.estoque) || 0 });
     });
     if (!data || data.length < PAGE) break;
   }
@@ -187,7 +192,7 @@ export async function lerMatrizCaracteristicas(): Promise<any> {
     const mm = modeloMarca.get(`${String(r.conta_omie).toLowerCase()}:${String(r.codigo_produto)}`) || null;
     return {
       empresa: r.conta_omie, codigo_produto: r.codigo_produto, codigo: r.codigo, descricao: r.descricao,
-      modelo: (mm && mm.modelo) || '', marca: (mm && mm.marca) || '',
+      modelo: (mm && mm.modelo) || '', marca: (mm && mm.marca) || '', estoque: (mm && mm.estoque) || 0,
       caracteristicas: car,
     };
   });
@@ -196,15 +201,18 @@ export async function lerMatrizCaracteristicas(): Promise<any> {
   return { produtos, colunas, total: produtos.length, ultimaSync, sync: { rodando: st.rodando, etapa: st.etapa, erro: st.erro } };
 }
 
-async function atualizarCaractSupabase(label: string, codigoProduto: number | string, nome: string, conteudo: unknown): Promise<void> {
+// Atualiza o espelho e devolve o estado ANTES da alteração (valor antigo da
+// característica + codigo/descricao) para o chamador montar o diff de auditoria.
+async function atualizarCaractSupabase(label: string, codigoProduto: number | string, nome: string, conteudo: unknown): Promise<{ valorAntigo: string; codigo: string | null; descricao: string | null }> {
   const { data, error } = await supabase
     .from('produtos_caracteristicas')
-    .select('caracteristicas')
+    .select('caracteristicas, codigo, descricao')
     .eq('conta_omie', label)
     .eq('codigo_produto', codigoProduto)
     .maybeSingle();
   if (error) throw error;
   const car = (data && (data as any).caracteristicas) || {};
+  const valorAntigo = car[nome] == null ? '' : String(car[nome]);
   car[nome] = conteudo == null ? '' : String(conteudo);
   const { error: upErr } = await supabase
     .from('produtos_caracteristicas')
@@ -212,17 +220,38 @@ async function atualizarCaractSupabase(label: string, codigoProduto: number | st
     .eq('conta_omie', label)
     .eq('codigo_produto', codigoProduto);
   if (upErr) throw upErr;
+  return {
+    valorAntigo,
+    codigo: data && (data as any).codigo != null ? String((data as any).codigo) : null,
+    descricao: data && (data as any).descricao != null ? String((data as any).descricao) : null,
+  };
 }
 
-/** Edita a característica de um produto: grava no Omie + atualiza Supabase. */
-export async function editarCaractProduto(empresa: string, codigoProduto: number | string, nome: string, conteudo: unknown): Promise<any> {
+/** Edita a característica de um produto: grava no Omie + atualiza Supabase + audita.
+ *  `acao` diferencia edição normal ('editar') de reversão ('reverter') no audit_log. */
+export async function editarCaractProduto(empresa: string, codigoProduto: number | string, nome: string, conteudo: unknown, autor?: AutorEdicao, acao: string = 'editar'): Promise<any> {
   if (!empresa || !codigoProduto || !nome) throw new Error('empresa, codigo_produto e nome sao obrigatorios');
   if (caractOculta(nome)) throw new Error(`Caracteristica "${nome}" esta oculta e nao pode ser editada aqui`);
   const contaId = contaIdPorLabel(empresa);
   if (!contaId) throw new Error(`Empresa desconhecida: ${empresa}`);
+  const empresaLabel = String(empresa).toUpperCase();
+  const cp = Number(codigoProduto) || codigoProduto;
+  const novo = conteudo == null ? '' : String(conteudo);
   await gravarCaractProduto(contaId, { codigoProduto, nomeCaract: nome, conteudo });
-  await atualizarCaractSupabase(String(empresa).toUpperCase(), Number(codigoProduto) || codigoProduto, nome, conteudo);
-  return { ok: true, nome, conteudo: conteudo == null ? '' : String(conteudo) };
+  const { valorAntigo, codigo, descricao } = await atualizarCaractSupabase(empresaLabel, cp, nome, conteudo);
+  if (autor) {
+    await registrarAuditLog({
+      userId: autor.userId,
+      userName: autor.userName,
+      sistema: 'caracteristicas',
+      acao,
+      entidade: 'produto_caracteristica',
+      entidadeId: `${empresaLabel}:${cp}`,
+      entidadeLabel: codigo || descricao || String(cp),
+      detalhes: { empresa: empresaLabel, codigo_produto: cp, codigo, descricao, caracteristica: nome, de: valorAntigo, para: novo },
+    });
+  }
+  return { ok: true, nome, conteudo: novo };
 }
 
 /** Catálogo da Omie: valores permitidos por característica (união + por empresa). */
@@ -341,7 +370,7 @@ export async function sugestoesTipo(): Promise<any> {
 /** Aplica em lote os "Tipo:" confirmados (throttle). Se a Omie bloquear no meio
  *  ("consumo indevido", dura minutos), devolve os itens nao aplicados em
  *  `pendentes` + `aguardarSegundos` para o cliente esperar e reenviar. */
-export async function aplicarTipoLote(itens: Array<{ empresa: string; codigo_produto: number | string; valor: string }>, nome?: string): Promise<any> {
+export async function aplicarTipoLote(itens: Array<{ empresa: string; codigo_produto: number | string; valor: string }>, nome?: string, autor?: AutorEdicao): Promise<any> {
   const colTipo = nome || 'Tipo:';
   const THROTTLE_MS = parseInt(process.env.CARACT_THROTTLE_MS || '', 10) >= 0 ? parseInt(process.env.CARACT_THROTTLE_MS || '', 10) : 700;
   const resultados: any[] = [];
@@ -359,8 +388,22 @@ export async function aplicarTipoLote(itens: Array<{ empresa: string; codigo_pro
     try {
       const contaId = contaIdPorLabel(it.empresa);
       if (!contaId) throw new Error(`Empresa desconhecida: ${it.empresa}`);
+      const empresaLabel = String(it.empresa).toUpperCase();
+      const cp = Number(it.codigo_produto) || it.codigo_produto;
       await gravarCaractProduto(contaId, { codigoProduto: it.codigo_produto, nomeCaract: colTipo, conteudo: it.valor, preferirIncluir: true });
-      await atualizarCaractSupabase(String(it.empresa).toUpperCase(), Number(it.codigo_produto) || it.codigo_produto, colTipo, it.valor);
+      const { valorAntigo, codigo, descricao } = await atualizarCaractSupabase(empresaLabel, cp, colTipo, it.valor);
+      if (autor) {
+        await registrarAuditLog({
+          userId: autor.userId,
+          userName: autor.userName,
+          sistema: 'caracteristicas',
+          acao: 'editar-lote',
+          entidade: 'produto_caracteristica',
+          entidadeId: `${empresaLabel}:${cp}`,
+          entidadeLabel: codigo || descricao || String(cp),
+          detalhes: { empresa: empresaLabel, codigo_produto: cp, codigo, descricao, caracteristica: colTipo, de: valorAntigo, para: it.valor },
+        });
+      }
       resultados.push({ codigo_produto: it.codigo_produto, empresa: it.empresa, ok: true });
     } catch (e: any) {
       if (e.bloqueio) {
