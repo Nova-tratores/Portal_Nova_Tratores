@@ -151,6 +151,20 @@ export async function buscarNotasPorClienteData(conta: Conta, clienteCodigo: num
   return (data || []).map(mapRow);
 }
 
+/** NFS-e (serviço) por número + conta -> candidatos. Usado pelo popup de
+ *  Serviços do dashboard para abrir o PDF da NFS-e a partir do nº (nfse_num). */
+export async function buscarNfsePorNumero(conta: Conta, numeroNfs: number | string): Promise<any[]> {
+  const n = parseInt(String(numeroNfs).replace(/\D/g, ''), 10);
+  if (!Number.isFinite(n) || n <= 0) return [];
+  const { data, error } = await supabase
+    .from(TABELA).select(COLS)
+    .eq('conta_omie', conta).eq('tipo', 'servico').eq('numero_int', n)
+    .order('cancelada', { ascending: true })
+    .limit(20);
+  if (error) throw new Error(error.message);
+  return (data || []).map(mapRow);
+}
+
 /** URL do PDF a partir do código interno (nCodNF). tipo=servico -> NFS-e
  *  (ObterNFSe); senão DANFE de NF-e (GetUrlDanfe). */
 export async function urlDanfe(conta: Conta, nCodNF: number | string, tipo = 'produto'): Promise<{ url: string; validadeAte: any }> {

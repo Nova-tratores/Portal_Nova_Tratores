@@ -165,6 +165,9 @@ export default function DashboardPage() {
   const [comprasAberto, setComprasAberto] = useState(false);
   const [comprasItens, setComprasItens] = useState<CompraRow[] | null>(null);
   const [comprasSort, setComprasSort] = useState<{ col: string; dir: 'asc' | 'desc' }>({ col: 'valor_total', dir: 'desc' });
+  // Ordenação das tabelas do popup de Serviços (itens e "Por OS").
+  const [sortServ, setSortServ] = useState<{ col: string; dir: 'asc' | 'desc' }>({ col: '', dir: 'asc' });
+  const [sortOS, setSortOS] = useState<{ col: string; dir: 'asc' | 'desc' }>({ col: '', dir: 'asc' });
   // Atalhos/popups: "Por categoria" (peças) e "Decomposição" (serviços).
   const [catPopup, setCatPopup] = useState(false);
   const [servDecompPopup, setServDecompPopup] = useState(false);
@@ -337,6 +340,38 @@ export default function DashboardPage() {
     }
   }, [abrirDanfe]);
 
+  // Clique no número da OS → abre a visualização de impressão do Pós-vendas
+  // (/api/pos/ordens/<Id_Ordem>/print, que auto-imprime). Só existe para OS que
+  // passaram pelo módulo Pós-vendas; senão, avisa.
+  const abrirOS = useCallback(async (numeroOs?: string | null) => {
+    const num = String(numeroOs || '').trim();
+    if (!num) return;
+    try {
+      const r = await fetch(`/api/pos/ordens/por-omie?num=${encodeURIComponent(num)}`);
+      const d = await r.json();
+      if (d.idOrdem) window.open(`/api/pos/ordens/${encodeURIComponent(d.idOrdem)}/print`, '_blank');
+      else alert(`OS ${num} não está no módulo Pós-vendas — impressão indisponível.`);
+    } catch (ex) {
+      alert('Erro ao abrir a OS: ' + (ex as Error).message);
+    }
+  }, []);
+
+  // Clique no número da NFS-e → abre o PDF da NFS-e (resolve nfse_num+conta → nCodNF).
+  const abrirNFS = useCallback(async (nfseNum?: string | null, conta?: string | null) => {
+    const num = String(nfseNum || '').trim();
+    if (!num) return;
+    const cc = conta === 'NOVA' || conta === 'CASTRO' ? conta : 'NOVA';
+    try {
+      const r = await fetch(`/api/estoque/dashboard/nf?conta=${cc}&nfse=${encodeURIComponent(num)}`);
+      const d = await r.json();
+      const candidatos: NotaCand[] = d.candidatos || [];
+      if (!candidatos.length) { alert(`NFS-e ${num} não encontrada no cache de notas.`); return; }
+      abrirDanfe(candidatos[0], cc);
+    } catch (ex) {
+      alert('Erro ao abrir a NFS-e: ' + (ex as Error).message);
+    }
+  }, [abrirDanfe]);
+
   const exportarCSV = useCallback(() => {
     if (!vendas) return;
     const head = ['Pedido', 'Data', 'Cliente', 'Codigo', 'Descricao', 'Qtd', 'Valor Unit', 'Valor Total', 'CMC'];
@@ -416,6 +451,34 @@ export default function DashboardPage() {
   const sortHeaderVendas = (label: string, col: string) => (
     <th style={{ ...thStyle, cursor: 'pointer', userSelect: 'none' }} onClick={() => setVendasSort((s) => ({ col, dir: s.col === col && s.dir === 'asc' ? 'desc' : 'asc' }))}>
       {label} {vendasSort.col === col ? (vendasSort.dir === 'asc' ? '▲' : '▼') : <span style={{ color: '#ccc' }}>⇅</span>}
+    </th>
+  );
+
+  // Ordenação genérica (num/texto/data DD/MM/AAAA) das tabelas do popup de Serviços.
+  const ordenarLinhas = <T,>(rows: T[] | null, sort: { col: string; dir: 'asc' | 'desc' }, tipos: Record<string, 'num' | 'txt' | 'data'>): T[] | null => {
+    if (!rows || !sort.col) return rows;
+    const kind = tipos[sort.col] || 'txt';
+    const get = (r: T) => (r as Record<string, unknown>)[sort.col];
+    const dataMs = (s: unknown) => { const p = String(s ?? '').split('/'); return p.length === 3 ? (new Date(+p[2], +p[1] - 1, +p[0]).getTime() || 0) : 0; };
+    const arr = [...rows].sort((a, b) =>
+      kind === 'num' ? (Number(get(a)) || 0) - (Number(get(b)) || 0)
+        : kind === 'data' ? dataMs(get(a)) - dataMs(get(b))
+          : String(get(a) ?? '').localeCompare(String(get(b) ?? ''), 'pt-BR'));
+    if (sort.dir === 'desc') arr.reverse();
+    return arr;
+  };
+  const TIPOS_SERV: Record<string, 'num' | 'txt' | 'data'> = { numero_os: 'num', data: 'data', cliente: 'txt', descricao: 'txt', tipo: 'txt', nfse_num: 'num', categoria_desc: 'txt', conta: 'txt', qtde: 'num', valor_unit: 'num', valor_total: 'num' };
+  const TIPOS_OS: Record<string, 'num' | 'txt' | 'data'> = { numero_os: 'num', data: 'data', cliente: 'txt', nfse_num: 'num', conta: 'txt', valor: 'num' };
+  const servOrdenados = ordenarLinhas(servItens, sortServ, TIPOS_SERV);
+  const osOrdenados = ordenarLinhas(osServicos, sortOS, TIPOS_OS);
+  const shServ = (label: string, col: string) => (
+    <th style={{ ...thStyle, cursor: 'pointer', userSelect: 'none' }} onClick={() => setSortServ((s) => ({ col, dir: s.col === col && s.dir === 'asc' ? 'desc' : 'asc' }))}>
+      {label} {sortServ.col === col ? (sortServ.dir === 'asc' ? '▲' : '▼') : <span style={{ color: '#ccc' }}>⇅</span>}
+    </th>
+  );
+  const shOS = (label: string, col: string) => (
+    <th style={{ ...thStyle, cursor: 'pointer', userSelect: 'none' }} onClick={() => setSortOS((s) => ({ col, dir: s.col === col && s.dir === 'asc' ? 'desc' : 'asc' }))}>
+      {label} {sortOS.col === col ? (sortOS.dir === 'asc' ? '▲' : '▼') : <span style={{ color: '#ccc' }}>⇅</span>}
     </th>
   );
 
@@ -803,17 +866,30 @@ export default function DashboardPage() {
                   })()}
                   <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                      <thead><tr>{['OS', 'Data', 'Cliente', 'Serviço', 'Tipo', 'Nota', 'NFS', 'Categoria', ...(contaParam === '' ? ['Conta'] : []), 'Qtd', 'V. Unit', 'V. Total'].map((h) => <th key={h} style={thStyle}>{h}</th>)}</tr></thead>
+                      <thead><tr>
+                        {shServ('OS', 'numero_os')}
+                        {shServ('Data', 'data')}
+                        {shServ('Cliente', 'cliente')}
+                        {shServ('Serviço', 'descricao')}
+                        {shServ('Tipo', 'tipo')}
+                        <th style={thStyle}>Nota</th>
+                        {shServ('NFS', 'nfse_num')}
+                        {shServ('Categoria', 'categoria_desc')}
+                        {contaParam === '' && shServ('Conta', 'conta')}
+                        {shServ('Qtd', 'qtde')}
+                        {shServ('V. Unit', 'valor_unit')}
+                        {shServ('V. Total', 'valor_total')}
+                      </tr></thead>
                       <tbody>
-                        {servItens.filter((s) => !tipoFiltro || s.tipo === tipoFiltro).slice(0, LIMITE_LINHAS).map((s, i) => (
+                        {(servOrdenados || []).filter((s) => !tipoFiltro || s.tipo === tipoFiltro).slice(0, LIMITE_LINHAS).map((s, i) => (
                           <tr key={i}>
-                            <td style={tdStyle}>{s.numero_os}</td>
+                            <td style={tdStyle}>{s.numero_os ? <button onClick={() => abrirOS(s.numero_os)} style={linkBtn} title="Abrir impressão da OS">{s.numero_os}</button> : '—'}</td>
                             <td style={tdStyle}>{s.data}</td>
                             <td style={tdStyle}>{s.cliente || (s.codigo_cliente ? '#' + s.codigo_cliente : '—')}</td>
                             <td style={{ ...tdStyle, maxWidth: 320 }} title={s.descricao}>{(s.descricao || '—').length > 70 ? (s.descricao || '').slice(0, 70) + '…' : (s.descricao || '—')}</td>
                             <td style={tdStyle}><TipoBadge tipo={s.tipo} /></td>
                             <td style={tdStyle}><NotaBadge temNota={s.tem_nota} balde={s.internoBalde} /></td>
-                            <td style={tdStyle}>{s.nfse_num || '—'}</td>
+                            <td style={tdStyle}>{s.nfse_num ? <button onClick={() => abrirNFS(s.nfse_num, s.conta)} style={linkBtn} title="Abrir NFS-e">{s.nfse_num}</button> : '—'}</td>
                             <td style={tdStyle} title={s.categoria}>{s.categoria_desc || s.categoria || '—'}</td>
                             {contaParam === '' && <td style={tdStyle}>{s.conta}</td>}
                             <td style={tdStyle}>{s.qtde}</td>
@@ -833,15 +909,23 @@ export default function DashboardPage() {
                   <div style={{ color: '#999', fontSize: '.9rem', marginBottom: 6 }}>Mostrando as {LIMITE_LINHAS} primeiras de {osServicos.length.toLocaleString('pt-BR')} OS (o total acima considera todas).</div>
                 )}
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead><tr>{['OS', 'Data', 'Cliente', 'Nota', 'NFS', ...(contaParam === '' ? ['Conta'] : []), 'Valor'].map((h) => <th key={h} style={thStyle}>{h}</th>)}</tr></thead>
+                  <thead><tr>
+                    {shOS('OS', 'numero_os')}
+                    {shOS('Data', 'data')}
+                    {shOS('Cliente', 'cliente')}
+                    <th style={thStyle}>Nota</th>
+                    {shOS('NFS', 'nfse_num')}
+                    {contaParam === '' && shOS('Conta', 'conta')}
+                    {shOS('Valor', 'valor')}
+                  </tr></thead>
                   <tbody>
-                    {osServicos.slice(0, LIMITE_LINHAS).map((o, i) => (
+                    {(osOrdenados || []).slice(0, LIMITE_LINHAS).map((o, i) => (
                       <tr key={i}>
-                        <td style={tdStyle}>{o.numero_os}</td>
+                        <td style={tdStyle}>{o.numero_os ? <button onClick={() => abrirOS(o.numero_os)} style={linkBtn} title="Abrir impressão da OS">{o.numero_os}</button> : '—'}</td>
                         <td style={tdStyle}>{o.data}</td>
                         <td style={tdStyle}>{o.cliente || (o.codigo_cliente ? '#' + o.codigo_cliente : '—')}</td>
                         <td style={tdStyle}><NotaBadge temNota={o.tem_nota} balde={o.internoBalde} /></td>
-                        <td style={tdStyle}>{o.nfse_num || '—'}</td>
+                        <td style={tdStyle}>{o.nfse_num ? <button onClick={() => abrirNFS(o.nfse_num, o.conta)} style={linkBtn} title="Abrir NFS-e">{o.nfse_num}</button> : '—'}</td>
                         {contaParam === '' && <td style={tdStyle}>{o.conta}</td>}
                         <td style={tdStyle}>{fmtRS(o.valor)}</td>
                       </tr>

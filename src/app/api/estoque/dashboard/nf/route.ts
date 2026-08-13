@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta, CONTA_DEFAULT } from '@/lib/ajustes/conta';
 import { consultarPedido, normalizarPedido } from '@/lib/ajustes/omie';
-import { buscarNotasPorIdPedido, buscarNotasPorClienteData } from '@/lib/ajustes/notas';
+import { buscarNotasPorIdPedido, buscarNotasPorClienteData, buscarNfsePorNumero } from '@/lib/ajustes/notas';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -17,8 +17,15 @@ export async function GET(req: NextRequest) {
   const numeroPedido = (sp.get('numero_pedido') || '').trim();
   const codigoCliente = (sp.get('codigo_cliente') || '').trim();
   const data = (sp.get('data') || '').trim(); // DD/MM/YYYY ou YYYY-MM-DD
+  const nfse = (sp.get('nfse') || '').trim();  // nº da NFS-e (serviço) — popup de Serviços
 
   try {
+    // 0) NFS-e (serviço): resolve direto pelo número da nota (exato).
+    if (nfse) {
+      const candidatos = await buscarNfsePorNumero(conta, nfse);
+      return NextResponse.json({ candidatos, via: 'nfse' });
+    }
+
     // 1) Caminho exato: número do pedido -> id interno -> notas por n_id_pedido.
     if (numeroPedido) {
       let idPedido: number | null = null;
