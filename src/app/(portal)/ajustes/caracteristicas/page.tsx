@@ -8,11 +8,12 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
+import { authHeaders } from '@/lib/auth/client';
 
 // ---------- tipos ----------
 interface Produto {
   empresa: string; codigo_produto: number | string; codigo?: string; descricao?: string;
-  modelo?: string; marca?: string;
+  modelo?: string; marca?: string; estoque?: number;
   caracteristicas?: Record<string, string>;
 }
 interface CaractPayload {
@@ -40,6 +41,34 @@ const tdStyle: React.CSSProperties = { padding: '6px 10px', borderBottom: '1px s
 const thFiltroStyle: React.CSSProperties = { background: '#f8fafc', padding: '0 6px 6px', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 32, zIndex: 1 };
 const filtroInput: React.CSSProperties = { width: '100%', minWidth: 60, border: '1px solid #cbd5e1', borderRadius: 4, padding: '3px 6px', fontSize: '.72rem', fontWeight: 400 };
 
+// Colunas fixas (não editáveis): key -> rótulo. As demais colunas são características
+// da Omie, cuja key é o próprio nome. `qtd_estoque` = saldo (produtos.estoque, só-leitura).
+const COLS_FIXAS: Record<string, string> = {
+  empresa: 'Empresa', codigo: 'Codigo', descricao: 'Descricao', qtd_estoque: 'Qtd Estoque', modelo: 'Modelo', marca: 'Marca',
+};
+const CHAVES_FIXAS = Object.keys(COLS_FIXAS);
+function ehFixa(key: string): boolean { return key in COLS_FIXAS; }
+function labelCol(key: string): string { return COLS_FIXAS[key] || key; }
+// Ordem padrão pedida pelo usuário. As características casam com dados.colunas de forma
+// case-insensitive (a Omie pode gravar #PRATELEIRA etc.); ver reconciliarOrdem.
+const DEFAULT_ORDEM = ['empresa', 'codigo', 'descricao', 'qtd_estoque', '#Prateleira', '#Andar', '#Andar2', '#Caixa', 'Sistema', 'Tipo:', 'marca', 'modelo'];
+const ORDEM_KEY = (uid: string) => `carac-ordem-colunas-${uid}`;
+
+function normKey(s: string): string { return s.normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase(); }
+// Reconcilia uma ordem "desejada" (pode ter casing diferente / chaves inexistentes) com as
+// colunas realmente disponíveis: mantém as que existem (usando a chave REAL), na ordem
+// desejada; anexa no fim as disponíveis que sobraram (colunas novas da Omie).
+function reconciliarOrdem(desejada: string[], disponiveis: string[]): string[] {
+  const restantes = new Map(disponiveis.map((k) => [normKey(k), k]));
+  const out: string[] = [];
+  for (const d of desejada) {
+    const real = restantes.get(normKey(d));
+    if (real !== undefined) { out.push(real); restantes.delete(normKey(d)); }
+  }
+  for (const k of restantes.values()) out.push(k);
+  return out;
+}
+
 function EmpBadge({ empresa }: { empresa: string }) {
   const castro = empresa === 'CASTRO';
   return <span style={{ padding: '1px 6px', borderRadius: 4, fontSize: '.68rem', background: castro ? '#f3e8ff' : '#e0f2fe', color: castro ? '#7e22ce' : '#0369a1' }}>{empresa}</span>;
@@ -57,7 +86,14 @@ export default function CaracteristicasPage() {
   const [status, setStatus] = useState('');
   const [statusTipo, setStatusTipo] = useState<'ok' | 'erro' | 'info'>('info');
   const [rodando, setRodando] = useState(false);
-  const [sort, setSort] = useState<{ key: string | null; dir: number }>({ key: null, dir: 1 });
+  // Ordenacao de linhas em ate 2 niveis: [0]=principal, [1]=secundaria (desempate).
+  // Clique = define/inverte a principal (limpa a secundaria); Shift+clique = 2o criterio.
+  const [sorts, setSorts] = useState<{ key: string; dir: number }[]>([]);
+
+  // ordem das colunas (reordenavel no desktop, salva por usuario no localStorage)
+  const [ordemColunas, setOrdemColunas] = useState<string[]>([]);
+  const ordemCarregadaRef = useRef(false);
+  const [dragCol, setDragCol] = useState<string | null>(null);
 
   // edicao inline
   const [editando, setEditando] = useState<{ empresa: string; cp: string; col: string } | null>(null);
@@ -158,6 +194,7 @@ export default function CaracteristicasPage() {
     if (col === 'empresa') return p.empresa || '';
     if (col === 'codigo') return p.codigo || '';
     if (col === 'descricao') return p.descricao || '';
+    if (col === 'qtd_estoque') return p.estoque != null ? String(p.estoque) : '';
     if (col === 'modelo') return p.modelo || '';
     if (col === 'marca') return p.marca || '';
     return (p.caracteristicas && p.caracteristicas[col]) || '';
@@ -179,16 +216,83 @@ export default function CaracteristicasPage() {
       arr = arr.filter((p) =>
         ativos.every(([col, v]) => valCol(p, col).toLowerCase().includes(v.trim().toLowerCase())));
     }
-    if (sort.key) {
-      const key = sort.key;
-      arr = arr.slice().sort((a, b) => valCol(a, key).localeCompare(valCol(b, key), 'pt-BR', { numeric: true, sensitivity: 'base' }) * sort.dir);
+    if (sorts.length) {
+      arr = arr.slice().sort((a, b) => {
+        for (const { key, dir } of sorts) {
+          const c = valCol(a, key).localeCompare(valCol(b, key), 'pt-BR', { numeric: true, sensitivity: 'base' }) * dir;
+          if (c !== 0) return c;
+        }
+        return 0;
+      });
     }
     return arr;
-  }, [dados.produtos, filtro, empFiltro, filtros, sort, valCol]);
+  }, [dados.produtos, filtro, empFiltro, filtros, sorts, valCol]);
 
-  const ordenarPor = useCallback((key: string) => {
-    setSort((s) => s.key === key ? { key, dir: -s.dir } : { key, dir: 1 });
+  // Clique normal: define a coluna como criterio PRINCIPAL (inverte se ja for) e limpa a
+  // secundaria. Shift+clique: adiciona/inverte como 2o criterio (desempate), max 2 niveis.
+  const ordenarPor = useCallback((key: string, secundario = false) => {
+    setSorts((s) => {
+      if (secundario) {
+        const idx = s.findIndex((x) => x.key === key);
+        if (idx >= 0) { const novo = s.slice(); novo[idx] = { key, dir: -novo[idx].dir }; return novo; }
+        if (s.length === 0) return [{ key, dir: 1 }];
+        return [s[0], { key, dir: 1 }]; // no maximo 2 niveis; substitui a secundaria
+      }
+      if (s.length === 1 && s[0].key === key) return [{ key, dir: -s[0].dir }];
+      return [{ key, dir: 1 }];
+    });
   }, []);
+  const sortInfo = useCallback((key: string): { pos: number; dir: number } | null => {
+    const idx = sorts.findIndex((x) => x.key === key);
+    return idx < 0 ? null : { pos: idx, dir: sorts[idx].dir };
+  }, [sorts]);
+
+  // ---- ordem das colunas ----
+  const todasChaves = useMemo(() => [...CHAVES_FIXAS, ...(dados.colunas || [])], [dados.colunas]);
+
+  // Carrega a ordem salva (uma vez) e reconcilia com as colunas disponiveis sempre que
+  // novas caracteristicas aparecem. Usa updater para nao depender de `ordemColunas` nas deps.
+  useEffect(() => {
+    const uid = userProfile?.id;
+    if (!uid) return;
+    setOrdemColunas((atual) => {
+      let base = atual;
+      if (!ordemCarregadaRef.current) {
+        ordemCarregadaRef.current = true;
+        let salva: string[] | null = null;
+        try { const raw = localStorage.getItem(ORDEM_KEY(uid)); if (raw) salva = JSON.parse(raw); } catch { /* ignore */ }
+        base = Array.isArray(salva) && salva.length ? salva : DEFAULT_ORDEM;
+      }
+      const rec = reconciliarOrdem(base, todasChaves);
+      return rec.length === atual.length && rec.every((k, i) => k === atual[i]) ? atual : rec;
+    });
+  }, [userProfile?.id, todasChaves]);
+
+  // Persiste a ordem quando muda (so depois de carregada, para nao apagar a salva).
+  useEffect(() => {
+    const uid = userProfile?.id;
+    if (!uid || !ordemCarregadaRef.current || ordemColunas.length === 0) return;
+    try { localStorage.setItem(ORDEM_KEY(uid), JSON.stringify(ordemColunas)); } catch { /* ignore */ }
+  }, [userProfile?.id, ordemColunas]);
+
+  // Move `origem` para antes de `destino` (drag & drop de cabecalhos).
+  const moverColuna = useCallback((origem: string, destino: string) => {
+    if (origem === destino) return;
+    setOrdemColunas((arr) => {
+      const from = arr.indexOf(origem);
+      if (from < 0) return arr;
+      const novo = arr.slice();
+      novo.splice(from, 1);
+      const to = novo.indexOf(destino);
+      if (to < 0) return arr;
+      novo.splice(to, 0, origem);
+      return novo;
+    });
+  }, []);
+
+  const restaurarOrdem = useCallback(() => {
+    setOrdemColunas(reconciliarOrdem(DEFAULT_ORDEM, [...CHAVES_FIXAS, ...(dados.colunas || [])]));
+  }, [dados.colunas]);
 
   // ---- edicao inline ----
   const [editOpts, setEditOpts] = useState<string[]>([]);
@@ -208,7 +312,7 @@ export default function CaracteristicasPage() {
     setSalvandoCelula(cellKey);
     try {
       const r = await fetch('/api/ajustes/caracteristicas/produto', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({ empresa, codigo_produto: cp, nome: col, conteudo: valor }),
       });
       const d = await r.json();
@@ -241,10 +345,9 @@ export default function CaracteristicasPage() {
 
   // ---- CSV ----
   const exportarCSV = useCallback(() => {
-    const cols = ['empresa', 'codigo', 'descricao', 'modelo', 'marca', ...(dados.colunas || [])];
-    const labels = ['Empresa', 'Codigo', 'Descricao', 'Modelo', 'Marca', ...(dados.colunas || [])];
+    const cols = ordemColunas.length ? ordemColunas : todasChaves;
     const cell = (v: string) => /[",;\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
-    const rows = [labels.map(cell).join(';')];
+    const rows = [cols.map((c) => cell(labelCol(c))).join(';')];
     linhas.forEach((p) => rows.push(cols.map((c) => cell(valCol(p, c))).join(';')));
     const blob = new Blob(['﻿' + rows.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
     const a = document.createElement('a');
@@ -252,7 +355,7 @@ export default function CaracteristicasPage() {
     a.download = 'caracteristicas-produtos.csv';
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  }, [dados.colunas, linhas, valCol]);
+  }, [ordemColunas, todasChaves, linhas, valCol]);
 
   // ---- PDF (colunas-chave, respeita filtros e ordenacao atuais) ----
   const gerandoPdfRef = useRef(false);
@@ -262,15 +365,8 @@ export default function CaracteristicasPage() {
     try {
       const { default: JsPDF } = await import('jspdf');
       const { default: autoTable } = await import('jspdf-autotable');
-      // Todas as colunas da tela: fixas + cada caracteristica dinamica.
-      const cols: { key: string; label: string }[] = [
-        { key: 'empresa', label: 'Empresa' },
-        { key: 'codigo', label: 'Codigo' },
-        { key: 'descricao', label: 'Descricao' },
-        { key: 'modelo', label: 'Modelo' },
-        { key: 'marca', label: 'Marca' },
-        ...(dados.colunas || []).map((c) => ({ key: c, label: c })),
-      ];
+      // Todas as colunas da tela, na ordem escolhida pelo usuario.
+      const cols: { key: string; label: string }[] = (ordemColunas.length ? ordemColunas : todasChaves).map((c) => ({ key: c, label: labelCol(c) }));
       const doc = new JsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
       doc.setFontSize(14); doc.setTextColor(220, 38, 38); doc.setFont('helvetica', 'bold');
       doc.text('Nova Tratores — Caracteristicas por produto', 14, 16);
@@ -288,7 +384,7 @@ export default function CaracteristicasPage() {
       // larguras calculadas p/ o somatorio caber na largura util (A4 paisagem ~281mm
       // com 8mm de margem), independentemente de quantas caracteristicas existam.
       const usavel = doc.internal.pageSize.getWidth() - 16; // margens 8 + 8
-      const fixaChave: Record<string, number> = { empresa: 16, codigo: 24, modelo: 26, marca: 30 };
+      const fixaChave: Record<string, number> = { empresa: 16, codigo: 24, qtd_estoque: 18, modelo: 26, marca: 30 };
       const reservaChave = Object.values(fixaChave).reduce((a, b) => a + b, 0);
       const dinamicas = cols.filter((c) => c.key !== 'descricao' && fixaChave[c.key] == null);
       const descMin = 40; // largura minima reservada p/ a Descricao
@@ -324,7 +420,7 @@ export default function CaracteristicasPage() {
     } finally {
       gerandoPdfRef.current = false;
     }
-  }, [dados.colunas, linhas, valCol, empFiltro, filtro, filtros, setMsg]);
+  }, [ordemColunas, todasChaves, linhas, valCol, empFiltro, filtro, filtros, setMsg]);
 
   // ---- sugestoes de tipo ----
   const abrirSugestoes = useCallback(async () => {
@@ -344,7 +440,7 @@ export default function CaracteristicasPage() {
 
   if (!permLoading && userProfile && !pode('ajustes', 'caracteristicas')) return <SemPermissao />;
 
-  const colunas = dados.colunas || [];
+  const colsRender = ordemColunas.length ? ordemColunas : todasChaves;
   const totalProdutos = (dados.produtos || []).length;
   const statusColor = statusTipo === 'erro' ? '#dc2626' : statusTipo === 'ok' ? '#047857' : '#64748b';
 
@@ -377,6 +473,11 @@ export default function CaracteristicasPage() {
         <button onClick={exportarCSV} style={{ padding: '7px 14px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer' }}>Exportar CSV</button>
         <button onClick={gerarPDF} title="Gera um PDF (A4 paisagem) com todas as colunas da tela, respeitando os filtros e a ordenacao" style={{ padding: '7px 14px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer' }}>Gerar PDF</button>
         <button onClick={sincronizar} disabled={rodando} style={{ padding: '7px 14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: rodando ? 'wait' : 'pointer', opacity: rodando ? 0.5 : 1 }}>{rodando ? 'Sincronizando…' : 'Sincronizar agora'}</button>
+        <button onClick={restaurarOrdem} title="Volta as colunas para a ordem padrao" style={{ padding: '7px 14px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer' }}>Restaurar ordem</button>
+      </div>
+
+      <div style={{ marginBottom: 8, fontSize: '.72rem', color: '#94a3b8' }}>
+        Arraste o <b>⠿</b> no cabecalho para reordenar colunas (salvo neste navegador). Clique no titulo para ordenar; <b>Shift+clique</b> adiciona um 2o criterio (desempate).
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, fontSize: '.75rem' }}>
@@ -396,15 +497,28 @@ export default function CaracteristicasPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
-                {([['empresa', 'Empresa'], ['codigo', 'Codigo'], ['descricao', 'Descricao'], ['modelo', 'Modelo'], ['marca', 'Marca']] as [string, string][]).map(([k, lbl]) => (
-                  <th key={k} onClick={() => ordenarPor(k)} style={thStyle}>{lbl}{sort.key === k ? (sort.dir > 0 ? ' ▲' : ' ▼') : ''}</th>
-                ))}
-                {colunas.map((c) => (
-                  <th key={c} onClick={() => ordenarPor(c)} style={thStyle}>{c}{sort.key === c ? (sort.dir > 0 ? ' ▲' : ' ▼') : ''}</th>
-                ))}
+                {colsRender.map((k) => {
+                  const si = sortInfo(k);
+                  return (
+                    <th key={k} draggable
+                      onDragStart={(e) => { setDragCol(k); e.dataTransfer.setData('text/plain', k); e.dataTransfer.effectAllowed = 'move'; }}
+                      onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+                      onDrop={(e) => { e.preventDefault(); const origem = e.dataTransfer.getData('text/plain') || dragCol; if (origem) moverColuna(origem, k); setDragCol(null); }}
+                      onDragEnd={() => setDragCol(null)}
+                      style={{ ...thStyle, cursor: 'default', background: dragCol === k ? '#e0f2fe' : thStyle.background }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <span title="Arraste para reordenar" onClick={(e) => e.stopPropagation()} style={{ cursor: 'grab', color: '#94a3b8' }}>⠿</span>
+                        <span onClick={(e) => ordenarPor(k, e.shiftKey)} title="Clique = ordenar · Shift+clique = 2o criterio" style={{ cursor: 'pointer' }}>
+                          {labelCol(k)}{si ? (si.dir > 0 ? ' ▲' : ' ▼') : ''}
+                          {si && sorts.length > 1 && <sup style={{ fontSize: '.6rem', color: '#2563eb' }}>{si.pos + 1}</sup>}
+                        </span>
+                      </span>
+                    </th>
+                  );
+                })}
               </tr>
               <tr>
-                {['empresa', 'codigo', 'descricao', 'modelo', 'marca', ...colunas].map((k) => (
+                {colsRender.map((k) => (
                   <th key={k} style={thFiltroStyle}>
                     <input value={filtros[k] || ''} onChange={(e) => setFiltros((f) => ({ ...f, [k]: e.target.value }))}
                       placeholder="filtrar…" style={filtroInput} />
@@ -414,15 +528,17 @@ export default function CaracteristicasPage() {
             </thead>
             <tbody>
               {linhas.length === 0 ? (
-                <tr><td colSpan={5 + colunas.length} style={{ ...tdStyle, textAlign: 'center', color: '#94a3b8', padding: 30 }}>Nenhum produto bate com o filtro.</td></tr>
+                <tr><td colSpan={colsRender.length} style={{ ...tdStyle, textAlign: 'center', color: '#94a3b8', padding: 30 }}>Nenhum produto bate com o filtro.</td></tr>
               ) : linhas.map((p) => (
                 <tr key={`${p.empresa}:${p.codigo_produto}`} style={{ borderTop: '1px solid #f1f5f9' }}>
-                  <td style={tdStyle}><EmpBadge empresa={p.empresa} /></td>
-                  <td style={{ ...tdStyle, fontFamily: 'monospace', fontSize: '.72rem' }}>{p.codigo || '-'}</td>
-                  <td style={tdStyle}>{p.descricao || '-'}</td>
-                  <td style={{ ...tdStyle, color: p.modelo ? '#334155' : '#cbd5e1' }}>{p.modelo || '-'}</td>
-                  <td style={{ ...tdStyle, color: p.marca ? '#334155' : '#cbd5e1' }}>{p.marca || '-'}</td>
-                  {colunas.map((col) => {
+                  {colsRender.map((col) => {
+                    if (col === 'empresa') return <td key={col} style={tdStyle}><EmpBadge empresa={p.empresa} /></td>;
+                    if (col === 'codigo') return <td key={col} style={{ ...tdStyle, fontFamily: 'monospace', fontSize: '.72rem' }}>{p.codigo || '-'}</td>;
+                    if (col === 'descricao') return <td key={col} style={tdStyle}>{p.descricao || '-'}</td>;
+                    if (col === 'qtd_estoque') return <td key={col} style={{ ...tdStyle, textAlign: 'right', fontWeight: 500, color: (p.estoque ?? 0) < 0 ? '#dc2626' : (p.estoque ? '#334155' : '#cbd5e1') }}>{p.estoque != null ? p.estoque : '-'}</td>;
+                    if (col === 'modelo') return <td key={col} style={{ ...tdStyle, color: p.modelo ? '#334155' : '#cbd5e1' }}>{p.modelo || '-'}</td>;
+                    if (col === 'marca') return <td key={col} style={{ ...tdStyle, color: p.marca ? '#334155' : '#cbd5e1' }}>{p.marca || '-'}</td>;
+                    // caracteristica (editavel)
                     const cellKey = `${p.empresa}:${p.codigo_produto}:${col}`;
                     const v = (p.caracteristicas || {})[col] || '';
                     const emEdicao = editando && editando.empresa === p.empresa && editando.cp === String(p.codigo_produto) && editando.col === col;
@@ -508,7 +624,7 @@ function ModalSugestoes({ d, onClose, onAplicado }: { d: SugestoesPayload; onClo
       setProg(`aplicando na Omie... ${aplicados}/${total} feitos, ${fila.length} na fila`);
       try {
         const r = await fetch('/api/ajustes/caracteristicas/aplicar-tipo', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
           body: JSON.stringify({ nome: colTipo, itens: lote }),
         });
         const res = await r.json();
