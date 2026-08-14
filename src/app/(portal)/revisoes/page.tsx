@@ -770,14 +770,23 @@ function DashboardAgrupadoInner() {
                 {emailsCarregados && <span className="text-zinc-500 ml-3">{emails.length} emails</span>}
               </p>
             </div>
-            <button
-              onClick={() => { setShowNovoTrator(true); setNovoTrator({}); setMsgNovoTrator(""); }}
-              disabled={!podeTratores}
-              title={!podeTratores ? MSG_SEM_PERMISSAO : undefined}
-              className="px-5 py-2.5 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors text-sm shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              + Novo Trator
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <a
+                href="/revisoes/mahindra"
+                title="Revisões de 50h e 900h realizadas — controle de cobrança da Mahindra + exportação Excel"
+                className="px-5 py-2.5 bg-white border border-zinc-300 text-zinc-700 rounded-lg font-medium hover:bg-zinc-50 transition-colors text-sm"
+              >
+                Mahindra 50h/900h
+              </a>
+              <button
+                onClick={() => { setShowNovoTrator(true); setNovoTrator({}); setMsgNovoTrator(""); }}
+                disabled={!podeTratores}
+                title={!podeTratores ? MSG_SEM_PERMISSAO : undefined}
+                className="px-5 py-2.5 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                + Novo Trator
+              </button>
+            </div>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3">

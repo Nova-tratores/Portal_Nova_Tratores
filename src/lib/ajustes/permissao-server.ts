@@ -50,3 +50,39 @@ export async function exigirPermissao(req: Request, modulo: string, acao?: strin
 
   return { id: user.id, email: user.email, nome };
 }
+
+// Espelho servidor do temAcesso(modulo) do cliente (usePermissoes): passa quem
+// tem o modulo puro OU QUALQUER acao granular dele (`modulo:*`) OU is_admin/
+// is_dev. Para rotas de LEITURA gateadas na tela por temAcesso — exigirPermissao
+// sem acao negaria (403) usuario que so tem permissao granular do modulo.
+export async function exigirAcessoModulo(req: Request, modulo: string): Promise<{ id: string; email?: string; nome?: string }> {
+  const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
+  if (!token) throw httpErr(401, 'nao autenticado');
+
+  const anon = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  );
+  const { data: { user }, error } = await anon.auth.getUser(token);
+  if (error || !user) throw httpErr(401, 'sessao invalida');
+
+  const { data: perm } = await supabaseAdmin
+    .from('portal_permissoes')
+    .select('is_admin, is_dev, modulos_permitidos')
+    .eq('user_id', user.id)
+    .single();
+
+  const p = perm as any;
+  const isAdmin = p?.is_admin === true || p?.is_dev === true;
+  const mods: string[] = p?.modulos_permitidos || [];
+  const ok = isAdmin || mods.includes(modulo) || mods.some((m) => m.startsWith(`${modulo}:`));
+  if (!ok) throw httpErr(403, 'sem permissao para este modulo');
+
+  let nome: string | undefined;
+  try {
+    const { data: usu } = await supabaseAdmin.from('financeiro_usu').select('nome').eq('id', user.id).single();
+    nome = (usu as any)?.nome || undefined;
+  } catch { /* segue sem nome */ }
+
+  return { id: user.id, email: user.email, nome };
+}
