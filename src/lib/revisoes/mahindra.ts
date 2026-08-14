@@ -18,9 +18,20 @@ export interface TratorRow {
   [k: string]: unknown
 }
 
+export type TipoRevisao = '50h' | '900h' | 'inspecao'
+
+export const REV_LABEL: Record<TipoRevisao, string> = {
+  '50h': '50h',
+  '900h': '900h',
+  inspecao: 'Pré-entrega',
+}
+
+// Prefixo das colunas na tabela tratores ("50h Data", "Inspecao Data", ...).
+const PREFIXO: Record<TipoRevisao, string> = { '50h': '50h', '900h': '900h', inspecao: 'Inspecao' }
+
 export interface LinhaRevisao {
   tratorId: string
-  revisao: '50h' | '900h'
+  revisao: TipoRevisao
   data: string // sempre exibida como dd/mm/aaaa (normalizada)
   dataOrd: number // meia-noite UTC do dia (0 = data inválida/ilegível)
   horimetro: string
@@ -58,19 +69,20 @@ export function formatBR(dataTexto: string): string {
   return `${pad(p.dia)}/${pad(p.mes)}/${p.ano}`
 }
 
-/** Uma linha por (trator × revisão 50h/900h realizada), mais recente primeiro. */
+/** Uma linha por (trator × revisão 50h/900h ou inspeção de pré-entrega realizada), mais recente primeiro. */
 export function extrairLinhas(tratores: TratorRow[]): LinhaRevisao[] {
   const out: LinhaRevisao[] = []
   for (const t of tratores) {
-    for (const rev of ['50h', '900h'] as const) {
-      const dataRaw = String(t[`${rev} Data`] || '').trim()
+    for (const rev of ['50h', '900h', 'inspecao'] as const) {
+      const pref = PREFIXO[rev]
+      const dataRaw = String(t[`${pref} Data`] || '').trim()
       if (!dataRaw) continue
       out.push({
         tratorId: String(t.ID),
         revisao: rev,
         data: formatBR(dataRaw),
         dataOrd: ordDe(dataRaw),
-        horimetro: String(t[`${rev} Horimetro`] || '').trim(),
+        horimetro: String(t[`${pref} Horimetro`] || '').trim(),
         chassis: String(t.Chassis || '').trim(),
         modelo: String(t.Modelo || '').trim(),
         motor: String(t.Numero_Motor || '').trim(),
@@ -78,7 +90,7 @@ export function extrairLinhas(tratores: TratorRow[]): LinhaRevisao[] {
         cidade: String(t.Cidade || '').trim(),
         vendedor: String(t.Vendedor || '').trim(),
         entrega: formatBR(String(t.Entrega || '')),
-        pdf: String(t[`${rev} PDF`] || '').trim(),
+        pdf: String(t[`${pref} PDF`] || '').trim(),
       })
     }
   }
@@ -100,7 +112,7 @@ export function filtrarLinhas(
   const ateOrd = f.ate ? ordDe(f.ate) + 86399999 : Infinity
   const termo = (f.q || '').trim().toLowerCase()
   return linhas.filter(l => {
-    if ((f.tipo === '50h' || f.tipo === '900h') && l.revisao !== f.tipo) return false
+    if ((f.tipo === '50h' || f.tipo === '900h' || f.tipo === 'inspecao') && l.revisao !== f.tipo) return false
     if (l.dataOrd < deOrd || l.dataOrd > ateOrd) return false
     if (termo && !`${l.chassis} ${l.cliente} ${l.modelo} ${l.cidade}`.toLowerCase().includes(termo)) return false
     return true

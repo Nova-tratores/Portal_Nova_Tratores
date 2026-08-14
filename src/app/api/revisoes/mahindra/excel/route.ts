@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import ExcelJS from 'exceljs';
 import { supabaseFetchAll } from '@/lib/pos/supabase';
 import { exigirAcessoModulo } from '@/lib/ajustes/permissao-server';
-import { extrairLinhas, filtrarLinhas, type TratorRow } from '@/lib/revisoes/mahindra';
+import { extrairLinhas, filtrarLinhas, REV_LABEL, type TratorRow } from '@/lib/revisoes/mahindra';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
     const wb = new ExcelJS.Workbook();
     wb.creator = 'Portal Nova Tratores';
     wb.created = new Date();
-    const ws = wb.addWorksheet('Revisões 50h e 900h', {
+    const ws = wb.addWorksheet('Cobrança Mahindra', {
       views: [{ state: 'frozen', ySplit: 3 }],
     });
 
@@ -59,20 +59,25 @@ export async function GET(req: NextRequest) {
     ws.mergeCells('A1:I1');
     ws.mergeCells('A2:I2');
     const t1 = ws.getCell('A1');
-    t1.value = 'NOVA TRATORES — Revisões Mahindra (50h e 900h) realizadas';
+    t1.value = filtros.tipo === 'inspecao'
+      ? 'NOVA TRATORES — Inspeções de pré-entrega realizadas'
+      : filtros.tipo === '50h' || filtros.tipo === '900h'
+        ? `NOVA TRATORES — Revisões Mahindra (${filtros.tipo}) realizadas`
+        : 'NOVA TRATORES — Revisões Mahindra (50h, 900h e pré-entrega) realizadas';
     t1.font = { bold: true, size: 13, color: { argb: 'FFC41E2A' } };
     const periodo = filtros.de || filtros.ate
       ? `Período: ${filtros.de ? filtros.de.split('-').reverse().join('/') : 'início'} a ${filtros.ate ? filtros.ate.split('-').reverse().join('/') : 'hoje'}`
-      : 'Período: todas as revisões registradas';
+      : 'Período: todas as registradas';
     const tot50 = linhas.filter(l => l.revisao === '50h').length;
     const tot900 = linhas.filter(l => l.revisao === '900h').length;
+    const totIns = linhas.filter(l => l.revisao === 'inspecao').length;
     const t2 = ws.getCell('A2');
-    t2.value = `${periodo} · ${linhas.length} revisão(ões): ${tot50}× 50h e ${tot900}× 900h`;
+    t2.value = `${periodo} · ${linhas.length} no total: ${tot50}× 50h, ${tot900}× 900h e ${totIns}× pré-entrega`;
     t2.font = { size: 10, color: { argb: 'FF64748B' } };
 
     for (const l of linhas) {
       const row = ws.addRow({
-        revisao: l.revisao,
+        revisao: REV_LABEL[l.revisao],
         data: l.dataOrd > 0 ? new Date(l.dataOrd) : l.data,
         chassis: l.chassis || '',
         modelo: l.modelo || '',
@@ -101,7 +106,7 @@ export async function GET(req: NextRequest) {
     }
 
     const buf = await wb.xlsx.writeBuffer();
-    const nome = `revisoes-mahindra-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    const nome = `${filtros.tipo === 'inspecao' ? 'inspecoes-pre-entrega' : 'revisoes-mahindra'}-${new Date().toISOString().slice(0, 10)}.xlsx`;
     return new NextResponse(buf as ArrayBuffer, {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

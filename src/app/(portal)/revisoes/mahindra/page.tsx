@@ -11,7 +11,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import { authHeaders } from '@/lib/auth/client'
 import SemPermissao from '@/components/SemPermissao'
-import { extrairLinhas, filtrarLinhas, type TratorRow } from '@/lib/revisoes/mahindra'
+import { extrairLinhas, filtrarLinhas, REV_LABEL, type TipoRevisao, type TratorRow } from '@/lib/revisoes/mahindra'
 
 export default function RevisoesMahindraPage() {
   const { userProfile } = useAuth()
@@ -20,7 +20,7 @@ export default function RevisoesMahindraPage() {
   const [tratores, setTratores] = useState<TratorRow[]>([])
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState('')
-  const [tipo, setTipo] = useState<'todas' | '50h' | '900h'>('todas')
+  const [tipo, setTipo] = useState<'todas' | TipoRevisao>('todas')
   const [de, setDe] = useState('') // yyyy-mm-dd (input date)
   const [ate, setAte] = useState('')
   const [q, setQ] = useState('')
@@ -61,6 +61,7 @@ export default function RevisoesMahindraPage() {
 
   const tot50 = filtradas.filter(l => l.revisao === '50h').length
   const tot900 = filtradas.filter(l => l.revisao === '900h').length
+  const totIns = filtradas.filter(l => l.revisao === 'inspecao').length
 
   if (!pLoading && userProfile && !temAcesso('revisoes')) return <SemPermissao />
 
@@ -95,7 +96,7 @@ export default function RevisoesMahindraPage() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `revisoes-mahindra-${new Date().toISOString().slice(0, 10)}.xlsx`
+      a.download = `${tipo === 'inspecao' ? 'inspecoes-pre-entrega' : 'revisoes-mahindra'}-${new Date().toISOString().slice(0, 10)}.xlsx`
       a.click()
       URL.revokeObjectURL(url)
     } catch (e) {
@@ -114,25 +115,25 @@ export default function RevisoesMahindraPage() {
           <ArrowLeft size={15} /> Revisões
         </Link>
         <h1 style={{ fontSize: 19, fontWeight: 800, color: 'var(--portal-text)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Wrench size={18} color="#C41E2A" /> Revisões Mahindra — 50h e 900h
+          <Wrench size={18} color="#C41E2A" /> Cobrança Mahindra — 50h, 900h e pré-entrega
         </h1>
       </div>
       <p style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)', margin: '0 0 14px', lineHeight: 1.6 }}>
-        As revisões de <strong>50h</strong> e <strong>900h</strong> são pagas pela Mahindra — esta lista mostra as realizadas
-        (data registrada no controle de revisões) pra conferência e cobrança. Filtre o período e exporte o
-        <strong> Excel</strong> pra enviar à fábrica.
+        As revisões de <strong>50h</strong> e <strong>900h</strong> e a <strong>inspeção de pré-entrega</strong> são pagas
+        pela Mahindra — esta lista mostra as realizadas (data registrada no controle de revisões) pra conferência e
+        cobrança. Filtre o período e exporte o <strong>Excel</strong> pra enviar à fábrica.
       </p>
 
       {/* Filtros */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
-        <div style={{ display: 'flex', gap: 4 }}>
-          {(['todas', '50h', '900h'] as const).map(t => (
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+          {(['todas', '50h', '900h', 'inspecao'] as const).map(t => (
             <button key={t} onClick={() => setTipo(t)} style={{
               padding: '7px 14px', borderRadius: 999, fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
               border: tipo === t ? '2px solid #C41E2A' : '1px solid var(--portal-border)',
               background: tipo === t ? '#fef2f2' : 'var(--portal-bg-card)',
               color: tipo === t ? '#C41E2A' : 'var(--portal-text-secondary)',
-            }}>{t === 'todas' ? 'Todas' : `Revisão ${t}`}</button>
+            }}>{t === 'todas' ? 'Todas' : t === 'inspecao' ? 'Pré-entrega' : `Revisão ${t}`}</button>
           ))}
         </div>
         <label style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>De <input type="date" value={de} onChange={e => setDe(e.target.value)} style={inp} /></label>
@@ -142,7 +143,7 @@ export default function RevisoesMahindraPage() {
           <input value={q} onChange={e => setQ(e.target.value)} placeholder="Chassi, cliente, modelo…" style={{ ...inp, paddingLeft: 30, minWidth: 220 }} />
         </div>
         <span style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)', marginLeft: 'auto' }}>
-          <strong>{filtradas.length}</strong> revisão(ões) · {tot50}× 50h · {tot900}× 900h
+          <strong>{filtradas.length}</strong> no filtro · {tot50}× 50h · {tot900}× 900h · {totIns}× pré-entrega
         </span>
         <button onClick={abrirModalExcel} disabled={exportando || filtradas.length === 0} style={{
           display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 8, border: 'none',
@@ -183,8 +184,8 @@ export default function RevisoesMahindraPage() {
             {!carregando && filtradas.map((l, i) => (
               <tr key={`${l.tratorId}-${l.revisao}-${i}`} style={{ borderTop: '1px solid var(--portal-border)' }}>
                 <td style={{ padding: '7px 10px' }}>
-                  <span style={{ fontSize: 11, fontWeight: 800, padding: '2px 10px', borderRadius: 999, color: '#fff', background: l.revisao === '50h' ? '#0d9488' : '#7c3aed' }}>
-                    {l.revisao}
+                  <span style={{ fontSize: 11, fontWeight: 800, padding: '2px 10px', borderRadius: 999, color: '#fff', whiteSpace: 'nowrap', background: l.revisao === '50h' ? '#0d9488' : l.revisao === '900h' ? '#7c3aed' : '#0369a1' }}>
+                    {REV_LABEL[l.revisao]}
                   </span>
                 </td>
                 <td style={{ padding: '7px 10px', whiteSpace: 'nowrap', fontWeight: 700, color: 'var(--portal-text)' }}>{l.data}</td>

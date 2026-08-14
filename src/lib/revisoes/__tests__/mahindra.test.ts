@@ -59,6 +59,15 @@ describe('extrairLinhas', () => {
     expect(linhas.map(l => l.data)).toEqual(['11/03/2026', '01/01/2026'])
   })
 
+  it('inspeção de pré-entrega vira linha própria (colunas "Inspecao *")', () => {
+    const linhas = extrairLinhas([
+      { ...base, 'Inspecao Data': '14/05/2025', 'Inspecao Horimetro': '2', 'Inspecao PDF': 'http://x/insp.pdf', '50h Data': '23/06/2026' },
+    ])
+    expect(linhas.map(l => l.revisao)).toEqual(['50h', 'inspecao'])
+    const insp = linhas.find(l => l.revisao === 'inspecao')!
+    expect(insp).toMatchObject({ data: '14/05/2025', horimetro: '2', pdf: 'http://x/insp.pdf' })
+  })
+
   it('empate de data desempata por chassi (ordem estável entre tela e Excel)', () => {
     const linhas = extrairLinhas([
       { ...base, ID: 'b', Chassis: 'ZZZ', '50h Data': '10/03/2026' },
@@ -73,20 +82,22 @@ describe('filtrarLinhas', () => {
     { ...base, ID: '1', Chassis: 'C1', '50h Data': '05/03/2026' },
     { ...base, ID: '2', Chassis: 'C2', '50h Data': '2026-03-11' },
     { ...base, ID: '3', Chassis: 'C3', '900h Data': '20/04/2026', Cliente: 'Beltrano' },
+    { ...base, ID: '4', Chassis: 'C4', 'Inspecao Data': '10/03/2026' },
   ])
 
   it('período De/Até inclui revisão gravada em ISO dentro do intervalo', () => {
     const marco = filtrarLinhas(linhas, { de: '2026-03-01', ate: '2026-03-31' })
-    expect(marco.map(l => l.tratorId).sort()).toEqual(['1', '2'])
+    expect(marco.map(l => l.tratorId).sort()).toEqual(['1', '2', '4'])
   })
 
   it('só Até corta revisão datada depois do período (inclusive as em ISO)', () => {
     const soAte = filtrarLinhas(linhas, { ate: '2026-03-31' })
-    expect(soAte.map(l => l.tratorId).sort()).toEqual(['1', '2'])
+    expect(soAte.map(l => l.tratorId).sort()).toEqual(['1', '2', '4'])
   })
 
   it('tipo e busca', () => {
     expect(filtrarLinhas(linhas, { tipo: '900h' })).toHaveLength(1)
+    expect(filtrarLinhas(linhas, { tipo: 'inspecao' }).map(l => l.tratorId)).toEqual(['4'])
     expect(filtrarLinhas(linhas, { q: 'beltrano' })[0].tratorId).toBe('3')
     expect(filtrarLinhas(linhas, { q: 'c2' })[0].tratorId).toBe('2')
   })

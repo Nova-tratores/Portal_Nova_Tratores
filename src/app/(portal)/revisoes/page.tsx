@@ -795,7 +795,7 @@ function DashboardAgrupadoInner() {
                 title="Revisões de 50h e 900h realizadas — controle de cobrança da Mahindra + exportação Excel"
                 className="px-5 py-2.5 bg-white border border-zinc-300 text-zinc-700 rounded-lg font-medium hover:bg-zinc-50 transition-colors text-sm"
               >
-                Mahindra 50h/900h
+                Cobrança Mahindra
               </a>
               <button
                 onClick={() => { setShowNovoTrator(true); setNovoTrator({}); setMsgNovoTrator(""); }}
