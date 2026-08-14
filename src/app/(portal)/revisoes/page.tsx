@@ -145,6 +145,8 @@ function DashboardAgrupadoInner() {
   const [horimetroEnvio, setHorimetroEnvio] = useState("");
   const [editandoMotor, setEditandoMotor] = useState(false);
   const [motorTemp, setMotorTemp] = useState("");
+  const [editandoCliente, setEditandoCliente] = useState(false);
+  const [clienteTemp, setClienteTemp] = useState("");
   const [showNovoTrator, setShowNovoTrator] = useState(false);
   const [novoTrator, setNovoTrator] = useState<Partial<Trator>>({});
   // Trator EM ESTOQUE (ainda não vendido): cria sem cliente/vendedor/entrega —
@@ -415,6 +417,23 @@ function DashboardAgrupadoInner() {
       setSelecionado(updated);
       setTratores(prev => prev.map(t => t.ID === selecionado.ID ? updated : t));
       setEditandoMotor(false);
+    }
+  };
+
+  const salvarCliente = async () => {
+    if (!podeTratores) return;
+    if (!selecionado) return;
+    const novo = clienteTemp.trim();
+    const { error } = await supabase
+      .from("tratores")
+      .update({ Cliente: novo })
+      .eq("ID", selecionado.ID);
+    if (!error) {
+      auditLog({ sistema: 'revisoes', acao: 'editar', entidade: 'trator', entidade_id: selecionado.ID, entidade_label: `${selecionado.Modelo} - ${selecionado.Chassis}`, detalhes: { campo: 'Cliente', de: selecionado.Cliente || '', para: novo } });
+      const updated = { ...selecionado, Cliente: novo };
+      setSelecionado(updated);
+      setTratores(prev => prev.map(t => t.ID === selecionado.ID ? updated : t));
+      setEditandoCliente(false);
     }
   };
 
@@ -842,6 +861,7 @@ function DashboardAgrupadoInner() {
                       key={t.ID}
                       onClick={() => {
                         setSelecionado(t); setEmailExpandido(null); setTabModal("timeline");
+                        setEditandoMotor(false); setEditandoCliente(false);
                         fetchLembretes(String(t.ID));
                         fetchUsuariosPortal();
                         auditLog({ sistema: 'revisoes', acao: 'visualizar', entidade: 'trator', entidade_id: t.ID, entidade_label: `${t.Modelo} - ${t.Chassis}` });
@@ -1045,6 +1065,42 @@ function DashboardAgrupadoInner() {
                       {[
                         ["Chassis", selecionado.Chassis || "—"],
                         ["Motor", selecionado.Numero_Motor || "—"],
+                      ].map(([label, value]) => (
+                        <div key={label} className="bg-zinc-50 rounded-lg p-3 border border-zinc-100 flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3 min-w-0">
+                          <p className="text-sm text-zinc-400 uppercase tracking-wider font-medium shrink-0">{label}</p>
+                          <p className="text-base text-zinc-800 font-medium min-w-0 break-all sm:text-right">{value}</p>
+                        </div>
+                      ))}
+                      {/* Cliente é editável (pode mudar de dono) — mesmo padrão do Motor */}
+                      <div className="bg-zinc-50 rounded-lg p-3 border border-zinc-100 flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3 min-w-0">
+                        <p className="text-sm text-zinc-400 uppercase tracking-wider font-medium shrink-0">Cliente</p>
+                        {editandoCliente ? (
+                          <div className="min-w-0 flex-1 sm:max-w-[70%]">
+                            <input
+                              type="text"
+                              value={clienteTemp}
+                              onChange={(e) => setClienteTemp(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === "Enter") salvarCliente(); if (e.key === "Escape") setEditandoCliente(false); }}
+                              autoFocus
+                              className="w-full px-2 py-1 rounded-md bg-white border border-zinc-200 text-zinc-800 text-base font-medium focus:ring-1 focus:ring-red-300 outline-none"
+                            />
+                            <div className="flex gap-2 mt-1.5 sm:justify-end">
+                              <button onClick={salvarCliente} className="text-emerald-600 hover:text-emerald-500 text-xs font-medium">Salvar</button>
+                              <button onClick={() => setEditandoCliente(false)} className="text-zinc-400 hover:text-zinc-600 text-xs">Cancelar</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <p
+                            className={`text-base text-zinc-800 font-medium min-w-0 break-all sm:text-right ${podeTratores ? "cursor-pointer hover:text-red-500 transition-colors group/cliente" : ""}`}
+                            onClick={() => { if (!podeTratores) return; setClienteTemp(selecionado.Cliente || ""); setEditandoCliente(true); }}
+                            title={podeTratores ? "Clique para editar" : undefined}
+                          >
+                            {selecionado.Cliente || <span className="text-zinc-400">—</span>}
+                            {podeTratores && <span className="text-xs text-zinc-400 group-hover/cliente:text-red-500 ml-1 font-normal">editar</span>}
+                          </p>
+                        )}
+                      </div>
+                      {[
                         ["Vendedor", selecionado.Vendedor || "—"],
                         ["Cidade", selecionado.Cidade || "—"],
                         ["Entrega", formatarData(selecionado.Entrega)],

@@ -168,7 +168,7 @@ export default function RevisoesMahindraPage() {
               <th style={{ padding: '8px 10px' }}>Cliente</th>
               <th style={{ padding: '8px 10px', width: 130 }}>Cidade</th>
               <th style={{ padding: '8px 10px', width: 95 }}>Entrega</th>
-              <th style={{ padding: '8px 10px', width: 70 }}>Laudo</th>
+              <th style={{ padding: '8px 10px', width: 70 }}>Check</th>
             </tr>
           </thead>
           <tbody>

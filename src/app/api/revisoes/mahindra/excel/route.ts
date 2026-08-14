@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
       { header: 'Cliente', key: 'cliente', width: 36 },
       { header: 'Cidade', key: 'cidade', width: 20 },
       { header: 'Data de entrega', key: 'entrega', width: 15 },
-      { header: 'Laudo (PDF)', key: 'pdf', width: 14 },
+      { header: 'Check (PDF)', key: 'pdf', width: 14 },
     ];
 
     // Título nas 2 primeiras linhas (o header das colunas desce pra linha 3).
@@ -83,7 +83,7 @@ export async function GET(req: NextRequest) {
         pdf: '',
       });
       if (l.pdf) {
-        row.getCell('pdf').value = { text: 'Abrir laudo', hyperlink: l.pdf };
+        row.getCell('pdf').value = { text: 'Abrir check', hyperlink: l.pdf };
         row.getCell('pdf').font = { color: { argb: 'FF0EA5E9' }, underline: true };
       }
     }
