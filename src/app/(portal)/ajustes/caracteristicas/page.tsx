@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
 import { authHeaders } from '@/lib/auth/client';
+import { Settings, Flag, AlertTriangle } from 'lucide-react';
 
 // ---------- tipos ----------
 interface Produto {
@@ -43,15 +44,16 @@ const filtroInput: React.CSSProperties = { width: '100%', minWidth: 60, border: 
 
 // Colunas fixas (não editáveis): key -> rótulo. As demais colunas são características
 // da Omie, cuja key é o próprio nome. `qtd_estoque` = saldo (produtos.estoque, só-leitura).
+// `sinalizacao` = pseudo-coluna só-leitura: mostra ⚠ se o produto tem alguma célula sinalizada.
 const COLS_FIXAS: Record<string, string> = {
-  empresa: 'Empresa', codigo: 'Codigo', descricao: 'Descricao', qtd_estoque: 'Qtd Estoque', modelo: 'Modelo', marca: 'Marca',
+  empresa: 'Empresa', codigo: 'Codigo', sinalizacao: 'Sinalizacao', descricao: 'Descricao', qtd_estoque: 'Qtd Estoque', modelo: 'Modelo', marca: 'Marca',
 };
 const CHAVES_FIXAS = Object.keys(COLS_FIXAS);
 function ehFixa(key: string): boolean { return key in COLS_FIXAS; }
 function labelCol(key: string): string { return COLS_FIXAS[key] || key; }
 // Ordem padrão pedida pelo usuário. As características casam com dados.colunas de forma
 // case-insensitive (a Omie pode gravar #PRATELEIRA etc.); ver reconciliarOrdem.
-const DEFAULT_ORDEM = ['empresa', 'codigo', 'descricao', 'qtd_estoque', '#Prateleira', '#Andar', '#Andar2', '#Caixa', 'Sistema', 'Tipo:', 'marca', 'modelo'];
+const DEFAULT_ORDEM = ['empresa', 'codigo', 'sinalizacao', 'descricao', 'qtd_estoque', '#Prateleira', '#Andar', '#Andar2', '#Caixa', 'Sistema', 'Tipo:', 'marca', 'modelo'];
 const ORDEM_KEY = (uid: string) => `carac-ordem-colunas-${uid}`;
 const OCULTAS_KEY = (uid: string) => `carac-colunas-ocultas-${uid}`;
 // chave da preferencia no Supabase (portal_ui_prefs): guarda { ordem, ocultas }
@@ -152,6 +154,90 @@ function EmpBadge({ empresa }: { empresa: string }) {
   return <span style={{ padding: '1px 6px', borderRadius: 4, fontSize: '.68rem', background: castro ? '#f3e8ff' : '#e0f2fe', color: castro ? '#7e22ce' : '#0369a1' }}>{empresa}</span>;
 }
 
+// Engrenagem (F1): botao com menu de "Colunas" e "Restaurar ordem". Fecha ao clicar fora
+// (overlay transparente). Nao ha Dropdown reutilizavel no projeto, entao e inline.
+function MenuEngrenagem({ ocultasCount, onColunas, onRestaurar }: {
+  ocultasCount: number; onColunas: () => void; onRestaurar: () => void;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const item: React.CSSProperties = { display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '9px 14px', fontSize: '.82rem', color: '#334155', cursor: 'pointer', whiteSpace: 'nowrap' };
+  return (
+    <div style={{ position: 'relative' }}>
+      <button onClick={() => setAberto((v) => !v)} title="Opcoes de colunas (mostrar/ocultar, reordenar, restaurar)"
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer' }}>
+        <Settings size={16} />
+        {ocultasCount > 0 && <span style={{ background: '#2563eb', color: '#fff', borderRadius: 8, fontSize: '.62rem', padding: '0 5px', lineHeight: '15px' }}>{ocultasCount}</span>}
+      </button>
+      {aberto && (
+        <>
+          <div onClick={() => setAberto(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
+          <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 8px 28px rgba(0,0,0,.18)', zIndex: 41, minWidth: 190, overflow: 'hidden' }}>
+            <button style={item} onClick={() => { setAberto(false); onColunas(); }}>
+              Colunas{ocultasCount ? ` (${ocultasCount} oculta${ocultasCount > 1 ? 's' : ''})` : ''}…
+            </button>
+            <button style={{ ...item, borderTop: '1px solid #f1f5f9' }} onClick={() => { setAberto(false); onRestaurar(); }}>
+              Restaurar ordem
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// Controle "Ordenar por" (F2): edita o MESMO estado `sorts` usado pelo clique no cabecalho,
+// entao os dois ficam em sincronia. Ate 2 niveis (principal + desempate).
+function ControleOrdenacao({ cols, sorts, setSorts }: {
+  cols: { key: string; label: string }[];
+  sorts: { key: string; dir: number }[];
+  setSorts: React.Dispatch<React.SetStateAction<{ key: string; dir: number }[]>>;
+}) {
+  const p = sorts[0]; const s = sorts[1];
+  const sel: React.CSSProperties = { border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 8px', fontSize: '.82rem', background: '#fff' };
+  const setPrincipal = (key: string) => setSorts((arr) => {
+    if (!key) return [];
+    const dir = arr[0]?.key === key ? arr[0].dir : 1;
+    const sec = arr[1];
+    return sec && sec.key !== key ? [{ key, dir }, sec] : [{ key, dir }];
+  });
+  const setDirP = (dir: number) => setSorts((arr) => (arr.length ? [{ ...arr[0], dir }, ...arr.slice(1)] : arr));
+  const setSecundario = (key: string) => setSorts((arr) => {
+    if (!arr.length) return arr;
+    if (!key) return arr.slice(0, 1);
+    const dir = arr[1]?.key === key ? arr[1].dir : 1;
+    return [arr[0], { key, dir }];
+  });
+  const setDirS = (dir: number) => setSorts((arr) => (arr.length > 1 ? [arr[0], { ...arr[1], dir }] : arr));
+  return (
+    <div>
+      <label style={{ display: 'block', fontSize: '.65rem', color: '#64748b', marginBottom: 2 }}>Ordenar por</label>
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+        <select value={p?.key || ''} onChange={(e) => setPrincipal(e.target.value)} style={sel} title="Coluna principal de ordenacao">
+          <option value="">— nenhuma —</option>
+          {cols.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+        </select>
+        <select value={p ? String(p.dir) : '1'} onChange={(e) => setDirP(Number(e.target.value))} disabled={!p} style={{ ...sel, opacity: p ? 1 : 0.5 }}>
+          <option value="1">Crescente</option>
+          <option value="-1">Decrescente</option>
+        </select>
+        {p && (
+          <>
+            <span style={{ fontSize: '.72rem', color: '#94a3b8' }}>desempate:</span>
+            <select value={s?.key || ''} onChange={(e) => setSecundario(e.target.value)} style={sel} title="2o criterio (desempate)">
+              <option value="">— nenhum —</option>
+              {cols.filter((c) => c.key !== p.key).map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+            </select>
+            <select value={s ? String(s.dir) : '1'} onChange={(e) => setDirS(Number(e.target.value))} disabled={!s} style={{ ...sel, opacity: s ? 1 : 0.5 }}>
+              <option value="1">Crescente</option>
+              <option value="-1">Decrescente</option>
+            </select>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function CaracteristicasPage() {
   const { userProfile } = useAuth();
   const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
@@ -179,6 +265,11 @@ export default function CaracteristicasPage() {
   const baseOrdemRef = useRef<string[] | null>(null);  // ordem-base carregada (pre-reconciliacao)
   const [prefsProntas, setPrefsProntas] = useState(false);
   const [dadosCarregado, setDadosCarregado] = useState(false); // dados (e colunas de caract.) ja chegaram
+
+  // Sinalizacao (pendencia) COMPARTILHADA por celula. Chave: `${empresa}:${codigo_produto}:${coluna}`.
+  const [sinalizadas, setSinalizadas] = useState<Set<string>>(new Set());
+  const [sinalMeta, setSinalMeta] = useState<Record<string, { nome?: string; quando?: string }>>({});
+  const [hoverCell, setHoverCell] = useState<string | null>(null);
 
   // edicao inline
   const [editando, setEditando] = useState<{ empresa: string; cp: string; col: string } | null>(null);
@@ -276,15 +367,81 @@ export default function CaracteristicasPage() {
   // empresas distintas (para o filtro)
   const empresas = useMemo(() => Array.from(new Set((dados.produtos || []).map((p) => p.empresa))).sort(), [dados.produtos]);
 
+  // Produtos com >=1 celula sinalizada (para pintar a linha e a coluna "Sinalizacao").
+  // A chave de celula e `${emp}:${cp}:${col}`; o `col` pode conter ':' (ex.: "Tipo:"),
+  // entao a chave de produto vai ate o 2o ':'.
+  const produtosSinalizados = useMemo(() => {
+    const s = new Set<string>();
+    sinalizadas.forEach((k) => {
+      const a = k.indexOf(':'); const b = k.indexOf(':', a + 1);
+      s.add(b < 0 ? k : k.slice(0, b));
+    });
+    return s;
+  }, [sinalizadas]);
+
+  // Carrega as sinalizacoes (compartilhadas) uma vez.
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch('/api/ajustes/caracteristicas/sinalizar');
+        if (!r.ok) return;
+        const d = await r.json();
+        if (!Array.isArray(d.sinalizacoes)) return;
+        const set = new Set<string>();
+        const meta: Record<string, { nome?: string; quando?: string }> = {};
+        for (const x of d.sinalizacoes) {
+          const key = `${x.empresa}:${x.codigo_produto}:${x.coluna}`;
+          set.add(key);
+          meta[key] = { nome: x.sinalizado_nome, quando: x.criado_em };
+        }
+        setSinalizadas(set); setSinalMeta(meta);
+      } catch { /* ignore */ }
+    })();
+  }, []);
+
+  // Liga/desliga a sinalizacao de uma celula (otimista + POST; reverte em erro).
+  const alternarSinalizacao = useCallback(async (p: Produto, col: string) => {
+    const key = `${p.empresa}:${p.codigo_produto}:${col}`;
+    const novo = !sinalizadas.has(key);
+    setSinalizadas((s) => { const n = new Set(s); if (novo) n.add(key); else n.delete(key); return n; });
+    try {
+      const r = await fetch('/api/ajustes/caracteristicas/sinalizar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ empresa: p.empresa, codigo_produto: p.codigo_produto, coluna: col, sinalizar: novo }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.erro || 'falha');
+      setSinalMeta((m) => { const n = { ...m }; if (novo) n[key] = { nome: d.sinalizado_nome }; else delete n[key]; return n; });
+    } catch (ex) {
+      setSinalizadas((s) => { const n = new Set(s); if (novo) n.delete(key); else n.add(key); return n; }); // reverte
+      setMsg('Erro ao sinalizar: ' + (ex as Error).message, 'erro');
+    }
+  }, [sinalizadas, setMsg]);
+
+  // Tooltip da coluna "Sinalizacao": lista as caracteristicas sinalizadas do produto + quem/quando.
+  const tooltipSinal = useCallback((prodKey: string): string => {
+    const partes = Array.from(sinalizadas)
+      .filter((k) => k.startsWith(prodKey + ':'))
+      .map((k) => {
+        const col = k.slice(prodKey.length + 1);
+        const m = sinalMeta[k];
+        const quem = m?.nome ? ` — ${m.nome}` : '';
+        const quando = m?.quando ? ` (${fmtDataHora(m.quando)})` : '';
+        return `${col}${quem}${quando}`;
+      });
+    return partes.length ? `Sinalizado: ${partes.join('; ')}` : '';
+  }, [sinalizadas, sinalMeta]);
+
   const valCol = useCallback((p: Produto, col: string): string => {
     if (col === 'empresa') return p.empresa || '';
     if (col === 'codigo') return p.codigo || '';
+    if (col === 'sinalizacao') return produtosSinalizados.has(`${p.empresa}:${p.codigo_produto}`) ? 'Pendente' : '';
     if (col === 'descricao') return p.descricao || '';
     if (col === 'qtd_estoque') return p.estoque != null ? String(p.estoque) : '';
     if (col === 'modelo') return p.modelo || '';
     if (col === 'marca') return p.marca || '';
     return (p.caracteristicas && p.caracteristicas[col]) || '';
-  }, []);
+  }, [produtosSinalizados]);
 
   const linhas = useMemo(() => {
     const termo = filtro.trim().toLowerCase();
@@ -609,12 +766,12 @@ export default function CaracteristicasPage() {
             {empresas.map((e) => <option key={e} value={e}>{e}</option>)}
           </select>
         </div>
+        <ControleOrdenacao cols={colsVisiveis.map((c) => ({ key: c, label: labelCol(c) }))} sorts={sorts} setSorts={setSorts} />
         <button onClick={abrirSugestoes} disabled={rodando} style={{ padding: '7px 14px', background: '#059669', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer', opacity: rodando ? 0.5 : 1 }} title="Sugere o Tipo: para produtos com o campo vazio">Sugerir Tipo:</button>
         <button onClick={exportarCSV} style={{ padding: '7px 14px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer' }}>Exportar CSV</button>
         <button onClick={gerarPDF} title="Gera um PDF (A4 paisagem) com todas as colunas da tela, respeitando os filtros e a ordenacao" style={{ padding: '7px 14px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer' }}>Gerar PDF</button>
         <button onClick={sincronizar} disabled={rodando} style={{ padding: '7px 14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: rodando ? 'wait' : 'pointer', opacity: rodando ? 0.5 : 1 }}>{rodando ? 'Sincronizando…' : 'Sincronizar agora'}</button>
-        <button onClick={() => setSeletorAberto(true)} title="Escolher quais colunas mostrar e a ordem delas" style={{ padding: '7px 14px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer' }}>Colunas{colunasOcultas.length ? ` (${colunasOcultas.length} oculta${colunasOcultas.length > 1 ? 's' : ''})` : ''}</button>
-        <button onClick={restaurarOrdem} title="Volta as colunas para a ordem padrao e mostra todas" style={{ padding: '7px 14px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer' }}>Restaurar ordem</button>
+        <MenuEngrenagem ocultasCount={colunasOcultas.length} onColunas={() => setSeletorAberto(true)} onRestaurar={restaurarOrdem} />
       </div>
 
       {seletorAberto && (
@@ -687,11 +844,19 @@ export default function CaracteristicasPage() {
             <tbody>
               {linhas.length === 0 ? (
                 <tr><td colSpan={colsRender.length} style={{ ...tdStyle, textAlign: 'center', color: '#94a3b8', padding: 30 }}>Nenhum produto bate com o filtro.</td></tr>
-              ) : linhas.map((p) => (
-                <tr key={`${p.empresa}:${p.codigo_produto}`} style={{ borderTop: '1px solid #f1f5f9' }}>
+              ) : linhas.map((p) => {
+                const prodKey = `${p.empresa}:${p.codigo_produto}`;
+                const temFlag = produtosSinalizados.has(prodKey);
+                return (
+                <tr key={prodKey} style={{ borderTop: '1px solid #f1f5f9', background: temFlag ? '#fef9c3' : undefined }}>
                   {colsRender.map((col) => {
                     if (col === 'empresa') return <td key={col} style={tdStyle}><EmpBadge empresa={p.empresa} /></td>;
                     if (col === 'codigo') return <td key={col} style={{ ...tdStyle, fontFamily: 'monospace', fontSize: '.72rem' }}>{p.codigo || '-'}</td>;
+                    if (col === 'sinalizacao') return (
+                      <td key={col} style={{ ...tdStyle, textAlign: 'center' }} title={temFlag ? tooltipSinal(prodKey) : undefined}>
+                        {temFlag ? <AlertTriangle size={15} color="#ea580c" style={{ verticalAlign: 'middle' }} /> : <span style={{ color: '#e2e8f0' }}>—</span>}
+                      </td>
+                    );
                     if (col === 'descricao') return <td key={col} style={tdStyle}>{p.descricao || '-'}</td>;
                     if (col === 'qtd_estoque') return <td key={col} style={{ ...tdStyle, textAlign: 'right', fontWeight: 500, color: (p.estoque ?? 0) < 0 ? '#dc2626' : (p.estoque ? '#334155' : '#cbd5e1') }}>{p.estoque != null ? p.estoque : '-'}</td>;
                     if (col === 'modelo') return <td key={col} style={{ ...tdStyle, color: p.modelo ? '#334155' : '#cbd5e1' }}>{p.modelo || '-'}</td>;
@@ -720,13 +885,26 @@ export default function CaracteristicasPage() {
                         </td>
                       );
                     }
+                    const sinal = sinalizadas.has(cellKey);
+                    const mostrarBandeira = hoverCell === cellKey || sinal;
                     return (
                       <td key={col} onClick={() => abrirEdicao(p, col)} title="Clique para editar"
-                        style={{ ...tdStyle, cursor: 'pointer', color: v ? '#334155' : '#cbd5e1' }}>{v || '-'}</td>
+                        onMouseEnter={() => setHoverCell(cellKey)} onMouseLeave={() => setHoverCell((h) => (h === cellKey ? null : h))}
+                        style={{ ...tdStyle, cursor: 'pointer', position: 'relative', paddingRight: 22, background: sinal ? '#ffedd5' : undefined, color: v ? '#334155' : '#cbd5e1' }}>
+                        {v || '-'}
+                        {mostrarBandeira && (
+                          <button onClick={(e) => { e.stopPropagation(); alternarSinalizacao(p, col); }}
+                            title={sinal ? 'Remover sinalizacao' : 'Sinalizar (marcar pendencia nesta caracteristica)'}
+                            style={{ position: 'absolute', top: 3, right: 3, background: 'none', border: 'none', padding: 0, cursor: 'pointer', lineHeight: 0 }}>
+                            <Flag size={12} color={sinal ? '#ea580c' : '#94a3b8'} fill={sinal ? '#ea580c' : 'none'} />
+                          </button>
+                        )}
+                      </td>
                     );
                   })}
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         )}
