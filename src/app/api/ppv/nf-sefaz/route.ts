@@ -2,7 +2,7 @@
 // GET  /api/ppv/nf-sefaz?id=...&danfe=1     → URL temporária do DANFE (PDF).
 // Cache-first (pedidos.nf_sefaz); refresh=1 força reconsulta no Omie.
 import { NextRequest, NextResponse } from "next/server";
-import { obterComunicacaoSefaz, obterUrlDanfePPV } from "@/lib/ppv/omie";
+import { obterComunicacaoSefaz, obterUrlDanfePPV, obterPdfPedidoOmie, sincronizarFaturamentoPPV } from "@/lib/ppv/omie";
 import { autenticar } from "@/lib/auth/server";
 import { temModuloPPV } from "@/lib/ppv/server";
 
@@ -23,6 +23,15 @@ export async function GET(req: NextRequest) {
       const r = await obterUrlDanfePPV(id);
       if ("erro" in r) return NextResponse.json({ error: r.erro }, { status: 400 });
       return NextResponse.json(r);
+    }
+    if (searchParams.get("pdfpedido")) {
+      const r = await obterPdfPedidoOmie(id);
+      if ("erro" in r) return NextResponse.json({ error: r.erro }, { status: 400 });
+      return NextResponse.json(r);
+    }
+    if (searchParams.get("sync")) {
+      // Detecta faturamento feito no Omie e marca "Faturado" no portal.
+      return NextResponse.json(await sincronizarFaturamentoPPV(id));
     }
     const refresh = !!searchParams.get("refresh");
     const com = await obterComunicacaoSefaz(id, { refresh });

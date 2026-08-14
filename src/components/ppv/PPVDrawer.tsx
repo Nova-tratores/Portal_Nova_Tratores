@@ -268,11 +268,22 @@ export default function PPVDrawer({
       } else {
         carregarDadosCliente(d.cliente || "");
       }
+      // Auto-detecta faturamento feito no Omie: se está "Enviado Omie" mas já
+      // foi faturado lá (etapa >= 60), o portal marca "Faturado" sozinho.
+      if ((d.status || "") === "Enviado Omie" && (d.pedidoOmie || "").trim()) {
+        (async () => {
+          try {
+            const r = await fetch(`/api/ppv/nf-sefaz?id=${encodeURIComponent(id)}&sync=1`, { headers: { ...(await authHeaders()) } });
+            const j = await r.json();
+            if (r.ok && j?.faturado) { setStatus("Concluída"); setFaturadoEm(new Date().toISOString()); onDirty?.(); }
+          } catch { /* silencioso */ }
+        })();
+      }
     } catch {
       showToast("error", "Erro ao carregar detalhes");
     }
     setLoadingData(false);
-  }, [showToast, onSetModalOS, carregarDadosCliente]);
+  }, [showToast, onSetModalOS, carregarDadosCliente, onDirty]);
 
   const carregarHistorico = useCallback(async () => {
     if (!ppvId) return;
@@ -313,6 +324,20 @@ export default function PPVDrawer({
       else window.open(j.url, "_blank", "noopener");
     } catch { showToast("error", "Não consegui gerar o DANFE."); }
     setDanfeLoading(false);
+  }, [ppvId, showToast]);
+
+  // Abrir o PDF do PEDIDO DE VENDA gerado pelo Omie (ObterPedVenda → cPdfPed).
+  const [pdfOmieLoading, setPdfOmieLoading] = useState(false);
+  const abrirPdfOmie = useCallback(async () => {
+    if (!ppvId) return;
+    setPdfOmieLoading(true);
+    try {
+      const r = await fetch(`/api/ppv/nf-sefaz?id=${encodeURIComponent(ppvId)}&pdfpedido=1`, { headers: { ...(await authHeaders()) } });
+      const j = await r.json();
+      if (!r.ok || !j.url) showToast("error", j?.error || "Não consegui pegar o PDF do Omie.");
+      else window.open(j.url, "_blank", "noopener");
+    } catch { showToast("error", "Não consegui pegar o PDF do Omie."); }
+    setPdfOmieLoading(false);
   }, [ppvId, showToast]);
 
   // Troca de cliente: o modal vive DENTRO do drawer e escreve direto no estado.
@@ -1399,6 +1424,11 @@ export default function PPVDrawer({
                 </button>
               )}
               <button className="ppv-rail-btn" onClick={gerarPDF} disabled={gerando}><i className={`fas ${gerando ? "fa-spinner fa-spin" : "fa-print"}`} /> {gerando ? "Gerando..." : "Imprimir"}</button>
+              {pedidoOmie && tipoPedido !== "Remessa" && (
+                <button className="ppv-rail-btn" onClick={abrirPdfOmie} disabled={pdfOmieLoading} title="Abrir o PDF do Pedido de Venda gerado pelo Omie">
+                  <i className={`fas ${pdfOmieLoading ? "fa-spinner fa-spin" : "fa-file-pdf"}`} /> {pdfOmieLoading ? "Gerando..." : "PDF do Omie"}
+                </button>
+              )}
               {faturadoEm && (
                 <button className="ppv-rail-btn" onClick={abrirDanfe} disabled={danfeLoading} title="Imprimir a NF-e gerada (DANFE em PDF)">
                   <i className={`fas ${danfeLoading ? "fa-spinner fa-spin" : "fa-file-pdf"}`} /> {danfeLoading ? "Gerando NF..." : "Imprimir NF"}

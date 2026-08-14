@@ -1030,6 +1030,51 @@ export async function obterUrlDanfePPV(idPPV: string): Promise<{ url: string } |
   }
 }
 
+// Detecta se o pedido já foi FATURADO no Omie (etapa >= 60), mesmo que o
+// faturamento tenha sido feito direto no Omie (fora do portal). Se sim, marca a
+// PPV como "Concluída" + grava a NF. Usado ao abrir um pedido "Enviado Omie".
+export async function sincronizarFaturamentoPPV(idPPV: string): Promise<{ faturado: boolean; numero?: string }> {
+  const cab = await lerCabecalhoPPV(idPPV);
+  if (!cab || !cab.pedido_omie) return { faturado: false };
+  if (cab.faturado_omie_em) return { faturado: true };
+  if (String(cab.Tipo_Pedido || "") === "Remessa") return { faturado: false };
+  const achado = await resolverContaDoPedido(idPPV, cab.omie_empresa as string | null);
+  if (!achado) return { faturado: false };
+  const etapa = String(achado.pedido.cabecalho?.etapa || "");
+  if (Number(etapa) < Number(OMIE_ETAPA_FATURADO)) return { faturado: false }; // ainda não faturado
+  const codPed = Number(achado.pedido.cabecalho?.codigo_pedido) || 0;
+  const codCli = Number(achado.pedido.cabecalho?.codigo_cliente) || undefined;
+  const nf = codPed ? await buscarNFdoPedido(achado.acc, codPed, codCli) : null;
+  const numeroNf = nf ? numeroNfDe(nf) : undefined;
+  await supabaseFetch(`${TBL_PEDIDOS}?id_pedido=eq.${encodeURIComponent(idPPV)}`, "PATCH", {
+    faturado_omie_em: new Date().toISOString(), status: "Concluída", omie_empresa: achado.acc.name,
+    ...(numeroNf ? { nf_numero: numeroNf } : {}),
+  });
+  await registrarLog(idPPV, `Faturamento detectado no Omie (etapa ${etapa}${numeroNf ? `, NF-e ${numeroNf}` : ""}) — marcado como Faturado.`);
+  return { faturado: true, numero: numeroNf };
+}
+
+// PDF do PEDIDO DE VENDA no Omie (o documento do pedido, não a NF-e).
+// /produtos/dfedocs/ ObterPedVenda { nIdPed } → cPdfPed.
+export async function obterPdfPedidoOmie(idPPV: string): Promise<{ url: string } | { erro: string }> {
+  const cab = await lerCabecalhoPPV(idPPV);
+  if (!cab) return { erro: "PPV não encontrado." };
+  if (!cab.pedido_omie) return { erro: "Este PPV ainda não foi enviado ao Omie." };
+  const achado = await resolverContaDoPedido(idPPV, cab.omie_empresa as string | null);
+  if (!achado) return { erro: "Pedido não encontrado no Omie (ConsultarPedido)." };
+  const nIdPed = Number(achado.pedido.cabecalho?.codigo_pedido) || 0;
+  if (!nIdPed) return { erro: "Não consegui o código interno do pedido (nIdPed)." };
+  try {
+    const r = await omieCall<Record<string, unknown>>("/produtos/dfedocs/", "ObterPedVenda", { nIdPed }, achado.acc.key, achado.acc.secret);
+    const url = String(r?.cPdfPed || "");
+    if (!url) return { erro: "O Omie não retornou o PDF do pedido de venda." };
+    return { url };
+  } catch (e) {
+    console.error(`[Omie PDF pedido] ${idPPV}: ${(e as Error).message}`);
+    return { erro: (e as Error).message };
+  }
+}
+
 // =============================================
 // EDITOR FISCAL POR ITEM ("Item de Orçamento")
 // Lê (ConsultarPedido) e escreve (AlterarPedidoVenda) o bloco `imposto` de cada

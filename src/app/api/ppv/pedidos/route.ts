@@ -162,6 +162,17 @@ export async function PATCH(req: NextRequest) {
     }
     const dados = parsed.data;
 
+    // Blindagem: pedido JÁ FATURADO (faturado_omie_em setado) não pode voltar de
+    // fase — força "Concluída" se tentarem gravar outra coisa (menos Cancelada).
+    try {
+      const atual = await supabaseFetch<Record<string, unknown>[]>(
+        `${TBL_PEDIDOS}?id_pedido=eq.${encodeURIComponent(dados.id)}&select=faturado_omie_em&limit=1`,
+      );
+      if (atual?.[0]?.faturado_omie_em && !["Concluída", "Cancelada"].includes(dados.status)) {
+        dados.status = "Concluída";
+      }
+    } catch { /* se falhar a checagem, segue com o status enviado */ }
+
     const payload: Record<string, unknown> = {
       status: dados.status,
       status_manual_override: true, // Protege contra auto-sync sobrescrever

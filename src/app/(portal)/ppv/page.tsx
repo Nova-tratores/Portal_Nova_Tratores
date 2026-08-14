@@ -14,6 +14,7 @@ import PhaseView from "@/components/ppv/PhaseView";
 import PPVMobile from "@/components/ppv/PPVMobile";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import CatalogoNovo from "@/components/ppv/CatalogoNovo";
+import EtiquetasPanel from "@/components/ppv/EtiquetasPanel";
 import FormNovoLancamento from "@/components/ppv/FormNovoLancamento";
 import PPVDrawer from "@/components/ppv/PPVDrawer";
 import ModalBuscaCliente from "@/components/ppv/ModalBuscaCliente";
@@ -339,7 +340,7 @@ function PPVApp() {
             </button>
           )}
           {podeEtiquetas && (
-            <button className="ppv-topbar-nav-btn" onClick={() => { window.location.href = "/ppv/etiquetas"; }} title="Imprimir etiquetas de identificação de peças (código por empresa)">
+            <button className={`ppv-topbar-nav-btn ${activeTab === "etiquetasTab" ? "active" : ""}`} onClick={() => setActiveTab("etiquetasTab")} title="Imprimir etiquetas de identificação de peças (código por empresa)">
               <i className="fas fa-tags" /> Etiquetas
             </button>
           )}
@@ -390,6 +391,12 @@ function PPVApp() {
         {activeTab === "catalogoTab" && (
           <div className="flex-1 overflow-hidden p-4" style={bgPattern}>
             <CatalogoNovo userName={userProfile?.nome || ""} />
+          </div>
+        )}
+
+        {activeTab === "etiquetasTab" && (
+          <div className="flex-1 overflow-y-auto" style={bgPattern}>
+            <EtiquetasPanel embedded />
           </div>
         )}
 
