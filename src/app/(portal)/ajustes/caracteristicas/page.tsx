@@ -53,8 +53,23 @@ function labelCol(key: string): string { return COLS_FIXAS[key] || key; }
 // case-insensitive (a Omie pode gravar #PRATELEIRA etc.); ver reconciliarOrdem.
 const DEFAULT_ORDEM = ['empresa', 'codigo', 'descricao', 'qtd_estoque', '#Prateleira', '#Andar', '#Andar2', '#Caixa', 'Sistema', 'Tipo:', 'marca', 'modelo'];
 const ORDEM_KEY = (uid: string) => `carac-ordem-colunas-${uid}`;
+const OCULTAS_KEY = (uid: string) => `carac-colunas-ocultas-${uid}`;
+// chave da preferencia no Supabase (portal_ui_prefs): guarda { ordem, ocultas }
+const CHAVE_PREF_COLUNAS = 'caracteristicas-colunas';
 
 function normKey(s: string): string { return s.normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase(); }
+
+// Filtro por coluna (caixinha do cabecalho): se o termo for puramente numerico
+// (ex.: prateleira "3", caixa "01"), exige valor IDENTICO — assim "3" nao casa com
+// "13"/"23". Para texto (ex.: "ROLAM"), mantem "contem" (substring), util em
+// descricao/codigo/modelo. Ambos ignoram maiusculas/minusculas e espacos nas pontas.
+function casaFiltroColuna(valorCelula: string, termo: string): boolean {
+  const cel = valorCelula.trim().toLowerCase();
+  const f = termo.trim().toLowerCase();
+  if (f === '') return true;
+  if (/^\d+$/.test(f)) return cel === f; // numero = exato
+  return cel.includes(f);                // texto = contem
+}
 // Reconcilia uma ordem "desejada" (pode ter casing diferente / chaves inexistentes) com as
 // colunas realmente disponíveis: mantém as que existem (usando a chave REAL), na ordem
 // desejada; anexa no fim as disponíveis que sobraram (colunas novas da Omie).
@@ -67,6 +82,69 @@ function reconciliarOrdem(desejada: string[], disponiveis: string[]): string[] {
   }
   for (const k of restantes.values()) out.push(k);
   return out;
+}
+
+// Modal "Seletor de Colunas" (estilo Omie): ocultar/mostrar e arrastar a ordem.
+// Trabalha num RASCUNHO local — so aplica ao clicar "Aplicar"; "Cancelar" descarta.
+function SeletorColunas({ ordem, ocultas, onAplicar, onCancelar }: {
+  ordem: string[]; ocultas: string[];
+  onAplicar: (ordem: string[], ocultas: string[]) => void; onCancelar: () => void;
+}) {
+  const [draftOrdem, setDraftOrdem] = useState<string[]>(ordem);
+  const [draftOcultas, setDraftOcultas] = useState<Set<string>>(new Set(ocultas));
+  const [drag, setDrag] = useState<string | null>(null);
+  const visiveisCount = draftOrdem.filter((k) => !draftOcultas.has(k)).length;
+
+  const toggle = (k: string) => setDraftOcultas((s) => {
+    const n = new Set(s);
+    if (n.has(k)) { n.delete(k); return n; }
+    if (visiveisCount <= 1) return s; // nao deixa ocultar a ultima coluna visivel
+    n.add(k); return n;
+  });
+  const mover = (origem: string, destino: string) => {
+    if (origem === destino) return;
+    setDraftOrdem((arr) => {
+      const from = arr.indexOf(origem); if (from < 0) return arr;
+      const novo = arr.slice(); novo.splice(from, 1);
+      const to = novo.indexOf(destino); if (to < 0) return arr;
+      novo.splice(to, 0, origem);
+      // evita re-render se a ordem nao mudou (dragenter repetido no mesmo alvo)
+      return novo.length === arr.length && novo.every((x, i) => x === arr[i]) ? arr : novo;
+    });
+  };
+
+  return (
+    <div onClick={onCancelar} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 8, width: 400, maxWidth: '94vw', maxHeight: '82vh', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 44px rgba(0,0,0,.28)' }}>
+        <div style={{ background: '#94a3b8', color: '#fff', padding: '8px 14px', borderRadius: '8px 8px 0 0', fontWeight: 600, fontSize: '.85rem' }}>Seletor de Colunas</div>
+        <div style={{ padding: '4px 14px 8px', fontSize: '.7rem', color: '#94a3b8' }}>Arraste o <b>⠿</b> para reordenar. Clique em <b>Ocultar/Mostrar</b> para ligar/desligar a coluna.</div>
+        <div style={{ overflow: 'auto', padding: '2px 0', flex: 1 }}>
+          {draftOrdem.map((k) => {
+            const oculta = draftOcultas.has(k);
+            return (
+              <div key={k} draggable
+                onDragStart={(e) => { setDrag(k); e.dataTransfer.effectAllowed = 'move'; }}
+                onDragEnter={() => { if (drag && drag !== k) mover(drag, k); }}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => e.preventDefault()}
+                onDragEnd={() => setDrag(null)}
+                style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '7px 14px', borderBottom: '1px solid #f1f5f9', background: drag === k ? '#e0f2fe' : '#fff', cursor: 'grab' }}>
+                <span title="Arraste para reordenar" style={{ color: '#cbd5e1' }}>⠿</span>
+                <button onClick={() => toggle(k)} style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', fontSize: '.8rem', width: 62, textAlign: 'left', padding: 0 }}>
+                  {oculta ? 'Mostrar' : 'Ocultar'}
+                </button>
+                <span style={{ fontSize: '.85rem', color: oculta ? '#94a3b8' : '#334155', textDecoration: oculta ? 'line-through' : 'none' }}>{labelCol(k)}</span>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '10px 14px', borderTop: '1px solid #e2e8f0' }}>
+          <button onClick={() => onAplicar(draftOrdem, Array.from(draftOcultas))} style={{ padding: '6px 18px', background: '#e2e8f0', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer' }}>Aplicar</button>
+          <button onClick={onCancelar} style={{ padding: '6px 18px', background: '#fff', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer' }}>Cancelar</button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function EmpBadge({ empresa }: { empresa: string }) {
@@ -92,8 +170,15 @@ export default function CaracteristicasPage() {
 
   // ordem das colunas (reordenavel no desktop, salva por usuario no localStorage)
   const [ordemColunas, setOrdemColunas] = useState<string[]>([]);
-  const ordemCarregadaRef = useRef(false);
   const [dragCol, setDragCol] = useState<string | null>(null);
+  // colunas ocultas + modal "Seletor de Colunas"
+  const [colunasOcultas, setColunasOcultas] = useState<string[]>([]);
+  const [seletorAberto, setSeletorAberto] = useState(false);
+  // prefs de colunas (ordem + ocultas): carregadas do Supabase, com fallback localStorage.
+  const prefsCarregadasRef = useRef(false);            // trava o loader async (roda 1x)
+  const baseOrdemRef = useRef<string[] | null>(null);  // ordem-base carregada (pre-reconciliacao)
+  const [prefsProntas, setPrefsProntas] = useState(false);
+  const [dadosCarregado, setDadosCarregado] = useState(false); // dados (e colunas de caract.) ja chegaram
 
   // edicao inline
   const [editando, setEditando] = useState<{ empresa: string; cp: string; col: string } | null>(null);
@@ -117,6 +202,7 @@ export default function CaracteristicasPage() {
       const d = (await r.json()) as CaractPayload;
       if (d.erro) { setMsg('Erro: ' + d.erro, 'erro'); return; }
       setDados(d);
+      setDadosCarregado(true); // libera a reconciliacao da ordem com o conjunto COMPLETO de colunas
       if (d.sync?.rodando) { setRodando(true); }
       else if (d.sync?.erro) { setMsg('Ultima sync falhou: ' + d.sync.erro, 'erro'); setRodando(false); }
       else { setMsg('', 'info'); setRodando(false); }
@@ -214,7 +300,7 @@ export default function CaracteristicasPage() {
     const ativos = Object.entries(filtros).filter(([, v]) => v && v.trim() !== '');
     if (ativos.length) {
       arr = arr.filter((p) =>
-        ativos.every(([col, v]) => valCol(p, col).toLowerCase().includes(v.trim().toLowerCase())));
+        ativos.every(([col, v]) => casaFiltroColuna(valCol(p, col), v)));
     }
     if (sorts.length) {
       arr = arr.slice().sort((a, b) => {
@@ -250,30 +336,83 @@ export default function CaracteristicasPage() {
   // ---- ordem das colunas ----
   const todasChaves = useMemo(() => [...CHAVES_FIXAS, ...(dados.colunas || [])], [dados.colunas]);
 
-  // Carrega a ordem salva (uma vez) e reconcilia com as colunas disponiveis sempre que
-  // novas caracteristicas aparecem. Usa updater para nao depender de `ordemColunas` nas deps.
+  // Colunas efetivamente visiveis (ordem escolhida menos as ocultas). Usada na tabela,
+  // no CSV e no PDF para tudo respeitar o "Seletor de Colunas".
+  const colsVisiveis = useMemo(
+    () => (ordemColunas.length ? ordemColunas : todasChaves).filter((k) => !colunasOcultas.includes(k)),
+    [ordemColunas, todasChaves, colunasOcultas],
+  );
+
+  // Carrega as preferencias de colunas (ordem + ocultas) do Supabase, com fallback
+  // para o localStorage (offline / primeira vez). Roda uma vez por usuario.
+  // NAO usa flag de "cancelado": no StrictMode (dev) o efeito monta/desmonta/monta e
+  // o ref ja evita fetch duplicado; descartar o resultado deixaria prefsProntas em
+  // false para sempre (o save nunca dispararia). setState pos-unmount e no-op no React 18+.
   useEffect(() => {
     const uid = userProfile?.id;
-    if (!uid) return;
+    if (!uid || prefsCarregadasRef.current) return;
+    prefsCarregadasRef.current = true;
+    (async () => {
+      let ordem: string[] | null = null;
+      let ocultas: string[] | null = null;
+      try {
+        const r = await fetch(`/api/perfil/ui-prefs?user_id=${encodeURIComponent(uid)}&chave=${CHAVE_PREF_COLUNAS}`);
+        if (r.ok) {
+          const d = await r.json();
+          if (d?.valor && typeof d.valor === 'object') {
+            if (Array.isArray(d.valor.ordem)) ordem = d.valor.ordem.map(String);
+            if (Array.isArray(d.valor.ocultas)) ocultas = d.valor.ocultas.map(String);
+          }
+        }
+      } catch { /* usa fallback local */ }
+      // fallback: cache local (tambem cobre o modo offline)
+      if (!ordem) { try { const raw = localStorage.getItem(ORDEM_KEY(uid)); if (raw) { const a = JSON.parse(raw); if (Array.isArray(a)) ordem = a; } } catch { /* ignore */ } }
+      if (!ocultas) { try { const raw = localStorage.getItem(OCULTAS_KEY(uid)); if (raw) { const a = JSON.parse(raw); if (Array.isArray(a)) ocultas = a; } } catch { /* ignore */ } }
+      baseOrdemRef.current = ordem && ordem.length ? ordem : DEFAULT_ORDEM;
+      setColunasOcultas(ocultas || []);
+      setPrefsProntas(true);
+    })();
+  }, [userProfile?.id]);
+
+  // Reconcilia a ordem salva com as colunas disponiveis. So roda depois que os DADOS
+  // chegaram (dadosCarregado): antes disso, todasChaves so tem as colunas fixas e as
+  // caracteristicas (#PRATELEIRA, #ANDAR...) seriam reanexadas no fim, perdendo a
+  // posicao salva. Preserva reordenacoes ja feitas (base = estado atual quando ja existe).
+  useEffect(() => {
+    if (!prefsProntas || !dadosCarregado) return;
     setOrdemColunas((atual) => {
-      let base = atual;
-      if (!ordemCarregadaRef.current) {
-        ordemCarregadaRef.current = true;
-        let salva: string[] | null = null;
-        try { const raw = localStorage.getItem(ORDEM_KEY(uid)); if (raw) salva = JSON.parse(raw); } catch { /* ignore */ }
-        base = Array.isArray(salva) && salva.length ? salva : DEFAULT_ORDEM;
-      }
+      const base = atual.length ? atual : (baseOrdemRef.current ?? DEFAULT_ORDEM);
       const rec = reconciliarOrdem(base, todasChaves);
       return rec.length === atual.length && rec.every((k, i) => k === atual[i]) ? atual : rec;
     });
-  }, [userProfile?.id, todasChaves]);
+  }, [prefsProntas, dadosCarregado, todasChaves]);
 
-  // Persiste a ordem quando muda (so depois de carregada, para nao apagar a salva).
+  // Cache local imediato (o Supabase e gravado com debounce logo abaixo). So depois
+  // que os dados chegaram, para nunca gravar uma ordem parcial (sem caracteristicas).
   useEffect(() => {
     const uid = userProfile?.id;
-    if (!uid || !ordemCarregadaRef.current || ordemColunas.length === 0) return;
-    try { localStorage.setItem(ORDEM_KEY(uid), JSON.stringify(ordemColunas)); } catch { /* ignore */ }
-  }, [userProfile?.id, ordemColunas]);
+    if (!uid || !prefsProntas || !dadosCarregado) return;
+    try {
+      if (ordemColunas.length) localStorage.setItem(ORDEM_KEY(uid), JSON.stringify(ordemColunas));
+      localStorage.setItem(OCULTAS_KEY(uid), JSON.stringify(colunasOcultas));
+    } catch { /* ignore */ }
+  }, [userProfile?.id, prefsProntas, dadosCarregado, ordemColunas, colunasOcultas]);
+
+  // Salva no Supabase (debounce) para a preferencia valer em qualquer navegador.
+  useEffect(() => {
+    const uid = userProfile?.id;
+    if (!uid || !prefsProntas || !dadosCarregado || ordemColunas.length === 0) return;
+    const t = setTimeout(async () => {
+      try {
+        await fetch('/api/perfil/ui-prefs', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+          body: JSON.stringify({ user_id: uid, chave: CHAVE_PREF_COLUNAS, valor: { ordem: ordemColunas, ocultas: colunasOcultas } }),
+        });
+      } catch { /* offline: fica so o cache local */ }
+    }, 700);
+    return () => clearTimeout(t);
+  }, [userProfile?.id, prefsProntas, dadosCarregado, ordemColunas, colunasOcultas]);
 
   // Move `origem` para antes de `destino` (drag & drop de cabecalhos).
   const moverColuna = useCallback((origem: string, destino: string) => {
@@ -292,6 +431,7 @@ export default function CaracteristicasPage() {
 
   const restaurarOrdem = useCallback(() => {
     setOrdemColunas(reconciliarOrdem(DEFAULT_ORDEM, [...CHAVES_FIXAS, ...(dados.colunas || [])]));
+    setColunasOcultas([]);
   }, [dados.colunas]);
 
   // ---- edicao inline ----
@@ -345,7 +485,7 @@ export default function CaracteristicasPage() {
 
   // ---- CSV ----
   const exportarCSV = useCallback(() => {
-    const cols = ordemColunas.length ? ordemColunas : todasChaves;
+    const cols = colsVisiveis;
     const cell = (v: string) => /[",;\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
     const rows = [cols.map((c) => cell(labelCol(c))).join(';')];
     linhas.forEach((p) => rows.push(cols.map((c) => cell(valCol(p, c))).join(';')));
@@ -355,7 +495,7 @@ export default function CaracteristicasPage() {
     a.download = 'caracteristicas-produtos.csv';
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  }, [ordemColunas, todasChaves, linhas, valCol]);
+  }, [colsVisiveis, linhas, valCol]);
 
   // ---- PDF (colunas-chave, respeita filtros e ordenacao atuais) ----
   const gerandoPdfRef = useRef(false);
@@ -366,7 +506,7 @@ export default function CaracteristicasPage() {
       const { default: JsPDF } = await import('jspdf');
       const { default: autoTable } = await import('jspdf-autotable');
       // Todas as colunas da tela, na ordem escolhida pelo usuario.
-      const cols: { key: string; label: string }[] = (ordemColunas.length ? ordemColunas : todasChaves).map((c) => ({ key: c, label: labelCol(c) }));
+      const cols: { key: string; label: string }[] = colsVisiveis.map((c) => ({ key: c, label: labelCol(c) }));
       const doc = new JsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
       doc.setFontSize(14); doc.setTextColor(220, 38, 38); doc.setFont('helvetica', 'bold');
       doc.text('Nova Tratores — Caracteristicas por produto', 14, 16);
@@ -420,7 +560,7 @@ export default function CaracteristicasPage() {
     } finally {
       gerandoPdfRef.current = false;
     }
-  }, [ordemColunas, todasChaves, linhas, valCol, empFiltro, filtro, filtros, setMsg]);
+  }, [colsVisiveis, linhas, valCol, empFiltro, filtro, filtros, setMsg]);
 
   // ---- sugestoes de tipo ----
   const abrirSugestoes = useCallback(async () => {
@@ -440,7 +580,7 @@ export default function CaracteristicasPage() {
 
   if (!permLoading && userProfile && !pode('ajustes', 'caracteristicas')) return <SemPermissao />;
 
-  const colsRender = ordemColunas.length ? ordemColunas : todasChaves;
+  const colsRender = colsVisiveis;
   const totalProdutos = (dados.produtos || []).length;
   const statusColor = statusTipo === 'erro' ? '#dc2626' : statusTipo === 'ok' ? '#047857' : '#64748b';
 
@@ -473,11 +613,29 @@ export default function CaracteristicasPage() {
         <button onClick={exportarCSV} style={{ padding: '7px 14px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer' }}>Exportar CSV</button>
         <button onClick={gerarPDF} title="Gera um PDF (A4 paisagem) com todas as colunas da tela, respeitando os filtros e a ordenacao" style={{ padding: '7px 14px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer' }}>Gerar PDF</button>
         <button onClick={sincronizar} disabled={rodando} style={{ padding: '7px 14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: rodando ? 'wait' : 'pointer', opacity: rodando ? 0.5 : 1 }}>{rodando ? 'Sincronizando…' : 'Sincronizar agora'}</button>
-        <button onClick={restaurarOrdem} title="Volta as colunas para a ordem padrao" style={{ padding: '7px 14px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer' }}>Restaurar ordem</button>
+        <button onClick={() => setSeletorAberto(true)} title="Escolher quais colunas mostrar e a ordem delas" style={{ padding: '7px 14px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer' }}>Colunas{colunasOcultas.length ? ` (${colunasOcultas.length} oculta${colunasOcultas.length > 1 ? 's' : ''})` : ''}</button>
+        <button onClick={restaurarOrdem} title="Volta as colunas para a ordem padrao e mostra todas" style={{ padding: '7px 14px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer' }}>Restaurar ordem</button>
       </div>
 
+      {seletorAberto && (
+        <SeletorColunas
+          ordem={ordemColunas.length ? ordemColunas : todasChaves}
+          ocultas={colunasOcultas}
+          onAplicar={(o, oc) => {
+            setOrdemColunas(o);
+            setColunasOcultas(oc);
+            // coluna oculta nao deve filtrar/ordenar "invisivelmente"
+            const ocSet = new Set(oc);
+            setFiltros((f) => { const n = { ...f }; oc.forEach((k) => delete n[k]); return n; });
+            setSorts((s) => s.filter((x) => !ocSet.has(x.key)));
+            setSeletorAberto(false);
+          }}
+          onCancelar={() => setSeletorAberto(false)}
+        />
+      )}
+
       <div style={{ marginBottom: 8, fontSize: '.72rem', color: '#94a3b8' }}>
-        Arraste o <b>⠿</b> no cabecalho para reordenar colunas (salvo neste navegador). Clique no titulo para ordenar; <b>Shift+clique</b> adiciona um 2o criterio (desempate).
+        Arraste o <b>⠿</b> no cabecalho para reordenar colunas, ou use o botao <b>Colunas</b> para escolher quais mostrar (tudo salvo neste navegador). Clique no titulo para ordenar; <b>Shift+clique</b> adiciona um 2o criterio (desempate).
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, fontSize: '.75rem' }}>
@@ -521,7 +679,7 @@ export default function CaracteristicasPage() {
                 {colsRender.map((k) => (
                   <th key={k} style={thFiltroStyle}>
                     <input value={filtros[k] || ''} onChange={(e) => setFiltros((f) => ({ ...f, [k]: e.target.value }))}
-                      placeholder="filtrar…" style={filtroInput} />
+                      title="Número = valor exato (3 não traz 13/23); texto = contém" placeholder="filtrar…" style={filtroInput} />
                   </th>
                 ))}
               </tr>
