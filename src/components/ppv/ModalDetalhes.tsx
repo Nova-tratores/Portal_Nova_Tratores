@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import type { PPVDetalhes, LogEntry } from "@/lib/ppv/types";
 import { formatarDataFrontend, formatarMoeda } from "@/lib/ppv/utils";
 import { normalizarStatus } from "@/lib/ppv/utils";
-import { TIPOS_PEDIDO, MOTIVOS_SAIDA, STATUS_OPTIONS, STATUS_COLORS, type StatusKey } from "@/lib/ppv/constants";
+import { TIPOS_PEDIDO, MOTIVOS_SAIDA, STATUS_OPTIONS, STATUS_COLORS, rotuloStatus, type StatusKey } from "@/lib/ppv/constants";
 import { api } from "@/lib/ppv/api";
 import { usePPV } from "@/lib/ppv/PPVContext";
 import { useAuth } from "@/hooks/useAuth";
@@ -281,7 +281,7 @@ export default function ModalDetalhes({
                 style={{ color: statusColor.text, backgroundColor: statusColor.bg }}
               >
                 <i className={`fas ${STATUS_ICON[statusNorm] || "fa-circle"}`} />
-                {status}
+                {rotuloStatus(statusNorm)}
               </span>
             </div>
             <div className="text-right">

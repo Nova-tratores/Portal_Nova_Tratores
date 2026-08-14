@@ -59,9 +59,14 @@ async function montarLinksPPV(idPPV: string, osId: string): Promise<string> {
 
 // --- Constantes Omie ---
 const OMIE_COD_CATEG_VENDA = "1.01.03";
-// Etapa "50" = Faturar (TrocarEtapaPedido → emite a NF-e). Fica num só lugar
-// caso alguma conta use um código diferente no pipeline.
-const OMIE_ETAPA_FATURAR = "50";
+// CFOP dos itens de REMESSA (Remessa em Bonificação, Doação ou Brinde).
+const OMIE_CFOP_REMESSA = "5.910";
+// Faturar no Omie é um caminho de DUAS etapas (o Omie recusa pular direto p/ a
+// final): primeiro move pra "50" (Faturar), depois pra "60" (Faturado) — e é ao
+// ENTRAR na 60 que o faturador roda e EMITE a NF-e (confirmado: arrastar p/
+// "Faturado" no Omie gera a nota; pular 10→60 direto é rejeitado e volta p/ 10).
+const OMIE_ETAPA_FATURAR = "50";   // intermediária "Faturar"
+const OMIE_ETAPA_FATURADO = "60";  // final "Faturado" (dispara a emissão)
 
 // --- Client genérico Omie (aceita credenciais) ---
 async function omieCall<T>(
@@ -110,6 +115,63 @@ function formatarDataOmie(): string {
   const mes = String(d.getMonth() + 1).padStart(2, "0");
   const ano = d.getFullYear();
   return `${dia}/${mes}/${ano}`;
+}
+
+// "2026-10-15" -> "15/10/2026" (formato do Omie). Vazio -> hoje.
+function isoParaBR(iso?: string): string {
+  const s = String(iso || "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return formatarDataOmie();
+  return `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}`;
+}
+function baseMaisDiasBR(previsaoISO: string, dias: number): string {
+  const s = String(previsaoISO || "").slice(0, 10);
+  const base = /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(s + "T00:00:00") : new Date();
+  base.setDate(base.getDate() + dias);
+  const dd = String(base.getDate()).padStart(2, "0"), mm = String(base.getMonth() + 1).padStart(2, "0");
+  return `${dd}/${mm}/${base.getFullYear()}`;
+}
+// Parcelamento -> bloco de parcelas do Omie (igual ao que o portal mostra).
+const COND_DIAS_OMIE: Record<string, number[]> = {
+  "À vista (PIX ou Cartão)": [0], "30 dias": [30], "30/60 dias": [30, 60], "30/60/90 dias": [30, 60, 90],
+};
+function montarParcelasOmie(numParcelas: string, previsaoISO: string, total: number): { codigo_parcela: string; qtde_parcelas: number; lista_parcelas?: { parcela: Record<string, unknown>[] } } {
+  const dias = COND_DIAS_OMIE[numParcelas] || [30];
+  const n = dias.length;
+  if (n === 1 && dias[0] === 0) return { codigo_parcela: "000", qtde_parcelas: 1 }; // à vista
+  const base = Math.floor((total / n) * 100) / 100;
+  const parcela = dias.map((d, i) => {
+    const ultima = i === n - 1;
+    const valor = ultima ? Math.round((total - base * (n - 1)) * 100) / 100 : base;
+    const percentual = total > 0 ? Math.round((valor / total) * 10000) / 100 : Math.round((100 / n) * 100) / 100;
+    return { numero_parcela: i + 1, data_vencimento: baseMaisDiasBR(previsaoISO, d), quantidade_dias: d, percentual, valor };
+  });
+  return { codigo_parcela: "999", qtde_parcelas: n, lista_parcelas: { parcela } };
+}
+// Bloco fiscal do item a partir do perfil salvo (produto_fiscal). null = deixa o
+// Omie calcular pelo Cenário Fiscal (não força nada).
+async function impostoDoProdutoFiscal(conta: string, codigoProduto: number): Promise<{ cfop?: string; imposto?: Record<string, Record<string, unknown>> } | null> {
+  try {
+    const rows = await supabaseFetch<Record<string, unknown>[]>(
+      `produto_fiscal?conta_omie=eq.${conta.toLowerCase()}&codigo_produto=eq.${codigoProduto}&limit=1`,
+    );
+    const r = rows?.[0];
+    if (!r) return null;
+    const nn = (v: unknown) => { const x = parseFloat(String(v ?? "").replace(",", ".")); return Number.isFinite(x) ? x : 0; };
+    const ss = (v: unknown) => (v == null ? undefined : String(v));
+    return {
+      cfop: ss(r.cfop),
+      imposto: {
+        icms: { cod_sit_trib_icms: ss(r.icms_cst), origem_icms: ss(r.icms_origem), modalidade_icms: ss(r.icms_modalidade), aliq_icms: nn(r.icms_aliquota), base_icms: nn(r.icms_base), perc_red_base_icms: nn(r.icms_perc_red_base) },
+        icms_st: { cod_sit_trib_icms_st: ss(r.icmsst_cst), modalidade_icms_st: ss(r.icmsst_modalidade), aliq_icms_st: nn(r.icmsst_aliquota), aliq_icms_opprop: nn(r.icmsst_aliq_op_prop), base_icms_st: nn(r.icmsst_base), margem_icms_st: nn(r.icmsst_margem), perc_red_base_icms_op: nn(r.icmsst_perc_red_base_op), perc_red_base_icms_st: nn(r.icmsst_perc_red_base_st), cest: ss(r.icmsst_cest) },
+        ipi: { cod_sit_trib_ipi: ss(r.ipi_cst), enquadramento_ipi: ss(r.ipi_enquadramento), aliq_ipi: nn(r.ipi_aliquota), base_ipi: nn(r.ipi_base) },
+        pis_padrao: { cod_sit_trib_pis: ss(r.pis_cst), aliq_pis: nn(r.pis_aliquota), base_pis: nn(r.pis_base) },
+        cofins_padrao: { cod_sit_trib_cofins: ss(r.cofins_cst), aliq_cofins: nn(r.cofins_aliquota), base_cofins: nn(r.cofins_base) },
+      },
+    };
+  } catch (e) {
+    console.error(`[Omie envio] impostoDoProdutoFiscal (${codigoProduto}/${conta}): ${(e as Error).message}`);
+    return null;
+  }
 }
 
 function getAccount(empresa: string): OmieAccount {
@@ -186,11 +248,22 @@ async function buscarNcodVend(tecnico: string, acc: OmieAccount): Promise<number
   const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   const nt = norm(t);
 
-  for (const v of vendedores) {
-    if (norm(v.nome).includes(nt)) {
-      cacheVendedores.set(cacheKey, v.codigo);
-      return v.codigo;
-    }
+  // Tira o prefixo "Técnico(s): / Motorista:" pra comparar só o nome.
+  const limpar = (nome: string) => norm(nome).replace(/^t[e]cnicos?:\s*/, "").replace(/^motorista:\s*/, "").trim();
+  const combinado = (nome: string) => /\/\/|\se\s/.test(norm(nome)); // "Fulano // Beltrano" / "Fulano e Beltrano"
+
+  // Prioridade: (1) EXATO de um técnico só (sem "//"); (2) substring de um técnico
+  // só; (3) qualquer substring. Assim "Danilo de Souza" pega "Técnico: Danilo de
+  // Souza" e NÃO "Técnicos: Danilo de Souza // Fernando Leonel".
+  const achado =
+    vendedores.find((v) => !combinado(v.nome) && limpar(v.nome) === nt) ||
+    vendedores.find((v) => !combinado(v.nome) && limpar(v.nome).includes(nt)) ||
+    vendedores.find((v) => norm(v.nome).includes(nt));
+
+  if (achado) {
+    cacheVendedores.set(cacheKey, achado.codigo);
+    console.log(`[Omie ${acc.name}] Vendedor "${t}" -> "${achado.nome}" (${achado.codigo})`);
+    return achado.codigo;
   }
 
   console.warn(`[Omie ${acc.name}] Vendedor não encontrado para: ${t}`);
@@ -399,71 +472,120 @@ export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: bool
     const nCodCli = await buscarNcodCli(cnpjCliente, acc);
     const nCodVend = await buscarNcodVend(detalhes.tecnico, acc);
 
-    // Monta itens do pedido
-    const det: Array<{
-      ide: { codigo_item_integracao: string };
-      produto: { codigo_produto: number; quantidade: number; valor_unitario: number };
-    }> = [];
-
+    // Resolve o código Omie + o fiscal de cada produto (compartilhado pelos dois fluxos).
+    const totalPedido = produtos.reduce((s, [, p]) => s + p.qtde * p.preco, 0);
+    const itens: Array<{ codInt: string; codigoProdutoOmie: number; qtde: number; preco: number; fiscal: { cfop?: string; imposto?: Record<string, Record<string, unknown>> } | null }> = [];
     for (let i = 0; i < produtos.length; i++) {
       const [cod, prod] = produtos[i];
       const codigoProdutoOmie = await buscarCodigoProdutoOmie(cod, acc);
-      det.push({
-        ide: { codigo_item_integracao: `${idPPV}-${i + 1}` },
-        produto: {
-          codigo_produto: codigoProdutoOmie,
-          quantidade: prod.qtde,
-          valor_unitario: prod.preco,
-        },
-      });
+      const contaProd = /castro|primari/i.test(prod.empresa || "") ? "castro" : "nova";
+      const fiscal = await impostoDoProdutoFiscal(contaProd, codigoProdutoOmie);
+      itens.push({ codInt: `${idPPV}-${i + 1}`, codigoProdutoOmie, qtde: prod.qtde, preco: prod.preco, fiscal });
     }
 
-    // Remessa e Pedido de Venda ficam AMBOS na área de Pedidos do Omie (IncluirPedido).
-    // A diferença é só o Cenário Fiscal: a remessa usa um cenário de remessa (não fatura).
-    const prefixoIntegracao = isRemessa ? `RM-${idPPV}` : `PV-${idPPV}`;
     const tipoLabel = isRemessa ? "Remessa" : "Pedido de Venda";
-    const obsVenda = await montarLinksPPV(idPPV, String(detalhes.osId || ""));
+    const linksBase = await montarLinksPPV(idPPV, String(detalhes.osId || ""));
+    const obsVenda = detalhes.dadosNF ? `${detalhes.dadosNF}\n\n${linksBase}` : linksBase;
+    const dataPrevisao = isoParaBR(detalhes.previsaoFaturamento);
 
-    const payload = {
-      cabecalho: {
-        codigo_pedido_integracao: prefixoIntegracao,
-        codigo_cliente: nCodCli,
-        data_previsao: formatarDataOmie(),
-        etapa: "10",
-        quantidade_itens: det.length,
-        ...(isRemessa && acc.cenarioRemessa ? { codigo_cenario_impostos: acc.cenarioRemessa } : {}),
-      },
-      informacoes_adicionais: {
-        codigo_categoria: OMIE_COD_CATEG_VENDA,
-        ...(acc.codCC ? { codigo_conta_corrente: acc.codCC } : {}),
-        codVend: nCodVend || undefined,
-        numero_contrato: idPPV,
-      },
-      // Links de acesso no portal (POS da OS, PPV e requisições).
-      observacoes: { obs_venda: obsVenda },
-      det,
-    };
+    let numPedido = "";
+    if (isRemessa) {
+      // ── REMESSA de verdade (/produtos/remessa/ IncluirRemessa) ──
+      // Itens de remessa vão com CFOP 5.910 (Remessa em Bonificação/Doação/Brinde).
+      const remessaPayload: Record<string, unknown> = {
+        cabec: {
+          cCodIntRem: `RM-${idPPV}`,
+          dPrevisao: dataPrevisao,
+          nCodCli,
+          ...(nCodVend ? { nCodVend: String(nCodVend) } : {}),
+        },
+        infAdic: {
+          cCodCateg: detalhes.categoriaPedido || OMIE_COD_CATEG_VENDA,
+          cConsFinal: detalhes.consumoFinal ? "S" : "N",
+          cNumCtr: detalhes.numContrato || idPPV,
+          ...(detalhes.osId ? { cPedido: String(detalhes.osId) } : {}),
+          ...(detalhes.contato ? { cContato: detalhes.contato } : {}),
+          ...(detalhes.dadosNF ? { cDadosAdic: detalhes.dadosNF } : {}),
+        },
+        obs: { cObs: obsVenda },
+        produtos: itens.map((it) => ({
+          cCodItInt: it.codInt,
+          nCodProd: it.codigoProdutoOmie,
+          nQtde: it.qtde,
+          nValUnit: it.preco,
+          cCFOP: OMIE_CFOP_REMESSA,
+        })),
+      };
+      const resp = await omieCall<Record<string, unknown>>("/produtos/remessa/", "IncluirRemessa", remessaPayload, acc.key, acc.secret);
+      console.log(`[Omie PPV] ${idPPV} → IncluirRemessa resp:`, JSON.stringify(resp).slice(0, 200));
+      // A resposta traz só { nCodRem, cCodIntRem }. Consulta pra pegar o número amigável.
+      const nCodRem = Number(resp.nCodRem) || 0;
+      numPedido = String(nCodRem || "");
+      if (nCodRem) {
+        try {
+          const cr = await omieCall<Record<string, unknown>>("/produtos/remessa/", "ConsultarRemessa", { nCodRem }, acc.key, acc.secret);
+          const cab = (cr?.cabec || cr?.cabecalho || {}) as Record<string, unknown>;
+          const num = cab.nNumero || cab.numero || cab.cNumero;
+          if (num) numPedido = String(num);
+          console.log(`[Omie PPV] ${idPPV} → ConsultarRemessa cabec:`, JSON.stringify(cab).slice(0, 220));
+        } catch (e) { console.warn(`[Omie PPV] ${idPPV} → ConsultarRemessa falhou: ${(e as Error).message}`); }
+      }
+    } else {
+      // ── PEDIDO DE VENDA (/produtos/pedido/ IncluirPedido) ──
+      const det = itens.map((it) => {
+        const produtoObj: Record<string, unknown> = { codigo_produto: it.codigoProdutoOmie, quantidade: it.qtde, valor_unitario: it.preco };
+        if (it.fiscal?.cfop) produtoObj.cfop = it.fiscal.cfop;
+        return { ide: { codigo_item_integracao: it.codInt }, produto: produtoObj, ...(it.fiscal?.imposto ? { imposto: it.fiscal.imposto } : {}) };
+      });
+      const parc = montarParcelasOmie(detalhes.numParcelas || "30 dias", detalhes.previsaoFaturamento || "", totalPedido);
+      const dep = detalhes.departamentos || [];
+      const payload: Record<string, unknown> = {
+        cabecalho: {
+          codigo_pedido_integracao: `PV-${idPPV}`,
+          codigo_cliente: nCodCli,
+          data_previsao: dataPrevisao,
+          etapa: "10",
+          quantidade_itens: det.length,
+          codigo_parcela: parc.codigo_parcela,
+          qtde_parcelas: parc.qtde_parcelas,
+          ...(detalhes.cenarioFiscal ? { codigo_cenario_impostos: detalhes.cenarioFiscal } : {}),
+        },
+        informacoes_adicionais: {
+          codigo_categoria: detalhes.categoriaPedido || OMIE_COD_CATEG_VENDA,
+          codigo_conta_corrente: detalhes.contaCorrente ? Number(detalhes.contaCorrente) : (acc.codCC || undefined),
+          codVend: nCodVend || undefined,
+          numero_contrato: detalhes.numContrato || idPPV,
+          ...(detalhes.osId ? { numero_pedido_cliente: String(detalhes.osId) } : {}),
+          consumidor_final: detalhes.consumoFinal ? "S" : "N",
+          ...(detalhes.contato ? { contato: detalhes.contato } : {}),
+        },
+        observacoes: { obs_venda: obsVenda },
+        det,
+        ...(parc.lista_parcelas ? { lista_parcelas: parc.lista_parcelas } : {}),
+        ...(dep.length > 0
+          ? { departamentos: dep.map((d) => ({ cCodDepto: String(d.codigo), nPerc: d.perc, nValor: Math.round(totalPedido * d.perc) / 100, nValorFixo: "N" })) }
+          : {}),
+      };
+      const resposta = await omieCall<{ numero_pedido?: string; codigo_pedido?: number }>(
+        "/produtos/pedido/", "IncluirPedido", payload, acc.key, acc.secret,
+      );
+      numPedido = (resposta.numero_pedido || String(resposta.codigo_pedido || "")).trim();
+    }
 
-    const resposta = await omieCall<{ numero_pedido?: string; codigo_pedido?: number }>(
-      "/produtos/pedido/",
-      "IncluirPedido",
-      payload as unknown as Record<string, unknown>,
-      acc.key,
-      acc.secret
-    );
-
-    const numPedido = (resposta.numero_pedido || String(resposta.codigo_pedido || "")).trim();
     console.log(`[Omie PPV] ${idPPV} → ${tipoLabel} nº ${numPedido} (${acc.name})`);
 
-    // Atualiza PPV: salva pedido_omie + empresa da conta Omie + muda status
-    // (omie_empresa evita re-descobrir a conta na hora de faturar)
+    // Atualiza PPV: salva pedido_omie + empresa + move pra fase "Enviado Omie".
+    // Só vira "Concluída" depois de FATURADO (ver faturarPPVNoOmie). Não sobrescreve
+    // se já estiver Concluída/Cancelada (evita "voltar" a fase por um reenvio).
+    const statusAtual = String(detalhes.status || "");
+    const manter = ["Concluída", "Cancelada"].includes(statusAtual);
     await supabaseFetch(
       `${TBL_PEDIDOS}?id_pedido=eq.${idPPV}`,
       "PATCH",
-      { pedido_omie: numPedido, omie_empresa: empresaNome, status: "Concluída" }
+      { pedido_omie: numPedido, omie_empresa: empresaNome, ...(manter ? {} : { status: "Enviado Omie" }) }
     );
 
-    await registrarLog(idPPV, `${tipoLabel} Omie nº ${numPedido} criado (${acc.name}). PPV fechado.`);
+    await registrarLog(idPPV, `${tipoLabel} Omie nº ${numPedido} criado (${acc.name}). Aguardando faturamento.`);
 
     return { sucesso: true, numeroPedido: numPedido };
   } catch (err) {
@@ -481,11 +603,21 @@ export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: bool
 // AlterarPedidoVenda antes de faturar.
 // =============================================
 
+interface OmieDetItem {
+  ide?: { codigo_item?: number; codigo_item_integracao?: string; simples_nacional?: string };
+  produto?: {
+    codigo_produto?: number; codigo?: string; descricao?: string; cfop?: string; ncm?: string;
+    quantidade?: number; valor_unitario?: number; valor_total?: number; unidade?: string;
+  };
+  // Bloco fiscal cru do Omie (mantido inteiro pra reenviar sem perder campos).
+  imposto?: Record<string, Record<string, unknown>>;
+}
+
 interface OmiePedidoConsulta {
-  cabecalho?: { codigo_pedido?: number; numero_pedido?: string; etapa?: string; codigo_pedido_integracao?: string };
+  cabecalho?: { codigo_pedido?: number; numero_pedido?: string; etapa?: string; codigo_pedido_integracao?: string; codigo_cliente?: number };
   total_pedido?: { valor_total_pedido?: number; valor_mercadorias?: number };
   informacoes_adicionais?: { codigo_categoria?: string };
-  det?: Array<{ produto?: { descricao?: string; quantidade?: number; valor_unitario?: number; valor_total?: number } }>;
+  det?: OmieDetItem[];
 }
 
 const codIntPV = (idPPV: string) => `PV-${idPPV}`;
@@ -559,7 +691,7 @@ export async function simularFaturamentoPPV(idPPV: string): Promise<PrevisaoFatu
 
   const { acc, pedido } = achado;
   const etapa = String(pedido.cabecalho?.etapa || "");
-  const jaFaturado = !!cab.faturado_omie_em || (Number(etapa) >= Number(OMIE_ETAPA_FATURAR));
+  const jaFaturado = !!cab.faturado_omie_em || (Number(etapa) >= Number(OMIE_ETAPA_FATURADO));
   const itens = (pedido.det || []).map((d) => ({
     descricao: String(d.produto?.descricao || ""),
     quantidade: Number(d.produto?.quantidade || 0),
@@ -581,10 +713,19 @@ export interface ResultadoFaturamentoPPV {
   sucesso: boolean;
   erro?: string;
   jaFaturado?: boolean;
+  pendente?: boolean; // faturamento acionado no Omie, mas NF-e ainda não autorizada
+  aguardandoSefaz?: boolean; // faturado (Concluída), NF-e ainda em autorização na SEFAZ
   numeroPedido?: string;
   nfNumero?: string | null;
   etapa?: string;
   empresa?: string;
+}
+
+// Nº "limpo" da NF a partir do bloco ide da NF (sem zeros à esquerda).
+function numeroNfDe(nf: Record<string, unknown> | null): string | undefined {
+  const ide = (nf?.ide || {}) as Record<string, string>;
+  const n = String(ide.nNF || "").replace(/^0+/, "");
+  return n || (ide.nNF ? String(ide.nNF) : undefined);
 }
 
 // Fatura o Pedido de Venda no Omie: (opcional) troca a categoria e avança a
@@ -604,13 +745,21 @@ export async function faturarPPVNoOmie(
   const { acc, pedido } = achado;
   const codInt = codIntPV(idPPV);
 
-  // Anti-duplicidade: se o pedido já está numa etapa de faturamento, não refatura.
+  // Anti-duplicidade: se o pedido já está na etapa de faturamento (50), só é
+  // "faturado" DE VERDADE se a NF-e existir. Etapa 50 SEM NF = emissão falhou /
+  // pendente — NÃO marca faturado (era esse o bug: marcava sem checar a NF).
   const etapaAtual = String(pedido.cabecalho?.etapa || "");
-  if (Number(etapaAtual) >= Number(OMIE_ETAPA_FATURAR)) {
-    await supabaseFetch(`${TBL_PEDIDOS}?id_pedido=eq.${encodeURIComponent(idPPV)}`, "PATCH", {
-      faturado_omie_em: new Date().toISOString(),
-    });
-    return { sucesso: false, jaFaturado: true, erro: `Pedido já está na etapa ${etapaAtual} (faturado).`, empresa: acc.name };
+  if (Number(etapaAtual) >= Number(OMIE_ETAPA_FATURADO)) {
+    const nfExist = await buscarNFdoPedido(acc, Number(pedido.cabecalho?.codigo_pedido) || 0, Number(pedido.cabecalho?.codigo_cliente) || undefined, String(cab.faturado_omie_em || "") || undefined);
+    if (nfExist) {
+      const numeroNf = numeroNfDe(nfExist);
+      await supabaseFetch(`${TBL_PEDIDOS}?id_pedido=eq.${encodeURIComponent(idPPV)}`, "PATCH", {
+        faturado_omie_em: new Date().toISOString(), status: "Concluída", omie_empresa: acc.name, nf_numero: numeroNf || null,
+      });
+      return { sucesso: true, jaFaturado: true, numeroPedido: String(pedido.cabecalho?.numero_pedido || cab.pedido_omie || ""), etapa: etapaAtual, empresa: acc.name, nfNumero: numeroNf || null };
+    }
+    console.error(`[Omie PPV faturar] ${idPPV}: etapa ${etapaAtual} SEM NF-e — não marco faturado.`);
+    return { sucesso: false, pendente: true, empresa: acc.name, erro: `O pedido está na etapa ${etapaAtual} (faturamento) no Omie, mas a NF-e não foi autorizada. Verifique o erro fiscal no Omie e reemita (ou volte o pedido pra etapa anterior e refature).` };
   }
 
   try {
@@ -626,31 +775,491 @@ export async function faturarPPVNoOmie(
       );
     }
 
-    // 2) Fatura: avança pra etapa "50" (emite a NF-e).
-    await omieCall(
-      "/produtos/pedido/",
-      "TrocarEtapaPedido",
-      { codigo_pedido_integracao: codInt, etapa: OMIE_ETAPA_FATURAR },
-      acc.key,
-      acc.secret,
-    );
+    // 2) FATURA de verdade: FaturarPedidoVenda no endpoint /produtos/pedidovendafat/.
+    //    É ESTE método que roda o faturador e EMITE a NF-e (o TrocarEtapaPedido só
+    //    mudava a fase, sem emitir). Precisa do nCodPed (código interno do pedido).
+    const nCodPed = Number(pedido.cabecalho?.codigo_pedido) || 0;
+    if (!nCodPed) return { sucesso: false, erro: "Não consegui o código interno do pedido no Omie (nCodPed) pra faturar.", empresa: acc.name };
+    try {
+      const resp = await omieCall<Record<string, unknown>>(
+        "/produtos/pedidovendafat/", "FaturarPedidoVenda",
+        { cCodIntPed: codInt, nCodPed }, acc.key, acc.secret,
+      );
+      console.log(`[Omie PPV faturar] ${idPPV}: FaturarPedidoVenda ->`, JSON.stringify(resp).slice(0, 250));
+    } catch (e) {
+      // Erro do faturador (fiscal, etc.) — devolve a mensagem crua do Omie.
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error(`[Omie PPV faturar] ${idPPV}: FaturarPedidoVenda FALHOU: ${msg}`);
+      return { sucesso: false, empresa: acc.name, erro: `O Omie recusou o faturamento: ${msg}` };
+    }
 
-    // 3) Reconsulta pra registrar a nova etapa e (best-effort) o nº da NF.
-    const depois = await consultarPedidoOmie(codInt, acc);
-    const etapaDepois = String(depois?.cabecalho?.etapa || OMIE_ETAPA_FATURAR);
-    const numeroPedido = String(depois?.cabecalho?.numero_pedido || cab.pedido_omie || "");
+    // 3) FaturarPedidoVenda foi ACEITO → o Omie está emitindo. Marca "Concluída"
+    //    JÁ (otimista) e tenta pegar o nº da NF numa consulta rápida (SEM poll
+    //    longo, pra fechar o modal na hora). Se a SEFAZ ainda não devolveu o nº,
+    //    fica "aguardando" e o número/DANFE são preenchidos depois (aba SEFAZ /
+    //    botão Atualizar).
+    const numeroPedido = String(pedido.cabecalho?.numero_pedido || cab.pedido_omie || "");
+    const codigoClienteInterno = Number(pedido.cabecalho?.codigo_cliente) || undefined;
+    const nf = await buscarNFdoPedido(acc, nCodPed, codigoClienteInterno); // 1 tentativa rápida
+    const numeroNf = nf ? numeroNfDe(nf) : undefined;
 
     await supabaseFetch(`${TBL_PEDIDOS}?id_pedido=eq.${encodeURIComponent(idPPV)}`, "PATCH", {
       faturado_omie_em: new Date().toISOString(),
+      status: "Concluída", // faturado = concluído (o auto-sync respeita "Concluída")
       categoria_faturamento: categoria || (pedido.informacoes_adicionais?.codigo_categoria || null),
       omie_empresa: acc.name,
+      ...(numeroNf ? { nf_numero: numeroNf } : {}),
     });
-    await registrarLog(idPPV, `Faturado no Omie (etapa ${etapaDepois}${categoria ? `, categoria ${categoria}` : ""}) — pedido nº ${numeroPedido} (${acc.name}).`);
+    await registrarLog(idPPV, `Faturado no Omie (FaturarPedidoVenda) — pedido nº ${numeroPedido}${numeroNf ? `, NF-e ${numeroNf}` : " (NF-e em autorização na SEFAZ)"} (${acc.name}). PPV concluída.`);
 
-    return { sucesso: true, numeroPedido, etapa: etapaDepois, empresa: acc.name, nfNumero: null };
+    return { sucesso: true, numeroPedido, etapa: OMIE_ETAPA_FATURADO, empresa: acc.name, nfNumero: numeroNf || null, aguardandoSefaz: !numeroNf };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[Omie PPV faturar] ${idPPV}: ${msg}`);
     return { sucesso: false, erro: msg, empresa: acc.name };
+  }
+}
+
+// =============================================
+// CANCELAMENTO DO PEDIDO DE VENDA
+// Cancela o pedido no Omie (CancelarPedidoVenda no /produtos/pedidovendafat/) e
+// marca a PPV como "Cancelada" com o motivo. Se o PPV nunca foi enviado ao Omie,
+// só marca no portal. O motivo é obrigatório (pedido antes de tudo na UI).
+// =============================================
+export async function cancelarPedidoVendaOmie(
+  idPPV: string, motivo: string, userName?: string,
+): Promise<{ sucesso: boolean; erro?: string; empresa?: string }> {
+  const mot = String(motivo || "").trim();
+  if (!mot) return { sucesso: false, erro: "Informe o motivo do cancelamento." };
+
+  const cab = await lerCabecalhoPPV(idPPV);
+  if (!cab) return { sucesso: false, erro: "PPV não encontrado." };
+
+  let empresa: string | undefined;
+  // Se já existe no Omie, cancela lá primeiro (se falhar, NÃO marca cancelado aqui).
+  if (cab.pedido_omie) {
+    const achado = await resolverContaDoPedido(idPPV, cab.omie_empresa as string | null);
+    if (!achado) return { sucesso: false, erro: "Pedido não encontrado no Omie (ConsultarPedido)." };
+    const { acc, pedido } = achado;
+    empresa = acc.name;
+    const nCodPed = Number(pedido.cabecalho?.codigo_pedido) || 0;
+    if (!nCodPed) return { sucesso: false, empresa, erro: "Não consegui o código interno do pedido no Omie (nCodPed)." };
+    try {
+      const resp = await omieCall<Record<string, unknown>>(
+        "/produtos/pedidovendafat/", "CancelarPedidoVenda",
+        { cCodIntPed: codIntPV(idPPV), nCodPed }, acc.key, acc.secret,
+      );
+      console.log(`[Omie PPV cancelar] ${idPPV}: CancelarPedidoVenda ->`, JSON.stringify(resp).slice(0, 200));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error(`[Omie PPV cancelar] ${idPPV}: CancelarPedidoVenda FALHOU: ${msg}`);
+      return { sucesso: false, empresa, erro: `O Omie recusou o cancelamento: ${msg}` };
+    }
+  }
+
+  // Marca a PPV como Cancelada no portal (com o motivo).
+  await supabaseFetch(`${TBL_PEDIDOS}?id_pedido=eq.${encodeURIComponent(idPPV)}`, "PATCH", {
+    status: "Cancelada", motivo_cancelamento: mot,
+  });
+  await registrarLog(idPPV, `Pedido cancelado${cab.pedido_omie ? " no Omie" : ""} — motivo: ${mot} (${userName || "?"}).`);
+  return { sucesso: true, empresa };
+}
+
+// =============================================
+// COMUNICAÇÃO COM A SEFAZ (aba do pedido faturado)
+// A API do Omie NÃO expõe o log literal "Comunicação com a SEFAZ" da tela dele.
+// O que dá pra ler é a NF-e via /produtos/nfconsultar/ ListarNF: nº, série,
+// chave de acesso, emissão, ambiente, id interno (p/ DANFE) e a ligação com o
+// pedido (compl.nIdPedido = cabecalho.codigo_pedido). A partir disso montamos
+// uma linha do tempo de eventos no mesmo estilo do Omie. Cacheamos em
+// pedidos.nf_sefaz (jsonb) pra não bater no Omie toda vez que a aba abre.
+// =============================================
+
+export interface EventoSefaz { data: string; hora: string; descricao: string; usuario: string; ok: boolean }
+export interface ComunicacaoSefaz {
+  faturado: boolean;
+  semNF?: boolean;
+  numero?: string; serie?: string; modelo?: string; chave?: string;
+  nCodNF?: number; nIdPedido?: number; ambiente?: "producao" | "homologacao";
+  emitidaEm?: string; canceladaEm?: string; denegada?: boolean;
+  empresa?: string;
+  eventos: EventoSefaz[];
+  atualizadoEm?: string;
+  erro?: string;
+}
+
+// Data DD/MM/YYYY a partir de uma referência ISO (ou agora) + offset em dias.
+function brDataOffset(refISO: string | undefined, dias: number): string {
+  const base = refISO ? new Date(refISO) : new Date();
+  const d = new Date(base.getTime() + dias * 86400000);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`;
+}
+
+// Acha a NF-e do pedido (por compl.nIdPedido). ATENÇÃO: o ListarNF devolve da NF
+// mais ANTIGA pra mais nova — sem filtro, a página 1 traz notas de anos atrás.
+// Por isso filtramos por uma JANELA de data (ao redor do faturamento) + cliente.
+async function buscarNFdoPedido(acc: OmieAccount, codigoPedido: number, codigoCliente?: number, refDataISO?: string): Promise<Record<string, unknown> | null> {
+  const param: Record<string, unknown> = {
+    pagina: 1, registros_por_pagina: 100, tpNF: 1, apenas_importado_api: "N",
+    dEmiInicial: brDataOffset(refDataISO, -7), dEmiFinal: brDataOffset(refDataISO, +3),
+  };
+  if (codigoCliente) param.nIdCliente = codigoCliente; // filtra pelo cliente (bem menos NFs)
+  try {
+    const r = await omieCall<Record<string, unknown>>("/produtos/nfconsultar/", "ListarNF", param, acc.key, acc.secret);
+    const lista = (r?.nfCadastro || r?.nf_cadastro || r?.nota_fiscal || r?.lista || r?.cadastros || []) as Record<string, unknown>[];
+    const achada = lista.find((nf) => Number((nf?.compl as Record<string, unknown>)?.nIdPedido) === Number(codigoPedido));
+    return achada || null;
+  } catch (e) {
+    console.error(`[Omie SEFAZ] ListarNF (${acc.name}, pedido ${codigoPedido}): ${(e as Error).message}`);
+    return null;
+  }
+}
+
+function montarComunicacao(nf: Record<string, unknown>, empresa: string): ComunicacaoSefaz {
+  const ide = (nf.ide || {}) as Record<string, string>;
+  const compl = (nf.compl || {}) as Record<string, unknown>;
+  const info = (nf.info || {}) as Record<string, string>;
+  const numero = String(ide.nNF || "").replace(/^0+/, "") || String(ide.nNF || "");
+  const serie = String(ide.serie || "");
+  const chave = String(compl.cChaveNFe || "");
+  const denegada = String(ide.cDeneg || "N") === "S";
+  const ambiente: "producao" | "homologacao" = String(ide.tpAmb) === "1" ? "producao" : "homologacao";
+  const usuario = "Integração";
+  const eventos: EventoSefaz[] = [];
+
+  // Emissão da NF-e
+  if (ide.dEmi) eventos.push({ data: ide.dEmi, hora: ide.hEmi || "", descricao: `NF-e ${numero} emitida (série ${serie}, modelo ${ide.mod || "55"}).`, usuario, ok: true });
+  // Autorização (implícita: tem chave de acesso e não foi denegada)
+  if (chave && !denegada) eventos.push({ data: ide.dReg || info.dInc || ide.dEmi || "", hora: info.hInc || ide.hEmi || "", descricao: `NF-e ${numero} autorizada. Chave: ${chave}`, usuario, ok: true });
+  if (denegada) eventos.push({ data: ide.dReg || ide.dEmi || "", hora: ide.hEmi || "", descricao: `NF-e ${numero} DENEGADA pela SEFAZ.`, usuario, ok: false });
+  // Cancelamento (só quando há indício real de cancelamento)
+  const cancelada = String(ide.dCan || "") && String(nf.nfStatus || "").toUpperCase().includes("CANCEL");
+  if (cancelada) eventos.push({ data: String(ide.dCan), hora: "", descricao: `NF-e ${numero} cancelada.`, usuario, ok: false });
+  // Aviso de ambiente de teste (homologação não vale fiscalmente)
+  if (ambiente === "homologacao") eventos.push({ data: ide.dEmi || "", hora: ide.hEmi || "", descricao: "Emitida em ambiente de HOMOLOGAÇÃO (teste — sem valor fiscal).", usuario, ok: false });
+
+  // Ordena por data+hora desc (mais recente no topo, como o Omie)
+  const chaveOrd = (e: EventoSefaz) => {
+    const [d, m, a] = (e.data || "").split("/");
+    return `${a || "0000"}${m || "00"}${d || "00"}${(e.hora || "").replace(/\D/g, "")}`;
+  };
+  eventos.sort((x, y) => chaveOrd(y).localeCompare(chaveOrd(x)));
+
+  return {
+    faturado: true,
+    numero, serie, modelo: String(ide.mod || "55"), chave,
+    nCodNF: Number(compl.nIdNF) || undefined, nIdPedido: Number(compl.nIdPedido) || undefined,
+    ambiente, emitidaEm: ide.dEmi ? `${ide.dEmi} ${ide.hEmi || ""}`.trim() : undefined,
+    canceladaEm: cancelada ? String(ide.dCan) : undefined, denegada,
+    empresa, eventos, atualizadoEm: new Date().toISOString(),
+  };
+}
+
+// Retorna a comunicação com a SEFAZ do PPV. Cache-first (pedidos.nf_sefaz);
+// com refresh=true (ou sem cache) consulta o Omie e regrava o cache.
+export async function obterComunicacaoSefaz(idPPV: string, opts: { refresh?: boolean } = {}): Promise<ComunicacaoSefaz> {
+  // Cache-first. Se a coluna nf_sefaz ainda não existe (SQL não rodado), o select
+  // com nf_sefaz dá 400 — nesse caso refaz SEM a coluna e segue (sem cache).
+  const base = `id_pedido,pedido_omie,omie_empresa,faturado_omie_em,Tipo_Pedido`;
+  let temColunaCache = true;
+  let rows: Record<string, unknown>[] | null = null;
+  try {
+    rows = await supabaseFetch<Record<string, unknown>[]>(
+      `${TBL_PEDIDOS}?id_pedido=eq.${encodeURIComponent(idPPV)}&select=${base},nf_sefaz&limit=1`,
+    );
+  } catch (e) {
+    if (/nf_sefaz/.test((e as Error).message)) {
+      temColunaCache = false;
+      console.warn(`[Omie SEFAZ] coluna nf_sefaz ausente — rode sql/ppv-nf-sefaz.sql (segue sem cache).`);
+      rows = await supabaseFetch<Record<string, unknown>[]>(
+        `${TBL_PEDIDOS}?id_pedido=eq.${encodeURIComponent(idPPV)}&select=${base}&limit=1`,
+      );
+    } else { throw e; }
+  }
+  const cab = rows?.[0];
+  if (!cab) return { faturado: false, eventos: [], erro: "PPV não encontrado." };
+  if (!cab.pedido_omie) return { faturado: false, eventos: [], erro: "Este PPV ainda não foi enviado ao Omie." };
+
+  if (!opts.refresh && cab.nf_sefaz && typeof cab.nf_sefaz === "object") {
+    return cab.nf_sefaz as unknown as ComunicacaoSefaz;
+  }
+
+  const achado = await resolverContaDoPedido(idPPV, cab.omie_empresa as string | null);
+  if (!achado) return { faturado: false, eventos: [], erro: "Pedido não encontrado no Omie (ConsultarPedido)." };
+  const { acc, pedido } = achado;
+  const etapa = String(pedido.cabecalho?.etapa || "");
+  const faturado = Number(etapa) >= Number(OMIE_ETAPA_FATURADO) || !!cab.faturado_omie_em;
+  const codigoPedido = Number(pedido.cabecalho?.codigo_pedido) || 0;
+  const codigoCliente = Number(pedido.cabecalho?.codigo_cliente) || undefined;
+
+  if (!faturado) return { faturado: false, semNF: true, empresa: acc.name, eventos: [] };
+
+  const nf = codigoPedido ? await buscarNFdoPedido(acc, codigoPedido, codigoCliente, String(cab.faturado_omie_em || "") || undefined) : null;
+  if (!nf) {
+    const semNF: ComunicacaoSefaz = { faturado: true, semNF: true, empresa: acc.name, eventos: [], atualizadoEm: new Date().toISOString(), erro: "Faturado, mas não localizei a NF-e no Omie (ListarNF)." };
+    return semNF;
+  }
+
+  const com = montarComunicacao(nf, acc.name);
+  // Cacheia — best-effort. Se a coluna nf_sefaz não existe, grava só o nf_numero.
+  try {
+    await supabaseFetch(`${TBL_PEDIDOS}?id_pedido=eq.${encodeURIComponent(idPPV)}`, "PATCH",
+      temColunaCache ? { nf_sefaz: com, nf_numero: com.numero || null } : { nf_numero: com.numero || null },
+    );
+  } catch (e) {
+    console.error(`[Omie SEFAZ] cache nf_sefaz (${idPPV}): ${(e as Error).message}`);
+  }
+  return com;
+}
+
+// URL temporária do DANFE (PDF) a partir do nCodNF (compl.nIdNF).
+export async function obterUrlDanfePPV(idPPV: string): Promise<{ url: string } | { erro: string }> {
+  const com = await obterComunicacaoSefaz(idPPV);
+  if (!com.nCodNF) return { erro: com.erro || "Sem NF-e para gerar o DANFE." };
+  const achado = await resolverContaDoPedido(idPPV, com.empresa || null);
+  if (!achado) return { erro: "Pedido não encontrado no Omie." };
+  try {
+    const r = await omieCall<Record<string, unknown>>("/produtos/notafiscalutil/", "GetUrlDanfe", { nCodNF: com.nCodNF }, achado.acc.key, achado.acc.secret);
+    const url = (r?.cUrlDanfe || r?.cUrlDANFE || r?.url) as string | undefined;
+    if (!url) return { erro: "Omie não retornou a URL do DANFE." };
+    return { url: String(url) };
+  } catch (e) {
+    console.error(`[Omie SEFAZ] GetUrlDanfe (${idPPV}): ${(e as Error).message}`);
+    return { erro: (e as Error).message };
+  }
+}
+
+// =============================================
+// EDITOR FISCAL POR ITEM ("Item de Orçamento")
+// Lê (ConsultarPedido) e escreve (AlterarPedidoVenda) o bloco `imposto` de cada
+// item do Pedido de Venda. Os nomes dos campos foram confirmados contra um
+// pedido real do Omie (PV 7505): ICMS cod_sit_trib_icms/origem_icms/..., IPI
+// cod_sit_trib_ipi/enquadramento_ipi, PIS pis_padrao.*, COFINS cofins_padrao.*.
+// A escrita só é permitida ANTES de faturar (etapa < 50) — depois o Omie trava.
+// =============================================
+
+const num = (v: unknown): number => {
+  const n = typeof v === "number" ? v : parseFloat(String(v ?? "").replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
+};
+const str = (v: unknown): string => (v == null ? "" : String(v));
+
+// Um bloco fiscal do item, normalizado pro que a tela edita (nomes amigáveis).
+export interface ItemFiscal {
+  codigoItem: number;              // ide.codigo_item (id Omie do item)
+  codigoItemIntegracao: string;    // ide.codigo_item_integracao (ex: PPV-0385-1)
+  codigoProduto: number;
+  codigo: string;                  // SKU
+  descricao: string;
+  quantidade: number;
+  valorUnitario: number;
+  valorTotal: number;
+  cfop: string;
+  ncm: string;
+  unidade: string;
+  icms: { cst: string; origem: string; modalidade: string; aliquota: number; base: number; percRedBase: number; valor: number };
+  icmsSt: { cst: string; modalidade: string; aliquota: number; aliqOpProp: number; base: number; margem: number; percRedBaseOp: number; percRedBaseSt: number; cest: string; valor: number };
+  ipi: { cst: string; enquadramento: string; aliquota: number; base: number; valor: number };
+  pis: { cst: string; aliquota: number; base: number; valor: number };
+  cofins: { cst: string; aliquota: number; base: number; valor: number };
+}
+
+function mapImpostoParaItem(d: OmieDetItem): ItemFiscal {
+  const imp = d.imposto || {};
+  const icms = imp.icms || {};
+  const icmsSt = imp.icms_st || {};
+  const ipi = imp.ipi || {};
+  const pis = imp.pis_padrao || {};
+  const cofins = imp.cofins_padrao || {};
+  const p = d.produto || {};
+  return {
+    codigoItem: num(d.ide?.codigo_item),
+    codigoItemIntegracao: str(d.ide?.codigo_item_integracao),
+    codigoProduto: num(p.codigo_produto),
+    codigo: str(p.codigo),
+    descricao: str(p.descricao),
+    quantidade: num(p.quantidade),
+    valorUnitario: num(p.valor_unitario),
+    valorTotal: num(p.valor_total),
+    cfop: str(p.cfop),
+    ncm: str(p.ncm),
+    unidade: str(p.unidade),
+    icms: {
+      cst: str(icms.cod_sit_trib_icms), origem: str(icms.origem_icms), modalidade: str(icms.modalidade_icms),
+      aliquota: num(icms.aliq_icms), base: num(icms.base_icms), percRedBase: num(icms.perc_red_base_icms), valor: num(icms.valor_icms),
+    },
+    icmsSt: {
+      cst: str(icmsSt.cod_sit_trib_icms_st), modalidade: str(icmsSt.modalidade_icms_st), aliquota: num(icmsSt.aliq_icms_st),
+      aliqOpProp: num(icmsSt.aliq_icms_opprop), base: num(icmsSt.base_icms_st), margem: num(icmsSt.margem_icms_st),
+      percRedBaseOp: num(icmsSt.perc_red_base_icms_op), percRedBaseSt: num(icmsSt.perc_red_base_icms_st), cest: str(icmsSt.cest), valor: num(icmsSt.valor_icms_st),
+    },
+    ipi: { cst: str(ipi.cod_sit_trib_ipi), enquadramento: str(ipi.enquadramento_ipi), aliquota: num(ipi.aliq_ipi), base: num(ipi.base_ipi), valor: num(ipi.valor_ipi) },
+    pis: { cst: str(pis.cod_sit_trib_pis), aliquota: num(pis.aliq_pis), base: num(pis.base_pis), valor: num(pis.valor_pis) },
+    cofins: { cst: str(cofins.cod_sit_trib_cofins), aliquota: num(cofins.aliq_cofins), base: num(cofins.base_cofins), valor: num(cofins.valor_cofins) },
+  };
+}
+
+export interface ConsultaItensFiscais {
+  ok: boolean;
+  erro?: string;
+  empresa?: string;
+  etapa?: string;
+  jaFaturado?: boolean;
+  itens?: ItemFiscal[];
+}
+
+// LEITURA (segura, não altera nada): itens + bloco fiscal de cada um.
+export async function consultarItensFiscaisPPV(idPPV: string): Promise<ConsultaItensFiscais> {
+  const cab = await lerCabecalhoPPV(idPPV);
+  if (!cab) return { ok: false, erro: "PPV não encontrado." };
+  if (!cab.pedido_omie) return { ok: false, erro: "Este PPV ainda não foi enviado ao Omie (envie antes de editar os impostos)." };
+
+  const achado = await resolverContaDoPedido(idPPV, cab.omie_empresa as string | null);
+  if (!achado) {
+    console.error(`[Omie fiscal] ${idPPV}: pedido não encontrado no Omie (ConsultarPedido) — empresa salva: ${cab.omie_empresa || "?"}`);
+    return { ok: false, erro: "Pedido não encontrado no Omie (ConsultarPedido)." };
+  }
+  const { acc, pedido } = achado;
+  const etapa = str(pedido.cabecalho?.etapa);
+  const jaFaturado = !!cab.faturado_omie_em || (Number(etapa) >= Number(OMIE_ETAPA_FATURADO));
+  const itens = (pedido.det || []).map(mapImpostoParaItem);
+  console.log(`[Omie fiscal] ${idPPV}: ${itens.length} item(ns) lido(s) da conta ${acc.name}, etapa ${etapa}${jaFaturado ? " (já faturado)" : ""}.`);
+  return { ok: true, empresa: acc.name, etapa, jaFaturado, itens };
+}
+
+// Patch fiscal vindo da tela (nomes amigáveis; só o que mudou).
+export interface PatchFiscalItem {
+  cfop?: string;
+  icms?: Partial<{ cst: string; origem: string; modalidade: string; aliquota: number; base: number; percRedBase: number }>;
+  icmsSt?: Partial<{ cst: string; modalidade: string; aliquota: number; aliqOpProp: number; base: number; margem: number; percRedBaseOp: number; percRedBaseSt: number; cest: string }>;
+  ipi?: Partial<{ cst: string; enquadramento: string; aliquota: number; base: number }>;
+  pis?: Partial<{ cst: string; aliquota: number; base: number }>;
+  cofins?: Partial<{ cst: string; aliquota: number; base: number }>;
+}
+
+// Aplica o patch (nomes amigáveis) sobre o bloco `imposto` CRU do Omie, sem
+// perder nenhum campo que já existia (só sobrescreve os editados).
+function aplicarPatchNoImpostoCru(impostoCru: Record<string, Record<string, unknown>>, patch: PatchFiscalItem): Record<string, Record<string, unknown>> {
+  const imp: Record<string, Record<string, unknown>> = { ...impostoCru };
+  const setar = (bloco: string, campo: string, valor: unknown) => {
+    if (valor === undefined) return;
+    imp[bloco] = { ...(imp[bloco] || {}), [campo]: valor };
+  };
+  if (patch.icms) {
+    setar("icms", "cod_sit_trib_icms", patch.icms.cst);
+    setar("icms", "origem_icms", patch.icms.origem);
+    setar("icms", "modalidade_icms", patch.icms.modalidade);
+    setar("icms", "aliq_icms", patch.icms.aliquota);
+    setar("icms", "base_icms", patch.icms.base);
+    setar("icms", "perc_red_base_icms", patch.icms.percRedBase);
+  }
+  if (patch.icmsSt) {
+    setar("icms_st", "cod_sit_trib_icms_st", patch.icmsSt.cst);
+    setar("icms_st", "modalidade_icms_st", patch.icmsSt.modalidade);
+    setar("icms_st", "aliq_icms_st", patch.icmsSt.aliquota);
+    setar("icms_st", "aliq_icms_opprop", patch.icmsSt.aliqOpProp);
+    setar("icms_st", "base_icms_st", patch.icmsSt.base);
+    setar("icms_st", "margem_icms_st", patch.icmsSt.margem);
+    setar("icms_st", "perc_red_base_icms_op", patch.icmsSt.percRedBaseOp);
+    setar("icms_st", "perc_red_base_icms_st", patch.icmsSt.percRedBaseSt);
+    setar("icms_st", "cest", patch.icmsSt.cest);
+  }
+  if (patch.ipi) {
+    setar("ipi", "cod_sit_trib_ipi", patch.ipi.cst);
+    setar("ipi", "enquadramento_ipi", patch.ipi.enquadramento);
+    setar("ipi", "aliq_ipi", patch.ipi.aliquota);
+    setar("ipi", "base_ipi", patch.ipi.base);
+  }
+  if (patch.pis) {
+    setar("pis_padrao", "cod_sit_trib_pis", patch.pis.cst);
+    setar("pis_padrao", "aliq_pis", patch.pis.aliquota);
+    setar("pis_padrao", "base_pis", patch.pis.base);
+  }
+  if (patch.cofins) {
+    setar("cofins_padrao", "cod_sit_trib_cofins", patch.cofins.cst);
+    setar("cofins_padrao", "aliq_cofins", patch.cofins.aliquota);
+    setar("cofins_padrao", "base_cofins", patch.cofins.base);
+  }
+  return imp;
+}
+
+export interface ResultadoAlterarFiscal { ok: boolean; erro?: string; empresa?: string }
+
+// ESCRITA: altera o bloco fiscal de UM item, preservando todos os outros itens e
+// todos os campos não editados. Reenvia o `det` INTEIRO (cada item com ide +
+// produto + imposto cru) pra AlterarPedidoVenda não apagar itens.
+// ⚠️ SÓ funciona antes de faturar (etapa < 50). Emite log detalhado em cada passo.
+export async function alterarItemFiscalPPV(
+  idPPV: string,
+  codigoItemIntegracao: string,
+  patch: PatchFiscalItem,
+): Promise<ResultadoAlterarFiscal> {
+  const cab = await lerCabecalhoPPV(idPPV);
+  if (!cab) return { ok: false, erro: "PPV não encontrado." };
+  if (!cab.pedido_omie) return { ok: false, erro: "Este PPV ainda não foi enviado ao Omie." };
+  if (cab.faturado_omie_em) return { ok: false, erro: "Pedido já faturado — impostos não podem mais ser alterados." };
+
+  const achado = await resolverContaDoPedido(idPPV, cab.omie_empresa as string | null);
+  if (!achado) return { ok: false, erro: "Pedido não encontrado no Omie (ConsultarPedido)." };
+  const { acc, pedido } = achado;
+  const codInt = codIntPV(idPPV);
+
+  const etapa = str(pedido.cabecalho?.etapa);
+  if (Number(etapa) >= Number(OMIE_ETAPA_FATURADO)) {
+    console.error(`[Omie fiscal alterar] ${idPPV}: pedido na etapa ${etapa} (faturado) — bloqueado.`);
+    return { ok: false, erro: `Pedido já está na etapa ${etapa} (faturado). Impostos não podem ser alterados.`, empresa: acc.name };
+  }
+
+  const det = pedido.det || [];
+  // Casa por código de integração, id do item, OU código (SKU) do produto — assim
+  // dá pra empurrar a alteração passando só o SKU (fluxo do produto_fiscal).
+  const idAlvo = codigoItemIntegracao.trim().toUpperCase();
+  const alvo = det.find((d) =>
+    str(d.ide?.codigo_item_integracao) === codigoItemIntegracao ||
+    String(d.ide?.codigo_item) === codigoItemIntegracao ||
+    str(d.produto?.codigo).trim().toUpperCase() === idAlvo,
+  );
+  if (!alvo) {
+    console.error(`[Omie fiscal alterar] ${idPPV}: item "${codigoItemIntegracao}" não encontrado no pedido (${det.length} itens).`);
+    return { ok: false, erro: `Item ${codigoItemIntegracao} não encontrado no pedido.`, empresa: acc.name };
+  }
+
+  // Reconstrói o det inteiro: item alvo com o patch aplicado no imposto cru; os
+  // demais com o imposto cru original. Mantém ide + produto de todos.
+  const detNovo = det.map((d) => {
+    const ehAlvo = d === alvo;
+    const impostoCru = d.imposto || {};
+    const imposto = ehAlvo ? aplicarPatchNoImpostoCru(impostoCru, patch) : impostoCru;
+    const produto: Record<string, unknown> = {
+      codigo_produto: d.produto?.codigo_produto,
+      quantidade: d.produto?.quantidade,
+      valor_unitario: d.produto?.valor_unitario,
+    };
+    if (ehAlvo && patch.cfop !== undefined) produto.cfop = patch.cfop;
+    else if (d.produto?.cfop) produto.cfop = d.produto.cfop;
+    return {
+      ide: { codigo_item_integracao: str(d.ide?.codigo_item_integracao) || undefined, codigo_item: d.ide?.codigo_item },
+      produto,
+      imposto,
+    };
+  });
+
+  try {
+    console.log(`[Omie fiscal alterar] ${idPPV}: alterando item "${codigoItemIntegracao}" (${acc.name}). Campos: ${JSON.stringify(patch)}`);
+    await omieCall(
+      "/produtos/pedido/",
+      "AlterarPedidoVenda",
+      { cabecalho: { codigo_pedido_integracao: codInt }, det: detNovo },
+      acc.key,
+      acc.secret,
+    );
+    await registrarLog(idPPV, `Impostos do item ${codigoItemIntegracao} alterados no Omie (${acc.name}).`);
+    console.log(`[Omie fiscal alterar] ${idPPV}: item "${codigoItemIntegracao}" alterado com sucesso.`);
+    return { ok: true, empresa: acc.name };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[Omie fiscal alterar] ${idPPV}: FALHA ao alterar item "${codigoItemIntegracao}" — ${msg}`);
+    return { ok: false, erro: msg, empresa: acc.name };
   }
 }

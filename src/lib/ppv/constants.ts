@@ -29,6 +29,7 @@ export const STATUS_COLORS: Record<string, { text: string; bg: string }> = {
   "Aguardando outros": { text: "#CA8A04", bg: "#FEFCE8" },
   "Aguardando ordem Técnico": { text: "#D97706", bg: "#FFF7ED" },
   "Relatório Concluído": { text: "#0891B2", bg: "#ECFEFF" },
+  "Enviado Omie": { text: "#C2570A", bg: "#FFF3E6" },
   "Concluída": { text: "#047857", bg: "#ECFDF5" },
   "Cancelada": { text: "#B91C1C", bg: "#FEF2F2" },
 };
@@ -58,6 +59,13 @@ export const STATUS_OPTIONS = [
   { value: "Aguardando outros", label: "Aguardando outros" },
   { value: "Aguardando ordem Técnico", label: "Aguardando técnico" },
   { value: "Relatório Concluído", label: "Relatório Concluído" },
-  { value: "Concluída", label: "Concluída" },
+  { value: "Enviado Omie", label: "Enviado Omie" },
+  // Valor continua "Concluída" (usado na lógica de faturamento/sync); rótulo = "Faturado".
+  { value: "Concluída", label: "Faturado" },
   { value: "Cancelada", label: "Cancelada" },
 ];
+
+// Rótulo de exibição de um status (o valor cru continua o mesmo na lógica/DB).
+export function rotuloStatus(value: string): string {
+  return STATUS_OPTIONS.find((o) => o.value === value)?.label || value;
+}

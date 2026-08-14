@@ -9,6 +9,7 @@ export interface VendaItem {
   vt: number;
   codCliente: string;
   cliente?: string;
+  vendedor?: string;
 }
 
 export interface CompraItem {

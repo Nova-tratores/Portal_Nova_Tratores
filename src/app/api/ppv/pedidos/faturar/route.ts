@@ -26,6 +26,11 @@ export async function POST(req: NextRequest) {
 
     const resultado = await faturarPPVNoOmie(id, { categoria });
     if (!resultado.sucesso) {
+      // "pendente" (faturamento acionado, NF ainda não autorizada) NÃO é erro duro:
+      // devolve 200 pra a UI mostrar "aguardando SEFAZ" em vez de erro vermelho.
+      if (resultado.pendente) {
+        return NextResponse.json({ success: false, pendente: true, error: resultado.erro, numeroPedido: resultado.numeroPedido, empresa: resultado.empresa });
+      }
       return NextResponse.json({ error: resultado.erro, jaFaturado: resultado.jaFaturado }, { status: 400 });
     }
 
@@ -40,6 +45,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      aguardandoSefaz: resultado.aguardandoSefaz,
       numeroPedido: resultado.numeroPedido,
       nfNumero: resultado.nfNumero,
       etapa: resultado.etapa,

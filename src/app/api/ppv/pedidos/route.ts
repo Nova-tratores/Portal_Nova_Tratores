@@ -186,6 +186,17 @@ export async function PATCH(req: NextRequest) {
     payload.substituto_tipo = dados.substitutoTipo || null;
     payload.substituto_id = dados.substitutoId || null;
     if (dados.desconto !== undefined) payload.desconto_percentual = dados.desconto;
+    // Campos do espelho Omie (Informações Adicionais + distribuição por departamento)
+    if (dados.categoriaPedido !== undefined) payload.categoria_pedido = dados.categoriaPedido || null;
+    if (dados.contaCorrente !== undefined) payload.conta_corrente = dados.contaCorrente || null;
+    if (dados.cenarioFiscal !== undefined) payload.cenario_fiscal = dados.cenarioFiscal || null;
+    if (dados.previsaoFaturamento !== undefined) payload.previsao_faturamento = dados.previsaoFaturamento || null;
+    if (dados.numParcelas !== undefined) payload.num_parcelas = dados.numParcelas || null;
+    if (dados.numContrato !== undefined) payload.num_contrato = dados.numContrato || null;
+    if (dados.contato !== undefined) payload.contato = dados.contato || null;
+    if (dados.dadosNF !== undefined) payload.dados_nf = dados.dadosNF || null;
+    if (dados.consumoFinal !== undefined) payload.consumo_final = dados.consumoFinal;
+    if (dados.departamentos !== undefined) payload.departamentos = dados.departamentos;
 
     // Buscar estado atual para comparar mudanças
     const estadoAtual = await buscarPPVPorId(dados.id);
@@ -236,6 +247,48 @@ export async function PATCH(req: NextRequest) {
       if (dados.desconto !== undefined && (estadoAtual.desconto || 0) !== dados.desconto) {
         await registrarLog(dados.id, `Desconto alterado: ${estadoAtual.desconto || 0}% → ${dados.desconto}%`, userName);
         temMudanca = true;
+      }
+      // ── Campos do espelho Omie (com nome legível resolvido das tabelas) ──
+      const nomeDe = async (tabela: string, campoCod: string, codigo: string, campoNome: string): Promise<string> => {
+        if (!codigo) return "—";
+        try {
+          const r = await supabaseFetch<Record<string, unknown>[]>(`${tabela}?${campoCod}=eq.${encodeURIComponent(codigo)}&select=${campoNome}&limit=1`);
+          return String((r?.[0] as Record<string, unknown>)?.[campoNome] ?? codigo);
+        } catch { return codigo; }
+      };
+      if (dados.categoriaPedido !== undefined && (estadoAtual.categoriaPedido || "") !== dados.categoriaPedido) {
+        await registrarLog(dados.id, `Categoria: ${await nomeDe("categoria", "codigo", estadoAtual.categoriaPedido || "", "descricao")} → ${await nomeDe("categoria", "codigo", dados.categoriaPedido, "descricao")}`, userName); temMudanca = true;
+      }
+      if (dados.contaCorrente !== undefined && (estadoAtual.contaCorrente || "") !== dados.contaCorrente) {
+        await registrarLog(dados.id, `Conta corrente: ${await nomeDe("conta_corrente", "codigo", estadoAtual.contaCorrente || "", "descricao")} → ${await nomeDe("conta_corrente", "codigo", dados.contaCorrente, "descricao")}`, userName); temMudanca = true;
+      }
+      if (dados.cenarioFiscal !== undefined && (estadoAtual.cenarioFiscal || "") !== dados.cenarioFiscal) {
+        await registrarLog(dados.id, `Cenário fiscal: ${await nomeDe("cenario_fiscal", "codigo", estadoAtual.cenarioFiscal || "", "nome")} → ${await nomeDe("cenario_fiscal", "codigo", dados.cenarioFiscal, "nome")}`, userName); temMudanca = true;
+      }
+      if (dados.previsaoFaturamento !== undefined && String(estadoAtual.previsaoFaturamento || "").slice(0, 10) !== (dados.previsaoFaturamento || "").slice(0, 10)) {
+        await registrarLog(dados.id, `Previsão de faturamento: ${String(estadoAtual.previsaoFaturamento || "—").slice(0, 10)} → ${dados.previsaoFaturamento || "—"}`, userName); temMudanca = true;
+      }
+      if (dados.numParcelas !== undefined && (estadoAtual.numParcelas || "") !== dados.numParcelas) {
+        await registrarLog(dados.id, `Número de parcelas: ${estadoAtual.numParcelas || "—"} → ${dados.numParcelas}`, userName); temMudanca = true;
+      }
+      if (dados.contato !== undefined && (estadoAtual.contato || "") !== dados.contato) {
+        await registrarLog(dados.id, `Contato: ${estadoAtual.contato || "—"} → ${dados.contato || "—"}`, userName); temMudanca = true;
+      }
+      if (dados.numContrato !== undefined && (estadoAtual.numContrato || "") !== dados.numContrato) {
+        await registrarLog(dados.id, `Nº do contrato: ${estadoAtual.numContrato || "—"} → ${dados.numContrato || "—"}`, userName); temMudanca = true;
+      }
+      if (dados.dadosNF !== undefined && (estadoAtual.dadosNF || "") !== dados.dadosNF) {
+        await registrarLog(dados.id, `Dados adicionais da NF alterados`, userName); temMudanca = true;
+      }
+      if (dados.consumoFinal !== undefined && !!estadoAtual.consumoFinal !== !!dados.consumoFinal) {
+        await registrarLog(dados.id, `Nota p/ Consumo Final: ${dados.consumoFinal ? "Sim" : "Não"}`, userName); temMudanca = true;
+      }
+      if (dados.departamentos !== undefined) {
+        const chave = (arr: { codigo: string; perc: number }[] | undefined) => JSON.stringify((arr || []).map((x) => [String(x.codigo), Number(x.perc)]).sort());
+        if (chave(estadoAtual.departamentos) !== chave(dados.departamentos)) {
+          const nomes = await Promise.all((dados.departamentos || []).map(async (x) => `${await nomeDe("departamento", "codigo", x.codigo, "descricao")} (${x.perc}%)`));
+          await registrarLog(dados.id, `Departamentos: ${nomes.join(", ") || "nenhum"}`, userName); temMudanca = true;
+        }
       }
       if (!temMudanca) {
         await registrarLog(dados.id, `Dados atualizados`, userName);

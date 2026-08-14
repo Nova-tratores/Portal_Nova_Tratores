@@ -9,6 +9,7 @@ import { usePPV } from "@/lib/ppv/PPVContext";
 import { useAuth } from "@/hooks/useAuth";
 import ModalImportarKit from "@/components/orcamentos/ModalImportarKit";
 import ModalProdutoEstoque from "./ModalProdutoEstoque";
+import SelecionarUsuarioModal from "./SelecionarUsuarioModal";
 
 interface Props {
   onVoltar: () => void;
@@ -41,10 +42,8 @@ export default function FormNovoLancamento({
   const [tipoPedido, setTipoPedido] = useState(TIPOS_PEDIDO[0].value);
   const [motivoSaida, setMotivoSaida] = useState(MOTIVOS_SAIDA[0].value);
   const [tecnico, setTecnico] = useState("");
-  const [projeto, setProjeto] = useState("");
-  const [projetosDB, setProjetosDB] = useState<{ nome: string }[]>([]);
-  const [projDropdown, setProjDropdown] = useState(false);
-  const [projBusca, setProjBusca] = useState("");
+  const [showVendedor, setShowVendedor] = useState(false); // seletor de vendedor (usuários do portal)
+  const [projeto, setProjeto] = useState("");              // vem da OS vinculada; editado no pedido aberto
   const [usarProjetoOS, setUsarProjetoOS] = useState(true);
   const [observacao, setObservacao] = useState("");
   const [recentlyAdded, setRecentlyAdded] = useState<string | null>(null);
@@ -178,6 +177,8 @@ export default function FormNovoLancamento({
 
   // Estilo de campo com erro
   const errStyle = { border: "2px solid #EF4444", background: "#FFF5F5" };
+  // Destaque SEM cor (borda forte + fundo neutro) — usado no Cliente, O.S. e Vendedor
+  const destaqueNeutro = { border: "2px solid #334155", background: "#F8FAFC" };
 
   return (
     <div className="ppv-form-page">
@@ -232,8 +233,8 @@ export default function FormNovoLancamento({
             {/* Importar Kit — junto do adicionar produto */}
             <button type="button" onClick={() => setKitModalOpen(true)} disabled={importandoKit}
               title="Importar Kit de Revisão (revisão, manutenção ou quadriciclo)"
-              style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 9, padding: "12px 16px", borderRadius: 10, border: "1.5px solid #99F6E4", background: "linear-gradient(135deg,#F0FDFA,#ECFEFF)", cursor: importandoKit ? "not-allowed" : "pointer", opacity: importandoKit ? 0.6 : 1, whiteSpace: "nowrap", color: "#0f766e", fontWeight: 700, fontSize: 14 }}>
-              <span style={{ width: 30, height: 30, borderRadius: 8, background: "linear-gradient(135deg,#0d9488,#0f766e)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", flexShrink: 0 }}>
+              style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 9, padding: "12px 16px", borderRadius: 4, border: "1.5px solid #99F6E4", background: "linear-gradient(135deg,#F0FDFA,#ECFEFF)", cursor: importandoKit ? "not-allowed" : "pointer", opacity: importandoKit ? 0.6 : 1, whiteSpace: "nowrap", color: "#0f766e", fontWeight: 700, fontSize: 14 }}>
+              <span style={{ width: 30, height: 30, borderRadius: 4, background: "linear-gradient(135deg,#0d9488,#0f766e)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", flexShrink: 0 }}>
                 {importandoKit ? <i className="fas fa-spinner fa-spin" style={{ fontSize: 13 }} /> : <i className="fas fa-tools" style={{ fontSize: 13 }} />}
               </span>
               {importandoKit ? "Importando..." : "Importar Kit"}
@@ -242,13 +243,45 @@ export default function FormNovoLancamento({
 
           <div className="ppv-form-divider" />
 
-          {/* ── Ordem de Serviço (no topo: vincular preenche o resto) ── */}
+          {/* ── Cliente (topo, em destaque — o pedido começa por ele) ── */}
           <div className="ppv-form-field">
-            <span className="ppv-form-label">Ordem de Serviço <span className="ppv-form-optional">(opcional — ao vincular, preenche cliente, técnico, projeto, motivo e observação)</span></span>
+            <span className="ppv-form-label">
+              Cliente <span className="ppv-form-required">*</span>
+              {erroCliente && <span className="ppv-form-error-msg">Selecione um cliente</span>}
+            </span>
+            <div
+              onClick={onBuscaCliente}
+              className="ppv-form-picker"
+              style={erroCliente ? errStyle : clienteValue ? destaqueNeutro : undefined}
+            >
+              {clienteValue ? (
+                <div className="ppv-form-picker-filled">
+                  <i className="fas fa-user" />
+                  <div>
+                    <div className="ppv-form-picker-name">{clienteValue}</div>
+                    {(clienteDoc || clienteCidade) && (
+                      <div className="ppv-form-picker-sub">
+                        {clienteDoc}{clienteDoc && clienteCidade ? " — " : ""}{clienteCidade}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="ppv-form-picker-empty">
+                  <i className="fas fa-search" />
+                  <span>Clique aqui para buscar o cliente</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ── Ordem de Serviço (destacada, sem cor — ao vincular, puxa cliente/técnico/projeto/motivo/observação) ── */}
+          <div className="ppv-form-field">
+            <span className="ppv-form-label" style={{ fontWeight: 800 }}>Ordem de Serviço <span className="ppv-form-optional">(opcional — ao vincular, preenche cliente, técnico, projeto, motivo e observação)</span></span>
             <div
               onClick={onBuscaOS}
               className="ppv-form-picker"
-              style={osDisplayValue ? { border: "2px solid #10B981", background: "#F0FDF4" } : undefined}
+              style={osDisplayValue ? destaqueNeutro : { border: "2px solid #94A3B8" }}
             >
               {osDisplayValue ? (
                 <div className="ppv-form-picker-filled">
@@ -264,128 +297,32 @@ export default function FormNovoLancamento({
             </div>
           </div>
 
-          <div className="ppv-form-divider" />
-
-          {/* ── Linha 1: Tipo e Motivo ── */}
-          <div className="ppv-form-row">
-            <div className="ppv-form-field" style={{ flex: 1 }}>
-              <span className="ppv-form-label">Tipo do Pedido</span>
-              <select value={tipoPedido} onChange={(e) => setTipoPedido(e.target.value)}>
-                {TIPOS_PEDIDO.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-              </select>
-            </div>
-            <div className="ppv-form-field" style={{ flex: 1 }}>
-              <span className="ppv-form-label">Motivo da Saída</span>
-              <select value={motivoSaida} onChange={(e) => setMotivoSaida(e.target.value)}>
-                {MOTIVOS_SAIDA.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-              </select>
-            </div>
-          </div>
-
-          {/* ── Técnico + Cliente (2 colunas) ── */}
-          <div className="ppv-form-row">
-            <div className="ppv-form-field" style={{ flex: 1 }}>
-              <span className="ppv-form-label">
-                Técnico <span className="ppv-form-required">*</span>
-                {erroTecnico && <span className="ppv-form-error-msg">Selecione um técnico</span>}
-              </span>
-              <select
-                value={tecnico}
-                onChange={(e) => setTecnico(e.target.value)}
-                style={erroTecnico ? errStyle : undefined}
-              >
-                <option value="">-- Selecione o técnico --</option>
-                {tecnicos.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-
-            <div className="ppv-form-field" style={{ flex: 1 }}>
-              <span className="ppv-form-label">
-                Cliente <span className="ppv-form-required">*</span>
-                {erroCliente && <span className="ppv-form-error-msg">Selecione um cliente</span>}
-              </span>
-              <div
-                onClick={onBuscaCliente}
-                className="ppv-form-picker"
-                style={erroCliente ? errStyle : clienteValue ? { border: "2px solid #10B981", background: "#F0FDF4" } : undefined}
-              >
-                {clienteValue ? (
-                  <div className="ppv-form-picker-filled">
-                    <i className="fas fa-user" />
-                    <div>
-                      <div className="ppv-form-picker-name">{clienteValue}</div>
-                      {(clienteDoc || clienteCidade) && (
-                        <div className="ppv-form-picker-sub">
-                          {clienteDoc}{clienteDoc && clienteCidade ? " — " : ""}{clienteCidade}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="ppv-form-picker-empty">
-                    <i className="fas fa-search" />
-                    <span>Clique aqui para buscar o cliente</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* ── Projeto (copiado da OS quando vinculada, ou escolhido do banco) ── */}
-          <div className="ppv-form-field" style={{ position: "relative" }}>
-            <span className="ppv-form-label">Projeto <span className="ppv-form-optional">(opcional)</span></span>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input
-                type="text"
-                value={usarProjetoOS && osIdValue && !projeto ? "" : projeto}
-                onChange={(e) => setProjeto(e.target.value)}
-                disabled={usarProjetoOS && !!osIdValue && !projeto}
-                placeholder={usarProjetoOS && osIdValue ? "Usando o projeto da OS vinculada" : "Escolha do banco ou digite..."}
-                style={{ flex: 1, background: usarProjetoOS && osIdValue && !projeto ? "#f8fafc" : "#fff" }}
-              />
-              <button type="button" title="Escolher um projeto do banco"
-                onClick={() => {
-                  setProjDropdown((o) => !o); setProjBusca("");
-                  if (projetosDB.length === 0) fetch("/api/pos/buscas/projetos").then((r) => r.json()).then((d) => setProjetosDB(Array.isArray(d) ? d : [])).catch(() => {});
-                }}
-                style={{ flexShrink: 0, padding: "0 14px", borderRadius: 10, border: "1px solid #E2E8F0", background: projDropdown ? "#EFF6FF" : "#fff", color: "#334155", fontSize: 12.5, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
-                <i className="fas fa-database" style={{ fontSize: 12 }} /> Do banco
-              </button>
-            </div>
-            {projDropdown && (
-              <div style={{ position: "absolute", zIndex: 30, top: "calc(100% + 2px)", left: 0, right: 0, background: "#fff", border: "1px solid #E2E8F0", borderRadius: 10, boxShadow: "0 12px 30px rgba(0,0,0,0.14)", maxHeight: 280, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-                <div style={{ padding: 8, borderBottom: "1px solid #F1F5F9" }}>
-                  <input autoFocus value={projBusca} onChange={(e) => setProjBusca(e.target.value)} placeholder="Buscar projeto..."
-                    style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 13, boxSizing: "border-box" }} />
+          {/* ── Vendedor (mesmo seletor de usuários do portal usado no pedido aberto) ── */}
+          <div className="ppv-form-field">
+            <span className="ppv-form-label">
+              Vendedor <span className="ppv-form-required">*</span>
+              {erroTecnico && <span className="ppv-form-error-msg">Selecione um vendedor</span>}
+            </span>
+            <div
+              onClick={() => setShowVendedor(true)}
+              className="ppv-form-picker"
+              style={erroTecnico ? errStyle : tecnico ? destaqueNeutro : undefined}
+            >
+              {tecnico ? (
+                <div className="ppv-form-picker-filled">
+                  <i className="fas fa-user-tie" />
+                  <div><div className="ppv-form-picker-name">{tecnico}</div></div>
                 </div>
-                <div style={{ overflow: "auto" }}>
-                  {projetosDB.filter((p) => p.nome.toLowerCase().includes(projBusca.trim().toLowerCase())).slice(0, 60).map((p, i) => (
-                    <button type="button" key={`${p.nome}-${i}`} onClick={() => { setUsarProjetoOS(false); setProjeto(p.nome); setProjDropdown(false); }}
-                      style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left", padding: "9px 12px", border: "none", background: "transparent", cursor: "pointer", borderBottom: "1px solid #F5F5F5" }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = "#F8FAFC")} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
-                      <i className="fas fa-cog" style={{ fontSize: 11, color: "#94a3b8", flexShrink: 0 }} />
-                      <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 500, color: "#1e293b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.nome}</span>
-                    </button>
-                  ))}
-                  {projetosDB.length === 0 && <div style={{ padding: 20, textAlign: "center", color: "#94a3b8", fontSize: 12.5 }}>Carregando...</div>}
-                  {projetosDB.length > 0 && projetosDB.filter((p) => p.nome.toLowerCase().includes(projBusca.trim().toLowerCase())).length === 0 && <div style={{ padding: 20, textAlign: "center", color: "#94a3b8", fontSize: 12.5 }}>Nenhum projeto.</div>}
+              ) : (
+                <div className="ppv-form-picker-empty">
+                  <i className="fas fa-search" />
+                  <span>Clique para escolher o vendedor</span>
                 </div>
-              </div>
-            )}
-            {osIdValue && (
-              <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, fontSize: 12, color: "#64748b", cursor: "pointer", fontWeight: 500 }}>
-                <input type="checkbox" checked={usarProjetoOS} onChange={(e) => { setUsarProjetoOS(e.target.checked); if (e.target.checked) setProjeto(""); }} />
-                Usar o projeto da OS vinculada (desmarque para escolher outro ou nenhum)
-              </label>
-            )}
-            {false && osIdValue && (
-              <span className="ppv-form-optional" style={{ marginTop: 4 }}>
-                <i className="fas fa-link" style={{ marginRight: 4 }} />Se deixar vazio, uso o projeto da OS vinculada.
-              </span>
-            )}
+              )}
+            </div>
           </div>
 
-          {/* ── Linha 5: Observações ── */}
+          {/* ── Observações ── */}
           <div className="ppv-form-field">
             <span className="ppv-form-label">Observações <span className="ppv-form-optional">(opcional)</span></span>
             <textarea
@@ -440,7 +377,7 @@ export default function FormNovoLancamento({
                         const label = isPrimario ? "CASTRO" : "NOVA";
                         return (
                           <span style={{
-                            marginLeft: 6, fontSize: 12, fontWeight: 700, padding: "2px 8px", borderRadius: 8,
+                            marginLeft: 6, fontSize: 12, fontWeight: 700, padding: "2px 8px", borderRadius: 4,
                             background: isPrimario ? "#DBEAFE" : "#FEE2E2",
                             color: isPrimario ? "#2563EB" : "#DC2626",
                           }}>
@@ -491,6 +428,7 @@ export default function FormNovoLancamento({
       </div>
       <ModalImportarKit open={kitModalOpen} onClose={() => setKitModalOpen(false)} onImportar={(produtos) => importarKitItens(produtos)} />
       <ModalProdutoEstoque open={!!detalheProd} codigo={detalheProd?.codigo || null} descricao={detalheProd?.descricao} onClose={() => setDetalheProd(null)} />
+      <SelecionarUsuarioModal open={showVendedor} atual={tecnico} onClose={() => setShowVendedor(false)} onSelect={(nome) => setTecnico(nome)} />
     </div>
   );
 }

@@ -44,6 +44,16 @@ export async function buscarPPVPorId(id: string): Promise<PPVDetalhes | null> {
     osId: String(getValorInsensivel(d, "Id_Os") || ""),
     tipoPedido: String(getValorInsensivel(d, "Tipo_Pedido") || "Pedido"),
     projeto: String(getValorInsensivel(d, "Projeto") || ""),
+    categoriaPedido: String(getValorInsensivel(d, "categoria_pedido") || ""),
+    contaCorrente: String(getValorInsensivel(d, "conta_corrente") || ""),
+    cenarioFiscal: String(getValorInsensivel(d, "cenario_fiscal") || ""),
+    previsaoFaturamento: String(getValorInsensivel(d, "previsao_faturamento") || ""),
+    numParcelas: String(getValorInsensivel(d, "num_parcelas") || ""),
+    numContrato: String(getValorInsensivel(d, "num_contrato") || ""),
+    contato: String(getValorInsensivel(d, "contato") || ""),
+    dadosNF: String(getValorInsensivel(d, "dados_nf") || ""),
+    consumoFinal: !!getValorInsensivel(d, "consumo_final"),
+    departamentos: Array.isArray(getValorInsensivel(d, "departamentos")) ? (getValorInsensivel(d, "departamentos") as { codigo: string; perc: number }[]) : [],
     produtos: [],
     devolucoes: [],
     kits: [],
@@ -241,8 +251,8 @@ export async function gerarProximoId(prefixo: string): Promise<string> {
 // =============================================
 // BUSCAR DADOS DO CLIENTE PELO NOME
 // =============================================
-export async function buscarDadosCliente(nomeCliente: string): Promise<{ documento: string; endereco: string; cidade: string }> {
-  const resultado = { documento: "", endereco: "", cidade: "" };
+export async function buscarDadosCliente(nomeCliente: string): Promise<{ documento: string; endereco: string; cidade: string; telefone: string; email: string }> {
+  const resultado = { documento: "", endereco: "", cidade: "", telefone: "", email: "" };
   if (!nomeCliente) return resultado;
 
   const query = nomeCliente.trim().replace(/ /g, "%");
@@ -274,6 +284,8 @@ export async function buscarDadosCliente(nomeCliente: string): Promise<{ documen
       ].filter(Boolean);
       resultado.endereco = partes.join(", ");
       resultado.cidade = [String(row.cidade || "").trim(), String(row.estado || "").trim()].filter(Boolean).join(" - ");
+      resultado.telefone = String(row.telefone || "").trim();
+      resultado.email = String(row.email || "").trim();
     }
   } catch (e) {
     console.error("Erro buscar dados cliente:", e);
@@ -285,8 +297,8 @@ export async function buscarDadosCliente(nomeCliente: string): Promise<{ documen
 // Busca os dados do cliente pelo DOCUMENTO (CNPJ/CPF) — sem ambiguidade.
 // A busca por nome não serve quando há homônimos (mesmo nome, CNPJs diferentes):
 // o `limit=1` devolvia sempre o primeiro cadastro, que podia ser o inativo.
-export async function buscarDadosClientePorDocumento(documento: string): Promise<{ nome: string; documento: string; endereco: string; cidade: string }> {
-  const vazio = { nome: "", documento: "", endereco: "", cidade: "" };
+export async function buscarDadosClientePorDocumento(documento: string): Promise<{ nome: string; documento: string; endereco: string; cidade: string; telefone: string; email: string }> {
+  const vazio = { nome: "", documento: "", endereco: "", cidade: "", telefone: "", email: "" };
   const doc = (documento || "").trim();
   if (!doc) return vazio;
   try {
@@ -314,6 +326,8 @@ export async function buscarDadosClientePorDocumento(documento: string): Promise
       documento: String(row.cnpj_cpf || "").trim(),
       endereco: partes.join(", "),
       cidade: [String(row.cidade || "").trim(), String(row.estado || "").trim()].filter(Boolean).join(" - "),
+      telefone: String(row.telefone || "").trim(),
+      email: String(row.email || "").trim(),
     };
   } catch (e) {
     console.error("Erro buscar cliente por documento:", e);
@@ -339,9 +353,11 @@ function mapearStatusOS(statusOS: string): string | null {
 
 export async function sincronizarStatusComOS(): Promise<void> {
   try {
-    // Busca todos os PPVs que têm OS vinculada, NÃO estão em estado terminal e NÃO têm override manual
+    // Busca PPVs com OS vinculada, NÃO em estado terminal e sem override manual.
+    // "Enviado Omie" também é terminal p/ o sync: uma vez enviado ao Omie, o PPV
+    // não deve mais voltar a acompanhar o status da OS.
     const pedidos = await supabaseFetch<Record<string, unknown>[]>(
-      `${TBL_PEDIDOS}?Id_Os=neq.&status=not.in.(Concluída,Cancelada,Fechado,Cancelado)&status_manual_override=not.is.true&select=id_pedido,Id_Os,status`
+      `${TBL_PEDIDOS}?Id_Os=neq.&status=not.in.(Concluída,Cancelada,Fechado,Cancelado,"Enviado Omie")&status_manual_override=not.is.true&select=id_pedido,Id_Os,status`
     );
 
     if (!pedidos || pedidos.length === 0) return;

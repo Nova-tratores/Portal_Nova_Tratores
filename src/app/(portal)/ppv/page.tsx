@@ -20,6 +20,7 @@ import ModalBuscaCliente from "@/components/ppv/ModalBuscaCliente";
 import ModalBuscaOS from "@/components/ppv/ModalBuscaOS";
 import ModalBuscaProduto from "@/components/ppv/ModalBuscaProduto";
 import ModalUsoProduto from "@/components/ppv/ModalUsoProduto";
+import ModalProdutosEstoque from "@/components/ppv/ModalProdutosEstoque";
 import ModalProdutoManual from "@/components/ppv/ModalProdutoManual";
 import ModalRevisoes from "@/components/ppv/ModalRevisoes";
 import BotaoRetiradas from "@/components/ppv/BotaoRetiradas";
@@ -58,6 +59,7 @@ function PPVApp() {
   const [searchFilter, setSearchFilter] = useState("");
   const [tipoFilter, setTipoFilter] = useState("TODOS");
   const [activePhase, setActivePhase] = useState("");
+  const [viewMode, setViewMode] = useState<"cards" | "lista">("cards");
 
   // Handler para trocar status via dropdown — update otimista
   const handleStatusChange = useCallback(async (id: string, newStatus: string) => {
@@ -160,6 +162,7 @@ function PPVApp() {
   const prodContext = useRef<"main" | "modal" | "edit" | "filtro">("main");
   // Filtro por produto: mostra em quais PPVs o produto foi/está sendo usado.
   const [usoProduto, setUsoProduto] = useState<{ codigo: string; descricao: string } | null>(null);
+  const [produtosEstoqueOpen, setProdutosEstoqueOpen] = useState(false);
   // Guarda o produto do filtro quando abrimos um PPV a partir dele, pra REABRIR
   // o histórico no mesmo produto quando o usuário fechar o PPV.
   const usoProdutoVoltar = useRef<{ codigo: string; descricao: string } | null>(null);
@@ -363,13 +366,24 @@ function PPVApp() {
             searchFilter={searchFilter} onSearchChange={setSearchFilter}
             tipoFilter={tipoFilter} onTipoFilterChange={setTipoFilter}
             actions={headerActions}
-            onFiltrarProduto={() => handleBuscaProduto("filtro")}
+            onFiltrarProduto={() => setProdutosEstoqueOpen(true)}
           />
         )}
 
         {activeTab === "kanbanTab" && !isMobile && (
           <div className="flex flex-1 flex-col overflow-auto" style={bgPattern}>
-            <PhaseView orders={filteredKanban} searchTerm={searchFilter} onCardClick={openCardDetails} onStatusChange={handleStatusChange} loading={globalLoading} activePhase={activePhase} onPhaseChange={setActivePhase} />
+            {/* Alternar Cards ⇄ Lista */}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, padding: "10px 16px 0" }}>
+              <button type="button" onClick={() => setViewMode("cards")} title="Ver em cards"
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px", borderRadius: 3, border: "1px solid #e2ddd3", background: viewMode === "cards" ? "#e8730c" : "#fff", color: viewMode === "cards" ? "#fff" : "#5f574c", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                <i className="fas fa-table-cells-large" /> Cards
+              </button>
+              <button type="button" onClick={() => setViewMode("lista")} title="Ver em lista"
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px", borderRadius: 3, border: "1px solid #e2ddd3", background: viewMode === "lista" ? "#e8730c" : "#fff", color: viewMode === "lista" ? "#fff" : "#5f574c", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                <i className="fas fa-list" /> Lista
+              </button>
+            </div>
+            <PhaseView orders={filteredKanban} searchTerm={searchFilter} onCardClick={openCardDetails} onStatusChange={handleStatusChange} loading={globalLoading} activePhase={activePhase} onPhaseChange={setActivePhase} viewMode={viewMode} />
           </div>
         )}
 
@@ -416,6 +430,7 @@ function PPVApp() {
       <ModalBuscaCliente open={buscaClienteOpen} onClose={() => setBuscaClienteOpen(false)} onSelect={handleSelectCliente} />
       <ModalBuscaOS open={buscaOSOpen} onClose={() => setBuscaOSOpen(false)} onSelect={handleSelectOS} />
       <ModalBuscaProduto open={buscaProdutoOpen} mode={buscaProdutoMode} onClose={() => setBuscaProdutoOpen(false)} onSelect={handleSelectProduto} onEditManual={handleEditManual} abrirNoCatalogo={buscaProdutoCatalogo} onCriarProvisorio={handleCriarProvisorio} />
+      <ModalProdutosEstoque open={produtosEstoqueOpen} onClose={() => setProdutosEstoqueOpen(false)} onSelect={(codigo, descricao) => { setProdutosEstoqueOpen(false); setUsoProduto({ codigo, descricao }); }} />
       <ModalUsoProduto open={!!usoProduto} codigo={usoProduto?.codigo || null} descricao={usoProduto?.descricao} onClose={() => setUsoProduto(null)} onAbrirPpv={(id) => { usoProdutoVoltar.current = usoProduto; setUsoProduto(null); openCardDetails(id); }} />
       <ModalProdutoManual open={produtoManualOpen} onClose={() => setProdutoManualOpen(false)} onSaved={() => {}} editData={produtoManualEdit} provisorio={produtoManualProvisorio} />
       <ModalRevisoes open={showGerenciarKits} onClose={() => setShowGerenciarKits(false)} onSaved={recarregarRevisoes} />

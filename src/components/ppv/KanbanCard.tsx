@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import type { KanbanItem } from "@/lib/ppv/types";
 import { normalizarStatus, formatarDataFrontend, formatarMoeda } from "@/lib/ppv/utils";
-import { STATUS_COLORS, STATUS_OPTIONS, type StatusKey } from "@/lib/ppv/constants";
+import { STATUS_COLORS, STATUS_OPTIONS, rotuloStatus, type StatusKey } from "@/lib/ppv/constants";
 import { useClienteEtiquetas } from "@/hooks/useClienteEtiquetas";
 
 interface HoverPreview {
@@ -119,7 +119,7 @@ export default function KanbanCard({ item, onClick, onStatusChange }: KanbanCard
             style={{ color: colors.text, backgroundColor: colors.bg }}
             title="Alterar fase"
           >
-            {statusNorm}
+            {rotuloStatus(statusNorm)}
             <i className="fas fa-chevron-down text-[8px]" />
           </button>
 

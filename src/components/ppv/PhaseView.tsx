@@ -4,7 +4,7 @@ import { useState, useMemo, memo, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import type { KanbanItem } from "@/lib/ppv/types";
 import { normalizarStatus, formatarDataFrontend, formatarMoeda } from "@/lib/ppv/utils";
-import { STATUS_COLORS, STATUS_OPTIONS, type StatusKey } from "@/lib/ppv/constants";
+import { STATUS_COLORS, STATUS_OPTIONS, rotuloStatus, type StatusKey } from "@/lib/ppv/constants";
 
 // Preview do card no hover (com OS → descrição da OS + produtos; sem OS → produtos + observação)
 interface HoverPreview {
@@ -24,6 +24,14 @@ interface PhaseViewProps {
   loading?: boolean;
   activePhase: string;
   onPhaseChange: (phase: string) => void;
+  viewMode?: "cards" | "lista";
+}
+
+// Título do card: "Pré Pedido de Venda 0201" (ou "Remessa 0005").
+function tituloPedido(o: KanbanItem): string {
+  const isRem = (o.tipo || "").toLowerCase().includes("remessa") || (o.tipo || "").toUpperCase() === "REM";
+  const numero = String(o.id || "").replace(/^(PPV|REM)-?/i, "");
+  return `${isRem ? "Remessa" : "Pré Pedido de Venda"} ${numero}`;
 }
 
 export const PHASE_COLORS: Record<string, string> = {
@@ -36,6 +44,7 @@ export const PHASE_COLORS: Record<string, string> = {
   "Aguardando outros": "#CA8A04",
   "Aguardando ordem Técnico": "#D97706",
   "Relatório Concluído": "#0891B2",
+  "Enviado Omie": "#C2570A",
   "Concluída": "#047857",
   "Cancelada": "#B91C1C",
 };
@@ -52,7 +61,8 @@ export const PHASE_SHORT: Record<string, string> = {
   "Aguardando outros": "Aguar. Outros",
   "Aguardando ordem Técnico": "Aguar. Técnico",
   "Relatório Concluído": "Rel. Concluído",
-  "Concluída": "Concluída",
+  "Enviado Omie": "Enviado Omie",
+  "Concluída": "Faturado",
   "Cancelada": "Cancelada",
 };
 
@@ -62,19 +72,25 @@ const COLLAPSED_DEFAULT = new Set(["Concluída", "Cancelada"]);
 
 const MiniCard = memo(function MiniCard({
   order: o,
-  color,
   onClick,
   onStatusChange,
+  viewMode = "cards",
 }: {
   order: KanbanItem;
-  color: string;
+  color?: string;
   onClick: () => void;
   onStatusChange?: (id: string, newStatus: string) => void;
+  viewMode?: "cards" | "lista";
 }) {
   const statusNorm = normalizarStatus(o.status);
   const valorFmt = o.valor ? formatarMoeda(parseFloat(String(o.valor))) : "R$ 0,00";
   const dataFmt = formatarDataFrontend(o.data);
   const isTipoRem = (o.tipo || "").toLowerCase().includes("remessa") || (o.tipo || "").toUpperCase() === "REM";
+  const titulo = tituloPedido(o);
+  const tituloColor = isTipoRem ? "#e8730c" : undefined; // Remessa em laranja p/ diferenciar
+  const [dragging, setDragging] = useState(false);
+  const dragStart = (e: React.DragEvent) => { e.dataTransfer.setData("ppv-id", o.id); e.dataTransfer.effectAllowed = "move"; setDragging(true); };
+  const dragEnd = () => setDragging(false);
 
   const cardRef = useRef<HTMLDivElement>(null);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -107,48 +123,7 @@ const MiniCard = memo(function MiniCard({
   };
   useEffect(() => () => { if (hoverTimer.current) clearTimeout(hoverTimer.current); }, []);
 
-  return (
-    <div ref={cardRef} className="ppv-mini-card" style={{ borderLeftColor: color }} onClick={onClick} onMouseEnter={onHoverEnter} onMouseLeave={onHoverLeave}>
-      {onStatusChange && (
-        <div className="ppv-mini-card-phase" onClick={(e) => e.stopPropagation()}>
-          <select
-            value={statusNorm}
-            onChange={(e) => onStatusChange(o.id, e.target.value)}
-            className="ppv-mini-card-phase-select"
-          >
-            {PHASES.map((p) => (
-              <option key={p} value={p}>{PHASE_SHORT[p] || p}</option>
-            ))}
-          </select>
-        </div>
-      )}
-      <div className="ppv-mini-card-top">
-        <span className="ppv-mini-card-id">#{o.id}</span>
-        <span className="ppv-mini-card-valor">{valorFmt}</span>
-      </div>
-      <div className="ppv-mini-card-cliente">{o.cliente || "Sem Cliente"}</div>
-      {o.observacao && <div className="ppv-mini-card-obs">{o.observacao}</div>}
-      <div className="ppv-mini-card-bottom">
-        <span className="ppv-mini-card-tecnico"><i className="fas fa-user-cog" /> {o.tecnico || "?"}</span>
-        <span className="ppv-mini-card-data"><i className="far fa-calendar" /> {dataFmt}</span>
-        <span className={`ppv-mini-card-tipo ${isTipoRem ? "rem" : ""}`}>
-          {isTipoRem ? "REM" : "PPV"}
-        </span>
-      </div>
-      {o.ultimaAcao && (
-        <div style={{ background: "#F8F9FA", borderRadius: 6, padding: "6px 8px", marginTop: 8, border: "1px solid #E9ECEF" }}>
-          <div style={{ fontSize: 10, fontWeight: 600, color: "#374151", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {o.ultimaAcao}
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "#9CA3AF" }}>
-            <span><i className="far fa-user" style={{ marginRight: 3 }} />{o.ultimoUsuario}</span>
-            <span>{o.ultimaData}</span>
-          </div>
-        </div>
-      )}
-
-      {/* Preview no hover: com OS → descrição da OS + produtos; sem OS → produtos + observação */}
-      {preview && tipPos && typeof document !== "undefined" && createPortal(
+  const previewPortal = preview && tipPos && typeof document !== "undefined" && createPortal(
         <div style={{
           position: "fixed", top: tipPos.top, left: tipPos.left, width: 330, maxHeight: "60vh", overflowY: "auto",
           zIndex: 100000, pointerEvents: "none", background: "#0f172a", color: "#e2e8f0",
@@ -191,7 +166,60 @@ const MiniCard = memo(function MiniCard({
           )}
         </div>,
         document.body
+      );
+
+  // ── Modo LISTA (linha compacta) ──
+  if (viewMode === "lista") {
+    return (
+      <div ref={cardRef} className={`ppv-list-row ${dragging ? "dragging" : ""}`} draggable onDragStart={dragStart} onDragEnd={dragEnd} onClick={onClick} onMouseEnter={onHoverEnter} onMouseLeave={onHoverLeave}>
+        <span className="ppv-list-titulo" style={{ color: tituloColor }}>{titulo}</span>
+        <div className="ppv-list-cli">
+          <span className="ppv-list-cliente">{o.cliente || "Sem Cliente"}</span>
+          {o.observacao && (
+            <span className="ppv-list-obs"><span className="ppv-list-lbl" style={{ marginRight: 5 }}>Observação</span>{o.observacao}</span>
+          )}
+        </div>
+        <div className="ppv-list-field"><span className="ppv-list-lbl">Vendedor</span><span className="ppv-list-v">{o.tecnico || "?"}</span></div>
+        <div className="ppv-list-field"><span className="ppv-list-lbl">Data</span><span className="ppv-list-v">{dataFmt}</span></div>
+        <div className="ppv-list-field end"><span className="ppv-list-lbl">Valor</span><span className="ppv-list-valor">{valorFmt}</span></div>
+        {previewPortal}
+      </div>
+    );
+  }
+
+  // ── Modo CARDS ──
+  return (
+    <div ref={cardRef} className={`ppv-mini-card ${dragging ? "dragging" : ""}`} draggable onDragStart={dragStart} onDragEnd={dragEnd} onClick={onClick} onMouseEnter={onHoverEnter} onMouseLeave={onHoverLeave}>
+      <div className="ppv-mini-card-title" style={{ color: tituloColor }}>{titulo}</div>
+      {onStatusChange && (
+        <div className="ppv-mini-card-phase" onClick={(e) => e.stopPropagation()}>
+          <select value={statusNorm} onChange={(e) => onStatusChange(o.id, e.target.value)} className="ppv-mini-card-phase-select">
+            {PHASES.map((p) => (<option key={p} value={p}>{PHASE_SHORT[p] || p}</option>))}
+          </select>
+        </div>
       )}
+      <div className="ppv-mini-card-top">
+        <span className={`ppv-mini-card-tipo ${isTipoRem ? "rem" : ""}`}>{isTipoRem ? "REM" : "PPV"}</span>
+        <span className="ppv-mini-card-valor">{valorFmt}</span>
+      </div>
+      <div className="ppv-mini-card-cliente">{o.cliente || "Sem Cliente"}</div>
+      {o.observacao && <div className="ppv-mini-card-obs">{o.observacao}</div>}
+      <div className="ppv-mini-card-bottom">
+        <span className="ppv-mini-card-tecnico"><i className="fas fa-user-cog" /> {o.tecnico || "?"}</span>
+        <span className="ppv-mini-card-data"><i className="far fa-calendar" /> {dataFmt}</span>
+      </div>
+      {o.ultimaAcao && (
+        <div style={{ background: "#F8F9FA", borderRadius: 3, padding: "6px 8px", marginTop: 8, border: "1px solid #E9ECEF" }}>
+          <div style={{ fontSize: 10, fontWeight: 600, color: "#374151", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {o.ultimaAcao}
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "#9CA3AF" }}>
+            <span><i className="far fa-user" style={{ marginRight: 3 }} />{o.ultimoUsuario}</span>
+            <span>{o.ultimaData}</span>
+          </div>
+        </div>
+      )}
+      {previewPortal}
     </div>
   );
 });
@@ -217,7 +245,15 @@ function SkeletonCards() {
   );
 }
 
-export default function PhaseView({ orders, searchTerm, onCardClick, onStatusChange, loading, activePhase, onPhaseChange }: PhaseViewProps) {
+export default function PhaseView({ orders, searchTerm, onCardClick, onStatusChange, loading, activePhase, viewMode = "cards" }: PhaseViewProps) {
+  const contClass = viewMode === "lista" ? "ppv-list" : "ppv-cards-grid";
+  // Soltar um card numa fase → muda a fase (arrastar). Só quando agrupado por fases.
+  const dropOnPhase = (phase: string) => (e: React.DragEvent) => {
+    e.preventDefault();
+    const id = e.dataTransfer.getData("ppv-id");
+    if (id && onStatusChange) onStatusChange(id, phase);
+  };
+  const allowDrop = (e: React.DragEvent) => e.preventDefault();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set(COLLAPSED_DEFAULT));
 
   const toggleCollapse = (phase: string) => {
@@ -267,15 +303,9 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onStatusCha
         {loading ? (
           <SkeletonCards />
         ) : activePhase ? (
-          <div className="ppv-cards-grid">
+          <div className={contClass} onDragOver={allowDrop} onDrop={dropOnPhase(activePhase)}>
             {filtered.map((o) => (
-              <MiniCard
-                key={o.id}
-                order={o}
-                color={PHASE_COLORS[normalizarStatus(o.status)] || "#64748B"}
-                onClick={() => onCardClick(o.id)}
-                onStatusChange={onStatusChange}
-              />
+              <MiniCard key={o.id} order={o} viewMode={viewMode} onClick={() => onCardClick(o.id)} onStatusChange={onStatusChange} />
             ))}
             {filtered.length === 0 && (
               <div className="ppv-cards-empty">Nenhum pedido nesta fase</div>
@@ -283,26 +313,20 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onStatusCha
           </div>
         ) : (
           grouped && Object.entries(grouped).map(([phase, items]) => (
-            <div key={phase} className="ppv-phase-group">
+            <div key={phase} className="ppv-phase-group" onDragOver={allowDrop} onDrop={dropOnPhase(phase)}>
               <div className="ppv-phase-group-header" onClick={() => toggleCollapse(phase)}>
                 <span style={{ display: "inline-block", transition: "transform 0.2s", transform: collapsed.has(phase) ? "rotate(-90deg)" : "rotate(0deg)", marginRight: 6 }}>
                   <i className="fas fa-chevron-down" />
                 </span>
                 <span className="ppv-phase-group-dot" style={{ background: PHASE_COLORS[phase] }} />
-                <span className="ppv-phase-group-name">{phase}</span>
+                <span className="ppv-phase-group-name">{rotuloStatus(phase)}</span>
                 <span className="ppv-phase-group-count">{items.length}</span>
                 <div className="ppv-phase-group-line" />
               </div>
               {!collapsed.has(phase) && (
-                <div className="ppv-cards-grid">
+                <div className={contClass}>
                   {items.map((o) => (
-                    <MiniCard
-                      key={o.id}
-                      order={o}
-                      color={PHASE_COLORS[phase] || "#64748B"}
-                      onClick={() => onCardClick(o.id)}
-                      onStatusChange={onStatusChange}
-                    />
+                    <MiniCard key={o.id} order={o} viewMode={viewMode} onClick={() => onCardClick(o.id)} onStatusChange={onStatusChange} />
                   ))}
                 </div>
               )}

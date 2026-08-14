@@ -17,6 +17,7 @@ export function normalizarStatus(st: string | null | undefined): string {
     "Aguardando outros",
     "Aguardando ordem Técnico",
     "Relatório Concluído",
+    "Enviado Omie",
     "Concluída",
     "Cancelada",
   ];

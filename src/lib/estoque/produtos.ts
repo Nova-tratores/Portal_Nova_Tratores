@@ -43,7 +43,7 @@ export async function buscarVendasLista(id: number | string, conta: ContaFiltro,
   const { data: vendasDB } = await filtroConta(
     supabase
       .from('vendas_itens')
-      .select('numero_pedido,data_pedido,quantidade,valor_unitario,valor_total,codigo_cliente')
+      .select('numero_pedido,data_pedido,quantidade,valor_unitario,valor_total,codigo_cliente,vendedor')
       .eq('codigo_produto', String(id))
       .gte('ano', y - 1),
     conta,
@@ -59,6 +59,7 @@ export async function buscarVendasLista(id: number | string, conta: ContaFiltro,
     vu: num(v.valor_unitario),
     vt: num(v.valor_total),
     codCliente: String(v.codigo_cliente || ''),
+    vendedor: v.vendedor != null ? String(v.vendedor) : '',
   }));
   lista.sort((a, b) => parseDataBR(b.data).getTime() - parseDataBR(a.data).getTime());
   lista = lista.slice(0, limite);

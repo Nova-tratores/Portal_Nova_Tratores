@@ -4,7 +4,21 @@
       "Bash(curl -s \"https://portalnovatratores-production.up.railway.app/api/pos/rastreamento?acao=veiculos\" --max-time 20)",
       "Bash(curl -s \"https://portalnovatratores-production.up.railway.app/api/pos/rastreamento?acao=veiculos_mapa\" --max-time 30)",
       "Bash(git clone *)",
-      "Bash(node --check public/mapa-geral/js/routes.js)"
+      "Bash(node --check public/mapa-geral/js/routes.js)",
+      "Bash(npm run *)",
+      "Bash(break)",
+      "WebFetch(domain:app.omie.com.br)",
+      "Bash(node consulta7505.mjs)",
+      "Bash(node cfop.mjs)",
+      "Bash(node import-cfop.mjs)",
+      "Bash(node parcelas.mjs)",
+      "Bash(grep -n 'Tipo do Pedido · Motivo\\\\|{/\\\\* Projeto \\\\*/}\\\\|Informações Adicionais \\(Omie\\)\\\\|<label>Origem do Pedido</label>\\\\|<label>Contato</label>' src/components/ppv/PPVDrawer.tsx)",
+      "Bash(awk '/\\\\.ppv-card \\\\{/{f=1} f{print NR\": \"$0} /\\\\}/{if\\(f\\){f=0}}' src/app/globals.css)",
+      "Bash(npx tsx *)",
+      "Bash(awk -F: '$1>=1770 && $1<=2215 {print}')",
+      "Bash(:)",
+      "WebFetch(domain:ajuda.omie.com.br)",
+      "WebFetch(domain:developer.omie.com.br)"
     ],
     "additionalDirectories": [
       "C:\\projetos\\vendas-pwa\\src\\pages",

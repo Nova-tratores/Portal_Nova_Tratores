@@ -17,7 +17,9 @@ export async function GET(req: NextRequest) {
 
   try {
     const res = await supabaseFetch<Record<string, unknown>[]>(
-      `${TBL_CLIENTES}?or=(nome_fantasia.ilike.*${query}*,razao_social.ilike.*${query}*,cnpj_cpf.ilike.*${query}*)&select=*&limit=50`
+      // inativo=not.is.true → esconde os inativos do Omie, mas mantém os que ainda
+      // não têm o flag (null) — pra não sumir com ninguém antes do 1º re-sync.
+      `${TBL_CLIENTES}?or=(nome_fantasia.ilike.*${query}*,razao_social.ilike.*${query}*,cnpj_cpf.ilike.*${query}*)&inativo=not.is.true&select=*&limit=50`
     );
     res.forEach((row) => {
       const partes = [

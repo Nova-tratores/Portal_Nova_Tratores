@@ -87,6 +87,17 @@ export interface PPVDetalhes {
   osId: string;
   tipoPedido: string;
   projeto: string;
+  // Campos do "espelho Omie" persistidos no pedido (Informações Adicionais + distribuição)
+  categoriaPedido?: string;
+  contaCorrente?: string;
+  cenarioFiscal?: string;
+  previsaoFaturamento?: string;
+  numParcelas?: string;
+  numContrato?: string;
+  contato?: string;
+  dadosNF?: string;
+  consumoFinal?: boolean;
+  departamentos?: { codigo: string; perc: number }[];
   produtos: ProdutoDetalhe[];
   devolucoes: Devolucao[];
   kits?: KitImportado[];

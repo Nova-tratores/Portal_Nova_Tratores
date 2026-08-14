@@ -34,8 +34,8 @@ function horasNum(h: string): number {
 
 const badge = (tipo?: string) => ({
   label: tipo === 'manutencao' ? 'Manutenção' : tipo === 'quadriciclo' ? 'Quadriciclo' : 'Revisão',
-  bg: tipo === 'manutencao' ? '#f3e8ff' : tipo === 'quadriciclo' ? '#ECFEFF' : '#fef2f2',
-  fg: tipo === 'manutencao' ? '#7c3aed' : tipo === 'quadriciclo' ? '#0891b2' : '#dc2626',
+  bg: tipo === 'manutencao' ? '#f3e8ff' : tipo === 'quadriciclo' ? '#ECFEFF' : '#fff3e6',
+  fg: tipo === 'manutencao' ? '#7c3aed' : tipo === 'quadriciclo' ? '#0891b2' : '#e8730c',
 })
 
 export default function ModalImportarKit({ open, onClose, onImportar }: Props) {
@@ -44,10 +44,14 @@ export default function ModalImportarKit({ open, onClose, onImportar }: Props) {
   const [busca, setBusca] = useState('')
   const [modeloSel, setModeloSel] = useState<string | null>(null)
   const [importando, setImportando] = useState<number | null>(null)
+  // Revisão antes de importar: escolhe quais produtos do kit entram.
+  const [preview, setPreview] = useState<{ rotulo: string; horas: number; produtos: ProdutoResolvido[] } | null>(null)
+  const [sel, setSel] = useState<Record<string, boolean>>({})
+  const [modoKit, setModoKit] = useState<null | 'escolher'>(null) // null = perguntar (inteiro/escolher)
 
   useEffect(() => {
     if (!open) return
-    setBusca(''); setModeloSel(null); setImportando(null)
+    setBusca(''); setModeloSel(null); setImportando(null); setPreview(null); setSel({}); setModoKit(null)
     carregarKits()
   }, [open])
 
@@ -125,12 +129,22 @@ export default function ModalImportarKit({ open, onClose, onImportar }: Props) {
       }
       if (produtos.length === 0) { alert('Kit sem produtos'); setImportando(null); return }
       const rotulo = `${kit.Trator} · ${kit.Horas}`.trim()
-      onImportar(produtos, horasNum(kit.Horas) === Infinity ? 0 : horasNum(kit.Horas), rotulo)
-      onClose()
+      // Em vez de importar direto, abre a REVISÃO (todos marcados; dá pra desmarcar).
+      setPreview({ rotulo, horas: horasNum(kit.Horas) === Infinity ? 0 : horasNum(kit.Horas), produtos })
+      setSel(Object.fromEntries(produtos.map((p) => [p.codigo, true])))
+      setModoKit(null) // volta a perguntar "inteiro ou escolher"
     } catch (e) {
-      alert('Erro ao importar kit: ' + (e instanceof Error ? e.message : String(e)))
+      alert('Erro ao carregar kit: ' + (e instanceof Error ? e.message : String(e)))
     }
     setImportando(null)
+  }
+
+  function confirmarImport() {
+    if (!preview) return
+    const escolhidos = preview.produtos.filter((p) => sel[p.codigo])
+    if (escolhidos.length === 0) { alert('Selecione ao menos um produto.'); return }
+    onImportar(escolhidos, preview.horas, preview.rotulo)
+    onClose()
   }
 
   if (!open) return null
@@ -147,8 +161,8 @@ export default function ModalImportarKit({ open, onClose, onImportar }: Props) {
                 onMouseEnter={() => setModeloSel((cur) => (cur === m.nome ? cur : m.nome))}
                 onClick={() => setModeloSel(m.nome)}
                 style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '10px 12px', borderRadius: 9, cursor: 'pointer',
-                  background: ativo ? '#fef2f2' : 'transparent', border: ativo ? '1px solid #fecaca' : '1px solid transparent', transition: '.1s' }}>
-                <i className="fas fa-tractor" style={{ fontSize: 13, color: ativo ? '#dc2626' : '#a3a3a3' }} />
+                  background: ativo ? '#fff3e6' : 'transparent', border: ativo ? '1px solid #f5c99a' : '1px solid transparent', transition: '.1s' }}>
+                <i className="fas fa-tractor" style={{ fontSize: 13, color: ativo ? '#e8730c' : '#a3a3a3' }} />
                 <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: '#1a1a1a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.nome}</span>
                 <span style={{ fontSize: 11, color: '#a3a3a3' }}>{m.kits.length}</span>
               </div>
@@ -168,7 +182,7 @@ export default function ModalImportarKit({ open, onClose, onImportar }: Props) {
         {/* Header */}
         <div style={{ padding: '16px 22px', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg, #dc2626, #b91c1c)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg, #e8730c, #c2570a)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Package size={17} color="#fff" />
             </div>
             <div>
@@ -196,7 +210,7 @@ export default function ModalImportarKit({ open, onClose, onImportar }: Props) {
                 <div style={{ padding: 30, textAlign: 'center', fontSize: 13, color: '#a3a3a3' }}>Nenhum modelo.</div>
               ) : (
                 <>
-                  {secao('Tratores', grupos.tratores, '#dc2626')}
+                  {secao('Tratores', grupos.tratores, '#e8730c')}
                   {secao('Quadriciclos', grupos.quads, '#0891b2')}
                 </>
               )}
@@ -205,7 +219,66 @@ export default function ModalImportarKit({ open, onClose, onImportar }: Props) {
 
           {/* DIREITA: horas do modelo em foco */}
           <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px', background: '#fbfbfb' }}>
-            {!modeloSel ? (
+            {preview ? (
+              <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                  <button onClick={() => { if (modoKit === 'escolher') setModoKit(null); else setPreview(null) }} style={{ background: 'none', border: '1px solid #e5e5e5', borderRadius: 8, padding: '5px 10px', fontSize: 12, cursor: 'pointer', color: '#64748b' }}>← Voltar</button>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: '#1a1a1a' }}>{preview.rotulo}</div>
+                    <div style={{ fontSize: 11, color: '#a3a3a3' }}>{modoKit === 'escolher' ? 'Marque os produtos que quer importar' : `${preview.produtos.length} produtos neste kit`}</div>
+                  </div>
+                </div>
+
+                {modoKit === null ? (
+                  /* Escolha: kit inteiro OU escolher produtos */
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 6 }}>
+                    <div style={{ fontSize: 13, color: '#64748b', marginBottom: 2 }}>Como quer importar este kit?</div>
+                    <button onClick={() => { onImportar(preview.produtos, preview.horas, preview.rotulo); onClose() }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 10, border: '1px solid #f5c99a', background: '#fff7ef', cursor: 'pointer', textAlign: 'left' }}>
+                      <span style={{ width: 40, height: 40, borderRadius: 8, background: '#e8730c', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><i className="fas fa-layer-group" /></span>
+                      <span style={{ flex: 1 }}>
+                        <span style={{ display: 'block', fontSize: 14.5, fontWeight: 700, color: '#9a3412' }}>Kit inteiro</span>
+                        <span style={{ display: 'block', fontSize: 12, color: '#b45309' }}>Adiciona todos os {preview.produtos.length} produtos</span>
+                      </span>
+                    </button>
+                    <button onClick={() => setModoKit('escolher')}
+                      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 10, border: '1px solid #e5e5e5', background: '#fff', cursor: 'pointer', textAlign: 'left' }}>
+                      <span style={{ width: 40, height: 40, borderRadius: 8, background: '#334155', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><i className="fas fa-hand-pointer" /></span>
+                      <span style={{ flex: 1 }}>
+                        <span style={{ display: 'block', fontSize: 14.5, fontWeight: 700, color: '#1a1a1a' }}>Escolher produtos</span>
+                        <span style={{ display: 'block', fontSize: 12, color: '#a3a3a3' }}>Selecione só o(s) que quiser (ex.: um produto)</span>
+                      </span>
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', gap: 14, marginBottom: 8, fontSize: 12 }}>
+                      <button onClick={() => setSel(Object.fromEntries(preview.produtos.map((p) => [p.codigo, true])))} style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', fontWeight: 600 }}>Marcar todos</button>
+                      <button onClick={() => setSel({})} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontWeight: 600 }}>Desmarcar todos</button>
+                    </div>
+                    <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 5 }}>
+                      {preview.produtos.map((p) => {
+                        const on = !!sel[p.codigo]
+                        return (
+                          <label key={p.codigo} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 11px', borderRadius: 9, border: `1px solid ${on ? '#f5c99a' : '#eee'}`, background: on ? '#fff' : '#fafafa', cursor: 'pointer' }}>
+                            <input type="checkbox" checked={on} onChange={(e) => setSel((s) => ({ ...s, [p.codigo]: e.target.checked }))} />
+                            <span style={{ flex: 1, minWidth: 0 }}>
+                              <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#1a1a1a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.descricao}</span>
+                              <span style={{ display: 'block', fontSize: 11, color: '#a3a3a3' }}>{p.codigo} · {p.quantidade}x · R$ {p.preco.toFixed(2)}</span>
+                            </span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, paddingTop: 12, borderTop: '1px solid #f0f0f0', marginTop: 10 }}>
+                      <button onClick={confirmarImport} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 9, border: 'none', background: '#e8730c', color: '#fff', fontSize: 13.5, fontWeight: 700, cursor: 'pointer' }}>
+                        <i className="fas fa-download" /> Importar ({preview.produtos.filter((p) => sel[p.codigo]).length})
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : !modeloSel ? (
               <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#cbd5e1', textAlign: 'center', gap: 10 }}>
                 <i className="fas fa-hand-pointer" style={{ fontSize: 34, opacity: 0.5 }} />
                 <span style={{ fontSize: 13, color: '#a3a3a3' }}>Passe o mouse num modelo à esquerda<br />para ver as horas</span>
@@ -221,15 +294,15 @@ export default function ModalImportarKit({ open, onClose, onImportar }: Props) {
                     return (
                       <button key={kit.id} onClick={() => importarKit(kit)} disabled={importando !== null}
                         style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 10, border: '1px solid #eee', background: '#fff', cursor: importando !== null ? 'wait' : 'pointer', textAlign: 'left', width: '100%', opacity: importando !== null && !carregando ? 0.5 : 1, transition: '.12s' }}
-                        onMouseEnter={e => { if (importando === null) { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.borderColor = '#fecaca' } }}
+                        onMouseEnter={e => { if (importando === null) { e.currentTarget.style.background = '#fff3e6'; e.currentTarget.style.borderColor = '#f5c99a' } }}
                         onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.borderColor = '#eee' }}>
                         <i className={kit.tipo === 'quadriciclo' ? 'fas fa-motorcycle' : kit.tipo === 'manutencao' ? 'fas fa-wrench' : 'fas fa-clock'} style={{ fontSize: 14, color: b.fg }} />
                         <span style={{ flex: 1, fontSize: 15, fontWeight: 500, color: '#1a1a1a' }}>{kit.Horas}</span>
                         <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: b.bg, color: b.fg }}>{b.label}</span>
                         <span style={{ fontSize: 11.5, color: '#a3a3a3' }}>{kit.produtos.length} peças</span>
                         {carregando
-                          ? <i className="fas fa-spinner fa-spin" style={{ fontSize: 13, color: '#dc2626' }} />
-                          : <i className="fas fa-download" style={{ fontSize: 13, color: '#dc2626' }} />}
+                          ? <i className="fas fa-spinner fa-spin" style={{ fontSize: 13, color: '#e8730c' }} />
+                          : <i className="fas fa-download" style={{ fontSize: 13, color: '#e8730c' }} />}
                       </button>
                     )
                   })}

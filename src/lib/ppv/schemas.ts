@@ -50,6 +50,17 @@ export const editarPedidoSchema = z.object({
   substitutoTipo: z.string().nullable().optional().default(null),
   substitutoId: z.string().nullable().optional().default(null),
   desconto: z.number().min(0).max(100).optional(),
+  // Campos do "espelho Omie" (Informações Adicionais + distribuição por departamento)
+  categoriaPedido: z.string().optional(),
+  contaCorrente: z.string().optional(),
+  cenarioFiscal: z.string().optional(),
+  previsaoFaturamento: z.string().optional(),
+  numParcelas: z.string().optional(),
+  numContrato: z.string().optional(),
+  contato: z.string().optional(),
+  dadosNF: z.string().optional(),
+  consumoFinal: z.boolean().optional(),
+  departamentos: z.array(z.object({ codigo: z.string(), perc: z.number() })).optional(),
 });
 
 export const movimentacaoSchema = z.object({

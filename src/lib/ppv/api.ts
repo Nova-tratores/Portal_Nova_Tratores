@@ -85,6 +85,10 @@ export const api = {
     tipoPedido: string; motivoSaida: string; userName?: string;
     substitutoTipo?: string | null; substitutoId?: string | null;
     desconto?: number; projeto?: string; usarProjetoOS?: boolean;
+    categoriaPedido?: string; contaCorrente?: string; cenarioFiscal?: string;
+    previsaoFaturamento?: string; numParcelas?: string; numContrato?: string;
+    contato?: string; dadosNF?: string; consumoFinal?: boolean;
+    departamentos?: { codigo: string; perc: number }[];
   }) => patch<{ success: boolean }>("/api/ppv/pedidos", dados),
 
   // --- Movimentações ---
@@ -111,11 +115,11 @@ export const api = {
     request<ClienteBusca[]>(`/api/ppv/clientes?termo=${encodeURIComponent(termo)}`),
 
   buscarClientePorNome: (nome: string) =>
-    request<{ documento: string; endereco: string; cidade: string }>(`/api/ppv/cliente-dados?nome=${encodeURIComponent(nome)}`),
+    request<{ documento: string; endereco: string; cidade: string; telefone: string; email: string }>(`/api/ppv/cliente-dados?nome=${encodeURIComponent(nome)}`),
 
   // Busca pelo DOCUMENTO — é o certo quando há homônimos (nome não identifica o cliente).
   buscarClientePorDocumento: (documento: string) =>
-    request<{ nome: string; documento: string; endereco: string; cidade: string }>(`/api/ppv/cliente-dados?documento=${encodeURIComponent(documento)}`),
+    request<{ nome: string; documento: string; endereco: string; cidade: string; telefone: string; email: string }>(`/api/ppv/cliente-dados?documento=${encodeURIComponent(documento)}`),
 
   // --- Busca de OS ---
   buscarOS: (termo: string) =>
@@ -150,12 +154,16 @@ export const api = {
   enviarParaOmie: (id: string, userName?: string) =>
     post<{ success: boolean; numeroPedido: string }>("/api/ppv/pedidos/omie", { id, userName }),
 
+  // Cancela o pedido no Omie (CancelarPedidoVenda) + marca a PPV como Cancelada.
+  cancelarPedido: (id: string, motivo: string, userName?: string) =>
+    postAuth<{ success: boolean; empresa?: string }>("/api/ppv/pedidos/cancelar", { id, motivo, userName }),
+
   // --- Faturamento (NF-e) — rotas autenticadas ---
   simularFaturamento: (id: string) =>
     postAuth<PrevisaoFat>("/api/ppv/pedidos/faturar/simular", { id }),
 
   faturar: (id: string, categoria: string, userName?: string) =>
-    postAuth<{ success: boolean; numeroPedido: string; nfNumero: string | null; etapa: string; empresa: string }>(
+    postAuth<{ success: boolean; pendente?: boolean; aguardandoSefaz?: boolean; numeroPedido: string; nfNumero: string | null; etapa?: string; empresa: string; error?: string }>(
       "/api/ppv/pedidos/faturar", { id, categoria, userName }),
 
   // --- Categorias de faturamento (gerenciamento) ---
@@ -170,4 +178,23 @@ export const api = {
 
   sincronizarCategoriasFat: (empresa: string) =>
     postAuth<{ ok: boolean; total: number }>("/api/ppv/faturamento-categorias", { action: "sincronizar", empresa }),
+
+  // --- Anexos (mídia) + comentários ---
+  listarAnexos: (id: string) =>
+    request<{ anexos: PPVAnexo[] }>(`/api/ppv/anexos?id=${encodeURIComponent(id)}`),
+  addComentario: (id: string, comentario: string, autor?: string) =>
+    post<{ ok: boolean }>("/api/ppv/anexos", { id, comentario, autor }),
+  addMidia: (id: string, file: File, autor?: string) => {
+    const fd = new FormData();
+    fd.append("id", id); if (autor) fd.append("autor", autor); fd.append("file", file);
+    return request<{ ok: boolean; url: string }>("/api/ppv/anexos", { method: "POST", body: fd });
+  },
+  delAnexo: (anexoId: number) =>
+    request<{ ok: boolean }>(`/api/ppv/anexos?anexoId=${anexoId}`, { method: "DELETE" }),
 };
+
+export interface PPVAnexo {
+  id: number; id_pedido: string; tipo: "midia" | "comentario";
+  url: string | null; nome_arquivo: string | null; comentario: string | null;
+  autor: string | null; created_at: string;
+}

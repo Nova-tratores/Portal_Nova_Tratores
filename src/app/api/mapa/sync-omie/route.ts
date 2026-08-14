@@ -98,6 +98,7 @@ export async function POST(req: NextRequest) {
           : "",
         email: c.email || "",
         id_omie: c.codigo_cliente_omie,
+        inativo: String(c.inativo || "N").toUpperCase() === "S", // flag do Omie
       }));
 
       const { error } = await supabase

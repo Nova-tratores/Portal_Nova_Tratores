@@ -1,21 +1,70 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import type { PPVDetalhes, LogEntry } from "@/lib/ppv/types";
+import type { ComunicacaoSefaz } from "@/lib/ppv/omie";
 import { formatarDataFrontend, formatarMoeda } from "@/lib/ppv/utils";
 import { normalizarStatus } from "@/lib/ppv/utils";
-import { TIPOS_PEDIDO, MOTIVOS_SAIDA, STATUS_OPTIONS, STATUS_COLORS, type StatusKey } from "@/lib/ppv/constants";
+import { STATUS_OPTIONS, STATUS_COLORS, type StatusKey } from "@/lib/ppv/constants";
 import { api } from "@/lib/ppv/api";
+import { authHeaders } from "@/lib/auth/client";
 import { usePPV } from "@/lib/ppv/PPVContext";
 import { useAuth } from "@/hooks/useAuth";
 import ModalBuscaCliente from "./ModalBuscaCliente";
 import { usePermissoes } from "@/hooks/usePermissoes";
 import ModalDevolucao from "./ModalDevolucao";
-import ModalProdutoEstoque from "./ModalProdutoEstoque";
 import ModalImportarKit from "@/components/orcamentos/ModalImportarKit";
 import FaturarModal from "./FaturarModal";
+import ItemOrcamentoModal from "./ItemOrcamentoModal";
+import AnexosModal from "./AnexosModal";
+import TarefasModal from "./TarefasModal";
+import SelecionarUsuarioModal from "./SelecionarUsuarioModal";
 import OcorrenciaFormModal from "@/components/ocorrencias/OcorrenciaFormModal";
 import { MSG_SEM_PERMISSAO } from "@/lib/permissoes/ui";
+
+// Abas na MESMA ordem/nome do Omie (tela "Pedido de Venda").
+const ABAS_OMIE = [
+  "Itens da Venda",
+  "Departamentos",
+  "Informações sobre",
+  "Parcelas",
+  "Observações",
+] as const;
+type AbaOmie = (typeof ABAS_OMIE)[number];
+// Aba extra: só aparece depois de faturar (mostra os dados da NF-e / SEFAZ).
+const ABA_SEFAZ = "Comunicação com a SEFAZ";
+
+// ── Parcelas (igual ao Omie): a "Previsão de Faturamento" é a data-base; o
+// "Número de Parcelas" define os vencimentos (dias) e o rateio; a aba Parcelas é
+// gerada daí — cada parcela: nº, dias, vencimento (= previsão + dias), %, valor.
+const COND_PARCELAS: Record<string, number[]> = {
+  "À vista (PIX ou Cartão)": [0],
+  "30 dias": [30],
+  "30/60 dias": [30, 60],
+  "30/60/90 dias": [30, 60, 90],
+};
+function addDiasISO(previsaoISO: string, dias: number): string {
+  const base = previsaoISO ? new Date(previsaoISO + "T00:00:00") : new Date();
+  base.setDate(base.getDate() + dias);
+  const y = base.getFullYear();
+  const m = String(base.getMonth() + 1).padStart(2, "0");
+  const d = String(base.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+// vencimento em ISO (YYYY-MM-DD) pro <input type=date>; a UI edita data e valor.
+interface ParcelaCalc { numero: number; dias: number; vencimento: string; percentual: number; valor: number }
+function calcularParcelas(cond: string, previsaoISO: string, total: number): ParcelaCalc[] {
+  const dias = COND_PARCELAS[cond] || [30];
+  const n = dias.length;
+  const base = Math.floor((total / n) * 100) / 100; // valor por parcela (arredonda p/ baixo)
+  return dias.map((d, i) => {
+    const ultima = i === n - 1;
+    const valor = ultima ? Math.round((total - base * (n - 1)) * 100) / 100 : base; // última absorve o resto
+    const percentual = total > 0 ? Math.round((valor / total) * 10000) / 100 : Math.round((100 / n) * 100) / 100;
+    return { numero: i + 1, dias: d, vencimento: addDiasISO(previsaoISO, d), percentual, valor };
+  });
+}
 
 interface Props {
   open: boolean;
@@ -60,6 +109,9 @@ export default function PPVDrawer({
   const [clienteDoc, setClienteDoc] = useState("");
   const [clienteEndereco, setClienteEndereco] = useState("");
   const [clienteCidade, setClienteCidade] = useState("");
+  const [clienteTelefone, setClienteTelefone] = useState("");
+  const [clienteEmail, setClienteEmail] = useState("");
+  const [showCliInfo, setShowCliInfo] = useState(false); // popover de dados do cliente (hover)
   const [tipoPedido, setTipoPedido] = useState("Pedido");
   const [projeto, setProjeto] = useState("");
   // Projetos do banco (cronograma) — pra escolher em vez de digitar / usar o da OS
@@ -78,10 +130,24 @@ export default function PPVDrawer({
   const [pedidoOmie, setPedidoOmie] = useState("");
   const [faturadoEm, setFaturadoEm] = useState("");
   const [showFaturar, setShowFaturar] = useState(false);
+  const [cancelarOpen, setCancelarOpen] = useState(false);   // modal que pede o motivo do cancelamento
+  const [cancelMotivo, setCancelMotivo] = useState("");
+  const [cancelando, setCancelando] = useState(false);
+  const [novoItemMenu, setNovoItemMenu] = useState(false); // "Novo Item" abre as opções de adicionar
+  const [duplicando, setDuplicando] = useState(false);
+  const [showAnexos, setShowAnexos] = useState(false);
+  const [showTarefas, setShowTarefas] = useState(false);
+  const [tarefasPendentes, setTarefasPendentes] = useState(0);
+  const [anexosCount, setAnexosCount] = useState(0);
+  const [custoCMC, setCustoCMC] = useState(0);       // soma do CMC (custo) de todos os itens
+  const [custoLoading, setCustoLoading] = useState(false);
+  const [showVendedor, setShowVendedor] = useState(false);   // modal de escolha do vendedor
+  const [itemSelecionado, setItemSelecionado] = useState<string | null>(null); // linha selecionada
   const [qtdExtra, setQtdExtra] = useState(1);
   const [kitModalOpen, setKitModalOpen] = useState(false);
   const [importandoKit, setImportandoKit] = useState(false);
   const [salvando, setSalvando] = useState(false);
+  const [autoSalvando, setAutoSalvando] = useState(false); // overlay ao auto-salvar no fechar
   const [addingExtra, setAddingExtra] = useState(false);
   const [gerando, setGerando] = useState(false);
   const [enviandoOmie, setEnviandoOmie] = useState(false);
@@ -93,14 +159,36 @@ export default function PPVDrawer({
 
   const [devolucaoOpen, setDevolucaoOpen] = useState(false);
   const [devolucaoProd, setDevolucaoProd] = useState<{ codigo: string; descricao: string; preco: number; max: number } | null>(null);
-  const [detalheProd, setDetalheProd] = useState<{ codigo: string; descricao: string } | null>(null);
+  const [detalheProd, setDetalheProd] = useState<{ codigo: string; descricao: string; conta: "NOVA" | "CASTRO"; quantidade: number; preco: number } | null>(null);
   const [confirmandoDev, setConfirmandoDev] = useState(false);
 
   const [editandoPrecoCod, setEditandoPrecoCod] = useState<string | null>(null);
   const [editandoPrecoVal, setEditandoPrecoVal] = useState("");
   const [salvandoPreco, setSalvandoPreco] = useState(false);
   const [desconto, setDesconto] = useState(0); // sempre guardado em % (fonte de verdade)
-  const [descontoModo, setDescontoModo] = useState<"pct" | "valor">("pct");
+  const [descontoModo, setDescontoModo] = useState<"pct" | "valor">("pct"); // lápis alterna % / R$
+
+  // ── Espelho do Omie: aba ativa + campos NOVOS (placeholder; // TODO: ligar ao banco) ──
+  const [abaAtiva, setAbaAtiva] = useState<string>("Itens da Venda");
+  // Comunicação com a SEFAZ (só aparece depois de faturar) — dados da NF-e
+  const [sefaz, setSefaz] = useState<ComunicacaoSefaz | null>(null);
+  const [sefazLoading, setSefazLoading] = useState(false);
+  const [danfeLoading, setDanfeLoading] = useState(false);
+  const [previsaoFat, setPrevisaoFat] = useState("");       // Previsão de Faturamento (data)
+  const [cenarioFiscal, setCenarioFiscal] = useState(""); // Cenário Fiscal (código do Omie)
+  const [numParcelas, setNumParcelas] = useState("30 dias");   // Número de Parcelas
+  const [parcelas, setParcelas] = useState<ParcelaCalc[]>([]);  // Parcelas editáveis (data/valor por parcela)
+  const [departamentos, setDepartamentos] = useState<{ codigo: string; estrutura: string; descricao: string }[]>([]);
+  const [distDeptos, setDistDeptos] = useState<Record<string, number>>({});  // codigo -> % da distribuição
+  // Informações Adicionais (Omie) — listas do banco + campos (placeholder; ligar ao envio depois)
+  const [listasPedido, setListasPedido] = useState<{ categorias: { codigo: string; descricao: string }[]; contasCorrentes: { codigo: string; descricao: string }[]; etapas: { codigo: string; descricao: string }[]; cenarios: { codigo: string; descricao: string; segmentos?: string }[] }>({ categorias: [], contasCorrentes: [], etapas: [], cenarios: [] });
+  const [cenarioAberto, setCenarioAberto] = useState(false); // dropdown custom do Cenário Fiscal
+  const [infoCategoria, setInfoCategoria] = useState("1.01.03");   // default: Revenda de Peças Balcão
+  const [infoContaCorrente, setInfoContaCorrente] = useState("");  // default definido ao carregar (Bradesco)
+  const [infoNumContrato, setInfoNumContrato] = useState("");
+  const [infoContato, setInfoContato] = useState("");
+  const [infoDadosNF, setInfoDadosNF] = useState("");
+  const [infoConsumoFinal, setInfoConsumoFinal] = useState(false);
 
   // Carregar listas para dropdown de substituto
   useEffect(() => {
@@ -118,19 +206,22 @@ export default function PPVDrawer({
   }, [temSubstituto, substitutoTipo]);
 
   const carregarDadosCliente = useCallback(async (nome: string) => {
-    if (!nome) { setClienteDoc(""); setClienteEndereco(""); setClienteCidade(""); return; }
+    if (!nome) { setClienteDoc(""); setClienteEndereco(""); setClienteCidade(""); setClienteTelefone(""); setClienteEmail(""); return; }
     try {
       const res = await api.buscarClientePorNome(nome);
       setClienteDoc(res.documento || "");
       setClienteEndereco(res.endereco || "");
       setClienteCidade(res.cidade || "");
+      setClienteTelefone(res.telefone || "");
+      setClienteEmail(res.email || "");
     } catch {
-      setClienteDoc(""); setClienteEndereco(""); setClienteCidade("");
+      setClienteDoc(""); setClienteEndereco(""); setClienteCidade(""); setClienteTelefone(""); setClienteEmail("");
     }
   }, []);
 
   const carregarDetalhes = useCallback(async (id: string) => {
     setLoadingData(true);
+    setSefaz(null); // zera a NF-e cacheada em memória ao trocar de pedido
     try {
       const d = await api.buscarPedido(id);
       setDetails(d);
@@ -152,6 +243,19 @@ export default function PPVDrawer({
       setFaturadoEm(d.faturadoOmieEm || "");
       setDesconto(d.desconto || 0);
       onSetModalOS(d.osId || "", d.osId ? `OS #${d.osId} (Vinculada)` : "");
+      // Campos do espelho Omie (Informações Adicionais + distribuição) — se já salvos.
+      if (d.categoriaPedido) setInfoCategoria(d.categoriaPedido);
+      if (d.contaCorrente) setInfoContaCorrente(d.contaCorrente);
+      if (d.cenarioFiscal) setCenarioFiscal(d.cenarioFiscal);
+      if (d.numParcelas) setNumParcelas(d.numParcelas);
+      setPrevisaoFat(d.previsaoFaturamento ? String(d.previsaoFaturamento).slice(0, 10) : "");
+      setInfoNumContrato(d.numContrato || "");
+      setInfoContato(d.contato || "");
+      setInfoDadosNF(d.dadosNF || "");
+      setInfoConsumoFinal(!!d.consumoFinal);
+      if (Array.isArray(d.departamentos) && d.departamentos.length > 0) {
+        setDistDeptos(Object.fromEntries(d.departamentos.map((x) => [x.codigo, x.perc])));
+      }
       // Cliente: se o pedido já guarda o DOCUMENTO, usa ele (sem ambiguidade de homônimo).
       // Senão cai na busca por nome (pedidos antigos).
       const doc = (d.clienteDocumento || "").trim();
@@ -177,6 +281,40 @@ export default function PPVDrawer({
     setLogsLoading(false);
   }, [ppvId]);
 
+  // Comunicação com a SEFAZ (NF-e): cache-first; refresh força reconsulta no Omie.
+  const carregarSefaz = useCallback(async (refresh = false) => {
+    if (!ppvId) return;
+    setSefazLoading(true);
+    try {
+      const r = await fetch(`/api/ppv/nf-sefaz?id=${encodeURIComponent(ppvId)}${refresh ? "&refresh=1" : ""}`, { headers: { ...(await authHeaders()) } });
+      const j = await r.json();
+      if (!r.ok) { showToast("error", j?.error || "Erro ao carregar a comunicação com a SEFAZ."); setSefaz({ faturado: false, eventos: [], erro: j?.error }); }
+      else setSefaz(j as ComunicacaoSefaz);
+    } catch (e) {
+      console.error("[PPV SEFAZ]", e);
+      showToast("error", "Erro ao carregar a comunicação com a SEFAZ.");
+    }
+    setSefazLoading(false);
+  }, [ppvId, showToast]);
+
+  // Carrega a NF-e quando a aba SEFAZ é aberta (uma vez; botão "Atualizar" refaz).
+  useEffect(() => {
+    if (abaAtiva === ABA_SEFAZ && !sefaz && !sefazLoading) carregarSefaz(false);
+  }, [abaAtiva, sefaz, sefazLoading, carregarSefaz]);
+
+  // Abrir o DANFE (PDF) numa nova aba — URL temporária gerada sob demanda.
+  const abrirDanfe = useCallback(async () => {
+    if (!ppvId) return;
+    setDanfeLoading(true);
+    try {
+      const r = await fetch(`/api/ppv/nf-sefaz?id=${encodeURIComponent(ppvId)}&danfe=1`, { headers: { ...(await authHeaders()) } });
+      const j = await r.json();
+      if (!r.ok || !j.url) showToast("error", j?.error || "Não consegui gerar o DANFE.");
+      else window.open(j.url, "_blank", "noopener");
+    } catch { showToast("error", "Não consegui gerar o DANFE."); }
+    setDanfeLoading(false);
+  }, [ppvId, showToast]);
+
   // Troca de cliente: o modal vive DENTRO do drawer e escreve direto no estado.
   // IMPORTANTE: guardamos o DOCUMENTO (CNPJ/CPF), não só o nome. Existem clientes
   // HOMÔNIMOS com CNPJs diferentes (um ativo, um inativo) — com só o nome, trocar de um
@@ -193,8 +331,8 @@ export default function PPVDrawer({
       // Com o documento em mãos, busca os dados DESSE cliente (sem ambiguidade de nome)
       setClienteDoc(doc);
       api.buscarClientePorDocumento(doc)
-        .then((res) => { setClienteEndereco(res.endereco || ""); setClienteCidade(res.cidade || ""); })
-        .catch(() => { setClienteEndereco(""); setClienteCidade(""); });
+        .then((res) => { setClienteEndereco(res.endereco || ""); setClienteCidade(res.cidade || ""); setClienteTelefone(res.telefone || ""); setClienteEmail(res.email || ""); })
+        .catch(() => { setClienteEndereco(""); setClienteCidade(""); setClienteTelefone(""); setClienteEmail(""); });
     } else {
       carregarDadosCliente(nome);
     }
@@ -212,9 +350,66 @@ export default function PPVDrawer({
   useEffect(() => {
     if (open && ppvId) {
       setShowLogs(false);
+      setShowAnexos(false);
+      setNovoItemMenu(false);
       carregarDetalhes(ppvId);
     }
   }, [open, ppvId, carregarDetalhes]);
+
+  // Conta anexos/comentários (pra bolinha vermelha no botão Anexos)
+  const recarregarAnexosCount = useCallback(() => {
+    if (!ppvId) { setAnexosCount(0); return; }
+    api.listarAnexos(ppvId).then((r) => setAnexosCount(r.anexos.length)).catch(() => setAnexosCount(0));
+  }, [ppvId]);
+  useEffect(() => { if (open && ppvId) recarregarAnexosCount(); }, [open, ppvId, recarregarAnexosCount]);
+
+  const recarregarTarefasCount = useCallback(async () => {
+    if (!ppvId) { setTarefasPendentes(0); return; }
+    try {
+      const r = await fetch(`/api/ppv/tarefas?id=${encodeURIComponent(ppvId)}`, { headers: { ...(await authHeaders()) } });
+      const j = await r.json();
+      setTarefasPendentes(r.ok ? (j.pendentes || 0) : 0);
+    } catch { setTarefasPendentes(0); }
+  }, [ppvId]);
+  useEffect(() => { if (open && ppvId) recarregarTarefasCount(); }, [open, ppvId, recarregarTarefasCount]);
+  // Veio da notificação da tarefa (?tarefas=1) → abre o modal de tarefas.
+  useEffect(() => {
+    if (open && ppvId && typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tarefas") === "1") {
+      setShowTarefas(true);
+    }
+  }, [open, ppvId]);
+
+  // Custo Total (CMC): soma o CMC × saldo de cada item, lido DO BANCO pela conta
+  // certa de cada item (rota /api/ppv/custo-cmc). Sem bater no Omie (que atrasa/
+  // bloqueia) e sem "1ª conta que responder" (que pegava o CMC da conta errada).
+  useEffect(() => {
+    if (!open || !details) { setCustoCMC(0); return; }
+    let cancel = false;
+    (async () => {
+      setCustoLoading(true);
+      const devs = details.devolucoes || [];
+      const itens = (details.produtos || [])
+        .map((p) => ({
+          codigo: p.codigo,
+          conta: (p.empresa || "").toLowerCase().includes("primari") ? "CASTRO" : "NOVA",
+          qtd: p.quantidade - devs.filter((x) => x.codigo === p.codigo).reduce((a, c) => a + c.quantidade, 0),
+        }))
+        .filter((p) => p.qtd > 0);
+      try {
+        const r = await fetch(`/api/ppv/custo-cmc`, {
+          method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+          body: JSON.stringify({ itens }),
+        });
+        const j = await r.json();
+        if (!cancel) setCustoCMC(r.ok ? (Number(j.total) || 0) : 0);
+        if (!r.ok) console.error("[PPV custo-cmc]", j?.error);
+      } catch (e) {
+        if (!cancel) { console.error("[PPV custo-cmc]", e); setCustoCMC(0); }
+      }
+      if (!cancel) setCustoLoading(false);
+    })();
+    return () => { cancel = true; };
+  }, [open, details]);
 
   useEffect(() => {
     if (showLogs && ppvId) carregarHistorico();
@@ -232,6 +427,53 @@ export default function PPVDrawer({
   const totalSemDesconto = tOrig - tDev;
   const valorDesconto = totalSemDesconto * (desconto / 100);
   const totalFinal = totalSemDesconto - valorDesconto;
+
+  // Regenera as parcelas quando muda a condição, a previsão ou o total (reseta
+  // edições manuais nesses casos, igual ao Omie). Datas/valores por parcela são
+  // editáveis abaixo (na aba Parcelas).
+  useEffect(() => {
+    setParcelas(calcularParcelas(numParcelas, previsaoFat, totalFinal));
+  }, [numParcelas, previsaoFat, totalFinal]);
+
+  // Departamentos + listas (categorias/contas/etapas) do banco — uma vez ao abrir.
+  useEffect(() => {
+    if (!open) return;
+    (async () => {
+      try {
+        const h = { ...(await authHeaders()) };
+        const [rd, rl] = await Promise.all([
+          fetch(`/api/ppv/departamentos`, { headers: h }),
+          fetch(`/api/ppv/listas-pedido`, { headers: h }),
+        ]);
+        const jd = await rd.json();
+        if (rd.ok) setDepartamentos(jd.departamentos || []); else console.error("[PPV departamentos]", jd?.error);
+        const jl = await rl.json();
+        if (rl.ok) {
+          setListasPedido(jl);
+          // Conta corrente começa no Bradesco (se o usuário ainda não escolheu).
+          const br = (jl.contasCorrentes || []).find((c: { descricao?: string }) => /bradesco/i.test(c.descricao || ""));
+          if (br) setInfoContaCorrente((prev) => prev || br.codigo);
+          // Cenário fiscal padrão: o "VENDA" (ou o 1º da lista) se ainda não escolhido.
+          const cens = jl.cenarios || [];
+          const venda = cens.find((c: { descricao?: string }) => /^venda\b/i.test(c.descricao || "")) || cens[0];
+          if (venda) setCenarioFiscal((prev) => prev || venda.codigo);
+        } else console.error("[PPV listas-pedido]", jl?.error);
+      } catch (e) { console.error("[PPV listas]", e); }
+    })();
+  }, [open]);
+
+  // Marca/desmarca um departamento e redistribui igualmente entre os selecionados.
+  const toggleDepto = (codigo: string) => {
+    setDistDeptos((prev) => {
+      const next = { ...prev };
+      if (codigo in next) delete next[codigo]; else next[codigo] = 0;
+      const cods = Object.keys(next);
+      const n = cods.length;
+      if (n > 0) { const eq = Math.floor((100 / n) * 100) / 100; cods.forEach((c, i) => { next[c] = i === n - 1 ? Math.round((100 - eq * (n - 1)) * 100) / 100 : eq; }); }
+      return next;
+    });
+  };
+  const somaDeptos = Object.values(distDeptos).reduce((s, p) => s + (p || 0), 0);
 
   const statusNorm = normalizarStatus(status) as StatusKey;
   const statusColor = STATUS_COLORS[statusNorm] || { text: "var(--portal-text-secondary)", bg: "var(--portal-bg-card)" };
@@ -253,10 +495,14 @@ export default function PPVDrawer({
         substitutoTipo: temSubstituto ? substitutoTipo : null,
         substitutoId: temSubstituto ? substitutoId : null,
         desconto,
+        categoriaPedido: infoCategoria, contaCorrente: infoContaCorrente, cenarioFiscal, previsaoFaturamento: previsaoFat, numParcelas,
+        numContrato: infoNumContrato, contato: infoContato, dadosNF: infoDadosNF, consumoFinal: infoConsumoFinal,
+        departamentos: Object.entries(distDeptos).map(([codigo, perc]) => ({ codigo, perc })),
       });
       showToast("success", "Atualizado com sucesso!");
       onDirty?.();
-      onClose();
+      if (showLogs) carregarHistorico(); // atualiza o histórico se estiver aberto
+      // NÃO fecha o modal — o usuário continua editando.
     } catch (e) { showToast("error", e instanceof Error ? e.message : "Erro"); }
     setSalvando(false);
   }
@@ -343,9 +589,10 @@ export default function PPVDrawer({
     setEnviandoOmie(true);
     try {
       const res = await api.enviarParaOmie(ppvId, userProfile?.nome || "");
-      showToast("success", `Pedido Omie nº ${res.numeroPedido} criado! PPV concluída.`);
+      showToast("success", `Pedido de Venda nº ${res.numeroPedido} criado no Omie. Agora dá pra faturar.`);
+      setPedidoOmie(res.numeroPedido); // o botão "Enviar" vira "Faturar"
+      if (status !== "Concluída" && status !== "Cancelada") setStatus("Enviado Omie"); // fase avança
       onDirty?.();
-      onClose();
     } catch (e) {
       showToast("error", e instanceof Error ? e.message : "Erro ao enviar para Omie");
     }
@@ -365,31 +612,136 @@ export default function PPVDrawer({
     setGerando(false);
   }
 
+  // Fecha o drawer SALVANDO automaticamente antes (best-effort). Pedido do usuário:
+  // "mesmo sem clicar em Salvar, ao fechar salva primeiro".
+  async function fecharComSalvar() {
+    const podeAutoSalvar = podeEditar && !!ppvId && !!details && cliente.trim() && tecnico.trim() && !(status === "Cancelada" && !motivoCancelamento.trim());
+    if (podeAutoSalvar) {
+      setAutoSalvando(true); // mostra "Salvando alterações…" na tela
+      const t0 = Date.now();
+      try {
+        await api.editarPedido({ id: ppvId!, status, observacao, tecnico, cliente, clienteDocumento, motivoCancelamento, pedidoOmie, osId: modalOSId, tipoPedido, projeto, usarProjetoOS, motivoSaida, userName: userProfile?.nome || "", substitutoTipo: temSubstituto ? substitutoTipo : null, substitutoId: temSubstituto ? substitutoId : null, desconto, categoriaPedido: infoCategoria, contaCorrente: infoContaCorrente, cenarioFiscal, previsaoFaturamento: previsaoFat, numParcelas, numContrato: infoNumContrato, contato: infoContato, dadosNF: infoDadosNF, consumoFinal: infoConsumoFinal, departamentos: Object.entries(distDeptos).map(([codigo, perc]) => ({ codigo, perc })) });
+        onDirty?.();
+      } catch { /* fecha mesmo se o auto-save falhar */ }
+      // Garante que o aviso apareça por um instante (mínimo ~600ms), mesmo se salvar rápido.
+      const resta = 600 - (Date.now() - t0);
+      if (resta > 0) await new Promise((r) => setTimeout(r, resta));
+      setAutoSalvando(false);
+    }
+    onClose();
+  }
+
+  // Cancelar: pede o MOTIVO antes de tudo (modal). Ao confirmar, cancela no Omie
+  // (CancelarPedidoVenda) E marca a PPV como Cancelada — tudo num passo só.
+  function cancelarPedido() {
+    if (!podeEditar) { showToast("error", "Sem permissão."); return; }
+    setCancelMotivo("");
+    setCancelarOpen(true);
+  }
+  async function confirmarCancelamento() {
+    if (!ppvId) return;
+    const mot = cancelMotivo.trim();
+    if (!mot) { showToast("error", "Informe o motivo do cancelamento."); return; }
+    setCancelando(true);
+    try {
+      await api.cancelarPedido(ppvId, mot, userProfile?.nome || "");
+      showToast("success", pedidoOmie ? "Pedido cancelado no Omie e no portal." : "Pedido cancelado.");
+      setStatus("Cancelada");
+      setMotivoCancelamento(mot);
+      setCancelarOpen(false);
+      onDirty?.();
+      onClose();
+    } catch (e) { showToast("error", e instanceof Error ? e.message : "Erro ao cancelar."); }
+    setCancelando(false);
+  }
+
+  // Duplica o pedido: cria um novo PPV com o mesmo cliente, itens e valores
+  // (reusa a criação normal). NÃO vincula à mesma OS (evita dois PPVs na mesma OS).
+  async function duplicarPedido() {
+    if (!details || !ppvId) return;
+    if (!confirm(`Duplicar o pedido ${ppvId}? Cria um novo pedido com o mesmo cliente, itens e valores (sem vincular à OS).`)) return;
+    setDuplicando(true);
+    try {
+      const produtosSelecionados = produtosComSaldo
+        .filter((p) => p.saldo > 0)
+        .map((p) => ({ codigo: p.codigo, descricao: p.descricao, quantidade: p.saldo, preco: p.preco }));
+      const res = await api.criarPedido({
+        tipoPedido, motivoSaida, tecnico, cliente, observacao,
+        osId: "", valorTotal: totalFinal, produtosSelecionados,
+        userName: userProfile?.nome || "", projeto, usarProjetoOS: false,
+      });
+      showToast("success", `Pedido duplicado: ${res.id}`);
+      onDirty?.();
+    } catch (e) { showToast("error", e instanceof Error ? e.message : "Erro ao duplicar"); }
+    setDuplicando(false);
+  }
+
+  // Ver as informações do produto selecionado (mesmo modal do clique no código).
+  function verDescricaoProduto() {
+    if (!itemSelecionado) { showToast("error", "Selecione um produto (clique na descrição)."); return; }
+    const p = produtosComSaldo.find((x) => x.codigo === itemSelecionado);
+    if (p) setDetalheProd({ codigo: p.codigo, descricao: p.descricao, conta: (p.empresa || "").toLowerCase().includes("primari") ? "CASTRO" : "NOVA", quantidade: p.saldo, preco: p.preco });
+  }
+  // Excluir o produto selecionado — abre a devolução (pergunta a quantidade).
+  function excluirItemSelecionado() {
+    if (!podeItem) { showToast("error", "Sem permissão para alterar itens."); return; }
+    if (!itemSelecionado) { showToast("error", "Selecione um produto (clique na descrição)."); return; }
+    const p = produtosComSaldo.find((x) => x.codigo === itemSelecionado);
+    if (p && p.saldo > 0) { setDevolucaoProd({ codigo: p.codigo, descricao: p.descricao, preco: p.preco, max: p.saldo }); setDevolucaoOpen(true); }
+    else showToast("error", "Este item já foi todo devolvido.");
+  }
+
   if (!open) return null;
 
-  return (
+  // Helpers de estilo do cabeçalho Omie (extraídos p/ tipar CSS corretamente)
+  const labelOmie: CSSProperties = { textTransform: "none", letterSpacing: 0, fontWeight: 500, color: "#64748b", fontSize: 12.5, display: "block", marginBottom: 5 };
+  // Caixas de totais no estilo Omie (cinza, valor à direita)
+  const rotOmie: CSSProperties = { fontSize: 12, color: "#6b6259", marginBottom: 4 };
+  const boxOmie: CSSProperties = { background: "#eceae4", border: "1px solid #d6d0c4", borderRadius: 4, height: 34, display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "0 10px", fontSize: 14, color: "#4a453d", fontVariantNumeric: "tabular-nums" };
+  // Número do pedido Omie no botão da barra (sem zeros à esquerda; nunca vazio)
+  const numOmie = (pedidoOmie || "").replace(/^0+/, "") || pedidoOmie || "—";
+  const railTextCol: CSSProperties = { display: "flex", flexDirection: "column", gap: 3, lineHeight: 1.1, minWidth: 0 };
+  const railNumPill: CSSProperties = { alignSelf: "flex-start", background: "#fff3e6", color: "#c2570a", border: "1px solid #f5c99a", borderRadius: 4, padding: "1px 7px", fontSize: 12, fontWeight: 800, letterSpacing: 0.3, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" };
+  const railNumPillVerde: CSSProperties = { ...railNumPill, background: "#ecfdf5", color: "#047857", border: "1px solid #a7f3d0" };
+  // Ficha da NF-e (aba SEFAZ)
+  const fichaBox: CSSProperties = { display: "flex", flexDirection: "column", gap: 3, border: "1px solid #e2ddd3", borderRadius: 4, padding: "8px 10px", background: "#fbfaf7" };
+  const fichaLbl: CSSProperties = { fontSize: 10.5, fontWeight: 700, letterSpacing: 0.4, textTransform: "uppercase", color: "#94a3b8" };
+  const fichaVal: CSSProperties = { fontSize: 13.5, fontWeight: 600, color: "#334155" };
+
+  if (typeof document === "undefined") return null;
+  return createPortal(
     <>
-      <div className="ppv-drawer-overlay" onClick={onClose}>
-        <div className={`ppv-modal-container ${showLogs ? "with-logs" : ""}`} onClick={(e) => e.stopPropagation()}>
-          <div className="ppv-drawer">
-            {/* ── Header ── */}
-            <div className="ppv-drawer-header">
-              <div className="ppv-drawer-header-left">
-                <span className="ppv-drawer-header-title">#{ppvId}</span>
+      {autoSalvando && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 100000, background: "rgba(15,23,42,.45)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ background: "#fff", borderRadius: 8, padding: "20px 28px", display: "flex", alignItems: "center", gap: 14, boxShadow: "0 20px 50px rgba(0,0,0,.3)" }}>
+            <div className="ppv-spinner" />
+            <div style={{ fontSize: 15, fontWeight: 600, color: "#334155" }}>Salvando alterações…</div>
+          </div>
+        </div>
+      )}
+      <div className="ppv-drawer-overlay fs" onClick={fecharComSalvar} style={{ padding: 0, alignItems: "stretch", overflow: "hidden", position: "fixed", inset: 0, zIndex: 200 }}>
+        <div className={`ppv-modal-container fs ${showLogs ? "with-logs" : ""}`} onClick={(e) => e.stopPropagation()}
+          style={{ width: "100vw", maxWidth: "none", height: "100vh", maxHeight: "100vh", margin: 0, borderRadius: 0 }}>
+          <div className="ppv-drawer" style={{ maxHeight: "100vh" }}>
+            {/* ── Barra superior (estilo Omie) ── */}
+            <div className="ppv-omie-topbar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 22px", borderBottom: "1px solid #E2E8F0", background: "#fff", position: "sticky", top: 0, zIndex: 12, flexShrink: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+                <span style={{ fontSize: 18, fontWeight: 700, color: "#334155", whiteSpace: "nowrap" }}>Pedido de Venda</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#c2570a", background: "#fff3e6", border: "1px solid #f5c99a", borderRadius: 6, padding: "2px 8px", whiteSpace: "nowrap" }}>#{ppvId}</span>
+                <select value={status} onChange={(e) => setStatus(e.target.value)} disabled={!podeEditar} title="Fase do PPV"
+                  style={{ fontWeight: 700, color: statusColor.text, background: statusColor.bg, width: "auto", maxWidth: 230, padding: "6px 10px", borderRadius: 8, fontSize: 13, marginBottom: 0 }}>
+                  {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value} style={{ color: "#0f172a", background: "#fff" }}>{s.label}</option>)}
+                </select>
               </div>
-              <div className="ppv-drawer-header-actions">
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
                 {podeOcorrencia && (
-                  <button
-                    onClick={() => setShowOcorrencia(true)}
+                  <button onClick={() => setShowOcorrencia(true)}
                     title="Registrar ocorrência ligada a este PV (falta de informação, extravio, peça danificada…)"
-                    style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "#DC2626", background: "#FEE2E2", border: "1px solid #FECACA", borderRadius: 6, padding: "6px 12px", cursor: "pointer", marginRight: 8 }}
-                  >
+                    style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "#c2570a", background: "#fff3e6", border: "1px solid #f5c99a", borderRadius: 6, padding: "6px 12px", cursor: "pointer" }}>
                     ⚠ Ocorrência
                   </button>
                 )}
-                <button className="ppv-btn-close" onClick={onClose}>
-                  <i className="fas fa-times" />
-                </button>
+                <button onClick={fecharComSalvar} style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "8px 16px", borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", color: "#475569", fontSize: 14, fontWeight: 600, cursor: "pointer" }}><i className="fas fa-times" /> Fechar</button>
               </div>
             </div>
 
@@ -413,86 +765,153 @@ export default function PPVDrawer({
               <>
                 <div className="ppv-drawer-body">
 
-                  {/* ── Cabeçalho: Cliente + dados + totais (horizontal, estilo Omie) ── */}
                   {details && (
-                    <div className="ppv-summary">
-                      {/* Linha do cliente — estilo Omie (campo + lupa) */}
-                      <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-                        <div style={{ width: 46, height: 46, borderRadius: 10, background: "#dc2626", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 600, flexShrink: 0 }}>
-                          {(cliente || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?"}
+                    <>
+                      {/* ── Cabeçalho estilo Omie ── */}
+                      <div className="ppv-omie-head" style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 4, padding: "12px 14px", marginBottom: 12 }}>
+                        {/* Cliente + Consulta de Crédito + Previsão de Faturamento */}
+                        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 18, alignItems: "start" }}>
+                          <div>
+                            <label style={labelOmie}>Cliente</label>
+                            <div style={{ display: "flex", gap: 8 }}>
+                              <div onMouseEnter={() => setShowCliInfo(true)} onMouseLeave={() => setShowCliInfo(false)}
+                                style={{ position: "relative", width: 40, height: 34, borderRadius: 3, background: "#e8730c", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, flexShrink: 0, cursor: "help" }}>
+                                {(cliente || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?"}
+                                {showCliInfo && (
+                                  <div style={{ position: "absolute", top: "115%", left: 0, zIndex: 50, width: 340, background: "#fff", border: "1px solid #E2E8F0", borderRadius: 4, boxShadow: "0 12px 30px rgba(0,0,0,0.16)", padding: 12, color: "#334155", cursor: "default" }}>
+                                    <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b", marginBottom: 8, whiteSpace: "normal" }}>{cliente || "—"}</div>
+                                    {[["CPF / CNPJ", clienteDoc], ["Telefone", clienteTelefone], ["E-mail", clienteEmail], ["Cidade", clienteCidade], ["Endereço", clienteEndereco]].map(([rot, val]) => (
+                                      <div key={rot} style={{ display: "flex", gap: 8, fontSize: 12.5, padding: "3px 0", borderTop: "1px solid #F1F5F9" }}>
+                                        <span style={{ color: "#94a3b8", minWidth: 78, fontWeight: 600 }}>{rot}</span>
+                                        <span style={{ flex: 1, wordBreak: "break-word", fontWeight: 500 }}>{val || "—"}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                              <input type="text" value={cliente || ""} readOnly onClick={() => setBuscaClienteOpen(true)} placeholder="Clique na lupa para escolher o cliente..." style={{ marginBottom: 0, flex: 1, cursor: "pointer", fontWeight: 500 }} />
+                              <button type="button" onClick={() => setBuscaClienteOpen(true)} title="Trocar cliente" style={{ flexShrink: 0, width: 40, borderRadius: 3, border: "1px solid #E2E8F0", background: "#fff", color: "#334155", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>
+                                <i className="fas fa-search" />
+                              </button>
+                            </div>
+                          </div>
+                          <div>
+                            <label style={labelOmie}>Previsão de Faturamento</label>
+                            <input type="date" value={previsaoFat} onChange={(e) => setPrevisaoFat(e.target.value)} style={{ marginBottom: 0 }} />
+                          </div>
                         </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <label style={{ textTransform: "none", letterSpacing: 0, fontWeight: 500, marginBottom: 5, color: "#64748b" }}>Cliente</label>
-                          <div style={{ display: "flex", gap: 8 }}>
-                            <input type="text" value={cliente || ""} readOnly onClick={() => setBuscaClienteOpen(true)} placeholder="Clique na lupa para escolher o cliente..."
-                              style={{ marginBottom: 0, flex: 1, cursor: "pointer", fontWeight: 500 }} />
-                            <button type="button" onClick={() => setBuscaClienteOpen(true)} title="Trocar cliente"
-                              style={{ flexShrink: 0, width: 44, borderRadius: 8, border: "1.5px solid #E2E8F0", background: "#fff", color: "#334155", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>
-                              <i className="fas fa-search" />
+
+                        {/* Totais estilo Omie (caixas cinza) — sem IPI/ICMS ST, com Custo (CMC) */}
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginTop: 12 }}>
+                          <div>
+                            <div style={rotOmie}>Total de Mercadorias</div>
+                            <div style={boxOmie}>{formatarMoeda(totalSemDesconto)}</div>
+                          </div>
+                          <div>
+                            <div style={rotOmie}>
+                              Valor do Desconto{" "}
+                              <button type="button" onClick={() => setDescontoModo((m) => (m === "pct" ? "valor" : "pct"))} title="Alternar entre % e R$"
+                                style={{ border: "none", background: "transparent", cursor: "pointer", color: "#a79f92", fontSize: 10, padding: 0, marginLeft: 2 }}>
+                                <i className="fas fa-pen" />
+                              </button>{" "}
+                              <span style={{ fontSize: 10.5, color: "#b7b0a3" }}>({descontoModo === "pct" ? "%" : "R$"})</span>
+                            </div>
+                            <div style={{ ...boxOmie, padding: "0 8px", gap: 4 }}>
+                              {descontoModo === "pct" ? (
+                                <>
+                                  <input type="number" value={desconto || ""} min={0} max={100} step={0.5} placeholder="0" title="Desconto em %"
+                                    onChange={(e) => { const v = parseFloat(e.target.value); setDesconto(isNaN(v) ? 0 : Math.min(100, Math.max(0, v))); }}
+                                    style={{ width: "100%", border: "none", background: "transparent", textAlign: "right", fontSize: 14, color: "#4a453d", outline: "none", padding: 0, margin: 0, fontFamily: "inherit" }} />
+                                  <span style={{ fontSize: 12, color: "#8a8378" }}>%</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span style={{ fontSize: 12, color: "#8a8378" }}>R$</span>
+                                  <input type="number" value={valorDesconto ? Number(valorDesconto.toFixed(2)) : ""} min={0} max={totalSemDesconto} step={1} placeholder="0,00" title="Desconto em R$"
+                                    onChange={(e) => { const v = parseFloat(e.target.value); const val = isNaN(v) ? 0 : Math.min(totalSemDesconto, Math.max(0, v)); setDesconto(totalSemDesconto > 0 ? (val / totalSemDesconto) * 100 : 0); }}
+                                    style={{ width: "100%", border: "none", background: "transparent", textAlign: "right", fontSize: 14, color: "#4a453d", outline: "none", padding: 0, margin: 0, fontFamily: "inherit" }} />
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          <div>
+                            <div style={rotOmie}>Valor Total do Pedido</div>
+                            <div style={{ ...boxOmie, fontWeight: 700, color: "#c2570a", background: "#fff3e6", border: "1px solid #f5c99a" }}>{formatarMoeda(totalFinal)}</div>
+                          </div>
+                          <div>
+                            <div style={rotOmie}>Custo Total (CMC)</div>
+                            <div style={{ ...boxOmie, fontWeight: 700, color: "#0f9d58", background: "#eaf7ef", border: "1px solid #bfe6cd" }}>{custoLoading ? "…" : custoCMC > 0 ? formatarMoeda(custoCMC) : "—"}</div>
+                          </div>
+                        </div>
+
+                        {/* Vendedor · Número de Parcelas · Cenário Fiscal */}
+                        <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr", gap: 14, marginTop: 12, alignItems: "end" }}>
+                          <div>
+                            <label style={labelOmie}>Vendedor</label>
+                            <div style={{ display: "flex", gap: 8 }}>
+                              <input type="text" value={tecnico || ""} readOnly onClick={() => setShowVendedor(true)} placeholder="Escolher usuário do portal…" style={{ marginBottom: 0, flex: 1, cursor: "pointer" }} />
+                              <button type="button" onClick={() => setShowVendedor(true)} title="Escolher vendedor" style={{ flexShrink: 0, width: 44, borderRadius: 8, border: "1.5px solid #E2E8F0", background: "#fff", color: "#334155", cursor: "pointer" }}><i className="fas fa-search" /></button>
+                            </div>
+                          </div>
+                          <div>
+                            <label style={labelOmie}>Número de Parcelas</label>
+                            <select value={numParcelas} onChange={(e) => setNumParcelas(e.target.value)} style={{ marginBottom: 0 }}>
+                              {["30 dias", "30/60 dias", "30/60/90 dias", "À vista (PIX ou Cartão)"].map((o) => <option key={o} value={o}>{o}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label style={labelOmie}>Cenário Fiscal</label>
+                            <div style={{ position: "relative" }}>
+                              <button type="button" onClick={() => setCenarioAberto((o) => !o)}
+                                style={{ width: "100%", textAlign: "left", background: "#fff", border: "1px solid #cfc9bd", borderRadius: 3, padding: "6px 30px 6px 9px", fontSize: 13, fontFamily: "inherit", color: "#3f3a34", cursor: "pointer", position: "relative", minHeight: 31 }}>
+                                {listasPedido.cenarios.find((c) => c.codigo === cenarioFiscal)?.descricao || cenarioFiscal || "— selecione —"}
+                                <i className={`fas ${cenarioAberto ? "fa-chevron-up" : "fa-chevron-down"}`} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 11, color: "#8a8378" }} />
+                              </button>
+                              {cenarioAberto && (
+                                <>
+                                  <div onClick={() => setCenarioAberto(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
+                                  <div style={{ position: "absolute", top: "calc(100% + 3px)", left: 0, right: 0, zIndex: 41, background: "#fff", border: "1px solid #d6d0c4", borderRadius: 4, boxShadow: "0 12px 30px rgba(0,0,0,0.16)", maxHeight: 300, overflowY: "auto" }}>
+                                    {listasPedido.cenarios.map((c) => {
+                                      const sel = c.codigo === cenarioFiscal;
+                                      return (
+                                        <button key={c.codigo} type="button" onClick={() => { setCenarioFiscal(c.codigo); setCenarioAberto(false); }}
+                                          style={{ display: "block", width: "100%", textAlign: "left", border: "none", borderBottom: "1px solid #f1efe9", background: sel ? "#e8730c" : "#fff", cursor: "pointer", padding: "8px 12px" }}
+                                          onMouseEnter={(e) => { if (!sel) e.currentTarget.style.background = "#fff7ef"; }}
+                                          onMouseLeave={(e) => { if (!sel) e.currentTarget.style.background = "#fff"; }}>
+                                          <div style={{ fontSize: 13, fontWeight: 600, color: sel ? "#fff" : "#1f1f1f" }}>{c.descricao}</div>
+                                          {c.segmentos && <div style={{ fontSize: 11, color: sel ? "#ffe7cf" : "#94a3b8", marginTop: 1 }}>{c.segmentos}</div>}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                      </div>
+
+                      {/* ── Abas (folder laranja estilo Omie) ── */}
+                      <div style={{ display: "flex", alignItems: "flex-end", gap: 2, borderBottom: "1px solid #e2ddd3", marginBottom: 14, paddingTop: 3, flexWrap: "wrap" }}>
+                        {(faturadoEm ? [...ABAS_OMIE, ABA_SEFAZ] : ABAS_OMIE).map((a) => {
+                          const on = abaAtiva === a;
+                          return (
+                            <button key={a} type="button" onClick={() => setAbaAtiva(a)}
+                              style={{ padding: "8px 14px", fontSize: 13, lineHeight: 1.4, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit", marginBottom: -1,
+                                background: on ? "#fff" : "transparent", color: on ? "#e8730c" : "#7a7268", fontWeight: on ? 600 : 500,
+                                border: on ? "1px solid #e2ddd3" : "1px solid transparent", borderBottom: on ? "1px solid #fff" : "1px solid transparent",
+                                borderTop: on ? "2px solid #e8730c" : "2px solid transparent", borderRadius: on ? "5px 5px 0 0" : 0 }}>
+                              {a}
                             </button>
-                          </div>
-                          <div className="ppv-summary-details" style={{ borderTop: "none", paddingTop: 8, gap: 14 }}>
-                            <span><i className="fas fa-user-cog" /> {tecnico || "..."}</span>
-                            <span><i className="far fa-calendar" /> {formatarDataFrontend(details.data)}</span>
-                            <span><i className="fas fa-tag" /> {tipoPedido}</span>
-                            {modalOSDisplay && <span><i className="fas fa-link" /> {modalOSDisplay}</span>}
-                          </div>
-                        </div>
+                          );
+                        })}
                       </div>
-                      {/* CPF/CNPJ · Cidade · Endereço em linha */}
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 2fr", gap: 10, marginTop: 12 }}>
-                        {[["CPF / CNPJ", clienteDoc], ["Cidade", clienteCidade], ["Endereço", clienteEndereco]].map(([rot, val]) => (
-                          <div key={rot} className="ppv-readonly-field">
-                            <div className="ppv-readonly-label">{rot}</div>
-                            <div className="ppv-readonly-value">{val || "—"}</div>
-                          </div>
-                        ))}
-                      </div>
-                      {/* Totais em caixas */}
-                      <div style={{ display: "grid", gridTemplateColumns: valorDesconto > 0 ? "1fr 1fr" : "1fr", gap: 10, marginTop: 10 }}>
-                        {[
-                          ...(valorDesconto > 0 ? [{ rot: `Desconto${desconto > 0 ? ` (${desconto.toFixed(1).replace(".", ",")}%)` : ""}`, val: "-" + formatarMoeda(valorDesconto), forte: false }] : []),
-                          { rot: "Valor Total do Pedido", val: formatarMoeda(totalFinal), forte: true },
-                        ].map((c, i) => (
-                          <div key={i} style={{ background: c.forte ? "#FEF2F2" : "#F8FAFC", border: `1px solid ${c.forte ? "#FECACA" : "#E2E8F0"}`, borderRadius: 10, padding: "10px 14px" }}>
-                            <div style={{ fontSize: 12, fontWeight: 500, color: "#94A3B8", textTransform: "uppercase", letterSpacing: 0.4 }}>{c.rot}</div>
-                            <div style={{ fontSize: c.forte ? 22 : 17, fontWeight: 500, marginTop: 3, color: c.forte ? "#dc2626" : "#0f172a" }}>{c.val}</div>
-                          </div>
-                        ))}
-                      </div>
-                      {/* Desconto (% ou R$) no topo */}
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
-                        <span style={{ fontSize: 14, color: "#64748b" }}>Desconto:</span>
-                        <div style={{ display: "flex", background: "#F1F5F9", borderRadius: 8, padding: 3 }}>
-                          {(["pct", "valor"] as const).map((m) => (
-                            <button key={m} type="button" onClick={() => setDescontoModo(m)}
-                              style={{ padding: "6px 13px", borderRadius: 6, border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer",
-                                background: descontoModo === m ? "#fff" : "transparent", color: descontoModo === m ? "#dc2626" : "#64748B",
-                                boxShadow: descontoModo === m ? "0 1px 3px rgba(0,0,0,0.1)" : "none" }}>
-                              {m === "pct" ? "%" : "R$"}
-                            </button>
-                          ))}
-                        </div>
-                        {descontoModo === "pct" ? (
-                          <input type="number" value={desconto || ""} min={0} max={100} step={0.5} placeholder="0"
-                            onChange={(e) => { const v = parseFloat(e.target.value); setDesconto(isNaN(v) ? 0 : Math.min(100, Math.max(0, v))); }}
-                            style={{ width: 110, textAlign: "center", fontSize: 15, marginBottom: 0 }} />
-                        ) : (
-                          <input type="number" value={valorDesconto ? Number(valorDesconto.toFixed(2)) : ""} min={0} max={totalSemDesconto} step={1} placeholder="0,00"
-                            onChange={(e) => { const v = parseFloat(e.target.value); const val = isNaN(v) ? 0 : Math.min(totalSemDesconto, Math.max(0, v)); setDesconto(totalSemDesconto > 0 ? (val / totalSemDesconto) * 100 : 0); }}
-                            style={{ width: 130, textAlign: "center", fontSize: 15, marginBottom: 0 }} />
-                        )}
-                        {desconto > 0 && (
-                          <span style={{ fontSize: 14, color: "#10B981", fontWeight: 600 }}>
-                            {descontoModo === "pct" ? `-${formatarMoeda(valorDesconto)}` : `${desconto.toFixed(1).replace(".", ",")}%`}
-                          </span>
-                        )}
-                      </div>
-                    </div>
+                    </>
                   )}
 
-                  {/* ── Detalhes do status — só quando Concluída/Cancelada (o select ficou no cabeçalho) ── */}
-                  {(status === "Concluída" || status === "Cancelada") && (
+                  {/* ── Detalhes do status (aba Informações sobre) — só quando Concluída/Cancelada ── */}
+                  {abaAtiva === "Informações sobre" && (status === "Concluída" || status === "Cancelada") && (
                     <div className="ppv-card">
                       <div className="ppv-card-title"><i className="fas fa-flag" /> {status === "Cancelada" ? "Cancelamento" : "Conclusão"}</div>
                       {status === "Concluída" && (
@@ -531,71 +950,63 @@ export default function PPVDrawer({
                   )}
 
 
-                  {/* ── Pedido ── */}
+                  {/* ── Pedido (aba Informações sobre) ── */}
+                  {abaAtiva === "Informações sobre" && (
                   <div className="ppv-card">
-                    <div className="ppv-card-title"><i className="fas fa-clipboard-list" /> Informações do Pedido</div>
-                    {/* Campos em linha (horizontal, estilo Omie) */}
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 16 }}>
+                    <div className="ppv-card-title"><i className="fas fa-file-invoice-dollar" /> Informações Adicionais (Omie)</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1.3fr 0.9fr", gap: 16 }}>
                       <div>
-                        <label>Fase</label>
-                        <select value={status} onChange={(e) => setStatus(e.target.value)} disabled={!podeEditar} title="Alterar a fase do PPV"
-                          style={{ marginBottom: 0, fontWeight: 700, color: statusColor.text, background: statusColor.bg }}>
-                          {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value} style={{ color: "#0f172a", background: "#fff" }}>{s.label}</option>)}
+                        <label>Categoria</label>
+                        <select value={infoCategoria} onChange={(e) => setInfoCategoria(e.target.value)} style={{ marginBottom: 0 }}>
+                          {infoCategoria && !listasPedido.categorias.some((c) => c.codigo === infoCategoria) && <option value={infoCategoria}>{infoCategoria}</option>}
+                          {listasPedido.categorias.map((c) => <option key={c.codigo} value={c.codigo}>{c.descricao}</option>)}
                         </select>
                       </div>
                       <div>
-                        <label>Técnico *</label>
-                        <select value={tecnico} onChange={(e) => setTecnico(e.target.value)} style={{ marginBottom: 0 }}>
-                          <option value="">Selecionar...</option>
-                          {tecnicos.map((t) => <option key={t} value={t}>{t}</option>)}
+                        <label>Conta Corrente</label>
+                        <select value={infoContaCorrente} onChange={(e) => setInfoContaCorrente(e.target.value)} style={{ marginBottom: 0 }}>
+                          <option value="">— selecione —</option>
+                          {listasPedido.contasCorrentes.map((c) => <option key={c.codigo} value={c.codigo}>{c.descricao}</option>)}
                         </select>
                       </div>
                       <div>
-                        <label>Tipo do Pedido *</label>
-                        <select value={tipoPedido} onChange={(e) => setTipoPedido(e.target.value)} style={{ marginBottom: 0 }}>
-                          {TIPOS_PEDIDO.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                        <label>Etapa</label>
+                        <select value={status} onChange={(e) => setStatus(e.target.value)} disabled={!podeEditar} title="Fase do PPV" style={{ marginBottom: 0 }}>
+                          {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                         </select>
-                      </div>
-                      <div>
-                        <label>Motivo de Saída *</label>
-                        <select value={motivoSaida} onChange={(e) => setMotivoSaida(e.target.value)} style={{ marginBottom: 0 }}>
-                          {MOTIVOS_SAIDA.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label>O.S. Vinculada</label>
-                        <input type="text" value={modalOSDisplay} readOnly placeholder="Clique para vincular OS..." onClick={onBuscaOS} style={{ cursor: "pointer", fontWeight: 600, marginBottom: 0 }} />
                       </div>
                     </div>
-                    <div className="ppv-row" style={{ marginTop: 16 }}>
-                      <div style={{ flex: 1, position: "relative" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1.1fr 0.8fr", gap: 16, marginTop: 16 }}>
+                      <div>
+                        <label>N° do Pedido do Cliente <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "#94a3b8" }}>(POS vinculado)</span></label>
+                        <input type="text" value={modalOSDisplay} readOnly onClick={onBuscaOS} placeholder="Clique para vincular O.S." title="Vincular O.S. (POS) ao PPV" style={{ marginBottom: 0, fontWeight: 600, cursor: "pointer" }} />
+                      </div>
+                      <div><label>N° do Contrato de Venda</label><input type="text" value={infoNumContrato} onChange={(e) => setInfoNumContrato(e.target.value)} style={{ marginBottom: 0 }} /></div>
+                      <div><label>Contato</label><input type="text" value={infoContato} onChange={(e) => setInfoContato(e.target.value)} style={{ marginBottom: 0 }} /></div>
+                      {/* Projeto (como no Omie) */}
+                      <div style={{ position: "relative" }}>
                         <label>Projeto</label>
-                        <div style={{ display: "flex", gap: 8 }}>
+                        <div style={{ display: "flex", gap: 6 }}>
                           <input type="text" value={usarProjetoOS && modalOSId && !projeto ? "" : projeto} onChange={(e) => setProjeto(e.target.value)}
                             disabled={usarProjetoOS && !!modalOSId && !projeto}
-                            placeholder={usarProjetoOS && modalOSId ? "Usando o projeto da OS vinculada" : "Escolha do banco ou digite..."}
+                            placeholder={usarProjetoOS && modalOSId ? "Projeto da OS" : "Digite ou banco"}
                             style={{ marginBottom: 0, fontWeight: 600, flex: 1, background: usarProjetoOS && modalOSId && !projeto ? "#f8fafc" : "#fff" }} />
                           <button type="button" title="Escolher um projeto do banco"
-                            onClick={() => {
-                              setProjDropdown((o) => !o); setProjBusca("");
-                              if (projetosDB.length === 0) fetch("/api/pos/buscas/projetos").then((r) => r.json()).then((d) => setProjetosDB(Array.isArray(d) ? d : [])).catch(() => {});
-                            }}
-                            style={{ flexShrink: 0, padding: "0 14px", borderRadius: 10, border: "1px solid #E2E8F0", background: projDropdown ? "#EFF6FF" : "#fff", color: "#334155", fontSize: 12.5, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
-                            <i className="fas fa-database" style={{ fontSize: 12 }} /> Do banco
+                            onClick={() => { setProjDropdown((o) => !o); setProjBusca(""); if (projetosDB.length === 0) fetch("/api/pos/buscas/projetos").then((r) => r.json()).then((d) => setProjetosDB(Array.isArray(d) ? d : [])).catch(() => {}); }}
+                            style={{ flexShrink: 0, padding: "0 11px", borderRadius: 8, border: "1px solid #E2E8F0", background: projDropdown ? "#EFF6FF" : "#fff", color: "#334155", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                            <i className="fas fa-database" style={{ fontSize: 11 }} />
                           </button>
                         </div>
-                        {/* Opção de puxar (ou não) o projeto da OS — só quando há OS vinculada */}
                         {modalOSId && (
-                          <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, marginBottom: 0, fontSize: 12.5, color: "#64748b", cursor: "pointer", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>
+                          <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, marginBottom: 0, fontSize: 11.5, color: "#64748b", cursor: "pointer", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>
                             <input type="checkbox" checked={usarProjetoOS} onChange={(e) => { setUsarProjetoOS(e.target.checked); if (e.target.checked) setProjeto(""); }} />
-                            Usar o projeto da OS vinculada (desmarque para escolher outro ou nenhum)
+                            Usar projeto da OS
                           </label>
                         )}
                         {projDropdown && (
-                          <div style={{ position: "absolute", zIndex: 30, top: 62, left: 0, right: 0, background: "#fff", border: "1px solid #E2E8F0", borderRadius: 10, boxShadow: "0 12px 30px rgba(0,0,0,0.14)", maxHeight: 280, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+                          <div style={{ position: "absolute", zIndex: 30, top: 62, left: 0, right: 0, background: "#fff", border: "1px solid #E2E8F0", borderRadius: 10, boxShadow: "0 12px 30px rgba(0,0,0,0.14)", maxHeight: 260, display: "flex", flexDirection: "column", overflow: "hidden" }}>
                             <div style={{ padding: 8, borderBottom: "1px solid #F1F5F9" }}>
-                              <input autoFocus value={projBusca} onChange={(e) => setProjBusca(e.target.value)} placeholder="Buscar projeto..."
-                                style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 13, boxSizing: "border-box", marginBottom: 0 }} />
+                              <input autoFocus value={projBusca} onChange={(e) => setProjBusca(e.target.value)} placeholder="Buscar projeto..." style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 13, boxSizing: "border-box", marginBottom: 0 }} />
                             </div>
                             <div style={{ overflow: "auto" }}>
                               {projetosDB.filter((p) => p.nome.toLowerCase().includes(projBusca.trim().toLowerCase())).slice(0, 60).map((p, i) => (
@@ -612,40 +1023,133 @@ export default function PPVDrawer({
                           </div>
                         )}
                       </div>
+                      <div><label>Origem do Pedido</label><input type="text" value="Omie" readOnly style={{ marginBottom: 0, background: "#f8fafc", cursor: "default" }} /></div>
                     </div>
+                    <div style={{ marginTop: 16 }}>
+                      <label>Dados Adicionais para a Nota Fiscal</label>
+                      <textarea rows={3} value={infoDadosNF} onChange={(e) => setInfoDadosNF(e.target.value)} placeholder="Texto que vai nos dados adicionais da NF-e..." style={{ marginBottom: 0 }} />
+                    </div>
+                    <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, marginBottom: 0, fontWeight: 400, textTransform: "none", letterSpacing: 0, cursor: "pointer", color: "#334155" }}>
+                      <input type="checkbox" checked={infoConsumoFinal} onChange={(e) => setInfoConsumoFinal(e.target.checked)} />
+                      Nota Fiscal para Consumo Final
+                    </label>
                   </div>
+                  )}
 
-                  {/* ── Observações ── */}
+                  {/* ── Observações (aba) ── */}
+                  {abaAtiva === "Observações" && (
                   <div className="ppv-card">
                     <div className="ppv-card-title"><i className="fas fa-align-left" /> Observações</div>
-                    <textarea rows={3} value={observacao} onChange={(e) => setObservacao(e.target.value)} placeholder="Notas sobre o pedido..." style={{ marginBottom: 0 }} />
+                    <textarea rows={6} value={observacao} onChange={(e) => setObservacao(e.target.value)} placeholder="Notas sobre o pedido..." style={{ marginBottom: 0 }} />
                   </div>
+                  )}
 
-                  {/* ── Itens / Materiais ── */}
+                  {/* ── Comunicação com a SEFAZ (aba) — só quando faturado ── */}
+                  {abaAtiva === ABA_SEFAZ && (
                   <div className="ppv-card">
-                    <div className="ppv-card-title"><i className="fas fa-boxes" /> Itens &amp; Materiais</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                      <div className="ppv-card-title" style={{ margin: 0, flex: 1 }}><i className="fas fa-satellite-dish" /> Comunicação com a SEFAZ</div>
+                      {sefaz?.nCodNF && (
+                        <button type="button" onClick={abrirDanfe} disabled={danfeLoading}
+                          style={{ display: "inline-flex", alignItems: "center", gap: 7, height: 32, padding: "0 12px", borderRadius: 3, border: "1px solid #f5c99a", background: "#fff", color: "#c2570a", fontSize: 12.5, fontWeight: 700, cursor: danfeLoading ? "wait" : "pointer" }}>
+                          <i className={`fas ${danfeLoading ? "fa-spinner fa-spin" : "fa-file-pdf"}`} /> DANFE
+                        </button>
+                      )}
+                      <button type="button" onClick={() => carregarSefaz(true)} disabled={sefazLoading}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 7, height: 32, padding: "0 12px", borderRadius: 3, border: "1px solid #E2E8F0", background: "#fff", color: "#334155", fontSize: 12.5, fontWeight: 700, cursor: sefazLoading ? "wait" : "pointer" }}>
+                        <i className={`fas ${sefazLoading ? "fa-spinner fa-spin" : "fa-sync-alt"}`} /> Atualizar
+                      </button>
+                    </div>
 
-                    {/* Ações de itens: Importar Kit + Catálogo (par) */}
+                    {/* Ficha da NF-e */}
+                    {sefaz && !sefaz.semNF && (sefaz.numero || sefaz.chave) && (
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 14 }}>
+                        {sefaz.numero && <div style={fichaBox}><span style={fichaLbl}>NF-e</span><span style={fichaVal}>{sefaz.numero}{sefaz.serie ? ` · série ${sefaz.serie}` : ""}</span></div>}
+                        {sefaz.emitidaEm && <div style={fichaBox}><span style={fichaLbl}>Emissão</span><span style={fichaVal}>{sefaz.emitidaEm}</span></div>}
+                        {sefaz.ambiente && <div style={fichaBox}><span style={fichaLbl}>Ambiente</span><span style={{ ...fichaVal, color: sefaz.ambiente === "producao" ? "#047857" : "#b45309" }}>{sefaz.ambiente === "producao" ? "Produção" : "Homologação (teste)"}</span></div>}
+                        {sefaz.chave && <div style={{ ...fichaBox, gridColumn: "1 / -1" }}><span style={fichaLbl}>Chave de acesso</span><span style={{ ...fichaVal, fontFamily: "monospace", fontSize: 12.5, letterSpacing: 0.3, wordBreak: "break-all" }}>{sefaz.chave}</span></div>}
+                      </div>
+                    )}
+
+                    {/* Tabela de eventos (estilo Omie, quadrado) */}
+                    {sefazLoading && !sefaz ? (
+                      <div style={{ padding: 24, textAlign: "center", color: "#64748b" }}><i className="fas fa-spinner fa-spin" /> Consultando a NF-e no Omie…</div>
+                    ) : sefaz?.semNF ? (
+                      <div style={{ padding: 20, textAlign: "center", color: "#94a3b8", fontSize: 13, border: "1px dashed #e2ddd3", borderRadius: 4 }}>
+                        <i className="fas fa-clock" style={{ marginRight: 6 }} />
+                        {sefaz.erro || "Faturado — a NF-e ainda não apareceu no Omie. A autorização na SEFAZ leva alguns instantes; clique em Atualizar."}
+                      </div>
+                    ) : sefaz && sefaz.eventos.length > 0 ? (
+                      <div style={{ border: "1px solid #d8d2c6", borderRadius: 4, overflow: "hidden" }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "40px 200px 1fr 130px", gap: 8, alignItems: "center", padding: "8px 12px", background: "#edeae4", borderBottom: "1px solid #d8d2c6", fontSize: 12, fontWeight: 700, color: "#5f574c" }}>
+                          <span /><span>Data e Hora</span><span>Descrição</span><span>Usuário</span>
+                        </div>
+                        {sefaz.eventos.map((ev, i) => (
+                          <div key={i} style={{ display: "grid", gridTemplateColumns: "40px 200px 1fr 130px", gap: 8, alignItems: "center", padding: "10px 12px", borderBottom: i < sefaz.eventos.length - 1 ? "1px solid #eee7da" : "none", background: i === 0 ? "#fff7ef" : "#fff", fontSize: 13 }}>
+                            <span style={{ textAlign: "center" }}>
+                              {ev.ok ? <i className="fas fa-check-circle" style={{ color: "#16a34a" }} /> : <i className="fas fa-exclamation-circle" style={{ color: "#d97706" }} />}
+                            </span>
+                            <span style={{ color: "#475569", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{ev.data}{ev.hora ? ` às ${ev.hora}` : ""}</span>
+                            <span style={{ color: "#334155", fontWeight: i === 0 ? 700 : 400 }}>{ev.descricao}</span>
+                            <span style={{ color: "#64748b" }}>{ev.usuario}</span>
+                          </div>
+                        ))}
+                        <div style={{ padding: "7px 12px", background: "#faf8f4", borderTop: "1px solid #eee7da", fontSize: 11.5, color: "#94a3b8", display: "flex", justifyContent: "space-between" }}>
+                          <span>{sefaz.eventos.length} registro(s)</span>
+                          {sefaz.atualizadoEm && <span>Atualizado em {new Date(sefaz.atualizadoEm).toLocaleString("pt-BR")}</span>}
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ padding: 20, textAlign: "center", color: "#94a3b8", fontSize: 13, border: "1px dashed #e2ddd3", borderRadius: 4 }}>
+                        {sefaz?.erro || "Sem eventos de comunicação com a SEFAZ para este pedido."}
+                      </div>
+                    )}
+                  </div>
+                  )}
+
+                  {/* ── Itens da Venda (aba) ── */}
+                  {abaAtiva === "Itens da Venda" && (
+                  <div className="ppv-card">
+                    <div className="ppv-card-title"><i className="fas fa-boxes" /> Itens da Venda</div>
+
+                    {/* Toolbar de itens (estilo Omie): Novo Item · Descrição Produto · Excluir Item */}
+                    <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+                      <button type="button" onClick={() => setNovoItemMenu((o) => !o)} disabled={!ppvId || !podeItem} title={!podeItem ? MSG_SEM_PERMISSAO : undefined}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 36, padding: "0 16px", borderRadius: 8, border: "none", background: "#f0a22e", color: "#fff", fontSize: 13.5, fontWeight: 600, cursor: !ppvId || !podeItem ? "not-allowed" : "pointer", opacity: !ppvId || !podeItem ? 0.55 : 1 }}>
+                        <i className={`fas ${novoItemMenu ? "fa-chevron-up" : "fa-plus"}`} /> Novo Item
+                      </button>
+                      <button type="button" onClick={verDescricaoProduto} disabled={!itemSelecionado} title={itemSelecionado ? "Ver informações do produto selecionado" : "Selecione um produto (clique na descrição)"}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 36, padding: "0 16px", borderRadius: 8, border: "1px solid #e2e8f0", background: "#fff", color: itemSelecionado ? "#334155" : "#94a3b8", fontSize: 13.5, fontWeight: 600, cursor: itemSelecionado ? "pointer" : "not-allowed" }}>
+                        <i className="fas fa-circle-info" /> Descrição Produto
+                      </button>
+                      <button type="button" onClick={excluirItemSelecionado} disabled={!itemSelecionado || !podeItem} title={itemSelecionado ? "Excluir o produto selecionado" : "Selecione um produto (clique na descrição)"}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 36, padding: "0 16px", borderRadius: 8, border: "1px solid #f5c99a", background: "#fff", color: itemSelecionado && podeItem ? "#c2570a" : "#f0a3a3", fontSize: 13.5, fontWeight: 600, cursor: itemSelecionado && podeItem ? "pointer" : "not-allowed" }}>
+                        <i className="fas fa-trash" /> Excluir Item
+                      </button>
+                    </div>
+
+                    {novoItemMenu && (
+                    /* Ações de itens: Importar Kit + Catálogo (par) */
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
                       {/* Importar Kit de Revisão */}
                       <button type="button" onClick={() => setKitModalOpen(true)} disabled={importandoKit || !ppvId || !podeItem}
                         title={!podeItem ? MSG_SEM_PERMISSAO : undefined}
                         style={{
-                          padding: "14px 16px", borderRadius: 14, border: "1px solid #99F6E4",
-                          background: "linear-gradient(135deg, #F0FDFA, #ECFEFF)",
+                          padding: "14px 16px", borderRadius: 14, border: "1px solid #f5c99a",
+                          background: "linear-gradient(135deg, #fff7ef, #fff3e6)",
                           cursor: importandoKit || !ppvId || !podeItem ? "not-allowed" : "pointer", opacity: importandoKit || !ppvId || !podeItem ? 0.55 : 1,
                           display: "flex", alignItems: "center", gap: 12, textAlign: "left", transition: "all .15s",
                         }}
-                        onMouseEnter={(e) => { if (!importandoKit && ppvId && podeItem) e.currentTarget.style.boxShadow = "0 6px 18px rgba(13,148,136,0.20)"; }}
+                        onMouseEnter={(e) => { if (!importandoKit && ppvId && podeItem) e.currentTarget.style.boxShadow = "0 6px 18px rgba(232,115,12,0.20)"; }}
                         onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; }}>
-                        <span style={{ width: 42, height: 42, borderRadius: 12, background: "linear-gradient(135deg, #14b8a6, #0f766e)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", flexShrink: 0, boxShadow: "0 3px 8px rgba(13,148,136,0.35)" }}>
+                        <span style={{ width: 42, height: 42, borderRadius: 12, background: "linear-gradient(135deg, #e8730c, #9a3412)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", flexShrink: 0, boxShadow: "0 3px 8px rgba(232,115,12,0.35)" }}>
                           {importandoKit ? <i className="fas fa-spinner fa-spin" style={{ fontSize: 16 }} /> : <i className="fas fa-tools" style={{ fontSize: 16 }} />}
                         </span>
                         <span style={{ flex: 1, minWidth: 0 }}>
-                          <span style={{ display: "block", fontSize: 14.5, fontWeight: 600, color: "#0f766e" }}>
+                          <span style={{ display: "block", fontSize: 14.5, fontWeight: 600, color: "#9a3412" }}>
                             {importandoKit ? "Importando kit..." : "Importar Kit"}
                           </span>
-                          <span style={{ display: "block", fontSize: 12, color: "#5EAaa8", marginTop: 1 }}>
+                          <span style={{ display: "block", fontSize: 12, color: "#b45309", marginTop: 1 }}>
                             Revisão por modelo e horas
                           </span>
                         </span>
@@ -655,40 +1159,41 @@ export default function PPVDrawer({
                       <button type="button" onClick={onAbrirCatalogo} disabled={!ppvId || !podeItem}
                         title={!podeItem ? MSG_SEM_PERMISSAO : undefined}
                         style={{
-                          padding: "14px 16px", borderRadius: 14, border: "1px solid #FBCFE8",
-                          background: "linear-gradient(135deg, #FFF1F2, #FDF2F8)",
+                          padding: "14px 16px", borderRadius: 14, border: "1px solid #e2e8f0",
+                          background: "linear-gradient(135deg, #f8fafc, #f8fafc)",
                           cursor: !ppvId || !podeItem ? "not-allowed" : "pointer", opacity: !ppvId || !podeItem ? 0.55 : 1,
                           display: "flex", alignItems: "center", gap: 12, textAlign: "left", transition: "all .15s",
                         }}
-                        onMouseEnter={(e) => { if (ppvId && podeItem) e.currentTarget.style.boxShadow = "0 6px 18px rgba(219,39,119,0.18)"; }}
+                        onMouseEnter={(e) => { if (ppvId && podeItem) e.currentTarget.style.boxShadow = "0 6px 18px rgba(100,116,139,0.18)"; }}
                         onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; }}>
-                        <span style={{ width: 42, height: 42, borderRadius: 12, background: "linear-gradient(135deg, #f43f5e, #be123c)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", flexShrink: 0, boxShadow: "0 3px 8px rgba(190,18,60,0.32)" }}>
+                        <span style={{ width: 42, height: 42, borderRadius: 12, background: "linear-gradient(135deg, #64748b, #334155)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", flexShrink: 0, boxShadow: "0 3px 8px rgba(100,116,139,0.32)" }}>
                           <i className="fas fa-book-open" style={{ fontSize: 16 }} />
                         </span>
                         <span style={{ flex: 1, minWidth: 0 }}>
-                          <span style={{ display: "block", fontSize: 14.5, fontWeight: 600, color: "#be123c" }}>
+                          <span style={{ display: "block", fontSize: 14.5, fontWeight: 600, color: "#334155" }}>
                             Catálogo
                           </span>
-                          <span style={{ display: "block", fontSize: 12, color: "#e07a97", marginTop: 1 }}>
+                          <span style={{ display: "block", fontSize: 12, color: "#94a3b8", marginTop: 1 }}>
                             Busque a peça pela figura
                           </span>
                         </span>
                       </button>
                     </div>
+                    )}
 
                     {/* Kits importados — remover o kit inteiro de uma vez */}
                     {(details?.kits || []).length > 0 && (
                       <div style={{ marginBottom: 14, display: "flex", flexDirection: "column", gap: 8 }}>
                         {(details?.kits || []).map((k) => (
-                          <div key={k.tag} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 10, border: "1px solid #99F6E4", background: "#F0FDFA" }}>
-                            <i className="fas fa-tools" style={{ fontSize: 13, color: "#0d9488" }} />
+                          <div key={k.tag} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 10, border: "1px solid #f5c99a", background: "#fff7ef" }}>
+                            <i className="fas fa-tools" style={{ fontSize: 13, color: "#e8730c" }} />
                             <span style={{ flex: 1, minWidth: 0 }}>
-                              <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#0f766e", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{k.rotulo}</span>
-                              <span style={{ display: "block", fontSize: 11, color: "#5EAaa8" }}>{k.itens.length} {k.itens.length === 1 ? "item" : "itens"} · {formatarMoeda(k.total)}</span>
+                              <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#9a3412", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{k.rotulo}</span>
+                              <span style={{ display: "block", fontSize: 11, color: "#b45309" }}>{k.itens.length} {k.itens.length === 1 ? "item" : "itens"} · {formatarMoeda(k.total)}</span>
                             </span>
                             <button type="button" onClick={() => removerKitInteiro(k.tag, k.rotulo)} disabled={!podeItem || removendoKit === k.tag}
                               title={!podeItem ? MSG_SEM_PERMISSAO : "Remover o kit inteiro"}
-                              style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #FECACA", background: "#fff", color: "#dc2626", fontSize: 12, fontWeight: 700, cursor: !podeItem ? "not-allowed" : "pointer", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 6 }}>
+                              style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #f5c99a", background: "#fff", color: "#c2570a", fontSize: 12, fontWeight: 700, cursor: !podeItem ? "not-allowed" : "pointer", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 6 }}>
                               {removendoKit === k.tag ? <i className="fas fa-spinner fa-spin" /> : <i className="fas fa-trash" />} Remover kit
                             </button>
                           </div>
@@ -696,22 +1201,24 @@ export default function PPVDrawer({
                       </div>
                     )}
 
-                    {/* Adicionar item */}
-                    <label style={{ fontWeight: 500, textTransform: "none", letterSpacing: 0, fontSize: 13 }}>Adicionar Produto</label>
+                    {novoItemMenu && (<>
+                    {/* Adicionar por código (digite/busque a peça) */}
+                    <label style={{ fontWeight: 500, textTransform: "none", letterSpacing: 0, fontSize: 13 }}>Adicionar por código</label>
                     <div style={{ display: "flex", gap: 10, marginBottom: produtosComSaldo.length > 0 ? 16 : 0 }}>
-                      <input type="text" value={modalProdDisplay} readOnly placeholder="Clique para buscar produto..." onClick={onBuscaProduto} style={{ cursor: "pointer", fontWeight: 500, flex: 1, marginBottom: 0, fontSize: 15 }} />
+                      <input type="text" value={modalProdDisplay} readOnly placeholder="Clique para buscar o produto..." onClick={onBuscaProduto} style={{ cursor: "pointer", fontWeight: 500, flex: 1, marginBottom: 0, fontSize: 15 }} />
                       <input type="number" value={qtdExtra} onChange={(e) => setQtdExtra(parseInt(e.target.value) || 1)} min={1} style={{ width: 70, textAlign: "center", fontWeight: 500, marginBottom: 0, fontSize: 15 }} />
                       <button type="button" onClick={addExtra} disabled={addingExtra || !podeItem} title={!podeItem ? MSG_SEM_PERMISSAO : undefined} className="ppv-btn-save" style={{ padding: "10px 18px", whiteSpace: "nowrap", fontSize: 13 }}>
                         {addingExtra ? <i className="fas fa-spinner fa-spin" /> : <><i className="fas fa-plus" /> Adicionar</>}
                       </button>
                     </div>
+                    </>)}
 
                     {/* Lista de produtos — tabela estilo Omie */}
                     {produtosComSaldo.length > 0 && (
-                      <div style={{ border: "1px solid var(--ppv-border, #E2E8F0)", borderRadius: 12, overflow: "hidden" }}>
+                      <div style={{ border: "1px solid var(--ppv-border, #E2E8F0)", borderRadius: 4, overflow: "hidden" }}>
                         {/* Cabeçalho */}
-                        <div style={{ display: "grid", gridTemplateColumns: "168px 82px minmax(220px,1fr) 132px 132px 50px", gap: 10, alignItems: "center", padding: "11px 16px", background: "#F8FAFC", borderBottom: "1px solid var(--ppv-border, #E2E8F0)", fontSize: 12.5, fontWeight: 500, color: "#94A3B8", textTransform: "uppercase", letterSpacing: 0.3 }}>
-                          <span>Produto</span><span style={{ textAlign: "center" }}>Qtd</span><span>Descrição</span><span style={{ textAlign: "right" }}>Preço un.</span><span style={{ textAlign: "right" }}>Total</span><span />
+                        <div style={{ display: "grid", gridTemplateColumns: "150px 60px minmax(140px,1fr) 130px 116px 116px 210px 44px", gap: 10, alignItems: "center", padding: "9px 16px", background: "#edeae4", borderBottom: "1px solid #d8d2c6", fontSize: 12, fontWeight: 600, color: "#5f574c", letterSpacing: 0.2 }}>
+                          <span>Produto <span style={{ color: "#b7b0a3" }}>»</span></span><span style={{ textAlign: "center" }}>Qtd <span style={{ color: "#b7b0a3" }}>»</span></span><span>Descrição <span style={{ color: "#b7b0a3" }}>»</span></span><span>Local de Estoque <span style={{ color: "#b7b0a3" }}>»</span></span><span style={{ textAlign: "right" }}>Preço un. <span style={{ color: "#b7b0a3" }}>»</span></span><span style={{ textAlign: "right" }}>Total <span style={{ color: "#b7b0a3" }}>»</span></span><span>Categoria <span style={{ color: "#b7b0a3" }}>»</span></span><span />
                         </div>
                         {produtosComSaldo.map((p, i) => {
                           const isDevolvido = p.saldo === 0;
@@ -719,15 +1226,15 @@ export default function PPVDrawer({
                           const editando = editandoPrecoCod === p.codigo;
                           const isPrimario = (p.empresa || "").toLowerCase().includes("primari");
                           return (
-                            <div key={p.codigo} style={{ display: "grid", gridTemplateColumns: "168px 82px minmax(220px,1fr) 132px 132px 50px", gap: 10, alignItems: "center", padding: "14px 16px", borderBottom: i < produtosComSaldo.length - 1 ? "1px solid #E2E8F0" : "none", background: isDevolvido ? "#FAFAFA" : "#fff", opacity: isDevolvido ? 0.7 : 1, fontSize: 15.5 }}>
+                            <div key={p.codigo} style={{ display: "grid", gridTemplateColumns: "150px 60px minmax(140px,1fr) 130px 116px 116px 210px 44px", gap: 10, alignItems: "center", padding: "12px 16px", borderBottom: i < produtosComSaldo.length - 1 ? "1px solid #E2E8F0" : "none", background: itemSelecionado === p.codigo ? "#fff2df" : isDevolvido ? "#FAFAFA" : "#fff", opacity: isDevolvido ? 0.7 : 1, fontSize: 14 }}>
                               {/* Produto */}
                               <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
-                                <button type="button" onClick={() => setDetalheProd({ codigo: p.codigo, descricao: p.descricao })}
-                                  title="Ver informações do produto (estoque, CMC, valor...)"
+                                <button type="button" onClick={() => setDetalheProd({ codigo: p.codigo, descricao: p.descricao, conta: isPrimario ? "CASTRO" : "NOVA", quantidade: p.saldo, preco: p.preco })}
+                                  title="Item de Orçamento — dados do produto + impostos"
                                   style={{ padding: 0, border: "none", background: "transparent", cursor: "pointer", fontWeight: 500, fontSize: "inherit", fontFamily: "inherit", color: "#2563EB", textDecoration: isDevolvido ? "line-through" : "none", display: "inline-flex", alignItems: "center", gap: 5 }}>
                                   {p.codigo}<i className="fas fa-circle-info" style={{ fontSize: 11, color: "#93C5FD" }} />
                                 </button>
-                                {p.empresa && <span style={{ fontSize: 11, fontWeight: 500, padding: "1px 7px", borderRadius: 6, background: isPrimario ? "#DBEAFE" : "#FEE2E2", color: isPrimario ? "#2563EB" : "#DC2626" }}>{isPrimario ? "CASTRO" : "NOVA"}</span>}
+                                {p.empresa && <span style={{ fontSize: 11, fontWeight: 500, padding: "1px 7px", borderRadius: 6, background: isPrimario ? "#DBEAFE" : "#fff3e6", color: isPrimario ? "#2563EB" : "#c2570a" }}>{isPrimario ? "CASTRO" : "NOVA"}</span>}
                               </div>
                               {/* Qtd / saldo + status */}
                               <div style={{ textAlign: "center", lineHeight: 1.3 }}>
@@ -736,8 +1243,10 @@ export default function PPVDrawer({
                                   ? <div style={{ fontSize: 11.5, color: "#EF4444" }}>de {p.quantidade} · dev {p.qtdDev}</div>
                                   : <div style={{ fontSize: 11, fontWeight: 500, color: isParcial ? "#B45309" : "#16A34A" }}>{isDevolvido ? "DEVOLVIDO" : isParcial ? "PARCIAL" : "ATIVO"}</div>}
                               </div>
-                              {/* Descrição */}
-                              <div style={{ minWidth: 0, color: "#475569", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={p.descricao}>{p.descricao}</div>
+                              {/* Descrição — clicar seleciona o item */}
+                              <div onClick={() => setItemSelecionado(p.codigo)} style={{ minWidth: 0, color: "#475569", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", cursor: "pointer", fontWeight: itemSelecionado === p.codigo ? 700 : 400 }} title="Clique para selecionar este item">{p.descricao}</div>
+                              {/* Local de Estoque (novo — placeholder, // TODO: ligar ao banco) */}
+                              <div title="Local de Estoque" style={{ fontSize: 13, color: "#475569" }}>Estoque Balcão</div>
                               {/* Preço un. (editável) */}
                               <div style={{ textAlign: "right" }}>
                                 {editando ? (
@@ -757,6 +1266,8 @@ export default function PPVDrawer({
                               </div>
                               {/* Total */}
                               <div style={{ textAlign: "right", fontWeight: 500, color: "#0f172a", whiteSpace: "nowrap" }}>{formatarMoeda(p.saldo * p.preco)}</div>
+                              {/* Categoria (novo — placeholder, // TODO: ligar ao banco) */}
+                              <div title="Categoria — definida em Informações Adicionais" style={{ fontSize: 12.5, color: "#475569", whiteSpace: "normal", lineHeight: 1.25 }}>{listasPedido.categorias.find((c) => c.codigo === infoCategoria)?.descricao || "—"}</div>
                               {/* Ação: devolver */}
                               <div style={{ textAlign: "right" }}>
                                 {p.saldo > 0 && !editando && (
@@ -769,6 +1280,88 @@ export default function PPVDrawer({
                       </div>
                     )}
                   </div>
+                  )}
+
+                  {/* ── Abas placeholder do Omie — ligar ao banco depois ── */}
+                  {/* Frete e Outras Despesas / E-mail para o Cliente: removidas */}
+                  {abaAtiva === "Departamentos" && (
+                    <div className="ppv-card">
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 2, flexWrap: "wrap" }}>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: "#334155" }}>Distribuição por Departamento <span style={{ fontSize: 12, fontWeight: 400, color: "#94a3b8" }}>(marque e edite o % de cada departamento)</span></div>
+                        {Object.keys(distDeptos).length > 0 && (
+                          <button type="button" onClick={() => setDistDeptos({})} style={{ marginLeft: "auto", fontSize: 12.5, fontWeight: 600, color: "#c2570a", background: "#fff", border: "1px solid #f5c99a", borderRadius: 8, padding: "6px 12px", cursor: "pointer" }}>
+                            <i className="fas fa-times" style={{ marginRight: 6 }} />Remover distribuição
+                          </button>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 12.5, color: "#94a3b8", marginBottom: 10 }}>Distribui o valor do pedido ({formatarMoeda(totalFinal)}) entre os departamentos.</div>
+                      <div style={{ border: "1px solid #E2E8F0", borderRadius: 10, overflow: "hidden" }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "44px 1fr 160px 120px", background: "#F1F5F9", padding: "10px 14px", fontSize: 12, fontWeight: 700, color: "#64748b" }}>
+                          <span /><span>Departamento</span><span style={{ textAlign: "right" }}>Valor Distribuído</span><span style={{ textAlign: "right" }}>% da Distribuição</span>
+                        </div>
+                        <div style={{ maxHeight: 340, overflowY: "auto" }}>
+                          {departamentos.map((d, i) => {
+                            const sel = d.codigo in distDeptos;
+                            const perc = distDeptos[d.codigo] || 0;
+                            const valor = totalFinal * (perc / 100);
+                            return (
+                              <div key={d.codigo} style={{ display: "grid", gridTemplateColumns: "44px 1fr 160px 120px", padding: "8px 14px", fontSize: 13.5, borderTop: "1px solid #EEF2F7", alignItems: "center", gap: 8, background: sel ? "#fff7ed" : (i % 2 ? "#FAFBFC" : "#fff") }}>
+                                <input type="checkbox" checked={sel} onChange={() => toggleDepto(d.codigo)} style={{ width: 16, height: 16, cursor: "pointer" }} />
+                                <span style={{ color: sel ? "#9a3412" : "#334155", fontWeight: sel ? 600 : 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={d.descricao}>{d.descricao}</span>
+                                <span style={{ textAlign: "right", fontWeight: sel ? 600 : 400, color: sel ? "#0f172a" : "#94a3b8" }}>{formatarMoeda(sel ? valor : 0)}</span>
+                                <span style={{ textAlign: "right", fontWeight: sel ? 600 : 400, color: sel ? "#0f172a" : "#94a3b8" }}>{(sel ? perc : 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}%</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: "44px 1fr 160px 120px", padding: "10px 14px", fontSize: 13.5, borderTop: "2px solid #E2E8F0", background: "#F1F5F9", fontWeight: 700 }}>
+                          <span /><span>Total distribuído</span>
+                          <span style={{ textAlign: "right" }}>{formatarMoeda(totalFinal * (somaDeptos / 100))}</span>
+                          <span style={{ textAlign: "right" }}>{somaDeptos.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}%</span>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 8 }}>1 - {departamentos.length} de {departamentos.length} registros</div>
+                    </div>
+                  )}
+                  {abaAtiva === "Parcelas" && (
+                    <div className="ppv-card">
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 2, flexWrap: "wrap" }}>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: "#334155" }}>Contas a Receber <span style={{ fontSize: 12, fontWeight: 400, color: "#94a3b8" }}>(edite a data de vencimento de cada parcela)</span></div>
+                        <button type="button" onClick={() => setParcelas(calcularParcelas(numParcelas, previsaoFat, totalFinal))} title="Recalcular a partir do parcelamento e da previsão"
+                          style={{ marginLeft: "auto", fontSize: 12.5, fontWeight: 600, color: "#334155", background: "#fff", border: "1px solid #E2E8F0", borderRadius: 8, padding: "6px 12px", cursor: "pointer" }}>
+                          <i className="fas fa-rotate" style={{ marginRight: 6 }} />Recalcular
+                        </button>
+                      </div>
+                      <div style={{ fontSize: 12.5, color: "#94a3b8", marginBottom: 10 }}>Abaixo as parcelas e vencimentos desta venda.</div>
+                      <div style={{ border: "1px solid #E2E8F0", borderRadius: 10, overflow: "hidden" }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "120px 80px 1fr 150px 90px", background: "#F1F5F9", padding: "10px 14px", fontSize: 12, fontWeight: 700, color: "#64748b" }}>
+                          <span>Situação</span><span>Parcela</span><span>Vencimento</span><span style={{ textAlign: "right" }}>Valor a Receber</span><span style={{ textAlign: "right" }}>Percentual</span>
+                        </div>
+                        {parcelas.map((p, i) => {
+                          const atrasada = !!p.vencimento && p.vencimento < new Date().toISOString().slice(0, 10);
+                          return (
+                            <div key={i} style={{ display: "grid", gridTemplateColumns: "120px 80px 1fr 150px 90px", padding: "8px 14px", fontSize: 13.5, borderTop: "1px solid #EEF2F7", alignItems: "center", gap: 10, background: i % 2 ? "#FAFBFC" : "#fff" }}>
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 600, color: atrasada ? "#c2570a" : "#2563eb" }}>
+                                <i className={`fas ${atrasada ? "fa-circle-exclamation" : "fa-clock"}`} />{atrasada ? "Atrasado" : "A vencer"}
+                              </span>
+                              <span style={{ fontVariantNumeric: "tabular-nums", color: "#475569" }}>{String(p.numero).padStart(3, "0")}/{String(parcelas.length).padStart(3, "0")}</span>
+                              <input type="date" value={p.vencimento}
+                                onChange={(e) => setParcelas((prev) => prev.map((x, idx) => idx === i ? { ...x, vencimento: e.target.value } : x))}
+                                style={{ marginBottom: 0, maxWidth: 190 }} />
+                              <span style={{ textAlign: "right", fontWeight: 600 }}>{formatarMoeda(p.valor)}</span>
+                              <span style={{ textAlign: "right", color: "#64748b" }}>{p.percentual.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}%</span>
+                            </div>
+                          );
+                        })}
+                        <div style={{ display: "grid", gridTemplateColumns: "120px 80px 1fr 150px 90px", padding: "10px 14px", fontSize: 13.5, borderTop: "2px solid #E2E8F0", background: "#F1F5F9", fontWeight: 700 }}>
+                          <span style={{ gridColumn: "1 / 4" }}>Total</span>
+                          <span style={{ textAlign: "right" }}>{formatarMoeda(totalFinal)}</span>
+                          <span style={{ textAlign: "right", color: "#64748b" }}>100%</span>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 8 }}>1 - {parcelas.length} de {parcelas.length} registros</div>
+                    </div>
+                  )}
 
                 </div>
 
@@ -783,65 +1376,78 @@ export default function PPVDrawer({
               <button className="ppv-rail-btn primary" onClick={salvar} disabled={salvando || !podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : undefined}>
                 <i className={`fas ${salvando ? "fa-spinner fa-spin" : "fa-save"}`} /> {salvando ? "Salvando..." : "Salvar"}
               </button>
-              <button className="ppv-rail-btn" onClick={gerarPDF} disabled={gerando}>
-                <i className={`fas ${gerando ? "fa-spinner fa-spin" : "fa-print"}`} /> {gerando ? "Gerando..." : "Imprimir"}
-              </button>
-              <button className="ppv-rail-btn" onClick={() => setShowLogs(!showLogs)}>
-                <i className="fas fa-history" /> Histórico
-              </button>
-              <div className="ppv-rail-sep" />
+              <button className="ppv-rail-btn" onClick={() => { setAbaAtiva("Itens da Venda"); setNovoItemMenu(true); }} disabled={!ppvId || !podeItem} title={!podeItem ? MSG_SEM_PERMISSAO : "Incluir item (kit, catálogo ou busca)"}><i className="fas fa-plus-circle" /> Incluir</button>
+              {/* Um único botão que MORFA: Enviar (cria no Omie) → Faturar (emite NF-e) → Faturado */}
               {!pedidoOmie ? (
-                <button className="ppv-rail-btn" onClick={enviarOmie} disabled={enviandoOmie || !podeOmie} title={!podeOmie ? MSG_SEM_PERMISSAO : undefined}>
-                  <i className={`fas ${enviandoOmie ? "fa-spinner fa-spin" : "fa-cloud-upload-alt"}`} /> {enviandoOmie ? "Enviando..." : "Enviar Omie"}
+                <button className="ppv-rail-btn" onClick={enviarOmie} disabled={enviandoOmie || !podeOmie} title={!podeOmie ? MSG_SEM_PERMISSAO : "Criar o Pedido de Venda no Omie"}>
+                  <i className={`fas ${enviandoOmie ? "fa-spinner fa-spin" : "fa-paper-plane"}`} /> {enviandoOmie ? "Enviando..." : "Enviar Omie"}
                 </button>
-              ) : (
-                <div className="ppv-rail-btn" style={{ color: "#047857", cursor: "default" }} title={`Pedido Omie: ${pedidoOmie}`}>
-                  <i className="fas fa-check-circle" style={{ color: "#047857" }} /> Enviado Omie
+              ) : faturadoEm ? (
+                <div className="ppv-rail-btn" style={{ color: "#047857", cursor: "default", alignItems: "center" }} title={`Pedido já faturado (NF-e) — Omie nº ${pedidoOmie}`}>
+                  <i className="fas fa-check-circle" style={{ color: "#047857" }} />
+                  <span style={railTextCol}><span style={{ fontWeight: 600 }}>Faturado</span><span style={railNumPillVerde}>Omie nº {numOmie}</span></span>
                 </div>
+              ) : tipoPedido === "Remessa" ? (
+                <div className="ppv-rail-btn" style={{ color: "#047857", cursor: "default", alignItems: "center" }} title={`Remessa enviada (Omie nº ${pedidoOmie})`}>
+                  <i className="fas fa-check-circle" style={{ color: "#047857" }} />
+                  <span style={railTextCol}><span style={{ fontWeight: 600 }}>Enviado</span><span style={railNumPillVerde}>Omie nº {numOmie}</span></span>
+                </div>
+              ) : (
+                <button className="ppv-rail-btn" onClick={() => setShowFaturar(true)} disabled={!podeFaturar} title={!podeFaturar ? MSG_SEM_PERMISSAO : `Faturar (emite NF-e) — Omie nº ${pedidoOmie}`} style={{ alignItems: "center" }}>
+                  <i className="fas fa-bolt" />
+                  <span style={railTextCol}><span style={{ fontWeight: 600 }}>Faturar</span><span style={railNumPill}>Omie nº {numOmie}</span></span>
+                </button>
               )}
-              {pedidoOmie && tipoPedido !== "Remessa" && (
-                faturadoEm ? (
-                  <div className="ppv-rail-btn" style={{ color: "#047857", cursor: "default" }} title="Pedido já faturado (NF-e)">
-                    <i className="fas fa-file-invoice-dollar" style={{ color: "#047857" }} /> Faturado
-                  </div>
-                ) : podeFaturar ? (
-                  <button className="ppv-rail-btn" onClick={() => setShowFaturar(true)} title="Faturar o pedido no Omie (emite NF-e)">
-                    <i className="fas fa-file-invoice-dollar" /> Faturar (NF-e)
-                  </button>
-                ) : null
+              <button className="ppv-rail-btn" onClick={gerarPDF} disabled={gerando}><i className={`fas ${gerando ? "fa-spinner fa-spin" : "fa-print"}`} /> {gerando ? "Gerando..." : "Imprimir"}</button>
+              {faturadoEm && (
+                <button className="ppv-rail-btn" onClick={abrirDanfe} disabled={danfeLoading} title="Imprimir a NF-e gerada (DANFE em PDF)">
+                  <i className={`fas ${danfeLoading ? "fa-spinner fa-spin" : "fa-file-pdf"}`} /> {danfeLoading ? "Gerando NF..." : "Imprimir NF"}
+                </button>
               )}
-              <div className="ppv-rail-sep" />
-              <button className="ppv-rail-btn ghost" onClick={onClose}>
-                <i className="fas fa-times" /> Fechar
+              <button className="ppv-rail-btn" onClick={duplicarPedido} disabled={duplicando || !details} title="Duplicar este pedido"><i className={`fas ${duplicando ? "fa-spinner fa-spin" : "fa-copy"}`} /> {duplicando ? "Duplicando..." : "Duplicador"}</button>
+              <button className="ppv-rail-btn" onClick={() => setShowAnexos(true)} disabled={!ppvId} title="Anexar mídia + comentário" style={{ position: "relative" }}>
+                <i className="fas fa-paperclip" /> Anexos
+                {anexosCount > 0 && <span title={`${anexosCount} anexo(s)/comentário(s)`} style={{ position: "absolute", left: 27, top: 8, minWidth: 8, height: 8, borderRadius: 999, background: "#c2570a", border: "1.5px solid #fbfcfe" }} />}
               </button>
+              <button className="ppv-rail-btn" onClick={() => setShowLogs(!showLogs)}><i className="fas fa-history" /> Histórico de Alterações</button>
+              <button className="ppv-rail-btn" onClick={() => setShowTarefas(true)} disabled={!ppvId} title="Tarefas do pedido" style={{ position: "relative" }}>
+                <i className="fas fa-tasks" /> Tarefas
+                {tarefasPendentes > 0 && <span title={`${tarefasPendentes} tarefa(s) pendente(s)`} style={{ position: "absolute", left: 27, top: 8, minWidth: 8, height: 8, borderRadius: 999, background: "#c2570a", border: "1.5px solid #fbfcfe" }} />}
+              </button>
+              <div className="ppv-rail-sep" />
+              <button className="ppv-rail-btn" onClick={cancelarPedido} disabled={!podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : "Cancelar o pedido (exige motivo)"} style={{ color: "#c2570a" }}><i className="fas fa-ban" style={{ color: "#c2570a" }} /> Cancelar</button>
             </div>
           )}
 
-          {/* ── Log Panel ── */}
+          {/* ── Histórico (modal) ── */}
           {showLogs && (
-            <div className="ppv-log-panel">
-              <div className="ppv-log-panel-header">
-                <i className="fas fa-history" /> Histórico
-              </div>
-              <div className="ppv-log-panel-body">
-                {logsLoading ? (
-                  <div className="ppv-loading" style={{ padding: "40px 20px" }}>
-                    <div className="ppv-spinner" />
-                    <span>Carregando...</span>
+            <div onClick={() => setShowLogs(false)} style={{ position: "fixed", inset: 0, zIndex: 70000, background: "rgba(15,23,42,.5)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "6vh 16px" }}>
+              <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", width: "100%", maxWidth: 580, maxHeight: "82vh", borderRadius: 8, boxShadow: "0 24px 60px rgba(0,0,0,.3)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 20px", borderBottom: "1px solid #eef0f3" }}>
+                  <span style={{ width: 34, height: 34, borderRadius: 6, background: "#e8730c", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}><i className="fas fa-history" /></span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>Histórico de Alterações</div>
+                    <div style={{ fontSize: 12, color: "#94a3b8" }}>Quem mudou o quê, e quando</div>
                   </div>
-                ) : logs.length === 0 ? (
-                  <div style={{ textAlign: "center", padding: "40px 20px", color: "var(--ppv-text-light)", fontSize: 13 }}>
-                    Nenhuma ação registrada
-                  </div>
-                ) : (
-                  logs.map((l, idx) => (
-                    <div key={idx} className="ppv-log-item">
-                      <div className="ppv-log-item-date"><i className="far fa-clock" style={{ marginRight: 4 }} />{l.data_hora}</div>
-                      <div className="ppv-log-item-action">{l.acao}</div>
-                      <div className="ppv-log-item-user"><i className="far fa-user" style={{ marginRight: 4 }} />{l.usuario_email}</div>
-                    </div>
-                  ))
-                )}
+                  <button onClick={() => setShowLogs(false)} style={{ background: "#f1f5f9", border: "none", borderRadius: 6, width: 32, height: 32, cursor: "pointer", color: "#475569", fontSize: 18 }}>×</button>
+                </div>
+                <div style={{ overflowY: "auto", padding: "12px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+                  {logsLoading ? (
+                    <div className="ppv-loading" style={{ padding: "40px 20px" }}><div className="ppv-spinner" /><span>Carregando...</span></div>
+                  ) : logs.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: "40px 20px", color: "#94a3b8", fontSize: 13 }}>Nenhuma ação registrada.</div>
+                  ) : (
+                    logs.map((l, idx) => (
+                      <div key={idx} style={{ border: "1px solid #E2E8F0", borderLeft: "3px solid #e8730c", borderRadius: 4, padding: "9px 12px", background: "#fff" }}>
+                        <div style={{ fontSize: 13.5, fontWeight: 600, color: "#1e293b", lineHeight: 1.35 }}>{l.acao}</div>
+                        <div style={{ fontSize: 11.5, color: "#94a3b8", marginTop: 3, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                          <span><i className="far fa-user" style={{ marginRight: 4 }} />{l.usuario_email || "—"}</span>
+                          <span><i className="far fa-clock" style={{ marginRight: 4 }} />{l.data_hora}</span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -849,18 +1455,70 @@ export default function PPVDrawer({
       </div>
 
       <ModalDevolucao open={devolucaoOpen} produto={devolucaoProd} onClose={() => setDevolucaoOpen(false)} onConfirm={confirmarDevolucao} confirmando={confirmandoDev} />
-      <ModalProdutoEstoque open={!!detalheProd} codigo={detalheProd?.codigo || null} descricao={detalheProd?.descricao} onClose={() => setDetalheProd(null)} />
+      <ItemOrcamentoModal
+        open={!!detalheProd}
+        ppvId={ppvId}
+        pedidoOmie={pedidoOmie}
+        conta={detalheProd?.conta || "NOVA"}
+        codigo={detalheProd?.codigo || null}
+        descricao={detalheProd?.descricao}
+        quantidade={detalheProd?.quantidade}
+        preco={detalheProd?.preco}
+        userName={userProfile?.nome || ""}
+        onClose={() => setDetalheProd(null)}
+        showToast={showToast}
+        itens={produtosComSaldo.map((p) => ({ codigo: p.codigo, descricao: p.descricao, conta: (p.empresa || "").toLowerCase().includes("primari") ? "CASTRO" : "NOVA", quantidade: p.saldo, preco: p.preco }))}
+        onIrPara={(item) => setDetalheProd(item)}
+      />
       <ModalImportarKit open={kitModalOpen} onClose={() => setKitModalOpen(false)} onImportar={(produtos) => importarKitItens(produtos)} />
       <FaturarModal
         open={showFaturar}
         ppvId={ppvId}
+        numeroPedido={pedidoOmie}
         userName={userProfile?.nome || ""}
         onClose={() => setShowFaturar(false)}
-        onDone={() => { setFaturadoEm(new Date().toISOString()); onDirty?.(); }}
+        onDone={() => {
+          // Faturou: já está gravado no banco. Fecha o drawer SEM re-salvar (o
+          // fecharComSalvar sobrescreveria o status). Marca dirty p/ o Kanban atualizar.
+          setFaturadoEm(new Date().toISOString());
+          setStatus("Concluída");
+          onDirty?.();
+          onClose();
+        }}
         showToast={showToast}
       />
+      <AnexosModal open={showAnexos} ppvId={ppvId} autor={userProfile?.nome || ""} onClose={() => setShowAnexos(false)} onChanged={recarregarAnexosCount} showToast={showToast} />
+      <TarefasModal open={showTarefas} ppvId={ppvId} userName={userProfile?.nome || ""} onClose={() => setShowTarefas(false)} onChanged={recarregarTarefasCount} showToast={showToast} />
+      <SelecionarUsuarioModal open={showVendedor} atual={tecnico} onClose={() => setShowVendedor(false)} onSelect={(nome) => setTecnico(nome)} />
       {/* Busca de cliente do PRÓPRIO drawer — escreve direto no estado daqui */}
       <ModalBuscaCliente open={buscaClienteOpen} onClose={() => setBuscaClienteOpen(false)} onSelect={aplicarCliente} />
-    </>
+
+      {/* Cancelamento: pede o MOTIVO antes de tudo, depois cancela no Omie + portal */}
+      {cancelarOpen && (
+        <div onClick={() => !cancelando && setCancelarOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 69000, background: "rgba(0,0,0,.5)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "8vh 16px" }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 4, width: "100%", maxWidth: 480, boxShadow: "0 24px 60px rgba(0,0,0,.3)", overflow: "hidden" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderBottom: "1px solid #eef0f3" }}>
+              <i className="fas fa-ban" style={{ color: "#dc2626" }} />
+              <div style={{ flex: 1, fontSize: 16, fontWeight: 700, color: "#1e293b" }}>Cancelar Pedido de Venda{pedidoOmie ? ` nº ${numOmie}` : ""}</div>
+              <button onClick={() => setCancelarOpen(false)} disabled={cancelando} style={{ background: "#f1f5f9", border: "none", borderRadius: 4, width: 30, height: 30, cursor: "pointer", color: "#475569", fontSize: 17 }}>×</button>
+            </div>
+            <div style={{ padding: "16px 18px" }}>
+              <label style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: "#475569", marginBottom: 6 }}>Motivo do cancelamento <span style={{ color: "#dc2626" }}>*</span></label>
+              <textarea autoFocus rows={3} value={cancelMotivo} onChange={(e) => setCancelMotivo(e.target.value)} placeholder="Descreva o motivo do cancelamento…"
+                style={{ width: "100%", borderRadius: 4, border: "1px solid #d1d5db", padding: "9px 11px", fontSize: 14, outline: "none", boxSizing: "border-box", resize: "vertical", fontFamily: "inherit" }} />
+              {pedidoOmie && <div style={{ fontSize: 12, color: "#b45309", marginTop: 8 }}><i className="fas fa-exclamation-triangle" style={{ marginRight: 6 }} />Isto cancela o pedido também no Omie.</div>}
+              <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+                <button onClick={confirmarCancelamento} disabled={cancelando || !cancelMotivo.trim()}
+                  style={{ flex: 1, padding: "10px 16px", borderRadius: 4, border: "none", fontSize: 14, fontWeight: 700, cursor: cancelando || !cancelMotivo.trim() ? "not-allowed" : "pointer", background: cancelMotivo.trim() ? "#dc2626" : "#fca5a5", color: "#fff" }}>
+                  {cancelando ? "Cancelando…" : "Confirmar cancelamento"}
+                </button>
+                <button onClick={() => setCancelarOpen(false)} disabled={cancelando} style={{ padding: "10px 16px", borderRadius: 4, border: "1px solid #E2E8F0", background: "#fff", color: "#334155", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Voltar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>,
+    document.body
   );
 }
