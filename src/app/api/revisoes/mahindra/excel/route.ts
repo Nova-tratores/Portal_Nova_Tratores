@@ -31,6 +31,9 @@ export async function GET(req: NextRequest) {
   try {
     const data = await supabaseFetchAll<TratorRow>('tratores');
     const linhas = filtrarLinhas(extrairLinhas(data), filtros);
+    // No Excel a ordem é cronológica (mais antiga primeiro) — a tela mostra
+    // as recentes no topo, mas o documento de cobrança lê melhor em ordem.
+    linhas.sort((a, b) => a.dataOrd - b.dataOrd || a.chassis.localeCompare(b.chassis));
 
     const wb = new ExcelJS.Workbook();
     wb.creator = 'Portal Nova Tratores';
@@ -42,21 +45,19 @@ export async function GET(req: NextRequest) {
     ws.columns = [
       { header: 'Revisão', key: 'revisao', width: 10 },
       { header: 'Data da revisão', key: 'data', width: 15 },
-      { header: 'Horímetro', key: 'horimetro', width: 11 },
       { header: 'Chassi', key: 'chassis', width: 22 },
       { header: 'Modelo', key: 'modelo', width: 16 },
       { header: 'Nº Motor', key: 'motor', width: 16 },
       { header: 'Cliente', key: 'cliente', width: 36 },
       { header: 'Cidade', key: 'cidade', width: 20 },
-      { header: 'Vendedor', key: 'vendedor', width: 20 },
       { header: 'Data de entrega', key: 'entrega', width: 15 },
       { header: 'Laudo (PDF)', key: 'pdf', width: 14 },
     ];
 
     // Título nas 2 primeiras linhas (o header das colunas desce pra linha 3).
     ws.spliceRows(1, 0, [], []);
-    ws.mergeCells('A1:K1');
-    ws.mergeCells('A2:K2');
+    ws.mergeCells('A1:I1');
+    ws.mergeCells('A2:I2');
     const t1 = ws.getCell('A1');
     t1.value = 'NOVA TRATORES — Revisões Mahindra (50h e 900h) realizadas';
     t1.font = { bold: true, size: 13, color: { argb: 'FFC41E2A' } };
@@ -73,13 +74,11 @@ export async function GET(req: NextRequest) {
       const row = ws.addRow({
         revisao: l.revisao,
         data: l.dataOrd > 0 ? new Date(l.dataOrd) : l.data,
-        horimetro: l.horimetro || '',
         chassis: l.chassis || '',
         modelo: l.modelo || '',
         motor: l.motor || '',
         cliente: l.cliente || '',
         cidade: l.cidade || '',
-        vendedor: l.vendedor || '',
         entrega: l.entrega || '',
         pdf: '',
       });
@@ -97,7 +96,6 @@ export async function GET(req: NextRequest) {
 
     ws.getColumn('data').numFmt = 'dd/mm/yyyy';
     ws.getColumn('revisao').alignment = { horizontal: 'center' };
-    ws.getColumn('horimetro').alignment = { horizontal: 'right' };
     if (linhas.length) {
       ws.autoFilter = { from: { row: 3, column: 1 }, to: { row: 3, column: ws.columns.length } };
     }

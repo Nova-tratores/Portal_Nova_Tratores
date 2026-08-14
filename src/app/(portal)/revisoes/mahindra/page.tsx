@@ -25,6 +25,8 @@ export default function RevisoesMahindraPage() {
   const [ate, setAte] = useState('')
   const [q, setQ] = useState('')
   const [exportando, setExportando] = useState(false)
+  const [modalExcel, setModalExcel] = useState(false)
+  const [ateExcel, setAteExcel] = useState('') // data-limite escolhida no modal
 
   // Só busca depois da permissão confirmada (não desce a tabela pra quem não
   // tem acesso); paginado em 1000 (teto do PostgREST — select cru trunca).
@@ -62,14 +64,27 @@ export default function RevisoesMahindraPage() {
 
   if (!pLoading && userProfile && !temAcesso('revisoes')) return <SemPermissao />
 
-  const exportar = async () => {
+  const hojeISO = () => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }
+
+  const abrirModalExcel = () => {
+    setAteExcel(ate || hojeISO())
+    setModalExcel(true)
+  }
+
+  // Baixa o xlsx com os filtros da tela, mas o "até" vem do modal (data-limite
+  // escolhida na hora de baixar).
+  const exportar = async (ateLimite: string) => {
+    setModalExcel(false)
     setExportando(true)
     setErro('')
     try {
       const params = new URLSearchParams()
       if (tipo !== 'todas') params.set('tipo', tipo)
       if (de) params.set('de', de)
-      if (ate) params.set('ate', ate)
+      if (ateLimite) params.set('ate', ateLimite)
       if (q.trim()) params.set('q', q.trim())
       const r = await fetch(`/api/revisoes/mahindra/excel?${params}`, { headers: await authHeaders() })
       if (!r.ok) {
@@ -129,7 +144,7 @@ export default function RevisoesMahindraPage() {
         <span style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)', marginLeft: 'auto' }}>
           <strong>{filtradas.length}</strong> revisão(ões) · {tot50}× 50h · {tot900}× 900h
         </span>
-        <button onClick={exportar} disabled={exportando || filtradas.length === 0} style={{
+        <button onClick={abrirModalExcel} disabled={exportando || filtradas.length === 0} style={{
           display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 8, border: 'none',
           background: exportando || filtradas.length === 0 ? '#9ca3af' : '#166534', color: '#fff', fontSize: 13, fontWeight: 700,
           cursor: exportando || filtradas.length === 0 ? 'default' : 'pointer',
@@ -189,6 +204,30 @@ export default function RevisoesMahindraPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Modal: escolher a data-limite antes de baixar o Excel */}
+      {modalExcel && (
+        <div onClick={() => setModalExcel(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 90 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--portal-bg-card)', borderRadius: 12, padding: 22, width: 340, maxWidth: '92vw', boxShadow: '0 12px 40px rgba(0,0,0,0.25)' }}>
+            <h3 style={{ margin: '0 0 6px', fontSize: 15, fontWeight: 800, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 7 }}>
+              <FileSpreadsheet size={16} color="#166534" /> Exportar Excel
+            </h3>
+            <p style={{ margin: '0 0 14px', fontSize: 12.5, color: 'var(--portal-text-secondary)', lineHeight: 1.5 }}>
+              Incluir as revisões realizadas <strong>até qual data</strong>? O arquivo sai em ordem cronológica.
+            </p>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--portal-text-muted)', marginBottom: 4 }}>Até a data</label>
+            <input type="date" value={ateExcel} onChange={e => setAteExcel(e.target.value)} style={{ ...inp, width: '100%', marginBottom: 16 }} />
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => setModalExcel(false)} style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text-secondary)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                Cancelar
+              </button>
+              <button onClick={() => exportar(ateExcel)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: 'none', background: '#166534', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                <FileSpreadsheet size={14} /> Baixar Excel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
