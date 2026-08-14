@@ -9,7 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
 import { authHeaders } from '@/lib/auth/client';
-import { Settings, Flag, AlertTriangle } from 'lucide-react';
+import { Settings, Flag, AlertTriangle, Pencil, Layers } from 'lucide-react';
 
 // ---------- tipos ----------
 interface Produto {
@@ -71,6 +71,21 @@ function casaFiltroColuna(valorCelula: string, termo: string): boolean {
   if (f === '') return true;
   if (/^\d+$/.test(f)) return cel === f; // numero = exato
   return cel.includes(f);                // texto = contem
+}
+
+// Detecta telas touch/sem-hover (tablet) para mostrar a bandeira de sinalizar SEMPRE
+// (no touch nao ha hover). Nao havia helper de touch no projeto — este e do zero.
+function useIsTouch(): boolean {
+  const [touch, setTouch] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mq = window.matchMedia('(hover: none) and (pointer: coarse)');
+    const upd = () => setTouch(mq.matches);
+    upd();
+    mq.addEventListener?.('change', upd);
+    return () => mq.removeEventListener?.('change', upd);
+  }, []);
+  return touch;
 }
 // Reconcilia uma ordem "desejada" (pode ter casing diferente / chaves inexistentes) com as
 // colunas realmente disponíveis: mantém as que existem (usando a chave REAL), na ordem
@@ -238,6 +253,132 @@ function ControleOrdenacao({ cols, sorts, setSorts }: {
   );
 }
 
+// Modo "Conferir" (flashcard, touch-first): percorre o DECK (conjunto filtrado) um produto por vez.
+// Em cada card da p/ Sinalizar (⚠) ou Corrigir (✎) cada caracteristica visivel; "Confere" so avanca.
+// Congela a ORDEM dos produtos ao abrir (nao remexe se um flag/edicao mudar a ordenacao), mas le os
+// DADOS frescos do deck (map por chave). Reusa toggle/salvar/valCol/ensureCatalogo do pai.
+function ModalFlashcard({ deck, colsCarac, valCol, sinalizadas, onToggleSinal, ensureCatalogo, onSalvar, onClose }: {
+  deck: Produto[];
+  colsCarac: string[];
+  valCol: (p: Produto, col: string) => string;
+  sinalizadas: Set<string>;
+  onToggleSinal: (p: Produto, col: string) => void;
+  ensureCatalogo: () => Promise<{ uniao: Record<string, string[]>; porEmpresa: Record<string, Record<string, string[]>> }>;
+  onSalvar: (empresa: string, cp: string, col: string, valor: string) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [idx, setIdx] = useState(0);
+  const [edit, setEdit] = useState<{ col: string; valor: string; opts: string[] } | null>(null);
+  const chaveDe = (p: Produto) => `${p.empresa}|${p.codigo_produto}`;
+  const [ordem] = useState<string[]>(() => deck.map(chaveDe));           // ordem congelada
+  const mapa = useMemo(() => { const m = new Map<string, Produto>(); deck.forEach((p) => m.set(chaveDe(p), p)); return m; }, [deck]); // dados frescos
+  const total = ordem.length;
+  const p = mapa.get(ordem[Math.min(idx, total - 1)]);
+
+  const ir = useCallback((delta: number) => { setEdit(null); setIdx((i) => Math.max(0, Math.min(total - 1, i + delta))); }, [total]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+      else if (e.key === 'ArrowRight') ir(1);
+      else if (e.key === 'ArrowLeft') ir(-1);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [ir, onClose]);
+
+  const abrirEdit = useCallback(async (prod: Produto, col: string) => {
+    const atual = valCol(prod, col);
+    const cat = await ensureCatalogo();
+    const empCat = cat.porEmpresa[prod.empresa] || null;
+    const opts = (empCat && empCat[col]) || cat.uniao[col] || [];
+    setEdit({ col, valor: atual, opts });
+  }, [valCol, ensureCatalogo]);
+  const salvar = useCallback(async (prod: Produto) => {
+    if (!edit) return;
+    if (edit.valor !== valCol(prod, edit.col)) await onSalvar(prod.empresa, String(prod.codigo_produto), edit.col, edit.valor);
+    setEdit(null);
+  }, [edit, valCol, onSalvar]);
+
+  const btn: React.CSSProperties = { padding: '12px 18px', borderRadius: 10, fontSize: '1rem', fontWeight: 600, border: 'none', cursor: 'pointer' };
+  const naFrente = idx >= total - 1;
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.55)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, width: 560, maxWidth: '96vw', maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 16px 50px rgba(0,0,0,.3)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderBottom: '1px solid #e2e8f0' }}>
+          <b style={{ fontSize: '.92rem', color: '#1e293b' }}>Conferir</b>
+          <span style={{ fontSize: '.78rem', color: '#64748b' }}>{Math.min(idx + 1, total)} / {total}</span>
+          <button onClick={onClose} title="Fechar (Esc)" style={{ marginLeft: 'auto', background: 'none', border: 'none', fontSize: '1.5rem', color: '#94a3b8', cursor: 'pointer', lineHeight: 1 }}>×</button>
+        </div>
+        <div style={{ overflow: 'auto', padding: '14px 16px', flex: 1 }}>
+          {!p ? (
+            <div style={{ color: '#94a3b8', fontSize: '.9rem', padding: '20px 0', textAlign: 'center' }}>Este item saiu do filtro atual. Use ‹ / › para continuar.</div>
+          ) : (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+                <EmpBadge empresa={p.empresa} />
+                <span style={{ fontFamily: 'monospace', fontSize: '.85rem', color: '#334155' }}>{p.codigo || '-'}</span>
+              </div>
+              <div style={{ fontSize: '1.05rem', fontWeight: 600, color: '#1e293b', marginBottom: 12 }}>{p.descricao || '(sem descricao)'}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {colsCarac.map((col) => {
+                  const val = valCol(p, col);
+                  const sinal = sinalizadas.has(`${p.empresa}:${p.codigo_produto}:${col}`);
+                  const emEdit = edit?.col === col;
+                  return (
+                    <div key={col} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, background: sinal ? '#ffedd5' : '#f8fafc', border: '1px solid #eef2f7' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '.66rem', textTransform: 'uppercase', letterSpacing: '.4px', color: '#94a3b8' }}>{labelCol(col)}</div>
+                        {emEdit ? (
+                          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4, flexWrap: 'wrap' }}>
+                            {edit.opts.length ? (
+                              <select autoFocus value={edit.valor} onChange={(e) => setEdit({ ...edit, valor: e.target.value })} style={{ border: '1px solid #60a5fa', borderRadius: 6, padding: '6px 8px', fontSize: '.9rem' }}>
+                                <option value="" />
+                                {edit.opts.map((o) => <option key={o} value={o}>{o}</option>)}
+                                {edit.valor && !edit.opts.includes(edit.valor) && <option value={edit.valor}>{edit.valor} (atual)</option>}
+                              </select>
+                            ) : (
+                              <input autoFocus value={edit.valor} onChange={(e) => setEdit({ ...edit, valor: e.target.value })} style={{ border: '1px solid #60a5fa', borderRadius: 6, padding: '6px 8px', fontSize: '.9rem', minWidth: 140 }} />
+                            )}
+                            <button onClick={() => salvar(p)} style={{ ...btn, padding: '6px 12px', fontSize: '.82rem', background: '#059669', color: '#fff' }}>Salvar</button>
+                            <button onClick={() => setEdit(null)} style={{ ...btn, padding: '6px 12px', fontSize: '.82rem', background: '#e2e8f0', color: '#334155' }}>Cancelar</button>
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: '1rem', color: val ? '#1e293b' : '#cbd5e1', marginTop: 2 }}>{val || '—'}</div>
+                        )}
+                      </div>
+                      {!emEdit && (
+                        <>
+                          <button onClick={() => onToggleSinal(p, col)} title={sinal ? 'Remover sinalizacao' : 'Sinalizar (pendencia)'}
+                            style={{ ...btn, padding: '10px 12px', background: sinal ? '#ea580c' : '#fff', color: sinal ? '#fff' : '#ea580c', border: `1px solid ${sinal ? '#ea580c' : '#fed7aa'}` }}>
+                            <Flag size={16} style={{ verticalAlign: 'middle' }} />
+                          </button>
+                          <button onClick={() => abrirEdit(p, col)} title="Corrigir valor"
+                            style={{ ...btn, padding: '10px 12px', background: '#fff', color: '#2563eb', border: '1px solid #bfdbfe' }}>
+                            <Pencil size={16} style={{ verticalAlign: 'middle' }} />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+                {colsCarac.length === 0 && <div style={{ color: '#94a3b8', fontSize: '.85rem' }}>Nenhuma caracteristica visivel. Ative colunas na engrenagem.</div>}
+              </div>
+            </>
+          )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderTop: '1px solid #e2e8f0' }}>
+          <button onClick={() => ir(-1)} disabled={idx === 0} style={{ ...btn, background: '#e2e8f0', color: '#334155', opacity: idx === 0 ? 0.5 : 1 }}>‹ Anterior</button>
+          <div style={{ flex: 1, textAlign: 'center', fontSize: '.8rem', color: '#64748b' }}>{Math.min(idx + 1, total)} de {total}</div>
+          {naFrente
+            ? <button onClick={onClose} style={{ ...btn, background: '#059669', color: '#fff' }}>Concluir ✓</button>
+            : <button onClick={() => ir(1)} style={{ ...btn, background: '#059669', color: '#fff' }}>Confere ›</button>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function CaracteristicasPage() {
   const { userProfile } = useAuth();
   const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
@@ -260,6 +401,8 @@ export default function CaracteristicasPage() {
   // colunas ocultas + modal "Seletor de Colunas"
   const [colunasOcultas, setColunasOcultas] = useState<string[]>([]);
   const [seletorAberto, setSeletorAberto] = useState(false);
+  const [flashAberto, setFlashAberto] = useState(false); // modo "Conferir" (flashcard)
+  const isTouch = useIsTouch();                          // tablet: bandeira sempre visivel
   // prefs de colunas (ordem + ocultas): carregadas do Supabase, com fallback localStorage.
   const prefsCarregadasRef = useRef(false);            // trava o loader async (roda 1x)
   const baseOrdemRef = useRef<string[] | null>(null);  // ordem-base carregada (pre-reconciliacao)
@@ -771,8 +914,25 @@ export default function CaracteristicasPage() {
         <button onClick={exportarCSV} style={{ padding: '7px 14px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer' }}>Exportar CSV</button>
         <button onClick={gerarPDF} title="Gera um PDF (A4 paisagem) com todas as colunas da tela, respeitando os filtros e a ordenacao" style={{ padding: '7px 14px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer' }}>Gerar PDF</button>
         <button onClick={sincronizar} disabled={rodando} style={{ padding: '7px 14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: rodando ? 'wait' : 'pointer', opacity: rodando ? 0.5 : 1 }}>{rodando ? 'Sincronizando…' : 'Sincronizar agora'}</button>
+        <button onClick={() => setFlashAberto(true)} disabled={linhas.length === 0} title="Conferir um produto por vez (bom no tablet): sinalizar/corrigir cada caracteristica"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#0f766e', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: linhas.length === 0 ? 'not-allowed' : 'pointer', opacity: linhas.length === 0 ? 0.5 : 1 }}>
+          <Layers size={15} /> Conferir
+        </button>
         <MenuEngrenagem ocultasCount={colunasOcultas.length} onColunas={() => setSeletorAberto(true)} onRestaurar={restaurarOrdem} />
       </div>
+
+      {flashAberto && (
+        <ModalFlashcard
+          deck={linhas}
+          colsCarac={colsVisiveis.filter((c) => !ehFixa(c))}
+          valCol={valCol}
+          sinalizadas={sinalizadas}
+          onToggleSinal={alternarSinalizacao}
+          ensureCatalogo={ensureCatalogo}
+          onSalvar={salvarCelula}
+          onClose={() => setFlashAberto(false)}
+        />
+      )}
 
       {seletorAberto && (
         <SeletorColunas
@@ -886,17 +1046,18 @@ export default function CaracteristicasPage() {
                       );
                     }
                     const sinal = sinalizadas.has(cellKey);
-                    const mostrarBandeira = hoverCell === cellKey || sinal;
+                    // no touch (tablet) nao ha hover: mostra a bandeira sempre.
+                    const mostrarBandeira = hoverCell === cellKey || sinal || isTouch;
                     return (
                       <td key={col} onClick={() => abrirEdicao(p, col)} title="Clique para editar"
                         onMouseEnter={() => setHoverCell(cellKey)} onMouseLeave={() => setHoverCell((h) => (h === cellKey ? null : h))}
-                        style={{ ...tdStyle, cursor: 'pointer', position: 'relative', paddingRight: 22, background: sinal ? '#ffedd5' : undefined, color: v ? '#334155' : '#cbd5e1' }}>
+                        style={{ ...tdStyle, cursor: 'pointer', position: 'relative', paddingRight: 26, background: sinal ? '#ffedd5' : undefined, color: v ? '#334155' : '#cbd5e1' }}>
                         {v || '-'}
                         {mostrarBandeira && (
                           <button onClick={(e) => { e.stopPropagation(); alternarSinalizacao(p, col); }}
                             title={sinal ? 'Remover sinalizacao' : 'Sinalizar (marcar pendencia nesta caracteristica)'}
-                            style={{ position: 'absolute', top: 3, right: 3, background: 'none', border: 'none', padding: 0, cursor: 'pointer', lineHeight: 0 }}>
-                            <Flag size={12} color={sinal ? '#ea580c' : '#94a3b8'} fill={sinal ? '#ea580c' : 'none'} />
+                            style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 24, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 4, background: 'none', border: 'none', cursor: 'pointer' }}>
+                            <Flag size={13} color={sinal ? '#ea580c' : '#94a3b8'} fill={sinal ? '#ea580c' : 'none'} />
                           </button>
                         )}
                       </td>
