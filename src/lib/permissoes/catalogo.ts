@@ -33,7 +33,7 @@ const GRUPO_POR_MODULO: Record<string, string> = {
   frota: 'Frota',
   // Outros
   opa: 'Outros', avisos: 'Outros', tarefas: 'Outros', 'dashboard-agro': 'Outros', tratorilson: 'Outros',
-  tickets: 'Outros',
+  tickets: 'Outros', 'war-room': 'Financeiro',
 };
 
 export function grupoDoModulo(id: string): string {

@@ -49,6 +49,7 @@ const MODULOS = [
   { id: 'tarefas', label: 'Tarefas', color: '#dc2626' },
   { id: 'tickets', label: 'Tickets', color: '#0891b2' },
   { id: 'tratorilson', label: 'Tratorilson (Chat IA)', color: '#ef4444' },
+  { id: 'war-room', label: 'War Room', color: '#b91c1c' },
 ]
 
 const CATEGORIAS = ['Pós Vendas', 'Peças', 'Comercial', 'Financeiro']

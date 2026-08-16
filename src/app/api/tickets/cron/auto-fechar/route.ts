@@ -11,10 +11,13 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
 async function executar(req: NextRequest) {
+  // Fail-closed: sem CRON_SECRET configurado no ambiente, a rota RECUSA tudo
+  // (nunca fica pública — antes ficava, e o auto-fechamento em massa de tickets
+  // resolvidos era acionável por qualquer um com a URL). Exige o secret correto.
   const secret = process.env.CRON_SECRET
-  if (secret) {
-    const provided = req.headers.get('x-cron-secret') || req.nextUrl.searchParams.get('secret')
-    if (provided !== secret) return NextResponse.json({ ok: false, erro: 'unauthorized' }, { status: 401 })
+  const provided = req.headers.get('x-cron-secret') || req.nextUrl.searchParams.get('secret')
+  if (!secret || provided !== secret) {
+    return NextResponse.json({ ok: false, erro: 'unauthorized' }, { status: 401 })
   }
 
   const corte = new Date(Date.now() - AUTO_FECHAR_DIAS * 86400000).toISOString()
@@ -22,6 +25,7 @@ async function executar(req: NextRequest) {
     .from('tickets')
     .select('id, numero, titulo')
     .eq('status', 'resolvido')
+    .neq('tipo', 'war_room') // ações do War Room só encerram com confirmação humana (2 estágios)
     .lt('resolvido_em', corte)
     .limit(200)
   if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 })

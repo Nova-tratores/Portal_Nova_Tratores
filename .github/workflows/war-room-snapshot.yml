@@ -1,0 +1,19 @@
+# War Room — snapshot semanal imutável. Roda toda segunda 06:00 BRT (09:00 UTC),
+# criando a foto da semana que acabou de fechar (pré-preenche o derivável; caixa
+# fica manual). Idempotente. Também acionável manualmente (workflow_dispatch).
+name: War Room - Snapshot semanal
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'   # Segunda 06:00 BRT (09:00 UTC)
+  workflow_dispatch: {}
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gerar snapshot da semana
+        run: |
+          curl -fsS --max-time 300 -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/war-room/cron/snapshot"

@@ -22,6 +22,9 @@ export type EventoTipo =
   | 'pedido_atualizacao'
   | 'edicao'
   | 'anexo'
+  // War Room (tipo='war_room')
+  | 'wr_acao_criada'
+  | 'wr_decisao_vinculada'
 
 export interface Ticket {
   id: string
