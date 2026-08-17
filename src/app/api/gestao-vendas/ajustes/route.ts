@@ -24,7 +24,8 @@ type Body = {
   departamento?: string | null
   produto_descricao?: string | null
   valor_venda: number
-  cmc_total: number
+  cmc_total: number // CMC do snapshot (cmc_unitario * qtd)
+  cmc_override?: number | null // CMC total corrigido à mão; null = usa snapshot
   // campos editáveis
   vendedor?: string | null
   custos_extras?: number
@@ -55,9 +56,16 @@ export async function POST(request: Request) {
   const override = body.comissao_override_pct == null ? null : Number(body.comissao_override_pct)
   const comissao_pct = override ?? Number(body.comissao_pct_base) ?? 0
 
+  // CMC efetivo: override manual quando presente, senão o snapshot do sync
+  const cmc_override =
+    body.cmc_override == null || !Number.isFinite(Number(body.cmc_override))
+      ? null
+      : Number(body.cmc_override)
+  const cmc_total_efetivo = cmc_override ?? (Number(body.cmc_total) || 0)
+
   const calc = calcular({
     valor_venda: body.valor_venda,
-    cmc_total: body.cmc_total || 0,
+    cmc_total: cmc_total_efetivo,
     custos_extras,
     desconto,
     comissao_pct: comissao_pct || 0,
@@ -75,7 +83,8 @@ export async function POST(request: Request) {
     categoria: body.categoria ?? null,
     departamento: body.departamento ?? null,
     produto_descricao: body.produto_descricao ?? null,
-    cmc_total: body.cmc_total || 0,
+    cmc_total: cmc_total_efetivo,
+    cmc_override,
     valor_venda: body.valor_venda,
     margem_bruta_pct: calc.margem_bruta_pct * 100,
     custos_extras,

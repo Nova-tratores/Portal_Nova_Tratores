@@ -46,6 +46,7 @@ export type AjusteVenda = {
   departamento: string | null
   produto_descricao: string | null
   cmc_total: number | null
+  cmc_override: number | null // CMC total corrigido à mão; null = usa snapshot
   valor_venda: number
   margem_bruta_pct: number | null
   custos_extras: number
