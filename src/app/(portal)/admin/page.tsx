@@ -35,6 +35,7 @@ const MODULOS = [
   // era impossível de conceder pela tela.
   { id: 'frota', label: 'Frota', color: '#0d9488' },
   { id: 'garantias', label: 'Garantias', color: '#0ea5e9' },
+  { id: 'gestao-vendas', label: 'Gestão de Vendas', color: '#dc2626' },
   { id: 'mecanicos', label: 'Janela Mecânicos', color: '#1d4ed8' },
   { id: 'mapa', label: 'Mapeamento Técnico', color: '#b91c1c' },
   { id: 'opa', label: 'Opa (Ocorrências)', color: '#dc2626' },

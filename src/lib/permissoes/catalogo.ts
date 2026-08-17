@@ -28,6 +28,7 @@ const GRUPO_POR_MODULO: Record<string, string> = {
   financeiro: 'Financeiro', dre: 'Financeiro',
   // Comercial
   propostas: 'Comercial', feedbacks: 'Comercial', clientes: 'Comercial', 'supervisor-vendas': 'Comercial',
+  'gestao-vendas': 'Comercial',
   // Estoque
   'consulta-estoque': 'Estoque', estoque: 'Estoque',
   frota: 'Frota',

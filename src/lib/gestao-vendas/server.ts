@@ -2,6 +2,7 @@
 // As rotas de API validam login+permissão antes de chamar estas funções.
 
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
+import { resolverClientesViaOmie } from './clientes-omie'
 import type { Autenticado } from '@/lib/auth/server'
 import type {
   AjusteVenda,
@@ -70,6 +71,9 @@ export async function buscarVendasEnriquecidas(
   // fallback: cadastro sincronizado ativamente (a tabela `clientes` anda desatualizada
   // e não traz clientes recém-criados → apareciam como #código na tela)
   const clientesCadastro = new Map<string, string>()
+  // último recurso persistido: nomes já resolvidos via Omie (gv_clientes_omie_cache)
+  const clientesCache = new Map<string, string>() // conta|cod → nome (só os com nome)
+  const clientesJaConsultados = new Set<string>() // conta|cod já vistos no cache (mesmo NULL)
   const familias = new Map<string, string | null>()
   const categorias = new Map<string, string>()
 
@@ -118,6 +122,25 @@ export async function buscarVendasEnriquecidas(
           for (const c of data ?? []) {
             const nome = c.razao_social || c.nome_fantasia
             if (nome) clientesCadastro.set(`${empresaParaConta(c.empresa)}|${c.cod_cli}`, nome)
+          }
+        }),
+    )
+  }
+
+  // cache Omie (best-effort: se a migration não estiver aplicada, ignora e segue)
+  for (let i = 0; i < codCli.length; i += CHUNK) {
+    const slice = codCli.slice(i, i + CHUNK)
+    buscas.push(
+      supabaseAdmin
+        .from('gv_clientes_omie_cache')
+        .select('cod_cli, conta, nome')
+        .in('cod_cli', slice)
+        .then(({ data, error }) => {
+          if (error) return // tabela ausente / erro → cache indisponível, não quebra
+          for (const c of data ?? []) {
+            const chave = `${(c.conta ?? '').toUpperCase()}|${c.cod_cli}`
+            clientesJaConsultados.add(chave)
+            if (c.nome) clientesCache.set(chave, c.nome)
           }
         }),
     )
@@ -174,6 +197,45 @@ export async function buscarVendasEnriquecidas(
 
   await Promise.all(buscas)
 
+  const chaveCliente = (v: VendaItem): string | null =>
+    v.codigo_cliente && /^\d+$/.test(v.codigo_cliente)
+      ? `${(v.conta_omie ?? '').toUpperCase()}|${Number(v.codigo_cliente)}`
+      : null
+
+  // resolução em cascata p/ não cair no #código interno da Omie:
+  // 1º master `clientes` · 2º cadastro sincronizado (traz clientes recentes)
+  // · 3º cache Omie persistido · 4º nome denormalizado na própria venda
+  const nomeCliente = (v: VendaItem): string | null => {
+    const chave = chaveCliente(v)
+    return (
+      (chave ? clientes.get(chave) : null) ??
+      (chave ? clientesCadastro.get(chave) : null) ??
+      (chave ? clientesCache.get(chave) : null) ??
+      (v.nome_cliente?.trim() || null)
+    )
+  }
+
+  // ÚLTIMO recurso: os que sobraram sem nome (e nunca consultados no cache) vão
+  // à Omie (best-effort, com teto/tempo). O resultado alimenta o mesmo Map e
+  // fica cacheado em gv_clientes_omie_cache pros próximos carregamentos.
+  const naoResolvidos = new Map<string, { conta: string; codigo: number }>()
+  for (const v of vendas) {
+    const chave = chaveCliente(v)
+    if (!chave || clientesJaConsultados.has(chave) || nomeCliente(v)) continue
+    naoResolvidos.set(chave, {
+      conta: (v.conta_omie ?? '').toUpperCase(),
+      codigo: Number(v.codigo_cliente),
+    })
+  }
+  if (naoResolvidos.size > 0) {
+    try {
+      const resolvidos = await resolverClientesViaOmie([...naoResolvidos.values()])
+      for (const [k, nome] of resolvidos) clientesCache.set(k, nome)
+    } catch {
+      // best-effort: se a Omie falhar, mantém o #código
+    }
+  }
+
   return vendas.map((v) => ({
     ...v,
     vendedor:
@@ -181,19 +243,7 @@ export async function buscarVendasEnriquecidas(
       (v.numero_pedido
         ? vendedorPorPedido.get(`${(v.conta_omie ?? '').toUpperCase()}|${v.numero_pedido}`) ?? null
         : null),
-    // resolução em cascata p/ não cair no #código interno da Omie:
-    // 1º master `clientes` · 2º cadastro sincronizado (traz clientes recentes)
-    // · 3º nome denormalizado na própria venda
-    cliente_nome: (() => {
-      const chave = v.codigo_cliente
-        ? `${(v.conta_omie ?? '').toUpperCase()}|${Number(v.codigo_cliente)}`
-        : null
-      return (
-        (chave ? clientes.get(chave) : null) ??
-        (chave ? clientesCadastro.get(chave) : null) ??
-        (v.nome_cliente?.trim() || null)
-      )
-    })(),
+    cliente_nome: nomeCliente(v),
     produto_familia_real: v.codigo_produto ? familias.get(v.codigo_produto) ?? null : null,
     categoria_descricao: v.codigo_categoria ? categorias.get(v.codigo_categoria) ?? null : null,
   }))
