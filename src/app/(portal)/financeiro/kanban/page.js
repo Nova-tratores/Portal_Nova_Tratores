@@ -12,10 +12,17 @@ import {
   X, PlusCircle, FileText, Download,
   CheckCircle, Upload, Send,
   Calendar, CreditCard, ArrowLeft,
-  Eye, Search, RefreshCw, AlertCircle, Clock, Trash2
+  Eye, Search, RefreshCw, AlertCircle, Clock, Trash2, Wallet
 } from 'lucide-react'
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
+import ConfirmarFaseModal from '@/components/ConfirmarFaseModal'
 import PreferenciaEnvioBoleto from '@/components/financeiro/PreferenciaEnvioBoleto'
+import PrefEnvioBadge from '@/components/financeiro/PrefEnvioBadge'
+import EnvioGuiaModal from '@/components/financeiro/EnvioGuiaModal'
+import ConfigEmailEnvioModal from '@/components/financeiro/ConfigEmailEnvioModal'
+import { autoEnviarENotificar } from '@/lib/financeiro/envioBoleto'
+import { montarMapasPref, acharMetodo } from '@/lib/financeiro/prefEnvio'
+import { authHeaders } from '@/lib/auth/client'
 import { labelSetor, ehDoSetor } from '@/lib/financeiro/setor'
 
 const STATUS_CONFIG = {
@@ -42,6 +49,11 @@ export default function Kanban() {
  const podeEditar = isAdmin // só admin do Pós-Vendas edita nome/condição/valor/data
  const [chamados, setChamados] = useState([])
  const [tarefaSelecionada, setTarefaSelecionada] = useState(null)
+ const [confirmSemBoleto, setConfirmSemBoleto] = useState(null)
+ const [prefsEnvio, setPrefsEnvio] = useState({})
+ const [enviandoId, setEnviandoId] = useState(null)      // card com envio rápido em andamento
+ const [envioGuia, setEnvioGuia] = useState(null)        // { motivo, card, erro } → modal de orientação
+ const [cfgEmailCard, setCfgEmailCard] = useState(null)  // card aguardando o usuário configurar o e-mail
  const [cardLogs, setCardLogs] = useState([])   // histórico (audit_log) do card aberto
  const [loading, setLoading] = useState(true)
 
@@ -73,6 +85,12 @@ export default function Kanban() {
  const carregarDados = async () => {
   try {
     const { data } = await supabase.from('Chamado_NF').select('*').neq('status', 'concluido').neq('status', 'excluido').order('id', { ascending: false });
+    // Preferência de envio do cliente (capa do card)
+    try {
+      const rp = await fetch('/api/financeiro/prefs-envio', { headers: { ...(await authHeaders()) } });
+      const jp = await rp.json();
+      setPrefsEnvio(montarMapasPref(jp.prefs || []));
+    } catch {}
     const hoje = new Date(); hoje.setHours(0,0,0,0);
 
     // ─── AUTO-MOVE: Boleto 30 dias vencido → pago (salva no banco) ────────────
@@ -265,6 +283,36 @@ export default function Kanban() {
     carregarDados();
  };
 
+ // ENVIO RÁPIDO direto do card (coluna Enviar para Cliente): manda o boleto por
+ // e-mail conforme a preferência do cliente e já move pra Aguardando Vencimento.
+ // Se faltar algo (preferência, e-mail configurado, anexo, ou cliente prefere
+ // WhatsApp), abre o modal de orientação com o passo a passo.
+ const handleEnviarRapido = async (t) => {
+    if (enviandoId) return;
+    setEnviandoId(t.id);
+    try {
+      const r = await autoEnviarENotificar({
+        card: t,
+        remetente: userProfile?.nome || '',
+        audit: (a) => auditLog({ sistema: 'financeiro', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: `NF #${t.id} - ${t.nom_cliente || ''}`, ...a }),
+      });
+      if (r.status === 'enviado') {
+        alert(`Boleto enviado por e-mail para: ${r.destinatarios.join(', ')}.\nCard movido para Aguardando Vencimento!`);
+        carregarDados();
+      } else if (r.status === 'erro' && r.semConfig) {
+        setEnvioGuia({ motivo: 'sem_config', card: t });
+      } else if (r.status === 'erro') {
+        setEnvioGuia({ motivo: 'erro', card: t, erro: r.erro });
+      } else if (r.status === 'whatsapp_manual') {
+        setEnvioGuia({ motivo: 'whatsapp', card: t });
+      } else if (r.status === 'sem_arquivo') {
+        setEnvioGuia({ motivo: 'sem_arquivo', card: t });
+      } else {
+        setEnvioGuia({ motivo: 'sem_preferencia', card: t });
+      }
+    } finally { setEnviandoId(null); }
+ };
+
  const handleMoverSemBoleto = async (t) => {
     await supabase.from('Chamado_NF').update({ status: 'sem_boleto', tarefa: 'Cliente Sem Boleto' }).eq('id', t.id);
     notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} moveu NF #${t.id} para Sem Boleto`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban`)
@@ -357,54 +405,84 @@ export default function Kanban() {
     {filtroBusca.trim() && (
       <div style={{ padding: '0 50px', marginBottom: '4px', fontSize: '14px', color: 'var(--portal-text-muted)' }}>{chamadosFiltrados.length} resultado{chamadosFiltrados.length !== 1 ? 's' : ''}</div>
     )}
+    {/* Uma rolagem só: o board inteiro desce junto (as colunas não rolam individualmente) */}
     {(
-    <div style={{ flex: 1, display: 'flex', gap: '25px', overflowX: 'auto', overflowY: 'hidden', padding: '0 clamp(10px, 4vw, 50px) 40px', boxSizing: 'border-box' }}>
-     {colunas.map(col => (
-      <div key={col.id} style={{ width: '400px', flex: '0 0 400px', display: 'flex', flexDirection: 'column' }}>
-       <h3 style={{ background: 'var(--portal-bg-card)', color: 'var(--portal-text-secondary)', padding: '20px', borderRadius: '16px', marginBottom: '25px', textAlign: 'center', fontWeight:'500', fontSize:'16px', letterSpacing:'1px', border: '1px solid var(--portal-border)', flexShrink: 0 }}>{col.titulo}</h3>
+    <div style={{ flex: 1, display: 'flex', alignItems: 'flex-start', gap: '0', overflowX: 'auto', overflowY: 'auto', padding: '0 clamp(10px, 4vw, 50px) 40px', boxSizing: 'border-box' }}>
+     {colunas.map(col => {
+      const cardsCol = chamadosFiltrados.filter(c => {
+        if (col.id === 'gerar_boleto') return c.status === 'gerar_boleto' || c.status === 'validar_pix';
+        return c.status === col.id;
+      });
+      return (
+      <div key={col.id} style={{ width: '400px', flex: '0 0 400px', display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--portal-border)', padding: '0 16px' }}>
+       <h3 style={{ background: col.id === 'vencido' ? '#fecaca' : col.id === 'sem_boleto' ? '#fde68a' : '#c5e29f', color: col.id === 'vencido' ? '#b91c1c' : col.id === 'sem_boleto' ? '#92400e' : '#3f6212', padding: '16px', borderRadius: '12px', marginBottom: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', fontWeight:'700', fontSize:'15px', letterSpacing:'1px', border: 'none', flexShrink: 0 }}>{col.titulo}<span style={{ background: 'rgba(255,255,255,.75)', borderRadius: '999px', padding: '2px 10px', fontSize: '13px', fontWeight: '600', fontVariantNumeric: 'tabular-nums' }}>{cardsCol.length}</span></h3>
 
-       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto', paddingRight: '5px' }}>
-        {chamadosFiltrados.filter(c => {
-           if(col.id === 'gerar_boleto') return c.status === 'gerar_boleto' || c.status === 'validar_pix';
-           return c.status === col.id;
-        }).map(t => (
-         <div key={t.id} className="kanban-card">
-          <div style={{ background: t.status === 'vencido' ? '#fef2f2' : (t.status === 'pago' ? '#f0fdf4' : 'var(--portal-bg-card)'), padding: '25px', color: 'var(--portal-text)', borderBottom: '1px solid var(--portal-border)' }}>
-           <span style={{ ...setorBadgeStyle, marginBottom: '10px' }}>{labelSetor(t)}</span>
-           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-             <h4 onClick={() => setTarefaSelecionada(t)} style={{ margin: 0, fontSize: '20px', fontWeight: '500', color: t.status === 'vencido' ? '#dc2626' : (t.status === 'pago' ? '#16a34a' : 'var(--portal-text)'), cursor: 'pointer', flex: 1 }}>{t.nom_cliente?.toUpperCase()}</h4>
-             {t.status === 'sem_boleto' && (
-               <button
-                 title="Voltar para Gerar Boleto"
-                 onClick={(e) => { e.stopPropagation(); handleVoltarFluxo(t); }}
-                 style={{ background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: '8px', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--portal-text-secondary)', fontSize: '14px', fontWeight: '700', transition: '0.2s', flexShrink: 0 }}
-                 onMouseEnter={e => { e.currentTarget.style.background = '#eff6ff'; e.currentTarget.style.color = '#2563eb'; e.currentTarget.style.borderColor = '#93c5fd'; }}
-                 onMouseLeave={e => { e.currentTarget.style.background = 'var(--portal-bg-secondary)'; e.currentTarget.style.color = 'var(--portal-text-secondary)'; e.currentTarget.style.borderColor = 'var(--portal-border)'; }}
-               >↩</button>
-             )}
-             {t.status !== 'sem_boleto' && t.status !== 'pago' && (
-               <button
-                 title="Mover para Cliente Sem Boleto"
-                 onClick={(e) => { e.stopPropagation(); handleMoverSemBoleto(t); }}
-                 style={{ background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: '8px', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--portal-text-secondary)', fontSize: '14px', fontWeight: '700', transition: '0.2s', flexShrink: 0 }}
-                 onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#dc2626'; e.currentTarget.style.borderColor = '#fca5a5'; }}
-                 onMouseLeave={e => { e.currentTarget.style.background = 'var(--portal-bg-secondary)'; e.currentTarget.style.color = 'var(--portal-text-secondary)'; e.currentTarget.style.borderColor = 'var(--portal-border)'; }}
-               >@</button>
-             )}
+       <div style={{ display: 'flex', flexDirection: 'column', gap: '0', paddingRight: '5px' }}>
+        {cardsCol.map(t => (
+         <div key={t.id} className="kanban-card" style={{ borderRadius: '12px', border: '1px solid rgba(0,0,0,0.5)', marginBottom: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', borderBottom: '1px dashed var(--portal-border)' }}>
+           <span style={{ width: '9px', height: '9px', borderRadius: '50%', flexShrink: 0, background: fichaCorStatus(t.status) }} />
+           <span style={{ flex: 1, fontSize: '10px', fontWeight: '500', letterSpacing: '0.9px', textTransform: 'uppercase', color: t.status === 'vencido' ? '#dc2626' : t.status === 'sem_boleto' ? '#b45309' : 'var(--portal-text-secondary)' }}>{fichaLabelStatus(t.status)}</span>
+           <span style={{ fontSize: '10.5px', color: '#9ca3af', fontWeight: '500', fontVariantNumeric: 'tabular-nums' }}>#{t.id}</span>
+          </div>
+          <div onClick={() => setTarefaSelecionada(t)} style={{ padding: '11px 14px 13px', cursor: 'pointer' }}>
+           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+             <div style={{ flex: 1, minWidth: 0 }}>
+               <span style={setorBadgeStyle}>{labelSetor(t)}</span>
+               <h4 style={{ margin: '7px 0 0', fontSize: '16px', fontWeight: '500', lineHeight: 1.3, color: t.status === 'vencido' ? '#dc2626' : 'var(--portal-text)' }}>{t.nom_cliente?.toUpperCase()}</h4>
+             </div>
+             <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+               {t.status === 'enviar_cliente' && (
+                 <button
+                   title="Enviar boleto ao cliente (conforme a preferência) e mover para Aguardando Vencimento"
+                   disabled={enviandoId === t.id}
+                   onClick={(e) => { e.stopPropagation(); handleEnviarRapido(t); }}
+                   style={{ background: '#8bc53f', border: '1px solid #7ab332', borderRadius: '8px', width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: enviandoId === t.id ? 'wait' : 'pointer', color: '#fff', transition: '0.2s', flexShrink: 0, opacity: enviandoId === t.id ? 0.6 : 1 }}
+                 >{enviandoId === t.id ? <RefreshCw size={18} className="spin-envio" /> : <Send size={18} />}</button>
+               )}
+               {t.status === 'sem_boleto' && (
+                 <button
+                   title="Voltar para Gerar Boleto"
+                   onClick={(e) => { e.stopPropagation(); handleVoltarFluxo(t); }}
+                   style={{ background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: '8px', width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--portal-text-secondary)', fontSize: '14px', fontWeight: '700', transition: '0.2s', flexShrink: 0 }}
+                   onMouseEnter={e => { e.currentTarget.style.background = '#eff6ff'; e.currentTarget.style.color = '#2563eb'; e.currentTarget.style.borderColor = '#93c5fd'; }}
+                   onMouseLeave={e => { e.currentTarget.style.background = 'var(--portal-bg-secondary)'; e.currentTarget.style.color = 'var(--portal-text-secondary)'; e.currentTarget.style.borderColor = 'var(--portal-border)'; }}
+                 >↩</button>
+               )}
+               {t.status !== 'sem_boleto' && t.status !== 'pago' && (
+                 <button
+                   title="Mover para Cliente sem boleto"
+                   onClick={(e) => { e.stopPropagation(); setConfirmSemBoleto(t); }}
+                   style={{ background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: '8px', width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--portal-text-secondary)', fontSize: '14px', fontWeight: '700', transition: '0.2s', flexShrink: 0 }}
+                   onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#dc2626'; e.currentTarget.style.borderColor = '#fca5a5'; }}
+                   onMouseLeave={e => { e.currentTarget.style.background = 'var(--portal-bg-secondary)'; e.currentTarget.style.color = 'var(--portal-text-secondary)'; e.currentTarget.style.borderColor = 'var(--portal-border)'; }}
+                 ><Wallet size={20} /></button>
+               )}
+             </div>
            </div>
+           <table style={{ width: '100%', borderCollapse: 'collapse', margin: '10px 0 2px' }}>
+             <tbody>
+               <tr><td style={fichaTdLab}>Envio</td><td style={fichaTdVal}><PrefEnvioBadge metodo={acharMetodo(t, prefsEnvio)} /></td></tr>
+               <tr><td style={fichaTdLab}>Forma</td><td style={fichaTdVal}>{t.forma_pagamento?.toUpperCase() || '—'}</td></tr>
+               <tr><td style={fichaTdLab}>Venc</td><td style={t.status === 'vencido' ? { ...fichaTdVal, color: '#dc2626', fontWeight: '800' } : fichaTdVal}>{formatarDataBR(t.vencimento_boleto)}</td></tr>
+               {(t.num_nf_servico || t.num_nf_peca) && (
+                 <tr><td style={fichaTdLab}>NF</td><td style={fichaTdVal}>{[t.num_nf_servico && `S ${t.num_nf_servico}`, t.num_nf_peca && `P ${t.num_nf_peca}`].filter(Boolean).join(' / ')}</td></tr>
+               )}
+             </tbody>
+           </table>
            {t.isPagamentoRealizado && (
-             <div style={{ marginTop: '12px', display:'flex', alignItems:'center', gap:'6px', color:'#16a34a', fontSize:'11px', fontWeight:'600', letterSpacing:'1px' }}>
+             <div style={{ marginTop: '10px', display:'flex', alignItems:'center', gap:'6px', color:'#16a34a', fontSize:'11px', fontWeight:'600', letterSpacing:'1px' }}>
                <CheckCircle size={14}/> PAGAMENTO REALIZADO
              </div>
            )}
            {/* ── INDICADORES BOLETO PARCELADO ── */}
            {t.forma_pagamento === 'Boleto Parcelado' && t.parcelas_info && (
-             <div style={{ marginTop: '12px' }}>
+             <div style={{ marginTop: '10px' }}>
                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '6px' }}>
                  {t.parcelas_info.map((p, i) => (
                    <div key={i}
                      title={`${p.num}ª parcela — ${p.estado === 'pago' ? 'Paga' : p.estado === 'vencido' ? 'EM ATRASO' : p.estado === 'proximo' ? 'Vence em breve' : 'A vencer'} — ${p.data ? formatarDataBR(p.data) : 'Sem data'}`}
-                     style={{ width: '16px', height: '16px', borderRadius: '50%', flexShrink: 0, cursor: 'default',
+                     style={{ width: '14px', height: '14px', borderRadius: '50%', flexShrink: 0, cursor: 'default',
                        background: p.estado === 'pago' ? '#27ae60' : p.estado === 'vencido' ? '#e74c3c' : p.estado === 'proximo' ? '#f39c12' : '#bdc3c7',
                        border: p.estado === 'vencido' ? '2px solid #c0392b' : '2px solid transparent'
                      }}
@@ -424,21 +502,14 @@ export default function Kanban() {
                )}
              </div>
            )}
-          </div>
-          <div onClick={() => setTarefaSelecionada(t)} style={{ padding: '25px', background:'var(--portal-bg-secondary)', cursor: 'pointer' }}>
-           <div style={cardInfoStyle}><CreditCard size={16}/> <span>FORMA:</span> {t.forma_pagamento?.toUpperCase()}</div>
-           <div style={cardInfoStyle}><Calendar size={16}/> <span>VENC:</span> {formatarDataBR(t.vencimento_boleto)}</div>
-           {(t.num_nf_servico || t.num_nf_peca) && (
-             <div style={cardInfoStyle}><FileText size={16}/> <span>NF:</span> {[t.num_nf_servico && `S ${t.num_nf_servico}`, t.num_nf_peca && `P ${t.num_nf_peca}`].filter(Boolean).join(' / ')}</div>
-           )}
-           <div style={{fontSize:'32px', fontWeight:'500', margin:'15px 0', color:'var(--portal-text)'}}>{formatarMoeda(t.valor_exibicao)}</div>
-           <div style={miniTagStyle}>ID: {t.id}</div>
+           <div style={{ marginTop: '10px', fontSize: '26px', fontWeight: '500', letterSpacing: '-0.5px', fontVariantNumeric: 'tabular-nums', color: t.status === 'vencido' ? '#dc2626' : '#16a34a' }}>{formatarMoeda(t.valor_exibicao)}</div>
           </div>
          </div>
         ))}
        </div>
       </div>
-     ))}
+      );
+     })}
     </div>
     )}
    </main>
@@ -484,31 +555,41 @@ export default function Kanban() {
                 {FORMAS_BOLETO.map(op => <option key={op} value={op}>{op}</option>)}
               </select>
             ) : (
-              <p style={pModalStyle}>{tarefaSelecionada.forma_pagamento?.toUpperCase()}</p>
+              <p style={{ ...pModalStyle, fontSize: '22px', fontWeight: '700' }}>{tarefaSelecionada.forma_pagamento?.toUpperCase() || '—'}</p>
             )}
           </div>
 
           <div style={fieldBoxModal}>
             <label style={labelModalStyle}>Valor Total</label>
-            <input
-              type="number"
-              disabled={!podeEditar}
-              style={{ ...inputStyleModal, border: 'none', background: 'transparent', padding: '0', fontSize: '36px', cursor: podeEditar ? 'text' : 'not-allowed' }}
-              defaultValue={tarefaSelecionada.valor_servico}
-              onBlur={e => handleUpdateField(tarefaSelecionada.id, 'valor_servico', e.target.value)}
-            />
+            {podeEditar ? (
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                <span style={{ fontSize: '18px', fontWeight: '800', color: '#16a34a' }}>R$</span>
+                <input
+                  type="number"
+                  style={{ ...inputStyleModal, border: 'none', background: 'transparent', padding: '0', fontSize: '26px', fontWeight: '700', color: '#16a34a', fontVariantNumeric: 'tabular-nums' }}
+                  defaultValue={tarefaSelecionada.valor_servico}
+                  onBlur={e => handleUpdateField(tarefaSelecionada.id, 'valor_servico', e.target.value)}
+                />
+              </div>
+            ) : (
+              <p style={{ ...pModalStyle, fontSize: '26px', fontWeight: '800', color: '#16a34a', fontVariantNumeric: 'tabular-nums' }}>{formatarMoeda(tarefaSelecionada.valor_servico)}</p>
+            )}
+            {podeEditar && <div style={{ fontSize: '13px', color: 'var(--portal-text-secondary)', marginTop: '4px' }}>{formatarMoeda(tarefaSelecionada.valor_servico)}</div>}
           </div>
 
           {isBoleto30 && (
             <div style={fieldBoxModal}>
               <label style={labelModalStyle}>Vencimento</label>
-              <input
-                type="date"
-                disabled={!podeEditar}
-                style={{ ...inputStyleModal, border: 'none', background: 'transparent', padding: '0', fontSize: '36px', color: tarefaSelecionada.status === 'vencido' ? '#dc2626' : 'var(--portal-text)', cursor: podeEditar ? 'text' : 'not-allowed' }}
-                defaultValue={tarefaSelecionada.vencimento_boleto}
-                onBlur={e => handleUpdateField(tarefaSelecionada.id, 'vencimento_boleto', e.target.value)}
-              />
+              {podeEditar ? (
+                <input
+                  type="date"
+                  style={{ ...inputStyleModal, border: 'none', background: 'transparent', padding: '0', fontSize: '24px', fontWeight: '700', fontVariantNumeric: 'tabular-nums', color: tarefaSelecionada.status === 'vencido' ? '#dc2626' : 'var(--portal-text)' }}
+                  defaultValue={tarefaSelecionada.vencimento_boleto}
+                  onBlur={e => handleUpdateField(tarefaSelecionada.id, 'vencimento_boleto', e.target.value)}
+                />
+              ) : (
+                <p style={{ ...pModalStyle, fontSize: '24px', fontWeight: '700', fontVariantNumeric: 'tabular-nums', color: tarefaSelecionada.status === 'vencido' ? '#dc2626' : 'var(--portal-text)' }}>{formatarDataBR(tarefaSelecionada.vencimento_boleto) || '—'}</p>
+              )}
             </div>
           )}
         </div>
@@ -658,9 +739,23 @@ export default function Kanban() {
           </div>
         )}
 
+        {/* PREFERÊNCIA DE ENVIO + AÇÃO DE ENVIO — antes das observações */}
+        <div style={{ marginTop:'20px', display:'flex', flexDirection:'column', gap:'20px' }}>
+          <PreferenciaEnvioBoleto card={tarefaSelecionada} />
+          {tarefaSelecionada.status === 'enviar_cliente' && (
+            <div style={{background:'#f0fdf4', padding:'30px 35px', borderRadius:'20px', border:'1px solid #bbf7d0'}}>
+              <label style={{...labelModalStyle, color:'#16a34a', fontSize: '16px'}}>AÇÃO REQUERIDA</label>
+              <p style={{color: 'var(--portal-text-secondary)', marginBottom: '20px', fontSize: '14px'}}>Confirme após enviar os documentos ao cliente.</p>
+              <button onClick={() => handleConfirmarEnvioPV(tarefaSelecionada)} style={{background:'#22c55e', color:'#fff', padding:'16px 35px', border:'none', borderRadius:'14px', cursor:'pointer', fontSize: '16px', fontWeight:'700', display:'flex', alignItems:'center', gap:'12px', transition:'0.3s'}}>
+                  <Send size={20}/> MARCAR COMO ENVIADO AO CLIENTE
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* OBSERVAÇÕES — só mostra se tiver conteúdo */}
         {tarefaSelecionada.obs && (
-          <div style={{ marginTop:'20px', background:'#fef2f2', padding:'20px', borderRadius:'16px', border:'1px solid var(--portal-border)' }}>
+          <div style={{ marginTop:'20px', background:'var(--portal-bg-card)', padding:'20px', borderRadius:'16px', border:'1px solid var(--portal-border)' }}>
             <label style={{...labelModalStyle, marginBottom:'8px'}}>Observacoes</label>
             <textarea style={{...inputStyleModal, height:'80px', resize: 'none', padding:'12px'}} defaultValue={tarefaSelecionada.obs} onBlur={e => handleUpdateField(tarefaSelecionada.id, 'obs', e.target.value)} />
           </div>
@@ -692,20 +787,7 @@ export default function Kanban() {
           )}
         </div>
 
-        <div style={{marginTop:'50px', display:'flex', flexDirection:'column', gap:'20px'}}>
-          {/* Preferência de envio do boleto — sempre visível (todas as fases), ligada ao cliente */}
-          <PreferenciaEnvioBoleto card={tarefaSelecionada} />
-          {tarefaSelecionada.status === 'enviar_cliente' && (
-            <>
-              <div style={{background:'#f0fdf4', padding:'40px', borderRadius:'24px', border:'1px solid #bbf7d0'}}>
-                <label style={{...labelModalStyle, color:'#16a34a', fontSize: '18px'}}>AÇÃO REQUERIDA</label>
-                <p style={{color: 'var(--portal-text-secondary)', marginBottom: '25px', fontSize: '14px'}}>Confirme após enviar os documentos ao cliente.</p>
-                <button onClick={() => handleConfirmarEnvioPV(tarefaSelecionada)} style={{background:'#22c55e', color:'#fff', padding:'20px 45px', border:'none', borderRadius:'14px', cursor:'pointer', fontSize: '18px', display:'flex', alignItems:'center', gap:'15px', transition:'0.3s'}}>
-                    <Send size={22}/> MARCAR COMO ENVIADO AO CLIENTE
-                </button>
-              </div>
-            </>
-          )}
+        <div style={{marginTop:'30px', display:'flex', flexDirection:'column', gap:'20px'}}>
 
           {(tarefaSelecionada.status === 'aguardando_vencimento' || (exigeComprovantePago(tarefaSelecionada.forma_pagamento) && tarefaSelecionada.status !== 'pago' && tarefaSelecionada.status !== 'concluido')) && (
             <div style={{background:'#eff6ff', padding:'40px', borderRadius:'24px', border:'1px solid #bfdbfe'}}>
@@ -736,15 +818,38 @@ export default function Kanban() {
     </div>
    )}
 
+   {/* Orientação do envio rápido + configuração do e-mail de envio na hora */}
+   <EnvioGuiaModal
+     info={envioGuia}
+     onClose={() => setEnvioGuia(null)}
+     onAbrirCard={() => { setTarefaSelecionada(envioGuia.card); setEnvioGuia(null); }}
+     onConfigEmail={() => { setCfgEmailCard(envioGuia.card); setEnvioGuia(null); }}
+     onMarcarEnviado={() => { const c = envioGuia.card; setEnvioGuia(null); handleConfirmarEnvioPV(c); }}
+   />
+   <ConfigEmailEnvioModal
+     open={!!cfgEmailCard}
+     onClose={() => setCfgEmailCard(null)}
+     onSaved={() => { const c = cfgEmailCard; setCfgEmailCard(null); if (c) handleEnviarRapido(c); }}
+   />
+
    <style jsx global>{`
     .kanban-card { background: var(--portal-bg-card); border: 1px solid var(--portal-border); border-radius: 20px; cursor: pointer; transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1); overflow: hidden; margin-bottom: 5px; flex-shrink: 0; }
     .kanban-card:hover { transform: translateY(-6px); box-shadow: 0 12px 30px rgba(0,0,0,0.08); border-color: var(--portal-border); }
+    .spin-envio { animation: spin-envio 1s linear infinite; }
+    @keyframes spin-envio { to { transform: rotate(360deg); } }
     .btn-back { background: transparent; color: var(--portal-text-secondary); border: 1px solid var(--portal-border); padding: 12px 28px; border-radius: 14px; cursor: pointer; display: flex; align-items: center; gap: 10px; font-size:14px; transition: 0.2s; font-family: Inter, sans-serif; }
     .btn-back:hover { background: var(--portal-bg-secondary); color: var(--portal-text); }
     ::-webkit-scrollbar { width: 8px; height: 12px; }
     ::-webkit-scrollbar-track { background: var(--portal-bg-secondary); }
     ::-webkit-scrollbar-thumb { background: var(--portal-border); border-radius: 10px; border: 2px solid var(--portal-bg-secondary); }
    `}</style>
+
+   <ConfirmarFaseModal
+     open={!!confirmSemBoleto}
+     mensagem="Deseja mudar para a fase: Cliente sem boleto?"
+     onConfirm={() => { const t = confirmSemBoleto; setConfirmSemBoleto(null); handleMoverSemBoleto(t); }}
+     onCancel={() => setConfirmSemBoleto(null)}
+   />
   </div>
  )
 }
@@ -776,11 +881,15 @@ const cascadeValueStyle = { fontSize: '18px', color: 'var(--portal-text)', fontW
 
 const inputFilterStyle = { padding: '16px 20px 16px 52px', width: '100%', borderRadius: '14px', border: '1px solid var(--portal-border)', outline: 'none', background:'var(--portal-bg-card)', color:'var(--portal-text)', fontSize: '18px', boxSizing: 'border-box', fontFamily: 'Inter, sans-serif' };
 const iconFilterStyle = { position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--portal-text-secondary)', zIndex: 10 };
-const cardInfoStyle = { display:'flex', alignItems:'center', gap:'12px', color:'var(--portal-text-secondary)', fontSize:'15px', marginBottom:'10px' };
+// ── Ficha compacta (estilo dos cards) ──
+const fichaCorStatus = (s) => s === 'vencido' ? '#dc2626' : s === 'sem_boleto' ? '#f59e0b' : (s === 'pago' || s === 'concluido') ? '#16a34a' : '#8bc53f';
+const fichaLabelStatus = (s) => STATUS_CONFIG[s]?.label || (s === 'sem_boleto' ? 'CLIENTE SEM BOLETO' : s === 'validar_pix' ? 'VALIDAR PIX' : String(s || '').replace(/_/g, ' ').toUpperCase());
+const fichaTdLab = { padding:'4px 10px 4px 0', fontSize:'10.5px', fontWeight:'500', letterSpacing:'0.6px', textTransform:'uppercase', color:'#8a9479', width:'34%', borderBottom:'1px solid var(--portal-border)', whiteSpace:'nowrap' };
+const fichaTdVal = { padding:'4px 0', fontSize:'13px', color:'var(--portal-text)', fontWeight:'400', borderBottom:'1px solid var(--portal-border)', fontVariantNumeric:'tabular-nums' };
 const miniTagStyle = { background:'var(--portal-bg-secondary)', padding:'10px 15px', borderRadius:'12px', fontSize:'12px', color:'var(--portal-text-secondary)', display:'inline-flex', alignItems:'center', gap:'8px', border:'1px solid var(--portal-border)' };
 const inputStyleModal = { width: '100%', padding: '20px', border: '1px solid var(--portal-border)', borderRadius: '15px', outline: 'none', background:'var(--portal-bg-card)', color:'var(--portal-text)', fontSize: '18px', boxSizing: 'border-box', fontFamily: 'Inter, sans-serif' };
 const labelModalStyle = { fontSize:'14px', color:'var(--portal-text-secondary)', letterSpacing:'1px', textTransform:'uppercase', marginBottom:'10px', display:'block' };
 const pModalStyle = { fontSize:'32px', color:'var(--portal-text)', margin:'0' };
-const fieldBoxModal = { border: '1px solid var(--portal-border)', padding: '25px', borderRadius: '22px', background: '#fef2f2', flex: 1 };
+const fieldBoxModal = { border: '1px solid var(--portal-border)', padding: '20px 24px', borderRadius: '16px', background: 'var(--portal-bg-card)', boxShadow: '0 1px 3px rgba(16,24,40,.05)', flex: 1 };
 const fieldBoxInner = { padding: '10px' };
 const miniActionBtn = { background: 'transparent', border: 'none', padding: '12px 15px', color: '#374151', cursor: 'pointer', transition: '0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center' };

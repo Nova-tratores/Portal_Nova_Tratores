@@ -18,7 +18,9 @@
       "Bash(awk -F: '$1>=1770 && $1<=2215 {print}')",
       "Bash(:)",
       "WebFetch(domain:ajuda.omie.com.br)",
-      "WebFetch(domain:developer.omie.com.br)"
+      "WebFetch(domain:developer.omie.com.br)",
+      "Bash(grep -n \"} from 'lucide-react'\\\\|const \\\\[tarefaSelecionada\\\\|^  \\)\\\\s*$\\\\|^}\" src/app/\\\\\\(portal\\\\\\)/financeiro/home-posvendas/page.js)",
+      "Bash(grep -n \"} from 'lucide-react'\\\\|useState\\(null\\)\\\\|^  \\)\\\\s*$\\\\|^}\" src/app/\\\\\\(portal\\\\\\)/financeiro/kanban/page.js)"
     ],
     "additionalDirectories": [
       "C:\\projetos\\vendas-pwa\\src\\pages",

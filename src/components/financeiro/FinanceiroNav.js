@@ -82,17 +82,17 @@ export default function FinanceiroNav({ children }) {
   return (
     <div style={{
       position: 'sticky', top: '84px', zIndex: 30,
-      background: 'var(--portal-header-bg)', borderBottom: '1px solid var(--portal-border)',
+      background: '#c5e29f',
       boxShadow: '0 1px 4px var(--portal-shadow)',
       padding: '0 24px',
     }}>
       <div style={{
-        display: 'flex', alignItems: 'center',
+        display: 'flex', alignItems: 'flex-end',
         height: '56px', gap: '8px',
       }}>
-        {/* Nav tabs */}
+        {/* Nav — guias estilo Chrome, ancoradas na base da faixa verde */}
         <nav style={{
-          display: 'flex', alignItems: 'center', gap: '4px',
+          display: 'flex', alignItems: 'flex-end', gap: '3px',
           flex: 1, overflowX: 'auto',
         }}>
           {links.map(link => {
@@ -104,10 +104,11 @@ export default function FinanceiroNav({ children }) {
             return (
               <Link key={link.href} href={link.href} style={{
                 display: 'flex', alignItems: 'center', gap: '7px',
-                padding: '9px 18px', borderRadius: '8px',
+                padding: '11px 20px', borderRadius: '11px 11px 0 0',
                 fontSize: '15px', fontWeight: isActive ? '600' : '500',
-                color: isActive ? '#dc2626' : hasVencidos ? '#ef4444' : 'var(--portal-text-secondary)',
-                background: isActive ? 'var(--portal-bg-hover)' : hasVencidos ? 'rgba(239,68,68,0.06)' : 'transparent',
+                color: isActive ? 'var(--portal-text)' : hasVencidos ? '#dc2626' : 'var(--portal-text)',
+                background: isActive ? 'var(--portal-bg-card)' : hasVencidos ? 'rgba(239,68,68,0.14)' : 'rgba(255,255,255,0.45)',
+                boxShadow: isActive ? '0 -2px 6px rgba(0,0,0,0.07)' : 'none',
                 textDecoration: 'none', transition: 'all 0.15s',
                 whiteSpace: 'nowrap',
                 position: 'relative',
@@ -133,7 +134,7 @@ export default function FinanceiroNav({ children }) {
 
         {/* Action buttons (slot) */}
         {children && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', alignSelf: 'center', gap: '8px', flexShrink: 0 }}>
             {children}
           </div>
         )}

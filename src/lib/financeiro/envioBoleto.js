@@ -75,7 +75,7 @@ export async function tentarEnvioAutomaticoBoleto(card, remetente) {
       }),
     })
     const out = await res.json().catch(() => ({}))
-    if (!res.ok) return { status: 'erro', metodo: 'email', destinatarios, erro: out.error || 'Falha no envio' }
+    if (!res.ok) return { status: 'erro', metodo: 'email', destinatarios, erro: out.error || 'Falha no envio', semConfig: !!out.semConfig }
     return { status: 'enviado', metodo: 'email', destinatarios }
   } catch (e) {
     return { status: 'erro', metodo: 'email', destinatarios, erro: e.message }
@@ -117,7 +117,9 @@ export async function autoEnviarENotificar({ card, remetente, userId, audit }) {
     notificarSetor({ alvo: 'financeiro', titulo: `Boleto enviado automaticamente — ${cliente}`, descricao: `Email: ${emails}.`, link }) // sem userId → inclui quem gerou
     audit?.({ acao: 'enviar_email', detalhes: { auto: true, cliente, destinatarios: r.destinatarios, status: 'aguardando_vencimento' } })
   } else if (r.status === 'erro') {
-    notificarSetor({ alvo: 'posvendas', titulo: `Falha no envio automático do boleto — ${cliente}`, descricao: `${r.erro || 'Erro desconhecido'}. Envie manualmente.`, link })
+    // semConfig = o PRÓPRIO usuário precisa configurar o e-mail dele — não é falha
+    // do fluxo, então não espalha notificação pro setor.
+    if (!r.semConfig) notificarSetor({ alvo: 'posvendas', titulo: `Falha no envio automático do boleto — ${cliente}`, descricao: `${r.erro || 'Erro desconhecido'}. Envie manualmente.`, link })
     audit?.({ acao: 'erro_envio', detalhes: { auto: true, cliente, erro: r.erro } })
   } else if (r.status === 'whatsapp_manual') {
     notificarSetor({ alvo: 'posvendas', titulo: `Boleto pronto — enviar por WhatsApp — ${cliente}`, descricao: 'Cliente prefere WhatsApp (envio manual).', link })

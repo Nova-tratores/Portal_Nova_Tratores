@@ -6,16 +6,8 @@ import { urlSegura } from '@/lib/url-segura';
 import { formatarDataBR } from '@/lib/financeiro/parcelas';
 import { decrypt } from '@/lib/cripto';
 
-// Fallback: Gmail da empresa (usado quando o usuário não configurou um remetente).
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_APP_PASSWORD,
-  },
-  pool: true,
-  maxConnections: 3,
-});
+// Cada usuário envia PELO SEU e-mail (financeiro_envio_config). Não há mais
+// fallback pro Gmail da empresa — sem config, o envio pede pra configurar.
 
 // Service role p/ ler a config de envio do usuário (tabela com RLS fechada ao cliente).
 const adminSupa = createClient(
@@ -139,9 +131,13 @@ ${blocoValores}
   // Remetente por usuário: se ele configurou um e-mail de envio (SMTP + senha de app
   // criptografada), usa o transporte dele e põe o "De:" no e-mail dele. Senão, cai no
   // Gmail da empresa. Qualquer falha na config do usuário não bloqueia o envio.
+  // Remetente = SEMPRE o e-mail configurado pelo PRÓPRIO usuário (cada um envia
+  // pelo seu). NÃO cai mais no Gmail padrão do sistema: se o usuário não tem
+  // config, devolve semConfig=true pra UI pedir o e-mail/senha na hora.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let envioTransporter: any = transporter; // pool (Gmail) ou SMTP do usuário
-  let fromEmail = process.env.GMAIL_USER || '';
+  let envioTransporter: any = null;
+  let fromEmail = '';
+  let cfgErro: string | null = null;
   try {
     const { data: cfg } = await adminSupa
       .from('financeiro_envio_config')
@@ -159,7 +155,18 @@ ${blocoValores}
       fromEmail = cfg.email_envio;
     }
   } catch (e) {
-    console.error('Config de envio do usuário falhou, usando Gmail da empresa:', e);
+    cfgErro = e instanceof Error ? e.message : String(e);
+    console.error('[enviar-boleto] falha ao ler/descriptografar a config de e-mail do usuário:', cfgErro);
+  }
+
+  if (!envioTransporter || !fromEmail) {
+    // Sem e-mail próprio configurado → a UI mostra o modal pra configurar na hora.
+    return NextResponse.json({
+      error: cfgErro
+        ? 'Não consegui usar seu e-mail de envio. Reconfigure sua senha de app.'
+        : 'Você ainda não configurou o seu e-mail de envio. Configure para enviar pelo seu e-mail.',
+      semConfig: true,
+    }, { status: 400 });
   }
 
   const fromName = remetenteSan || 'Nova Tratores';

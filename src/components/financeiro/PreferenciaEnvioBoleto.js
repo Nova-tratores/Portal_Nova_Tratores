@@ -5,6 +5,7 @@ import { authHeaders } from '@/lib/auth/client'
 import { useAuth } from '@/hooks/useAuth'
 import { montarParcelas } from '@/lib/financeiro/parcelas'
 import { MessageCircle, Mail, Check, Pencil, Send, Plus, X } from 'lucide-react'
+import ConfigEmailEnvioModal from '@/components/financeiro/ConfigEmailEnvioModal'
 
 // Junta os boletos anexados do card numa lista de URLs
 function boletoUrls(card) {
@@ -33,18 +34,19 @@ export default function PreferenciaEnvioBoleto({ card, cnpj: cnpjProp, nome: nom
   const [enviando, setEnviando] = useState(false)
   const [carregando, setCarregando] = useState(true)
   const [aviso, setAviso] = useState(null)      // {tipo:'ok'|'erro', msg}
+  const [configEmailOpen, setConfigEmailOpen] = useState(false)   // modal "configurar meu e-mail"
+  const [emailsPendentes, setEmailsPendentes] = useState(null)    // reenvia após configurar
   const [meuEmailEnvio, setMeuEmailEnvio] = useState('') // "De:" (remetente do usuário)
 
   // Busca o e-mail de envio configurado pelo usuário (para mostrar "De:").
-  useEffect(() => {
-    (async () => {
-      try {
-        const r = await fetch('/api/financeiro/config-envio', { headers: { ...(await authHeaders()) } })
-        const c = await r.json()
-        if (c && !c.error) setMeuEmailEnvio(c.email_envio || '')
-      } catch {}
-    })()
-  }, [])
+  const carregarMeuEmail = async () => {
+    try {
+      const r = await fetch('/api/financeiro/config-envio', { headers: { ...(await authHeaders()) } })
+      const c = await r.json()
+      if (c && !c.error) setMeuEmailEnvio(c.email_envio || '')
+    } catch {}
+  }
+  useEffect(() => { carregarMeuEmail() }, [])
 
   const splitEmails = (s) => String(s || '').split(/[,;\s]+/).map(e => e.trim()).filter(Boolean)
   const urls = boletoUrls(card)
@@ -194,7 +196,11 @@ export default function PreferenciaEnvioBoleto({ card, cnpj: cnpjProp, nome: nom
         }),
       })
       const out = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(out.error || 'Falha no envio')
+      if (!res.ok) {
+        // Usuário ainda não configurou o e-mail dele → pede na hora e reenvia depois.
+        if (out.semConfig) { setEmailsPendentes(destinatarios); setConfigEmailOpen(true); return }
+        throw new Error(out.error || 'Falha no envio')
+      }
       setAviso({ tipo: 'ok', msg: `Boleto enviado para ${destinatarios.join(', ')}.` })
     } catch (e) {
       setAviso({ tipo: 'erro', msg: e.message })
@@ -246,6 +252,23 @@ export default function PreferenciaEnvioBoleto({ card, cnpj: cnpjProp, nome: nom
     </button>
   )
 
+  // Modal "meu e-mail de envio" — renderizado em TODOS os blocos (o botão
+  // Configurar/enviar pode ser clicado em qualquer estado do componente).
+  const configModal = (
+    <ConfigEmailEnvioModal
+      open={configEmailOpen}
+      emailInicial={userProfile?.email || ''}
+      onClose={() => setConfigEmailOpen(false)}
+      onSaved={() => {
+        setConfigEmailOpen(false)
+        carregarMeuEmail()
+        const alvo = emailsPendentes
+        setEmailsPendentes(null)
+        if (alvo) enviarBoleto(alvo)
+      }}
+    />
+  )
+
   // Visualização (registrado e não editando)
   if (pref && !editando) {
     const isWa = pref.metodo === 'whatsapp'
@@ -272,12 +295,19 @@ export default function PreferenciaEnvioBoleto({ card, cnpj: cnpjProp, nome: nom
         </div>
         {!isWa && (
           <div style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)', display: 'flex', flexDirection: 'column', gap: 3, padding: '10px 12px', background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 10 }}>
-            <div><b style={{ color: 'var(--portal-text)' }}>De:</b> {meuEmailEnvio || 'e-mail padrão da empresa'}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span><b style={{ color: 'var(--portal-text)' }}>De:</b> {meuEmailEnvio || <span style={{ color: '#dc2626', fontWeight: 600 }}>não configurado</span>}</span>
+              <button type="button" onClick={() => { setEmailsPendentes(null); setConfigEmailOpen(true); }}
+                style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5, background: 'transparent', border: '1px solid var(--portal-border)', borderRadius: 8, padding: '4px 10px', cursor: 'pointer', color: 'var(--portal-text-secondary)', fontSize: 11.5, fontWeight: 700 }}>
+                <Pencil size={12} /> {meuEmailEnvio ? 'Alterar' : 'Configurar'}
+              </button>
+            </div>
             <div style={{ wordBreak: 'break-all' }}><b style={{ color: 'var(--portal-text)' }}>Para:</b> {listaEmails.join(', ') || '—'}</div>
           </div>
         )}
         {avisoBox}
         {isWa ? btnEnviarWhats(pref.whatsapp) : btnEnviarEmail(listaEmails)}
+        {configModal}
       </div>
     )
   }
@@ -328,6 +358,8 @@ export default function PreferenciaEnvioBoleto({ card, cnpj: cnpjProp, nome: nom
           </button>
         )}
       </div>
+
+      {configModal}
     </div>
   )
 }

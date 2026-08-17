@@ -62,6 +62,14 @@ const dropItemStyle = { padding:'15px 20px', cursor:'pointer', color:'var(--port
 const colWrapperStyle = { padding: '18px', background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: '16px', boxShadow: '0 1px 3px rgba(16,24,40,0.05)' };
 const colTitleStyle = { textAlign: 'center', fontSize: '14px', color:'var(--portal-text-secondary)', fontWeight:'700', marginBottom:'20px', textTransform:'uppercase', letterSpacing: '1px' };
 const miniTagStyle = { background: 'var(--portal-bg-secondary)', padding: '5px 11px', color: 'var(--portal-text-secondary)', fontSize: '12.5px', display: 'inline-flex', alignItems: 'center', gap: '6px', border: '1px solid var(--portal-border)', borderRadius: '8px', fontWeight: '600' };
+// ── Ficha compacta (estilo dos cards) ──
+const fichaBarStyle = { display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', borderBottom: '1px dashed var(--portal-border)' };
+const fichaDotStyle = (cor) => ({ width: '9px', height: '9px', borderRadius: '50%', flexShrink: 0, background: cor });
+const fichaBarLabStyle = (cor) => ({ flex: 1, fontSize: '10px', fontWeight: '500', letterSpacing: '0.9px', textTransform: 'uppercase', color: cor || 'var(--portal-text-secondary)' });
+const fichaIdStyle = { fontSize: '10.5px', color: '#9ca3af', fontWeight: '500', fontVariantNumeric: 'tabular-nums' };
+const fichaTdLab = { padding:'4px 10px 4px 0', fontSize:'10.5px', fontWeight:'500', letterSpacing:'0.6px', textTransform:'uppercase', color:'#8a9479', width:'34%', borderBottom:'1px solid var(--portal-border)', whiteSpace:'nowrap' };
+const fichaTdVal = { padding:'4px 0', fontSize:'13px', color:'var(--portal-text)', fontWeight:'400', borderBottom:'1px solid var(--portal-border)', fontVariantNumeric:'tabular-nums' };
+const fichaValorStyle = { marginTop: '10px', fontSize: '24px', fontWeight: '500', letterSpacing: '-0.5px', fontVariantNumeric: 'tabular-nums', color: '#16a34a' };
 const labelMStyle = { fontSize:'14px', color:'var(--portal-text-secondary)', textTransform:'uppercase', fontWeight: '500', marginBottom: '8px', display: 'block' };
 const pModalStyle = { fontSize:'24px', color:'var(--portal-text)', margin: 0, fontWeight: '400' };
 const fieldBoxModal = { border: '1px solid var(--portal-border)', padding: '30px', background: 'var(--portal-bg-card)', flex: 1, borderRadius: '15px' };
@@ -452,29 +460,33 @@ function HomeFinanceiroContent() {
         transformOrigin: 'top left',
         width: `${100 / zoom}%`
     }}>
-      <div style={colWrapperStyle}>
-       <div style={colTitleStyle}>Faturamento</div>
+      <div style={{ ...colWrapperStyle, borderRadius: 0, border: 'none', boxShadow: 'none', borderRight: '1px solid var(--portal-border)', paddingRight: '18px' }}>
+       <div style={{ ...colTitleStyle, background: '#c5e29f', color: '#3f6212', padding: '14px', borderRadius: '10px' }}>Faturamento<span style={{ marginLeft: '10px', background: 'rgba(255,255,255,.75)', borderRadius: '999px', padding: '2px 10px', fontSize: '12px', fontVariantNumeric: 'tabular-nums' }}>{listaBoletos.filter(c => c.status === 'gerar_boleto' || c.status === 'validar_pix' || (c.status === 'aguardando_vencimento' && (c.isTarefaPagamentoRealizado || c.parcelaVencida))).length}</span></div>
        <div style={{ display: 'flex', flexDirection: 'column', gap: '0px', borderTop: '0.5px solid var(--portal-border)' }}>
         {listaBoletos.filter(c => c.status === 'gerar_boleto' || c.status === 'validar_pix' || (c.status === 'aguardando_vencimento' && (c.isTarefaPagamentoRealizado || c.parcelaVencida))).map((t, idx) => (
-         <div key={`bol-${t.id}-${idx}`} onClick={() => setTarefaSelecionada(t)} className="task-card-grid">
-          <div style={{ background: 'var(--portal-bg-secondary)', padding: '24px', borderBottom: '0.5px solid var(--portal-border)' }}>
-            <h4 style={{ margin: 0, fontSize: '18px', fontWeight:'500', color: 'var(--portal-text)' }}>{t.nom_cliente?.toUpperCase()}</h4>
+         <div key={`bol-${t.id}-${idx}`} onClick={() => setTarefaSelecionada(t)} className="task-card-grid" style={{ borderRadius: '12px', border: '1px solid rgba(0,0,0,0.5)', marginBottom: '8px', boxShadow: 'none' }}>
+          <div style={fichaBarStyle}>
+            <span style={fichaDotStyle(t.isVencidoDisplay ? '#dc2626' : '#8bc53f')} />
+            <span style={fichaBarLabStyle(t.isVencidoDisplay ? '#dc2626' : null)}>{t.status === 'validar_pix' ? 'Validar Pix' : t.status === 'aguardando_vencimento' ? 'Aguardando vencimento' : 'Gerar boleto'}</span>
+            <span style={fichaIdStyle}>#{t.id}</span>
+          </div>
+          <div style={{ padding: '11px 14px 13px', background: 'var(--portal-bg-card)' }}>
+            <h4 style={{ margin: 0, fontSize: '16px', fontWeight:'500', lineHeight: 1.3, color: 'var(--portal-text)' }}>{t.nom_cliente?.toUpperCase()}</h4>
             {t.isTarefaPagamentoRealizado && (
-                <div style={{ marginTop: '12px', background: 'linear-gradient(90deg, #3b82f6, #2563eb)', color: '#fff', fontSize: '10px', fontWeight: '600', padding: '6px 12px', borderRadius: '4px', display: 'inline-flex', alignItems: 'center', gap: '6px', boxShadow: '0 4px 10px rgba(37, 99, 235, 0.2)' }}>
+                <div style={{ marginTop: '10px', background: 'linear-gradient(90deg, #3b82f6, #2563eb)', color: '#fff', fontSize: '10px', fontWeight: '600', padding: '6px 12px', borderRadius: '4px', display: 'inline-flex', alignItems: 'center', gap: '6px', boxShadow: '0 4px 10px rgba(37, 99, 235, 0.2)' }}>
                     <CheckCircle size={14}/> PAGAMENTO REALIZADO - CONFERIR
                 </div>
             )}
-          </div>
-          <div style={{ padding: '24px', background: 'var(--portal-bg-card)' }}>
-            <div style={miniTagStyle}><CreditCard size={14}/> {t.forma_pagamento?.toUpperCase()}</div>
-            {(t.num_nf_servico || t.num_nf_peca) && (
-              <div style={{display:'flex', gap:'6px', marginTop:'10px', flexWrap:'wrap'}}>
-                {t.num_nf_servico && <span style={{background:'#f0fdf4', color:'#16a34a', fontSize:'11px', fontWeight:'600', padding:'3px 8px', border:'1px solid #bbf7d0', borderRadius:'4px'}}>NF S {t.num_nf_servico}</span>}
-                {t.num_nf_peca && <span style={{background:'#eff6ff', color:'#3b82f6', fontSize:'11px', fontWeight:'600', padding:'3px 8px', border:'1px solid #bfdbfe', borderRadius:'4px'}}>NF P {t.num_nf_peca}</span>}
-              </div>
-            )}
-            <div style={{fontSize:'26px', color:'var(--portal-text)', margin: '15px 0 5px 0', fontWeight: '600'}}>{formatarMoeda(t.valor_exibicao)}</div>
-            <div style={{fontSize:'14px', color: 'var(--portal-text-secondary)', textTransform:'uppercase', letterSpacing:'1px'}}>{t.status === 'validar_pix' ? 'VALIDAÇÃO PIX' : `Venc: ${formatarData(t.vencimento_boleto)}`}</div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', margin: '10px 0 2px' }}>
+              <tbody>
+                <tr><td style={fichaTdLab}>Forma</td><td style={fichaTdVal}>{t.forma_pagamento?.toUpperCase() || '—'}</td></tr>
+                <tr><td style={fichaTdLab}>Venc</td><td style={fichaTdVal}>{t.status === 'validar_pix' ? 'VALIDAÇÃO PIX' : formatarData(t.vencimento_boleto)}</td></tr>
+                {(t.num_nf_servico || t.num_nf_peca) && (
+                  <tr><td style={fichaTdLab}>NF</td><td style={fichaTdVal}>{[t.num_nf_servico && `S ${t.num_nf_servico}`, t.num_nf_peca && `P ${t.num_nf_peca}`].filter(Boolean).join(' / ')}</td></tr>
+                )}
+              </tbody>
+            </table>
+            <div style={fichaValorStyle}>{formatarMoeda(t.valor_exibicao)}</div>
             {t.anexo_boleto && (t.status === 'gerar_boleto' || t.status === 'validar_pix') && (
                 <div style={{marginTop: '12px', display:'flex', alignItems:'center', gap:'8px', color: '#4f46e5', fontSize: '12px', fontWeight: '500'}} title="Boleto já foi anexado">
                   <FileText size={16} /> BOLETO ANEXADO
@@ -498,25 +510,14 @@ function HomeFinanceiroContent() {
        </div>
       </div>
 
-      <div style={colWrapperStyle}>
-       <div style={colTitleStyle}>Requisições</div>
+      <div style={{ ...colWrapperStyle, borderRadius: 0, border: 'none', boxShadow: 'none', borderRight: '1px solid var(--portal-border)', paddingRight: '18px' }}>
+       <div style={{ ...colTitleStyle, background: '#c5e29f', color: '#3f6212', padding: '14px', borderRadius: '10px' }}>Requisições<span style={{ marginLeft: '10px', background: 'rgba(255,255,255,.75)', borderRadius: '999px', padding: '2px 10px', fontSize: '12px', fontVariantNumeric: 'tabular-nums' }}>{listaPagar.length}</span></div>
        <div style={{ display: 'flex', flexDirection: 'column', gap: '0px', borderTop: '0.5px solid var(--portal-border)' }}>
         {listaPagar.map((t, idx) => (
-         <div key={`pag-${t.id}-${idx}`} onClick={() => setTarefaSelecionada(t)} className="task-card-grid">
-          <div style={{ background: 'var(--portal-bg-secondary)', padding: '24px', borderBottom: '0.5px solid var(--portal-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <h4 style={{ margin: 0, fontSize: '18px', fontWeight:'500', color: 'var(--portal-text)' }}>{t.fornecedor?.toUpperCase()}</h4>
-              {(getRequisicoes(t).filter(r => r.numero).length > 0 || t.anexo_requisicao) && (
-                <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                  {getRequisicoes(t).filter(r => r.numero).map((req, i) => (
-                    <span key={i} style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '10px', fontWeight: '600', padding: '4px 8px', border: '1px solid #7dd3fc', borderRadius: '4px' }}>#{req.numero}</span>
-                  ))}
-                  {t.anexo_requisicao && t.anexo_requisicao.split(',').filter(u => u.trim()).map((_, i) => (
-                    <span key={`old-${i}`} style={{ background: '#fef3c7', color: '#92400e', fontSize: '10px', fontWeight: '600', padding: '4px 8px', border: '1px solid #fcd34d', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}><Paperclip size={10}/> Req {i + 1}</span>
-                  ))}
-                </div>
-              )}
-            </div>
+         <div key={`pag-${t.id}-${idx}`} onClick={() => setTarefaSelecionada(t)} className="task-card-grid" style={{ borderRadius: '12px', border: '1px solid rgba(0,0,0,0.5)', marginBottom: '8px', boxShadow: 'none' }}>
+          <div style={fichaBarStyle}>
+            <span style={fichaDotStyle(t.omie_cod_lancamento ? '#16a34a' : '#8bc53f')} />
+            <span style={fichaBarLabStyle(null)}>Requisição</span>
             <div
               title={t.omie_cod_lancamento ? `Lançado no Omie nº ${t.omie_cod_lancamento}` : 'Clique no card para validar e enviar ao Omie'}
               style={{
@@ -526,47 +527,65 @@ function HomeFinanceiroContent() {
                 border: `1px solid ${t.omie_cod_lancamento ? '#86efac' : '#bfdbfe'}`,
                 color: t.omie_cod_lancamento ? '#15803d' : '#2563eb',
                 fontSize: '10px', fontWeight: 700, letterSpacing: '0.5px',
-                padding: '6px 10px', borderRadius: '8px', whiteSpace: 'nowrap',
+                padding: '4px 8px', borderRadius: '8px', whiteSpace: 'nowrap',
               }}
             >
               {t.omie_cod_lancamento ? <CheckCircle size={11} /> : <Send size={11} />}
               OMIE
             </div>
+            <span style={fichaIdStyle}>#{t.id}</span>
           </div>
-          <div style={{ padding: '24px', background: 'var(--portal-bg-card)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <div style={miniTagStyle}><CreditCard size={14}/> {t.metodo?.toUpperCase() || 'DESPESA'}</div>
-              <StatusEnvioBadge row={t} />
-            </div>
+          <div style={{ padding: '11px 14px 13px', background: 'var(--portal-bg-card)' }}>
+            <h4 style={{ margin: 0, fontSize: '16px', fontWeight:'500', lineHeight: 1.3, color: 'var(--portal-text)' }}>{t.fornecedor?.toUpperCase()}</h4>
+            {(getRequisicoes(t).filter(r => r.numero).length > 0 || t.anexo_requisicao) && (
+              <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                {getRequisicoes(t).filter(r => r.numero).map((req, i) => (
+                  <span key={i} style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '10px', fontWeight: '600', padding: '4px 8px', border: '1px solid #7dd3fc', borderRadius: '4px' }}>#{req.numero}</span>
+                ))}
+                {t.anexo_requisicao && t.anexo_requisicao.split(',').filter(u => u.trim()).map((_, i) => (
+                  <span key={`old-${i}`} style={{ background: '#fef3c7', color: '#92400e', fontSize: '10px', fontWeight: '600', padding: '4px 8px', border: '1px solid #fcd34d', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}><Paperclip size={10}/> Req {i + 1}</span>
+                ))}
+              </div>
+            )}
+            <table style={{ width: '100%', borderCollapse: 'collapse', margin: '10px 0 2px' }}>
+              <tbody>
+                <tr><td style={fichaTdLab}>Método</td><td style={fichaTdVal}>{t.metodo?.toUpperCase() || 'DESPESA'}</td></tr>
+                <tr><td style={fichaTdLab}>Venc</td><td style={fichaTdVal}>{formatarData(t.data_vencimento)}</td></tr>
+                <tr><td style={fichaTdLab}>Envio</td><td style={fichaTdVal}><StatusEnvioBadge row={t} /></td></tr>
+              </tbody>
+            </table>
             {t.metodo === 'Carnê ISS' && (
               <div style={{ marginTop: '8px', display: 'inline-block', background: '#fef3c7', color: '#92400e', fontSize: '11px', fontWeight: '700', padding: '4px 10px', borderRadius: '6px', border: '1px solid #fcd34d', letterSpacing: '0.5px' }}>CARNÊ ISS</div>
             )}
-            <div style={{fontSize:'26px', color:'var(--portal-text)', margin: '15px 0 5px 0', fontWeight: '600'}}>{formatarMoeda(t.valor)}</div>
-            <div style={{fontSize:'14px', color: 'var(--portal-text-secondary)', textTransform:'uppercase', letterSpacing:'1px'}}>Venc: {formatarData(t.data_vencimento)}</div>
+            <div style={fichaValorStyle}>{formatarMoeda(t.valor)}</div>
           </div>
          </div>
         ))}
        </div>
       </div>
 
-      <div style={colWrapperStyle}>
-       <div style={colTitleStyle}>Cliente Sem Boleto</div>
+      <div style={{ ...colWrapperStyle, borderRadius: 0, border: 'none', boxShadow: 'none', borderRight: '1px solid var(--portal-border)', paddingRight: '18px' }}>
+       <div style={{ ...colTitleStyle, background: '#fde68a', color: '#92400e', padding: '14px', borderRadius: '10px' }}>Cliente Sem Boleto<span style={{ marginLeft: '10px', background: 'rgba(255,255,255,.75)', borderRadius: '999px', padding: '2px 10px', fontSize: '12px', fontVariantNumeric: 'tabular-nums' }}>{listaSemBoleto.length}</span></div>
        <div style={{ display: 'flex', flexDirection: 'column', gap: '0px', borderTop: '0.5px solid var(--portal-border)' }}>
         {listaSemBoleto.map((t, idx) => (
-         <div key={`sb-${t.id}-${idx}`} onClick={() => setTarefaSelecionada(t)} className="task-card-grid" style={{ cursor: 'pointer' }}>
-          <div style={{ background: 'var(--portal-bg-secondary)', padding: '24px', borderBottom: '0.5px solid var(--portal-border)' }}>
-            <h4 style={{ margin: 0, fontSize: '18px', fontWeight:'500', color: 'var(--portal-text)' }}>{t.nom_cliente?.toUpperCase()}</h4>
+         <div key={`sb-${t.id}-${idx}`} onClick={() => setTarefaSelecionada(t)} className="task-card-grid" style={{ cursor: 'pointer', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.5)', marginBottom: '8px', boxShadow: 'none' }}>
+          <div style={fichaBarStyle}>
+            <span style={fichaDotStyle('#f59e0b')} />
+            <span style={fichaBarLabStyle('#b45309')}>Cliente sem boleto</span>
+            <span style={fichaIdStyle}>#{t.id}</span>
           </div>
-          <div style={{ padding: '24px', background: 'var(--portal-bg-card)' }}>
-            <div style={miniTagStyle}><CreditCard size={14}/> {t.forma_pagamento?.toUpperCase()}</div>
-            {(t.num_nf_servico || t.num_nf_peca) && (
-              <div style={{display:'flex', gap:'6px', marginTop:'10px', flexWrap:'wrap'}}>
-                {t.num_nf_servico && <span style={{background:'#f0fdf4', color:'#16a34a', fontSize:'11px', fontWeight:'600', padding:'3px 8px', border:'1px solid #bbf7d0', borderRadius:'4px'}}>NF S {t.num_nf_servico}</span>}
-                {t.num_nf_peca && <span style={{background:'#eff6ff', color:'#3b82f6', fontSize:'11px', fontWeight:'600', padding:'3px 8px', border:'1px solid #bfdbfe', borderRadius:'4px'}}>NF P {t.num_nf_peca}</span>}
-              </div>
-            )}
-            <div style={{fontSize:'26px', color:'var(--portal-text)', margin: '15px 0 5px 0', fontWeight: '600'}}>{formatarMoeda(t.valor_exibicao)}</div>
-            <div style={{fontSize:'14px', color: 'var(--portal-text-secondary)', textTransform:'uppercase', letterSpacing:'1px'}}>Venc: {formatarData(t.vencimento_boleto)}</div>
+          <div style={{ padding: '11px 14px 13px', background: 'var(--portal-bg-card)' }}>
+            <h4 style={{ margin: 0, fontSize: '16px', fontWeight:'500', lineHeight: 1.3, color: 'var(--portal-text)' }}>{t.nom_cliente?.toUpperCase()}</h4>
+            <table style={{ width: '100%', borderCollapse: 'collapse', margin: '10px 0 2px' }}>
+              <tbody>
+                <tr><td style={fichaTdLab}>Forma</td><td style={fichaTdVal}>{t.forma_pagamento?.toUpperCase() || 'SEM BOLETO'}</td></tr>
+                <tr><td style={fichaTdLab}>Venc</td><td style={fichaTdVal}>{formatarData(t.vencimento_boleto)}</td></tr>
+                {(t.num_nf_servico || t.num_nf_peca) && (
+                  <tr><td style={fichaTdLab}>NF</td><td style={fichaTdVal}>{[t.num_nf_servico && `S ${t.num_nf_servico}`, t.num_nf_peca && `P ${t.num_nf_peca}`].filter(Boolean).join(' / ')}</td></tr>
+                )}
+              </tbody>
+            </table>
+            <div style={fichaValorStyle}>{formatarMoeda(t.valor_exibicao)}</div>
           </div>
          </div>
         ))}

@@ -12,11 +12,15 @@ import { formatarDataBR, formatarMoeda, getRequisicoes } from '@/lib/financeiro/
 import Link from 'next/link'
 import {
   X, Send, ArrowLeft, RefreshCw, MessageSquare, PlusCircle, CheckCircle,
-  FileText, Download, Eye, Calendar, CreditCard, User as UserIcon, Tag, Search, DollarSign, Upload, Barcode, Trash2, Paperclip, AlertCircle, Clock
+  FileText, Download, Eye, Calendar, CreditCard, User as UserIcon, Tag, Search, DollarSign, Upload, Barcode, Trash2, Paperclip, AlertCircle, Clock, Wallet
 } from 'lucide-react'
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
+import ConfirmarFaseModal from '@/components/ConfirmarFaseModal'
 import { EnviarParaOmieBox } from '@/components/financeiro/OmieContaPagar'
 import PreferenciaEnvioBoleto from '@/components/financeiro/PreferenciaEnvioBoleto'
+import PrefEnvioBadge from '@/components/financeiro/PrefEnvioBadge'
+import { montarMapasPref, acharMetodo } from '@/lib/financeiro/prefEnvio'
+import { authHeaders } from '@/lib/auth/client'
 import { labelSetor, ehDoSetor, temNotaServico } from '@/lib/financeiro/setor'
 
 const FORMAS_BOLETO = ['Pix', 'Dinheiro', 'Boleto 30 dias', 'Boleto Parcelado', 'Cartão a vista', 'Cartão Parcelado', 'Cheque'];
@@ -67,6 +71,8 @@ function HomePosVendasContent() {
   const podeEditar = isAdmin // só admin do Pós-Vendas edita nome/condição/valor/data
   const { log: auditLog } = useAuditLog()
   const [tarefaSelecionada, setTarefaSelecionada] = useState(null);
+  const [confirmSemBoleto, setConfirmSemBoleto] = useState(null); // card aguardando confirmação p/ "Cliente sem boleto"
+  const [prefsEnvio, setPrefsEnvio] = useState({}); // mapa cnpj(dígitos) → método de envio do cliente
   const [cardLogs, setCardLogs] = useState([]);   // histórico (audit_log) do card aberto
   const [listaBoletos, setListaBoletos] = useState([]);
   const [listaSemBoleto, setListaSemBoleto] = useState([]);
@@ -93,6 +99,13 @@ function HomePosVendasContent() {
   const carregarDados = async () => {
     try {
       const { data: bolds } = await supabase.from('Chamado_NF').select('*').neq('status', 'concluido').order('id', {ascending: false});
+
+      // Preferência de envio do cliente (via servidor — a EnvioBoleto tem RLS no navegador)
+      try {
+        const rp = await fetch('/api/financeiro/prefs-envio', { headers: { ...(await authHeaders()) } });
+        const jp = await rp.json();
+        setPrefsEnvio(montarMapasPref(jp.prefs || []));
+      } catch {}
 
       // FILTRO: Remove PIX e foca em "Enviar para cliente" ou "Cobranca"
       const tarefasFaturamento = (bolds || [])
@@ -398,62 +411,67 @@ function HomePosVendasContent() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px' }}>
           {/* COLUNA FATURAMENTO (FILTRADA: SEM PIX, APENAS ENVIAR OU COBRAR) */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <div style={colHeaderStyle}>TAREFA FATURAMENTO</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0', borderRight: '1px solid var(--portal-border)', paddingRight: '20px' }}>
+              <div style={{ ...colHeaderStyle, background: '#c5e29f', color: '#3f6212', border: 'none', marginBottom: '14px' }}>TAREFA FATURAMENTO<span style={{ marginLeft: '10px', background: 'rgba(255,255,255,.75)', borderRadius: '999px', padding: '2px 10px', fontSize: '13px', fontVariantNumeric: 'tabular-nums' }}>{listaBoletos.length}</span></div>
               {listaBoletos.map(t => (
-                <div key={`boleto-${t.id}`} className="task-card" style={{ position: 'relative' }}>
-                  <span style={setorBadgeStyle}>{labelSetor(t)}</span>
-                  <div onClick={() => setTarefaSelecionada(t)} style={{ background: t.tarefa?.includes('Cobrar') ? '#fef2f2' : 'var(--portal-bg-card)', padding: '25px', borderBottom: '1px solid var(--portal-border)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{fontSize: '10px', color: t.tarefa?.includes('Cobrar') ? '#dc2626' : 'var(--portal-text-secondary)', letterSpacing:'1px', marginBottom: '8px', textTransform:'uppercase'}}>{t.tarefa}</div>
-                        <span style={{fontSize:'18px', color:'var(--portal-text)', display:'block', lineHeight: '1.2'}}>{t.nom_cliente?.toUpperCase()}</span>
-                        {t.isPagamentoRealizado && <div style={{marginTop: '10px', color: '#10b981', fontSize: '11px', fontWeight: '600'}}>&#10003; PAGAMENTO REALIZADO</div>}
-                      </div>
+                <div key={`boleto-${t.id}`} className="task-card" style={{ borderRadius: '12px', border: '1px solid rgba(0,0,0,0.5)', marginBottom: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', borderBottom: '1px dashed var(--portal-border)' }}>
+                    <span style={{ width: '9px', height: '9px', borderRadius: '50%', flexShrink: 0, background: t.tarefa?.includes('Cobrar') ? '#dc2626' : '#8bc53f' }} />
+                    <span style={{ flex: 1, fontSize: '10px', fontWeight: '500', letterSpacing: '0.9px', textTransform: 'uppercase', color: t.tarefa?.includes('Cobrar') ? '#dc2626' : 'var(--portal-text-secondary)' }}>{t.tarefa}</span>
+                    <span style={{ ...setorBadgeStyle, position: 'static' }}>{labelSetor(t)}</span>
+                    <span style={{ fontSize: '10.5px', color: '#9ca3af', fontWeight: '500', fontVariantNumeric: 'tabular-nums' }}>#{t.id}</span>
+                  </div>
+                  <div onClick={() => setTarefaSelecionada(t)} style={{ padding: '11px 14px 13px', cursor: 'pointer' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                      <h4 style={{ margin: 0, flex: 1, fontSize: '16px', fontWeight: '500', lineHeight: 1.3, color: 'var(--portal-text)' }}>{t.nom_cliente?.toUpperCase()}</h4>
                       <button
-                        title="Mover para Cliente Sem Boleto"
-                        onClick={(e) => { e.stopPropagation(); handleMoverSemBoleto(t); }}
-                        style={{ background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: '8px', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--portal-text-secondary)', fontSize: '14px', fontWeight: '700', transition: '0.2s', flexShrink: 0 }}
+                        title="Mover para Cliente sem boleto"
+                        onClick={(e) => { e.stopPropagation(); setConfirmSemBoleto(t); }}
+                        style={{ background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: '8px', width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--portal-text-secondary)', fontSize: '14px', fontWeight: '700', transition: '0.2s', flexShrink: 0 }}
                         onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#dc2626'; e.currentTarget.style.borderColor = '#fca5a5'; }}
                         onMouseLeave={e => { e.currentTarget.style.background = 'var(--portal-bg-secondary)'; e.currentTarget.style.color = 'var(--portal-text-secondary)'; e.currentTarget.style.borderColor = 'var(--portal-border)'; }}
-                      >@</button>
+                      ><Wallet size={20} /></button>
                     </div>
-                  </div>
-                  <div onClick={() => setTarefaSelecionada(t)} style={{ padding: '25px', background: 'var(--portal-bg-secondary)', cursor: 'pointer' }}>
-                    <div style={{display:'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom:'15px'}}>
-                      <div style={cardMetaStyle}><CreditCard size={13}/> {t.forma_pagamento?.toUpperCase()}</div>
-                      <div style={cardMetaStyle}><Calendar size={13}/> {formatarDataBR(t.vencimento_boleto)}</div>
-                    </div>
-                    {(t.num_nf_servico || t.num_nf_peca) && (
-                      <div style={{display:'flex', gap:'6px', marginBottom:'10px', flexWrap:'wrap'}}>
-                        {t.num_nf_servico && <span style={{background:'#f0fdf4', color:'#16a34a', fontSize:'11px', fontWeight:'600', padding:'3px 8px', border:'1px solid #bbf7d0', borderRadius:'4px'}}>NF S {t.num_nf_servico}</span>}
-                        {t.num_nf_peca && <span style={{background:'#eff6ff', color:'#3b82f6', fontSize:'11px', fontWeight:'600', padding:'3px 8px', border:'1px solid #bfdbfe', borderRadius:'4px'}}>NF P {t.num_nf_peca}</span>}
-                      </div>
-                    )}
-                    <div style={{fontSize:'26px', color: 'var(--portal-text)'}}>{formatarMoeda(t.valor_exibicao)}</div>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', margin: '10px 0 2px' }}>
+                      <tbody>
+                        <tr><td style={fichaTdLab}>Envio</td><td style={fichaTdVal}><PrefEnvioBadge metodo={acharMetodo(t, prefsEnvio)} /></td></tr>
+                        <tr><td style={fichaTdLab}>Forma</td><td style={fichaTdVal}>{t.forma_pagamento?.toUpperCase() || '—'}</td></tr>
+                        <tr><td style={fichaTdLab}>Venc</td><td style={fichaTdVal}>{formatarDataBR(t.vencimento_boleto)}</td></tr>
+                        {(t.num_nf_servico || t.num_nf_peca) && (
+                          <tr><td style={fichaTdLab}>NF</td><td style={fichaTdVal}>{[t.num_nf_servico && `S ${t.num_nf_servico}`, t.num_nf_peca && `P ${t.num_nf_peca}`].filter(Boolean).join(' / ')}</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                    {t.isPagamentoRealizado && <div style={{marginTop: '10px', color: '#10b981', fontSize: '11px', fontWeight: '600'}}>&#10003; PAGAMENTO REALIZADO</div>}
+                    <div style={{ marginTop: '10px', fontSize: '24px', fontWeight: '500', letterSpacing: '-0.5px', fontVariantNumeric: 'tabular-nums', color: t.tarefa?.includes('Cobrar') ? '#dc2626' : '#16a34a' }}>{formatarMoeda(t.valor_exibicao)}</div>
                   </div>
                 </div>
               ))}
           </div>
 
           {/* COLUNA CLIENTE SEM BOLETO */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <div style={colHeaderStyle}>CLIENTE SEM BOLETO</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0', borderRight: '1px solid var(--portal-border)', paddingRight: '20px' }}>
+              <div style={{ ...colHeaderStyle, background: '#fde68a', color: '#92400e', border: 'none', marginBottom: '14px' }}>CLIENTE SEM BOLETO<span style={{ marginLeft: '10px', background: 'rgba(255,255,255,.75)', borderRadius: '999px', padding: '2px 10px', fontSize: '13px', fontVariantNumeric: 'tabular-nums' }}>{listaSemBoleto.length}</span></div>
               {listaSemBoleto.map(t => (
-                <div key={`sb-${t.id}`} onClick={() => setTarefaSelecionada(t)} className="task-card" style={{ cursor: 'pointer', position: 'relative' }}>
-                  <span style={setorBadgeStyle}>{labelSetor(t)}</span>
-                  <div style={{ background: 'var(--portal-bg-card)', padding: '25px', borderBottom: '1px solid var(--portal-border)' }}>
-                    <div style={{fontSize: '10px', color: 'var(--portal-text-secondary)', letterSpacing:'1px', marginBottom: '8px', textTransform:'uppercase'}}>{t.forma_pagamento?.toUpperCase() || 'SEM BOLETO'}</div>
-                    <span style={{fontSize:'18px', color:'var(--portal-text)', display:'block', lineHeight: '1.2'}}>{t.nom_cliente?.toUpperCase()}</span>
+                <div key={`sb-${t.id}`} onClick={() => setTarefaSelecionada(t)} className="task-card" style={{ cursor: 'pointer', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.5)', marginBottom: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', borderBottom: '1px dashed var(--portal-border)' }}>
+                    <span style={{ width: '9px', height: '9px', borderRadius: '50%', flexShrink: 0, background: '#f59e0b' }} />
+                    <span style={{ flex: 1, fontSize: '10px', fontWeight: '500', letterSpacing: '0.9px', textTransform: 'uppercase', color: '#b45309' }}>Cliente sem boleto</span>
+                    <span style={{ ...setorBadgeStyle, position: 'static' }}>{labelSetor(t)}</span>
+                    <span style={{ fontSize: '10.5px', color: '#9ca3af', fontWeight: '500', fontVariantNumeric: 'tabular-nums' }}>#{t.id}</span>
                   </div>
-                  <div style={{ padding: '20px 25px', background: 'var(--portal-bg-secondary)' }}>
-                    <div style={{display:'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom:'10px'}}>
-                      <div style={cardMetaStyle}><Calendar size={13}/> {formatarDataBR(t.vencimento_boleto)}</div>
-                      {(t.num_nf_servico || t.num_nf_peca) && (
-                        <div style={cardMetaStyle}><FileText size={13}/> {[t.num_nf_servico && `S ${t.num_nf_servico}`, t.num_nf_peca && `P ${t.num_nf_peca}`].filter(Boolean).join(' / ')}</div>
-                      )}
-                    </div>
-                    <div style={{fontSize:'22px', color: 'var(--portal-text)'}}>{formatarMoeda(t.valor_exibicao)}</div>
+                  <div style={{ padding: '11px 14px 13px' }}>
+                    <h4 style={{ margin: 0, fontSize: '16px', fontWeight: '500', lineHeight: 1.3, color: 'var(--portal-text)' }}>{t.nom_cliente?.toUpperCase()}</h4>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', margin: '10px 0 2px' }}>
+                      <tbody>
+                        <tr><td style={fichaTdLab}>Forma</td><td style={fichaTdVal}>{t.forma_pagamento?.toUpperCase() || 'SEM BOLETO'}</td></tr>
+                        <tr><td style={fichaTdLab}>Venc</td><td style={fichaTdVal}>{formatarDataBR(t.vencimento_boleto)}</td></tr>
+                        {(t.num_nf_servico || t.num_nf_peca) && (
+                          <tr><td style={fichaTdLab}>NF</td><td style={fichaTdVal}>{[t.num_nf_servico && `S ${t.num_nf_servico}`, t.num_nf_peca && `P ${t.num_nf_peca}`].filter(Boolean).join(' / ')}</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                    <div style={{ marginTop: '10px', fontSize: '22px', fontWeight: '500', letterSpacing: '-0.5px', fontVariantNumeric: 'tabular-nums', color: '#16a34a' }}>{formatarMoeda(t.valor_exibicao)}</div>
                   </div>
                 </div>
               ))}
@@ -845,12 +863,23 @@ function HomePosVendasContent() {
         .task-card { transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; border-radius: 20px; overflow: hidden; border: 1px solid var(--portal-border); margin-bottom: 5px; background: var(--portal-bg-card); }
         .task-card:hover { transform: translateY(-6px); box-shadow: 0 12px 30px rgba(0,0,0,0.08); border-color: #d1d5db; }
       `}</style>
+
+      <ConfirmarFaseModal
+        open={!!confirmSemBoleto}
+        mensagem="Deseja mudar para a fase: Cliente sem boleto?"
+        onConfirm={() => { const t = confirmSemBoleto; setConfirmSemBoleto(null); handleMoverSemBoleto(t); }}
+        onCancel={() => setConfirmSemBoleto(null)}
+      />
     </div>
   )
 }
 
 const colHeaderStyle = { padding: '18px', textAlign: 'center', fontSize: '16px', background: 'var(--portal-bg-card)', borderRadius: '16px', border: '1px solid var(--portal-border)', color: 'var(--portal-text-secondary)', letterSpacing:'1.5px', fontWeight:'600' };
-const cardMetaStyle = { display:'flex', alignItems:'center', gap:'8px', color:'var(--portal-text-secondary)', fontSize:'13px', background:'var(--portal-bg-card)', padding:'6px 10px', borderRadius:'10px', border: '1px solid var(--portal-border)' };
+const cardMetaStyle = { display:'flex', alignItems:'center', gap:'8px', color:'#4d7c0f', fontSize:'13px', background:'#c5e29f', padding:'6px 10px', borderRadius:'10px', border: '1px solid #a8d36f' };
+const cardMetaAmbarStyle = { ...cardMetaStyle, color:'#b45309', background:'#fef3c7', border:'1px solid #fcd34d' }; // card "Cliente sem boleto" = âmbar de atenção
+// ── Ficha compacta (estilo dos cards) ──
+const fichaTdLab = { padding:'4px 10px 4px 0', fontSize:'10.5px', fontWeight:'500', letterSpacing:'0.6px', textTransform:'uppercase', color:'#8a9479', width:'34%', borderBottom:'1px solid var(--portal-border)', whiteSpace:'nowrap' };
+const fichaTdVal = { padding:'4px 0', fontSize:'13px', color:'var(--portal-text)', fontWeight:'400', borderBottom:'1px solid var(--portal-border)', fontVariantNumeric:'tabular-nums' };
 const btnNovoStyle = { background:'#dc2626', color:'#fff', border:'none', padding:'12px 28px', borderRadius:'14px', cursor:'pointer', display:'flex', alignItems:'center', gap:'12px', fontSize: '15px' };
 const dropdownStyle = { position:'absolute', top:'65px', right: 0, background:'var(--portal-bg-card)', borderRadius:'22px', boxShadow: '0 20px 50px rgba(0,0,0,0.12)', zIndex:2000, width:'300px', border:'1px solid var(--portal-border)', overflow:'hidden' };
 const dropdownItemStyle = { padding:'18px 25px', cursor:'pointer', borderBottom:'1px solid var(--portal-border)', fontSize:'15px', color: 'var(--portal-text-secondary)', transition:'0.2s' };
