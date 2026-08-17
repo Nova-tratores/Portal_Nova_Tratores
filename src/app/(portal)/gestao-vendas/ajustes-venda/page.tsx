@@ -26,10 +26,29 @@ type Edits = {
   custos_extras?: number
   desconto?: number
   comissao_override_pct?: number | null
+  cmc_override?: number | null // CMC total corrigido à mão; null = usa snapshot
 }
 
 // famílias de peças e #N/D começam desmarcadas (sobra praticamente todo o resto)
 const FAMILIA_EXCLUIDA_PADRAO = /pe[çc]a|#?n\/d/i
+
+const norm = (s: string) =>
+  s.trim().toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '')
+
+// mesma regra do estoque (classificarGrupo em lib/estoque/cruzamento-familia):
+// peça / #N/D / sem família / kit-revisão / ativo-imobilizado NÃO são máquina;
+// tudo o resto é. Usada pelo atalho "Só máquinas".
+function ehFamiliaMaquina(familia: string): boolean {
+  const fam = norm(familia)
+  if (
+    !fam || fam === 'nd' || fam === 'n/d' || fam === '#n/d' ||
+    fam.includes('sem famil') || fam.includes('sem nome') || fam.includes('indefinid')
+  ) return false
+  if (fam.includes('kit') && fam.includes('revis')) return false
+  if (fam.includes('ativo') && fam.includes('imobiliz')) return false
+  if (fam.includes('peca')) return false
+  return true
+}
 
 // família real vem do master de produtos; cai no campo da venda; vazio = #N/D
 function familiaDe(l: LinhaAjuste): string {
@@ -48,9 +67,14 @@ function statusDe(l: LinhaAjuste): string {
   return l.ajuste?.status ?? 'sem'
 }
 
+// CMC efetivo da linha: override manual (se houver) ou o snapshot do sync
+function cmcTotalDe(l: LinhaAjuste): number {
+  return l.ajuste?.cmc_override ?? (l.venda.cmc_unitario ?? 0) * l.venda.quantidade
+}
+
 // valores derivados (comissão/margem) usados para ordenar as colunas calculadas
 function derivar(l: LinhaAjuste) {
-  const cmcTotal = (l.venda.cmc_unitario ?? 0) * l.venda.quantidade
+  const cmcTotal = cmcTotalDe(l)
   const aj = l.ajuste
   const c = calcular({
     valor_venda: l.venda.valor_total,
@@ -205,6 +229,14 @@ export default function GvAjustesPage() {
   const filtroColunaAtivo =
     fPedido.trim() !== '' || fProduto.trim() !== '' || fCliente.trim() !== '' || fVendedor !== '' || fStatus !== ''
   const familiaPadrao = () => setFamilias(opcoesFamilias.filter((f) => !FAMILIA_EXCLUIDA_PADRAO.test(f)))
+  const soMaquinas = () => setFamilias(opcoesFamilias.filter(ehFamiliaMaquina))
+
+  // já está no modo "só máquinas"? (exatamente as famílias de máquina selecionadas)
+  const opcoesMaquinas = useMemo(() => opcoesFamilias.filter(ehFamiliaMaquina), [opcoesFamilias])
+  const modoSoMaquinas =
+    opcoesMaquinas.length > 0 &&
+    familias.length === opcoesMaquinas.length &&
+    opcoesMaquinas.every((f) => familias.includes(f))
 
   async function salvar(linha: LinhaAjuste, edits: Edits): Promise<{ ok: boolean; error?: string }> {
     const venda = linha.venda
@@ -223,7 +255,10 @@ export default function GvAjustesPage() {
         departamento: venda.departamento,
         produto_descricao: venda.descricao,
         valor_venda: venda.valor_total,
+        // envia sempre o snapshot cru; o servidor aplica o override quando houver
         cmc_total: (venda.cmc_unitario ?? 0) * venda.quantidade,
+        cmc_override:
+          edits.cmc_override !== undefined ? edits.cmc_override : aj?.cmc_override ?? null,
         vendedor: edits.vendedor !== undefined ? edits.vendedor : aj?.vendedor ?? null,
         custos_extras: edits.custos_extras ?? aj?.custos_extras ?? 0,
         desconto: edits.desconto ?? aj?.desconto ?? 0,
@@ -249,7 +284,8 @@ export default function GvAjustesPage() {
         <p className="text-sm text-gray-500">
           {nomeEmpresaGV(conta)} — {formatCompetencia(mes, ano)} — {ordenadas.length} de {linhas.length} venda(s).
           Save acontece ao sair do campo (blur). Cor da margem: &lt;80% vermelho · 80–89% amarelo ·
-          ≥90% verde (CMC/Venda).
+          ≥90% verde (CMC/Venda). O CMC é editável — corrija à mão quando o sync trouxer valor
+          errado (fica em âmbar); vazio volta a usar o snapshot.
         </p>
       </div>
 
@@ -264,7 +300,19 @@ export default function GvAjustesPage() {
           onChange={setFamilias}
           opcoes={opcoesFamilias}
         />
-        {filtroFamiliaAtivo && (
+        <button
+          type="button"
+          onClick={soMaquinas}
+          className={`rounded-full border px-2 py-0.5 text-xs transition-colors ${
+            modoSoMaquinas
+              ? 'border-red-500 bg-red-500 text-white'
+              : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400 hover:text-gray-900'
+          }`}
+          title="Mostrar apenas famílias de máquina (exclui peças, #N/D, kit revisão e ativo imobilizado)"
+        >
+          🚜 Só máquinas
+        </button>
+        {filtroFamiliaAtivo && !modoSoMaquinas && (
           <button
             type="button"
             onClick={familiaPadrao}
@@ -418,20 +466,25 @@ function LinhaRow({
 }) {
   const { venda, ajuste } = linha
   const clienteNome = venda.cliente_nome
-  const cmcTotal = (venda.cmc_unitario ?? 0) * venda.quantidade
+  const cmcSnapshot = (venda.cmc_unitario ?? 0) * venda.quantidade
 
   const [vendedor, setVendedor] = useState(ajuste?.vendedor ?? '')
   const [custosExtras, setCustosExtras] = useState(String(ajuste?.custos_extras ?? 0))
   const [desconto, setDesconto] = useState(String(ajuste?.desconto ?? 0))
   const [commPct, setCommPct] = useState(String(ajuste?.comissao_override_pct ?? ajuste?.comissao_pct ?? 0))
+  const [cmcOverride, setCmcOverride] = useState(ajuste?.cmc_override == null ? '' : String(ajuste.cmc_override))
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+
+  const cmcOverridden = cmcOverride.trim() !== ''
+  const cmcTotal = cmcOverridden ? parseFloat(cmcOverride) || 0 : cmcSnapshot
 
   useEffect(() => {
     setVendedor(ajuste?.vendedor ?? '')
     setCustosExtras(String(ajuste?.custos_extras ?? 0))
     setDesconto(String(ajuste?.desconto ?? 0))
     setCommPct(String(ajuste?.comissao_override_pct ?? ajuste?.comissao_pct ?? 0))
+    setCmcOverride(ajuste?.cmc_override == null ? '' : String(ajuste.cmc_override))
   }, [ajuste])
 
   const calc = useMemo(
@@ -497,8 +550,27 @@ function LinhaRow({
           ))}
         </select>
       </td>
-      <td className="px-2 py-1 text-right tabular-nums text-gray-500">
-        {venda.cmc_unitario == null ? '—' : formatBRL(cmcTotal)}
+      <td className="px-1 py-1">
+        <input
+          type="number"
+          step="0.01"
+          value={cmcOverride}
+          onChange={(e) => setCmcOverride(e.target.value)}
+          onBlur={(e) => {
+            const original = ajuste?.cmc_override == null ? '' : String(ajuste.cmc_override)
+            if (original !== e.target.value)
+              save({ cmc_override: e.target.value === '' ? null : Number(e.target.value) })
+          }}
+          placeholder={venda.cmc_unitario == null ? 'CMC' : formatBRL(cmcSnapshot)}
+          title={
+            cmcOverridden
+              ? `CMC corrigido à mão · snapshot do sync: ${venda.cmc_unitario == null ? '—' : formatBRL(cmcSnapshot)}`
+              : 'CMC do snapshot — digite para corrigir (recalcula margem/comissão)'
+          }
+          className={`${inputClass} w-24 ${
+            cmcOverridden ? 'font-medium text-amber-700 ring-1 ring-amber-300' : 'text-gray-500'
+          }`}
+        />
       </td>
       <td className="px-2 py-1 text-right tabular-nums">{formatBRL(venda.valor_total)}</td>
       <td className="px-2 py-1 text-right tabular-nums">{formatBRL(calc.margem_bruta_valor)}</td>

@@ -105,6 +105,7 @@ export type SalvarAjusteBody = {
   produto_descricao?: string | null
   valor_venda: number
   cmc_total: number
+  cmc_override?: number | null
   vendedor?: string | null
   custos_extras?: number
   desconto?: number
