@@ -56,6 +56,10 @@ function labelCol(key: string): string { return COLS_FIXAS[key] || key; }
 const DEFAULT_ORDEM = ['empresa', 'codigo', 'sinalizacao', 'descricao', 'qtd_estoque', '#Prateleira', '#Andar', '#Andar2', '#Caixa', 'Sistema', 'Tipo:', 'marca', 'modelo'];
 const ORDEM_KEY = (uid: string) => `carac-ordem-colunas-${uid}`;
 const OCULTAS_KEY = (uid: string) => `carac-colunas-ocultas-${uid}`;
+// Teto de linhas RENDERIZADAS na tabela (perf, sobretudo no tablet): a base tem ~9,6k
+// pecas; renderizar tudo × ~13 colunas trava. CSV/PDF/Conferir continuam usando a lista
+// completa (`linhas`); só a tabela mostra as primeiras N. Refina-se pelo filtro.
+const MAX_LINHAS_RENDER = 500;
 // chave da preferencia no Supabase (portal_ui_prefs): guarda { ordem, ocultas }
 const CHAVE_PREF_COLUNAS = 'caracteristicas-colunas';
 
@@ -110,7 +114,14 @@ function SeletorColunas({ ordem, ocultas, onAplicar, onCancelar }: {
   const [draftOrdem, setDraftOrdem] = useState<string[]>(ordem);
   const [draftOcultas, setDraftOcultas] = useState<Set<string>>(new Set(ocultas));
   const [drag, setDrag] = useState<string | null>(null);
+  const isTouch = useIsTouch(); // no touch: sem drag (rouba a rolagem) — usar ▲▼
   const visiveisCount = draftOrdem.filter((k) => !draftOcultas.has(k)).length;
+  // reordena por 1 passo (alternativa ao arrastar, essencial no touch)
+  const moverPasso = (k: string, dir: number) => setDraftOrdem((arr) => {
+    const i = arr.indexOf(k); const j = i + dir;
+    if (i < 0 || j < 0 || j >= arr.length) return arr;
+    const novo = arr.slice(); [novo[i], novo[j]] = [novo[j], novo[i]]; return novo;
+  });
 
   const toggle = (k: string) => setDraftOcultas((s) => {
     const n = new Set(s);
@@ -134,19 +145,26 @@ function SeletorColunas({ ordem, ocultas, onAplicar, onCancelar }: {
     <div onClick={onCancelar} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 8, width: 400, maxWidth: '94vw', maxHeight: '82vh', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 44px rgba(0,0,0,.28)' }}>
         <div style={{ background: '#94a3b8', color: '#fff', padding: '8px 14px', borderRadius: '8px 8px 0 0', fontWeight: 600, fontSize: '.85rem' }}>Seletor de Colunas</div>
-        <div style={{ padding: '4px 14px 8px', fontSize: '.7rem', color: '#94a3b8' }}>Arraste o <b>⠿</b> para reordenar. Clique em <b>Ocultar/Mostrar</b> para ligar/desligar a coluna.</div>
-        <div style={{ overflow: 'auto', padding: '2px 0', flex: 1 }}>
-          {draftOrdem.map((k) => {
+        <div style={{ padding: '4px 14px 8px', fontSize: '.7rem', color: '#94a3b8' }}>{isTouch ? <>Use <b>▲▼</b> para reordenar.</> : <>Arraste o <b>⠿</b> para reordenar.</>} Toque em <b>Ocultar/Mostrar</b> para ligar/desligar a coluna. Role a lista para ver todas.</div>
+        <div style={{ overflow: 'auto', WebkitOverflowScrolling: 'touch', padding: '2px 0', flex: 1 }}>
+          {draftOrdem.map((k, i) => {
             const oculta = draftOcultas.has(k);
             return (
-              <div key={k} draggable
-                onDragStart={(e) => { setDrag(k); e.dataTransfer.effectAllowed = 'move'; }}
-                onDragEnter={() => { if (drag && drag !== k) mover(drag, k); }}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => e.preventDefault()}
-                onDragEnd={() => setDrag(null)}
-                style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '7px 14px', borderBottom: '1px solid #f1f5f9', background: drag === k ? '#e0f2fe' : '#fff', cursor: 'grab' }}>
-                <span title="Arraste para reordenar" style={{ color: '#cbd5e1' }}>⠿</span>
+              <div key={k} draggable={!isTouch}
+                onDragStart={isTouch ? undefined : (e) => { setDrag(k); e.dataTransfer.effectAllowed = 'move'; }}
+                onDragEnter={isTouch ? undefined : () => { if (drag && drag !== k) mover(drag, k); }}
+                onDragOver={isTouch ? undefined : (e) => e.preventDefault()}
+                onDrop={isTouch ? undefined : (e) => e.preventDefault()}
+                onDragEnd={isTouch ? undefined : () => setDrag(null)}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 14px', borderBottom: '1px solid #f1f5f9', background: drag === k ? '#e0f2fe' : '#fff', cursor: isTouch ? 'default' : 'grab' }}>
+                {isTouch ? (
+                  <span style={{ display: 'inline-flex', flexDirection: 'column', lineHeight: 0.9 }}>
+                    <button onClick={() => moverPasso(k, -1)} disabled={i === 0} title="Subir" style={{ background: 'none', border: 'none', color: i === 0 ? '#e2e8f0' : '#64748b', cursor: 'pointer', fontSize: '.9rem', padding: '0 2px' }}>▲</button>
+                    <button onClick={() => moverPasso(k, 1)} disabled={i === draftOrdem.length - 1} title="Descer" style={{ background: 'none', border: 'none', color: i === draftOrdem.length - 1 ? '#e2e8f0' : '#64748b', cursor: 'pointer', fontSize: '.9rem', padding: '0 2px' }}>▼</button>
+                  </span>
+                ) : (
+                  <span title="Arraste para reordenar" style={{ color: '#cbd5e1' }}>⠿</span>
+                )}
                 <button onClick={() => toggle(k)} style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', fontSize: '.8rem', width: 62, textAlign: 'left', padding: 0 }}>
                   {oculta ? 'Mostrar' : 'Ocultar'}
                 </button>
@@ -1062,7 +1080,7 @@ export default function CaracteristicasPage() {
             <tbody>
               {linhas.length === 0 ? (
                 <tr><td colSpan={colsRender.length} style={{ ...tdStyle, textAlign: 'center', color: '#94a3b8', padding: 30 }}>Nenhum produto bate com o filtro.</td></tr>
-              ) : linhas.map((p) => {
+              ) : linhas.slice(0, MAX_LINHAS_RENDER).map((p) => {
                 const prodKey = `${p.empresa}:${p.codigo_produto}`;
                 const temFlag = produtosSinalizados.has(prodKey);
                 const temOk = okProdutos.has(prodKey);
@@ -1130,6 +1148,13 @@ export default function CaracteristicasPage() {
                 </tr>
                 );
               })}
+              {linhas.length > MAX_LINHAS_RENDER && (
+                <tr>
+                  <td colSpan={colsRender.length} style={{ ...tdStyle, textAlign: 'center', color: '#64748b', background: '#f8fafc', padding: '12px 10px' }}>
+                    Mostrando as primeiras <b>{MAX_LINHAS_RENDER}</b> de <b>{linhas.length}</b> peças. Refine o filtro (empresa/coluna) ou use <b>Conferir</b> para percorrer todas.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         )}
