@@ -18,6 +18,7 @@ import HistoricoModal from './HistoricoModal';
 import RecorteAnexo from './RecorteAnexo';
 import DialogoImprimirReq from './DialogoImprimirReq';
 import { anexosDaReq, anexosNoDrive as anexosNoDriveDe } from '@/lib/requisicoes/anexos';
+import { formatarLitros, formatarHodometro } from '@/lib/requisicoes/campos';
 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxyIatVqhjdeBeo4PYNWr992vCsPpvEEjOxabWB7mz5JRJ7BroxnvR8CRIcXIgTfLSm/exec';
 const DEPARTAMENTOS = ["Trator-Loja", "Trator-Cliente", "Oficina", "Comercial"];
@@ -544,7 +545,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                   </div>
                   <div className="p-6">
                     <label className="text-xs font-bold text-zinc-500 uppercase block mb-2">O que pretende alterar?</label>
-                    <textarea value={motivoPedido} onChange={e => setMotivoPedido(e.target.value)} rows={4} placeholder="Explique a alteração que precisa de fazer..." className="w-full px-3 py-2.5 rounded-xl border border-zinc-200 text-sm outline-none focus:border-red-400 resize-none" />
+                    <textarea spellCheck lang="pt-BR" value={motivoPedido} onChange={e => setMotivoPedido(e.target.value)} rows={4} placeholder="Explique a alteração que precisa de fazer..." className="w-full px-3 py-2.5 rounded-xl border border-zinc-200 text-sm outline-none focus:border-red-400 resize-none" />
                     <div className="flex gap-3 mt-4">
                       <button onClick={() => setPedirOpen(false)} className="flex-1 py-2.5 rounded-xl border border-zinc-200 text-zinc-600 text-sm font-semibold hover:bg-zinc-50">Cancelar</button>
                       <button onClick={enviarPedidoPermissao} disabled={!motivoPedido.trim() || enviandoPedido} className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-bold hover:bg-red-700 disabled:opacity-50">{enviandoPedido ? 'A enviar...' : 'Enviar pedido'}</button>
@@ -648,7 +649,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
               <div className="grid grid-cols-[1fr_180px] gap-4">
                 <div>
                   <label className={labelBase}><Tag size={11}/> Título</label>
-                  <input value={localData.titulo || ""} onChange={e => setField('titulo', e.target.value)} onBlur={e => persist('titulo', e.target.value.toUpperCase())} className={inputBase} />
+                  <input spellCheck lang="pt-BR" value={localData.titulo || ""} onChange={e => setField('titulo', e.target.value)} onBlur={e => persist('titulo', e.target.value.toUpperCase())} className={inputBase} />
                 </div>
                 <div>
                   <label className={labelBase}><Calendar size={11}/> Data</label>
@@ -911,7 +912,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                     </div>
                     <div>
                       <label className={labelBase}><Gauge size={11}/> Hodômetro</label>
-                      <input value={localData.hodometro || ''} onChange={e => setField('hodometro', e.target.value)} onBlur={e => persist('hodometro', e.target.value)} className={inputBase} />
+                      <input inputMode="numeric" value={localData.hodometro || ''} onChange={e => setField('hodometro', e.target.value)} onBlur={e => { const v = formatarHodometro(e.target.value); setField('hodometro', v); persist('hodometro', v); }} className={inputBase} />
                     </div>
                   </div>
                 </div>
@@ -921,14 +922,14 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                 <div className="border border-amber-200 bg-amber-50/50 rounded-xl p-4">
                   <span className={`${sectionTitle} text-amber-600`}><Gauge size={12}/> Abastecimento</span>
                   <label className={labelBase}><Gauge size={11}/> Litros</label>
-                  <input value={localData.litros_combustivel || ''} onChange={e => setField('litros_combustivel', e.target.value)} onBlur={e => persist('litros_combustivel', e.target.value)} className={inputBase} placeholder="Ex: 150" />
+                  <input inputMode="decimal" value={localData.litros_combustivel || ''} onChange={e => setField('litros_combustivel', e.target.value)} onBlur={e => { const v = formatarLitros(e.target.value); setField('litros_combustivel', v); persist('litros_combustivel', v); }} className={inputBase} placeholder="Ex: 150,00" />
                 </div>
               )}
 
               {/* Observações */}
               <div>
                 <label className={labelBase}><FileText size={11}/> Observações</label>
-                <textarea value={localData.obs || ""} onChange={e => { setField('obs', e.target.value); e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }} onBlur={e => persist('obs', e.target.value)} onFocus={e => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }} className={`${inputBase} min-h-[80px] resize-none overflow-hidden`} placeholder="Descrição, justificativa..." style={{ height: 'auto' }} ref={el => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }} />
+                <textarea spellCheck lang="pt-BR" value={localData.obs || ""} onChange={e => { setField('obs', e.target.value); e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }} onBlur={e => persist('obs', e.target.value)} onFocus={e => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }} className={`${inputBase} min-h-[80px] resize-none overflow-hidden`} placeholder="Descrição, justificativa..." style={{ height: 'auto' }} ref={el => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }} />
               </div>
 
               {/* ── DIVISOR ── */}

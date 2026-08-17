@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { formatarPlaca } from '@/lib/frota/placa';
+import { formatarLitros, formatarHodometro } from '@/lib/requisicoes/campos';
 import { FolderOpen, ChevronDown, Check } from 'lucide-react';
 
 const EMPRESAS = {
@@ -164,7 +165,7 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="md:col-span-2">
               <label className={labelStyle}>Título do Pedido</label>
-              <input required placeholder="EX: COMPRA DE PEÇAS PARA TRATOR" onChange={e => setFormData({...formData, titulo: e.target.value.toUpperCase()})} className={inputStyle} />
+              <input required placeholder="EX: COMPRA DE PEÇAS PARA TRATOR" spellCheck lang="pt-BR" onChange={e => setFormData({...formData, titulo: e.target.value.toUpperCase()})} className={inputStyle} />
             </div>
             <div>
               <label className={labelStyle}>Data</label>
@@ -320,7 +321,7 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
                 </div>
                 <div>
                   <label className={labelStyle}>Hodometro / Horimetro</label>
-                  <input placeholder="Ex: 12.500 km" value={formData.hodometro} onChange={e => setFormData({...formData, hodometro: e.target.value})} className={`${inputStyle} !border-red-300`} />
+                  <input placeholder="Ex: 12.500 km" inputMode="numeric" value={formData.hodometro} onChange={e => setFormData({...formData, hodometro: e.target.value})} onBlur={e => setFormData({...formData, hodometro: formatarHodometro(e.target.value)})} className={`${inputStyle} !border-red-300`} />
                 </div>
               </div>
             </div>
@@ -390,7 +391,7 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
                 )}
                 <div>
                   <label className={labelStyle}>Litros de Combustível</label>
-                  <input required placeholder="Ex: 150" value={formData.litros_combustivel} onChange={e => setFormData({...formData, litros_combustivel: e.target.value})} className={`${inputStyle} !border-amber-300`} />
+                  <input required placeholder="Ex: 150,00" inputMode="decimal" value={formData.litros_combustivel} onChange={e => setFormData({...formData, litros_combustivel: e.target.value})} onBlur={e => setFormData({...formData, litros_combustivel: formatarLitros(e.target.value)})} className={`${inputStyle} !border-amber-300`} />
                 </div>
               </div>
             </div>
@@ -463,7 +464,7 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
               )}
               <div className="mt-3">
                 <label className={labelStyle}>Hodometro / Horimetro</label>
-                <input placeholder="Ex: 12.500 km / 3.400 h" value={formData.hodometro} onChange={e => setFormData({...formData, hodometro: e.target.value})} className={inputStyle} />
+                <input placeholder="Ex: 12.500 km / 3.400 h" inputMode="numeric" value={formData.hodometro} onChange={e => setFormData({...formData, hodometro: e.target.value})} onBlur={e => setFormData({...formData, hodometro: formatarHodometro(e.target.value)})} className={inputStyle} />
               </div>
               <div ref={osRef} className="relative mt-3">
                 <label className={labelStyle}>Ordem de Serviço</label>
@@ -718,7 +719,7 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
 
           <div>
             <label className={labelStyle}>Observações Técnicas</label>
-            <textarea rows={4} onChange={e => setFormData({...formData, obs: e.target.value})} className={`${inputStyle} resize-none italic`} placeholder="Descreva os itens ou serviços necessários..." />
+            <textarea rows={4} spellCheck lang="pt-BR" onChange={e => setFormData({...formData, obs: e.target.value})} className={`${inputStyle} resize-none italic`} placeholder="Descreva os itens ou serviços necessários..." />
           </div>
 
           {/* Grupos (coletivos) — opcional, em dropdown pra não poluir o form */}
