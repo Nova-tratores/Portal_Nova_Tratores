@@ -9,7 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
 import { authHeaders } from '@/lib/auth/client';
-import { Settings, Flag, AlertTriangle, Pencil, Layers } from 'lucide-react';
+import { Settings, Flag, AlertTriangle, Pencil, Layers, CheckCircle } from 'lucide-react';
 
 // ---------- tipos ----------
 interface Produto {
@@ -46,7 +46,7 @@ const filtroInput: React.CSSProperties = { width: '100%', minWidth: 60, border: 
 // da Omie, cuja key é o próprio nome. `qtd_estoque` = saldo (produtos.estoque, só-leitura).
 // `sinalizacao` = pseudo-coluna só-leitura: mostra ⚠ se o produto tem alguma célula sinalizada.
 const COLS_FIXAS: Record<string, string> = {
-  empresa: 'Empresa', codigo: 'Codigo', sinalizacao: 'Sinalizacao', descricao: 'Descricao', qtd_estoque: 'Qtd Estoque', modelo: 'Modelo', marca: 'Marca',
+  empresa: 'Empresa', codigo: 'Codigo', sinalizacao: 'Status', descricao: 'Descricao', qtd_estoque: 'Qtd Estoque', modelo: 'Modelo', marca: 'Marca',
 };
 const CHAVES_FIXAS = Object.keys(COLS_FIXAS);
 function ehFixa(key: string): boolean { return key in COLS_FIXAS; }
@@ -257,12 +257,14 @@ function ControleOrdenacao({ cols, sorts, setSorts }: {
 // Em cada card da p/ Sinalizar (⚠) ou Corrigir (✎) cada caracteristica visivel; "Confere" so avanca.
 // Congela a ORDEM dos produtos ao abrir (nao remexe se um flag/edicao mudar a ordenacao), mas le os
 // DADOS frescos do deck (map por chave). Reusa toggle/salvar/valCol/ensureCatalogo do pai.
-function ModalFlashcard({ deck, colsCarac, valCol, sinalizadas, onToggleSinal, ensureCatalogo, onSalvar, onClose }: {
+function ModalFlashcard({ deck, colsCarac, valCol, sinalizadas, okProdutos, onToggleSinal, onConfere, ensureCatalogo, onSalvar, onClose }: {
   deck: Produto[];
   colsCarac: string[];
   valCol: (p: Produto, col: string) => string;
   sinalizadas: Set<string>;
+  okProdutos: Set<string>;
   onToggleSinal: (p: Produto, col: string) => void;
+  onConfere: (p: Produto) => void;
   ensureCatalogo: () => Promise<{ uniao: Record<string, string[]>; porEmpresa: Record<string, Record<string, string[]>> }>;
   onSalvar: (empresa: string, cp: string, col: string, valor: string) => Promise<void>;
   onClose: () => void;
@@ -318,6 +320,9 @@ function ModalFlashcard({ deck, colsCarac, valCol, sinalizadas, onToggleSinal, e
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
                 <EmpBadge empresa={p.empresa} />
                 <span style={{ fontFamily: 'monospace', fontSize: '.85rem', color: '#334155' }}>{p.codigo || '-'}</span>
+                {okProdutos.has(`${p.empresa}:${p.codigo_produto}`) && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 999, background: '#dcfce7', color: '#16a34a', fontSize: '.72rem', fontWeight: 600 }}><CheckCircle size={13} /> conferido</span>
+                )}
               </div>
               <div style={{ fontSize: '1.05rem', fontWeight: 600, color: '#1e293b', marginBottom: 12 }}>{p.descricao || '(sem descricao)'}</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -368,11 +373,12 @@ function ModalFlashcard({ deck, colsCarac, valCol, sinalizadas, onToggleSinal, e
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderTop: '1px solid #e2e8f0' }}>
-          <button onClick={() => ir(-1)} disabled={idx === 0} style={{ ...btn, background: '#e2e8f0', color: '#334155', opacity: idx === 0 ? 0.5 : 1 }}>‹ Anterior</button>
+          <button onClick={() => ir(-1)} disabled={idx === 0} style={{ ...btn, padding: '12px 14px', background: '#e2e8f0', color: '#334155', opacity: idx === 0 ? 0.5 : 1 }}>‹</button>
+          <button onClick={() => ir(1)} disabled={naFrente} style={{ ...btn, padding: '12px 14px', background: '#f1f5f9', color: '#64748b', opacity: naFrente ? 0.4 : 1 }}>Pular</button>
           <div style={{ flex: 1, textAlign: 'center', fontSize: '.8rem', color: '#64748b' }}>{Math.min(idx + 1, total)} de {total}</div>
           {naFrente
-            ? <button onClick={onClose} style={{ ...btn, background: '#059669', color: '#fff' }}>Concluir ✓</button>
-            : <button onClick={() => ir(1)} style={{ ...btn, background: '#059669', color: '#fff' }}>Confere ›</button>}
+            ? <button onClick={() => { if (p) onConfere(p); onClose(); }} style={{ ...btn, background: '#16a34a', color: '#fff' }}>Confere e conclui ✓</button>
+            : <button onClick={() => { if (p) onConfere(p); ir(1); }} style={{ ...btn, background: '#16a34a', color: '#fff' }}>Confere ✓ ›</button>}
         </div>
       </div>
     </div>
@@ -413,6 +419,9 @@ export default function CaracteristicasPage() {
   const [sinalizadas, setSinalizadas] = useState<Set<string>>(new Set());
   const [sinalMeta, setSinalMeta] = useState<Record<string, { nome?: string; quando?: string }>>({});
   const [hoverCell, setHoverCell] = useState<string | null>(null);
+  // Marca "OK / conferido" COMPARTILHADA por PRODUTO. Chave: `${empresa}:${codigo_produto}`.
+  const [okProdutos, setOkProdutos] = useState<Set<string>>(new Set());
+  const [okMeta, setOkMeta] = useState<Record<string, { nome?: string; quando?: string }>>({});
 
   // edicao inline
   const [editando, setEditando] = useState<{ empresa: string; cp: string; col: string } | null>(null);
@@ -545,8 +554,11 @@ export default function CaracteristicasPage() {
   // Liga/desliga a sinalizacao de uma celula (otimista + POST; reverte em erro).
   const alternarSinalizacao = useCallback(async (p: Produto, col: string) => {
     const key = `${p.empresa}:${p.codigo_produto}:${col}`;
+    const prodKey = `${p.empresa}:${p.codigo_produto}`;
     const novo = !sinalizadas.has(key);
     setSinalizadas((s) => { const n = new Set(s); if (novo) n.add(key); else n.delete(key); return n; });
+    // excludencia: sinalizar remove o "OK" do produto (a rota tambem persiste isso)
+    if (novo) setOkProdutos((s) => { if (!s.has(prodKey)) return s; const n = new Set(s); n.delete(prodKey); return n; });
     try {
       const r = await fetch('/api/ajustes/caracteristicas/sinalizar', {
         method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
@@ -575,16 +587,60 @@ export default function CaracteristicasPage() {
     return partes.length ? `Sinalizado: ${partes.join('; ')}` : '';
   }, [sinalizadas, sinalMeta]);
 
+  // ---- Marca "OK / conferido" por produto (par positivo da sinalizacao) ----
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch('/api/ajustes/caracteristicas/ok');
+        if (!r.ok) return;
+        const d = await r.json();
+        if (!Array.isArray(d.ok)) return;
+        const set = new Set<string>();
+        const meta: Record<string, { nome?: string; quando?: string }> = {};
+        for (const x of d.ok) {
+          const key = `${x.empresa}:${x.codigo_produto}`;
+          set.add(key);
+          meta[key] = { nome: x.conferido_nome, quando: x.conferido_em };
+        }
+        setOkProdutos(set); setOkMeta(meta);
+      } catch { /* ignore */ }
+    })();
+  }, []);
+
+  // Marca/desmarca o "OK" de um produto (otimista + POST; reverte em erro). Ao LIGAR,
+  // apaga as pendencias do produto (excludencia; a rota tambem persiste isso).
+  const marcarOk = useCallback(async (p: Produto, valor: boolean) => {
+    const prodKey = `${p.empresa}:${p.codigo_produto}`;
+    if (okProdutos.has(prodKey) === valor) return; // sem mudanca
+    setOkProdutos((s) => { const n = new Set(s); if (valor) n.add(prodKey); else n.delete(prodKey); return n; });
+    if (valor) {
+      setSinalizadas((s) => { const n = new Set(s); Array.from(n).forEach((k) => { if (k.startsWith(prodKey + ':')) n.delete(k); }); return n; });
+    }
+    try {
+      const r = await fetch('/api/ajustes/caracteristicas/ok', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ empresa: p.empresa, codigo_produto: p.codigo_produto, ok: valor }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.erro || 'falha');
+      setOkMeta((m) => { const n = { ...m }; if (valor) n[prodKey] = { nome: d.conferido_nome, quando: new Date().toISOString() }; else delete n[prodKey]; return n; });
+    } catch (ex) {
+      setOkProdutos((s) => { const n = new Set(s); if (valor) n.delete(prodKey); else n.add(prodKey); return n; }); // reverte
+      setMsg('Erro ao marcar OK: ' + (ex as Error).message, 'erro');
+    }
+  }, [okProdutos, setMsg]);
+  const alternarOk = useCallback((p: Produto) => { marcarOk(p, !okProdutos.has(`${p.empresa}:${p.codigo_produto}`)); }, [marcarOk, okProdutos]);
+
   const valCol = useCallback((p: Produto, col: string): string => {
     if (col === 'empresa') return p.empresa || '';
     if (col === 'codigo') return p.codigo || '';
-    if (col === 'sinalizacao') return produtosSinalizados.has(`${p.empresa}:${p.codigo_produto}`) ? 'Pendente' : '';
+    if (col === 'sinalizacao') { const pk = `${p.empresa}:${p.codigo_produto}`; return okProdutos.has(pk) ? 'OK' : produtosSinalizados.has(pk) ? 'Pendente' : ''; }
     if (col === 'descricao') return p.descricao || '';
     if (col === 'qtd_estoque') return p.estoque != null ? String(p.estoque) : '';
     if (col === 'modelo') return p.modelo || '';
     if (col === 'marca') return p.marca || '';
     return (p.caracteristicas && p.caracteristicas[col]) || '';
-  }, [produtosSinalizados]);
+  }, [produtosSinalizados, okProdutos]);
 
   const linhas = useMemo(() => {
     const termo = filtro.trim().toLowerCase();
@@ -927,7 +983,9 @@ export default function CaracteristicasPage() {
           colsCarac={colsVisiveis.filter((c) => !ehFixa(c))}
           valCol={valCol}
           sinalizadas={sinalizadas}
+          okProdutos={okProdutos}
           onToggleSinal={alternarSinalizacao}
+          onConfere={(p) => marcarOk(p, true)}
           ensureCatalogo={ensureCatalogo}
           onSalvar={salvarCelula}
           onClose={() => setFlashAberto(false)}
@@ -1007,14 +1065,20 @@ export default function CaracteristicasPage() {
               ) : linhas.map((p) => {
                 const prodKey = `${p.empresa}:${p.codigo_produto}`;
                 const temFlag = produtosSinalizados.has(prodKey);
+                const temOk = okProdutos.has(prodKey);
                 return (
-                <tr key={prodKey} style={{ borderTop: '1px solid #f1f5f9', background: temFlag ? '#fef9c3' : undefined }}>
+                <tr key={prodKey} style={{ borderTop: '1px solid #f1f5f9', background: temFlag ? '#fef9c3' : (temOk ? '#dcfce7' : undefined) }}>
                   {colsRender.map((col) => {
                     if (col === 'empresa') return <td key={col} style={tdStyle}><EmpBadge empresa={p.empresa} /></td>;
                     if (col === 'codigo') return <td key={col} style={{ ...tdStyle, fontFamily: 'monospace', fontSize: '.72rem' }}>{p.codigo || '-'}</td>;
                     if (col === 'sinalizacao') return (
-                      <td key={col} style={{ ...tdStyle, textAlign: 'center' }} title={temFlag ? tooltipSinal(prodKey) : undefined}>
-                        {temFlag ? <AlertTriangle size={15} color="#ea580c" style={{ verticalAlign: 'middle' }} /> : <span style={{ color: '#e2e8f0' }}>—</span>}
+                      <td key={col} onClick={() => alternarOk(p)} style={{ ...tdStyle, textAlign: 'center', cursor: 'pointer' }}
+                        title={temOk ? (okMeta[prodKey]?.nome ? `Conferido — ${okMeta[prodKey]?.nome}${okMeta[prodKey]?.quando ? ` (${fmtDataHora(okMeta[prodKey]?.quando)})` : ''} · clique p/ desmarcar` : 'Conferido · clique p/ desmarcar') : (temFlag ? `${tooltipSinal(prodKey)} · clique p/ marcar OK (limpa a pendencia)` : 'Marcar como OK (conferido)')}>
+                        {temOk
+                          ? <CheckCircle size={16} color="#16a34a" style={{ verticalAlign: 'middle' }} />
+                          : temFlag
+                            ? <AlertTriangle size={15} color="#ea580c" style={{ verticalAlign: 'middle' }} />
+                            : <Flag size={13} color="#cbd5e1" style={{ verticalAlign: 'middle' }} />}
                       </td>
                     );
                     if (col === 'descricao') return <td key={col} style={tdStyle}>{p.descricao || '-'}</td>;

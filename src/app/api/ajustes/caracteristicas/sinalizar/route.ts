@@ -49,6 +49,8 @@ export async function POST(req: NextRequest) {
           { onConflict: 'empresa,codigo_produto,coluna' },
         );
       if (error) throw error;
+      // excludencia: sinalizar uma pendencia remove o "OK" do produto
+      await supabase.from('caracteristicas_ok').delete().eq('empresa', empresa).eq('codigo_produto', cp);
     } else {
       const { error } = await supabase
         .from('caracteristicas_sinalizacoes')
