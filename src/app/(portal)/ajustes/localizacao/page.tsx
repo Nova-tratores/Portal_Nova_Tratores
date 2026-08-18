@@ -13,7 +13,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
 import { authHeaders } from '@/lib/auth/client';
-import { ChevronRight, ChevronDown, MapPin, AlertTriangle, Search, ArrowRightLeft, X, PackageOpen, Trash2, Plus, Tag } from 'lucide-react';
+import { ChevronRight, ChevronDown, MapPin, AlertTriangle, Search, ArrowRightLeft, X, PackageOpen, Trash2, Plus, Tag, CheckCircle, ClipboardCheck } from 'lucide-react';
 
 // ---------- tipos ----------
 interface Produto {
@@ -81,6 +81,10 @@ export default function LocalizacaoPage() {
   const [colocar, setColocar] = useState<Pos | null>(null);          // colocar/trocar produto NESTA posição
   const [salvando, setSalvando] = useState(false);
 
+  // "Conferir por posição": marca própria de localização (localizacao_conferida)
+  const [conferidas, setConferidas] = useState<Map<string, { status: 'conferido' | 'divergente'; nome?: string }>>(new Map());
+  const [abrirConferir, setAbrirConferir] = useState(false);
+
   const carregar = useCallback(async () => {
     setCarregando(true); setErro(null);
     try {
@@ -97,8 +101,43 @@ export default function LocalizacaoPage() {
   }, []);
   useEffect(() => { carregar(); }, [carregar]);
 
+  // carrega as conferências (compartilhadas) no mount
+  const carregarConferidas = useCallback(async () => {
+    try {
+      const r = await fetch('/api/ajustes/localizacao/conferir', { headers: { ...(await authHeaders()) } });
+      const d = await r.json();
+      if (Array.isArray(d.conferidas)) {
+        const m = new Map<string, { status: 'conferido' | 'divergente'; nome?: string }>();
+        for (const c of d.conferidas) m.set(`${c.empresa}|${c.codigo_produto}`, { status: c.status, nome: c.conferido_nome });
+        setConferidas(m);
+      }
+    } catch { /* silencioso — a tela funciona sem os selos */ }
+  }, []);
+  useEffect(() => { carregarConferidas(); }, [carregarConferidas]);
+
   const podeEditar = pode('ajustes', 'localizacao');
   const [flash, setFlash] = useState<string | null>(null);
+
+  const statusConf = useCallback((p: Produto): 'conferido' | 'divergente' | null => conferidas.get(chaveProd(p))?.status ?? null, [conferidas]);
+
+  // grava ✓/⚠ (ou limpa, se clicar de novo no mesmo) — otimista + POST.
+  async function marcarConferencia(p: Produto, status: 'conferido' | 'divergente') {
+    const key = chaveProd(p);
+    const atual = conferidas.get(key)?.status;
+    const novo: 'conferido' | 'divergente' | null = atual === status ? null : status;
+    setConferidas((prev) => {
+      const m = new Map(prev);
+      if (novo) m.set(key, { status: novo, nome: userProfile?.nome }); else m.delete(key);
+      return m;
+    });
+    try {
+      const { prat, andar, caixa } = posDe(p);
+      await fetch('/api/ajustes/localizacao/conferir', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ empresa: p.empresa, codigo_produto: p.codigo_produto, status: novo, posicao: `${prat}|${andar}|${caixa}` }),
+      });
+    } catch { carregarConferidas(); }
+  }
 
   // adiciona a peça à FILA COMPARTILHADA de etiquetas (aba Etiquetas do /ppv).
   // Monta a linha no mesmo formato do EtiquetasPanel (conta/empresa/codigo/descricao/locacao).
@@ -172,6 +211,20 @@ export default function LocalizacaoPage() {
       }).sort(cmpSeg);
     }
     return keys.sort(cmpSeg);
+  }, [arvore, termo, casa]);
+
+  // lista ordenada de posições (folhas), na mesma ordem da árvore e respeitando a
+  // busca — é o "deck" do Conferir por posição.
+  const deckPosicoes = useMemo(() => {
+    const out: Pos[] = [];
+    for (const prat of Array.from(arvore.keys()).sort(cmpSeg))
+      for (const andar of Array.from(arvore.get(prat)!.keys()).sort(cmpSeg))
+        for (const caixa of Array.from(arvore.get(prat)!.get(andar)!.keys()).sort(cmpSeg)) {
+          const arr = arvore.get(prat)!.get(andar)!.get(caixa)!;
+          if (termo && !arr.some(casa)) continue;
+          out.push({ prat, andar, caixa });
+        }
+    return out;
   }, [arvore, termo, casa]);
 
   function toggle(k: string) { setAbertos((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; }); }
@@ -255,6 +308,10 @@ export default function LocalizacaoPage() {
           <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar código, descrição ou localização (ex.: PRATELEIRA 6, 9 D 02)"
             style={{ width: '100%', border: '1px solid #cbd5e1', borderRadius: 8, padding: '8px 10px 8px 32px', fontSize: '.82rem' }} />
         </div>
+        <button onClick={() => setAbrirConferir(true)} title="Conferir posição por posição (flashcard)"
+          style={{ ...btnPrim, background: '#16a34a', border: '1px solid #16a34a' }}>
+          <ClipboardCheck size={15} /> Conferir
+        </button>
       </div>
 
       {carregando && <div style={{ color: '#64748b', padding: 20 }}>Carregando matriz…</div>}
@@ -325,6 +382,13 @@ export default function LocalizacaoPage() {
                                     <div style={{ fontWeight: 600, color: '#0f172a', fontSize: '.8rem' }}>{p.codigo || p.codigo_produto}</div>
                                     <div style={{ color: '#64748b', fontSize: '.72rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 520 }}>{p.descricao || '—'}</div>
                                   </div>
+                                  {statusConf(p) && (
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 7px', borderRadius: 999, fontSize: '.66rem', fontWeight: 700,
+                                      background: statusConf(p) === 'conferido' ? '#dcfce7' : '#ffedd5', color: statusConf(p) === 'conferido' ? '#16a34a' : '#c2410c' }}>
+                                      {statusConf(p) === 'conferido' ? <CheckCircle size={11} /> : <AlertTriangle size={11} />}
+                                      {statusConf(p) === 'conferido' ? 'conferido' : 'não bate'}
+                                    </span>
+                                  )}
                                   <span style={{ marginLeft: 'auto', color: '#94a3b8', fontSize: '.72rem' }}>estq {p.estoque ?? 0}</span>
                                   <button title="Adicionar à fila de etiquetas" onClick={() => addEtiqueta(p)} style={{ ...btn, padding: '5px 8px' }}><Tag size={14} /></button>
                                   {podeEditar && <>
@@ -362,6 +426,11 @@ export default function LocalizacaoPage() {
       {colocar && (
         <ModalColocar posicao={colocar} produtosEmpresa={daEmpresa} salvando={salvando}
           onCancelar={() => setColocar(null)} onConfirmar={definir} />
+      )}
+      {abrirConferir && (
+        <ModalConferirPosicao deck={deckPosicoes} daEmpresa={daEmpresa} conferidas={conferidas}
+          onMarcar={marcarConferencia} onTrocar={setColocar} onEtiqueta={addEtiqueta}
+          onClose={() => setAbrirConferir(false)} />
       )}
     </div>
   );
@@ -437,6 +506,104 @@ function AvisoOcupado({ ocupantes, liberar, setLiberar }: { ocupantes: Produto[]
 
 const modalWrap: React.CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 12 };
 const modalCard: React.CSSProperties = { ...box, width: 'min(560px, 96vw)', maxHeight: '90vh', overflow: 'auto', padding: 16 };
+
+// ---------------------------------------------------------------------------
+// Conferir por posição (flashcard touch): percorre as posições em ordem, mostra
+// a(s) peça(s) que deveriam estar ali e grava ✓ conferido / ⚠ não bate na
+// `localizacao_conferida`. Ordem CONGELADA ao abrir; ocupantes FRESCOS (refletem
+// movimentações feitas na conferência). z-index 45 → o "Trocar" (ModalColocar,
+// z50) empilha por cima.
+function ModalConferirPosicao({ deck, daEmpresa, conferidas, onMarcar, onTrocar, onEtiqueta, onClose }: {
+  deck: Pos[];
+  daEmpresa: Produto[];
+  conferidas: Map<string, { status: 'conferido' | 'divergente'; nome?: string }>;
+  onMarcar: (p: Produto, status: 'conferido' | 'divergente') => void;
+  onTrocar: (pos: Pos) => void;
+  onEtiqueta: (p: Produto) => void;
+  onClose: () => void;
+}) {
+  const [ordem] = useState<Pos[]>(deck);          // ordem congelada ao abrir
+  const [idx, setIdx] = useState(0);
+  const total = ordem.length;
+  const pos = total ? ordem[Math.min(idx, total - 1)] : null;
+  const ocupantes = pos ? daEmpresa.filter((p) => { const q = posDe(p); return q.prat === pos.prat && q.andar === pos.andar && q.caixa === pos.caixa; }) : [];
+  const ir = useCallback((d: number) => setIdx((i) => Math.max(0, Math.min(total - 1, i + d))), [total]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); else if (e.key === 'ArrowRight') ir(1); else if (e.key === 'ArrowLeft') ir(-1); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [ir, onClose]);
+  const naFrente = idx >= total - 1;
+  const bigBtn: React.CSSProperties = { flex: 1, padding: '14px 12px', borderRadius: 12, fontSize: '1rem', fontWeight: 800, border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 };
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.55)', zIndex: 45, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, width: 560, maxWidth: '96vw', maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 16px 50px rgba(0,0,0,.3)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderBottom: '1px solid #e2e8f0' }}>
+          <ClipboardCheck size={18} color="#16a34a" />
+          <b style={{ fontSize: '.92rem', color: '#1e293b' }}>Conferir por posição</b>
+          <span style={{ fontSize: '.78rem', color: '#64748b' }}>{Math.min(idx + 1, total)} / {total}</span>
+          <button onClick={onClose} title="Fechar (Esc)" style={{ marginLeft: 'auto', background: 'none', border: 'none', fontSize: '1.5rem', color: '#94a3b8', cursor: 'pointer', lineHeight: 1 }}>×</button>
+        </div>
+        <div style={{ overflow: 'auto', padding: 16, flex: 1 }}>
+          {!pos ? (
+            <div style={{ color: '#94a3b8', textAlign: 'center', padding: '24px 0' }}>Nenhuma posição para conferir.</div>
+          ) : (
+            <>
+              <div style={{ textAlign: 'center', marginBottom: 6 }}>
+                <div style={{ fontSize: '.7rem', textTransform: 'uppercase', letterSpacing: '.5px', color: '#94a3b8' }}>Posição</div>
+                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#1d4ed8' }}>{labelSeg(pos.prat)} · {labelSeg(pos.andar)} · {labelSeg(pos.caixa)}</div>
+                <div style={{ fontSize: '.72rem', color: '#64748b' }}>Prateleira · Andar · Caixa</div>
+              </div>
+              {ocupantes.length > 1 && (
+                <div style={{ textAlign: 'center', marginBottom: 10 }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', borderRadius: 999, padding: '2px 10px', fontSize: '.72rem', fontWeight: 700 }}>
+                    <AlertTriangle size={12} /> conflito · {ocupantes.length} peças nesta posição
+                  </span>
+                </div>
+              )}
+              {ocupantes.length === 0 && <div style={{ color: '#94a3b8', textAlign: 'center', padding: '10px 0' }}>Posição vazia (peça foi movida).</div>}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {ocupantes.map((p) => {
+                  const st = conferidas.get(chaveProd(p))?.status ?? null;
+                  return (
+                    <div key={chaveProd(p)} style={{ border: '1px solid #eef2f7', borderRadius: 12, padding: 12, background: st === 'conferido' ? '#f0fdf4' : st === 'divergente' ? '#fff7ed' : '#fff' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: '.62rem', fontWeight: 800, color: '#64748b', border: '1px solid #e2e8f0', borderRadius: 4, padding: '1px 5px' }}>{p.empresa}</span>
+                        <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '1rem' }}>{p.codigo || p.codigo_produto}</span>
+                        <span style={{ marginLeft: 'auto', color: '#94a3b8', fontSize: '.72rem' }}>estq {p.estoque ?? 0}</span>
+                      </div>
+                      <div style={{ color: '#475569', fontSize: '.85rem', margin: '4px 0 10px' }}>{p.descricao || '—'}</div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button onClick={() => onMarcar(p, 'conferido')} style={{ ...bigBtn, background: st === 'conferido' ? '#16a34a' : '#dcfce7', color: st === 'conferido' ? '#fff' : '#16a34a' }}>
+                          <CheckCircle size={18} /> Confere
+                        </button>
+                        <button onClick={() => onMarcar(p, 'divergente')} style={{ ...bigBtn, background: st === 'divergente' ? '#ea580c' : '#ffedd5', color: st === 'divergente' ? '#fff' : '#c2410c' }}>
+                          <AlertTriangle size={18} /> Não bate
+                        </button>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                        <button onClick={() => onTrocar(pos)} style={{ ...btn, flex: 1, justifyContent: 'center' }}><ArrowRightLeft size={14} /> Trocar/colocar</button>
+                        <button onClick={() => onEtiqueta(p)} style={{ ...btn, flex: 1, justifyContent: 'center' }}><Tag size={14} /> Etiqueta</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderTop: '1px solid #e2e8f0' }}>
+          <button onClick={() => ir(-1)} disabled={idx === 0} style={{ ...btn, padding: '12px 16px', opacity: idx === 0 ? 0.5 : 1 }}>‹ Anterior</button>
+          <div style={{ flex: 1, textAlign: 'center', fontSize: '.8rem', color: '#64748b' }}>{Math.min(idx + 1, total)} de {total}</div>
+          {naFrente
+            ? <button onClick={onClose} style={{ ...btnPrim, padding: '12px 16px', background: '#16a34a', border: '1px solid #16a34a' }}>Concluir ✓</button>
+            : <button onClick={() => ir(1)} style={{ ...btnPrim, padding: '12px 16px' }}>Próxima ›</button>}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Mover ESTE produto para uma posição digitada
