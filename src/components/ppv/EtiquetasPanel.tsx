@@ -35,6 +35,12 @@ interface Etiqueta {
   linhas: LinhaEtiqueta[]
   copias: number
 }
+interface FolhaHist { id: number; formato: string; rastreado: boolean; usadas: number[]; total: number; criado_nome: string | null; criado_em: string }
+
+function fmtDataHora(iso: string): string {
+  const d = new Date(iso)
+  return isNaN(d.getTime()) ? iso : d.toLocaleString('pt-BR')
+}
 
 const EMPRESA_LABEL: Record<string, string> = {
   NOVA: 'NOVA TRATORES',
@@ -81,7 +87,7 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
   const [usadas, setUsadas] = useState<Set<number>>(new Set())
   const [rastrear, setRastrear] = useState(false)
   const [imprimindo, setImprimindo] = useState(false)
-  const proxId = useRef(1)
+  const [folhas, setFolhas] = useState<FolhaHist[]>([])
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -102,6 +108,69 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
       finally { setCarregandoRecentes(false) }
     })()
   }, [])
+
+  // Fila COMPARTILHADA + histórico de folhas (persistidos). A fila deixou de ser
+  // local: carrega no mount e cada alteração escreve no servidor (todos veem).
+  const carregarFolhas = async () => {
+    try {
+      const res = await fetch('/api/ppv/etiquetas/folhas', { headers: { ...(await authHeaders()) } })
+      const json = await res.json()
+      if (res.ok) setFolhas(json.folhas || [])
+    } catch { /* silencioso */ }
+  }
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const res = await fetch('/api/ppv/etiquetas/fila', { headers: { ...(await authHeaders()) } })
+        const json = await res.json()
+        if (res.ok) setEtiquetas((json.fila || []).map((r: { id: number; linhas: LinhaEtiqueta[]; copias: number }) => ({ id: r.id, linhas: r.linhas, copias: r.copias })))
+      } catch { /* silencioso */ }
+    })()
+    carregarFolhas()
+  }, [])
+
+  // --- escrita na fila compartilhada (otimista) ---
+  const addFilaServer = async (linhas: LinhaEtiqueta[], copias: number) => {
+    try {
+      const res = await fetch('/api/ppv/etiquetas/fila', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ linhas, copias }),
+      })
+      const json = await res.json(); if (!res.ok || json.erro) throw new Error(json.erro || 'falha')
+      setEtiquetas(prev => [...prev, { id: json.item.id, linhas: json.item.linhas, copias: json.item.copias }])
+    } catch (e) { setErro('Erro ao adicionar à fila: ' + (e instanceof Error ? e.message : e)) }
+  }
+  const mudarCopiasServer = async (id: number, copias: number) => {
+    const c = Math.max(1, Math.min(50, copias))
+    setEtiquetas(prev => prev.map(x => x.id === id ? { ...x, copias: c } : x))
+    try { await fetch('/api/ppv/etiquetas/fila', { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) }, body: JSON.stringify({ id, copias: c }) }) } catch { /* segue */ }
+  }
+  const removerFilaServer = async (id: number) => {
+    setEtiquetas(prev => prev.filter(x => x.id !== id))
+    try { await fetch(`/api/ppv/etiquetas/fila?id=${id}`, { method: 'DELETE', headers: { ...(await authHeaders()) } }) } catch { /* segue */ }
+  }
+  const limparFilaServer = async () => {
+    setEtiquetas([])
+    try { await fetch('/api/ppv/etiquetas/fila?limpar=1', { method: 'DELETE', headers: { ...(await authHeaders()) } }) } catch { /* segue */ }
+  }
+  const reimprimir = async (id: number) => {
+    try {
+      const res = await fetch(`/api/ppv/etiquetas/folhas?id=${id}`, { headers: { ...(await authHeaders()) } })
+      const json = await res.json(); if (!res.ok || json.erro) throw new Error(json.erro || 'falha')
+      const folha = json.folha as { formato: string; rastreado: boolean; usadas: number[]; itens: { linhas: LinhaEtiqueta[]; numero?: string; unidade_id?: string }[] }
+      const w = window.open('', '_blank'); if (!w) { setErro('O navegador bloqueou a janela — libere pop-ups.'); return }
+      let blocos: BlocoEtiqueta[] = (folha.itens || []).map(it => ({ linhas: it.linhas }))
+      if (folha.rastreado) {
+        const qrs = await Promise.all((folha.itens || []).map(it => it.unidade_id
+          ? QRCode.toString(`${window.location.origin}/p/${it.unidade_id}`, { type: 'svg', margin: 0, errorCorrectionLevel: 'M' })
+          : Promise.resolve('')))
+        blocos = (folha.itens || []).map((it, i) => ({ linhas: it.linhas, qrSvg: qrs[i] || null, numero: it.numero }))
+      }
+      w.document.open()
+      w.document.write(folha.formato === 'recorte' ? htmlRecorte(blocos) : htmlFolha(blocos, new Set(folha.usadas || [])))
+      w.document.close()
+    } catch (e) { setErro(String(e instanceof Error ? e.message : e)) }
+  }
 
   useEffect(() => {
     if (debounce.current) clearTimeout(debounce.current)
@@ -143,10 +212,7 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
   })
 
   const clicarLinha = (i: ItemBusca) => {
-    if (modoIndividual) {
-      setEtiquetas(prev => [...prev, { id: proxId.current++, linhas: [linhaDe(i)], copias: 1 }])
-      return
-    }
+    if (modoIndividual) { addFilaServer([linhaDe(i)], 1); return }
     alternarSel(chaveItem(i))
   }
 
@@ -167,7 +233,7 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
       return
     }
     setErro('')
-    setEtiquetas(prev => [...prev, { id: proxId.current++, linhas, copias: 1 }])
+    addFilaServer(linhas, 1)
     setSel(new Set())
   }
 
@@ -181,6 +247,7 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
     let loteId = ''
     try {
       let blocos: BlocoEtiqueta[] = fisicas.map(e => ({ linhas: e.linhas }))
+      let itensFolha: { linhas: LinhaEtiqueta[]; numero?: string; unidade_id?: string }[] = fisicas.map(e => ({ linhas: e.linhas }))
       if (rastrear) {
         w.document.write('<p style="font-family:sans-serif;padding:20px;color:#555">Registrando unidades e gerando QR codes…</p>')
         const res = await fetch('/api/pecas/unidades', {
@@ -214,14 +281,22 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
         const qrs = await Promise.all(unidades.map(u =>
           QRCode.toString(`${window.location.origin}/p/${u.id}`, { type: 'svg', margin: 0, errorCorrectionLevel: 'M' })))
         blocos = fisicas.map((e, i) => ({ linhas: e.linhas, qrSvg: qrs[i], numero: unidades[i].numero }))
+        itensFolha = fisicas.map((e, i) => ({ linhas: e.linhas, numero: unidades[i].numero, unidade_id: unidades[i].id }))
       }
       w.document.open()
       w.document.write(formato === 'folha' ? htmlFolha(blocos, usadas) : htmlRecorte(blocos))
       w.document.close()
-      if (rastrear) {
-        setEtiquetas([])
-        setUsadas(new Set())
-      }
+      // registra a folha no histórico (snapshot p/ reimprimir) e esvazia a fila
+      // COMPARTILHADA — o que foi impresso sai da fila e vira "folha" consultável.
+      try {
+        await fetch('/api/ppv/etiquetas/folhas', {
+          method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+          body: JSON.stringify({ formato, rastreado: rastrear, usadas: Array.from(usadas), itens: itensFolha }),
+        })
+      } catch { /* histórico é best-effort — não trava a impressão */ }
+      await limparFilaServer()
+      setUsadas(new Set())
+      carregarFolhas()
     } catch (e) {
       w.close()
       setErro(String(e instanceof Error ? e.message : e))
@@ -408,7 +483,7 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
         </h2>
         <div style={{ display: 'flex', gap: 8 }}>
           {etiquetas.length > 0 && (
-            <button onClick={() => setEtiquetas([])} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'transparent', color: 'var(--portal-text-secondary)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+            <button onClick={limparFilaServer} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'transparent', color: 'var(--portal-text-secondary)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
               <Trash2 size={13} /> Limpar
             </button>
           )}
@@ -434,7 +509,7 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 10 }}>
           {etiquetas.map(e => (
             <div key={e.id} style={{ border: '1.5px dashed #94a3b8', borderRadius: 8, padding: '10px 12px', position: 'relative', background: 'var(--portal-bg-card)' }}>
-              <button onClick={() => setEtiquetas(prev => prev.filter(x => x.id !== e.id))} title="Remover etiqueta"
+              <button onClick={() => removerFilaServer(e.id)} title="Remover etiqueta"
                 style={{ position: 'absolute', top: 6, right: 6, width: 22, height: 22, borderRadius: 6, border: 'none', background: 'var(--portal-bg-secondary)', color: 'var(--portal-text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <X size={12} />
               </button>
@@ -450,11 +525,37 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)' }}>
                 Cópias
                 <input type="number" min={1} max={50} value={e.copias}
-                  onChange={ev => setEtiquetas(prev => prev.map(x => x.id === e.id ? { ...x, copias: Math.max(1, Math.min(50, Number(ev.target.value) || 1)) } : x))}
+                  onChange={ev => mudarCopiasServer(e.id, Number(ev.target.value) || 1)}
                   style={{ width: 58, padding: '3px 6px', borderRadius: 6, border: '1px solid var(--portal-border)', fontSize: 12 }} />
               </label>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Histórico de folhas impressas — consultar/reimprimir a folha inteira */}
+      {folhas.length > 0 && (
+        <div style={{ marginTop: 24 }}>
+          <h2 style={{ fontSize: 14, fontWeight: 800, color: 'var(--portal-text)', margin: '0 0 8px' }}>
+            Histórico de folhas
+          </h2>
+          <div style={{ border: '1px solid var(--portal-border)', borderRadius: 10, overflow: 'hidden' }}>
+            {folhas.map(f => (
+              <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderTop: '1px solid var(--portal-border)' }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--portal-text)' }}>
+                    Folha #{f.id} · {f.total} etiqueta{f.total === 1 ? '' : 's'} · {f.formato === 'recorte' ? 'papel comum' : '3×10'}{f.rastreado ? ' · QR' : ''}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>
+                    {fmtDataHora(f.criado_em)}{f.criado_nome ? ` · ${f.criado_nome}` : ''}
+                  </div>
+                </div>
+                <button onClick={() => reimprimir(f.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                  <Printer size={13} /> Reimprimir
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
