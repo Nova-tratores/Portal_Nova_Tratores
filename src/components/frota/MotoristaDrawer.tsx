@@ -52,7 +52,7 @@ const STATUS_MULTA: Record<string, { label: string; cor: string; bg: string }> =
   em_analise: { label: 'Em análise', cor: '#1d4ed8', bg: '#dbeafe' },
   em_defesa: { label: 'Em defesa', cor: '#7c3aed', bg: '#ede9fe' },
   paga: { label: 'Paga', cor: '#15803d', bg: '#dcfce7' },
-  descontada: { label: 'Descontada', cor: '#0f766e', bg: '#ccfbf1' },
+  descontada: { label: 'Descontada', cor: '#1e3a8a', bg: '#dbeafe' },
   arquivada: { label: 'Arquivada', cor: '#64748b', bg: '#f1f5f9' },
 };
 
@@ -64,8 +64,8 @@ const CATEGORIAS_CNH = ['', 'A', 'B', 'AB', 'C', 'D', 'E', 'AC', 'AD', 'AE'];
 
 function Secao({ titulo, icone, children }: { titulo: string; icone: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 12, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase', letterSpacing: 0.4 }}>
+    <div style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 0, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: 0.4 }}>
         {icone}{titulo}
       </div>
       {children}
@@ -75,8 +75,8 @@ function Secao({ titulo, icone, children }: { titulo: string; icone: React.React
 
 function Linha({ rotulo, valor }: { rotulo: string; valor: React.ReactNode }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 12.5 }}>
-      <span style={{ color: 'var(--portal-text-muted)' }}>{rotulo}</span>
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13.5 }}>
+      <span style={{ color: 'var(--portal-text)' }}>{rotulo}</span>
       <span style={{ color: 'var(--portal-text)', fontWeight: 600, textAlign: 'right' }}>{valor ?? '—'}</span>
     </div>
   );
@@ -167,7 +167,7 @@ export default function MotoristaDrawer({ rhId, portalId, nome, podeEditar, onCl
           )}
           <div style={{ flex: 1, minWidth: 0 }}>
             <strong style={{ fontSize: 16, fontWeight: 800, color: 'var(--portal-text)' }}>{m?.nome || nome}</strong>
-            <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div style={{ fontSize: 13, color: 'var(--portal-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {[m?.cargo, m?.departamento, m?.empresa].filter(Boolean).join(' · ') || 'Motorista'}
             </div>
           </div>
@@ -175,12 +175,12 @@ export default function MotoristaDrawer({ rhId, portalId, nome, podeEditar, onCl
             <button
               onClick={() => setShowOcorrencia(true)}
               title="Registrar ocorrência de Frota pra este motorista (carro sujo, checklist, pilotagem…)"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#DC2626', background: '#FEE2E2', border: '1px solid #FECACA', borderRadius: 6, padding: '6px 12px', cursor: 'pointer' }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: '#DC2626', background: '#FEE2E2', border: '1px solid #FECACA', borderRadius: 0, padding: '6px 12px', cursor: 'pointer' }}
             >
               ⚠ Ocorrência
             </button>
           )}
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text-muted)' }}><X size={20} /></button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text)' }}><X size={20} /></button>
         </div>
 
         {/* Modal de ocorrência rápida (categoria Frota, motorista pré-selecionado) */}
@@ -195,15 +195,15 @@ export default function MotoristaDrawer({ rhId, portalId, nome, podeEditar, onCl
 
         <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
           {erro && <div style={{ color: '#b91c1c', fontSize: 13 }}>{erro}</div>}
-          {!det && !erro && <div style={{ color: 'var(--portal-text-muted)', fontSize: 13 }}>Carregando…</div>}
+          {!det && !erro && <div style={{ color: 'var(--portal-text)', fontSize: 13 }}>Carregando…</div>}
 
           {/* Pendências */}
           {m && m.pendencias.length > 0 && (
-            <div style={{ background: '#fee2e2', border: '1px solid #ef4444', borderRadius: 12, padding: '12px 14px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 800, color: '#b91c1c', marginBottom: 6 }}>
+            <div style={{ background: '#fee2e2', border: '1px solid #ef4444', borderRadius: 0, padding: '12px 14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13.5, fontWeight: 800, color: '#b91c1c', marginBottom: 6 }}>
                 <AlertTriangle size={14} /> {m.pendencias.length} PENDÊNCIA{m.pendencias.length > 1 ? 'S' : ''}
               </div>
-              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, color: '#7f1d1d' }}>
+              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13.5, color: '#7f1d1d' }}>
                 {m.pendencias.map((p, i) => <li key={i}>{p}</li>)}
               </ul>
             </div>
@@ -212,7 +212,7 @@ export default function MotoristaDrawer({ rhId, portalId, nome, podeEditar, onCl
           {/* Identificação (RH — só leitura) */}
           {m && (
             <Secao titulo="Identificação" icone={<UserIcon size={13} />}>
-              <div style={{ fontSize: 11, color: 'var(--portal-text-muted)', marginTop: -4 }}>
+              <div style={{ fontSize: 12, color: 'var(--portal-text)', marginTop: -4 }}>
                 {m.origem === 'portal'
                   ? 'Fora do RH — cadastro vindo da Rota Exata (rastreador).'
                   : 'Dados do RH — pra corrigir o cadastro, edite lá no sistema de RH.'}
@@ -244,9 +244,9 @@ export default function MotoristaDrawer({ rhId, portalId, nome, podeEditar, onCl
                   disabled={salvando}
                   title="Só pra quem está FORA do RH — pra quem está no RH, o desligamento é feito lá"
                   style={{
-                    alignSelf: 'flex-start', padding: '7px 12px', borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
+                    alignSelf: 'flex-start', padding: '7px 12px', borderRadius: 0, fontSize: 13.5, fontWeight: 700, cursor: 'pointer',
                     border: '1px solid var(--portal-border)',
-                    background: m.ativo_portal ? 'var(--portal-bg-input)' : '#0d9488',
+                    background: m.ativo_portal ? 'var(--portal-bg-input)' : '#1e40af',
                     color: m.ativo_portal ? '#b91c1c' : '#fff',
                   }}
                 >
@@ -276,7 +276,7 @@ export default function MotoristaDrawer({ rhId, portalId, nome, podeEditar, onCl
                     {m.gestor && <Linha rotulo="Gestor (Rota Exata)" valor="Sim" />}
                   </div>
                   {m.cnh && !validarCnh(m.cnh) && (
-                    <div style={{ fontSize: 11.5, color: '#b45309', background: '#fef3c7', border: '1px solid #f59e0b', borderRadius: 8, padding: '6px 10px' }}>
+                    <div style={{ fontSize: 12.5, color: '#b45309', background: '#fef3c7', border: '1px solid #f59e0b', borderRadius: 0, padding: '6px 10px' }}>
                       ⚠ O número da CNH não passa no validador (dígito verificador) — confira a digitação.
                     </div>
                   )}
@@ -285,14 +285,14 @@ export default function MotoristaDrawer({ rhId, portalId, nome, podeEditar, onCl
                     target="_blank"
                     rel="noreferrer"
                     title="Consulta oficial de situação e pontos — exige login gov.br do condutor"
-                    style={{ alignSelf: 'flex-start', fontSize: 12, fontWeight: 700, color: '#0d9488', textDecoration: 'none' }}
+                    style={{ alignSelf: 'flex-start', fontSize: 13, fontWeight: 700, color: '#1e40af', textDecoration: 'none' }}
                   >
                     Consultar CNH na Senatran ↗
                   </a>
                   {podeEditar && (
                     <button
                       onClick={() => setEditando(true)}
-                      style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}
+                      style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 0, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13.5, fontWeight: 700, cursor: 'pointer' }}
                     >
                       <Pencil size={13} /> Editar CNH / flag motorista
                     </button>
@@ -301,43 +301,43 @@ export default function MotoristaDrawer({ rhId, portalId, nome, podeEditar, onCl
               ) : (
                 <>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                    <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase' }}>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11.5, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase' }}>
                       Nº da CNH
                       <input value={form.cnh} onChange={(e) => setForm((f) => ({ ...f, cnh: e.target.value }))} placeholder="00000000000"
-                        style={{ padding: '8px 10px', borderRadius: 8, border: `1px solid ${form.cnh.trim() && !validarCnh(form.cnh) ? '#f59e0b' : 'var(--portal-border)'}`, background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13 }} />
+                        style={{ padding: '8px 10px', borderRadius: 0, border: `1px solid ${form.cnh.trim() && !validarCnh(form.cnh) ? '#f59e0b' : 'var(--portal-border)'}`, background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13 }} />
                       {form.cnh.trim() !== '' && (
-                        <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'none', color: validarCnh(form.cnh) ? '#15803d' : '#b45309' }}>
+                        <span style={{ fontSize: 11.5, fontWeight: 700, textTransform: 'none', color: validarCnh(form.cnh) ? '#15803d' : '#b45309' }}>
                           {validarCnh(form.cnh) ? '✓ número válido' : '⚠ dígito verificador não confere'}
                         </span>
                       )}
                     </label>
-                    <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase' }}>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11.5, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase' }}>
                       Categoria
                       <select value={form.cnh_categoria} onChange={(e) => setForm((f) => ({ ...f, cnh_categoria: e.target.value }))}
-                        style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13 }}>
+                        style={{ padding: '8px 10px', borderRadius: 0, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13 }}>
                         {CATEGORIAS_CNH.map((c) => <option key={c} value={c}>{c || '—'}</option>)}
                       </select>
                     </label>
-                    <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase' }}>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11.5, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase' }}>
                       Validade
                       <input type="date" value={form.cnh_validade} onChange={(e) => setForm((f) => ({ ...f, cnh_validade: e.target.value }))}
-                        style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13 }} />
+                        style={{ padding: '8px 10px', borderRadius: 0, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13 }} />
                     </label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--portal-text)', cursor: 'pointer', alignSelf: 'end', paddingBottom: 8 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: 'var(--portal-text)', cursor: 'pointer', alignSelf: 'end', paddingBottom: 8 }}>
                       <input type="checkbox" checked={form.e_motorista} onChange={(e) => setForm((f) => ({ ...f, e_motorista: e.target.checked }))} />
                       É motorista (dirige carro da empresa)
                     </label>
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>
+                  <div style={{ fontSize: 12, color: 'var(--portal-text)' }}>
                     Campo editado aqui fica travado contra o sync da Rota Exata (o humano vence).
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button onClick={salvar} disabled={salvando}
-                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: 'none', background: '#0d9488', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 0, border: 'none', background: '#1e40af', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
                       {salvando ? <Loader2 size={14} className="spin" /> : null} Salvar
                     </button>
                     <button onClick={() => setEditando(false)}
-                      style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'transparent', color: 'var(--portal-text-secondary)', fontSize: 13, cursor: 'pointer' }}>
+                      style={{ padding: '8px 14px', borderRadius: 0, border: '1px solid var(--portal-border)', background: 'transparent', color: 'var(--portal-text)', fontSize: 13, cursor: 'pointer' }}>
                       Cancelar
                     </button>
                   </div>
@@ -350,27 +350,27 @@ export default function MotoristaDrawer({ rhId, portalId, nome, podeEditar, onCl
           {det && (
             <Secao titulo="Frota" icone={<Car size={13} />}>
               {veiculoAtual.length === 0 && historico.length === 0 && det.multas.length === 0 ? (
-                <div style={{ fontSize: 12.5, color: 'var(--portal-text-muted)' }}>Sem vínculos com veículos da frota.</div>
+                <div style={{ fontSize: 13.5, color: 'var(--portal-text)' }}>Sem vínculos com veículos da frota.</div>
               ) : (
                 <>
                   {veiculoAtual.map((v) => (
-                    <div key={v.veiculo_id + v.inicio} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5 }}>
-                      <Car size={13} color="#0f766e" />
+                    <div key={v.veiculo_id + v.inicio} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5 }}>
+                      <Car size={13} color="#1e3a8a" />
                       <strong style={{ color: 'var(--portal-text)' }}>{formatarPlaca(v.placa)}</strong>
-                      <span style={{ color: 'var(--portal-text-secondary)' }}>{v.modelo || ''}</span>
-                      <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700, color: '#0f766e', background: '#ccfbf1', borderRadius: 999, padding: '2px 8px' }}>
+                      <span style={{ color: 'var(--portal-text)' }}>{v.modelo || ''}</span>
+                      <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 700, color: '#1e3a8a', background: '#dbeafe', borderRadius: 999, padding: '2px 8px' }}>
                         responsável desde {fmtData(v.inicio)}
                       </span>
                     </div>
                   ))}
                   {historico.length > 0 && (
                     <details>
-                      <summary style={{ fontSize: 11.5, color: 'var(--portal-text-muted)', cursor: 'pointer' }}>
+                      <summary style={{ fontSize: 12.5, color: 'var(--portal-text)', cursor: 'pointer' }}>
                         histórico ({historico.length})
                       </summary>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6 }}>
                         {historico.map((v, i) => (
-                          <div key={i} style={{ fontSize: 12, color: 'var(--portal-text-secondary)' }}>
+                          <div key={i} style={{ fontSize: 13, color: 'var(--portal-text)' }}>
                             {formatarPlaca(v.placa)} {v.modelo ? `· ${v.modelo}` : ''} — {fmtData(v.inicio)} → {fmtData(v.fim)}
                           </div>
                         ))}
@@ -379,24 +379,24 @@ export default function MotoristaDrawer({ rhId, portalId, nome, podeEditar, onCl
                   )}
                   {det.multas.length > 0 && (
                     <div style={{ borderTop: '1px dashed var(--portal-border)', paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 5 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#b91c1c' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: '#b91c1c' }}>
                         <ShieldAlert size={13} /> {det.multas_total.qtd} multa(s) · {fmtRS(det.multas_total.valor)} · {det.multas_total.pontos} ponto(s)
                       </div>
                       {det.multas.slice(0, 8).map((mu) => {
                         const st = STATUS_MULTA[mu.status_interno || ''] || null;
                         return (
-                          <div key={mu.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, color: 'var(--portal-text-secondary)' }}>
+                          <div key={mu.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--portal-text)' }}>
                             <span style={{ minWidth: 66 }}>{fmtData(mu.dt_multa)}</span>
                             <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={mu.descricao || ''}>
                               {formatarPlaca(mu.placa)} — {mu.descricao || '—'}
                             </span>
-                            {st && <span style={{ fontSize: 10, fontWeight: 700, color: st.cor, background: st.bg, borderRadius: 999, padding: '1px 7px' }}>{st.label}</span>}
+                            {st && <span style={{ fontSize: 11, fontWeight: 700, color: st.cor, background: st.bg, borderRadius: 999, padding: '1px 7px' }}>{st.label}</span>}
                             <strong style={{ color: 'var(--portal-text)', whiteSpace: 'nowrap' }}>{mu.valor != null ? fmtRS(mu.valor) : '—'}</strong>
                           </div>
                         );
                       })}
                       {det.multas.length > 8 && (
-                        <div style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>… e mais {det.multas.length - 8} (veja em Frota → Multas)</div>
+                        <div style={{ fontSize: 12, color: 'var(--portal-text)' }}>… e mais {det.multas.length - 8} (veja em Frota → Multas)</div>
                       )}
                     </div>
                   )}
@@ -409,23 +409,23 @@ export default function MotoristaDrawer({ rhId, portalId, nome, podeEditar, onCl
           {det && m?.rh_id && (
             <Secao titulo="Documentos do RH" icone={<FileText size={13} />}>
               {det.documentos_rh.length === 0 ? (
-                <div style={{ fontSize: 12.5, color: 'var(--portal-text-muted)' }}>Nenhum documento anexado no RH.</div>
+                <div style={{ fontSize: 13.5, color: 'var(--portal-text)' }}>Nenhum documento anexado no RH.</div>
               ) : (
                 det.documentos_rh.map((d) => (
-                  <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5 }}>
+                  <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5 }}>
                     <FileText size={13} color="var(--portal-text-muted)" />
                     <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       <strong style={{ color: 'var(--portal-text)', textTransform: 'capitalize' }}>{d.tipo.replace(/_/g, ' ')}</strong>
                       {d.descricao ? ` — ${d.descricao}` : ''}
                     </span>
-                    {d.data_validade && <span style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>até {fmtData(d.data_validade)}</span>}
+                    {d.data_validade && <span style={{ fontSize: 12, color: 'var(--portal-text)' }}>até {fmtData(d.data_validade)}</span>}
                     {d.url ? (
                       <a href={d.url} target="_blank" rel="noreferrer" title="O link expira em 1 hora"
-                        style={{ fontSize: 12, fontWeight: 700, color: '#0d9488', textDecoration: 'none' }}>
+                        style={{ fontSize: 13, fontWeight: 700, color: '#1e40af', textDecoration: 'none' }}>
                         abrir ↗
                       </a>
                     ) : (
-                      <span style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>sem arquivo</span>
+                      <span style={{ fontSize: 12, color: 'var(--portal-text)' }}>sem arquivo</span>
                     )}
                   </div>
                 ))

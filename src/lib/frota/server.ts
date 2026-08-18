@@ -14,6 +14,13 @@ export function temModuloFrota(auth: Autenticado): boolean {
   );
 }
 
+/** Módulo "Pendências (Frota)" — abrir/acompanhar pendências dos carros sem o
+ *  módulo Frota inteiro. Quem tem Frota também passa. */
+export function temModuloPendencias(auth: Autenticado): boolean {
+  if (auth.isAdmin) return true;
+  return auth.modulos.includes('pendencias') || temModuloFrota(auth);
+}
+
 /**
  * Pode executar a ação/ver a tela. Match por PREFIXO: quem tem
  * `frota:abastecimento:upload` também passa em `podeFrota(auth,'abastecimento')`

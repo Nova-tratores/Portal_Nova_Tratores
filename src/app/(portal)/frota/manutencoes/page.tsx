@@ -14,7 +14,7 @@ const fmtRS = (v: number | null) => (v == null ? '—' : Number(v).toLocaleStrin
 const fmtData = (s: string | null) => (s ? new Date(`${String(s).slice(0, 10)}T00:00:00`).toLocaleDateString('pt-BR') : '—');
 
 const ORIGEM: Record<string, { label: string; cor: string; bg: string }> = {
-  rotaexata: { label: 'Rota Exata', cor: '#0f766e', bg: '#ccfbf1' },
+  rotaexata: { label: 'Rota Exata', cor: '#1e3a8a', bg: '#dbeafe' },
   manual: { label: 'Portal', cor: '#1d4ed8', bg: '#dbeafe' },
   requisicao: { label: 'Requisição', cor: '#b45309', bg: '#fef3c7' },
 };
@@ -107,29 +107,29 @@ export default function FrotaManutencoesPage() {
     <div style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6, flexWrap: 'wrap' }}>
         <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Wrench size={20} color="#0d9488" /> Manutenções
+          <Wrench size={20} color="#1e40af" /> Manutenções
         </h2>
-        <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted)' }}>
+        <span style={{ fontSize: 13.5, color: 'var(--portal-text)' }}>
           {visiveis.length} veículos · {registros} registros · total {fmtRS(totalGeral)}
         </span>
         <div style={{ flex: 1 }} />
         <div style={{ position: 'relative' }}>
-          <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--portal-text-muted)' }} />
+          <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--portal-text)' }} />
           <input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Placa, descrição, fornecedor…"
-            style={{ padding: '8px 12px 8px 30px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13, width: 260 }}
+            style={{ padding: '8px 12px 8px 30px', borderRadius: 0, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13, width: 260 }}
           />
         </div>
       </div>
 
-      <p style={{ fontSize: 12, color: 'var(--portal-text-muted)', margin: '0 0 10px' }}>
+      <p style={{ fontSize: 13, color: 'var(--portal-text)', margin: '0 0 10px' }}>
         Clique no veículo pra ver o histórico completo dele.
       </p>
 
       {foraDaFrota.length > 0 && (
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--portal-text-secondary)', cursor: 'pointer', marginBottom: 10 }}>
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13.5, color: 'var(--portal-text)', cursor: 'pointer', marginBottom: 10 }}>
           <input type="checkbox" checked={mostrarInativos} onChange={() => setMostrarInativos((v) => !v)} />
           mostrar vendidos/arquivados ({foraDaFrota.length})
         </label>
@@ -137,8 +137,8 @@ export default function FrotaManutencoesPage() {
 
       {erro && <div style={{ color: '#b91c1c', fontSize: 13, marginBottom: 12 }}>{erro}</div>}
 
-      <div style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 12, overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 120px 110px 190px 120px', gap: 0, padding: '10px 16px', background: 'var(--portal-bg-secondary)', fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase', letterSpacing: 0.6 }}>
+      <div style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 0, overflow: 'hidden' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 120px 110px 190px 120px', gap: 0, padding: '10px 16px', background: 'var(--portal-bg-secondary)', fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: 0.6 }}>
           <span>Placa</span><span>Veículo</span><span style={{ textAlign: 'right' }}>Manutenções</span><span style={{ textAlign: 'right' }}>Última</span><span style={{ textAlign: 'center' }}>Origens</span><span style={{ textAlign: 'right' }}>Total</span>
         </div>
         {visiveis.map((g) => (
@@ -146,7 +146,7 @@ export default function FrotaManutencoesPage() {
             key={g.placa}
             onClick={() => setModalPlaca(g.placa)}
             title="Clique pra ver o histórico completo deste veículo"
-            style={{ display: 'grid', gridTemplateColumns: '110px 1fr 120px 110px 190px 120px', padding: '10px 16px', borderTop: '1px solid var(--portal-border)', fontSize: 12.5, color: 'var(--portal-text-secondary)', alignItems: 'center', cursor: 'pointer', opacity: g.ativo ? 1 : 0.6 }}
+            style={{ display: 'grid', gridTemplateColumns: '110px 1fr 120px 110px 190px 120px', padding: '10px 16px', borderTop: '1px solid var(--portal-border)', fontSize: 13.5, color: 'var(--portal-text)', alignItems: 'center', cursor: 'pointer', opacity: g.ativo ? 1 : 0.6 }}
             onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--portal-bg-secondary)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
           >
@@ -161,7 +161,7 @@ export default function FrotaManutencoesPage() {
               {Object.entries(g.origens).map(([k, n]) => {
                 const o = ORIGEM[k] || ORIGEM.manual;
                 return (
-                  <span key={k} style={{ fontSize: 10, fontWeight: 700, color: o.cor, background: o.bg, borderRadius: 999, padding: '2px 7px', whiteSpace: 'nowrap' }}>
+                  <span key={k} style={{ fontSize: 11, fontWeight: 700, color: o.cor, background: o.bg, borderRadius: 999, padding: '2px 7px', whiteSpace: 'nowrap' }}>
                     {n}× {o.label}
                   </span>
                 );
@@ -171,7 +171,7 @@ export default function FrotaManutencoesPage() {
           </div>
         ))}
         {visiveis.length === 0 && !erro && (
-          <div style={{ padding: 24, textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 13 }}>Nenhuma manutenção encontrada.</div>
+          <div style={{ padding: 24, textAlign: 'center', color: 'var(--portal-text)', fontSize: 13 }}>Nenhuma manutenção encontrada.</div>
         )}
       </div>
 
@@ -196,36 +196,36 @@ function ModalManutencoes({ grupo, onClose }: { grupo: GrupoVeiculo; onClose: ()
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{ width: '100%', maxWidth: 860, maxHeight: '85vh', display: 'flex', flexDirection: 'column', background: 'var(--portal-bg-card)', borderRadius: 14, overflow: 'hidden', boxShadow: '0 24px 60px rgba(0,0,0,0.35)' }}
+        style={{ width: '100%', maxWidth: 860, maxHeight: '85vh', display: 'flex', flexDirection: 'column', background: 'var(--portal-bg-card)', borderRadius: 0, overflow: 'hidden', boxShadow: '0 24px 60px rgba(0,0,0,0.35)' }}
       >
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, padding: '14px 20px', borderBottom: '1px solid var(--portal-border)' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--portal-text)', fontVariantNumeric: 'tabular-nums' }}>{formatarPlaca(grupo.placa)}</span>
-              {grupo.modelo && <span style={{ fontSize: 13, color: 'var(--portal-text-muted)' }}>{grupo.modelo}</span>}
+              {grupo.modelo && <span style={{ fontSize: 13, color: 'var(--portal-text)' }}>{grupo.modelo}</span>}
               <BadgeStatus status={grupo.status} />
             </div>
-            <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginTop: 2 }}>
+            <div style={{ fontSize: 13, color: 'var(--portal-text)', marginTop: 2 }}>
               {grupo.itens.length} manutenções · total <strong style={{ color: 'var(--portal-text)' }}>{fmtRS(grupo.total)}</strong>
             </div>
           </div>
           <button
             onClick={onClose}
             title="Fechar"
-            style={{ border: 'none', background: 'transparent', color: 'var(--portal-text-muted)', fontSize: 16, cursor: 'pointer', padding: 4, borderRadius: 6 }}
+            style={{ border: 'none', background: 'transparent', color: 'var(--portal-text)', fontSize: 16, cursor: 'pointer', padding: 4, borderRadius: 0 }}
           >
             ✕
           </button>
         </div>
 
         <div style={{ overflowY: 'auto', padding: '4px 0 8px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '92px 1fr 170px 105px 105px', gap: 0, padding: '8px 20px', fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase', letterSpacing: 0.6 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '92px 1fr 170px 105px 105px', gap: 0, padding: '8px 20px', fontSize: 11.5, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: 0.6 }}>
             <span>Data</span><span>Descrição</span><span>Fornecedor</span><span>Origem</span><span style={{ textAlign: 'right' }}>Valor</span>
           </div>
           {grupo.itens.map((m) => {
             const o = ORIGEM[m.origem] || ORIGEM.manual;
             return (
-              <div key={`${m.origem}-${m.id}`} style={{ display: 'grid', gridTemplateColumns: '92px 1fr 170px 105px 105px', padding: '8px 20px', borderTop: '1px solid var(--portal-border)', fontSize: 12.5, color: 'var(--portal-text-secondary)', alignItems: 'center' }}>
+              <div key={`${m.origem}-${m.id}`} style={{ display: 'grid', gridTemplateColumns: '92px 1fr 170px 105px 105px', padding: '8px 20px', borderTop: '1px solid var(--portal-border)', fontSize: 13.5, color: 'var(--portal-text)', alignItems: 'center' }}>
                 <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtData(m.data)}</span>
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 8 }} title={m.descricao || ''}>
                   {m.origem === 'requisicao' ? (
@@ -234,14 +234,14 @@ function ModalManutencoes({ grupo, onClose }: { grupo: GrupoVeiculo; onClose: ()
                       title="Abrir a requisição"
                       style={{ color: 'var(--portal-text)', textDecoration: 'none', fontWeight: 600 }}
                     >
-                      {m.descricao || m.tipo || '—'} <ExternalLink size={11} style={{ verticalAlign: '-1px', color: '#0d9488' }} />
+                      {m.descricao || m.tipo || '—'} <ExternalLink size={11} style={{ verticalAlign: '-1px', color: '#1e40af' }} />
                     </a>
                   ) : (
                     m.descricao || m.tipo || '—'
                   )}
                 </span>
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 8 }}>{m.fornecedor || '—'}</span>
-                <span><span style={{ fontSize: 10, fontWeight: 700, color: o.cor, background: o.bg, borderRadius: 999, padding: '2px 8px' }}>{o.label}</span></span>
+                <span><span style={{ fontSize: 11, fontWeight: 700, color: o.cor, background: o.bg, borderRadius: 999, padding: '2px 8px' }}>{o.label}</span></span>
                 <strong style={{ color: 'var(--portal-text)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtRS(m.valor_total)}</strong>
               </div>
             );

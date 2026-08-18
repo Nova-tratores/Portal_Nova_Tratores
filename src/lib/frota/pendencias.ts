@@ -21,25 +21,34 @@ export interface DadosPendencia {
   exercicio_crlv?: number | null;
 }
 
+/** Mesma régua, mas com um SLUG estável por regra — a aba Pendências usa o slug
+ *  pra abrir/fechar automaticamente a pendência registrada correspondente. */
+export function pendenciasDetalhadas(
+  d: DadosPendencia,
+  anoAtual: number = new Date().getFullYear(),
+): { slug: string; titulo: string }[] {
+  // vendido/inativo é HISTÓRICO — não cobra pendência de quem já saiu da frota
+  if (d.status === 'vendido' || !d.ativo) return [];
+  const p: { slug: string; titulo: string }[] = [];
+  if (d.pendencia_vinculo) p.push({ slug: 'cadastro_incompleto', titulo: 'Cadastro incompleto — só apareceu no abastecimento (complete a ficha)' });
+  if (!d.renavam?.trim()) p.push({ slug: 'sem_renavam', titulo: 'Sem RENAVAM' });
+  if (!d.chassi?.trim()) p.push({ slug: 'sem_chassi', titulo: 'Sem chassi' });
+  if (!d.proprietario?.trim()) p.push({ slug: 'sem_proprietario', titulo: 'Sem proprietário' });
+  if (!d.tem_crlv) p.push({ slug: 'sem_crlv', titulo: 'Sem CRLV anexado' });
+  if (d.exercicio_crlv != null && d.exercicio_crlv < anoAtual) {
+    p.push({ slug: 'crlv_atrasado', titulo: `Documento atrasado — CRLV do exercício ${d.exercicio_crlv} (atualize o licenciamento)` });
+  }
+  if (d.docs_vencendo > 0) p.push({ slug: 'docs_vencendo', titulo: `${d.docs_vencendo} documento(s) vencido(s) ou vencendo em 30 dias` });
+  if (d.multas_abertas > 0) p.push({ slug: 'multas_abertas', titulo: `${d.multas_abertas} multa(s) em aberto` });
+  return p;
+}
+
 /** O que falta neste veículo (vazio = card normal; 1+ = card vermelho). */
 export function pendenciasDoVeiculo(
   d: DadosPendencia,
   anoAtual: number = new Date().getFullYear(),
 ): string[] {
-  // vendido/inativo é HISTÓRICO — não cobra pendência de quem já saiu da frota
-  if (d.status === 'vendido' || !d.ativo) return [];
-  const p: string[] = [];
-  if (d.pendencia_vinculo) p.push('Cadastro incompleto — só apareceu no abastecimento (complete a ficha)');
-  if (!d.renavam?.trim()) p.push('Sem RENAVAM');
-  if (!d.chassi?.trim()) p.push('Sem chassi');
-  if (!d.proprietario?.trim()) p.push('Sem proprietário');
-  if (!d.tem_crlv) p.push('Sem CRLV anexado');
-  if (d.exercicio_crlv != null && d.exercicio_crlv < anoAtual) {
-    p.push(`Documento atrasado — CRLV do exercício ${d.exercicio_crlv} (atualize o licenciamento)`);
-  }
-  if (d.docs_vencendo > 0) p.push(`${d.docs_vencendo} documento(s) vencido(s) ou vencendo em 30 dias`);
-  if (d.multas_abertas > 0) p.push(`${d.multas_abertas} multa(s) em aberto`);
-  return p;
+  return pendenciasDetalhadas(d, anoAtual).map((p) => p.titulo);
 }
 
 export interface DadosPreVenda {

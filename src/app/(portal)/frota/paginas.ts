@@ -49,6 +49,9 @@ export const PAGINAS_FROTA: PaginaFrota[] = [
   { key: 'frota:abastecimento',      label: 'Abastecimento',     href: '/frota/abastecimento',      grupo: 'Custos' },
   { key: 'frota:abastecimento:flex', label: 'Álcool × Gasolina', href: '/frota/abastecimento/flex', grupo: 'Custos' },
   { key: 'frota:custos',             label: 'Custos (TCO)',      href: '/frota/custos',             grupo: 'Custos' },
+  // Pendências por veículo: régua de cadastro/documentação (a mesma da Visão
+  // geral) + problemas do checklist mais recente de cada placa, num lugar só.
+  { key: 'frota:pendencias',         label: 'Pendências',        href: '/frota/pendencias',         grupo: 'Custos' },
 ];
 
 /** 'frota:abastecimento:flex' -> 'abastecimento:flex' */

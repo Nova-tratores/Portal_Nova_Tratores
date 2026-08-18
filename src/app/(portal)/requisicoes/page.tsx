@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { authHeaders } from '@/lib/auth/client';
 import { filtrarDestinatarios } from '@/lib/notif/prefs';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
@@ -865,6 +866,12 @@ function RequisicoesPageInner() {
               }
               auditLog({ sistema: 'requisicoes', acao: 'criar', entidade: 'requisicao', entidade_label: String(nova.titulo || '') });
               notificarUsuariosReq('requisicao', `${userName} criou uma requisição`, String(nova.titulo || 'Nova requisição'), '/requisicoes');
+              // Veicular Manutenção → a pendência da Frota nasce NA HORA (o motor
+              // cria pro carro com o km do hodômetro e fecha sozinho quando a
+              // requisição chegar ao financeiro)
+              if (nova.tipo === 'Veicular Manutenção') {
+                fetch('/api/frota/pendencias/sync', { method: 'POST', headers: await authHeaders() }).catch(() => {});
+              }
               setAbaAtiva('kanban');
               carregarDados(true);
             }} />

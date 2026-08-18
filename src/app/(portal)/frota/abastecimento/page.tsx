@@ -49,7 +49,7 @@ const MESES_ABREV = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'se
 
 const thStyle: React.CSSProperties = { background: '#fafafa', color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', padding: '9px 10px', textAlign: 'left', borderBottom: '1px solid #eee', fontWeight: 600 };
 const tdStyle: React.CSSProperties = { padding: '8px 10px', borderBottom: '1px solid #f5f5f5', color: '#444', fontSize: '.82rem' };
-const selStyle: React.CSSProperties = { padding: '8px 10px', border: '1px solid #ddd', borderRadius: 8, fontSize: '.82rem', background: '#fff', color: '#444' };
+const selStyle: React.CSSProperties = { padding: '8px 10px', border: '1px solid #ddd', borderRadius: 0, fontSize: '.82rem', background: '#fff', color: '#444' };
 const linhaClicavel: React.CSSProperties = { cursor: 'pointer' };
 
 function fmtL(v: number): string {
@@ -96,7 +96,7 @@ function KPI({ label, valor, sub, cor, onClick }: { label: string; valor: string
     <div
       onClick={onClick}
       title={onClick ? 'Clique para ver os abastecimentos' : undefined}
-      style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 16, cursor: onClick ? 'pointer' : 'default' }}
+      style={{ background: '#fff', border: '1px solid #eee', borderRadius: 0, padding: 16, cursor: onClick ? 'pointer' : 'default' }}
     >
       <div style={{ color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 600, marginBottom: 4 }}>{label}</div>
       <div style={{ fontSize: '1.2rem', fontWeight: 700, color: cor || '#333' }}>{valor}</div>
@@ -165,8 +165,8 @@ function ComparadorVeiculos({ serie, veiculos, meses }: {
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={dadosGrafico}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-              <XAxis dataKey="rotulo" tick={{ fontSize: 11, fill: '#888' }} />
-              <YAxis tick={{ fontSize: 11, fill: '#888' }} width={70} tickFormatter={(v) => metrica === 'valor' ? (Number(v) / 1000).toLocaleString('pt-BR') + 'k' : String(v)} />
+              <XAxis dataKey="rotulo" tick={{ fontSize: 12, fill: '#888' }} />
+              <YAxis tick={{ fontSize: 12, fill: '#888' }} width={70} tickFormatter={(v) => metrica === 'valor' ? (Number(v) / 1000).toLocaleString('pt-BR') + 'k' : String(v)} />
               <Tooltip formatter={(v) => fmtMetrica(Number(v))} labelStyle={{ color: '#444' }} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               {escolhidas.map((p) => (
@@ -198,10 +198,10 @@ function RankingChart({ dados, cor, formato, onItemClick }: {
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={dados} layout="vertical" margin={{ left: 8, right: 24 }}>
           <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
-          <XAxis type="number" tick={{ fontSize: 11, fill: '#888' }} tickFormatter={(v) => formato(Number(v))} />
+          <XAxis type="number" tick={{ fontSize: 12, fill: '#888' }} tickFormatter={(v) => formato(Number(v))} />
           <YAxis
             type="category" dataKey="nome" width={155} interval={0}
-            tick={{ fontSize: 10.5, fill: '#444' }}
+            tick={{ fontSize: 11.5, fill: '#444' }}
             tickFormatter={(v) => truncar(String(v))}
           />
           <Tooltip formatter={(v) => formato(Number(v))} labelStyle={{ color: '#444' }} />
@@ -370,7 +370,7 @@ export default function AbastecimentoPage() {
       key={chave}
       onClick={acao}
       disabled={!!gerandoPdf || !dados}
-      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', color: tipo === 'pdf' ? '#dc2626' : '#166534', border: `1px solid ${tipo === 'pdf' ? '#dc2626' : '#166534'}`, borderRadius: 8, padding: '8px 12px', fontSize: '.78rem', fontWeight: 600, cursor: 'pointer', opacity: gerandoPdf && gerandoPdf !== chave ? 0.5 : 1 }}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', color: tipo === 'pdf' ? '#dc2626' : '#166534', border: `1px solid ${tipo === 'pdf' ? '#dc2626' : '#166534'}`, borderRadius: 0, padding: '8px 12px', fontSize: '.78rem', fontWeight: 600, cursor: 'pointer', opacity: gerandoPdf && gerandoPdf !== chave ? 0.5 : 1 }}
     >
       {tipo === 'pdf' ? <FileDown size={14} /> : <FileSpreadsheet size={14} />} {gerandoPdf === chave ? 'Gerando…' : rotulo}
     </button>
@@ -433,7 +433,7 @@ export default function AbastecimentoPage() {
           </div>
 
           {erro && (
-            <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', color: '#b91c1c', borderRadius: 8, padding: '10px 12px', fontSize: '.82rem', marginBottom: 16 }}>
+            <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', color: '#b91c1c', borderRadius: 0, padding: '10px 12px', fontSize: '.82rem', marginBottom: 16 }}>
               {erro}
             </div>
           )}
@@ -503,15 +503,15 @@ export default function AbastecimentoPage() {
                             onClick={(st: any) => { const mes = st?.activePayload?.[0]?.payload?.mes; if (mes) abrirDetalhe(`Abastecimentos de ${rotuloMes(mes)}`, { mes }); }}
                           >
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                            <XAxis dataKey="rotulo" tick={{ fontSize: 11, fill: '#888' }} />
-                            <YAxis tick={{ fontSize: 11, fill: '#888' }} tickFormatter={(v) => (Number(v) / 1000).toLocaleString('pt-BR') + 'k'} />
+                            <XAxis dataKey="rotulo" tick={{ fontSize: 12, fill: '#888' }} />
+                            <YAxis tick={{ fontSize: 12, fill: '#888' }} tickFormatter={(v) => (Number(v) / 1000).toLocaleString('pt-BR') + 'k'} />
                             <Tooltip
                               // eslint-disable-next-line @typescript-eslint/no-explicit-any
                               content={({ active, payload, label }: any) => {
                                 if (!active || !payload?.length) return null;
                                 const m = payload[0].payload;
                                 return (
-                                  <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 8, padding: '8px 10px', fontSize: '.76rem', color: '#444', boxShadow: '0 2px 8px rgba(0,0,0,.08)' }}>
+                                  <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 0, padding: '8px 10px', fontSize: '.76rem', color: '#444', boxShadow: '0 2px 8px rgba(0,0,0,.08)' }}>
                                     <div style={{ fontWeight: 700, marginBottom: 4 }}>{label}</div>
                                     <div>Gasto: <strong>{fmtRS(m.valor)}</strong></div>
                                     <div>Ano passado: {m.valorAnoAnterior != null ? fmtRS(m.valorAnoAnterior) : '—'}</div>
@@ -539,8 +539,8 @@ export default function AbastecimentoPage() {
                             onClick={(st: any) => { const mes = st?.activePayload?.[0]?.payload?.mes; if (mes) abrirDetalhe(`Abastecimentos de ${rotuloMes(mes)}`, { mes }); }}
                           >
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                            <XAxis dataKey="rotulo" tick={{ fontSize: 11, fill: '#888' }} />
-                            <YAxis tick={{ fontSize: 11, fill: '#888' }} />
+                            <XAxis dataKey="rotulo" tick={{ fontSize: 12, fill: '#888' }} />
+                            <YAxis tick={{ fontSize: 12, fill: '#888' }} />
                             <Tooltip formatter={(v, nome) => [fmtL(Number(v)), nome]} labelStyle={{ color: '#444' }} />
                             <Legend wrapperStyle={{ fontSize: 11 }} />
                             <Bar dataKey="litros" name="Litros" fill={COR_LITROS} radius={[4, 4, 0, 0]} barSize={24} />
@@ -562,8 +562,8 @@ export default function AbastecimentoPage() {
                             onClick={(st: any) => { const mes = st?.activePayload?.[0]?.payload?.mes; if (mes) abrirDetalhe(`Abastecimentos de ${rotuloMes(mes)}`, { mes }); }}
                           >
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                            <XAxis dataKey="rotulo" tick={{ fontSize: 11, fill: '#888' }} />
-                            <YAxis tick={{ fontSize: 11, fill: '#888' }} tickFormatter={(v) => 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} domain={['auto', 'auto']} width={70} />
+                            <XAxis dataKey="rotulo" tick={{ fontSize: 12, fill: '#888' }} />
+                            <YAxis tick={{ fontSize: 12, fill: '#888' }} tickFormatter={(v) => 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} domain={['auto', 'auto']} width={70} />
                             <Tooltip formatter={(v) => fmtRS(Number(v))} labelStyle={{ color: '#444' }} />
                             <Legend wrapperStyle={{ fontSize: 11 }} />
                             {dados.combustiveis.map((c) => (
@@ -579,8 +579,8 @@ export default function AbastecimentoPage() {
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={gastoComb}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                            <XAxis dataKey="rotulo" tick={{ fontSize: 11, fill: '#888' }} />
-                            <YAxis tick={{ fontSize: 11, fill: '#888' }} tickFormatter={(v) => (Number(v) / 1000).toLocaleString('pt-BR') + 'k'} />
+                            <XAxis dataKey="rotulo" tick={{ fontSize: 12, fill: '#888' }} />
+                            <YAxis tick={{ fontSize: 12, fill: '#888' }} tickFormatter={(v) => (Number(v) / 1000).toLocaleString('pt-BR') + 'k'} />
                             <Tooltip formatter={(v) => fmtRS(Number(v))} labelStyle={{ color: '#444' }} />
                             <Legend wrapperStyle={{ fontSize: 11 }} />
                             {dados.combustiveis.map((c) => (
@@ -643,7 +643,7 @@ export default function AbastecimentoPage() {
                           {dados.porCombustivel.map((c) => (
                             <tr key={c.combustivel} style={linhaClicavel} onClick={() => abrirDetalhe(`Abastecimentos de ${c.combustivel}`, { combustivel: c.combustivel })}>
                               <td style={tdStyle}>
-                                <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 3, background: corDoCombustivel(c.combustivel, dados.combustiveis), marginRight: 8 }} />
+                                <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 0, background: corDoCombustivel(c.combustivel, dados.combustiveis), marginRight: 8 }} />
                                 {c.combustivel}
                               </td>
                               <td style={{ ...tdStyle, textAlign: 'right' }}>{fmtL(c.litros)}</td>
@@ -667,7 +667,7 @@ export default function AbastecimentoPage() {
                         <div
                           key={a.placa}
                           onClick={() => abrirDetalhe(`Abastecimentos de ${a.placa}`, { placa: a.placa })}
-                          style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 8, padding: '10px 12px', marginBottom: 8, cursor: 'pointer' }}
+                          style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 0, padding: '10px 12px', marginBottom: 8, cursor: 'pointer' }}
                         >
                           <AlertTriangle size={18} color="#b45309" />
                           <div style={{ fontSize: '.82rem', color: '#78350f' }}>
@@ -707,7 +707,7 @@ export default function AbastecimentoPage() {
                             {dados.abc.map((v) => (
                               <tr key={v.placa} style={linhaClicavel} onClick={() => abrirDetalhe(`Abastecimentos de ${v.placa}`, { placa: v.placa })}>
                                 <td style={tdStyle}>
-                                  <span style={{ background: v.classe === 'A' ? '#fee2e2' : v.classe === 'B' ? '#fef3c7' : '#f3f4f6', color: v.classe === 'A' ? '#b91c1c' : v.classe === 'B' ? '#92400e' : '#6b7280', borderRadius: 6, padding: '2px 8px', fontWeight: 700, fontSize: '.72rem' }}>{v.classe}</span>
+                                  <span style={{ background: v.classe === 'A' ? '#fee2e2' : v.classe === 'B' ? '#fef3c7' : '#f3f4f6', color: v.classe === 'A' ? '#b91c1c' : v.classe === 'B' ? '#92400e' : '#6b7280', borderRadius: 0, padding: '2px 8px', fontWeight: 700, fontSize: '.72rem' }}>{v.classe}</span>
                                 </td>
                                 <td style={{ ...tdStyle, fontWeight: 600 }}>{v.placa}{v.modelo ? <span style={{ color: '#999', fontWeight: 400 }}> · {v.modelo}</span> : null}</td>
                                 <td style={{ ...tdStyle, textAlign: 'right' }}>{fmtRS(v.valor)}</td>
@@ -844,7 +844,7 @@ export default function AbastecimentoPage() {
                         <div
                           key={i}
                           onClick={() => abrirDetalhe(`Abastecimentos de ${s.placa}`, { placa: s.placa })}
-                          style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 8, padding: '10px 12px', marginBottom: 8, cursor: 'pointer' }}
+                          style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 0, padding: '10px 12px', marginBottom: 8, cursor: 'pointer' }}
                         >
                           <AlertTriangle size={18} color="#b91c1c" />
                           <div style={{ fontSize: '.82rem', color: '#7f1d1d' }}>
@@ -867,8 +867,8 @@ export default function AbastecimentoPage() {
                         <ResponsiveContainer width="100%" height="100%">
                           <ScatterChart margin={{ left: 8, right: 16, bottom: 12 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                            <XAxis type="number" dataKey="horas" name="Horas" tick={{ fontSize: 11, fill: '#888' }} label={{ value: 'horas desde o abastecimento anterior', position: 'insideBottom', offset: -6, fontSize: 11, fill: '#888' }} />
-                            <YAxis type="number" dataKey="litros" name="Litros" tick={{ fontSize: 11, fill: '#888' }} />
+                            <XAxis type="number" dataKey="horas" name="Horas" tick={{ fontSize: 12, fill: '#888' }} label={{ value: 'horas desde o abastecimento anterior', position: 'insideBottom', offset: -6, fontSize: 12, fill: '#888' }} />
+                            <YAxis type="number" dataKey="litros" name="Litros" tick={{ fontSize: 12, fill: '#888' }} />
                             <ZAxis range={[50, 51]} />
                             <Tooltip
                               // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -876,7 +876,7 @@ export default function AbastecimentoPage() {
                                 if (!active || !payload?.length) return null;
                                 const p = payload[0].payload;
                                 return (
-                                  <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 8, padding: '8px 10px', fontSize: '.76rem', color: '#444', boxShadow: '0 2px 8px rgba(0,0,0,.08)' }}>
+                                  <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 0, padding: '8px 10px', fontSize: '.76rem', color: '#444', boxShadow: '0 2px 8px rgba(0,0,0,.08)' }}>
                                     <div style={{ fontWeight: 700 }}>{p.placa}</div>
                                     <div>{p.litros.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L, {p.horas.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}h após o anterior</div>
                                     {p.motivo && <div style={{ color: '#b91c1c', fontWeight: 600 }}>{p.motivo}</div>}
@@ -935,7 +935,7 @@ export default function AbastecimentoPage() {
         <div
           onClick={() => setUploadAberto(true)}
           title="Importar o CSV mensal da operadora"
-          style={{ marginTop: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, borderTop: '1px dashed #e5e5e5', background: '#fafafa', color: '#dc2626', fontSize: '.8rem', fontWeight: 600, padding: '13px 16px', borderRadius: 8, cursor: 'pointer' }}
+          style={{ marginTop: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, borderTop: '1px dashed #e5e5e5', background: '#fafafa', color: '#dc2626', fontSize: '.8rem', fontWeight: 600, padding: '13px 16px', borderRadius: 0, cursor: 'pointer' }}
         >
           <Upload size={15} /> Importar CSV da operadora
           <span style={{ color: '#aaa', fontWeight: 400 }}>· clique para enviar o arquivo do mês</span>
@@ -950,7 +950,7 @@ export default function AbastecimentoPage() {
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            style={{ background: '#fff', borderRadius: 12, width: 'min(1020px, 100%)', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 10px 40px rgba(0,0,0,.2)', position: 'relative', padding: 16 }}
+            style={{ background: '#fff', borderRadius: 0, width: 'min(1020px, 100%)', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 10px 40px rgba(0,0,0,.2)', position: 'relative', padding: 16 }}
           >
             <button
               onClick={() => setUploadAberto(false)}

@@ -150,33 +150,33 @@ export default function FrotaMapaPage() {
     <div style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
         <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <MapIcon size={20} color="#0d9488" /> Mapa & rastreamento
+          <MapIcon size={20} color="#1e40af" /> Mapa & rastreamento
         </h2>
-        <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted)' }}>
+        <span style={{ fontSize: 13.5, color: 'var(--portal-text)' }}>
           {carros.length} veículos rastreados · escolha um carro e uma data pra ver o trajeto e as paradas
         </span>
         <div style={{ flex: 1 }} />
         {/* Busca de cliente/local: escolher → o mapa voa até lá */}
         <div style={{ position: 'relative', width: 300 }}>
-          <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--portal-text-muted)' }} />
+          <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--portal-text)' }} />
           <input
             value={busca}
             onChange={(e) => { setBusca(e.target.value); setBuscaAberta(true); }}
             onFocus={() => setBuscaAberta(true)}
             placeholder={`Buscar cliente/local no mapa… (${locais.length})`}
-            style={{ width: '100%', padding: '8px 30px 8px 30px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13 }}
+            style={{ width: '100%', padding: '8px 30px 8px 30px', borderRadius: 0, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13 }}
           />
           {busca && (
             <button
               onClick={() => { setBusca(''); setFoco(null); setBuscaAberta(false); }}
               title="Limpar"
-              style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', cursor: 'pointer', color: 'var(--portal-text-muted)', padding: 2 }}
+              style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', cursor: 'pointer', color: 'var(--portal-text)', padding: 2 }}
             >
               <X size={14} />
             </button>
           )}
           {buscaAberta && resultadosBusca.length > 0 && (
-            <div style={{ position: 'absolute', top: '110%', left: 0, right: 0, zIndex: 1200, background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 10, overflow: 'hidden', boxShadow: '0 12px 32px rgba(0,0,0,0.25)' }}>
+            <div style={{ position: 'absolute', top: '110%', left: 0, right: 0, zIndex: 1200, background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 0, overflow: 'hidden', boxShadow: '0 12px 32px rgba(0,0,0,0.25)' }}>
               {resultadosBusca.map((l, i) => (
                 <button
                   key={`${l.nome}-${i}`}
@@ -185,14 +185,14 @@ export default function FrotaMapaPage() {
                   onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--portal-bg-secondary)'; }}
                   onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
                 >
-                  <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--portal-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.nome}</div>
-                  <div style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>{l.subtitulo || ''}</div>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--portal-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.nome}</div>
+                  <div style={{ fontSize: 12, color: 'var(--portal-text)' }}>{l.subtitulo || ''}</div>
                 </button>
               ))}
             </div>
           )}
           {buscaAberta && busca.trim().length >= 2 && resultadosBusca.length === 0 && (
-            <div style={{ position: 'absolute', top: '110%', left: 0, right: 0, zIndex: 1200, background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 10, padding: '10px 12px', fontSize: 12, color: 'var(--portal-text-muted)', boxShadow: '0 12px 32px rgba(0,0,0,0.25)' }}>
+            <div style={{ position: 'absolute', top: '110%', left: 0, right: 0, zIndex: 1200, background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 0, padding: '10px 12px', fontSize: 13, color: 'var(--portal-text)', boxShadow: '0 12px 32px rgba(0,0,0,0.25)' }}>
               Nenhum cliente/local com esse nome (só aparecem os com endereço geocodificado).
             </div>
           )}
@@ -201,7 +201,7 @@ export default function FrotaMapaPage() {
       {erro && <div style={{ color: '#b91c1c', fontSize: 13, marginBottom: 10 }}>{erro}</div>}
       {/* O MapaCarros usa height:100% — sem um pai com ALTURA EXPLÍCITA o
           Leaflet monta num container de 0px e a tela fica em branco. */}
-      <div style={{ width: '100%', height: 'calc(100vh - 230px)', minHeight: 480, borderRadius: 14, overflow: 'hidden', border: '1px solid var(--portal-border)' }}>
+      <div style={{ width: '100%', height: 'calc(100vh - 230px)', minHeight: 480, borderRadius: 0, overflow: 'hidden', border: '1px solid var(--portal-border)' }}>
         <MapaCarros
           carros={carros as any}
           fontePosicoes="frota"

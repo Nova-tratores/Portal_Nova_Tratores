@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
-import { logFrota, podeFrota, temModuloFrota } from '@/lib/frota/server';
+import { logFrota, podeFrota, temModuloPendencias } from '@/lib/frota/server';
 import { garantirSupaPlaca } from '@/lib/frota/supaplacas';
 import { pendenciasDoVeiculo } from '@/lib/frota/pendencias';
 import { PLACA_RE, resolverPlaca } from '@/lib/frota/placa';
@@ -22,7 +22,8 @@ const supabase = createClient(
 export async function GET(req: NextRequest) {
   const auth = await autenticar(req);
   if (!auth) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
-  if (!temModuloFrota(auth)) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
+  // leitura liberada também pro módulo "Pendências (Frota)"
+  if (!temModuloPendencias(auth)) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
 
   const de7 = new Date(Date.now() - 7 * 86400_000).toISOString().slice(0, 10);
   const [veiculos, responsaveis, placasFoto, multas, docs, dias7] = await Promise.all([

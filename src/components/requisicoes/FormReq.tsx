@@ -136,6 +136,19 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // Veicular Manutenção: placa + HODÔMETRO são obrigatórios — a requisição
+    // abre sozinha uma PENDÊNCIA na Frota pro mesmo carro (com o km), que
+    // fecha quando a requisição chegar ao financeiro.
+    if (formData.tipo === 'Veicular Manutenção') {
+      if (!String(formData.veiculo || '').trim()) {
+        alert('Selecione a PLACA do veículo — requisição de Veicular Manutenção abre uma pendência na Frota pro carro.');
+        return;
+      }
+      if (!String(formData.hodometro || '').trim()) {
+        alert('Informe o HODÔMETRO atual do veículo — obrigatório pra abrir requisição de Veicular Manutenção.');
+        return;
+      }
+    }
     // Remove campos vazios para evitar erro se coluna não existir no banco
     const dados: Record<string, unknown> = {};
     for (const [key, val] of Object.entries(formData)) {

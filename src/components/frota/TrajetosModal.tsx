@@ -253,37 +253,37 @@ export default function TrajetosModal({ placa, onClose }: Props) {
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 950, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: 'min(1000px, 96vw)', height: 'min(640px, 88vh)', background: 'var(--portal-bg)', borderRadius: 14, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 70px rgba(0,0,0,0.4)' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: 'min(1000px, 96vw)', height: 'min(640px, 88vh)', background: 'var(--portal-bg)', borderRadius: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 70px rgba(0,0,0,0.4)' }}>
         {/* Header + resumo dos dias escolhidos */}
         <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--portal-border)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <Route size={17} color="#0d9488" />
+          <Route size={17} color="#1e40af" />
           <strong style={{ fontSize: 15, fontWeight: 800, color: 'var(--portal-text)' }}>Trajetos & paradas · {formatarPlaca(placa)}</strong>
           {sel.length > 0 && (
-            <span style={{ fontSize: 12, color: 'var(--portal-text-secondary)', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 13, color: 'var(--portal-text)', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               <span><strong style={{ color: '#2563eb' }}>{Math.round(resumo.km).toLocaleString('pt-BR')} km</strong> em {sel.length} dia{sel.length > 1 ? 's' : ''}</span>
               <span>{resumo.paradas} paradas{resumo.atipicas > 0 && <strong style={{ color: '#b91c1c' }}> ({resumo.atipicas} atípicas)</strong>}</span>
               <span>{fmtMin(resumo.ligado)} ligado</span>
-              {resumo.litros > 0 && <span>{resumo.litros.toFixed(1)} L · <strong style={{ color: '#0d9488' }}>{fmtRS(resumo.gasto)}</strong></span>}
+              {resumo.litros > 0 && <span>{resumo.litros.toFixed(1)} L · <strong style={{ color: '#1e40af' }}>{fmtRS(resumo.gasto)}</strong></span>}
             </span>
           )}
           {buscando && <Loader2 size={14} className="spin" color="var(--portal-text-muted)" />}
           <div style={{ flex: 1 }} />
-          <div style={{ display: 'flex', border: '1px solid var(--portal-border)', borderRadius: 8, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', border: '1px solid var(--portal-border)', borderRadius: 0, overflow: 'hidden' }}>
             {(['dia', 'semana', 'mes'] as Visao[]).map((v) => (
-              <button key={v} onClick={() => setVisao(v)} style={{ padding: '5px 12px', border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer', background: visao === v ? '#0d9488' : 'var(--portal-bg-input)', color: visao === v ? '#fff' : 'var(--portal-text-secondary)' }}>
+              <button key={v} onClick={() => setVisao(v)} style={{ padding: '5px 12px', border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: visao === v ? '#1e40af' : 'var(--portal-bg-input)', color: visao === v ? '#fff' : 'var(--portal-text-secondary)' }}>
                 {v === 'dia' ? 'Dia' : v === 'semana' ? 'Semana' : 'Mês'}
               </button>
             ))}
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text-muted)' }}><X size={18} /></button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text)' }}><X size={18} /></button>
         </div>
 
         <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
           {/* Lista de dias (multi-seleção) */}
           <div style={{ width: 250, borderRight: '1px solid var(--portal-border)', overflowY: 'auto', flexShrink: 0 }}>
-            {carregandoDias && <div style={{ padding: 14, fontSize: 12, color: 'var(--portal-text-muted)' }}>Carregando dias…</div>}
+            {carregandoDias && <div style={{ padding: 14, fontSize: 13, color: 'var(--portal-text)' }}>Carregando dias…</div>}
             {!carregandoDias && dias.length === 0 && (
-              <div style={{ padding: 14, fontSize: 12, color: 'var(--portal-text-muted)' }}>
+              <div style={{ padding: 14, fontSize: 13, color: 'var(--portal-text)' }}>
                 Nenhum dia consolidado ainda — o fechamento roda de madrugada (e este veículo precisa de rastreador).
               </div>
             )}
@@ -293,18 +293,18 @@ export default function TrajetosModal({ placa, onClose }: Props) {
               const cor = marcado || parcial ? corPorDia[g.dias.find((d) => sel.includes(d.data))?.data || ''] : null;
               return (
                 <label key={g.chave} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderBottom: '1px solid var(--portal-border)', cursor: 'pointer', background: marcado || parcial ? 'var(--portal-bg-secondary)' : 'transparent' }}>
-                  <input type="checkbox" checked={marcado} ref={(el) => { if (el) el.indeterminate = parcial; }} onChange={() => alternarGrupo(g)} style={{ accentColor: cor || '#0d9488' }} />
+                  <input type="checkbox" checked={marcado} ref={(el) => { if (el) el.indeterminate = parcial; }} onChange={() => alternarGrupo(g)} style={{ accentColor: cor || '#1e40af' }} />
                   {cor && <span style={{ width: 9, height: 9, borderRadius: '50%', background: cor, flexShrink: 0 }} />}
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--portal-text)', textTransform: visao === 'mes' ? 'capitalize' : 'none' }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--portal-text)', textTransform: visao === 'mes' ? 'capitalize' : 'none' }}>
                       {g.rotulo}
-                      {visao !== 'dia' && <span style={{ fontWeight: 500, color: 'var(--portal-text-muted)' }}> · {g.dias.length} dia{g.dias.length > 1 ? 's' : ''}</span>}
+                      {visao !== 'dia' && <span style={{ fontWeight: 500, color: 'var(--portal-text)' }}> · {g.dias.length} dia{g.dias.length > 1 ? 's' : ''}</span>}
                     </div>
-                    <div style={{ fontSize: 10.5, color: 'var(--portal-text-muted)', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <div style={{ fontSize: 11.5, color: 'var(--portal-text)', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                       <span>{Math.round(g.km).toLocaleString('pt-BR')} km</span>
                       <span>{g.paradas} par.</span>
                       {g.atipicas > 0 && <span style={{ color: '#b91c1c', fontWeight: 700 }}>{g.atipicas} atíp.</span>}
-                      {g.gasto > 0 && <span style={{ color: '#0d9488' }}>{fmtRS(g.gasto)}</span>}
+                      {g.gasto > 0 && <span style={{ color: '#1e40af' }}>{fmtRS(g.gasto)}</span>}
                     </div>
                   </div>
                 </label>

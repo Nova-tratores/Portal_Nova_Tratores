@@ -31,7 +31,7 @@ const GRUPO_POR_MODULO: Record<string, string> = {
   'gestao-vendas': 'Comercial',
   // Estoque
   'consulta-estoque': 'Estoque', estoque: 'Estoque',
-  frota: 'Frota',
+  frota: 'Frota', pendencias: 'Frota',
   // Outros
   opa: 'Outros', avisos: 'Outros', tarefas: 'Outros', 'dashboard-agro': 'Outros', tratorilson: 'Outros',
   tickets: 'Outros', 'war-room': 'Financeiro',

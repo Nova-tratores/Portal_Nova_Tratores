@@ -107,52 +107,52 @@ export default function AbastecimentosModal({ placa, onClose }: Props) {
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 950, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: 'min(760px, 96vw)', maxHeight: '85vh', background: 'var(--portal-bg)', borderRadius: 14, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 70px rgba(0,0,0,0.4)' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: 'min(760px, 96vw)', maxHeight: '85vh', background: 'var(--portal-bg)', borderRadius: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 70px rgba(0,0,0,0.4)' }}>
         {/* Header */}
         <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--portal-border)', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <Fuel size={17} color="#0d9488" />
+          <Fuel size={17} color="#1e40af" />
           <strong style={{ fontSize: 15, fontWeight: 800, color: 'var(--portal-text)' }}>Abastecimentos · {formatarPlaca(placa)}</strong>
-          <span style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>
+          <span style={{ fontSize: 13, color: 'var(--portal-text)' }}>
             {linhas.length} no total · {fmtL(totLitros)} L · <strong style={{ color: 'var(--portal-text)' }}>{fmtRS(totValor)}</strong>
             {totEconomia > 0 && <> · economia <strong style={{ color: '#16a34a' }}>{fmtRS(totEconomia)}</strong></>}
           </span>
           <div style={{ flex: 1 }} />
-          <div style={{ display: 'flex', border: '1px solid var(--portal-border)', borderRadius: 8, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', border: '1px solid var(--portal-border)', borderRadius: 0, overflow: 'hidden' }}>
             {(['dia', 'semana', 'mes'] as Visao[]).map((v) => (
-              <button key={v} onClick={() => setVisao(v)} style={{ padding: '5px 12px', border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer', background: visao === v ? '#0d9488' : 'var(--portal-bg-input)', color: visao === v ? '#fff' : 'var(--portal-text-secondary)' }}>
+              <button key={v} onClick={() => setVisao(v)} style={{ padding: '5px 12px', border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: visao === v ? '#1e40af' : 'var(--portal-bg-input)', color: visao === v ? '#fff' : 'var(--portal-text-secondary)' }}>
                 {v === 'dia' ? 'Dia' : v === 'semana' ? 'Semana' : 'Mês'}
               </button>
             ))}
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text-muted)' }}><X size={18} /></button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text)' }}><X size={18} /></button>
         </div>
 
         {/* Corpo */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '10px 16px' }}>
-          {carregando && <div style={{ fontSize: 13, color: 'var(--portal-text-muted)', padding: 20, textAlign: 'center' }}>Carregando…</div>}
+          {carregando && <div style={{ fontSize: 13, color: 'var(--portal-text)', padding: 20, textAlign: 'center' }}>Carregando…</div>}
           {!carregando && linhas.length === 0 && (
-            <div style={{ fontSize: 13, color: 'var(--portal-text-muted)', padding: 20, textAlign: 'center' }}>Nenhum abastecimento registrado.</div>
+            <div style={{ fontSize: 13, color: 'var(--portal-text)', padding: 20, textAlign: 'center' }}>Nenhum abastecimento registrado.</div>
           )}
           {grupos.map((g) => (
             <div key={g.chave} style={{ marginBottom: 10 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 8, fontSize: 12.5 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 0, fontSize: 13.5 }}>
                 <strong style={{ color: 'var(--portal-text)', textTransform: 'capitalize' }}>{g.rotulo}</strong>
-                <span style={{ color: 'var(--portal-text-muted)' }}>{g.itens.length} abastecimento{g.itens.length > 1 ? 's' : ''}</span>
+                <span style={{ color: 'var(--portal-text)' }}>{g.itens.length} abastecimento{g.itens.length > 1 ? 's' : ''}</span>
                 <div style={{ flex: 1 }} />
-                <span style={{ color: 'var(--portal-text-secondary)' }}>{fmtL(g.litros)} L</span>
-                <strong style={{ color: '#0d9488' }}>{fmtRS(g.valor)}</strong>
-                {g.litros > 0 && <span style={{ color: 'var(--portal-text-muted)', fontSize: 11 }}>({fmtRS(g.valor / g.litros)}/L)</span>}
+                <span style={{ color: 'var(--portal-text)' }}>{fmtL(g.litros)} L</span>
+                <strong style={{ color: '#1e40af' }}>{fmtRS(g.valor)}</strong>
+                {g.litros > 0 && <span style={{ color: 'var(--portal-text)', fontSize: 11 }}>({fmtRS(g.valor / g.litros)}/L)</span>}
               </div>
               {/* nas visões semana/mês o grupo é só o resumo; no dia lista as linhas */}
               {visao === 'dia' && g.itens.map((l, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 10px 5px 22px', fontSize: 12, color: 'var(--portal-text-secondary)', borderBottom: '1px dashed var(--portal-border)', flexWrap: 'wrap' }}>
-                  <span style={{ minWidth: 38, color: 'var(--portal-text-muted)' }}>{fmtHora(l.data_transacao)}</span>
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 10px 5px 22px', fontSize: 13, color: 'var(--portal-text)', borderBottom: '1px dashed var(--portal-border)', flexWrap: 'wrap' }}>
+                  <span style={{ minWidth: 38, color: 'var(--portal-text)' }}>{fmtHora(l.data_transacao)}</span>
                   <strong style={{ minWidth: 52, color: 'var(--portal-text)' }}>{fmtL(Number(l.litros))} L</strong>
-                  {l.combustivel && <span style={{ fontSize: 10.5, fontWeight: 700, color: /etanol|alcool|álcool/i.test(l.combustivel) ? '#15803d' : /gasolina/i.test(l.combustivel) ? '#b45309' : 'var(--portal-text-muted)', background: 'var(--portal-bg-secondary)', borderRadius: 999, padding: '1px 8px' }}>{l.combustivel}</span>}
+                  {l.combustivel && <span style={{ fontSize: 11.5, fontWeight: 700, color: /etanol|alcool|álcool/i.test(l.combustivel) ? '#15803d' : /gasolina/i.test(l.combustivel) ? '#b45309' : 'var(--portal-text-muted)', background: 'var(--portal-bg-secondary)', borderRadius: 999, padding: '1px 8px' }}>{l.combustivel}</span>}
                   <span style={{ flex: 1, minWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.posto_nome || '—'}</span>
-                  {l.hodometro != null && <span style={{ color: 'var(--portal-text-muted)', fontSize: 11 }}>{Number(l.hodometro).toLocaleString('pt-BR')} km</span>}
+                  {l.hodometro != null && <span style={{ color: 'var(--portal-text)', fontSize: 11 }}>{Number(l.hodometro).toLocaleString('pt-BR')} km</span>}
                   {Number(l.valor_economizado) > 0 && (
-                    <span title="Desconto da operadora" style={{ color: '#16a34a', fontSize: 11, fontWeight: 700 }}>−{fmtRS(Number(l.valor_economizado))}</span>
+                    <span title="Desconto da operadora" style={{ color: '#16a34a', fontSize: 12, fontWeight: 700 }}>−{fmtRS(Number(l.valor_economizado))}</span>
                   )}
                   <strong style={{ color: 'var(--portal-text)' }}>{fmtRS(Number(l.valor_total))}</strong>
                 </div>
@@ -163,7 +163,7 @@ export default function AbastecimentosModal({ placa, onClose }: Props) {
 
         {/* Rodapé */}
         <div style={{ padding: '8px 16px', borderTop: '1px solid var(--portal-border)', display: 'flex', justifyContent: 'flex-end' }}>
-          <a href={`/frota/abastecimento?placa=${encodeURIComponent(placa)}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11.5, color: 'var(--portal-text-muted)', textDecoration: 'none' }}>
+          <a href={`/frota/abastecimento?placa=${encodeURIComponent(placa)}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12.5, color: 'var(--portal-text)', textDecoration: 'none' }}>
             abrir a tela completa do Abastecimento <ExternalLink size={11} />
           </a>
         </div>

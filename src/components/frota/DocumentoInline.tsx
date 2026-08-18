@@ -129,18 +129,18 @@ export default function DocumentoInline({ url, nome, alturaThumb = 120 }: Props)
         title={nome || 'Ver o documento'}
         style={{
           position: 'relative', width: '100%', height: alturaThumb, padding: 0,
-          border: '1px solid var(--portal-border)', borderRadius: 8, overflow: 'hidden',
+          border: '1px solid var(--portal-border)', borderRadius: 0, overflow: 'hidden',
           background: 'var(--portal-bg-secondary)', cursor: 'pointer', display: 'block',
         }}
       >
         <div ref={thumbRef} style={{ width: '100%', height: '100%' }} />
         {estado === 'carregando' && (
-          <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--portal-text-muted)' }}>
+          <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--portal-text)' }}>
             <Loader2 size={16} className="spin" />
           </span>
         )}
         {estado === 'erro' && (
-          <span style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center', justifyContent: 'center', color: 'var(--portal-text-muted)', fontSize: 11 }}>
+          <span style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center', justifyContent: 'center', color: 'var(--portal-text)', fontSize: 11 }}>
             <FileText size={18} /> ver arquivo
           </span>
         )}
@@ -158,11 +158,11 @@ export default function DocumentoInline({ url, nome, alturaThumb = 120 }: Props)
             <a
               href={url} target="_blank" rel="noopener noreferrer" download
               onClick={(e) => e.stopPropagation()}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: '#fff', fontSize: 12.5, textDecoration: 'none', background: 'rgba(255,255,255,0.15)', padding: '6px 12px', borderRadius: 8 }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: '#fff', fontSize: 13.5, textDecoration: 'none', background: 'rgba(255,255,255,0.15)', padding: '6px 12px', borderRadius: 0 }}
             >
               <Download size={13} /> baixar
             </a>
-            <button onClick={() => setAberto(false)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8, padding: 6, cursor: 'pointer', color: '#fff' }}>
+            <button onClick={() => setAberto(false)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 0, padding: 6, cursor: 'pointer', color: '#fff' }}>
               <X size={16} />
             </button>
           </div>

@@ -30,7 +30,7 @@ interface Avaria {
 
 const STATUS: Record<string, { label: string; cor: string; bg: string }> = {
   aberta: { label: 'Aberta', cor: '#b45309', bg: '#fef3c7' },
-  descontada: { label: 'Descontada em folha (RH)', cor: '#0f766e', bg: '#ccfbf1' },
+  descontada: { label: 'Descontada em folha (RH)', cor: '#1e3a8a', bg: '#dbeafe' },
   cobrada: { label: 'Cobrada por fora', cor: '#15803d', bg: '#dcfce7' },
   absorvida: { label: 'Empresa absorveu', cor: '#64748b', bg: '#f1f5f9' },
   cancelada: { label: 'Cancelada', cor: '#94a3b8', bg: '#f8fafc' },
@@ -131,7 +131,7 @@ export default function FrotaAvariasPage() {
     .reduce((s, a) => s + (Number(a.valor) || 0), 0);
 
   const inputStyle: React.CSSProperties = {
-    padding: '8px 10px', borderRadius: 8, fontSize: 13,
+    padding: '8px 10px', borderRadius: 0, fontSize: 13,
     border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)',
   };
 
@@ -141,11 +141,11 @@ export default function FrotaAvariasPage() {
         <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 8 }}>
           <CarFront size={20} color="#b45309" /> Avarias
         </h2>
-        <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted)' }}>
+        <span style={{ fontSize: 13.5, color: 'var(--portal-text)' }}>
           {visiveis.length} exibidas · <strong style={{ color: '#b45309' }}>{fmtRS(totalAberto)}</strong> em aberto
         </span>
         <div style={{ flex: 1 }} />
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--portal-text-secondary)', cursor: 'pointer' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13.5, color: 'var(--portal-text)', cursor: 'pointer' }}>
           <input type="checkbox" checked={soAbertas} onChange={() => setSoAbertas((v) => !v)} /> só em aberto
         </label>
         <button
@@ -153,23 +153,23 @@ export default function FrotaAvariasPage() {
           title={podeEditar ? 'Registrar uma avaria/dano de veículo' : MSG_SEM_PERMISSAO}
           style={{
             display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700,
-            color: '#fff', background: podeEditar ? '#0d9488' : '#94a3b8', border: 'none',
-            borderRadius: 8, padding: '8px 14px', cursor: podeEditar ? 'pointer' : 'not-allowed',
+            color: '#fff', background: podeEditar ? '#1e40af' : '#94a3b8', border: 'none',
+            borderRadius: 0, padding: '8px 14px', cursor: podeEditar ? 'pointer' : 'not-allowed',
           }}
         >
           {formAberto ? <X size={14} /> : <Plus size={14} />} {formAberto ? 'Fechar' : 'Registrar avaria'}
         </button>
       </div>
 
-      <p style={{ fontSize: 12, color: 'var(--portal-text-muted)', margin: '0 0 16px' }}>
+      <p style={{ fontSize: 13, color: 'var(--portal-text)', margin: '0 0 16px' }}>
         Dano causado por motorista (batida, mau uso, dano no pátio…). A cobrança acontece no RH:
         avaria <strong>aberta</strong> com motorista aparece na fila de Descontos e no Acerto do funcionário lá.
       </p>
 
       {formAberto && (
-        <div style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 12, padding: 16, marginBottom: 16, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <div style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 0, padding: 16, marginBottom: 16, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)', marginBottom: 4 }}>VEÍCULO</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', marginBottom: 4 }}>VEÍCULO</div>
             <select value={form.placa} onChange={(e) => setForm((f) => ({ ...f, placa: e.target.value }))} style={{ ...inputStyle, minWidth: 180 }}>
               <option value="">Selecione…</option>
               {veiculos.map((v) => (
@@ -178,32 +178,32 @@ export default function FrotaAvariasPage() {
             </select>
           </div>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)', marginBottom: 4 }}>DATA</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', marginBottom: 4 }}>DATA</div>
             <input type="date" value={form.data} onChange={(e) => setForm((f) => ({ ...f, data: e.target.value }))} style={inputStyle} />
           </div>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)', marginBottom: 4 }}>VALOR (R$)</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', marginBottom: 4 }}>VALOR (R$)</div>
             <input value={form.valor} onChange={(e) => setForm((f) => ({ ...f, valor: e.target.value }))} placeholder="0,00" style={{ ...inputStyle, width: 110 }} />
           </div>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)', marginBottom: 4 }}>MOTORISTA RESPONSÁVEL</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', marginBottom: 4 }}>MOTORISTA RESPONSÁVEL</div>
             <select value={form.motorista_id} onChange={(e) => setForm((f) => ({ ...f, motorista_id: e.target.value }))} style={{ ...inputStyle, minWidth: 200 }}>
               <option value="">Sem responsável (por ora)</option>
               {motoristas.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
             </select>
           </div>
           <div style={{ flex: 1, minWidth: 240 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)', marginBottom: 4 }}>O QUE ACONTECEU</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', marginBottom: 4 }}>O QUE ACONTECEU</div>
             <input value={form.descricao} onChange={(e) => setForm((f) => ({ ...f, descricao: e.target.value }))} placeholder="Ex.: bateu o para-choque na doca" style={{ ...inputStyle, width: '100%' }} />
           </div>
           <div style={{ flex: 1, minWidth: 200 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)', marginBottom: 4 }}>OBS (opcional)</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', marginBottom: 4 }}>OBS (opcional)</div>
             <input value={form.obs} onChange={(e) => setForm((f) => ({ ...f, obs: e.target.value }))} placeholder="Orçamento, oficina…" style={{ ...inputStyle, width: '100%' }} />
           </div>
           <button
             onClick={salvar}
             disabled={salvando}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: '#fff', background: '#0d9488', border: 'none', borderRadius: 8, padding: '9px 16px', cursor: 'pointer' }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: '#fff', background: '#1e40af', border: 'none', borderRadius: 0, padding: '9px 16px', cursor: 'pointer' }}
           >
             {salvando ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Salvar
           </button>
@@ -212,7 +212,7 @@ export default function FrotaAvariasPage() {
 
       {erro && <div style={{ color: '#b91c1c', fontSize: 13, marginBottom: 12 }}>{erro}</div>}
       {visiveis.length === 0 && !erro && (
-        <div style={{ color: 'var(--portal-text-muted)', fontSize: 13 }}>
+        <div style={{ color: 'var(--portal-text)', fontSize: 13 }}>
           Nenhuma avaria {soAbertas ? 'em aberto' : 'registrada'}. 🎉
         </div>
       )}
@@ -221,18 +221,18 @@ export default function FrotaAvariasPage() {
         {visiveis.map((a) => {
           const st = STATUS[a.status] || STATUS.aberta;
           return (
-            <div key={a.id} style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 12, padding: '12px 16px', display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+            <div key={a.id} style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 0, padding: '12px 16px', display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
               <div style={{ minWidth: 90 }}>
                 <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--portal-text)' }}>{formatarPlaca(a.placa)}</div>
-                <div style={{ fontSize: 11.5, color: 'var(--portal-text-muted)' }}>{fmtData(a.data)}</div>
+                <div style={{ fontSize: 12.5, color: 'var(--portal-text)' }}>{fmtData(a.data)}</div>
               </div>
               <div style={{ flex: 2, minWidth: 220 }}>
                 <div style={{ fontSize: 13, color: 'var(--portal-text)', fontWeight: 600 }}>{a.descricao}</div>
-                <div style={{ fontSize: 12, color: 'var(--portal-text-secondary)', marginTop: 3 }}>
+                <div style={{ fontSize: 13, color: 'var(--portal-text)', marginTop: 3 }}>
                   <strong>{a.motorista_nome || 'sem responsável'}</strong>
-                  {a.criado_por && <span style={{ color: 'var(--portal-text-muted)' }}> · registrada por {a.criado_por}</span>}
+                  {a.criado_por && <span style={{ color: 'var(--portal-text)' }}> · registrada por {a.criado_por}</span>}
                 </div>
-                {a.obs && <div style={{ fontSize: 11.5, color: 'var(--portal-text-muted)', marginTop: 2 }}>{a.obs}</div>}
+                {a.obs && <div style={{ fontSize: 12.5, color: 'var(--portal-text)', marginTop: 2 }}>{a.obs}</div>}
               </div>
               <div style={{ textAlign: 'right', minWidth: 90 }}>
                 <div style={{ fontSize: 15, fontWeight: 800, color: '#b45309' }}>{fmtRS(a.valor)}</div>
@@ -244,7 +244,7 @@ export default function FrotaAvariasPage() {
                   title={podeEditar ? 'Mudar o status (a baixa em folha é feita pelo RH)' : MSG_SEM_PERMISSAO}
                   onChange={(e) => mudarStatus(a.id, e.target.value)}
                   style={{
-                    width: '100%', padding: '6px 8px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                    width: '100%', padding: '6px 8px', borderRadius: 0, fontSize: 13, fontWeight: 700,
                     border: `1px solid ${st.cor}33`, background: st.bg, color: st.cor,
                     cursor: podeEditar ? 'pointer' : 'not-allowed', opacity: podeEditar ? 1 : 0.6,
                   }}

@@ -220,20 +220,20 @@ export default function FrotaCustosPage() {
       .sort((a, b) => b.total - a.total);
   }, [carros]);
 
-  const th: React.CSSProperties = { fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase', letterSpacing: 0.4, textAlign: 'right', padding: '10px 12px' };
-  const td: React.CSSProperties = { fontSize: 12.5, color: 'var(--portal-text-secondary)', textAlign: 'right', padding: '8px 12px', whiteSpace: 'nowrap' };
+  const th: React.CSSProperties = { fontSize: 11.5, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: 0.4, textAlign: 'right', padding: '10px 12px' };
+  const td: React.CSSProperties = { fontSize: 13.5, color: 'var(--portal-text)', textAlign: 'right', padding: '8px 12px', whiteSpace: 'nowrap' };
 
   return (
     <div style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18, flexWrap: 'wrap' }}>
         <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <DollarSign size={20} color="#0d9488" /> Custos & TCO
+          <DollarSign size={20} color="#1e40af" /> Custos & TCO
         </h2>
-        <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted)' }}>
+        <span style={{ fontSize: 13.5, color: 'var(--portal-text)' }}>
           combustível + manutenção + multas + requisições ÷ km rodado — por departamento; quem custa caro primeiro
         </span>
         <div style={{ flex: 1 }} />
-        <select value={meses} onChange={(e) => setMeses(Number(e.target.value))} style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 12.5 }}>
+        <select value={meses} onChange={(e) => setMeses(Number(e.target.value))} style={{ padding: '7px 10px', borderRadius: 0, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13.5 }}>
           <option value={3}>Últimos 3 meses</option>
           <option value={6}>Últimos 6 meses</option>
           <option value={12}>Últimos 12 meses</option>
@@ -241,17 +241,17 @@ export default function FrotaCustosPage() {
       </div>
 
       {foraDaFrota.length > 0 && (
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--portal-text-secondary)', cursor: 'pointer', marginBottom: 10 }}>
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13.5, color: 'var(--portal-text)', cursor: 'pointer', marginBottom: 10 }}>
           <input type="checkbox" checked={mostrarInativos} onChange={() => setMostrarInativos((v) => !v)} />
           mostrar vendidos/arquivados ({foraDaFrota.length})
         </label>
       )}
 
       {erro && <div style={{ color: '#b91c1c', fontSize: 13, marginBottom: 12 }}>{erro}</div>}
-      {carregando && <div style={{ color: 'var(--portal-text-muted)', fontSize: 13 }}>Carregando…</div>}
+      {carregando && <div style={{ color: 'var(--portal-text)', fontSize: 13 }}>Carregando…</div>}
 
       {!carregando && (
-        <div style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 12, overflow: 'auto' }}>
+        <div style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 0, overflow: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 860 }}>
             <thead>
               <tr style={{ background: 'var(--portal-bg-secondary)' }}>
@@ -272,9 +272,9 @@ export default function FrotaCustosPage() {
                 return (
                 <Fragment key={dep.key}>
               <tr style={{ borderTop: '2px solid var(--portal-border)', background: 'var(--portal-bg-secondary)' }}>
-                <td style={{ ...td, textAlign: 'left', fontWeight: 800, color: 'var(--portal-text)', textTransform: 'uppercase', fontSize: 11.5, letterSpacing: 0.5 }}>
+                <td style={{ ...td, textAlign: 'left', fontWeight: 800, color: 'var(--portal-text)', textTransform: 'uppercase', fontSize: 12.5, letterSpacing: 0.5 }}>
                   {DEPTO_LABEL[dep.key] || dep.key}
-                  <span style={{ fontWeight: 600, color: 'var(--portal-text-muted)', textTransform: 'none', letterSpacing: 0 }}> · {dep.ls.length} veículo{dep.ls.length !== 1 ? 's' : ''}</span>
+                  <span style={{ fontWeight: 600, color: 'var(--portal-text)', textTransform: 'none', letterSpacing: 0 }}> · {dep.ls.length} veículo{dep.ls.length !== 1 ? 's' : ''}</span>
                 </td>
                 <td style={{ ...td, fontWeight: 700 }}>{kmDep > 0 ? Math.round(kmDep).toLocaleString('pt-BR') : '—'}</td>
                 <td style={{ ...td, fontWeight: 700 }}>{fmtRS(soma(dep.ls, 'combustivel'))}</td>
@@ -295,7 +295,7 @@ export default function FrotaCustosPage() {
                   >
                     <td style={{ ...td, textAlign: 'left' }}>
                       <strong style={{ color: 'var(--portal-text)' }}>{formatarPlaca(l.placa)}</strong>
-                      {l.modelo && <span style={{ color: 'var(--portal-text-muted)' }}> · {l.modelo}</span>}
+                      {l.modelo && <span style={{ color: 'var(--portal-text)' }}> · {l.modelo}</span>}
                       {l.status === 'vendido' && (
                         <span style={{ marginLeft: 6, fontSize: 9.5, fontWeight: 800, color: '#6d28d9', background: '#ede9fe', borderRadius: 999, padding: '2px 7px' }}>VENDIDO</span>
                       )}
@@ -325,7 +325,7 @@ export default function FrotaCustosPage() {
                     <td style={{ ...td, color: l.multas > 0 ? '#b91c1c' : undefined }}>{l.multas ? fmtRS(l.multas) : '—'}</td>
                     <td style={td}>{l.outros ? fmtRS(l.outros) : '—'}</td>
                     <td style={{ ...td, fontWeight: 800, color: 'var(--portal-text)' }}>{fmtRS(l.total)}</td>
-                    <td style={{ ...td, fontWeight: 700, color: rkm != null && rkm > 1.5 ? '#b45309' : '#0f766e' }}>
+                    <td style={{ ...td, fontWeight: 700, color: rkm != null && rkm > 1.5 ? '#b45309' : '#1e3a8a' }}>
                       {rkm != null ? fmtRS2(rkm) : '—'}
                     </td>
                   </tr>
@@ -350,14 +350,14 @@ export default function FrotaCustosPage() {
       )}
 
       {!carregando && carros.some((l) => l.km_fonte === 'digitado') && (
-        <div style={{ marginTop: 8, fontSize: 11.5, color: 'var(--portal-text-muted)' }}>
+        <div style={{ marginTop: 8, fontSize: 12.5, color: 'var(--portal-text)' }}>
           <span style={{ color: '#b45309', fontWeight: 700 }}>*</span> km pelo <strong>hodômetro digitado</strong> (na
           bomba do cartão combustível e nas requisições) — veículo sem rastreador.
         </div>
       )}
 
       {!carregando && avulsos.length > 0 && (
-        <div style={{ marginTop: 14, fontSize: 12.5, color: 'var(--portal-text-secondary)' }}>
+        <div style={{ marginTop: 14, fontSize: 13.5, color: 'var(--portal-text)' }}>
           <strong style={{ color: 'var(--portal-text)' }}>Abastecimento avulso</strong> (não são carros — sem km):{' '}
           {avulsos.map((a) => `${a.modelo || a.placa} ${fmtRS(a.total)}`).join(' · ')}
           {' — total '}<strong>{fmtRS(soma(avulsos, 'total'))}</strong>
@@ -411,34 +411,34 @@ function ModalCustos({ linha, meses, entradas, onClose }: {
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 950, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: 'min(680px, 96vw)', maxHeight: '85vh', background: 'var(--portal-bg)', borderRadius: 14, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 70px rgba(0,0,0,0.4)' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: 'min(680px, 96vw)', maxHeight: '85vh', background: 'var(--portal-bg)', borderRadius: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 70px rgba(0,0,0,0.4)' }}>
         <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--portal-border)', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <DollarSign size={17} color="#0d9488" />
+          <DollarSign size={17} color="#1e40af" />
           <strong style={{ fontSize: 15, fontWeight: 800, color: 'var(--portal-text)' }}>Custos · {formatarPlaca(linha.placa)}</strong>
-          {linha.modelo && <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted)' }}>{linha.modelo}</span>}
+          {linha.modelo && <span style={{ fontSize: 13.5, color: 'var(--portal-text)' }}>{linha.modelo}</span>}
           {linha.status === 'vendido' && <span style={{ fontSize: 9.5, fontWeight: 800, color: '#6d28d9', background: '#ede9fe', borderRadius: 999, padding: '2px 7px' }}>VENDIDO</span>}
           {linha.status === 'arquivado' && <span style={{ fontSize: 9.5, fontWeight: 800, color: '#475569', background: '#e2e8f0', borderRadius: 999, padding: '2px 7px' }}>ARQUIVADO</span>}
           <div style={{ flex: 1 }} />
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text-muted)' }}><X size={18} /></button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text)' }}><X size={18} /></button>
         </div>
-        <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--portal-border)', display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 12.5, color: 'var(--portal-text-secondary)' }}>
+        <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--portal-border)', display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 13.5, color: 'var(--portal-text)' }}>
           <span>Últimos {meses} meses</span>
           <span><strong style={{ color: 'var(--portal-text)' }}>{fmtRS(linha.total)}</strong> em {entradas.length} lançamento{entradas.length !== 1 ? 's' : ''}</span>
           {linha.tem_rastreador && <span>{Math.round(linha.km).toLocaleString('pt-BR')} km</span>}
-          {rkm != null && <span style={{ fontWeight: 700, color: rkm > 1.5 ? '#b45309' : '#0f766e' }}>{fmtRS2(rkm)}/km</span>}
+          {rkm != null && <span style={{ fontWeight: 700, color: rkm > 1.5 ? '#b45309' : '#1e3a8a' }}>{fmtRS2(rkm)}/km</span>}
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '10px 16px' }}>
-          {grupos.length === 0 && <div style={{ fontSize: 13, color: 'var(--portal-text-muted)', padding: 20, textAlign: 'center' }}>Nenhum lançamento no período.</div>}
+          {grupos.length === 0 && <div style={{ fontSize: 13, color: 'var(--portal-text)', padding: 20, textAlign: 'center' }}>Nenhum lançamento no período.</div>}
           {grupos.map((g) => (
             <div key={g.tipo} style={{ marginBottom: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 8, fontSize: 12.5 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 0, fontSize: 13.5 }}>
                 <strong style={{ color: 'var(--portal-text)' }}>{g.tipo}</strong>
-                <span style={{ color: 'var(--portal-text-muted)' }}>{g.itens.length}</span>
+                <span style={{ color: 'var(--portal-text)' }}>{g.itens.length}</span>
                 <div style={{ flex: 1 }} />
-                <strong style={{ color: '#0d9488' }}>{fmtRS(g.total)}</strong>
+                <strong style={{ color: '#1e40af' }}>{fmtRS(g.total)}</strong>
               </div>
               {g.itens.map((e, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 10px 4px 22px', fontSize: 12, color: 'var(--portal-text-secondary)', borderBottom: '1px dashed var(--portal-border)' }}>
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 10px 4px 22px', fontSize: 13, color: 'var(--portal-text)', borderBottom: '1px dashed var(--portal-border)' }}>
                   <span style={{ minWidth: 70 }}>{fmtData(e.data)}</span>
                   <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={e.descricao || ''}>
                     {e.fonte === 'requisicao' && e.ref_id ? (
@@ -447,12 +447,12 @@ function ModalCustos({ linha, meses, entradas, onClose }: {
                         title="Abrir a requisição"
                         style={{ color: 'var(--portal-text)', textDecoration: 'none', fontWeight: 600 }}
                       >
-                        {e.descricao || 'Requisição'} <ExternalLink size={11} style={{ verticalAlign: '-1px', color: '#0d9488' }} />
+                        {e.descricao || 'Requisição'} <ExternalLink size={11} style={{ verticalAlign: '-1px', color: '#1e40af' }} />
                       </a>
                     ) : (
-                      e.descricao || <span style={{ color: 'var(--portal-text-muted)' }}>—</span>
+                      e.descricao || <span style={{ color: 'var(--portal-text)' }}>—</span>
                     )}
-                    <span style={{ color: 'var(--portal-text-muted)', fontSize: 10.5 }}> · {FONTE_LABEL[e.fonte || ''] || e.fonte || '—'}</span>
+                    <span style={{ color: 'var(--portal-text)', fontSize: 11.5 }}> · {FONTE_LABEL[e.fonte || ''] || e.fonte || '—'}</span>
                   </span>
                   <strong style={{ color: 'var(--portal-text)', whiteSpace: 'nowrap' }}>{fmtRS2(Number(e.valor))}</strong>
                 </div>

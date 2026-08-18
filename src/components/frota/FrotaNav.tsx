@@ -21,14 +21,18 @@ export default function FrotaNav() {
   );
   if (visiveis.length === 0) return null;
 
+  // Guias estilo Chrome na FAIXA AZUL do módulo (igual à barra colorida do PPV):
+  // abas ancoradas na base com cantos arredondados em cima; a ativa "gruda"
+  // branca na frente com texto preto, as inativas ficam brancas sobre o azul.
   return (
     <div
       style={{
         display: 'flex',
-        gap: 6,
-        padding: '16px 32px 0',
-        borderBottom: '1px solid var(--portal-border)',
-        background: 'var(--portal-bg)',
+        alignItems: 'flex-end',
+        gap: 3,
+        padding: '10px 24px 0',
+        background: 'linear-gradient(135deg, #1D4ED8, #1E3A8A)',
+        boxShadow: '0 1px 4px var(--portal-shadow)',
         flexWrap: 'wrap',
       }}
     >
@@ -46,14 +50,16 @@ export default function FrotaNav() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 7,
-                padding: '10px 20px',
-                fontSize: 13,
+                padding: '11px 20px',
+                fontSize: 14,
                 fontWeight: ativo ? 700 : 500,
-                color: ativo ? '#0d9488' : 'var(--portal-text-secondary)',
-                borderBottom: `3px solid ${ativo ? '#0d9488' : 'transparent'}`,
+                color: ativo ? '#111827' : '#fff',
+                background: ativo ? '#fff' : 'rgba(255,255,255,0.12)',
+                borderRadius: '11px 11px 0 0',
+                boxShadow: ativo ? '0 -2px 6px rgba(0,0,0,0.15)' : 'none',
                 textDecoration: 'none',
                 transition: '0.15s',
-                marginBottom: -1,
+                whiteSpace: 'nowrap',
               }}
             >
               {p.label}

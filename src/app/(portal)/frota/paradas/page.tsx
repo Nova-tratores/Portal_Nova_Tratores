@@ -134,15 +134,15 @@ export default function FrotaParadasPage() {
   };
 
   const selStyle: React.CSSProperties = {
-    padding: '7px 10px', borderRadius: 8, border: '1px solid var(--portal-border)',
-    background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 12.5,
+    padding: '7px 10px', borderRadius: 0, border: '1px solid var(--portal-border)',
+    background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13.5,
   };
 
   return (
     <div style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
         <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Coffee size={20} color="#0d9488" /> Paradas & trajetos
+          <Coffee size={20} color="#1e40af" /> Paradas & trajetos
         </h2>
         <div style={{ flex: 1 }} />
         <select value={periodo} onChange={(e) => setPeriodo(Number(e.target.value))} style={selStyle}>
@@ -160,45 +160,45 @@ export default function FrotaParadasPage() {
           <option value={30}>≥ 30 min</option>
           <option value={60}>≥ 1 h</option>
         </select>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--portal-text-secondary)', cursor: 'pointer' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13.5, color: 'var(--portal-text)', cursor: 'pointer' }}>
           <input type="checkbox" checked={soAtipicas} onChange={() => setSoAtipicas((v) => !v)} /> só atípicas
         </label>
       </div>
 
       {erro && <div style={{ color: '#b91c1c', fontSize: 13, marginBottom: 10 }}>{erro}</div>}
       {dias.length === 0 && !erro && (
-        <div style={{ color: 'var(--portal-text-muted)', fontSize: 13, marginBottom: 16 }}>
+        <div style={{ color: 'var(--portal-text)', fontSize: 13, marginBottom: 16 }}>
           Nenhum dia consolidado ainda — o fechamento roda de madrugada (ou peça um backfill).
         </div>
       )}
 
       {/* Paradas (o foco: as atípicas) */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 28 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
           {soAtipicas ? `Paradas atípicas (${paradasVisiveis.length})` : `Paradas (${paradasVisiveis.length})`}
         </div>
         {paradasVisiveis.length === 0 && (
-          <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted)' }}>Nada por aqui. 🎉</span>
+          <span style={{ fontSize: 13.5, color: 'var(--portal-text)' }}>Nada por aqui. 🎉</span>
         )}
         {paradasVisiveis.map((p) => (
-          <div key={p.id} style={{ background: 'var(--portal-bg-card)', border: `1px solid ${p.atipica && !p.ignorada ? '#fca5a5' : 'var(--portal-border)'}`, borderRadius: 10, padding: '10px 14px', display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap', opacity: p.ignorada ? 0.55 : 1 }}>
+          <div key={p.id} style={{ background: 'var(--portal-bg-card)', border: `1px solid ${p.atipica && !p.ignorada ? '#fca5a5' : 'var(--portal-border)'}`, borderRadius: 0, padding: '10px 14px', display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap', opacity: p.ignorada ? 0.55 : 1 }}>
             <div style={{ minWidth: 88 }}>
               <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--portal-text)' }}>{formatarPlaca(p.placa)}</div>
-              <div style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>{fmtData(p.data)}</div>
+              <div style={{ fontSize: 12, color: 'var(--portal-text)' }}>{fmtData(p.data)}</div>
             </div>
             <div style={{ minWidth: 110 }}>
-              <div style={{ fontSize: 12.5, color: 'var(--portal-text)' }}>{fmtHora(p.inicio)} → {fmtHora(p.fim)}</div>
-              <div style={{ fontSize: 11.5, fontWeight: 700, color: p.duracao_min >= 60 ? '#b91c1c' : 'var(--portal-text-secondary)' }}>{fmtMin(p.duracao_min)} parado</div>
+              <div style={{ fontSize: 13.5, color: 'var(--portal-text)' }}>{fmtHora(p.inicio)} → {fmtHora(p.fim)}</div>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: p.duracao_min >= 60 ? '#b91c1c' : 'var(--portal-text-secondary)' }}>{fmtMin(p.duracao_min)} parado</div>
             </div>
             <div style={{ flex: 1, minWidth: 180 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: p.atipica ? '#b91c1c' : '#0f766e', background: p.atipica ? '#fee2e2' : '#ccfbf1', borderRadius: 999, padding: '2px 8px' }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: p.atipica ? '#b91c1c' : '#1e3a8a', background: p.atipica ? '#fee2e2' : '#dbeafe', borderRadius: 999, padding: '2px 8px' }}>
                 {CLASSE_LABEL[p.classe] || p.classe}
               </span>
-              {p.destino_nome && <span style={{ fontSize: 12, color: 'var(--portal-text-secondary)', marginLeft: 6 }}>{p.destino_nome}</span>}
-              {p.fora_horario && <span style={{ fontSize: 10.5, color: '#b45309', marginLeft: 6 }}>fora de horário</span>}
-              {p.fim_de_semana && <span style={{ fontSize: 10.5, color: '#7c3aed', marginLeft: 6 }}>fim de semana</span>}
+              {p.destino_nome && <span style={{ fontSize: 13, color: 'var(--portal-text)', marginLeft: 6 }}>{p.destino_nome}</span>}
+              {p.fora_horario && <span style={{ fontSize: 11.5, color: '#b45309', marginLeft: 6 }}>fora de horário</span>}
+              {p.fim_de_semana && <span style={{ fontSize: 11.5, color: '#7c3aed', marginLeft: 6 }}>fim de semana</span>}
               {p.justificativa && (
-                <div style={{ fontSize: 11.5, color: 'var(--portal-text-muted)', marginTop: 2 }}>
+                <div style={{ fontSize: 12.5, color: 'var(--portal-text)', marginTop: 2 }}>
                   💬 {p.justificativa} <span style={{ opacity: 0.7 }}>({p.justificado_por})</span>
                 </div>
               )}
@@ -207,7 +207,7 @@ export default function FrotaParadasPage() {
               href={`https://www.google.com/maps?q=${p.latitude},${p.longitude}`}
               target="_blank" rel="noopener noreferrer"
               title="Ver o local no mapa"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11.5, color: '#0d9488', textDecoration: 'none', fontWeight: 600 }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12.5, color: '#1e40af', textDecoration: 'none', fontWeight: 600 }}
             >
               <MapPin size={12} /> local <ExternalLink size={10} />
             </a>
@@ -217,7 +217,7 @@ export default function FrotaParadasPage() {
                   onClick={() => justificar(p)}
                   disabled={!podeJustificar || busy === p.id}
                   title={podeJustificar ? 'Justificar a parada' : MSG_SEM_PERMISSAO}
-                  style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', borderRadius: 6, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text-secondary)', fontSize: 11.5, fontWeight: 600, cursor: podeJustificar ? 'pointer' : 'not-allowed', opacity: podeJustificar ? 1 : 0.5 }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', borderRadius: 0, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 12.5, fontWeight: 600, cursor: podeJustificar ? 'pointer' : 'not-allowed', opacity: podeJustificar ? 1 : 0.5 }}
                 >
                   <MessageSquarePlus size={12} /> justificar
                 </button>
@@ -225,7 +225,7 @@ export default function FrotaParadasPage() {
                   onClick={() => ignorar(p)}
                   disabled={!podeJustificar || busy === p.id}
                   title={podeJustificar ? (p.ignorada ? 'Voltar a considerar' : 'Ignorar (some do filtro)') : MSG_SEM_PERMISSAO}
-                  style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', borderRadius: 6, border: '1px solid var(--portal-border)', background: 'transparent', color: 'var(--portal-text-muted)', fontSize: 11.5, cursor: podeJustificar ? 'pointer' : 'not-allowed', opacity: podeJustificar ? 1 : 0.5 }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', borderRadius: 0, border: '1px solid var(--portal-border)', background: 'transparent', color: 'var(--portal-text)', fontSize: 12.5, cursor: podeJustificar ? 'pointer' : 'not-allowed', opacity: podeJustificar ? 1 : 0.5 }}
                 >
                   <EyeOff size={12} /> {p.ignorada ? 'reativar' : 'ignorar'}
                 </button>
@@ -233,7 +233,7 @@ export default function FrotaParadasPage() {
                   onClick={() => criarGeocerca(p)}
                   disabled={!podeJustificar || busy === p.id}
                   title={podeJustificar ? 'Este lugar é conhecido? Cadastre a geocerca aqui — o histórico dentro do raio é absolvido e os próximos dias já vêm classificados.' : MSG_SEM_PERMISSAO}
-                  style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', borderRadius: 6, border: '1px solid #99f6e4', background: '#f0fdfa', color: '#0f766e', fontSize: 11.5, fontWeight: 700, cursor: podeJustificar ? 'pointer' : 'not-allowed', opacity: podeJustificar ? 1 : 0.5 }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', borderRadius: 0, border: '1px solid #bfdbfe', background: '#f0fdfa', color: '#1e3a8a', fontSize: 12.5, fontWeight: 700, cursor: podeJustificar ? 'pointer' : 'not-allowed', opacity: podeJustificar ? 1 : 0.5 }}
                 >
                   <MapPin size={12} /> criar geocerca
                 </button>
@@ -244,15 +244,15 @@ export default function FrotaParadasPage() {
       </div>
 
       {/* Resumo diário (ignição) */}
-      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
         <Gauge size={13} /> Uso diário (dias com movimento)
       </div>
-      <div style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 12, overflow: 'auto' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '90px 100px 1fr 70px 80px 90px 100px 90px 90px', padding: '10px 14px', background: 'var(--portal-bg-secondary)', fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, minWidth: 860 }}>
+      <div style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 0, overflow: 'auto' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '90px 100px 1fr 70px 80px 90px 100px 90px 90px', padding: '10px 14px', background: 'var(--portal-bg-secondary)', fontSize: 11.5, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: 0.5, minWidth: 860 }}>
           <span>Data</span><span>Placa</span><span>Motorista</span><span>KM</span><span>Partidas</span><span>Ligado</span><span>M. lenta</span><span>Paradas</span><span>Atípicas</span>
         </div>
         {diasVisiveis.map((d) => (
-          <div key={`${d.veiculo_id}-${d.data}`} style={{ display: 'grid', gridTemplateColumns: '90px 100px 1fr 70px 80px 90px 100px 90px 90px', padding: '8px 14px', borderTop: '1px solid var(--portal-border)', fontSize: 12.5, color: 'var(--portal-text-secondary)', alignItems: 'center', minWidth: 860 }}>
+          <div key={`${d.veiculo_id}-${d.data}`} style={{ display: 'grid', gridTemplateColumns: '90px 100px 1fr 70px 80px 90px 100px 90px 90px', padding: '8px 14px', borderTop: '1px solid var(--portal-border)', fontSize: 13.5, color: 'var(--portal-text)', alignItems: 'center', minWidth: 860 }}>
             <span>{fmtData(d.data)}</span>
             <strong style={{ color: 'var(--portal-text)' }}>{formatarPlaca(d.placa)}</strong>
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.motorista_nome || '—'}</span>
@@ -265,7 +265,7 @@ export default function FrotaParadasPage() {
           </div>
         ))}
         {diasVisiveis.length === 0 && (
-          <div style={{ padding: 20, textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 12.5 }}>Sem dias consolidados no período.</div>
+          <div style={{ padding: 20, textAlign: 'center', color: 'var(--portal-text)', fontSize: 13.5 }}>Sem dias consolidados no período.</div>
         )}
       </div>
     </div>

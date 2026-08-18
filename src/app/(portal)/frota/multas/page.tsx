@@ -21,7 +21,7 @@ const STATUS: Record<string, { label: string; cor: string; bg: string }> = {
   em_analise: { label: 'Em análise', cor: '#1d4ed8', bg: '#dbeafe' },
   em_defesa: { label: 'Em defesa', cor: '#7c3aed', bg: '#ede9fe' },
   paga: { label: 'Paga', cor: '#15803d', bg: '#dcfce7' },
-  descontada: { label: 'Descontada em folha', cor: '#0f766e', bg: '#ccfbf1' },
+  descontada: { label: 'Descontada em folha', cor: '#1e3a8a', bg: '#dbeafe' },
   arquivada: { label: 'Arquivada', cor: '#64748b', bg: '#f1f5f9' },
 };
 const FONTE_LABEL: Record<string, string> = {
@@ -133,16 +133,16 @@ export default function FrotaMultasPage() {
         <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 8 }}>
           <ShieldAlert size={20} color="#b91c1c" /> Multas
         </h2>
-        <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted)' }}>
+        <span style={{ fontSize: 13.5, color: 'var(--portal-text)' }}>
           {visiveis.length} exibidas · <strong style={{ color: '#b91c1c' }}>{fmtRS(totalAberto)}</strong> em aberto
         </span>
         {sincronizando && (
-          <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--portal-text-muted)' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: 'var(--portal-text)' }}>
             <Loader2 size={13} className="animate-spin" /> sincronizando com a Rota Exata…
           </span>
         )}
         <div style={{ flex: 1 }} />
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--portal-text-secondary)', cursor: 'pointer' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13.5, color: 'var(--portal-text)', cursor: 'pointer' }}>
           <input type="checkbox" checked={soAbertas} onChange={() => setSoAbertas((v) => !v)} /> só em aberto
         </label>
       </div>
@@ -161,36 +161,36 @@ export default function FrotaMultasPage() {
 
       {erro && <div style={{ color: '#b91c1c', fontSize: 13, marginBottom: 12 }}>{erro}</div>}
       {visiveis.length === 0 && !erro && (
-        <div style={{ color: 'var(--portal-text-muted)', fontSize: 13 }}>Nenhuma multa {soAbertas ? 'em aberto' : 'registrada'}. 🎉</div>
+        <div style={{ color: 'var(--portal-text)', fontSize: 13 }}>Nenhuma multa {soAbertas ? 'em aberto' : 'registrada'}. 🎉</div>
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {visiveis.map((m) => {
           const st = STATUS[m.status_interno] || STATUS.nova;
           return (
-            <div key={m.id} style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 12, padding: '12px 16px', display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+            <div key={m.id} style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 0, padding: '12px 16px', display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
               <div style={{ minWidth: 90 }}>
                 <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--portal-text)' }}>{formatarPlaca(m.placa)}</div>
-                <div style={{ fontSize: 11.5, color: 'var(--portal-text-muted)' }}>{fmtData(m.dt_multa)}</div>
+                <div style={{ fontSize: 12.5, color: 'var(--portal-text)' }}>{fmtData(m.dt_multa)}</div>
               </div>
 
               <div style={{ flex: 2, minWidth: 220 }}>
                 <div style={{ fontSize: 13, color: 'var(--portal-text)', fontWeight: 600 }}>
                   {m.descricao || 'Infração'}
-                  {m.numero_auto && <span style={{ color: 'var(--portal-text-muted)', fontWeight: 400 }}> · auto {m.numero_auto}</span>}
+                  {m.numero_auto && <span style={{ color: 'var(--portal-text)', fontWeight: 400 }}> · auto {m.numero_auto}</span>}
                 </div>
                 {m.local_endereco && (
                   <a
                     href={m.local_lat && m.local_lng ? `https://www.google.com/maps?q=${m.local_lat},${m.local_lng}` : undefined}
                     target="_blank" rel="noopener noreferrer"
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11.5, color: 'var(--portal-text-muted)', textDecoration: 'none' }}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12.5, color: 'var(--portal-text)', textDecoration: 'none' }}
                   >
                     <MapPin size={11} /> {m.local_endereco} {m.local_lat && <ExternalLink size={10} />}
                   </a>
                 )}
-                <div style={{ fontSize: 12, color: 'var(--portal-text-secondary)', marginTop: 3 }}>
+                <div style={{ fontSize: 13, color: 'var(--portal-text)', marginTop: 3 }}>
                   <strong>{m.atribuido_a || 'não identificado'}</strong>
-                  {m.atribuido_fonte && <span style={{ color: 'var(--portal-text-muted)' }}> ({FONTE_LABEL[m.atribuido_fonte]})</span>}
+                  {m.atribuido_fonte && <span style={{ color: 'var(--portal-text)' }}> ({FONTE_LABEL[m.atribuido_fonte]})</span>}
                   {m.motorista_divergente && (
                     <span title="O motorista carimbado pela Rota Exata difere do responsável vigente na data — confira antes de descontar" style={{ color: '#b45309', marginLeft: 6 }}>
                       <AlertTriangle size={11} style={{ verticalAlign: '-2px' }} /> divergência
@@ -202,17 +202,17 @@ export default function FrotaMultasPage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
                   {urlsImagensRE(m.imagens).map((u, i) => (
                     <a key={`re-${i}`} href={u} target="_blank" rel="noopener noreferrer" title="Imagem carimbada pela Rota Exata"
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 600, color: '#0d9488', background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: 999, padding: '2px 8px', textDecoration: 'none' }}>
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 12, fontWeight: 600, color: '#1e40af', background: '#f0fdfa', border: '1px solid #bfdbfe', borderRadius: 999, padding: '2px 8px', textDecoration: 'none' }}>
                       <Camera size={10} /> foto {i + 1}
                     </a>
                   ))}
                   {(m.anexos || []).map((a) => (
-                    <span key={a.url} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: 'var(--portal-text-secondary)', background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 999, padding: '2px 8px' }}>
+                    <span key={a.url} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 600, color: 'var(--portal-text)', background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 999, padding: '2px 8px' }}>
                       <a href={a.url} target="_blank" rel="noopener noreferrer" title={`${a.nome}${a.por ? ` · ${a.por}` : ''}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, color: 'inherit', textDecoration: 'none', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         <Paperclip size={10} /> {a.nome}
                       </a>
                       {podeEditar && (
-                        <button onClick={() => removerAnexo(m.id, a.url, a.nome)} title="Remover anexo" style={{ background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer', fontSize: 11, padding: 0, lineHeight: 1 }}>×</button>
+                        <button onClick={() => removerAnexo(m.id, a.url, a.nome)} title="Remover anexo" style={{ background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer', fontSize: 12, padding: 0, lineHeight: 1 }}>×</button>
                       )}
                     </span>
                   ))}
@@ -221,7 +221,7 @@ export default function FrotaMultasPage() {
                       onClick={() => { setMultaAnexando(m.id); fileRef.current?.click(); }}
                       disabled={busy === `anexo-${m.id}`}
                       title="Anexar arquivo (auto de infração, boleto, comprovante, defesa…)"
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 700, color: '#0d9488', background: 'transparent', border: '1px dashed #0d948866', borderRadius: 999, padding: '2px 8px', cursor: 'pointer' }}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 12, fontWeight: 700, color: '#1e40af', background: 'transparent', border: '1px dashed #1e40af66', borderRadius: 999, padding: '2px 8px', cursor: 'pointer' }}
                     >
                       {busy === `anexo-${m.id}` ? <Loader2 size={10} className="spin" /> : <Paperclip size={10} />} anexar
                     </button>
@@ -231,8 +231,8 @@ export default function FrotaMultasPage() {
 
               <div style={{ textAlign: 'right', minWidth: 90 }}>
                 <div style={{ fontSize: 15, fontWeight: 800, color: '#b91c1c' }}>{fmtRS(m.valor)}</div>
-                <div style={{ fontSize: 11.5, color: 'var(--portal-text-muted)' }}>{m.pontos ?? 0} pts · {m.nivel_infracao || '—'}</div>
-                {m.dt_vencimento && <div style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>vence {fmtData(m.dt_vencimento)}</div>}
+                <div style={{ fontSize: 12.5, color: 'var(--portal-text)' }}>{m.pontos ?? 0} pts · {m.nivel_infracao || '—'}</div>
+                {m.dt_vencimento && <div style={{ fontSize: 12, color: 'var(--portal-text)' }}>vence {fmtData(m.dt_vencimento)}</div>}
               </div>
 
               <div style={{ minWidth: 150 }}>
@@ -242,7 +242,7 @@ export default function FrotaMultasPage() {
                   title={podeEditar ? 'Mudar o status interno' : MSG_SEM_PERMISSAO}
                   onChange={(e) => mudarStatus(m.id, e.target.value)}
                   style={{
-                    width: '100%', padding: '6px 8px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                    width: '100%', padding: '6px 8px', borderRadius: 0, fontSize: 13, fontWeight: 700,
                     border: `1px solid ${st.cor}33`, background: st.bg, color: st.cor,
                     cursor: podeEditar ? 'pointer' : 'not-allowed', opacity: podeEditar ? 1 : 0.6,
                   }}

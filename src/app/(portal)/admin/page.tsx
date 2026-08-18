@@ -42,6 +42,9 @@ const MODULOS = [
   { id: 'orcamentos', label: 'Orçamentos', color: '#ef4444' },
   { id: 'painel-mecanicos', label: 'Painel Mecânicos', color: '#3b82f6' },
   { id: 'ppv', label: 'Peças (PPV)', color: '#ef4444' },
+  // Pendências da frota: abrir/acompanhar pendências dos carros sem precisar
+  // do módulo Frota inteiro (quem tem Frota também acessa).
+  { id: 'pendencias', label: 'Pendências (Frota)', color: '#1e40af' },
   { id: 'pos', label: 'Pós-Vendas (OS)', color: '#dc2626' },
   { id: 'propostas', label: 'Proposta Comercial', color: '#991b1b' },
   { id: 'requisicoes', label: 'Requisições', color: '#ef4444' },

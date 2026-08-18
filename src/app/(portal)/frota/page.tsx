@@ -31,7 +31,7 @@ interface Localizacao {
 }
 
 const COR_LOC: Record<string, string> = {
-  loja: '#0f766e',
+  loja: '#1e3a8a',
   cliente: '#1d4ed8', cliente_portal: '#1d4ed8',
   em_deslocamento: '#7c3aed',
   fora_geocerca: '#b45309',
@@ -157,7 +157,9 @@ export default function FrotaHome() {
         (v.marca || '').toLowerCase().includes(q) ||
         (v.descricao || '').toLowerCase().includes(q) ||
         (v.responsavel_nome || '').toLowerCase().includes(q),
-      );
+      )
+      // carros SEM FOTO vão pro fim (sort estável preserva o resto da ordem)
+      .sort((a, b) => (a.imagem_url ? 0 : 1) - (b.imagem_url ? 0 : 1));
   }, [veiculos, busca, segmento]);
 
   const soCarros = veiculos.filter((v) => v.tipo_registro === 'veiculo');
@@ -177,18 +179,6 @@ export default function FrotaHome() {
 
   return (
     <div style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
-      {/* Cabeçalho */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
-        <div style={{ width: 48, height: 48, borderRadius: 14, background: 'linear-gradient(135deg, #0D9488, #0F766E)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Truck size={26} color="#fff" />
-        </div>
-        <div>
-          <h2 style={{ fontSize: 28, fontWeight: 800, margin: 0, color: 'var(--portal-text)' }}>Frota</h2>
-          <p style={{ margin: 0, fontSize: 13, color: 'var(--portal-text-secondary)' }}>
-            Veículos, abastecimento, custos e rastreamento
-          </p>
-        </div>
-      </div>
 
       {/* KPIs — saúde da frota (os clicáveis levam pra tela do assunto) */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12, marginBottom: 24 }}>
@@ -235,17 +225,17 @@ export default function FrotaHome() {
       {/* Grid de veículos */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18, flexWrap: 'wrap' }}>
         <h3 style={{ fontSize: 18, fontWeight: 800, margin: 0, color: 'var(--portal-text)' }}>Veículos</h3>
-        <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted)' }}>
+        <span style={{ fontSize: 12.5, color: 'var(--portal-text)' }}>
           {filtrados.length} de {soCarros.length}
         </span>
         {pendencias > 0 && (
-          <span title="Veículos que só apareceram no abastecimento — sem cadastro completo" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: '#b45309', background: '#fef3c7', borderRadius: 999, padding: '3px 10px' }}>
+          <span title="Veículos que só apareceram no abastecimento — sem cadastro completo" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700, color: '#b45309', background: '#fef3c7', borderRadius: 999, padding: '3px 10px' }}>
             <AlertTriangle size={12} /> {pendencias} com pendência de vínculo
           </span>
         )}
         <div style={{ flex: 1 }} />
         {/* Onde cada carro mora: Ativos = frota de verdade; Vendidos/Arquivados = histórico */}
-        <div style={{ display: 'flex', border: '1px solid var(--portal-border)', borderRadius: 8, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', border: '1px solid var(--portal-border)', borderRadius: 0, overflow: 'hidden' }}>
           {([
             ['ativos', `Ativos (${soCarros.filter((v) => v.ativo).length})`],
             ['vendidos', `Vendidos (${soCarros.filter((v) => v.status === 'vendido').length})`],
@@ -257,7 +247,7 @@ export default function FrotaHome() {
               onClick={() => setSegmento(k)}
               style={{
                 padding: '7px 12px', border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                background: segmento === k ? '#0d9488' : 'var(--portal-bg-input)',
+                background: segmento === k ? '#1e40af' : 'var(--portal-bg-input)',
                 color: segmento === k ? '#fff' : 'var(--portal-text-secondary)',
               }}
             >
@@ -266,18 +256,18 @@ export default function FrotaHome() {
           ))}
         </div>
         <div style={{ position: 'relative' }}>
-          <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--portal-text-muted)' }} />
+          <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--portal-text)' }} />
           <input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Placa, modelo, responsável…"
-            style={{ padding: '8px 12px 8px 30px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13, width: 260 }}
+            style={{ padding: '8px 12px 8px 30px', borderRadius: 0, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13, width: 260 }}
           />
         </div>
         {pode('frota', 'veiculos:editar') && (
           <button
             onClick={() => setNovoAberto(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: 'none', background: '#0d9488', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 0, border: 'none', background: '#1e40af', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
           >
             <Plus size={15} /> Novo veículo
           </button>
@@ -286,40 +276,40 @@ export default function FrotaHome() {
 
       {novoAberto && (
         <div onClick={() => setNovoAberto(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ width: 'min(440px, 92vw)', background: 'var(--portal-bg)', borderRadius: 14, padding: 20, display: 'flex', flexDirection: 'column', gap: 12, boxShadow: '0 20px 60px rgba(0,0,0,0.35)' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: 'min(440px, 92vw)', background: 'var(--portal-bg)', borderRadius: 0, padding: 20, display: 'flex', flexDirection: 'column', gap: 12, boxShadow: '0 20px 60px rgba(0,0,0,0.35)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <strong style={{ fontSize: 16, fontWeight: 800, color: 'var(--portal-text)' }}>Novo veículo</strong>
-              <button onClick={() => setNovoAberto(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text-muted)' }}><X size={18} /></button>
+              <button onClick={() => setNovoAberto(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text)' }}><X size={18} /></button>
             </div>
-            <div style={{ fontSize: 12, color: 'var(--portal-text-secondary)' }}>
+            <div style={{ fontSize: 12, color: 'var(--portal-text)' }}>
               O Frota é o único lugar de cadastro: o veículo já nasce disponível nas Requisições. Depois complete a Ficha (documentos, projeto Omie, FIPE…).
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               {([['placa', 'Placa *', 'ABC-1D23'], ['marca', 'Marca', 'VW'], ['modelo', 'Modelo', 'Saveiro'], ['ano', 'Ano', '2025']] as [keyof typeof novo, string, string][]).map(([campo, rotulo, ph]) => (
-                <label key={campo} style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase' }}>
+                <label key={campo} style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase' }}>
                   {rotulo}
                   <input
                     value={novo[campo]}
                     onChange={(e) => setNovo((f) => ({ ...f, [campo]: e.target.value }))}
                     placeholder={ph}
-                    style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13 }}
+                    style={{ padding: '8px 10px', borderRadius: 0, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13 }}
                   />
                 </label>
               ))}
-              <label style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 3, fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase' }}>
+              <label style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 3, fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase' }}>
                 Tipo do veículo
                 <select
                   value={novo.tipo_veiculo}
                   onChange={(e) => setNovo((f) => ({ ...f, tipo_veiculo: e.target.value }))}
-                  style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13 }}
+                  style={{ padding: '8px 10px', borderRadius: 0, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13 }}
                 >
                   {SUBTIPOS_VEICULO.map((s) => <option key={s.valor} value={s.valor}>{s.label}</option>)}
                 </select>
               </label>
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button onClick={() => setNovoAberto(false)} style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'transparent', color: 'var(--portal-text-secondary)', fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={criarVeiculo} disabled={criando} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: 'none', background: '#0d9488', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+              <button onClick={() => setNovoAberto(false)} style={{ padding: '8px 14px', borderRadius: 0, border: '1px solid var(--portal-border)', background: 'transparent', color: 'var(--portal-text)', fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={criarVeiculo} disabled={criando} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 0, border: 'none', background: '#1e40af', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
                 {criando ? <Loader2 size={14} className="spin" /> : <Plus size={14} />} Cadastrar
               </button>
             </div>
@@ -329,7 +319,7 @@ export default function FrotaHome() {
 
       {erro && <div style={{ color: '#b91c1c', fontSize: 13, marginBottom: 12 }}>{erro}</div>}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 16 }}>
         {filtrados.map((v) => (
           <button
             key={v.id}
@@ -337,46 +327,47 @@ export default function FrotaHome() {
             title={(v.pendencias || []).length > 0 ? `Pendências:\n• ${v.pendencias.join('\n• ')}` : undefined}
             style={{
               textAlign: 'left', cursor: 'pointer',
-              // pendência = card VERMELHO (a régua é a lib/frota/pendencias)
-              background: (v.pendencias || []).length > 0 ? 'rgba(220, 38, 38, 0.06)' : 'var(--portal-bg-card)',
-              border: `1px solid ${(v.pendencias || []).length > 0 ? '#ef4444' : 'var(--portal-border)'}`,
-              borderRadius: 12, padding: 14, display: 'flex', gap: 12, alignItems: 'center',
+              // estilo PPV: faixa colorida na lateral + bordas mais quadradas
+              background: 'var(--portal-bg-card)',
+              border: '1px solid var(--portal-border)',
+              borderLeft: '4px solid #1e40af',
+              borderRadius: 0, padding: 16, display: 'flex', gap: 14, alignItems: 'center',
               opacity: v.ativo ? 1 : 0.55,
             }}
           >
             {v.imagem_url ? (
-              <img src={v.imagem_url} alt="" style={{ width: 56, height: 56, borderRadius: 10, objectFit: 'cover', background: 'var(--portal-bg-secondary)', flexShrink: 0 }} />
+              <img src={v.imagem_url} alt="" style={{ width: 74, height: 74, borderRadius: 0, objectFit: 'cover', background: 'var(--portal-bg-secondary)', flexShrink: 0 }} />
             ) : (
-              <div style={{ width: 56, height: 56, borderRadius: 10, background: 'var(--portal-bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Car size={24} color="var(--portal-text-muted)" />
+              <div style={{ width: 74, height: 74, borderRadius: 0, background: 'var(--portal-bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Car size={30} color="var(--portal-text)" />
               </div>
             )}
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                <strong style={{ fontSize: 15, fontWeight: 800, color: 'var(--portal-text)' }}>{formatarPlaca(v.placa)}</strong>
-                {v.tem_rastreador && <Satellite size={13} color="#0f766e" aria-label="Rastreado" />}
+                <strong style={{ fontSize: 17, fontWeight: 800, color: 'var(--portal-text)' }}>{formatarPlaca(v.placa)}</strong>
+                {v.tem_rastreador && <Satellite size={13} color="#1e3a8a" aria-label="Rastreado" />}
                 {v.tipo_veiculo && SUBTIPOS_DESTAQUE.has(v.tipo_veiculo.toLowerCase()) && (
-                  <span style={{ fontSize: 9.5, fontWeight: 800, color: '#0369a1', background: '#e0f2fe', borderRadius: 999, padding: '2px 7px', letterSpacing: 0.4, textTransform: 'uppercase' }}>
+                  <span style={{ fontSize: 10.5, fontWeight: 800, color: '#0369a1', background: '#e0f2fe', borderRadius: 999, padding: '2px 7px', letterSpacing: 0.4, textTransform: 'uppercase' }}>
                     {labelSubtipo(v.tipo_veiculo)}
                   </span>
                 )}
                 {v.status === 'vendido' && (
-                  <span title={`Vendido${v.venda_comprador ? ` para ${v.venda_comprador}` : ''}${v.venda_data ? ` em ${new Date(`${v.venda_data}T00:00:00`).toLocaleDateString('pt-BR')}` : ''}`} style={{ fontSize: 9.5, fontWeight: 800, color: '#6d28d9', background: '#ede9fe', borderRadius: 999, padding: '2px 7px', letterSpacing: 0.4 }}>
+                  <span title={`Vendido${v.venda_comprador ? ` para ${v.venda_comprador}` : ''}${v.venda_data ? ` em ${new Date(`${v.venda_data}T00:00:00`).toLocaleDateString('pt-BR')}` : ''}`} style={{ fontSize: 10.5, fontWeight: 800, color: '#6d28d9', background: '#ede9fe', borderRadius: 999, padding: '2px 7px', letterSpacing: 0.4 }}>
                     VENDIDO
                   </span>
                 )}
                 {v.status === 'arquivado' && (
-                  <span title={`Arquivado${v.arquivado_em ? ` em ${new Date(`${v.arquivado_em}T00:00:00`).toLocaleDateString('pt-BR')}` : ''}${v.arquivado_motivo ? ` — ${v.arquivado_motivo}` : ''}`} style={{ fontSize: 9.5, fontWeight: 800, color: '#475569', background: '#e2e8f0', borderRadius: 999, padding: '2px 7px', letterSpacing: 0.4 }}>
+                  <span title={`Arquivado${v.arquivado_em ? ` em ${new Date(`${v.arquivado_em}T00:00:00`).toLocaleDateString('pt-BR')}` : ''}${v.arquivado_motivo ? ` — ${v.arquivado_motivo}` : ''}`} style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', background: '#e2e8f0', borderRadius: 999, padding: '2px 7px', letterSpacing: 0.4 }}>
                     ARQUIVADO
                   </span>
                 )}
                 {(v.pendencias || []).length > 0 && (
-                  <span style={{ fontSize: 9.5, fontWeight: 800, color: '#b91c1c', background: '#fee2e2', borderRadius: 999, padding: '2px 7px', letterSpacing: 0.4 }}>
+                  <span style={{ fontSize: 10.5, fontWeight: 800, color: '#b91c1c', background: '#fee2e2', borderRadius: 999, padding: '2px 7px', letterSpacing: 0.4 }}>
                     {v.pendencias.length} PENDÊNCIA{v.pendencias.length > 1 ? 'S' : ''}
                   </span>
                 )}
               </div>
-              <div style={{ fontSize: 12, color: 'var(--portal-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <div style={{ fontSize: 14, color: 'var(--portal-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {[v.marca, v.modelo || v.descricao, v.ano].filter(Boolean).join(' · ') || '—'}
               </div>
               {(() => {
@@ -387,7 +378,7 @@ export default function FrotaHome() {
                 return (
                   <div
                     title={`${loc.fonte === 'cache' ? 'Última posição conhecida' : 'Posição ao vivo'}${quando ? ` · ${quando}` : ''}`}
-                    style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3, fontSize: 11.5, fontWeight: 600, color: cor, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3, fontSize: 12.5, fontWeight: 600, color: cor, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                   >
                     <MapPin size={11} style={{ flexShrink: 0 }} />
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -397,16 +388,16 @@ export default function FrotaHome() {
                 );
               })()}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11.5, color: 'var(--portal-text-muted)' }}>
-                  <UserIcon size={11} /> {v.responsavel_nome || 'sem responsável'}
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, color: 'var(--portal-text)' }}>
+                  <UserIcon size={12} /> {v.responsavel_nome || 'sem responsável'}
                 </span>
                 {v.multas_abertas > 0 && (
-                  <span title={`${v.multas_abertas} multa(s) em aberto`} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 700, color: '#b91c1c' }}>
+                  <span title={`${v.multas_abertas} multa(s) em aberto`} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 12, fontWeight: 700, color: '#b91c1c' }}>
                     <ShieldAlert size={11} /> {v.multas_abertas} · {fmtRS(v.valor_multas_abertas)}
                   </span>
                 )}
                 {v.docs_vencendo > 0 && (
-                  <span title={`${v.docs_vencendo} documento(s) vencido(s) ou vencendo em 30 dias`} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 700, color: '#b45309' }}>
+                  <span title={`${v.docs_vencendo} documento(s) vencido(s) ou vencendo em 30 dias`} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 12, fontWeight: 700, color: '#b45309' }}>
                     <FileWarning size={11} /> DOC
                   </span>
                 )}
@@ -421,21 +412,21 @@ export default function FrotaHome() {
         <div style={{ marginTop: 28 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
             <h3 style={{ fontSize: 18, fontWeight: 800, margin: 0, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Users size={17} color="#0d9488" /> Motoristas
+              <Users size={17} color="#1e40af" /> Motoristas
             </h3>
-            <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted)' }}>
+            <span style={{ fontSize: 12.5, color: 'var(--portal-text)' }}>
               {motAtivos.length} ativos · {motAtivos.filter((m) => m.e_motorista).length} motoristas
               {motComPendencia.length > 0 && (
                 <> · <strong style={{ color: '#b91c1c' }}>{motComPendencia.length} com pendência de CNH</strong></>
               )}
             </span>
             <div style={{ flex: 1 }} />
-            <Link href="/frota/motoristas" style={{ fontSize: 12.5, fontWeight: 700, color: '#0d9488', textDecoration: 'none' }}>
+            <Link href="/frota/motoristas" style={{ fontSize: 12.5, fontWeight: 700, color: '#1e40af', textDecoration: 'none' }}>
               Ver todos →
             </Link>
           </div>
           {motComPendencia.length === 0 ? (
-            <div style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)' }}>
+            <div style={{ fontSize: 12.5, color: 'var(--portal-text)' }}>
               CNHs em dia ✓ — ninguém com pendência.
             </div>
           ) : (
@@ -448,7 +439,7 @@ export default function FrotaHome() {
                   style={{
                     display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none',
                     background: 'rgba(220, 38, 38, 0.06)', border: '1px solid #ef4444',
-                    borderRadius: 10, padding: '8px 12px',
+                    borderRadius: 0, padding: '8px 12px',
                   }}
                 >
                   {m.foto_url ? (
@@ -462,14 +453,14 @@ export default function FrotaHome() {
                     <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--portal-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {m.nome}
                     </div>
-                    <div style={{ fontSize: 11, color: '#b91c1c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ fontSize: 12, color: '#b91c1c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {m.pendencias[0]}
                     </div>
                   </div>
                 </Link>
               ))}
               {motComPendencia.length > 8 && (
-                <Link href="/frota/motoristas" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 700, color: '#0d9488', textDecoration: 'none', border: '1px dashed var(--portal-border)', borderRadius: 10, padding: '8px 12px' }}>
+                <Link href="/frota/motoristas" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 700, color: '#1e40af', textDecoration: 'none', border: '1px dashed var(--portal-border)', borderRadius: 0, padding: '8px 12px' }}>
                   + {motComPendencia.length - 8} outros →
                 </Link>
               )}
@@ -497,17 +488,18 @@ function Kpi({ icone, rotulo, valor, cor, href }: { icone: React.ReactNode; rotu
     <div
       style={{
         background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
-        borderRadius: 12, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 4,
+        borderRadius: 0, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 4,
         height: '100%',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: cor || '#0d9488' }}>
+      {/* ícones e valores sempre no azul do módulo / preto — sem vermelho de alerta */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#1e40af' }}>
         {icone}
-        <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase', letterSpacing: 0.4 }}>
+        <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: 0.4 }}>
           {rotulo}
         </span>
       </div>
-      <strong style={{ fontSize: 20, fontWeight: 800, color: cor || 'var(--portal-text)' }}>{valor}</strong>
+      <strong style={{ fontSize: 20, fontWeight: 800, color: 'var(--portal-text)' }}>{valor}</strong>
     </div>
   );
   return href ? <Link href={href} style={{ textDecoration: 'none' }} title="Abrir a tela">{corpo}</Link> : corpo;

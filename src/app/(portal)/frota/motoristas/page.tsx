@@ -42,7 +42,7 @@ function ChipCnh({ m }: { m: MotoristaRH }) {
   };
   const e = estilos[m.situacao_cnh];
   return (
-    <span style={{ fontSize: 10, fontWeight: 700, color: e.fg, background: e.bg, borderRadius: 999, padding: '2px 8px', whiteSpace: 'nowrap' }}>
+    <span style={{ fontSize: 11, fontWeight: 700, color: e.fg, background: e.bg, borderRadius: 999, padding: '2px 8px', whiteSpace: 'nowrap' }}>
       {e.texto}
     </span>
   );
@@ -65,7 +65,7 @@ function BadgeEmpresa({ empresa }: { empresa: string | null }) {
   if (!empresa) return null;
   const nova = empresa.toUpperCase().includes('NOVA');
   return (
-    <span style={{ fontSize: 9.5, fontWeight: 800, color: nova ? '#0f766e' : '#0369a1', background: nova ? '#ccfbf1' : '#e0f2fe', borderRadius: 999, padding: '2px 7px', letterSpacing: 0.4 }}>
+    <span style={{ fontSize: 9.5, fontWeight: 800, color: nova ? '#1e3a8a' : '#0369a1', background: nova ? '#dbeafe' : '#e0f2fe', borderRadius: 999, padding: '2px 7px', letterSpacing: 0.4 }}>
       {empresa.toUpperCase()}
     </span>
   );
@@ -127,19 +127,19 @@ export default function FrotaMotoristasPage() {
     <div style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
       {/* Cabeçalho */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
-        <div style={{ width: 48, height: 48, borderRadius: 14, background: 'linear-gradient(135deg, #0D9488, #0F766E)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: 48, height: 48, borderRadius: 0, background: 'linear-gradient(135deg, #1E40AF, #1E3A8A)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Users size={26} color="#fff" />
         </div>
         <div>
           <h2 style={{ fontSize: 28, fontWeight: 800, margin: 0, color: 'var(--portal-text)' }}>Motoristas</h2>
-          <p style={{ margin: 0, fontSize: 13, color: 'var(--portal-text-secondary)' }}>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--portal-text)' }}>
             Funcionários do RH + habilitação (CNH) e vínculos da frota — o cadastro é editado no RH
           </p>
         </div>
       </div>
 
       {!rhConfigurado && aviso && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fef3c7', border: '1px solid #f59e0b', color: '#92400e', borderRadius: 10, padding: '10px 14px', fontSize: 12.5, marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fef3c7', border: '1px solid #f59e0b', color: '#92400e', borderRadius: 0, padding: '10px 14px', fontSize: 13.5, marginBottom: 16 }}>
           <AlertTriangle size={15} /> {aviso}
         </div>
       )}
@@ -156,9 +156,9 @@ export default function FrotaMotoristasPage() {
       {/* Barra do grid */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18, flexWrap: 'wrap' }}>
         <h3 style={{ fontSize: 18, fontWeight: 800, margin: 0, color: 'var(--portal-text)' }}>Pessoas</h3>
-        <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted)' }}>{filtrados.length} de {motoristas.length}</span>
+        <span style={{ fontSize: 13.5, color: 'var(--portal-text)' }}>{filtrados.length} de {motoristas.length}</span>
         <div style={{ flex: 1 }} />
-        <div style={{ display: 'flex', border: '1px solid var(--portal-border)', borderRadius: 8, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', border: '1px solid var(--portal-border)', borderRadius: 0, overflow: 'hidden' }}>
           {([
             ['todos', `Ativos (${ativos.length})`],
             ['motoristas', `Só motoristas (${kMotoristas.length})`],
@@ -169,8 +169,8 @@ export default function FrotaMotoristasPage() {
               key={k}
               onClick={() => setSegmento(k)}
               style={{
-                padding: '7px 12px', border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                background: segmento === k ? '#0d9488' : 'var(--portal-bg-input)',
+                padding: '7px 12px', border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                background: segmento === k ? '#1e40af' : 'var(--portal-bg-input)',
                 color: segmento === k ? '#fff' : 'var(--portal-text-secondary)',
               }}
             >
@@ -179,18 +179,18 @@ export default function FrotaMotoristasPage() {
           ))}
         </div>
         <div style={{ position: 'relative' }}>
-          <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--portal-text-muted)' }} />
+          <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--portal-text)' }} />
           <input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Nome, cargo, departamento…"
-            style={{ padding: '8px 12px 8px 30px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13, width: 260 }}
+            style={{ padding: '8px 12px 8px 30px', borderRadius: 0, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13, width: 260 }}
           />
         </div>
       </div>
 
       {erro && <div style={{ color: '#b91c1c', fontSize: 13, marginBottom: 12 }}>{erro}</div>}
-      {carregando && <div style={{ color: 'var(--portal-text-muted)', fontSize: 13 }}>Carregando…</div>}
+      {carregando && <div style={{ color: 'var(--portal-text)', fontSize: 13 }}>Carregando…</div>}
 
       {/* Grid de pessoas — mesmo padrão dos cards de veículos */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
@@ -203,7 +203,7 @@ export default function FrotaMotoristasPage() {
               textAlign: 'left', cursor: 'pointer',
               background: m.pendencias.length > 0 ? 'rgba(220, 38, 38, 0.06)' : 'var(--portal-bg-card)',
               border: `1px solid ${m.pendencias.length > 0 ? '#ef4444' : 'var(--portal-border)'}`,
-              borderRadius: 12, padding: 14, display: 'flex', gap: 12, alignItems: 'center',
+              borderRadius: 0, padding: 14, display: 'flex', gap: 12, alignItems: 'center',
               opacity: ehAtivo(m) ? 1 : 0.55,
             }}
           >
@@ -223,7 +223,7 @@ export default function FrotaMotoristasPage() {
                   </span>
                 )}
               </div>
-              <div style={{ fontSize: 12, color: 'var(--portal-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <div style={{ fontSize: 13, color: 'var(--portal-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {[m.cargo, m.departamento].filter(Boolean).join(' · ') || '—'}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5, flexWrap: 'wrap' }}>
@@ -231,14 +231,14 @@ export default function FrotaMotoristasPage() {
                 <BadgeStatus m={m} />
                 <ChipCnh m={m} />
                 {m.responsavel_por_veiculo && (
-                  <span title="Responsável por veículo da frota" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10.5, fontWeight: 700, color: '#0f766e' }}>
+                  <span title="Responsável por veículo da frota" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11.5, fontWeight: 700, color: '#1e3a8a' }}>
                     <Car size={11} /> com carro
                   </span>
                 )}
                 {m.multas_abertas > 0 && (
                   <span
                     title={`${m.multas_abertas} multa(s) em aberto · ${fmtRS(m.valor_multas_abertas)} · ${m.pontos_multas_abertas} ponto(s) — detalhe na ficha`}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10.5, fontWeight: 700, color: '#b91c1c' }}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11.5, fontWeight: 700, color: '#b91c1c' }}
                   >
                     <ShieldAlert size={11} /> {m.multas_abertas} · {fmtRS(m.valor_multas_abertas)}
                   </span>
@@ -249,7 +249,7 @@ export default function FrotaMotoristasPage() {
         ))}
       </div>
       {!carregando && filtrados.length === 0 && !erro && (
-        <div style={{ padding: 24, textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 13 }}>Ninguém encontrado nesse filtro.</div>
+        <div style={{ padding: 24, textAlign: 'center', color: 'var(--portal-text)', fontSize: 13 }}>Ninguém encontrado nesse filtro.</div>
       )}
 
       {aberto && (
@@ -268,10 +268,10 @@ export default function FrotaMotoristasPage() {
 
 function Kpi({ icone, rotulo, valor, cor }: { icone: React.ReactNode; rotulo: string; valor: string; cor?: string }) {
   return (
-    <div style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 12, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 4, height: '100%' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: cor || '#0d9488' }}>
+    <div style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 0, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 4, height: '100%' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: cor || '#1e40af' }}>
         {icone}
-        <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase', letterSpacing: 0.4 }}>{rotulo}</span>
+        <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: 0.4 }}>{rotulo}</span>
       </div>
       <strong style={{ fontSize: 20, fontWeight: 800, color: cor || 'var(--portal-text)' }}>{valor}</strong>
     </div>

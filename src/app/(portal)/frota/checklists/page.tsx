@@ -56,9 +56,9 @@ export default function FrotaChecklistsPage() {
     const ativo = (chave === 'total' && filtro === 'todos') || filtro === chave;
     return (
       <button onClick={() => setFiltro(chave === 'total' ? 'todos' : chave)}
-        style={{ textAlign: 'left', flex: 1, minWidth: 130, padding: '14px 16px', borderRadius: 12, cursor: 'pointer',
+        style={{ textAlign: 'left', flex: 1, minWidth: 130, padding: '14px 16px', borderRadius: 0, cursor: 'pointer',
           border: `1px solid ${ativo ? cor : 'var(--portal-border)'}`, background: ativo ? `${cor}14` : 'var(--portal-bg-card)' }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase', letterSpacing: 0.4 }}>{rot}</div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: 0.4 }}>{rot}</div>
         <div style={{ fontSize: 26, fontWeight: 800, color: cor, marginTop: 4 }}>{n}</div>
       </button>
     );
@@ -72,7 +72,7 @@ export default function FrotaChecklistsPage() {
           <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--portal-text)', margin: 0 }}>Checklists mensais</h1>
         </div>
         <input type="month" value={mes} onChange={(e) => setMes(e.target.value)}
-          style={{ marginLeft: 'auto', padding: '9px 12px', borderRadius: 10, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)', fontSize: 14 }} />
+          style={{ marginLeft: 'auto', padding: '9px 12px', borderRadius: 0, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)', fontSize: 14 }} />
       </div>
 
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 18 }}>
@@ -84,22 +84,22 @@ export default function FrotaChecklistsPage() {
       </div>
 
       {erro && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px', borderRadius: 10, background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', fontSize: 13, marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px', borderRadius: 0, background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', fontSize: 13, marginBottom: 16 }}>
           <AlertTriangle size={16} /> {erro}
         </div>
       )}
 
       {carregando ? (
-        <div style={{ padding: 60, textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 14 }}>
+        <div style={{ padding: 60, textAlign: 'center', color: 'var(--portal-text)', fontSize: 14 }}>
           <Loader2 size={22} className="spin" style={{ marginBottom: 10 }} /><div>Carregando…</div>
         </div>
       ) : itens.length === 0 ? (
-        <div style={{ padding: 60, textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 14 }}>
+        <div style={{ padding: 60, textAlign: 'center', color: 'var(--portal-text)', fontSize: 14 }}>
           {data && data.resumo.total === 0 ? 'Nenhum técnico com veículo atribuído (cadastro feito no NT Mecânico).' : 'Nada neste filtro.'}
         </div>
       ) : (
-        <div style={{ border: '1px solid var(--portal-border)', borderRadius: 14, overflow: 'hidden', background: 'var(--portal-bg-card)' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 110px 70px 70px 110px 20px', gap: 12, padding: '12px 18px', background: 'var(--portal-bg-secondary)', borderBottom: '1px solid var(--portal-border)', fontSize: 11, color: 'var(--portal-text-secondary)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.4 }}>
+        <div style={{ border: '1px solid var(--portal-border)', borderRadius: 0, overflow: 'hidden', background: 'var(--portal-bg-card)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 110px 70px 70px 110px 20px', gap: 12, padding: '12px 18px', background: 'var(--portal-bg-secondary)', borderBottom: '1px solid var(--portal-border)', fontSize: 12, color: 'var(--portal-text)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.4 }}>
             <span>Técnico / Veículo</span><span>Placa</span><span style={{ textAlign: 'center' }}>Situação</span><span style={{ textAlign: 'center' }}>Score</span><span style={{ textAlign: 'right' }}>KM</span><span style={{ textAlign: 'right' }}>Concluído</span><span></span>
           </div>
           {itens.map((it, i) => {
@@ -111,17 +111,17 @@ export default function FrotaChecklistsPage() {
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}>
                     {it.tecnico_nome}
-                    {it.origem === 'nao_vinculado' && <span style={{ fontSize: 9.5, fontWeight: 700, padding: '1px 6px', borderRadius: 5, background: 'var(--portal-bg-secondary)', color: 'var(--portal-text-muted)', textTransform: 'uppercase', letterSpacing: 0.3 }}>sem resp.</span>}
+                    {it.origem === 'nao_vinculado' && <span style={{ fontSize: 9.5, fontWeight: 700, padding: '1px 6px', borderRadius: 0, background: 'var(--portal-bg-secondary)', color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: 0.3 }}>sem resp.</span>}
                   </div>
-                  {it.descricao && <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.descricao}</div>}
+                  {it.descricao && <div style={{ fontSize: 13, color: 'var(--portal-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.descricao}</div>}
                 </div>
                 <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--portal-text)', fontFamily: 'monospace' }}>{it.placa}</span>
                 <span style={{ textAlign: 'center' }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 999, background: st.bg, color: st.cor }}>{st.label}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 999, background: st.bg, color: st.cor }}>{st.label}</span>
                 </span>
                 <span style={{ textAlign: 'center', fontSize: 13, fontWeight: 700, color: it.score != null && it.score < 50 ? '#b91c1c' : 'var(--portal-text-secondary)' }}>{it.score != null ? `${it.score}%` : '—'}</span>
-                <span style={{ textAlign: 'right', fontSize: 13, color: 'var(--portal-text-secondary)' }}>{it.km != null ? it.km.toLocaleString('pt-BR') : '—'}</span>
-                <span style={{ textAlign: 'right', fontSize: 12, color: 'var(--portal-text-muted)' }}>{fmtDataHora(it.fim_em)}</span>
+                <span style={{ textAlign: 'right', fontSize: 13, color: 'var(--portal-text)' }}>{it.km != null ? it.km.toLocaleString('pt-BR') : '—'}</span>
+                <span style={{ textAlign: 'right', fontSize: 13, color: 'var(--portal-text)' }}>{fmtDataHora(it.fim_em)}</span>
                 <span style={{ textAlign: 'center' }}>{it.origem === 'nao_vinculado' && it.placa_key ? <ChevronRight size={15} color="var(--portal-text-muted)" /> : null}</span>
               </div>
             );
