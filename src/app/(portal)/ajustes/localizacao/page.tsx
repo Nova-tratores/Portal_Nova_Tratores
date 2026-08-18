@@ -42,6 +42,18 @@ function posDe(p: Produto): Pos & { temLoc: boolean } {
 }
 function chaveProd(p: { empresa: string; codigo_produto: number | string }): string { return `${p.empresa}|${p.codigo_produto}`; }
 function labelSeg(v: string): string { return v.trim() === '' ? '—' : v; }
+// segmento "placeholder"/sujo (XXX / 000 / 0000 / ---) — dado inválido de localização
+function segPlaceholder(v: string): boolean {
+  const s = v.trim();
+  if (s === '') return false;
+  return /^0+$/.test(s) || /^x+$/i.test(s) || /^-+$/.test(s);
+}
+// posição inválida: qualquer segmento preenchido é placeholder
+function posInvalida(pos: Pos): boolean {
+  return segPlaceholder(pos.prat) || segPlaceholder(pos.andar) || segPlaceholder(pos.caixa);
+}
+// posição legível (para a lista "a corrigir")
+function posLabel(pos: Pos): string { return `${labelSeg(pos.prat)} · ${labelSeg(pos.andar)} · ${labelSeg(pos.caixa)}`; }
 // ordena segmentos: vazio ('—') por último, resto numérico-aware
 function cmpSeg(a: string, b: string): number {
   const ae = a.trim() === '', be = b.trim() === '';
@@ -171,11 +183,16 @@ export default function LocalizacaoPage() {
   // produtos da empresa selecionada
   const daEmpresa = useMemo(() => produtos.filter((p) => String(p.empresa) === empresa), [produtos, empresa]);
 
-  // separa localizados / sem localização; monta árvore prat→andar→caixa
-  const { arvore, semLoc, totalLoc, totalConflitos, totalPosicoes } = useMemo(() => {
-    const comLoc: Produto[] = []; const sem: Produto[] = [];
-    for (const p of daEmpresa) (posDe(p).temLoc ? comLoc : sem).push(p);
-    // Map<prat, Map<andar, Map<caixa, Produto[]>>>
+  // separa localizados / sem localização / posição INVÁLIDA (a corrigir); monta árvore
+  const { arvore, semLoc, invalidas, totalLoc, totalConflitos, totalPosicoes } = useMemo(() => {
+    const comLoc: Produto[] = []; const sem: Produto[] = []; const inval: Produto[] = [];
+    for (const p of daEmpresa) {
+      const q = posDe(p);
+      if (!q.temLoc) { sem.push(p); continue; }       // sem nenhuma localização
+      if (posInvalida(q)) { inval.push(p); continue; } // XXX/000/0000 → a corrigir
+      comLoc.push(p);
+    }
+    // Map<prat, Map<andar, Map<caixa, Produto[]>>> — só posições VÁLIDAS
     const tree = new Map<string, Map<string, Map<string, Produto[]>>>();
     let conflitos = 0, posicoes = 0;
     for (const p of comLoc) {
@@ -189,7 +206,7 @@ export default function LocalizacaoPage() {
     for (const ma of tree.values()) for (const mc of ma.values()) for (const arr of mc.values()) {
       posicoes++; if (arr.length > 1) conflitos++;
     }
-    return { arvore: tree, semLoc: sem, totalLoc: comLoc.length, totalConflitos: conflitos, totalPosicoes: posicoes };
+    return { arvore: tree, semLoc: sem, invalidas: inval, totalLoc: comLoc.length, totalConflitos: conflitos, totalPosicoes: posicoes };
   }, [daEmpresa]);
 
   // filtro de busca (código / descrição / localização)
@@ -308,9 +325,10 @@ export default function LocalizacaoPage() {
           <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar código, descrição ou localização (ex.: PRATELEIRA 6, 9 D 02)"
             style={{ width: '100%', border: '1px solid #cbd5e1', borderRadius: 8, padding: '8px 10px 8px 32px', fontSize: '.82rem' }} />
         </div>
-        <button onClick={() => setAbrirConferir(true)} title="Conferir posição por posição (flashcard)"
-          style={{ ...btnPrim, background: '#16a34a', border: '1px solid #16a34a' }}>
-          <ClipboardCheck size={15} /> Conferir
+        <button onClick={() => setAbrirConferir(true)} disabled={deckPosicoes.length === 0}
+          title={deckPosicoes.length === 0 ? 'Nenhuma posição no filtro atual' : 'Conferir as posições do filtro atual (use a busca para focar)'}
+          style={{ ...btnPrim, background: '#16a34a', border: '1px solid #16a34a', opacity: deckPosicoes.length === 0 ? .5 : 1 }}>
+          <ClipboardCheck size={15} /> Conferir{deckPosicoes.length ? ` (${deckPosicoes.length})` : ''}
         </button>
       </div>
 
@@ -324,6 +342,7 @@ export default function LocalizacaoPage() {
             <span><b>{totalPosicoes}</b> posições</span>
             <span style={{ color: totalConflitos ? '#b45309' : '#475569' }}><b>{totalConflitos}</b> conflitos</span>
             <span><b>{semLoc.length}</b> sem localização</span>
+            {invalidas.length > 0 && <span style={{ color: '#c2410c' }}><b>{invalidas.length}</b> a corrigir</span>}
           </div>
 
           {/* árvore */}
@@ -408,6 +427,10 @@ export default function LocalizacaoPage() {
             })}
           </div>
 
+          {/* localização inválida (a corrigir) — placeholders XXX/000/0000 fora do fluxo */}
+          <LocalizacaoInvalida itens={invalidas} termo={termo} casa={casa} podeEditar={podeEditar}
+            onMover={(p) => setMover(p)} onRemover={remover} onEtiqueta={addEtiqueta} />
+
           {/* sem localização */}
           <SemLocalizacao itens={semLoc} termo={termo} casa={casa} podeEditar={podeEditar} onDefinir={(p) => setMover(p)} />
         </>
@@ -467,6 +490,51 @@ function SemLocalizacao({ itens, termo, casa, podeEditar, onDefinir }: {
           ))}
           {filtrados.length > TETO && <div style={{ color: '#94a3b8', fontSize: '.72rem', padding: '8px 4px' }}>Mostrando {TETO} de {filtrados.length} — refine a busca.</div>}
           {filtrados.length === 0 && <div style={{ color: '#94a3b8', fontSize: '.78rem', padding: 8 }}>Nenhuma peça.</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Localização inválida / "a corrigir" (placeholders XXX/000/0000) — fora do fluxo
+// normal e do flashcard. Capada + busca; ações Mover/Remover/+Fila.
+function LocalizacaoInvalida({ itens, termo, casa, podeEditar, onMover, onRemover, onEtiqueta }: {
+  itens: Produto[]; termo: string; casa: (p: Produto) => boolean; podeEditar: boolean;
+  onMover: (p: Produto) => void; onRemover: (p: Produto) => void; onEtiqueta: (p: Produto) => void;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const TETO = 200;
+  const filtrados = useMemo(() => (termo ? itens.filter(casa) : itens), [itens, termo, casa]);
+  const mostra = filtrados.slice(0, TETO);
+  if (itens.length === 0) return null;
+  return (
+    <div style={{ ...box, marginTop: 12, overflow: 'hidden', border: '1px solid #fed7aa' }}>
+      <button onClick={() => setAberto((v) => !v)} style={{ ...linhaBtn, background: '#fff7ed', fontWeight: 700, color: '#c2410c' }}>
+        {aberto ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+        <AlertTriangle size={15} /> Localização a corrigir
+        <span style={{ marginLeft: 'auto', color: '#ea580c', fontSize: '.72rem', fontWeight: 700 }}>{filtrados.length} peça(s)</span>
+      </button>
+      {aberto && (
+        <div style={{ padding: 10 }}>
+          <div style={{ color: '#9a3412', fontSize: '.72rem', marginBottom: 6 }}>Posições com dado inválido (XXX / 000 / 0000). Corrija com <b>Mover</b> ou <b>Remova</b>.</div>
+          {mostra.map((p) => (
+            <div key={chaveProd(p)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderBottom: '1px solid #f1f5f9' }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 600, color: '#0f172a', fontSize: '.8rem' }}>{p.codigo || p.codigo_produto}</div>
+                <div style={{ color: '#64748b', fontSize: '.72rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 460 }}>
+                  {p.descricao || '—'} <span style={{ color: '#c2410c' }}>· {posLabel(posDe(p))}</span>
+                </div>
+              </div>
+              <button title="Adicionar à fila de etiquetas" onClick={() => onEtiqueta(p)} style={{ ...btn, marginLeft: 'auto', padding: '5px 8px' }}><Tag size={14} /></button>
+              {podeEditar && <>
+                <button title="Mover para uma posição correta" onClick={() => onMover(p)} style={{ ...btn, padding: '5px 10px', fontSize: '.72rem' }}><ArrowRightLeft size={13} /> Mover</button>
+                <button title="Remover da posição" onClick={() => onRemover(p)} style={{ ...btn, padding: '5px 8px', color: '#b91c1c', borderColor: '#fecaca' }}><Trash2 size={14} /></button>
+              </>}
+            </div>
+          ))}
+          {filtrados.length > TETO && <div style={{ color: '#94a3b8', fontSize: '.72rem', padding: '8px 4px' }}>Mostrando {TETO} de {filtrados.length} — refine a busca.</div>}
+          {filtrados.length === 0 && <div style={{ color: '#94a3b8', fontSize: '.78rem', padding: 8 }}>Nenhuma peça no filtro.</div>}
         </div>
       )}
     </div>
