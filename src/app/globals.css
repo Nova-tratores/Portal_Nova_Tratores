@@ -952,6 +952,8 @@ body {
   [data-theme="dark"] [style*="background: rgb(249, 250, 251)"],
   [data-theme="dark"] [style*="background: rgb(243, 244, 246)"] { background: var(--portal-bg-secondary) !important; }
   [data-theme="dark"] [style*="solid rgb(191, 219, 254)"] { border-color: #1e3a8a !important; }
+  [data-theme="dark"] [style*="background: rgb(240, 249, 255)"] { background: #14233d !important; } /* caixa do deslocamento */
+  [data-theme="dark"] [style*="solid rgb(186, 230, 253)"] { border-color: #1e3a8a !important; }
 
   /* Tons de laranja bem claros (destaques do módulo Peças) */
   [data-theme="dark"] [style*="background: rgb(255, 247, 237)"],
@@ -1035,6 +1037,23 @@ body {
   [data-theme="dark"] .io-actions { background: var(--portal-bg-secondary) !important; border-color: var(--portal-border) !important; }
   [data-theme="dark"] .io-btn.gray { background: var(--portal-bg-card) !important; color: var(--portal-text) !important; border-color: var(--portal-border) !important; }
   [data-theme="dark"] .io-x { background: var(--portal-bg-secondary) !important; color: var(--portal-text-secondary) !important; }
+
+  /* ── Drawer da OS (POS) no escuro: cards, coluna de ações e títulos ── */
+  [data-theme="dark"] .os-card {
+    background: var(--portal-bg-card) !important;
+    border-color: var(--portal-border) !important;
+  }
+  [data-theme="dark"] .os-card-title { color: var(--portal-text) !important; }
+  [data-theme="dark"] .os-action-rail {
+    background: var(--portal-bg-card) !important;
+    border-color: var(--portal-border) !important;
+  }
+  [data-theme="dark"] .os-rail-btn { color: var(--portal-text) !important; }
+  [data-theme="dark"] .os-rail-btn i { color: var(--portal-text-muted) !important; }
+  [data-theme="dark"] .os-rail-btn:hover { background: var(--portal-bg-secondary) !important; }
+  [data-theme="dark"] .os-rail-btn.primary, [data-theme="dark"] .os-rail-btn.omie { color: #001018 !important; }
+  [data-theme="dark"] .os-rail-btn.primary i, [data-theme="dark"] .os-rail-btn.omie i { color: #001018 !important; }
+  [data-theme="dark"] .os-rail-sep { background: var(--portal-border) !important; }
 
   /* ── Drawer do PPV (estilo Omie) no escuro ── */
   [data-theme="dark"] .ppv-modal-container { background: var(--portal-bg-card); }
@@ -3632,7 +3651,7 @@ body {
 
 /* Cards / Sections */
 .os-card {
-  background: white;
+  background: var(--surface); /* branco no claro, card escuro no escuro (vars do POS) */
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 20px 22px;
@@ -4073,7 +4092,7 @@ body {
   width: 232px;
   flex-shrink: 0;
   align-self: stretch;
-  background: #fff;
+  background: var(--surface);
   border-left: 1px solid var(--border);
   border-radius: 0 16px 16px 0;
   padding: 16px 12px;
@@ -4121,20 +4140,23 @@ body {
   background: var(--primary-light);
 }
 .os-rail-btn.primary {
-  background: linear-gradient(135deg, var(--accent), #D42A36);
-  color: #fff;
+  /* Salvar em AZUL FLUORESCENTE com brilho (pedido 18/08) */
+  background: #00C2FF;
+  color: #001018;
   font-weight: 700;
-  box-shadow: 0 2px 8px rgba(196, 30, 42, 0.25);
+  box-shadow: 0 0 14px rgba(0, 194, 255, 0.55);
 }
-.os-rail-btn.primary i { color: rgba(255,255,255,0.9); }
-.os-rail-btn.primary:hover { filter: brightness(1.06); background: linear-gradient(135deg, var(--accent), #D42A36); }
+.os-rail-btn.primary i { color: #001018; }
+.os-rail-btn.primary:hover { filter: brightness(1.08); background: #00C2FF; }
 .os-rail-btn.omie {
-  background: #0EA5E9;
-  color: #fff;
-  font-weight: 600;
+  /* Enviar para Omie no mesmo azul neon */
+  box-shadow: 0 0 14px rgba(0, 194, 255, 0.5);
+  background: #00C2FF;
+  color: #001018;
+  font-weight: 700;
 }
-.os-rail-btn.omie i { color: rgba(255,255,255,0.9); }
-.os-rail-btn.omie:hover { filter: brightness(1.06); background: #0EA5E9; }
+.os-rail-btn.omie i { color: #001018; }
+.os-rail-btn.omie:hover { filter: brightness(1.08); background: #00C2FF; }
 .os-rail-btn.interna {
   background: #7C3AED;
   color: #fff;

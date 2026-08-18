@@ -65,7 +65,8 @@ export const PHASE_SHORT: Record<string, string> = {
   "Cancelada": "Cancelada",
 };
 
-const S_ICON_COLOR = { color: "#1E3A5F" } as const;
+// Ícones "acesos" da capa do card em azul FLUORESCENTE com brilho (18/08)
+const S_ICON_COLOR = { color: "#00C2FF", textShadow: "0 0 8px rgba(0, 194, 255, 0.6)" } as const;
 
 function formatDateBR(dateStr: string): string {
   if (!dateStr) return "";
@@ -156,7 +157,7 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
 
           {/* Ícone REQ — tooltip no hover */}
           <span className="mc-icon-wrap" onClick={(e) => e.stopPropagation()}>
-            <i className="fas fa-shopping-cart" title={o.temReq ? "Requisição vinculada" : "Sem requisição"} style={{ color: o.temReq ? "#1E3A5F" : "var(--border)" }} />
+            <i className="fas fa-shopping-cart" title={o.temReq ? "Requisição vinculada" : "Sem requisição"} style={o.temReq ? S_ICON_COLOR : { color: "var(--border)" }} />
             {temReqInfo && (
               <div className="mc-tooltip">
                 <div className="mc-tooltip-arrow" />
@@ -177,7 +178,7 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
 
           {/* Ícone REL — tooltip no hover */}
           <span className="mc-icon-wrap" onClick={(e) => e.stopPropagation()}>
-            <i className="fas fa-file-alt" title={o.temRel ? "Relatório técnico anexado" : "Sem relatório técnico"} style={{ color: o.temRel ? "#1E3A5F" : "var(--border)" }} />
+            <i className="fas fa-file-alt" title={o.temRel ? "Relatório técnico anexado" : "Sem relatório técnico"} style={o.temRel ? S_ICON_COLOR : { color: "var(--border)" }} />
             {o.temRel && (
               <div className="mc-tooltip">
                 <div className="mc-tooltip-arrow" />
@@ -195,7 +196,7 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
 
           {/* Ícone GARANTIA — tooltip no hover */}
           <span className="mc-icon-wrap" onClick={(e) => e.stopPropagation()}>
-            <i className="fas fa-shield-halved" title={garantiaStatus ? `Garantia: ${STATUS_LABEL[garantiaStatus]}` : "Sem garantia"} style={{ color: garantiaStatus ? (STATUS_COR[garantiaStatus] || "#1E3A5F") : "var(--border)" }} />
+            <i className="fas fa-shield-halved" title={garantiaStatus ? `Garantia: ${STATUS_LABEL[garantiaStatus]}` : "Sem garantia"} style={{ color: garantiaStatus ? (STATUS_COR[garantiaStatus] || "#00C2FF") : "var(--border)" }} />
             {garantiaStatus && (
               <div className="mc-tooltip">
                 <div className="mc-tooltip-arrow" />

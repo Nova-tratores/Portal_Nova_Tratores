@@ -924,7 +924,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                         "PPV / Requisições"; aqui fica o atalho pra não passarem batido) ── */}
                   {mode === "edit" && produtos.length > 0 && (
                     <button type="button" onClick={() => setAba("ppv")}
-                      className="os-card" style={{ order: -5.7, borderLeft: "3px solid #dc2626", textAlign: "left", cursor: "pointer", width: "100%", display: "flex", alignItems: "center", gap: 14, background: "#fff" }}>
+                      className="os-card" style={{ order: -5.7, borderLeft: "3px solid #dc2626", textAlign: "left", cursor: "pointer", width: "100%", display: "flex", alignItems: "center", gap: 14, background: "var(--surface)" }}>
                       <span style={{ width: 42, height: 42, borderRadius: 11, background: "#fef2f2", color: "#dc2626", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
                         <i className="fas fa-boxes" />
                       </span>
@@ -2063,7 +2063,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                   {printMenu && printPos && (
                     <>
                       <div onClick={() => setPrintMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 5000 }} />
-                      <div style={{ position: "fixed", top: printPos.top, left: printPos.left, zIndex: 5001, background: "#fff", border: "1px solid var(--portal-border)", borderRadius: 10, boxShadow: "0 12px 30px rgba(0,0,0,0.16)", padding: 6, minWidth: 232, display: "flex", flexDirection: "column", gap: 2 }}>
+                      <div style={{ position: "fixed", top: printPos.top, left: printPos.left, zIndex: 5001, background: "var(--surface)", border: "1px solid var(--portal-border)", borderRadius: 10, boxShadow: "0 12px 30px rgba(0,0,0,0.16)", padding: 6, minWidth: 232, display: "flex", flexDirection: "column", gap: 2 }}>
                         <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--portal-text-muted)", textTransform: "uppercase", letterSpacing: .5, padding: "6px 10px 2px" }}>{servicoInterno ? "Comprovante da OS" : "PDF da OS"}</div>
                         <button className="os-printmenu-item" onClick={() => imprimirOS(true)} style={printMenuItem}>
                           <i className="fas fa-list" style={{ width: 16, color: "#0d9488" }} /> Com as peças
@@ -2093,7 +2093,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                 {qrOpen && (
                   <>
                     <div onClick={() => setQrOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 6000 }} />
-                    <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 6001, background: "#fff", borderRadius: 18, padding: "26px 26px 22px", width: "min(92vw, 380px)", boxShadow: "0 24px 60px rgba(0,0,0,0.3)", textAlign: "center" }}>
+                    <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 6001, background: "var(--surface)", borderRadius: 18, padding: "26px 26px 22px", width: "min(92vw, 380px)", boxShadow: "0 24px 60px rgba(0,0,0,0.3)", textAlign: "center" }}>
                       <button onClick={() => setQrOpen(false)} style={{ position: "absolute", top: 12, right: 12, width: 30, height: 30, borderRadius: 8, border: "1px solid #e5e7eb", background: "#f8fafc", color: "#64748b", cursor: "pointer", fontSize: 17, lineHeight: 1 }}>×</button>
                       <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", color: "#94a3b8" }}>Ordem de Serviço</div>
                       <div style={{ fontSize: 26, fontWeight: 800, color: "#111827", marginTop: 2 }}>{osId}</div>
@@ -2107,7 +2107,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                         style={{ width: "100%", minHeight: 60, marginTop: 16, padding: "10px 12px", borderRadius: 10, border: "1px solid #e5e7eb", background: "#f8fafc", color: "#111827", fontSize: 13, resize: "vertical", boxSizing: "border-box", fontFamily: "inherit" }} />
                       <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
                         <button onClick={() => { navigator.clipboard?.writeText(qrLink); setQrCopiado(true); setTimeout(() => setQrCopiado(false), 1500); }}
-                          style={{ flex: 1, padding: "10px", borderRadius: 10, border: "1px solid #e5e7eb", background: "#fff", color: qrCopiado ? "#16a34a" : "#334155", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                          style={{ flex: 1, padding: "10px", borderRadius: 10, border: "1px solid #e5e7eb", background: "var(--surface)", color: qrCopiado ? "#16a34a" : "#334155", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
                           <i className={`fas ${qrCopiado ? "fa-check" : "fa-link"}`} style={{ marginRight: 6 }} />{qrCopiado ? "Copiado!" : "Copiar link"}
                         </button>
                         <button onClick={imprimirQR} disabled={!qrDataUrl}
