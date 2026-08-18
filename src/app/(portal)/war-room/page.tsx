@@ -8,7 +8,7 @@ import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import {
   RefreshCw, Plus, Lock, Flag, TrendingUp, Tractor, Wallet, AlertTriangle,
-  Target, ClipboardList, Gavel, X, ArrowRightCircle,
+  Target, ClipboardList, Gavel, X, ArrowRightCircle, Printer,
 } from 'lucide-react'
 import { authHeaders } from '@/lib/auth/client'
 import UserSelect from '@/components/tickets/UserSelect'
@@ -84,6 +84,8 @@ export default function WarRoomPage() {
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState('')
   const [modal, setModal] = useState<null | 'acao' | 'definicao' | 'decisao' | 'caixa' | 'fonte' | { virar: Any }>(null)
+  const [mostrarCanceladas, setMostrarCanceladas] = useState(false)
+  const [gerandoPdf, setGerandoPdf] = useState(false)
 
   const carregar = useCallback(async () => {
     setLoading(true); setErro('')
@@ -95,6 +97,20 @@ export default function WarRoomPage() {
     } catch (e) { setErro((e as Error).message) } finally { setLoading(false) }
   }, [])
   useEffect(() => { carregar() }, [carregar])
+
+  const cancelarAcao = useCallback(async (ticketId: string, rotulo: string) => {
+    if (!confirm(`Cancelar a ação "${rotulo}"? Ela sai do plano ativo (fica no histórico como cancelada).`)) return
+    try {
+      const r = await fetch('/api/war-room/acoes', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ ticket_id: ticketId }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(j.error || 'Falha ao cancelar')
+      await carregar()
+    } catch (e) { alert((e as Error).message) }
+  }, [carregar])
 
   if (loading) return <div style={{ padding: 24, color: 'var(--portal-text-muted,#888)' }}>Carregando o War Room…</div>
   if (erro) return <div style={{ padding: 24, color: '#dc2626' }}>{erro} <button style={btn} onClick={carregar}>Tentar de novo</button></div>
@@ -117,6 +133,94 @@ export default function WarRoomPage() {
   const totalRealizado = data.ponte.fontes.reduce((s, f) => s + (Number(f.realizado) || 0), 0)
   const gap = data.ponte.alvo_total - totalRealizado
 
+  // Gera um PDF A4 do War Room a partir do payload (respeita o corte núcleo/membro:
+  // o `data` de um membro já vem sem caixa/ponte/definições). Padrão jsPDF/autotable
+  // do portal (ver ajustes/alertas). Núcleo/membro imprime o que vê.
+  async function gerarPDF() {
+    if (!data) return
+    const p = data
+    setGerandoPdf(true)
+    try {
+      const { default: JsPDF } = await import('jspdf')
+      const { default: autoTable } = await import('jspdf-autotable')
+      const doc = new JsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+      const W = doc.internal.pageSize.getWidth()
+      const finalY = () => (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 0
+      const cinza: [number, number, number] = [241, 245, 249]
+      const cinzaTxt: [number, number, number] = [71, 85, 105]
+      let y = 16
+
+      doc.setFontSize(15); doc.setTextColor(185, 28, 28); doc.setFont('helvetica', 'bold')
+      doc.text('Nova Tratores — War Room', 14, y); y += 6
+      doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(110)
+      doc.text(`Semana de ${dataBR(ultimo?.semana_inicio as string)}${fechado ? ' · reunião fechada' : ''}`, 14, y); y += 4
+      doc.text(`Farol geral: ${geral ? FAROL_INFO[geral].label : '—'} · Margem ${pct(ultimo?.margem_semana as number)} (${fMargem || '—'}) · Giro ${ultimo?.tratores_vendidos ?? '—'} (${fGiro || '—'}) · Caixa 90d (${fCaixa || '—'})`, 14, y); y += 4
+      if (temCaixa) { doc.text(`Caixa 30/60/90: ${BRL(Number(ultimo!.caixa_30d) || 0)} · ${BRL(Number(ultimo!.caixa_60d) || 0)} · ${BRL(Number(ultimo!.caixa_90d) || 0)}`, 14, y); y += 4 }
+      doc.text(`${p.acoes.filter((a) => a.vencida).length} ações vencidas · gerado em ${new Date().toLocaleString('pt-BR')}`, 14, y); y += 6
+
+      const secao = (titulo: string) => { doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(60); doc.text(titulo, 14, y); y += 2 }
+
+      if (p.ponte.fontes.length) {
+        secao(`Ponte de caixa até ${dataBR(p.ponte.alvo_data)}`)
+        autoTable(doc, {
+          startY: y, head: [['Fonte', 'Meta', 'Realizado', 'Prazo']],
+          body: p.ponte.fontes.map((f) => [String(f.nome), BRL(Number(f.meta) || 0), BRL(Number(f.realizado) || 0), f.prazo ? dataBR(String(f.prazo)) : '—']),
+          styles: { fontSize: 8, cellPadding: 1.5 }, headStyles: { fillColor: cinza, textColor: cinzaTxt, fontStyle: 'bold' }, theme: 'grid', margin: { left: 14, right: 14 },
+        })
+        y = finalY() + 3
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(110)
+        doc.text(`Alvo ${BRL(p.ponte.alvo_total)} · realizado ${BRL(totalRealizado)} · falta ${BRL(Math.max(0, gap))}`, 14, y); y += 6
+      }
+
+      secao('Plano de ações')
+      for (const fase of FASES) {
+        const linhas = p.acoes.filter((a) => a.fase === fase.id && a.status !== 'cancelado')
+        if (!linhas.length) continue
+        autoTable(doc, {
+          startY: y, head: [[fase.label, 'Dono', 'Status', 'Prazo']],
+          body: linhas.map((a) => [String(a.titulo), String(a.dono_nome || '—'), String(a.status), a.prazo_estrategico ? dataBR(String(a.prazo_estrategico)) : '—']),
+          styles: { fontSize: 8, cellPadding: 1.5, overflow: 'linebreak' },
+          headStyles: { fillColor: [185, 28, 28], textColor: [255, 255, 255], fontStyle: 'bold' },
+          columnStyles: { 0: { cellWidth: 104 }, 1: { cellWidth: 32 }, 2: { cellWidth: 22 }, 3: { cellWidth: 'auto' } },
+          theme: 'grid', margin: { left: 14, right: 14 },
+        })
+        y = finalY() + 4
+      }
+
+      if (p.ata.length) {
+        secao('Ata de decisões')
+        autoTable(doc, {
+          startY: y, head: [['Data', 'Decisão', 'Prazo']],
+          body: p.ata.map((d) => [dataBR(String(d.created_at).slice(0, 10)), String(d.descricao), d.prazo ? dataBR(String(d.prazo)) : '—']),
+          styles: { fontSize: 8, cellPadding: 1.5, overflow: 'linebreak' }, headStyles: { fillColor: cinza, textColor: cinzaTxt, fontStyle: 'bold' },
+          columnStyles: { 0: { cellWidth: 22 }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 22 } }, theme: 'grid', margin: { left: 14, right: 14 },
+        })
+        y = finalY() + 4
+      }
+
+      if (p.definicoes.length) {
+        secao('Definições estratégicas')
+        autoTable(doc, {
+          startY: y, head: [['Tema', 'Decisão a extrair', 'Status']],
+          body: p.definicoes.map((d) => [String(d.tema), String(d.decisao_a_extrair || ''), String(d.status)]),
+          styles: { fontSize: 8, cellPadding: 1.5, overflow: 'linebreak' }, headStyles: { fillColor: cinza, textColor: cinzaTxt, fontStyle: 'bold' },
+          columnStyles: { 0: { cellWidth: 55 }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 22 } }, theme: 'grid', margin: { left: 14, right: 14 },
+        })
+      }
+
+      const totalPag = doc.getNumberOfPages()
+      for (let i = 1; i <= totalPag; i++) {
+        doc.setPage(i); doc.setFontSize(8); doc.setTextColor(150)
+        doc.text(`Página ${i} de ${totalPag}`, W - 14, doc.internal.pageSize.getHeight() - 6, { align: 'right' })
+      }
+      doc.save(`war-room-${(ultimo?.semana_inicio as string) || 'plano'}.pdf`)
+    } catch (e) {
+      alert('Erro ao gerar PDF: ' + (e as Error).message)
+    } finally {
+      setGerandoPdf(false)
+    }
+  }
+
   return (
     <div style={{ maxWidth: 960, margin: '0 auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* cabeçalho */}
@@ -128,7 +232,10 @@ export default function WarRoomPage() {
             {data.meu_nivel && <span> · seu acesso: <strong>{data.meu_nivel}</strong></span>}
           </div>
         </div>
-        <button style={btn} onClick={carregar}><RefreshCw size={14} /> Atualizar</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button style={btn} disabled={gerandoPdf} onClick={gerarPDF}><Printer size={14} /> {gerandoPdf ? 'Gerando…' : 'Gerar PDF'}</button>
+          <button style={btn} onClick={carregar}><RefreshCw size={14} /> Atualizar</button>
+        </div>
       </div>
 
       {/* 1) Faixa de farol */}
@@ -222,25 +329,34 @@ export default function WarRoomPage() {
       {/* 6) Plano de ações por fase */}
       <div style={card}>
         <div style={secTitulo}><Crosshair16 /> Plano de ações
-          {nucleo && <button style={{ ...btnPrim, marginLeft: 'auto' }} onClick={() => setModal('acao')}><Plus size={13} /> Nova ação</button>}
+          <label style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 500, color: 'var(--portal-text-muted,#888)', cursor: 'pointer' }}>
+            <input type="checkbox" checked={mostrarCanceladas} onChange={(e) => setMostrarCanceladas(e.target.checked)} /> mostrar canceladas
+          </label>
+          {nucleo && <button style={btnPrim} onClick={() => setModal('acao')}><Plus size={13} /> Nova ação</button>}
         </div>
         {FASES.map((fase) => {
-          const doFase = data.acoes.filter((a) => a.fase === fase.id)
+          const doFase = data.acoes.filter((a) => a.fase === fase.id && (mostrarCanceladas || a.status !== 'cancelado'))
           if (doFase.length === 0) return null
           return (
             <div key={fase.id} style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: 'var(--portal-text-muted,#888)', margin: '6px 0' }}>{fase.label}</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {doFase.map((a) => (
-                  <div key={String(a.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', border: '1px solid var(--portal-border,#eee)', borderRadius: 8, flexWrap: 'wrap' }}>
-                    <Link href={`/tickets/${a.ticket_id}`} style={{ fontWeight: 700, color: '#b91c1c', textDecoration: 'none' }}>#{String(a.numero)}</Link>
-                    <span style={{ fontSize: 14, flex: 1, minWidth: 160 }}>{String(a.titulo)}</span>
+                  <div key={String(a.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', border: '1px solid var(--portal-border,#eee)', borderRadius: 8, flexWrap: 'wrap', opacity: a.status === 'cancelado' ? 0.55 : 1 }}>
+                    <Link href={`/tickets/${a.ticket_id}`} title="Abrir o acompanhamento desta ação" style={{ fontSize: 14, flex: 1, minWidth: 160, fontWeight: 600, color: 'var(--portal-text,#111)', textDecoration: a.status === 'cancelado' ? 'line-through' : 'none' }}>{String(a.titulo)}</Link>
                     {a.causa_raiz ? <span style={{ fontSize: 11, color: 'var(--portal-text-muted,#888)' }}>causa: {String(a.causa_raiz)}</span> : null}
                     <span style={{ fontSize: 12, color: 'var(--portal-text-muted,#666)' }}>{String(a.dono_nome || '—')}</span>
                     <span style={{ fontSize: 12, fontWeight: 700, color: statusCorTicket(String(a.status)) }}>{String(a.status)}</span>
                     <span style={{ fontSize: 12, color: a.dias_para_prazo != null && Number(a.dias_para_prazo) < 0 ? '#dc2626' : 'var(--portal-text-muted,#888)' }}>
                       {a.prazo_estrategico ? (Number(a.dias_para_prazo) < 0 ? `vencida ${-Number(a.dias_para_prazo)}d` : `${a.dias_para_prazo}d`) : 'sem prazo'}
                     </span>
+                    {nucleo && a.status !== 'cancelado' && a.status !== 'fechado' && (
+                      <button
+                        onClick={() => cancelarAcao(String(a.ticket_id), String(a.titulo))}
+                        title="Cancelar (remove do plano)"
+                        style={{ ...btn, padding: '4px 6px', color: '#dc2626', borderColor: 'transparent', background: 'transparent' }}
+                      ><X size={15} /></button>
+                    )}
                   </div>
                 ))}
               </div>
