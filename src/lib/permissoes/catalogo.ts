@@ -67,6 +67,7 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'enviar_omie', label: 'Enviar ao Omie' },
     { id: 'cancelar', label: 'Cancelar pedido' },
     { id: 'catalogo', label: 'Gerir catálogo de produtos' },
+    { id: 'etiquetas', label: 'Etiquetas de peças (fila/impressão)' },
   ],
   pos: [
     { id: 'criar', label: 'Criar OS' },

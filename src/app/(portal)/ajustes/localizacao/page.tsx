@@ -13,7 +13,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
 import { authHeaders } from '@/lib/auth/client';
-import { ChevronRight, ChevronDown, MapPin, AlertTriangle, Search, ArrowRightLeft, X, PackageOpen, Trash2, Plus } from 'lucide-react';
+import { ChevronRight, ChevronDown, MapPin, AlertTriangle, Search, ArrowRightLeft, X, PackageOpen, Trash2, Plus, Tag } from 'lucide-react';
 
 // ---------- tipos ----------
 interface Produto {
@@ -98,6 +98,21 @@ export default function LocalizacaoPage() {
   useEffect(() => { carregar(); }, [carregar]);
 
   const podeEditar = pode('ajustes', 'localizacao');
+  const [flash, setFlash] = useState<string | null>(null);
+
+  // adiciona a peça à fila de etiquetas compartilhada (aba Etiquetas do /ppv)
+  async function addEtiqueta(p: Produto) {
+    try {
+      const r = await fetch('/api/ppv/etiquetas', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ empresa: p.empresa, codigo_produto: p.codigo_produto, codigo: p.codigo, descricao: p.descricao }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || d.erro) throw new Error(d.erro || 'falha');
+      setFlash(`Etiqueta na fila: ${p.codigo || p.codigo_produto}`);
+      setTimeout(() => setFlash(null), 2200);
+    } catch (e) { alert('Erro ao adicionar à fila: ' + (e as Error).message); }
+  }
 
   // produtos da empresa selecionada
   const daEmpresa = useMemo(() => produtos.filter((p) => String(p.empresa) === empresa), [produtos, empresa]);
@@ -296,6 +311,7 @@ export default function LocalizacaoPage() {
                                     <div style={{ color: '#64748b', fontSize: '.72rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 520 }}>{p.descricao || '—'}</div>
                                   </div>
                                   <span style={{ marginLeft: 'auto', color: '#94a3b8', fontSize: '.72rem' }}>estq {p.estoque ?? 0}</span>
+                                  <button title="Adicionar à fila de etiquetas" onClick={() => addEtiqueta(p)} style={{ ...btn, padding: '5px 8px' }}><Tag size={14} /></button>
                                   {podeEditar && <>
                                     <button title="Mover para outra posição" onClick={() => setMover(p)} style={{ ...btn, padding: '5px 8px' }}><ArrowRightLeft size={14} /></button>
                                     <button title="Remover da posição" onClick={() => remover(p)} style={{ ...btn, padding: '5px 8px', color: '#b91c1c', borderColor: '#fecaca' }}><Trash2 size={14} /></button>
@@ -316,6 +332,12 @@ export default function LocalizacaoPage() {
           {/* sem localização */}
           <SemLocalizacao itens={semLoc} termo={termo} casa={casa} podeEditar={podeEditar} onDefinir={(p) => setMover(p)} />
         </>
+      )}
+
+      {flash && (
+        <div style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', background: '#0f172a', color: '#fff', padding: '10px 16px', borderRadius: 10, fontSize: '.82rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, zIndex: 60, boxShadow: '0 6px 20px rgba(0,0,0,.25)' }}>
+          <Tag size={15} /> {flash}
+        </div>
       )}
 
       {mover && (

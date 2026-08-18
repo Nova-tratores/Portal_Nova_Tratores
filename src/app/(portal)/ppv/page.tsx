@@ -12,6 +12,7 @@ import Toast from "@/components/ppv/Toast";
 import GlobalLoader from "@/components/ppv/GlobalLoader";
 import PhaseView from "@/components/ppv/PhaseView";
 import CatalogoNovo from "@/components/ppv/CatalogoNovo";
+import EtiquetasTab from "@/components/ppv/EtiquetasTab";
 import FormNovoLancamento from "@/components/ppv/FormNovoLancamento";
 import PPVDrawer from "@/components/ppv/PPVDrawer";
 import ModalBuscaCliente from "@/components/ppv/ModalBuscaCliente";
@@ -29,6 +30,7 @@ function PPVApp() {
   const podeCriar = pode('ppv', 'criar');
   const podeMoverFase = pode('ppv', 'mover_fase');
   const podeCatalogo = pode('ppv', 'catalogo');
+  const podeEtiquetas = pode('ppv', 'etiquetas');
   const searchParams = useSearchParams();
 
   // Refresh ao voltar para a aba
@@ -284,6 +286,7 @@ function PPVApp() {
                 padding: 6, display: "flex", flexDirection: "column", gap: 2,
               }}>
                 {item("fa-th-large", "Gestão (Kanban)", () => setActiveTab("kanbanTab"), { active: activeTab === "kanbanTab" })}
+                {podeEtiquetas && item("fa-tags", "Etiquetas", () => setActiveTab("etiquetasTab"), { active: activeTab === "etiquetasTab" })}
                 {podeCatalogo && (
                   <>
                     {item("fa-cogs", "Catálogo", () => setActiveTab("catalogoTab"), { active: activeTab === "catalogoTab" })}
@@ -335,6 +338,12 @@ function PPVApp() {
         {activeTab === "catalogoTab" && (
           <div className="flex-1 overflow-hidden p-4" style={bgPattern}>
             <CatalogoNovo userName={userProfile?.nome || ""} />
+          </div>
+        )}
+
+        {activeTab === "etiquetasTab" && (
+          <div className="flex-1 overflow-y-auto p-2" style={bgPattern}>
+            <EtiquetasTab />
           </div>
         )}
 
