@@ -41,9 +41,26 @@ export function empresaCurta(nome: string): string {
 // (o Code128 já leva o código inteiro; isto é só o texto humano). `dupla` = 2
 // empresas na mesma etiqueta (menos espaço → fonte menor).
 export function fonteCodigo(len: number, dupla: boolean): number {
-  let pt = len <= 9 ? 12 : len <= 12 ? 10 : len <= 15 ? 8.5 : 7
-  if (dupla) pt = Math.max(6, +(pt * 0.8).toFixed(1))
+  let pt = len <= 9 ? 15 : len <= 12 ? 13 : len <= 15 ? 11 : 9
+  if (dupla) pt = Math.max(7, +(pt * 0.8).toFixed(1))
   return pt
+}
+
+// Locação com o VALOR em NEGRITO: "PRATELEIRA 3 · ANDAR A · CAIXA 01" mantém os
+// rótulos normais e destaca o número/letra (3 / A / 01). Devolve HTML (não
+// re-escapar). Cada trecho separado por "·" vira "RÓTULO <strong>VALOR</strong>".
+export function locHtml(loc: string): string {
+  return String(loc || '').split('·').map(seg => {
+    const s = seg.trim()
+    if (!s) return ''
+    const m = s.match(/^(\S+)\s+(.+)$/)
+    return m ? `${esc(m[1])} <strong>${esc(m[2])}</strong>` : esc(s)
+  }).filter(Boolean).join(' · ')
+}
+
+// Lado da badge da empresa na etiqueta: NOVA à ESQUERDA, CASTRO à DIREITA.
+function empresaDireita(nome: string): boolean {
+  return /CASTRO/i.test(String(nome || ''))
 }
 
 // ── Código de barras Code 128 (subset B) em SVG puro, sem lib externa ───────
@@ -94,21 +111,25 @@ function dataRefAtual(): string {
 function blocosTexto(e: BlocoEtiqueta, comBarra: boolean): string {
   const dupla = e.linhas.length > 1
   return e.linhas.map(l => {
+    const curta = esc(empresaCurta(l.empresa))
+    const dir = empresaDireita(l.empresa)
+    const badge = `<span class="emp">${curta}</span>`
+    const fant = `<span class="emp fantasma">${curta}</span>`
     const descLocDupla = (l.descricao || l.locacao)
       ? `
-        <div class="descloc">${l.descricao ? `<span class="d">${esc(l.descricao)}</span>` : ''}${l.locacao ? `<span class="l">${l.descricao ? '· ' : ''}${esc(l.locacao)}</span>` : ''}</div>`
+        <div class="descloc">${l.descricao ? `<span class="d">${esc(l.descricao)}</span>` : ''}${l.locacao ? `<span class="l">${l.descricao ? '· ' : ''}${locHtml(l.locacao)}</span>` : ''}</div>`
       : ''
     return `      <div class="bloco">
         <div class="cab">
-          <span class="emp">${esc(empresaCurta(l.empresa))}</span>
+          ${dir ? fant : badge}
           <span class="cod" style="font-size:${fonteCodigo(String(l.codigo).length, dupla)}pt">${esc(l.codigo)}</span>
-          <span class="emp fantasma">${esc(empresaCurta(l.empresa))}</span>
+          ${dir ? badge : fant}
         </div>${dupla
         ? descLocDupla
         : `${l.descricao ? `
         <div class="desc">${esc(l.descricao)}</div>` : ''}${l.locacao ? `
-        <div class="loc-linha">${esc(l.locacao)}</div>` : ''}`}${comBarra ? `
-        ${code128Svg(l.codigo, dupla ? 4 : 5.5)}` : ''}
+        <div class="loc-linha">${locHtml(l.locacao)}</div>` : ''}`}${comBarra ? `
+        ${code128Svg(l.codigo, dupla ? 3.8 : 4.8)}` : ''}
       </div>`
   }).join('\n')
 }
@@ -169,18 +190,19 @@ ${blocosTexto(e, false)}
   }
   .pagina:last-child { page-break-after: auto; }
   .cel {
-    position: relative; overflow: hidden; padding: 0.8mm 2mm; text-align: center;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    position: relative; overflow: hidden; padding: 1.2mm 2mm 0.8mm; text-align: center;
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
   }
   .bloco { max-width: 100%; width: 100%; }
   .bloco + .bloco { margin-top: 0.8mm; }
   .cab { display: flex; align-items: center; gap: 1mm; width: 100%; }
-  .emp { flex: 0 1 auto; min-width: 0; font-size: 6pt; font-weight: 800; letter-spacing: .3px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .emp { flex: 0 1 auto; min-width: 0; font-size: 8pt; font-weight: 800; letter-spacing: .3px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .fantasma { visibility: hidden; }
-  .cod { flex: 1 1 auto; min-width: 0; font-size: 12pt; font-weight: 800; line-height: 1.1; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .barra { display: block; margin: 0.5mm auto 0; width: 94%; }
-  .desc { font-size: 9pt; font-weight: 600; line-height: 1.15; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .loc-linha { font-size: 8pt; color: #333; line-height: 1.1; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cod { flex: 1 1 auto; min-width: 0; font-size: 14pt; font-weight: 800; line-height: 1.1; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .barra { display: block; margin: 0.6mm auto 0; width: 94%; }
+  .desc { font-size: 10pt; font-weight: 600; line-height: 1.1; max-width: 100%; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .loc-linha { font-size: 9pt; color: #777; font-weight: 400; line-height: 1.12; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .loc-linha strong, .descloc .l strong { font-weight: 800; color: #000; font-size: 1.2em; }
   .dupla .emp { font-size: 5pt; }
   .dupla .cod { font-size: 9.5pt; line-height: 1.05; }
   .dupla .barra { margin: 0.2mm auto; }
@@ -236,7 +258,7 @@ export function htmlRecorte(blocos: BlocoEtiqueta[]): string {
 <div class="grade">
 ${blocos.map(e => {
     const conteudo = e.linhas.map(l => `    <div class="emp">${esc(empresaCurta(l.empresa))}</div>
-    <div class="linha"><span class="cod">${esc(l.codigo)}</span> - ${esc(l.descricao)}${l.locacao ? ` - ${esc(l.locacao)}` : ''}</div>${e.qrSvg ? '' : `
+    <div class="linha"><span class="cod">${esc(l.codigo)}</span> - ${esc(l.descricao)}${l.locacao ? ` - ${locHtml(l.locacao)}` : ''}</div>${e.qrSvg ? '' : `
     ${code128Svg(l.codigo, 7)}`}`).join('\n')
     if (!e.qrSvg) {
       return `  <div class="etq">
