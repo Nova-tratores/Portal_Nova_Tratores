@@ -412,7 +412,7 @@ function HomePosVendasContent() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px' }}>
           {/* COLUNA FATURAMENTO (FILTRADA: SEM PIX, APENAS ENVIAR OU COBRAR) */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0', borderRight: '1px solid var(--portal-border)', paddingRight: '20px' }}>
-              <div style={{ ...colHeaderStyle, background: '#c5e29f', color: '#3f6212', border: 'none', marginBottom: '14px' }}>TAREFA FATURAMENTO<span style={{ marginLeft: '10px', background: 'rgba(255,255,255,.75)', borderRadius: '999px', padding: '2px 10px', fontSize: '13px', fontVariantNumeric: 'tabular-nums' }}>{listaBoletos.length}</span></div>
+              <div style={{ ...colHeaderStyle, background: '#c5e29f', color: '#111111', border: 'none', marginBottom: '14px' }}>TAREFA FATURAMENTO<span style={{ marginLeft: '10px', background: 'rgba(255,255,255,.75)', borderRadius: '999px', padding: '2px 10px', fontSize: '13px', fontVariantNumeric: 'tabular-nums' }}>{listaBoletos.length}</span></div>
               {listaBoletos.map(t => (
                 <div key={`boleto-${t.id}`} className="task-card" style={{ borderRadius: '12px', border: '1px solid rgba(0,0,0,0.5)', marginBottom: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', borderBottom: '1px dashed var(--portal-border)' }}>
@@ -451,7 +451,7 @@ function HomePosVendasContent() {
 
           {/* COLUNA CLIENTE SEM BOLETO */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0', borderRight: '1px solid var(--portal-border)', paddingRight: '20px' }}>
-              <div style={{ ...colHeaderStyle, background: '#fde68a', color: '#92400e', border: 'none', marginBottom: '14px' }}>CLIENTE SEM BOLETO<span style={{ marginLeft: '10px', background: 'rgba(255,255,255,.75)', borderRadius: '999px', padding: '2px 10px', fontSize: '13px', fontVariantNumeric: 'tabular-nums' }}>{listaSemBoleto.length}</span></div>
+              <div style={{ ...colHeaderStyle, background: '#fde68a', color: '#111111', border: 'none', marginBottom: '14px' }}>CLIENTE SEM BOLETO<span style={{ marginLeft: '10px', background: 'rgba(255,255,255,.75)', borderRadius: '999px', padding: '2px 10px', fontSize: '13px', fontVariantNumeric: 'tabular-nums' }}>{listaSemBoleto.length}</span></div>
               {listaSemBoleto.map(t => (
                 <div key={`sb-${t.id}`} onClick={() => setTarefaSelecionada(t)} className="task-card" style={{ cursor: 'pointer', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.5)', marginBottom: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', borderBottom: '1px dashed var(--portal-border)' }}>

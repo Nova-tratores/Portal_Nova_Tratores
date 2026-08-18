@@ -80,7 +80,7 @@ export default function FinanceiroNav({ children }) {
   }, [])
 
   return (
-    <div style={{
+    <div className="fin-band-verde" style={{
       position: 'sticky', top: '84px', zIndex: 30,
       background: '#c5e29f',
       boxShadow: '0 1px 4px var(--portal-shadow)',
@@ -90,8 +90,10 @@ export default function FinanceiroNav({ children }) {
         display: 'flex', alignItems: 'flex-end',
         height: '56px', gap: '8px',
       }}>
-        {/* Nav — guias estilo Chrome, ancoradas na base da faixa verde */}
-        <nav style={{
+        {/* Nav — guias estilo Chrome, ancoradas na base da faixa verde.
+            className fin-tabs-nav: exceção à regra ".portal-dark nav" que
+            pintava um card escuro POR CIMA da faixa verde no modo escuro. */}
+        <nav className="fin-tabs-nav" style={{
           display: 'flex', alignItems: 'flex-end', gap: '3px',
           flex: 1, overflowX: 'auto',
         }}>
@@ -106,8 +108,9 @@ export default function FinanceiroNav({ children }) {
                 display: 'flex', alignItems: 'center', gap: '7px',
                 padding: '11px 20px', borderRadius: '11px 11px 0 0',
                 fontSize: '15px', fontWeight: isActive ? '600' : '500',
-                color: isActive ? 'var(--portal-text)' : hasVencidos ? '#dc2626' : 'var(--portal-text)',
-                background: isActive ? 'var(--portal-bg-card)' : hasVencidos ? 'rgba(239,68,68,0.14)' : 'rgba(255,255,255,0.45)',
+                // Guias: fechadas com letra PRETA; a ATIVA é PRETA com fonte BRANCA (18/08)
+                color: isActive ? '#fefefe' : hasVencidos ? '#b91111' : '#111111',
+                background: isActive ? '#111111' : hasVencidos ? 'rgba(239,68,68,0.18)' : 'rgba(255,255,255,0.45)',
                 boxShadow: isActive ? '0 -2px 6px rgba(0,0,0,0.07)' : 'none',
                 textDecoration: 'none', transition: 'all 0.15s',
                 whiteSpace: 'nowrap',

@@ -413,7 +413,7 @@ function HomePosVendasContent() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '30px' }}>
           {/* COLUNA FATURAMENTO (FILTRADA: SEM PIX, APENAS ENVIAR OU COBRAR) */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0', borderRight: '1px solid var(--portal-border)', paddingRight: '20px' }}>
-              <div style={{ ...colHeaderStyle, background: '#c5e29f', color: '#3f6212', border: 'none', marginBottom: '14px' }}>TAREFA FATURAMENTO<span style={{ marginLeft: '10px', background: 'rgba(255,255,255,.75)', borderRadius: '999px', padding: '2px 10px', fontSize: '13px', fontVariantNumeric: 'tabular-nums' }}>{listaBoletos.length}</span></div>
+              <div style={{ ...colHeaderStyle, background: '#c5e29f', color: '#111111', border: 'none', marginBottom: '14px' }}>TAREFA FATURAMENTO<span style={{ marginLeft: '10px', background: 'rgba(255,255,255,.75)', borderRadius: '999px', padding: '2px 10px', fontSize: '13px', fontVariantNumeric: 'tabular-nums' }}>{listaBoletos.length}</span></div>
               {listaBoletos.map(t => (
                 <div key={`boleto-${t.id}`} className="task-card" style={{ borderRadius: '12px', border: '1px solid rgba(0,0,0,0.5)', marginBottom: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', borderBottom: '1px dashed var(--portal-border)' }}>
@@ -452,7 +452,7 @@ function HomePosVendasContent() {
 
           {/* COLUNA REQUISICOES / A PAGAR */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0', borderRight: '1px solid var(--portal-border)', paddingRight: '20px' }}>
-              <div style={{ ...colHeaderStyle, background: '#c5e29f', color: '#3f6212', border: 'none', marginBottom: '14px' }}>REQUISICOES<span style={{ marginLeft: '10px', background: 'rgba(255,255,255,.75)', borderRadius: '999px', padding: '2px 10px', fontSize: '13px', fontVariantNumeric: 'tabular-nums' }}>{listaPagar.length}</span></div>
+              <div style={{ ...colHeaderStyle, background: '#c5e29f', color: '#111111', border: 'none', marginBottom: '14px' }}>REQUISICOES<span style={{ marginLeft: '10px', background: 'rgba(255,255,255,.75)', borderRadius: '999px', padding: '2px 10px', fontSize: '13px', fontVariantNumeric: 'tabular-nums' }}>{listaPagar.length}</span></div>
               {listaPagar.map((t) => {
                 const aguardando = t.status === 'aguardando_omie'
                 const refData = t.aguardando_omie_desde || t.criado_em
@@ -470,7 +470,7 @@ function HomePosVendasContent() {
                   {aguardando && (
                     <div style={{
                       background: vencido ? '#fef2f2' : '#fef3c7',
-                      color: vencido ? '#b91c1c' : '#92400e',
+                      color: vencido ? '#111111' : '#92400e',
                       borderBottom: `1px solid ${vencido ? '#fca5a5' : '#fcd34d'}`,
                       padding: '6px 12px', fontSize: '11px', fontWeight: 700,
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px',
@@ -531,7 +531,7 @@ function HomePosVendasContent() {
 
           {/* COLUNA CLIENTE SEM BOLETO */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0', borderRight: '1px solid var(--portal-border)', paddingRight: '20px' }}>
-              <div style={{ ...colHeaderStyle, background: '#fde68a', color: '#92400e', border: 'none', marginBottom: '14px' }}>CLIENTE SEM BOLETO<span style={{ marginLeft: '10px', background: 'rgba(255,255,255,.75)', borderRadius: '999px', padding: '2px 10px', fontSize: '13px', fontVariantNumeric: 'tabular-nums' }}>{listaSemBoleto.length}</span></div>
+              <div style={{ ...colHeaderStyle, background: '#fde68a', color: '#111111', border: 'none', marginBottom: '14px' }}>CLIENTE SEM BOLETO<span style={{ marginLeft: '10px', background: 'rgba(255,255,255,.75)', borderRadius: '999px', padding: '2px 10px', fontSize: '13px', fontVariantNumeric: 'tabular-nums' }}>{listaSemBoleto.length}</span></div>
               {listaSemBoleto.map(t => (
                 <div key={`sb-${t.id}`} onClick={() => setTarefaSelecionada(t)} className="task-card" style={{ cursor: 'pointer', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.5)', marginBottom: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', borderBottom: '1px dashed var(--portal-border)' }}>

@@ -461,7 +461,7 @@ function HomeFinanceiroContent() {
         width: `${100 / zoom}%`
     }}>
       <div style={{ ...colWrapperStyle, borderRadius: 0, border: 'none', boxShadow: 'none', borderRight: '1px solid var(--portal-border)', paddingRight: '18px' }}>
-       <div style={{ ...colTitleStyle, background: '#c5e29f', color: '#3f6212', padding: '14px', borderRadius: '10px' }}>Faturamento<span style={{ marginLeft: '10px', background: 'rgba(255,255,255,.75)', borderRadius: '999px', padding: '2px 10px', fontSize: '12px', fontVariantNumeric: 'tabular-nums' }}>{listaBoletos.filter(c => c.status === 'gerar_boleto' || c.status === 'validar_pix' || (c.status === 'aguardando_vencimento' && (c.isTarefaPagamentoRealizado || c.parcelaVencida))).length}</span></div>
+       <div style={{ ...colTitleStyle, background: '#c5e29f', color: '#111111', padding: '14px', borderRadius: '10px' }}>Faturamento<span style={{ marginLeft: '10px', background: 'rgba(255,255,255,.75)', borderRadius: '999px', padding: '2px 10px', fontSize: '12px', fontVariantNumeric: 'tabular-nums' }}>{listaBoletos.filter(c => c.status === 'gerar_boleto' || c.status === 'validar_pix' || (c.status === 'aguardando_vencimento' && (c.isTarefaPagamentoRealizado || c.parcelaVencida))).length}</span></div>
        <div style={{ display: 'flex', flexDirection: 'column', gap: '0px', borderTop: '0.5px solid var(--portal-border)' }}>
         {listaBoletos.filter(c => c.status === 'gerar_boleto' || c.status === 'validar_pix' || (c.status === 'aguardando_vencimento' && (c.isTarefaPagamentoRealizado || c.parcelaVencida))).map((t, idx) => (
          <div key={`bol-${t.id}-${idx}`} onClick={() => setTarefaSelecionada(t)} className="task-card-grid" style={{ borderRadius: '12px', border: '1px solid rgba(0,0,0,0.5)', marginBottom: '8px', boxShadow: 'none' }}>
@@ -511,7 +511,7 @@ function HomeFinanceiroContent() {
       </div>
 
       <div style={{ ...colWrapperStyle, borderRadius: 0, border: 'none', boxShadow: 'none', borderRight: '1px solid var(--portal-border)', paddingRight: '18px' }}>
-       <div style={{ ...colTitleStyle, background: '#c5e29f', color: '#3f6212', padding: '14px', borderRadius: '10px' }}>Requisições<span style={{ marginLeft: '10px', background: 'rgba(255,255,255,.75)', borderRadius: '999px', padding: '2px 10px', fontSize: '12px', fontVariantNumeric: 'tabular-nums' }}>{listaPagar.length}</span></div>
+       <div style={{ ...colTitleStyle, background: '#c5e29f', color: '#111111', padding: '14px', borderRadius: '10px' }}>Requisições<span style={{ marginLeft: '10px', background: 'rgba(255,255,255,.75)', borderRadius: '999px', padding: '2px 10px', fontSize: '12px', fontVariantNumeric: 'tabular-nums' }}>{listaPagar.length}</span></div>
        <div style={{ display: 'flex', flexDirection: 'column', gap: '0px', borderTop: '0.5px solid var(--portal-border)' }}>
         {listaPagar.map((t, idx) => (
          <div key={`pag-${t.id}-${idx}`} onClick={() => setTarefaSelecionada(t)} className="task-card-grid" style={{ borderRadius: '12px', border: '1px solid rgba(0,0,0,0.5)', marginBottom: '8px', boxShadow: 'none' }}>
@@ -565,7 +565,7 @@ function HomeFinanceiroContent() {
       </div>
 
       <div style={{ ...colWrapperStyle, borderRadius: 0, border: 'none', boxShadow: 'none', borderRight: '1px solid var(--portal-border)', paddingRight: '18px' }}>
-       <div style={{ ...colTitleStyle, background: '#fde68a', color: '#92400e', padding: '14px', borderRadius: '10px' }}>Cliente Sem Boleto<span style={{ marginLeft: '10px', background: 'rgba(255,255,255,.75)', borderRadius: '999px', padding: '2px 10px', fontSize: '12px', fontVariantNumeric: 'tabular-nums' }}>{listaSemBoleto.length}</span></div>
+       <div style={{ ...colTitleStyle, background: '#fde68a', color: '#111111', padding: '14px', borderRadius: '10px' }}>Cliente Sem Boleto<span style={{ marginLeft: '10px', background: 'rgba(255,255,255,.75)', borderRadius: '999px', padding: '2px 10px', fontSize: '12px', fontVariantNumeric: 'tabular-nums' }}>{listaSemBoleto.length}</span></div>
        <div style={{ display: 'flex', flexDirection: 'column', gap: '0px', borderTop: '0.5px solid var(--portal-border)' }}>
         {listaSemBoleto.map((t, idx) => (
          <div key={`sb-${t.id}-${idx}`} onClick={() => setTarefaSelecionada(t)} className="task-card-grid" style={{ cursor: 'pointer', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.5)', marginBottom: '8px', boxShadow: 'none' }}>

@@ -415,7 +415,7 @@ export default function Kanban() {
       });
       return (
       <div key={col.id} style={{ width: '400px', flex: '0 0 400px', display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--portal-border)', padding: '0 16px' }}>
-       <h3 style={{ background: col.id === 'vencido' ? '#fecaca' : col.id === 'sem_boleto' ? '#fde68a' : '#c5e29f', color: col.id === 'vencido' ? '#b91c1c' : col.id === 'sem_boleto' ? '#92400e' : '#3f6212', padding: '16px', borderRadius: '12px', marginBottom: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', fontWeight:'700', fontSize:'15px', letterSpacing:'1px', border: 'none', flexShrink: 0 }}>{col.titulo}<span style={{ background: 'rgba(255,255,255,.75)', borderRadius: '999px', padding: '2px 10px', fontSize: '13px', fontWeight: '600', fontVariantNumeric: 'tabular-nums' }}>{cardsCol.length}</span></h3>
+       <h3 className="fin-col-title" style={{ background: col.id === 'vencido' ? '#fecaca' : col.id === 'sem_boleto' ? '#fde68a' : '#c5e29f', color: '#111111', padding: '16px', borderRadius: '12px', marginBottom: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', fontWeight:'700', fontSize:'15px', letterSpacing:'1px', border: 'none', flexShrink: 0 }}>{col.titulo}<span style={{ background: 'rgba(255,255,255,.75)', borderRadius: '999px', padding: '2px 10px', fontSize: '13px', fontWeight: '600', fontVariantNumeric: 'tabular-nums' }}>{cardsCol.length}</span></h3>
 
        <div style={{ display: 'flex', flexDirection: 'column', gap: '0', paddingRight: '5px' }}>
         {cardsCol.map(t => (

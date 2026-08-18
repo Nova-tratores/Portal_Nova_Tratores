@@ -105,9 +105,9 @@ body {
   border-color: var(--portal-border) !important;
 }
 
-/* Textos escuros → claro */
+/* Textos escuros → claro (títulos de coluna .fin-col-title ficam PRETOS — exceção) */
 [data-theme="dark"] h1, [data-theme="dark"] h2,
-[data-theme="dark"] h3, [data-theme="dark"] h4,
+[data-theme="dark"] h3:not(.fin-col-title), [data-theme="dark"] h4,
 [data-theme="dark"] h5, [data-theme="dark"] h6 {
   color: var(--portal-text) !important;
 }
@@ -325,6 +325,11 @@ body {
   background: var(--portal-bg-card) !important;
   border-color: var(--portal-border) !important;
 }
+/* EXCEÇÃO: as guias do Financeiro vivem DENTRO da faixa verde — a regra acima
+   pintava um card escuro por cima dela. A faixa verde fica nos dois temas. */
+.portal-dark .fin-tabs-nav {
+  background: transparent !important;
+}
 
 /* Box shadows */
 .portal-dark [style*="box-shadow: 0px 1px 3px"],
@@ -333,11 +338,27 @@ body {
   box-shadow: 0 1px 3px var(--portal-shadow) !important;
 }
 
-/* FinanceiroNav + sub-nav bars */
+/* FinanceiroNav + sub-nav bars (a faixa VERDE .fin-band-verde fica de fora) */
 [data-theme="dark"] .fin-nav,
-[data-theme="dark"] div[style*="position: sticky"][style*="top: 84px"] {
+[data-theme="dark"] div[style*="position: sticky"][style*="top: 84px"]:not(.fin-band-verde),
+[data-theme="dark"] div[style*="position:sticky"][style*="top:84px"]:not(.fin-band-verde) {
   background: var(--portal-header-bg) !important;
   border-color: var(--portal-border) !important;
+}
+/* Títulos das colunas do kanban do Financeiro: PRETOS nos dois temas
+   (a regra global "[data-theme=dark] h3 → claro" pintava eles de branco). */
+[data-theme="dark"] h3.fin-col-title,
+.portal-dark h3.fin-col-title {
+  color: #111111 !important;
+}
+
+/* EXCEÇÃO: a faixa VERDE do Financeiro fica verde nos dois temas (a regra
+   acima pegava o sticky top:84px e pintava de escuro por cima dela). */
+[data-theme="dark"] div.fin-band-verde[style*="position: sticky"][style*="top: 84px"],
+[data-theme="dark"] .fin-band-verde,
+.portal-dark div.fin-band-verde[style*="position: sticky"],
+.portal-dark .fin-band-verde {
+  background: #c5e29f !important;
 }
 
 /* POS Header */
@@ -997,6 +1018,23 @@ body {
   }
   [data-theme="dark"] .ppv-topbar-nav-btn.active::before { box-shadow: 5.5px 5.5px 0 5.5px var(--portal-bg); }
   [data-theme="dark"] .ppv-topbar-nav-btn.active::after { box-shadow: -5.5px 5.5px 0 5.5px var(--portal-bg); }
+
+  /* ── Modal "Item de Orçamento" (classes io-*) no escuro ── */
+  [data-theme="dark"] .io-card { background: var(--portal-bg-card) !important; color: var(--portal-text) !important; }
+  [data-theme="dark"] .io-title { background: var(--portal-bg-secondary) !important; border-color: var(--portal-border) !important; color: var(--portal-text) !important; }
+  [data-theme="dark"] .io-l, [data-theme="dark"] .io-foot .fl { color: var(--portal-text-secondary) !important; }
+  [data-theme="dark"] .io-ctl.ro input, [data-theme="dark"] .io-rov {
+    background: var(--portal-bg-secondary) !important; border-color: var(--portal-border) !important; color: var(--portal-text) !important;
+  }
+  [data-theme="dark"] .io-tab { color: var(--portal-text-secondary) !important; }
+  [data-theme="dark"] .io-listcard { background: var(--portal-bg-card) !important; border-color: var(--portal-border) !important; color: var(--portal-text) !important; }
+  [data-theme="dark"] .io-foot { background: var(--portal-bg-card) !important; border-color: var(--portal-border) !important; }
+  [data-theme="dark"] .io-foot .fv { color: var(--portal-text) !important; }
+  [data-theme="dark"] .io-foot .fv.mut { color: var(--portal-text-muted) !important; }
+  [data-theme="dark"] .io-foot .cell.total { background: #3a2f10 !important; border-color: #6b5310 !important; }
+  [data-theme="dark"] .io-actions { background: var(--portal-bg-secondary) !important; border-color: var(--portal-border) !important; }
+  [data-theme="dark"] .io-btn.gray { background: var(--portal-bg-card) !important; color: var(--portal-text) !important; border-color: var(--portal-border) !important; }
+  [data-theme="dark"] .io-x { background: var(--portal-bg-secondary) !important; color: var(--portal-text-secondary) !important; }
 
   /* ── Drawer do PPV (estilo Omie) no escuro ── */
   [data-theme="dark"] .ppv-modal-container { background: var(--portal-bg-card); }

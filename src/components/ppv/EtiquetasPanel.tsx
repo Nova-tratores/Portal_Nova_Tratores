@@ -47,8 +47,8 @@ const EMPRESA_LABEL: Record<string, string> = {
   CASTRO: 'CASTRO PEÇAS',
 }
 const EMPRESA_COR: Record<string, string> = {
-  NOVA: '#1d4ed8',
-  CASTRO: '#be185d',
+  NOVA: '#EA580C',
+  CASTRO: '#EA580C',
 }
 
 // Locação = chaves prefixadas com # (#PRATELEIRA/#ANDAR/#CAIXA), nesta ordem
@@ -342,7 +342,7 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
         <input value={q} onChange={e => setQ(e.target.value)} placeholder="Código, descrição ou locação (ex.: PRATELEIRA 6, ANDAR H ou 3 G 1)…" style={INP} autoFocus={!embedded} />
         {buscando && <Loader2 size={15} className="animate-spin" style={{ position: 'absolute', right: 12, top: 12, color: 'var(--portal-text-muted)' }} />}
       </div>
-      {erro && <div style={{ fontSize: 12.5, color: '#dc2626', fontWeight: 600, marginBottom: 10 }}>{erro}</div>}
+      {erro && <div style={{ fontSize: 12.5, color: '#EA580C', fontWeight: 600, marginBottom: 10 }}>{erro}</div>}
 
       {/* Resultados (busca) ou as últimas peças COMPRADAS (estado inicial) */}
       {(() => {
@@ -416,7 +416,7 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
               <input type="checkbox" checked={modoIndividual} onChange={e => { setModoIndividual(e.target.checked); setSel(new Set()) }} />
               1 peça = 1 etiqueta
             </label>
-            <span style={{ fontSize: 11.5, color: !modoIndividual && sel.size > 2 ? '#dc2626' : 'var(--portal-text-muted)', fontWeight: !modoIndividual && sel.size > 2 ? 700 : 400 }}>
+            <span style={{ fontSize: 11.5, color: !modoIndividual && sel.size > 2 ? '#EA580C' : 'var(--portal-text-muted)', fontWeight: !modoIndividual && sel.size > 2 ? 700 : 400 }}>
               {modoIndividual
                 ? 'Cada clique numa peça já adiciona uma etiqueta na fila.'
                 : sel.size > 2
@@ -440,7 +440,7 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
             <input type="radio" checked={formato === 'recorte'} onChange={() => setFormato('recorte')} />
             Papel comum (tracejado pra recortar)
           </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 700, color: rastrear ? '#0d9488' : 'var(--portal-text)', cursor: 'pointer' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 700, color: rastrear ? '#EA580C' : 'var(--portal-text)', cursor: 'pointer' }}>
             <input type="checkbox" checked={rastrear} onChange={e => mudarRastrear(e.target.checked)} />
             <QrCode size={14} /> Rastrear unidades (QR)
           </label>
@@ -455,7 +455,7 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
           <div style={{ marginTop: 10 }}>
             <div style={{ fontSize: 11.5, color: 'var(--portal-text-secondary)', marginBottom: 8, lineHeight: 1.5 }}>
               Cada peça sai numa etiqueta da folha — é só descolar, sem recortar. Na impressão use <strong>escala 100%</strong> (sem &quot;ajustar à página&quot;).
-              {' '}Folha já começada? Clique abaixo nas posições <strong>já usadas</strong> pra impressão pular elas{usadas.size > 0 && <> · <button onClick={() => setUsadas(new Set())} style={{ border: 'none', background: 'none', color: '#2563eb', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', padding: 0 }}>limpar ({usadas.size})</button></>}:
+              {' '}Folha já começada? Clique abaixo nas posições <strong>já usadas</strong> pra impressão pular elas{usadas.size > 0 && <> · <button onClick={() => setUsadas(new Set())} style={{ border: 'none', background: 'none', color: '#EA580C', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', padding: 0 }}>limpar ({usadas.size})</button></>}:
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 46px)', gap: 3 }}>
               {Array.from({ length: 30 }, (_, p) => (

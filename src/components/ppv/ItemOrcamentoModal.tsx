@@ -405,9 +405,45 @@ export default function ItemOrcamentoModal({
           <button className="io-btn gray" onClick={onClose}>Fechar</button>
         </div>
       </div>
+      {/* Painel SECUNDÁRIO anexado à DIREITA: localização/características do produto */}
+      <div style={{ width: 300, flexShrink: 0, background: "#fff", borderRadius: 8, boxShadow: "0 18px 50px rgba(0,0,0,0.3)", display: "flex", flexDirection: "column", overflow: "hidden", maxHeight: "92vh" }}>
+        <div style={{ padding: "13px 16px", borderBottom: "1px solid rgba(0,0,0,0.5)", fontWeight: 800, fontSize: 14, color: "#1f1f1f", display: "flex", alignItems: "center", gap: 8 }}>
+          <svg className="io-ic" style={{ width: 15, height: 15, color: "#EA580C" }}><use href="#io-i-search" /></svg> Localização do produto
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: 14 }}>
+          <PainelLocalizacao dados={dados} loading={dadosLoading} />
+        </div>
+      </div>
       </div>
     </div>,
     document.body,
+  );
+}
+
+// Localização/características do produto (onde encontrar) — painel lateral direito
+function PainelLocalizacao({ dados, loading }: { dados: ProdutoDados | null; loading: boolean }) {
+  if (loading) return <div style={{ color: "#8a8378", fontSize: 13 }}>Carregando…</div>;
+  const partes = (dados?.caracteristicas || "").split("•").map((c) => c.trim()).filter(Boolean);
+  if (partes.length === 0) return <div style={{ color: "#8a8378", fontSize: 13 }}>Sem localização/características cadastradas.</div>;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+      {partes.map((c, i) => {
+        const [rotulo, ...resto] = c.split(":");
+        const valor = resto.join(":").trim();
+        return (
+          <div key={i} className="io-listcard" style={{ borderLeft: "3px solid #EA580C", marginTop: 0, alignItems: "flex-start", flexDirection: "column", gap: 3 }}>
+            {valor ? (
+              <>
+                <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: "#8a8378" }}>{rotulo.replace(/:+$/, "")}</span>
+                <span style={{ fontSize: 14, fontWeight: 600 }}>{valor}</span>
+              </>
+            ) : (
+              <span style={{ fontSize: 13.5, fontWeight: 600 }}>{c}</span>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -609,16 +645,8 @@ function PainelDados({ dados, loading, codigo }: { dados: ProdutoDados | null; l
         </div>
       )}
 
-      {dados?.caracteristicas && (
-        <div style={{ marginBottom: 12 }}>
-          <label className="io-l">Onde encontrar / Características</label>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {dados.caracteristicas.split("•").map((c, i) => c.trim() && (
-              <span key={i} style={{ background: "#fff", border: "1px solid #d6d0c4", borderRadius: 3, padding: "5px 10px", fontSize: 12.5 }}>{c.trim()}</span>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* "Onde encontrar / Características" virou o painel lateral DIREITO
+          (PainelLocalizacao) — sempre à vista, sem rolar. */}
 
       {/* Última entrada + últimas vendas moraram aqui — agora vivem no painel
           lateral esquerdo (PainelHistorico), visível o tempo todo. */}

@@ -468,7 +468,7 @@ return (
         });
         return (
         <div key={col.id} style={{ width: '300px', flex: '0 0 300px', display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--portal-border)', padding: '0 12px' }}>
-        <h3 style={{ ...colTitleStyle, background: col.id === 'vencido' ? '#fecaca' : col.id === 'sem_boleto' ? '#fde68a' : '#c5e29f', color: col.id === 'vencido' ? '#b91c1c' : col.id === 'sem_boleto' ? '#92400e' : '#3f6212', borderRadius: '10px', borderBottom: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>{col.titulo}<span style={{ background: 'rgba(255,255,255,.75)', borderRadius: '999px', padding: '1px 9px', fontSize: '12px', fontVariantNumeric: 'tabular-nums' }}>{cardsCol.length}</span></h3>
+        <h3 className="fin-col-title" style={{ ...colTitleStyle, background: col.id === 'vencido' ? '#fecaca' : col.id === 'sem_boleto' ? '#fde68a' : '#c5e29f', color: '#111111', borderRadius: '10px', borderBottom: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>{col.titulo}<span style={{ background: 'rgba(255,255,255,.75)', borderRadius: '999px', padding: '1px 9px', fontSize: '12px', fontVariantNumeric: 'tabular-nums' }}>{cardsCol.length}</span></h3>
 
         <div style={colWrapperStyle}>
           {cardsCol.map((t, idx) => (

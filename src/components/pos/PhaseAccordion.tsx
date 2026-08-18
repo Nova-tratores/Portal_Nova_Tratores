@@ -322,7 +322,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
     <>
       {/* Escopo: Externas x Internas — barra horizontal (boxed) */}
       <div style={{ padding: "12px 30px", display: "flex", borderBottom: "1px solid var(--border)" }}>
-        <div style={{ display: "inline-flex", gap: 4, background: "#EEF1F5", padding: 4, borderRadius: 10 }}>
+        <div style={{ display: "inline-flex", gap: 4, background: "var(--portal-bg-secondary)", padding: 4, borderRadius: 10 }}>
           {([
             { v: "externas" as const, label: "Externas", icon: "fa-globe", count: totExternas, color: "#1E3A5F" },
             { v: "internas" as const, label: "Internas", icon: "fa-tools", count: totInternas, color: "#7C3AED" },
@@ -333,7 +333,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
                 style={{
                   display: "flex", alignItems: "center", gap: 8, padding: "8px 22px", borderRadius: 8,
                   border: active ? `1.5px solid ${t.color}` : "1.5px solid transparent",
-                  background: active ? "#fff" : "transparent",
+                  background: active ? "var(--portal-bg-card)" : "transparent",
                   color: active ? t.color : "var(--portal-text-secondary)",
                   fontWeight: 700, fontSize: 13, cursor: "pointer",
                   boxShadow: active ? "0 1px 3px rgba(0,0,0,0.12)" : "none", transition: "all 0.15s",
